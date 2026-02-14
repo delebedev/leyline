@@ -545,6 +545,45 @@ class GameBridgeTest {
         )
     }
 
+    // --- SelectTargetsReq tests ---
+
+    /** selectTargetsBundle has correct GRE message types and prompt id=10. */
+    @Test
+    fun selectTargetsBundleShape() {
+        val req = Messages.SelectTargetsReq.newBuilder()
+            .addTargets(
+                Messages.TargetSelection.newBuilder()
+                    .addTargets(
+                        Messages.Target.newBuilder()
+                            .setTargetInstanceId(100)
+                            .setLegalAction(Messages.SelectAction.Select_a1ad),
+                    )
+                    .setMinTargets(1)
+                    .setMaxTargets(1),
+            )
+            .build()
+
+        val b = GameBridge()
+        bridge = b
+        b.start()
+        b.submitKeep(1)
+        advanceToMain1(b)
+
+        val game = b.getGame()!!
+        val result = BundleBuilder.selectTargetsBundle(game, b, "test-match", 1, 1, 10, req)
+
+        assertEquals(result.messages.size, 2, "Targets bundle should have 2 messages")
+        assertEquals(
+            result.messages[0].type,
+            Messages.GREMessageType.GameStateMessage_695e,
+        )
+        assertEquals(
+            result.messages[1].type,
+            Messages.GREMessageType.SelectTargetsReq_695e,
+        )
+        assertEquals(result.messages[1].prompt.promptId, 10)
+    }
+
     // --- QueuedGameStateMessage tests ---
 
     /** queuedGameState wraps a GameStateMessage with type 51. */

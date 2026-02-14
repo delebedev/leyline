@@ -9,6 +9,7 @@ import forge.game.combat.CombatUtil
 import forge.game.phase.PhaseType
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
+import forge.web.game.InteractivePromptBridge
 import forge.web.game.chooseCastAbility
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -408,6 +409,32 @@ object StateMapper {
         val castCount = builder.actionsList.count { it.actionType == ActionType.Cast }
         log.info("buildActions: seat={} lands={} casts={} total={}", seatId, landCount, castCount, builder.actionsCount)
 
+        return builder.build()
+    }
+
+    // --- Targeting requests ---
+
+    /**
+     * Build a [SelectTargetsReq] from an [InteractivePromptBridge.PendingPrompt].
+     * Maps prompt candidate refs (entity IDs) to Arena instanceIds via the bridge.
+     */
+    fun buildSelectTargetsReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): SelectTargetsReq {
+        val builder = SelectTargetsReq.newBuilder()
+        val selBuilder = TargetSelection.newBuilder()
+        for (ref in prompt.request.candidateRefs) {
+            val instanceId = bridge.getOrAllocInstanceId(ref.entityId)
+            selBuilder.addTargets(
+                wotc.mtgo.gre.external.messaging.Messages.Target.newBuilder()
+                    .setTargetInstanceId(instanceId)
+                    .setLegalAction(SelectAction.Select_a1ad),
+            )
+        }
+        selBuilder.setMinTargets(prompt.request.min)
+        selBuilder.setMaxTargets(prompt.request.max)
+        builder.addTargets(selBuilder)
         return builder.build()
     }
 

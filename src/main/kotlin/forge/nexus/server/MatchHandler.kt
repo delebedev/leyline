@@ -195,6 +195,12 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
                 }
             }
 
+            ClientMessageType.SelectTargetsResp_097b -> {
+                if (seatId == 1) {
+                    handleSelectTargets(ctx, greMsg)
+                }
+            }
+
             else -> log.info("Match Door GRE: unhandled type: {}", greMsg.type)
         }
     }
@@ -447,6 +453,74 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
     }
 
     /**
+     * Handle SelectTargetsResp: map Arena instanceIds back to prompt option indices and submit.
+     */
+    private fun handleSelectTargets(ctx: ChannelHandlerContext, greMsg: ClientToGREMessage) {
+        val bridge = gameBridge ?: return
+        inInteractivePrompt = false
+
+        val resp = greMsg.selectTargetsResp
+        val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: run {
+            log.warn("Match Door: SelectTargetsResp but no pending prompt")
+            return
+        }
+
+        // Map Arena instanceIds back to prompt option indices
+        val selectedTarget = resp.target
+        val selectedIndices = selectedTarget.targetsList.mapNotNull { target ->
+            val forgeCardId = bridge.getForgeCardId(target.targetInstanceId)
+            if (forgeCardId == null) return@mapNotNull null
+            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId }
+        }.filter { it >= 0 }
+
+        log.info("Match Door: SelectTargetsResp indices={}", selectedIndices)
+        bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
+
+        // Send confirmation
+        sendBundledGRE(
+            ctx,
+            listOf(
+                GREToClientMessage.newBuilder()
+                    .setType(GREMessageType.SubmitTargetsResp_695e)
+                    .setMsgId(msgIdCounter++)
+                    .setGameStateId(gameStateId)
+                    .addSystemSeatIds(seatId)
+                    .setSubmitTargetsResp(SubmitTargetsResp.newBuilder().setResult(ResultCode.Success_a500))
+                    .build(),
+            ),
+        )
+
+        // Wait for engine to process and reach next priority
+        bridge.awaitPriority()
+        autoPassAndAdvance(ctx, bridge)
+    }
+
+    /**
+     * Send SelectTargetsReq to the active player for targeting prompts.
+     */
+    private fun sendSelectTargetsReq(
+        ctx: ChannelHandlerContext,
+        bridge: GameBridge,
+        req: SelectTargetsReq,
+    ) {
+        val game = bridge.getGame() ?: return
+        val result = BundleBuilder.selectTargetsBundle(
+            game,
+            bridge,
+            matchId,
+            seatId,
+            msgIdCounter,
+            gameStateId,
+            req,
+        )
+        msgIdCounter = result.nextMsgId
+        gameStateId = result.nextGsId
+        inInteractivePrompt = true
+        NexusTap.outboundTemplate("SelectTargetsReq seat=$seatId")
+        sendBundledGRE(ctx, result.messages)
+    }
+
+    /**
      * Auto-pass through phases where the player has no meaningful actions.
      * Detects combat phases and sends appropriate combat prompts.
      * Accumulates Diff messages for phase transitions and sends them all
@@ -519,6 +593,14 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
             // life total changes before we continue auto-passing.
             if (phase == PhaseType.COMBAT_END) {
                 sendRealGameState(ctx, bridge)
+                return
+            }
+
+            // Check for pending interactive prompt (targeting, sacrifice, etc.)
+            val pendingPrompt = bridge.promptBridge.getPendingPrompt()
+            if (pendingPrompt != null && pendingPrompt.request.candidateRefs.isNotEmpty()) {
+                val req = StateMapper.buildSelectTargetsReq(pendingPrompt, bridge)
+                sendSelectTargetsReq(ctx, bridge, req)
                 return
             }
 

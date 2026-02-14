@@ -39,6 +39,9 @@ class GameBridge {
     /** Action bridge for seat 1 — blocks engine at priority stops. */
     val actionBridge = GameActionBridge(timeoutMs = 120_000)
 
+    /** Prompt bridge for seat 1 — blocks engine on targeting/choice prompts. */
+    val promptBridge = InteractivePromptBridge(timeoutMs = 120_000)
+
     // --- Card ID mapping (Forge cardId ↔ Arena instanceId) ---
     private val forgeIdToInstanceId = ConcurrentHashMap<Int, Int>()
     private val instanceIdToForgeId = ConcurrentHashMap<Int, Int>()
@@ -117,14 +120,11 @@ class GameBridge {
 
         // Wire WebPlayerController for seat 1 (human) with mulligan bridge
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
-        // Short timeout: Arena path has no prompt UI yet, so unanswered prompts
-        // auto-fallback to defaultIndex quickly. WARN logs surface the gaps.
-        val promptBridge = InteractivePromptBridge(timeoutMs = 3_000)
         val controller = WebPlayerController(
             game = g,
             player = human,
             lobbyPlayer = human.lobbyPlayer,
-            bridge = promptBridge,
+            bridge = this.promptBridge,
             actionBridge = actionBridge,
             mulliganBridge = seat1MulliganBridge,
         )
