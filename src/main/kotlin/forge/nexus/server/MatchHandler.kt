@@ -179,7 +179,9 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
                 }
             }
 
-            ClientMessageType.DeclareAttackersResp_097b -> {
+            ClientMessageType.DeclareAttackersResp_097b,
+            ClientMessageType.SubmitAttackersReq,
+            -> {
                 if (seatId == 1) {
                     handleDeclareAttackers(ctx, greMsg)
                 } else {
@@ -187,7 +189,9 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
                 }
             }
 
-            ClientMessageType.DeclareBlockersResp_097b -> {
+            ClientMessageType.DeclareBlockersResp_097b,
+            ClientMessageType.SubmitBlockersReq,
+            -> {
                 if (seatId == 1) {
                     handleDeclareBlockers(ctx, greMsg)
                 } else {
@@ -605,19 +609,15 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
             }
 
             val actions = StateMapper.buildActions(game, seatId, bridge)
-            val stackNonEmpty = !game.stack.isEmpty
             if (!BundleBuilder.shouldAutoPass(actions)) {
-                // Player has real actions — always send state
+                // Player has real actions (castable spells, lands, etc.) — send state
                 sendRealGameState(ctx, bridge)
                 return
             }
-            if (stackNonEmpty) {
-                // Stack has items — send state so player can respond (even if only Pass available).
-                // Real Arena gives both players priority on every stack item.
-                log.debug("autoPass: stack non-empty (size={}), sending state for response", game.stack.size())
-                sendRealGameState(ctx, bridge)
-                return
-            }
+            // shouldAutoPass: only Pass available.
+            // Auto-pass silently even when stack is non-empty, so spells resolve
+            // to the battlefield in one smooth step instead of requiring repeated
+            // client round-trips for redundant priority checks.
 
             // Skip intermediate Diffs/Edictals — just advance the engine silently
             val pending = bridge.actionBridge.getPending()
