@@ -221,6 +221,34 @@ object BundleBuilder {
     }
 
     /**
+     * Select-targets bundle: GameState + SelectTargetsReq (prompt id=10).
+     */
+    fun selectTargetsBundle(
+        game: Game,
+        bridge: GameBridge,
+        matchId: String,
+        seatId: Int,
+        msgId: Int,
+        gsId: Int,
+        req: SelectTargetsReq,
+    ): BundleResult {
+        var nextMsg = msgId
+        var nextGs = gsId + 1
+
+        val gs = StateMapper.buildFromGame(game, nextGs, matchId, bridge)
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+            it.gameStateMessage = gs
+        }
+
+        val msg2 = makeGRE(GREMessageType.SelectTargetsReq_695e, nextGs, seatId, nextMsg++) {
+            it.selectTargetsReq = req
+            it.setPrompt(Prompt.newBuilder().setPromptId(10).build())
+        }
+
+        return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)
+    }
+
+    /**
      * Wrap a GameStateMessage as QueuedGameStateMessage (type 51) for opponent during prompts.
      */
     fun queuedGameState(
