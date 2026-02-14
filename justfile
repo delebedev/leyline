@@ -193,4 +193,4 @@ _check-upstream:
 _clean-surefire:
     @rm -rf "{{nexus_dir}}/target/surefire-reports"
 
-_nexus_java := 'for p in ' + ports + '; do pid=$(lsof -ti :$p 2>/dev/null); if [ -n "$pid" ]; then echo "Killing pid $pid on port $p"; kill $pid 2>/dev/null; sleep 0.3; fi; done; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp "$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
+_nexus_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill $pid 2>/dev/null || true; done; done; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp "$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
