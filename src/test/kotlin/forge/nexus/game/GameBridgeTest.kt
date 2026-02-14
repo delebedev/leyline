@@ -748,6 +748,44 @@ class GameBridgeTest {
         }
     }
 
+    // --- ZoneTransfer annotation tests ---
+
+    @Test
+    fun landPlayProducesZoneTransferAnnotation() {
+        val b = GameBridge()
+        bridge = b
+        b.start()
+        b.submitKeep(1)
+        advanceToMain1(b)
+
+        val game = b.getGame()!!
+
+        // Build initial state to seed previousZones
+        StateMapper.buildFromGame(game, 1, "test-match", b)
+
+        // Play a land
+        val player = b.getPlayer(1)!!
+        val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
+            ?: return // no lands in hand (unlikely but possible)
+        val pending = b.actionBridge.getPending()
+            ?: return // engine hasn't granted priority
+        b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(land.id))
+        b.awaitPriority()
+
+        // Build post-action state — should have ZoneTransfer annotation
+        val gs = StateMapper.buildFromGame(game, 2, "test-match", b)
+        val zoneTransfers = gs.annotationsList.filter {
+            it.typeList.contains(Messages.AnnotationType.ZoneTransfer_af5a)
+        }
+        Assert.assertTrue(
+            zoneTransfers.isNotEmpty(),
+            "Land play should produce ZoneTransfer annotation",
+        )
+        val ann = zoneTransfers.first()
+        val details = ann.detailsList.associate { it.key to it.valueStringList.first() }
+        assertEquals(details["category"], "PlayLand")
+    }
+
     // --- Helpers ---
 
     /** Play a land + cast a creature from hand at Main1. */

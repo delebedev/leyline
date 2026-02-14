@@ -43,6 +43,16 @@ class GameBridge {
     private val instanceIdToForgeId = ConcurrentHashMap<Int, Int>()
     private var nextInstanceId = 100
 
+    /** Previous zone assignment per instanceId — for detecting zone transfers. */
+    private val previousZones = ConcurrentHashMap<Int, Int>()
+
+    /** Record current zone for an instance. Returns previous zone or null if new. */
+    fun recordZone(instanceId: Int, zoneId: Int): Int? =
+        previousZones.put(instanceId, zoneId)
+
+    /** Snapshot current zones for annotation building. */
+    fun getPreviousZone(instanceId: Int): Int? = previousZones[instanceId]
+
     companion object {
         /** Fallback grpId for cards not in Arena DB (renders face-down). */
         const val FALLBACK_GRPID = 0
