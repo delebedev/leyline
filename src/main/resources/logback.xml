@@ -1,0 +1,29 @@
+<configuration>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- GlitchTip/Sentry: forward WARN+ to error reporting.
+       Reads DSN from SENTRY_DSN env var; no-op when unset. -->
+  <appender name="Sentry" class="io.sentry.logback.SentryAppender">
+    <minimumEventLevel>WARN</minimumEventLevel>
+    <minimumBreadcrumbLevel>OFF</minimumBreadcrumbLevel>
+  </appender>
+
+  <!-- Silence all Ktor internals (routing traces, WS frame dumps, content negotiation) -->
+  <logger name="io.ktor" level="INFO"/>
+
+  <!-- Debug panel: streams log events to nexus-debug.html -->
+  <appender name="DebugPanel" class="forge.nexus.debug.ArenaDebugLogAppender"/>
+
+  <!-- Our code -->
+  <logger name="forge.web" level="DEBUG"/>
+
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+    <appender-ref ref="Sentry"/>
+    <appender-ref ref="DebugPanel"/>
+  </root>
+</configuration>

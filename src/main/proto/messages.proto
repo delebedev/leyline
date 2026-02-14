@@ -1,0 +1,3848 @@
+syntax = "proto3";
+package wotc.mtgo.gre.external.messaging;
+
+// Arena GRE protocol schema — from https://github.com/riQQ/MtgaProto (public)
+
+
+message AIConfig {
+	MatchConfig matchConfig = 1;
+	SettingsMessage defaultSettings = 2;
+	repeated DeckConfig deckConfigs = 3;
+	repeated ResponderConfig responderConfigs = 4;
+	string checkpointFilePath = 5;
+}
+
+message AchievementConfig {
+	uint32 seatId = 1;
+	string name = 2;
+	uint32 grpId = 3;
+	repeated AchievementParameter parameters = 4;
+}
+
+message AchievementInfo {
+	uint32 id = 1;
+	uint32 seatId = 2;
+	string name = 3;
+	uint32 count = 4;
+}
+
+message AchievementParameter {
+	uint32 key = 1;
+	uint32 value = 2;
+}
+
+message AchievementStateMessage {
+	uint32 id = 1;
+	string matchId = 2;
+	repeated PlayerAchievementInfo playerAchievements = 3;
+	uint32 gameNumber = 4;
+}
+
+// See forge-nexus/docs/action-format.md for field semantics.
+// Load-bearing fields per action type:
+//   Play_add3 (land): grpId, instanceId, shouldStop
+//   Cast (spell):     grpId, instanceId, abilityGrpId, manaCost[], shouldStop
+//   Pass:             actionType only
+message Action {
+	ActionType actionType = 1;
+	uint32 grpId = 2;           // card art ID from Arena DB
+	uint32 instanceId = 3;      // runtime card instance (from bridge allocation)
+	uint32 facetId = 4;         // NOT used in Cast actions
+	uint32 abilityGrpId = 6;    // Cast: first ability from Cards.AbilityIds (e.g. 1005)
+	uint32 sourceId = 8;
+	uint32 alternativeGrpId = 9;
+	repeated ManaPaymentOption manaPaymentOptions = 10;
+	repeated ManaRequirement manaCost = 11; // Cast: parsed from OldSchoolManaText
+	bool shouldStop = 12;       // true for Play/Cast, absent for Pass
+	uint32 disqualifyingSourceId = 13;
+	uint32 selectionType = 14;
+	uint32 selection = 15;
+	uint32 alternativeSourceZcid = 17;
+	Visibility visibility = 18;
+	repeated TargetSelection targets = 19;
+	repeated ManaPaymentCondition manaPaymentConditions = 20;
+	AutoTapSolution autoTapSolution = 21;
+	repeated CostBundle auxiliaryManaCosts = 22;
+	uint32 maxActivations = 24;
+	bool isBatchable = 25;
+	ManaRequirement twobridGenericManaCost = 26;
+	HighlightType highlight = 27;
+	repeated Cost costs = 28;
+	uint32 timingSourceGrpid = 30;
+	uint32 uniqueAbilityId = 31;
+	repeated uint32 consumableCostAdjustmentQualificationIds = 32;
+	bool isManaAbilityWithSideEffect = 33;
+	bool assumeCanBePaidFor = 34;
+	repeated ManaSelection manaSelections = 35;
+	bool manaSpentMatters = 36;
+}
+
+// Wrapper for Action in GameStateMessage.actions (sequential actionId + seatId).
+// ActionsAvailableReq uses flat Action (no wrapper).
+message ActionInfo {
+	uint32 actionId = 1;  // sequential 1, 2, 3...
+	uint32 seatId = 2;    // which seat can perform this action
+	Action action = 3;
+}
+
+enum ActionType {
+	None_add3 = 0;
+	Cast = 1;
+	Activate_add3 = 2;
+	Play_add3 = 3;
+	ActivateMana = 4;
+	Pass = 5;
+	ActivateTest = 6;
+	Special_add3 = 7;
+	SpecialTurnFaceUp_add3 = 8;
+	ResolutionCost = 9;
+	CastLeft = 10;
+	CastRight = 11;
+	MakePayment = 12;
+	CombatCost = 14;
+	OpeningHandAction = 15;
+	CastAdventure = 16;
+	FloatMana = 17;
+	CastMdfc = 18;
+	PlayMdfc = 19;
+	SpecialPayment = 20;
+	CastPrototype = 21;
+	CastLeftRoom = 22;
+	CastRightRoom = 23;
+	CastOmen = 24;
+}
+
+message ActionsAvailableReq {
+	repeated Action actions = 1;
+	repeated Action inactiveActions = 2;
+}
+
+enum AllowCancel {
+	None_a526 = 0;
+	Continue = 1;
+	Abort = 2;
+	No_a526 = 3;
+}
+
+enum AllowFailToFind {
+	None_a8f7 = 0;
+	Any = 1;
+	Zero = 2;
+}
+
+message AndCost {
+	repeated Cost costs = 1;
+}
+
+message AnnotationInfo {
+	uint32 id = 1;
+	uint32 affectorId = 2;
+	repeated uint32 affectedIds = 3;
+	repeated AnnotationType type = 4;
+	repeated KeyValuePairInfo details = 6;
+	bool redactAffector = 7;
+	repeated uint32 excludedSeatIds = 8;
+	bool redactAffected = 9;
+	repeated uint32 temporarilyExcludedSeatIds = 10;
+}
+
+enum AnnotationType {
+	None_af5a = 0;
+	ZoneTransfer_af5a = 1;
+	LossOfGame_af5a = 2;
+	DamageDealt_af5a = 3;
+	TappedUntappedPermanent = 4;
+	ModifiedPower = 5;
+	ModifiedToughness = 6;
+	ModifiedColor = 7;
+	PhaseOrStepModified = 8;
+	AddAbility_af5a = 9;
+	ModifiedLife = 10;
+	CreateAttachment = 11;
+	RemoveAttachment = 12;
+	ObjectIdChanged = 13;
+	Counter_803b = 14;
+	ControllerChanged = 15;
+	CounterAdded = 16;
+	CounterRemoved = 17;
+	LayeredEffectCreated = 18;
+	LayeredEffectDestroyed = 19;
+	Attachment = 20;
+	Haunt = 21;
+	CopiedObject = 22;
+	RemoveAbility = 23;
+	WinTheGame = 24;
+	ModifiedType = 25;
+	TargetSpec = 26;
+	TextChange = 27;
+	FaceDown = 28;
+	TurnPermanent = 29;
+	DynamicAbility = 30;
+	ObjectsSelected = 31;
+	TriggeringObject = 32;
+	DamageSource = 33;
+	ManaPaid = 34;
+	TokenCreated = 35;
+	AbilityInstanceCreated = 36;
+	AbilityInstanceDeleted = 37;
+	DisplayCardUnderCard = 38;
+	AbilityWordActive = 39;
+	LinkInfo = 40;
+	TokenDeleted = 41;
+	Qualification = 42;
+	ResolutionStart = 43;
+	ResolutionComplete = 44;
+	Designation = 45;
+	GainDesignation = 46;
+	CardRevealed = 47;
+	NewTurnStarted = 48;
+	ManaDetails = 49;
+	DisqualifiedEffect = 50;
+	LayeredEffect = 51;
+	MiscContinuousEffect = 52;
+	ShouldntPlay = 53;
+	UseOrCostsManaCost = 54;
+	RemainingSelections = 55;
+	Shuffle = 56;
+	CoinFlip = 57;
+	ChoiceResult = 58;
+	RevealedCardCreated = 59;
+	RevealedCardDeleted = 60;
+	SuspendLike = 61;
+	ReplacementEffect_803b = 62;
+	EnteredZoneThisTurn = 63;
+	CastingTimeOption = 64;
+	Scry_af5a = 65;
+	PredictedDirectDamage = 66;
+	SwitchPowerToughness = 67;
+	SupplementalText = 68;
+	PendingEffect = 69;
+	AttachmentCreated = 70;
+	PowerToughnessModCreated = 71;
+	SyntheticEvent = 72;
+	UserActionTaken = 73;
+	DelayedTriggerAffectees = 74;
+	InstanceRevealedToOpponent = 75;
+	ModifiedName = 76;
+	ReplacementEffectApplied = 77;
+	ReferencedObjects = 78;
+	ChoosingAttachments = 79;
+	TemporaryPermanent = 80;
+	GamewideHistoryCount = 81;
+	AbilityExhausted = 82;
+	MultistepEffectStarted = 83;
+	MultistepEffectComplete = 84;
+	DieRoll = 85;
+	DungeonStatus = 86;
+	LinkedDamage = 87;
+	ClassLevel = 88;
+	TokenImmediatelyDied = 89;
+	DamagedThisTurn = 90;
+	ReferencedCardNames = 91;
+	PlayerSelectingTargets = 92;
+	PlayerSubmittedTargets = 93;
+	CrewedThisTurn = 94;
+	PhasedOut_af5a = 95;
+	PhasedIn = 96;
+	LoyaltyActivationsRemaining = 97;
+	GroupedIds = 98;
+	RegeneratePending = 99;
+	PermanentRegenerated = 100;
+	ObjectsToDistinguish = 101;
+	BoonInfo = 102;
+	LoseDesignation = 103;
+	SaddledThisTurn = 104;
+	HiddenInformation = 105;
+	LoopCount = 106;
+	Vote = 107;
+	SuppressedPowerAndToughness = 108;
+	GenericRelationship = 109;
+	ColorProduction = 110;
+	CopyException = 111;
+	SelectNdecoration = 112;
+	ModifiedCost = 113;
+}
+
+enum Answer {
+	None_a5be = 0;
+	Yes_a5be = 1;
+	No_a5be = 2;
+}
+
+message AnyMessage {
+	int64 timestamp = 1;
+	oneof message {
+		ServerToGREMessage serverToGREMessage = 2;
+		GREToServerMessage gREToServerMessage = 3;
+		ClientToGREMessage clientToGREMessage = 4;
+		GREToClientMessage gREToClientMessage = 5;
+	}
+}
+
+message AnyToGREMessage {
+	int64 timestamp = 1;
+	oneof message {
+		ServerToGREMessage serverToGREMessage = 2;
+		ClientToGREMessage clientToGREMessage = 3;
+	}
+}
+
+message AssignDamageConfirmation {
+	ResultCode result = 1;
+}
+
+message AssignDamageReq {
+	repeated DamageAssigner damageAssigners = 1;
+}
+
+message AssignDamageResp {
+	repeated DamageAssigner assigners = 1;
+}
+
+message AttackInfo {
+	uint32 targetId = 1;
+	bool damageOrdered = 2;
+	bool damageAssigned = 3;
+	repeated OrderedDamageAssignment orderedBlockers = 4;
+	uint32 alternativeGrpId = 5;
+}
+
+enum AttackState {
+	None_a3a9 = 0;
+	Declared_a3a9 = 1;
+	Attacking = 2;
+}
+
+message AttackWarning {
+	uint32 instanceId = 1;
+	AttackWarningType type = 2;
+	uint32 warningPromptId = 3;
+}
+
+enum AttackWarningType {
+	None_ae63 = 0;
+	MustAttackWithAtLeastOne = 1;
+	CannotAttackAlone = 2;
+	MustAttack = 3;
+	UnpayableEffectCost = 4;
+	CannotBeAttackedByMoreThanOne = 5;
+}
+
+message Attacker {
+	uint32 attackerInstanceId = 1;
+	repeated DamageRecipient legalDamageRecipients = 2;
+	DamageRecipient selectedDamageRecipient = 3;
+	uint32 alternativeGrpId = 4;
+	bool mustAttack = 6;
+}
+
+message AuthenticateRequest {
+	string clientId = 1;
+	bytes clientAuthToken = 2;
+	string playerName = 3;
+	string playFabSessionTicket = 4;
+	int32 inactivityTimeoutMs = 5;
+	ClientInfo clientInfo = 10;
+}
+
+message AuthenticateResponse {
+	string clientId = 1;
+	string sessionId = 2;
+	int32 inactivityTimeoutMs = 3;
+	string screenName = 10;
+}
+
+message AutoAnswer {
+	uint32 promptGrpId = 1;
+	uint32 abilityGrpId = 2;
+	uint32 cardTitleId = 3;
+	SettingScope appliesTo = 4;
+	SettingStatus status = 5;
+	Answer answer = 6;
+}
+
+enum AutoPassOption {
+	None_a465 = 0;
+	Turn = 1;
+	UnlessAction = 2;
+	EndStep_a465 = 3;
+	Clear_a465 = 4;
+	UnlessOpponentAction = 5;
+	ResolveMyStackEffects = 6;
+	FullControl = 7;
+	ResolveAll = 9;
+}
+
+enum AutoPassPriority {
+	None_a099 = 0;
+	No_a099 = 1;
+	Yes_a099 = 2;
+}
+
+message AutoRespondPermission {
+	repeated uint32 seatIds = 1;
+}
+
+message AutoTapAction {
+	uint32 instanceId = 1;
+	uint32 abilityGrpId = 2;
+	uint32 manaId = 3;
+	ManaPaymentOption manaPaymentOption = 4;
+}
+
+message AutoTapActionsAvailableReq {
+	repeated AutoTapSolution autoTapSolutions = 2;
+}
+
+message AutoTapManaPayment {
+	ManaColor manaColor = 1;
+	uint32 manaSpecTypeBits = 2;
+}
+
+message AutoTapSolution {
+	repeated AutoTapAction autoTapActions = 1;
+	repeated ManaPaymentCondition manaPaymentConditions = 2;
+	repeated ManaColor selectedManaColors = 3;
+	repeated AutoTapManaPayment manaPayments = 4;
+}
+
+enum AutoTapStopsSetting {
+	None_ac12 = 0;
+	Enable_ac12 = 1;
+	Disable_ac12 = 2;
+}
+
+message AutoYield {
+	uint32 abilityGrpId = 1;
+	uint32 cardTitleId = 2;
+	SettingScope appliesTo = 3;
+	SettingStatus status = 4;
+}
+
+message BinaryGameState {
+	GameStateMessage gameStateMsg = 1;
+	bytes instanceData = 2;
+	bytes internalGREData = 4;
+}
+
+message BlockInfo {
+	repeated uint32 attackerIds = 1;
+	bool damageOrdered = 2;
+	bool damageAssigned = 3;
+	repeated OrderedDamageAssignment orderedAttackers = 4;
+}
+
+enum BlockState {
+	None_aa2d = 0;
+	Declared_aa2d = 1;
+	Blocking = 2;
+	Blocked = 3;
+	Unblocked = 4;
+}
+
+message BlockWarning {
+	uint32 instanceId = 1;
+	BlockWarningType type = 2;
+	uint32 warningPromptId = 3;
+}
+
+enum BlockWarningType {
+	None_a071 = 0;
+	InsufficientBlockers = 1;
+	CannotBlockAlone = 2;
+	MustBeBlocked = 3;
+	MustBlock = 4;
+	MustBeBlockedByAll = 5;
+}
+
+message Blocker {
+	uint32 blockerInstanceId = 1;
+	repeated uint32 attackerInstanceIds = 2;
+	repeated uint32 selectedAttackerInstanceIds = 3;
+	uint32 minAttackers = 4;
+	uint32 maxAttackers = 5;
+	bool mustBlock = 6;
+}
+
+message BoolValue {
+	bool value = 1;
+}
+
+message BoolValues {
+	repeated bool values = 1;
+}
+
+message CLIPSConfiguration {
+	bool enableWatch = 1;
+	bool enableMetrics = 2;
+	bool enableLogging = 3;
+	string initFile = 4;
+	string metricsFile = 7;
+	string logFile = 8;
+	bool metricsFileAppend = 9;
+	bool logFileAppend = 10;
+	bool enableDynamicConstraintChecking = 11;
+}
+
+message CancelActionReq {
+}
+
+enum CardColor {
+	Colorless_a3b0 = 0;
+	White_a3b0 = 1;
+	Blue_a3b0 = 2;
+	Black_a3b0 = 3;
+	Red_a3b0 = 4;
+	Green_a3b0 = 5;
+	Land_a3b0 = 6;
+	Artifact_a3b0 = 7;
+}
+
+message CardConfig {
+	uint32 count = 1;
+	string title = 2;
+	string expansionCode = 3;
+	string rarity = 4;
+	string cardPoolFilePath = 5;
+}
+
+enum CardMechanicType {
+	None_a57f = 0;
+	AddAbility_a57f = 2;
+	AddAttachment = 3;
+	DealDamage = 4;
+	DestroyPermanent = 5;
+	Discard_a57f = 6;
+	DrawCard = 7;
+	LossOfGame_a57f = 8;
+	SetColor = 9;
+	PayLife = 10;
+	ModifyPower = 11;
+	ModifyToughness = 12;
+	PhaseOrStepTransition = 13;
+	PutCounterOnObject = 14;
+	CreateToken = 15;
+	RemoveCounterFromObject = 16;
+	ResolveAbility = 17;
+	Reveal = 18;
+	TapPermanent = 19;
+	UntapPermanent = 21;
+	ZoneTransfer_a57f = 22;
+	RegeneratePermanent = 23;
+	SacrificePermanent = 24;
+	SetController = 25;
+	DeclaredAttacker = 26;
+	DeclaredBlocker = 27;
+	BecomeTarget = 28;
+	AddToManaPool = 29;
+	EnterZone = 30;
+	ShuffleLibrary = 31;
+	CounterObjectOnStack = 32;
+	ExileGameObject = 33;
+	DamageDealt_a57f = 34;
+	PhaseInPermanent = 35;
+	PhaseOutPermanent = 36;
+	AttackerBlocked = 37;
+	AttackersSubmitted = 38;
+	BlockersDetermined = 39;
+	SetPower = 40;
+	SetToughness = 41;
+	BeginTurn = 42;
+	TurnFaceUp = 43;
+	Transform = 44;
+	Dredge = 45;
+	Explore = 46;
+	Provoke = 47;
+	Riot = 48;
+	Mutate = 49;
+	GraveyardExile = 50;
+	Exert = 51;
+	PutTopOrBottom = 52;
+	Forage = 53;
+	Enweb = 54;
+	Placeholder55 = 55;
+	Placeholder56 = 56;
+}
+
+message CardSkinTuple {
+	uint32 catalogId = 1;
+	string skinCode = 2;
+}
+
+enum CardType {
+	None_a80b = 0;
+	Artifact_a80b = 1;
+	Creature = 2;
+	Enchantment = 3;
+	Instant = 4;
+	Land_a80b = 5;
+	Phenomenon = 6;
+	Plane = 7;
+	Planeswalker = 8;
+	Scheme = 9;
+	Sorcery = 10;
+	Kindred = 11;
+	Vanguard_a80b = 12;
+	Dungeon = 13;
+	Battle = 14;
+}
+
+message CastingTimeOptionReq {
+	uint32 ctoId = 1;
+	CastingTimeOptionType castingTimeOptionType = 2;
+	uint32 affectedId = 3;
+	uint32 affectorId = 4;
+	uint32 grpId = 5;
+	uint32 playerIdToPrompt = 6;
+	bool isRequired = 7;
+	Prompt prompt = 8;
+	oneof message {
+		NumericInputReq numericInputReq = 9;
+		SelectManaTypeReq selectManaTypeReq = 10;
+		ModalReq modalReq = 11;
+		SelectNReq selectNReq = 12;
+	}
+	repeated ManaRequirement manaCost = 13;
+	AutoTapSolution autoTapSolution = 15;
+}
+
+message CastingTimeOptionResp {
+	uint32 ctoId = 1;
+	CastingTimeOptionType castingTimeOptionType = 2;
+	oneof message {
+		NumericInputResp numericInputResp = 3;
+		SelectManaTypeResp selectManaTypeResp = 4;
+		ChooseModalResp chooseModalResp = 5;
+		SelectNResp selectNResp = 6;
+	}
+}
+
+enum CastingTimeOptionType {
+	None_a7b4 = 0;
+	Done = 1;
+	ChooseX_a7b4 = 2;
+	Kicker = 3;
+	Multikicker = 4;
+	AdditionalCost = 5;
+	OptionalCost = 6;
+	Replicate = 7;
+	Conspire = 8;
+	ManaType = 9;
+	Modal_a7b4 = 10;
+	ChooseOrCost = 11;
+	Selection = 12;
+	CastThroughAbility = 13;
+	TimingPermission = 14;
+	Casualty = 15;
+	Specialize = 16;
+	Bargain = 17;
+	OptionalCostPaid = 18;
+}
+
+message CastingTimeOptionsReq {
+	repeated CastingTimeOptionReq castingTimeOptionReq = 1;
+}
+
+message CastingTimeOptionsResp {
+	CastingTimeOptionResp castingTimeOptionResp = 1;
+	repeated CastingTimeOptionResp castingTimeOptionResps = 2;
+}
+
+message CheckpointConfiguration {
+	bool enabled = 1;
+}
+
+enum ChoicePersistence {
+	None_a203 = 0;
+	ChooseOnce = 1;
+	ChooseAlways = 2;
+}
+
+message ChooseModalResp {
+	repeated uint32 grpIds = 2;
+}
+
+message ChooseStartingPlayerReq {
+	TeamType teamType = 1;
+	repeated uint32 systemSeatIds = 2;
+	repeated uint32 teamIds = 3;
+	Prompt prompt = 4;
+}
+
+message ChooseStartingPlayerResp {
+	TeamType teamType = 1;
+	uint32 systemSeatId = 2;
+	uint32 teamId = 3;
+}
+
+message ClientInfo {
+	string clientId = 1;
+	ClientType clientType = 2;
+	string clientVersion = 10;
+	string clientLocation = 11;
+	string clientLanguage = 12;
+}
+
+enum ClientMessageType {
+	None_a39e = 0;
+	ConnectReq_097b = 1;
+	CancelActionReq_097b = 5;
+	ConcedeReq_097b = 7;
+	EnterSideboardingReq = 8;
+	ForceDrawReq_097b = 9;
+	CheckpointReq = 10;
+	GetSettingsReq = 11;
+	GroupResp_097b = 12;
+	MulliganResp_097b = 13;
+	OrderResp_097b = 14;
+	PerformActionResp_097b = 15;
+	ControlReq_097b = 17;
+	SelectNresp = 18;
+	SetSettingsReq_097b = 20;
+	UndoReq = 22;
+	ChooseStartingPlayerResp_097b = 24;
+	OptionalActionResp = 25;
+	AllowForceDrawResp = 26;
+	RevealHandResp = 28;
+	DeclareAttackersResp_097b = 30;
+	SubmitAttackersReq = 31;
+	DeclareBlockersResp_097b = 32;
+	SubmitBlockersReq = 33;
+	OrderCombatDamageResp = 34;
+	AssignDamageResp_097b = 35;
+	SelectTargetsResp_097b = 36;
+	SubmitTargetsReq = 37;
+	DrawCardResp = 38;
+	SelectReplacementResp_097b = 39;
+	SelectNgroupResp = 40;
+	DistributionResp_097b = 42;
+	NumericInputResp_097b = 43;
+	SearchResp_097b = 44;
+	EffectCostResp_097b = 45;
+	CastingTimeOptionsResp_097b = 46;
+	SelectFromGroupsResp_097b = 48;
+	SearchFromGroupsResp_097b = 49;
+	GatherResp_097b = 50;
+	AutoResp = 52;
+	Uimessage_a39e = 53;
+	SubmitDeckResp_097b = 54;
+	TakeTimeoutReq = 55;
+	PerformAutoTapActionsResp_097b = 56;
+	StringInputResp_097b = 57;
+	SelectCountersResp_097b = 58;
+	PredictionReq_097b = 59;
+}
+
+message ClientToGREMessage {
+	ClientMessageType type = 1;
+	uint32 systemSeatId = 2;
+	uint32 gameStateId = 3;
+	uint32 respId = 4;
+	oneof message {
+		ConnectReq connectReq = 5;
+		CancelActionReq cancelActionReq = 6;
+		ConcedeReq concedeReq = 8;
+		ForceDrawReq forceDrawReq = 9;
+		GroupResp groupResp = 10;
+		MulliganResp mulliganResp = 11;
+		OptionalResp optionalResp = 12;
+		OrderResp orderResp = 13;
+		PerformActionResp performActionResp = 14;
+		SelectNResp selectNResp = 15;
+		SetSettingsReq setSettingsReq = 16;
+		ChooseStartingPlayerResp chooseStartingPlayerResp = 21;
+		DeclareAttackersResp declareAttackersResp = 22;
+		DeclareBlockersResp declareBlockersResp = 23;
+		AssignDamageResp assignDamageResp = 25;
+		SelectTargetsResp selectTargetsResp = 26;
+		SelectReplacementResp selectReplacementResp = 27;
+		SelectNGroupResp selectNGroupResp = 28;
+		DistributionResp distributionResp = 30;
+		NumericInputResp numericInputResp = 31;
+		SearchResp searchResp = 32;
+		EffectCostResp effectCostResp = 33;
+		CastingTimeOptionsResp castingTimeOptionsResp = 34;
+		SelectFromGroupsResp selectFromGroupsResp = 36;
+		SearchFromGroupsResp searchFromGroupsResp = 37;
+		GatherResp gatherResp = 38;
+		UIMessage uiMessage = 40;
+		SubmitDeckResp submitDeckResp = 41;
+		ControlReq controlReq = 42;
+		PerformAutoTapActionsResp performAutoTapActionsResp = 43;
+		StringInputResp stringInputResp = 44;
+		SelectCountersResp selectCountersResp = 45;
+		PredictionReq predictionReq = 46;
+	}
+	uint32 timerId = 100;
+}
+
+message ClientToMatchDoorConnectRequest {
+	string matchId = 1;
+	string mcFabricUri = 2;
+	bytes clientToGreMessageBytes = 10;
+}
+
+message ClientToMatchServiceMessage {
+	int32 requestId = 1;
+	ClientToMatchServiceMessageType clientToMatchServiceMessageType = 2;
+	int64 timestamp = 3;
+	string transactionId = 4;
+	bytes payload = 100;
+}
+
+enum ClientToMatchServiceMessageType {
+	None_a0f0 = 0;
+	ClientToMatchDoorConnectRequest_f487 = 1;
+	ClientToGremessage = 2;
+	ClientToGreuimessage = 3;
+	AuthenticateRequest_f487 = 4;
+	CreateMatchGameRoomRequest_f487 = 5;
+	EchoRequest_f487 = 8;
+}
+
+enum ClientType {
+	Invalid_aa18 = 0;
+	User = 1;
+	Service = 2;
+	Familiar = 3;
+}
+
+message ConcedeReq {
+	MatchScope scope = 1;
+	uint32 gameNumber = 2;
+}
+
+message ConnectReq {
+	SettingsMessage defaultSettings = 5;
+	ProtoVersion protoVer = 6;
+	Version grpVersion = 8;
+	uint32 grpChangelist = 9;
+}
+
+message ConnectResp {
+	ConnectionStatus status = 1;
+	ProtoVersion protoVer = 6;
+	SettingsMessage settings = 8;
+	DeckMessage deckMessage = 9;
+	Version grpVersion = 10;
+	Version greVersion = 11;
+	repeated CardSkinTuple skins = 12;
+	uint32 grpChangelist = 13;
+	uint32 greChangelist = 14;
+}
+
+enum ConnectionState {
+	Invalid_aa01 = 0;
+	Open = 1;
+	Closed = 2;
+	Connecting = 3;
+	Closing = 4;
+}
+
+enum ConnectionStatus {
+	None_aa9e = 0;
+	Success_aa9e = 1;
+	GrpversionIncompat = 2;
+	ProtoVersionIncompat = 3;
+}
+
+message ControlReq {
+	ControllerType type = 1;
+	uint32 controllerId = 2;
+}
+
+enum ControllerType {
+	None_abfa = 0;
+	Player_abfa = 1;
+	Ai = 2;
+	AiGoldfish = 3;
+	AiPetRock = 4;
+	AiMultiplayerConcession = 5;
+}
+
+message CosmeticConfig {
+	uint32 seatId = 1;
+	string data = 2;
+}
+
+message CosmeticInfo {
+	uint32 seatId = 1;
+	string data = 2;
+}
+
+message Cost {
+	CostType type = 1;
+	uint32 id = 2;
+	uint32 objectId = 3;
+	uint32 abilityGrpId = 4;
+	uint32 index = 5;
+	oneof message {
+		ManaCost manaCost = 7;
+		EffectCost effectCost = 8;
+		LifeCost lifeCost = 9;
+		LoyaltyCost loyaltyCost = 10;
+		OrCost orCost = 11;
+		AndCost andCost = 12;
+	}
+}
+
+message CostBundle {
+	repeated Cost costs = 1;
+}
+
+enum CostType {
+	None_adc9 = 0;
+	Mana = 1;
+	TapSelf = 2;
+	SacSelf = 3;
+	Effect = 4;
+	Loyalty_adc9 = 5;
+	DiscardSelf = 6;
+	Life = 7;
+	ExileSelf = 8;
+	UntapSelf = 9;
+	Or = 10;
+	And = 11;
+}
+
+message Counter {
+	uint32 id = 1;
+	CounterType type = 2;
+	uint32 count = 3;
+	uint32 sourceId = 4;
+}
+
+message CounterPair {
+	uint32 instanceId = 1;
+	CounterType counterType = 2;
+	uint32 count = 3;
+}
+
+enum CounterType {
+	None_a40e = 0;
+	P1P1 = 1;
+	M1M1 = 2;
+	Poison = 3;
+	Wind = 4;
+	Time = 5;
+	Fade = 6;
+	Loyalty_a40e = 7;
+	Wish = 8;
+	Age = 9;
+	Aim = 10;
+	Arrow = 11;
+	Arrowhead = 12;
+	Awakening = 13;
+	Blaze = 14;
+	Blood_a40e = 15;
+	Bounty = 16;
+	Bribery = 17;
+	Carrion = 18;
+	Charge = 19;
+	Control_a40e = 20;
+	Corpse = 21;
+	Credit = 22;
+	Cube = 23;
+	Currency = 24;
+	Death = 25;
+	Delay_a40e = 26;
+	Depletion = 27;
+	Despair = 28;
+	Devotion = 29;
+	Divinity = 30;
+	Doom = 31;
+	Dream = 32;
+	Echo = 33;
+	Elixir = 34;
+	Energy = 35;
+	Eon = 36;
+	Eyeball = 37;
+	Fate = 38;
+	Feather = 39;
+	Filibuster = 40;
+	Flame = 41;
+	Flood = 42;
+	Fungus_a40e = 43;
+	Fuse = 44;
+	Glyph = 45;
+	Gold_a40e = 46;
+	Growth = 47;
+	Hatchling = 48;
+	Healing = 49;
+	Hoofprint = 50;
+	Hourglass = 51;
+	Hunger = 52;
+	Ice = 53;
+	Infection = 54;
+	Intervention = 55;
+	Javelin = 56;
+	Ki = 57;
+	Level = 58;
+	Luck = 59;
+	Magnet = 60;
+	Mannequin = 61;
+	Matrix = 62;
+	May = 63;
+	Mine_a40e = 64;
+	Mining = 65;
+	Mire = 66;
+	Muster = 67;
+	Net = 68;
+	Omen_a40e = 69;
+	Ore = 70;
+	Page = 71;
+	Pain = 72;
+	Paralyzation = 73;
+	Petal = 74;
+	Petrification = 75;
+	Phylactery = 76;
+	Pin = 77;
+	Plague = 78;
+	Polyp = 79;
+	Pressure = 80;
+	Pupa = 81;
+	Quest = 82;
+	Scream = 83;
+	Scroll = 84;
+	Shell = 85;
+	Shield = 86;
+	Shred = 87;
+	Sleep = 88;
+	Sleight = 89;
+	Slime = 90;
+	Soot = 91;
+	Spell = 92;
+	Spore = 93;
+	Storage = 94;
+	Strife = 95;
+	Study = 96;
+	Theft = 97;
+	Tide = 98;
+	Tower_a40e = 100;
+	Training = 101;
+	Trap_a40e = 102;
+	Treasure_a40e = 103;
+	Verse = 104;
+	Vitality = 105;
+	Wage = 106;
+	Winch = 107;
+	Lore = 108;
+	P1P2 = 109;
+	P0P1 = 110;
+	P0P2 = 111;
+	P1P0 = 112;
+	P2P2 = 113;
+	M0M1 = 114;
+	M0M2 = 115;
+	M1M0 = 116;
+	M2M1 = 117;
+	M2M2 = 118;
+	Manifestation = 119;
+	Gem = 120;
+	Crystal = 121;
+	Isolation = 122;
+	Hour = 123;
+	Unity = 124;
+	Velocity = 125;
+	Brick = 126;
+	Landmark = 127;
+	Prey = 128;
+	Silver = 129;
+	Egg_a40e = 130;
+	Hit = 131;
+	Knowledge = 132;
+	Task = 133;
+	Coin = 134;
+	Deathtouch = 135;
+	FirstStrike = 136;
+	Flying = 137;
+	Hexproof = 138;
+	Lifelink = 139;
+	Menace = 140;
+	Reach = 141;
+	Trample = 142;
+	Vigilance = 143;
+	Foreshadow = 144;
+	Incarnation_a40e = 145;
+	Soul = 146;
+	Voyage = 147;
+	Ghostform = 148;
+	Night = 149;
+	Indestructible = 150;
+	Hone = 151;
+	Book = 152;
+	Point = 153;
+	Enlightened = 154;
+	Harmony = 155;
+	Void = 156;
+	Ember = 157;
+	Ritual = 158;
+	Valor = 159;
+	Judgment = 160;
+	Invitation = 161;
+	Croak = 162;
+	Bloodline = 163;
+	Suspect = 164;
+	Acorn = 165;
+	Hatching = 166;
+	Stash = 167;
+	Collection = 168;
+	Rope = 169;
+	Ingenuity = 170;
+	Phyresis = 171;
+	Stun = 172;
+	Oil = 173;
+	Defense = 174;
+	Experience = 175;
+	Slumber = 176;
+	Rejection = 177;
+	Burden = 178;
+	Hope = 179;
+	Influence = 180;
+	Skewer = 181;
+	Bore = 182;
+	Chorus_a40e = 183;
+	Dread = 184;
+	Finality = 185;
+	Bloodstain = 186;
+	Impostor = 187;
+	Unlock = 188;
+	Fetch = 189;
+	Loot = 190;
+	Exalted = 191;
+	Story = 192;
+	Everything = 193;
+	Blight = 194;
+	Supply = 195;
+	Feeding = 196;
+	Nest = 197;
+	Possession = 198;
+	Rev = 199;
+	Incubation = 200;
+	Revival = 201;
+	Fellowship = 202;
+	Bait = 203;
+	Wreck = 204;
+	Decayed = 205;
+	Conqueror = 206;
+	Fire = 207;
+	Film = 208;
+	DoubleStrike = 209;
+	Phct210 = 210;
+	Phct211 = 211;
+}
+
+message CreateMatchGameRoomRequest {
+	MatchGameRoomConfig gameRoomConfig = 1;
+}
+
+message CreateMatchGameRoomResponseV2 {
+	string mcFabricUri = 1;
+}
+
+message CubeConfig {
+	repeated uint32 cardIds = 1;
+}
+
+message DamageAssigner {
+	uint32 instanceId = 1;
+	uint32 totalDamage = 2;
+	repeated DamageAssignment assignments = 3;
+	Prompt decisionPrompt = 4;
+	bool canIgnoreBlockers = 5;
+	bool damageAffectedByReplacements = 7;
+}
+
+message DamageAssignment {
+	uint32 instanceId = 1;
+	uint32 minDamage = 2;
+	uint32 maxDamage = 3;
+	uint32 assignedDamage = 4;
+}
+
+enum DamageRecType {
+	None_a0e5 = 0;
+	Team_a0e5 = 1;
+	Player_a0e5 = 2;
+	PlanesWalker = 3;
+}
+
+message DamageRecipient {
+	enum IdOneofCase {
+		None = 0;
+		TeamId = 2;
+		PlayerSystemSeatId = 3;
+		PlaneswalkerInstanceId = 4;
+	}
+
+	DamageRecType type = 1;
+	uint32 teamId = 2;
+	uint32 playerSystemSeatId = 3;
+	uint32 planeswalkerInstanceId = 4;
+}
+
+message DeckConfig {
+	uint32 seatId = 1;
+	repeated CardConfig deckCards = 2;
+	repeated CardConfig sideboardCards = 3;
+	repeated CardConfig commanderCards = 4;
+	string deckFilePath = 5;
+}
+
+message DeckConstraintInfo {
+	uint32 minDeckSize = 1;
+	uint32 maxDeckSize = 2;
+	uint32 minSideboardSize = 3;
+	uint32 maxSideboardSize = 4;
+	uint32 minCommanderSize = 5;
+	uint32 maxCommanderSize = 6;
+}
+
+message DeckMessage {
+	repeated uint32 deckCards = 1;
+	repeated uint32 sideboardCards = 2;
+	repeated uint32 commanderCards = 3;
+	uint32 deckMessageFieldFour = 4;
+}
+
+message DeclareAttackersReq {
+	repeated Attacker attackers = 1;
+	bool hasRequirements = 2;
+	bool hasRestrictions = 3;
+	repeated AttackWarning attackWarnings = 4;
+	repeated ManaRequirement manaCost = 5;
+	repeated Attacker qualifiedAttackers = 7;
+	bool canSubmitAttackers = 8;
+}
+
+message DeclareAttackersResp {
+	repeated Attacker selectedAttackers = 1;
+	bool autoDeclare = 2;
+	DamageRecipient autoDeclareDamageRecipient = 3;
+}
+
+message DeclareBlockersReq {
+	repeated Blocker blockers = 1;
+	bool hasRequirements = 2;
+	bool hasRestrictions = 3;
+	repeated BlockWarning blockWarnings = 4;
+	repeated ManaRequirement manaCost = 5;
+}
+
+message DeclareBlockersResp {
+	repeated Blocker selectedBlockers = 1;
+}
+
+message DieRollResultsResp {
+	repeated PlayerDieRoll playerDieRolls = 1;
+}
+
+message Distribution {
+	uint32 instanceId = 1;
+	uint32 amount = 2;
+}
+
+message DistributionReq {
+	uint32 minAmount = 2;
+	uint32 maxAmount = 3;
+	uint32 minPerTarget = 4;
+	repeated uint32 targetIds = 5;
+	repeated uint32 existingDistributionValues = 6;
+	repeated uint32 requiredDistributionValues = 7;
+	repeated uint32 validSelectedTargetIds = 8;
+	uint32 sourceId = 9;
+}
+
+message DistributionResp {
+	repeated Distribution distributions = 2;
+}
+
+message DoubleValue {
+	double value = 1;
+}
+
+message DoubleValues {
+	repeated double values = 1;
+}
+
+message EchoRequest {
+	string message = 1;
+}
+
+message EchoResponse {
+	string message = 1;
+}
+
+message EdictalMessage {
+	ClientToGREMessage edictMessage = 1;
+}
+
+message EffectCost {
+	repeated CardMechanicType cardMechanicTypes = 1;
+	EffectCostType effectCostType = 2;
+	int32 count = 3;
+}
+
+message EffectCostReq {
+	EffectCostType effectCostType = 3;
+	oneof message {
+		SelectNReq costSelection = 4;
+		SelectCountersReq counterSelection = 5;
+		SelectFromGroupsReq groupSelection = 6;
+		GatherReq gatherReq = 7;
+	}
+}
+
+message EffectCostResp {
+	EffectCostType effectCostType = 2;
+	oneof message {
+		SelectNResp costSelection = 3;
+		SelectCountersResp counterSelection = 4;
+		SelectFromGroupsResp groupSelection = 5;
+		GatherResp gatherResp = 38;
+	}
+}
+
+enum EffectCostType {
+	None_a59c = 0;
+	Select_a59c = 1;
+	SelectCounter = 2;
+	Autoselect = 3;
+	SelectFromGroups = 4;
+	GatherCounters = 5;
+}
+
+enum FailureReason {
+	None_a63a = 0;
+	Expired = 1;
+	OutOfTurn = 2;
+	ReqRespMismatch = 3;
+	ActionNotBatchable = 4;
+	ActionInvalid = 5;
+	IncompleteMessage = 6;
+	IllegalOption = 7;
+	UnrecognizedValue = 8;
+	TargetsUnavailable = 9;
+	TargetIndexOutOfRange = 10;
+	TargetIllegal = 11;
+	UnrecognizedManaId = 12;
+	InvalidOptionSelection = 13;
+	UnexpectedMessage = 14;
+	LimitViolation = 15;
+	RestrictionViolated_a63a = 16;
+	RequirementViolated_a63a = 17;
+	UnpayableCost = 18;
+	InvalidSeatId = 19;
+	InvalidTeamId = 20;
+	InvalidMatchState = 21;
+	InvalidMatchScope = 22;
+	InvalidDeck = 23;
+	InvalidCancelState = 24;
+	InvalidUndoState = 25;
+	PermissionDenied = 26;
+	NoTimeout = 27;
+	InvalidColor = 28;
+	InvalidManaColor = 29;
+	InvalidCoinFace = 30;
+	InvalidCard = 31;
+	InvalidCardName = 32;
+	InvalidCardType = 33;
+	InvalidSubType = 34;
+	InvalidSuperType = 35;
+	InvalidCounterType = 36;
+	InvalidAbilityType = 37;
+	InvalidBasicLandType = 38;
+	InvalidOptionIndex = 39;
+	InvalidOptionContext = 40;
+	InvalidSideboard = 41;
+	InvalidCommander = 42;
+	DuplicateAttacker = 43;
+	UnexpectedDamageRecipient = 44;
+	InvalidAttacker = 45;
+	RedundantAttacker = 46;
+	InvalidBatchAttack = 47;
+	MissingDamageRecipient = 48;
+	InvalidDamageRecipient = 49;
+	InvalidObjective = 50;
+	InvalidAlternativeAttack = 51;
+	MissingAttackers = 52;
+	UnexpectedAttackers = 53;
+	InvalidParity = 54;
+	InvalidAlternativeAttackModification = 55;
+	DisallowedValue = 56;
+	InvalidTypeKind = 57;
+	InvalidWishCard = 58;
+	InvalidController = 59;
+	InvalidCardColor = 60;
+	InvalidDecisionPlayerForTarget = 61;
+}
+
+message FinalMatchResult {
+	string matchId = 1;
+	ResultSpec matchForceResult = 2;
+	MatchCompletedReasonType matchCompletedReason = 3;
+	repeated ResultSpec resultList = 5;
+	string errorMessage = 10;
+}
+
+message FloatValue {
+	float value = 1;
+}
+
+message FloatValues {
+	repeated float values = 1;
+}
+
+message ForceDrawReq {
+	MatchScope scope = 1;
+}
+
+message GRECancelScheduledMessage {
+	uint32 timerId = 1;
+}
+
+message GRECheckpointRequest {
+}
+
+message GREConfigRequest {
+	GREConfiguration greConfiguration = 1;
+}
+
+message GREConfiguration {
+	GameStateRedactorConfiguration gameStateRedactorConfiguration = 1;
+	CLIPSConfiguration clipsConfiguration = 2;
+	CheckpointConfiguration checkpointConfiguration = 3;
+}
+
+message GRECreateRequest {
+	string matchID = 2;
+}
+
+message GREDestroyRequest {
+}
+
+message GREElapseTimeRequest {
+	uint32 timerId = 1;
+	uint32 timeMs = 2;
+}
+
+message GREExpireTimerRequest {
+	uint32 timerId = 1;
+}
+
+message GREForceResultRequest {
+	ResultSpec result = 1;
+}
+
+message GREInterpretRequest {
+	string clips = 1;
+}
+
+enum GREMessageType {
+	None_aa0d = 0;
+	GameStateMessage_695e = 1;
+	ActionsAvailableReq_695e = 2;
+	ChooseStartingPlayerReq_695e = 6;
+	ConnectResp_695e = 7;
+	GetSettingsResp_695e = 9;
+	SetSettingsResp_695e = 10;
+	GroupReq_695e = 11;
+	IllegalRequest = 12;
+	MulliganReq_aa0d = 15;
+	OrderReq_695e = 17;
+	PromptReq = 18;
+	RevealHandReq = 21;
+	SelectNreq = 22;
+	AllowForceDraw = 24;
+	BinaryGameState_695e = 25;
+	DeclareAttackersReq_695e = 26;
+	SubmitAttackersResp_695e = 27;
+	DeclareBlockersReq_695e = 28;
+	SubmitBlockersResp_695e = 29;
+	AssignDamageReq_695e = 30;
+	AssignDamageConfirmation_695e = 31;
+	OrderCombatDamageReq = 32;
+	OrderDamageConfirmation = 33;
+	SelectTargetsReq_695e = 34;
+	SubmitTargetsResp_695e = 35;
+	PayCostsReq_695e = 36;
+	IntermissionReq_695e = 37;
+	DieRollResultsResp_695e = 38;
+	SelectReplacementReq_695e = 39;
+	SelectNgroupReq = 40;
+	DistributionReq_695e = 42;
+	NumericInputReq_695e = 43;
+	SearchReq_695e = 44;
+	OptionalActionMessage_695e = 45;
+	CastingTimeOptionsReq_695e = 46;
+	SelectFromGroupsReq_695e = 48;
+	SearchFromGroupsReq_695e = 49;
+	GatherReq_695e = 50;
+	QueuedGameStateMessage = 51;
+	Uimessage_aa0d = 52;
+	SubmitDeckReq_695e = 53;
+	EdictalMessage_695e = 54;
+	TimeoutMessage_695e = 55;
+	TimerStateMessage_695e = 56;
+	SubmitDeckConfirmation = 57;
+	StringInputReq_695e = 58;
+	SelectCountersReq_695e = 59;
+	PredictionResp_695e = 60;
+}
+
+message GREMetrics {
+	repeated KeyValuePair kvps = 1;
+}
+
+message GRERestoreRequest {
+	BinaryGameState binaryGameState = 1;
+}
+
+message GREResumeMatchRequest {
+	BinaryGameState binaryGameState = 1;
+}
+
+message GREScheduledMessage {
+	uint32 timerId = 1;
+	int32 delayMs = 2;
+	ServerToGREMessage message = 3;
+}
+
+message GREStartDelayedTimerMessage {
+	uint32 seatId = 1;
+}
+
+message GREStartMatchRequest {
+	MatchConfig matchConfig = 1;
+}
+
+message GRETickMessage {
+}
+
+message GRETimeoutMessage {
+	uint32 seatId = 1;
+	TimeoutType type = 2;
+}
+
+message GRETimerExpiredMessage {
+	uint32 expiredTimerId = 1;
+	oneof message {
+		ServerToGREMessage serverToGREMessage = 2;
+		ClientToGREMessage clientToGREMessage = 3;
+	}
+}
+
+message GREToAnyMessage {
+	int64 timestamp = 1;
+	oneof message {
+		GREToServerMessage gREToServerMessage = 2;
+		GREToClientMessage gREToClientMessage = 3;
+	}
+}
+
+message GREToClientMessage {
+	GREMessageType type = 1;
+	repeated uint32 systemSeatIds = 2;
+	uint32 msgId = 3;
+	uint32 gameStateId = 4;
+	oneof message {
+		GameStateMessage gameStateMessage = 5;
+		ChooseStartingPlayerReq chooseStartingPlayerReq = 7;
+		OptionalActionMessage optionalActionMessage = 8;
+		ActionsAvailableReq actionsAvailableReq = 9;
+		OrderReq orderReq = 10;
+		GroupReq groupReq = 11;
+		SelectNReq selectNReq = 12;
+		MulliganReq mulliganReq = 14;
+		GetSettingsResp getSettingsResp = 16;
+		SetSettingsResp setSettingsResp = 17;
+		ConnectResp connectResp = 18;
+		IllegalRequestMessage illegalRequestMessage = 19;
+		BinaryGameState binaryGameState = 23;
+		DeclareAttackersReq declareAttackersReq = 24;
+		SubmitAttackersResp submitAttackersResp = 25;
+		DeclareBlockersReq declareBlockersReq = 26;
+		SubmitBlockersResp submitBlockersResp = 27;
+		AssignDamageReq assignDamageReq = 28;
+		AssignDamageConfirmation assignDamageConfirmation = 29;
+		SelectTargetsReq selectTargetsReq = 32;
+		SubmitTargetsResp submitTargetsResp = 33;
+		PayCostsReq payCostsReq = 34;
+		IntermissionReq intermissionReq = 36;
+		DieRollResultsResp dieRollResultsResp = 37;
+		SelectReplacementReq selectReplacementReq = 38;
+		SelectNGroupReq selectNGroupReq = 39;
+		DistributionReq distributionReq = 41;
+		NumericInputReq numericInputReq = 42;
+		SearchReq searchReq = 43;
+		CastingTimeOptionsReq castingTimeOptionsReq = 44;
+		SelectFromGroupsReq selectFromGroupsReq = 47;
+		SearchFromGroupsReq searchFromGroupsReq = 48;
+		GatherReq gatherReq = 49;
+		UIMessage uiMessage = 51;
+		SubmitDeckReq submitDeckReq = 52;
+		EdictalMessage edictalMessage = 53;
+		TimeoutMessage timeoutMessage = 54;
+		TimerStateMessage timerStateMessage = 55;
+		StringInputReq stringInputReq = 57;
+		SelectCountersReq selectCountersReq = 58;
+		PredictionResp predictionResp = 59;
+	}
+	Prompt prompt = 6;
+	bool informationalUseOnly = 45;
+	AllowCancel allowCancel = 50;
+	bool allowUndo = 56;
+	bool allowPrediction = 60;
+}
+
+message GREToServerMessage {
+	uint32 msgId = 1;
+	oneof message {
+		BinaryGameState binaryGameState = 2;
+		ReportResultMessage reportResultMessage = 3;
+		GREScheduledMessage scheduledMessage = 4;
+		GRECancelScheduledMessage cancelScheduledMessage = 5;
+		GameMetrics gameMetrics = 6;
+		GREMetrics greMetrics = 7;
+		AchievementStateMessage achievementStateMessage = 8;
+	}
+}
+
+message GameInfo {
+	string matchID = 1;
+	uint32 gameNumber = 3;
+	GameStage stage = 5;
+	GameType type = 6;
+	GameVariant variant = 7;
+	MatchState matchState = 8;
+	MatchWinCondition matchWinCondition = 9;
+	uint32 maxTimeoutCount = 10;
+	uint32 maxPipCount = 11;
+	uint32 timeoutDurationSec = 12;
+	repeated ResultSpec results = 13;
+	SuperFormat superFormat = 14;
+	MulliganType mulliganType = 15;
+	uint32 freeMulliganCount = 16;
+	DeckConstraintInfo deckConstraintInfo = 17;
+	bool sideboardLoadingEnabled = 18;
+}
+
+message GameMetrics {
+	repeated PlayerMetrics playerMetrics = 1;
+	uint32 gameNumber = 2;
+}
+
+message GameObjectInfo {
+	uint32 instanceId = 1;
+	uint32 grpId = 2;
+	GameObjectType type = 4;
+	uint32 zoneId = 5;
+	Visibility visibility = 6;
+	uint32 ownerSeatId = 7;
+	uint32 controllerSeatId = 8;
+	repeated SuperType superTypes = 9;
+	repeated CardType cardTypes = 10;
+	repeated SubType subtypes = 11;
+	repeated CardColor color = 12;
+	Int32Value power = 13;
+	Int32Value toughness = 14;
+	bool isCopy = 16;
+	bool isTapped = 17;
+	bool hasSummoningSickness = 18;
+	AttackState attackState = 19;
+	BlockState blockState = 20;
+	uint32 damage = 23;
+	AttackInfo attackInfo = 24;
+	BlockInfo blockInfo = 25;
+	repeated uint32 viewers = 26;
+	UInt32Value loyalty = 27;
+	uint32 objectSourceGrpId = 28;
+	uint32 name = 29;
+	uint32 parentId = 31;
+	uint32 overlayGrpId = 32;
+	bool isFacedown = 33;
+	string skinCode = 34;
+	UInt32Value loyaltyUsed = 35;
+	repeated uint32 abilityOriginalCardGrpIds = 36;
+	string baseSkinCode = 37;
+	repeated SubType removedSubtypes = 38;
+	UInt32Value defense = 39;
+	uint32 othersideGrpId = 40;
+	repeated UniqueAbilityInfo uniqueAbilities = 41;
+}
+
+enum GameObjectType {
+	None_a4aa = 0;
+	Card = 1;
+	Token = 2;
+	Ability = 3;
+	Emblem = 4;
+	SplitCard = 5;
+	SplitLeft = 6;
+	SplitRight = 7;
+	RevealedCard = 8;
+	TriggerHolder = 9;
+	Adventure_a4aa = 10;
+	Mdfcback = 11;
+	DisturbBack = 12;
+	Boon = 13;
+	PrototypeFacet = 14;
+	RoomLeft = 15;
+	RoomRight = 16;
+	Omen_a4aa = 17;
+}
+
+enum GameStage {
+	None_a920 = 0;
+	Start_a920 = 1;
+	Play_a920 = 2;
+	GameOver = 3;
+}
+
+// Full: complete state snapshot. Diff: incremental change. See action-format.md.
+// Game-start sends 4 GREs: Diff(SendHiFi) + Diff(Send) + Full(SendAndRecord) + ActionsAvailableReq.
+message GameStateMessage {
+	GameStateType type = 1;        // Full or Diff — determines client parsing
+	uint32 gameStateId = 2;        // strictly ascending; client dedup key
+	GameInfo gameInfo = 3;         // always in Full; omitted in most Diffs
+	repeated TeamInfo teams = 4;
+	repeated PlayerInfo players = 5;
+	TurnInfo turnInfo = 6;
+	repeated ZoneInfo zones = 7;   // 17 zones (IDs 18-38), see action-format.md
+	repeated GameObjectInfo gameObjects = 8;
+	repeated AnnotationInfo annotations = 9;
+	repeated uint32 diffDeletedInstanceIds = 10; // IDs removed in this diff
+	uint32 pendingMessageCount = 11;
+	uint32 prevGameStateId = 12;   // audit trail (low priority)
+	repeated TimerInfo timers = 13; // 2 inactivity timers (one per seat), always sent
+	GameStateUpdate update = 14;   // SendHiFi (stage transition), SendAndRecord (Main), Send (empty diff)
+	repeated ActionInfo actions = 15; // embedded in Full state (wrapped in ActionInfo)
+	repeated AnnotationInfo persistentAnnotations = 16;
+	repeated uint32 diffDeletedPersistentAnnotationIds = 17;
+}
+
+message GameStateRedactorConfiguration {
+	bool enableRedaction = 1;
+	bool enableForceDiff = 2;
+	bool enableZoneRedaction = 3;
+}
+
+enum GameStateType {
+	None_acfa = 0;
+	Full = 1;
+	Diff = 2;
+	Binary = 3;
+}
+
+enum GameStateUpdate {
+	None_a0c7 = 0;
+	Send = 1;
+	SendAndRecord = 2;
+	SendHiFi = 3;
+	Undo = 4;
+	Restore = 5;
+}
+
+enum GameType {
+	None_a3b2 = 0;
+	Duel = 1;
+	MultiPlayer = 2;
+	Solitaire = 3;
+}
+
+enum GameVariant {
+	None_a04e = 0;
+	Normal = 1;
+	Planechase = 2;
+	Vanguard_a04e = 3;
+	Commander = 4;
+	Archenemy = 5;
+	TeamVsTeam = 6;
+	TwoHeadedGiant = 7;
+	Brawl = 8;
+	Placeholder9 = 9;
+	Placeholder10 = 10;
+	Placeholder11 = 11;
+	Placeholder12 = 12;
+	Placeholder13 = 13;
+}
+
+message GatherReq {
+	uint32 destinationId = 2;
+	repeated GatherSource sources = 3;
+	uint32 amountToGather = 4;
+}
+
+message GatherResp {
+	repeated Gathering gatherings = 2;
+}
+
+message GatherSource {
+	uint32 sourceId = 1;
+	uint32 minAmount = 2;
+	uint32 maxAmount = 3;
+}
+
+message Gathering {
+	uint32 instanceId = 1;
+	uint32 amount = 2;
+}
+
+message GetSettingsResp {
+	SettingsMessage settings = 1;
+}
+
+message GreToClientEvent {
+	repeated GREToClientMessage greToClientMessages = 1;
+}
+
+message Group {
+	repeated uint32 ids = 1;
+	int32 groupId = 2;
+	ZoneType zoneType = 3;
+	SubZoneType subZoneType = 4;
+	int32 minSelect = 5;
+	int32 maxSelect = 6;
+	bool isFacedown = 7;
+}
+
+message GroupReq {
+	repeated uint32 instanceIds = 1;
+	repeated GroupSpecification groupSpecs = 2;
+	GroupType groupType = 5;
+	GroupingContext context = 6;
+	uint32 sourceId = 7;
+}
+
+message GroupResp {
+	repeated Group groups = 1;
+	GroupType groupType = 3;
+}
+
+message GroupSpecification {
+	uint32 lowerBound = 1;
+	uint32 upperBound = 2;
+	ZoneType zoneType = 3;
+	SubZoneType subZoneType = 4;
+	bool isFacedown = 6;
+}
+
+enum GroupType {
+	None_ab94 = 0;
+	Ordered = 1;
+	Arbitrary = 2;
+}
+
+enum GroupingContext {
+	None_a0f6 = 0;
+	Scry_a0f6 = 1;
+	Surveil = 2;
+	LondonMulligan = 3;
+}
+
+enum GroupingStyle {
+	None_a5bb = 0;
+	SingleGroup = 1;
+	AllGroups = 2;
+	Mixed = 3;
+}
+
+enum HighlightType {
+	None_ad60 = 0;
+	Cold = 1;
+	Tepid = 2;
+	Hot = 3;
+	Counterspell = 4;
+	Random = 5;
+	CopySpell = 6;
+	ReplaceRole = 7;
+}
+
+message IRLoaderConfiguration {
+	bool enableLimitedIRLoading = 1;
+}
+
+enum IdType {
+	None_ab2c = 0;
+	InstanceId_ab2c = 1;
+	PromptParameterIndex = 2;
+	ZoneInstanceId = 3;
+	CardGrpId = 4;
+	AbilityGrpId = 5;
+	CardGrpIdIndex = 6;
+	ManaId = 7;
+}
+
+message IllegalRequestMessage {
+	ClientToGREMessage invalidMessage = 1;
+	FailureReason reason = 2;
+}
+
+message Int32Value {
+	int32 value = 1;
+}
+
+message Int32Values {
+	repeated int32 values = 1;
+}
+
+message Int64Value {
+	int64 value = 1;
+}
+
+message Int64Values {
+	repeated int64 values = 1;
+}
+
+message IntermissionReq {
+	repeated UserOption options = 1;
+	Prompt intermissionPrompt = 2;
+	ResultSpec result = 5;
+}
+
+message KeyValuePair {
+	enum ValueOneofCase {
+		None = 0;
+		SingleValue = 2;
+		RepeatedValue = 3;
+	}
+
+	string key = 1;
+	SingleValue singleValue = 2;
+	RepeatedValue repeatedValue = 3;
+}
+
+message KeyValuePairInfo {
+	string key = 1;
+	KeyValuePairValueType type = 2;
+	repeated uint32 valueUint32 = 3;
+	repeated int32 valueInt32 = 4;
+	repeated uint64 valueUint64 = 5;
+	repeated int64 valueInt64 = 6;
+	repeated bool valueBool = 7;
+	repeated string valueString = 8;
+	repeated float valueFloat = 9;
+	repeated double valueDouble = 10;
+}
+
+enum KeyValuePairValueType {
+	None_a339 = 0;
+	Uint32 = 1;
+	Int32 = 2;
+	Uint64 = 3;
+	Int64 = 4;
+	Bool = 5;
+	String = 6;
+	Float = 7;
+	Double = 8;
+}
+
+message LifeCost {
+	int32 count = 1;
+}
+
+message LoyaltyCost {
+	int32 count = 1;
+}
+
+enum ManaColor {
+	None_afc9 = 0;
+	White_afc9 = 1;
+	Blue_afc9 = 2;
+	Black_afc9 = 3;
+	Red_afc9 = 4;
+	Green_afc9 = 5;
+	Phyrexian_afc9 = 6;
+	Generic = 7;
+	X = 8;
+	Y = 9;
+	TwoGeneric = 10;
+	AnyColor = 11;
+	Colorless_afc9 = 12;
+	Snow_afc9 = 13;
+}
+
+message ManaColorCount {
+	ManaColor color = 1;
+	uint32 count = 2;
+}
+
+message ManaCost {
+	repeated ManaColor color = 1;
+	int32 count = 2;
+}
+
+enum ManaCostSpecType {
+	None_aaa5 = 0;
+	IsColorWashed = 1;
+	CannotDiscountGeneric = 2;
+	Waterbend = 3;
+}
+
+message ManaInfo {
+	message Spec {
+		ManaSpecType type = 1;
+	}
+
+	uint32 manaId = 1;
+	ManaColor color = 2;
+	uint32 srcInstanceId = 3;
+	repeated Spec specs = 4;
+	uint32 abilityGrpId = 5;
+	repeated uint32 linkedSelections = 6;
+	uint32 count = 7;
+}
+
+message ManaPaymentCondition {
+	repeated ManaColor colors = 1;
+	repeated ManaSpecType specs = 2;
+	uint32 abilityGrpId = 3;
+	ManaPaymentConditionType type = 4;
+}
+
+enum ManaPaymentConditionType {
+	None_ac00 = 0;
+	Threshold = 1;
+	Maximum = 2;
+	Diversity = 3;
+	Uniformity = 4;
+}
+
+message ManaPaymentOption {
+	repeated ManaInfo mana = 2;
+	uint32 optionIndex = 4;
+	bool haveReplacementsBeenApplied = 5;
+	bool haveTriggersBeenApplied = 6;
+	bool isUnpredictable = 7;
+}
+
+enum ManaPaymentStrategyType {
+	None_a65a = 0;
+	Auto_a65a = 1;
+	Manual_a65a = 2;
+	Legacy = 3;
+}
+
+message ManaRequirement {
+	repeated ManaColor color = 1;
+	int32 count = 2;
+	uint32 costId = 3;
+	uint32 objectId = 4;
+	uint32 abilityGrpId = 5;
+	repeated ManaCostSpecType specs = 6;
+}
+
+message ManaSelection {
+	uint32 instanceId = 1;
+	uint32 abilityGrpId = 2;
+	uint32 retriggerUniqueAbilityid = 3;
+	uint32 selectionCount = 4;
+	SelectionValidationType validationType = 5;
+	repeated ManaSelectionOption options = 6;
+}
+
+message ManaSelectionOption {
+	ManaColor selectedColor = 1;
+	bool isConstrainedToAlreadyProduced = 2;
+	repeated ManaColorCount mana = 3;
+}
+
+enum ManaSelectionType {
+	None_a88a = 0;
+	Auto_a88a = 1;
+	Manual_a88a = 2;
+}
+
+enum ManaSpecType {
+	None_a7f6 = 0;
+	FromBasic = 1;
+	Predictive = 2;
+	Restricted = 3;
+	Trigger = 4;
+	FromCreature = 5;
+	FromSnow = 6;
+	DoesNotEmpty = 7;
+	AdditionalEffect = 8;
+	FromTreasure = 9;
+	FromCave = 10;
+	CantBeCountered = 11;
+	ManaSubstitution = 12;
+	GainsHaste = 13;
+}
+
+enum MatchCompletedReasonType {
+	Invalid_a26d = 0;
+	Success_a26d = 1;
+	ForceResultRequest = 2;
+	Canceled = 3;
+	PlayerJoinTimeout = 10;
+	PlayerInactivityTimeout = 11;
+	PlayerDisconnectTimeout = 12;
+	SystemShutdown = 30;
+	GreError = 31;
+	ServiceFabricError = 33;
+	CodeContractError = 34;
+	UnknownServerError_a26d = 40;
+}
+
+message MatchConfig {
+	GameType gameType = 1;
+	GameVariant gameVariant = 2;
+	MatchWinCondition winCondition = 3;
+	uint32 maxPlayerHandSize = 5;
+	repeated TeamConfig teams = 6;
+	TestConfig testConfig = 9;
+	MulliganType mulliganType = 10;
+	repeated TimerConfig timerConfigs = 11;
+	TimerPackage timerPackage = 12;
+	TimeoutConfig timeoutConfig = 13;
+	repeated CosmeticConfig cosmeticConfigs = 14;
+	SuperFormat superFormat = 15;
+	DeckConstraintInfo deckConstraintInfo = 16;
+	CubeConfig cubeConfig = 17;
+	repeated AchievementConfig achievementConfigs = 18;
+}
+
+message MatchGameRoomConfig {
+	string eventId = 2;
+	repeated MatchGameRoomPlayerInfo reservedPlayers = 8;
+	string matchId = 11;
+	MatchConfig matchConfig = 12;
+	GREConfiguration greConfig = 13;
+	BinaryGameState checkpoint = 14;
+	bool isVisible = 20;
+	bool isDebug = 21;
+	string greHostLoggerLevel = 31;
+	int32 joinRoomTimeoutSecs = 35;
+	int32 playerDisconnectTimeoutSecs = 36;
+}
+
+message MatchGameRoomInfo {
+	MatchGameRoomConfig gameRoomConfig = 2;
+	MatchGameRoomStateType stateType = 3;
+	FinalMatchResult finalMatchResult = 4;
+	repeated MatchGameRoomPlayerInfo players = 6;
+	repeated MatchPlayerMetrics playerMetrics = 7;
+}
+
+message MatchGameRoomPlayerInfo {
+	string userId = 1;
+	string playerName = 2;
+	int32 systemSeatId = 3;
+	int32 teamId = 4;
+	UserConnectionInfo connectionInfo = 5;
+	string courseId = 10;
+	string deckId = 11;
+	string sessionId = 13;
+	bool isWotc = 14;
+	string platformId = 15;
+	bool isBotPlayer = 16;
+	string eventId = 17;
+}
+
+message MatchGameRoomStateChangedEvent {
+	MatchGameRoomInfo gameRoomInfo = 1;
+}
+
+enum MatchGameRoomStateType {
+	Invalid_abd2 = 0;
+	Playing = 5;
+	MatchCompleted = 15;
+}
+
+message MatchPlayerMetrics {
+	string userId = 1;
+	repeated PlayerMetricKeyValuePair metrics = 2;
+}
+
+enum MatchScope {
+	None_a146 = 0;
+	Game_a146 = 1;
+	Match = 2;
+}
+
+message MatchServiceError {
+	MatchServiceErrorCode errorCode = 2;
+	string errorMessage = 3;
+}
+
+enum MatchServiceErrorCode {
+	Invalid_abfe = 0;
+	InvalidState = 103;
+	BadRequest = 108;
+	NotAuthorized = 111;
+	RequestQueueOverflow = 115;
+	UnknownServerError_abfe = 500;
+}
+
+message MatchServiceToClientMessage {
+	string transactionId = 1;
+	int32 requestId = 3;
+	int64 timestamp = 4;
+	oneof message {
+		MatchServiceError error = 7;
+		GreToClientEvent greToClientEvent = 8;
+		MatchGameRoomStateChangedEvent matchGameRoomStateChangedEvent = 9;
+		AuthenticateResponse authenticateResponse = 100;
+		CreateMatchGameRoomResponseV2 createMatchGameRoomResponseV2 = 201;
+		EchoResponse echoResponse = 1000;
+	}
+}
+
+enum MatchState {
+	None_a6ae = 0;
+	GameInProgress = 1;
+	GameComplete = 2;
+	MatchComplete = 3;
+	Sideboarding_a6ae = 4;
+}
+
+enum MatchWinCondition {
+	None_a7ec = 0;
+	SingleElimination = 1;
+	Best2Of3 = 2;
+	Best3Of5 = 3;
+}
+
+enum ModalChoiceAdvisability {
+	None_a2c2 = 0;
+	Discourage = 1;
+}
+
+message ModalOption {
+	uint32 grpId = 1;
+	repeated Cost modeCost = 2;
+	uint32 weight = 3;
+	ModalChoiceAdvisability advisability = 4;
+	uint32 advisabilityPromptId = 5;
+}
+
+message ModalReq {
+	repeated ModalOption modalOptions = 1;
+	uint32 abilityGrpId = 2;
+	uint32 minSel = 3;
+	uint32 maxSel = 4;
+	bool repeatedSelectAllowed = 5;
+	repeated ModalOption excludedOptions = 6;
+	repeated uint32 otherSel = 7;
+	repeated ModeCostSolution modeCostSolutions = 8;
+	bool isWeighted = 9;
+}
+
+message ModeCostSolution {
+	repeated uint32 modeGrpIds = 1;
+	AutoTapSolution autoTapSolution = 2;
+}
+
+enum MulliganOption {
+	None_a2b7 = 0;
+	Mulligan = 1;
+	AcceptHand = 2;
+}
+
+message MulliganReq {
+	MulliganType mulliganType = 1;
+	uint32 freeMulliganCount = 2;
+	uint32 mulliganCount = 3;
+}
+
+message MulliganResp {
+	MulliganOption decision = 1;
+}
+
+enum MulliganType {
+	None_ace0 = 0;
+	Paris = 1;
+	Vancouver = 2;
+	London = 3;
+}
+
+message NumericInputReq {
+	uint32 minValue = 2;
+	uint32 maxValue = 3;
+	uint32 stepSize = 4;
+	uint32 sourceId = 5;
+	NumericInputType numericInputType = 6;
+	repeated uint32 disallowedValues = 7;
+	repeated uint32 suggestedValues = 8;
+	bool disallowEven = 9;
+	bool disallowOdd = 10;
+}
+
+message NumericInputResp {
+	uint32 numericInputValue = 2;
+}
+
+enum NumericInputType {
+	None_ad80 = 0;
+	ChooseX_ad80 = 1;
+	ChooseAnyAmount = 2;
+	DebugCode = 3;
+	ChooseDieRoll = 4;
+}
+
+message OnChat {
+	string text = 1;
+}
+
+message OnGenericEvent {
+	string category = 1;
+	string payload = 2;
+}
+
+message OnHover {
+	uint32 objectId = 1;
+}
+
+message OnSelect {
+	uint32 objectId = 1;
+}
+
+message OnShuffle {
+	repeated uint32 objectIds = 1;
+}
+
+enum OptionContext {
+	None_a9d7 = 0;
+	ManaAbility = 1;
+	Payment = 2;
+	Stacking = 3;
+	Targeting = 4;
+	Resolution_a9d7 = 5;
+	TurnBased = 6;
+	Replacement_a9d7 = 7;
+	ActivateCast = 8;
+	Special_a9d7 = 9;
+	SpecialTurnFaceUp_a9d7 = 10;
+}
+
+enum OptionResponse {
+	None_ae84 = 0;
+	Cancel = -1;
+	AllowYes = 1;
+	CancelNo = 2;
+}
+
+message OptionalActionMessage {
+	Prompt prompt = 1;
+	uint32 sourceId = 3;
+	repeated CardMechanicType optionalActionTypes = 4;
+	repeated uint32 recipientIds = 5;
+	HighlightType highlight = 6;
+	repeated uint32 highlightIds = 7;
+}
+
+message OptionalResp {
+	OptionResponse response = 1;
+	ChoicePersistence persistence = 2;
+	SettingScope appliesTo = 3;
+	SettingKey mapTo = 4;
+}
+
+message OrCost {
+	repeated Cost costs = 1;
+	bool isOptional = 2;
+}
+
+message OrderReq {
+	repeated uint32 ids = 1;
+	OrderingContext orderingContext = 3;
+}
+
+message OrderResp {
+	repeated uint32 ids = 1;
+	OrderingType ordering = 2;
+}
+
+message OrderedDamageAssignment {
+	uint32 instanceId = 1;
+	uint32 assignedDamage = 2;
+}
+
+enum OrderingContext {
+	None_a89f = 0;
+	OrderingForBottom = 1;
+	OrderingForTop = 2;
+}
+
+enum OrderingType {
+	None_a754 = 0;
+	OrderAsIndicated = 1;
+	OrderArbitraryOnce = 2;
+	OrderArbitraryAlways = 3;
+	PromptAlways = 4;
+}
+
+enum ParameterType {
+	None_a648 = 0;
+	NonLocalizedString = 1;
+	Number = 2;
+	Reference_a14a = 3;
+	PromptId = 5;
+}
+
+message PayCostsReq {
+	repeated ManaRequirement manaCost = 1;
+	ActionsAvailableReq paymentActions = 2;
+	SelectNReq paymentSelection = 3;
+	EffectCostReq effectCostReq = 4;
+	AutoTapActionsAvailableReq autoTapActionsReq = 6;
+	bool shouldCancel = 7;
+}
+
+message PerformActionResp {
+	repeated Action actions = 1;
+	AutoPassPriority autoPassPriority = 2;
+	SettingStatus setYield = 3;
+	SettingScope appliesTo = 4;
+	SettingKey mapTo = 5;
+}
+
+message PerformAutoTapActionsResp {
+	uint32 index = 1;
+}
+
+enum Phase {
+	None_a549 = 0;
+	Beginning_a549 = 1;
+	Main1_a549 = 2;
+	Combat_a549 = 3;
+	Main2_a549 = 4;
+	Ending_a549 = 5;
+}
+
+message PlayerAchievementInfo {
+	uint32 seatId = 1;
+	string playerId = 2;
+	repeated AchievementInfo achievements = 3;
+}
+
+message PlayerConfig {
+	uint32 systemSeatId = 1;
+	repeated uint32 deckCards = 2;
+	repeated uint32 sideboardCards = 3;
+	uint32 startingLifeTotal = 6;
+	bool startingHandSizeSpecified = 7;
+	uint32 startingHandSize = 8;
+	repeated uint32 commandEmblems = 9;
+	repeated uint32 jazzMusicians = 10;
+	repeated CardSkinTuple skins = 11;
+	ShuffleRestriction shuffleRestriction = 12;
+	uint32 playerConfigFieldThirteen = 13;
+}
+
+message PlayerDieRoll {
+	uint32 systemSeatId = 1;
+	uint32 rollValue = 2;
+}
+
+message PlayerInfo {
+	int32 lifeTotal = 1;
+	uint32 systemSeatNumber = 2;
+	PlayerStatus status = 3;
+	repeated ManaInfo manaPool = 6;
+	uint32 maxHandSize = 7;
+	uint32 mulliganCount = 8;
+	uint32 turnNumber = 9;
+	uint32 teamId = 10;
+	repeated uint32 timerIds = 11;
+	uint32 controllerSeatId = 12;
+	ControllerType controllerType = 13;
+	uint32 timeoutCount = 14;
+	uint32 pipCount = 15;
+	ClientMessageType pendingMessageType = 16;
+	uint32 startingLifeTotal = 17;
+}
+
+message PlayerMetric {
+	string key = 1;
+	uint32 value = 2;
+}
+
+message PlayerMetricKeyValuePair {
+	string key = 1;
+	int32 value = 2;
+}
+
+message PlayerMetrics {
+	uint32 playerId = 1;
+	repeated PlayerMetric metricsV2 = 3;
+}
+
+enum PlayerStatus {
+	None_a1c6 = 0;
+	InGame_a1c6 = 1;
+	Removed_a1c6 = 2;
+	PendingLoss_a1c6 = 3;
+}
+
+message PredictionReq {
+}
+
+message PredictionResp {
+	repeated GameStateMessage gameStateMessages = 1;
+	repeated TriggeredAbility suppressedTriggeredAbilities = 2;
+	repeated GREToClientMessage greRequests = 3;
+}
+
+message Prompt {
+	uint32 promptId = 1;
+	repeated PromptParameter parameters = 2;
+}
+
+message PromptParameter {
+	enum ValueOneofCase {
+		None = 0;
+		Reference = 3;
+		StringValue = 4;
+		NumberValue = 5;
+		PromptId = 7;
+	}
+
+	string parameterName = 1;
+	ParameterType type = 2;
+	Reference reference = 3;
+	string stringValue = 4;
+	int32 numberValue = 5;
+	int32 promptId = 7;
+}
+
+enum ProtoVersion {
+	None_a98f = 0;
+	HiFiGameStates = 1;
+	PreviousGameStateId = 2;
+	Timers = 3;
+	ManaRequirement_a187 = 4;
+	AutoTapActions = 5;
+	Uimessages = 6;
+	AutoTapStopsSetting_a187 = 7;
+	Sideboarding_a98f = 8;
+	AutoOptionalPaymentCancellationSetting = 9;
+	CostCategory = 10;
+	TimersV2 = 11;
+	Control_a98f = 12;
+	TimersV3 = 13;
+	AutoAcceptHand = 14;
+	TimersV4 = 15;
+	TimersV5 = 16;
+	ManaPaymentStrategyType_a187 = 17;
+	TimersV6 = 18;
+	TimersV7 = 19;
+	TimersV8 = 20;
+	TransientStops = 21;
+	Cosmetics = 22;
+	ResultSpec_a187 = 23;
+	ResultReason_a187 = 24;
+	SuperFormat_a187 = 25;
+	AutoSelectReplacementSetting = 26;
+	MulliganType_a187 = 27;
+	PendingMessageType = 28;
+	AutoDeclareAttackersThatMustAttackSetting = 29;
+	DeceptiveActions = 30;
+	PerformAutoTapActions = 31;
+	MulliganReq_a98f = 32;
+	AutoTapSolution_a187 = 33;
+	ManaPaymentDeprecated = 34;
+	SelectFromGroupRespGroups = 35;
+	PersistentAnnotations = 36;
+}
+
+message Reference {
+	ReferenceType type = 1;
+	uint32 id = 2;
+}
+
+enum ReferenceType {
+	None_a0e2 = 0;
+	InstanceId_a0e2 = 1;
+	CatalogId = 2;
+	LocalizationId = 3;
+	PlayerSeatId = 4;
+}
+
+message RepeatedValue {
+	enum ValuesOneofCase {
+		None = 0;
+		Uint32Values = 1;
+		Int32Values = 2;
+		Uint64Values = 3;
+		Int64Values = 4;
+		BoolValues = 5;
+		StringValues = 6;
+		FloatValues = 7;
+		DoubleValues = 8;
+	}
+
+	UInt32Values uint32Values = 1;
+	Int32Values int32Values = 2;
+	UInt64Values uint64Values = 3;
+	Int64Values int64Values = 4;
+	BoolValues boolValues = 5;
+	StringValues stringValues = 6;
+	FloatValues floatValues = 7;
+	DoubleValues doubleValues = 8;
+}
+
+message ReplacementEffect {
+	uint32 objectInstance = 1;
+	uint32 uniqueAbilityId = 2;
+	uint32 abilityGrpId = 4;
+	uint32 affectedObject = 5;
+	uint32 replacementEffectId = 6;
+	uint32 conferringObjectZcid = 7;
+}
+
+message ReplacementSelectionByZcid {
+	uint32 selectableZcid = 1;
+	uint32 replacementEffectId = 2;
+}
+
+message ReportResultMessage {
+	ResultSpec result = 1;
+}
+
+message ResponderConfig {
+	uint32 seatId = 1;
+	string responderFilePath = 2;
+	bool disableMetaResponses = 3;
+	bool disableManaActions = 4;
+	bool disableColdActions = 5;
+	bool disableColdTargetSelection = 6;
+}
+
+enum ResultCode {
+	None_a500 = 0;
+	Success_a500 = 1;
+	Failure = 2;
+	CannotAttack = 3;
+	AttackCostUnpaid = 4;
+	CannotBlock = 5;
+	IllegalBlock = 6;
+	OrderMismatch = 7;
+	MissingDamageSource = 8;
+	InvalidDamageSource = 9;
+	NonlethalAssignment = 10;
+	InvalidAssignment = 11;
+	TooManyTargets = 12;
+	NotEnoughTargets = 13;
+	IllegalTarget = 14;
+	RestrictionViolated_a500 = 15;
+	RequirementViolated_a500 = 16;
+}
+
+enum ResultReason {
+	None_ae0a = 0;
+	Game_ae0a = 1;
+	Concede = 2;
+	Timeout_ae0a = 3;
+	Loop = 4;
+	Force = 5;
+}
+
+message ResultSpec {
+	MatchScope scope = 1;
+	ResultType result = 2;
+	uint32 winningTeamId = 3;
+	ResultReason reason = 4;
+}
+
+enum ResultType {
+	None_a544 = 0;
+	Suspended = 1;
+	Draw_a544 = 2;
+	WinLoss = 3;
+}
+
+message SearchFromGroupsReq {
+	uint32 minFind = 2;
+	uint32 maxFind = 3;
+	repeated uint32 zonesToSearch = 4;
+	repeated Group groups = 5;
+	GroupingStyle groupingStyle = 6;
+	uint32 sourceId = 7;
+	AllowFailToFind allowFailToFind = 8;
+	repeated uint32 additionalZones = 9;
+}
+
+message SearchFromGroupsResp {
+	repeated Group groups = 3;
+	uint32 addZoneToSearchScope = 4;
+}
+
+message SearchReq {
+	uint32 minFind = 2;
+	uint32 maxFind = 3;
+	repeated uint32 zonesToSearch = 4;
+	repeated uint32 itemsToSearch = 5;
+	repeated uint32 itemsSought = 6;
+	uint32 sourceId = 7;
+	repeated uint32 additionalZones = 8;
+	AllowFailToFind allowFailToFind = 9;
+}
+
+message SearchResp {
+	repeated uint32 itemsFound = 2;
+	uint32 addZoneToSearchScope = 3;
+}
+
+enum SelectAction {
+	None_a1ad = 0;
+	Select_a1ad = 1;
+	Unselect = 2;
+}
+
+message SelectCountersReq {
+	uint32 minSel = 1;
+	uint32 maxSel = 2;
+	SelectionContext context = 3;
+	OptionContext optionContext = 5;
+	SelectionListType listType = 6;
+	repeated CounterPair counterPairs = 7;
+	uint32 sourceId = 9;
+}
+
+message SelectCountersResp {
+	repeated CounterPair selections = 5;
+}
+
+message SelectFromGroupsReq {
+	repeated Group groups = 3;
+	uint32 minTotalSel = 5;
+	uint32 maxTotalSel = 6;
+	GroupingStyle groupingStyle = 7;
+	repeated uint32 unfilteredIds = 8;
+	uint32 sourceId = 9;
+	repeated uint32 zoneIds = 10;
+}
+
+message SelectFromGroupsResp {
+	repeated Group groups = 3;
+}
+
+message SelectManaTypeReq {
+	repeated ManaColor manaColors = 2;
+	uint32 sourceId = 3;
+}
+
+message SelectManaTypeResp {
+	ManaColor manaColor = 3;
+}
+
+message SelectNGroupReq {
+	uint32 minSel = 1;
+	uint32 maxSel = 2;
+	repeated Group groups = 3;
+	uint32 sourceId = 5;
+}
+
+message SelectNGroupResp {
+	repeated uint32 selectedgroupids = 2;
+}
+
+message SelectNReq {
+	int32 minSel = 1;
+	uint32 maxSel = 2;
+	SelectionContext context = 3;
+	OptionContext optionContext = 5;
+	SelectionListType listType = 6;
+	repeated uint32 ids = 7;
+	repeated int32 weights = 8;
+	StaticList staticList = 9;
+	Prompt prompt = 11;
+	IdType idType = 12;
+	repeated uint32 unfilteredIds = 14;
+	uint32 sourceId = 15;
+	repeated uint32 hotIds = 16;
+	SelectionValidationType validationType = 17;
+	repeated uint32 zoneIds = 18;
+	bool shouldCancel = 19;
+	int32 minWeight = 20;
+	int32 maxWeight = 21;
+}
+
+message SelectNResp {
+	repeated uint32 ids = 5;
+	OrderingType useArbitrary = 6;
+}
+
+message SelectReplacementReq {
+	repeated ReplacementEffect replacements = 1;
+	bool isOptional = 2;
+	SelectReplacementsType replacementsType = 3;
+	repeated ReplacementSelectionByZcid gameObjectSelections = 4;
+}
+
+message SelectReplacementResp {
+	ReplacementEffect replacement = 1;
+}
+
+enum SelectReplacementsType {
+	None_a0e7 = 0;
+	AllDredge = 1;
+	ApplyLast = 2;
+}
+
+message SelectTargetsReq {
+	repeated TargetSelection targets = 1;
+	uint32 sourceId = 2;
+	uint32 abilityGrpId = 3;
+}
+
+message SelectTargetsResp {
+	TargetSelection target = 1;
+}
+
+enum SelectionContext {
+	None_a163 = 0;
+	Discard_a163 = 1;
+	ManaPool = 2;
+	Resolution_a163 = 3;
+	TriggeredAbility_c799 = 4;
+	Modal_a163 = 5;
+	Replacement_a163 = 6;
+	NonManaPayment = 7;
+	ManaFromAbility = 8;
+	Voting = 9;
+}
+
+enum SelectionListType {
+	None_a5a9 = 0;
+	Static = 1;
+	Dynamic = 2;
+	StaticSubset = 3;
+}
+
+enum SelectionValidationType {
+	None_ab9b = 0;
+	NonRepeatable = 1;
+	ArbitraryRepeats = 2;
+	ConstrainedRepeats = 3;
+}
+
+message ServerToGREMessage {
+	oneof message {
+		GRECreateRequest createRequest = 1;
+		GREConfigRequest configRequest = 2;
+		GREStartMatchRequest startMatchRequest = 3;
+		GREResumeMatchRequest resumeMatchRequest = 4;
+		GRECheckpointRequest checkpointRequest = 5;
+		GREForceResultRequest forceResultRequest = 6;
+		GREDestroyRequest destroyRequest = 7;
+		GRETimerExpiredMessage timerExpired = 8;
+		GRETickMessage tick = 9;
+		GRETimeoutMessage timeout = 10;
+		GREInterpretRequest interpretRequest = 11;
+		GREExpireTimerRequest expireTimerRequest = 12;
+		GREElapseTimeRequest elapseTimeRequest = 13;
+		GREStartDelayedTimerMessage startDelayedTimerMessage = 14;
+		GRERestoreRequest restoreRequest = 15;
+	}
+}
+
+message SetSettingsReq {
+	SettingsMessage settings = 1;
+	uint32 turnNumber = 2;
+}
+
+message SetSettingsResp {
+	SettingsMessage settings = 1;
+}
+
+enum Setting {
+	None_a20a = 0;
+	Enable_a20a = 1;
+	Disable_a20a = 2;
+}
+
+enum SettingKey {
+	None_ad10 = 0;
+	ByAbility = 1;
+	ByCardTitle = 2;
+}
+
+enum SettingScope {
+	None_ac6e = 0;
+	AnyPlayer = 1;
+	Opponents = 2;
+	Team_ac6e = 3;
+}
+
+enum SettingStatus {
+	None_a3fe = 0;
+	Set = 1;
+	Clear_a3fe = 2;
+}
+
+message SettingsConfig {
+	uint32 seatId = 1;
+	SettingsMessage defaultSettings = 2;
+	string settingsFilePath = 3;
+}
+
+message SettingsMessage {
+	repeated Stop stops = 1;
+	repeated AutoYield yields = 2;
+	repeated AutoAnswer answers = 3;
+	AutoPassOption autoPassOption = 4;
+	OrderingType graveyardOrder = 5;
+	SettingStatus clearAllStops = 6;
+	SettingStatus clearAllYields = 7;
+	SettingStatus clearAllAnswers = 8;
+	ManaSelectionType manaSelectionType = 9;
+	AutoPassOption defaultAutoPassOption = 10;
+	SmartStopsSetting smartStopsSetting = 11;
+	AutoTapStopsSetting autoTapStopsSetting = 12;
+	Setting autoOptionalPaymentCancellationSetting = 13;
+	ManaPaymentStrategyType manaPaymentStrategyType = 14;
+	repeated Stop transientStops = 15;
+	repeated CosmeticInfo cosmetics = 16;
+	Setting autoSelectReplacementSetting = 17;
+	AutoPassOption stackAutoPassOption = 19;
+}
+
+enum ShuffleRestriction {
+	None_a022 = 0;
+	OpeningHand = 1;
+	All = 2;
+}
+
+message SingleValue {
+	enum ValueOneofCase {
+		None = 0;
+		Uint32Value = 1;
+		Int32Value = 2;
+		Uint64Value = 3;
+		Int64Value = 4;
+		BoolValue = 5;
+		StringValue = 6;
+		FloatValue = 7;
+		DoubleValue = 8;
+	}
+
+	uint32 uint32Value = 1;
+	int32 int32Value = 2;
+	uint64 uint64Value = 3;
+	int64 int64Value = 4;
+	bool boolValue = 5;
+	string stringValue = 6;
+	float floatValue = 7;
+	double doubleValue = 8;
+}
+
+enum SmartStopsSetting {
+	None_a188 = 0;
+	Enable_a188 = 1;
+	Disable_a188 = 2;
+}
+
+enum StaticList {
+	None_a56d = 0;
+	CardColors = 1;
+	ManaColors = 2;
+	SuperTypes = 3;
+	CardTypes = 4;
+	SubTypes = 5;
+	Colors = 6;
+	CoinFaces = 7;
+	WishCards = 8;
+	BasicLandTypes = 9;
+	CreatureTypes = 10;
+	CounterTypes = 11;
+	Keywords = 12;
+	CardNames = 13;
+	Parities = 14;
+	TypeKinds = 15;
+}
+
+enum Step {
+	None_a2cb = 0;
+	Untap = 1;
+	Upkeep_a2cb = 2;
+	Draw_a2cb = 3;
+	BeginCombat_a2cb = 4;
+	DeclareAttack_a2cb = 5;
+	DeclareBlock_a2cb = 6;
+	CombatDamage_a2cb = 7;
+	EndCombat_a2cb = 8;
+	End_a2cb = 9;
+	Cleanup_a2cb = 10;
+	FirstStrikeDamage_a2cb = 11;
+}
+
+message Stop {
+	StopType stopType = 1;
+	SettingScope appliesTo = 2;
+	SettingStatus status = 3;
+}
+
+enum StopType {
+	None_ad1f = 0;
+	UpkeepStep = 1;
+	DrawStep = 2;
+	PrecombatMainPhase = 3;
+	BeginCombatStep = 4;
+	DeclareAttackersStep = 5;
+	DeclareBlockersStep = 6;
+	CombatDamageStep = 7;
+	EndCombatStep = 8;
+	PostcombatMainPhase = 9;
+	EndStep_ad1f = 10;
+	FirstStrikeDamageStep = 11;
+}
+
+message StringInputReq {
+	uint32 sourceId = 2;
+}
+
+message StringInputResp {
+	string inputValue = 1;
+}
+
+message StringValue {
+	string value = 1;
+}
+
+message StringValues {
+	repeated string values = 1;
+}
+
+enum SubType {
+	None_a8d0 = 0;
+	Angel = 1;
+	Archer = 2;
+	Archon = 3;
+	Artificer = 4;
+	Assassin = 5;
+	Aura = 6;
+	Basilisk = 7;
+	Bat = 8;
+	Bear = 9;
+	Beast = 10;
+	Berserker = 11;
+	Bird = 12;
+	Boar = 13;
+	Cat = 14;
+	Chandra = 15;
+	Cleric = 16;
+	Construct = 17;
+	Crocodile = 18;
+	Demon = 19;
+	Djinn = 20;
+	Dragon = 21;
+	Drake = 22;
+	Druid = 23;
+	Fish = 24;
+	Elemental = 25;
+	Elephant = 26;
+	Elf = 27;
+	Equipment = 28;
+	Forest = 29;
+	Garruk = 30;
+	Gate = 31;
+	Giant = 32;
+	Gideon = 33;
+	Goblin = 34;
+	Golem = 35;
+	Griffin = 36;
+	Horse = 37;
+	Human = 39;
+	Hydra = 40;
+	Illusion = 41;
+	Insect = 42;
+	Island = 43;
+	Jace = 44;
+	Knight = 45;
+	Merfolk = 46;
+	Minotaur = 47;
+	Monk = 48;
+	Mountain = 49;
+	Ogre = 50;
+	Ooze = 51;
+	Pegasus = 52;
+	Phoenix = 53;
+	Plains = 54;
+	Rhino = 55;
+	Rogue = 56;
+	Salamander = 57;
+	Scout = 58;
+	Serpent = 59;
+	Shade = 60;
+	Shaman = 61;
+	Siren = 62;
+	Skeleton = 63;
+	Soldier = 64;
+	Sorin = 65;
+	Sphinx = 66;
+	Spider = 67;
+	Spirit = 68;
+	Swamp = 69;
+	Tower_a8d0 = 70;
+	Treefolk = 71;
+	Troll = 72;
+	Urzas = 73;
+	Vampire = 74;
+	Vedalken = 75;
+	Wall = 76;
+	Warrior = 77;
+	Wizard = 78;
+	Wolf = 79;
+	Wurm = 80;
+	Zombie = 81;
+	Mine_a8d0 = 82;
+	PowerPlant = 83;
+	Saproling = 84;
+	Avatar = 85;
+	Sliver = 86;
+	Samurai = 87;
+	Pest = 88;
+	Thalakos = 89;
+	Dauthi = 90;
+	Minion = 91;
+	Advisor = 92;
+	Ajani = 93;
+	Alara = 94;
+	Ally = 95;
+	Antelope = 97;
+	Ape = 98;
+	Arcane = 99;
+	Arkhos = 100;
+	Ashiok = 101;
+	AssemblyWorker = 102;
+	Atog = 103;
+	Aurochs = 104;
+	Azgol = 105;
+	Badger = 106;
+	Barbarian = 107;
+	Beeble = 108;
+	Belenon = 109;
+	Bolas = 110;
+	Bolass = 111;
+	Bringer = 112;
+	Brushwagg = 113;
+	Camel = 114;
+	Carrier = 115;
+	Centaur = 116;
+	Chimera = 118;
+	Cockatrice = 119;
+	Crab = 120;
+	Curse = 121;
+	Cyclops = 122;
+	Desert = 123;
+	Devil = 124;
+	Dominaria = 125;
+	Domri = 126;
+	Dreadnought = 127;
+	Drone = 128;
+	Dryad = 129;
+	Dwarf = 130;
+	Efreet = 131;
+	Elder = 132;
+	Eldrazi = 133;
+	Elk = 134;
+	Elspeth = 135;
+	Equilor = 136;
+	Ergamon = 137;
+	Eye = 138;
+	Fabacin = 139;
+	Faerie = 140;
+	Ferret = 141;
+	Flagbearer = 142;
+	Fortification = 143;
+	Fox = 144;
+	Frog = 145;
+	Fungus_a8d0 = 146;
+	Gargoyle = 147;
+	Gnome = 148;
+	Goat = 149;
+	God = 150;
+	Gorgon = 151;
+	Gremlin = 152;
+	Hag = 153;
+	Harpy = 154;
+	Hellion = 155;
+	Hippo = 156;
+	Hippogriff = 157;
+	Homarid = 158;
+	Homunculus = 159;
+	Horror = 160;
+	Hyena = 161;
+	Imp = 162;
+	Incarnation_a8d0 = 163;
+	Innistrad = 164;
+	Iquatana = 165;
+	Ir = 166;
+	Jellyfish = 167;
+	Juggernaut = 168;
+	Kaldheim = 169;
+	Kamigawa = 170;
+	Karn = 171;
+	Karsus = 172;
+	Kavu = 173;
+	Kephalai = 174;
+	Kirin = 175;
+	Kithkin = 176;
+	Kobold = 177;
+	Kolbahan = 178;
+	Kor = 179;
+	Koth = 180;
+	Kraken = 181;
+	Kyneth = 182;
+	Lair = 183;
+	Lammasu = 184;
+	Leech = 185;
+	Leviathan = 186;
+	Lhurgoyf = 187;
+	Licid = 188;
+	Liliana = 189;
+	Lizard = 190;
+	Locus = 191;
+	Lorwyn = 192;
+	Luvion = 193;
+	Manticore = 194;
+	Masticore = 195;
+	Meditation = 196;
+	Mercadia = 197;
+	Mercenary = 198;
+	Metathran = 199;
+	Mirrodin = 200;
+	Moag = 201;
+	Monger = 202;
+	Mongoose = 203;
+	Mongseng = 204;
+	Moonfolk = 205;
+	Muraganda = 206;
+	Mutant = 207;
+	Myr = 208;
+	Mystic = 209;
+	Nautilus = 210;
+	Nephilim = 211;
+	New = 212;
+	Nightmare = 213;
+	Nightstalker = 214;
+	Ninja = 215;
+	Nissa = 216;
+	Noggle = 217;
+	Nomad = 218;
+	Nymph = 219;
+	Octopus = 220;
+	Orc = 221;
+	Orgg = 222;
+	Ouphe = 223;
+	Ox = 224;
+	Oyster = 225;
+	Phelddagrif = 226;
+	Phyrexia = 227;
+	Pirate = 228;
+	Plant = 229;
+	Praetor = 230;
+	Pyrulea = 231;
+	Rabbit = 232;
+	Rabiah = 233;
+	Ral = 234;
+	Rat = 235;
+	Rath = 236;
+	Ravnica = 237;
+	Realm = 238;
+	Rebel = 239;
+	Regatha = 240;
+	Rigger = 241;
+	Sable = 242;
+	Sarkhan = 243;
+	Satyr = 244;
+	Scarecrow = 245;
+	Scorpion = 246;
+	Segovia = 247;
+	Serras = 248;
+	Shadowmoor = 249;
+	Shandalar = 250;
+	Shapeshifter = 251;
+	Sheep = 252;
+	Shrine = 253;
+	Slith = 254;
+	Slug = 255;
+	Snake = 256;
+	Soltari = 257;
+	Spawn = 258;
+	Specter = 259;
+	Spellshaper = 260;
+	Spike = 261;
+	Sponge = 262;
+	Squid = 263;
+	Squirrel = 264;
+	Starfish = 265;
+	Surrakar = 266;
+	Tamiyo = 267;
+	Tezzeret = 268;
+	Thopter = 269;
+	Thrull = 270;
+	Tibalt = 271;
+	Trap_a8d0 = 272;
+	Turtle = 273;
+	Ulgrotha = 274;
+	Unicorn = 275;
+	Valla = 276;
+	Venser = 277;
+	Volver = 279;
+	Vraska = 280;
+	Vryn = 281;
+	Weird = 282;
+	Werewolf = 283;
+	Whale = 284;
+	Wildfire = 285;
+	Wolverine = 286;
+	Wombat = 287;
+	Worm = 288;
+	Wraith = 289;
+	Xenagos = 290;
+	Xerex = 291;
+	Yeti = 292;
+	Zendikar = 293;
+	Zubera = 294;
+	Germ = 295;
+	Contraption = 296;
+	Citizen = 297;
+	Coward = 298;
+	Deserter = 299;
+	Prism = 300;
+	Reflection = 301;
+	Sand = 302;
+	Serf = 303;
+	Dack = 304;
+	Kiora = 305;
+	AllCreatureTypes = 306;
+	Blinkmoth = 307;
+	Camarid = 308;
+	Caribou = 309;
+	Graveborn = 310;
+	Lamia = 311;
+	Orb = 312;
+	Pentavite = 313;
+	Pincher = 314;
+	Splinter = 315;
+	Survivor = 316;
+	Tetravite = 317;
+	Triskelavite = 318;
+	Scion = 319;
+	Processor = 320;
+	Arlinn = 321;
+	Mole = 322;
+	Nahiri = 323;
+	Clue = 324;
+	Teferi = 325;
+	Daretti = 326;
+	Freyalise = 327;
+	Nixilis = 328;
+	Narset = 329;
+	Ugin = 330;
+	Vehicle = 331;
+	Servo = 332;
+	Dovin = 333;
+	Saheeli = 334;
+	Monkey = 335;
+	Aetherborn = 336;
+	Pilot = 337;
+	Jackal = 338;
+	Cartouche = 340;
+	Samut = 341;
+	Dinosaur = 342;
+	Treasure_a8d0 = 343;
+	Huatli = 344;
+	Angrath = 345;
+	Trilobite = 346;
+	Saga = 347;
+	Jaya = 348;
+	Vivien = 349;
+	Egg_a8d0 = 350;
+	Kaya = 351;
+	Aminatou = 352;
+	Estrid = 353;
+	Rowan = 354;
+	Will = 355;
+	Windgrace = 356;
+	Yanggu = 357;
+	Yanling = 358;
+	Army = 359;
+	Teyo = 360;
+	Kasmina = 361;
+	Davriel = 362;
+	Food = 363;
+	Mouse = 364;
+	Noble = 365;
+	Peasant = 366;
+	Oko = 367;
+	Warlock = 368;
+	Adventure_a8d0 = 369;
+	Demigod = 370;
+	Gold_a8d0 = 371;
+	Tentacle = 372;
+	Azra = 373;
+	Pangolin = 374;
+	Calix = 375;
+	Lukka = 376;
+	Otter = 377;
+	Shark = 378;
+	Dog = 379;
+	Basri = 380;
+	Rune = 381;
+	Tyvar = 382;
+	Phyrexian_a8d0 = 383;
+	Niko = 384;
+	Shard = 385;
+	Inkling = 386;
+	Fractal = 387;
+	Lesson = 388;
+	Bard = 389;
+	Beholder = 390;
+	Gnoll = 391;
+	Hamster = 392;
+	Halfling = 393;
+	Tiefling = 394;
+	Bahamut = 395;
+	Ellywick = 396;
+	Lolth = 397;
+	Mordenkainen = 398;
+	Zariel = 399;
+	Class = 400;
+	Ranger = 401;
+	Wrenn = 402;
+	Blood_a8d0 = 403;
+	Serra = 404;
+	Kaito = 405;
+	Raccoon = 406;
+	Gith = 407;
+	Minsc = 408;
+	Tasha = 409;
+	Walrus = 410;
+	Powerstone = 411;
+	Urza = 412;
+	Mite = 413;
+	Sphere = 414;
+	Incubator = 415;
+	Siege = 416;
+	Role = 417;
+	Capybara = 418;
+	Cave = 419;
+	Llama = 420;
+	Map = 421;
+	Quintorius = 422;
+	Snail = 423;
+	Case = 424;
+	Detective = 425;
+	Grist = 426;
+	Chorus_a8d0 = 427;
+	Armadillo = 428;
+	Beaver = 429;
+	Coyote = 430;
+	Mount = 431;
+	Porcupine = 432;
+	Possum = 433;
+	Varmint = 434;
+	Sloth = 435;
+	Skunk = 436;
+	Weasel = 437;
+	Room = 438;
+	Balloon = 439;
+	Clown = 440;
+	Doctor = 441;
+	Glimmer = 442;
+	Toy = 443;
+	Robot = 444;
+	Seal = 445;
+	Omen_a8d0 = 446;
+	Alien = 447;
+	Hero = 448;
+	Moogle = 449;
+	Qu = 450;
+	Town = 451;
+	Comet = 452;
+	Drix = 453;
+	Lander = 454;
+	Lobster = 455;
+	Planet = 456;
+	Scientist = 457;
+	Spacecraft = 458;
+	Bison = 459;
+	Lemur = 460;
+	Kangaroo = 461;
+	Performer = 462;
+	Platypus = 463;
+	Symbiote = 464;
+	Villain = 465;
+	Sorcerer = 466;
+	Terminus = 467;
+	Stone = 468;
+	PlaceholderSubType469 = 469;
+	PlaceholderSubType470 = 470;
+	PlaceholderSubType471 = 471;
+	PlaceholderSubType472 = 472;
+	PlaceholderSubType473 = 473;
+	PlaceholderSubType474 = 474;
+	PlaceholderSubType475 = 475;
+	PlaceholderSubType476 = 476;
+	PlaceholderSubType477 = 477;
+	PlaceholderSubType478 = 478;
+	PlaceholderSubType479 = 479;
+	PlaceholderSubType480 = 480;
+	PlaceholderSubType481 = 481;
+}
+
+enum SubZoneType {
+	None_a455 = 0;
+	Top = 1;
+	Bottom = 2;
+}
+
+message SubmitAttackersResp {
+	ResultCode result = 1;
+}
+
+message SubmitBlockersResp {
+	ResultCode result = 1;
+}
+
+message SubmitDeckReq {
+	DeckMessage deck = 1;
+}
+
+message SubmitDeckResp {
+	DeckMessage deck = 1;
+}
+
+message SubmitTargetsResp {
+	ResultCode result = 1;
+}
+
+enum SuperFormat {
+	None_a556 = 0;
+	Limited = 1;
+	Constructed = 2;
+}
+
+enum SuperType {
+	None_a672 = 0;
+	Basic = 1;
+	Legendary = 2;
+	Ongoing = 3;
+	Snow_a672 = 4;
+	World = 5;
+}
+
+message Target {
+	uint32 targetInstanceId = 1;
+	SelectAction legalAction = 2;
+	HighlightType highlight = 3;
+}
+
+message TargetInfo {
+	TargetType targetType = 1;
+	uint32 targetId = 2;
+}
+
+message TargetSelection {
+	uint32 targetIdx = 1;
+	repeated Target targets = 2;
+	uint32 minTargets = 3;
+	uint32 maxTargets = 4;
+	uint32 selectedTargets = 5;
+	Prompt prompt = 6;
+	uint32 targetSourceZoneId = 7;
+	uint32 targetingAbilityGrpId = 8;
+	uint32 targetingPlayer = 9;
+}
+
+enum TargetType {
+	None_aaf1 = 0;
+	Player_aaf1 = 1;
+	GameObject = 2;
+}
+
+message TeamConfig {
+	uint32 teamID = 1;
+	repeated PlayerConfig players = 2;
+}
+
+message TeamInfo {
+	uint32 id = 1;
+	repeated uint32 playerIds = 2;
+	TeamStatus status = 3;
+}
+
+enum TeamStatus {
+	None_a458 = 0;
+	InGame_a458 = 1;
+	Removed_a458 = 2;
+	PendingLoss_a458 = 3;
+}
+
+enum TeamType {
+	None_a2f1 = 0;
+	Individual = 1;
+	SharedTeam = 2;
+}
+
+message TestConfig {
+	ShuffleRestriction shuffleRestriction = 1;
+	uint32 startingPlayer = 2;
+	bool useSpecifiedSeed = 3;
+	uint32 randomSeed = 4;
+	bool useZeroManaCostForCasting = 5;
+	uint32 useMaxLandsPerTurn = 6;
+	TreeOfCongress treeOfCongress = 7;
+	bool enableAchievements = 8;
+	bool disableHiFiGameStateQueueing = 9;
+	bool disableGameStateQueueingDuringCancelableActions = 10;
+	bool disableHiFiGameStates = 11;
+	bool disableTimers = 12;
+	repeated uint32 randomSeeds = 13;
+	uint32 freeMulliganCount = 14;
+	uint32 randomDrawCount = 15;
+	float minRandomDrawDistance = 16;
+	float maxRandomDrawDistance = 17;
+	bool enableAutoAcceptHand = 18;
+	bool enableAutoPlay = 19;
+	bool disableUnexpectedMessageRecovery = 20;
+	bool disableSideboarding = 21;
+	uint32 candidateShuffleCount = 22;
+	uint32 bestCandidateShuffleCount = 23;
+	AutoRespondPermission autoRespondPermission = 24;
+	bool disableDeferredActionCostPayment = 25;
+	bool disableIndividualDamageAssignments = 26;
+	bool disableHiFiSettings = 27;
+	bool enableSideboardLoading = 28;
+	bool disableUniqueAbilityActivations = 29;
+	bool enablePredictions = 30;
+	bool enableDamageOrdering = 31;
+	bool disableHiFiAchievements = 32;
+}
+
+message TimeoutConfig {
+	uint32 maxTimeoutCount = 1;
+	uint32 startingTimeoutCount = 2;
+	uint32 maxPipCount = 3;
+	uint32 startingPipCount = 4;
+	uint32 durationSec = 5;
+}
+
+message TimeoutMessage {
+	uint32 seatId = 1;
+	uint32 timeoutCount = 2;
+	TimerInfo timer = 3;
+}
+
+enum TimeoutType {
+	None_af9c = 0;
+	ChessClock = 1;
+	Inactivity_af9c = 2;
+}
+
+enum TimerBehavior {
+	None_a3cd = 0;
+	Timeout_a3cd = 1;
+	AutoRespond = 2;
+	TakeControl = 3;
+	ReleaseControl = 4;
+	Start_a3cd = 5;
+	Restart = 6;
+	Stop_2117 = 7;
+	Reset = 8;
+	Activate_a3cd = 9;
+	Deactivate = 10;
+	StartDelayedTimer = 11;
+}
+
+message TimerConfig {
+	TimerType type = 1;
+	uint32 durationSec = 4;
+	TimerBehavior behavior = 5;
+	repeated TimerControl controls = 6;
+	uint32 warningThresholdSec = 7;
+	uint32 maxDurationSec = 8;
+}
+
+message TimerControl {
+	TimerEvent event = 1;
+	TimerBehavior behavior = 2;
+}
+
+enum TimerEvent {
+	None_aaef = 0;
+	OnRequestSent = 1;
+	OnResponseReceived = 2;
+	OnExpiration = 3;
+	OnMatchStart = 4;
+	OnGameStart = 5;
+	OnPlayStart = 6;
+	OnTurnChanged = 7;
+	OnActivePlayer = 8;
+	OnNonActivePlayer = 9;
+	Beginning_aaef = 10;
+	Main1_aaef = 11;
+	Combat_aaef = 12;
+	Main2_aaef = 13;
+	Ending_aaef = 14;
+	OnWin = 15;
+	OnLoss = 16;
+	OnDraw = 17;
+	OnGameOver = 18;
+	OnMatchOver = 19;
+	OnTurnOver = 20;
+	Upkeep_aaef = 21;
+	Draw_aaef = 22;
+	BeginCombat_aaef = 23;
+	DeclareAttack_aaef = 24;
+	DeclareBlock_aaef = 25;
+	CombatDamage_aaef = 26;
+	EndCombat_aaef = 27;
+	End_aaef = 28;
+	Cleanup_aaef = 29;
+	FirstStrikeDamage_aaef = 30;
+}
+
+message TimerInfo {
+	uint32 timerId = 1;
+	TimerType type = 2;
+	uint32 durationSec = 3;
+	uint32 elapsedSec = 4;
+	bool running = 5;
+	TimerBehavior behavior = 6;
+	uint32 warningThresholdSec = 7;
+	uint32 elapsedMs = 8;
+}
+
+enum TimerPackage {
+	None_a967 = 0;
+	V1 = 1;
+	V2 = 2;
+	V3 = 3;
+	V4 = 4;
+	V5 = 5;
+	DirectChallenge = 6;
+	Default = 7;
+	BestOfThree = 8;
+	BestOfOneMatchClock = 9;
+	BestOfThreeAdditionalTimeouts = 10;
+	BestOfOnePoweredCube = 11;
+	BestOfThreePoweredCube = 12;
+}
+
+message TimerStateMessage {
+	uint32 seatId = 1;
+	repeated TimerInfo timers = 2;
+}
+
+enum TimerType {
+	None_a5e2 = 0;
+	Decision = 1;
+	Inactivity_a5e2 = 2;
+	ActivePlayer = 3;
+	NonActivePlayer = 4;
+	Prologue = 5;
+	Epilogue = 6;
+	Delay_a5e2 = 7;
+	MatchClock = 8;
+}
+
+message TreeOfCongress {
+	repeated uint32 systemSeatId = 1;
+}
+
+message TriggeredAbility {
+	uint32 abilityGrpId = 1;
+	uint32 sourceZcid = 2;
+}
+
+message TurnInfo {
+	Phase phase = 1;
+	Step step = 2;
+	uint32 turnNumber = 3;
+	uint32 activePlayer = 4;
+	uint32 priorityPlayer = 5;
+	uint32 decisionPlayer = 6;
+	Phase nextPhase = 8;
+	Step nextStep = 9;
+}
+
+message UIMessage {
+	repeated uint32 seatIds = 1;
+	oneof message {
+		OnSelect onSelect = 2;
+		OnHover onHover = 3;
+		OnShuffle onShuffle = 4;
+		OnChat onChat = 5;
+		OnGenericEvent onGenericEvent = 6;
+	}
+}
+
+message UInt32Value {
+	uint32 value = 1;
+}
+
+message UInt32Values {
+	repeated uint32 values = 1;
+}
+
+message UInt64Value {
+	uint64 value = 1;
+}
+
+message UInt64Values {
+	repeated uint64 values = 1;
+}
+
+message UniqueAbilityInfo {
+	uint32 id = 1;
+	uint32 grpId = 2;
+}
+
+message UserConnectionInfo {
+	ConnectionState connectionState = 1;
+	int64 lastConnectTimestamp = 10;
+	int64 lastDisconnectTimestamp = 11;
+}
+
+message UserOption {
+	Prompt optionPrompt = 1;
+	ClientMessageType responseType = 2;
+}
+
+message Version {
+	uint32 majorVersion = 1;
+	uint32 minorVersion = 2;
+	uint32 revisionVersion = 3;
+	uint32 buildVersion = 4;
+}
+
+enum Visibility {
+	None_a643 = 0;
+	Public = 1;
+	Private = 2;
+	Hidden = 3;
+	Deceptive = 4;
+}
+
+message ZoneInfo {
+	uint32 zoneId = 1;
+	ZoneType type = 2;
+	Visibility visibility = 3;
+	uint32 ownerSeatId = 4;
+	repeated uint32 objectInstanceIds = 5;
+	repeated uint32 viewers = 6;
+}
+
+enum ZoneType {
+	None_a5ce = 0;
+	Library = 1;
+	Hand = 2;
+	Battlefield = 3;
+	Stack = 4;
+	Graveyard = 5;
+	Exile = 6;
+	Command = 7;
+	Revealed = 8;
+	Limbo = 9;
+	Sideboard = 10;
+	Pending = 11;
+	PhasedOut_a5ce = 12;
+	Suppressed = 13;
+}
+
