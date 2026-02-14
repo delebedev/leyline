@@ -13,6 +13,7 @@ import forge.web.game.InteractivePromptBridge
 import forge.web.game.MulliganBridge
 import forge.web.game.WebPlayerController
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.util.Random
 import java.util.concurrent.ConcurrentHashMap
 
@@ -52,6 +53,20 @@ class GameBridge {
 
     /** Snapshot current zones for annotation building. */
     fun getPreviousZone(instanceId: Int): Int? = previousZones[instanceId]
+
+    /** Previous full GameStateMessage — used to compute diffs. Null before first state. */
+    @Volatile
+    private var previousState: GameStateMessage? = null
+
+    fun snapshotState(game: Game) {
+        previousState = StateMapper.buildFromGame(game, 0, "", this)
+    }
+
+    fun getPreviousState(): GameStateMessage? = previousState
+
+    fun clearPreviousState() {
+        previousState = null
+    }
 
     companion object {
         /** Fallback grpId for cards not in Arena DB (renders face-down). */

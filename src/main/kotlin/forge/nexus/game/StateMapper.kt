@@ -212,6 +212,72 @@ object StateMapper {
     }
 
     /**
+     * Build a Diff [GameStateMessage] containing only zones/objects that changed
+     * since the previous snapshot. Falls back to Full if no previous state exists.
+     * Updates the bridge's snapshot after building so the next diff is relative
+     * to this state.
+     */
+    fun buildDiffFromGame(
+        game: Game,
+        gameStateId: Int,
+        matchId: String,
+        bridge: GameBridge,
+        actions: ActionsAvailableReq? = null,
+    ): GameStateMessage {
+        val prev = bridge.getPreviousState()
+            ?: return buildFromGame(game, gameStateId, matchId, bridge, actions)
+
+        // Build current full state (for comparison + to seed next diff).
+        // Pass actions=null to avoid redundant action embedding (we embed below).
+        val current = buildFromGame(game, gameStateId, matchId, bridge)
+
+        // Compute changed zones (by objectInstanceIds)
+        val prevZoneMap = prev.zonesList.associateBy { it.zoneId }
+        val changedZones = current.zonesList.filter { zone ->
+            val prevZone = prevZoneMap[zone.zoneId]
+            prevZone == null || prevZone.objectInstanceIdsList != zone.objectInstanceIdsList
+        }
+
+        // Compute changed/new objects
+        val prevObjMap = prev.gameObjectsList.associateBy { it.instanceId }
+        val changedObjects = current.gameObjectsList.filter { obj ->
+            val prevObj = prevObjMap[obj.instanceId]
+            prevObj == null || prevObj != obj
+        }
+
+        val builder = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(gameStateId)
+            .setTurnInfo(current.turnInfo)
+            .addAllPlayers(current.playersList)
+            .addAllZones(changedZones)
+            .addAllGameObjects(changedObjects)
+            .addAllAnnotations(current.annotationsList)
+            .setUpdate(GameStateUpdate.SendAndRecord)
+
+        // Embed actions in Diff state (real server does this)
+        if (actions != null) {
+            val handler = game.phaseHandler
+            val human = bridge.getPlayer(1)
+            val activeSeat = if (handler.priorityPlayer == human) 1 else 2
+            var actionId = 1
+            for (action in actions.actionsList) {
+                builder.addActions(
+                    ActionInfo.newBuilder()
+                        .setActionId(actionId++)
+                        .setSeatId(activeSeat)
+                        .setAction(action),
+                )
+            }
+        }
+
+        // Update snapshot for next diff
+        bridge.snapshotState(game)
+
+        return builder.build()
+    }
+
+    /**
      * Build a Diff GameStateMessage for phase transitions (Beginning→Main1 sequence).
      * Matches real server: stage=Play, phase/step, life totals, timers.
      * Optionally embeds actions (for the Main1 state).
