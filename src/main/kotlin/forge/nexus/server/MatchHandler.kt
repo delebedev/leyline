@@ -276,6 +276,9 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
         gameStateId = result.nextGsId
 
         sendBundle(ctx, result)
+
+        // Seed state snapshot for subsequent diff computation
+        bridge.snapshotState(game)
     }
 
     /**

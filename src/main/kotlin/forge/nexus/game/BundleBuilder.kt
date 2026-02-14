@@ -86,7 +86,7 @@ object BundleBuilder {
 
     /**
      * Post-action state bundle:
-     *   GRE 1: Full GameStateMessage with embedded actions
+     *   GRE 1: Diff GameStateMessage with embedded actions (only changed zones/objects)
      *   GRE 2: ActionsAvailableReq
      */
     fun postAction(
@@ -102,7 +102,7 @@ object BundleBuilder {
 
         nextGs++
         val actions = StateMapper.buildActions(game, seatId, bridge)
-        val gs = StateMapper.buildFromGame(game, nextGs, matchId, bridge, actions)
+        val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, actions)
 
         val messages = listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {

@@ -786,6 +786,57 @@ class GameBridgeTest {
         assertEquals(details["category"], "PlayLand")
     }
 
+    // --- Diff state tests ---
+
+    @Test
+    fun postActionSendsDiffNotFull() {
+        val b = GameBridge()
+        bridge = b
+        b.start()
+        b.submitKeep(1)
+        advanceToMain1(b)
+
+        val game = b.getGame()!!
+
+        // Seed snapshot — subsequent buildDiffFromGame should produce Diff
+        b.snapshotState(game)
+
+        val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, 10)
+        val gs = result.messages.first().gameStateMessage
+
+        assertEquals(
+            gs.type,
+            Messages.GameStateType.Diff,
+            "Post-action state should be Diff (not Full)",
+        )
+        // Diff always has players and turnInfo (metadata), even when no zones changed
+        Assert.assertTrue(gs.playersCount > 0, "Diff should include player info")
+        Assert.assertTrue(gs.hasTurnInfo(), "Diff should include turn info")
+    }
+
+    /** When no previous snapshot exists, buildDiffFromGame falls back to Full. */
+    @Test
+    fun diffFallsBackToFullWithoutSnapshot() {
+        val b = GameBridge()
+        bridge = b
+        b.start()
+        b.submitKeep(1)
+        advanceToMain1(b)
+
+        val game = b.getGame()!!
+
+        // No snapshotState call — previousState is null
+        Assert.assertNull(b.getPreviousState(), "Should have no previous state")
+
+        val gs = StateMapper.buildDiffFromGame(game, 1, "test-match", b)
+        assertEquals(
+            gs.type,
+            Messages.GameStateType.Full,
+            "Without previous state, should fall back to Full",
+        )
+        Assert.assertTrue(gs.zonesCount > 0, "Fallback Full should have zones")
+    }
+
     // --- Helpers ---
 
     /** Play a land + cast a creature from hand at Main1. */
