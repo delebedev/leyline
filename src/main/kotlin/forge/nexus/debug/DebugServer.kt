@@ -15,6 +15,10 @@ import java.net.InetSocketAddress
  * - `GET /api/messages`   → JSON array of entries (supports `?since=N`)
  * - `GET /api/state`      → match state snapshot
  * - `GET /api/id-map`     → instanceId cross-reference table
+ * - `GET /api/game-states` → structured state snapshot timeline
+ * - `GET /api/state-diff`  → diff between two gsIds (`?from=X&to=Y`)
+ * - `GET /api/priority-events` → priority trace events
+ * - `GET /api/instance-history` → zone history for an instanceId (`?id=N`)
  */
 class DebugServer(private val port: Int = 8090) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
@@ -32,6 +36,10 @@ class DebugServer(private val port: Int = 8090) {
         srv.createContext("/api/state") { ex -> safe(ex) { serveState(ex) } }
         srv.createContext("/api/id-map") { ex -> safe(ex) { serveIdMap(ex) } }
         srv.createContext("/api/logs") { ex -> safe(ex) { serveLogs(ex) } }
+        srv.createContext("/api/game-states") { ex -> safe(ex) { serveGameStates(ex) } }
+        srv.createContext("/api/state-diff") { ex -> safe(ex) { serveStateDiff(ex) } }
+        srv.createContext("/api/priority-events") { ex -> safe(ex) { servePriorityEvents(ex) } }
+        srv.createContext("/api/instance-history") { ex -> safe(ex) { serveInstanceHistory(ex) } }
         srv.executor = null // default single-thread executor
         srv.start()
         server = srv
@@ -76,6 +84,47 @@ class DebugServer(private val port: Int = 8090) {
         val level = params["level"] ?: "DEBUG"
         val logs = ArenaDebugCollector.logSnapshot(since, level)
         respondJson(ex, json.encodeToString(logs))
+    }
+
+    // --- GameStateCollector endpoints ---
+
+    private fun serveGameStates(ex: HttpExchange) {
+        val timeline = GameStateCollector.timeline()
+        respondJson(ex, json.encodeToString(timeline))
+    }
+
+    private fun serveStateDiff(ex: HttpExchange) {
+        val params = parseQuery(ex.requestURI.rawQuery)
+        val from = params["from"]?.toIntOrNull()
+        val to = params["to"]?.toIntOrNull()
+        if (from == null || to == null) {
+            respond(ex, 400, "text/plain", "Required: ?from=<gsId>&to=<gsId>")
+            return
+        }
+        val diff = GameStateCollector.diff(from, to)
+        if (diff == null) {
+            respond(ex, 404, "text/plain", "Snapshot not found for gsId=$from or gsId=$to")
+            return
+        }
+        respondJson(ex, json.encodeToString(diff))
+    }
+
+    private fun servePriorityEvents(ex: HttpExchange) {
+        val params = parseQuery(ex.requestURI.rawQuery)
+        val since = params["since"]?.toIntOrNull() ?: 0
+        val events = GameStateCollector.events(since)
+        respondJson(ex, json.encodeToString(events))
+    }
+
+    private fun serveInstanceHistory(ex: HttpExchange) {
+        val params = parseQuery(ex.requestURI.rawQuery)
+        val id = params["id"]?.toIntOrNull()
+        if (id == null) {
+            respond(ex, 400, "text/plain", "Required: ?id=<instanceId>")
+            return
+        }
+        val history = GameStateCollector.instanceHistory(id)
+        respondJson(ex, json.encodeToString(history))
     }
 
     // --- Helpers ---
