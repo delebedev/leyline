@@ -786,6 +786,46 @@ class GameBridgeTest {
         assertEquals(details["category"], "PlayLand")
     }
 
+    // --- AI combat visibility tests ---
+
+    /** During AI combat, attacking creatures should have AttackState.Attacking in the game state. */
+    @Test
+    fun aiCombatPopulatesAttackState() {
+        val b = GameBridge()
+        bridge = b
+        b.start(seed = 100L)
+        b.submitKeep(1)
+        advanceToMain1(b)
+
+        val game = b.getGame()!!
+        // Pass through entire turn 1 to let AI play
+        advanceToPhase(b, PhaseType.MAIN1, maxPasses = 80)
+        if (game.isGameOver) return
+
+        // Check if AI has creatures on battlefield
+        val ai = b.getPlayer(2)!!
+        val aiCreatures = ai.getZone(ZoneType.Battlefield).cards.filter { it.isCreature }
+        if (aiCreatures.isEmpty()) return // AI didn't play creatures — skip
+
+        // Advance to AI's combat
+        advanceToPhase(b, PhaseType.COMBAT_DECLARE_ATTACKERS, maxPasses = 80)
+        if (game.isGameOver) return
+        if (game.phaseHandler.phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return
+
+        val gs = StateMapper.buildFromGame(game, 1, "test-match", b)
+        val bfObjects = gs.gameObjectsList.filter { it.zoneId == 28 } // Battlefield
+
+        // If combat is active, attacking creatures should have attackState
+        val combat = game.phaseHandler.combat
+        if (combat != null && combat.attackers.isNotEmpty()) {
+            val attacking = bfObjects.filter { it.attackState == Messages.AttackState.Attacking }
+            Assert.assertTrue(
+                attacking.isNotEmpty(),
+                "During combat, attacking creatures should have AttackState.Attacking",
+            )
+        }
+    }
+
     // --- Diff state tests ---
 
     @Test
