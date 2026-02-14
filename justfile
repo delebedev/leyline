@@ -39,25 +39,38 @@ build: check-java _check-upstream
     fi
     echo "Build complete. Classpath: {{classpath}}"
 
+# fast Kotlin-only compile (~3-5s, skip forge-web install)
+dev-build: check-java
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_skip}} compile -q
+    if [ ! -f "{{classpath}}" ] || [ "{{nexus_dir}}/pom.xml" -nt "{{classpath}}" ] || [ "{{root_dir}}/pom.xml" -nt "{{classpath}}" ]; then
+        cd "{{root_dir}}" && mvn -pl forge-nexus \
+            {{mvn_skip}} \
+            -DincludeScope=runtime dependency:build-classpath \
+            -Dmdep.outputFile="{{classpath}}"
+    fi
+
 # run tests (assumes `just build` has been run)
 test: check-java _check-upstream _clean-surefire
     cd "{{root_dir}}" && mvn -pl forge-nexus \
         {{mvn_quiet}} test
 
-# watch *.kt, recompile + restart hybrid on change
+# watch *.kt, recompile + restart hybrid on change (fast: nexus-only compile)
 dev: check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "Starting hybrid with file watcher..."
+    echo "Starting hybrid with file watcher (dev-build, nexus-only compile)..."
     echo "Ctrl-C to stop. Changes to *.kt trigger recompile + restart."
+    echo "Tip: if you changed forge-web code, run 'just build' first."
     trap 'kill %% 2>/dev/null; exit 0' INT TERM
     while true; do
-        just build 2>&1 | tail -3
+        just dev-build
         echo "--- hybrid running (pid below) ---"
         just serve &
         NEXUS_PID=$!
         if command -v fswatch >/dev/null 2>&1; then
-            fswatch -1 -r -e '.*' -i '\.kt$' "{{web_dir}}/src/main/kotlin" "{{nexus_dir}}/src/main/kotlin"
+            fswatch -1 -r -e '.*' -i '\.kt$' "{{nexus_dir}}/src/main/kotlin"
         else
             echo "(fswatch not found — poll fallback, 3s)"
             STAMP=$(stat -f%m "{{nexus_dir}}/src/main/kotlin" 2>/dev/null || echo 0)
