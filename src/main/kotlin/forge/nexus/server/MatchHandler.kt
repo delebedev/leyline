@@ -1,7 +1,9 @@
 package forge.nexus.server
 
+import forge.game.Game
 import forge.game.phase.PhaseType
 import forge.nexus.debug.ArenaDebugCollector
+import forge.nexus.debug.GameStateCollector
 import forge.nexus.debug.NexusTap
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
@@ -534,6 +536,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
         repeat(AUTO_PASS_MAX_ITERATIONS) {
             val game = bridge.getGame() ?: return
             if (game.isGameOver) {
+                traceEvent(GameStateCollector.EventType.GAME_OVER, game, "game over detected")
                 sendGameOver(ctx)
                 return
             }
@@ -548,6 +551,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
             if (phase == PhaseType.COMBAT_DECLARE_ATTACKERS && isHumanTurn) {
                 val req = StateMapper.buildDeclareAttackersReq(game, seatId, bridge)
                 if (req.attackersCount > 0) {
+                    traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
                     sendDeclareAttackersReq(ctx, bridge, req)
                     return
                 }
@@ -558,6 +562,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
             if (phase == PhaseType.COMBAT_DECLARE_ATTACKERS && isAiTurn) {
                 val combat = game.phaseHandler.combat
                 if (combat != null && combat.attackers.isNotEmpty()) {
+                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "AI attacking, ${combat.attackers.size} attackers")
                     Thread.sleep(AI_COMBAT_DELAY_MS)
                     sendRealGameState(ctx, bridge)
                     return
@@ -570,6 +575,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
                 // Human is defending — check if there are attackers to block
                 val combat = game.phaseHandler.combat
                 if (combat != null && combat.attackers.isNotEmpty()) {
+                    traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
                     sendDeclareBlockersReq(ctx, bridge)
                     return
                 }
@@ -579,6 +585,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
             if (phase == PhaseType.COMBAT_DECLARE_BLOCKERS && isHumanTurn) {
                 val combat = game.phaseHandler.combat
                 if (combat != null && combat.attackers.isNotEmpty()) {
+                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "AI blocking result")
                     Thread.sleep(AI_COMBAT_DELAY_MS)
                     // AI blocks are handled by engine — just show the result
                     sendRealGameState(ctx, bridge)
@@ -588,6 +595,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
 
             // Combat damage: send state for both players' turns so damage is visible
             if (phase == PhaseType.COMBAT_DAMAGE) {
+                traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat damage")
                 Thread.sleep(AI_COMBAT_DELAY_MS)
                 sendRealGameState(ctx, bridge)
                 return
@@ -596,6 +604,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
             // After combat resolves, send state so the client sees
             // life total changes before we continue auto-passing.
             if (phase == PhaseType.COMBAT_END) {
+                traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat end")
                 sendRealGameState(ctx, bridge)
                 return
             }
@@ -603,6 +612,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
             // Check for pending interactive prompt (targeting, sacrifice, etc.)
             val pendingPrompt = bridge.promptBridge.getPendingPrompt()
             if (pendingPrompt != null && pendingPrompt.request.candidateRefs.isNotEmpty()) {
+                traceEvent(GameStateCollector.EventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
                 val req = StateMapper.buildSelectTargetsReq(pendingPrompt, bridge)
                 sendSelectTargetsReq(ctx, bridge, req)
                 return
@@ -611,6 +621,11 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
             val actions = StateMapper.buildActions(game, seatId, bridge)
             if (!BundleBuilder.shouldAutoPass(actions)) {
                 // Player has real actions (castable spells, lands, etc.) — send state
+                val actionSummary = actions.actionsList
+                    .groupBy { it.actionType.name.removeSuffix("_add3") }
+                    .map { (t, v) -> "$t=${v.size}" }
+                    .joinToString(" ")
+                traceEvent(GameStateCollector.EventType.SEND_STATE, game, "actions: $actionSummary")
                 sendRealGameState(ctx, bridge)
                 return
             }
@@ -624,6 +639,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
             log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
 
             if (pending != null) {
+                traceEvent(GameStateCollector.EventType.AUTO_PASS, game, "human priority, pass-only")
                 // Human has priority (may be on AI's turn to respond) — submit pass
                 bridge.actionBridge.submitAction(
                     pending.actionId,
@@ -631,6 +647,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
                 )
                 bridge.awaitPriority()
             } else if (isAiTurn) {
+                traceEvent(GameStateCollector.EventType.AI_TURN_WAIT, game, "waiting for AI")
                 // Pacing: brief delay on AI turns so MTGA can animate phase transitions
                 val delay = if (phase.name.startsWith("COMBAT")) AI_COMBAT_DELAY_MS else AI_PHASE_DELAY_MS
                 Thread.sleep(delay)
@@ -640,15 +657,18 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
                 if (!reachedPriority) {
                     val g = bridge.getGame()
                     if (g != null && g.isGameOver) {
+                        traceEvent(GameStateCollector.EventType.GAME_OVER, game, "game over during AI wait")
                         sendGameOver(ctx)
                         return
                     }
+                    traceEvent(GameStateCollector.EventType.AI_TURN_TIMEOUT, game, "AI turn timed out")
                     log.warn("autoPass: AI turn timed out, sending current state")
                     sendRealGameState(ctx, bridge)
                     return
                 }
             } else {
                 // Human turn but no pending action yet — wait for engine
+                traceEvent(GameStateCollector.EventType.PRIORITY_GRANT, game, "waiting for engine")
                 log.warn("autoPass: no pending action, waiting for priority")
                 bridge.awaitPriority()
             }
@@ -657,6 +677,13 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
         // Guardrail: hit max iterations, send whatever we have
         log.warn("autoPassAndAdvance: hit max iterations ({})", AUTO_PASS_MAX_ITERATIONS)
         sendRealGameState(ctx, bridge)
+    }
+
+    /** Emit a priority trace event to [GameStateCollector]. */
+    private fun traceEvent(type: GameStateCollector.EventType, game: Game, detail: String) {
+        val phase = game.phaseHandler.phase?.name
+        val turn = game.phaseHandler.turn
+        GameStateCollector.recordEvent(gameStateId, type, phase, turn, detail)
     }
 
     /**
@@ -760,6 +787,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
     /** Send multiple GRE messages bundled in one MatchServiceToClientMessage. */
     private fun sendBundledGRE(ctx: ChannelHandlerContext, messages: List<GREToClientMessage>) {
         ArenaDebugCollector.recordOutbound(messages, seatId)
+        GameStateCollector.collectOutbound(messages)
         val event = GreToClientEvent.newBuilder()
         messages.forEach { event.addGreToClientMessages(it) }
         val msg = MatchServiceToClientMessage.newBuilder()
