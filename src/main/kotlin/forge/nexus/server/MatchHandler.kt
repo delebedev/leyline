@@ -524,11 +524,15 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
 
             val actions = StateMapper.buildActions(game, seatId, bridge)
             val stackNonEmpty = !game.stack.isEmpty
-            if (stackNonEmpty) log.debug("autoPass: stack non-empty (size={}), auto-passing", game.stack.size())
-            if (!BundleBuilder.shouldAutoPass(actions) && !stackNonEmpty) {
-                // Player has real actions and stack is empty — send state + actions.
-                // When stack is non-empty, auto-pass to let spells resolve
-                // (Arena doesn't prompt for responses by default).
+            if (!BundleBuilder.shouldAutoPass(actions)) {
+                // Player has real actions — always send state
+                sendRealGameState(ctx, bridge)
+                return
+            }
+            if (stackNonEmpty) {
+                // Stack has items — send state so player can respond (even if only Pass available).
+                // Real Arena gives both players priority on every stack item.
+                log.debug("autoPass: stack non-empty (size={}), sending state for response", game.stack.size())
                 sendRealGameState(ctx, bridge)
                 return
             }
