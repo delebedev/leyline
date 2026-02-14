@@ -476,6 +476,17 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
                 // No legal attackers — fall through to auto-pass
             }
 
+            // AI attacking: send state so client sees creatures with attackState
+            if (phase == PhaseType.COMBAT_DECLARE_ATTACKERS && isAiTurn) {
+                val combat = game.phaseHandler.combat
+                if (combat != null && combat.attackers.isNotEmpty()) {
+                    Thread.sleep(AI_COMBAT_DELAY_MS)
+                    sendRealGameState(ctx, bridge)
+                    return
+                }
+                // No attackers — fall through to auto-pass
+            }
+
             // Combat: DeclareBlockers on AI's attacking turn (human is defending)
             if (phase == PhaseType.COMBAT_DECLARE_BLOCKERS && isAiTurn) {
                 // Human is defending — check if there are attackers to block
@@ -486,9 +497,27 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
                 }
             }
 
-            // After AI combat damage resolves, send state so the client sees the
-            // life total change before we continue auto-passing to the next phase.
-            if (phase == PhaseType.COMBAT_END && isAiTurn) {
+            // AI blocking (defending against human attack): send state
+            if (phase == PhaseType.COMBAT_DECLARE_BLOCKERS && isHumanTurn) {
+                val combat = game.phaseHandler.combat
+                if (combat != null && combat.attackers.isNotEmpty()) {
+                    Thread.sleep(AI_COMBAT_DELAY_MS)
+                    // AI blocks are handled by engine — just show the result
+                    sendRealGameState(ctx, bridge)
+                    return
+                }
+            }
+
+            // Combat damage: send state for both players' turns so damage is visible
+            if (phase == PhaseType.COMBAT_DAMAGE) {
+                Thread.sleep(AI_COMBAT_DELAY_MS)
+                sendRealGameState(ctx, bridge)
+                return
+            }
+
+            // After combat resolves, send state so the client sees
+            // life total changes before we continue auto-passing.
+            if (phase == PhaseType.COMBAT_END) {
                 sendRealGameState(ctx, bridge)
                 return
             }
