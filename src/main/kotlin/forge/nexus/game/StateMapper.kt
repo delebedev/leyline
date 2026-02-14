@@ -12,6 +12,7 @@ import forge.game.spellability.LandAbility
 import forge.web.game.chooseCastAbility
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
@@ -167,6 +168,19 @@ object StateMapper {
             zones.size,
         )
 
+        // Annotations: detect zone transfers by comparing current vs previous zone
+        val annotations = mutableListOf<AnnotationInfo>()
+        for (obj in gameObjects) {
+            val prevZone = bridge.getPreviousZone(obj.instanceId)
+            if (prevZone != null && prevZone != obj.zoneId) {
+                val category = inferCategory(obj, prevZone, obj.zoneId)
+                annotations.add(
+                    AnnotationBuilder.zoneTransfer(obj.instanceId, prevZone, obj.zoneId, category),
+                )
+            }
+            bridge.recordZone(obj.instanceId, obj.zoneId)
+        }
+
         val builder = GameStateMessage.newBuilder()
             .setType(GameStateType.Full)
             .setGameStateId(gameStateId)
@@ -176,6 +190,7 @@ object StateMapper {
             .addAllPlayers(listOf(player1, player2))
             .addAllZones(zones)
             .addAllGameObjects(gameObjects)
+            .addAllAnnotations(annotations)
             .addAllTimers(buildTimers())
             .setUpdate(GameStateUpdate.SendAndRecord)
 
@@ -670,6 +685,23 @@ object StateMapper {
         ActionsAvailableReq.newBuilder()
             .addActions(Action.newBuilder().setActionType(ActionType.Pass))
             .build()
+
+    /** Infer a human-readable category for a zone transfer annotation. */
+    private fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): String =
+        when {
+            srcZone == ZONE_P1_HAND || srcZone == ZONE_P2_HAND -> when (destZone) {
+                ZONE_STACK -> "CastSpell"
+                ZONE_BATTLEFIELD -> "PlayLand"
+                else -> "ZoneTransfer"
+            }
+            srcZone == ZONE_STACK && destZone == ZONE_BATTLEFIELD -> "Resolve"
+            srcZone == ZONE_BATTLEFIELD -> when (destZone) {
+                ZONE_P1_GRAVEYARD, ZONE_P2_GRAVEYARD -> "Destroy"
+                ZONE_EXILE -> "Exile"
+                else -> "ZoneTransfer"
+            }
+            else -> "ZoneTransfer"
+        }
 
     // --- helpers ---
 
