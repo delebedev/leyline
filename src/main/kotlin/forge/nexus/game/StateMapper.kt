@@ -57,6 +57,13 @@ object StateMapper {
 
     // --- Real game state from Forge engine ---
 
+    // TODO(per-seat): Send different GameStateMessage per seat.
+    // Currently: both seats see the same state including opponent's hand objects.
+    // For PvP: filter out opponent hand's GameObjectInfo, set opponent hand
+    // zone visibility to Hidden, adjust objectInstanceIds count.
+    // Not needed for vs-Sparky (AI doesn't use the protocol).
+    // See: forge-arena-in-depth/reference/gre-protocol-reference.md "Message routing"
+
     /**
      * Build a full [GameStateMessage] from live Forge [forge.game.Game] state.
      * Reads zones, players, phase info from the engine and maps cards
