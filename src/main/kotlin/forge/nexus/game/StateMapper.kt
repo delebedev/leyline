@@ -414,11 +414,26 @@ object StateMapper {
 
     /**
      * Build playable actions for a seat from the current game state.
-     * Currently: lands + pass. Cast/activate out of scope.
+     * Includes: ActivateMana (untapped mana sources), Cast, Play, Pass.
      */
     fun buildActions(game: Game, seatId: Int, bridge: GameBridge): ActionsAvailableReq {
         val player = bridge.getPlayer(seatId) ?: return passOnlyActions()
         val builder = ActionsAvailableReq.newBuilder()
+
+        // ActivateMana — untapped permanents with mana abilities on the battlefield
+        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+            if (card.isTapped) continue
+            val manaAbilities = card.manaAbilities
+            if (manaAbilities.isEmpty()) continue
+            val instanceId = bridge.getOrAllocInstanceId(card.id)
+            val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
+            builder.addActions(
+                Action.newBuilder()
+                    .setActionType(ActionType.ActivateMana)
+                    .setInstanceId(instanceId)
+                    .setGrpId(grpId),
+            )
+        }
 
         // Playable lands
         val handCards = player.getZone(ForgeZoneType.Hand).cards
@@ -474,9 +489,10 @@ object StateMapper {
         // Pass always available
         builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
 
+        val manaCount = builder.actionsList.count { it.actionType == ActionType.ActivateMana }
         val landCount = builder.actionsList.count { it.actionType == ActionType.Play_add3 }
         val castCount = builder.actionsList.count { it.actionType == ActionType.Cast }
-        log.info("buildActions: seat={} lands={} casts={} total={}", seatId, landCount, castCount, builder.actionsCount)
+        log.info("buildActions: seat={} mana={} lands={} casts={} total={}", seatId, manaCount, landCount, castCount, builder.actionsCount)
 
         return builder.build()
     }

@@ -9,6 +9,9 @@ package forge.nexus.conformance
  */
 object StructuralDiff {
 
+    /** Action kinds that must appear in actual if golden has them (structural, not deck-dependent). */
+    private val LOAD_BEARING_ACTION_KINDS = setOf("ActivateMana")
+
     data class Divergence(
         val messageIndex: Int,
         val field: String,
@@ -69,8 +72,10 @@ object StructuralDiff {
 
     /**
      * Shape-only comparison: checks message types, gsType, updateType, annotations,
-     * and prompt fields. Ignores deck-dependent actionTypes and allows extra
-     * fieldPresence entries (actual ⊇ expected).
+     * annotation categories, action type categories, and prompt fields.
+     * Allows extra fieldPresence entries (actual ⊇ expected).
+     * Action types: checks that all unique types in expected appear in actual
+     * (exact counts are deck-dependent and ignored).
      */
     fun compareShape(
         expected: List<StructuralFingerprint>,
@@ -91,6 +96,7 @@ object StructuralDiff {
             diff(i, "gsType", e.gsType.orEmpty(), a.gsType.orEmpty(), divergences)
             diff(i, "updateType", e.updateType.orEmpty(), a.updateType.orEmpty(), divergences)
             diff(i, "annotationTypes", e.annotationTypes.toString(), a.annotationTypes.toString(), divergences)
+            diff(i, "annotationCategories", e.annotationCategories.toString(), a.annotationCategories.toString(), divergences)
             // fieldPresence: actual must contain all expected fields (extras OK)
             val missing = e.fieldPresence - a.fieldPresence
             if (missing.isNotEmpty()) {
@@ -98,6 +104,17 @@ object StructuralDiff {
             }
             diff(i, "hasPrompt", e.hasPrompt.toString(), a.hasPrompt.toString(), divergences)
             diff(i, "promptId", e.promptId.toString(), a.promptId.toString(), divergences)
+        }
+
+        // actionTypes: sequence-level check for load-bearing kinds.
+        // If the golden has a kind anywhere, actual must also have it somewhere.
+        // Per-message action sets are game-state-dependent and intentionally skipped.
+        val expectedKinds = expected.flatMap { it.actionTypes }.toSet()
+        val actualKinds = actual.flatMap { it.actionTypes }.toSet()
+        for (kind in LOAD_BEARING_ACTION_KINDS) {
+            if (kind in expectedKinds && kind !in actualKinds) {
+                divergences.add(Divergence(-1, "actionTypes (missing $kind in sequence)", "present", "absent"))
+            }
         }
 
         return DiffResult(
