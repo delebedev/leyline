@@ -34,14 +34,10 @@ class ArenaGoldenConformanceTest : ConformanceTestBase() {
 
     // --- Arena golden: phase transition ---
 
-    @Test(
-        description = "Phase transition shape vs Arena (full-game-3.json [19-23]): expected to fail — we lack PromptReq and triple-diff",
-        expectedExceptions = [AssertionError::class],
-    )
+    @Test(description = "Phase transition shape matches Arena 5-message pattern (full-game-3.json [19-23])")
     fun arenaPhaseTransitionShape() {
         val (b, game, gsId) = startGameAtMain1()
 
-        // Phase transition produces 2 diffs; Arena sends 5 messages (3 diffs + PromptReq + ActionsAvailableReq)
         val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, 1, gsId)
         val captured = fingerprint(result.messages)
 

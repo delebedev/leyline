@@ -203,10 +203,12 @@ object BundleBuilder {
         actions.actionsList.all { it.actionType == ActionType.Pass }
 
     /**
-     * Build a pair of Diff GameStateMessages for a phase transition.
-     * Every phase/step sends exactly 2 diffs:
-     *   1. Diff with PhaseOrStepModified annotation + actions
-     *   2. Diff with actions only (no annotations) — priority-pass marker
+     * Phase transition bundle matching real server pattern (5 messages):
+     *   1. GS Diff SendHiFi (2x PhaseOrStepModified, gameInfo, players, actions)
+     *   2. GS Diff SendHiFi echo (turnInfo + actions only)
+     *   3. GS Diff SendAndRecord (1x PhaseOrStepModified, actions)
+     *   4. PromptReq (promptId=37)
+     *   5. ActionsAvailableReq (promptId=2)
      */
     fun phaseTransitionDiff(
         game: Game,
@@ -222,27 +224,12 @@ object BundleBuilder {
         val phase = StateMapper.mapPhase(game.phaseHandler.phase)
         val step = StateMapper.mapStep(game.phaseHandler.phase)
         val actions = StateMapper.buildActions(game, seatId, bridge)
-
-        val gs = StateMapper.buildTransitionState(
-            game,
-            nextGs,
-            matchId,
-            bridge,
-            phase,
-            step,
-            actions = actions,
-        )
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
-            it.gameStateMessage = gs
-        }
-
-        // Priority-pass marker: turnInfo + actions, no annotations
-        nextGs++
         val handler = game.phaseHandler
         val human = bridge.getPlayer(1)
         val activeSeat = if (handler.playerTurn == human) 1 else 2
         val prioritySeat = if (handler.priorityPlayer == human) 1 else 2
 
+        // Shared turnInfo for all diffs
         val turnInfo = TurnInfo.newBuilder()
             .setPhase(phase)
             .setStep(step)
@@ -251,28 +238,76 @@ object BundleBuilder {
             .setPriorityPlayer(prioritySeat)
             .setDecisionPlayer(prioritySeat)
 
-        val markerBuilder = GameStateMessage.newBuilder()
+        // Message 1: SendHiFi with 2x PhaseOrStepModified + gameInfo
+        val gs1 = StateMapper.buildTransitionState(
+            game,
+            nextGs,
+            matchId,
+            bridge,
+            phase,
+            step,
+            isStageTransition = true,
+            actions = actions,
+        )
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+            it.gameStateMessage = gs1
+        }
+
+        // Message 2: SendHiFi echo (turnInfo + actions, no annotations)
+        nextGs++
+        val echoBuilder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(nextGs)
             .setTurnInfo(turnInfo)
             .setUpdate(GameStateUpdate.SendHiFi)
+        embedActions(echoBuilder, actions, activeSeat)
+        val msg2 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+            it.gameStateMessage = echoBuilder.build()
+        }
 
-        // Embed same actions in marker
+        // Message 3: SendAndRecord with 1x PhaseOrStepModified
+        nextGs++
+        val commitBuilder = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(nextGs)
+            .setTurnInfo(turnInfo)
+            .addAnnotations(AnnotationBuilder.phaseOrStepModified())
+            .addAllTimers(StateMapper.buildTimers())
+            .setUpdate(GameStateUpdate.SendAndRecord)
+        embedActions(commitBuilder, actions, activeSeat)
+        val msg3 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+            it.gameStateMessage = commitBuilder.build()
+        }
+
+        // Message 4: PromptReq (promptId=37)
+        val msg4 = makeGRE(GREMessageType.PromptReq, nextGs, seatId, nextMsg++) {
+            it.setPrompt(Prompt.newBuilder().setPromptId(37).build())
+        }
+
+        // Message 5: ActionsAvailableReq (promptId=2)
+        val msg5 = makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, seatId, nextMsg++) {
+            it.actionsAvailableReq = actions
+            it.setPrompt(Prompt.newBuilder().setPromptId(2).build())
+        }
+
+        return BundleResult(listOf(msg1, msg2, msg3, msg4, msg5), nextMsg, nextGs)
+    }
+
+    /** Embed actions from ActionsAvailableReq into a GameStateMessage builder. */
+    private fun embedActions(
+        builder: GameStateMessage.Builder,
+        actions: ActionsAvailableReq,
+        seatId: Int,
+    ) {
         var actionId = 1
         for (action in actions.actionsList) {
-            markerBuilder.addActions(
+            builder.addActions(
                 ActionInfo.newBuilder()
                     .setActionId(actionId++)
-                    .setSeatId(activeSeat)
+                    .setSeatId(seatId)
                     .setAction(action),
             )
         }
-
-        val msg2 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
-            it.gameStateMessage = markerBuilder.build()
-        }
-
-        return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)
     }
 
     /**
