@@ -17,6 +17,9 @@ class MatchRegistry {
     /** matchId -> (seatId -> MatchSession). For cross-connection signaling. */
     private val sessions = ConcurrentHashMap<String, ConcurrentHashMap<Int, MatchSession>>()
 
+    /** matchId -> (seatId -> MatchHandler). For pre-mulligan cross-connection messaging. */
+    private val handlers = ConcurrentHashMap<String, ConcurrentHashMap<Int, MatchHandler>>()
+
     fun getOrCreateBridge(matchId: String, factory: () -> GameBridge): GameBridge =
         bridges.computeIfAbsent(matchId) { factory() }
 
@@ -37,9 +40,19 @@ class MatchRegistry {
     fun evictStale(currentMatchId: String): List<GameBridge> {
         val staleKeys = bridges.keys.filter { it != currentMatchId }
         val evicted = staleKeys.mapNotNull { bridges.remove(it) }
-        staleKeys.forEach { sessions.remove(it) }
+        staleKeys.forEach {
+            sessions.remove(it)
+            handlers.remove(it)
+        }
         return evicted
     }
+
+    fun registerHandler(matchId: String, seatId: Int, handler: MatchHandler) {
+        handlers.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId] = handler
+    }
+
+    fun getHandler(matchId: String, seatId: Int): MatchHandler? =
+        handlers[matchId]?.get(seatId)
 
     fun removeBridge(matchId: String): GameBridge? = bridges.remove(matchId)
 
