@@ -84,6 +84,33 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
         assertTrue(missing.isEmpty(), "Action instanceIds missing after cast-creature: $missing")
     }
 
+    @Test(description = "AI action diffs maintain valid accumulated state")
+    fun aiActionDiffsKeepStateValid() {
+        val (b, game, gsId) = startGameAtMain1()
+
+        val acc = ClientAccumulator()
+
+        // Game-start
+        val startResult = BundleBuilder.gameStart(game, b, "test-match", 1, 1, gsId)
+        acc.processAll(startResult.messages)
+        b.snapshotState(game)
+
+        // Simulate 3 AI action diffs
+        var nextMsg = startResult.nextMsgId
+        var nextGs = startResult.nextGsId
+        repeat(3) {
+            val aiResult = BundleBuilder.aiActionDiff(game, b, "test-match", 1, nextMsg, nextGs)
+            acc.processAll(aiResult.messages)
+            nextMsg = aiResult.nextMsgId
+            nextGs = aiResult.nextGsId
+            b.snapshotState(game)
+        }
+
+        // After accumulating AI diffs, action instanceIds should be valid
+        val missingActions = acc.actionInstanceIdsMissingFromObjects()
+        assertTrue(missingActions.isEmpty(), "Action instanceIds missing after AI diffs: $missingActions")
+    }
+
     @Test(description = "game-start bundle has monotonically increasing gsId")
     fun gameStartGsIdMonotonic() {
         val (b, game, gsId) = startGameAtMain1()
