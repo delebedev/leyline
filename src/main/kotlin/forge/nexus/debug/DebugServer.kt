@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpServer
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
+import java.util.concurrent.Executors
 
 /**
  * Embedded HTTP server for the nexus debug panel.
@@ -40,7 +41,24 @@ class DebugServer(private val port: Int = 8090) {
         srv.createContext("/api/state-diff") { ex -> safe(ex) { serveStateDiff(ex) } }
         srv.createContext("/api/priority-events") { ex -> safe(ex) { servePriorityEvents(ex) } }
         srv.createContext("/api/instance-history") { ex -> safe(ex) { serveInstanceHistory(ex) } }
-        srv.executor = null // default single-thread executor
+        srv.createContext("/api/events") { ex ->
+            try {
+                if (ex.requestMethod != "GET") {
+                    ex.sendResponseHeaders(405, -1)
+                    ex.close()
+                    return@createContext
+                }
+                serveSSE(ex)
+            } catch (t: Throwable) {
+                log.error("SSE error: {}", t.message)
+                try {
+                    ex.close()
+                } catch (_: Throwable) {}
+            }
+        }
+        srv.executor = Executors.newCachedThreadPool { r ->
+            Thread(r, "debug-http").apply { isDaemon = true }
+        }
         srv.start()
         server = srv
         log.info("Debug panel: http://localhost:{}", port)
@@ -65,7 +83,8 @@ class DebugServer(private val port: Int = 8090) {
         val params = parseQuery(ex.requestURI.rawQuery)
         val since = params["since"]?.toIntOrNull() ?: 0
         val entries = ArenaDebugCollector.snapshot(since)
-        respondJson(ex, json.encodeToString(entries))
+        val cursor = entries.maxOfOrNull { it.seq }
+        respondJsonList(ex, json.encodeToString(entries), cursor)
     }
 
     private fun serveState(ex: HttpExchange) {
@@ -75,7 +94,7 @@ class DebugServer(private val port: Int = 8090) {
 
     private fun serveIdMap(ex: HttpExchange) {
         val map = ArenaDebugCollector.idMap()
-        respondJson(ex, json.encodeToString(map))
+        respondJsonList(ex, json.encodeToString(map), null)
     }
 
     private fun serveLogs(ex: HttpExchange) {
@@ -83,22 +102,44 @@ class DebugServer(private val port: Int = 8090) {
         val since = params["since"]?.toIntOrNull() ?: 0
         val level = params["level"] ?: "DEBUG"
         val logs = ArenaDebugCollector.logSnapshot(since, level)
-        respondJson(ex, json.encodeToString(logs))
+        val cursor = logs.maxOfOrNull { it.seq }
+        respondJsonList(ex, json.encodeToString(logs), cursor)
     }
 
     // --- GameStateCollector endpoints ---
 
     private fun serveGameStates(ex: HttpExchange) {
         val timeline = GameStateCollector.timeline()
-        respondJson(ex, json.encodeToString(timeline))
+        val cursor = timeline.maxOfOrNull { it.gsId }
+        respondJsonList(ex, json.encodeToString(timeline), cursor)
     }
 
     private fun serveStateDiff(ex: HttpExchange) {
         val params = parseQuery(ex.requestURI.rawQuery)
+
+        // Shortcut: ?last=N diffs from N snapshots back to the latest
+        val last = params["last"]?.toIntOrNull()
+        if (last != null) {
+            val timeline = GameStateCollector.timeline()
+            if (timeline.size < 2) {
+                respond(ex, 404, "text/plain", "Need at least 2 snapshots for ?last diff")
+                return
+            }
+            val toIdx = timeline.size - 1
+            val fromIdx = (toIdx - last).coerceAtLeast(0)
+            val diff = GameStateCollector.diff(timeline[fromIdx].gsId, timeline[toIdx].gsId)
+            if (diff == null) {
+                respond(ex, 404, "text/plain", "Snapshot not found")
+                return
+            }
+            respondJson(ex, json.encodeToString(diff))
+            return
+        }
+
         val from = params["from"]?.toIntOrNull()
         val to = params["to"]?.toIntOrNull()
         if (from == null || to == null) {
-            respond(ex, 400, "text/plain", "Required: ?from=<gsId>&to=<gsId>")
+            respond(ex, 400, "text/plain", "Required: ?from=<gsId>&to=<gsId> or ?last=<N>")
             return
         }
         val diff = GameStateCollector.diff(from, to)
@@ -113,7 +154,8 @@ class DebugServer(private val port: Int = 8090) {
         val params = parseQuery(ex.requestURI.rawQuery)
         val since = params["since"]?.toIntOrNull() ?: 0
         val events = GameStateCollector.events(since)
-        respondJson(ex, json.encodeToString(events))
+        val cursor = events.maxOfOrNull { it.seq }
+        respondJsonList(ex, json.encodeToString(events), cursor)
     }
 
     private fun serveInstanceHistory(ex: HttpExchange) {
@@ -124,7 +166,7 @@ class DebugServer(private val port: Int = 8090) {
             return
         }
         val history = GameStateCollector.instanceHistory(id)
-        respondJson(ex, json.encodeToString(history))
+        respondJsonList(ex, json.encodeToString(history), null)
     }
 
     // --- Helpers ---
@@ -159,6 +201,52 @@ class DebugServer(private val port: Int = 8090) {
 
     private fun respondJson(ex: HttpExchange, body: String) =
         respond(ex, 200, "application/json; charset=utf-8", body)
+
+    /** Wrap a list response in a versioned envelope with optional cursor. */
+    private fun respondJsonList(ex: HttpExchange, data: String, cursor: Int?) {
+        val cursorJson = if (cursor != null) ",\"cursor\":$cursor" else ""
+        respondJson(ex, "{\"version\":1,\"data\":$data$cursorJson}")
+    }
+
+    /** SSE endpoint — pushes real-time debug events to connected clients. */
+    private fun serveSSE(ex: HttpExchange) {
+        ex.responseHeaders.add("Content-Type", "text/event-stream")
+        ex.responseHeaders.add("Cache-Control", "no-cache")
+        ex.responseHeaders.add("Connection", "keep-alive")
+        ex.responseHeaders.add("Access-Control-Allow-Origin", "*")
+        ex.sendResponseHeaders(200, 0)
+        val os = ex.responseBody
+
+        val listener: (String, String) -> Unit = { type, data ->
+            try {
+                val msg = "event: $type\ndata: $data\n\n"
+                synchronized(os) {
+                    os.write(msg.toByteArray(Charsets.UTF_8))
+                    os.flush()
+                }
+            } catch (_: Exception) {}
+        }
+
+        DebugEventBus.addListener(listener)
+        log.info("SSE client connected")
+        try {
+            while (true) {
+                Thread.sleep(30_000)
+                synchronized(os) {
+                    os.write(":keepalive\n\n".toByteArray(Charsets.UTF_8))
+                    os.flush()
+                }
+            }
+        } catch (_: Exception) {
+            // client disconnected
+        } finally {
+            DebugEventBus.removeListener(listener)
+            log.info("SSE client disconnected")
+            try {
+                ex.close()
+            } catch (_: Throwable) {}
+        }
+    }
 
     private fun parseQuery(query: String?): Map<String, String> {
         if (query.isNullOrEmpty()) return emptyMap()

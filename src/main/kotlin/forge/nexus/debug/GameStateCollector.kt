@@ -2,6 +2,7 @@ package forge.nexus.debug
 
 import forge.nexus.game.CardDb
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -22,20 +23,21 @@ object GameStateCollector {
 
     private const val MAX_SNAPSHOTS = 200
     private const val MAX_EVENTS = 500
+    private val sseJson = Json { encodeDefaults = true }
 
     // --- Snapshots ---
 
     private val snapshots = LinkedHashMap<Int, StateSnapshot>()
 
     /** Collect game state snapshots from outbound GRE messages. */
-    fun collectOutbound(messages: List<GREToClientMessage>) {
+    fun collectOutbound(messages: List<GREToClientMessage>, msgSeq: Int = 0) {
         for (gre in messages) {
             if (!gre.hasGameStateMessage()) continue
             val gs = gre.gameStateMessage
             if (gs.gameStateId <= 0) continue
 
             try {
-                val snapshot = extractSnapshot(gs)
+                val snapshot = extractSnapshot(gs).copy(msgSeq = msgSeq)
                 addSnapshot(snapshot)
             } catch (e: Exception) {
                 log.debug("collectOutbound: failed to extract snapshot gsId={}: {}", gs.gameStateId, e.message)
@@ -105,24 +107,29 @@ object GameStateCollector {
         detail: String,
         priorityPlayer: String? = null,
         stackDepth: Int = 0,
+        msgSeq: Int = 0,
     ) {
+        val event: PriorityEvent
         synchronized(eventBuffer) {
             eventSeq++
-            if (eventBuffer.size >= MAX_EVENTS) eventBuffer.removeFirst()
-            eventBuffer.addLast(
-                PriorityEvent(
-                    seq = eventSeq,
-                    ts = System.currentTimeMillis(),
-                    gsId = gsId,
-                    type = type,
-                    phase = phase,
-                    turn = turn,
-                    detail = detail,
-                    priorityPlayer = priorityPlayer,
-                    stackDepth = stackDepth,
-                ),
+            event = PriorityEvent(
+                seq = eventSeq,
+                ts = System.currentTimeMillis(),
+                gsId = gsId,
+                type = type,
+                phase = phase,
+                turn = turn,
+                detail = detail,
+                priorityPlayer = priorityPlayer,
+                stackDepth = stackDepth,
+                msgSeq = msgSeq,
             )
+            if (eventBuffer.size >= MAX_EVENTS) eventBuffer.removeFirst()
+            eventBuffer.addLast(event)
         }
+        try {
+            DebugEventBus.emit("priority", sseJson.encodeToString(event))
+        } catch (_: Exception) {}
     }
 
     /** Priority events since a given seq. */
@@ -141,13 +148,18 @@ object GameStateCollector {
 
     // --- Snapshot extraction ---
 
-    private fun addSnapshot(snapshot: StateSnapshot) = synchronized(snapshots) {
-        snapshots[snapshot.gsId] = snapshot
-        // Evict oldest if over capacity
-        while (snapshots.size > MAX_SNAPSHOTS) {
-            val oldest = snapshots.keys.first()
-            snapshots.remove(oldest)
+    private fun addSnapshot(snapshot: StateSnapshot) {
+        synchronized(snapshots) {
+            snapshots[snapshot.gsId] = snapshot
+            // Evict oldest if over capacity
+            while (snapshots.size > MAX_SNAPSHOTS) {
+                val oldest = snapshots.keys.first()
+                snapshots.remove(oldest)
+            }
         }
+        try {
+            DebugEventBus.emit("state", sseJson.encodeToString(snapshot))
+        } catch (_: Exception) {}
     }
 
     private fun extractSnapshot(gs: GameStateMessage): StateSnapshot {
@@ -370,6 +382,7 @@ object GameStateCollector {
         val players: List<PlayerSnapshot>,
         val actions: List<ActionSnapshot>,
         val annotations: List<AnnotationSnapshot> = emptyList(),
+        val msgSeq: Int = 0,
     )
 
     @Serializable
@@ -463,6 +476,7 @@ object GameStateCollector {
         val detail: String,
         val priorityPlayer: String? = null,
         val stackDepth: Int = 0,
+        val msgSeq: Int = 0,
     )
 
     @Serializable
