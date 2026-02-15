@@ -206,6 +206,24 @@ object GameStateCollector {
             )
         }
 
+        val annotations = gs.annotationsList.map { ann ->
+            val types = ann.typeList.map { it.name.removeProtobufSuffix() }
+            val details = mutableMapOf<String, String>()
+            for (kv in ann.detailsList) {
+                val value = when {
+                    kv.valueStringCount > 0 -> kv.valueStringList.joinToString(",")
+                    kv.valueUint32Count > 0 -> kv.valueUint32List.joinToString(",")
+                    else -> "?"
+                }
+                details[kv.key] = value
+            }
+            AnnotationSnapshot(
+                types = types,
+                affectedIds = ann.affectedIdsList.toList(),
+                details = details,
+            )
+        }
+
         return StateSnapshot(
             gsId = gs.gameStateId,
             ts = System.currentTimeMillis(),
@@ -219,6 +237,7 @@ object GameStateCollector {
             objects = objects,
             players = players,
             actions = actions,
+            annotations = annotations,
         )
     }
 
@@ -350,6 +369,14 @@ object GameStateCollector {
         val objects: Map<Int, ObjectSnapshot>,
         val players: List<PlayerSnapshot>,
         val actions: List<ActionSnapshot>,
+        val annotations: List<AnnotationSnapshot> = emptyList(),
+    )
+
+    @Serializable
+    data class AnnotationSnapshot(
+        val types: List<String>,
+        val affectedIds: List<Int>,
+        val details: Map<String, String>,
     )
 
     @Serializable
