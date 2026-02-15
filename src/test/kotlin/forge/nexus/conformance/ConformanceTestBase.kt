@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.nexus.game.GameBridge
+import forge.web.game.GameActionBridge
 import forge.web.game.GameBootstrap
 import forge.web.game.PlayerAction
 import org.testng.Assert
@@ -113,15 +114,17 @@ abstract class ConformanceTestBase {
     private fun advanceToMain1(b: GameBridge, maxPasses: Int = 20) {
         val game = b.getGame()!!
         var passes = 0
+        var lastId: String? = null
         while (game.phaseHandler.phase != PhaseType.MAIN1 && passes < maxPasses) {
-            val pending = awaitFreshPending(b, null)
+            val pending = awaitFreshPending(b, lastId)
                 ?: error("Timed out waiting for priority while advancing to Main1 (phase=${game.phaseHandler.phase})")
             b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+            lastId = pending.actionId
             passes++
         }
         // Final wait: ensure we have a pending action at MAIN1 before returning
         if (game.phaseHandler.phase == PhaseType.MAIN1) {
-            awaitFreshPending(b, null)
+            awaitFreshPending(b, lastId)
         }
     }
 
@@ -133,7 +136,7 @@ abstract class ConformanceTestBase {
         b: GameBridge,
         previousId: String?,
         timeoutMs: Long = 15_000,
-    ): forge.web.game.GameActionBridge.PendingAction? {
+    ): GameActionBridge.PendingAction? {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             val p = b.actionBridge.getPending()
