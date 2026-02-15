@@ -1,0 +1,44 @@
+[
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "gameInfo",
+            "turnInfo",
+            "players"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "Send"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Full",
+        "updateType": "SendAndRecord",
+        "fieldPresence": [
+            "gameInfo",
+            "turnInfo",
+            "zones",
+            "objects",
+            "players",
+            "timers",
+            "actions"
+        ],
+        "zoneCount": 17,
+        "objectCount": 14,
+        "actionTypes": [
+            "Pass"
+        ]
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "Pass"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    }
+]
