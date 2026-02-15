@@ -161,4 +161,41 @@ class StructuralFingerprintTest {
 
         assertEquals(fp1, fp2)
     }
+
+    @Test
+    fun roundTripJsonSerialization() {
+        val fp = StructuralFingerprint(
+            greMessageType = "GameStateMessage",
+            gsType = "Diff",
+            updateType = "SendAndRecord",
+            annotationTypes = listOf("ZoneTransfer"),
+            annotationCategories = listOf("CastSpell"),
+            fieldPresence = setOf("turnInfo", "zones", "objects", "annotations"),
+            zoneCount = 3,
+            objectCount = 5,
+            actionTypes = listOf("Pass"),
+            hasPrompt = false,
+            promptId = null,
+        )
+        val sequence = listOf(fp, fp.copy(gsType = "Full", zoneCount = 17))
+        val json = GoldenSequence.toJson(sequence)
+        val parsed = GoldenSequence.fromJson(json)
+        assertEquals(parsed, sequence)
+    }
+
+    @Test
+    fun loadGoldenFromFile() {
+        val fp = StructuralFingerprint(
+            greMessageType = "ActionsAvailableReq",
+            actionTypes = listOf("Pass", "Play"),
+            hasPrompt = true,
+            promptId = 2,
+        )
+        val json = GoldenSequence.toJson(listOf(fp))
+        val tempFile = java.io.File.createTempFile("golden-test", ".json")
+        tempFile.writeText(json)
+        tempFile.deleteOnExit()
+        val loaded = GoldenSequence.fromFile(tempFile)
+        assertEquals(loaded, listOf(fp))
+    }
 }
