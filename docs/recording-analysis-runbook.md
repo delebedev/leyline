@@ -305,6 +305,21 @@ Validated across 3 recordings (757 + 396 + 257 msgs):
 | `SendHiFi` | Sent to opponent/spectator; high-fidelity update | Opponent sees your actions, AI turns |
 | `Send` | Sent during interactive prompts (targeting, selection) | Target selection flow, resolution reveals |
 
+## Perspective (Seat) Considerations
+
+Real server sends a separate message stream per seat. Differences between acting player and opponent are **envelope-only** — the state content (annotations, zone transfers, objects) is identical.
+
+| Aspect | Acting player | Opponent/spectator |
+|--------|--------------|-------------------|
+| updateType | SendAndRecord | SendHiFi |
+| ActionsAvailableReq | Present (after each GS) | Absent |
+| Annotations | Same | Same |
+| Zone/object diffs | Same | Same |
+
+**Current test strategy:** player perspective only (seat 1 = human). Sufficient because annotation shapes are perspective-independent. `resolveUpdateType()` handles the envelope split. Opponent perspective conformance is a future concern for PvP/spectator mode, not wire-shape correctness.
+
+**Golden file caveat:** recordings capture one seat's view. If the recorder wasn't acting, the golden is opponent perspective (all SendHiFi, no ActionsAvailableReq). When our test is player perspective, the golden must be regenerated from our output. This is fine for regression testing but weaker for conformance — replace with real-server goldens if we capture a recording from the acting seat.
+
 ## Known Gaps (as of 2026-02-15)
 
 Confirmed across 3 recordings:
