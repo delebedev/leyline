@@ -154,6 +154,48 @@ object BundleBuilder {
     }
 
     /**
+     * AI action diff: GS Diff + empty marker for opponent-perspective state updates.
+     *
+     * Always uses SendHiFi (opponent viewing AI's actions). No ActionsAvailableReq.
+     * Produces the double-diff pattern matching real server AI turn messages:
+     *   1. GS Diff with annotations (zone transfers, state changes)
+     *   2. GS Diff empty marker (turnInfo only)
+     */
+    fun aiActionDiff(
+        game: Game,
+        bridge: GameBridge,
+        matchId: String,
+        seatId: Int,
+        msgId: Int,
+        gsId: Int,
+    ): BundleResult {
+        var nextMsg = msgId
+        var nextGs = gsId
+
+        // Message 1: Diff with annotations
+        val gs = StateMapper.buildDiffFromGame(
+            game,
+            ++nextGs,
+            matchId,
+            bridge,
+            updateType = GameStateUpdate.SendHiFi,
+        )
+        // Message 2: Empty marker (turnInfo only, matches real server pattern)
+        val marker = StateMapper.buildEmptyDiff(++nextGs)
+
+        val messages = listOf(
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs - 1, seatId, nextMsg++) {
+                it.gameStateMessage = gs
+            },
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+                it.gameStateMessage = marker
+            },
+        )
+
+        return BundleResult(messages, nextMsg, nextGs)
+    }
+
+    /**
      * True when the only action available is Pass (no Cast, Play, Activate).
      * Used to decide whether to auto-pass or send state to the client.
      */
