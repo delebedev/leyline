@@ -142,7 +142,7 @@ class GameBridgeTest {
     fun buildActionsIncludesLands() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -163,28 +163,27 @@ class GameBridgeTest {
         Assert.assertTrue(hasLand, "Should have playable land at Main1")
     }
 
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun playLandMovesCardToBattlefield() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
         val game = b.getGame()!!
         val player = b.getPlayer(1)!!
-        Assert.assertEquals(game.phaseHandler.phase, PhaseType.MAIN1, "Should be at Main1")
 
         val handBefore = player.getZone(ZoneType.Hand).size()
         val bfBefore = player.getZone(ZoneType.Battlefield).size()
 
         val landInHand = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
             ?: return // no lands in hand (unlikely but possible)
-        val pending = b.actionBridge.getPending()
+        val pending = awaitFreshPending(b, null)
             ?: return // engine hasn't granted priority
 
         b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(landInHand.id))
-        b.awaitPriority()
+        awaitFreshPending(b, pending.actionId)
 
         val handAfter = player.getZone(ZoneType.Hand).size()
         val bfAfter = player.getZone(ZoneType.Battlefield).size()
@@ -193,11 +192,11 @@ class GameBridgeTest {
         assertEquals(bfAfter, bfBefore + 1, "Battlefield should grow by 1 after land play")
     }
 
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun gameObjectsHaveCardTypeFields() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -258,13 +257,12 @@ class GameBridgeTest {
      *   GRE 4: ActionsAvailableReq, actions > 0
      *   All instanceIds in actions exist in GRE 3's zones.
      */
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun gameStartBundleHasCorrectShape() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
-        b.awaitPriority()
         advanceToMain1(b)
 
         val game = b.getGame()!!
@@ -359,20 +357,20 @@ class GameBridgeTest {
      * After a land play, [BundleBuilder.postAction] produces consistent instanceIds:
      * every action references a card that exists in a zone.
      */
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun postActionStateHasConsistentInstanceIds() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
         val game = b.getGame()!!
         val player = b.getPlayer(1)!!
         val landInHand = player.getZone(ZoneType.Hand).cards.first { it.isLand }
-        val pending = b.actionBridge.getPending()!!
+        val pending = awaitFreshPending(b, null)!!
         b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(landInHand.id))
-        b.awaitPriority()
+        awaitFreshPending(b, pending.actionId)
 
         val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, 10)
         val gs = result.messages.first().gameStateMessage
@@ -422,11 +420,11 @@ class GameBridgeTest {
     // --- Double-diff tests ---
 
     /** Every phaseTransitionDiff emits exactly 2 messages with sequential gsIds. */
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun phaseTransitionEmitsTwoDiffs() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -444,11 +442,11 @@ class GameBridgeTest {
     // --- Combat tests ---
 
     /** At COMBAT_DECLARE_ATTACKERS, buildDeclareAttackersReq lists eligible creatures. */
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun declareAttackersReqListsEligibleCreatures() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -466,7 +464,7 @@ class GameBridgeTest {
         }
 
         // Advance through turn 1 end, turn 2 start, to combat
-        advanceToPhase(b, PhaseType.COMBAT_DECLARE_ATTACKERS, maxPasses = 80)
+        advanceToPhase(b, "COMBAT_DECLARE_ATTACKERS", maxPasses = 80)
         if (game.isGameOver || game.phaseHandler.phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return
 
         val req = StateMapper.buildDeclareAttackersReq(game, 1, b)
@@ -490,7 +488,7 @@ class GameBridgeTest {
     fun declareAttackersBundleShape() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -516,11 +514,11 @@ class GameBridgeTest {
     }
 
     /** declareBlockersBundle has correct GRE message types. */
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun declareBlockersBundleShape() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -548,7 +546,7 @@ class GameBridgeTest {
     // --- SelectTargetsReq tests ---
 
     /** selectTargetsBundle has correct GRE message types and prompt id=10. */
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun selectTargetsBundleShape() {
         val req = Messages.SelectTargetsReq.newBuilder()
             .addTargets(
@@ -565,7 +563,7 @@ class GameBridgeTest {
 
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -611,11 +609,11 @@ class GameBridgeTest {
      * Full state at Main1 must have timers (real Arena: 2 inactivity timers).
      * Client may lock out or hide turn timer without them.
      */
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun fullStateHasTimers() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -634,11 +632,11 @@ class GameBridgeTest {
      * Zone visibility must match real Arena:
      * Suppressed/Pending = Public, Sideboard = Private.
      */
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun zoneVisibilityMatchesRealArena() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -662,7 +660,7 @@ class GameBridgeTest {
     fun castActionHasAbilityGrpIdAndManaCost() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -671,12 +669,12 @@ class GameBridgeTest {
         val player = b.getPlayer(1)!!
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
         if (land != null) {
-            val pending = b.actionBridge.getPending() ?: run {
+            val pending = awaitFreshPending(b, null) ?: run {
                 // No pending action — engine may not have granted priority yet
                 return
             }
             b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(land.id))
-            b.awaitPriority()
+            awaitFreshPending(b, pending.actionId)
         }
 
         val actions = StateMapper.buildActions(game, 1, b)
@@ -706,11 +704,11 @@ class GameBridgeTest {
     /**
      * PlayerInfo must include timerIds (real Arena: timerIds=[seatId]).
      */
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun playerInfoHasTimerIds() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -733,11 +731,11 @@ class GameBridgeTest {
     /**
      * GameStateMessage.actions must be wrapped in ActionInfo (actionId + seatId + action).
      */
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun embeddedActionsHaveActionIdAndSeatId() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -763,11 +761,11 @@ class GameBridgeTest {
     /**
      * Game-start bundle sequence: gsIds must be strictly ascending.
      */
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun gameStartBundleGsIdsAscending() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -789,11 +787,11 @@ class GameBridgeTest {
 
     // --- ZoneTransfer annotation tests ---
 
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun landPlayProducesZoneTransferAnnotation() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -806,10 +804,10 @@ class GameBridgeTest {
         val player = b.getPlayer(1)!!
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
             ?: return // no lands in hand (unlikely but possible)
-        val pending = b.actionBridge.getPending()
+        val pending = awaitFreshPending(b, null)
             ?: return // engine hasn't granted priority
         b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(land.id))
-        b.awaitPriority()
+        awaitFreshPending(b, pending.actionId)
 
         // Build post-action state — should have ZoneTransfer annotation
         val gs = StateMapper.buildFromGame(game, 2, "test-match", b)
@@ -838,7 +836,7 @@ class GameBridgeTest {
 
         val game = b.getGame()!!
         // Pass through entire turn 1 to let AI play
-        advanceToPhase(b, PhaseType.MAIN1, maxPasses = 80)
+        advanceToPhase(b, "MAIN1", maxPasses = 80)
         if (game.isGameOver) return
 
         // Check if AI has creatures on battlefield
@@ -847,7 +845,7 @@ class GameBridgeTest {
         if (aiCreatures.isEmpty()) return // AI didn't play creatures — skip
 
         // Advance to AI's combat
-        advanceToPhase(b, PhaseType.COMBAT_DECLARE_ATTACKERS, maxPasses = 80)
+        advanceToPhase(b, "COMBAT_DECLARE_ATTACKERS", maxPasses = 80)
         if (game.isGameOver) return
         if (game.phaseHandler.phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return
 
@@ -867,11 +865,11 @@ class GameBridgeTest {
 
     // --- Diff state tests ---
 
-    @Test(enabled = false, description = "broken: advanceToMain1 stalls at DRAW phase")
+    @Test
     fun postActionSendsDiffNotFull() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -898,7 +896,7 @@ class GameBridgeTest {
     fun diffFallsBackToFullWithoutSnapshot() {
         val b = GameBridge()
         bridge = b
-        b.start()
+        b.start(seed = 42L)
         b.submitKeep(1)
         advanceToMain1(b)
 
@@ -935,15 +933,15 @@ class GameBridgeTest {
 
         // Play a land for mana
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return
-        val pending1 = b.actionBridge.getPending() ?: return
+        val pending1 = awaitFreshPending(b, null) ?: return
         b.actionBridge.submitAction(pending1.actionId, PlayerAction.PlayLand(land.id))
-        b.awaitPriority()
+        awaitFreshPending(b, pending1.actionId)
 
         // Cast a creature
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return
-        val pending2 = b.actionBridge.getPending() ?: return
+        val pending2 = awaitFreshPending(b, pending1.actionId) ?: return
         b.actionBridge.submitAction(pending2.actionId, PlayerAction.CastSpell(creature.id))
-        b.awaitPriority()
+        awaitFreshPending(b, pending2.actionId)
 
         // After casting, spell should be on stack (engine gives caster priority)
         val stack = game.getStack()
@@ -955,69 +953,39 @@ class GameBridgeTest {
 
     /** Play a land + cast a creature from hand at Main1. */
     private fun playLandAndCastCreature(b: GameBridge) {
-        val game = b.getGame()!!
         val player = b.getPlayer(1)!!
+        var lastId: String? = null
 
         // Play a land
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
         if (land != null) {
-            val pending = b.actionBridge.getPending()!!
+            val pending = awaitFreshPending(b, lastId) ?: return
             b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(land.id))
-            b.awaitPriority()
+            lastId = pending.actionId
+            awaitFreshPending(b, lastId)
         }
 
         // Try to cast a creature
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
         if (creature != null) {
-            val pending = b.actionBridge.getPending()
-            if (pending != null) {
-                b.actionBridge.submitAction(pending.actionId, PlayerAction.CastSpell(creature.id))
-                b.awaitPriority()
-            }
+            val pending = awaitFreshPending(b, lastId) ?: return
+            b.actionBridge.submitAction(pending.actionId, PlayerAction.CastSpell(creature.id))
+            awaitFreshPending(b, pending.actionId)
         }
     }
 
     /** Advance engine to a target phase, passing priority each step. */
-    private fun advanceToPhase(b: GameBridge, target: PhaseType, maxPasses: Int = 50) {
+    private fun advanceToPhase(b: GameBridge, target: String, maxPasses: Int = 50) {
         val game = b.getGame()!!
+        var lastId: String? = null
         var passes = 0
-        while (game.phaseHandler.phase != target && passes < maxPasses) {
-            val pending = b.actionBridge.getPending()
-            if (pending != null) {
-                b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
-                b.awaitPriority()
-            } else {
-                // AI turn or waiting for engine — wait briefly
-                val reached = b.awaitPriorityWithTimeout(GameBridge.AI_TURN_WAIT_MS)
-                if (!reached) break
-            }
+        while (passes < maxPasses) {
+            val pending = awaitFreshPending(b, lastId, timeoutMs = 5_000) ?: break
+            if (pending.state.phase == target) return
+            b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+            lastId = pending.actionId
             passes++
             if (game.isGameOver) break
         }
-    }
-
-    /**
-     * Pass priority until engine reaches Main1. Prevents tests from silently
-     * skipping when the engine stops at upkeep/draw for triggers or effects.
-     */
-    private fun advanceToMain1(b: GameBridge, maxPasses: Int = 20) {
-        b.awaitPriority()
-        val game = b.getGame()!!
-        var passes = 0
-        while (game.phaseHandler.phase != PhaseType.MAIN1 && passes < maxPasses) {
-            val pending = b.actionBridge.getPending()
-            Assert.assertNotNull(
-                pending,
-                "No pending action while advancing to Main1 (phase=${game.phaseHandler.phase})",
-            )
-            b.actionBridge.submitAction(pending!!.actionId, PlayerAction.PassPriority)
-            b.awaitPriority()
-            passes++
-        }
-        Assert.assertEquals(
-            game.phaseHandler.phase,
-            PhaseType.MAIN1,
-            "Failed to reach Main1 after $maxPasses passes",
-        )
     }
 }
