@@ -1,126 +1,73 @@
 [
-  {
-    "actionTypes": [
-      "ActivateMana",
-      "ActivateMana",
-      "ActivateMana",
-      "Cast",
-      "Cast",
-      "Cast",
-      "Cast",
-      "CastLeftRoom",
-      "CastRightRoom",
-      "Play",
-      "Play"
-    ],
-    "annotationCategories": [
-      "CastSpell"
-    ],
-    "annotationTypes": [
-      "AbilityInstanceCreated",
-      "AbilityInstanceCreated",
-      "AbilityInstanceDeleted",
-      "AbilityInstanceDeleted",
-      "ManaPaid",
-      "ManaPaid",
-      "ObjectIdChanged",
-      "TappedUntappedPermanent",
-      "TappedUntappedPermanent",
-      "UserActionTaken",
-      "UserActionTaken",
-      "UserActionTaken",
-      "ZoneTransfer"
-    ],
-    "fieldPresence": [
-      "zones",
-      "objects",
-      "timers",
-      "actions",
-      "annotations"
-    ],
-    "greMessageType": "GameStateMessage",
-    "gsType": "Diff",
-    "objectCount": 3,
-    "updateType": "SendHiFi",
-    "zoneCount": 3
-  },
-  {
-    "actionTypes": [
-      "ActivateMana",
-      "ActivateMana",
-      "ActivateMana",
-      "Cast",
-      "Cast",
-      "Cast",
-      "Cast",
-      "CastLeftRoom",
-      "CastRightRoom",
-      "Play",
-      "Play"
-    ],
-    "fieldPresence": [
-      "turnInfo",
-      "actions"
-    ],
-    "greMessageType": "GameStateMessage",
-    "gsType": "Diff",
-    "updateType": "SendHiFi"
-  },
-  {
-    "actionTypes": [
-      "ActivateMana",
-      "ActivateMana",
-      "ActivateMana",
-      "Cast",
-      "Cast",
-      "Cast",
-      "Cast",
-      "CastLeftRoom",
-      "CastRightRoom",
-      "Play",
-      "Play"
-    ],
-    "annotationCategories": [
-      "Resolve"
-    ],
-    "annotationTypes": [
-      "ResolutionComplete",
-      "ResolutionStart",
-      "ZoneTransfer"
-    ],
-    "fieldPresence": [
-      "turnInfo",
-      "zones",
-      "objects",
-      "actions",
-      "annotations"
-    ],
-    "greMessageType": "GameStateMessage",
-    "gsType": "Diff",
-    "objectCount": 1,
-    "updateType": "SendHiFi",
-    "zoneCount": 2
-  },
-  {
-    "actionTypes": [
-      "ActivateMana",
-      "ActivateMana",
-      "ActivateMana",
-      "Cast",
-      "Cast",
-      "Cast",
-      "Cast",
-      "CastLeftRoom",
-      "CastRightRoom",
-      "Play",
-      "Play"
-    ],
-    "fieldPresence": [
-      "turnInfo",
-      "actions"
-    ],
-    "greMessageType": "GameStateMessage",
-    "gsType": "Diff",
-    "updateType": "SendHiFi"
-  }
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "AbilityInstanceCreated",
+            "ManaPaid",
+            "ObjectIdChanged",
+            "TappedUntappedPermanent",
+            "UserActionTaken",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "CastSpell"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "objects",
+            "players",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 2,
+        "objectCount": 2,
+        "actionTypes": [
+            "Pass"
+        ]
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "Pass"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "ResolutionComplete",
+            "ResolutionStart",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "Resolve"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "objects",
+            "players",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 2,
+        "objectCount": 1,
+        "actionTypes": [
+            "Pass"
+        ]
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "Pass"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    }
 ]

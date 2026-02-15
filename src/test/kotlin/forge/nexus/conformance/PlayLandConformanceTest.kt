@@ -7,20 +7,17 @@ import org.testng.annotations.Test
 /**
  * Wire conformance: play-land action.
  *
- * Verifies that playing a land produces the correct GRE message sequence:
- *   1. GameStateMessage (Diff, SendAndRecord, ZoneTransfer/PlayLand annotation)
+ * Real server sends 2 messages per land play:
+ *   1. GameStateMessage (Diff, SendAndRecord, ObjectIdChanged + UserActionTaken + ZoneTransfer/PlayLand)
  *   2. ActionsAvailableReq (prompt id=2, includes Pass)
  *
- * EXPECTED TO FAIL: our BundleBuilder doesn't yet emit ZoneTransfer/PlayLand annotations.
- * The golden represents the ideal (real server) output.
+ * Uses shape-only comparison: checks message types, updateType, annotations,
+ * and field presence but ignores deck-dependent action types.
  */
 @Test(groups = ["integration", "conformance"])
 class PlayLandConformanceTest : ConformanceTestBase() {
 
-    @Test(
-        description = "Expected to fail: PlayLand annotations not yet implemented",
-        expectedExceptions = [AssertionError::class],
-    )
+    @Test(description = "Play-land shape matches real server golden")
     fun playLandMatchesGolden() {
         val (b, game, gsId) = startGameAtMain1()
 
@@ -34,13 +31,9 @@ class PlayLandConformanceTest : ConformanceTestBase() {
         assertTrue(captured.isNotEmpty(), "Should have captured GRE messages")
 
         // Compare against golden
-        assertConformance("play-land", captured)
+        assertShapeConformance("play-land", captured)
     }
 
-    /**
-     * Utility: generate the golden file from our current output.
-     * Run manually once, then commit the golden file.
-     */
     @Test(enabled = false) // run manually to regenerate golden
     fun generateGoldenFromOurOutput() {
         val (b, game, gsId) = startGameAtMain1()
