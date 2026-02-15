@@ -379,7 +379,8 @@ object StateMapper {
             .setTurnInfo(turnInfo)
             .addPlayers(buildPlayerInfo(bridge.getPlayer(1), 1))
             .addPlayers(buildPlayerInfo(bridge.getPlayer(2), 2))
-            .addAnnotations(AnnotationBuilder.phaseOrStepModified())
+            .addAnnotations(AnnotationBuilder.phaseOrStepModified()) // phase change
+            .addAnnotations(AnnotationBuilder.phaseOrStepModified()) // step change
             .addAllTimers(buildTimers())
             .setUpdate(GameStateUpdate.SendHiFi)
 
@@ -648,7 +649,7 @@ object StateMapper {
     }
 
     /** Inactivity timers — real Arena sends 2 per game state (one per seat). */
-    private fun buildTimers(): List<TimerInfo> = listOf(
+    internal fun buildTimers(): List<TimerInfo> = listOf(
         TimerInfo.newBuilder()
             .setTimerId(1)
             .setType(TimerType.Inactivity_a5e2)
