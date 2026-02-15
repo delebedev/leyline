@@ -330,7 +330,7 @@ Confirmed across 3 recordings:
 4. ~~**CastSpell annotations**~~ — FIXED. `AnnotationBuilder` factories for ManaPaid/TappedUntappedPermanent/AbilityInstanceCreated. `StateMapper.buildFromGame` emits per-category annotations via `when (category)` branching. Cast-creature golden regenerated for player perspective. Conformance test passes.
 5. ~~**PlayLand annotations**~~ — FIXED. ObjectIdChanged + UserActionTaken + ZoneTransfer(PlayLand) emitted per land play. Also fixed race in `advanceToMain1` (check `pending.state.phase` instead of live `game.phaseHandler.phase`). Conformance test passes.
 6. ~~**Per-seat updateType**~~ — FIXED. `StateMapper.resolveUpdateType()` picks SendAndRecord (acting player) vs SendHiFi (spectator). `buildEmptyDiff` fixed to SendHiFi. `selectTargetsBundle` uses Send for interactive prompts. All BundleBuilder functions thread updateType through.
-7. **AI auto-pass** — real server sends consecutive GS Diffs without ActionsAvailableReq for AI actions; we interleave ActionsAvailableReq
+7. ~~**AI auto-pass**~~ — FIXED. NexusGamePlayback subscribes to engine events via Guava EventBus. Sends individual GS Diffs (SendHiFi, no ActionsAvailableReq) per AI action. Engine-thread pacing provides animation timing. See ADR-001.
 
 Not yet tested (no conformance test):
 
