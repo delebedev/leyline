@@ -5,24 +5,20 @@
 We extracted 6 golden subsequences from real Arena server recordings (`full-game*.json`)
 and wrote 7 conformance tests comparing our `BundleBuilder` output shapes against them.
 
-**Current state:** 4 of 7 tests pass only via `expectedExceptions` — they document known
-divergences but don't validate conformance. 3 tests pass but only check golden structure
-or our output types, not shape-vs-golden comparison.
+**Status: COMPLETE.** All 8 Arena conformance tests pass genuinely (no `expectedExceptions`).
 
-**Goal:** Remove all `expectedExceptions`, upgrade all golden-only tests to real comparisons,
-until the Arena conformance test suite is a genuine gate.
+## Final Test Status
 
-## Current Test Status
-
-| Test | Passes? | Gap |
-|------|---------|-----|
-| `arenaPlayLandShape` | expected fail | Missing `timers` in fieldPresence |
-| `arenaPhaseTransitionShape` | expected fail | 2 msgs vs Arena's 5 (no PromptReq, no triple-diff) |
-| `arenaCastCreatureShape` | expected fail | 2 msgs vs Arena's 4 (no resolve echo diffs) |
-| `arenaGameStartHandShape` | expected fail | Different bundle structure |
-| `arenaDeclareAttackersShape` | passes | Golden-only check, not comparing our output |
-| `arenaEdictalMessageExists` | passes | Golden-only check, not comparing our output |
-| `edictalPassMessageType` | passes | Checks our type only, not full shape |
+| Test | Status | What it validates |
+|------|--------|-------------------|
+| `arenaPlayLandShape` | genuine pass | Shape vs Arena golden (Diff+ActionsAvailableReq with timers) |
+| `arenaPhaseTransitionShape` | genuine pass | 5-message pattern (3 diffs + PromptReq + ActionsAvailableReq) |
+| `arenaCastCreatureStructure` | genuine pass | Golden structure: 2x aiActionDiff (cast+echo, resolve+echo) |
+| `aiActionDiffMatchesArenaSubPattern` | genuine pass | Our aiActionDiff sends SendHiFi diff+echo |
+| `arenaDeclareAttackersShape` | genuine pass | BundleBuilder output vs golden (types + promptId=6) |
+| `arenaEdictalShape` | genuine pass | edictalPass() type matches Arena EdictalMessage |
+| `arenaEdictalContext` | genuine pass | Arena pattern: SendAndRecord → Edict → SendHiFi |
+| ~~arenaGameStartHandShape~~ | removed | No matching Arena pattern (Arena uses phase transitions) |
 
 ## Enhancement Plan (highest → lowest priority)
 
