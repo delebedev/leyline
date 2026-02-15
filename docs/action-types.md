@@ -115,7 +115,7 @@ CastLeftRoom/CastRightRoom appear only in decks with room cards (arena-targeted-
 | Cast with abilityGrpId | done | First ability from CardDb |
 | Cast with manaCost | done | From CardDb.manaCost |
 | shouldStop on Cast/Play | done | Set to true |
-| Activate generation | TODO | Non-mana activated abilities |
-| autoTapSolution on Cast | TODO | Mana payment recommendation |
+| Activate generation | done | Non-mana activated abilities on battlefield |
+| autoTapSolution on Cast | done | Greedy solver: colored reqs first, then generic |
 | FloatMana | TODO | After mana activation |
 | Multi-face variants | future | CastMdfc, PlayMdfc, CastAdventure, etc. |
