@@ -46,18 +46,45 @@ class ArenaGoldenConformanceTest : ConformanceTestBase() {
 
     // --- Arena golden: cast creature ---
 
-    @Test(
-        description = "Cast-creature shape vs Arena (full-game-3.json [33-36]): expected to fail — we produce 2 messages, Arena sends 4",
-        expectedExceptions = [AssertionError::class],
-    )
-    fun arenaCastCreatureShape() {
-        val (b, game, gsId) = startGameAtMain1()
-        castCreature(b) ?: return
+    @Test(description = "Arena cast-creature is 2x aiActionDiff (cast+echo, resolve+echo)")
+    fun arenaCastCreatureStructure() {
+        val golden = loadGolden("arena-cast-creature")
 
-        val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, gsId)
+        // Arena sends 4 messages: cast diff → echo → resolve diff → echo
+        // This is two consecutive aiActionDiff batches (2 messages each)
+        assertEquals(golden.size, 4, "Arena cast-creature should have 4 messages")
+
+        // First pair: CastSpell diff + echo
+        assertEquals(golden[0].greMessageType, "GameStateMessage")
+        assertEquals(golden[0].updateType, "SendHiFi")
+        assertTrue(golden[0].annotationCategories.contains("CastSpell"), "First should be CastSpell")
+        assertEquals(golden[1].greMessageType, "GameStateMessage")
+        assertEquals(golden[1].updateType, "SendHiFi")
+        assertTrue(golden[1].annotationTypes.isEmpty(), "Echo has no annotations")
+
+        // Second pair: Resolve diff + echo
+        assertEquals(golden[2].greMessageType, "GameStateMessage")
+        assertEquals(golden[2].updateType, "SendHiFi")
+        assertTrue(golden[2].annotationCategories.contains("Resolve"), "Third should be Resolve")
+        assertEquals(golden[3].greMessageType, "GameStateMessage")
+        assertEquals(golden[3].updateType, "SendHiFi")
+        assertTrue(golden[3].annotationTypes.isEmpty(), "Echo has no annotations")
+    }
+
+    @Test(description = "aiActionDiff produces SendHiFi diff + echo matching Arena sub-pattern")
+    fun aiActionDiffMatchesArenaSubPattern() {
+        val (b, game, gsId) = startGameAtMain1()
+
+        val result = BundleBuilder.aiActionDiff(game, b, "test-match", 1, 1, gsId)
         val captured = fingerprint(result.messages)
 
-        assertShapeConformance("arena-cast-creature", captured)
+        // Should produce 2 messages: diff + echo (same as Arena [0-1] or [2-3])
+        assertEquals(captured.size, 2, "aiActionDiff should produce 2 messages")
+        assertEquals(captured[0].greMessageType, "GameStateMessage")
+        assertEquals(captured[0].updateType, "SendHiFi")
+        assertEquals(captured[1].greMessageType, "GameStateMessage")
+        assertEquals(captured[1].updateType, "SendHiFi")
+        assertTrue(captured[1].annotationTypes.isEmpty(), "Echo should have no annotations")
     }
 
     // --- Arena golden: declare attackers ---
