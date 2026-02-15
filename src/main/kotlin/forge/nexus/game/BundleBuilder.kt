@@ -153,7 +153,9 @@ object BundleBuilder {
 
     /**
      * Build a pair of Diff GameStateMessages for a phase transition.
-     * Every phase/step sends exactly 2 diffs: enter + priority-pass marker.
+     * Every phase/step sends exactly 2 diffs:
+     *   1. Diff with PhaseOrStepModified annotation + actions
+     *   2. Diff with actions only (no annotations) — priority-pass marker
      */
     fun phaseTransitionDiff(
         game: Game,
@@ -168,6 +170,7 @@ object BundleBuilder {
 
         val phase = StateMapper.mapPhase(game.phaseHandler.phase)
         val step = StateMapper.mapStep(game.phaseHandler.phase)
+        val actions = StateMapper.buildActions(game, seatId, bridge)
 
         val gs = StateMapper.buildTransitionState(
             game,
@@ -176,15 +179,46 @@ object BundleBuilder {
             bridge,
             phase,
             step,
+            actions = actions,
         )
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
             it.gameStateMessage = gs
         }
 
-        // Priority-pass marker (empty diff, gsId increments)
+        // Priority-pass marker: turnInfo + actions, no annotations
         nextGs++
+        val handler = game.phaseHandler
+        val human = bridge.getPlayer(1)
+        val activeSeat = if (handler.playerTurn == human) 1 else 2
+        val prioritySeat = if (handler.priorityPlayer == human) 1 else 2
+
+        val turnInfo = TurnInfo.newBuilder()
+            .setPhase(phase)
+            .setStep(step)
+            .setTurnNumber(handler.turn.coerceAtLeast(1))
+            .setActivePlayer(activeSeat)
+            .setPriorityPlayer(prioritySeat)
+            .setDecisionPlayer(prioritySeat)
+
+        val markerBuilder = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(nextGs)
+            .setTurnInfo(turnInfo)
+            .setUpdate(GameStateUpdate.SendHiFi)
+
+        // Embed same actions in marker
+        var actionId = 1
+        for (action in actions.actionsList) {
+            markerBuilder.addActions(
+                ActionInfo.newBuilder()
+                    .setActionId(actionId++)
+                    .setSeatId(activeSeat)
+                    .setAction(action),
+            )
+        }
+
         val msg2 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
-            it.gameStateMessage = StateMapper.buildEmptyDiff(nextGs)
+            it.gameStateMessage = markerBuilder.build()
         }
 
         return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)

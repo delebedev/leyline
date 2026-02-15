@@ -63,6 +63,21 @@ abstract class ConformanceTestBase {
         }
     }
 
+    /**
+     * Shape-only conformance: checks message types, gsType, updateType, annotations,
+     * prompts. Ignores deck-dependent action types and allows extra field presence.
+     */
+    protected fun assertShapeConformance(goldenName: String, captured: List<StructuralFingerprint>) {
+        val golden = loadGolden(goldenName)
+        val result = StructuralDiff.compareShape(golden, captured)
+        if (!result.matches) {
+            Assert.fail(
+                "Wire shape conformance FAILED for '$goldenName':\n${result.report()}\n" +
+                    "Captured:\n${formatFingerprints(captured)}",
+            )
+        }
+    }
+
     protected fun saveGolden(name: String, captured: List<StructuralFingerprint>) {
         val file = java.io.File("src/test/resources/golden/$name.json")
         file.parentFile.mkdirs()

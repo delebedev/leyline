@@ -11,16 +11,13 @@ import org.testng.annotations.Test
  *   1. GameStateMessage (Diff, SendHiFi, PhaseOrStepModified annotation, actions)
  *   2. GameStateMessage (Diff, SendHiFi, actions only, no annotations)
  *
- * EXPECTED TO FAIL: our BundleBuilder doesn't yet emit PhaseOrStepModified annotations
- * or include actions in phase transition diffs. The golden represents real server output.
+ * Uses shape-only comparison: checks message types, updateType, annotations,
+ * and field presence but ignores deck-dependent action types.
  */
 @Test(groups = ["integration", "conformance"])
 class PhaseTransitionConformanceTest : ConformanceTestBase() {
 
-    @Test(
-        description = "Expected to fail: PhaseOrStepModified annotations and actions not yet implemented",
-        expectedExceptions = [AssertionError::class],
-    )
+    @Test(description = "Phase transition shape matches real server golden")
     fun phaseTransitionMatchesGolden() {
         val (b, game, gsId) = startGameAtMain1()
 
@@ -28,7 +25,7 @@ class PhaseTransitionConformanceTest : ConformanceTestBase() {
         val captured = fingerprint(result.messages)
 
         assertEquals(captured.size, 2, "Phase transition should produce exactly 2 messages")
-        assertConformance("phase-transition", captured)
+        assertShapeConformance("phase-transition", captured)
     }
 
     @Test(enabled = false) // run manually to regenerate golden

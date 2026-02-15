@@ -329,6 +329,8 @@ object StateMapper {
             .setTurnInfo(turnInfo)
             .addPlayers(buildPlayerInfo(bridge.getPlayer(1), 1))
             .addPlayers(buildPlayerInfo(bridge.getPlayer(2), 2))
+            .addAnnotations(AnnotationBuilder.phaseOrStepModified())
+            .setUpdate(GameStateUpdate.SendHiFi)
 
         if (isStageTransition) {
             builder.setGameInfo(
@@ -338,9 +340,6 @@ object StateMapper {
                     .setMatchState(MatchState.GameInProgress)
                     .setMulliganType(MulliganType.London),
             )
-            builder.setUpdate(GameStateUpdate.SendHiFi)
-        } else {
-            builder.setUpdate(GameStateUpdate.SendAndRecord)
         }
 
         // Embed actions in Main1 state (real server does this)

@@ -29,6 +29,12 @@ object AnnotationBuilder {
             .addDetails(uint32Detail("grpid", grpId))
             .build()
 
+    /** Phase/step changed. Client uses this to animate the phase tracker. */
+    fun phaseOrStepModified(): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.PhaseOrStepModified)
+            .build()
+
     /** Spell/ability done resolving. Client uses this to finalize stack→battlefield move. */
     fun resolutionComplete(instanceId: Int, grpId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
