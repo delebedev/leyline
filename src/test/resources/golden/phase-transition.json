@@ -1,16 +1,42 @@
 [
-    {
-        "greMessageType": "GameStateMessage",
-        "gsType": "Diff",
-        "updateType": "SendAndRecord",
-        "fieldPresence": [
-            "turnInfo",
-            "players"
-        ]
-    },
-    {
-        "greMessageType": "GameStateMessage",
-        "gsType": "Diff",
-        "updateType": "Send"
-    }
+  {
+    "actionTypes": [
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ],
+    "annotationTypes": [
+      "PhaseOrStepModified"
+    ],
+    "fieldPresence": [
+      "turnInfo",
+      "actions",
+      "annotations"
+    ],
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi"
+  },
+  {
+    "actionTypes": [
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ],
+    "fieldPresence": [
+      "turnInfo",
+      "actions"
+    ],
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi"
+  }
 ]
