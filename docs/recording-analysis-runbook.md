@@ -337,7 +337,7 @@ Not yet tested (no conformance test):
 8. **Targeted spell flow** — SelectTargetsReq/SubmitTargetsResp/Send updateType
 9. **Reveal/discard** — RevealedCardCreated/Deleted, SelectNreq, QueuedGameStateMessage
 10. **Activate action type** — non-mana activated abilities (distinct from ActivateMana)
-11. **Combat flow** — DeclareAttackersReq/BlockersReq, DamageDealt/ModifiedLife/SyntheticEvent
+11. ~~**Combat damage annotations**~~ — FIXED. DamageDealt/ModifiedLife/SyntheticEvent emitted at COMBAT_DAMAGE phase via StateMapper. DeclareAttackersReq/BlockersReq already handled by existing priority flow.
 12. ~~**Game end**~~ — FIXED. 3x GS Diff (SendAndRecord) with GameOver gameInfo + ResultSpec, then IntermissionReq. Client transitions to end-of-game screen cleanly.
 
 ## Fixing a Conformance Gap
