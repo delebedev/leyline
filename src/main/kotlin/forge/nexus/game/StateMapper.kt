@@ -176,15 +176,24 @@ object StateMapper {
             zones.size,
         )
 
-        // Annotations: detect zone transfers by comparing current vs previous zone
+        // Annotations: detect zone transfers by comparing current vs previous zone.
+        // For stack→battlefield (resolution), bracket with ResolutionStart/Complete
+        // so the client animates the spell leaving the stack.
         val annotations = mutableListOf<AnnotationInfo>()
         for (obj in gameObjects) {
             val prevZone = bridge.getPreviousZone(obj.instanceId)
             if (prevZone != null && prevZone != obj.zoneId) {
                 val category = inferCategory(obj, prevZone, obj.zoneId)
+                val isResolve = prevZone == ZONE_STACK && obj.zoneId == ZONE_BATTLEFIELD
+                if (isResolve) {
+                    annotations.add(AnnotationBuilder.resolutionStart(obj.instanceId, obj.grpId))
+                }
                 annotations.add(
                     AnnotationBuilder.zoneTransfer(obj.instanceId, prevZone, obj.zoneId, category),
                 )
+                if (isResolve) {
+                    annotations.add(AnnotationBuilder.resolutionComplete(obj.instanceId, obj.grpId))
+                }
             }
             bridge.recordZone(obj.instanceId, obj.zoneId)
         }
