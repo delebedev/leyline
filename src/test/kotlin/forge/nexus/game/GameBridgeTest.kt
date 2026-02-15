@@ -419,9 +419,9 @@ class GameBridgeTest {
 
     // --- Double-diff tests ---
 
-    /** Every phaseTransitionDiff emits exactly 2 messages with sequential gsIds. */
+    /** phaseTransitionDiff emits the full 5-message Arena pattern. */
     @Test
-    fun phaseTransitionEmitsTwoDiffs() {
+    fun phaseTransitionEmitsFiveMessagePattern() {
         val b = GameBridge()
         bridge = b
         b.start(seed = 42L)
@@ -431,12 +431,37 @@ class GameBridgeTest {
         val game = b.getGame()!!
         val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, 1, 10)
 
-        Assert.assertEquals(result.messages.size, 2, "Phase transition should emit 2 diffs")
+        Assert.assertEquals(result.messages.size, 5, "Phase transition should emit 5 messages")
+
+        // Message 1: SendHiFi with PhaseOrStepModified annotations
         val gs1 = result.messages[0].gameStateMessage
+        assertEquals(gs1.update, Messages.GameStateUpdate.SendHiFi)
+        assertEquals(gs1.type, Messages.GameStateType.Diff)
+
+        // Message 2: SendHiFi echo (no annotations)
         val gs2 = result.messages[1].gameStateMessage
-        assertEquals(gs1.type, wotc.mtgo.gre.external.messaging.Messages.GameStateType.Diff)
-        assertEquals(gs2.type, wotc.mtgo.gre.external.messaging.Messages.GameStateType.Diff)
-        assertEquals(gs2.gameStateId, gs1.gameStateId + 1, "gsIds should be sequential")
+        assertEquals(gs2.update, Messages.GameStateUpdate.SendHiFi)
+        assertEquals(gs2.type, Messages.GameStateType.Diff)
+
+        // Message 3: SendAndRecord with PhaseOrStepModified
+        val gs3 = result.messages[2].gameStateMessage
+        assertEquals(gs3.update, Messages.GameStateUpdate.SendAndRecord)
+        assertEquals(gs3.type, Messages.GameStateType.Diff)
+
+        // Message 4: PromptReq (promptId=37)
+        assertEquals(result.messages[3].type, Messages.GREMessageType.PromptReq)
+        assertEquals(result.messages[3].prompt.promptId, 37)
+
+        // Message 5: ActionsAvailableReq (promptId=2)
+        assertEquals(result.messages[4].type, Messages.GREMessageType.ActionsAvailableReq_695e)
+        assertEquals(result.messages[4].prompt.promptId, 2)
+
+        // gsIds should be ascending across GSM messages
+        val gsIds = result.messages.filter { it.hasGameStateMessage() }
+            .map { it.gameStateMessage.gameStateId }
+        for (i in 1 until gsIds.size) {
+            Assert.assertTrue(gsIds[i] > gsIds[i - 1], "gsIds should be ascending")
+        }
     }
 
     // --- Combat tests ---
