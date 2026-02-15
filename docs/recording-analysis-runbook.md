@@ -309,7 +309,7 @@ Validated across 3 recordings (757 + 396 + 257 msgs):
 
 Confirmed across 3 recordings:
 
-1. **PhaseOrStepModified annotations** — real server emits on every phase change; we don't
+1. ~~**PhaseOrStepModified annotations**~~ — FIXED. `AnnotationBuilder.phaseOrStepModified()` + `StateMapper.buildTransitionState()` emits on every transition. `updateType` fixed to `SendHiFi`. Phase-transition conformance test passes via shape comparison.
 2. **PromptReq message** — real server sends before ActionsAvailableReq in game-start; we skip it
 3. **Resolution annotations** — ResolutionStart/ResolutionComplete/ZoneTransfer(Resolve) on spell resolution; we don't emit
 4. **CastSpell annotations** — ManaPaid/TappedUntappedPermanent/AbilityInstanceCreated on cast; we don't emit
@@ -324,6 +324,99 @@ Not yet tested (no conformance test):
 10. **Activate action type** — non-mana activated abilities (distinct from ActivateMana)
 11. **Combat flow** — DeclareAttackersReq/BlockersReq, DamageDealt/ModifiedLife/SyntheticEvent
 12. **Game end** — IntermissionReq
+
+## Fixing a Conformance Gap
+
+Compressed loop for closing a known gap. Each cycle: research → implement → verify.
+
+### Prerequisites
+
+- Gap identified in Known Gaps list above (or discovered via analyzer)
+- Golden file exists for the pattern (in `src/test/resources/golden/`)
+- Conformance test exists (even if using `expectedExceptions`)
+
+### Step 1: Research — understand the real server shape
+
+Read the golden file for the target pattern:
+
+```bash
+cat src/test/resources/golden/<pattern>.json
+```
+
+Key fields to note: `annotationTypes`, `updateType`, `fieldPresence`, message count.
+
+Cross-reference with full recordings if needed:
+
+```bash
+just proto-compare --analyze src/test/resources/golden/full-game.json
+```
+
+Look for the pattern label in the analyzer output — it shows the real server's message sequence for that pattern.
+
+### Step 2: Identify divergences
+
+Read the conformance test to see what our code currently produces. Run the test with `expectedExceptions` temporarily removed (or read test output) to see the `StructuralDiff` report:
+
+```
+Message #0: annotationTypes
+  expected: [PhaseOrStepModified]
+  actual:   []
+```
+
+Make a checklist of exact divergences: wrong updateType, missing annotations, missing fields, wrong message count.
+
+### Step 3: Implement — minimal targeted changes
+
+Typical touch points (in order of likelihood):
+
+| Gap type | File to change |
+|----------|---------------|
+| Missing annotation | `AnnotationBuilder.kt` (add factory) + `StateMapper.kt` (emit it) |
+| Wrong updateType | `StateMapper.buildTransitionState()` or `BundleBuilder` |
+| Missing actions in message | `BundleBuilder` (build + embed actions) |
+| Wrong message count | `BundleBuilder` (add/remove messages in the bundle) |
+| New message type | `BundleBuilder` (add new bundle method) |
+
+### Step 4: Format + build + verify
+
+```bash
+# from worktree root
+just fmt
+
+# from forge-nexus/
+just dev-build                # fast Kotlin-only compile (~3-5s)
+just test-conformance         # ALL conformance tests in one shot (~5s)
+```
+
+`just test-conformance` runs every `*ConformanceTest` class via TestNG `conformance` group. No need to run tests individually.
+
+### Step 5: Update the test
+
+- Remove `expectedExceptions = [AssertionError::class]` from the test annotation
+- Switch `assertConformance` → `assertShapeConformance` if the golden has deck-dependent action types
+- Update the test description to remove "Expected to fail"
+
+### Step 6: Commit + update this runbook
+
+- Mark the gap as FIXED in Known Gaps
+- Note which files changed and what the fix entailed (one line)
+- Commit with `feat(nexus):` prefix
+
+### Comparison modes
+
+| Method | What it checks | When to use |
+|--------|---------------|-------------|
+| `assertConformance` | Everything: types, annotations, actions, field presence (exact) | Golden regenerated from our output |
+| `assertShapeConformance` | Types, annotations, updateType, prompt. Skips actionTypes, allows extra fieldPresence | Golden from real server recording (deck-dependent actions differ) |
+
+Shape comparison is preferred when the golden comes from real server recordings, since action types/counts are deck-dependent. Exact comparison is for regression-guarding our own output.
+
+### Efficiency notes
+
+- **Don't read files you already have in context.** The golden + current code are the only inputs. If you've read them, go straight to implementation.
+- **`just test-conformance` not `test-one`** — runs all 4+ tests in ~5s, catches regressions immediately.
+- **Format before build.** `just fmt` fixes imports/whitespace; `just dev-build` then compiles clean.
+- **One commit per gap.** Keep changes reviewable. Touch only the files that need to change.
 
 ## File Inventory
 
