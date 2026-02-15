@@ -4,7 +4,8 @@ import forge.game.Game
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.nexus.game.GameBridge
-import forge.web.game.GameActionBridge
+import forge.nexus.game.advanceToMain1
+import forge.nexus.game.awaitFreshPending
 import forge.web.game.GameBootstrap
 import forge.web.game.PlayerAction
 import org.testng.Assert
@@ -120,45 +121,5 @@ abstract class ConformanceTestBase {
         val pending = awaitFreshPending(b, null) ?: return
         b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
         awaitFreshPending(b, pending.actionId)
-    }
-
-    /**
-     * Pass priority until the game reaches Main1.
-     *
-     * Uses the pending action's phase (set when the engine blocks) instead of
-     * polling `game.phaseHandler.phase` — eliminates a race where the live phase
-     * is checked before the pending is found, causing an accidental pass at Main1.
-     */
-    private fun advanceToMain1(b: GameBridge, maxPasses: Int = 20) {
-        val game = b.getGame()!!
-        var passes = 0
-        var lastId: String? = null
-        while (passes < maxPasses) {
-            val pending = awaitFreshPending(b, lastId)
-                ?: error("Timed out waiting for priority while advancing to Main1 (phase=${game.phaseHandler.phase})")
-            // Stop when we reach Main1 — leave this pending for the test to consume
-            if (pending.state.phase == "MAIN1") return
-            b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
-            lastId = pending.actionId
-            passes++
-        }
-    }
-
-    /**
-     * Wait for a pending action whose actionId differs from [previousId].
-     * Returns null on timeout (15s).
-     */
-    private fun awaitFreshPending(
-        b: GameBridge,
-        previousId: String?,
-        timeoutMs: Long = 15_000,
-    ): GameActionBridge.PendingAction? {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
-            val p = b.actionBridge.getPending()
-            if (p != null && p.actionId != previousId && !p.future.isDone) return p
-            Thread.sleep(50)
-        }
-        return null
     }
 }
