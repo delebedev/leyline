@@ -103,6 +103,8 @@ object GameStateCollector {
         phase: String?,
         turn: Int,
         detail: String,
+        priorityPlayer: String? = null,
+        stackDepth: Int = 0,
     ) {
         synchronized(eventBuffer) {
             eventSeq++
@@ -116,6 +118,8 @@ object GameStateCollector {
                     phase = phase,
                     turn = turn,
                     detail = detail,
+                    priorityPlayer = priorityPlayer,
+                    stackDepth = stackDepth,
                 ),
             )
         }
@@ -430,6 +434,8 @@ object GameStateCollector {
         val phase: String?,
         val turn: Int,
         val detail: String,
+        val priorityPlayer: String? = null,
+        val stackDepth: Int = 0,
     )
 
     @Serializable
@@ -449,9 +455,11 @@ object GameStateCollector {
         PRIORITY_GRANT,
         AUTO_PASS,
         SEND_STATE,
+        CLIENT_ACTION,
         COMBAT_PROMPT,
         TARGET_PROMPT,
         GAME_OVER,
+        GAME_START,
         AI_TURN_WAIT,
         AI_TURN_TIMEOUT,
     }

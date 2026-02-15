@@ -6,6 +6,7 @@ import forge.nexus.debug.ArenaDebugCollector
 import forge.nexus.debug.GameStateCollector
 import forge.nexus.debug.NexusTap
 import forge.nexus.game.BundleBuilder
+import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
 import forge.nexus.game.StateMapper
 import forge.nexus.protocol.ProtoDump
@@ -43,6 +44,9 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
 
     /** True while this seat is in an interactive prompt (attackers/blockers/targets). */
     private var inInteractivePrompt = false
+
+    /** Legal attacker instanceIds from the last DeclareAttackersReq we sent. */
+    private var pendingLegalAttackers: List<Int> = emptyList()
 
     companion object {
         /** matchId -> (seatId -> handler). Cross-connection signaling. */
@@ -283,6 +287,8 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
         bridge.awaitPriority()
 
         val game = bridge.getGame() ?: return
+        traceEvent(GameStateCollector.EventType.GAME_START, game, "post-mulligan, entering Main1")
+
         val result = BundleBuilder.gameStart(game, bridge, matchId, seatId, msgIdCounter, gameStateId)
         msgIdCounter = result.nextMsgId
         gameStateId = result.nextGsId
@@ -330,6 +336,11 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
         gameStateId = result.nextGsId
         inInteractivePrompt = true
 
+        // Remember legal attackers — SubmitAttackersReq doesn't embed selections
+        val builtReq = result.messages.firstOrNull { it.hasDeclareAttackersReq() }?.declareAttackersReq
+        pendingLegalAttackers = builtReq?.attackersList?.map { it.attackerInstanceId } ?: emptyList()
+        log.debug("DeclareAttackersReq: pendingLegalAttackers={}", pendingLegalAttackers)
+
         NexusTap.outboundTemplate("DeclareAttackersReq seat=$seatId")
         sendBundledGRE(ctx, result.messages)
     }
@@ -368,24 +379,33 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
             return
         }
 
+        // SubmitAttackersReq (type 31) carries no attacker data — the client
+        // communicates selections via UIMessages before submitting.
+        // Fall back to all legal attackers from the DeclareAttackersReq we sent.
         val resp = greMsg.declareAttackersResp
+        val selectedInstanceIds = resp.selectedAttackersList.map { it.attackerInstanceId }
+            .ifEmpty { pendingLegalAttackers }
+
         log.info(
-            "Match Door: DeclareAttackersResp raw selectedAttackers={}",
-            resp.selectedAttackersList.map { "iid=${it.attackerInstanceId}" },
+            "Match Door: DeclareAttackers instanceIds={} (fromResp={} pending={})",
+            selectedInstanceIds,
+            resp.selectedAttackersList.size,
+            pendingLegalAttackers.size,
         )
-        val attackerCardIds = resp.selectedAttackersList.mapNotNull { attacker ->
-            val forgeId = bridge.getForgeCardId(attacker.attackerInstanceId)
+        val attackerCardIds = selectedInstanceIds.mapNotNull { instanceId ->
+            val forgeId = bridge.getForgeCardId(instanceId)
             if (forgeId == null) {
                 log.warn(
                     "Match Door: instanceId {} not in map (map size={})",
-                    attacker.attackerInstanceId,
+                    instanceId,
                     bridge.getInstanceIdMap().size,
                 )
             }
             forgeId
         }
+        pendingLegalAttackers = emptyList() // consumed
 
-        log.info("Match Door: DeclareAttackersResp attackers={}", attackerCardIds)
+        log.info("Match Door: DeclareAttackers forgeCardIds={}", attackerCardIds)
 
         // Submit attackers (empty list = no attack, just pass through combat)
         bridge.actionBridge.submitAction(
@@ -683,7 +703,13 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
     private fun traceEvent(type: GameStateCollector.EventType, game: Game, detail: String) {
         val phase = game.phaseHandler.phase?.name
         val turn = game.phaseHandler.turn
-        GameStateCollector.recordEvent(gameStateId, type, phase, turn, detail)
+        val human = gameBridge?.getPlayer(seatId)
+        val priority = when (game.phaseHandler.priorityPlayer) {
+            human -> "human"
+            else -> "ai"
+        }
+        val stackDepth = game.stack?.size() ?: 0
+        GameStateCollector.recordEvent(gameStateId, type, phase, turn, detail, priority, stackDepth)
     }
 
     /**
@@ -704,6 +730,18 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
         }
 
         NexusTap.inboundAction(action)
+
+        val isCast = action.actionType == ActionType.Cast
+        val game = bridge.getGame()
+        if (game != null) {
+            val actionName = action.actionType.name.removeSuffix("_add3")
+            val cardName = if (action.instanceId != 0) {
+                CardDb.getCardName(action.grpId)?.let { " ($it)" } ?: ""
+            } else {
+                ""
+            }
+            traceEvent(GameStateCollector.EventType.CLIENT_ACTION, game, "$actionName iid=${action.instanceId}$cardName")
+        }
 
         when (action.actionType) {
             ActionType.Pass -> {
@@ -735,6 +773,18 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
 
         // Wait for engine to reach next priority stop
         bridge.awaitPriority()
+
+        // After a cast, the spell is on the stack. Send full state with
+        // ActionsAvailableReq (Pass) so the client shows the spell on stack
+        // and presents Resolve/Pass. The client responds with Pass, then
+        // autoPassAndAdvance handles the resolution.
+        if (isCast) {
+            val game = bridge.getGame()
+            if (game != null && !game.stack.isEmpty) {
+                sendRealGameState(ctx, bridge)
+                return
+            }
+        }
 
         // Auto-pass through stack resolution — spells resolve automatically
         // when neither player has responses (matches real Arena behavior)
