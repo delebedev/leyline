@@ -118,6 +118,33 @@ object BundleBuilder {
     }
 
     /**
+     * State-only diff: Diff GameStateMessage without ActionsAvailableReq.
+     * Used to show intermediate state (e.g. spell on stack) without
+     * prompting the client for a response.
+     */
+    fun stateOnlyDiff(
+        game: Game,
+        bridge: GameBridge,
+        matchId: String,
+        seatId: Int,
+        msgId: Int,
+        gsId: Int,
+    ): BundleResult {
+        var nextMsg = msgId
+        val nextGs = gsId + 1
+
+        val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge)
+
+        val messages = listOf(
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+                it.gameStateMessage = gs
+            },
+        )
+
+        return BundleResult(messages, nextMsg, nextGs)
+    }
+
+    /**
      * True when the only action available is Pass (no Cast, Play, Activate).
      * Used to decide whether to auto-pass or send state to the client.
      */

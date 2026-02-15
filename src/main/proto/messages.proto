@@ -134,21 +134,30 @@ message AndCost {
 	repeated Cost costs = 1;
 }
 
+// Annotation attached to a GameStateMessage describing what changed and why.
+// Client uses annotations to drive animations (zone moves, resolution FX, damage).
+// Each annotation has a type[], affectedIds[] (what changed), and details[] (key-value context).
 message AnnotationInfo {
-	uint32 id = 1;
-	uint32 affectorId = 2;
-	repeated uint32 affectedIds = 3;
-	repeated AnnotationType type = 4;
-	repeated KeyValuePairInfo details = 6;
+	uint32 id = 1;                                     // sequential ID within this GameStateMessage
+	uint32 affectorId = 2;                             // instanceId of the card/ability causing the change
+	repeated uint32 affectedIds = 3;                   // instanceIds of objects affected by this change
+	repeated AnnotationType type = 4;                  // annotation kind(s) — usually single-element
+	repeated KeyValuePairInfo details = 6;             // typed key-value pairs (keys vary per annotation type)
 	bool redactAffector = 7;
 	repeated uint32 excludedSeatIds = 8;
 	bool redactAffected = 9;
 	repeated uint32 temporarilyExcludedSeatIds = 10;
 }
 
+// Annotation type enum. Client behavior depends heavily on specific types:
+// - ZoneTransfer: drives card movement animations (hand→stack, stack→BF, etc.)
+// - ResolutionStart + ResolutionComplete: spell/ability resolution FX; client won't
+//   move a spell off the stack visually without these bracketing annotations
+// - ManaPaid: mana expenditure display
+// - UserActionTaken: ties a game action back to a player interaction
 enum AnnotationType {
 	None_af5a = 0;
-	ZoneTransfer_af5a = 1;
+	ZoneTransfer_af5a = 1;       // details: zone_src, zone_dest, category (string)
 	LossOfGame_af5a = 2;
 	DamageDealt_af5a = 3;
 	TappedUntappedPermanent = 4;
@@ -160,7 +169,7 @@ enum AnnotationType {
 	ModifiedLife = 10;
 	CreateAttachment = 11;
 	RemoveAttachment = 12;
-	ObjectIdChanged = 13;
+	ObjectIdChanged = 13;        // instanceId changed (e.g. card re-created on zone move)
 	Counter_803b = 14;
 	ControllerChanged = 15;
 	CounterAdded = 16;
@@ -181,7 +190,7 @@ enum AnnotationType {
 	ObjectsSelected = 31;
 	TriggeringObject = 32;
 	DamageSource = 33;
-	ManaPaid = 34;
+	ManaPaid = 34;               // details: grpid (uint32) — which card's cost was paid
 	TokenCreated = 35;
 	AbilityInstanceCreated = 36;
 	AbilityInstanceDeleted = 37;
@@ -190,8 +199,8 @@ enum AnnotationType {
 	LinkInfo = 40;
 	TokenDeleted = 41;
 	Qualification = 42;
-	ResolutionStart = 43;
-	ResolutionComplete = 44;
+	ResolutionStart = 43;        // details: grpid (uint32) — spell/ability beginning to resolve
+	ResolutionComplete = 44;     // details: grpid (uint32) — spell/ability done resolving
 	Designation = 45;
 	GainDesignation = 46;
 	CardRevealed = 47;
@@ -1912,15 +1921,18 @@ message KeyValuePair {
 	RepeatedValue repeatedValue = 3;
 }
 
+// Typed key-value detail carried by AnnotationInfo.
+// Key names are annotation-type-specific (e.g. "zone_src", "grpid", "category").
+// Only one value field is populated per entry; which one is indicated by `type`.
 message KeyValuePairInfo {
-	string key = 1;
-	KeyValuePairValueType type = 2;
-	repeated uint32 valueUint32 = 3;
+	string key = 1;                    // detail name (e.g. "zone_src", "zone_dest", "grpid", "category")
+	KeyValuePairValueType type = 2;    // which repeated value field to read
+	repeated uint32 valueUint32 = 3;   // used for: grpid, instanceId, zone IDs
 	repeated int32 valueInt32 = 4;
 	repeated uint64 valueUint64 = 5;
 	repeated int64 valueInt64 = 6;
 	repeated bool valueBool = 7;
-	repeated string valueString = 8;
+	repeated string valueString = 8;   // used for: zone_src, zone_dest, category (as strings)
 	repeated float valueFloat = 9;
 	repeated double valueDouble = 10;
 }

@@ -733,6 +733,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
 
         val isCast = action.actionType == ActionType.Cast
         val game = bridge.getGame()
+        val stackWasNonEmpty = game != null && !game.stack.isEmpty
         if (game != null) {
             val actionName = action.actionType.name.removeSuffix("_add3")
             val cardName = if (action.instanceId != 0) {
@@ -774,20 +775,31 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
         // Wait for engine to reach next priority stop
         bridge.awaitPriority()
 
-        // After a cast, the spell is on the stack. Send full state with
-        // ActionsAvailableReq (Pass) so the client shows the spell on stack
-        // and presents Resolve/Pass. The client responds with Pass, then
-        // autoPassAndAdvance handles the resolution.
+        // After a cast, the spell is on the stack. Send state with Pass
+        // so the client shows the spell on stack. Client responds with Pass,
+        // which triggers the resolution path below.
         if (isCast) {
-            val game = bridge.getGame()
-            if (game != null && !game.stack.isEmpty) {
+            val g = bridge.getGame()
+            if (g != null && !g.stack.isEmpty) {
                 sendRealGameState(ctx, bridge)
                 return
             }
         }
 
-        // Auto-pass through stack resolution — spells resolve automatically
-        // when neither player has responses (matches real Arena behavior)
+        // After stack resolution (client passed with spell on stack, engine
+        // resolved it), send intermediate state so the client sees the creature
+        // move from stack to battlefield with ResolutionStart/Complete annotations
+        // BEFORE we auto-pass through remaining phases.
+        if (stackWasNonEmpty) {
+            val g = bridge.getGame()
+            if (g != null && g.stack.isEmpty) {
+                log.info("Match Door: stack resolved, sending intermediate resolution state")
+                sendRealGameState(ctx, bridge)
+                return
+            }
+        }
+
+        // Auto-pass through phases where only Pass is available
         autoPassAndAdvance(ctx, bridge)
     }
 
