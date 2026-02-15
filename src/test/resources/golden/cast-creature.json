@@ -5,9 +5,11 @@
         "updateType": "SendAndRecord",
         "annotationTypes": [
             "AbilityInstanceCreated",
+            "AbilityInstanceDeleted",
             "ManaPaid",
             "ObjectIdChanged",
             "TappedUntappedPermanent",
+            "UserActionTaken",
             "UserActionTaken",
             "ZoneTransfer"
         ],
