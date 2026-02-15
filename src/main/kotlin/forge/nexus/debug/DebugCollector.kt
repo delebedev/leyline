@@ -142,6 +142,18 @@ object ArenaDebugCollector {
         val grpId: Int,
     )
 
+    /** Clear all protocol message and log buffers (for match reset). */
+    fun clear() {
+        synchronized(buffer) {
+            buffer.clear()
+            seq = 0
+        }
+        synchronized(logBuffer) {
+            logBuffer.clear()
+            logSeq = 0
+        }
+    }
+
     // --- Internal ---
 
     private fun add(entry: Entry) = synchronized(buffer) {
