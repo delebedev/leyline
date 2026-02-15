@@ -42,4 +42,7 @@ class MatchRegistry {
     }
 
     fun removeBridge(matchId: String): GameBridge? = bridges.remove(matchId)
+
+    /** Snapshot of all active bridges (for debug panel). */
+    fun activeBridges(): Map<String, GameBridge> = HashMap(bridges)
 }

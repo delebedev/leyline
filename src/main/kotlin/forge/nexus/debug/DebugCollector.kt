@@ -93,10 +93,12 @@ object ArenaDebugCollector {
 
     /** Current match state summary. */
     fun matchState(): MatchStateSnapshot {
-        val bridges = MatchHandler.Companion.sharedBridges
+        val bridges = MatchHandler.defaultRegistry.activeBridges()
         if (bridges.isEmpty()) return MatchStateSnapshot()
 
-        val (matchId, bridge) = bridges.entries.first()
+        val first = bridges.entries.first()
+        val matchId = first.key
+        val bridge = first.value
         val game = bridge.getGame()
         return MatchStateSnapshot(
             matchId = matchId,
@@ -111,7 +113,7 @@ object ArenaDebugCollector {
     /** Instance ID cross-reference table from all active bridges. */
     fun idMap(): List<IdMapEntry> {
         val result = mutableListOf<IdMapEntry>()
-        for ((_, bridge) in MatchHandler.Companion.sharedBridges) {
+        for ((_, bridge) in MatchHandler.defaultRegistry.activeBridges()) {
             val game = bridge.getGame() ?: continue
             val map = bridge.getInstanceIdMap()
             for ((instanceId, forgeCardId) in map) {
