@@ -1,7 +1,6 @@
 package forge.nexus.conformance
 
 import forge.game.Game
-import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.nexus.game.GameBridge
 import forge.web.game.GameActionBridge
@@ -120,26 +119,22 @@ abstract class ConformanceTestBase {
     /**
      * Pass priority until the game reaches Main1.
      *
-     * After submitting pass, waits for a **fresh** pending action (different actionId)
-     * to avoid a race where [GameBridge.awaitPriority] detects a stale pending whose
-     * future was already completed but whose `finally` block hasn't cleared it yet.
-     * The engine may auto-pass through phases without blocking (smart phase skip),
-     * so we also check the phase directly.
+     * Uses the pending action's phase (set when the engine blocks) instead of
+     * polling `game.phaseHandler.phase` — eliminates a race where the live phase
+     * is checked before the pending is found, causing an accidental pass at Main1.
      */
     private fun advanceToMain1(b: GameBridge, maxPasses: Int = 20) {
         val game = b.getGame()!!
         var passes = 0
         var lastId: String? = null
-        while (game.phaseHandler.phase != PhaseType.MAIN1 && passes < maxPasses) {
+        while (passes < maxPasses) {
             val pending = awaitFreshPending(b, lastId)
                 ?: error("Timed out waiting for priority while advancing to Main1 (phase=${game.phaseHandler.phase})")
+            // Stop when we reach Main1 — leave this pending for the test to consume
+            if (pending.state.phase == "MAIN1") return
             b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
             lastId = pending.actionId
             passes++
-        }
-        // Final wait: ensure we have a pending action at MAIN1 before returning
-        if (game.phaseHandler.phase == PhaseType.MAIN1) {
-            awaitFreshPending(b, lastId)
         }
     }
 

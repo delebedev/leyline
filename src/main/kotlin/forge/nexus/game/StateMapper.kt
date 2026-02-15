@@ -178,21 +178,36 @@ object StateMapper {
         )
 
         // Annotations: detect zone transfers by comparing current vs previous zone.
-        // For stack→battlefield (resolution), bracket with ResolutionStart/Complete
-        // so the client animates the spell leaving the stack.
+        // Each category gets companion annotations matching the real server:
+        //   PlayLand: ObjectIdChanged + UserActionTaken + ZoneTransfer(PlayLand)
+        //   CastSpell: ObjectIdChanged + UserActionTaken + ManaPaid + TappedUntappedPermanent
+        //              + AbilityInstanceCreated + ZoneTransfer(CastSpell)
+        //   Resolve: ResolutionStart + ZoneTransfer(Resolve) + ResolutionComplete
         val annotations = mutableListOf<AnnotationInfo>()
         for (obj in gameObjects) {
             val prevZone = bridge.getPreviousZone(obj.instanceId)
             if (prevZone != null && prevZone != obj.zoneId) {
                 val category = inferCategory(obj, prevZone, obj.zoneId)
-                val isResolve = prevZone == ZONE_STACK && obj.zoneId == ZONE_BATTLEFIELD
-                if (isResolve) {
-                    annotations.add(AnnotationBuilder.resolutionStart(obj.instanceId, obj.grpId))
+                when (category) {
+                    "PlayLand" -> {
+                        annotations.add(AnnotationBuilder.objectIdChanged(obj.instanceId))
+                        annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId))
+                    }
+                    "CastSpell" -> {
+                        annotations.add(AnnotationBuilder.objectIdChanged(obj.instanceId))
+                        annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId))
+                        annotations.add(AnnotationBuilder.manaPaid(obj.instanceId))
+                        annotations.add(AnnotationBuilder.tappedUntappedPermanent(obj.instanceId))
+                        annotations.add(AnnotationBuilder.abilityInstanceCreated(obj.instanceId))
+                    }
+                    "Resolve" -> {
+                        annotations.add(AnnotationBuilder.resolutionStart(obj.instanceId, obj.grpId))
+                    }
                 }
                 annotations.add(
                     AnnotationBuilder.zoneTransfer(obj.instanceId, prevZone, obj.zoneId, category),
                 )
-                if (isResolve) {
+                if (category == "Resolve") {
                     annotations.add(AnnotationBuilder.resolutionComplete(obj.instanceId, obj.grpId))
                 }
             }

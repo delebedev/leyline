@@ -35,6 +35,41 @@ object AnnotationBuilder {
             .addType(AnnotationType.PhaseOrStepModified)
             .build()
 
+    /** Card's instanceId changed (e.g. zone move creates new object). */
+    fun objectIdChanged(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.ObjectIdChanged)
+            .addAffectedIds(instanceId)
+            .build()
+
+    /** Ties a game state change back to a player interaction. */
+    fun userActionTaken(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.UserActionTaken)
+            .addAffectedIds(instanceId)
+            .build()
+
+    /** Mana was spent to pay for a spell/ability. */
+    fun manaPaid(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.ManaPaid)
+            .addAffectedIds(instanceId)
+            .build()
+
+    /** Permanent tapped or untapped (e.g. tapping land for mana). */
+    fun tappedUntappedPermanent(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.TappedUntappedPermanent)
+            .addAffectedIds(instanceId)
+            .build()
+
+    /** Ability instance created on the stack. */
+    fun abilityInstanceCreated(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.AbilityInstanceCreated)
+            .addAffectedIds(instanceId)
+            .build()
+
     /** Spell/ability done resolving. Client uses this to finalize stack→battlefield move. */
     fun resolutionComplete(instanceId: Int, grpId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
