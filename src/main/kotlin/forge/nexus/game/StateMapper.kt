@@ -214,6 +214,38 @@ object StateMapper {
             bridge.recordZone(obj.instanceId, obj.zoneId)
         }
 
+        // Combat damage annotations: when at damage phase with active combat
+        if (handler.phase == PhaseType.COMBAT_DAMAGE || handler.phase == PhaseType.COMBAT_FIRST_STRIKE_DAMAGE) {
+            val combat = handler.combat
+            if (combat != null && combat.attackers.isNotEmpty()) {
+                for (attacker in combat.attackers) {
+                    val iid = bridge.getOrAllocInstanceId(attacker.id)
+                    val dmg = attacker.getTotalDamageDoneBy()
+                    if (dmg > 0) {
+                        annotations.add(AnnotationBuilder.damageDealt(iid, dmg))
+                    }
+                }
+                // Detect life changes vs. previous state
+                val prev = bridge.getPreviousState()
+                if (prev != null) {
+                    for (playerInfo in prev.playersList) {
+                        val seat = playerInfo.systemSeatNumber
+                        val player = bridge.getPlayer(seat)
+                        if (player != null) {
+                            val prevLife = playerInfo.lifeTotal
+                            val curLife = player.life
+                            val delta = curLife - prevLife
+                            if (delta != 0) {
+                                annotations.add(AnnotationBuilder.modifiedLife(seat, delta))
+                            }
+                        }
+                    }
+                }
+                annotations.add(AnnotationBuilder.phaseOrStepModified())
+                annotations.add(AnnotationBuilder.syntheticEvent())
+            }
+        }
+
         val builder = GameStateMessage.newBuilder()
             .setType(GameStateType.Full)
             .setGameStateId(gameStateId)
