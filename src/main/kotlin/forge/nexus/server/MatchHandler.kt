@@ -123,6 +123,18 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
 
         when (greMsg.type) {
             ClientMessageType.ConnectReq_097b -> {
+                // Evict stale bridges from previous matches and reset debug collectors
+                val staleKeys = sharedBridges.keys.filter { it != matchId }
+                for (key in staleKeys) {
+                    sharedBridges.remove(key)?.shutdown()
+                    peerContexts.remove(key)
+                    log.info("Match Door: evicted stale bridge matchId={}", key)
+                }
+                if (staleKeys.isNotEmpty()) {
+                    ArenaDebugCollector.clear()
+                    GameStateCollector.clear()
+                }
+
                 // Only one bridge per match — first seat to arrive creates it
                 val bridge = sharedBridges.computeIfAbsent(matchId) {
                     GameBridge().also { it.start() }
@@ -156,6 +168,10 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
                 } else if (decision == MulliganOption.AcceptHand) {
                     bridge?.submitKeep(seatId)
                     sendGameStart(ctx)
+                    // Auto-pass through phases where human has no real actions.
+                    // Critical when AI goes first: engine gives human priority to
+                    // respond during AI's turn, but with only Pass available.
+                    if (bridge != null) autoPassAndAdvance(ctx, bridge)
                 } else {
                     mulliganCount++
                     bridge?.submitMull(seatId) // blocks until engine re-deals
@@ -287,6 +303,11 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
         bridge.awaitPriority()
 
         val game = bridge.getGame() ?: return
+
+        // Discard any AI action diffs queued during awaitPriority — the game-start
+        // Full state already captures the post-AI board. Stale diffs would conflict.
+        bridge.playback?.drainQueue()
+
         traceEvent(GameStateCollector.EventType.GAME_START, game, "post-mulligan, entering Main1")
 
         val result = BundleBuilder.gameStart(game, bridge, matchId, seatId, msgIdCounter, gameStateId)
@@ -568,21 +589,15 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
                 return
             }
 
-            // Drain queued AI action diffs and send to client
+            // Sync counters from playback but DON'T send diffs yet — accumulate
+            // them until we're about to send real state (avoids flooding client
+            // with intermediate Diffs during auto-pass).
             val playback = bridge.playback
             if (playback != null && playback.hasPendingMessages()) {
                 val batches = playback.drainQueue()
-                for (batch in batches) {
-                    sendBundledGRE(ctx, batch)
-                    for (gre in batch) {
-                        if (gre.hasGameStateMessage()) NexusTap.outboundState(gre.gameStateMessage)
-                    }
-                }
-                // Sync counters from playback
                 val (nextMsg, nextGs) = playback.getCounters()
                 msgIdCounter = nextMsg
                 gameStateId = nextGs
-                // Update bridge snapshot so subsequent diffs are relative
                 bridge.snapshotState(game)
             }
 
@@ -648,10 +663,14 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
 
             // After combat resolves, send state so the client sees
             // life total changes before we continue auto-passing.
+            // Only stop if combat actually happened (has attackers).
             if (phase == PhaseType.COMBAT_END) {
-                traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat end")
-                sendRealGameState(ctx, bridge)
-                return
+                val combat = game.phaseHandler.combat
+                if (combat != null && combat.attackers.isNotEmpty()) {
+                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat end")
+                    sendRealGameState(ctx, bridge)
+                    return
+                }
             }
 
             // Check for pending interactive prompt (targeting, sacrifice, etc.)
@@ -956,6 +975,30 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
             .build()
         ProtoDump.dump(msg)
         ctx.writeAndFlush(msg)
+
+        // Mirror to Familiar (seat 2) — client freezes if both connections aren't in sync
+        mirrorToFamiliar(messages)
+    }
+
+    /**
+     * Send a copy of GRE messages to the Familiar (seat 2) connection.
+     * The Arena client expects both seat 1 and Familiar to receive every
+     * state update; without this, the client freezes after the first action.
+     */
+    private fun mirrorToFamiliar(messages: List<GREToClientMessage>) {
+        if (seatId != 1) return // only mirror from seat 1 → seat 2
+        val peer = peerContexts[matchId]?.get(2) ?: return
+        val peerCtx = peer.myCtx ?: return
+        // Re-tag messages with seat 2's systemSeatIds
+        val mirrored = messages.map { gre ->
+            gre.toBuilder().clearSystemSeatIds().addSystemSeatIds(2).build()
+        }
+        val event = GreToClientEvent.newBuilder()
+        mirrored.forEach { event.addGreToClientMessages(it) }
+        val msg = MatchServiceToClientMessage.newBuilder()
+            .setGreToClientEvent(event.build())
+            .build()
+        peerCtx.writeAndFlush(msg)
     }
 
     /** Send a single GRE message (legacy helper). */
