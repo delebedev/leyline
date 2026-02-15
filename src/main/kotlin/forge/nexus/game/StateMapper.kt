@@ -319,6 +319,7 @@ object StateMapper {
             .addAllZones(changedZones)
             .addAllGameObjects(changedObjects)
             .addAllAnnotations(current.annotationsList)
+            .addAllTimers(buildTimers())
             .setUpdate(updateType)
 
         // Embed actions in Diff state (real server does this)
@@ -379,6 +380,7 @@ object StateMapper {
             .addPlayers(buildPlayerInfo(bridge.getPlayer(1), 1))
             .addPlayers(buildPlayerInfo(bridge.getPlayer(2), 2))
             .addAnnotations(AnnotationBuilder.phaseOrStepModified())
+            .addAllTimers(buildTimers())
             .setUpdate(GameStateUpdate.SendHiFi)
 
         if (isStageTransition) {
@@ -585,6 +587,7 @@ object StateMapper {
         GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
+            .addAllTimers(buildTimers())
             .setUpdate(GameStateUpdate.SendHiFi)
             .build()
 

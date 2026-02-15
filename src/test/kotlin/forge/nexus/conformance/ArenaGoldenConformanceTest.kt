@@ -1,6 +1,7 @@
 package forge.nexus.conformance
 
 import forge.nexus.game.BundleBuilder
+import org.testng.Assert.assertEquals
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 
@@ -19,10 +20,7 @@ class ArenaGoldenConformanceTest : ConformanceTestBase() {
 
     // --- Arena golden: play land ---
 
-    @Test(
-        description = "Play-land shape vs Arena (full-game-3.json [29-30]): expected to fail — missing timers in fieldPresence",
-        expectedExceptions = [AssertionError::class],
-    )
+    @Test(description = "Play-land shape matches real Arena recording (full-game-3.json [29-30])")
     fun arenaPlayLandShape() {
         val (b, game, gsId) = startGameAtMain1()
         playLand(b) ?: return
@@ -68,41 +66,51 @@ class ArenaGoldenConformanceTest : ConformanceTestBase() {
 
     // --- Arena golden: declare attackers ---
 
-    @Test(
-        description = "Declare-attackers shape vs Arena (full-game.json [309-310]): message types + promptId",
-    )
+    @Test(description = "declareAttackersBundle produces same message types and promptId as Arena (full-game.json [309-310])")
     fun arenaDeclareAttackersShape() {
         val golden = loadGolden("arena-declare-attackers")
+        val (b, game, gsId) = startGameAtMain1()
 
-        // Structural check: first message is GameStateMessage, second is DeclareAttackersReq(promptId=6)
-        assertTrue(golden.size == 2, "Arena golden should have 2 messages")
-        assertTrue(golden[0].greMessageType == "GameStateMessage", "First should be GameStateMessage")
-        assertTrue(golden[1].greMessageType == "DeclareAttackersReq", "Second should be DeclareAttackersReq")
-        assertTrue(golden[1].promptId == 6, "DeclareAttackersReq should have promptId=6")
+        // Build our bundle — game may not be in combat, but structural shape is deterministic
+        val result = BundleBuilder.declareAttackersBundle(game, b, "test-match", 1, 1, gsId)
+        val captured = fingerprint(result.messages)
+
+        // Same message count
+        assertEquals(captured.size, golden.size, "Should produce ${golden.size} messages")
+        // Message types match
+        assertEquals(captured[0].greMessageType, golden[0].greMessageType, "First: GameStateMessage")
+        assertEquals(captured[1].greMessageType, golden[1].greMessageType, "Second: DeclareAttackersReq")
+        // PromptId matches
+        assertEquals(captured[1].promptId, golden[1].promptId, "DeclareAttackersReq promptId")
+        assertEquals(captured[1].promptId, 6, "promptId should be 6")
     }
 
     // --- Arena golden: EdictalMessage ---
 
-    @Test(description = "EdictalMessage appears in real Arena recordings (full-game.json [478-480])")
-    fun arenaEdictalMessageExists() {
+    @Test(description = "edictalPass() output matches Arena EdictalMessage shape (full-game.json [478-480])")
+    fun arenaEdictalShape() {
         val golden = loadGolden("arena-edictal-pass")
+        // Golden structure: SendAndRecord GS → EdictalMessage → SendHiFi GS
 
-        // Verify structure: SendAndRecord state → EdictalMessage → SendHiFi state
-        assertTrue(golden.size == 3, "Arena edictal golden should have 3 messages")
-        assertTrue(golden[0].greMessageType == "GameStateMessage", "Before: GameStateMessage")
-        assertTrue(golden[0].updateType == "SendAndRecord", "Before: SendAndRecord")
-        assertTrue(golden[1].greMessageType == "EdictalMessage", "Middle: EdictalMessage")
-        assertTrue(golden[2].greMessageType == "GameStateMessage", "After: GameStateMessage")
-        assertTrue(golden[2].updateType == "SendHiFi", "After: SendHiFi")
-    }
-
-    @Test(description = "Our edictalPass() produces correct message type")
-    fun edictalPassMessageType() {
+        // Our edictalPass produces the middle message
         val result = BundleBuilder.edictalPass(1, 1, 10)
         val captured = fingerprint(result.messages)
 
-        assertTrue(captured.size == 1, "edictalPass should produce 1 message")
-        assertTrue(captured[0].greMessageType == "EdictalMessage", "Should be EdictalMessage type")
+        assertEquals(captured.size, 1, "edictalPass should produce 1 message")
+        // Type matches the Arena recording
+        assertEquals(captured[0].greMessageType, golden[1].greMessageType, "Should match Arena EdictalMessage type")
+        assertEquals(captured[0].greMessageType, "EdictalMessage")
+    }
+
+    @Test(description = "Arena EdictalMessage surrounded by correct updateType transitions")
+    fun arenaEdictalContext() {
+        val golden = loadGolden("arena-edictal-pass")
+
+        // Verify context pattern: SendAndRecord → Edict → SendHiFi
+        assertEquals(golden.size, 3, "Arena edictal golden should have 3 messages")
+        assertEquals(golden[0].updateType, "SendAndRecord", "Before edict: SendAndRecord")
+        assertEquals(golden[1].greMessageType, "EdictalMessage", "Middle: EdictalMessage")
+        assertEquals(golden[2].updateType, "SendHiFi", "After edict: SendHiFi")
     }
 
     // --- Arena golden: game start bundle ---
