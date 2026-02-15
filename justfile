@@ -56,6 +56,12 @@ test: check-java _check-upstream _clean-surefire
     cd "{{root_dir}}" && mvn -pl forge-nexus \
         {{mvn_quiet}} test
 
+# single test class (e.g. `just test-one StructuralFingerprintTest`)
+test-one class: check-java _check-upstream _clean-surefire
+    cd "{{root_dir}}" && mvn -pl forge-nexus \
+        {{mvn_quiet}} \
+        -Dtest="{{class}}" -Dsurefire.failIfNoSpecifiedTests=false test
+
 # watch *.kt, recompile + restart hybrid on change (fast: nexus-only compile)
 dev: check-java
     #!/usr/bin/env bash
