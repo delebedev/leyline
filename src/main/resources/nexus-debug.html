@@ -617,8 +617,11 @@ function debugApp() {
     get filteredEntries() {
       const f = this.msgFilter.toLowerCase();
       const out = [];
+      const seen = new Set();
       for (let i = this.entries.length - 1; i >= 0; i--) {
         const e = this.entries[i];
+        if (seen.has(e.seq)) continue;
+        seen.add(e.seq);
         if (e.dir === 'in' && !this.showIn) continue;
         if (e.dir === 'out' && !this.showOut) continue;
         if (f && !e.type.toLowerCase().includes(f) && !e.summary.toLowerCase().includes(f)) continue;
@@ -630,8 +633,11 @@ function debugApp() {
     get filteredLogs() {
       const f = this.logFilter.toLowerCase();
       const out = [];
+      const seen = new Set();
       for (let i = this.logEntries.length - 1; i >= 0; i--) {
         const l = this.logEntries[i];
+        if (seen.has(l.seq)) continue;
+        seen.add(l.seq);
         if (!this.logLevels[l.level]) continue;
         if (f && !l.logger.toLowerCase().includes(f) && !l.message.toLowerCase().includes(f)) continue;
         out.push(l);
@@ -667,23 +673,26 @@ function debugApp() {
         es.addEventListener('message', (ev) => {
           if (this.paused) return;
           const e = JSON.parse(ev.data);
+          if (e.seq <= this._lastSeq) return; // dedupe
           this.entries.push(e);
-          if (e.seq > this._lastSeq) this._lastSeq = e.seq;
-          if (this.entries.length > 1000) this.entries = this.entries.slice(-500);
+          this._lastSeq = e.seq;
+          if (this.entries.length > 1000) this.entries.splice(0, this.entries.length - 500);
         });
         es.addEventListener('log', (ev) => {
           if (this.paused) return;
           const l = JSON.parse(ev.data);
+          if (l.seq <= this._lastLogSeq) return; // dedupe
           this.logEntries.push(l);
-          if (l.seq > this._lastLogSeq) this._lastLogSeq = l.seq;
-          if (this.logEntries.length > 5000) this.logEntries = this.logEntries.slice(-2000);
+          this._lastLogSeq = l.seq;
+          if (this.logEntries.length > 5000) this.logEntries.splice(0, this.logEntries.length - 2000);
         });
         es.addEventListener('priority', (ev) => {
           if (this.paused) return;
           const e = JSON.parse(ev.data);
+          if (e.seq <= this._lastEventSeq) return; // dedupe
           this.priorityEvents.push(e);
-          if (e.seq > this._lastEventSeq) this._lastEventSeq = e.seq;
-          if (this.priorityEvents.length > 1000) this.priorityEvents = this.priorityEvents.slice(-500);
+          this._lastEventSeq = e.seq;
+          if (this.priorityEvents.length > 1000) this.priorityEvents.splice(0, this.priorityEvents.length - 500);
         });
         es.addEventListener('state', (ev) => {
           if (this.paused) return;
@@ -725,22 +734,24 @@ function debugApp() {
             const msgs = msgsEnv.data || msgsEnv;
             if (msgs.length > 0) {
               for (const e of msgs) {
+                if (e.seq <= this._lastSeq) continue;
                 this.entries.push(e);
-                if (e.seq > this._lastSeq) this._lastSeq = e.seq;
+                this._lastSeq = e.seq;
               }
               if (msgsEnv.cursor) this._lastSeq = msgsEnv.cursor;
-              if (this.entries.length > 1000) this.entries = this.entries.slice(-500);
+              if (this.entries.length > 1000) this.entries.splice(0, this.entries.length - 500);
             }
             // Logs (envelope)
             const logsEnv = await responses[ri++].json();
             const logs = logsEnv.data || logsEnv;
             if (logs.length > 0) {
               for (const l of logs) {
+                if (l.seq <= this._lastLogSeq) continue;
                 this.logEntries.push(l);
-                if (l.seq > this._lastLogSeq) this._lastLogSeq = l.seq;
+                this._lastLogSeq = l.seq;
               }
               if (logsEnv.cursor) this._lastLogSeq = logsEnv.cursor;
-              if (this.logEntries.length > 5000) this.logEntries = this.logEntries.slice(-2000);
+              if (this.logEntries.length > 5000) this.logEntries.splice(0, this.logEntries.length - 2000);
             }
           }
 
@@ -753,11 +764,12 @@ function debugApp() {
               const newEvents = evEnv.data || evEnv;
               if (newEvents.length > 0) {
                 for (const ev of newEvents) {
+                  if (ev.seq <= this._lastEventSeq) continue;
                   this.priorityEvents.push(ev);
-                  if (ev.seq > this._lastEventSeq) this._lastEventSeq = ev.seq;
+                  this._lastEventSeq = ev.seq;
                 }
                 if (evEnv.cursor) this._lastEventSeq = evEnv.cursor;
-                if (this.priorityEvents.length > 1000) this.priorityEvents = this.priorityEvents.slice(-500);
+                if (this.priorityEvents.length > 1000) this.priorityEvents.splice(0, this.priorityEvents.length - 500);
               }
             }
           }
