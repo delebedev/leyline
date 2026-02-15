@@ -75,6 +75,7 @@ object StateMapper {
         matchId: String,
         bridge: GameBridge,
         actions: ActionsAvailableReq? = null,
+        updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
     ): GameStateMessage {
         val handler = game.phaseHandler
         val human = bridge.getPlayer(1)
@@ -209,7 +210,7 @@ object StateMapper {
             .addAllGameObjects(gameObjects)
             .addAllAnnotations(annotations)
             .addAllTimers(buildTimers())
-            .setUpdate(GameStateUpdate.SendAndRecord)
+            .setUpdate(updateType)
 
         // Embed actions in GameStateMessage (real server does this)
         if (actions != null) {
@@ -240,9 +241,10 @@ object StateMapper {
         matchId: String,
         bridge: GameBridge,
         actions: ActionsAvailableReq? = null,
+        updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
     ): GameStateMessage {
         val prev = bridge.getPreviousState()
-            ?: return buildFromGame(game, gameStateId, matchId, bridge, actions)
+            ?: return buildFromGame(game, gameStateId, matchId, bridge, actions, updateType)
 
         // Build current full state (for comparison + to seed next diff).
         // Pass actions=null to avoid redundant action embedding (we embed below).
@@ -270,7 +272,7 @@ object StateMapper {
             .addAllZones(changedZones)
             .addAllGameObjects(changedObjects)
             .addAllAnnotations(current.annotationsList)
-            .setUpdate(GameStateUpdate.SendAndRecord)
+            .setUpdate(updateType)
 
         // Embed actions in Diff state (real server does this)
         if (actions != null) {
@@ -516,12 +518,27 @@ object StateMapper {
         return builder.build()
     }
 
+    /**
+     * Resolve the correct updateType for a game state message.
+     * - SendAndRecord: viewing seat IS the acting player (your actions)
+     * - SendHiFi: viewing seat is NOT the acting player (opponent/spectator)
+     */
+    fun resolveUpdateType(game: Game, bridge: GameBridge, viewingSeatId: Int): GameStateUpdate {
+        val human = bridge.getPlayer(1)
+        val actingSeat = if (game.phaseHandler.priorityPlayer == human) 1 else 2
+        return if (actingSeat == viewingSeatId) {
+            GameStateUpdate.SendAndRecord
+        } else {
+            GameStateUpdate.SendHiFi
+        }
+    }
+
     /** Empty Diff used as priority-pass marker in the double-diff pattern. */
     fun buildEmptyDiff(gameStateId: Int): GameStateMessage =
         GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
-            .setUpdate(GameStateUpdate.Send)
+            .setUpdate(GameStateUpdate.SendHiFi)
             .build()
 
     // --- Phase/Step mapping ---

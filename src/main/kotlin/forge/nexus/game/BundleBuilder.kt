@@ -66,7 +66,14 @@ object BundleBuilder {
         // that don't match the bridge's ID mapping.
         nextGs++
         val actions = StateMapper.buildActions(game, seatId, bridge)
-        val mainGs = StateMapper.buildFromGame(game, nextGs, matchId, bridge, actions)
+        val mainGs = StateMapper.buildFromGame(
+            game,
+            nextGs,
+            matchId,
+            bridge,
+            actions,
+            updateType = StateMapper.resolveUpdateType(game, bridge, seatId),
+        )
         messages.add(
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
                 it.gameStateMessage = mainGs
@@ -102,7 +109,8 @@ object BundleBuilder {
 
         nextGs++
         val actions = StateMapper.buildActions(game, seatId, bridge)
-        val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, actions)
+        val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
+        val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, actions, updateType)
 
         val messages = listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
@@ -133,7 +141,8 @@ object BundleBuilder {
         var nextMsg = msgId
         val nextGs = gsId + 1
 
-        val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge)
+        val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
+        val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType)
 
         val messages = listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
@@ -239,7 +248,8 @@ object BundleBuilder {
         var nextMsg = msgId
         var nextGs = gsId + 1
 
-        val gs = StateMapper.buildFromGame(game, nextGs, matchId, bridge)
+        val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
+        val gs = StateMapper.buildFromGame(game, nextGs, matchId, bridge, updateType = updateType)
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
             it.gameStateMessage = gs
         }
@@ -267,7 +277,8 @@ object BundleBuilder {
         var nextMsg = msgId
         var nextGs = gsId + 1
 
-        val gs = StateMapper.buildFromGame(game, nextGs, matchId, bridge)
+        val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
+        val gs = StateMapper.buildFromGame(game, nextGs, matchId, bridge, updateType = updateType)
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
             it.gameStateMessage = gs
         }
@@ -296,7 +307,8 @@ object BundleBuilder {
         var nextMsg = msgId
         var nextGs = gsId + 1
 
-        val gs = StateMapper.buildFromGame(game, nextGs, matchId, bridge)
+        // Interactive prompts use Send updateType (not SendAndRecord/SendHiFi)
+        val gs = StateMapper.buildFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send)
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
             it.gameStateMessage = gs
         }

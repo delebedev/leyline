@@ -314,7 +314,7 @@ Confirmed across 3 recordings:
 3. **Resolution annotations** — ResolutionStart/ResolutionComplete/ZoneTransfer(Resolve) on spell resolution; we don't emit
 4. **CastSpell annotations** — ManaPaid/TappedUntappedPermanent/AbilityInstanceCreated on cast; we don't emit
 5. **PlayLand annotations** — ObjectIdChanged/UserActionTaken/ZoneTransfer(PlayLand); we don't emit
-6. **Per-seat updateType** — SendHiFi vs SendAndRecord vs Send depends on context; we use a fixed value
+6. ~~**Per-seat updateType**~~ — FIXED. `StateMapper.resolveUpdateType()` picks SendAndRecord (acting player) vs SendHiFi (spectator). `buildEmptyDiff` fixed to SendHiFi. `selectTargetsBundle` uses Send for interactive prompts. All BundleBuilder functions thread updateType through.
 7. **AI auto-pass** — real server sends consecutive GS Diffs without ActionsAvailableReq for AI actions; we interleave ActionsAvailableReq
 
 Not yet tested (no conformance test):
