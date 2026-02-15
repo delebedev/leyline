@@ -825,24 +825,101 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
         autoPassAndAdvance(ctx, bridge)
     }
 
+    /**
+     * Send game-over sequence matching real server pattern:
+     *   3x GS Diff (SendAndRecord) with gameInfo (GameOver + MatchComplete + result)
+     *   1x IntermissionReq
+     */
     private fun sendGameOver(ctx: ChannelHandlerContext) {
+        val bridge = gameBridge
+        val game = bridge?.getGame()
+
+        // Determine winner: team 1 = human (seat 1), team 2 = AI (seat 2)
+        val humanPlayer = bridge?.getPlayer(1)
+        val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
+        val winningTeam = if (humanWon) 1 else 2
+
+        val gameResult = ResultSpec.newBuilder()
+            .setScope(MatchScope.Game_a146)
+            .setResult(ResultType.WinLoss)
+            .setWinningTeamId(winningTeam)
+
+        val matchResult = ResultSpec.newBuilder()
+            .setScope(MatchScope.Match)
+            .setResult(ResultType.WinLoss)
+            .setWinningTeamId(winningTeam)
+
+        val gameInfo = GameInfo.newBuilder()
+            .setStage(GameStage.GameOver)
+            .setMatchState(MatchState.MatchComplete)
+            .setMulliganType(MulliganType.London)
+            .setMatchWinCondition(MatchWinCondition.SingleElimination)
+            .addResults(gameResult)
+            .addResults(matchResult)
+
+        val players = listOf(
+            PlayerInfo.newBuilder()
+                .setSystemSeatNumber(1)
+                .setStatus(PlayerStatus.Removed_a1c6)
+                .setTeamId(1),
+            PlayerInfo.newBuilder()
+                .setSystemSeatNumber(2)
+                .setStatus(PlayerStatus.Removed_a1c6)
+                .setTeamId(2),
+        )
+
+        // GS Diff 1: gameInfo + players + actions
         gameStateId++
-        sendGRE(ctx, GREMessageType.GameStateMessage_695e) {
-            it.gameStateMessage = GameStateMessage.newBuilder()
-                .setType(GameStateType.Diff).setGameStateId(gameStateId)
-                .setGameInfo(
-                    GameInfo.newBuilder()
-                        .setStage(GameStage.GameOver)
-                        .setMatchState(MatchState.MatchComplete)
-                        .setMulliganType(MulliganType.London),
-                )
-                .addPlayers(
-                    PlayerInfo.newBuilder()
-                        .setSystemSeatNumber(1).setStatus(PlayerStatus.Removed_a1c6).setTeamId(1),
-                )
-                .setUpdate(GameStateUpdate.Send)
-                .build()
-        }
+        val gs1 = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(gameStateId)
+            .setGameInfo(gameInfo)
+            .setUpdate(GameStateUpdate.SendAndRecord)
+        players.forEach { gs1.addPlayers(it) }
+
+        // GS Diff 2: gameInfo + actions (reduced fields)
+        gameStateId++
+        val gs2 = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(gameStateId)
+            .setGameInfo(gameInfo)
+            .setUpdate(GameStateUpdate.SendAndRecord)
+
+        // GS Diff 3: minimal (actions only)
+        gameStateId++
+        val gs3 = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(gameStateId)
+            .setUpdate(GameStateUpdate.SendAndRecord)
+
+        val messages = mutableListOf(
+            makeGRE(GREMessageType.GameStateMessage_695e, gameStateId - 2) {
+                it.gameStateMessage = gs1.build()
+            },
+            makeGRE(GREMessageType.GameStateMessage_695e, gameStateId - 1) {
+                it.gameStateMessage = gs2.build()
+            },
+            makeGRE(GREMessageType.GameStateMessage_695e, gameStateId) {
+                it.gameStateMessage = gs3.build()
+            },
+        )
+
+        // IntermissionReq: signals client to show end-of-game screen
+        messages.add(
+            makeGRE(GREMessageType.IntermissionReq_695e, gameStateId) {
+                it.intermissionReq = IntermissionReq.newBuilder()
+                    .setResult(
+                        ResultSpec.newBuilder()
+                            .setScope(MatchScope.Match)
+                            .setResult(ResultType.WinLoss)
+                            .setWinningTeamId(winningTeam),
+                    )
+                    .build()
+            },
+        )
+
+        sendBundledGRE(ctx, messages)
+        log.info("Match Door: sent game-over sequence (winner=team{})", winningTeam)
     }
 
     /** Build a single GRE message (doesn't send). */
