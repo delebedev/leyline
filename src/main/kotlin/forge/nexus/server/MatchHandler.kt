@@ -55,7 +55,7 @@ class MatchHandler(
             ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487 -> handleMatchDoorConnect(ctx, msg)
             ClientToMatchServiceMessageType.ClientToGremessage -> handleGREMessage(ctx, msg)
             ClientToMatchServiceMessageType.ClientToGreuimessage -> handleGREMessage(ctx, msg)
-            else -> log.info("Match Door: unhandled type: {}", msg.clientToMatchServiceMessageType)
+            else -> log.warn("Match Door: unhandled type: {}", msg.clientToMatchServiceMessageType)
         }
     }
 
@@ -205,7 +205,7 @@ class MatchHandler(
                 }
             }
 
-            else -> log.info("Match Door GRE: unhandled type: {}", greMsg.type)
+            else -> log.warn("Match Door GRE: unhandled type: {}", greMsg.type)
         }
     }
 
