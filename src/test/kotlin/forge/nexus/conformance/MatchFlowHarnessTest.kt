@@ -5,6 +5,7 @@ import forge.nexus.game.GameBridge
 import org.testng.Assert.*
 import org.testng.annotations.AfterMethod
 import org.testng.annotations.Test
+import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
 @Test(groups = ["integration"])
@@ -140,5 +141,29 @@ class MatchFlowHarnessTest {
 
         // Should have received at least game-start bundle (4 messages)
         assertTrue(harness!!.allMessages.size >= 4, "Should have at least 4 messages (game-start bundle)")
+    }
+
+    @Test(description = "AI turn actions produce Diff messages (not silently swallowed)")
+    fun aiTurnProducesDiffMessages() {
+        harness = MatchFlowHarness(seed = 42L)
+        harness!!.connectAndKeep()
+
+        val messagesBeforePass = harness!!.allMessages.size
+
+        // Play a land then pass — triggers AI turn
+        harness!!.playLand()
+        harness!!.passPriority()
+
+        // After passing through the AI turn, we should have received Diff messages
+        // for AI actions (land plays, spells, phase transitions).
+        // If autoPassAndAdvance silently drains playback without sending, this fails.
+        val newMessages = harness!!.allMessages.subList(messagesBeforePass, harness!!.allMessages.size)
+        val diffs = newMessages.filter {
+            it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Diff
+        }
+        assertTrue(
+            diffs.size >= 2,
+            "AI turn should produce at least 2 Diff messages (got ${diffs.size} diffs out of ${newMessages.size} total new messages)",
+        )
     }
 }
