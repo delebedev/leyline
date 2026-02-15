@@ -196,9 +196,11 @@ object StateMapper {
                     "CastSpell" -> {
                         annotations.add(AnnotationBuilder.objectIdChanged(obj.instanceId))
                         annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId))
+                        annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId)) // mana payment action
                         annotations.add(AnnotationBuilder.manaPaid(obj.instanceId))
                         annotations.add(AnnotationBuilder.tappedUntappedPermanent(obj.instanceId))
                         annotations.add(AnnotationBuilder.abilityInstanceCreated(obj.instanceId))
+                        annotations.add(AnnotationBuilder.abilityInstanceDeleted(obj.instanceId))
                     }
                     "Resolve" -> {
                         annotations.add(AnnotationBuilder.resolutionStart(obj.instanceId, obj.grpId))

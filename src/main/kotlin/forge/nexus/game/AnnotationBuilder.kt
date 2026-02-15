@@ -70,6 +70,13 @@ object AnnotationBuilder {
             .addAffectedIds(instanceId)
             .build()
 
+    /** Ability instance deleted (e.g. hand's play ability consumed after casting). */
+    fun abilityInstanceDeleted(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.AbilityInstanceDeleted)
+            .addAffectedIds(instanceId)
+            .build()
+
     /** Spell/ability done resolving. Client uses this to finalize stack→battlefield move. */
     fun resolutionComplete(instanceId: Int, grpId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()

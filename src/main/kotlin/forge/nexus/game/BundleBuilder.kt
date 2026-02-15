@@ -172,23 +172,43 @@ object BundleBuilder {
         var nextMsg = msgId
         var nextGs = gsId
 
-        // Message 1: Diff with annotations
+        val handler = game.phaseHandler
+        val human = bridge.getPlayer(1)
+        val activeSeat = if (handler.playerTurn == human) 1 else 2
+        val prioritySeat = if (handler.priorityPlayer == human) 1 else 2
+        val actions = StateMapper.buildActions(game, seatId, bridge)
+
+        // Message 1: Diff with annotations + actions
         val gs = StateMapper.buildDiffFromGame(
             game,
             ++nextGs,
             matchId,
             bridge,
+            actions,
             updateType = GameStateUpdate.SendHiFi,
         )
-        // Message 2: Empty marker (turnInfo only, matches real server pattern)
-        val marker = StateMapper.buildEmptyDiff(++nextGs)
+
+        // Message 2: Echo with turnInfo + actions (matches real server pattern)
+        val turnInfo = TurnInfo.newBuilder()
+            .setPhase(StateMapper.mapPhase(handler.phase))
+            .setStep(StateMapper.mapStep(handler.phase))
+            .setTurnNumber(handler.turn.coerceAtLeast(1))
+            .setActivePlayer(activeSeat)
+            .setPriorityPlayer(prioritySeat)
+            .setDecisionPlayer(prioritySeat)
+        val echoBuilder = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(++nextGs)
+            .setTurnInfo(turnInfo)
+            .setUpdate(GameStateUpdate.SendHiFi)
+        embedActions(echoBuilder, actions, activeSeat)
 
         val messages = listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs - 1, seatId, nextMsg++) {
                 it.gameStateMessage = gs
             },
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
-                it.gameStateMessage = marker
+                it.gameStateMessage = echoBuilder.build()
             },
         )
 
