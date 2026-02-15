@@ -84,6 +84,39 @@ class MatchFlowHarnessTest {
         assertNotNull(battlefieldZone, "Should have a battlefield zone")
     }
 
+    @Test(description = "Multi-turn game: play land each turn, verify state validity across 3 turns")
+    fun multiTurnAccumulatedStateValid() {
+        harness = MatchFlowHarness(seed = 42L)
+        harness!!.connectAndKeep()
+
+        repeat(3) { turn ->
+            if (harness!!.isGameOver()) return
+
+            // Play a land if possible (OK if no land available)
+            harness!!.playLand()
+
+            // Critical check: action instanceIds must exist in objects map
+            val missingActions = harness!!.accumulator.actionInstanceIdsMissingFromObjects()
+            assertTrue(
+                missingActions.isEmpty(),
+                "Turn ${turn + 1}: action instanceIds missing from objects: $missingActions",
+            )
+
+            // Zone refs: known issue — AI hidden zones reference instanceIds not in objects map.
+            // Log but don't fail (same pattern as aiGoesFirstReachesHumanMain1).
+            val missingZones = harness!!.accumulator.zoneObjectsMissingFromObjects()
+            if (missingZones.isNotEmpty()) {
+                System.err.println(
+                    "KNOWN: Turn ${turn + 1}: ${missingZones.size} zone refs to missing objects " +
+                        "(AI hidden zones): ${missingZones.take(5)}",
+                )
+            }
+
+            // Pass turn
+            harness!!.passPriority()
+        }
+    }
+
     @Test(description = "AI goes first: auto-pass through AI turn, reach human Main1 with valid state")
     fun aiGoesFirstReachesHumanMain1() {
         // Verify our hardcoded seed actually has AI going first
