@@ -189,6 +189,10 @@ proto-diff:
     echo "--- diff example ---"
     echo "  diff $real/<name>.txt $stub/<name>.txt"
 
+# compare our output vs real Arena captures structurally
+proto-compare *args: (_require classpath) check-java
+    @{{_nexus_java}} forge.nexus.conformance.CompareMainKt {{args}}
+
 # --- Private helpers ---
 
 [private]
