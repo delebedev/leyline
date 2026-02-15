@@ -67,6 +67,46 @@ object StructuralDiff {
         )
     }
 
+    /**
+     * Shape-only comparison: checks message types, gsType, updateType, annotations,
+     * and prompt fields. Ignores deck-dependent actionTypes and allows extra
+     * fieldPresence entries (actual ⊇ expected).
+     */
+    fun compareShape(
+        expected: List<StructuralFingerprint>,
+        actual: List<StructuralFingerprint>,
+    ): DiffResult {
+        val divergences = mutableListOf<Divergence>()
+        var lengthMismatch: Pair<Int, Int>? = null
+
+        if (expected.size != actual.size) {
+            lengthMismatch = expected.size to actual.size
+        }
+
+        val count = minOf(expected.size, actual.size)
+        for (i in 0 until count) {
+            val e = expected[i]
+            val a = actual[i]
+            diff(i, "greMessageType", e.greMessageType, a.greMessageType, divergences)
+            diff(i, "gsType", e.gsType.orEmpty(), a.gsType.orEmpty(), divergences)
+            diff(i, "updateType", e.updateType.orEmpty(), a.updateType.orEmpty(), divergences)
+            diff(i, "annotationTypes", e.annotationTypes.toString(), a.annotationTypes.toString(), divergences)
+            // fieldPresence: actual must contain all expected fields (extras OK)
+            val missing = e.fieldPresence - a.fieldPresence
+            if (missing.isNotEmpty()) {
+                diff(i, "fieldPresence (missing)", missing.sorted().toString(), "[]", divergences)
+            }
+            diff(i, "hasPrompt", e.hasPrompt.toString(), a.hasPrompt.toString(), divergences)
+            diff(i, "promptId", e.promptId.toString(), a.promptId.toString(), divergences)
+        }
+
+        return DiffResult(
+            matches = divergences.isEmpty() && lengthMismatch == null,
+            divergences = divergences,
+            lengthMismatch = lengthMismatch,
+        )
+    }
+
     private fun diff(i: Int, field: String, expected: String, actual: String, out: MutableList<Divergence>) {
         if (expected != actual) out.add(Divergence(i, field, expected, actual))
     }
