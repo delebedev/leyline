@@ -295,6 +295,9 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
 
         sendBundle(ctx, result)
 
+        // Seed playback counters so AI action diffs use correct sequence
+        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
+
         // Seed state snapshot for subsequent diff computation
         bridge.snapshotState(game)
     }
@@ -311,6 +314,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
 
         val result = BundleBuilder.postAction(game, bridge, matchId, seatId, msgIdCounter, gameStateId)
         sendBundle(ctx, result)
+        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
     }
 
     /**
@@ -343,6 +347,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
 
         NexusTap.outboundTemplate("DeclareAttackersReq seat=$seatId")
         sendBundledGRE(ctx, result.messages)
+        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
     }
 
     /**
@@ -364,6 +369,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
 
         NexusTap.outboundTemplate("DeclareBlockersReq seat=$seatId")
         sendBundledGRE(ctx, result.messages)
+        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
     }
 
     /**
@@ -544,6 +550,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
         inInteractivePrompt = true
         NexusTap.outboundTemplate("SelectTargetsReq seat=$seatId")
         sendBundledGRE(ctx, result.messages)
+        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
     }
 
     /**
@@ -559,6 +566,24 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
                 traceEvent(GameStateCollector.EventType.GAME_OVER, game, "game over detected")
                 sendGameOver(ctx)
                 return
+            }
+
+            // Drain queued AI action diffs and send to client
+            val playback = bridge.playback
+            if (playback != null && playback.hasPendingMessages()) {
+                val batches = playback.drainQueue()
+                for (batch in batches) {
+                    sendBundledGRE(ctx, batch)
+                    for (gre in batch) {
+                        if (gre.hasGameStateMessage()) NexusTap.outboundState(gre.gameStateMessage)
+                    }
+                }
+                // Sync counters from playback
+                val (nextMsg, nextGs) = playback.getCounters()
+                msgIdCounter = nextMsg
+                gameStateId = nextGs
+                // Update bridge snapshot so subsequent diffs are relative
+                bridge.snapshotState(game)
             }
 
             val human = bridge.getPlayer(seatId)
@@ -668,11 +693,8 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
                 bridge.awaitPriority()
             } else if (isAiTurn) {
                 traceEvent(GameStateCollector.EventType.AI_TURN_WAIT, game, "waiting for AI")
-                // Pacing: brief delay on AI turns so MTGA can animate phase transitions
-                val delay = if (phase.name.startsWith("COMBAT")) AI_COMBAT_DELAY_MS else AI_PHASE_DELAY_MS
-                Thread.sleep(delay)
-
-                // AI turn, no pending action for human — wait for engine to cycle back
+                // NexusGamePlayback handles per-action pacing on the engine thread.
+                // Just wait for the engine to reach a priority stop.
                 val reachedPriority = bridge.awaitPriorityWithTimeout(GameBridge.AI_TURN_WAIT_MS)
                 if (!reachedPriority) {
                     val g = bridge.getGame()
