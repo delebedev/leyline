@@ -326,7 +326,7 @@ Confirmed across 3 recordings:
 
 1. ~~**PhaseOrStepModified annotations**~~ — FIXED. `AnnotationBuilder.phaseOrStepModified()` + `StateMapper.buildTransitionState()` emits on every transition. `updateType` fixed to `SendHiFi`. Phase-transition conformance test passes via shape comparison.
 2. **PromptReq message** — real server sends before ActionsAvailableReq in game-start; we skip it
-3. **Resolution annotations** — ResolutionStart/ResolutionComplete/ZoneTransfer(Resolve) on spell resolution; we don't emit
+3. ~~**Resolution annotations**~~ — FIXED. ResolutionStart/ResolutionComplete/ZoneTransfer emitted for Resolve category (stack→battlefield). Validated by cast-creature conformance test.
 4. ~~**CastSpell annotations**~~ — FIXED. `AnnotationBuilder` factories for ManaPaid/TappedUntappedPermanent/AbilityInstanceCreated. `StateMapper.buildFromGame` emits per-category annotations via `when (category)` branching. Cast-creature golden regenerated for player perspective. Conformance test passes.
 5. ~~**PlayLand annotations**~~ — FIXED. ObjectIdChanged + UserActionTaken + ZoneTransfer(PlayLand) emitted per land play. Also fixed race in `advanceToMain1` (check `pending.state.phase` instead of live `game.phaseHandler.phase`). Conformance test passes.
 6. ~~**Per-seat updateType**~~ — FIXED. `StateMapper.resolveUpdateType()` picks SendAndRecord (acting player) vs SendHiFi (spectator). `buildEmptyDiff` fixed to SendHiFi. `selectTargetsBundle` uses Send for interactive prompts. All BundleBuilder functions thread updateType through.
