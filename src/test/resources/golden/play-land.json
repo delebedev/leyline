@@ -3,13 +3,14 @@
         "greMessageType": "GameStateMessage",
         "gsType": "Diff",
         "updateType": "SendAndRecord",
+        "annotationTypes": ["ZoneTransfer"],
+        "annotationCategories": ["PlayLand"],
         "fieldPresence": [
-            "turnInfo",
+            "annotations",
+            "objects",
             "players",
-            "actions"
-        ],
-        "actionTypes": [
-            "Pass"
+            "turnInfo",
+            "zones"
         ]
     },
     {
