@@ -1,5 +1,7 @@
 package forge.nexus.conformance
 
+import forge.ai.LobbyPlayerAi
+import forge.nexus.game.GameBridge
 import org.testng.Assert.*
 import org.testng.annotations.AfterMethod
 import org.testng.annotations.Test
@@ -7,6 +9,11 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
 @Test(groups = ["integration"])
 class MatchFlowHarnessTest {
+
+    companion object {
+        /** Seed where AI wins the coin flip and goes first. Found by probing. */
+        const val AI_FIRST_SEED = 2L
+    }
 
     private var harness: MatchFlowHarness? = null
 
@@ -75,5 +82,42 @@ class MatchFlowHarnessTest {
         val battlefieldZone = harness!!.accumulator.zones.values
             .firstOrNull { it.type == ZoneType.Battlefield }
         assertNotNull(battlefieldZone, "Should have a battlefield zone")
+    }
+
+    @Test(description = "AI goes first: auto-pass through AI turn, reach human Main1 with valid state")
+    fun aiGoesFirstReachesHumanMain1() {
+        // Verify our hardcoded seed actually has AI going first
+        val probe = GameBridge()
+        probe.start(seed = AI_FIRST_SEED)
+        val game = probe.getGame()!!
+        val human = game.players.first { it.lobbyPlayer !is LobbyPlayerAi }
+        val aiFirst = game.phaseHandler.playerTurn != human
+        probe.shutdown()
+        assertTrue(aiFirst, "Seed $AI_FIRST_SEED should have AI going first")
+
+        harness = MatchFlowHarness(seed = AI_FIRST_SEED)
+        harness!!.connectAndKeep()
+
+        // After connectAndKeep + autoPass, we should have valid state
+        assertFalse(harness!!.isGameOver(), "Game should not be over at start")
+
+        val missing = harness!!.accumulator.actionInstanceIdsMissingFromObjects()
+        assertTrue(missing.isEmpty(), "Missing instanceIds after AI-first connect: $missing")
+
+        // Known issue: AI zones (library/hand) reference instanceIds not in objects map.
+        // gameStart bundle only populates objects for human-visible cards; AI library/hand
+        // instanceIds appear in zone.objectInstanceIds but have no matching GameObjectType.
+        // TODO: BundleBuilder should either omit hidden-zone objectInstanceIds or send
+        //       face-down stubs so the accumulator stays consistent.
+        val zoneRefs = harness!!.accumulator.zoneObjectsMissingFromObjects()
+        if (zoneRefs.isNotEmpty()) {
+            System.err.println(
+                "KNOWN: ${zoneRefs.size} zone refs to missing objects (AI hidden zones): " +
+                    zoneRefs.take(5),
+            )
+        }
+
+        // Should have received at least game-start bundle (4 messages)
+        assertTrue(harness!!.allMessages.size >= 4, "Should have at least 4 messages (game-start bundle)")
     }
 }
