@@ -109,18 +109,9 @@ class ArenaGoldenConformanceTest : ConformanceTestBase() {
         assertEquals(golden[2].updateType, "SendHiFi", "After edict: SendHiFi")
     }
 
-    // --- Arena golden: game start bundle ---
-
-    @Test(
-        description = "Game-start hand states vs Arena (full-game-3.json [7-9]): expected to fail — different bundle structure",
-        expectedExceptions = [AssertionError::class],
-    )
-    fun arenaGameStartHandShape() {
-        val (b, game, gsId) = startGameAtMain1()
-
-        val result = BundleBuilder.gameStart(game, b, "test-match", 1, 1, gsId)
-        val captured = fingerprint(result.messages)
-
-        assertShapeConformance("arena-game-start", captured)
-    }
+    // --- Arena golden: game start ---
+    // No dedicated game-start bundle test: real Arena uses phase transitions
+    // (PhaseOrStepModified diffs) to advance from Beginning to Main1.
+    // Our BundleBuilder.gameStart() is a synthetic shortcut that doesn't match
+    // any Arena subsequence. The phase transition test covers the real pattern.
 }
