@@ -414,25 +414,47 @@ object StateMapper {
 
     /**
      * Build playable actions for a seat from the current game state.
-     * Includes: ActivateMana (untapped mana sources), Cast, Play, Pass.
+     * Includes: ActivateMana, Activate, Cast, Play, Pass.
      */
     fun buildActions(game: Game, seatId: Int, bridge: GameBridge): ActionsAvailableReq {
         val player = bridge.getPlayer(seatId) ?: return passOnlyActions()
         val builder = ActionsAvailableReq.newBuilder()
 
-        // ActivateMana — untapped permanents with mana abilities on the battlefield
+        // Battlefield permanents: ActivateMana + Activate
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-            if (card.isTapped) continue
-            val manaAbilities = card.manaAbilities
-            if (manaAbilities.isEmpty()) continue
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
-            builder.addActions(
-                Action.newBuilder()
-                    .setActionType(ActionType.ActivateMana)
+
+            // ActivateMana — untapped permanents with mana abilities
+            if (!card.isTapped) {
+                val manaAbilities = card.manaAbilities
+                if (manaAbilities.isNotEmpty()) {
+                    builder.addActions(
+                        Action.newBuilder()
+                            .setActionType(ActionType.ActivateMana)
+                            .setInstanceId(instanceId)
+                            .setGrpId(grpId),
+                    )
+                }
+            }
+
+            // Activate — non-mana activated abilities (same pattern as forge-web PlayableActionQuery)
+            for (ability in card.spellAbilities) {
+                ability.setActivatingPlayer(player)
+                if (!ability.isActivatedAbility) continue
+                if (ability.isManaAbility()) continue
+                if (!ability.canPlay()) continue
+                val cardData = CardDb.lookup(grpId)
+                val actionBuilder = Action.newBuilder()
+                    .setActionType(ActionType.Activate_add3)
                     .setInstanceId(instanceId)
-                    .setGrpId(grpId),
-            )
+                    .setGrpId(grpId)
+                if (cardData != null) {
+                    val abilityEntry = cardData.abilityIds.firstOrNull()
+                    if (abilityEntry != null) actionBuilder.setAbilityGrpId(abilityEntry.first)
+                }
+                builder.addActions(actionBuilder)
+            }
         }
 
         // Playable lands
@@ -482,6 +504,9 @@ object StateMapper {
                         ManaRequirement.newBuilder().addColor(color).setCount(count),
                     )
                 }
+                // autoTapSolution: recommend which lands to tap for one-click casting
+                val autoTap = buildAutoTapSolution(cardData.manaCost, player, bridge)
+                if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
             }
             builder.addActions(actionBuilder)
         }
@@ -490,9 +515,10 @@ object StateMapper {
         builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
 
         val manaCount = builder.actionsList.count { it.actionType == ActionType.ActivateMana }
+        val activateCount = builder.actionsList.count { it.actionType == ActionType.Activate_add3 }
         val landCount = builder.actionsList.count { it.actionType == ActionType.Play_add3 }
         val castCount = builder.actionsList.count { it.actionType == ActionType.Cast }
-        log.info("buildActions: seat={} mana={} lands={} casts={} total={}", seatId, manaCount, landCount, castCount, builder.actionsCount)
+        log.info("buildActions: seat={} mana={} activate={} lands={} casts={} total={}", seatId, manaCount, activateCount, landCount, castCount, builder.actionsCount)
 
         return builder.build()
     }
@@ -879,6 +905,97 @@ object StateMapper {
         ActionsAvailableReq.newBuilder()
             .addActions(Action.newBuilder().setActionType(ActionType.Pass))
             .build()
+
+    /**
+     * Greedy auto-tap solver: maps mana cost requirements to untapped mana sources.
+     * Returns null if no complete solution found (spell still castable via manual tap).
+     */
+    private fun buildAutoTapSolution(
+        manaCost: List<Pair<ManaColor, Int>>,
+        player: Player,
+        bridge: GameBridge,
+    ): AutoTapSolution? {
+        if (manaCost.isEmpty()) return null
+
+        data class ManaSource(val card: Card, val instanceId: Int, val color: ManaColor, val abilityGrpId: Int)
+
+        // Collect untapped mana sources with their produced color
+        val sources = mutableListOf<ManaSource>()
+        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+            if (card.isTapped) continue
+            for (sa in card.manaAbilities) {
+                sa.setActivatingPlayer(player)
+                if (!sa.canPlay()) continue
+                val produced = sa.manaPart?.origProduced ?: continue
+                val manaColor = producedToManaColor(produced) ?: continue
+                val instanceId = bridge.getOrAllocInstanceId(card.id)
+                val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
+                val abilityGrpId = CardDb.lookup(grpId)?.abilityIds?.firstOrNull()?.first ?: 0
+                sources.add(ManaSource(card, instanceId, manaColor, abilityGrpId))
+            }
+        }
+
+        // Greedy match: colored requirements first, then generic
+        val used = mutableSetOf<Int>() // indices into sources
+        val matched = mutableListOf<Pair<ManaSource, ManaColor>>() // (source, paying color)
+        val coloredReqs = manaCost.filter { it.first != ManaColor.Generic }
+        val genericReqs = manaCost.filter { it.first == ManaColor.Generic }
+
+        // Match colored requirements
+        for ((reqColor, reqCount) in coloredReqs) {
+            var remaining = reqCount
+            for ((idx, src) in sources.withIndex()) {
+                if (remaining <= 0) break
+                if (idx in used) continue
+                if (src.color == reqColor) {
+                    used.add(idx)
+                    matched.add(src to reqColor)
+                    remaining--
+                }
+            }
+            if (remaining > 0) return null // can't fulfill colored requirement
+        }
+
+        // Match generic requirements (any color)
+        for ((_, reqCount) in genericReqs) {
+            var remaining = reqCount
+            for ((idx, src) in sources.withIndex()) {
+                if (remaining <= 0) break
+                if (idx in used) continue
+                used.add(idx)
+                matched.add(src to src.color)
+                remaining--
+            }
+            if (remaining > 0) return null
+        }
+
+        // Build AutoTapSolution
+        val builder = AutoTapSolution.newBuilder()
+        for ((src, payingColor) in matched) {
+            builder.addAutoTapActions(
+                AutoTapAction.newBuilder()
+                    .setInstanceId(src.instanceId)
+                    .setAbilityGrpId(src.abilityGrpId),
+            )
+            builder.addSelectedManaColors(payingColor)
+            builder.addManaPayments(
+                AutoTapManaPayment.newBuilder().setManaColor(payingColor),
+            )
+        }
+        return builder.build()
+    }
+
+    /** Map Forge's produced-mana string (e.g. "G", "W", "Any") to proto ManaColor. */
+    private fun producedToManaColor(produced: String): ManaColor? = when (produced.uppercase().trim()) {
+        "W" -> ManaColor.White_afc9
+        "U" -> ManaColor.Blue_afc9
+        "B" -> ManaColor.Black_afc9
+        "R" -> ManaColor.Red_afc9
+        "G" -> ManaColor.Green_afc9
+        "C" -> ManaColor.Colorless_afc9
+        "ANY" -> ManaColor.Generic
+        else -> null
+    }
 
     /** Infer a human-readable category for a zone transfer annotation. */
     private fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): String =
