@@ -1,0 +1,49 @@
+[
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "annotationTypes": [
+      "NewTurnStarted",
+      "PhaseOrStepModified",
+      "PhaseOrStepModified",
+      "PhaseOrStepModified",
+      "PhaseOrStepModified"
+    ],
+    "fieldPresence": [
+      "turnInfo",
+      "players",
+      "actions",
+      "annotations"
+    ],
+    "actionTypes": [
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "fieldPresence": [
+      "turnInfo",
+      "actions"
+    ],
+    "actionTypes": [
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  }
+]

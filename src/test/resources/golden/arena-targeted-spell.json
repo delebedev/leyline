@@ -1,0 +1,356 @@
+[
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "Send",
+    "annotationTypes": [
+      "ObjectIdChanged",
+      "PlayerSelectingTargets",
+      "ZoneTransfer"
+    ],
+    "annotationCategories": [
+      "CastSpell"
+    ],
+    "fieldPresence": [
+      "zones",
+      "objects",
+      "actions",
+      "annotations"
+    ],
+    "zoneCount": 3,
+    "objectCount": 2,
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "CastLeftRoom",
+      "CastRightRoom",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "SelectTargetsReq",
+    "hasPrompt": true,
+    "promptId": 10
+  },
+  {
+    "greMessageType": "Uimessage"
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "Send",
+    "fieldPresence": [
+      "actions"
+    ],
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "CastLeftRoom",
+      "CastRightRoom",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "SelectTargetsReq",
+    "hasPrompt": true,
+    "promptId": 10
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "annotationTypes": [
+      "AbilityInstanceCreated",
+      "AbilityInstanceDeleted",
+      "ManaPaid",
+      "PlayerSubmittedTargets",
+      "TappedUntappedPermanent",
+      "UserActionTaken",
+      "UserActionTaken"
+    ],
+    "fieldPresence": [
+      "objects",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "objectCount": 1,
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "CastLeftRoom",
+      "CastRightRoom",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "fieldPresence": [
+      "turnInfo",
+      "actions"
+    ],
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "CastLeftRoom",
+      "CastRightRoom",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "Send",
+    "annotationTypes": [
+      "ResolutionStart",
+      "RevealedCardCreated",
+      "RevealedCardCreated",
+      "RevealedCardCreated",
+      "RevealedCardCreated",
+      "RevealedCardCreated",
+      "RevealedCardCreated"
+    ],
+    "fieldPresence": [
+      "turnInfo",
+      "zones",
+      "objects",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "zoneCount": 1,
+    "objectCount": 12,
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Cast",
+      "CastLeftRoom",
+      "CastRightRoom",
+      "Play",
+      "Play",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "SubmitTargetsResp"
+  },
+  {
+    "greMessageType": "SelectNreq",
+    "hasPrompt": true,
+    "promptId": 1243
+  },
+  {
+    "greMessageType": "QueuedGameStateMessage",
+    "gsType": "Diff",
+    "updateType": "Send",
+    "annotationTypes": [
+      "ObjectIdChanged",
+      "PlayerSelectingTargets",
+      "ZoneTransfer"
+    ],
+    "annotationCategories": [
+      "CastSpell"
+    ],
+    "fieldPresence": [
+      "zones",
+      "objects",
+      "actions",
+      "annotations"
+    ],
+    "zoneCount": 3,
+    "objectCount": 1,
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "QueuedGameStateMessage",
+    "gsType": "Diff",
+    "updateType": "Send",
+    "fieldPresence": [
+      "actions"
+    ],
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "annotationTypes": [
+      "AbilityInstanceCreated",
+      "AbilityInstanceDeleted",
+      "ManaPaid",
+      "PlayerSubmittedTargets",
+      "TappedUntappedPermanent",
+      "UserActionTaken",
+      "UserActionTaken"
+    ],
+    "fieldPresence": [
+      "objects",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "objectCount": 1,
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "fieldPresence": [
+      "turnInfo",
+      "actions"
+    ],
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "Send",
+    "annotationTypes": [
+      "ResolutionStart",
+      "RevealedCardCreated",
+      "RevealedCardCreated",
+      "RevealedCardCreated",
+      "RevealedCardCreated",
+      "RevealedCardCreated",
+      "RevealedCardCreated"
+    ],
+    "fieldPresence": [
+      "turnInfo",
+      "zones",
+      "objects",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "zoneCount": 1,
+    "objectCount": 12,
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "Uimessage"
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "annotationTypes": [
+      "ObjectIdChanged",
+      "ObjectIdChanged",
+      "ResolutionComplete",
+      "RevealedCardDeleted",
+      "ZoneTransfer",
+      "ZoneTransfer"
+    ],
+    "annotationCategories": [
+      "Discard",
+      "Resolve"
+    ],
+    "fieldPresence": [
+      "zones",
+      "objects",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "zoneCount": 6,
+    "objectCount": 9,
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "fieldPresence": [
+      "turnInfo",
+      "actions"
+    ],
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  }
+]

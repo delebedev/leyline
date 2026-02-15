@@ -1,0 +1,204 @@
+[
+  {
+    "greMessageType": "DeclareAttackersReq",
+    "hasPrompt": true,
+    "promptId": 6
+  },
+  {
+    "greMessageType": "Uimessage"
+  },
+  {
+    "greMessageType": "Uimessage"
+  },
+  {
+    "greMessageType": "Uimessage"
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendAndRecord",
+    "fieldPresence": [
+      "objects",
+      "timers",
+      "actions"
+    ],
+    "objectCount": 1,
+    "actionTypes": [
+      "Activate",
+      "Activate",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendAndRecord",
+    "fieldPresence": [
+      "objects",
+      "timers",
+      "actions"
+    ],
+    "objectCount": 1,
+    "actionTypes": [
+      "Activate",
+      "Activate",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "DeclareAttackersReq",
+    "hasPrompt": true,
+    "promptId": 6
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "annotationTypes": [
+      "TappedUntappedPermanent"
+    ],
+    "fieldPresence": [
+      "turnInfo",
+      "objects",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "objectCount": 1,
+    "actionTypes": [
+      "Activate",
+      "Activate",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "fieldPresence": [
+      "turnInfo",
+      "actions"
+    ],
+    "actionTypes": [
+      "Activate",
+      "Activate",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendAndRecord",
+    "annotationTypes": [
+      "PhaseOrStepModified"
+    ],
+    "fieldPresence": [
+      "turnInfo",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "actionTypes": [
+      "Activate",
+      "Activate",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "DeclareBlockersReq",
+    "hasPrompt": true,
+    "promptId": 7
+  },
+  {
+    "greMessageType": "SubmitAttackersResp",
+    "hasPrompt": true,
+    "promptId": 6
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "annotationTypes": [
+      "TappedUntappedPermanent"
+    ],
+    "fieldPresence": [
+      "turnInfo",
+      "objects",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "objectCount": 1,
+    "actionTypes": [
+      "Activate",
+      "Activate",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "fieldPresence": [
+      "turnInfo",
+      "actions"
+    ],
+    "actionTypes": [
+      "Activate",
+      "Activate",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play"
+    ]
+  }
+]
