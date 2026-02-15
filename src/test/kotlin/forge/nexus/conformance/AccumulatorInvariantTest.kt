@@ -39,6 +39,51 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
         assertTrue(missing.isEmpty(), "Zone references to missing objects: $missing")
     }
 
+    @Test(description = "After game-start + play-land, all action instanceIds exist in accumulated objects")
+    fun playLandActionIdsValid() {
+        val (b, game, gsId) = startGameAtMain1()
+
+        // Accumulate game-start
+        val startResult = BundleBuilder.gameStart(game, b, "test-match", 1, 1, gsId)
+        val acc = ClientAccumulator()
+        acc.processAll(startResult.messages)
+
+        // Play a land
+        val action = playLand(b) ?: return
+        b.snapshotState(game)
+
+        // Accumulate post-action
+        val postResult = BundleBuilder.postAction(game, b, "test-match", 1, startResult.nextMsgId, startResult.nextGsId)
+        acc.processAll(postResult.messages)
+
+        val missing = acc.actionInstanceIdsMissingFromObjects()
+        assertTrue(missing.isEmpty(), "Action instanceIds missing after play-land: $missing")
+    }
+
+    @Test(description = "After game-start + cast-creature, all action instanceIds exist in accumulated objects")
+    fun castCreatureActionIdsValid() {
+        val (b, game, gsId) = startGameAtMain1()
+
+        val startResult = BundleBuilder.gameStart(game, b, "test-match", 1, 1, gsId)
+        val acc = ClientAccumulator()
+        acc.processAll(startResult.messages)
+
+        // Play land first (creature costs mana)
+        playLand(b)
+        b.snapshotState(game)
+        val postLand = BundleBuilder.postAction(game, b, "test-match", 1, startResult.nextMsgId, startResult.nextGsId)
+        acc.processAll(postLand.messages)
+
+        // Cast creature
+        val creature = castCreature(b) ?: return
+        b.snapshotState(game)
+        val postCast = BundleBuilder.postAction(game, b, "test-match", 1, postLand.nextMsgId, postLand.nextGsId)
+        acc.processAll(postCast.messages)
+
+        val missing = acc.actionInstanceIdsMissingFromObjects()
+        assertTrue(missing.isEmpty(), "Action instanceIds missing after cast-creature: $missing")
+    }
+
     @Test(description = "game-start bundle has monotonically increasing gsId")
     fun gameStartGsIdMonotonic() {
         val (b, game, gsId) = startGameAtMain1()
