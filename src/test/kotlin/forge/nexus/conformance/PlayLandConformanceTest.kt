@@ -35,7 +35,7 @@ class PlayLandConformanceTest : ConformanceTestBase() {
      * Utility: generate the golden file from our current output.
      * Run manually once, then commit the golden file.
      */
-    // @Test -- run manually to regenerate golden
+    @Test(enabled = false) // run manually to regenerate golden
     fun generateGoldenFromOurOutput() {
         val (b, game, gsId) = startGameAtMain1()
         playLand(b) ?: return
