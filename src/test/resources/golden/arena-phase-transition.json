@@ -1,0 +1,89 @@
+[
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "annotationTypes": [
+      "PhaseOrStepModified",
+      "PhaseOrStepModified"
+    ],
+    "fieldPresence": [
+      "gameInfo",
+      "turnInfo",
+      "players",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "actionTypes": [
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendHiFi",
+    "fieldPresence": [
+      "turnInfo",
+      "actions"
+    ],
+    "actionTypes": [
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendAndRecord",
+    "annotationTypes": [
+      "PhaseOrStepModified"
+    ],
+    "fieldPresence": [
+      "turnInfo",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "actionTypes": [
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "PromptReq",
+    "hasPrompt": true,
+    "promptId": 37
+  },
+  {
+    "greMessageType": "ActionsAvailableReq",
+    "actionTypes": [
+      "Cast",
+      "Cast",
+      "Pass",
+      "Play",
+      "Play",
+      "Play",
+      "Play",
+      "Play"
+    ],
+    "hasPrompt": true,
+    "promptId": 2
+  }
+]

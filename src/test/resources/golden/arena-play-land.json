@@ -1,0 +1,45 @@
+[
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendAndRecord",
+    "annotationTypes": [
+      "ObjectIdChanged",
+      "UserActionTaken",
+      "ZoneTransfer"
+    ],
+    "annotationCategories": [
+      "PlayLand"
+    ],
+    "fieldPresence": [
+      "zones",
+      "objects",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "zoneCount": 3,
+    "objectCount": 2,
+    "actionTypes": [
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "ActionsAvailableReq",
+    "actionTypes": [
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "FloatMana",
+      "Pass"
+    ],
+    "hasPrompt": true,
+    "promptId": 2
+  }
+]

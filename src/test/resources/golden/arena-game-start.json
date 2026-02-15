@@ -1,0 +1,63 @@
+[
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendAndRecord",
+    "annotationTypes": [
+      "NewTurnStarted"
+    ],
+    "fieldPresence": [
+      "turnInfo",
+      "zones",
+      "objects",
+      "players",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "zoneCount": 4,
+    "objectCount": 7,
+    "actionTypes": [
+      "Cast",
+      "Cast",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendAndRecord",
+    "annotationTypes": [
+      "NewTurnStarted"
+    ],
+    "fieldPresence": [
+      "turnInfo",
+      "zones",
+      "objects",
+      "players",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "zoneCount": 4,
+    "objectCount": 7,
+    "actionTypes": [
+      "Cast",
+      "Cast",
+      "Play",
+      "Play",
+      "Play",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "MulliganReq",
+    "hasPrompt": true,
+    "promptId": 34
+  }
+]
