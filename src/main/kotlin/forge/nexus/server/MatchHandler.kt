@@ -54,6 +54,7 @@ class MatchHandler(
             ClientToMatchServiceMessageType.AuthenticateRequest_f487 -> handleMatchAuth(ctx, msg)
             ClientToMatchServiceMessageType.ClientToMatchDoorConnectRequest_f487 -> handleMatchDoorConnect(ctx, msg)
             ClientToMatchServiceMessageType.ClientToGremessage -> handleGREMessage(ctx, msg)
+            ClientToMatchServiceMessageType.ClientToGreuimessage -> handleGREMessage(ctx, msg)
             else -> log.info("Match Door: unhandled type: {}", msg.clientToMatchServiceMessageType)
         }
     }
