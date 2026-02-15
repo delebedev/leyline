@@ -1,0 +1,56 @@
+[
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "CastSpell"
+        ],
+        "fieldPresence": [
+            "annotations",
+            "objects",
+            "players",
+            "turnInfo",
+            "zones"
+        ]
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "Pass"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "ResolutionComplete",
+            "ResolutionStart",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "Resolve"
+        ],
+        "fieldPresence": [
+            "annotations",
+            "objects",
+            "players",
+            "turnInfo",
+            "zones"
+        ]
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "Pass"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    }
+]
