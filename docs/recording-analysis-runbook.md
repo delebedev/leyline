@@ -19,30 +19,61 @@ Launch MTGA, play a Sparky game. Nexus captures every Match Door payload to `$NE
 
 End the game normally (concede or win). Stop the proxy.
 
-## 2. Extract Full-Game Fingerprints
+## 2. Extract and Analyze
 
 ```bash
-cd forge-nexus && just proto-compare --extract /tmp/arena-capture/payloads full-game
+cd forge-nexus
+
+# Extract fingerprints
+just proto-compare --extract /tmp/arena-capture/payloads full-game-N
+
+# Analyze — structured game timeline with pattern labels and golden matching
+just proto-compare --analyze src/test/resources/golden/full-game-N.json
 ```
 
-This parses all `S-C_*.bin` files, extracts `StructuralFingerprint` from every `GREToClientMessage`, and saves the sequence to `src/test/resources/golden/full-game.json`.
-
-Output shows each fingerprint with index:
+The analyzer outputs a structured timeline:
 
 ```
-  [0] ConnectResp gsType=null update=null annotations=[] actions=[]
-  [1] DieRollResultsResp ...
-  [2] GameStateMessage gsType=Full update=SendAndRecord ...
-  ...
+=== GAME START [19-23] (5 msgs) -- matches golden ===
+
+=== Turn 1 (AI, indices 25-40) ===
+  PLAY_LAND (AI) [29-30] <- NEW (no golden)
+  PHASE_TRANSITION x5 [31-40] -- matches golden
+
+=== Turn 3 (player, indices 58-99) ===
+  PLAY_LAND (player) [66-67] -- matches golden
+  TARGETED_SPELL [71-88] <- NEW (no golden)
+    targeting [71-75]
+    cast [76-77]
+    resolution [78-88]
+  PHASE_TRANSITION x5 [89-98]
 ```
 
-## 3. Identify Golden Slices
+Each segment shows:
+- Pattern label (PLAY_LAND, CAST_CREATURE, PHASE_TRANSITION, COMBAT, etc.)
+- Index range
+- Golden match status: "matches golden" / "N divergences" / "NEW (no golden)"
+- Turn grouping with AI/player classification
 
-Scan the full-game fingerprint list and identify index ranges for each scenario.
+### Analyzer limitations
+
+- **Action-count divergences are false positives.** Different decks produce different action lists (more Cast/Play/ActivateMana). The analyzer reports these as divergences even though the structural shape is identical. Ignore small divergence counts (1-5) on known-stable patterns.
+- **Dual SendAndRecord not distinguished.** Late-game land plays send 2 SendAndRecord messages (one per seat). The analyzer labels both as PLAY_LAND; the second is the opponent's view of the same action.
+- **COMBAT sub-phases not broken down.** The analyzer groups the entire combat sequence under COMBAT but doesn't label declare-attackers/blockers/damage sub-phases.
+- **DRAW detection is heuristic.** Classified by ObjectIdChanged + PhaseOrStepModified + ZoneTransfer at turn start — could misfire on other zone transfers.
+
+### Future improvements
+
+- **Shape-only golden matching**: strip `actionTypes` before diffing to eliminate deck-dependent false positives. Only compare message types, annotations, field presence, and update types.
+- **COMBAT sub-labels**: break down into DECLARE_ATTACKERS, DECLARE_BLOCKERS, DAMAGE using the DeclareAttackersReq/DeclareBlockersReq/DamageDealt boundaries.
+- **Player cast creature pattern**: currently all creature casts label as "CAST_CREATURE (AI)" since they use SendHiFi. Player-perspective casts (SendAndRecord) should label separately — they produce 2 dual SendAndRecord msgs + ActionsAvailableReq (not the 4-msg SendHiFi pattern).
+- **Auto-golden extraction**: `--analyze --extract-goldens` could auto-slice the first occurrence of each pattern into golden files.
+
+## 3. Pattern Catalog
 
 ### Game start (post-keep → Main1) — STABLE
 
-5-message pattern, confirmed across 2 recordings:
+5-message pattern, confirmed across 3 recordings:
 
 ```
 [idx+0] GS Diff, SendHiFi, PhaseOrStepModified x2    ← AI/spectator view (gameInfo+turnInfo+players+timers+actions+annotations)
@@ -52,11 +83,11 @@ Scan the full-game fingerprint list and identify index ranges for each scenario.
 [idx+4] ActionsAvailableReq (promptId=2)               ← first real priority
 ```
 
-Find by: first `PhaseOrStepModified x2` cluster after mulligan. Both recordings: index 19.
+Find by: first `PhaseOrStepModified x2` cluster after mulligan. All 3 recordings: index 19.
 
 ### Phase transition — STABLE
 
-Double-diff pair, identical across recordings:
+Double-diff pair, identical across all recordings:
 
 ```
 [idx+0] GS Diff, SendHiFi, PhaseOrStepModified   ← turnInfo+actions+annotations
@@ -93,9 +124,9 @@ Late-game may produce 2 SendAndRecord messages (one per seat with different acti
 ```
 No ActionsAvailableReq during AI's turn.
 
-### Cast creature — STABLE
+### Cast creature (AI perspective) — STABLE
 
-4-message pattern from AI perspective, confirmed across 2 recordings:
+4-message pattern, confirmed across 3 recordings:
 
 ```
 [idx+0] GS Diff, SendHiFi, CastSpell (AbilityInstanceCreated, ManaPaid, TappedUntappedPermanent, UserActionTaken, ObjectIdChanged, ZoneTransfer)
@@ -104,11 +135,21 @@ No ActionsAvailableReq during AI's turn.
 [idx+3] GS Diff, SendHiFi, empty marker
 ```
 
-**Key:** real server sends 4 consecutive GS Diffs with NO ActionsAvailableReq between them (AI doesn't get priority prompts during its own cast/resolution). Our BundleBuilder sends GS Diff + ActionsAvailableReq pairs.
+**Key:** real server sends 4 consecutive GS Diffs with NO ActionsAvailableReq between them. Annotation count scales with mana cost: ManaPaid x N, TappedUntappedPermanent x N for N mana.
 
-Annotation count scales with mana cost: ManaPaid x N, TappedUntappedPermanent x N for N mana.
+### Cast creature (player perspective)
 
-### Cast targeted spell (sorcery/instant) — NEW
+Different from AI perspective. Player sees:
+
+```
+[idx+0] GS Diff, SendAndRecord, CastSpell (same annotations as AI view)  ← seat 1
+[idx+1] GS Diff, SendAndRecord, CastSpell (same annotations)              ← seat 2
+[idx+2] ActionsAvailableReq
+```
+
+No separate resolution messages — resolution happens during priority pass. The dual SendAndRecord messages (one per seat) contain different action lists.
+
+### Cast targeted spell (sorcery/instant)
 
 Full targeted spell sequence (player casting, `Send` updateType during targeting):
 
@@ -122,9 +163,9 @@ Full targeted spell sequence (player casting, `Send` updateType during targeting
 [idx+6...] Resolution varies by spell effect
 ```
 
-**Key new element:** `updateType=Send` (not SendHiFi or SendAndRecord) is used during target selection. This is a third updateType we must support.
+**Key:** `updateType=Send` (not SendHiFi or SendAndRecord) is used during target selection.
 
-### Discard + reveal spell — NEW
+### Discard + reveal spell
 
 After targeted spell sequence, resolution involves reveal:
 
@@ -142,14 +183,49 @@ New message types: `SelectNreq`, `QueuedGameStateMessage`, `SubmitTargetsResp`.
 New annotations: `RevealedCardCreated`, `RevealedCardDeleted`, `PlayerSelectingTargets`, `PlayerSubmittedTargets`.
 New category: `Discard`.
 
-### Game end (concede) — NEW
+### Combat — NEW (recording 3)
+
+**Simple combat (no blockers):**
+```
+DeclareAttackersReq
+GS Diff, SendHiFi, CastSpell (AI cast during declare)    ← optional: AI can cast during combat
+GS Diff, SendHiFi, empty marker
+GS Diff, SendHiFi, Resolution                             ← optional
+GS Diff, SendHiFi, empty marker
+PHASE_TRANSITION x1-2
+SubmitAttackersResp
+GS Diff, SendHiFi, empty x2                              ← damage step
+```
+
+**Combat with blockers:**
+```
+DeclareAttackersReq
+GS Diff, SendAndRecord x2                                ← attacker state (dual seat)
+DeclareAttackersReq (re-prompt)
+GS Diff, SendHiFi, [TappedUntappedPermanent]              ← creatures tapped
+GS Diff, SendHiFi, empty
+GS Diff, SendAndRecord, PhaseOrStepModified               ← enter declare-blockers
+DeclareBlockersReq
+SubmitAttackersResp
+GS Diff, SendHiFi, [TappedUntappedPermanent]              ← blocker state
+GS Diff, SendHiFi, empty
+GS Diff, SendAndRecord, PhaseOrStepModified               ← enter damage
+SubmitBlockersResp
+GS Diff, SendHiFi x4                                      ← damage resolution
+GS Diff, SendHiFi, [DamageDealt, ModifiedLife, PhaseOrStepModified, SyntheticEvent]  ← damage dealt
+```
+
+New annotations: `DamageDealt`, `ModifiedLife`, `SyntheticEvent`.
+New message types: `DeclareAttackersReq`, `DeclareBlockersReq`, `SubmitAttackersResp`, `SubmitBlockersResp`.
+
+### Game end (concede)
 
 ```
 GS Diff, SendAndRecord, empty (actions only, no annotations)  ← repeated 3x
 IntermissionReq
 ```
 
-The 3 empty GS Diffs may contain final state snapshots. `IntermissionReq` appears twice (once per game in match).
+Appears twice (once per game in match).
 
 ## 4. Extract Slices to Golden Files
 
@@ -169,7 +245,7 @@ jq '.[66:68]' src/test/resources/golden/full-game.json > src/test/resources/gold
 jq '.[346:350]' src/test/resources/golden/full-game.json > src/test/resources/golden/cast-creature.json
 ```
 
-**Index ranges WILL differ between recordings.** Always re-identify landmarks by scanning the full fingerprint list. Action type counts differ by deck.
+**Index ranges WILL differ between recordings.** Use `--analyze` to find them automatically.
 
 ## 5. Run Conformance Tests
 
@@ -205,31 +281,21 @@ Key divergence categories:
 | **Missing message** | `Sequence length mismatch: expected=5, actual=4` | BundleBuilder produces fewer/more messages |
 | **Extra ActionsAvailableReq** | Real: 4 GS Diffs. Ours: 2 GS Diff + 2 ActionsAvailableReq | Over-prompting — AI shouldn't get priority during own resolution |
 | **Missing fieldPresence** | `expected=[timers] actual=[]` | We don't populate timer fields |
-| **Action count mismatch** | `expected=[Cast, Cast, Play, Play] actual=[Cast, Play]` | Action list construction differs |
-
-## 7. Comparing Recordings
-
-When you have a new recording, compare against the previous one:
-
-1. **Structural shape match?** Diff goldens ignoring `actionTypes` (deck-dependent). Message types, annotations, field presence, update types should match.
-   ```bash
-   diff <(jq -S '.' golden/game-start.json) <(jq -S '.[19:24]' golden/full-game-2.json)
-   ```
-2. **New patterns?** Grep for message types not in the pattern catalog: `SelectTargetsReq`, `SelectNreq`, `QueuedGameStateMessage`, `SubmitTargetsResp`, `IntermissionReq`. Each new type = new conformance test candidate.
-3. **New annotation categories?** Grep `annotationCategories` for values beyond PlayLand/CastSpell/Resolve/Discard.
 
 ## Confirmed Stable Patterns
 
-Validated across 2 recordings (757-msg creature-focused game + 396-msg sorcery/instant game):
+Validated across 3 recordings (757 + 396 + 257 msgs):
 
-| Pattern | Msg count | Shape identical? | Deck-dependent fields |
-|---------|-----------|------------------|-----------------------|
-| Game start | 5 | Yes | actionTypes, promptId counts |
-| Phase transition | 2 | **Yes (zero diff)** | actionTypes |
-| Play land (player) | 2 | Yes | actionTypes, zone/objectCount |
-| Play land (AI) | 2 | Yes | actionTypes |
+| Pattern | Msg count | Stable? | Notes |
+|---------|-----------|---------|-------|
+| Game start | 5 | Yes | actionTypes vary by deck |
+| Phase transition | 2 | **Yes (zero structural diff)** | actionTypes vary |
+| Play land (player) | 2 (+1 dual) | Yes | late-game adds dual SendAndRecord |
+| Play land (AI) | 2 | Yes | — |
 | Cast creature (AI) | 4 | Yes | annotation counts scale with mana cost |
+| Cast creature (player) | 2-3 | Yes | dual SendAndRecord + ActionsAvailableReq |
 | NewTurnStarted | 2 | Yes | TappedUntappedPermanent count varies |
+| Combat | 8-15 | Yes (shape) | variable length, sub-phases depend on blockers |
 
 ## updateType Semantics
 
@@ -241,7 +307,7 @@ Validated across 2 recordings (757-msg creature-focused game + 396-msg sorcery/i
 
 ## Known Gaps (as of 2026-02-15)
 
-Confirmed across 2 recordings:
+Confirmed across 3 recordings:
 
 1. **PhaseOrStepModified annotations** — real server emits on every phase change; we don't
 2. **PromptReq message** — real server sends before ActionsAvailableReq in game-start; we skip it
@@ -256,7 +322,8 @@ Not yet tested (no conformance test):
 8. **Targeted spell flow** — SelectTargetsReq/SubmitTargetsResp/Send updateType
 9. **Reveal/discard** — RevealedCardCreated/Deleted, SelectNreq, QueuedGameStateMessage
 10. **Activate action type** — non-mana activated abilities (distinct from ActivateMana)
-11. **Game end** — IntermissionReq
+11. **Combat flow** — DeclareAttackersReq/BlockersReq, DamageDealt/ModifiedLife/SyntheticEvent
+12. **Game end** — IntermissionReq
 
 ## File Inventory
 
@@ -265,11 +332,13 @@ Not yet tested (no conformance test):
 | `src/main/kotlin/forge/nexus/conformance/StructuralFingerprint.kt` | ID-agnostic message shape — the unit of comparison |
 | `src/main/kotlin/forge/nexus/conformance/RecordingParser.kt` | Parses .bin captures → fingerprint sequences |
 | `src/main/kotlin/forge/nexus/conformance/StructuralDiff.kt` | Positional diff of two fingerprint sequences |
-| `src/main/kotlin/forge/nexus/conformance/CompareMain.kt` | CLI: `just proto-compare` |
+| `src/main/kotlin/forge/nexus/conformance/GameFlowAnalyzer.kt` | Pattern classifier — structured timeline from fingerprints |
+| `src/main/kotlin/forge/nexus/conformance/CompareMain.kt` | CLI: `just proto-compare` / `just proto-compare --analyze` |
 | `src/test/kotlin/forge/nexus/conformance/ConformanceTestBase.kt` | Test helpers: start game, play actions, compare goldens |
 | `src/test/kotlin/forge/nexus/conformance/*ConformanceTest.kt` | Per-scenario conformance tests |
 | `src/test/resources/golden/full-game.json` | Recording 1: 757 msgs, creature-focused Sparky game |
 | `src/test/resources/golden/full-game-2.json` | Recording 2: 396 msgs, sorcery/instant mono-black game |
+| `src/test/resources/golden/full-game-3.json` | Recording 3: 257 msgs, simple creatures + combat + concede |
 | `src/test/resources/golden/{scenario}.json` | Per-scenario golden slices (from recording 1) |
 
 ## Recordings Log
@@ -278,3 +347,4 @@ Not yet tested (no conformance test):
 |---|------|------|------|-------------|-------|
 | 1 | 2026-02-15 | 757 | Starter (green/white) | AI land, creature, Ajani | Creature cast, combat, planeswalker. AI on play. |
 | 2 | 2026-02-15 | 396 | Mono-black (sorcery/instant) | Kill spells, discard+reveal, bat creature | Targeted spells, reveal mechanic, Activate actions. Concede at turn 8. |
+| 3 | 2026-02-15 | 257 | Simple creatures (both) | Land, creature casts, face attack, concede | Combat (with/without blockers), DamageDealt/ModifiedLife. AI on play. |
