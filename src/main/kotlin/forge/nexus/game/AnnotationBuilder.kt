@@ -78,6 +78,28 @@ object AnnotationBuilder {
             .addDetails(uint32Detail("grpid", grpId))
             .build()
 
+    /** Combat damage dealt by a creature. Client uses this for damage flash animation. */
+    fun damageDealt(sourceInstanceId: Int, amount: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.DamageDealt_af5a)
+            .addAffectedIds(sourceInstanceId)
+            .addDetails(uint32Detail("damage", amount))
+            .build()
+
+    /** Player life total changed. Client uses this for life counter animation. */
+    fun modifiedLife(playerSeatId: Int, lifeDelta: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.ModifiedLife)
+            .addAffectedIds(playerSeatId)
+            .addDetails(int32Detail("delta", lifeDelta))
+            .build()
+
+    /** Generic combat result marker. Client uses this to finalize combat animations. */
+    fun syntheticEvent(): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.SyntheticEvent)
+            .build()
+
     private fun stringDetail(key: String, value: String): KeyValuePairInfo =
         KeyValuePairInfo.newBuilder()
             .setKey(key)
@@ -89,5 +111,12 @@ object AnnotationBuilder {
             .setKey(key)
             .setType(KeyValuePairValueType.Uint32)
             .addValueUint32(value)
+            .build()
+
+    private fun int32Detail(key: String, value: Int): KeyValuePairInfo =
+        KeyValuePairInfo.newBuilder()
+            .setKey(key)
+            .setType(KeyValuePairValueType.Int32)
+            .addValueInt32(value)
             .build()
 }
