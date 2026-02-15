@@ -62,6 +62,12 @@ test-one class: check-java _check-upstream _clean-surefire
         {{mvn_quiet}} \
         -Dtest="{{class}}" -Dsurefire.failIfNoSpecifiedTests=false test
 
+# all conformance tests (fast: ~5s, runs all *ConformanceTest classes)
+test-conformance: check-java _check-upstream _clean-surefire
+    cd "{{root_dir}}" && mvn -pl forge-nexus \
+        {{mvn_quiet}} \
+        -Dgroups=conformance test
+
 # watch *.kt, recompile + restart hybrid on change (fast: nexus-only compile)
 dev: check-java
     #!/usr/bin/env bash
