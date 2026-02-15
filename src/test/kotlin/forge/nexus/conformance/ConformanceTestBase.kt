@@ -1,6 +1,7 @@
 package forge.nexus.conformance
 
 import forge.game.Game
+import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.nexus.game.GameBridge
 import forge.web.game.GameActionBridge
@@ -41,6 +42,11 @@ abstract class ConformanceTestBase {
         b.submitKeep(1)
         advanceToMain1(b)
         val game = b.getGame()!!
+        Assert.assertEquals(
+            game.phaseHandler.phase,
+            PhaseType.MAIN1,
+            "Game should be at Main1 after advanceToMain1 (actual: ${game.phaseHandler.phase})",
+        )
         b.snapshotState(game)
         return Triple(b, game, 20)
     }
