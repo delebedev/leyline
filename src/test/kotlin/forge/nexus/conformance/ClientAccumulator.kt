@@ -71,12 +71,20 @@ class ClientAccumulator {
     }
 
     /**
-     * Every instanceId referenced by a zone must exist in [objects].
+     * Every instanceId referenced by a **visible** zone must exist in [objects].
      * Returns list of (zoneId, instanceId) pairs where object is missing.
+     *
+     * Hidden zones (Library) and Private zones (opponent Hand, Sideboard)
+     * intentionally carry objectInstanceIds without matching GameObjectInfo —
+     * the real server does the same. The client uses zone counts for UI
+     * (e.g. "52 cards in library") but never renders hidden card details.
      */
     fun zoneObjectsMissingFromObjects(): List<Pair<Int, Int>> {
         val missing = mutableListOf<Pair<Int, Int>>()
         for ((zoneId, zone) in zones) {
+            // Skip hidden/private zones — real server sends objectInstanceIds
+            // without GameObjectInfo for these (library, opponent hand, sideboard)
+            if (zone.visibility == Visibility.Hidden || zone.visibility == Visibility.Private) continue
             for (iid in zone.objectInstanceIdsList) {
                 if (!objects.containsKey(iid)) {
                     missing.add(zoneId to iid)

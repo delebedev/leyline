@@ -102,15 +102,12 @@ class MatchFlowHarnessTest {
                 "Turn ${turn + 1}: action instanceIds missing from objects: $missingActions",
             )
 
-            // Zone refs: known issue — AI hidden zones reference instanceIds not in objects map.
-            // Log but don't fail (same pattern as aiGoesFirstReachesHumanMain1).
+            // Visible zone refs must be valid (hidden/private zones are skipped by the checker)
             val missingZones = harness!!.accumulator.zoneObjectsMissingFromObjects()
-            if (missingZones.isNotEmpty()) {
-                System.err.println(
-                    "KNOWN: Turn ${turn + 1}: ${missingZones.size} zone refs to missing objects " +
-                        "(AI hidden zones): ${missingZones.take(5)}",
-                )
-            }
+            assertTrue(
+                missingZones.isEmpty(),
+                "Turn ${turn + 1}: visible zone refs to missing objects: $missingZones",
+            )
 
             // Pass turn
             harness!!.passPriority()
@@ -137,18 +134,9 @@ class MatchFlowHarnessTest {
         val missing = harness!!.accumulator.actionInstanceIdsMissingFromObjects()
         assertTrue(missing.isEmpty(), "Missing instanceIds after AI-first connect: $missing")
 
-        // Known issue: AI zones (library/hand) reference instanceIds not in objects map.
-        // gameStart bundle only populates objects for human-visible cards; AI library/hand
-        // instanceIds appear in zone.objectInstanceIds but have no matching GameObjectType.
-        // TODO: BundleBuilder should either omit hidden-zone objectInstanceIds or send
-        //       face-down stubs so the accumulator stays consistent.
+        // Visible zone refs must be valid (hidden/private zones are skipped by the checker)
         val zoneRefs = harness!!.accumulator.zoneObjectsMissingFromObjects()
-        if (zoneRefs.isNotEmpty()) {
-            System.err.println(
-                "KNOWN: ${zoneRefs.size} zone refs to missing objects (AI hidden zones): " +
-                    zoneRefs.take(5),
-            )
-        }
+        assertTrue(zoneRefs.isEmpty(), "Visible zone refs to missing objects: $zoneRefs")
 
         // Should have received at least game-start bundle (4 messages)
         assertTrue(harness!!.allMessages.size >= 4, "Should have at least 4 messages (game-start bundle)")

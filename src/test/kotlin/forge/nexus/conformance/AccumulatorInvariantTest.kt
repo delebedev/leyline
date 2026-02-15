@@ -20,13 +20,7 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
         assertTrue(missing.isEmpty(), "Action instanceIds missing from objects after game-start: $missing")
     }
 
-    // BUG: Library zones (32, 36) reference instanceIds not sent as GameObjectInfo.
-    // game-start bundle emits zones with objectInstanceIds for library cards but never
-    // includes the corresponding GameObjectInfo entries. ~106 missing refs per game.
-    @Test(
-        description = "After game-start, zone object references are valid",
-        expectedExceptions = [AssertionError::class],
-    )
+    @Test(description = "After game-start, visible zone object references are valid")
     fun gameStartZoneRefsValid() {
         val (b, game, gsId) = startGameAtMain1()
 
