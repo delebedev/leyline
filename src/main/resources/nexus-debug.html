@@ -317,6 +317,83 @@
   }
   .clear-btn:hover { background: var(--accent); color: #fff; }
 
+  /* State timeline */
+  .st-row {
+    border-left: 3px solid var(--border);
+    padding: 4px 10px;
+    margin-bottom: 1px;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+  }
+  .st-row:hover { background: var(--bg2); }
+  .st-row.st-snapshot { border-left-color: var(--yellow); }
+  .st-row.st-event { border-left-color: var(--purple); }
+  .st-row.st-event-AUTO_PASS { border-left-color: var(--fg2); opacity: 0.6; }
+  .st-row.st-event-GAME_OVER { border-left-color: var(--red); }
+  .st-row.st-event-CLIENT_ACTION { border-left-color: var(--blue); }
+  .st-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .st-gsid { color: var(--yellow); font-weight: 700; font-size: 11px; min-width: 42px; }
+  .st-type { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--bg3); }
+  .st-type-Full { color: var(--green); }
+  .st-type-Diff { color: var(--blue); }
+  .st-phase { color: var(--fg2); font-size: 11px; }
+  .st-zones { color: var(--fg2); font-size: 10px; }
+  .st-event-badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--bg3);
+    font-weight: 600;
+  }
+  .st-event-badge-AUTO_PASS { color: var(--fg2); }
+  .st-event-badge-SEND_STATE { color: var(--green); }
+  .st-event-badge-CLIENT_ACTION { color: var(--blue); }
+  .st-event-badge-COMBAT_PROMPT { color: var(--red); }
+  .st-event-badge-TARGET_PROMPT { color: var(--orange); }
+  .st-event-badge-GAME_START { color: var(--yellow); }
+  .st-event-badge-GAME_OVER { color: var(--red); }
+  .st-event-badge-AI_TURN_WAIT { color: var(--fg2); }
+  .st-event-badge-AI_TURN_TIMEOUT { color: var(--orange); }
+  .st-event-badge-PRIORITY_GRANT { color: var(--purple); }
+  .st-detail { color: var(--fg2); font-size: 11px; }
+  .st-stack { color: var(--orange); font-size: 10px; }
+  .st-priority { font-size: 10px; }
+  .st-priority-human { color: var(--blue); }
+  .st-priority-ai { color: var(--red); }
+
+  /* Diff inline */
+  .st-diff {
+    margin: 4px 0 4px 48px;
+    padding: 6px 10px;
+    background: var(--bg2);
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .st-diff-empty { color: var(--fg2); opacity: 0.5; font-style: italic; }
+  .st-diff-zone { margin-bottom: 2px; }
+  .st-diff-added { color: var(--green); }
+  .st-diff-removed { color: var(--red); }
+  .st-diff-modified { color: var(--orange); }
+  .st-diff-phase { color: var(--yellow); }
+  .st-diff-life { color: var(--accent); }
+
+  /* Instance history popup */
+  .st-history {
+    margin: 4px 0 4px 48px;
+    padding: 6px 10px;
+    background: var(--bg2);
+    border-radius: 4px;
+    font-size: 11px;
+    border: 1px solid var(--purple);
+  }
+  .st-history-row { padding: 1px 0; }
+
   /* Copy buttons */
   .copy-btn {
     display: inline-flex;
@@ -353,6 +430,7 @@
   <span class="pill pill-count" x-text="state.entryCount + ' msgs'"></span>
   <div class="spacer"></div>
   <button class="view-tab" :class="{ active: view === 'messages' }" @click="view = 'messages'">Messages</button>
+  <button class="view-tab" :class="{ active: view === 'states' }" @click="view = 'states'">States</button>
   <button class="view-tab" :class="{ active: view === 'logs' }" @click="view = 'logs'">Logs</button>
   <button class="header-btn active-purple" :class="{ on: showIdPanel }" @click="showIdPanel = !showIdPanel; if (showIdPanel) fetchIdMap()">ID Map</button>
   <button class="header-btn" :class="{ paused }" @click="paused = !paused" x-text="paused ? 'Resume' : 'Pause'"></button>
@@ -410,6 +488,61 @@
     </template>
   </div>
 
+  <!-- States timeline -->
+  <div id="timeline" x-show="view === 'states'" x-cloak style="overflow-y:auto; flex:1; padding:8px;">
+    <template x-for="item in stateTimeline" :key="item.key">
+      <div>
+        <!-- Snapshot row -->
+        <template x-if="item.kind === 'snapshot'">
+          <div class="st-row st-snapshot" @click="toggleStateDiff(item.data.gsId)">
+            <div class="st-header">
+              <span class="st-gsid" x-text="'gs=' + item.data.gsId"></span>
+              <span class="st-type" :class="'st-type-' + item.data.type" x-text="item.data.type"></span>
+              <span class="st-phase" x-text="item.data.phase + '/' + item.data.step + ' T' + item.data.turn"></span>
+              <span class="st-zones" x-text="zoneSummary(item.data)"></span>
+              <span class="st-priority" :class="'st-priority-' + (item.data.priorityPlayer === 1 ? 'human' : 'ai')"
+                    x-text="'priority=' + (item.data.priorityPlayer === 1 ? 'human' : 'ai')"></span>
+              <template x-if="item.data.actions.length > 0">
+                <span class="st-zones" x-text="actionSummary(item.data)"></span>
+              </template>
+            </div>
+            <!-- Inline diff -->
+            <template x-if="expandedDiffs[item.data.gsId]">
+              <div class="st-diff" x-html="renderDiff(expandedDiffs[item.data.gsId])"></div>
+            </template>
+          </div>
+        </template>
+        <!-- Priority event row -->
+        <template x-if="item.kind === 'event'">
+          <div class="st-row st-event" :class="'st-event-' + item.data.type">
+            <div class="st-header">
+              <span class="st-gsid" x-text="'gs=' + item.data.gsId"></span>
+              <span class="st-event-badge" :class="'st-event-badge-' + item.data.type" x-text="item.data.type"></span>
+              <span class="st-detail" x-text="item.data.detail"></span>
+              <template x-if="item.data.stackDepth > 0">
+                <span class="st-stack" x-text="'stack=' + item.data.stackDepth"></span>
+              </template>
+              <template x-if="item.data.priorityPlayer">
+                <span class="st-priority" :class="'st-priority-' + item.data.priorityPlayer"
+                      x-text="item.data.priorityPlayer"></span>
+              </template>
+              <span class="st-phase" x-text="item.data.phase + ' T' + item.data.turn"></span>
+            </div>
+          </div>
+        </template>
+        <!-- Instance history (shown when an iid is selected) -->
+        <template x-if="item.kind === 'snapshot' && stateHlIid !== null && hasInstance(item.data, stateHlIid)">
+          <div class="st-history">
+            <span style="color:var(--purple);font-weight:700" x-text="'iid=' + stateHlIid"></span>
+            <span x-text="item.data.objects[stateHlIid]?.name || '?'"></span>
+            <span :class="'zone-' + (item.data.objects[stateHlIid]?.zoneName || '')"
+                  x-text="item.data.objects[stateHlIid]?.zoneName || '?'"></span>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+
   <!-- Logs panel -->
   <div id="log-panel" x-show="view === 'logs'" x-cloak>
     <template x-for="l in filteredLogs" :key="l.seq">
@@ -451,6 +584,12 @@ function debugApp() {
     state: { phase: null, turn: 0, activePlayer: null, entryCount: 0 },
     idMap: [],
 
+    // States tab data
+    gameStates: [],
+    priorityEvents: [],
+    expandedDiffs: {},
+    stateHlIid: null,
+
     // UI state
     paused: false,
     view: 'messages',
@@ -466,6 +605,7 @@ function debugApp() {
     // Internal
     _lastSeq: 0,
     _lastLogSeq: 0,
+    _lastEventSeq: 0,
 
     // Computed
     get filteredEntries() {
@@ -493,6 +633,19 @@ function debugApp() {
       return out;
     },
 
+    // Unified state timeline: snapshots + priority events, sorted by ts
+    get stateTimeline() {
+      const items = [];
+      for (const s of this.gameStates) {
+        items.push({ kind: 'snapshot', ts: s.ts, key: 's' + s.gsId, data: s });
+      }
+      for (const e of this.priorityEvents) {
+        items.push({ kind: 'event', ts: e.ts, key: 'e' + e.seq, data: e });
+      }
+      items.sort((a, b) => a.ts - b.ts);
+      return items;
+    },
+
     // Lifecycle
     init() { this.poll(); },
 
@@ -500,14 +653,20 @@ function debugApp() {
     async poll() {
       if (!this.paused) {
         try {
-          const [msgR, stateR, logR] = await Promise.all([
+          const fetches = [
             fetch('/api/messages?since=' + this._lastSeq),
             fetch('/api/state'),
             fetch('/api/logs?since=' + this._lastLogSeq + '&level=DEBUG'),
-          ]);
-          const msgs = await msgR.json();
-          const state = await stateR.json();
-          const logs = await logR.json();
+          ];
+          // Only fetch states/events when States tab is active
+          if (this.view === 'states') {
+            fetches.push(fetch('/api/game-states'));
+            fetches.push(fetch('/api/priority-events?since=' + this._lastEventSeq));
+          }
+          const responses = await Promise.all(fetches);
+          const msgs = await responses[0].json();
+          const state = await responses[1].json();
+          const logs = await responses[2].json();
 
           if (msgs.length > 0) {
             for (const e of msgs) {
@@ -523,6 +682,19 @@ function debugApp() {
               if (l.seq > this._lastLogSeq) this._lastLogSeq = l.seq;
             }
             if (this.logEntries.length > 5000) this.logEntries = this.logEntries.slice(-2000);
+          }
+
+          // States tab data
+          if (responses.length > 3) {
+            this.gameStates = await responses[3].json();
+            const newEvents = await responses[4].json();
+            if (newEvents.length > 0) {
+              for (const ev of newEvents) {
+                this.priorityEvents.push(ev);
+                if (ev.seq > this._lastEventSeq) this._lastEventSeq = ev.seq;
+              }
+              if (this.priorityEvents.length > 1000) this.priorityEvents = this.priorityEvents.slice(-500);
+            }
           }
 
           this.state = state;
@@ -550,6 +722,78 @@ function debugApp() {
         btn.classList.add('copied');
         setTimeout(() => { btn.textContent = '\u2398'; btn.classList.remove('copied'); }, 1200);
       }).catch(() => {});
+    },
+
+    // --- States tab helpers ---
+
+    zoneSummary(s) {
+      const counts = {};
+      for (const z of Object.values(s.zones)) {
+        const n = z.objectInstanceIds.length;
+        if (n > 0) counts[z.type] = (counts[z.type] || 0) + n;
+      }
+      return Object.entries(counts).map(([t, n]) => t + '=' + n).join(' ');
+    },
+
+    actionSummary(s) {
+      const counts = {};
+      for (const a of s.actions) counts[a.actionType] = (counts[a.actionType] || 0) + 1;
+      return Object.entries(counts).map(([t, n]) => t + '=' + n).join(' ');
+    },
+
+    hasInstance(s, iid) {
+      return s.objects && s.objects[iid] !== undefined;
+    },
+
+    async toggleStateDiff(gsId) {
+      if (this.expandedDiffs[gsId]) {
+        delete this.expandedDiffs[gsId];
+        return;
+      }
+      // Find previous gsId
+      const idx = this.gameStates.findIndex(s => s.gsId === gsId);
+      if (idx <= 0) {
+        this.expandedDiffs[gsId] = { empty: true };
+        return;
+      }
+      const prevGsId = this.gameStates[idx - 1].gsId;
+      try {
+        const resp = await fetch('/api/state-diff?from=' + prevGsId + '&to=' + gsId);
+        const diff = await resp.json();
+        this.expandedDiffs[gsId] = diff;
+      } catch (_) {
+        this.expandedDiffs[gsId] = { empty: true };
+      }
+    },
+
+    renderDiff(diff) {
+      if (!diff || diff.empty) return '<span class="st-diff-empty">NO CHANGES</span>';
+      let h = '';
+      if (diff.phaseChange) h += '<div class="st-diff-phase">' + esc(diff.phaseChange) + '</div>';
+      if (diff.turnChange) h += '<div class="st-diff-phase">turn: ' + esc(diff.turnChange) + '</div>';
+      for (const p of (diff.playerDeltas || [])) {
+        h += '<div class="st-diff-life">seat ' + p.seatId + ' life: ' + esc(p.lifeChange || '') + '</div>';
+      }
+      for (const z of (diff.zoneDeltas || [])) {
+        for (const r of z.added) {
+          h += '<div class="st-diff-added">+ ' + esc(z.type) + ': ' + (r.name || 'iid=' + r.instanceId) + ' (iid=' + r.instanceId + ')</div>';
+        }
+        for (const r of z.removed) {
+          h += '<div class="st-diff-removed">- ' + esc(z.type) + ': ' + (r.name || 'iid=' + r.instanceId) + ' (iid=' + r.instanceId + ')</div>';
+        }
+      }
+      for (const o of (diff.objectDeltas || [])) {
+        if (o.changeType === 'added') {
+          h += '<div class="st-diff-added">+ obj ' + (o.name || 'iid=' + o.instanceId) + '</div>';
+        } else if (o.changeType === 'removed') {
+          h += '<div class="st-diff-removed">- obj ' + (o.name || 'iid=' + o.instanceId) + '</div>';
+        } else if (o.changeType === 'modified') {
+          const changes = Object.entries(o.changes).map(([k, v]) => k + ': ' + v).join(', ');
+          h += '<div class="st-diff-modified">' + esc(o.name || 'iid=' + o.instanceId) + ': ' + esc(changes) + '</div>';
+        }
+      }
+      if (diff.actionsSummary) h += '<div style="color:var(--fg2)">actions: ' + esc(diff.actionsSummary) + '</div>';
+      return h || '<span class="st-diff-empty">NO CHANGES</span>';
     },
 
     async fetchIdMap() {
