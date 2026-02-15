@@ -431,6 +431,10 @@ class MatchSession(
 
             if (pending != null) {
                 traceEvent(GameStateCollector.EventType.AUTO_PASS, game, "human priority, pass-only")
+                // EdictalMessage: tell client we're server-forcing a pass (breaks autoPassPriority mode)
+                val edictal = BundleBuilder.edictalPass(seatId, msgIdCounter, gameStateId)
+                msgIdCounter = edictal.nextMsgId
+                sendBundledGRE(edictal.messages)
                 bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
                 bridge.awaitPriority()
             } else if (isAiTurn) {

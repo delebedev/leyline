@@ -375,6 +375,28 @@ object BundleBuilder {
         it.gameStateMessage = gameState
     }
 
+    /**
+     * Server-forced pass (EdictalMessage). Tells the client "I'm passing priority for seat X".
+     * Breaks the client out of autoPassPriority mode so it re-renders action buttons.
+     */
+    fun edictalPass(seatId: Int, msgId: Int, gsId: Int): BundleResult {
+        val edictal = EdictalMessage.newBuilder()
+            .setEdictMessage(
+                ClientToGREMessage.newBuilder()
+                    .setType(ClientMessageType.PerformActionResp_097b)
+                    .setSystemSeatId(seatId)
+                    .setPerformActionResp(
+                        PerformActionResp.newBuilder()
+                            .addActions(Action.newBuilder().setActionType(ActionType.Pass)),
+                    ),
+            )
+            .build()
+        val msg = makeGRE(GREMessageType.EdictalMessage_695e, gsId, seatId, msgId) {
+            it.edictalMessage = edictal
+        }
+        return BundleResult(listOf(msg), msgId + 1, gsId)
+    }
+
     /** Build a single GRE message. */
     private fun makeGRE(
         type: GREMessageType,
