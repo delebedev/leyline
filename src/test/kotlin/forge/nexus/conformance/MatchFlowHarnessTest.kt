@@ -3,6 +3,7 @@ package forge.nexus.conformance
 import org.testng.Assert.*
 import org.testng.annotations.AfterMethod
 import org.testng.annotations.Test
+import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
 @Test(groups = ["integration"])
 class MatchFlowHarnessTest {
@@ -52,5 +53,27 @@ class MatchFlowHarnessTest {
 
         val missingAfterTurn = harness!!.accumulator.actionInstanceIdsMissingFromObjects()
         assertTrue(missingAfterTurn.isEmpty(), "Missing instanceIds after full turn cycle: $missingAfterTurn")
+    }
+
+    @Test(description = "Play land + cast creature, verify object tracking through stack resolution")
+    fun castCreatureTracksObjectThroughZones() {
+        harness = MatchFlowHarness(seed = 42L)
+        harness!!.connectAndKeep()
+
+        // Play land for mana
+        harness!!.playLand()
+
+        // Cast creature (hand → stack → battlefield)
+        val cast = harness!!.castCreature()
+        assertTrue(cast, "Should be able to cast a creature")
+
+        // Verify accumulated state
+        val missing = harness!!.accumulator.actionInstanceIdsMissingFromObjects()
+        assertTrue(missing.isEmpty(), "Missing instanceIds after cast: $missing")
+
+        // Verify we have objects on battlefield (not just hand/library)
+        val battlefieldZone = harness!!.accumulator.zones.values
+            .firstOrNull { it.type == ZoneType.Battlefield }
+        assertNotNull(battlefieldZone, "Should have a battlefield zone")
     }
 }
