@@ -338,7 +338,7 @@ Not yet tested (no conformance test):
 9. **Reveal/discard** — RevealedCardCreated/Deleted, SelectNreq, QueuedGameStateMessage
 10. **Activate action type** — non-mana activated abilities (distinct from ActivateMana)
 11. **Combat flow** — DeclareAttackersReq/BlockersReq, DamageDealt/ModifiedLife/SyntheticEvent
-12. **Game end** — IntermissionReq
+12. ~~**Game end**~~ — FIXED. 3x GS Diff (SendAndRecord) with GameOver gameInfo + ResultSpec, then IntermissionReq. Client transitions to end-of-game screen cleanly.
 
 ## Fixing a Conformance Gap
 
