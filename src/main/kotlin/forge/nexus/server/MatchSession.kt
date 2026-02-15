@@ -328,10 +328,13 @@ class MatchSession(
                 return
             }
 
-            // Sync counters from playback — accumulate diffs until real state send
+            // Send any pending AI-action diffs to the client
             val playback = bridge.playback
             if (playback != null && playback.hasPendingMessages()) {
-                playback.drainQueue()
+                val batches = playback.drainQueue()
+                for (batch in batches) {
+                    sendBundledGRE(batch)
+                }
                 val (nextMsg, nextGs) = playback.getCounters()
                 msgIdCounter = nextMsg
                 gameStateId = nextGs
