@@ -32,7 +32,7 @@ This matches the `arena-game-end` golden (3x empty Diff SendAndRecord + Intermis
 
 ### BUG-002: Cannot cast spells — missing ActivateMana actions
 
-**Status:** Open
+**Status:** Fixed (ActivateMana added; autoTapSolution still TODO)
 **Observed:** 2026-02-15
 **Module:** forge-nexus
 
@@ -52,7 +52,9 @@ Arena golden:  ActivateMana, Cast, FloatMana, Pass
 
 **Fix:** Add `ActivateMana` actions for untapped lands/mana-producers in `StateMapper.buildActions()`. Optionally add `autoTapSolution` on Cast actions.
 
-**Why not caught by tests:** `StructuralDiff.compareShape()` skips `actionTypes` entirely (marked "deck-dependent"). Golden-only tests document Arena sends ActivateMana but no live-game test asserts our output includes it.
+**Why not caught by tests:** `StructuralDiff.compareShape()` skipped `actionTypes` entirely (marked "deck-dependent"). Golden-only tests documented Arena sends ActivateMana but no live-game test asserted our output includes it.
+
+**Fix applied:** `StateMapper.buildActions()` now generates `ActivateMana` for untapped permanents with mana abilities. `compareShape()` now checks load-bearing action kinds (ActivateMana) at the sequence level. Still TODO: `autoTapSolution` on Cast actions for one-click casting.
 
 ---
 
