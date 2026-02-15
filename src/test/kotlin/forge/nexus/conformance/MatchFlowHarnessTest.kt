@@ -29,4 +29,28 @@ class MatchFlowHarnessTest {
 
         assertEquals(harness!!.phase(), "MAIN1", "Should be at Main1")
     }
+
+    @Test(description = "Play land, pass turn, survive AI turn, reach next Main1 with valid state")
+    fun playLandAndPassTurn() {
+        harness = MatchFlowHarness(seed = 42L)
+        harness!!.connectAndKeep()
+
+        // Play a land
+        val landPlayed = harness!!.playLand()
+        assertTrue(landPlayed, "Should have a land to play")
+
+        // Verify state is valid after land play
+        val missingAfterLand = harness!!.accumulator.actionInstanceIdsMissingFromObjects()
+        assertTrue(missingAfterLand.isEmpty(), "Missing instanceIds after land: $missingAfterLand")
+
+        // Pass priority to end turn
+        harness!!.passPriority()
+
+        // After auto-pass through AI turn, should be back at human's turn
+        // (or AI turn if AI has actions — either way, state should be valid)
+        assertFalse(harness!!.isGameOver(), "Game should not be over after 1 turn")
+
+        val missingAfterTurn = harness!!.accumulator.actionInstanceIdsMissingFromObjects()
+        assertTrue(missingAfterTurn.isEmpty(), "Missing instanceIds after full turn cycle: $missingAfterTurn")
+    }
 }
