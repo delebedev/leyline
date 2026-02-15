@@ -1,0 +1,23 @@
+[
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "fieldPresence": [
+            "turnInfo",
+            "players",
+            "actions"
+        ],
+        "actionTypes": [
+            "Pass"
+        ]
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "Pass"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    }
+]

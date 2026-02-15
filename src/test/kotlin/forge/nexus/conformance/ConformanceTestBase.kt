@@ -39,7 +39,6 @@ abstract class ConformanceTestBase {
         bridge = b
         b.start(seed = seed)
         b.submitKeep(1)
-        b.awaitPriority()
         advanceToMain1(b)
         val game = b.getGame()!!
         b.snapshotState(game)
@@ -79,39 +78,68 @@ abstract class ConformanceTestBase {
     protected fun playLand(b: GameBridge): PlayerAction? {
         val player = b.getPlayer(1) ?: return null
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
-        val pending = b.actionBridge.getPending() ?: return null
+        val pending = awaitFreshPending(b, null) ?: return null
         val action = PlayerAction.PlayLand(land.id)
         b.actionBridge.submitAction(pending.actionId, action)
-        b.awaitPriority()
+        awaitFreshPending(b, pending.actionId)
         return action
     }
 
     protected fun castCreature(b: GameBridge): PlayerAction? {
         val player = b.getPlayer(1) ?: return null
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
-        val pending = b.actionBridge.getPending() ?: return null
+        val pending = awaitFreshPending(b, null) ?: return null
         val action = PlayerAction.CastSpell(creature.id)
         b.actionBridge.submitAction(pending.actionId, action)
-        b.awaitPriority()
+        awaitFreshPending(b, pending.actionId)
         return action
     }
 
     protected fun passPriority(b: GameBridge) {
-        val pending = b.actionBridge.getPending() ?: return
+        val pending = awaitFreshPending(b, null) ?: return
         b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
-        b.awaitPriority()
+        awaitFreshPending(b, pending.actionId)
     }
 
+    /**
+     * Pass priority until the game reaches Main1.
+     *
+     * After submitting pass, waits for a **fresh** pending action (different actionId)
+     * to avoid a race where [GameBridge.awaitPriority] detects a stale pending whose
+     * future was already completed but whose `finally` block hasn't cleared it yet.
+     * The engine may auto-pass through phases without blocking (smart phase skip),
+     * so we also check the phase directly.
+     */
     private fun advanceToMain1(b: GameBridge, maxPasses: Int = 20) {
-        b.awaitPriority()
         val game = b.getGame()!!
         var passes = 0
         while (game.phaseHandler.phase != PhaseType.MAIN1 && passes < maxPasses) {
-            val pending = b.actionBridge.getPending()
-                ?: error("No pending action while advancing to Main1 (phase=${game.phaseHandler.phase})")
+            val pending = awaitFreshPending(b, null)
+                ?: error("Timed out waiting for priority while advancing to Main1 (phase=${game.phaseHandler.phase})")
             b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
-            b.awaitPriority()
             passes++
         }
+        // Final wait: ensure we have a pending action at MAIN1 before returning
+        if (game.phaseHandler.phase == PhaseType.MAIN1) {
+            awaitFreshPending(b, null)
+        }
+    }
+
+    /**
+     * Wait for a pending action whose actionId differs from [previousId].
+     * Returns null on timeout (15s).
+     */
+    private fun awaitFreshPending(
+        b: GameBridge,
+        previousId: String?,
+        timeoutMs: Long = 15_000,
+    ): forge.web.game.GameActionBridge.PendingAction? {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            val p = b.actionBridge.getPending()
+            if (p != null && p.actionId != previousId && !p.future.isDone) return p
+            Thread.sleep(50)
+        }
+        return null
     }
 }
