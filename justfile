@@ -16,6 +16,11 @@ ports        := "30010 30003 8090"
 
 jvm_opts := "-Dio.netty.tryReflectionSetAccessible=true --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dlogback.configurationFile=" + logback
 
+# auto-format Kotlin sources (spotless/ktlint)
+fmt: check-java
+    cd "{{root_dir}}" && mvn -pl forge-nexus com.diffplug.spotless:spotless-maven-plugin:apply -q
+    @echo "fmt done."
+
 # --- Build ---
 
 flatten := "org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten"
