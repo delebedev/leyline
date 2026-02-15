@@ -17,16 +17,16 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 @Serializable
 data class StructuralFingerprint(
     val greMessageType: String,
-    val gsType: String?,
-    val updateType: String?,
-    val annotationTypes: List<String>,
-    val annotationCategories: List<String>,
-    val fieldPresence: Set<String>,
-    val zoneCount: Int,
-    val objectCount: Int,
-    val actionTypes: List<String>,
-    val hasPrompt: Boolean,
-    val promptId: Int?,
+    val gsType: String? = null,
+    val updateType: String? = null,
+    val annotationTypes: List<String> = emptyList(),
+    val annotationCategories: List<String> = emptyList(),
+    val fieldPresence: Set<String> = emptySet(),
+    val zoneCount: Int = 0,
+    val objectCount: Int = 0,
+    val actionTypes: List<String> = emptyList(),
+    val hasPrompt: Boolean = false,
+    val promptId: Int? = null,
 ) {
     companion object {
         /** Proto enum suffixes to strip for human-readable comparison. */
@@ -109,5 +109,29 @@ data class StructuralFingerprint(
         }
 
         private fun String.stripSuffix(): String = replace(PROTO_SUFFIX, "")
+    }
+}
+
+/** Read/write golden fingerprint sequences as JSON. */
+object GoldenSequence {
+    private val json = kotlinx.serialization.json.Json {
+        prettyPrint = true
+        encodeDefaults = false
+    }
+
+    fun toJson(sequence: List<StructuralFingerprint>): String =
+        json.encodeToString(sequence)
+
+    fun fromJson(text: String): List<StructuralFingerprint> =
+        json.decodeFromString(text)
+
+    fun fromFile(file: java.io.File): List<StructuralFingerprint> =
+        fromJson(file.readText())
+
+    /** Load from classpath resource (e.g. "golden/play-land.json"). */
+    fun fromResource(path: String): List<StructuralFingerprint> {
+        val stream = GoldenSequence::class.java.classLoader.getResourceAsStream(path)
+            ?: error("Golden resource not found: $path")
+        return fromJson(stream.bufferedReader().readText())
     }
 }
