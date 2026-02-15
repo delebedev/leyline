@@ -93,6 +93,7 @@ class MatchHandler(
             val s = MatchSession(seatId, matchId, sink, registry)
             session = s
             registry.registerSession(matchId, seatId, s)
+            registry.registerHandler(matchId, seatId, this)
 
             processGREMessage(ctx, greMsg)
         }
@@ -134,7 +135,7 @@ class MatchHandler(
                 sendDealHandAndMulligan(ctx) // seat 2: DealHand + MulliganReq
                 // Cross-connection: find seat 1's handler to send DealHand + MulliganReq
                 // Stub — will be wired properly via registry in Task 6
-                val seat1Handler = findHandler(matchId, 1)
+                val seat1Handler = registry.getHandler(matchId, 1)
                 if (seat1Handler != null) {
                     seat1Handler.sendDealHand()
                     seat1Handler.sendMulliganReq()
@@ -263,12 +264,6 @@ class MatchHandler(
         ProtoDump.dump(msg, "DealHand+MullReq-seat$seatId")
         ctx.writeAndFlush(msg)
     }
-
-    /**
-     * Find a peer MatchHandler for cross-connection signaling.
-     * Stub — returns null. Will be wired in Task 6.
-     */
-    private fun findHandler(@Suppress("UNUSED_PARAMETER") matchId: String, @Suppress("UNUSED_PARAMETER") targetSeat: Int): MatchHandler? = null
 
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
         log.error("Match Door error: {}", cause.message, cause)
