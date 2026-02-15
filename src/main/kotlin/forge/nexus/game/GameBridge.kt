@@ -42,6 +42,10 @@ class GameBridge {
     /** Prompt bridge for seat 1 — blocks engine on targeting/choice prompts. */
     val promptBridge = InteractivePromptBridge(timeoutMs = 120_000)
 
+    /** AI action playback — captures per-action state diffs via EventBus. Null before start(). */
+    var playback: NexusGamePlayback? = null
+        private set
+
     // --- Card ID mapping (Forge cardId ↔ Arena instanceId) ---
     private val forgeIdToInstanceId = ConcurrentHashMap<Int, Int>()
     private val instanceIdToForgeId = ConcurrentHashMap<Int, Int>()
@@ -139,6 +143,12 @@ class GameBridge {
         )
         loopController = loop
         loop.start()
+
+        // Register AI action playback subscriber
+        val pb = NexusGamePlayback(this, "forge-match-1", 1)
+        playback = pb
+        g.subscribeToEvents(pb)
+        log.info("ArenaGameBridge: registered NexusGamePlayback for AI action streaming")
 
         log.info("ArenaGameBridge: game loop started, waiting for mulligan")
         awaitMulliganReady()
@@ -244,6 +254,7 @@ class GameBridge {
         log.info("ArenaGameBridge: shutting down")
         loopController?.shutdown()
         loopController = null
+        playback = null
         game = null
     }
 
