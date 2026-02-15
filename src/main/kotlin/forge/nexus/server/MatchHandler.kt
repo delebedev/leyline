@@ -750,7 +750,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
             else -> "ai"
         }
         val stackDepth = game.stack?.size() ?: 0
-        GameStateCollector.recordEvent(gameStateId, type, phase, turn, detail, priority, stackDepth)
+        GameStateCollector.recordEvent(gameStateId, type, phase, turn, detail, priority, stackDepth, ArenaDebugCollector.currentSeq())
     }
 
     /**
@@ -967,7 +967,7 @@ class MatchHandler : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() 
     /** Send multiple GRE messages bundled in one MatchServiceToClientMessage. */
     private fun sendBundledGRE(ctx: ChannelHandlerContext, messages: List<GREToClientMessage>) {
         ArenaDebugCollector.recordOutbound(messages, seatId)
-        GameStateCollector.collectOutbound(messages)
+        GameStateCollector.collectOutbound(messages, ArenaDebugCollector.currentSeq())
         val event = GreToClientEvent.newBuilder()
         messages.forEach { event.addGreToClientMessages(it) }
         val msg = MatchServiceToClientMessage.newBuilder()

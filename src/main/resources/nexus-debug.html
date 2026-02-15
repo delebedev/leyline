@@ -505,6 +505,9 @@
               <template x-if="item.data.actions.length > 0">
                 <span class="st-zones" x-text="actionSummary(item.data)"></span>
               </template>
+              <template x-if="item.data.msgSeq > 0">
+                <span class="entry-meta" x-text="'msg#' + item.data.msgSeq"></span>
+              </template>
             </div>
             <!-- Inline diff -->
             <template x-if="expandedDiffs[item.data.gsId]">
@@ -527,6 +530,9 @@
                       x-text="item.data.priorityPlayer"></span>
               </template>
               <span class="st-phase" x-text="item.data.phase + ' T' + item.data.turn"></span>
+              <template x-if="item.data.msgSeq > 0">
+                <span class="entry-meta" x-text="'msg#' + item.data.msgSeq"></span>
+              </template>
             </div>
           </div>
         </template>
@@ -646,62 +652,120 @@ function debugApp() {
       return items;
     },
 
-    // Lifecycle
-    init() { this.poll(); },
+    // SSE state
+    _sseConnected: false,
 
-    // Polling
+    // Lifecycle
+    init() {
+      this.connectSSE();
+      this.poll();
+    },
+
+    connectSSE() {
+      try {
+        const es = new EventSource('/api/events');
+        es.addEventListener('message', (ev) => {
+          if (this.paused) return;
+          const e = JSON.parse(ev.data);
+          this.entries.push(e);
+          if (e.seq > this._lastSeq) this._lastSeq = e.seq;
+          if (this.entries.length > 1000) this.entries = this.entries.slice(-500);
+        });
+        es.addEventListener('log', (ev) => {
+          if (this.paused) return;
+          const l = JSON.parse(ev.data);
+          this.logEntries.push(l);
+          if (l.seq > this._lastLogSeq) this._lastLogSeq = l.seq;
+          if (this.logEntries.length > 5000) this.logEntries = this.logEntries.slice(-2000);
+        });
+        es.addEventListener('priority', (ev) => {
+          if (this.paused) return;
+          const e = JSON.parse(ev.data);
+          this.priorityEvents.push(e);
+          if (e.seq > this._lastEventSeq) this._lastEventSeq = e.seq;
+          if (this.priorityEvents.length > 1000) this.priorityEvents = this.priorityEvents.slice(-500);
+        });
+        es.addEventListener('state', (ev) => {
+          if (this.paused) return;
+          const s = JSON.parse(ev.data);
+          const idx = this.gameStates.findIndex(gs => gs.gsId === s.gsId);
+          if (idx >= 0) this.gameStates[idx] = s;
+          else this.gameStates.push(s);
+        });
+        es.onopen = () => { this._sseConnected = true; };
+        es.onerror = () => { this._sseConnected = false; };
+        this._sse = es;
+      } catch (_) { this._sseConnected = false; }
+    },
+
+    // Polling — SSE handles incremental data; poll only for state header + id-map + game-states timeline
     async poll() {
       if (!this.paused) {
         try {
-          const fetches = [
-            fetch('/api/messages?since=' + this._lastSeq),
-            fetch('/api/state'),
-            fetch('/api/logs?since=' + this._lastLogSeq + '&level=DEBUG'),
-          ];
-          // Only fetch states/events when States tab is active
+          const fetches = [fetch('/api/state')];
+          // When SSE is not connected, fall back to REST polling for incremental data
+          if (!this._sseConnected) {
+            fetches.push(fetch('/api/messages?since=' + this._lastSeq));
+            fetches.push(fetch('/api/logs?since=' + this._lastLogSeq + '&level=DEBUG'));
+          }
+          // Game states timeline (full reload) — only when States tab is active
           if (this.view === 'states') {
             fetches.push(fetch('/api/game-states'));
-            fetches.push(fetch('/api/priority-events?since=' + this._lastEventSeq));
+            if (!this._sseConnected) {
+              fetches.push(fetch('/api/priority-events?since=' + this._lastEventSeq));
+            }
           }
           const responses = await Promise.all(fetches);
-          const msgs = await responses[0].json();
-          const state = await responses[1].json();
-          const logs = await responses[2].json();
+          let ri = 0;
+          this.state = await responses[ri++].json();
 
-          if (msgs.length > 0) {
-            for (const e of msgs) {
-              this.entries.push(e);
-              if (e.seq > this._lastSeq) this._lastSeq = e.seq;
-            }
-            if (this.entries.length > 1000) this.entries = this.entries.slice(-500);
-          }
-
-          if (logs.length > 0) {
-            for (const l of logs) {
-              this.logEntries.push(l);
-              if (l.seq > this._lastLogSeq) this._lastLogSeq = l.seq;
-            }
-            if (this.logEntries.length > 5000) this.logEntries = this.logEntries.slice(-2000);
-          }
-
-          // States tab data
-          if (responses.length > 3) {
-            this.gameStates = await responses[3].json();
-            const newEvents = await responses[4].json();
-            if (newEvents.length > 0) {
-              for (const ev of newEvents) {
-                this.priorityEvents.push(ev);
-                if (ev.seq > this._lastEventSeq) this._lastEventSeq = ev.seq;
+          if (!this._sseConnected) {
+            // Messages (envelope)
+            const msgsEnv = await responses[ri++].json();
+            const msgs = msgsEnv.data || msgsEnv;
+            if (msgs.length > 0) {
+              for (const e of msgs) {
+                this.entries.push(e);
+                if (e.seq > this._lastSeq) this._lastSeq = e.seq;
               }
-              if (this.priorityEvents.length > 1000) this.priorityEvents = this.priorityEvents.slice(-500);
+              if (msgsEnv.cursor) this._lastSeq = msgsEnv.cursor;
+              if (this.entries.length > 1000) this.entries = this.entries.slice(-500);
+            }
+            // Logs (envelope)
+            const logsEnv = await responses[ri++].json();
+            const logs = logsEnv.data || logsEnv;
+            if (logs.length > 0) {
+              for (const l of logs) {
+                this.logEntries.push(l);
+                if (l.seq > this._lastLogSeq) this._lastLogSeq = l.seq;
+              }
+              if (logsEnv.cursor) this._lastLogSeq = logsEnv.cursor;
+              if (this.logEntries.length > 5000) this.logEntries = this.logEntries.slice(-2000);
             }
           }
 
-          this.state = state;
+          // Game states timeline (envelope)
+          if (this.view === 'states') {
+            const gsEnv = await responses[ri++].json();
+            this.gameStates = gsEnv.data || gsEnv;
+            if (!this._sseConnected) {
+              const evEnv = await responses[ri++].json();
+              const newEvents = evEnv.data || evEnv;
+              if (newEvents.length > 0) {
+                for (const ev of newEvents) {
+                  this.priorityEvents.push(ev);
+                  if (ev.seq > this._lastEventSeq) this._lastEventSeq = ev.seq;
+                }
+                if (evEnv.cursor) this._lastEventSeq = evEnv.cursor;
+                if (this.priorityEvents.length > 1000) this.priorityEvents = this.priorityEvents.slice(-500);
+              }
+            }
+          }
+
           if (this.showIdPanel) this.fetchIdMap();
         } catch (_) { /* server not up */ }
       }
-      setTimeout(() => this.poll(), 500);
+      setTimeout(() => this.poll(), this._sseConnected ? 2000 : 500);
     },
 
     // Actions
@@ -798,7 +862,8 @@ function debugApp() {
 
     async fetchIdMap() {
       try {
-        this.idMap = await (await fetch('/api/id-map')).json();
+        const env = await (await fetch('/api/id-map')).json();
+        this.idMap = env.data || env;
       } catch (_) {}
     },
 

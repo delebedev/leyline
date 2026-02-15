@@ -7,8 +7,10 @@ import com.google.protobuf.util.JsonFormat
 import forge.nexus.game.CardDb
 import forge.nexus.server.MatchHandler
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.collections.iterator
 
 /**
@@ -25,6 +27,8 @@ object ArenaDebugCollector {
     private val jsonPrinter: JsonFormat.Printer = JsonFormat.printer()
         .omittingInsignificantWhitespace()
         .preservingProtoFieldNames()
+
+    private val sseJson = Json { encodeDefaults = true }
 
     @Serializable
     data class Entry(
@@ -78,6 +82,9 @@ object ArenaDebugCollector {
             }
         }
     }
+
+    /** Current message sequence number (for cross-referencing with other timelines). */
+    fun currentSeq(): Int = synchronized(buffer) { seq }
 
     /** Return entries with seq > sinceSeq. */
     fun snapshot(sinceSeq: Int): List<Entry> = synchronized(buffer) {
@@ -156,11 +163,17 @@ object ArenaDebugCollector {
 
     // --- Internal ---
 
-    private fun add(entry: Entry) = synchronized(buffer) {
-        seq++
-        val numbered = entry.copy(seq = seq)
-        if (buffer.size >= MAX_ENTRIES) buffer.removeFirst()
-        buffer.addLast(numbered)
+    private fun add(entry: Entry) {
+        val numbered: Entry
+        synchronized(buffer) {
+            seq++
+            numbered = entry.copy(seq = seq)
+            if (buffer.size >= MAX_ENTRIES) buffer.removeFirst()
+            buffer.addLast(numbered)
+        }
+        try {
+            DebugEventBus.emit("message", sseJson.encodeToString(numbered))
+        } catch (_: Exception) {}
     }
 
     private fun safeToJson(msg: MessageOrBuilder): String = try {
@@ -267,11 +280,16 @@ object ArenaDebugCollector {
     )
 
     internal fun recordLog(ts: Long, level: String, logger: String, message: String, thread: String) {
+        val entry: LogEntry
         synchronized(logBuffer) {
             logSeq++
+            entry = LogEntry(logSeq, ts, level, logger, message, thread)
             if (logBuffer.size >= MAX_LOG_ENTRIES) logBuffer.removeFirst()
-            logBuffer.addLast(LogEntry(logSeq, ts, level, logger, message, thread))
+            logBuffer.addLast(entry)
         }
+        try {
+            DebugEventBus.emit("log", sseJson.encodeToString(entry))
+        } catch (_: Exception) {}
     }
 
     fun logSnapshot(sinceSeq: Int, minLevel: String?): List<LogEntry> {
@@ -307,5 +325,28 @@ class ArenaDebugLogAppender : AppenderBase<ILoggingEvent>() {
             message = event.formattedMessage ?: "",
             thread = event.threadName ?: "",
         )
+    }
+}
+
+/**
+ * Pub/sub bus for real-time debug events (SSE).
+ * Collectors emit typed events; [DebugServer] SSE endpoint subscribes.
+ */
+object DebugEventBus {
+    private val listeners = CopyOnWriteArrayList<(String, String) -> Unit>()
+
+    fun addListener(listener: (String, String) -> Unit) {
+        listeners.add(listener)
+    }
+    fun removeListener(listener: (String, String) -> Unit) {
+        listeners.remove(listener)
+    }
+
+    fun emit(type: String, data: String) {
+        for (l in listeners) {
+            try {
+                l(type, data)
+            } catch (_: Exception) {}
+        }
     }
 }
