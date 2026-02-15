@@ -30,6 +30,9 @@ class MatchSession(
 ) {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
+    /** Serializes all game-logic entry points (Netty I/O threads are concurrent). */
+    private val sessionLock = Any()
+
     var msgIdCounter = 1
     var gameStateId = 0
     var gameBridge: GameBridge? = null
@@ -53,7 +56,7 @@ class MatchSession(
      * After keep: wait for engine to reach priority, send real game state bundle.
      * Then auto-pass through phases where only Pass is available.
      */
-    fun onMulliganKeep() {
+    fun onMulliganKeep() = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         log.info("MatchSession: waiting for engine to reach priority after keep")
         bridge.awaitPriority()
@@ -85,8 +88,16 @@ class MatchSession(
     /**
      * Handle a client action (land play, spell cast, pass) and advance the engine.
      */
-    fun onPerformAction(greMsg: ClientToGREMessage) {
+    fun onPerformAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
+
+        // Reject stale actions — client may resend with outdated gameStateId
+        val clientGsId = greMsg.gameStateId
+        if (clientGsId != 0 && clientGsId < gameStateId) {
+            log.warn("MatchSession: stale PerformActionResp gsId={} (current={}), ignoring", clientGsId, gameStateId)
+            return
+        }
+
         val pending = bridge.actionBridge.getPending() ?: run {
             log.warn("MatchSession: PerformActionResp but no pending action — recovering")
             autoPassAndAdvance(bridge)
@@ -172,7 +183,7 @@ class MatchSession(
     /**
      * Handle DeclareAttackersResp: map instanceIds to forge card IDs and submit.
      */
-    fun onDeclareAttackers(greMsg: ClientToGREMessage) {
+    fun onDeclareAttackers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         inInteractivePrompt = false
 
@@ -223,7 +234,7 @@ class MatchSession(
     /**
      * Handle DeclareBlockersResp: map blocker->attacker assignments and submit.
      */
-    fun onDeclareBlockers(greMsg: ClientToGREMessage) {
+    fun onDeclareBlockers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         inInteractivePrompt = false
 
@@ -264,7 +275,7 @@ class MatchSession(
     /**
      * Handle SelectTargetsResp: map Arena instanceIds back to prompt option indices and submit.
      */
-    fun onSelectTargets(greMsg: ClientToGREMessage) {
+    fun onSelectTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         inInteractivePrompt = false
 
@@ -297,13 +308,13 @@ class MatchSession(
     }
 
     /** Handle concede: remove bridge and send game-over. */
-    fun onConcede() {
+    fun onConcede() = synchronized(sessionLock) {
         registry.removeBridge(matchId)?.shutdown()
         sendGameOver()
     }
 
     /** Handle SetSettingsReq: save settings and echo response. */
-    fun onSettings(greMsg: ClientToGREMessage) {
+    fun onSettings(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val reqSettings = greMsg.setSettingsReq
         clientSettings = reqSettings.settings
         log.info("MatchSession: SetSettingsReq (stops={})", reqSettings.settings.stopsCount)
