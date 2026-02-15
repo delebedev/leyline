@@ -71,3 +71,29 @@ Arena golden:  ActivateMana, Cast, FloatMana, Pass
 **Investigation pointers:**
 - Check if fixing BUG-002 (adding ActivateMana) also fixes the Pass button
 - Check `reference/auto-pass-protocol.md` for prompt/button rendering requirements
+
+---
+
+### BUG-004: UI stuck on Sparky's main phase — MatchSession race condition
+
+**Status:** Fixed
+**Observed:** 2026-02-15
+**Module:** forge-nexus
+
+**Symptoms:** Client UI stuck during Sparky's (AI) main phase. No further state updates from server. Client had 8 cards in hand (never played a land on turn 1). Server sent ActionsAvailableReq with Play=4 Pass=1 but then went silent.
+
+**Root cause:** Race condition in `MatchSession.onPerformAction()`. No synchronization on session methods — Netty dispatches concurrent calls on I/O threads.
+
+Client sends two `PerformActionResp` back-to-back:
+1. First with stale `gsId=37` (client hadn't processed latest state yet)
+2. Second with correct `gsId=38`
+
+Both hit `onPerformAction` concurrently:
+- Call 1: consumes pending action via `bridge.actionBridge.getPending()`, submits it, blocks in `bridge.awaitPriority()`
+- Call 2: `getPending()` returns null (already consumed by call 1), enters recovery path → `autoPassAndAdvance()` while call 1 is still blocking
+
+The deadlock: call 2's `autoPassAndAdvance()` tries to call `bridge.awaitPriority()` while call 1 is already blocking on it. Or call 2 mutates `msgIdCounter`/`gameStateId` while call 1 is still using stale values.
+
+**Fix:**
+1. Add gsId guard: reject `PerformActionResp` with stale `gameStateId`
+2. Add synchronization to all public session methods to prevent concurrent access
