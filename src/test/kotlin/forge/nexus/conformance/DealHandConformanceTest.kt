@@ -1,6 +1,7 @@
 package forge.nexus.conformance
 
 import forge.nexus.game.GameBridge
+import forge.nexus.game.StateMapper
 import forge.nexus.protocol.Templates
 import forge.web.game.GameBootstrap
 import org.testng.Assert.assertEquals
@@ -169,6 +170,73 @@ class DealHandConformanceTest {
         // Verify settings round-trip: echoed settings match input
         val echoed = msg.greToClientEvent.getGreToClientMessages(0).setSettingsResp.settings
         assertEquals(echoed, binSettings, "Settings should round-trip exactly")
+    }
+
+    @Test
+    fun initialBundleSeat2MatchesRecording() {
+        val binFps = RecordingParser.parsePayload(loadBin("initial-bundle-seat2.bin"))
+        assertEquals(binFps.size, 3, "Recording should have 3 GRE messages (DieRoll + GSM + ChooseStartingPlayerReq)")
+
+        val b = startBridge()
+        val deck = StateMapper.buildDeckMessage(b.getDeckGrpIds(2))
+        val (msg, _) = Templates.initialBundle(2, "test-match", 3, 1, deck, b)
+        val dynFps = msg.greToClientEvent.greToClientMessagesList
+            .map { StructuralFingerprint.fromGRE(it) }
+        assertEquals(dynFps.size, 3, "Dynamic should have 3 GRE messages")
+
+        // Message 0: DieRollResultsResp
+        assertEquals(dynFps[0].greMessageType, binFps[0].greMessageType, "DieRoll: GRE type")
+
+        // Message 1: GameStateMessage (Full)
+        val goldenGsm = binFps[1]
+        val actualGsm = dynFps[1]
+        assertEquals(actualGsm.greMessageType, goldenGsm.greMessageType, "GSM: GRE type")
+        assertEquals(actualGsm.gsType, goldenGsm.gsType, "GSM: type (Full)")
+        assertEquals(actualGsm.updateType, goldenGsm.updateType, "GSM: update type")
+        assertEquals(actualGsm.zoneCount, goldenGsm.zoneCount, "GSM: zone count (17)")
+
+        val requiredFields = goldenGsm.fieldPresence - "actions"
+        val missing = requiredFields - actualGsm.fieldPresence
+        assertTrue(missing.isEmpty(), "GSM: Missing required fields: $missing")
+
+        // Message 2: ChooseStartingPlayerReq
+        assertEquals(dynFps[2].greMessageType, binFps[2].greMessageType, "ChooseStartingPlayerReq: GRE type")
+    }
+
+    @Test
+    fun initialBundleSeat1MatchesRecording() {
+        val binFps = RecordingParser.parsePayload(loadBin("initial-bundle-seat1.bin"))
+        assertEquals(binFps.size, 3, "Recording should have 3 GRE messages (ConnectResp + DieRoll + GSM)")
+
+        val b = startBridge()
+        val deck = StateMapper.buildDeckMessage(b.getDeckGrpIds(1))
+        val (msg, _) = Templates.initialBundle(1, "test-match", 2, 1, deck, b)
+        val dynFps = msg.greToClientEvent.greToClientMessagesList
+            .map { StructuralFingerprint.fromGRE(it) }
+        assertEquals(dynFps.size, 3, "Dynamic should have 3 GRE messages")
+
+        // Message 0: ConnectResp
+        assertEquals(dynFps[0].greMessageType, binFps[0].greMessageType, "ConnectResp: GRE type")
+
+        // Message 1: DieRollResultsResp
+        assertEquals(dynFps[1].greMessageType, binFps[1].greMessageType, "DieRoll: GRE type")
+
+        // Message 2: GameStateMessage (Full)
+        val goldenGsm = binFps[2]
+        val actualGsm = dynFps[2]
+        assertEquals(actualGsm.greMessageType, goldenGsm.greMessageType, "GSM: GRE type")
+        assertEquals(actualGsm.gsType, goldenGsm.gsType, "GSM: type (Full)")
+        assertEquals(actualGsm.updateType, goldenGsm.updateType, "GSM: update type")
+        assertEquals(actualGsm.zoneCount, goldenGsm.zoneCount, "GSM: zone count (17)")
+
+        val requiredFields = goldenGsm.fieldPresence - "actions"
+        val missing = requiredFields - actualGsm.fieldPresence
+        assertTrue(missing.isEmpty(), "GSM: Missing required fields: $missing")
+
+        // Verify ConnectResp has deck
+        val connectResp = msg.greToClientEvent.getGreToClientMessages(0).connectResp
+        assertEquals(connectResp.status, ConnectionStatus.Success_aa9e, "ConnectResp status")
+        assertTrue(connectResp.deckMessage.deckCardsCount > 0, "ConnectResp should have deck")
     }
 
     @Test
