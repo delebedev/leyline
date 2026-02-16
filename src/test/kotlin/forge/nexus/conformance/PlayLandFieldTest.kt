@@ -8,6 +8,7 @@ import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
+import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
 /**
  * Field-level integration test for play-land protocol messages.
@@ -31,6 +32,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     private companion object {
         const val ZONE_BATTLEFIELD = 28
+        const val ZONE_LIMBO = 30
         const val ZONE_P1_HAND = 31
     }
 
@@ -163,6 +165,32 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
         assertEquals(landObj.zoneId, ZONE_BATTLEFIELD, "Land should be on battlefield")
         assertTrue(landObj.uniqueAbilitiesCount > 0, "Land gameObject should have uniqueAbilities (mana ability), got 0")
+    }
+
+    @Test(description = "Play land: old instanceId retired to Limbo with gameObject entry")
+    fun oldInstanceRetiredToLimbo() {
+        val (gsm, origInstanceId, newInstanceId) = playLandAndCaptureWithIds() ?: return
+
+        // Old instanceId should NOT be the same as new
+        assertNotEquals(origInstanceId, newInstanceId, "Zone transfer must allocate a new instanceId")
+
+        // Limbo zone should contain the old instanceId
+        val limboZone = gsm.zonesList.firstOrNull { it.type == ZoneType.Limbo }
+        assertTrue(limboZone != null, "GSM should have Limbo zone")
+        assertTrue(
+            limboZone!!.objectInstanceIdsList.contains(origInstanceId),
+            "Limbo zone should contain old instanceId $origInstanceId, got: ${limboZone.objectInstanceIdsList}",
+        )
+
+        // Old instanceId should have a gameObject in Limbo
+        val limboObj = gsm.gameObjectsList.firstOrNull { it.instanceId == origInstanceId }
+        assertTrue(limboObj != null, "GSM should have gameObject for retired old instanceId $origInstanceId")
+        assertEquals(limboObj!!.zoneId, ZONE_LIMBO, "Retired object should be in Limbo zone")
+
+        // New instanceId should be on battlefield (not in Limbo)
+        val newObj = gsm.gameObjectsList.firstOrNull { it.instanceId == newInstanceId }
+        assertTrue(newObj != null, "GSM should have gameObject for new instanceId $newInstanceId")
+        assertEquals(newObj!!.zoneId, ZONE_BATTLEFIELD, "New object should be on battlefield")
     }
 
     // --- helpers ---
