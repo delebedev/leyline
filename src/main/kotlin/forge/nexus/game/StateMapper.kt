@@ -461,8 +461,7 @@ object StateMapper {
             .addAllZones(zones)
             .addAllGameObjects(gameObjects)
             .addAllAnnotations(numberedAnnotations)
-            // TODO: re-enable once client crash is diagnosed
-            // .addAllPersistentAnnotations(persistentAnnotations)
+            .addAllPersistentAnnotations(persistentAnnotations)
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
         if (prevState != null && prevState.gameStateId > 0) {
@@ -533,8 +532,7 @@ object StateMapper {
             .addAllZones(changedZones)
             .addAllGameObjects(changedObjects)
             .addAllAnnotations(current.annotationsList)
-            // TODO: re-enable once client crash is diagnosed
-            // .addAllPersistentAnnotations(current.persistentAnnotationsList)
+            .addAllPersistentAnnotations(current.persistentAnnotationsList)
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
             .setPrevGameStateId(prev.gameStateId)
