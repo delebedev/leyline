@@ -40,8 +40,9 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ObjectIdChanged)
             .addAffectedIds(origId)
-            .addDetails(int32Detail("orig_id", origId))
-            .addDetails(int32Detail("new_id", newId))
+            // TODO: re-enable after client crash bisect
+            // .addDetails(int32Detail("orig_id", origId))
+            // .addDetails(int32Detail("new_id", newId))
             .build()
 
     /**
