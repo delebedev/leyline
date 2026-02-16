@@ -1,7 +1,6 @@
 package forge.nexus.conformance
 
 import forge.nexus.game.BundleBuilder
-import forge.nexus.game.CardDb
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotEquals
 import org.testng.Assert.assertTrue
@@ -48,14 +47,14 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: ZoneTransfer has affectedIds=[land], typed zone details, category=PlayLand")
     fun zoneTransferAnnotationFields() {
-        val (gsm, landInstanceId) = playLandAndCaptureWithId() ?: return
+        val (gsm, _, newInstanceId) = playLandAndCaptureWithIds() ?: return
 
         val zt = gsm.annotationsList.firstOrNull { AnnotationType.ZoneTransfer_af5a in it.typeList }
         assertTrue(zt != null, "Should have ZoneTransfer annotation")
         zt!!
 
-        // affectedIds should reference the land
-        assertTrue(zt.affectedIdsList.contains(landInstanceId), "ZoneTransfer affectedIds should contain land instanceId $landInstanceId, got: ${zt.affectedIdsList}")
+        // affectedIds should reference the new instanceId (post zone-transfer)
+        assertTrue(zt.affectedIdsList.contains(newInstanceId), "ZoneTransfer affectedIds should contain land instanceId $newInstanceId, got: ${zt.affectedIdsList}")
 
         // zone_src detail: typed int32, value = hand zone
         val zoneSrc = zt.detailsList.firstOrNull { it.key == "zone_src" }
@@ -79,33 +78,34 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: ObjectIdChanged has orig_id/new_id details with typed int32 values")
     fun objectIdChangedDetails() {
-        val (gsm, landInstanceId) = playLandAndCaptureWithId() ?: return
+        val (gsm, origInstanceId, newInstanceId) = playLandAndCaptureWithIds() ?: return
 
         val oic = gsm.annotationsList.firstOrNull { AnnotationType.ObjectIdChanged in it.typeList }
         assertTrue(oic != null, "Should have ObjectIdChanged annotation")
         oic!!
 
-        assertTrue(oic.affectedIdsList.contains(landInstanceId), "ObjectIdChanged affectedIds should contain land instanceId $landInstanceId")
+        // affectedIds = orig (pre-move) instanceId
+        assertTrue(oic.affectedIdsList.contains(origInstanceId), "ObjectIdChanged affectedIds should contain orig instanceId $origInstanceId")
 
-        // orig_id detail
-        val origId = oic.detailsList.firstOrNull { it.key == "orig_id" }
-        assertTrue(origId != null, "ObjectIdChanged should have orig_id detail")
-        assertEquals(origId!!.type, KeyValuePairValueType.Int32, "orig_id should use Int32 type")
-        assertTrue(origId.valueInt32Count > 0, "orig_id should have a value")
+        // orig_id detail = pre-move ID
+        val origIdDetail = oic.detailsList.firstOrNull { it.key == "orig_id" }
+        assertTrue(origIdDetail != null, "ObjectIdChanged should have orig_id detail")
+        assertEquals(origIdDetail!!.type, KeyValuePairValueType.Int32, "orig_id should use Int32 type")
+        assertEquals(origIdDetail.getValueInt32(0), origInstanceId, "orig_id should equal pre-move instanceId")
 
-        // new_id detail
-        val newId = oic.detailsList.firstOrNull { it.key == "new_id" }
-        assertTrue(newId != null, "ObjectIdChanged should have new_id detail")
-        assertEquals(newId!!.type, KeyValuePairValueType.Int32, "new_id should use Int32 type")
-        assertTrue(newId.valueInt32Count > 0, "new_id should have a value")
+        // new_id detail = post-move ID
+        val newIdDetail = oic.detailsList.firstOrNull { it.key == "new_id" }
+        assertTrue(newIdDetail != null, "ObjectIdChanged should have new_id detail")
+        assertEquals(newIdDetail!!.type, KeyValuePairValueType.Int32, "new_id should use Int32 type")
+        assertEquals(newIdDetail.getValueInt32(0), newInstanceId, "new_id should equal post-move instanceId")
 
-        // new_id should match the land's current instanceId
-        assertEquals(newId.getValueInt32(0), landInstanceId, "new_id should equal land's instanceId after move")
+        // orig and new must differ (real server always allocates new ID on zone transfer)
+        assertNotEquals(origInstanceId, newInstanceId, "orig_id and new_id should differ after zone transfer")
     }
 
     @Test(description = "Play land: UserActionTaken has affectorId=seatId, actionType + abilityGrpId details")
     fun userActionTakenFields() {
-        val (gsm, landInstanceId) = playLandAndCaptureWithId() ?: return
+        val (gsm, _, landInstanceId) = playLandAndCaptureWithIds() ?: return
 
         val uat = gsm.annotationsList.firstOrNull { AnnotationType.UserActionTaken in it.typeList }
         assertTrue(uat != null, "Should have UserActionTaken annotation")
@@ -139,7 +139,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: persistentAnnotations includes EnteredZoneThisTurn for the land")
     fun persistentAnnotationsPresent() {
-        val (gsm, landInstanceId) = playLandAndCaptureWithId() ?: return
+        val (gsm, _, landInstanceId) = playLandAndCaptureWithIds() ?: return
 
         assertTrue(gsm.persistentAnnotationsCount > 0, "GSM should have persistentAnnotations after playing a land")
 
@@ -155,7 +155,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: land gameObject on battlefield has uniqueAbilities (mana ability)")
     fun landHasUniqueAbilities() {
-        val (gsm, landInstanceId) = playLandAndCaptureWithId() ?: return
+        val (gsm, _, landInstanceId) = playLandAndCaptureWithIds() ?: return
 
         val landObj = gsm.gameObjectsList.firstOrNull { it.instanceId == landInstanceId }
         assertTrue(landObj != null, "GSM should have gameObject for the played land")
@@ -176,21 +176,29 @@ class PlayLandFieldTest : ConformanceTestBase() {
         return gsmMsg.gameStateMessage
     }
 
-    private fun playLandAndCaptureWithId(): Pair<GameStateMessage, Int>? {
+    /**
+     * Returns (gsm, origInstanceId, newInstanceId).
+     * origInstanceId = pre-play ID (used in ObjectIdChanged.affectedIds/orig_id).
+     * newInstanceId = post-play ID (used in ZoneTransfer, UserActionTaken, gameObjects).
+     */
+    private fun playLandAndCaptureWithIds(): Triple<GameStateMessage, Int, Int>? {
         val (b, game, gsId) = startGameAtMain1()
 
-        // Find the land before playing it so we can track its instanceId
+        // Capture pre-play instanceId
         val player = b.getPlayer(1) ?: return null
         val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
-        val landInstanceId = b.getOrAllocInstanceId(land.id)
-        val landName = land.name
-        val grpId = CardDb.lookupByName(landName) ?: 0
+        val origInstanceId = b.getOrAllocInstanceId(land.id)
+        val forgeCardId = land.id
 
         playLand(b) ?: return null
 
+        // postAction triggers buildFromGame → reallocInstanceId on zone transfer
         val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, gsId)
         val gsmMsg = result.messages.firstOrNull { it.hasGameStateMessage() } ?: return null
 
-        return gsmMsg.gameStateMessage to landInstanceId
+        // After postAction, forward map points to the new ID
+        val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
+
+        return Triple(gsmMsg.gameStateMessage, origInstanceId, newInstanceId)
     }
 }
