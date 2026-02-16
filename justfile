@@ -48,7 +48,7 @@ build: check-java _check-upstream
 dev-build: check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_skip}} compile -q
+    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_skip}} compile -q && echo "dev-build OK"
     if [ ! -f "{{classpath}}" ] || [ "{{nexus_dir}}/pom.xml" -nt "{{classpath}}" ] || [ "{{root_dir}}/pom.xml" -nt "{{classpath}}" ]; then
         cd "{{root_dir}}" && mvn -pl forge-nexus \
             {{mvn_skip}} \

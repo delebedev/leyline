@@ -412,9 +412,11 @@ object StateMapper {
             bridge.recordZone(obj.instanceId, obj.zoneId)
         }
         // Assign sequential IDs to all annotations
-        val numberedAnnotations = annotations.map {
-            it.toBuilder().setId(bridge.nextAnnotationId()).build()
-        }
+        // TODO: re-enable once client crash is diagnosed
+        // val numberedAnnotations = annotations.map {
+        //     it.toBuilder().setId(bridge.nextAnnotationId()).build()
+        // }
+        val numberedAnnotations = annotations
 
         // Combat damage annotations: when at damage phase with active combat
         if (handler.phase == PhaseType.COMBAT_DAMAGE || handler.phase == PhaseType.COMBAT_FIRST_STRIKE_DAMAGE) {
@@ -461,7 +463,8 @@ object StateMapper {
             .addAllZones(zones)
             .addAllGameObjects(gameObjects)
             .addAllAnnotations(numberedAnnotations)
-            .addAllPersistentAnnotations(persistentAnnotations)
+            // TODO: re-enable once client crash is diagnosed
+            // .addAllPersistentAnnotations(persistentAnnotations)
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
         if (prevState != null && prevState.gameStateId > 0) {
@@ -532,7 +535,8 @@ object StateMapper {
             .addAllZones(changedZones)
             .addAllGameObjects(changedObjects)
             .addAllAnnotations(current.annotationsList)
-            .addAllPersistentAnnotations(current.persistentAnnotationsList)
+            // TODO: re-enable once client crash is diagnosed
+            // .addAllPersistentAnnotations(current.persistentAnnotationsList)
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
             .setPrevGameStateId(prev.gameStateId)

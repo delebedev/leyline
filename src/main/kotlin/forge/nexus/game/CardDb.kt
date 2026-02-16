@@ -102,14 +102,14 @@ object CardDb {
         card.colors.forEach { builder.addColor(CardColor.forNumber(it) ?: return@forEach) }
         if (card.power.isNotEmpty()) builder.setPower(Int32Value.newBuilder().setValue(card.power.toIntOrNull() ?: 0))
         if (card.toughness.isNotEmpty()) builder.setToughness(Int32Value.newBuilder().setValue(card.toughness.toIntOrNull() ?: 0))
-        var abilitySeqId = 50
-        val abilities = card.abilityIds.ifEmpty {
-            // Basic lands have implicit mana abilities not stored in the DB
-            basicLandAbility(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
-        }
-        abilities.forEach { (abilityGrpId, _) ->
-            builder.addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(abilityGrpId))
-        }
+        // TODO: re-enable after client crash bisect
+        // var abilitySeqId = 50
+        // val abilities = card.abilityIds.ifEmpty {
+        //     basicLandAbility(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
+        // }
+        // abilities.forEach { (abilityGrpId, _) ->
+        //     builder.addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(abilityGrpId))
+        // }
         return builder
     }
 
@@ -151,16 +151,17 @@ object CardDb {
         }
 
         // Abilities — abilityGrpId is the lookup key, id is sequential per object
-        builder.clearUniqueAbilities()
-        var abilitySeqId = template.uniqueAbilitiesList.firstOrNull()?.id ?: 50
-        val abilities = card.abilityIds.ifEmpty {
-            basicLandAbility(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
-        }
-        abilities.forEach { (abilityGrpId, _) ->
-            builder.addUniqueAbilities(
-                UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(abilityGrpId),
-            )
-        }
+        // TODO: re-enable after client crash bisect
+        // builder.clearUniqueAbilities()
+        // var abilitySeqId = template.uniqueAbilitiesList.firstOrNull()?.id ?: 50
+        // val abilities = card.abilityIds.ifEmpty {
+        //     basicLandAbility(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
+        // }
+        // abilities.forEach { (abilityGrpId, _) ->
+        //     builder.addUniqueAbilities(
+        //         UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(abilityGrpId),
+        //     )
+        // }
 
         return builder.build()
     }
