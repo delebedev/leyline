@@ -8,6 +8,7 @@ import org.testng.Assert.assertTrue
 import org.testng.annotations.AfterMethod
 import org.testng.annotations.BeforeClass
 import org.testng.annotations.Test
+import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
  * Compares dynamically-built pre-mulligan messages against recorded Arena .bin templates.
@@ -143,5 +144,53 @@ class DealHandConformanceTest {
         assertEquals(actualMull.greMessageType, goldenMull.greMessageType, "MulliganReq: GRE type")
         assertEquals(actualMull.hasPrompt, goldenMull.hasPrompt, "MulliganReq: has prompt")
         assertEquals(actualMull.promptId, goldenMull.promptId, "MulliganReq: prompt ID")
+    }
+
+    @Test
+    fun settingsRespSeat1MatchesRecording() {
+        val binFps = RecordingParser.parsePayload(loadBin("settings-resp-seat1.bin"))
+        assertEquals(binFps.size, 1, "Recording should have 1 GRE message")
+
+        // Parse the recording's settings to use as client input
+        val binMsg = MatchServiceToClientMessage.parseFrom(loadBin("settings-resp-seat1.bin"))
+        val binSettings = binMsg.greToClientEvent.getGreToClientMessages(0).setSettingsResp.settings
+
+        val (msg, nextMsgId) = Templates.settingsResp(1, 9, 2, binSettings)
+        assertEquals(nextMsgId, 10, "Next msgId should be 10")
+
+        val dynFps = msg.greToClientEvent.greToClientMessagesList
+            .map { StructuralFingerprint.fromGRE(it) }
+        assertEquals(dynFps.size, 1, "Dynamic should have 1 GRE message")
+
+        val golden = binFps[0]
+        val actual = dynFps[0]
+        assertEquals(actual.greMessageType, golden.greMessageType, "GRE message type")
+
+        // Verify settings round-trip: echoed settings match input
+        val echoed = msg.greToClientEvent.getGreToClientMessages(0).setSettingsResp.settings
+        assertEquals(echoed, binSettings, "Settings should round-trip exactly")
+    }
+
+    @Test
+    fun settingsRespSeat2MatchesRecording() {
+        val binFps = RecordingParser.parsePayload(loadBin("settings-resp-seat2.bin"))
+        assertEquals(binFps.size, 1, "Recording should have 1 GRE message")
+
+        val binMsg = MatchServiceToClientMessage.parseFrom(loadBin("settings-resp-seat2.bin"))
+        val binSettings = binMsg.greToClientEvent.getGreToClientMessages(0).setSettingsResp.settings
+
+        val (msg, nextMsgId) = Templates.settingsResp(2, 8, 2, binSettings)
+        assertEquals(nextMsgId, 9, "Next msgId should be 9")
+
+        val dynFps = msg.greToClientEvent.greToClientMessagesList
+            .map { StructuralFingerprint.fromGRE(it) }
+        assertEquals(dynFps.size, 1, "Dynamic should have 1 GRE message")
+
+        val golden = binFps[0]
+        val actual = dynFps[0]
+        assertEquals(actual.greMessageType, golden.greMessageType, "GRE message type")
+
+        val echoed = msg.greToClientEvent.getGreToClientMessages(0).setSettingsResp.settings
+        assertEquals(echoed, binSettings, "Settings should round-trip exactly")
     }
 }
