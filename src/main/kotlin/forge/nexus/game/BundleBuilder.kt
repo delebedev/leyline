@@ -220,7 +220,7 @@ object BundleBuilder {
      * Used to decide whether to auto-pass or send state to the client.
      */
     fun shouldAutoPass(actions: ActionsAvailableReq): Boolean =
-        actions.actionsList.all { it.actionType == ActionType.Pass }
+        actions.actionsList.all { it.actionType == ActionType.Pass || it.actionType == ActionType.FloatMana }
 
     /**
      * Phase transition bundle matching real server pattern (5 messages):
@@ -313,19 +313,18 @@ object BundleBuilder {
         return BundleResult(listOf(msg1, msg2, msg3, msg4, msg5), nextMsg, nextGs)
     }
 
-    /** Embed actions from ActionsAvailableReq into a GameStateMessage builder. */
+    /** Embed stripped-down actions from ActionsAvailableReq into a GSM builder. */
     private fun embedActions(
         builder: GameStateMessage.Builder,
         actions: ActionsAvailableReq,
         seatId: Int,
     ) {
-        var actionId = 1
+        builder.setPendingMessageCount(1)
         for (action in actions.actionsList) {
             builder.addActions(
                 ActionInfo.newBuilder()
-                    .setActionId(actionId++)
                     .setSeatId(seatId)
-                    .setAction(action),
+                    .setAction(StateMapper.stripActionForGsm(action)),
             )
         }
     }

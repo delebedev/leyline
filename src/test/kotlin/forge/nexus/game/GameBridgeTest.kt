@@ -709,18 +709,20 @@ class GameBridgeTest {
 
         if (castActions.isNotEmpty()) {
             val cast = castActions.first()
-            Assert.assertTrue(
-                cast.abilityGrpId > 0,
-                "Cast action must have abilityGrpId (was ${cast.abilityGrpId})",
+            // Real Arena Cast in AAR: no abilityGrpId, yes facetId=instanceId, yes manaCost
+            assertEquals(
+                cast.abilityGrpId,
+                0,
+                "Cast in AAR should NOT have abilityGrpId",
             )
             Assert.assertTrue(
                 cast.manaCostCount > 0,
                 "Cast action must have manaCost entries",
             )
-            Assert.assertEquals(
+            assertEquals(
                 cast.facetId,
-                0,
-                "Cast action should NOT have facetId set",
+                cast.instanceId,
+                "Cast facetId should equal instanceId",
             )
         }
         // If no castable spells (bad draw), test is a no-op — that's fine
@@ -754,10 +756,11 @@ class GameBridgeTest {
     }
 
     /**
-     * GameStateMessage.actions must be wrapped in ActionInfo (actionId + seatId + action).
+     * GSM embedded actions are stripped-down ActionInfo (seatId + minimal action, no actionId).
+     * Real server: no grpId/facetId/shouldStop/autoTapSolution in GSM actions.
      */
     @Test
-    fun embeddedActionsHaveActionIdAndSeatId() {
+    fun embeddedActionsHaveStrippedFormat() {
         val b = GameBridge()
         bridge = b
         b.start(seed = 42L)
@@ -769,17 +772,19 @@ class GameBridgeTest {
         val gs = StateMapper.buildFromGame(game, 1, "test-match", b, actions)
 
         Assert.assertTrue(gs.actionsCount > 0, "Full state should have embedded actions")
-        for ((i, actionInfo) in gs.actionsList.withIndex()) {
-            assertEquals(
-                actionInfo.actionId,
-                i + 1,
-                "actionId should be sequential (1-based)",
-            )
+        for (actionInfo in gs.actionsList) {
+            // Real server: no actionId on GSM embedded actions (default 0)
+            assertEquals(actionInfo.actionId, 0, "GSM actionId should be 0 (not set)")
             Assert.assertTrue(
                 actionInfo.seatId in 1..2,
                 "seatId should be 1 or 2 (was ${actionInfo.seatId})",
             )
             Assert.assertTrue(actionInfo.hasAction(), "ActionInfo must contain inner Action")
+            val a = actionInfo.action
+            // Stripped-down: no grpId, no facetId, no shouldStop
+            assertEquals(a.grpId, 0, "GSM action should NOT have grpId")
+            assertEquals(a.facetId, 0, "GSM action should NOT have facetId")
+            Assert.assertFalse(a.shouldStop, "GSM action should NOT have shouldStop")
         }
     }
 

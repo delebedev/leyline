@@ -90,6 +90,7 @@ class MatchSession(
      */
     fun onPerformAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
+        log.info("MatchSession: onPerformAction enter gsId={} (current={})", greMsg.gameStateId, gameStateId)
 
         // Reject stale actions — client may resend with outdated gameStateId
         val clientGsId = greMsg.gameStateId
