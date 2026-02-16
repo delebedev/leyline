@@ -207,6 +207,21 @@ class GameBridge {
             id
         }
 
+    /**
+     * Allocate a fresh instanceId for a Forge card that changed zones.
+     * Updates forward map (forgeCardId → new ID), keeps old ID in reverse map.
+     * Returns (oldInstanceId, newInstanceId).
+     */
+    fun reallocInstanceId(forgeCardId: Int): Pair<Int, Int> {
+        val oldId = forgeIdToInstanceId[forgeCardId]
+            ?: return getOrAllocInstanceId(forgeCardId).let { it to it }
+        val newId = nextInstanceId++
+        forgeIdToInstanceId[forgeCardId] = newId
+        instanceIdToForgeId[newId] = forgeCardId
+        // old reverse entry kept intentionally — client may reference old IDs
+        return oldId to newId
+    }
+
     /** Reverse lookup: Arena instanceId → Forge card ID. */
     fun getForgeCardId(instanceId: Int): Int? = instanceIdToForgeId[instanceId]
 

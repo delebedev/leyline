@@ -370,46 +370,60 @@ object StateMapper {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistentAnnotations = mutableListOf<AnnotationInfo>()
         val actingSeat = if (handler.priorityPlayer == human) 1 else 2
-        for (obj in gameObjects) {
+        for (i in gameObjects.indices) {
+            val obj = gameObjects[i]
             val prevZone = bridge.getPreviousZone(obj.instanceId)
             if (prevZone != null && prevZone != obj.zoneId) {
                 val category = inferCategory(obj, prevZone, obj.zoneId)
+                // Allocate new instanceId for zone transfer (real server does this)
+                val forgeCardId = bridge.getForgeCardId(obj.instanceId)
+                val (origId, newId) = if (forgeCardId != null) {
+                    bridge.reallocInstanceId(forgeCardId)
+                } else {
+                    obj.instanceId to obj.instanceId
+                }
+                // Patch gameObject and zone with new instanceId
+                if (newId != origId) {
+                    gameObjects[i] = obj.toBuilder().setInstanceId(newId).build()
+                    patchZoneInstanceId(zones, obj.zoneId, origId, newId)
+                }
                 when (category) {
                     "PlayLand" -> {
-                        // Real server: origId = hand ID, newId = battlefield ID (may be same)
-                        annotations.add(AnnotationBuilder.objectIdChanged(obj.instanceId, obj.instanceId))
+                        annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
                         // actionType=3 = Play (land), abilityGrpId=0
-                        annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId, actingSeat, actionType = 3))
+                        annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 3))
                     }
                     "CastSpell" -> {
-                        annotations.add(AnnotationBuilder.objectIdChanged(obj.instanceId, obj.instanceId))
+                        annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
                         // actionType=1 = Cast
-                        annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId, actingSeat, actionType = 1))
-                        annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId, actingSeat, actionType = 1))
-                        annotations.add(AnnotationBuilder.manaPaid(obj.instanceId))
-                        annotations.add(AnnotationBuilder.tappedUntappedPermanent(obj.instanceId))
-                        annotations.add(AnnotationBuilder.abilityInstanceCreated(obj.instanceId))
-                        annotations.add(AnnotationBuilder.abilityInstanceDeleted(obj.instanceId))
+                        annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
+                        annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
+                        annotations.add(AnnotationBuilder.manaPaid(newId))
+                        annotations.add(AnnotationBuilder.tappedUntappedPermanent(newId))
+                        annotations.add(AnnotationBuilder.abilityInstanceCreated(newId))
+                        annotations.add(AnnotationBuilder.abilityInstanceDeleted(newId))
                     }
                     "Resolve" -> {
-                        annotations.add(AnnotationBuilder.resolutionStart(obj.instanceId, obj.grpId))
+                        annotations.add(AnnotationBuilder.resolutionStart(newId, obj.grpId))
                     }
                 }
                 annotations.add(
-                    AnnotationBuilder.zoneTransfer(obj.instanceId, prevZone, obj.zoneId, category),
+                    AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category),
                 )
                 if (category == "Resolve") {
-                    annotations.add(AnnotationBuilder.resolutionComplete(obj.instanceId, obj.grpId))
+                    annotations.add(AnnotationBuilder.resolutionComplete(newId, obj.grpId))
                 }
                 // Persistent annotation: EnteredZoneThisTurn for cards landing on battlefield
                 if (obj.zoneId == ZONE_BATTLEFIELD) {
                     persistentAnnotations.add(
-                        AnnotationBuilder.enteredZoneThisTurn(ZONE_BATTLEFIELD, obj.instanceId)
+                        AnnotationBuilder.enteredZoneThisTurn(ZONE_BATTLEFIELD, newId)
                             .toBuilder().setId(bridge.nextPersistentAnnotationId()).build(),
                     )
                 }
+                bridge.recordZone(newId, obj.zoneId)
+            } else {
+                bridge.recordZone(obj.instanceId, obj.zoneId)
             }
-            bridge.recordZone(obj.instanceId, obj.zoneId)
         }
         // Assign sequential IDs to all annotations
         val numberedAnnotations = annotations.map {
@@ -555,6 +569,28 @@ object StateMapper {
         // Update snapshot for next diff
         bridge.snapshotState(game)
 
+        return builder.build()
+    }
+
+    /** Embed stripped-down actions into an already-built GSM (post-realloc). */
+    fun embedActions(
+        gsm: GameStateMessage,
+        actions: ActionsAvailableReq,
+        game: Game,
+        bridge: GameBridge,
+    ): GameStateMessage {
+        val builder = gsm.toBuilder()
+            .setPendingMessageCount(1)
+        val handler = game.phaseHandler
+        val human = bridge.getPlayer(1)
+        val activeSeat = if (handler.priorityPlayer == human) 1 else 2
+        for (action in actions.actionsList) {
+            builder.addActions(
+                ActionInfo.newBuilder()
+                    .setSeatId(activeSeat)
+                    .setAction(stripActionForGsm(action)),
+            )
+        }
         return builder.build()
     }
 
@@ -1351,6 +1387,22 @@ object StateMapper {
     }
 
     // --- helpers ---
+
+    /** Replace oldId with newId in a zone's objectInstanceIds list (after instanceId realloc). */
+    private fun patchZoneInstanceId(zones: MutableList<ZoneInfo>, zoneId: Int, oldId: Int, newId: Int) {
+        val idx = zones.indexOfFirst { it.zoneId == zoneId }
+        if (idx < 0) return
+        val zone = zones[idx]
+        val ids = zone.objectInstanceIdsList.toMutableList()
+        val idIdx = ids.indexOf(oldId)
+        if (idIdx >= 0) {
+            ids[idIdx] = newId
+            zones[idx] = zone.toBuilder()
+                .clearObjectInstanceIds()
+                .addAllObjectInstanceIds(ids)
+                .build()
+        }
+    }
 
     private fun makeZone(zoneId: Int, type: ZoneType, ownerSeatId: Int, visibility: Visibility): ZoneInfo =
         ZoneInfo.newBuilder()
