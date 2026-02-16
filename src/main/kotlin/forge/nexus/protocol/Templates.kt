@@ -1,6 +1,7 @@
 package forge.nexus.protocol
 
-import forge.nexus.game.CardDb
+import forge.nexus.game.GameBridge
+import forge.nexus.game.StateMapper
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -16,8 +17,6 @@ object Templates {
     // Cached raw templates (loaded once)
     private val initialBundleSeat1 = loadTemplate("initial-bundle-seat1.bin")
     private val initialBundleSeat2 = loadTemplate("initial-bundle-seat2.bin")
-    private val dealHandSeat1 = loadTemplate("deal-hand-seat1.bin")
-    private val dealHandMulliganSeat2 = loadTemplate("deal-hand-mulligan-seat2.bin")
     private val mulliganReqSeat1 = loadTemplate("mulligan-req-seat1.bin")
     private val settingsRespSeat1 = loadTemplate("settings-resp-seat1.bin")
     private val settingsRespSeat2 = loadTemplate("settings-resp-seat2.bin")
@@ -137,23 +136,44 @@ object Templates {
     }
 
     /**
-     * DealHand for seat 1 (no MulliganReq, decision=2).
-     * Each card slot gets its own grpId from [handGrpIds].
+     * DealHand for seat 1 (no MulliganReq) — built from game state.
      */
-    fun dealHandSeat1(msgId: Int, gameStateId: Int, handGrpIds: List<Int>): Pair<MatchServiceToClientMessage, Int> {
-        val template = MatchServiceToClientMessage.parseFrom(dealHandSeat1)
-        val patched = patchGrpIds(template, handGrpIds)
-        return patchSingleGRE(patched, msgId, gameStateId, 1)
+    fun dealHandSeat1(
+        msgId: Int,
+        gameStateId: Int,
+        bridge: GameBridge,
+    ): Pair<MatchServiceToClientMessage, Int> {
+        val gsm = StateMapper.buildDealHand(bridge, gameStateId, 1)
+        val gre = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.GameStateMessage_695e)
+            .addSystemSeatIds(1)
+            .setMsgId(msgId)
+            .setGameStateId(gameStateId)
+            .setGameStateMessage(gsm)
+            .build()
+        return wrapGre(gre) to (msgId + 1)
     }
 
     /**
-     * DealHand + MulliganReq for seat 2 (decision=2).
-     * Each card slot gets its own grpId from [handGrpIds].
+     * DealHand + MulliganReq bundled for seat 2 — built from game state.
      */
-    fun dealHandMulliganSeat2(msgIdStart: Int, gameStateId: Int, handGrpIds: List<Int>): Pair<MatchServiceToClientMessage, Int> {
-        val template = MatchServiceToClientMessage.parseFrom(dealHandMulliganSeat2)
-        val patched = patchGrpIds(template, handGrpIds)
-        return patchMultiGRE(patched, msgIdStart, gameStateId, 2)
+    fun dealHandMulliganSeat2(
+        msgIdStart: Int,
+        gameStateId: Int,
+        bridge: GameBridge,
+    ): Pair<MatchServiceToClientMessage, Int> {
+        var msgId = msgIdStart
+        val gsm = StateMapper.buildDealHand(bridge, gameStateId, 2)
+            .toBuilder().setPendingMessageCount(1).build()
+        val greGsm = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.GameStateMessage_695e)
+            .addSystemSeatIds(2)
+            .setMsgId(msgId++)
+            .setGameStateId(gameStateId)
+            .setGameStateMessage(gsm)
+            .build()
+        val greMull = StateMapper.buildMulliganReq(msgId++, gameStateId, 2)
+        return wrapGre(greGsm, greMull) to msgId
     }
 
     /**
@@ -212,37 +232,16 @@ object Templates {
         return result to nextMsgId
     }
 
-    // --- grpId patching ---
-
-    /**
-     * Patch gameObjects with per-card grpIds from the dealt hand.
-     * gameObject[i] gets handGrpIds[i]; if i >= list size, uses last element.
-     * Actions are cleared — template actions have stale costs from template
-     * that trigger "Cost Modified" overlay in the client.
-     */
-    private fun patchGrpIds(msg: MatchServiceToClientMessage, handGrpIds: List<Int>): MatchServiceToClientMessage {
-        if (handGrpIds.isEmpty()) return msg
-        val event = msg.greToClientEvent.toBuilder()
-        for (i in 0 until event.greToClientMessagesCount) {
-            val gre = event.getGreToClientMessages(i)
-            if (!gre.hasGameStateMessage()) continue
-            val gs = gre.gameStateMessage.toBuilder()
-
-            // Patch game objects — each slot gets its own grpId
-            for (j in 0 until gs.gameObjectsCount) {
-                val grpId = handGrpIds.getOrElse(j) { handGrpIds.last() }
-                gs.setGameObjects(j, CardDb.buildObjectInfo(grpId, gs.getGameObjects(j)))
-            }
-
-            // Clear template actions — stale mana costs cause "Cost Modified" display
-            gs.clearActions()
-
-            event.setGreToClientMessages(i, gre.toBuilder().setGameStateMessage(gs))
-        }
-        return msg.toBuilder().setGreToClientEvent(event).build()
-    }
-
     // --- helpers ---
+
+    /** Wrap one or more GRE messages into a MatchServiceToClientMessage. */
+    private fun wrapGre(vararg messages: GREToClientMessage): MatchServiceToClientMessage {
+        val event = GreToClientEvent.newBuilder()
+        for (msg in messages) event.addGreToClientMessages(msg)
+        return MatchServiceToClientMessage.newBuilder()
+            .setGreToClientEvent(event)
+            .build()
+    }
 
     private fun patchSingleGRE(
         template: MatchServiceToClientMessage,
@@ -266,34 +265,5 @@ object Templates {
         return template.toBuilder()
             .setGreToClientEvent(event)
             .build() to (msgId + 1)
-    }
-
-    private fun patchMultiGRE(
-        template: MatchServiceToClientMessage,
-        msgIdStart: Int,
-        gameStateId: Int,
-        seatId: Int,
-    ): Pair<MatchServiceToClientMessage, Int> {
-        val event = template.greToClientEvent.toBuilder()
-        var msgId = msgIdStart
-
-        for (i in 0 until event.greToClientMessagesCount) {
-            val gre = event.getGreToClientMessages(i).toBuilder()
-                .setMsgId(msgId++)
-                .setGameStateId(gameStateId)
-                .clearSystemSeatIds()
-                .addSystemSeatIds(seatId)
-
-            if (gre.hasGameStateMessage()) {
-                gre.setGameStateMessage(
-                    gre.gameStateMessage.toBuilder().setGameStateId(gameStateId),
-                )
-            }
-            event.setGreToClientMessages(i, gre)
-        }
-
-        return template.toBuilder()
-            .setGreToClientEvent(event)
-            .build() to msgId
     }
 }
