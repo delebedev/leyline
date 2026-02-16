@@ -17,8 +17,6 @@ object Templates {
     // Cached raw templates (loaded once)
     private val initialBundleSeat1 = loadTemplate("initial-bundle-seat1.bin")
     private val initialBundleSeat2 = loadTemplate("initial-bundle-seat2.bin")
-    private val settingsRespSeat1 = loadTemplate("settings-resp-seat1.bin")
-    private val settingsRespSeat2 = loadTemplate("settings-resp-seat2.bin")
 
     private fun loadTemplate(name: String): ByteArray {
         val stream = Templates::class.java.getResourceAsStream("/arena-templates/$name")
@@ -236,29 +234,23 @@ object Templates {
         return wrapGre(greGsm, grePrompt, greMull) to msgId
     }
 
-    /** SetSettingsResp — echo client settings on top of template. */
+    /** SetSettingsResp — echo client settings back. Built dynamically (no template). */
     fun settingsResp(
         seatId: Int,
         msgId: Int,
         gameStateId: Int,
         clientSettings: SettingsMessage?,
     ): Pair<MatchServiceToClientMessage, Int> {
-        val templateBytes = if (seatId == 1) settingsRespSeat1 else settingsRespSeat2
-        val template = MatchServiceToClientMessage.parseFrom(templateBytes)
-        val (result, nextMsgId) = patchSingleGRE(template, msgId, gameStateId, seatId)
-
-        // If client sent settings, echo them back on the template
-        if (clientSettings != null) {
-            val event = result.greToClientEvent
-            val gre = event.getGreToClientMessages(0).toBuilder()
-            if (gre.hasSetSettingsResp()) {
-                gre.setSetSettingsResp(gre.setSettingsResp.toBuilder().setSettings(clientSettings))
-            }
-            return result.toBuilder()
-                .setGreToClientEvent(event.toBuilder().setGreToClientMessages(0, gre))
-                .build() to nextMsgId
-        }
-        return result to nextMsgId
+        val resp = SetSettingsResp.newBuilder()
+        if (clientSettings != null) resp.setSettings(clientSettings)
+        val gre = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.SetSettingsResp_695e)
+            .addSystemSeatIds(seatId)
+            .setMsgId(msgId)
+            .setGameStateId(gameStateId)
+            .setSetSettingsResp(resp)
+            .build()
+        return wrapGre(gre) to (msgId + 1)
     }
 
     // --- helpers ---
@@ -270,29 +262,5 @@ object Templates {
         return MatchServiceToClientMessage.newBuilder()
             .setGreToClientEvent(event)
             .build()
-    }
-
-    private fun patchSingleGRE(
-        template: MatchServiceToClientMessage,
-        msgId: Int,
-        gameStateId: Int,
-        seatId: Int,
-    ): Pair<MatchServiceToClientMessage, Int> {
-        val event = template.greToClientEvent.toBuilder()
-        val gre = event.getGreToClientMessages(0).toBuilder()
-            .setMsgId(msgId)
-            .setGameStateId(gameStateId)
-            .clearSystemSeatIds()
-            .addSystemSeatIds(seatId)
-
-        if (gre.hasGameStateMessage()) {
-            gre.setGameStateMessage(
-                gre.gameStateMessage.toBuilder().setGameStateId(gameStateId),
-            )
-        }
-        event.setGreToClientMessages(0, gre)
-        return template.toBuilder()
-            .setGreToClientEvent(event)
-            .build() to (msgId + 1)
     }
 }
