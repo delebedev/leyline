@@ -83,8 +83,10 @@ class ClientAccumulator {
         val missing = mutableListOf<Pair<Int, Int>>()
         for ((zoneId, zone) in zones) {
             // Skip hidden/private zones — real server sends objectInstanceIds
-            // without GameObjectInfo for these (library, opponent hand, sideboard)
+            // without GameObjectInfo for these (library, opponent hand, sideboard).
+            // Also skip Limbo — it's a protocol bookkeeping zone, not rendered.
             if (zone.visibility == Visibility.Hidden || zone.visibility == Visibility.Private) continue
+            if (zone.type == ZoneType.Limbo) continue
             for (iid in zone.objectInstanceIdsList) {
                 if (!objects.containsKey(iid)) {
                     missing.add(zoneId to iid)
@@ -111,6 +113,8 @@ class ClientAccumulator {
                 gs.zonesList.forEach { zones[it.zoneId] = it }
             }
             GameStateType.Diff -> {
+                // Remove deleted instances first (real server sends these for retired IDs)
+                gs.diffDeletedInstanceIdsList.forEach { objects.remove(it) }
                 gs.gameObjectsList.forEach { objects[it.instanceId] = it }
                 gs.zonesList.forEach { zones[it.zoneId] = it }
             }

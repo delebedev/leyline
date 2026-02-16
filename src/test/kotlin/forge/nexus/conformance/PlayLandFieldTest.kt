@@ -8,6 +8,7 @@ import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
 /**
@@ -167,7 +168,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
         assertTrue(landObj.uniqueAbilitiesCount > 0, "Land gameObject should have uniqueAbilities (mana ability), got 0")
     }
 
-    @Test(description = "Play land: old instanceId retired to Limbo zone (no gameObject)")
+    @Test(description = "Play land: old instanceId retired to Limbo with gameObject")
     fun oldInstanceRetiredToLimbo() {
         val (gsm, origInstanceId, newInstanceId) = playLandAndCaptureWithIds() ?: return
 
@@ -182,15 +183,90 @@ class PlayLandFieldTest : ConformanceTestBase() {
             "Limbo zone should contain old instanceId $origInstanceId, got: ${limboZone.objectInstanceIdsList}",
         )
 
-        // No gameObject for old ID — ObjectIdChanged annotation tells client the rename.
-        // Real server only sends a Limbo gameObject to the opponent seat.
+        // Real server sends a Limbo gameObject to the owner seat (Private, viewers=[owner]).
+        // This moves the old object from Hand→Limbo in the client's accumulated state.
+        // Without it, the client still has the old object in Hand and shows a "jump back" artifact.
         val limboObj = gsm.gameObjectsList.firstOrNull { it.instanceId == origInstanceId }
-        assertTrue(limboObj == null, "Should NOT send gameObject for retired instanceId to the owner (ObjectIdChanged suffices)")
+        assertTrue(limboObj != null, "Should send Limbo gameObject for retired instanceId $origInstanceId")
+        assertEquals(limboObj!!.zoneId, ZONE_LIMBO, "Limbo gameObject should have zoneId=Limbo")
+        assertEquals(limboObj.visibility, Visibility.Private, "Limbo gameObject should be Private")
 
         // New instanceId should be on battlefield (not in Limbo)
         val newObj = gsm.gameObjectsList.firstOrNull { it.instanceId == newInstanceId }
         assertTrue(newObj != null, "GSM should have gameObject for new instanceId $newInstanceId")
         assertEquals(newObj!!.zoneId, ZONE_BATTLEFIELD, "New object should be on battlefield")
+
+        // diffDeletedInstanceIds should NOT contain the old ID immediately.
+        // Real server defers this (gs=63, not gs=10). The Limbo gameObject handles it.
+        assertTrue(
+            !gsm.diffDeletedInstanceIdsList.contains(origInstanceId),
+            "diffDeletedInstanceIds should NOT contain origId immediately, got: ${gsm.diffDeletedInstanceIdsList}",
+        )
+    }
+
+    @Test(description = "Play land: accumulated client state has new object on BF, old removed")
+    fun accumulatedStateAfterPlayLand() {
+        val (b, game, gsId) = startGameAtMain1()
+
+        // Accumulate game-start + snapshot (matches MatchSession flow)
+        val startResult = BundleBuilder.gameStart(game, b, "test-match", 1, 1, gsId)
+        val acc = ClientAccumulator()
+        acc.processAll(startResult.messages)
+        b.snapshotState(game)
+
+        // Capture pre-play IDs
+        val player = b.getPlayer(1) ?: return
+        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return
+        val origInstanceId = b.getOrAllocInstanceId(land.id)
+        val forgeCardId = land.id
+
+        // Play land
+        playLand(b) ?: return
+        val postResult = BundleBuilder.postAction(game, b, "test-match", 1, startResult.nextMsgId, startResult.nextGsId)
+        acc.processAll(postResult.messages)
+        val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
+
+        // New instanceId should be in accumulated objects on BF
+        val newObj = acc.objects[newInstanceId]
+        assertTrue(newObj != null, "Accumulated objects should have new instanceId $newInstanceId")
+        assertEquals(newObj!!.zoneId, ZONE_BATTLEFIELD, "New object should be on battlefield")
+
+        // Old instanceId: should be in Limbo (gameObject present, not deleted).
+        // Real server sends Limbo gameObject to owner — old object updated to Limbo, not deleted.
+        val oldObj = acc.objects[origInstanceId]
+        assertTrue(oldObj != null, "Old instanceId $origInstanceId should still be in accumulated objects (as Limbo gameObject)")
+        assertEquals(oldObj!!.zoneId, ZONE_LIMBO, "Old object should be in Limbo, not ${oldObj.zoneId}")
+        // Either way, old ID must NOT be in the Hand zone
+        val handZone = acc.zones.values.firstOrNull { it.type == ZoneType.Hand && it.ownerSeatId == 1 }
+        assertTrue(handZone != null, "Should have P1 hand zone")
+        assertTrue(
+            !handZone!!.objectInstanceIdsList.contains(origInstanceId),
+            "Old instanceId $origInstanceId should NOT be in hand zone after play, got: ${handZone.objectInstanceIdsList}",
+        )
+
+        // BF zone should contain new instanceId
+        val bfZone = acc.zones[ZONE_BATTLEFIELD]
+        assertTrue(bfZone != null, "Should have battlefield zone")
+        assertTrue(
+            bfZone!!.objectInstanceIdsList.contains(newInstanceId),
+            "Battlefield should contain new instanceId $newInstanceId, got: ${bfZone.objectInstanceIdsList}",
+        )
+
+        // Limbo zone should contain old instanceId
+        val limboZone = acc.zones[ZONE_LIMBO]
+        assertTrue(limboZone != null, "Should have Limbo zone")
+        assertTrue(
+            limboZone!!.objectInstanceIdsList.contains(origInstanceId),
+            "Limbo should contain old instanceId $origInstanceId, got: ${limboZone.objectInstanceIdsList}",
+        )
+
+        // All action instanceIds should exist in accumulated objects
+        val missing = acc.actionInstanceIdsMissingFromObjects()
+        assertTrue(missing.isEmpty(), "Action instanceIds missing from objects: $missing")
+
+        // All visible zone refs should be valid
+        val missingZoneObjs = acc.zoneObjectsMissingFromObjects()
+        assertTrue(missingZoneObjs.isEmpty(), "Zone objects missing from objects: $missingZoneObjs")
     }
 
     // --- helpers ---
