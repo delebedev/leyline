@@ -2,14 +2,22 @@ package forge.nexus.conformance
 
 import org.testng.Assert.*
 import org.testng.annotations.Test
+import wotc.mtgo.gre.external.messaging.Messages.*
 
 @Test
 class RecordingParserTest {
 
     @Test
     fun nonGREPayloadReturnsEmpty() {
-        val stream = javaClass.classLoader.getResourceAsStream("arena-templates/room-state.bin")!!
-        val fps = RecordingParser.parsePayload(stream.readBytes())
+        // A MatchServiceToClientMessage without greToClientEvent has no GRE messages
+        val msg = MatchServiceToClientMessage.newBuilder()
+            .setMatchGameRoomStateChangedEvent(
+                MatchGameRoomStateChangedEvent.newBuilder().setGameRoomInfo(
+                    MatchGameRoomInfo.newBuilder().setStateType(MatchGameRoomStateType.Playing),
+                ),
+            )
+            .build()
+        val fps = RecordingParser.parsePayload(msg.toByteArray())
         assertTrue(fps.isEmpty(), "Room state has no GRE messages")
     }
 
