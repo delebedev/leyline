@@ -301,7 +301,16 @@ object StateMapper {
         zones.add(makeZone(ZONE_STACK, ZoneType.Stack, 0, Visibility.Public))
         zones.add(makeZone(ZONE_BATTLEFIELD, ZoneType.Battlefield, 0, Visibility.Public))
         zones.add(makeZone(ZONE_EXILE, ZoneType.Exile, 0, Visibility.Public))
-        zones.add(makeZone(ZONE_LIMBO, ZoneType.Limbo, 0, Visibility.Public))
+        // Limbo zone: include all previously accumulated retired instanceIds.
+        // New retirements are appended in the annotation loop below.
+        val limboZone = ZoneInfo.newBuilder()
+            .setZoneId(ZONE_LIMBO)
+            .setType(ZoneType.Limbo)
+            .setVisibility(Visibility.Public)
+        for (id in bridge.getLimboInstanceIds()) {
+            limboZone.addObjectInstanceIds(id)
+        }
+        zones.add(limboZone.build())
 
         // Player 1 zones
         addPlayerZones(
@@ -388,6 +397,7 @@ object StateMapper {
                     gameObjects[i] = obj.toBuilder().setInstanceId(newId).build()
                     patchZoneInstanceId(zones, obj.zoneId, origId, newId)
                     // Retire old object to Limbo (client needs this to remove old visual)
+                    bridge.retireToLimbo(origId)
                     val limboObj = obj.toBuilder()
                         .setInstanceId(origId)
                         .setZoneId(ZONE_LIMBO)
