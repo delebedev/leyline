@@ -89,12 +89,31 @@ Arena golden:  ActivateMana, Cast, FloatMana, Pass
 - `persistentAnnotations` (EnteredZoneThisTurn) — safe
 - `ObjectIdChanged` orig_id/new_id details — **crashes client**
 
-**Likely cause:** Our instanceId allocation (sequential from 100) may not match what the client expects for `orig_id`/`new_id`. Real server may use IDs that satisfy additional invariants (e.g. orig_id must reference a previously-seen object, new_id must match the object's current instanceId in the zone). Sending details with IDs the client can't resolve could trigger a null-ref in the animation/tracking layer.
+**Root cause (confirmed via recording 20260216-221640):** We passed `objectIdChanged(id, id)` — same instanceId for both orig and new. Real server allocates a **new instanceId** when a card changes zones:
 
-**Investigation pointers:**
-- Compare our orig_id/new_id values against real server recordings
-- Check if the client validates these IDs against its internal object registry
-- May need to only emit details when IDs are truly different (zone transfer created new object)
+```
+# Real server — land play (gsId=27):
+annotations {
+  id: 78
+  affectedIds: 339              ← old instanceId (hand object)
+  type: ObjectIdChanged
+  details { key: "orig_id"  valueInt32: 339 }   ← old
+  details { key: "new_id"   valueInt32: 403 }   ← new (battlefield)
+}
+
+# Real server — cast spell (gsId=29):
+annotations {
+  id: 86
+  affectedIds: 344              ← old instanceId (hand object)
+  type: ObjectIdChanged
+  details { key: "orig_id"  valueInt32: 344 }   ← old
+  details { key: "new_id"   valueInt32: 405 }   ← new (stack)
+}
+```
+
+The client uses `orig_id` to retire the old visual object and `new_id` to track the new one. When both are equal, it likely tries to delete and reference the same object → null-ref crash mid-animation.
+
+**Fix:** Allocate a fresh instanceId on zone transfer. Pass old ID as `orig_id`, new ID as `new_id`. Update `ZoneTransfer` annotation's `affectedIds` and the `gameObjects` entry to use the new ID.
 
 **Code:** `AnnotationBuilder.objectIdChanged()` — details commented out with `BUG-005` tag.
 
