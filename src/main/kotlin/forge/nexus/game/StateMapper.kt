@@ -368,19 +368,24 @@ object StateMapper {
         //              + AbilityInstanceCreated + ZoneTransfer(CastSpell)
         //   Resolve: ResolutionStart + ZoneTransfer(Resolve) + ResolutionComplete
         val annotations = mutableListOf<AnnotationInfo>()
+        val persistentAnnotations = mutableListOf<AnnotationInfo>()
+        val actingSeat = if (handler.priorityPlayer == human) 1 else 2
         for (obj in gameObjects) {
             val prevZone = bridge.getPreviousZone(obj.instanceId)
             if (prevZone != null && prevZone != obj.zoneId) {
                 val category = inferCategory(obj, prevZone, obj.zoneId)
                 when (category) {
                     "PlayLand" -> {
-                        annotations.add(AnnotationBuilder.objectIdChanged(obj.instanceId))
-                        annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId))
+                        // Real server: origId = hand ID, newId = battlefield ID (may be same)
+                        annotations.add(AnnotationBuilder.objectIdChanged(obj.instanceId, obj.instanceId))
+                        // actionType=3 = Play (land), abilityGrpId=0
+                        annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId, actingSeat, actionType = 3))
                     }
                     "CastSpell" -> {
-                        annotations.add(AnnotationBuilder.objectIdChanged(obj.instanceId))
-                        annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId))
-                        annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId)) // mana payment action
+                        annotations.add(AnnotationBuilder.objectIdChanged(obj.instanceId, obj.instanceId))
+                        // actionType=1 = Cast
+                        annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId, actingSeat, actionType = 1))
+                        annotations.add(AnnotationBuilder.userActionTaken(obj.instanceId, actingSeat, actionType = 1))
                         annotations.add(AnnotationBuilder.manaPaid(obj.instanceId))
                         annotations.add(AnnotationBuilder.tappedUntappedPermanent(obj.instanceId))
                         annotations.add(AnnotationBuilder.abilityInstanceCreated(obj.instanceId))
@@ -396,8 +401,19 @@ object StateMapper {
                 if (category == "Resolve") {
                     annotations.add(AnnotationBuilder.resolutionComplete(obj.instanceId, obj.grpId))
                 }
+                // Persistent annotation: EnteredZoneThisTurn for cards landing on battlefield
+                if (obj.zoneId == ZONE_BATTLEFIELD) {
+                    persistentAnnotations.add(
+                        AnnotationBuilder.enteredZoneThisTurn(ZONE_BATTLEFIELD, obj.instanceId)
+                            .toBuilder().setId(bridge.nextPersistentAnnotationId()).build(),
+                    )
+                }
             }
             bridge.recordZone(obj.instanceId, obj.zoneId)
+        }
+        // Assign sequential IDs to all annotations
+        val numberedAnnotations = annotations.map {
+            it.toBuilder().setId(bridge.nextAnnotationId()).build()
         }
 
         // Combat damage annotations: when at damage phase with active combat
@@ -432,6 +448,9 @@ object StateMapper {
             }
         }
 
+        // prevGameStateId: reference prior state if one exists
+        val prevState = bridge.getPreviousState()
+
         val builder = GameStateMessage.newBuilder()
             .setType(GameStateType.Full)
             .setGameStateId(gameStateId)
@@ -441,9 +460,13 @@ object StateMapper {
             .addAllPlayers(listOf(player1, player2))
             .addAllZones(zones)
             .addAllGameObjects(gameObjects)
-            .addAllAnnotations(annotations)
+            .addAllAnnotations(numberedAnnotations)
+            .addAllPersistentAnnotations(persistentAnnotations)
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
+        if (prevState != null && prevState.gameStateId > 0) {
+            builder.setPrevGameStateId(prevState.gameStateId)
+        }
 
         // Embed stripped-down actions in GSM (real server uses minimal format:
         // Cast=instanceId+manaCost, Play=instanceId, ActivateMana=instanceId+abilityGrpId,
@@ -509,6 +532,7 @@ object StateMapper {
             .addAllZones(changedZones)
             .addAllGameObjects(changedObjects)
             .addAllAnnotations(current.annotationsList)
+            .addAllPersistentAnnotations(current.persistentAnnotationsList)
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
             .setPrevGameStateId(prev.gameStateId)

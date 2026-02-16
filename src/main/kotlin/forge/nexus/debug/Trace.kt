@@ -183,11 +183,13 @@ private fun checkRenames(
         if (!gre.hasField(gsmField)) continue
         val gsm = gre.getField(gsmField) as Message
         val annotField = gsm.descriptorForType.findFieldByName("annotations") ?: continue
+
         @Suppress("UNCHECKED_CAST")
         val annotations = gsm.getField(annotField) as List<Message>
 
         for (annot in annotations) {
             val typeField = annot.descriptorForType.findFieldByName("type") ?: continue
+
             @Suppress("UNCHECKED_CAST")
             val types = annot.getField(typeField) as List<*>
             val isIdChanged = types.any {
@@ -197,6 +199,7 @@ private fun checkRenames(
             if (!isIdChanged) continue
 
             val detailsField = annot.descriptorForType.findFieldByName("details") ?: continue
+
             @Suppress("UNCHECKED_CAST")
             val details = annot.getField(detailsField) as List<Message>
 
@@ -206,8 +209,10 @@ private fun checkRenames(
                 val key = detail.getField(detail.descriptorForType.findFieldByName("key")) as? String
                 val uint32Field = detail.descriptorForType.findFieldByName("valueUint32")
                 val int32Field = detail.descriptorForType.findFieldByName("valueInt32")
+
                 @Suppress("UNCHECKED_CAST")
                 val uint32s = if (uint32Field != null) detail.getField(uint32Field) as List<Number> else emptyList()
+
                 @Suppress("UNCHECKED_CAST")
                 val int32s = if (int32Field != null) detail.getField(int32Field) as List<Number> else emptyList()
                 val v = uint32s.firstOrNull()?.toInt() ?: int32s.firstOrNull()?.toInt()

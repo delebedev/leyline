@@ -51,6 +51,18 @@ class GameBridge {
     private val instanceIdToForgeId = ConcurrentHashMap<Int, Int>()
     private var nextInstanceId = 100
 
+    /** Monotonic annotation ID counter. Real server starts around 49; we start at 50. */
+    private var nextAnnotationId = 50
+
+    /** Allocate the next sequential annotation ID. */
+    fun nextAnnotationId(): Int = nextAnnotationId++
+
+    /** Monotonic persistent annotation ID counter. Real server uses a separate sequence. */
+    private var nextPersistentAnnotationId = 1
+
+    /** Allocate the next sequential persistent annotation ID. */
+    fun nextPersistentAnnotationId(): Int = nextPersistentAnnotationId++
+
     /** Previous zone assignment per instanceId — for detecting zone transfers. */
     private val previousZones = ConcurrentHashMap<Int, Int>()
 
@@ -65,8 +77,8 @@ class GameBridge {
     @Volatile
     private var previousState: GameStateMessage? = null
 
-    fun snapshotState(game: Game) {
-        previousState = StateMapper.buildFromGame(game, 0, "", this)
+    fun snapshotState(game: Game, gameStateId: Int = 0) {
+        previousState = StateMapper.buildFromGame(game, gameStateId, "", this)
     }
 
     fun getPreviousState(): GameStateMessage? = previousState
