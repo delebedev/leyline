@@ -412,11 +412,9 @@ object StateMapper {
             bridge.recordZone(obj.instanceId, obj.zoneId)
         }
         // Assign sequential IDs to all annotations
-        // TODO: re-enable once client crash is diagnosed
-        // val numberedAnnotations = annotations.map {
-        //     it.toBuilder().setId(bridge.nextAnnotationId()).build()
-        // }
-        val numberedAnnotations = annotations
+        val numberedAnnotations = annotations.map {
+            it.toBuilder().setId(bridge.nextAnnotationId()).build()
+        }
 
         // Combat damage annotations: when at damage phase with active combat
         if (handler.phase == PhaseType.COMBAT_DAMAGE || handler.phase == PhaseType.COMBAT_FIRST_STRIKE_DAMAGE) {
