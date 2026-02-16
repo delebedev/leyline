@@ -378,6 +378,7 @@ object StateMapper {
         //   Resolve: ResolutionStart + ZoneTransfer(Resolve) + ResolutionComplete
         val annotations = mutableListOf<AnnotationInfo>()
         val persistentAnnotations = mutableListOf<AnnotationInfo>()
+        val deletedInstanceIds = mutableListOf<Int>()
         val actingSeat = if (handler.priorityPlayer == human) 1 else 2
         for (i in gameObjects.indices) {
             val obj = gameObjects[i]
@@ -402,6 +403,7 @@ object StateMapper {
                     // gameObject to the opponent (who never had the object); the owner
                     // already knows about it via ObjectIdChanged.
                     bridge.retireToLimbo(origId)
+                    deletedInstanceIds.add(origId)
                     appendToZone(zones, ZONE_LIMBO, origId)
                 }
                 when (category) {
@@ -493,6 +495,7 @@ object StateMapper {
             .addAllGameObjects(gameObjects)
             .addAllAnnotations(numberedAnnotations)
             .addAllPersistentAnnotations(persistentAnnotations)
+            .addAllDiffDeletedInstanceIds(deletedInstanceIds)
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
         if (prevState != null && prevState.gameStateId > 0) {
