@@ -221,10 +221,11 @@ class MatchHandler(
 
     private fun sendInitialBundle(ctx: ChannelHandlerContext) {
         val s = session ?: return
+        val bridge = s.gameBridge ?: return
         s.gameStateId++
-        val deckGrpIds = s.gameBridge?.getDeckGrpIds(seatId) ?: emptyList()
+        val deckGrpIds = bridge.getDeckGrpIds(seatId)
         val deck = StateMapper.buildDeckMessage(deckGrpIds)
-        val (msg, nextMsgId) = Templates.initialBundle(seatId, matchId, s.msgIdCounter, s.gameStateId, deck)
+        val (msg, nextMsgId) = Templates.initialBundle(seatId, matchId, s.msgIdCounter, s.gameStateId, deck, bridge)
         s.msgIdCounter = nextMsgId
         NexusTap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")

@@ -35,16 +35,24 @@ object StateMapper {
     /** Offset added to source card IDs for stack ability instance IDs. */
     private const val STACK_ABILITY_ID_OFFSET = 100_000
 
-    // Zone IDs (matching real server)
+    // Zone IDs (matching real server layout, starting at 18)
+    private const val ZONE_REVEALED_P1 = 18
+    private const val ZONE_REVEALED_P2 = 19
+    private const val ZONE_SUPPRESSED = 24
+    private const val ZONE_PENDING = 25
+    private const val ZONE_COMMAND = 26
     private const val ZONE_STACK = 27
     private const val ZONE_BATTLEFIELD = 28
     private const val ZONE_EXILE = 29
+    private const val ZONE_LIMBO = 30
     private const val ZONE_P1_HAND = 31
     private const val ZONE_P1_LIBRARY = 32
     private const val ZONE_P1_GRAVEYARD = 33
+    private const val ZONE_P1_SIDEBOARD = 34
     private const val ZONE_P2_HAND = 35
     private const val ZONE_P2_LIBRARY = 36
     private const val ZONE_P2_GRAVEYARD = 37
+    private const val ZONE_P2_SIDEBOARD = 38
 
     /**
      * Build a DeckMessage from a list of grpIds (one per card in the deck).
@@ -133,6 +141,108 @@ object StateMapper {
             .setMulliganReq(MulliganReq.newBuilder().setMulliganType(MulliganType.London))
             .build()
 
+    /**
+     * Build the initial Full [GameStateMessage] for the connection bundle.
+     * Zones show the pre-deal state: all cards in library, hands empty.
+     * No game objects (cards are face-down).
+     */
+    fun buildInitialGameState(
+        matchId: String,
+        gameStateId: Int,
+        seatId: Int,
+        bridge: GameBridge,
+        pendingMessageCount: Int = 0,
+    ): GameStateMessage {
+        val human = bridge.getPlayer(1)
+        val ai = bridge.getPlayer(2)
+
+        val gameInfo = GameInfo.newBuilder()
+            .setMatchID(matchId)
+            .setGameNumber(1)
+            .setStage(GameStage.Start_a920)
+            .setType(GameType.Duel)
+            .setVariant(GameVariant.Normal)
+            .setMatchState(MatchState.GameInProgress)
+            .setMatchWinCondition(MatchWinCondition.SingleElimination)
+            .setSuperFormat(SuperFormat.Constructed)
+            .setMulliganType(MulliganType.London)
+            .setDeckConstraintInfo(
+                DeckConstraintInfo.newBuilder()
+                    .setMinDeckSize(60).setMaxDeckSize(250).setMaxSideboardSize(15),
+            )
+
+        // Seat 2 has pending ChooseStartingPlayerResp
+        val player1 = buildPlayerInfo(human, 1)
+        val player2 = buildPlayerInfo(ai, 2).toBuilder()
+            .setPendingMessageType(ClientMessageType.ChooseStartingPlayerResp_097b)
+            .build()
+
+        val zones = mutableListOf<ZoneInfo>()
+        // Shared zones (9)
+        zones.add(makeZone(ZONE_REVEALED_P1, ZoneType.Revealed, 1, Visibility.Public))
+        zones.add(makeZone(ZONE_REVEALED_P2, ZoneType.Revealed, 2, Visibility.Public))
+        zones.add(makeZone(ZONE_SUPPRESSED, ZoneType.Suppressed, 0, Visibility.Public))
+        zones.add(makeZone(ZONE_PENDING, ZoneType.Pending, 0, Visibility.Public))
+        zones.add(makeZone(ZONE_COMMAND, ZoneType.Command, 0, Visibility.Public))
+        zones.add(makeZone(ZONE_STACK, ZoneType.Stack, 0, Visibility.Public))
+        zones.add(makeZone(ZONE_BATTLEFIELD, ZoneType.Battlefield, 0, Visibility.Public))
+        zones.add(makeZone(ZONE_EXILE, ZoneType.Exile, 0, Visibility.Public))
+        zones.add(makeZone(ZONE_LIMBO, ZoneType.Limbo, 0, Visibility.Public))
+        // Per-player zones (4 each = 8)
+        addInitialPlayerZones(human, 1, bridge, zones, ZONE_P1_HAND, ZONE_P1_LIBRARY, ZONE_P1_GRAVEYARD, ZONE_P1_SIDEBOARD)
+        addInitialPlayerZones(ai, 2, bridge, zones, ZONE_P2_HAND, ZONE_P2_LIBRARY, ZONE_P2_GRAVEYARD, ZONE_P2_SIDEBOARD)
+
+        val builder = GameStateMessage.newBuilder()
+            .setType(GameStateType.Full)
+            .setGameStateId(gameStateId)
+            .setGameInfo(gameInfo)
+            .addTeams(TeamInfo.newBuilder().setId(1).addPlayerIds(1).setStatus(TeamStatus.InGame_a458))
+            .addTeams(TeamInfo.newBuilder().setId(2).addPlayerIds(2).setStatus(TeamStatus.InGame_a458))
+            .addPlayers(player1).addPlayers(player2)
+            .setTurnInfo(TurnInfo.newBuilder().setDecisionPlayer(2))
+            .addAllZones(zones)
+            .addAllTimers(buildTimers())
+            .setUpdate(GameStateUpdate.SendAndRecord)
+        if (pendingMessageCount > 0) builder.setPendingMessageCount(pendingMessageCount)
+        return builder.build()
+    }
+
+    /** Player zones for initial bundle: empty hand, full library, empty graveyard/sideboard. */
+    private fun addInitialPlayerZones(
+        player: Player?,
+        seatId: Int,
+        bridge: GameBridge,
+        zones: MutableList<ZoneInfo>,
+        handZoneId: Int,
+        libZoneId: Int,
+        gyZoneId: Int,
+        sbZoneId: Int,
+    ) {
+        if (player == null) return
+        // Hand — empty, with viewer
+        zones.add(
+            ZoneInfo.newBuilder().setZoneId(handZoneId).setType(ZoneType.Hand)
+                .setOwnerSeatId(seatId).setVisibility(Visibility.Private).addViewers(seatId).build(),
+        )
+        // Library — all cards (hand + library combined = full deck, pre-deal)
+        val libBuilder = ZoneInfo.newBuilder().setZoneId(libZoneId).setType(ZoneType.Library)
+            .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
+        for (card in player.getZone(ForgeZoneType.Library).cards) {
+            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(card.id))
+        }
+        for (card in player.getZone(ForgeZoneType.Hand).cards) {
+            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(card.id))
+        }
+        zones.add(libBuilder.build())
+        // Graveyard — empty
+        zones.add(makeZone(gyZoneId, ZoneType.Graveyard, seatId, Visibility.Public))
+        // Sideboard — empty, with viewer
+        zones.add(
+            ZoneInfo.newBuilder().setZoneId(sbZoneId).setType(ZoneType.Sideboard)
+                .setOwnerSeatId(seatId).setVisibility(Visibility.Private).addViewers(seatId).build(),
+        )
+    }
+
     // --- Real game state from Forge engine ---
 
     // TODO(per-seat): Send different GameStateMessage per seat.
@@ -187,29 +297,29 @@ object StateMapper {
         val gameObjects = mutableListOf<GameObjectInfo>()
 
         // Standard zone layout (17 zones, IDs 18-38) — must send all for Full state
-        zones.add(makeZone(18, ZoneType.Revealed, 1, Visibility.Public))
-        zones.add(makeZone(19, ZoneType.Revealed, 2, Visibility.Public))
-        zones.add(makeZone(24, ZoneType.Suppressed, 0, Visibility.Public))
-        zones.add(makeZone(25, ZoneType.Pending, 0, Visibility.Public))
-        zones.add(makeZone(26, ZoneType.Command, 0, Visibility.Public))
+        zones.add(makeZone(ZONE_REVEALED_P1, ZoneType.Revealed, 1, Visibility.Public))
+        zones.add(makeZone(ZONE_REVEALED_P2, ZoneType.Revealed, 2, Visibility.Public))
+        zones.add(makeZone(ZONE_SUPPRESSED, ZoneType.Suppressed, 0, Visibility.Public))
+        zones.add(makeZone(ZONE_PENDING, ZoneType.Pending, 0, Visibility.Public))
+        zones.add(makeZone(ZONE_COMMAND, ZoneType.Command, 0, Visibility.Public))
         zones.add(makeZone(ZONE_STACK, ZoneType.Stack, 0, Visibility.Public))
         zones.add(makeZone(ZONE_BATTLEFIELD, ZoneType.Battlefield, 0, Visibility.Public))
         zones.add(makeZone(ZONE_EXILE, ZoneType.Exile, 0, Visibility.Public))
-        zones.add(makeZone(30, ZoneType.Limbo, 0, Visibility.Hidden))
+        zones.add(makeZone(ZONE_LIMBO, ZoneType.Limbo, 0, Visibility.Hidden))
 
         // Player 1 zones
         addPlayerZones(
             game, human, 1, bridge, zones, gameObjects,
             ZONE_P1_HAND, ZONE_P1_LIBRARY, ZONE_P1_GRAVEYARD,
         )
-        zones.add(makeZone(34, ZoneType.Sideboard, 1, Visibility.Private))
+        zones.add(makeZone(ZONE_P1_SIDEBOARD, ZoneType.Sideboard, 1, Visibility.Private))
 
         // Player 2 zones
         addPlayerZones(
             game, ai, 2, bridge, zones, gameObjects,
             ZONE_P2_HAND, ZONE_P2_LIBRARY, ZONE_P2_GRAVEYARD,
         )
-        zones.add(makeZone(38, ZoneType.Sideboard, 2, Visibility.Private))
+        zones.add(makeZone(ZONE_P2_SIDEBOARD, ZoneType.Sideboard, 2, Visibility.Private))
 
         // Populate shared zones with any cards
         addSharedZoneCards(
