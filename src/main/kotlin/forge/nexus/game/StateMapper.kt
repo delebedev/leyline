@@ -378,7 +378,6 @@ object StateMapper {
         //   Resolve: ResolutionStart + ZoneTransfer(Resolve) + ResolutionComplete
         val annotations = mutableListOf<AnnotationInfo>()
         val persistentAnnotations = mutableListOf<AnnotationInfo>()
-        val deletedInstanceIds = mutableListOf<Int>()
         val actingSeat = if (handler.priorityPlayer == human) 1 else 2
         for (i in gameObjects.indices) {
             val obj = gameObjects[i]
@@ -397,14 +396,22 @@ object StateMapper {
                 if (newId != origId) {
                     gameObjects[i] = obj.toBuilder().setInstanceId(newId).build()
                     patchZoneInstanceId(zones, obj.zoneId, origId, newId)
-                    // Retire old instanceId to Limbo zone (for zone tracking).
-                    // Don't send a gameObject — the ObjectIdChanged annotation tells
-                    // the client the old ID was renamed. Real server only sends a Limbo
-                    // gameObject to the opponent (who never had the object); the owner
-                    // already knows about it via ObjectIdChanged.
+                    // Retire old instanceId to Limbo: zone entry + gameObject.
+                    // Real server sends a Private Limbo gameObject to the owner so
+                    // the client moves the old object from Hand→Limbo in its state.
+                    // Without this, the client keeps the old object in Hand and
+                    // shows a "jump back" visual artifact.
                     bridge.retireToLimbo(origId)
-                    deletedInstanceIds.add(origId)
                     appendToZone(zones, ZONE_LIMBO, origId)
+                    gameObjects.add(
+                        obj.toBuilder()
+                            .setInstanceId(origId)
+                            .setZoneId(ZONE_LIMBO)
+                            .setVisibility(Visibility.Private)
+                            .clearViewers()
+                            .addViewers(obj.ownerSeatId)
+                            .build(),
+                    )
                 }
                 when (category) {
                     "PlayLand" -> {
@@ -495,7 +502,6 @@ object StateMapper {
             .addAllGameObjects(gameObjects)
             .addAllAnnotations(numberedAnnotations)
             .addAllPersistentAnnotations(persistentAnnotations)
-            .addAllDiffDeletedInstanceIds(deletedInstanceIds)
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
         if (prevState != null && prevState.gameStateId > 0) {

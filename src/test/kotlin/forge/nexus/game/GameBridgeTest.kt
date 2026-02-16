@@ -849,8 +849,8 @@ class GameBridgeTest {
             "Land play should produce ZoneTransfer annotation",
         )
         val ann = zoneTransfers.first()
-        val details = ann.detailsList.associate { it.key to it.valueStringList.first() }
-        assertEquals(details["category"], "PlayLand")
+        val category = ann.detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "PlayLand")
     }
 
     // --- AI combat visibility tests ---
