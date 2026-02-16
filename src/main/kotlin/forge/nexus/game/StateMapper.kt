@@ -55,6 +55,84 @@ object StateMapper {
         return builder.build()
     }
 
+    /**
+     * Build a DealHand GSM (Diff) for a seat at mulligan time.
+     * Shows both players' hand/library zones with card objects for the target seat's hand.
+     */
+    fun buildDealHand(
+        bridge: GameBridge,
+        gameStateId: Int,
+        seatId: Int,
+    ): GameStateMessage {
+        val game = bridge.getGame()!!
+        val human = bridge.getPlayer(1)
+        val ai = bridge.getPlayer(2)
+
+        val zones = mutableListOf<ZoneInfo>()
+        val gameObjects = mutableListOf<GameObjectInfo>()
+
+        // Both seats' hand + library only (real server omits graveyard at deal-hand)
+        addHandAndLibrary(game, human, 1, bridge, zones, gameObjects, ZONE_P1_HAND, ZONE_P1_LIBRARY)
+        addHandAndLibrary(game, ai, 2, bridge, zones, gameObjects, ZONE_P2_HAND, ZONE_P2_LIBRARY)
+
+        // Players — both have pendingMessageType: MulliganResp during mulligan
+        val player1 = buildPlayerInfo(human, 1).toBuilder()
+            .setPendingMessageType(ClientMessageType.MulliganResp_097b)
+            .setControllerSeatId(1).build()
+        val player2 = buildPlayerInfo(ai, 2).toBuilder()
+            .setPendingMessageType(ClientMessageType.MulliganResp_097b)
+            .setControllerSeatId(2).build()
+
+        // activePlayer=2 (seat 2 won die roll in template), decisionPlayer=2
+        val turnInfo = TurnInfo.newBuilder()
+            .setActivePlayer(2).setDecisionPlayer(2)
+
+        val gsm = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(gameStateId)
+            .addPlayers(player1).addPlayers(player2)
+            .setTurnInfo(turnInfo)
+            .addAllZones(zones)
+            .addAllGameObjects(gameObjects)
+            .addAnnotations(
+                AnnotationInfo.newBuilder().setId(49)
+                    .setAffectorId(2).addAffectedIds(2)
+                    .addType(AnnotationType.NewTurnStarted),
+            )
+            .setPrevGameStateId(gameStateId - 1)
+            .setUpdate(GameStateUpdate.SendAndRecord)
+
+        // Only include actions for the target seat (stripped for GSM)
+        // At deal-hand time, actions are stale — clear them like the template does
+        return gsm.build()
+    }
+
+    /**
+     * Build a MulliganReq GRE message.
+     */
+    fun buildMulliganReq(
+        msgId: Int,
+        gameStateId: Int,
+        seatId: Int,
+        numCards: Int = 7,
+    ): GREToClientMessage =
+        GREToClientMessage.newBuilder()
+            .setType(GREMessageType.MulliganReq_aa0d)
+            .addSystemSeatIds(seatId)
+            .setMsgId(msgId)
+            .setGameStateId(gameStateId)
+            .setPrompt(
+                Prompt.newBuilder().setPromptId(34)
+                    .addParameters(
+                        PromptParameter.newBuilder()
+                            .setParameterName("NumberOfCards")
+                            .setType(ParameterType.Number)
+                            .setNumberValue(numCards),
+                    ),
+            )
+            .setMulliganReq(MulliganReq.newBuilder().setMulliganType(MulliganType.London))
+            .build()
+
     // --- Real game state from Forge engine ---
 
     // TODO(per-seat): Send different GameStateMessage per seat.
@@ -806,6 +884,41 @@ object StateMapper {
             gameObjects.add(buildCardObject(card, instanceId, gyZoneId, seatId))
         }
         zones.add(gyBuilder.build())
+    }
+
+    /** Hand + library only (no graveyard) — used for deal-hand at mulligan time. */
+    private fun addHandAndLibrary(
+        game: Game,
+        player: Player?,
+        seatId: Int,
+        bridge: GameBridge,
+        zones: MutableList<ZoneInfo>,
+        gameObjects: MutableList<GameObjectInfo>,
+        handZoneId: Int,
+        libZoneId: Int,
+    ) {
+        if (player == null) return
+
+        val hand = player.getZone(ForgeZoneType.Hand)
+        val handBuilder = ZoneInfo.newBuilder()
+            .setZoneId(handZoneId).setType(ZoneType.Hand)
+            .setOwnerSeatId(seatId).setVisibility(Visibility.Private)
+        for (card in hand.cards) {
+            val instanceId = bridge.getOrAllocInstanceId(card.id)
+            handBuilder.addObjectInstanceIds(instanceId)
+            gameObjects.add(buildCardObject(card, instanceId, handZoneId, seatId))
+        }
+        handBuilder.addViewers(seatId)
+        zones.add(handBuilder.build())
+
+        val lib = player.getZone(ForgeZoneType.Library)
+        val libBuilder = ZoneInfo.newBuilder()
+            .setZoneId(libZoneId).setType(ZoneType.Library)
+            .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
+        for (card in lib.cards) {
+            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(card.id))
+        }
+        zones.add(libBuilder.build())
     }
 
     private fun addSharedZoneCards(

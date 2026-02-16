@@ -235,8 +235,9 @@ class MatchHandler(
     fun sendDealHand() {
         val ctx = nettyCtx ?: return
         val s = session ?: return
+        val bridge = s.gameBridge ?: return
         s.gameStateId++
-        val (msg, nextMsgId) = Templates.dealHandSeat1(s.msgIdCounter, s.gameStateId, seat1Hand)
+        val (msg, nextMsgId) = Templates.dealHandSeat1(s.msgIdCounter, s.gameStateId, bridge)
         s.msgIdCounter = nextMsgId
         NexusTap.outboundTemplate("DealHand seat=$seatId")
         ProtoDump.dump(msg, "DealHand-seat$seatId")
@@ -258,8 +259,9 @@ class MatchHandler(
     /** DealHand + MulliganReq bundled (for seat 2). */
     private fun sendDealHandAndMulligan(ctx: ChannelHandlerContext) {
         val s = session ?: return
+        val bridge = s.gameBridge ?: return
         s.gameStateId++
-        val (msg, nextMsgId) = Templates.dealHandMulliganSeat2(s.msgIdCounter, s.gameStateId, seat2Hand)
+        val (msg, nextMsgId) = Templates.dealHandMulliganSeat2(s.msgIdCounter, s.gameStateId, bridge)
         s.msgIdCounter = nextMsgId
         NexusTap.outboundTemplate("DealHand+MulliganReq seat=$seatId")
         ProtoDump.dump(msg, "DealHand+MullReq-seat$seatId")
