@@ -14,7 +14,6 @@ object Templates {
     private val log = LoggerFactory.getLogger(Templates::class.java)
 
     // Cached raw templates (loaded once)
-    private val roomState = loadTemplate("room-state.bin")
     private val initialBundleSeat1 = loadTemplate("initial-bundle-seat1.bin")
     private val initialBundleSeat2 = loadTemplate("initial-bundle-seat2.bin")
     private val dealHandSeat1 = loadTemplate("deal-hand-seat1.bin")
@@ -31,28 +30,39 @@ object Templates {
         }
     }
 
-    /** Room state event — patch matchId and player IDs. */
+    /** Room state event — built from scratch (no template). */
     fun roomState(matchId: String, playerId: String): MatchServiceToClientMessage {
-        val template = MatchServiceToClientMessage.parseFrom(roomState)
-        val room = template.matchGameRoomStateChangedEvent.gameRoomInfo
-        val config = room.gameRoomConfig.toBuilder().setMatchId(matchId)
-
-        // Patch reserved players with real IDs
         val familiarId = "${playerId}_Familiar"
-        if (config.reservedPlayersCount >= 2) {
-            config.setReservedPlayers(0, config.getReservedPlayers(0).toBuilder().setUserId(playerId))
-            config.setReservedPlayers(1, config.getReservedPlayers(1).toBuilder().setUserId(familiarId))
-        }
 
-        val roomBuilder = room.toBuilder().setGameRoomConfig(config)
-        if (roomBuilder.playersCount >= 2) {
-            roomBuilder.setPlayers(0, roomBuilder.getPlayers(0).toBuilder().setUserId(playerId))
-            roomBuilder.setPlayers(1, roomBuilder.getPlayers(1).toBuilder().setUserId(familiarId))
-        }
+        fun playerInfo(userId: String, name: String, seat: Int, team: Int) =
+            MatchGameRoomPlayerInfo.newBuilder()
+                .setUserId(userId).setPlayerName(name)
+                .setSystemSeatId(seat).setTeamId(team)
 
-        return template.toBuilder()
+        val config = MatchGameRoomConfig.newBuilder()
+            .setMatchId(matchId)
+            .setEventId("AIBotMatch")
+            .addReservedPlayers(
+                playerInfo(playerId, "Player", 1, 1)
+                    .setCourseId("Avatar_Basic_Adventurer")
+                    .setPlatformId("Mac"),
+            )
+            .addReservedPlayers(
+                playerInfo(familiarId, "Sparky", 2, 2)
+                    .setCourseId("Avatar_Basic_Sparky")
+                    .setIsBotPlayer(true)
+                    .setEventId("AIBotMatch"),
+            )
+
+        val roomInfo = MatchGameRoomInfo.newBuilder()
+            .setGameRoomConfig(config)
+            .setStateType(MatchGameRoomStateType.Playing)
+            .addPlayers(playerInfo(playerId, "Player", 1, 1))
+            .addPlayers(playerInfo(familiarId, "Sparky", 2, 2))
+
+        return MatchServiceToClientMessage.newBuilder()
             .setMatchGameRoomStateChangedEvent(
-                template.matchGameRoomStateChangedEvent.toBuilder().setGameRoomInfo(roomBuilder),
+                MatchGameRoomStateChangedEvent.newBuilder().setGameRoomInfo(roomInfo),
             )
             .build()
     }
