@@ -10,7 +10,7 @@ import org.testng.annotations.BeforeClass
 import org.testng.annotations.Test
 
 /**
- * Compares dynamically-built deal-hand messages against recorded Arena .bin templates.
+ * Compares dynamically-built pre-mulligan messages against recorded Arena .bin templates.
  *
  * The .bin files are the real server's output. Our dynamic builders must produce
  * structurally equivalent messages: same GRE types, GSM type, update type,
@@ -101,6 +101,45 @@ class DealHandConformanceTest {
         // Message 1: MulliganReq
         val goldenMull = binFps[1]
         val actualMull = dynFps[1]
+        assertEquals(actualMull.greMessageType, goldenMull.greMessageType, "MulliganReq: GRE type")
+        assertEquals(actualMull.hasPrompt, goldenMull.hasPrompt, "MulliganReq: has prompt")
+        assertEquals(actualMull.promptId, goldenMull.promptId, "MulliganReq: prompt ID")
+    }
+
+    @Test
+    fun mulliganReqSeat1MatchesRecording() {
+        val binFps = RecordingParser.parsePayload(loadBin("mulligan-req-seat1.bin"))
+        assertEquals(binFps.size, 3, "Recording should have 3 GRE messages (GSM + PromptReq + MulliganReq)")
+
+        val b = startBridge()
+        val (msg, _) = Templates.mulliganReqSeat1(10, 3, b)
+        val dynFps = msg.greToClientEvent.greToClientMessagesList
+            .map { StructuralFingerprint.fromGRE(it) }
+        assertEquals(dynFps.size, 3, "Dynamic should have 3 GRE messages")
+
+        // Message 0: GameStateMessage (thin Diff — seat 2 status, decisionPlayer=1)
+        val goldenGsm = binFps[0]
+        val actualGsm = dynFps[0]
+        assertEquals(actualGsm.greMessageType, goldenGsm.greMessageType, "GSM: GRE message type")
+        assertEquals(actualGsm.gsType, goldenGsm.gsType, "GSM: type")
+        assertEquals(actualGsm.updateType, goldenGsm.updateType, "GSM: update type")
+        assertEquals(actualGsm.zoneCount, goldenGsm.zoneCount, "GSM: zone count (0)")
+        assertEquals(actualGsm.objectCount, goldenGsm.objectCount, "GSM: object count (0)")
+
+        val requiredFields = goldenGsm.fieldPresence - "actions"
+        val missing = requiredFields - actualGsm.fieldPresence
+        assertTrue(missing.isEmpty(), "GSM: Missing required fields: $missing")
+
+        // Message 1: PromptReq (promptId=37, "who goes first")
+        val goldenPrompt = binFps[1]
+        val actualPrompt = dynFps[1]
+        assertEquals(actualPrompt.greMessageType, goldenPrompt.greMessageType, "PromptReq: GRE type")
+        assertEquals(actualPrompt.hasPrompt, goldenPrompt.hasPrompt, "PromptReq: has prompt")
+        assertEquals(actualPrompt.promptId, goldenPrompt.promptId, "PromptReq: prompt ID")
+
+        // Message 2: MulliganReq (promptId=34, NumberOfCards=7)
+        val goldenMull = binFps[2]
+        val actualMull = dynFps[2]
         assertEquals(actualMull.greMessageType, goldenMull.greMessageType, "MulliganReq: GRE type")
         assertEquals(actualMull.hasPrompt, goldenMull.hasPrompt, "MulliganReq: has prompt")
         assertEquals(actualMull.promptId, goldenMull.promptId, "MulliganReq: prompt ID")

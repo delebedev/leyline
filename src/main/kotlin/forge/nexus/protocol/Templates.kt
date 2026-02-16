@@ -17,7 +17,6 @@ object Templates {
     // Cached raw templates (loaded once)
     private val initialBundleSeat1 = loadTemplate("initial-bundle-seat1.bin")
     private val initialBundleSeat2 = loadTemplate("initial-bundle-seat2.bin")
-    private val mulliganReqSeat1 = loadTemplate("mulligan-req-seat1.bin")
     private val settingsRespSeat1 = loadTemplate("settings-resp-seat1.bin")
     private val settingsRespSeat2 = loadTemplate("settings-resp-seat2.bin")
 
@@ -178,33 +177,63 @@ object Templates {
 
     /**
      * MulliganReq sequence for seat 1: GameState(decision=1) + PromptReq + MulliganReq.
-     * This is the critical template — contains unknown fields that trigger the mulligan UI.
+     * Built dynamically — no template needed.
      */
-    fun mulliganReqSeat1(msgIdStart: Int, gameStateId: Int): Pair<MatchServiceToClientMessage, Int> {
-        val template = MatchServiceToClientMessage.parseFrom(mulliganReqSeat1)
-        val event = template.greToClientEvent.toBuilder()
+    fun mulliganReqSeat1(
+        msgIdStart: Int,
+        gameStateId: Int,
+        bridge: GameBridge,
+    ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
 
-        for (i in 0 until event.greToClientMessagesCount) {
-            val gre = event.getGreToClientMessages(i).toBuilder()
-                .setMsgId(msgId++)
-                .setGameStateId(gameStateId)
-
-            // Preserve original seatIds — template has correct routing
-            if (gre.hasGameStateMessage()) {
-                val gs = gre.gameStateMessage.toBuilder().setGameStateId(gameStateId)
-                // Clear stale card objects/actions from template
-                gs.clearGameObjects()
-                gs.clearActions()
-                gre.setGameStateMessage(gs)
-            }
-            event.setGreToClientMessages(i, gre)
-        }
-
-        val result = template.toBuilder()
-            .setGreToClientEvent(event)
+        // 1) Thin GSM Diff: seat 2 no longer pending, decisionPlayer=1
+        val gsm = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(gameStateId)
+            .addPlayers(
+                StateMapper.buildPlayerInfo(bridge.getPlayer(2), 2),
+            )
+            .setTurnInfo(
+                TurnInfo.newBuilder().setActivePlayer(2).setDecisionPlayer(1),
+            )
+            .setPendingMessageCount(2)
+            .setPrevGameStateId(gameStateId - 1)
+            .addAllTimers(StateMapper.buildTimers())
+            .setUpdate(GameStateUpdate.SendAndRecord)
             .build()
-        return result to msgId
+        val greGsm = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.GameStateMessage_695e)
+            .addSystemSeatIds(1)
+            .setMsgId(msgId++)
+            .setGameStateId(gameStateId)
+            .setGameStateMessage(gsm)
+            .build()
+
+        // 2) PromptReq: "who's going first" notification (promptId=37, PlayerId→seat 2)
+        val grePrompt = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.PromptReq)
+            .addSystemSeatIds(1).addSystemSeatIds(2)
+            .setMsgId(msgId++)
+            .setGameStateId(gameStateId)
+            .setPrompt(
+                Prompt.newBuilder().setPromptId(37)
+                    .addParameters(
+                        PromptParameter.newBuilder()
+                            .setParameterName("PlayerId")
+                            .setType(ParameterType.Reference_a14a)
+                            .setReference(
+                                Reference.newBuilder()
+                                    .setType(ReferenceType.PlayerSeatId)
+                                    .setId(2),
+                            ),
+                    ),
+            )
+            .build()
+
+        // 3) MulliganReq for seat 1
+        val greMull = StateMapper.buildMulliganReq(msgId++, gameStateId, 1)
+
+        return wrapGre(greGsm, grePrompt, greMull) to msgId
     }
 
     /** SetSettingsResp — echo client settings on top of template. */

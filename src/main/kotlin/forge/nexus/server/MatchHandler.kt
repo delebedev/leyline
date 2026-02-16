@@ -248,8 +248,9 @@ class MatchHandler(
     fun sendMulliganReq() {
         val ctx = nettyCtx ?: return
         val s = session ?: return
+        val bridge = s.gameBridge ?: return
         s.gameStateId++
-        val (msg, nextMsgId) = Templates.mulliganReqSeat1(s.msgIdCounter, s.gameStateId)
+        val (msg, nextMsgId) = Templates.mulliganReqSeat1(s.msgIdCounter, s.gameStateId, bridge)
         s.msgIdCounter = nextMsgId
         NexusTap.outboundTemplate("MulliganReq seat=$seatId")
         ProtoDump.dump(msg, "MulliganReq-seat$seatId")

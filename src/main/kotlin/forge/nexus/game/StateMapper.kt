@@ -795,7 +795,7 @@ object StateMapper {
 
     // --- Helpers for buildFromGame ---
 
-    private fun buildPlayerInfo(player: Player?, seatId: Int): PlayerInfo {
+    internal fun buildPlayerInfo(player: Player?, seatId: Int): PlayerInfo {
         val builder = PlayerInfo.newBuilder()
             .setSystemSeatNumber(seatId)
             .setTeamId(seatId)
