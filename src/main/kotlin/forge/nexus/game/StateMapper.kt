@@ -396,16 +396,12 @@ object StateMapper {
                 if (newId != origId) {
                     gameObjects[i] = obj.toBuilder().setInstanceId(newId).build()
                     patchZoneInstanceId(zones, obj.zoneId, origId, newId)
-                    // Retire old object to Limbo (client needs this to remove old visual)
+                    // Retire old instanceId to Limbo zone (for zone tracking).
+                    // Don't send a gameObject — the ObjectIdChanged annotation tells
+                    // the client the old ID was renamed. Real server only sends a Limbo
+                    // gameObject to the opponent (who never had the object); the owner
+                    // already knows about it via ObjectIdChanged.
                     bridge.retireToLimbo(origId)
-                    val limboObj = obj.toBuilder()
-                        .setInstanceId(origId)
-                        .setZoneId(ZONE_LIMBO)
-                        .setVisibility(Visibility.Private)
-                        .clearViewers()
-                        .addViewers(obj.ownerSeatId)
-                        .build()
-                    gameObjects.add(limboObj)
                     appendToZone(zones, ZONE_LIMBO, origId)
                 }
                 when (category) {

@@ -167,7 +167,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
         assertTrue(landObj.uniqueAbilitiesCount > 0, "Land gameObject should have uniqueAbilities (mana ability), got 0")
     }
 
-    @Test(description = "Play land: old instanceId retired to Limbo with gameObject entry")
+    @Test(description = "Play land: old instanceId retired to Limbo zone (no gameObject)")
     fun oldInstanceRetiredToLimbo() {
         val (gsm, origInstanceId, newInstanceId) = playLandAndCaptureWithIds() ?: return
 
@@ -182,10 +182,10 @@ class PlayLandFieldTest : ConformanceTestBase() {
             "Limbo zone should contain old instanceId $origInstanceId, got: ${limboZone.objectInstanceIdsList}",
         )
 
-        // Old instanceId should have a gameObject in Limbo
+        // No gameObject for old ID — ObjectIdChanged annotation tells client the rename.
+        // Real server only sends a Limbo gameObject to the opponent seat.
         val limboObj = gsm.gameObjectsList.firstOrNull { it.instanceId == origInstanceId }
-        assertTrue(limboObj != null, "GSM should have gameObject for retired old instanceId $origInstanceId")
-        assertEquals(limboObj!!.zoneId, ZONE_LIMBO, "Retired object should be in Limbo zone")
+        assertTrue(limboObj == null, "Should NOT send gameObject for retired instanceId to the owner (ObjectIdChanged suffices)")
 
         // New instanceId should be on battlefield (not in Limbo)
         val newObj = gsm.gameObjectsList.firstOrNull { it.instanceId == newInstanceId }
