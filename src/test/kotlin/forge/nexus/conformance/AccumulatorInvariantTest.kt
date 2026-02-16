@@ -44,9 +44,8 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
 
         // Play a land
         val action = playLand(b) ?: return
-        b.snapshotState(game)
 
-        // Accumulate post-action
+        // Accumulate post-action (postAction internally snapshots for next diff)
         val postResult = BundleBuilder.postAction(game, b, "test-match", 1, startResult.nextMsgId, startResult.nextGsId)
         acc.processAll(postResult.messages)
 
@@ -64,13 +63,11 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
 
         // Play land first (creature costs mana)
         playLand(b)
-        b.snapshotState(game)
         val postLand = BundleBuilder.postAction(game, b, "test-match", 1, startResult.nextMsgId, startResult.nextGsId)
         acc.processAll(postLand.messages)
 
         // Cast creature
         val creature = castCreature(b) ?: return
-        b.snapshotState(game)
         val postCast = BundleBuilder.postAction(game, b, "test-match", 1, postLand.nextMsgId, postLand.nextGsId)
         acc.processAll(postCast.messages)
 
