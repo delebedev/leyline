@@ -16,9 +16,9 @@ object AnnotationBuilder {
     ): AnnotationInfo = AnnotationInfo.newBuilder()
         .addType(AnnotationType.ZoneTransfer_af5a)
         .addAffectedIds(instanceId)
-        .addDetails(stringDetail("zone_src", srcZoneId.toString()))
-        .addDetails(stringDetail("zone_dest", destZoneId.toString()))
-        .addDetails(stringDetail("category", category))
+        .addDetails(int32Detail("zone_src", srcZoneId))
+        .addDetails(int32Detail("zone_dest", destZoneId))
+        .addDetails(typedStringDetail("category", category))
         .build()
 
     /** Spell/ability begins resolving. Client uses this to start resolution animation. */
@@ -36,17 +36,32 @@ object AnnotationBuilder {
             .build()
 
     /** Card's instanceId changed (e.g. zone move creates new object). */
-    fun objectIdChanged(instanceId: Int): AnnotationInfo =
+    fun objectIdChanged(origId: Int, newId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ObjectIdChanged)
-            .addAffectedIds(instanceId)
+            .addAffectedIds(origId)
+            .addDetails(int32Detail("orig_id", origId))
+            .addDetails(int32Detail("new_id", newId))
             .build()
 
-    /** Ties a game state change back to a player interaction. */
-    fun userActionTaken(instanceId: Int): AnnotationInfo =
+    /**
+     * Ties a game state change back to a player interaction.
+     * [seatId] = acting player's seat (affectorId).
+     * [actionType] = Arena ActionType ordinal (1=Cast, 3=Play, 4=ActivateMana).
+     * [abilityGrpId] = ability group ID (0 for land play).
+     */
+    fun userActionTaken(
+        instanceId: Int,
+        seatId: Int,
+        actionType: Int = 0,
+        abilityGrpId: Int = 0,
+    ): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.UserActionTaken)
+            .setAffectorId(seatId)
             .addAffectedIds(instanceId)
+            .addDetails(int32Detail("actionType", actionType))
+            .addDetails(int32Detail("abilityGrpId", abilityGrpId))
             .build()
 
     /** Mana was spent to pay for a spell/ability. */
@@ -107,9 +122,18 @@ object AnnotationBuilder {
             .addType(AnnotationType.SyntheticEvent)
             .build()
 
-    private fun stringDetail(key: String, value: String): KeyValuePairInfo =
+    /** Persistent annotation: card entered a zone this turn. Client uses for summoning sickness, ETB display. */
+    fun enteredZoneThisTurn(zoneId: Int, vararg instanceIds: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.EnteredZoneThisTurn)
+            .setAffectorId(zoneId)
+            .apply { instanceIds.forEach { addAffectedIds(it) } }
+            .build()
+
+    private fun typedStringDetail(key: String, value: String): KeyValuePairInfo =
         KeyValuePairInfo.newBuilder()
             .setKey(key)
+            .setType(KeyValuePairValueType.String)
             .addValueString(value)
             .build()
 

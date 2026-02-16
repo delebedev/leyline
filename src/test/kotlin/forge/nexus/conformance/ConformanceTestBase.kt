@@ -48,8 +48,9 @@ abstract class ConformanceTestBase {
             PhaseType.MAIN1,
             "Game should be at Main1 after advanceToMain1 (actual: ${game.phaseHandler.phase})",
         )
-        b.snapshotState(game)
-        return Triple(b, game, 20)
+        val gsId = 20
+        b.snapshotState(game, gsId)
+        return Triple(b, game, gsId)
     }
 
     protected fun fingerprint(messages: List<GREToClientMessage>): List<StructuralFingerprint> =
