@@ -375,9 +375,10 @@ object StateMapper {
             val prevZone = bridge.getPreviousZone(obj.instanceId)
             if (prevZone != null && prevZone != obj.zoneId) {
                 val category = inferCategory(obj, prevZone, obj.zoneId)
-                // Allocate new instanceId for zone transfer (real server does this)
+                // Allocate new instanceId for zone transfer (real server does this).
+                // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
                 val forgeCardId = bridge.getForgeCardId(obj.instanceId)
-                val (origId, newId) = if (forgeCardId != null) {
+                val (origId, newId) = if (category != "Resolve" && forgeCardId != null) {
                     bridge.reallocInstanceId(forgeCardId)
                 } else {
                     obj.instanceId to obj.instanceId
