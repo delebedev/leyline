@@ -47,7 +47,7 @@ message Action {
 	ActionType actionType = 1;
 	uint32 grpId = 2;           // card art ID from Arena DB
 	uint32 instanceId = 3;      // runtime card instance (from bridge allocation)
-	uint32 facetId = 4;         // NOT used in Cast actions
+	uint32 facetId = 4;         // = instanceId for card-based actions (Cast, Play, ActivateMana, Activate)
 	uint32 abilityGrpId = 6;    // Cast: first ability from Cards.AbilityIds (e.g. 1005)
 	uint32 sourceId = 8;
 	uint32 alternativeGrpId = 9;

@@ -261,16 +261,16 @@ object StateMapper {
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
 
-        // Embed actions in GameStateMessage (real server does this)
+        // Embed stripped-down actions in GSM (real server uses minimal format:
+        // Cast=instanceId+manaCost, Play=instanceId, ActivateMana=instanceId+abilityGrpId,
+        // no grpId/facetId/shouldStop/autoTapSolution, no actionId)
         if (actions != null) {
             val activeSeat = if (handler.priorityPlayer == human) 1 else 2
-            var actionId = 1
             for (action in actions.actionsList) {
                 builder.addActions(
                     ActionInfo.newBuilder()
-                        .setActionId(actionId++)
                         .setSeatId(activeSeat)
-                        .setAction(action),
+                        .setAction(stripActionForGsm(action)),
                 )
             }
         }
@@ -323,19 +323,19 @@ object StateMapper {
             .addAllAnnotations(current.annotationsList)
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
+            .setPrevGameStateId(prev.gameStateId)
 
-        // Embed actions in Diff state (real server does this)
+        // Embed stripped-down actions + set pendingMessageCount when AAR follows
         if (actions != null) {
+            builder.setPendingMessageCount(1)
             val handler = game.phaseHandler
             val human = bridge.getPlayer(1)
             val activeSeat = if (handler.priorityPlayer == human) 1 else 2
-            var actionId = 1
             for (action in actions.actionsList) {
                 builder.addActions(
                     ActionInfo.newBuilder()
-                        .setActionId(actionId++)
                         .setSeatId(activeSeat)
-                        .setAction(action),
+                        .setAction(stripActionForGsm(action)),
                 )
             }
         }
@@ -396,15 +396,14 @@ object StateMapper {
             )
         }
 
-        // Embed actions in Main1 state (real server does this)
+        // Embed stripped-down actions when AAR follows
         if (actions != null) {
-            var actionId = 1
+            builder.setPendingMessageCount(1)
             for (action in actions.actionsList) {
                 builder.addActions(
                     ActionInfo.newBuilder()
-                        .setActionId(actionId++)
                         .setSeatId(activeSeat)
-                        .setAction(action),
+                        .setAction(stripActionForGsm(action)),
                 )
             }
         }
@@ -426,15 +425,54 @@ object StateMapper {
             val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
 
             // ActivateMana — untapped permanents with mana abilities
+            // Real server: grpId, instanceId, facetId, abilityGrpId, manaPaymentOptions,
+            //   isBatchable, uniqueAbilityId, manaSelections
             if (!card.isTapped) {
                 val manaAbilities = card.manaAbilities
                 if (manaAbilities.isNotEmpty()) {
-                    builder.addActions(
-                        Action.newBuilder()
-                            .setActionType(ActionType.ActivateMana)
-                            .setInstanceId(instanceId)
-                            .setGrpId(grpId),
+                    val cardData = CardDb.lookup(grpId)
+                    val abilityEntry = cardData?.abilityIds?.firstOrNull()
+                    val abilityGrpId = abilityEntry?.first ?: 0
+                    // uniqueAbilityId: references UniqueAbilityInfo.id on the card object
+                    // Not critical for basic flow; omitted for now
+                    val sa = manaAbilities.first()
+                    val produced = sa.manaPart?.origProduced ?: ""
+                    val manaColor = producedToManaColor(produced) ?: ManaColor.Generic
+
+                    val actionBuilder = Action.newBuilder()
+                        .setActionType(ActionType.ActivateMana)
+                        .setInstanceId(instanceId)
+                        .setGrpId(grpId)
+                        .setFacetId(instanceId)
+                        .setIsBatchable(true)
+                    if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+
+                    // manaPaymentOptions: what mana this source produces
+                    actionBuilder.addManaPaymentOptions(
+                        ManaPaymentOption.newBuilder().addMana(
+                            ManaInfo.newBuilder()
+                                .setManaId(10)
+                                .setColor(manaColor)
+                                .setSrcInstanceId(instanceId)
+                                .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
+                                .setAbilityGrpId(abilityGrpId)
+                                .setCount(1),
+                        ),
                     )
+
+                    // manaSelections: available mana selection options
+                    actionBuilder.addManaSelections(
+                        ManaSelection.newBuilder()
+                            .setInstanceId(instanceId)
+                            .setAbilityGrpId(abilityGrpId)
+                            .addOptions(
+                                ManaSelectionOption.newBuilder().addMana(
+                                    ManaColorCount.newBuilder().setColor(manaColor).setCount(1),
+                                ),
+                            ),
+                    )
+
+                    builder.addActions(actionBuilder)
                 }
             }
 
@@ -449,6 +487,7 @@ object StateMapper {
                     .setActionType(ActionType.Activate_add3)
                     .setInstanceId(instanceId)
                     .setGrpId(grpId)
+                    .setFacetId(instanceId)
                 if (cardData != null) {
                     val abilityEntry = cardData.abilityIds.firstOrNull()
                     if (abilityEntry != null) actionBuilder.setAbilityGrpId(abilityEntry.first)
@@ -457,21 +496,31 @@ object StateMapper {
             }
         }
 
-        // Playable lands
+        // Lands: playable → actions, not playable → inactiveActions
         val handCards = player.getZone(ForgeZoneType.Hand).cards
         val lands = CardLists.filter(handCards, CardPredicates.LANDS)
         for (card in lands) {
+            val instanceId = bridge.getOrAllocInstanceId(card.id)
+            val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
             val landAbility = LandAbility(card, card.currentState)
             landAbility.activatingPlayer = player
             if (player.canPlayLand(card, false, landAbility)) {
-                val instanceId = bridge.getOrAllocInstanceId(card.id)
-                val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
                 builder.addActions(
                     Action.newBuilder()
                         .setActionType(ActionType.Play_add3)
                         .setInstanceId(instanceId)
                         .setGrpId(grpId)
+                        .setFacetId(instanceId)
                         .setShouldStop(true),
+                )
+            } else {
+                // Greyed-out: land can't be played (already played one this turn)
+                builder.addInactiveActions(
+                    Action.newBuilder()
+                        .setActionType(ActionType.Play_add3)
+                        .setGrpId(grpId)
+                        .setInstanceId(instanceId)
+                        .setFacetId(instanceId),
                 )
             }
         }
@@ -488,17 +537,16 @@ object StateMapper {
             if (!canPay) continue
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
-            // Real Arena Cast: grpId + instanceId + abilityGrpId + manaCost + shouldStop
+            // Real Arena Cast: grpId + instanceId + facetId + manaCost + shouldStop
+            // Note: abilityGrpId NOT set on Cast in ActionsAvailableReq (only in GSM embedded actions)
             val actionBuilder = Action.newBuilder()
                 .setActionType(ActionType.Cast)
                 .setInstanceId(instanceId)
                 .setGrpId(grpId)
+                .setFacetId(instanceId)
                 .setShouldStop(true)
             val cardData = CardDb.lookup(grpId)
             if (cardData != null) {
-                // abilityGrpId = first ability from card data (e.g. 1005 for mana dorks)
-                val firstAbility = cardData.abilityIds.firstOrNull()
-                if (firstAbility != null) actionBuilder.setAbilityGrpId(firstAbility.first)
                 for ((color, count) in cardData.manaCost) {
                     actionBuilder.addManaCost(
                         ManaRequirement.newBuilder().addColor(color).setCount(count),
@@ -511,8 +559,9 @@ object StateMapper {
             builder.addActions(actionBuilder)
         }
 
-        // Pass always available
+        // Pass always available + FloatMana (real server always includes both)
         builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
+        builder.addActions(Action.newBuilder().setActionType(ActionType.FloatMana))
 
         val manaCount = builder.actionsList.count { it.actionType == ActionType.ActivateMana }
         val activateCount = builder.actionsList.count { it.actionType == ActionType.Activate_add3 }
@@ -969,17 +1018,27 @@ object StateMapper {
             if (remaining > 0) return null
         }
 
-        // Build AutoTapSolution
+        // Build AutoTapSolution matching real server format:
+        // Each AutoTapAction has manaPaymentOption with full ManaInfo
         val builder = AutoTapSolution.newBuilder()
+        var manaIdCounter = 10 // real server uses ids starting around 10
         for ((src, payingColor) in matched) {
+            val manaId = manaIdCounter++
             builder.addAutoTapActions(
                 AutoTapAction.newBuilder()
                     .setInstanceId(src.instanceId)
-                    .setAbilityGrpId(src.abilityGrpId),
-            )
-            builder.addSelectedManaColors(payingColor)
-            builder.addManaPayments(
-                AutoTapManaPayment.newBuilder().setManaColor(payingColor),
+                    .setAbilityGrpId(src.abilityGrpId)
+                    .setManaPaymentOption(
+                        ManaPaymentOption.newBuilder().addMana(
+                            ManaInfo.newBuilder()
+                                .setManaId(manaId)
+                                .setColor(payingColor)
+                                .setSrcInstanceId(src.instanceId)
+                                .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
+                                .setAbilityGrpId(src.abilityGrpId)
+                                .setCount(1),
+                        ),
+                    ),
             )
         }
         return builder.build()
@@ -1013,6 +1072,29 @@ object StateMapper {
             }
             else -> "ZoneTransfer"
         }
+
+    /**
+     * Strip an Action down to the minimal format used inside GSM embedded actions.
+     * Real server: Cast=instanceId+manaCost, Play=instanceId, ActivateMana=instanceId+abilityGrpId.
+     * No grpId, facetId, shouldStop, autoTapSolution.
+     */
+    internal fun stripActionForGsm(action: Action): Action {
+        val b = Action.newBuilder().setActionType(action.actionType)
+        when (action.actionType) {
+            ActionType.Cast -> {
+                b.setInstanceId(action.instanceId)
+                b.addAllManaCost(action.manaCostList)
+            }
+            ActionType.Play_add3 -> b.setInstanceId(action.instanceId)
+            ActionType.ActivateMana -> {
+                b.setInstanceId(action.instanceId)
+                if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
+            }
+            ActionType.Pass, ActionType.FloatMana -> {} // empty
+            else -> b.setInstanceId(action.instanceId)
+        }
+        return b.build()
+    }
 
     // --- helpers ---
 

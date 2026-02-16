@@ -8,6 +8,7 @@ import org.testng.Assert.assertNotEquals
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
  * Action field conformance: verifies detailed proto fields on actions
@@ -35,11 +36,16 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
         for (a in manaActions) {
             assertNotEquals(a.instanceId, 0, "ActivateMana should have instanceId")
             assertNotEquals(a.grpId, 0, "ActivateMana should have grpId")
+            assertEquals(a.facetId, a.instanceId, "ActivateMana facetId should equal instanceId")
             assertFalse(a.shouldStop, "ActivateMana should NOT have shouldStop=true")
+            assertTrue(a.isBatchable, "ActivateMana should be batchable")
+            assertTrue(a.manaPaymentOptionsCount > 0, "ActivateMana should have manaPaymentOptions")
+            assertTrue(a.manaSelectionsCount > 0, "ActivateMana should have manaSelections")
+            // abilityGrpId depends on CardDb having ability data (may be 0 in test deck)
         }
     }
 
-    @Test(description = "Cast actions: shouldStop=true, abilityGrpId, manaCost, autoTapSolution")
+    @Test(description = "Cast actions: shouldStop=true, facetId, manaCost, autoTapSolution")
     fun castActionFields() {
         val (b, game, _) = startGameAtMain1()
 
@@ -54,7 +60,9 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
             assertTrue(a.shouldStop, "Cast should have shouldStop=true")
             assertNotEquals(a.instanceId, 0, "Cast should have instanceId")
             assertNotEquals(a.grpId, 0, "Cast should have grpId")
-            assertNotEquals(a.abilityGrpId, 0, "Cast should have abilityGrpId (from CardDb)")
+            assertEquals(a.facetId, a.instanceId, "Cast facetId should equal instanceId")
+            // abilityGrpId NOT set on Cast in ActionsAvailableReq (only in GSM embedded actions)
+            assertEquals(a.abilityGrpId, 0, "Cast in AAR should NOT have abilityGrpId")
             assertTrue(a.manaCostCount > 0, "Cast should have manaCost (non-free spells)")
             // autoTapSolution: present when untapped mana sources exist
             assertTrue(a.hasAutoTapSolution(), "Cast should have autoTapSolution when mana sources available")
@@ -79,6 +87,7 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
             assertTrue(a.shouldStop, "Play should have shouldStop=true")
             assertNotEquals(a.instanceId, 0, "Play should have instanceId")
             assertNotEquals(a.grpId, 0, "Play should have grpId")
+            assertEquals(a.facetId, a.instanceId, "Play facetId should equal instanceId")
             assertEquals(a.abilityGrpId, 0, "Play should NOT have abilityGrpId")
             assertEquals(a.manaCostCount, 0, "Play should NOT have manaCost")
         }
@@ -114,6 +123,45 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
         assertTrue(typeSet.contains("Cast"), "ActionsAvailableReq should have Cast")
         assertTrue(typeSet.contains("Pass"), "ActionsAvailableReq should have Pass")
         assertTrue(typeSet.contains("ActivateMana"), "ActionsAvailableReq should have ActivateMana")
+        assertTrue(typeSet.contains("FloatMana"), "ActionsAvailableReq should have FloatMana")
+
+        // GSM should have pendingMessageCount=1 when AAR follows
+        val gsmMsg = result.messages.find { it.hasGameStateMessage() }
+        assertTrue(gsmMsg != null, "postAction bundle should contain GameStateMessage")
+        val gsm = gsmMsg!!.gameStateMessage
+        assertEquals(gsm.pendingMessageCount, 1, "GSM should have pendingMessageCount=1 when AAR follows")
+    }
+
+    @Test(description = "GSM embedded actions are stripped (no grpId/facetId/shouldStop/autoTapSolution)")
+    fun gsmEmbeddedActionsStripped() {
+        val (b, game, gsId) = startGameAtMain1()
+        playLand(b) ?: return
+
+        val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, gsId)
+        val gsmMsg = result.messages.find { it.hasGameStateMessage() } ?: return
+        val gsm = gsmMsg.gameStateMessage
+
+        for (actionInfo in gsm.actionsList) {
+            val a = actionInfo.action
+            when (a.actionType) {
+                ActionType.Cast -> {
+                    assertNotEquals(a.instanceId, 0, "GSM Cast should have instanceId")
+                    assertEquals(a.grpId, 0, "GSM Cast should NOT have grpId")
+                    assertEquals(a.facetId, 0, "GSM Cast should NOT have facetId")
+                    assertFalse(a.shouldStop, "GSM Cast should NOT have shouldStop")
+                    assertFalse(a.hasAutoTapSolution(), "GSM Cast should NOT have autoTapSolution")
+                }
+                ActionType.ActivateMana -> {
+                    assertNotEquals(a.instanceId, 0, "GSM ActivateMana should have instanceId")
+                    assertEquals(a.grpId, 0, "GSM ActivateMana should NOT have grpId")
+                    assertEquals(a.facetId, 0, "GSM ActivateMana should NOT have facetId")
+                }
+                ActionType.Pass, ActionType.FloatMana -> {
+                    assertEquals(a.instanceId, 0, "GSM Pass/FloatMana should NOT have instanceId")
+                }
+                else -> {}
+            }
+        }
     }
 
     @Test(description = "AutoTapSolution maps mana sources to spell cost")
@@ -129,22 +177,18 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
 
         for (a in castActions) {
             val ats = a.autoTapSolution
-            // Each autoTapAction should reference a valid instanceId
+            // Each autoTapAction should reference a valid instanceId + have manaPaymentOption
             for (tap in ats.autoTapActionsList) {
                 assertNotEquals(tap.instanceId, 0, "AutoTapAction should reference a permanent")
+                assertTrue(tap.hasManaPaymentOption(), "AutoTapAction should have manaPaymentOption")
+                val mana = tap.manaPaymentOption.manaList
+                assertTrue(mana.isNotEmpty(), "manaPaymentOption should have at least one ManaInfo")
+                for (m in mana) {
+                    assertNotEquals(m.srcInstanceId, 0, "ManaInfo should reference source permanent")
+                    assertNotEquals(m.color, ManaColor.None_afc9, "ManaInfo should have a color")
+                    assertTrue(m.count > 0, "ManaInfo should have count > 0")
+                }
             }
-            // selectedManaColors count should match tap actions count
-            assertEquals(
-                ats.selectedManaColorsCount,
-                ats.autoTapActionsCount,
-                "selectedManaColors count should match autoTapActions count",
-            )
-            // manaPayments count should match tap actions count
-            assertEquals(
-                ats.manaPaymentsCount,
-                ats.autoTapActionsCount,
-                "manaPayments count should match autoTapActions count",
-            )
         }
     }
 }
