@@ -85,11 +85,9 @@ object StateMapper {
 
         // Players — both have pendingMessageType: MulliganResp during mulligan
         val player1 = buildPlayerInfo(human, 1).toBuilder()
-            .setPendingMessageType(ClientMessageType.MulliganResp_097b)
-            .setControllerSeatId(1).build()
+            .setPendingMessageType(ClientMessageType.MulliganResp_097b).build()
         val player2 = buildPlayerInfo(ai, 2).toBuilder()
-            .setPendingMessageType(ClientMessageType.MulliganResp_097b)
-            .setControllerSeatId(2).build()
+            .setPendingMessageType(ClientMessageType.MulliganResp_097b).build()
 
         // activePlayer=2 (seat 2 won die roll in template), decisionPlayer=2
         val turnInfo = TurnInfo.newBuilder()
@@ -276,7 +274,7 @@ object StateMapper {
             .setType(GameType.Duel)
             .setVariant(GameVariant.Normal)
             .setMatchState(MatchState.GameInProgress)
-            .setMatchWinCondition(MatchWinCondition.Best2Of3)
+            .setMatchWinCondition(MatchWinCondition.SingleElimination)
             .setMulliganType(MulliganType.London)
 
         val turnInfo = TurnInfo.newBuilder()
@@ -305,21 +303,21 @@ object StateMapper {
         zones.add(makeZone(ZONE_STACK, ZoneType.Stack, 0, Visibility.Public))
         zones.add(makeZone(ZONE_BATTLEFIELD, ZoneType.Battlefield, 0, Visibility.Public))
         zones.add(makeZone(ZONE_EXILE, ZoneType.Exile, 0, Visibility.Public))
-        zones.add(makeZone(ZONE_LIMBO, ZoneType.Limbo, 0, Visibility.Hidden))
+        zones.add(makeZone(ZONE_LIMBO, ZoneType.Limbo, 0, Visibility.Public))
 
         // Player 1 zones
         addPlayerZones(
             game, human, 1, bridge, zones, gameObjects,
             ZONE_P1_HAND, ZONE_P1_LIBRARY, ZONE_P1_GRAVEYARD,
         )
-        zones.add(makeZone(ZONE_P1_SIDEBOARD, ZoneType.Sideboard, 1, Visibility.Private))
+        zones.add(makePrivateZone(ZONE_P1_SIDEBOARD, ZoneType.Sideboard, 1))
 
         // Player 2 zones
         addPlayerZones(
             game, ai, 2, bridge, zones, gameObjects,
             ZONE_P2_HAND, ZONE_P2_LIBRARY, ZONE_P2_GRAVEYARD,
         )
-        zones.add(makeZone(ZONE_P2_SIDEBOARD, ZoneType.Sideboard, 2, Visibility.Private))
+        zones.add(makePrivateZone(ZONE_P2_SIDEBOARD, ZoneType.Sideboard, 2))
 
         // Populate shared zones with any cards
         addSharedZoneCards(
@@ -910,6 +908,7 @@ object StateMapper {
             .setSystemSeatNumber(seatId)
             .setTeamId(seatId)
             .setStatus(PlayerStatus.InGame_a1c6)
+            .setControllerSeatId(seatId)
             .setControllerType(ControllerType.Player_abfa)
             .addTimerIds(seatId) // real Arena: timerIds=[seatId]
         if (player != null) {
@@ -961,11 +960,12 @@ object StateMapper {
     ) {
         if (player == null) return
 
-        // Hand — visible cards with game objects
+        // Hand — visible cards with game objects, viewers=[seatId]
         val hand = player.getZone(ForgeZoneType.Hand)
         val handBuilder = ZoneInfo.newBuilder()
             .setZoneId(handZoneId).setType(ZoneType.Hand)
             .setOwnerSeatId(seatId).setVisibility(Visibility.Private)
+            .addViewers(seatId)
         for (card in hand.cards) {
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             handBuilder.addObjectInstanceIds(instanceId)
@@ -1327,5 +1327,15 @@ object StateMapper {
             .setType(type)
             .setOwnerSeatId(ownerSeatId)
             .setVisibility(visibility)
+            .build()
+
+    /** Private zone with viewers=[ownerSeatId] (hand, sideboard). */
+    private fun makePrivateZone(zoneId: Int, type: ZoneType, ownerSeatId: Int): ZoneInfo =
+        ZoneInfo.newBuilder()
+            .setZoneId(zoneId)
+            .setType(type)
+            .setOwnerSeatId(ownerSeatId)
+            .setVisibility(Visibility.Private)
+            .addViewers(ownerSeatId)
             .build()
 }
