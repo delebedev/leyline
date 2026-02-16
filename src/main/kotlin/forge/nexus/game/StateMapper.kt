@@ -386,6 +386,16 @@ object StateMapper {
                 if (newId != origId) {
                     gameObjects[i] = obj.toBuilder().setInstanceId(newId).build()
                     patchZoneInstanceId(zones, obj.zoneId, origId, newId)
+                    // Retire old object to Limbo (client needs this to remove old visual)
+                    val limboObj = obj.toBuilder()
+                        .setInstanceId(origId)
+                        .setZoneId(ZONE_LIMBO)
+                        .setVisibility(Visibility.Private)
+                        .clearViewers()
+                        .addViewers(obj.ownerSeatId)
+                        .build()
+                    gameObjects.add(limboObj)
+                    appendToZone(zones, ZONE_LIMBO, origId)
                 }
                 when (category) {
                     "PlayLand" -> {
@@ -1402,6 +1412,13 @@ object StateMapper {
                 .addAllObjectInstanceIds(ids)
                 .build()
         }
+    }
+
+    /** Append an instanceId to a zone's objectInstanceIds list. */
+    private fun appendToZone(zones: MutableList<ZoneInfo>, zoneId: Int, instanceId: Int) {
+        val idx = zones.indexOfFirst { it.zoneId == zoneId }
+        if (idx < 0) return
+        zones[idx] = zones[idx].toBuilder().addObjectInstanceIds(instanceId).build()
     }
 
     private fun makeZone(zoneId: Int, type: ZoneType, ownerSeatId: Int, visibility: Visibility): ZoneInfo =
