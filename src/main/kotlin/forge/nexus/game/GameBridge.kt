@@ -66,6 +66,21 @@ class GameBridge {
     /** Previous zone assignment per instanceId — for detecting zone transfers. */
     private val previousZones = ConcurrentHashMap<Int, Int>()
 
+    /**
+     * Accumulated Limbo instanceIds — grows monotonically (real server never clears Limbo).
+     * Limbo is a pure protocol concept with no Forge engine equivalent; we maintain it here
+     * so every buildFromGame includes the full retirement history the client expects.
+     */
+    private val limboInstanceIds = mutableListOf<Int>()
+
+    /** Add an instanceId to the persistent Limbo set. */
+    fun retireToLimbo(instanceId: Int) {
+        if (instanceId !in limboInstanceIds) limboInstanceIds.add(instanceId)
+    }
+
+    /** Current ordered list of all retired instanceIds. */
+    fun getLimboInstanceIds(): List<Int> = limboInstanceIds
+
     /** Record current zone for an instance. Returns previous zone or null if new. */
     fun recordZone(instanceId: Int, zoneId: Int): Int? =
         previousZones.put(instanceId, zoneId)
