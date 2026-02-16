@@ -74,6 +74,32 @@ Arena golden:  ActivateMana, Cast, FloatMana, Pass
 
 ---
 
+### BUG-005: ObjectIdChanged orig_id/new_id details crash client
+
+**Status:** Open (details disabled)
+**Observed:** 2026-02-16
+**Module:** forge-nexus
+
+**Symptoms:** Client crashes mid-frame during land play animation when `ObjectIdChanged` annotation includes `orig_id` and `new_id` Int32 detail fields.
+
+**Bisect results:** All other new fields confirmed safe via individual playtest:
+- `UserActionTaken` affectorId + actionType + abilityGrpId details — safe
+- `uniqueAbilities` (basic land implicit mana abilities) — safe
+- `annotation.id` sequential numbering — safe
+- `persistentAnnotations` (EnteredZoneThisTurn) — safe
+- `ObjectIdChanged` orig_id/new_id details — **crashes client**
+
+**Likely cause:** Our instanceId allocation (sequential from 100) may not match what the client expects for `orig_id`/`new_id`. Real server may use IDs that satisfy additional invariants (e.g. orig_id must reference a previously-seen object, new_id must match the object's current instanceId in the zone). Sending details with IDs the client can't resolve could trigger a null-ref in the animation/tracking layer.
+
+**Investigation pointers:**
+- Compare our orig_id/new_id values against real server recordings
+- Check if the client validates these IDs against its internal object registry
+- May need to only emit details when IDs are truly different (zone transfer created new object)
+
+**Code:** `AnnotationBuilder.objectIdChanged()` — details commented out with `BUG-005` tag.
+
+---
+
 ### BUG-004: UI stuck on Sparky's main phase — MatchSession race condition
 
 **Status:** Fixed

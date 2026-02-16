@@ -35,12 +35,18 @@ object AnnotationBuilder {
             .addType(AnnotationType.PhaseOrStepModified)
             .build()
 
-    /** Card's instanceId changed (e.g. zone move creates new object). */
+    /**
+     * Card's instanceId changed (e.g. zone move creates new object).
+     * BUG-005: orig_id/new_id details crash the client mid-frame on land
+     * play animation. Real server sends these as Int32 details but our IDs
+     * may not satisfy client-side invariants. Details disabled until root
+     * cause is understood.
+     */
     fun objectIdChanged(origId: Int, newId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ObjectIdChanged)
             .addAffectedIds(origId)
-            // TODO: re-enable after client crash bisect
+            // BUG-005: crashes client — see BUGS.md
             // .addDetails(int32Detail("orig_id", origId))
             // .addDetails(int32Detail("new_id", newId))
             .build()
