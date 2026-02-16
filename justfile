@@ -146,13 +146,13 @@ serve-replay: (_require classpath) check-java
 
 # --- Proto inspection ---
 
-# inspect a .bin template
+# inspect a .bin template (no port kill — safe while server runs)
 proto-inspect file=(templates / "mulligan-req-seat1.bin"): (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.debug.InspectKt "{{file}}"
+    @{{_nexus_cli}} forge.nexus.debug.InspectKt "{{file}}"
 
 # decode Match Door payloads
 proto-decode: (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.protocol.DecodeCaptureKt {{payloads}}
+    @{{_nexus_cli}} forge.nexus.protocol.DecodeCaptureKt {{payloads}}
 
 # save last S→C payload as template
 proto-extract name="extracted": (_require classpath) check-java
@@ -178,7 +178,7 @@ proto-diff-prep: (_require classpath) check-java
     for f in {{payloads}}/S-C_*.bin; do
         [ -f "$f" ] || continue
         base=$(basename "$f" .bin)
-        {{_nexus_java}} forge.nexus.debug.InspectKt "$f" > "$real_dir/$base.txt" 2>/dev/null
+        {{_nexus_cli}} forge.nexus.debug.InspectKt "$f" > "$real_dir/$base.txt" 2>/dev/null
         echo "  $base.txt"
     done
     echo "Real payloads dumped to $real_dir/"
@@ -200,9 +200,9 @@ proto-diff:
     echo "--- diff example ---"
     echo "  diff $real/<name>.txt $stub/<name>.txt"
 
-# compare our output vs real Arena captures structurally
+# compare our output vs real Arena captures structurally (no port kill)
 proto-compare *args: (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.conformance.CompareMainKt {{args}}
+    @{{_nexus_cli}} forge.nexus.conformance.CompareMainKt {{args}}
 
 # --- Private helpers ---
 
@@ -228,3 +228,5 @@ _clean-surefire:
     @rm -rf "{{nexus_dir}}/target/surefire-reports"
 
 _nexus_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill $pid 2>/dev/null || true; done; done; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp "$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
+# Same as _nexus_java but without killing ports — for read-only CLI tools
+_nexus_cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp "$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
