@@ -109,9 +109,13 @@ object BundleBuilder {
         var nextGs = gsId
 
         nextGs++
-        val actions = StateMapper.buildActions(game, seatId, bridge)
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
-        val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, actions, updateType, viewingSeatId = seatId)
+        // Build state first (without actions) — triggers instanceId realloc on zone transfers.
+        // Then build actions so they reference the new (post-move) instanceIds.
+        val gsBase = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
+        val actions = StateMapper.buildActions(game, seatId, bridge)
+        // Re-embed stripped actions into the GSM
+        val gs = StateMapper.embedActions(gsBase, actions, game, bridge)
 
         val messages = listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
@@ -177,18 +181,19 @@ object BundleBuilder {
         val human = bridge.getPlayer(1)
         val activeSeat = if (handler.playerTurn == human) 1 else 2
         val prioritySeat = if (handler.priorityPlayer == human) 1 else 2
-        val actions = StateMapper.buildActions(game, seatId, bridge)
-
-        // Message 1: Diff with annotations + actions
-        val gs = StateMapper.buildDiffFromGame(
+        // Build state first (triggers instanceId realloc), then actions with new IDs
+        val gsBase = StateMapper.buildDiffFromGame(
             game,
             ++nextGs,
             matchId,
             bridge,
-            actions,
             updateType = GameStateUpdate.SendHiFi,
             viewingSeatId = seatId,
         )
+        val actions = StateMapper.buildActions(game, seatId, bridge)
+
+        // Message 1: Diff with annotations + actions
+        val gs = StateMapper.embedActions(gsBase, actions, game, bridge)
 
         // Message 2: Echo with turnInfo + actions (matches real server pattern)
         val turnInfo = TurnInfo.newBuilder()
