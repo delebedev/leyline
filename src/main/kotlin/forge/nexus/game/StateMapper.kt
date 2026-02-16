@@ -243,17 +243,14 @@ object StateMapper {
 
     // --- Real game state from Forge engine ---
 
-    // TODO(per-seat): Send different GameStateMessage per seat.
-    // Currently: both seats see the same state including opponent's hand objects.
-    // For PvP: filter out opponent hand's GameObjectInfo, set opponent hand
-    // zone visibility to Hidden, adjust objectInstanceIds count.
-    // Not needed for vs-Sparky (AI doesn't use the protocol).
-    // See: forge-arena-in-depth/reference/gre-protocol-reference.md "Message routing"
-
     /**
      * Build a full [GameStateMessage] from live Forge [forge.game.Game] state.
      * Reads zones, players, phase info from the engine and maps cards
      * to Arena instanceIds via the bridge's card ID mapping.
+     *
+     * [viewingSeatId] controls hand visibility: opponent's hand cards get
+     * objectInstanceIds (for card count) but no GameObjectInfo (renders face-down).
+     * Use 0 to include all objects (internal snapshots for diffing).
      */
     fun buildFromGame(
         game: Game,
@@ -262,6 +259,7 @@ object StateMapper {
         bridge: GameBridge,
         actions: ActionsAvailableReq? = null,
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
+        viewingSeatId: Int = 0,
     ): GameStateMessage {
         val handler = game.phaseHandler
         val human = bridge.getPlayer(1)
@@ -308,14 +306,14 @@ object StateMapper {
         // Player 1 zones
         addPlayerZones(
             game, human, 1, bridge, zones, gameObjects,
-            ZONE_P1_HAND, ZONE_P1_LIBRARY, ZONE_P1_GRAVEYARD,
+            ZONE_P1_HAND, ZONE_P1_LIBRARY, ZONE_P1_GRAVEYARD, viewingSeatId,
         )
         zones.add(makePrivateZone(ZONE_P1_SIDEBOARD, ZoneType.Sideboard, 1))
 
         // Player 2 zones
         addPlayerZones(
             game, ai, 2, bridge, zones, gameObjects,
-            ZONE_P2_HAND, ZONE_P2_LIBRARY, ZONE_P2_GRAVEYARD,
+            ZONE_P2_HAND, ZONE_P2_LIBRARY, ZONE_P2_GRAVEYARD, viewingSeatId,
         )
         zones.add(makePrivateZone(ZONE_P2_SIDEBOARD, ZoneType.Sideboard, 2))
 
@@ -477,12 +475,14 @@ object StateMapper {
         bridge: GameBridge,
         actions: ActionsAvailableReq? = null,
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
+        viewingSeatId: Int = 0,
     ): GameStateMessage {
         val prev = bridge.getPreviousState()
-            ?: return buildFromGame(game, gameStateId, matchId, bridge, actions, updateType)
+            ?: return buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId)
 
         // Build current full state (for comparison + to seed next diff).
         // Pass actions=null to avoid redundant action embedding (we embed below).
+        // Use viewingSeatId=0 for the comparison base (needs all objects for accurate diff).
         val current = buildFromGame(game, gameStateId, matchId, bridge)
 
         // Compute changed zones (by objectInstanceIds)
@@ -492,9 +492,11 @@ object StateMapper {
             prevZone == null || prevZone.objectInstanceIdsList != zone.objectInstanceIdsList
         }
 
-        // Compute changed/new objects
+        // Compute changed/new objects, filtering out opponent hand objects
         val prevObjMap = prev.gameObjectsList.associateBy { it.instanceId }
+        val opponentHandZoneId = opponentHandZone(viewingSeatId)
         val changedObjects = current.gameObjectsList.filter { obj ->
+            if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) return@filter false
             val prevObj = prevObjMap[obj.instanceId]
             prevObj == null || prevObj != obj
         }
@@ -957,10 +959,13 @@ object StateMapper {
         handZoneId: Int,
         libZoneId: Int,
         gyZoneId: Int,
+        viewingSeatId: Int = 0,
     ) {
         if (player == null) return
 
-        // Hand — visible cards with game objects, viewers=[seatId]
+        // Hand — objectInstanceIds always (for card count), GameObjectInfo only for viewer.
+        // Real server omits GameObjectInfo for opponent's hand → renders face-down.
+        val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId
         val hand = player.getZone(ForgeZoneType.Hand)
         val handBuilder = ZoneInfo.newBuilder()
             .setZoneId(handZoneId).setType(ZoneType.Hand)
@@ -969,7 +974,9 @@ object StateMapper {
         for (card in hand.cards) {
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             handBuilder.addObjectInstanceIds(instanceId)
-            gameObjects.add(buildCardObject(card, instanceId, handZoneId, seatId))
+            if (canSeeHand) {
+                gameObjects.add(buildCardObject(card, instanceId, handZoneId, seatId))
+            }
         }
         zones.add(handBuilder.build())
 
@@ -1328,6 +1335,13 @@ object StateMapper {
             .setOwnerSeatId(ownerSeatId)
             .setVisibility(visibility)
             .build()
+
+    /** Returns the hand zone ID of the opponent, or 0 if viewingSeatId is 0 (no filtering). */
+    private fun opponentHandZone(viewingSeatId: Int): Int = when (viewingSeatId) {
+        1 -> ZONE_P2_HAND
+        2 -> ZONE_P1_HAND
+        else -> 0
+    }
 
     /** Private zone with viewers=[ownerSeatId] (hand, sideboard). */
     private fun makePrivateZone(zoneId: Int, type: ZoneType, ownerSeatId: Int): ZoneInfo =
