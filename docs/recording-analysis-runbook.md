@@ -19,7 +19,29 @@ Launch MTGA, play a Sparky game. Nexus captures every Match Door payload to `$NE
 
 End the game normally (concede or win). Stop the proxy.
 
-## 2. Extract and Analyze
+## 2. Trace an ID
+
+```bash
+cd forge-nexus && just proto-trace 220
+```
+
+Recursively walks every proto field (via reflection) across all `S-C_MATCH_DATA_*.bin` payloads, printing every field where the target ID appears. Follows ObjectIdChanged renames transitively — if `orig_id=220 → new_id=280`, automatically traces 280 going forward.
+
+Output shows the full field path per hit:
+
+```
+=== S-C_MATCH_DATA_006.bin ===
+  GRE[2]: GameStateMessage gsId=6
+    gsm.zones[4].objectInstanceIds[2] = 220
+    gsm.gameObjects[3].instanceId = 220
+  -> ID renamed: 220 -> 280, now also tracing 280
+
+Summary: 252 hits across 42 files. Traced IDs: [220, 280, 284]
+```
+
+IDs flow between field names: `objectInstanceIds` → `instanceId` → `affectedIds` → `affectorId` → `srcInstanceId` → `targetInstanceId` → `attackerInstanceId` → `blockerInstanceId`. The tool catches all of these because it checks every int32 field generically.
+
+## 3. Extract and Analyze
 
 ```bash
 cd forge-nexus
@@ -69,7 +91,7 @@ Each segment shows:
 - **Player cast creature pattern**: currently all creature casts label as "CAST_CREATURE (AI)" since they use SendHiFi. Player-perspective casts (SendAndRecord) should label separately — they produce 2 dual SendAndRecord msgs + ActionsAvailableReq (not the 4-msg SendHiFi pattern).
 - **Auto-golden extraction**: `--analyze --extract-goldens` could auto-slice the first occurrence of each pattern into golden files.
 
-## 3. Pattern Catalog
+## 4. Pattern Catalog
 
 ### Game start (post-keep → Main1) — STABLE
 
@@ -227,7 +249,7 @@ IntermissionReq
 
 Appears twice (once per game in match).
 
-## 4. Extract Slices to Golden Files
+## 5. Extract Slices to Golden Files
 
 Use jq to slice `full-game.json` by index range:
 
@@ -247,7 +269,7 @@ jq '.[346:350]' src/test/resources/golden/full-game.json > src/test/resources/go
 
 **Index ranges WILL differ between recordings.** Use `--analyze` to find them automatically.
 
-## 5. Run Conformance Tests
+## 6. Run Conformance Tests
 
 ```bash
 cd forge-nexus
@@ -259,7 +281,7 @@ just test-one CastCreatureConformanceTest
 
 All tests currently use `expectedExceptions = [AssertionError::class]` — they document known gaps. A test that **stops failing** means we closed a gap (remove `expectedExceptions` to lock it in).
 
-## 6. Analyze Divergences
+## 7. Analyze Divergences
 
 Run a test without `expectedExceptions` (comment it out temporarily) to see the full diff report:
 
@@ -433,6 +455,86 @@ Shape comparison is preferred when the golden comes from real server recordings,
 - **Format before build.** `just fmt` fixes imports/whitespace; `just dev-build` then compiles clean.
 - **One commit per gap.** Keep changes reviewable. Touch only the files that need to change.
 
+## Deep Field Comparison
+
+Workflow for discovering field-level protocol gaps by comparing our output against recordings side-by-side. Different from conformance tests (shape-only) — this catches missing fields, wrong types, absent IDs.
+
+### Step 1: Capture our output
+
+```bash
+ARENA_DUMP=1 just serve     # starts server with proto dump enabled
+# play a land (or whatever action) in the client
+ls /tmp/arena-dump/         # find the numbered .txt file for the action
+```
+
+### Step 2: Find the matching recording
+
+```bash
+just proto-inspect /tmp/arena-capture/payloads/S-C_MATCH_DATA_<timestamp>.bin
+```
+
+Look for a recording with matching `gsId`, seat, and action pattern (e.g. same annotation categories). The recording and our output won't match exactly — different game, different IDs, possibly different action (AI vs player perspective).
+
+### Step 3: Compare side by side
+
+Read both full payloads. Don't diff — visual comparison catches structural differences that diffs miss (field ordering, nesting depth, presence vs absence).
+
+### Step 4: Classify differences
+
+**Critical: not all differences are gaps.** Classify each one:
+
+| Classification | Action | Example |
+|----------------|--------|---------|
+| **By design** | Document why, move on | `updateType: SendHiFi` (recording) vs `SendAndRecord` (ours) — perspective difference, see [updateType Semantics](#updatetype-semantics) |
+| **Context-dependent** | Note, don't fix blindly | Timer contents differ because different game state |
+| **Confirmed gap** | Write failing test, then fix | Missing `annotation.id` field (always 0 in our output) |
+| **Inference** | Label as unconfirmed | "affectorId appears to be the source card" — plausible but derived from one example |
+
+### Step 5: Trace IDs for semantic understanding
+
+```bash
+just proto-trace 279     # trace across all recordings
+```
+
+Use the trace output + gameObject labels to reconstruct what happened. Example from tracing ID 279 (Swamp) through a creature cast:
+
+| ann.id | affectorId | affectedIds | type | Inferred meaning |
+|--------|-----------|-------------|------|------------------|
+| 60 | 279 (Swamp) | 281 (ability) | AbilityInstanceCreated | Land created a mana ability on stack |
+| 61 | 281 (ability) | 279 (Swamp) | TappedUntappedPermanent | Ability tapped the land |
+| 63 | 279 (Swamp) | 280 (Rat) | ManaPaid | Land's mana paid for the creature |
+| 64 | 279 (Swamp) | 281 (ability) | AbilityInstanceDeleted | Mana ability cleaned up after use |
+| 65 | 2 (player) | 280 (Rat) | UserActionTaken | Player initiated the cast action |
+
+**These are inferences, not confirmed semantics.** Derived from one recording of one action. The field names (`affectorId`, `affectedIds`) and annotation ordering are consistent across recordings, but the exact semantic contract is not documented by the server — we're reverse-engineering from observed behavior.
+
+### Step 6: Write failing tests
+
+Write `PlayLandFieldTest`-style integration tests that assert field-level properties using game context. The test starts a real game, plays the action, captures raw proto messages, and asserts:
+
+- **Structural fields** (must match exactly): annotation type, detail key names, zone IDs
+- **Relational fields** (must reference correct game objects): `affectorId` = source card, `affectedIds` = target card
+- **Sequential fields** (must be non-zero, monotonic): `annotation.id`
+- **Presence fields** (must exist, value flexible): `prevGameStateId`, `persistentAnnotations`, `uniqueAbilities`
+
+```bash
+just test-one PlayLandFieldTest   # all should fail (TDD)
+# implement fixes
+just test-one PlayLandFieldTest   # should pass
+just test                         # verify no regressions
+```
+
+### Known by-design differences (not gaps)
+
+These appear in comparisons but are intentional:
+
+| Field | Recording | Our output | Why |
+|-------|-----------|-----------|-----|
+| `update` | `SendHiFi` | `SendAndRecord` | Perspective: recording is opponent's view, our output is player's view. See [updateType Semantics](#updatetype-semantics). |
+| `actions` seat list | Both seat 1 and seat 2 actions | Only acting seat's actions | Recordings capture opponent view which includes both seats' action lists |
+| Timer `running` | Only changed timer | Both timers | We send full timer state; real server sends delta-only. Low priority. |
+| Action counts | Vary by deck/board state | Vary by deck/board state | Deck-dependent, not a structural gap |
+
 ## File Inventory
 
 | File | Purpose |
@@ -442,6 +544,7 @@ Shape comparison is preferred when the golden comes from real server recordings,
 | `src/main/kotlin/forge/nexus/conformance/StructuralDiff.kt` | Positional diff of two fingerprint sequences |
 | `src/main/kotlin/forge/nexus/conformance/GameFlowAnalyzer.kt` | Pattern classifier — structured timeline from fingerprints |
 | `src/main/kotlin/forge/nexus/conformance/CompareMain.kt` | CLI: `just proto-compare` / `just proto-compare --analyze` |
+| `src/main/kotlin/forge/nexus/debug/Trace.kt` | CLI: `just proto-trace <id>` — cross-payload ID tracing with transitive rename following |
 | `src/test/kotlin/forge/nexus/conformance/ConformanceTestBase.kt` | Test helpers: start game, play actions, compare goldens |
 | `src/test/kotlin/forge/nexus/conformance/*ConformanceTest.kt` | Per-scenario conformance tests |
 | `src/test/resources/golden/full-game.json` | Recording 1: 757 msgs, creature-focused Sparky game |

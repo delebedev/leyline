@@ -204,6 +204,10 @@ proto-diff:
 proto-compare *args: (_require classpath) check-java
     @{{_nexus_cli}} forge.nexus.conformance.CompareMainKt {{args}}
 
+# trace an ID across all recorded payloads (no port kill — safe while server runs)
+proto-trace id: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.TraceKt "{{id}}" {{payloads}}
+
 # --- Private helpers ---
 
 [private]
