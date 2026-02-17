@@ -17,6 +17,12 @@ class InstanceIdRegistry(startId: Int = 100) {
     private val instanceIdToForgeId = ConcurrentHashMap<Int, Int>()
     private var nextInstanceId = startId
 
+    /**
+     * Result of reallocating an instanceId for a zone transfer.
+     * [old] is the previous instanceId (retired to Limbo), [new] is the freshly allocated one.
+     */
+    data class IdReallocation(val old: Int, val new: Int)
+
     /** Allocate or return existing Arena instanceId for a Forge card ID. */
     fun getOrAlloc(forgeCardId: Int): Int =
         forgeIdToInstanceId.computeIfAbsent(forgeCardId) {
@@ -28,16 +34,15 @@ class InstanceIdRegistry(startId: Int = 100) {
     /**
      * Allocate a fresh instanceId for a Forge card that changed zones.
      * Updates forward map (forgeCardId → new ID), keeps old ID in reverse map.
-     * Returns (oldInstanceId, newInstanceId).
      */
-    fun realloc(forgeCardId: Int): Pair<Int, Int> {
+    fun realloc(forgeCardId: Int): IdReallocation {
         val oldId = forgeIdToInstanceId[forgeCardId]
-            ?: return getOrAlloc(forgeCardId).let { it to it }
+            ?: return getOrAlloc(forgeCardId).let { IdReallocation(it, it) }
         val newId = nextInstanceId++
         forgeIdToInstanceId[forgeCardId] = newId
         instanceIdToForgeId[newId] = forgeCardId
         // old reverse entry kept intentionally — client may reference old IDs
-        return oldId to newId
+        return IdReallocation(oldId, newId)
     }
 
     /** Reverse lookup: Arena instanceId → Forge card ID. */

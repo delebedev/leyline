@@ -67,7 +67,7 @@ object StateMapper {
     data class AppliedTransfer(
         val origId: Int,
         val newId: Int,
-        val category: String,
+        val category: TransferCategory,
         val srcZoneId: Int,
         val destZoneId: Int,
         val grpId: Int,
@@ -102,11 +102,13 @@ object StateMapper {
                 }
                 // Allocate new instanceId for zone transfer (real server does this).
                 // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
-                val (origId, newId) = if (category != "Resolve" && forgeCardId != null) {
+                val realloc = if (category != TransferCategory.Resolve && forgeCardId != null) {
                     bridge.reallocInstanceId(forgeCardId)
                 } else {
-                    obj.instanceId to obj.instanceId
+                    InstanceIdRegistry.IdReallocation(obj.instanceId, obj.instanceId)
                 }
+                val origId = realloc.old
+                val newId = realloc.new
                 log.debug("zone transfer: iid {} → {} category={}", origId, newId, category)
                 // Patch gameObject and zone with new instanceId
                 if (newId != origId) {
@@ -150,25 +152,26 @@ object StateMapper {
         val persistent = mutableListOf<AnnotationInfo>()
 
         when (category) {
-            "PlayLand" -> {
+            TransferCategory.PlayLand -> {
                 annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
-                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category))
+                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
                 annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 3))
             }
-            "CastSpell" -> {
+            TransferCategory.CastSpell -> {
                 annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
-                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category))
+                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
                 annotations.add(AnnotationBuilder.abilityInstanceCreated(newId))
                 annotations.add(AnnotationBuilder.tappedUntappedPermanent(newId, newId))
                 annotations.add(AnnotationBuilder.manaPaid(newId))
                 annotations.add(AnnotationBuilder.abilityInstanceDeleted(newId))
                 annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
             }
-            "Resolve" -> {
+            TransferCategory.Resolve -> {
                 annotations.add(AnnotationBuilder.resolutionStart(newId, grpId))
                 annotations.add(AnnotationBuilder.resolutionComplete(newId, grpId))
-                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category, actingSeat))
+                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, actingSeat))
             }
+            TransferCategory.Destroy, TransferCategory.Exile, TransferCategory.ZoneTransfer -> {}
         }
 
         // Persistent: EnteredZoneThisTurn for cards landing on battlefield
@@ -1449,21 +1452,21 @@ object StateMapper {
         else -> null
     }
 
-    /** Infer a human-readable category for a zone transfer annotation. */
-    internal fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): String =
+    /** Infer category for a zone transfer annotation from zone IDs. */
+    internal fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): TransferCategory =
         when {
             srcZone == ZONE_P1_HAND || srcZone == ZONE_P2_HAND -> when (destZone) {
-                ZONE_STACK -> "CastSpell"
-                ZONE_BATTLEFIELD -> "PlayLand"
-                else -> "ZoneTransfer"
+                ZONE_STACK -> TransferCategory.CastSpell
+                ZONE_BATTLEFIELD -> TransferCategory.PlayLand
+                else -> TransferCategory.ZoneTransfer
             }
-            srcZone == ZONE_STACK && destZone == ZONE_BATTLEFIELD -> "Resolve"
+            srcZone == ZONE_STACK && destZone == ZONE_BATTLEFIELD -> TransferCategory.Resolve
             srcZone == ZONE_BATTLEFIELD -> when (destZone) {
-                ZONE_P1_GRAVEYARD, ZONE_P2_GRAVEYARD -> "Destroy"
-                ZONE_EXILE -> "Exile"
-                else -> "ZoneTransfer"
+                ZONE_P1_GRAVEYARD, ZONE_P2_GRAVEYARD -> TransferCategory.Destroy
+                ZONE_EXILE -> TransferCategory.Exile
+                else -> TransferCategory.ZoneTransfer
             }
-            else -> "ZoneTransfer"
+            else -> TransferCategory.ZoneTransfer
         }
 
     /**

@@ -8,7 +8,7 @@ import org.testng.annotations.Test
 /**
  * Unit tests for [AnnotationBuilder.categoryFromEvents] — verifies that
  * captured [NexusGameEvent] instances resolve to the correct annotation
- * category strings, matching the behavior of [StateMapper.inferCategory]
+ * categories, matching the behavior of [StateMapper.inferCategory]
  * but using rich event data instead of zone-pair heuristics.
  */
 @Test
@@ -20,7 +20,7 @@ class CategoryFromEventsTest {
             NexusGameEvent.LandPlayed(forgeCardId = 42, seatId = 1),
             NexusGameEvent.ZoneChanged(forgeCardId = 42, from = ZoneType.Hand, to = ZoneType.Battlefield),
         )
-        assertEquals(AnnotationBuilder.categoryFromEvents(42, events), "PlayLand")
+        assertEquals(AnnotationBuilder.categoryFromEvents(42, events), TransferCategory.PlayLand)
     }
 
     @Test
@@ -29,7 +29,7 @@ class CategoryFromEventsTest {
             NexusGameEvent.SpellCast(forgeCardId = 99, seatId = 1),
             NexusGameEvent.ZoneChanged(forgeCardId = 99, from = ZoneType.Hand, to = ZoneType.Stack),
         )
-        assertEquals(AnnotationBuilder.categoryFromEvents(99, events), "CastSpell")
+        assertEquals(AnnotationBuilder.categoryFromEvents(99, events), TransferCategory.CastSpell)
     }
 
     @Test
@@ -38,7 +38,7 @@ class CategoryFromEventsTest {
             NexusGameEvent.SpellResolved(forgeCardId = 77, hasFizzled = false),
             NexusGameEvent.ZoneChanged(forgeCardId = 77, from = ZoneType.Stack, to = ZoneType.Battlefield),
         )
-        assertEquals(AnnotationBuilder.categoryFromEvents(77, events), "Resolve")
+        assertEquals(AnnotationBuilder.categoryFromEvents(77, events), TransferCategory.Resolve)
     }
 
     @Test
@@ -49,7 +49,7 @@ class CategoryFromEventsTest {
             NexusGameEvent.ZoneChanged(forgeCardId = 42, from = ZoneType.Hand, to = ZoneType.Battlefield),
             NexusGameEvent.LandPlayed(forgeCardId = 42, seatId = 1),
         )
-        assertEquals(AnnotationBuilder.categoryFromEvents(42, events), "PlayLand")
+        assertEquals(AnnotationBuilder.categoryFromEvents(42, events), TransferCategory.PlayLand)
     }
 
     @Test
@@ -57,7 +57,7 @@ class CategoryFromEventsTest {
         val events = listOf(
             NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Battlefield, to = ZoneType.Graveyard),
         )
-        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), "Destroy")
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Destroy)
     }
 
     @Test
@@ -65,7 +65,7 @@ class CategoryFromEventsTest {
         val events = listOf(
             NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Battlefield, to = ZoneType.Exile),
         )
-        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), "Exile")
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Exile)
     }
 
     @Test
@@ -73,7 +73,7 @@ class CategoryFromEventsTest {
         val events = listOf(
             NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Graveyard, to = ZoneType.Exile),
         )
-        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), "ZoneTransfer")
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.ZoneTransfer)
     }
 
     @Test
@@ -106,9 +106,9 @@ class CategoryFromEventsTest {
             NexusGameEvent.SpellCast(forgeCardId = 99, seatId = 1),
             NexusGameEvent.SpellResolved(forgeCardId = 77, hasFizzled = false),
         )
-        assertEquals(AnnotationBuilder.categoryFromEvents(42, events), "PlayLand")
-        assertEquals(AnnotationBuilder.categoryFromEvents(99, events), "CastSpell")
-        assertEquals(AnnotationBuilder.categoryFromEvents(77, events), "Resolve")
+        assertEquals(AnnotationBuilder.categoryFromEvents(42, events), TransferCategory.PlayLand)
+        assertEquals(AnnotationBuilder.categoryFromEvents(99, events), TransferCategory.CastSpell)
+        assertEquals(AnnotationBuilder.categoryFromEvents(77, events), TransferCategory.Resolve)
         assertNull(AnnotationBuilder.categoryFromEvents(1, events))
     }
 }

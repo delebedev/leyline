@@ -16,16 +16,16 @@ object AnnotationBuilder {
      * Returns null if no matching event was found — caller should fall back
      * to [StateMapper.inferCategory].
      */
-    fun categoryFromEvents(forgeCardId: Int, events: List<NexusGameEvent>): String? {
+    fun categoryFromEvents(forgeCardId: Int, events: List<NexusGameEvent>): TransferCategory? {
         // Walk events in reverse — most recent event for this card wins.
         // Specific events (LandPlayed, SpellCast, SpellResolved) take priority
         // over generic ZoneChanged.
         var generic: NexusGameEvent.ZoneChanged? = null
         for (ev in events) {
             when (ev) {
-                is NexusGameEvent.LandPlayed -> if (ev.forgeCardId == forgeCardId) return "PlayLand"
-                is NexusGameEvent.SpellCast -> if (ev.forgeCardId == forgeCardId) return "CastSpell"
-                is NexusGameEvent.SpellResolved -> if (ev.forgeCardId == forgeCardId) return "Resolve"
+                is NexusGameEvent.LandPlayed -> if (ev.forgeCardId == forgeCardId) return TransferCategory.PlayLand
+                is NexusGameEvent.SpellCast -> if (ev.forgeCardId == forgeCardId) return TransferCategory.CastSpell
+                is NexusGameEvent.SpellResolved -> if (ev.forgeCardId == forgeCardId) return TransferCategory.Resolve
                 is NexusGameEvent.ZoneChanged -> if (ev.forgeCardId == forgeCardId) generic = ev
                 else -> {} // CardTapped, Damage, Life, etc. don't affect zone-transfer category
             }
@@ -37,14 +37,14 @@ object AnnotationBuilder {
         return null
     }
 
-    /** Map a generic ZoneChanged event to an annotation category string. */
-    private fun zoneChangedCategory(ev: NexusGameEvent.ZoneChanged): String = when {
+    /** Map a generic ZoneChanged event to an annotation category. */
+    private fun zoneChangedCategory(ev: NexusGameEvent.ZoneChanged): TransferCategory = when {
         ev.from == forge.game.zone.ZoneType.Battlefield -> when (ev.to) {
-            forge.game.zone.ZoneType.Graveyard -> "Destroy"
-            forge.game.zone.ZoneType.Exile -> "Exile"
-            else -> "ZoneTransfer"
+            forge.game.zone.ZoneType.Graveyard -> TransferCategory.Destroy
+            forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
+            else -> TransferCategory.ZoneTransfer
         }
-        else -> "ZoneTransfer"
+        else -> TransferCategory.ZoneTransfer
     }
 
     fun zoneTransfer(

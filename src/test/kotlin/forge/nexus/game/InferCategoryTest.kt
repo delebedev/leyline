@@ -6,7 +6,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 
 /**
  * Unit tests for [StateMapper.inferCategory] — the logic that maps
- * (srcZone, destZone) pairs to annotation category strings.
+ * (srcZone, destZone) pairs to annotation categories.
  *
  * Each category drives a different annotation sequence in buildFromGame:
  *   PlayLand → ObjectIdChanged + ZoneTransfer + UserActionTaken
@@ -30,45 +30,45 @@ class InferCategoryTest {
 
     @Test
     fun handToBattlefieldIsPlayLand() {
-        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_P1_HAND, ZONE_BATTLEFIELD), "PlayLand")
-        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_P2_HAND, ZONE_BATTLEFIELD), "PlayLand")
+        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_P1_HAND, ZONE_BATTLEFIELD), TransferCategory.PlayLand)
+        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_P2_HAND, ZONE_BATTLEFIELD), TransferCategory.PlayLand)
     }
 
     @Test
     fun handToStackIsCastSpell() {
-        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_P1_HAND, ZONE_STACK), "CastSpell")
-        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_P2_HAND, ZONE_STACK), "CastSpell")
+        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_P1_HAND, ZONE_STACK), TransferCategory.CastSpell)
+        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_P2_HAND, ZONE_STACK), TransferCategory.CastSpell)
     }
 
     @Test
     fun stackToBattlefieldIsResolve() {
-        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_STACK, ZONE_BATTLEFIELD), "Resolve")
+        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_STACK, ZONE_BATTLEFIELD), TransferCategory.Resolve)
     }
 
     @Test
     fun battlefieldToGraveyardIsDestroy() {
-        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_BATTLEFIELD, ZONE_P1_GRAVEYARD), "Destroy")
-        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_BATTLEFIELD, ZONE_P2_GRAVEYARD), "Destroy")
+        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_BATTLEFIELD, ZONE_P1_GRAVEYARD), TransferCategory.Destroy)
+        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_BATTLEFIELD, ZONE_P2_GRAVEYARD), TransferCategory.Destroy)
     }
 
     @Test
     fun battlefieldToExileIsExile() {
-        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_BATTLEFIELD, ZONE_EXILE), "Exile")
+        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_BATTLEFIELD, ZONE_EXILE), TransferCategory.Exile)
     }
 
     @Test
     fun handToUnknownZoneIsZoneTransfer() {
-        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_P1_HAND, ZONE_EXILE), "ZoneTransfer")
+        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_P1_HAND, ZONE_EXILE), TransferCategory.ZoneTransfer)
     }
 
     @Test
     fun battlefieldToStackIsZoneTransfer() {
-        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_BATTLEFIELD, ZONE_STACK), "ZoneTransfer")
+        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_BATTLEFIELD, ZONE_STACK), TransferCategory.ZoneTransfer)
     }
 
     @Test
     fun unknownZonePairIsZoneTransfer() {
-        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_EXILE, ZONE_P1_GRAVEYARD), "ZoneTransfer")
-        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_STACK, ZONE_P1_GRAVEYARD), "ZoneTransfer")
+        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_EXILE, ZONE_P1_GRAVEYARD), TransferCategory.ZoneTransfer)
+        assertEquals(StateMapper.inferCategory(dummyObj(), ZONE_STACK, ZONE_P1_GRAVEYARD), TransferCategory.ZoneTransfer)
     }
 }
