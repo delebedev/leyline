@@ -39,6 +39,13 @@ object AnnotationBuilder {
 
     /** Map a generic ZoneChanged event to an annotation category. */
     private fun zoneChangedCategory(ev: NexusGameEvent.ZoneChanged): TransferCategory = when {
+        ev.from == forge.game.zone.ZoneType.Hand -> when (ev.to) {
+            forge.game.zone.ZoneType.Battlefield -> TransferCategory.PlayLand
+            forge.game.zone.ZoneType.Stack -> TransferCategory.CastSpell
+            else -> TransferCategory.ZoneTransfer
+        }
+        ev.from == forge.game.zone.ZoneType.Stack && ev.to == forge.game.zone.ZoneType.Battlefield ->
+            TransferCategory.Resolve
         ev.from == forge.game.zone.ZoneType.Battlefield -> when (ev.to) {
             forge.game.zone.ZoneType.Graveyard -> TransferCategory.Destroy
             forge.game.zone.ZoneType.Exile -> TransferCategory.Exile

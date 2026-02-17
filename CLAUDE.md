@@ -8,6 +8,23 @@ MTGA client compat layer — stubs/proxies Arena's Front Door + Match Door so MT
 - **Card data:** `CardDb.kt` reads Arena's local SQLite for grpId, types, mana cost
 - **Server modes:** `just serve` (hybrid, main dev), `just serve-stub` (offline), `just serve-proxy` (passthrough), `just serve-replay`
 
+## Testing
+
+TestNG groups control what runs. Use `just --list` for all targets.
+
+| Target | Group | What | Speed |
+|--------|-------|------|-------|
+| `just test-unit` | `unit` | Pure logic, no engine | ~1s |
+| `just test-conformance` | `conformance` | Wire shape vs Arena patterns | ~5s |
+| `just test-integration` | `integration` | Full engine boot (includes conformance) | ~30s |
+| `just test-gate` | all three | Pre-commit gate (skips `recording`) | ~30s |
+| `just test-one Foo` | — | Single class by name | varies |
+| `just test` | ungrouped | Everything (may hit pre-existing init issues) | slow |
+
+**Before committing:** run `just test-gate`. Annotate new test classes with `groups = [...]`.
+
+**`recording` group** requires Arena capture files — skip in CI/normal dev.
+
 ## Debug Panel & API
 
 Debug server on `:8090` (auto-starts with `just serve`). Panel: `nexus-debug.html`.

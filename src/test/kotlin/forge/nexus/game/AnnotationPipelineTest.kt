@@ -1,7 +1,9 @@
 package forge.nexus.game
 
+import forge.web.game.GameBootstrap
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertTrue
+import org.testng.annotations.BeforeClass
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -13,8 +15,15 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * Each test constructs an [StateMapper.AppliedTransfer] and verifies the
  * annotation sequence matches the real Arena server pattern.
  */
-@Test
+@Test(groups = ["unit"])
 class AnnotationPipelineTest {
+
+    // StateMapper's Kotlin WhenMappings clinit references PhaseType, which
+    // requires the card DB to be loaded. Bootstrap once for the whole class.
+    @BeforeClass(alwaysRun = true)
+    fun initCardDatabase() {
+        GameBootstrap.initializeCardDatabase()
+    }
 
     private companion object {
         const val ZONE_STACK = 27
