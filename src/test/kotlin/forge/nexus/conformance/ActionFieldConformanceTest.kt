@@ -1,6 +1,5 @@
 package forge.nexus.conformance
 
-import forge.nexus.game.BundleBuilder
 import forge.nexus.game.StateMapper
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertFalse
@@ -111,24 +110,21 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
         val (b, game, gsId) = startGameAtMain1()
         playLand(b) ?: return
 
-        val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, gsId)
+        val result = postAction(game, b, 1, gsId)
 
-        // Find the ActionsAvailableReq message
-        val aarMsg = result.messages.find { it.hasActionsAvailableReq() }
-        assertTrue(aarMsg != null, "postAction bundle should contain ActionsAvailableReq")
+        val aar = result.aarOrNull
+        assertTrue(aar != null, "postAction bundle should contain ActionsAvailableReq")
 
-        val aar = aarMsg!!.actionsAvailableReq
-        val typeSet = aar.actionsList.map { it.actionType.name }.toSet()
+        val typeSet = aar!!.actionsList.map { it.actionType.name }.toSet()
         assertTrue(typeSet.contains("Cast"), "ActionsAvailableReq should have Cast")
         assertTrue(typeSet.contains("Pass"), "ActionsAvailableReq should have Pass")
         assertTrue(typeSet.contains("ActivateMana"), "ActionsAvailableReq should have ActivateMana")
         assertTrue(typeSet.contains("FloatMana"), "ActionsAvailableReq should have FloatMana")
 
         // GSM should have pendingMessageCount=1 when AAR follows
-        val gsmMsg = result.messages.find { it.hasGameStateMessage() }
-        assertTrue(gsmMsg != null, "postAction bundle should contain GameStateMessage")
-        val gsm = gsmMsg!!.gameStateMessage
-        assertEquals(gsm.pendingMessageCount, 1, "GSM should have pendingMessageCount=1 when AAR follows")
+        val gsm = result.gsmOrNull
+        assertTrue(gsm != null, "postAction bundle should contain GameStateMessage")
+        assertEquals(gsm!!.pendingMessageCount, 1, "GSM should have pendingMessageCount=1 when AAR follows")
     }
 
     @Test(description = "GSM embedded actions are stripped (no grpId/facetId/shouldStop/autoTapSolution)")
@@ -136,9 +132,7 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
         val (b, game, gsId) = startGameAtMain1()
         playLand(b) ?: return
 
-        val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, gsId)
-        val gsmMsg = result.messages.find { it.hasGameStateMessage() } ?: return
-        val gsm = gsmMsg.gameStateMessage
+        val gsm = postAction(game, b, 1, gsId).gsmOrNull ?: return
 
         for (actionInfo in gsm.actionsList) {
             val a = actionInfo.action

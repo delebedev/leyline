@@ -11,7 +11,7 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
     fun gameStartActionIdsExistInObjects() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val result = BundleBuilder.gameStart(game, b, "test-match", 1, 1, gsId)
+        val result = gameStart(game, b, 1, gsId)
 
         val acc = ClientAccumulator()
         acc.processAll(result.messages)
@@ -24,7 +24,7 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
     fun gameStartZoneRefsValid() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val result = BundleBuilder.gameStart(game, b, "test-match", 1, 1, gsId)
+        val result = gameStart(game, b, 1, gsId)
 
         val acc = ClientAccumulator()
         acc.processAll(result.messages)
@@ -37,16 +37,13 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
     fun playLandActionIdsValid() {
         val (b, game, gsId) = startGameAtMain1()
 
-        // Accumulate game-start
-        val startResult = BundleBuilder.gameStart(game, b, "test-match", 1, 1, gsId)
+        val startResult = gameStart(game, b, 1, gsId)
         val acc = ClientAccumulator()
         acc.processAll(startResult.messages)
 
-        // Play a land
-        val action = playLand(b) ?: return
+        playLand(b) ?: return
 
-        // Accumulate post-action (postAction internally snapshots for next diff)
-        val postResult = BundleBuilder.postAction(game, b, "test-match", 1, startResult.nextMsgId, startResult.nextGsId)
+        val postResult = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
         acc.processAll(postResult.messages)
 
         val missing = acc.actionInstanceIdsMissingFromObjects()
@@ -57,18 +54,16 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
     fun castCreatureActionIdsValid() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val startResult = BundleBuilder.gameStart(game, b, "test-match", 1, 1, gsId)
+        val startResult = gameStart(game, b, 1, gsId)
         val acc = ClientAccumulator()
         acc.processAll(startResult.messages)
 
-        // Play land first (creature costs mana)
         playLand(b)
-        val postLand = BundleBuilder.postAction(game, b, "test-match", 1, startResult.nextMsgId, startResult.nextGsId)
+        val postLand = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
         acc.processAll(postLand.messages)
 
-        // Cast creature
-        val creature = castCreature(b) ?: return
-        val postCast = BundleBuilder.postAction(game, b, "test-match", 1, postLand.nextMsgId, postLand.nextGsId)
+        castCreature(b) ?: return
+        val postCast = postAction(game, b, postLand.nextMsgId, postLand.nextGsId)
         acc.processAll(postCast.messages)
 
         val missing = acc.actionInstanceIdsMissingFromObjects()
@@ -81,23 +76,20 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
 
         val acc = ClientAccumulator()
 
-        // Game-start
-        val startResult = BundleBuilder.gameStart(game, b, "test-match", 1, 1, gsId)
+        val startResult = gameStart(game, b, 1, gsId)
         acc.processAll(startResult.messages)
         b.snapshotState(game)
 
-        // Simulate 3 AI action diffs
         var nextMsg = startResult.nextMsgId
         var nextGs = startResult.nextGsId
         repeat(3) {
-            val aiResult = BundleBuilder.aiActionDiff(game, b, "test-match", 1, nextMsg, nextGs)
+            val aiResult = BundleBuilder.aiActionDiff(game, b, TEST_MATCH_ID, SEAT_ID, nextMsg, nextGs)
             acc.processAll(aiResult.messages)
             nextMsg = aiResult.nextMsgId
             nextGs = aiResult.nextGsId
             b.snapshotState(game)
         }
 
-        // After accumulating AI diffs, action instanceIds should be valid
         val missingActions = acc.actionInstanceIdsMissingFromObjects()
         assertTrue(missingActions.isEmpty(), "Action instanceIds missing after AI diffs: $missingActions")
     }
@@ -106,12 +98,11 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
     fun gameStartGsIdMonotonic() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val result = BundleBuilder.gameStart(game, b, "test-match", 1, 1, gsId)
+        val result = gameStart(game, b, 1, gsId)
 
         val acc = ClientAccumulator()
         acc.processAll(result.messages)
 
-        // Verify gsIds are strictly increasing
         for (i in 1 until acc.gsIdHistory.size) {
             assertTrue(
                 acc.gsIdHistory[i] > acc.gsIdHistory[i - 1],

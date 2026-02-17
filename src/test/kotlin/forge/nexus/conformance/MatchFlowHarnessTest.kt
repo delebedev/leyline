@@ -96,19 +96,7 @@ class MatchFlowHarnessTest {
             // Play a land if possible (OK if no land available)
             harness!!.playLand()
 
-            // Critical check: action instanceIds must exist in objects map
-            val missingActions = harness!!.accumulator.actionInstanceIdsMissingFromObjects()
-            assertTrue(
-                missingActions.isEmpty(),
-                "Turn ${turn + 1}: action instanceIds missing from objects: $missingActions",
-            )
-
-            // Visible zone refs must be valid (hidden/private zones are skipped by the checker)
-            val missingZones = harness!!.accumulator.zoneObjectsMissingFromObjects()
-            assertTrue(
-                missingZones.isEmpty(),
-                "Turn ${turn + 1}: visible zone refs to missing objects: $missingZones",
-            )
+            harness!!.accumulator.assertConsistent("turn ${turn + 1}")
 
             // Pass turn
             harness!!.passPriority()
@@ -132,12 +120,7 @@ class MatchFlowHarnessTest {
         // After connectAndKeep + autoPass, we should have valid state
         assertFalse(harness!!.isGameOver(), "Game should not be over at start")
 
-        val missing = harness!!.accumulator.actionInstanceIdsMissingFromObjects()
-        assertTrue(missing.isEmpty(), "Missing instanceIds after AI-first connect: $missing")
-
-        // Visible zone refs must be valid (hidden/private zones are skipped by the checker)
-        val zoneRefs = harness!!.accumulator.zoneObjectsMissingFromObjects()
-        assertTrue(zoneRefs.isEmpty(), "Visible zone refs to missing objects: $zoneRefs")
+        harness!!.accumulator.assertConsistent("after AI-first connect")
 
         // Should have received at least game-start bundle (4 messages)
         assertTrue(harness!!.allMessages.size >= 4, "Should have at least 4 messages (game-start bundle)")
