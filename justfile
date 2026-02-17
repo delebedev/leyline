@@ -9,8 +9,8 @@ classpath    := nexus_dir / "target/classpath.txt"
 logback      := nexus_dir / "src/main/resources/logback.xml"
 templates    := nexus_dir / "src/main/resources/arena-templates"
 certs        := env("NEXUS_CERTS", "/tmp/arena-capture")
-fd_ip        := env("NEXUS_FD_IP", "54.190.138.101")
-md_ip        := env("NEXUS_MD_IP", "54.218.223.216")
+fd_ip        := env("NEXUS_FD_IP", "52.88.10.148")
+md_ip        := env("NEXUS_MD_IP", "54.71.214.244")
 payloads     := env("NEXUS_PAYLOADS", "/tmp/arena-capture/payloads")
 ports        := "30010 30003 8090"
 
