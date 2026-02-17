@@ -1380,7 +1380,7 @@ object StateMapper {
     }
 
     /** Infer a human-readable category for a zone transfer annotation. */
-    private fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): String =
+    internal fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): String =
         when {
             srcZone == ZONE_P1_HAND || srcZone == ZONE_P2_HAND -> when (destZone) {
                 ZONE_STACK -> "CastSpell"
