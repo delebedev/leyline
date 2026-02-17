@@ -54,6 +54,176 @@ object StateMapper {
     private const val ZONE_P2_GRAVEYARD = 37
     private const val ZONE_P2_SIDEBOARD = 38
 
+    // ---- Three-stage diff pipeline types and methods ----
+    // Stage 1: detectAndApplyZoneTransfers  → List<AppliedTransfer>
+    // Stage 2: annotationsForTransfer       → List<AnnotationInfo>  (pure, testable)
+    // Stage 3: combatAnnotations            → List<AnnotationInfo>  (pure, testable)
+
+    /**
+     * Record of a zone transfer after ID reallocation.
+     * Produced by [detectAndApplyZoneTransfers], consumed by [annotationsForTransfer].
+     * All fields are plain ints/strings — no Forge engine references, independently testable.
+     */
+    data class AppliedTransfer(
+        val origId: Int,
+        val newId: Int,
+        val category: String,
+        val srcZoneId: Int,
+        val destZoneId: Int,
+        val grpId: Int,
+        val ownerSeatId: Int,
+    )
+
+    /**
+     * Stage 1: Detect zone transfers, realloc instanceIds, patch gameObjects/zones,
+     * retire old IDs to Limbo. Returns the list of applied transfers for annotation building.
+     *
+     * Mutates [gameObjects] and [zones] (patches new instanceIds, appends Limbo entries).
+     * Updates [bridge] zone tracking and Limbo state.
+     */
+    internal fun detectAndApplyZoneTransfers(
+        gameObjects: MutableList<GameObjectInfo>,
+        zones: MutableList<ZoneInfo>,
+        bridge: GameBridge,
+        events: List<NexusGameEvent>,
+    ): List<AppliedTransfer> {
+        val transfers = mutableListOf<AppliedTransfer>()
+
+        for (i in gameObjects.indices) {
+            val obj = gameObjects[i]
+            val prevZone = bridge.getPreviousZone(obj.instanceId)
+            if (prevZone != null && prevZone != obj.zoneId) {
+                val forgeCardId = bridge.getForgeCardId(obj.instanceId)
+                val category = if (forgeCardId != null && events.isNotEmpty()) {
+                    AnnotationBuilder.categoryFromEvents(forgeCardId, events)
+                        ?: inferCategory(obj, prevZone, obj.zoneId)
+                } else {
+                    inferCategory(obj, prevZone, obj.zoneId)
+                }
+                // Allocate new instanceId for zone transfer (real server does this).
+                // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
+                val (origId, newId) = if (category != "Resolve" && forgeCardId != null) {
+                    bridge.reallocInstanceId(forgeCardId)
+                } else {
+                    obj.instanceId to obj.instanceId
+                }
+                log.debug("zone transfer: iid {} → {} category={}", origId, newId, category)
+                // Patch gameObject and zone with new instanceId
+                if (newId != origId) {
+                    gameObjects[i] = obj.toBuilder().setInstanceId(newId).build()
+                    patchZoneInstanceId(zones, obj.zoneId, origId, newId)
+                    bridge.retireToLimbo(origId)
+                    appendToZone(zones, ZONE_LIMBO, origId)
+                    gameObjects.add(
+                        obj.toBuilder()
+                            .setInstanceId(origId)
+                            .setZoneId(ZONE_LIMBO)
+                            .setVisibility(Visibility.Private)
+                            .clearViewers()
+                            .addViewers(obj.ownerSeatId)
+                            .build(),
+                    )
+                }
+                transfers.add(
+                    AppliedTransfer(origId, newId, category, prevZone, obj.zoneId, obj.grpId, obj.ownerSeatId),
+                )
+                bridge.recordZone(newId, obj.zoneId)
+            } else {
+                bridge.recordZone(obj.instanceId, obj.zoneId)
+            }
+        }
+        return transfers
+    }
+
+    /**
+     * Stage 2: Generate annotations for a single zone transfer.
+     * **Pure function** — no bridge access, no side effects. Independently testable.
+     *
+     * Returns (transient annotations, persistent annotations).
+     */
+    internal fun annotationsForTransfer(
+        transfer: AppliedTransfer,
+        actingSeat: Int,
+    ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
+        val (origId, newId, category, srcZone, destZone, grpId, _) = transfer
+        val annotations = mutableListOf<AnnotationInfo>()
+        val persistent = mutableListOf<AnnotationInfo>()
+
+        when (category) {
+            "PlayLand" -> {
+                annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
+                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category))
+                annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 3))
+            }
+            "CastSpell" -> {
+                annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
+                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category))
+                annotations.add(AnnotationBuilder.abilityInstanceCreated(newId))
+                annotations.add(AnnotationBuilder.tappedUntappedPermanent(newId, newId))
+                annotations.add(AnnotationBuilder.manaPaid(newId))
+                annotations.add(AnnotationBuilder.abilityInstanceDeleted(newId))
+                annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
+            }
+            "Resolve" -> {
+                annotations.add(AnnotationBuilder.resolutionStart(newId, grpId))
+                annotations.add(AnnotationBuilder.resolutionComplete(newId, grpId))
+                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category, actingSeat))
+            }
+        }
+
+        // Persistent: EnteredZoneThisTurn for cards landing on battlefield
+        if (destZone == ZONE_BATTLEFIELD) {
+            persistent.add(AnnotationBuilder.enteredZoneThisTurn(ZONE_BATTLEFIELD, newId))
+        }
+
+        return annotations to persistent
+    }
+
+    /**
+     * Stage 3: Generate combat damage annotations.
+     * **Pure function** given game state and previous player info.
+     * No bridge mutation — only reads instanceId mappings.
+     */
+    internal fun combatAnnotations(
+        game: Game,
+        bridge: GameBridge,
+    ): List<AnnotationInfo> {
+        val handler = game.phaseHandler
+        if (handler.phase != PhaseType.COMBAT_DAMAGE && handler.phase != PhaseType.COMBAT_FIRST_STRIKE_DAMAGE) {
+            return emptyList()
+        }
+        val combat = handler.combat ?: return emptyList()
+        if (combat.attackers.isEmpty()) return emptyList()
+
+        val annotations = mutableListOf<AnnotationInfo>()
+
+        for (attacker in combat.attackers) {
+            val iid = bridge.getOrAllocInstanceId(attacker.id)
+            val dmg = attacker.getTotalDamageDoneBy()
+            if (dmg > 0) {
+                annotations.add(AnnotationBuilder.damageDealt(iid, dmg))
+            }
+        }
+
+        val prev = bridge.getPreviousState()
+        if (prev != null) {
+            for (playerInfo in prev.playersList) {
+                val seat = playerInfo.systemSeatNumber
+                val player = bridge.getPlayer(seat)
+                if (player != null) {
+                    val delta = player.life - playerInfo.lifeTotal
+                    if (delta != 0) {
+                        annotations.add(AnnotationBuilder.modifiedLife(seat, delta))
+                    }
+                }
+            }
+        }
+
+        annotations.add(AnnotationBuilder.phaseOrStepModified())
+        annotations.add(AnnotationBuilder.syntheticEvent())
+        return annotations
+    }
+
     /**
      * Build a DeckMessage from a list of grpIds (one per card in the deck).
      */
@@ -370,141 +540,30 @@ object StateMapper {
             zones.size,
         )
 
-        // Annotations: detect zone transfers by comparing current vs previous zone.
-        // Each category gets companion annotations matching the real server:
-        //   PlayLand: ObjectIdChanged + UserActionTaken + ZoneTransfer(PlayLand)
-        //   CastSpell: ObjectIdChanged + UserActionTaken + ManaPaid + TappedUntappedPermanent
-        //              + AbilityInstanceCreated + ZoneTransfer(CastSpell)
-        //   Resolve: ResolutionStart + ZoneTransfer(Resolve) + ResolutionComplete
+        // --- Three-stage annotation pipeline ---
+        // Stage 1: Detect zone transfers, realloc IDs, patch objects/zones
+        val events = bridge.eventCollector?.drainEvents() ?: emptyList()
+        val transfers = detectAndApplyZoneTransfers(gameObjects, zones, bridge, events)
+
+        // Stage 2: Generate annotations from transfers (pure, no side effects)
+        val actingSeat = if (handler.priorityPlayer == human) 1 else 2
         val annotations = mutableListOf<AnnotationInfo>()
         val persistentAnnotations = mutableListOf<AnnotationInfo>()
-        val actingSeat = if (handler.priorityPlayer == human) 1 else 2
-
-        // Drain captured events for event-driven category resolution.
-        // Falls back to inferCategory() when no event matches (e.g. during
-        // initial Full state builds or when collector is not yet wired).
-        val events = bridge.eventCollector?.drainEvents() ?: emptyList()
-
-        for (i in gameObjects.indices) {
-            val obj = gameObjects[i]
-            val prevZone = bridge.getPreviousZone(obj.instanceId)
-            if (prevZone != null && prevZone != obj.zoneId) {
-                val forgeCardId = bridge.getForgeCardId(obj.instanceId)
-                val category = if (forgeCardId != null && events.isNotEmpty()) {
-                    AnnotationBuilder.categoryFromEvents(forgeCardId, events)
-                        ?: inferCategory(obj, prevZone, obj.zoneId)
-                } else {
-                    inferCategory(obj, prevZone, obj.zoneId)
-                }
-                // Allocate new instanceId for zone transfer (real server does this).
-                // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
-                val (origId, newId) = if (category != "Resolve" && forgeCardId != null) {
-                    bridge.reallocInstanceId(forgeCardId)
-                } else {
-                    obj.instanceId to obj.instanceId
-                }
-                log.debug("zone transfer: iid {} → {} category={}", origId, newId, category)
-                // Patch gameObject and zone with new instanceId
-                if (newId != origId) {
-                    gameObjects[i] = obj.toBuilder().setInstanceId(newId).build()
-                    patchZoneInstanceId(zones, obj.zoneId, origId, newId)
-                    // Retire old instanceId to Limbo: zone entry + gameObject.
-                    // Real server sends a Private Limbo gameObject to the owner so
-                    // the client moves the old object from Hand→Limbo in its state.
-                    // Without this, the client keeps the old object in Hand and
-                    // shows a "jump back" visual artifact.
-                    bridge.retireToLimbo(origId)
-                    appendToZone(zones, ZONE_LIMBO, origId)
-                    gameObjects.add(
-                        obj.toBuilder()
-                            .setInstanceId(origId)
-                            .setZoneId(ZONE_LIMBO)
-                            .setVisibility(Visibility.Private)
-                            .clearViewers()
-                            .addViewers(obj.ownerSeatId)
-                            .build(),
-                    )
-                }
-                when (category) {
-                    "PlayLand" -> {
-                        // Real server order: ObjectIdChanged → ZoneTransfer → UserActionTaken
-                        annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
-                        annotations.add(AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category))
-                        annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 3))
-                    }
-                    "CastSpell" -> {
-                        // Real server order: ObjectIdChanged → ZoneTransfer → mana ability
-                        // cycle → UserActionTaken(Cast). ZoneTransfer must be #2 (same as
-                        // PlayLand) or the client renders the spell in both hand and stack.
-                        annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
-                        annotations.add(AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category))
-                        // Mana ability cycle (approximated — real server uses transient
-                        // mana ability instanceId; we use spell id as placeholder)
-                        annotations.add(AnnotationBuilder.abilityInstanceCreated(newId))
-                        annotations.add(AnnotationBuilder.tappedUntappedPermanent(newId, newId))
-                        annotations.add(AnnotationBuilder.manaPaid(newId))
-                        annotations.add(AnnotationBuilder.abilityInstanceDeleted(newId))
-                        // actionType=1 = Cast (single, not duplicated)
-                        annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
-                    }
-                    "Resolve" -> {
-                        // Real server order: ResolutionStart → ResolutionComplete → ZoneTransfer
-                        // ZoneTransfer uses actingSeat as affectorId (unlike PlayLand which uses 0)
-                        annotations.add(AnnotationBuilder.resolutionStart(newId, obj.grpId))
-                        annotations.add(AnnotationBuilder.resolutionComplete(newId, obj.grpId))
-                        annotations.add(
-                            AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category, actingSeat),
-                        )
-                    }
-                }
-                // Persistent annotation: EnteredZoneThisTurn for cards landing on battlefield
-                if (obj.zoneId == ZONE_BATTLEFIELD) {
-                    persistentAnnotations.add(
-                        AnnotationBuilder.enteredZoneThisTurn(ZONE_BATTLEFIELD, newId)
-                            .toBuilder().setId(bridge.nextPersistentAnnotationId()).build(),
-                    )
-                }
-                bridge.recordZone(newId, obj.zoneId)
-            } else {
-                bridge.recordZone(obj.instanceId, obj.zoneId)
-            }
+        for (transfer in transfers) {
+            val (transient, persistent) = annotationsForTransfer(transfer, actingSeat)
+            annotations.addAll(transient)
+            persistentAnnotations.addAll(
+                persistent.map {
+                    it.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
+                },
+            )
         }
-        // Assign sequential IDs to all annotations
         val numberedAnnotations = annotations.map {
             it.toBuilder().setId(bridge.nextAnnotationId()).build()
         }
 
-        // Combat damage annotations: when at damage phase with active combat
-        if (handler.phase == PhaseType.COMBAT_DAMAGE || handler.phase == PhaseType.COMBAT_FIRST_STRIKE_DAMAGE) {
-            val combat = handler.combat
-            if (combat != null && combat.attackers.isNotEmpty()) {
-                for (attacker in combat.attackers) {
-                    val iid = bridge.getOrAllocInstanceId(attacker.id)
-                    val dmg = attacker.getTotalDamageDoneBy()
-                    if (dmg > 0) {
-                        annotations.add(AnnotationBuilder.damageDealt(iid, dmg))
-                    }
-                }
-                // Detect life changes vs. previous state
-                val prev = bridge.getPreviousState()
-                if (prev != null) {
-                    for (playerInfo in prev.playersList) {
-                        val seat = playerInfo.systemSeatNumber
-                        val player = bridge.getPlayer(seat)
-                        if (player != null) {
-                            val prevLife = playerInfo.lifeTotal
-                            val curLife = player.life
-                            val delta = curLife - prevLife
-                            if (delta != 0) {
-                                annotations.add(AnnotationBuilder.modifiedLife(seat, delta))
-                            }
-                        }
-                    }
-                }
-                annotations.add(AnnotationBuilder.phaseOrStepModified())
-                annotations.add(AnnotationBuilder.syntheticEvent())
-            }
-        }
+        // Stage 3: Combat damage annotations
+        annotations.addAll(combatAnnotations(game, bridge))
 
         // prevGameStateId: reference prior state if one exists
         val prevState = bridge.getPreviousState()
