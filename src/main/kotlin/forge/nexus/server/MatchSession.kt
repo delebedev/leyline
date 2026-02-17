@@ -351,7 +351,7 @@ class MatchSession(
                 val (nextMsg, nextGs) = playback.getCounters()
                 msgIdCounter = nextMsg
                 gameStateId = nextGs
-                bridge.snapshotState(game)
+                bridge.snapshotState(game, gameStateId)
             }
 
             val human = bridge.getPlayer(seatId)
