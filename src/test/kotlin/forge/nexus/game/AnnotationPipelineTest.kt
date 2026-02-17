@@ -31,7 +31,7 @@ class AnnotationPipelineTest {
         val transfer = StateMapper.AppliedTransfer(
             origId = 100,
             newId = 200,
-            category = "PlayLand",
+            category = TransferCategory.PlayLand,
             srcZoneId = ZONE_P1_HAND,
             destZoneId = ZONE_BATTLEFIELD,
             grpId = 12345,
@@ -54,7 +54,7 @@ class AnnotationPipelineTest {
         val transfer = StateMapper.AppliedTransfer(
             origId = 100,
             newId = 200,
-            category = "PlayLand",
+            category = TransferCategory.PlayLand,
             srcZoneId = ZONE_P1_HAND,
             destZoneId = ZONE_BATTLEFIELD,
             grpId = 12345,
@@ -73,7 +73,7 @@ class AnnotationPipelineTest {
         val transfer = StateMapper.AppliedTransfer(
             origId = 100,
             newId = 200,
-            category = "PlayLand",
+            category = TransferCategory.PlayLand,
             srcZoneId = ZONE_P1_HAND,
             destZoneId = ZONE_BATTLEFIELD,
             grpId = 12345,
@@ -92,7 +92,7 @@ class AnnotationPipelineTest {
         val transfer = StateMapper.AppliedTransfer(
             origId = 100,
             newId = 200,
-            category = "CastSpell",
+            category = TransferCategory.CastSpell,
             srcZoneId = ZONE_P1_HAND,
             destZoneId = ZONE_STACK,
             grpId = 67890,
@@ -118,7 +118,7 @@ class AnnotationPipelineTest {
         val transfer = StateMapper.AppliedTransfer(
             origId = 100,
             newId = 200,
-            category = "CastSpell",
+            category = TransferCategory.CastSpell,
             srcZoneId = ZONE_P1_HAND,
             destZoneId = ZONE_STACK,
             grpId = 67890,
@@ -137,7 +137,7 @@ class AnnotationPipelineTest {
         val transfer = StateMapper.AppliedTransfer(
             origId = 200,
             newId = 200,
-            category = "Resolve",
+            category = TransferCategory.Resolve,
             srcZoneId = ZONE_STACK,
             destZoneId = ZONE_BATTLEFIELD,
             grpId = 67890,
@@ -159,7 +159,7 @@ class AnnotationPipelineTest {
         val transfer = StateMapper.AppliedTransfer(
             origId = 200,
             newId = 200,
-            category = "Resolve",
+            category = TransferCategory.Resolve,
             srcZoneId = ZONE_STACK,
             destZoneId = ZONE_BATTLEFIELD,
             grpId = 67890,
@@ -176,7 +176,7 @@ class AnnotationPipelineTest {
         val transfer = StateMapper.AppliedTransfer(
             origId = 200,
             newId = 200,
-            category = "Resolve",
+            category = TransferCategory.Resolve,
             srcZoneId = ZONE_STACK,
             destZoneId = ZONE_BATTLEFIELD,
             grpId = 67890,
@@ -195,7 +195,7 @@ class AnnotationPipelineTest {
         val transfer = StateMapper.AppliedTransfer(
             origId = 100,
             newId = 200,
-            category = "ZoneTransfer",
+            category = TransferCategory.ZoneTransfer,
             srcZoneId = ZONE_EXILE,
             destZoneId = ZONE_P1_GRAVEYARD,
             grpId = 0,
@@ -212,7 +212,7 @@ class AnnotationPipelineTest {
         val transfer = StateMapper.AppliedTransfer(
             origId = 100,
             newId = 200,
-            category = "CastSpell",
+            category = TransferCategory.CastSpell,
             srcZoneId = ZONE_P1_HAND,
             destZoneId = ZONE_STACK,
             grpId = 67890,
@@ -228,7 +228,7 @@ class AnnotationPipelineTest {
         val transfer = StateMapper.AppliedTransfer(
             origId = 200,
             newId = 200,
-            category = "Resolve",
+            category = TransferCategory.Resolve,
             srcZoneId = ZONE_STACK,
             destZoneId = ZONE_P1_GRAVEYARD,
             grpId = 67890,

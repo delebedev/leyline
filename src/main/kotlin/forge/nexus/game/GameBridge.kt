@@ -11,6 +11,7 @@ import forge.web.game.GameBootstrap
 import forge.web.game.GameLoopController
 import forge.web.game.InteractivePromptBridge
 import forge.web.game.MulliganBridge
+import forge.web.game.MulliganPhase
 import forge.web.game.WebPlayerController
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
@@ -83,7 +84,7 @@ class GameBridge {
     fun getOrAllocInstanceId(forgeCardId: Int): Int = ids.getOrAlloc(forgeCardId)
 
     /** Allocate a fresh instanceId for a Forge card that changed zones. */
-    fun reallocInstanceId(forgeCardId: Int): Pair<Int, Int> = ids.realloc(forgeCardId)
+    fun reallocInstanceId(forgeCardId: Int): InstanceIdRegistry.IdReallocation = ids.realloc(forgeCardId)
 
     /** Reverse lookup: Arena instanceId → Forge card ID. */
     fun getForgeCardId(instanceId: Int): Int? = ids.getForgeCardId(instanceId)
@@ -297,7 +298,7 @@ class GameBridge {
     private fun awaitMulliganReady() {
         val deadline = System.currentTimeMillis() + MULLIGAN_WAIT_MS
         while (System.currentTimeMillis() < deadline) {
-            if (seat1MulliganBridge.pendingPhase == "waiting_keep") return
+            if (seat1MulliganBridge.pendingPhase == MulliganPhase.WaitingKeep) return
             Thread.sleep(POLL_INTERVAL_MS)
         }
         log.warn("ArenaGameBridge: timed out waiting for engine to reach mulligan")
