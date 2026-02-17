@@ -5,9 +5,12 @@ import forge.nexus.game.StateMapper
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Builds protocol message payloads dynamically.
+ * Pre-game handshake message factory: roomState, initialBundle, dealHand,
+ * mulliganReq, settingsResp. Distinct from [forge.nexus.game.StateMapper]
+ * which handles in-game state diffs.
  *
- * All messages are built from scratch using the proto schema — no binary templates.
+ * TODO: rename to something like HandshakeMessages — "Templates" is misleading
+ *  now that binary templates are gone.
  */
 object Templates {
 
