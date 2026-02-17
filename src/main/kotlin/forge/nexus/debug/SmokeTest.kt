@@ -96,7 +96,7 @@ private fun testFrontDoor(group: NioEventLoopGroup, ssl: SslContext): FrontDoorR
     }
 
     // Send auth
-    val authJson = """{"ClientVersion":"2026.56.6","Token":"smoke-test","PlatformId":"Mac"}"""
+    val authJson = """{"ClientVersion":"2026.56.10","Token":"smoke-test","PlatformId":"Mac"}"""
     sendFdMessage(ch, UUID.randomUUID().toString(), authJson)
 
     handler.authFuture.get(5, TimeUnit.SECONDS)
