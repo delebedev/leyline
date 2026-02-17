@@ -153,7 +153,8 @@ class GameFlowAnalyzer(
             } else {
                 val goldenKey = goldenKeyFor(seg.type)
                 val golden = if (goldenKey != null) checkGolden(goldenKey, seg) else ""
-                val newFlag = if (goldenKey == null && seg.type != SegmentType.MISC &&
+                val newFlag = if (goldenKey == null &&
+                    seg.type != SegmentType.MISC &&
                     seg.type != SegmentType.NEW_TURN
                 ) {
                     " <- NEW (no golden)"
@@ -639,7 +640,8 @@ class GameFlowAnalyzer(
             }
 
             // Transition from cast to resolution
-            if (phase == "cast" && (
+            if (phase == "cast" &&
+                (
                     fp.annotationTypes.contains("ResolutionStart") ||
                         fp.annotationTypes.contains("RevealedCardCreated")
                     )
@@ -680,7 +682,8 @@ class GameFlowAnalyzer(
             val fp = fingerprints[k]
             end = k
             // Combat ends at next phase transition, new turn, or ActionsAvailableReq after blockers
-            if (k > i && (
+            if (k > i &&
+                (
                     hasAnnotation(fp, "NewTurnStarted") ||
                         fp.greMessageType == "IntermissionReq"
                     )
@@ -689,7 +692,8 @@ class GameFlowAnalyzer(
                 break
             }
             // PhaseOrStepModified after SubmitBlockersResp or SubmitAttackersResp signals end
-            if (k > i + 2 && fp.annotationTypes.contains("PhaseOrStepModified") &&
+            if (k > i + 2 &&
+                fp.annotationTypes.contains("PhaseOrStepModified") &&
                 !fp.annotationTypes.contains("DamageDealt")
             ) {
                 // Check if we've had attackers/blockers resolution
