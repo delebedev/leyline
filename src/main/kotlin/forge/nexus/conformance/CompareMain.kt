@@ -8,15 +8,25 @@ import java.io.File
  *
  * Usage:
  *   proto-compare <real-payload-dir>                          — diff real vs our output
- *   proto-compare --extract <dir> <action-name>               — extract golden from recording
+ *   proto-compare --extract <dir> <action-name> [--seat N]    — extract golden from recording
  *   proto-compare --analyze <json-file> [--goldens <dir>]     — structured game timeline
+ *
+ * Seat filtering (--extract):
+ *   --seat 1   Extract player perspective only (default)
+ *   --seat 2   Extract AI/Sparky perspective
+ *   --seat 0   Extract all seats (interleaved, legacy behavior)
  */
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
         println("Usage:")
         println("  proto-compare <real-payload-dir>                          — diff real vs our output")
-        println("  proto-compare --extract <dir> <action-name>               — extract golden from recording")
+        println("  proto-compare --extract <dir> <action-name> [--seat N]    — extract golden from recording")
         println("  proto-compare --analyze <json-file> [--goldens <dir>]     — structured game timeline")
+        println()
+        println("Seat filtering (--extract):")
+        println("  --seat 1   Player perspective (default)")
+        println("  --seat 2   AI/Sparky perspective")
+        println("  --seat 0   All seats interleaved (legacy)")
         return
     }
 
@@ -26,11 +36,33 @@ fun main(args: Array<String>) {
     }
 
     if (args.firstOrNull() == "--extract") {
-        require(args.size >= 3) { "Usage: proto-compare --extract <dir> <action-name>" }
+        require(args.size >= 3) { "Usage: proto-compare --extract <dir> <action-name> [--seat N]" }
         val dir = File(args[1])
         val name = args[2]
-        val fps = RecordingParser.parseDirectory(dir)
-        println("Extracted ${fps.size} GRE fingerprints from ${dir.name}")
+
+        // Parse --seat flag (default: 1 = player perspective)
+        val seatIdx = args.indexOf("--seat")
+        val rawSeat = if (seatIdx >= 0 && seatIdx + 1 < args.size) {
+            args[seatIdx + 1].toIntOrNull() ?: 1
+        } else {
+            1
+        }
+        // seat 0 = all (no filter), seat N = filter to that seat
+        val seatFilter = if (rawSeat == 0) null else rawSeat
+
+        // Detect and print seat identities
+        val seats = RecordingDecoder.detectSeats(dir)
+        if (seats.isNotEmpty()) {
+            println("Seat identification:")
+            for ((id, info) in seats.toSortedMap()) {
+                println("  Seat $id: ${info.playerName} (${info.role})")
+            }
+            println()
+        }
+
+        val fps = RecordingParser.parseDirectory(dir, seatFilter)
+        val filterDesc = if (seatFilter != null) " (seat $seatFilter)" else " (all seats)"
+        println("Extracted ${fps.size} GRE fingerprints from ${dir.name}$filterDesc")
         for ((i, fp) in fps.withIndex()) {
             println(
                 "  [$i] ${fp.greMessageType} gsType=${fp.gsType} update=${fp.updateType} " +
@@ -50,8 +82,21 @@ fun main(args: Array<String>) {
         return
     }
 
-    val realFps = RecordingParser.parseDirectory(realDir)
-    println("Real recording: ${realFps.size} GRE messages from ${realDir.name}")
+    // Detect seats for the diff path too
+    val seats = RecordingDecoder.detectSeats(realDir)
+    if (seats.isNotEmpty()) {
+        println("Seat identification:")
+        for ((id, info) in seats.toSortedMap()) {
+            val role = if (info.isBot) "AI" else "player"
+            println("  Seat $id: ${info.playerName} ($role)")
+        }
+        println()
+    }
+
+    // Default: seat 1 (player perspective)
+    val seatFilter = 1
+    val realFps = RecordingParser.parseDirectory(realDir, seatFilter)
+    println("Real recording: ${realFps.size} GRE messages from ${realDir.name} (seat $seatFilter)")
 
     val ourDir = File("/tmp/arena-dump")
     if (!ourDir.isDirectory) {

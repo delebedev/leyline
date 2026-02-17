@@ -261,21 +261,26 @@ class GameFlowAnalyzer(
                 continue
             }
 
-            // Play land (player): PlayLand category + SendAndRecord
-            if (isPlayLandPlayer(fp)) {
-                val end = if (i + 1 < fingerprints.size &&
-                    fingerprints[i + 1].greMessageType == "ActionsAvailableReq"
-                ) {
-                    i + 1
-                } else if (i + 1 < fingerprints.size && isPlayLandPlayer(fingerprints[i + 1])) {
-                    // Double PlayLand (both seats), then ActionsAvailableReq
-                    if (i + 2 < fingerprints.size &&
+            // Play land with SendAndRecord — dual-message = AI, single = player
+            if (isPlayLandSendAndRecord(fp)) {
+                if (i + 1 < fingerprints.size && isPlayLandSendAndRecord(fingerprints[i + 1])) {
+                    // Dual SendAndRecord (both seats notified) = AI land play
+                    val end = if (i + 2 < fingerprints.size &&
                         fingerprints[i + 2].greMessageType == "ActionsAvailableReq"
                     ) {
                         i + 2
                     } else {
                         i + 1
                     }
+                    segments.add(Segment(SegmentType.PLAY_LAND_AI, i, end, "PLAY_LAND (AI)"))
+                    i = end + 1
+                    continue
+                }
+                // Single SendAndRecord = player land play
+                val end = if (i + 1 < fingerprints.size &&
+                    fingerprints[i + 1].greMessageType == "ActionsAvailableReq"
+                ) {
+                    i + 1
                 } else {
                     i
                 }
@@ -550,7 +555,7 @@ class GameFlowAnalyzer(
         return fp.annotationTypes.isEmpty() && fp.annotationCategories.isEmpty()
     }
 
-    private fun isPlayLandPlayer(fp: StructuralFingerprint): Boolean = fp.annotationCategories.contains("PlayLand") &&
+    private fun isPlayLandSendAndRecord(fp: StructuralFingerprint): Boolean = fp.annotationCategories.contains("PlayLand") &&
         fp.updateType == "SendAndRecord"
 
     private fun isPlayLandAI(fp: StructuralFingerprint): Boolean = fp.annotationCategories.contains("PlayLand") &&

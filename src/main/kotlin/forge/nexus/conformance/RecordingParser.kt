@@ -11,8 +11,11 @@ import java.io.File
  */
 object RecordingParser {
 
-    /** Parse a single MatchServiceToClientMessage payload, extract GRE fingerprints. */
-    fun parsePayload(bytes: ByteArray): List<StructuralFingerprint> {
+    /**
+     * Parse a single MatchServiceToClientMessage payload, extract GRE fingerprints.
+     * @param seatFilter if non-null, only include messages addressed to this seat
+     */
+    fun parsePayload(bytes: ByteArray, seatFilter: Int? = null): List<StructuralFingerprint> {
         val msg = try {
             MatchServiceToClientMessage.parseFrom(bytes)
         } catch (_: Exception) {
@@ -20,15 +23,22 @@ object RecordingParser {
         }
         if (!msg.hasGreToClientEvent()) return emptyList()
         return msg.greToClientEvent.greToClientMessagesList
+            .filter { gre ->
+                val seatIds = gre.systemSeatIdsList.map { it.toInt() }
+                seatFilter == null || seatIds.isEmpty() || seatFilter in seatIds
+            }
             .map { StructuralFingerprint.fromGRE(it) }
     }
 
-    /** Parse all .bin files in a directory, return fingerprints in file-name order. */
-    fun parseDirectory(dir: File): List<StructuralFingerprint> {
+    /**
+     * Parse all .bin files in a directory, return fingerprints in file-name order.
+     * @param seatFilter if non-null, only include messages addressed to this seat
+     */
+    fun parseDirectory(dir: File, seatFilter: Int? = null): List<StructuralFingerprint> {
         val files = dir.listFiles()
             ?.filter { it.extension == "bin" }
             ?.sortedBy { it.name }
             ?: return emptyList()
-        return files.flatMap { parsePayload(it.readBytes()) }
+        return files.flatMap { parsePayload(it.readBytes(), seatFilter) }
     }
 }
