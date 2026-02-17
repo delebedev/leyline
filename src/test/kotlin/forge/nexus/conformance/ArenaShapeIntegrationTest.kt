@@ -21,7 +21,7 @@ class ArenaShapeIntegrationTest : ConformanceTestBase() {
     fun aiActionDiffProducesTwoMessages() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val result = BundleBuilder.aiActionDiff(game, b, "test-match", 1, 1, gsId)
+        val result = BundleBuilder.aiActionDiff(game, b, TEST_MATCH_ID, SEAT_ID, 1, gsId)
         val captured = fingerprint(result.messages)
 
         assertEquals(captured.size, 2, "aiActionDiff should produce 2 messages")
@@ -36,7 +36,7 @@ class ArenaShapeIntegrationTest : ConformanceTestBase() {
     fun declareAttackersBundleShape() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val result = BundleBuilder.declareAttackersBundle(game, b, "test-match", 1, 1, gsId)
+        val result = BundleBuilder.declareAttackersBundle(game, b, TEST_MATCH_ID, SEAT_ID, 1, gsId)
         val captured = fingerprint(result.messages)
 
         assertEquals(captured.size, 2, "Should produce 2 messages")

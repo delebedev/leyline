@@ -1,6 +1,5 @@
 package forge.nexus.conformance
 
-import forge.nexus.game.BundleBuilder
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
@@ -25,13 +24,12 @@ class AnnotationOrderingTest : ConformanceTestBase() {
     private companion object {
         const val ZONE_STACK = 27
         const val ZONE_BATTLEFIELD = 28
-        const val ZONE_LIMBO = 30
         const val ZONE_P1_HAND = 31
     }
 
     // ===== PlayLand ordering =====
 
-    @Test(description = "PlayLand: annotation order is ObjectIdChanged → ZoneTransfer → UserActionTaken")
+    @Test(description = "PlayLand: annotation order is ObjectIdChanged -> ZoneTransfer -> UserActionTaken")
     fun playLandAnnotationOrder() {
         val gsm = playLandAndCapture() ?: return
 
@@ -71,7 +69,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
     fun playLandZoneTransferAffectorIdIsZero() {
         val gsm = playLandAndCapture() ?: return
 
-        val zt = gsm.annotationsList.first { AnnotationType.ZoneTransfer_af5a in it.typeList }
+        val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
         assertEquals(zt.affectorId, 0, "PlayLand ZoneTransfer affectorId should be 0 (default), got: ${zt.affectorId}")
     }
 
@@ -79,7 +77,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
     fun playLandUserActionTakenAffectorId() {
         val gsm = playLandAndCapture() ?: return
 
-        val uat = gsm.annotationsList.first { AnnotationType.UserActionTaken in it.typeList }
+        val uat = gsm.annotation(AnnotationType.UserActionTaken)
         assertEquals(uat.affectorId, 1, "PlayLand UserActionTaken affectorId should be seat 1 (human)")
     }
 
@@ -87,22 +85,21 @@ class AnnotationOrderingTest : ConformanceTestBase() {
     fun playLandUserActionTakenActionType() {
         val gsm = playLandAndCapture() ?: return
 
-        val uat = gsm.annotationsList.first { AnnotationType.UserActionTaken in it.typeList }
-        val actionType = uat.detailsList.first { it.key == "actionType" }
-        assertEquals(actionType.getValueInt32(0), 3, "PlayLand UserActionTaken actionType should be 3 (Play)")
+        val uat = gsm.annotation(AnnotationType.UserActionTaken)
+        assertEquals(uat.detailInt("actionType"), 3, "PlayLand UserActionTaken actionType should be 3 (Play)")
     }
 
     @Test(description = "PlayLand: ObjectIdChanged has no affectorId set (default 0)")
     fun playLandObjectIdChangedNoAffector() {
         val gsm = playLandAndCapture() ?: return
 
-        val oic = gsm.annotationsList.first { AnnotationType.ObjectIdChanged in it.typeList }
+        val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
         assertEquals(oic.affectorId, 0, "ObjectIdChanged should not have affectorId set")
     }
 
     // ===== CastSpell ordering =====
 
-    @Test(description = "CastSpell: annotation order is ObjectIdChanged → ZoneTransfer → AbilityInstanceCreated → TappedUntappedPermanent → ManaPaid → AbilityInstanceDeleted → UserActionTaken")
+    @Test(description = "CastSpell: annotation order is ObjectIdChanged -> ZoneTransfer -> AbilityInstanceCreated -> TappedUntappedPermanent -> ManaPaid -> AbilityInstanceDeleted -> UserActionTaken")
     fun castSpellAnnotationOrder() {
         val gsm = castSpellAndCapture() ?: return
 
@@ -149,59 +146,52 @@ class AnnotationOrderingTest : ConformanceTestBase() {
         assertEquals(types, expected, "CastSpell should have exactly 7 annotations in order")
     }
 
-    @Test(description = "CastSpell: ZoneTransfer category is CastSpell, zones are Hand→Stack")
+    @Test(description = "CastSpell: ZoneTransfer category is CastSpell, zones are Hand->Stack")
     fun castSpellZoneTransferFields() {
         val gsm = castSpellAndCapture() ?: return
 
-        val zt = gsm.annotationsList.first { AnnotationType.ZoneTransfer_af5a in it.typeList }
-        val category = zt.detailsList.first { it.key == "category" }
-        assertEquals(category.getValueString(0), "CastSpell")
-
-        val zoneSrc = zt.detailsList.first { it.key == "zone_src" }
-        assertEquals(zoneSrc.getValueInt32(0), ZONE_P1_HAND, "zone_src should be Hand ($ZONE_P1_HAND)")
-
-        val zoneDest = zt.detailsList.first { it.key == "zone_dest" }
-        assertEquals(zoneDest.getValueInt32(0), ZONE_STACK, "zone_dest should be Stack ($ZONE_STACK)")
+        val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
+        assertEquals(zt.detailString("category"), "CastSpell")
+        assertEquals(zt.detailInt("zone_src"), ZONE_P1_HAND, "zone_src should be Hand ($ZONE_P1_HAND)")
+        assertEquals(zt.detailInt("zone_dest"), ZONE_STACK, "zone_dest should be Stack ($ZONE_STACK)")
     }
 
     @Test(description = "CastSpell: UserActionTaken has actionType=1 (Cast)")
     fun castSpellUserActionTakenActionType() {
         val gsm = castSpellAndCapture() ?: return
 
-        val uat = gsm.annotationsList.first { AnnotationType.UserActionTaken in it.typeList }
-        val actionType = uat.detailsList.first { it.key == "actionType" }
-        assertEquals(actionType.getValueInt32(0), 1, "CastSpell UserActionTaken actionType should be 1 (Cast)")
+        val uat = gsm.annotation(AnnotationType.UserActionTaken)
+        assertEquals(uat.detailInt("actionType"), 1, "CastSpell UserActionTaken actionType should be 1 (Cast)")
     }
 
     @Test(description = "CastSpell: TappedUntappedPermanent has tapped=1 detail")
     fun castSpellTappedUntappedDetail() {
         val gsm = castSpellAndCapture() ?: return
 
-        val tup = gsm.annotationsList.first { AnnotationType.TappedUntappedPermanent in it.typeList }
-        val tapped = tup.detailsList.first { it.key == "tapped" }
-        assertEquals(tapped.getValueUint32(0), 1, "TappedUntappedPermanent tapped should be 1")
+        val tup = gsm.annotation(AnnotationType.TappedUntappedPermanent)
+        assertEquals(tup.detailUint("tapped"), 1, "TappedUntappedPermanent tapped should be 1")
     }
 
     @Test(description = "CastSpell: all annotations reference the new (post-realloc) instanceId")
     fun castSpellAnnotationsReferenceNewInstanceId() {
         val (gsm, _, newInstanceId) = castSpellAndCaptureWithIds() ?: return
 
-        val zt = gsm.annotationsList.first { AnnotationType.ZoneTransfer_af5a in it.typeList }
+        val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
         assertTrue(zt.affectedIdsList.contains(newInstanceId), "ZoneTransfer affectedIds should contain new instanceId $newInstanceId")
 
-        val uat = gsm.annotationsList.first { AnnotationType.UserActionTaken in it.typeList }
+        val uat = gsm.annotation(AnnotationType.UserActionTaken)
         assertTrue(uat.affectedIdsList.contains(newInstanceId), "UserActionTaken affectedIds should contain new instanceId $newInstanceId")
 
-        val mp = gsm.annotationsList.first { AnnotationType.ManaPaid in it.typeList }
+        val mp = gsm.annotation(AnnotationType.ManaPaid)
         assertTrue(mp.affectedIdsList.contains(newInstanceId), "ManaPaid affectedIds should contain new instanceId $newInstanceId")
 
-        val aic = gsm.annotationsList.first { AnnotationType.AbilityInstanceCreated in it.typeList }
+        val aic = gsm.annotation(AnnotationType.AbilityInstanceCreated)
         assertTrue(aic.affectedIdsList.contains(newInstanceId), "AbilityInstanceCreated affectedIds should contain new instanceId $newInstanceId")
     }
 
     // ===== Resolve ordering =====
 
-    @Test(description = "Resolve: annotation order is ResolutionStart → ResolutionComplete → ZoneTransfer")
+    @Test(description = "Resolve: annotation order is ResolutionStart -> ResolutionComplete -> ZoneTransfer")
     fun resolveAnnotationOrder() {
         val gsm = resolveAndCapture() ?: return
 
@@ -235,30 +225,25 @@ class AnnotationOrderingTest : ConformanceTestBase() {
     fun resolveZoneTransferAffectorId() {
         val gsm = resolveAndCapture() ?: return
 
-        val zt = gsm.annotationsList.first { AnnotationType.ZoneTransfer_af5a in it.typeList }
-        val category = zt.detailsList.first { it.key == "category" }
-        assertEquals(category.getValueString(0), "Resolve")
-
-        // Resolve ZoneTransfer uses actingSeat as affectorId (unlike PlayLand which uses 0)
+        val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
+        assertEquals(zt.detailString("category"), "Resolve")
         assertTrue(zt.affectorId > 0, "Resolve ZoneTransfer should have non-zero affectorId (acting seat)")
     }
 
-    @Test(description = "Resolve: ZoneTransfer zones are Stack→Battlefield")
+    @Test(description = "Resolve: ZoneTransfer zones are Stack->Battlefield")
     fun resolveZoneTransferZones() {
         val gsm = resolveAndCapture() ?: return
 
-        val zt = gsm.annotationsList.first { AnnotationType.ZoneTransfer_af5a in it.typeList }
-        val zoneSrc = zt.detailsList.first { it.key == "zone_src" }
-        assertEquals(zoneSrc.getValueInt32(0), ZONE_STACK, "Resolve zone_src should be Stack ($ZONE_STACK)")
-        val zoneDest = zt.detailsList.first { it.key == "zone_dest" }
-        assertEquals(zoneDest.getValueInt32(0), ZONE_BATTLEFIELD, "Resolve zone_dest should be Battlefield ($ZONE_BATTLEFIELD)")
+        val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
+        assertEquals(zt.detailInt("zone_src"), ZONE_STACK, "Resolve zone_src should be Stack ($ZONE_STACK)")
+        assertEquals(zt.detailInt("zone_dest"), ZONE_BATTLEFIELD, "Resolve zone_dest should be Battlefield ($ZONE_BATTLEFIELD)")
     }
 
     @Test(description = "Resolve: ResolutionStart has affectorId=instanceId and grpid detail")
     fun resolveResolutionStartFields() {
         val gsm = resolveAndCapture() ?: return
 
-        val rs = gsm.annotationsList.first { AnnotationType.ResolutionStart in it.typeList }
+        val rs = gsm.annotation(AnnotationType.ResolutionStart)
         assertTrue(rs.affectorId > 0, "ResolutionStart affectorId should be the spell instanceId")
         assertTrue(rs.affectedIdsCount > 0, "ResolutionStart should have affectedIds")
         assertEquals(
@@ -267,9 +252,8 @@ class AnnotationOrderingTest : ConformanceTestBase() {
             "ResolutionStart affectorId should equal affectedIds[0] (both = spell instanceId)",
         )
 
-        val grpid = rs.detailsList.firstOrNull { it.key == "grpid" }
+        val grpid = rs.detail("grpid")
         assertTrue(grpid != null, "ResolutionStart should have grpid detail")
-        // grpid may be 0 if Arena card DB is not installed — that's fine for CI
         assertTrue(grpid!!.getValueUint32(0) >= 0, "grpid should be present (0 is OK without ArenaCardDb)")
     }
 
@@ -277,8 +261,8 @@ class AnnotationOrderingTest : ConformanceTestBase() {
     fun resolveResolutionCompleteMatchesStart() {
         val gsm = resolveAndCapture() ?: return
 
-        val rs = gsm.annotationsList.first { AnnotationType.ResolutionStart in it.typeList }
-        val rc = gsm.annotationsList.first { AnnotationType.ResolutionComplete in it.typeList }
+        val rs = gsm.annotation(AnnotationType.ResolutionStart)
+        val rc = gsm.annotation(AnnotationType.ResolutionComplete)
 
         assertEquals(rc.affectorId, rs.affectorId, "ResolutionComplete affectorId should match ResolutionStart")
         assertEquals(
@@ -287,20 +271,21 @@ class AnnotationOrderingTest : ConformanceTestBase() {
             "ResolutionComplete affectedIds[0] should match ResolutionStart",
         )
 
-        val rsGrp = rs.detailsList.first { it.key == "grpid" }.getValueUint32(0)
-        val rcGrp = rc.detailsList.first { it.key == "grpid" }.getValueUint32(0)
-        assertEquals(rcGrp, rsGrp, "ResolutionComplete grpid should match ResolutionStart grpid")
+        assertEquals(
+            rc.detailUint("grpid"),
+            rs.detailUint("grpid"),
+            "ResolutionComplete grpid should match ResolutionStart grpid",
+        )
     }
 
-    @Test(description = "Resolve: instanceId NOT reallocated (Stack→Battlefield keeps same ID)")
+    @Test(description = "Resolve: instanceId NOT reallocated (Stack->Battlefield keeps same ID)")
     fun resolveKeepsSameInstanceId() {
         val gsm = resolveAndCapture() ?: return
 
-        // Resolve should NOT have ObjectIdChanged (no realloc)
         val oicAnns = gsm.annotationsList.filter { AnnotationType.ObjectIdChanged in it.typeList }
         assertTrue(
             oicAnns.isEmpty(),
-            "Resolve should NOT have ObjectIdChanged (Stack→Battlefield keeps same instanceId), " +
+            "Resolve should NOT have ObjectIdChanged (Stack->Battlefield keeps same instanceId), " +
                 "got: ${oicAnns.map { it.typeList }}",
         )
     }
@@ -309,15 +294,10 @@ class AnnotationOrderingTest : ConformanceTestBase() {
     fun resolveNoLimboRetirement() {
         val gsm = resolveAndCapture() ?: return
 
-        // The Limbo zone should not have gained entries from the resolve step.
-        // Note: it may have entries from the preceding cast spell step.
-        // We check that no resolve-specific retirement happened by checking
-        // that the resolved creature is NOT in Limbo.
         val bfObjects = gsm.gameObjectsList.filter { it.zoneId == ZONE_BATTLEFIELD }
         val limboZone = gsm.zonesList.firstOrNull { it.type == ZoneType.Limbo }
         for (obj in bfObjects) {
             if (limboZone != null) {
-                // The battlefield object's instanceId should not be in Limbo
                 assertTrue(
                     !limboZone.objectInstanceIdsList.contains(obj.instanceId),
                     "Resolved creature instanceId ${obj.instanceId} should NOT be in Limbo",
@@ -369,78 +349,5 @@ class AnnotationOrderingTest : ConformanceTestBase() {
         assertTrue(ids.all { it > 0 }, "All annotation IDs should be > 0, got: $ids")
         assertEquals(ids, ids.sorted(), "Annotation IDs should be monotonically increasing, got: $ids")
         assertEquals(ids.toSet().size, ids.size, "Annotation IDs should be unique, got: $ids")
-    }
-
-    /** Play a land and capture the resulting GSM (with annotations). */
-    private fun playLandAndCapture(): GameStateMessage? {
-        val (b, game, gsId) = startGameAtMain1()
-        playLand(b) ?: return null
-        val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, gsId)
-        return result.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage
-    }
-
-    /**
-     * Cast a creature spell and capture the on-stack GSM (before resolution).
-     * Returns the GSM with CastSpell annotations.
-     */
-    private fun castSpellAndCapture(): GameStateMessage? {
-        val (b, game, gsId) = startGameAtMain1()
-        // Play a land first for mana
-        playLand(b) ?: return null
-        b.snapshotState(game)
-        val nextGsId = gsId + 2
-
-        // Cast a creature
-        castCreature(b) ?: return null
-        val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, nextGsId)
-        return result.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage
-    }
-
-    /**
-     * Cast a creature spell and capture with pre/post instanceIds.
-     * Returns (gsm, origInstanceId, newInstanceId).
-     */
-    private fun castSpellAndCaptureWithIds(): Triple<GameStateMessage, Int, Int>? {
-        val (b, game, gsId) = startGameAtMain1()
-        playLand(b) ?: return null
-        b.snapshotState(game)
-        val nextGsId = gsId + 2
-
-        val player = b.getPlayer(1) ?: return null
-        val creature = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
-        val origInstanceId = b.getOrAllocInstanceId(creature.id)
-        val forgeCardId = creature.id
-
-        castCreature(b) ?: return null
-        val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, nextGsId)
-        val gsm = result.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage ?: return null
-        val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
-
-        return Triple(gsm, origInstanceId, newInstanceId)
-    }
-
-    /**
-     * Full cast+resolve cycle: play land → cast creature → pass priority (resolve).
-     * Returns the GSM from the resolution step (with Resolve annotations).
-     */
-    private fun resolveAndCapture(): GameStateMessage? {
-        val (b, game, gsId) = startGameAtMain1()
-
-        // Play land for mana
-        playLand(b) ?: return null
-        b.snapshotState(game)
-        var nextGsId = gsId + 2
-
-        // Cast a creature (puts it on stack)
-        castCreature(b) ?: return null
-        // Consume the cast GSM and update snapshot
-        val castResult = BundleBuilder.postAction(game, b, "test-match", 1, 1, nextGsId)
-        nextGsId = castResult.nextGsId
-        b.snapshotState(game)
-
-        // Pass priority to resolve the spell
-        passPriority(b)
-        val resolveResult = BundleBuilder.postAction(game, b, "test-match", 1, 1, nextGsId)
-        return resolveResult.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage
     }
 }
