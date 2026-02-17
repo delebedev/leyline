@@ -219,16 +219,14 @@ Or simpler — just return `GrpId?` once value classes exist. The `FALLBACK_GRPI
 
 ## Priority Ranking
 
-| # | Opportunity | Catches | Migration Cost |
-|---|------------|---------|---------------|
-| 1 | **TransferCategory enum** | Silent typo bugs in annotation building | Small — 6 files, <30 lines |
-| 2 | **MulliganPhase enum** | String comparison bugs in bridge state | Tiny — 2 files |
-| 3 | **IdReallocation named type** | Swapped Pair destructuring | Tiny — 1 type + 3 call sites |
-| 4 | **InstanceId / ForgeCardId value classes** | Wrong-ID-domain bugs | Large — ~80 call sites, but mechanical |
-| 5 | **ArenaZone enum** | Magic int confusion, seat→zone mapping | Medium — replaces 17 constants + scattered ifs |
-| 6 | **BridgeLifecycle sealed class** | Null access before start | Medium — changes GameBridge internals |
-| 7 | **PromptState sealed class** | Inconsistent boolean + list state | Medium — changes MatchSession flow |
-| 8 | **GrpId value class** | Confused with instanceId at proto boundary | Large — pervasive in StateMapper |
-| 9 | **Exhaustive action type mapping** | Silent new-action-type drops | Medium — new domain type + boundary mapper |
-
-**Recommended approach:** Pick items 1-3 when touching those files anyway — they're tiny, self-contained, and immediately useful. Items 4-5 are the big wins but need a dedicated pass. Items 6-9 are when-you-need-it improvements.
+| # | Opportunity | Catches | Status |
+|---|------------|---------|--------|
+| 1 | **TransferCategory enum** | Silent typo bugs in annotation building | ✅ Shipped |
+| 2 | **MulliganPhase enum** | String comparison bugs in bridge state | ✅ Shipped |
+| 3 | **IdReallocation named type** | Swapped Pair destructuring | ✅ Shipped |
+| 4 | **InstanceId / ForgeCardId value classes** | Wrong-ID-domain bugs | Later — ~80 call sites, do when touching StateMapper |
+| 5 | **ArenaZone enum** | Magic int confusion, seat→zone mapping | Later — 62 usages in StateMapper, proto still takes Int |
+| 6 | **BridgeLifecycle sealed class** | Null access before start | Later — when adding multiplayer/spectator |
+| 7 | **PromptState sealed class** | Inconsistent boolean + list state | Later — when refactoring MatchSession |
+| 8 | **GrpId value class** | Confused with instanceId at proto boundary | Later — pervasive in StateMapper |
+| 9 | **Exhaustive action type mapping** | Silent new-action-type drops | Later — when adding new action types |
