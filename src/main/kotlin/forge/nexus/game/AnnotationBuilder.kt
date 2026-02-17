@@ -8,6 +8,45 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 /** Builds Arena-format annotations for GameStateMessage. */
 object AnnotationBuilder {
 
+    /**
+     * Resolve the annotation category for a zone transfer using captured events.
+     *
+     * Looks up the forge card ID in the event list and returns the category
+     * based on the **most specific** event (LandPlayed > ZoneChanged, etc.).
+     * Returns null if no matching event was found — caller should fall back
+     * to [StateMapper.inferCategory].
+     */
+    fun categoryFromEvents(forgeCardId: Int, events: List<NexusGameEvent>): String? {
+        // Walk events in reverse — most recent event for this card wins.
+        // Specific events (LandPlayed, SpellCast, SpellResolved) take priority
+        // over generic ZoneChanged.
+        var generic: NexusGameEvent.ZoneChanged? = null
+        for (ev in events) {
+            when (ev) {
+                is NexusGameEvent.LandPlayed -> if (ev.forgeCardId == forgeCardId) return "PlayLand"
+                is NexusGameEvent.SpellCast -> if (ev.forgeCardId == forgeCardId) return "CastSpell"
+                is NexusGameEvent.SpellResolved -> if (ev.forgeCardId == forgeCardId) return "Resolve"
+                is NexusGameEvent.ZoneChanged -> if (ev.forgeCardId == forgeCardId) generic = ev
+                else -> {} // CardTapped, Damage, Life, etc. don't affect zone-transfer category
+            }
+        }
+        // Fall back to generic zone change if we saw one but no specific event
+        if (generic != null) {
+            return zoneChangedCategory(generic)
+        }
+        return null
+    }
+
+    /** Map a generic ZoneChanged event to an annotation category string. */
+    private fun zoneChangedCategory(ev: NexusGameEvent.ZoneChanged): String = when {
+        ev.from == forge.game.zone.ZoneType.Battlefield -> when (ev.to) {
+            forge.game.zone.ZoneType.Graveyard -> "Destroy"
+            forge.game.zone.ZoneType.Exile -> "Exile"
+            else -> "ZoneTransfer"
+        }
+        else -> "ZoneTransfer"
+    }
+
     fun zoneTransfer(
         instanceId: Int,
         srcZoneId: Int,

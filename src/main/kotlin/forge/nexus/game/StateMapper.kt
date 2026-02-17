@@ -379,14 +379,25 @@ object StateMapper {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistentAnnotations = mutableListOf<AnnotationInfo>()
         val actingSeat = if (handler.priorityPlayer == human) 1 else 2
+
+        // Drain captured events for event-driven category resolution.
+        // Falls back to inferCategory() when no event matches (e.g. during
+        // initial Full state builds or when collector is not yet wired).
+        val events = bridge.eventCollector?.drainEvents() ?: emptyList()
+
         for (i in gameObjects.indices) {
             val obj = gameObjects[i]
             val prevZone = bridge.getPreviousZone(obj.instanceId)
             if (prevZone != null && prevZone != obj.zoneId) {
-                val category = inferCategory(obj, prevZone, obj.zoneId)
+                val forgeCardId = bridge.getForgeCardId(obj.instanceId)
+                val category = if (forgeCardId != null && events.isNotEmpty()) {
+                    AnnotationBuilder.categoryFromEvents(forgeCardId, events)
+                        ?: inferCategory(obj, prevZone, obj.zoneId)
+                } else {
+                    inferCategory(obj, prevZone, obj.zoneId)
+                }
                 // Allocate new instanceId for zone transfer (real server does this).
                 // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
-                val forgeCardId = bridge.getForgeCardId(obj.instanceId)
                 val (origId, newId) = if (category != "Resolve" && forgeCardId != null) {
                     bridge.reallocInstanceId(forgeCardId)
                 } else {

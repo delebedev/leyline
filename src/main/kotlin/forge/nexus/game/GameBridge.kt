@@ -46,6 +46,10 @@ class GameBridge {
     var playback: NexusGamePlayback? = null
         private set
 
+    /** Event collector — captures Forge engine events for annotation building. Null before start(). */
+    var eventCollector: GameEventCollector? = null
+        private set
+
     // --- Card ID mapping (Forge cardId ↔ Arena instanceId) ---
     private val forgeIdToInstanceId = ConcurrentHashMap<Int, Int>()
     private val instanceIdToForgeId = ConcurrentHashMap<Int, Int>()
@@ -177,6 +181,12 @@ class GameBridge {
         g.subscribeToEvents(pb)
         log.info("ArenaGameBridge: registered NexusGamePlayback for AI action streaming")
 
+        // Register event collector for annotation building
+        val collector = GameEventCollector(this)
+        eventCollector = collector
+        g.subscribeToEvents(collector)
+        log.info("ArenaGameBridge: registered GameEventCollector for event-driven annotations")
+
         log.info("ArenaGameBridge: game loop started, waiting for mulligan")
         awaitMulliganReady()
         log.info("ArenaGameBridge: engine reached mulligan, hand ready")
@@ -297,6 +307,7 @@ class GameBridge {
         loopController?.shutdown()
         loopController = null
         playback = null
+        eventCollector = null
         game = null
     }
 
