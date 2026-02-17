@@ -58,6 +58,12 @@ object CardDb {
         nameToGrpId[cardName] = grpId
     }
 
+    /** Register card with full metadata (for tests without Arena SQLite DB). */
+    fun registerData(data: CardData, cardName: String) {
+        register(data.grpId, cardName)
+        cache[data.grpId] = data
+    }
+
     fun clear() {
         grpIdToName.clear()
         nameToGrpId.clear()

@@ -23,6 +23,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * overlay), and our dynamic builder also omits them. So "actions" in fieldPresence
  * is expected to differ.
  */
+@Test(groups = ["integration"])
 class DealHandConformanceTest {
 
     private var bridge: GameBridge? = null
