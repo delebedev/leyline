@@ -14,6 +14,84 @@ import java.io.File
  */
 object RecordingDecoder {
 
+    /** Seat identity extracted from MatchGameRoomStateChangedEvent. */
+    data class SeatInfo(
+        val systemSeatId: Int,
+        val playerName: String,
+        val isBot: Boolean,
+    ) {
+        /** Human-readable role label. */
+        val role: String get() = if (isBot) "AI" else "player"
+    }
+
+    /**
+     * Scan MATCH_DATA files for seat identities.
+     *
+     * Strategy (in order):
+     * 1. MatchGameRoomStateChangedEvent — has playerName, isBotPlayer, systemSeatId
+     * 2. Fallback: enumerate distinct systemSeatIds from GRE messages
+     *
+     * Returns map of systemSeatId -> SeatInfo.
+     */
+    fun detectSeats(dir: File): Map<Int, SeatInfo> {
+        val files = dir.listFiles()
+            ?.filter { it.name.startsWith("S-C_MATCH_DATA") && it.name.endsWith(".bin") }
+            ?.sortedBy { it.name }
+            ?: return emptyMap()
+
+        val seats = mutableMapOf<Int, SeatInfo>()
+
+        // Strategy 1: MatchGameRoomStateChangedEvent (richest info)
+        for (file in files) {
+            val msg = try {
+                MatchServiceToClientMessage.parseFrom(file.readBytes())
+            } catch (_: Exception) {
+                continue
+            }
+            if (msg.hasMatchGameRoomStateChangedEvent()) {
+                val room = msg.matchGameRoomStateChangedEvent.gameRoomInfo
+                for (p in room.playersList) {
+                    if (p.systemSeatId > 0) {
+                        // isBotPlayer is sometimes unset for Sparky; heuristic fallback
+                        val isBot = p.isBotPlayer ||
+                            p.playerName.equals("Sparky", ignoreCase = true) ||
+                            p.playerName.endsWith("_Familiar")
+                        seats[p.systemSeatId] = SeatInfo(
+                            systemSeatId = p.systemSeatId,
+                            playerName = p.playerName,
+                            isBot = isBot,
+                        )
+                    }
+                }
+                if (seats.isNotEmpty()) return seats
+            }
+        }
+
+        // Strategy 2: enumerate seats from GRE systemSeatIds
+        val seenSeats = mutableSetOf<Int>()
+        for (file in files) {
+            val msg = try {
+                MatchServiceToClientMessage.parseFrom(file.readBytes())
+            } catch (_: Exception) {
+                continue
+            }
+            if (!msg.hasGreToClientEvent()) continue
+            for (gre in msg.greToClientEvent.greToClientMessagesList) {
+                for (sid in gre.systemSeatIdsList) {
+                    seenSeats.add(sid.toInt())
+                }
+            }
+        }
+        for (sid in seenSeats.sorted()) {
+            seats[sid] = SeatInfo(
+                systemSeatId = sid,
+                playerName = "seat-$sid",
+                isBot = false, // unknown without room state
+            )
+        }
+        return seats
+    }
+
     private val PROTO_SUFFIX = Regex("_[a-f0-9]{3,4}$")
     private fun String.strip(): String = replace(PROTO_SUFFIX, "")
 
@@ -103,8 +181,11 @@ object RecordingDecoder {
         val decisionPlayer: Int,
     )
 
-    /** Decode all S-C_MATCH_DATA_*.bin files in a directory. */
-    fun decodeDirectory(dir: File): List<DecodedMessage> {
+    /**
+     * Decode all S-C_MATCH_DATA_*.bin files in a directory.
+     * @param seatFilter if non-null, only include GRE messages addressed to this seat
+     */
+    fun decodeDirectory(dir: File, seatFilter: Int? = null): List<DecodedMessage> {
         val files = dir.listFiles()
             ?.filter { it.name.startsWith("S-C_MATCH_DATA") && it.name.endsWith(".bin") }
             ?.sortedBy { it.name }
@@ -112,12 +193,15 @@ object RecordingDecoder {
 
         var index = 0
         return files.flatMap { file ->
-            decodeFile(file, index).also { index += it.size }
+            decodeFile(file, index, seatFilter).also { index += it.size }
         }
     }
 
-    /** Decode a single .bin file into DecodedMessage list. */
-    fun decodeFile(file: File, startIndex: Int = 0): List<DecodedMessage> {
+    /**
+     * Decode a single .bin file into DecodedMessage list.
+     * @param seatFilter if non-null, only include GRE messages addressed to this seat
+     */
+    fun decodeFile(file: File, startIndex: Int = 0, seatFilter: Int? = null): List<DecodedMessage> {
         val msg = try {
             MatchServiceToClientMessage.parseFrom(file.readBytes())
         } catch (_: Exception) {
@@ -125,9 +209,16 @@ object RecordingDecoder {
         }
         if (!msg.hasGreToClientEvent()) return emptyList()
 
-        return msg.greToClientEvent.greToClientMessagesList.mapIndexed { i, gre ->
-            decodeGRE(gre, startIndex + i, file.name)
+        var idx = startIndex
+        val result = mutableListOf<DecodedMessage>()
+        for (gre in msg.greToClientEvent.greToClientMessagesList) {
+            val seatIds = gre.systemSeatIdsList.map { it.toInt() }
+            if (seatFilter != null && seatIds.isNotEmpty() && seatFilter !in seatIds) {
+                continue // skip messages not addressed to this seat
+            }
+            result.add(decodeGRE(gre, idx++, file.name))
         }
+        return result
     }
 
     /** Decode a single GREToClientMessage. */

@@ -13,13 +13,18 @@ import java.io.PrintWriter
  */
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
-        System.err.println("Usage: RecordingDecoderMain <recording-dir> [output.jsonl]")
+        System.err.println("Usage: RecordingDecoderMain <recording-dir> [output.jsonl] [--seat N]")
         System.err.println()
         System.err.println("Modes:")
         System.err.println("  <dir>                       Decode to JSONL")
         System.err.println("  <dir> --accumulate          Decode + accumulate state snapshots")
         System.err.println("  <dir> output.jsonl          Decode to file")
         System.err.println("  <dir> --accumulate out.jsonl Accumulate to file")
+        System.err.println()
+        System.err.println("Seat filtering:")
+        System.err.println("  --seat 1   Player perspective (default)")
+        System.err.println("  --seat 2   AI/Sparky perspective")
+        System.err.println("  --seat 0   All seats interleaved (legacy)")
         System.exit(1)
         return
     }
@@ -32,16 +37,36 @@ fun main(args: Array<String>) {
     }
 
     val accumulate = args.any { it == "--accumulate" }
-    val outputPath = args.drop(1).firstOrNull { !it.startsWith("--") }
+    val outputPath = args.drop(1).firstOrNull { !it.startsWith("--") && it != args.getOrNull(args.indexOf("--seat") + 1) }
 
-    val messages = RecordingDecoder.decodeDirectory(dir)
+    // Parse --seat flag (default: 1 = player perspective)
+    val seatIdx = args.indexOf("--seat")
+    val rawSeat = if (seatIdx >= 0 && seatIdx + 1 < args.size) {
+        args[seatIdx + 1].toIntOrNull() ?: 1
+    } else {
+        1
+    }
+    val seatFilter = if (rawSeat == 0) null else rawSeat
+
+    // Print seat identification
+    val seats = RecordingDecoder.detectSeats(dir)
+    if (seats.isNotEmpty()) {
+        System.err.println("Seat identification:")
+        for ((id, info) in seats.toSortedMap()) {
+            System.err.println("  Seat $id: ${info.playerName} (${info.role})")
+        }
+        System.err.println()
+    }
+
+    val messages = RecordingDecoder.decodeDirectory(dir, seatFilter)
     if (messages.isEmpty()) {
         System.err.println("No S-C_MATCH_DATA_*.bin files found in $dir")
         System.exit(1)
         return
     }
 
-    System.err.println("Decoded ${messages.size} GRE messages from ${dir.name}")
+    val filterDesc = if (seatFilter != null) " (seat $seatFilter)" else " (all seats)"
+    System.err.println("Decoded ${messages.size} GRE messages from ${dir.name}$filterDesc")
 
     if (accumulate) {
         writeAccumulated(messages, outputPath)
