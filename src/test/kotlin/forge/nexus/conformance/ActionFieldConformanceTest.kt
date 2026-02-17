@@ -41,7 +41,6 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
             assertTrue(a.isBatchable, "ActivateMana should be batchable")
             assertTrue(a.manaPaymentOptionsCount > 0, "ActivateMana should have manaPaymentOptions")
             assertTrue(a.manaSelectionsCount > 0, "ActivateMana should have manaSelections")
-            // abilityGrpId depends on CardDb having ability data (may be 0 in test deck)
         }
     }
 

@@ -17,8 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
  * Base class for wire conformance tests.
  *
  * Provides helpers to start deterministic games, play actions,
- * capture outbound GRE messages via BundleBuilder, and compare
- * fingerprints against golden files.
+ * and capture outbound GRE messages via BundleBuilder.
  */
 abstract class ConformanceTestBase {
 
@@ -27,6 +26,7 @@ abstract class ConformanceTestBase {
     @BeforeClass(alwaysRun = true)
     fun initCardDatabase() {
         GameBootstrap.initializeCardDatabase()
+        TestCardRegistry.ensureRegistered()
     }
 
     @AfterMethod
@@ -55,48 +55,6 @@ abstract class ConformanceTestBase {
 
     protected fun fingerprint(messages: List<GREToClientMessage>): List<StructuralFingerprint> =
         messages.map { StructuralFingerprint.fromGRE(it) }
-
-    protected fun loadGolden(name: String): List<StructuralFingerprint> =
-        GoldenSequence.fromResource("golden/$name.json")
-
-    protected fun assertConformance(goldenName: String, captured: List<StructuralFingerprint>) {
-        val golden = loadGolden(goldenName)
-        val result = StructuralDiff.compare(golden, captured)
-        if (!result.matches) {
-            Assert.fail(
-                "Wire conformance FAILED for '$goldenName':\n${result.report()}\n" +
-                    "Captured:\n${formatFingerprints(captured)}",
-            )
-        }
-    }
-
-    /**
-     * Shape-only conformance: checks message types, gsType, updateType, annotations,
-     * prompts. Ignores deck-dependent action types and allows extra field presence.
-     */
-    protected fun assertShapeConformance(goldenName: String, captured: List<StructuralFingerprint>) {
-        val golden = loadGolden(goldenName)
-        val result = StructuralDiff.compareShape(golden, captured)
-        if (!result.matches) {
-            Assert.fail(
-                "Wire shape conformance FAILED for '$goldenName':\n${result.report()}\n" +
-                    "Captured:\n${formatFingerprints(captured)}",
-            )
-        }
-    }
-
-    protected fun saveGolden(name: String, captured: List<StructuralFingerprint>) {
-        val file = java.io.File("src/test/resources/golden/$name.json")
-        file.parentFile.mkdirs()
-        file.writeText(GoldenSequence.toJson(captured))
-    }
-
-    protected fun formatFingerprints(fps: List<StructuralFingerprint>): String =
-        fps.withIndex().joinToString("\n") { (i, fp) ->
-            "  [$i] ${fp.greMessageType} gsType=${fp.gsType} update=${fp.updateType} " +
-                "annotations=${fp.annotationTypes} categories=${fp.annotationCategories} " +
-                "actions=${fp.actionTypes} prompt=${fp.promptId}"
-        }
 
     protected fun playLand(b: GameBridge): PlayerAction? {
         val player = b.getPlayer(1) ?: return null

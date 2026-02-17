@@ -24,6 +24,7 @@ class GameBridgeTest {
     @BeforeClass(alwaysRun = true)
     fun initCardDatabase() {
         GameBootstrap.initializeCardDatabase()
+        forge.nexus.conformance.TestCardRegistry.ensureRegistered()
     }
 
     private var bridge: GameBridge? = null
