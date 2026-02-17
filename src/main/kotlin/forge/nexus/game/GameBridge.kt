@@ -15,7 +15,6 @@ import forge.web.game.WebPlayerController
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.util.Random
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Bridges MTGA's Arena protocol to a real Forge [forge.game.Game] engine.
@@ -23,6 +22,11 @@ import java.util.concurrent.ConcurrentHashMap
  * Creates a constructed game (human seat 1 + AI seat 2), starts the game loop,
  * and blocks until the engine reaches mulligan. The Arena handler reads hands
  * and submits keep/mull decisions through this bridge.
+ *
+ * Internally composed of focused components:
+ * - [InstanceIdRegistry] — Forge cardId ↔ Arena instanceId bimap
+ * - [LimboTracker] — retired instanceId history
+ * - [DiffSnapshotter] — zone tracking + state snapshots for diff computation
  *
  * Threading: [start] blocks the caller (~2-3s first call for card DB, <100ms after).
  * The engine thread blocks at mulligan via [forge.web.game.MulliganBridge].
@@ -50,10 +54,16 @@ class GameBridge {
     var eventCollector: GameEventCollector? = null
         private set
 
-    // --- Card ID mapping (Forge cardId ↔ Arena instanceId) ---
-    private val forgeIdToInstanceId = ConcurrentHashMap<Int, Int>()
-    private val instanceIdToForgeId = ConcurrentHashMap<Int, Int>()
-    private var nextInstanceId = 100
+    // --- Composed components ---
+
+    /** Card ID mapping (Forge cardId ↔ Arena instanceId). */
+    val ids = InstanceIdRegistry()
+
+    /** Retired instanceId history (Limbo zone). */
+    val limbo = LimboTracker()
+
+    /** Zone tracking + state snapshots for diff computation. */
+    val diff = DiffSnapshotter(ids)
 
     /** Monotonic annotation ID counter. Real server starts around 49; we start at 50. */
     private var nextAnnotationId = 50
@@ -67,44 +77,40 @@ class GameBridge {
     /** Allocate the next sequential persistent annotation ID. */
     fun nextPersistentAnnotationId(): Int = nextPersistentAnnotationId++
 
-    /** Previous zone assignment per instanceId — for detecting zone transfers. */
-    private val previousZones = ConcurrentHashMap<Int, Int>()
+    // --- Delegate methods (keep public API stable for existing call sites) ---
 
-    /**
-     * Accumulated Limbo instanceIds — grows monotonically (real server never clears Limbo).
-     * Limbo is a pure protocol concept with no Forge engine equivalent; we maintain it here
-     * so every buildFromGame includes the full retirement history the client expects.
-     */
-    private val limboInstanceIds = mutableListOf<Int>()
+    /** Allocate or return existing Arena instanceId for a Forge card ID. */
+    fun getOrAllocInstanceId(forgeCardId: Int): Int = ids.getOrAlloc(forgeCardId)
+
+    /** Allocate a fresh instanceId for a Forge card that changed zones. */
+    fun reallocInstanceId(forgeCardId: Int): Pair<Int, Int> = ids.realloc(forgeCardId)
+
+    /** Reverse lookup: Arena instanceId → Forge card ID. */
+    fun getForgeCardId(instanceId: Int): Int? = ids.getForgeCardId(instanceId)
+
+    /** Read-only snapshot of instanceId → forgeCardId (for debug panel). */
+    fun getInstanceIdMap(): Map<Int, Int> = ids.snapshot()
 
     /** Add an instanceId to the persistent Limbo set. */
-    fun retireToLimbo(instanceId: Int) {
-        if (instanceId !in limboInstanceIds) limboInstanceIds.add(instanceId)
-    }
+    fun retireToLimbo(instanceId: Int) = limbo.retire(instanceId)
 
     /** Current ordered list of all retired instanceIds. */
-    fun getLimboInstanceIds(): List<Int> = limboInstanceIds
+    fun getLimboInstanceIds(): List<Int> = limbo.all()
 
     /** Record current zone for an instance. Returns previous zone or null if new. */
-    fun recordZone(instanceId: Int, zoneId: Int): Int? =
-        previousZones.put(instanceId, zoneId)
+    fun recordZone(instanceId: Int, zoneId: Int): Int? = diff.recordZone(instanceId, zoneId)
 
     /** Snapshot current zones for annotation building. */
-    fun getPreviousZone(instanceId: Int): Int? = previousZones[instanceId]
+    fun getPreviousZone(instanceId: Int): Int? = diff.getPreviousZone(instanceId)
 
     /** Previous full GameStateMessage — used to compute diffs. Null before first state. */
-    @Volatile
-    private var previousState: GameStateMessage? = null
-
     fun snapshotState(game: Game, gameStateId: Int = 0) {
-        previousState = StateMapper.buildFromGame(game, gameStateId, "", this)
+        diff.snapshotState(StateMapper.buildFromGame(game, gameStateId, "", this))
     }
 
-    fun getPreviousState(): GameStateMessage? = previousState
+    fun getPreviousState(): GameStateMessage? = diff.getPreviousState()
 
-    fun clearPreviousState() {
-        previousState = null
-    }
+    fun clearPreviousState() = diff.clear()
 
     companion object {
         /** Fallback grpId for cards not in Arena DB (renders face-down). */
@@ -223,35 +229,6 @@ class GameBridge {
             g.players.firstOrNull { it.lobbyPlayer is LobbyPlayerAi }
         }
     }
-
-    /** Allocate or return existing Arena instanceId for a Forge card ID. */
-    fun getOrAllocInstanceId(forgeCardId: Int): Int =
-        forgeIdToInstanceId.computeIfAbsent(forgeCardId) {
-            val id = nextInstanceId++
-            instanceIdToForgeId[id] = forgeCardId
-            id
-        }
-
-    /**
-     * Allocate a fresh instanceId for a Forge card that changed zones.
-     * Updates forward map (forgeCardId → new ID), keeps old ID in reverse map.
-     * Returns (oldInstanceId, newInstanceId).
-     */
-    fun reallocInstanceId(forgeCardId: Int): Pair<Int, Int> {
-        val oldId = forgeIdToInstanceId[forgeCardId]
-            ?: return getOrAllocInstanceId(forgeCardId).let { it to it }
-        val newId = nextInstanceId++
-        forgeIdToInstanceId[forgeCardId] = newId
-        instanceIdToForgeId[newId] = forgeCardId
-        // old reverse entry kept intentionally — client may reference old IDs
-        return oldId to newId
-    }
-
-    /** Reverse lookup: Arena instanceId → Forge card ID. */
-    fun getForgeCardId(instanceId: Int): Int? = instanceIdToForgeId[instanceId]
-
-    /** Read-only snapshot of instanceId → forgeCardId (for debug panel). */
-    fun getInstanceIdMap(): Map<Int, Int> = HashMap(instanceIdToForgeId)
 
     /**
      * Block until the engine reaches a priority stop (via [GameActionBridge]).
