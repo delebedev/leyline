@@ -135,8 +135,9 @@ class NexusGamePlayback(
 
             queue.add(result.messages)
 
-            // Update bridge snapshot so next diff is relative to this state
-            bridge.snapshotState(game)
+            // Update bridge snapshot so next diff is relative to this state.
+            // Pass the last gsId we emitted so prevGameStateId chains correctly.
+            bridge.snapshotState(game, result.nextGsId)
 
             log.debug(
                 "AI action captured: phase={} turn={} queued={} msgs={}",
