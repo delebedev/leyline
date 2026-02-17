@@ -4,6 +4,7 @@ import org.testng.Assert.*
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
 
 /**
@@ -94,11 +95,12 @@ class AiTurnConformanceTest : ConformanceTestBase() {
      * Reproduces the "Sparky invisible" bug: AI action diffs must contain
      * ZoneTransfer annotations so the client animates card movement.
      *
-     * Root cause: buildFromGame with viewingSeatId=1 never adds seat 2's
-     * hand cards to gameObjects (they're Private). So recordZone() is never
-     * called for them, getPreviousZone() returns null on zone transfer,
-     * and no annotations are generated. The client sees the object appear
-     * but has no animation instructions → invisible/stuck.
+     * Root cause: GameEventCollector was registered AFTER NexusGamePlayback on
+     * the EventBus. When GameEventLandPlayed fired, the playback's captureAndPause
+     * ran first and drained events before the collector queued the LandPlayed event.
+     * categoryFromEvents fell back to a ZoneChanged event, and zoneChangedCategory
+     * didn't handle Hand→Battlefield — returning ZoneTransfer (no annotations).
+     * The client saw the object appear but had no animation instructions → invisible.
      */
     @Test(description = "AI action diffs contain ZoneTransfer annotations (Sparky visibility)")
     fun aiActionDiffsContainZoneTransferAnnotations() {
@@ -112,14 +114,23 @@ class AiTurnConformanceTest : ConformanceTestBase() {
         playLand(b) ?: return
         b.snapshotState(game)
 
-        // Pass through human's turn until AI acts
-        val maxPasses = 50
+        // Pass through multiple turns until AI plays something with zone changes.
+        // Phase-only transitions produce empty diffs; we need actual card movement.
+        val allBatches = mutableListOf<List<GREToClientMessage>>()
+        val maxPasses = 100
         for (i in 0 until maxPasses) {
             passPriority(b)
-            if (playback.hasPendingMessages()) break
+            if (playback.hasPendingMessages()) {
+                val drained = playback.drainQueue()
+                allBatches.addAll(drained)
+                val hasZoneChanges = drained.flatten()
+                    .filter { it.hasGameStateMessage() }
+                    .any { it.gameStateMessage.zonesCount > 0 }
+                if (hasZoneChanges) break
+            }
         }
 
-        val batches = playback.drainQueue()
+        val batches = allBatches
         if (batches.isEmpty()) {
             println("AI turn: no action batches captured — AI may have passed all phases")
             return
@@ -143,10 +154,7 @@ class AiTurnConformanceTest : ConformanceTestBase() {
         val gsmsWithObjects = allGsms.filter { it.gameObjectsCount > 0 }
         assertTrue(
             gsmsWithObjects.isNotEmpty(),
-            "At least one AI action diff should contain gameObjects. " +
-                "This fails when opponent hand cards are never zone-tracked " +
-                "(viewingSeatId filtering skips recordZone for seat 2's hand, " +
-                "so getPreviousZone returns null and no zone transfer is detected).",
+            "At least one AI action diff should contain gameObjects",
         )
 
         // Every GSM with objects on battlefield/stack must have ZoneTransfer

@@ -182,17 +182,18 @@ class GameBridge {
         loopController = loop
         loop.start()
 
-        // Register AI action playback subscriber
-        val pb = NexusGamePlayback(this, "forge-match-1", 1)
-        playback = pb
-        g.subscribeToEvents(pb)
-        log.info("ArenaGameBridge: registered NexusGamePlayback for AI action streaming")
-
-        // Register event collector for annotation building
+        // Register event collector FIRST — must fire before playback so drainEvents()
+        // includes the current event when playback's captureAndPause runs.
         val collector = GameEventCollector(this)
         eventCollector = collector
         g.subscribeToEvents(collector)
         log.info("ArenaGameBridge: registered GameEventCollector for event-driven annotations")
+
+        // Register AI action playback subscriber (after collector)
+        val pb = NexusGamePlayback(this, "forge-match-1", 1)
+        playback = pb
+        g.subscribeToEvents(pb)
+        log.info("ArenaGameBridge: registered NexusGamePlayback for AI action streaming")
 
         log.info("ArenaGameBridge: game loop started, waiting for mulligan")
         awaitMulliganReady()

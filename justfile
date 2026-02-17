@@ -67,11 +67,29 @@ test-one class: check-java _check-upstream _clean-surefire
         {{mvn_quiet}} \
         -Dtest="{{class}}" -Dsurefire.failIfNoSpecifiedTests=false test
 
-# all conformance tests (fast: ~5s, runs all *ConformanceTest classes)
+# unit tests only (no engine bootstrap, fastest)
+test-unit: check-java _check-upstream _clean-surefire
+    cd "{{root_dir}}" && mvn -pl forge-nexus \
+        {{mvn_quiet}} \
+        -Dgroups=unit test
+
+# all conformance tests (~5s, wire-shape checks against Arena patterns)
 test-conformance: check-java _check-upstream _clean-surefire
     cd "{{root_dir}}" && mvn -pl forge-nexus \
         {{mvn_quiet}} \
         -Dgroups=conformance test
+
+# integration tests (~30s, boots engine — includes conformance)
+test-integration: check-java _check-upstream _clean-surefire
+    cd "{{root_dir}}" && mvn -pl forge-nexus \
+        {{mvn_quiet}} \
+        -Dgroups=integration test
+
+# pre-commit gate: unit + conformance + integration (skips recording)
+test-gate: check-java _check-upstream _clean-surefire
+    cd "{{root_dir}}" && mvn -pl forge-nexus \
+        {{mvn_quiet}} \
+        -Dgroups="unit,conformance,integration" test
 
 # watch *.kt, recompile + restart hybrid on change (fast: nexus-only compile)
 dev: check-java
