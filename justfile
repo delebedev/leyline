@@ -208,6 +208,14 @@ proto-compare *args: (_require classpath) check-java
 proto-trace id: (_require classpath) check-java
     @{{_nexus_cli}} forge.nexus.debug.TraceKt "{{id}}" {{payloads}}
 
+# decode a recording directory to structured JSONL (no port kill)
+proto-decode-recording dir output="": (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.conformance.RecordingDecoderMainKt "{{dir}}" {{output}}
+
+# decode + accumulate state snapshots from a recording (no port kill)
+proto-accumulate dir output="": (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.conformance.RecordingDecoderMainKt "{{dir}}" --accumulate {{output}}
+
 # --- Private helpers ---
 
 [private]
