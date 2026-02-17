@@ -251,8 +251,8 @@ object Templates {
                     .setProtoVer(ProtoVersion.PersistentAnnotations)
                     .setSettings(buildDefaultSettings())
                     .setDeckMessage(deckMessage)
-                    .setGrpVersion(Version.newBuilder().setMajorVersion(2026).setMinorVersion(56).setBuildVersion(4))
-                    .setGreVersion(Version.newBuilder().setMajorVersion(2026).setMinorVersion(56).setBuildVersion(2)),
+                    .setGrpVersion(Version.newBuilder().setMajorVersion(56).setMinorVersion(10).setBuildVersion(1))
+                    .setGreVersion(Version.newBuilder().setMajorVersion(56).setMinorVersion(10).setBuildVersion(1)),
             )
             .build()
 
