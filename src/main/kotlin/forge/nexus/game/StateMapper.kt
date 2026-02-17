@@ -392,6 +392,7 @@ object StateMapper {
                 } else {
                     obj.instanceId to obj.instanceId
                 }
+                log.debug("zone transfer: iid {} → {} category={}", origId, newId, category)
                 // Patch gameObject and zone with new instanceId
                 if (newId != origId) {
                     gameObjects[i] = obj.toBuilder().setInstanceId(newId).build()
@@ -415,8 +416,9 @@ object StateMapper {
                 }
                 when (category) {
                     "PlayLand" -> {
+                        // Real server order: ObjectIdChanged → ZoneTransfer → UserActionTaken
                         annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
-                        // actionType=3 = Play (land), abilityGrpId=0
+                        annotations.add(AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category))
                         annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 3))
                     }
                     "CastSpell" -> {
@@ -428,14 +430,13 @@ object StateMapper {
                         annotations.add(AnnotationBuilder.tappedUntappedPermanent(newId, newId))
                         annotations.add(AnnotationBuilder.abilityInstanceCreated(newId))
                         annotations.add(AnnotationBuilder.abilityInstanceDeleted(newId))
+                        annotations.add(AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category))
                     }
                     "Resolve" -> {
                         annotations.add(AnnotationBuilder.resolutionStart(newId, obj.grpId))
+                        annotations.add(AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category))
                     }
                 }
-                annotations.add(
-                    AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category, actingSeat),
-                )
                 if (category == "Resolve") {
                     annotations.add(AnnotationBuilder.resolutionComplete(newId, obj.grpId))
                 }
@@ -592,8 +593,8 @@ object StateMapper {
             }
         }
 
-        // Update snapshot for next diff
-        bridge.snapshotState(game)
+        // Update snapshot for next diff (pass gsId so prevGameStateId is correct)
+        bridge.snapshotState(game, gameStateId)
 
         return builder.build()
     }

@@ -14,6 +14,7 @@ import forge.nexus.protocol.Templates
 import forge.web.game.PlayerAction
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 /**
  * Game orchestration session — all post-mulligan game logic.
@@ -79,7 +80,7 @@ class MatchSession(
         bridge.playback?.seedCounters(msgIdCounter, gameStateId)
 
         // Seed state snapshot for subsequent diff computation
-        bridge.snapshotState(game)
+        bridge.snapshotState(game, gameStateId)
 
         // Auto-pass through phases where human has no real actions
         autoPassAndAdvance(bridge)
@@ -641,8 +642,20 @@ class MatchSession(
     private fun mirrorToFamiliar(messages: List<GREToClientMessage>) {
         if (seatId != 1) return
         val peer = registry.getPeer(matchId, seatId) ?: return
+        val mirrorSeat = 2
         val mirrored = messages.map { gre ->
-            gre.toBuilder().clearSystemSeatIds().addSystemSeatIds(2).build()
+            val builder = gre.toBuilder().clearSystemSeatIds().addSystemSeatIds(mirrorSeat)
+            // Strip Private gameObjects not visible to mirror seat (real server
+            // omits Limbo objects from non-owner messages).
+            if (builder.hasGameStateMessage()) {
+                val gsm = builder.gameStateMessage.toBuilder()
+                val filtered = gsm.gameObjectsList.filter { obj ->
+                    obj.visibility != Visibility.Private || obj.viewersList.contains(mirrorSeat)
+                }
+                gsm.clearGameObjects().addAllGameObjects(filtered)
+                builder.setGameStateMessage(gsm.build())
+            }
+            builder.build()
         }
         peer.sink.send(mirrored)
     }
