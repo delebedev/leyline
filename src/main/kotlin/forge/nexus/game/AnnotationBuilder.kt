@@ -13,8 +13,10 @@ object AnnotationBuilder {
         srcZoneId: Int,
         destZoneId: Int,
         category: String,
+        actingSeatId: Int = 0,
     ): AnnotationInfo = AnnotationInfo.newBuilder()
         .addType(AnnotationType.ZoneTransfer_af5a)
+        .apply { if (actingSeatId != 0) setAffectorId(actingSeatId) }
         .addAffectedIds(instanceId)
         .addDetails(int32Detail("zone_src", srcZoneId))
         .addDetails(int32Detail("zone_dest", destZoneId))
@@ -25,6 +27,7 @@ object AnnotationBuilder {
     fun resolutionStart(instanceId: Int, grpId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ResolutionStart)
+            .setAffectorId(instanceId)
             .addAffectedIds(instanceId)
             .addDetails(uint32Detail("grpid", grpId))
             .build()
@@ -71,11 +74,18 @@ object AnnotationBuilder {
             .addAffectedIds(instanceId)
             .build()
 
-    /** Permanent tapped or untapped (e.g. tapping land for mana). */
-    fun tappedUntappedPermanent(instanceId: Int): AnnotationInfo =
+    /**
+     * Permanent tapped or untapped (e.g. tapping land for mana).
+     * [permanentId] = the permanent being tapped (affectedIds).
+     * [abilityId] = the ability instance that caused the tap (affectorId).
+     *   Real server uses a transient mana ability id; we approximate with the spell id.
+     */
+    fun tappedUntappedPermanent(permanentId: Int, abilityId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.TappedUntappedPermanent)
-            .addAffectedIds(instanceId)
+            .setAffectorId(abilityId)
+            .addAffectedIds(permanentId)
+            .addDetails(uint32Detail("tapped", 1))
             .build()
 
     /** Ability instance created on the stack. */
@@ -96,6 +106,7 @@ object AnnotationBuilder {
     fun resolutionComplete(instanceId: Int, grpId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ResolutionComplete)
+            .setAffectorId(instanceId)
             .addAffectedIds(instanceId)
             .addDetails(uint32Detail("grpid", grpId))
             .build()

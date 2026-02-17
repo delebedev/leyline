@@ -425,7 +425,7 @@ object StateMapper {
                         annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
                         annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
                         annotations.add(AnnotationBuilder.manaPaid(newId))
-                        annotations.add(AnnotationBuilder.tappedUntappedPermanent(newId))
+                        annotations.add(AnnotationBuilder.tappedUntappedPermanent(newId, newId))
                         annotations.add(AnnotationBuilder.abilityInstanceCreated(newId))
                         annotations.add(AnnotationBuilder.abilityInstanceDeleted(newId))
                     }
@@ -434,7 +434,7 @@ object StateMapper {
                     }
                 }
                 annotations.add(
-                    AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category),
+                    AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category, actingSeat),
                 )
                 if (category == "Resolve") {
                     annotations.add(AnnotationBuilder.resolutionComplete(newId, obj.grpId))
