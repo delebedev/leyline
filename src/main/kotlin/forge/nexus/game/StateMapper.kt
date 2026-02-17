@@ -422,23 +422,29 @@ object StateMapper {
                         annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 3))
                     }
                     "CastSpell" -> {
+                        // Real server order: ObjectIdChanged → ZoneTransfer → mana ability
+                        // cycle → UserActionTaken(Cast). ZoneTransfer must be #2 (same as
+                        // PlayLand) or the client renders the spell in both hand and stack.
                         annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
-                        // actionType=1 = Cast
-                        annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
-                        annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
-                        annotations.add(AnnotationBuilder.manaPaid(newId))
-                        annotations.add(AnnotationBuilder.tappedUntappedPermanent(newId, newId))
-                        annotations.add(AnnotationBuilder.abilityInstanceCreated(newId))
-                        annotations.add(AnnotationBuilder.abilityInstanceDeleted(newId))
                         annotations.add(AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category))
+                        // Mana ability cycle (approximated — real server uses transient
+                        // mana ability instanceId; we use spell id as placeholder)
+                        annotations.add(AnnotationBuilder.abilityInstanceCreated(newId))
+                        annotations.add(AnnotationBuilder.tappedUntappedPermanent(newId, newId))
+                        annotations.add(AnnotationBuilder.manaPaid(newId))
+                        annotations.add(AnnotationBuilder.abilityInstanceDeleted(newId))
+                        // actionType=1 = Cast (single, not duplicated)
+                        annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
                     }
                     "Resolve" -> {
+                        // Real server order: ResolutionStart → ResolutionComplete → ZoneTransfer
+                        // ZoneTransfer uses actingSeat as affectorId (unlike PlayLand which uses 0)
                         annotations.add(AnnotationBuilder.resolutionStart(newId, obj.grpId))
-                        annotations.add(AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category))
+                        annotations.add(AnnotationBuilder.resolutionComplete(newId, obj.grpId))
+                        annotations.add(
+                            AnnotationBuilder.zoneTransfer(newId, prevZone, obj.zoneId, category, actingSeat),
+                        )
                     }
-                }
-                if (category == "Resolve") {
-                    annotations.add(AnnotationBuilder.resolutionComplete(newId, obj.grpId))
                 }
                 // Persistent annotation: EnteredZoneThisTurn for cards landing on battlefield
                 if (obj.zoneId == ZONE_BATTLEFIELD) {
