@@ -16,7 +16,7 @@
   <logger name="io.ktor" level="INFO"/>
 
   <!-- Debug panel: streams log events to nexus-debug.html -->
-  <appender name="DebugPanel" class="forge.nexus.debug.ArenaDebugLogAppender"/>
+  <appender name="DebugPanel" class="forge.nexus.debug.NexusDebugLogAppender"/>
 
   <!-- Our code -->
   <logger name="forge.web" level="DEBUG"/>

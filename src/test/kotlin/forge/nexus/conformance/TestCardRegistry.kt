@@ -4,17 +4,17 @@ import forge.nexus.game.CardDb
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
- * Registers the test deck cards with synthetic Arena-like metadata.
+ * Registers the test deck cards with synthetic client-like metadata.
  *
  * Provides just enough data for grpId lookups, buildObjectInfo (cardTypes,
- * subtypes, uniqueAbilities, manaCost) to work without the real Arena SQLite DB.
+ * subtypes, uniqueAbilities, manaCost) to work without the real client SQLite DB.
  *
  * Cards match [forge.nexus.game.GameBridge.DEFAULT_DECK]: mono-green stompy.
  * Proto enum values from messages.proto.
  */
 object TestCardRegistry {
 
-    // Synthetic grpIds — stable across runs, don't collide with real Arena IDs
+    // Synthetic grpIds — stable across runs, don't collide with real client IDs
     const val FOREST_GRPID = 70000
     const val LLANOWAR_ELVES_GRPID = 70001
     const val ELVISH_MYSTIC_GRPID = 70002

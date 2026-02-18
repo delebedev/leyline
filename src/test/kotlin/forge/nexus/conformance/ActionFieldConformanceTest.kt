@@ -11,7 +11,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 
 /**
  * Action field conformance: verifies detailed proto fields on actions
- * match invariants observed in real Arena goldens.
+ * match invariants observed in real client goldens.
  *
  * Golden-derived invariants:
  * - Cast: shouldStop=true, abilityGrpId>0, manaCost non-empty, autoTapSolution present

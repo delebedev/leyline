@@ -8,7 +8,7 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Dumps outgoing Arena proto messages to `/tmp/arena-dump/` as text-format files.
+ * Dumps outgoing client proto messages to `/tmp/arena-dump/` as text-format files.
  *
  * Enabled by `ARENA_DUMP=1` env var (or `-Darena.dump=true`).
  * Each send produces a sequentially numbered file: `001-GameStateMessage.txt`, etc.
@@ -27,7 +27,7 @@ object ProtoDump {
         NexusPaths.ENGINE_DUMP.also {
             if (it.exists()) it.listFiles()?.forEach { f -> f.delete() }
             it.mkdirs()
-            log.info("Arena proto dump → {}", it.absolutePath)
+            log.info("Client proto dump → {}", it.absolutePath)
         }
     }
 

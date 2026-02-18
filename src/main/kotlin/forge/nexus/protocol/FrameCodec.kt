@@ -8,7 +8,7 @@ import io.netty.handler.codec.MessageToMessageEncoder
 import org.slf4j.LoggerFactory
 
 /**
- * Arena wire format: every message is a 6-byte header + variable-length payload.
+ * Client wire format: every message is a 6-byte header + variable-length payload.
  *
  * Header layout:
  * ```
@@ -25,9 +25,9 @@ import org.slf4j.LoggerFactory
  */
 
 /** Decodes the 6-byte header framing. Outputs a ByteBuf per message (header + payload). */
-class ArenaFrameDecoder : ByteToMessageDecoder() {
+class ClientFrameDecoder : ByteToMessageDecoder() {
 
-    private val log = LoggerFactory.getLogger(ArenaFrameDecoder::class.java)
+    private val log = LoggerFactory.getLogger(ClientFrameDecoder::class.java)
 
     override fun decode(ctx: ChannelHandlerContext, buf: ByteBuf, out: MutableList<Any>) {
         if (buf.readableBytes() < HEADER_SIZE) return
@@ -67,34 +67,34 @@ class ArenaFrameDecoder : ByteToMessageDecoder() {
  * Strips the 6-byte header, passing only the payload downstream.
  * Control frames: CTRL_INIT is echoed back as CTRL_ACK; CTRL_ACK is dropped.
  */
-class ArenaHeaderStripper : ChannelInboundHandlerAdapter() {
+class ClientHeaderStripper : ChannelInboundHandlerAdapter() {
 
-    private val log = LoggerFactory.getLogger(ArenaHeaderStripper::class.java)
+    private val log = LoggerFactory.getLogger(ClientHeaderStripper::class.java)
 
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
         if (msg is ByteBuf) {
-            if (msg.readableBytes() <= ArenaFrameDecoder.HEADER_SIZE) {
+            if (msg.readableBytes() <= ClientFrameDecoder.HEADER_SIZE) {
                 msg.release()
                 return
             }
             val frameType = msg.getByte(msg.readerIndex() + 1)
-            if (frameType == ArenaFrameDecoder.TYPE_CTRL_INIT) {
+            if (frameType == ClientFrameDecoder.TYPE_CTRL_INIT) {
                 // Echo full frame back with type flipped to CTRL_ACK
                 log.debug("Match Door: CTRL_INIT received, sending ACK")
                 val bytes = ByteArray(msg.readableBytes())
                 msg.readBytes(bytes)
                 msg.release()
-                bytes[1] = ArenaFrameDecoder.TYPE_CTRL_ACK
+                bytes[1] = ClientFrameDecoder.TYPE_CTRL_ACK
                 val ack = ctx.alloc().buffer(bytes.size)
                 ack.writeBytes(bytes)
                 ctx.writeAndFlush(ack)
                 return
             }
-            if (frameType == ArenaFrameDecoder.TYPE_CTRL_ACK) {
+            if (frameType == ClientFrameDecoder.TYPE_CTRL_ACK) {
                 msg.release()
                 return
             }
-            msg.skipBytes(ArenaFrameDecoder.HEADER_SIZE)
+            msg.skipBytes(ClientFrameDecoder.HEADER_SIZE)
             ctx.fireChannelRead(msg)
         } else {
             ctx.fireChannelRead(msg)
@@ -103,18 +103,18 @@ class ArenaHeaderStripper : ChannelInboundHandlerAdapter() {
 }
 
 /**
- * Prepends a 6-byte Arena header to outgoing ByteBuf payloads.
+ * Prepends a 6-byte client header to outgoing ByteBuf payloads.
  *
- * @param frameType the frame type byte to use (default: [ArenaFrameDecoder.TYPE_DATA_MATCH] for S→C)
+ * @param frameType the frame type byte to use (default: [ClientFrameDecoder.TYPE_DATA_MATCH] for S→C)
  */
-class ArenaHeaderPrepender(
-    private val frameType: Byte = ArenaFrameDecoder.TYPE_DATA_MATCH,
+class ClientHeaderPrepender(
+    private val frameType: Byte = ClientFrameDecoder.TYPE_DATA_MATCH,
 ) : MessageToMessageEncoder<ByteBuf>() {
 
     override fun encode(ctx: ChannelHandlerContext, msg: ByteBuf, out: MutableList<Any>) {
         val payloadLength = msg.readableBytes()
-        val frame = ctx.alloc().buffer(ArenaFrameDecoder.HEADER_SIZE + payloadLength)
-        frame.writeByte(ArenaFrameDecoder.VERSION.toInt()) // byte 0: version
+        val frame = ctx.alloc().buffer(ClientFrameDecoder.HEADER_SIZE + payloadLength)
+        frame.writeByte(ClientFrameDecoder.VERSION.toInt()) // byte 0: version
         frame.writeByte(frameType.toInt()) // byte 1: frame type
         frame.writeIntLE(payloadLength) // bytes 2-5: payload length (LE)
         frame.writeBytes(msg)

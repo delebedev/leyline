@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Paces AI turns by sleeping the game thread at key events and capturing
- * per-action GRE state diffs for the Arena client.
+ * per-action GRE state diffs for the client.
  *
  * Subscribes to the engine's Guava EventBus. Events fire synchronously on
  * the game thread -- sleeping here freezes engine progress and state, making

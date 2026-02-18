@@ -2,8 +2,8 @@ package forge.nexus.server
 
 import forge.game.Game
 import forge.game.phase.PhaseType
-import forge.nexus.debug.ArenaDebugCollector
 import forge.nexus.debug.GameStateCollector
+import forge.nexus.debug.NexusDebugCollector
 import forge.nexus.debug.NexusTap
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.CardDb
@@ -285,7 +285,7 @@ class MatchSession(
     }
 
     /**
-     * Handle SelectTargetsResp: map Arena instanceIds back to prompt option indices and submit.
+     * Handle SelectTargetsResp: map client instanceIds back to prompt option indices and submit.
      */
     fun onSelectTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
@@ -650,8 +650,8 @@ class MatchSession(
 
     /** Send multiple GRE messages bundled in one GreToClientEvent + mirror to peer. */
     private fun sendBundledGRE(messages: List<GREToClientMessage>) {
-        ArenaDebugCollector.recordOutbound(messages, seatId)
-        GameStateCollector.collectOutbound(messages, ArenaDebugCollector.currentSeq())
+        NexusDebugCollector.recordOutbound(messages, seatId)
+        GameStateCollector.collectOutbound(messages, NexusDebugCollector.currentSeq())
         sink.send(messages)
         mirrorToFamiliar(messages)
     }
@@ -688,7 +688,7 @@ class MatchSession(
             else -> "ai"
         }
         val stackDepth = game.stack?.size() ?: 0
-        GameStateCollector.recordEvent(gameStateId, type, phase, turn, detail, priority, stackDepth, ArenaDebugCollector.currentSeq())
+        GameStateCollector.recordEvent(gameStateId, type, phase, turn, detail, priority, stackDepth, NexusDebugCollector.currentSeq())
     }
 
     /** Pacing delay — skipped when paceDelayMs == 0 (tests). */

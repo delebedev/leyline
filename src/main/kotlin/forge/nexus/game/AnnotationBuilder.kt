@@ -5,7 +5,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairInfo
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
-/** Builds Arena-format annotations for GameStateMessage. */
+/** Builds client-format annotations for GameStateMessage. */
 object AnnotationBuilder {
 
     /**
@@ -96,7 +96,7 @@ object AnnotationBuilder {
     /**
      * Ties a game state change back to a player interaction.
      * [seatId] = acting player's seat (affectorId).
-     * [actionType] = Arena ActionType ordinal (1=Cast, 3=Play, 4=ActivateMana).
+     * [actionType] = client ActionType ordinal (1=Cast, 3=Play, 4=ActivateMana).
      * [abilityGrpId] = ability group ID (0 for land play).
      */
     fun userActionTaken(

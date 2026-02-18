@@ -8,9 +8,9 @@ import forge.game.zone.ZoneType
  * These replace the "infer from diff" heuristic in [StateMapper.buildFromGame]:
  * instead of comparing zone snapshots and guessing what happened, the
  * [GameEventCollector] captures rich events as they fire and the annotation
- * builder converts them directly into Arena protocol annotations.
+ * builder converts them directly into client protocol annotations.
  *
- * All IDs here are **Forge card IDs** (not Arena instanceIds). The bridge
+ * All IDs here are **Forge card IDs** (not client instanceIds). The bridge
  * resolves them to instanceIds at annotation-build time so the event layer
  * stays decoupled from protocol ID allocation.
  */

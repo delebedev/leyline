@@ -10,11 +10,11 @@ import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Smoke tests for the Arena protocol scaffold.
+ * Smoke tests for the client protocol scaffold.
  *
  * These tests verify that:
- * 1. ArenaStateMapper produces valid, serializable protobuf
- * 2. ArenaCardDb bidirectional lookup works
+ * 1. StateMapper produces valid, serializable protobuf
+ * 2. CardDb bidirectional lookup works
  * 3. The generated proto enums referenced in handlers actually exist
  *
  * No network or TLS required — pure protobuf logic.

@@ -13,7 +13,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * as a pure function — no game engine, no bridge, no card DB.
  *
  * Each test constructs an [StateMapper.AppliedTransfer] and verifies the
- * annotation sequence matches the real Arena server pattern.
+ * annotation sequence matches the real client server pattern.
  */
 @Test(groups = ["unit"])
 class AnnotationPipelineTest {

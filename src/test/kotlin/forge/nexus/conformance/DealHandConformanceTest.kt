@@ -12,7 +12,7 @@ import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Compares dynamically-built pre-mulligan messages against recorded Arena .bin templates.
+ * Compares dynamically-built pre-mulligan messages against recorded client .bin templates.
  *
  * The .bin files are the real server's output. Our dynamic builders must produce
  * structurally equivalent messages: same GRE types, GSM type, update type,

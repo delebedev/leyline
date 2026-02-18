@@ -18,14 +18,14 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.util.Random
 
 /**
- * Bridges MTGA's Arena protocol to a real Forge [forge.game.Game] engine.
+ * Bridges the client protocol to a real Forge [forge.game.Game] engine.
  *
  * Creates a constructed game (human seat 1 + AI seat 2), starts the game loop,
- * and blocks until the engine reaches mulligan. The Arena handler reads hands
+ * and blocks until the engine reaches mulligan. The client handler reads hands
  * and submits keep/mull decisions through this bridge.
  *
  * Internally composed of focused components:
- * - [InstanceIdRegistry] — Forge cardId ↔ Arena instanceId bimap
+ * - [InstanceIdRegistry] — Forge cardId ↔ client instanceId bimap
  * - [LimboTracker] — retired instanceId history
  * - [DiffSnapshotter] — zone tracking + state snapshots for diff computation
  *
@@ -57,7 +57,7 @@ class GameBridge {
 
     // --- Composed components ---
 
-    /** Card ID mapping (Forge cardId ↔ Arena instanceId). */
+    /** Card ID mapping (Forge cardId ↔ client instanceId). */
     val ids = InstanceIdRegistry()
 
     /** Retired instanceId history (Limbo zone). */
@@ -80,13 +80,13 @@ class GameBridge {
 
     // --- Delegate methods (keep public API stable for existing call sites) ---
 
-    /** Allocate or return existing Arena instanceId for a Forge card ID. */
+    /** Allocate or return existing client instanceId for a Forge card ID. */
     fun getOrAllocInstanceId(forgeCardId: Int): Int = ids.getOrAlloc(forgeCardId)
 
     /** Allocate a fresh instanceId for a Forge card that changed zones. */
     fun reallocInstanceId(forgeCardId: Int): InstanceIdRegistry.IdReallocation = ids.realloc(forgeCardId)
 
-    /** Reverse lookup: Arena instanceId → Forge card ID. */
+    /** Reverse lookup: client instanceId → Forge card ID. */
     fun getForgeCardId(instanceId: Int): Int? = ids.getForgeCardId(instanceId)
 
     /** Read-only snapshot of instanceId → forgeCardId (for debug panel). */
@@ -114,7 +114,7 @@ class GameBridge {
     fun clearPreviousState() = diff.clear()
 
     companion object {
-        /** Fallback grpId for cards not in Arena DB (renders face-down). */
+        /** Fallback grpId for cards not in client DB (renders face-down). */
         const val FALLBACK_GRPID = 0
 
         /** Annotation IDs start at 50 to avoid collision with persistent annotation IDs. */
@@ -147,18 +147,18 @@ class GameBridge {
      * @param seed if non-null, seeds the RNG for deterministic shuffles (tests/replays)
      */
     fun start(seed: Long? = null) {
-        log.info("ArenaGameBridge: initializing card database")
+        log.info("GameBridge: initializing card database")
         GameBootstrap.initializeCardDatabase()
 
         if (seed != null) {
-            log.info("ArenaGameBridge: using deterministic seed={}", seed)
+            log.info("GameBridge: using deterministic seed={}", seed)
             MyRandom.setRandom(Random(seed))
         }
 
         val deck1 = DeckLoader.parseDeckList(DEFAULT_DECK.trimIndent())
         val deck2 = DeckLoader.parseDeckList(DEFAULT_DECK.trimIndent())
         log.info(
-            "ArenaGameBridge: parsed decks (seat1={} cards, seat2={} cards)",
+            "GameBridge: parsed decks (seat1={} cards, seat2={} cards)",
             deck1.main.countAll(),
             deck2.main.countAll(),
         )
@@ -193,20 +193,20 @@ class GameBridge {
         val collector = GameEventCollector(this)
         eventCollector = collector
         g.subscribeToEvents(collector)
-        log.info("ArenaGameBridge: registered GameEventCollector for event-driven annotations")
+        log.info("GameBridge: registered GameEventCollector for event-driven annotations")
 
         // Register AI action playback subscriber (after collector)
         val pb = NexusGamePlayback(this, "forge-match-1", 1)
         playback = pb
         g.subscribeToEvents(pb)
-        log.info("ArenaGameBridge: registered NexusGamePlayback for AI action streaming")
+        log.info("GameBridge: registered NexusGamePlayback for AI action streaming")
 
-        log.info("ArenaGameBridge: game loop started, waiting for mulligan")
+        log.info("GameBridge: game loop started, waiting for mulligan")
         awaitMulliganReady()
-        log.info("ArenaGameBridge: engine reached mulligan, hand ready")
+        log.info("GameBridge: engine reached mulligan, hand ready")
     }
 
-    /** Get the current hand for a seat as Arena grpIds. */
+    /** Get the current hand for a seat as client grpIds. */
     fun getHandGrpIds(seatId: Int): List<Int> {
         val player = getPlayer(seatId) ?: return emptyList()
         return player.getZone(ZoneType.Hand).cards.map { card ->
@@ -214,7 +214,7 @@ class GameBridge {
         }
     }
 
-    /** Full deck as Arena grpIds (for initial bundle deck message). */
+    /** Full deck as client grpIds (for initial bundle deck message). */
     fun getDeckGrpIds(seatId: Int): List<Int> {
         val player = getPlayer(seatId) ?: return emptyList()
         // Combine library + hand + any other zones to reconstruct full deck
@@ -254,7 +254,7 @@ class GameBridge {
         while (System.currentTimeMillis() < deadline) {
             val g = game
             if (g != null && g.isGameOver) {
-                log.info("ArenaGameBridge: game over detected while waiting for priority")
+                log.info("GameBridge: game over detected while waiting for priority")
                 return false
             }
             if (actionBridge.getPending() != null) {
@@ -264,13 +264,13 @@ class GameBridge {
             }
             Thread.sleep(POLL_INTERVAL_MS)
         }
-        log.warn("ArenaGameBridge: timed out waiting for priority ({}ms)", timeoutMs)
+        log.warn("GameBridge: timed out waiting for priority ({}ms)", timeoutMs)
         return false
     }
 
     /** Submit keep decision for seat. */
     fun submitKeep(seatId: Int) {
-        log.info("ArenaGameBridge: seat {} keeps hand", seatId)
+        log.info("GameBridge: seat {} keeps hand", seatId)
         if (seatId == 1) seat1MulliganBridge.submitKeep()
     }
 
@@ -279,16 +279,16 @@ class GameBridge {
      * Blocks until engine re-deals and reaches mulligan again.
      */
     fun submitMull(seatId: Int) {
-        log.info("ArenaGameBridge: seat {} mulligans", seatId)
+        log.info("GameBridge: seat {} mulligans", seatId)
         if (seatId == 1) {
             seat1MulliganBridge.submitMull()
             awaitMulliganReady()
-            log.info("ArenaGameBridge: engine re-dealt hand after mulligan")
+            log.info("GameBridge: engine re-dealt hand after mulligan")
         }
     }
 
     fun shutdown() {
-        log.info("ArenaGameBridge: shutting down")
+        log.info("GameBridge: shutting down")
         loopController?.shutdown()
         loopController = null
         playback = null
@@ -308,6 +308,6 @@ class GameBridge {
             if (seat1MulliganBridge.pendingPhase == MulliganPhase.WaitingKeep) return
             Thread.sleep(POLL_INTERVAL_MS)
         }
-        log.warn("ArenaGameBridge: timed out waiting for engine to reach mulligan")
+        log.warn("GameBridge: timed out waiting for engine to reach mulligan")
     }
 }

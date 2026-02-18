@@ -12,7 +12,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  * Enforces annotation ordering and affectorId (effector) correctness for each
  * zone-transfer category: PlayLand, CastSpell, Resolve.
  *
- * Real Arena server emits annotations in a strict order within each GSM.
+ * Real client server emits annotations in a strict order within each GSM.
  * The client replays them sequentially for animations — wrong order causes
  * visual glitches (duplicate renders, stuck cards, missing animations).
  *
@@ -249,7 +249,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
         val grpid = rs.detail("grpid")
         assertTrue(grpid != null, "ResolutionStart should have grpid detail")
-        assertTrue(grpid!!.getValueUint32(0) >= 0, "grpid should be present (0 is OK without ArenaCardDb)")
+        assertTrue(grpid!!.getValueUint32(0) >= 0, "grpid should be present (0 is OK without client card DB)")
     }
 
     @Test(description = "Resolve: ResolutionComplete has same affectorId and grpid as ResolutionStart")

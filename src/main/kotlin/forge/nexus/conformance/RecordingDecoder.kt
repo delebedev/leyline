@@ -17,7 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
 
 /**
- * Decodes Arena binary recordings into structured JSON summaries.
+ * Decodes client binary recordings into structured JSON summaries.
  *
  * Reads S-C_MATCH_DATA_*.bin files (MatchServiceToClientMessage protos),
  * extracts every GREToClientMessage, and produces a structured summary
@@ -246,11 +246,11 @@ object RecordingDecoder {
     /**
      * Parse a MatchServiceToClientMessage from either:
      * - raw protobuf payload bytes
-     * - Arena framed bytes (6-byte header + payload)
+     * - client framed bytes (6-byte header + payload)
      */
     fun parseMatchMessage(bytes: ByteArray): MatchServiceToClientMessage? {
         parseRaw(bytes)?.let { return it }
-        val payload = extractArenaPayload(bytes) ?: return null
+        val payload = extractClientPayload(bytes) ?: return null
         return parseRaw(payload)
     }
 
@@ -260,7 +260,7 @@ object RecordingDecoder {
         null
     }
 
-    private fun extractArenaPayload(bytes: ByteArray): ByteArray? {
+    private fun extractClientPayload(bytes: ByteArray): ByteArray? {
         if (bytes.size <= ARENA_HEADER_SIZE) return null
         if (bytes[0].toInt() != 0x04) return null
 

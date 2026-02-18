@@ -11,6 +11,8 @@ import java.util.concurrent.Executors
 /**
  * Embedded HTTP server for the nexus debug panel.
  * Zero-dep JDK [HttpServer] on the given port (default 8090).
+ * Intentionally avoids Ktor — nexus uses raw Netty for transport,
+ * and this debug panel doesn't justify adding the Ktor runtime.
  *
  * Endpoints:
  * - `GET /`               → nexus-debug.html from classpath
@@ -91,18 +93,18 @@ class DebugServer(private val port: Int = 8090) {
     private fun serveMessages(ex: HttpExchange) {
         val params = parseQuery(ex.requestURI.rawQuery)
         val since = params["since"]?.toIntOrNull() ?: 0
-        val entries = ArenaDebugCollector.snapshot(since)
+        val entries = NexusDebugCollector.snapshot(since)
         val cursor = entries.maxOfOrNull { it.seq }
         respondJsonList(ex, json.encodeToString(entries), cursor)
     }
 
     private fun serveState(ex: HttpExchange) {
-        val state = ArenaDebugCollector.matchState()
+        val state = NexusDebugCollector.matchState()
         respondJson(ex, json.encodeToString(state))
     }
 
     private fun serveIdMap(ex: HttpExchange) {
-        val map = ArenaDebugCollector.idMap()
+        val map = NexusDebugCollector.idMap()
         respondJsonList(ex, json.encodeToString(map), null)
     }
 
@@ -110,7 +112,7 @@ class DebugServer(private val port: Int = 8090) {
         val params = parseQuery(ex.requestURI.rawQuery)
         val since = params["since"]?.toIntOrNull() ?: 0
         val level = params["level"] ?: "DEBUG"
-        val logs = ArenaDebugCollector.logSnapshot(since, level)
+        val logs = NexusDebugCollector.logSnapshot(since, level)
         val cursor = logs.maxOfOrNull { it.seq }
         respondJsonList(ex, json.encodeToString(logs), cursor)
     }

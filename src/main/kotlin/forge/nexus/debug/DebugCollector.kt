@@ -14,11 +14,11 @@ import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.collections.iterator
 
 /**
- * Ring-buffer collector for Arena protocol messages. Thread-safe singleton.
+ * Ring-buffer collector for client protocol messages. Thread-safe singleton.
  * Powers the debug panel at :8090.
  */
-object ArenaDebugCollector {
-    private val log = LoggerFactory.getLogger(ArenaDebugCollector::class.java)
+object NexusDebugCollector {
+    private val log = LoggerFactory.getLogger(NexusDebugCollector::class.java)
 
     private const val MAX_ENTRIES = 500
     private val buffer = ArrayDeque<Entry>(MAX_ENTRIES)
@@ -321,10 +321,10 @@ object ArenaDebugCollector {
     }
 }
 
-/** Logback appender that feeds log events into [ArenaDebugCollector]. */
-class ArenaDebugLogAppender : AppenderBase<ILoggingEvent>() {
+/** Logback appender that feeds log events into [NexusDebugCollector]. */
+class NexusDebugLogAppender : AppenderBase<ILoggingEvent>() {
     override fun append(event: ILoggingEvent) {
-        ArenaDebugCollector.recordLog(
+        NexusDebugCollector.recordLog(
             ts = event.timeStamp,
             level = event.level.toString(),
             logger = event.loggerName.substringAfterLast('.'),

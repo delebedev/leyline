@@ -1,7 +1,7 @@
 package forge.nexus.server
 
-import forge.nexus.debug.ArenaDebugCollector
 import forge.nexus.debug.GameStateCollector
+import forge.nexus.debug.NexusDebugCollector
 import forge.nexus.debug.NexusTap
 import forge.nexus.game.GameBridge
 import forge.nexus.game.StateMapper
@@ -48,7 +48,7 @@ class MatchHandler(
 
     override fun channelRead0(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
         NexusTap.inbound(msg.clientToMatchServiceMessageType, msg.requestId)
-        ArenaDebugCollector.recordInbound(msg)
+        NexusDebugCollector.recordInbound(msg)
 
         when (msg.clientToMatchServiceMessageType) {
             ClientToMatchServiceMessageType.AuthenticateRequest_f487 -> handleMatchAuth(ctx, msg)
@@ -114,7 +114,7 @@ class MatchHandler(
                 val evicted = registry.evictStale(matchId)
                 if (evicted.isNotEmpty()) {
                     evicted.forEach { it.shutdown() }
-                    ArenaDebugCollector.clear()
+                    NexusDebugCollector.clear()
                     GameStateCollector.clear()
                     log.info("Match Door: evicted {} stale bridge(s)", evicted.size)
                 }
