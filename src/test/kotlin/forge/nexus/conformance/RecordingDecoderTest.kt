@@ -13,7 +13,7 @@ import java.io.File
  * They validate the decoder output against known ground truth from the
  * action traces (docs/plans/2026-02-17-recording-analysis-deep-dive.md).
  */
-@Test(groups = ["conformance"])
+@Test(groups = ["recording"])
 class RecordingDecoderTest {
 
     private val onPlayDir = File("src/test/resources/recordings/20260217-234330-on-play")
