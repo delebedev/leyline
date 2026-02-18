@@ -10,8 +10,8 @@ import java.io.File
  * and produce correct structured summaries.
  *
  * These tests run against the actual .bin recording files in test resources.
- * They validate the decoder output against known ground truth from the
- * action traces (docs/plans/2026-02-17-recording-analysis-deep-dive.md).
+ * They validate the decoder output against known ground truth from
+ * manual analysis of captured game sessions.
  */
 @Test(groups = ["recording"])
 class RecordingDecoderTest {
