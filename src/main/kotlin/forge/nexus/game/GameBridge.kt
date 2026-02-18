@@ -67,13 +67,13 @@ class GameBridge {
     val diff = DiffSnapshotter(ids)
 
     /** Monotonic annotation ID counter. Real server starts around 49; we start at 50. */
-    private var nextAnnotationId = 50
+    private var nextAnnotationId = INITIAL_ANNOTATION_ID
 
     /** Allocate the next sequential annotation ID. */
     fun nextAnnotationId(): Int = nextAnnotationId++
 
     /** Monotonic persistent annotation ID counter. Real server uses a separate sequence. */
-    private var nextPersistentAnnotationId = 1
+    private var nextPersistentAnnotationId = INITIAL_PERSISTENT_ANNOTATION_ID
 
     /** Allocate the next sequential persistent annotation ID. */
     fun nextPersistentAnnotationId(): Int = nextPersistentAnnotationId++
@@ -116,6 +116,12 @@ class GameBridge {
     companion object {
         /** Fallback grpId for cards not in Arena DB (renders face-down). */
         const val FALLBACK_GRPID = 0
+
+        /** Annotation IDs start at 50 to avoid collision with persistent annotation IDs. */
+        private const val INITIAL_ANNOTATION_ID = 50
+
+        /** Persistent annotation IDs start at 1. */
+        private const val INITIAL_PERSISTENT_ANNOTATION_ID = 1
 
         /** Deck shared by both seats (mono-green stompy for testing). */
         private const val DEFAULT_DECK = """

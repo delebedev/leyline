@@ -1,5 +1,6 @@
 package forge.nexus.protocol
 
+import forge.nexus.debug.NexusPaths
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.io.File
 
@@ -24,7 +25,7 @@ fun main(args: Array<String>) {
         compareWithReal(File(args[1]))
         return
     }
-    val dir = File(args.firstOrNull() ?: "/tmp/arena-capture/payloads")
+    val dir = File(args.firstOrNull() ?: NexusPaths.CAPTURE_PAYLOADS.absolutePath)
     val files = dir.listFiles()?.filter { it.name.startsWith("S-C_MATCH") }?.sortedBy { it.name } ?: return
 
     for (file in files) {

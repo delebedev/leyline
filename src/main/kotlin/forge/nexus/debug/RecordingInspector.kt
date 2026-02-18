@@ -17,9 +17,9 @@ import java.util.Base64
 object RecordingInspector {
 
     private val defaultRoots = listOf(
-        File("/tmp/arena-recordings"),
-        File("/tmp/arena-dump"),
-        File("/tmp/arena-capture/payloads"),
+        NexusPaths.RECORDINGS,
+        NexusPaths.ENGINE_DUMP,
+        NexusPaths.CAPTURE_PAYLOADS,
     )
 
     @Serializable
@@ -349,8 +349,8 @@ object RecordingInspector {
     }
 
     private fun detectMode(dir: File): String = when (dir.absolutePath) {
-        "/tmp/arena-dump" -> "engine"
-        "/tmp/arena-capture/payloads" -> "proxy"
+        NexusPaths.ENGINE_DUMP.absolutePath -> "engine"
+        NexusPaths.CAPTURE_PAYLOADS.absolutePath -> "proxy"
         else -> {
             if (dir.name.contains("proxy", ignoreCase = true)) "proxy" else "recording"
         }

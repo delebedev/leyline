@@ -1,6 +1,7 @@
 package forge.nexus.protocol
 
 import com.google.protobuf.TextFormat
+import forge.nexus.debug.NexusPaths
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
@@ -23,7 +24,7 @@ object ProtoDump {
         System.getProperty("arena.dump") == "true"
 
     private val dumpDir: File by lazy {
-        File("/tmp/arena-dump").also {
+        NexusPaths.ENGINE_DUMP.also {
             if (it.exists()) it.listFiles()?.forEach { f -> f.delete() }
             it.mkdirs()
             log.info("Arena proto dump → {}", it.absolutePath)

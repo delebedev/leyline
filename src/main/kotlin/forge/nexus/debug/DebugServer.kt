@@ -283,7 +283,9 @@ class DebugServer(private val port: Int = 8090) {
                     os.write(msg.toByteArray(Charsets.UTF_8))
                     os.flush()
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                log.debug("SSE send failed", e)
+            }
         }
 
         DebugEventBus.addListener(listener)

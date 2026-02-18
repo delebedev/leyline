@@ -15,11 +15,14 @@ import io.netty.handler.codec.protobuf.ProtobufDecoder
 import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory
+import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.ByteArrayOutputStream
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+
+private val log = LoggerFactory.getLogger("forge.nexus.debug.SmokeTest")
 
 /**
  * Headless smoke test: connects to the Arena stub as a fake MTGA client
@@ -201,7 +204,9 @@ private fun testMatchDoor(
 
     try {
         handler.authFuture.get(5, TimeUnit.SECONDS)
-    } catch (_: Exception) {}
+    } catch (e: Exception) {
+        log.debug("Match door auth handshake timed out", e)
+    }
 
     // Send MatchDoorConnect with embedded ConnectReq
     val connectReq = ClientToGREMessage.newBuilder()
@@ -216,7 +221,9 @@ private fun testMatchDoor(
 
     try {
         handler.bundleFuture.get(5, TimeUnit.SECONDS)
-    } catch (_: Exception) {}
+    } catch (e: Exception) {
+        log.debug("Match door initial bundle timed out", e)
+    }
 
     // Seat 2: send ChooseStartingPlayerResp (triggers mulligan flow)
     if (isFamiliar) {

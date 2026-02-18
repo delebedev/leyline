@@ -175,7 +175,9 @@ object ArenaDebugCollector {
         }
         try {
             DebugEventBus.emit("message", sseJson.encodeToString(numbered))
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            log.debug("Failed to emit SSE message event", e)
+        }
     }
 
     private fun safeToJson(msg: MessageOrBuilder): String = try {
@@ -291,7 +293,9 @@ object ArenaDebugCollector {
         }
         try {
             DebugEventBus.emit("log", sseJson.encodeToString(entry))
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            log.debug("Failed to emit SSE log event", e)
+        }
     }
 
     fun logSnapshot(sinceSeq: Int, minLevel: String?): List<LogEntry> {
@@ -335,6 +339,7 @@ class ArenaDebugLogAppender : AppenderBase<ILoggingEvent>() {
  * Collectors emit typed events; [DebugServer] SSE endpoint subscribes.
  */
 object DebugEventBus {
+    private val log = LoggerFactory.getLogger(DebugEventBus::class.java)
     private val listeners = CopyOnWriteArrayList<(String, String) -> Unit>()
 
     fun addListener(listener: (String, String) -> Unit) {
@@ -348,7 +353,9 @@ object DebugEventBus {
         for (l in listeners) {
             try {
                 l(type, data)
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                log.debug("SSE listener dispatch failed", e)
+            }
         }
     }
 }

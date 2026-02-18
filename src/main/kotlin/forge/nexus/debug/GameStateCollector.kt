@@ -129,7 +129,9 @@ object GameStateCollector {
         }
         try {
             DebugEventBus.emit("priority", sseJson.encodeToString(event))
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            log.debug("Failed to emit SSE priority event", e)
+        }
     }
 
     /** Priority events since a given seq. */
@@ -159,7 +161,9 @@ object GameStateCollector {
         }
         try {
             DebugEventBus.emit("state", sseJson.encodeToString(snapshot))
-        } catch (_: Exception) {}
+        } catch (e: Exception) {
+            log.debug("Failed to emit SSE state snapshot", e)
+        }
     }
 
     private fun extractSnapshot(gs: GameStateMessage): StateSnapshot {

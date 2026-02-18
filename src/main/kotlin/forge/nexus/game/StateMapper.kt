@@ -35,24 +35,27 @@ object StateMapper {
     /** Offset added to source card IDs for stack ability instance IDs. */
     private const val STACK_ABILITY_ID_OFFSET = 100_000
 
-    // Zone IDs (matching real server layout, starting at 18)
-    private const val ZONE_REVEALED_P1 = 18
-    private const val ZONE_REVEALED_P2 = 19
-    private const val ZONE_SUPPRESSED = 24
-    private const val ZONE_PENDING = 25
-    private const val ZONE_COMMAND = 26
-    private const val ZONE_STACK = 27
-    private const val ZONE_BATTLEFIELD = 28
-    private const val ZONE_EXILE = 29
-    private const val ZONE_LIMBO = 30
-    private const val ZONE_P1_HAND = 31
-    private const val ZONE_P1_LIBRARY = 32
-    private const val ZONE_P1_GRAVEYARD = 33
-    private const val ZONE_P1_SIDEBOARD = 34
-    private const val ZONE_P2_HAND = 35
-    private const val ZONE_P2_LIBRARY = 36
-    private const val ZONE_P2_GRAVEYARD = 37
-    private const val ZONE_P2_SIDEBOARD = 38
+    /** Starting mana ID for auto-tap solutions; real server uses ids starting around 10. */
+    private const val INITIAL_MANA_ID = 10
+
+    // Zone IDs — see ZoneIds object
+    private const val ZONE_REVEALED_P1 = ZoneIds.REVEALED_P1
+    private const val ZONE_REVEALED_P2 = ZoneIds.REVEALED_P2
+    private const val ZONE_SUPPRESSED = ZoneIds.SUPPRESSED
+    private const val ZONE_PENDING = ZoneIds.PENDING
+    private const val ZONE_COMMAND = ZoneIds.COMMAND
+    private const val ZONE_STACK = ZoneIds.STACK
+    private const val ZONE_BATTLEFIELD = ZoneIds.BATTLEFIELD
+    private const val ZONE_EXILE = ZoneIds.EXILE
+    private const val ZONE_LIMBO = ZoneIds.LIMBO
+    private const val ZONE_P1_HAND = ZoneIds.P1_HAND
+    private const val ZONE_P1_LIBRARY = ZoneIds.P1_LIBRARY
+    private const val ZONE_P1_GRAVEYARD = ZoneIds.P1_GRAVEYARD
+    private const val ZONE_P1_SIDEBOARD = ZoneIds.P1_SIDEBOARD
+    private const val ZONE_P2_HAND = ZoneIds.P2_HAND
+    private const val ZONE_P2_LIBRARY = ZoneIds.P2_LIBRARY
+    private const val ZONE_P2_GRAVEYARD = ZoneIds.P2_GRAVEYARD
+    private const val ZONE_P2_SIDEBOARD = ZoneIds.P2_SIDEBOARD
 
     // ---- Three-stage diff pipeline types and methods ----
     // Stage 1: detectAndApplyZoneTransfers  → List<AppliedTransfer>
@@ -301,7 +304,7 @@ object StateMapper {
             .setMsgId(msgId)
             .setGameStateId(gameStateId)
             .setPrompt(
-                Prompt.newBuilder().setPromptId(34)
+                Prompt.newBuilder().setPromptId(PromptIds.MULLIGAN)
                     .addParameters(
                         PromptParameter.newBuilder()
                             .setParameterName("NumberOfCards")
@@ -1417,7 +1420,7 @@ object StateMapper {
         // Build AutoTapSolution matching real server format:
         // Each AutoTapAction has manaPaymentOption with full ManaInfo
         val builder = AutoTapSolution.newBuilder()
-        var manaIdCounter = 10 // real server uses ids starting around 10
+        var manaIdCounter = INITIAL_MANA_ID
         for ((src, payingColor) in matched) {
             val manaId = manaIdCounter++
             builder.addAutoTapActions(

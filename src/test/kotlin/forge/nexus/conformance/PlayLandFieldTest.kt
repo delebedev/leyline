@@ -1,5 +1,6 @@
 package forge.nexus.conformance
 
+import forge.nexus.game.ZoneIds
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotEquals
 import org.testng.Assert.assertTrue
@@ -16,12 +17,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  */
 @Test(groups = ["integration", "conformance"])
 class PlayLandFieldTest : ConformanceTestBase() {
-
-    private companion object {
-        const val ZONE_BATTLEFIELD = 28
-        const val ZONE_LIMBO = 30
-        const val ZONE_P1_HAND = 31
-    }
 
     @Test(description = "Play land: annotation IDs are sequential, non-zero, monotonically increasing")
     fun annotationIdsAreSequential() {
@@ -47,12 +42,12 @@ class PlayLandFieldTest : ConformanceTestBase() {
         val zoneSrc = zt.detail("zone_src")
         assertTrue(zoneSrc != null, "ZoneTransfer should have zone_src detail")
         assertEquals(zoneSrc!!.type, KeyValuePairValueType.Int32, "zone_src should use Int32 type, got: ${zoneSrc.type}")
-        assertEquals(zoneSrc.getValueInt32(0), ZONE_P1_HAND, "zone_src should be hand zone ($ZONE_P1_HAND), got: ${zoneSrc.getValueInt32(0)}")
+        assertEquals(zoneSrc.getValueInt32(0), ZoneIds.P1_HAND, "zone_src should be hand zone (${ZoneIds.P1_HAND}), got: ${zoneSrc.getValueInt32(0)}")
 
         val zoneDest = zt.detail("zone_dest")
         assertTrue(zoneDest != null, "ZoneTransfer should have zone_dest detail")
         assertEquals(zoneDest!!.type, KeyValuePairValueType.Int32, "zone_dest should use Int32 type, got: ${zoneDest.type}")
-        assertEquals(zoneDest.getValueInt32(0), ZONE_BATTLEFIELD, "zone_dest should be battlefield ($ZONE_BATTLEFIELD), got: ${zoneDest.getValueInt32(0)}")
+        assertEquals(zoneDest.getValueInt32(0), ZoneIds.BATTLEFIELD, "zone_dest should be battlefield (${ZoneIds.BATTLEFIELD}), got: ${zoneDest.getValueInt32(0)}")
 
         val category = zt.detail("category")
         assertTrue(category != null, "ZoneTransfer should have category detail")
@@ -137,7 +132,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
         assertTrue(landObj != null, "GSM should have gameObject for the played land")
         landObj!!
 
-        assertEquals(landObj.zoneId, ZONE_BATTLEFIELD, "Land should be on battlefield")
+        assertEquals(landObj.zoneId, ZoneIds.BATTLEFIELD, "Land should be on battlefield")
         assertTrue(landObj.uniqueAbilitiesCount > 0, "Land gameObject should have uniqueAbilities (mana ability), got 0")
     }
 
@@ -153,7 +148,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
         // New instanceId should be on battlefield (not in Limbo)
         val newObj = gsm.gameObjectsList.firstOrNull { it.instanceId == newInstanceId }
         assertTrue(newObj != null, "GSM should have gameObject for new instanceId $newInstanceId")
-        assertEquals(newObj!!.zoneId, ZONE_BATTLEFIELD, "New object should be on battlefield")
+        assertEquals(newObj!!.zoneId, ZoneIds.BATTLEFIELD, "New object should be on battlefield")
 
         // diffDeletedInstanceIds should NOT contain the old ID immediately
         assertTrue(
@@ -184,12 +179,12 @@ class PlayLandFieldTest : ConformanceTestBase() {
         // New instanceId on BF
         val newObj = acc.objects[newInstanceId]
         assertTrue(newObj != null, "Accumulated objects should have new instanceId $newInstanceId")
-        assertEquals(newObj!!.zoneId, ZONE_BATTLEFIELD, "New object should be on battlefield")
+        assertEquals(newObj!!.zoneId, ZoneIds.BATTLEFIELD, "New object should be on battlefield")
 
         // Old instanceId in Limbo
         val oldObj = acc.objects[origInstanceId]
         assertTrue(oldObj != null, "Old instanceId $origInstanceId should still be in accumulated objects (as Limbo gameObject)")
-        assertEquals(oldObj!!.zoneId, ZONE_LIMBO, "Old object should be in Limbo, not ${oldObj.zoneId}")
+        assertEquals(oldObj!!.zoneId, ZoneIds.LIMBO, "Old object should be in Limbo, not ${oldObj.zoneId}")
 
         val handZone = acc.zones.values.firstOrNull { it.type == ZoneType.Hand && it.ownerSeatId == 1 }
         assertTrue(handZone != null, "Should have P1 hand zone")
@@ -199,14 +194,14 @@ class PlayLandFieldTest : ConformanceTestBase() {
         )
 
         // BF + Limbo zone checks
-        val bfZone = acc.zones[ZONE_BATTLEFIELD]
+        val bfZone = acc.zones[ZoneIds.BATTLEFIELD]
         assertTrue(bfZone != null, "Should have battlefield zone")
         assertTrue(
             bfZone!!.objectInstanceIdsList.contains(newInstanceId),
             "Battlefield should contain new instanceId $newInstanceId, got: ${bfZone.objectInstanceIdsList}",
         )
 
-        val limboZone = acc.zones[ZONE_LIMBO]
+        val limboZone = acc.zones[ZoneIds.LIMBO]
         assertTrue(limboZone != null, "Should have Limbo zone")
         assertTrue(
             limboZone!!.objectInstanceIdsList.contains(origInstanceId),

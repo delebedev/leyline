@@ -1,6 +1,7 @@
 package forge.nexus.conformance
 
 import forge.nexus.game.BundleBuilder
+import forge.nexus.game.ZoneIds
 import org.testng.Assert.*
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -13,13 +14,6 @@ import forge.game.zone.ZoneType as ForgeZoneType
  */
 @Test(groups = ["integration", "conformance"])
 class DiffDiagnosticTest : ConformanceTestBase() {
-
-    private companion object {
-        const val ZONE_STACK = 27
-        const val ZONE_BATTLEFIELD = 28
-        const val ZONE_LIMBO = 30
-        const val ZONE_P1_HAND = 31
-    }
 
     // --- Bug 1: Double lands ---
 
@@ -35,7 +29,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         val firstDiff = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
         acc.processAll(firstDiff.messages)
 
-        val bfBefore = acc.zones[ZONE_BATTLEFIELD]
+        val bfBefore = acc.zones[ZoneIds.BATTLEFIELD]
         val bfCountBefore = bfBefore?.objectInstanceIdsCount ?: 0
 
         // Play land 1
@@ -51,7 +45,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         assertNotEquals(land1OrigId, land1NewId, "Land 1 should get new instanceId on zone transfer")
 
         // Verify after land 1
-        val bfAfter1 = acc.zones[ZONE_BATTLEFIELD]!!
+        val bfAfter1 = acc.zones[ZoneIds.BATTLEFIELD]!!
         assertEquals(
             bfAfter1.objectInstanceIdsCount,
             bfCountBefore + 1,
@@ -66,7 +60,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
             "BF should NOT contain land1 orig ID $land1OrigId (should be in Limbo)",
         )
 
-        acc.assertZoneCountMatchesObjects(ZONE_BATTLEFIELD)
+        acc.assertZoneCountMatchesObjects(ZoneIds.BATTLEFIELD)
 
         val missingObjs = acc.zoneObjectsMissingFromObjects()
         assertTrue(missingObjs.isEmpty(), "Zone objects missing after land 1: $missingObjs")
@@ -85,7 +79,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
                 if (canPlay) {
                     val afterLand2 = postAction(game, b, afterLand1.nextMsgId, afterLand1.nextGsId)
                     acc.processAll(afterLand2.messages)
-                    acc.assertZoneCountMatchesObjects(ZONE_BATTLEFIELD)
+                    acc.assertZoneCountMatchesObjects(ZoneIds.BATTLEFIELD)
                 }
             }
         }
@@ -154,8 +148,8 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         val creatureObj = acc.objects[creatureNewId]
         assertNotNull(creatureObj, "Creature should exist in accumulated objects with instanceId $creatureNewId")
 
-        val stackZone = acc.zones[ZONE_STACK]
-        val bfZone = acc.zones[ZONE_BATTLEFIELD]
+        val stackZone = acc.zones[ZoneIds.STACK]
+        val bfZone = acc.zones[ZoneIds.BATTLEFIELD]
 
         val onStack = stackZone?.objectInstanceIdsList?.contains(creatureNewId) == true
         val onBF = bfZone?.objectInstanceIdsList?.contains(creatureNewId) == true
@@ -165,12 +159,12 @@ class DiffDiagnosticTest : ConformanceTestBase() {
             assertFalse(onStack, "After stack resolution, creature $creatureNewId should NOT be on stack")
             assertEquals(
                 creatureObj!!.zoneId,
-                ZONE_BATTLEFIELD,
+                ZoneIds.BATTLEFIELD,
                 "Creature object should have zoneId=BF after resolution",
             )
         } else {
             assertTrue(onStack, "While on stack, creature $creatureNewId should be in stack zone")
-            assertEquals(creatureObj!!.zoneId, ZONE_STACK, "Creature should have zoneId=Stack while on stack")
+            assertEquals(creatureObj!!.zoneId, ZoneIds.STACK, "Creature should have zoneId=Stack while on stack")
 
             passPriority(b)
             val afterPass = postAction(game, b, afterCast.nextMsgId, afterCast.nextGsId)
@@ -180,17 +174,17 @@ class DiffDiagnosticTest : ConformanceTestBase() {
             assertNotNull(creaturePostResolve, "Creature should still exist after resolve")
             assertEquals(
                 creaturePostResolve!!.zoneId,
-                ZONE_BATTLEFIELD,
+                ZoneIds.BATTLEFIELD,
                 "Creature should be on BF after resolution",
             )
 
-            val stackAfter = acc.zones[ZONE_STACK]
+            val stackAfter = acc.zones[ZoneIds.STACK]
             assertFalse(
                 stackAfter?.objectInstanceIdsList?.contains(creatureNewId) == true,
                 "Creature $creatureNewId should NOT be on stack after resolution",
             )
 
-            val bfAfter = acc.zones[ZONE_BATTLEFIELD]!!
+            val bfAfter = acc.zones[ZoneIds.BATTLEFIELD]!!
             assertTrue(
                 bfAfter.objectInstanceIdsList.contains(creatureNewId),
                 "BF should contain creature $creatureNewId after resolution",
@@ -278,7 +272,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         acc.processAll(diff3.messages)
 
         acc.assertConsistent("after 3 postActions")
-        acc.assertZoneCountMatchesObjects(ZONE_BATTLEFIELD)
+        acc.assertZoneCountMatchesObjects(ZoneIds.BATTLEFIELD)
     }
 
     @Test(description = "Diag: declareAttackersBundle Full state doesn't corrupt subsequent diffs")
@@ -303,7 +297,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         val missingObjs = acc.zoneObjectsMissingFromObjects()
         assertTrue(missingObjs.isEmpty(), "Zone objects missing after Full+Diff sequence: $missingObjs")
 
-        val bfZone = acc.zones[ZONE_BATTLEFIELD]!!
+        val bfZone = acc.zones[ZoneIds.BATTLEFIELD]!!
         val bfIds = bfZone.objectInstanceIdsList
         assertEquals(bfIds.toSet().size, bfIds.size, "BF should have no duplicate instanceIds: $bfIds")
     }

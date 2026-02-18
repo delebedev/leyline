@@ -1,6 +1,7 @@
 package forge.nexus.protocol
 
 import forge.nexus.game.GameBridge
+import forge.nexus.game.PromptIds
 import forge.nexus.game.StateMapper
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -8,11 +9,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Pre-game handshake message factory: roomState, initialBundle, dealHand,
  * mulliganReq, settingsResp. Distinct from [forge.nexus.game.StateMapper]
  * which handles in-game state diffs.
- *
- * TODO: rename to something like HandshakeMessages — "Templates" is misleading
- *  now that binary templates are gone.
  */
-object Templates {
+object HandshakeMessages {
 
     /** Room state event — match room with both players. */
     fun roomState(matchId: String, playerId: String): MatchServiceToClientMessage {
@@ -185,7 +183,7 @@ object Templates {
             .setMsgId(msgId++)
             .setGameStateId(gameStateId)
             .setPrompt(
-                Prompt.newBuilder().setPromptId(37)
+                Prompt.newBuilder().setPromptId(PromptIds.STARTING_PLAYER)
                     .addParameters(
                         PromptParameter.newBuilder()
                             .setParameterName("PlayerId")

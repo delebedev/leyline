@@ -9,8 +9,8 @@ import forge.nexus.game.BundleBuilder
 import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
 import forge.nexus.game.StateMapper
+import forge.nexus.protocol.HandshakeMessages
 import forge.nexus.protocol.ProtoDump
-import forge.nexus.protocol.Templates
 import forge.web.game.PlayerAction
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -332,7 +332,7 @@ class MatchSession(
         val reqSettings = greMsg.setSettingsReq
         clientSettings = reqSettings.settings
         log.info("MatchSession: SetSettingsReq (stops={})", reqSettings.settings.stopsCount)
-        val (msg, nextMsgId) = Templates.settingsResp(seatId, msgIdCounter, gameStateId, clientSettings)
+        val (msg, nextMsgId) = HandshakeMessages.settingsResp(seatId, msgIdCounter, gameStateId, clientSettings)
         msgIdCounter = nextMsgId
         ProtoDump.dump(msg, "SettingsResp")
         sink.sendRaw(msg)
