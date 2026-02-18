@@ -1,0 +1,2566 @@
+[
+    {
+        "greMessageType": "ConnectResp"
+    },
+    {
+        "greMessageType": "DieRollResultsResp"
+    },
+    {
+        "greMessageType": "DieRollResultsResp"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Full",
+        "updateType": "SendAndRecord",
+        "fieldPresence": [
+            "gameInfo",
+            "turnInfo",
+            "zones",
+            "players",
+            "timers"
+        ],
+        "zoneCount": 17
+    },
+    {
+        "greMessageType": "ChooseStartingPlayerReq"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "NewTurnStarted"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "objects",
+            "players",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 4,
+        "objectCount": 7,
+        "actionTypes": [
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "MulliganReq",
+        "hasPrompt": true,
+        "promptId": 34
+    },
+    {
+        "greMessageType": "SetSettingsResp"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "fieldPresence": [
+            "turnInfo",
+            "players",
+            "timers",
+            "actions"
+        ],
+        "actionTypes": [
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "PromptReq",
+        "hasPrompt": true,
+        "promptId": 37
+    },
+    {
+        "greMessageType": "PromptReq",
+        "hasPrompt": true,
+        "promptId": 37
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "PromptReq",
+        "hasPrompt": true,
+        "promptId": 37
+    },
+    {
+        "greMessageType": "SetSettingsResp"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified",
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "gameInfo",
+            "turnInfo",
+            "players",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "PromptReq",
+        "hasPrompt": true,
+        "promptId": 37
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "Cast",
+            "Cast",
+            "Cast",
+            "Pass",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "ObjectIdChanged",
+            "UserActionTaken",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "PlayLand"
+        ],
+        "fieldPresence": [
+            "zones",
+            "objects",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "objectCount": 2,
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "NewTurnStarted",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "players",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "ObjectIdChanged",
+            "PhaseOrStepModified",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "Draw"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "SetSettingsResp"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "SetSettingsResp"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "NewTurnStarted",
+            "ObjectIdChanged",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "Discard"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "objects",
+            "players",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "objectCount": 1,
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "ObjectIdChanged",
+            "PhaseOrStepModified",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "Draw"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "objects",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "objectCount": 1,
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "FloatMana",
+            "Pass",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    },
+    {
+        "greMessageType": "SetSettingsResp"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "ObjectIdChanged",
+            "UserActionTaken",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "PlayLand"
+        ],
+        "fieldPresence": [
+            "zones",
+            "objects",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "objectCount": 2,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "FloatMana",
+            "Pass"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "AbilityInstanceCreated",
+            "AbilityInstanceCreated",
+            "AbilityInstanceDeleted",
+            "AbilityInstanceDeleted",
+            "ManaPaid",
+            "ManaPaid",
+            "ObjectIdChanged",
+            "TappedUntappedPermanent",
+            "TappedUntappedPermanent",
+            "UserActionTaken",
+            "UserActionTaken",
+            "UserActionTaken",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "CastSpell"
+        ],
+        "fieldPresence": [
+            "zones",
+            "objects",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "objectCount": 4,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "ResolutionComplete",
+            "ResolutionStart",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "Resolve"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "objects",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 2,
+        "objectCount": 1,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "SetSettingsResp"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "NewTurnStarted",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "players",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 1,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "ObjectIdChanged",
+            "PhaseOrStepModified",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "Draw"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "SetSettingsResp"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "SetSettingsResp"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "NewTurnStarted",
+            "ObjectIdChanged",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified",
+            "TappedUntappedPermanent",
+            "TappedUntappedPermanent",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "Discard"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "objects",
+            "players",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "objectCount": 4,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "ObjectIdChanged",
+            "PhaseOrStepModified",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "Draw"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "objects",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "objectCount": 1,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "FloatMana",
+            "Pass",
+            "Play",
+            "Play",
+            "Play",
+            "Play"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    },
+    {
+        "greMessageType": "SetSettingsResp"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "ObjectIdChanged",
+            "UserActionTaken",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "PlayLand"
+        ],
+        "fieldPresence": [
+            "zones",
+            "objects",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "objectCount": 2,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "FloatMana",
+            "Pass"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "AbilityInstanceCreated",
+            "AbilityInstanceCreated",
+            "AbilityInstanceCreated",
+            "AbilityInstanceDeleted",
+            "AbilityInstanceDeleted",
+            "AbilityInstanceDeleted",
+            "ManaPaid",
+            "ManaPaid",
+            "ManaPaid",
+            "ObjectIdChanged",
+            "TappedUntappedPermanent",
+            "TappedUntappedPermanent",
+            "TappedUntappedPermanent",
+            "UserActionTaken",
+            "UserActionTaken",
+            "UserActionTaken",
+            "UserActionTaken",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "CastSpell"
+        ],
+        "fieldPresence": [
+            "zones",
+            "objects",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "objectCount": 5,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "LayeredEffectCreated",
+            "ResolutionComplete",
+            "ResolutionStart",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "Resolve"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "objects",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 2,
+        "objectCount": 1,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "DeclareAttackersReq",
+        "hasPrompt": true,
+        "promptId": 6
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "fieldPresence": [
+            "objects",
+            "timers",
+            "actions"
+        ],
+        "objectCount": 1,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "DeclareAttackersReq",
+        "hasPrompt": true,
+        "promptId": 6
+    },
+    {
+        "greMessageType": "SubmitAttackersResp",
+        "hasPrompt": true,
+        "promptId": 6
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "TappedUntappedPermanent"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "objects",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "objectCount": 1,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "objects",
+            "actions",
+            "annotations"
+        ],
+        "objectCount": 1,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "DamageDealt",
+            "ModifiedLife",
+            "PhaseOrStepModified",
+            "SyntheticEvent"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "players",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "objects",
+            "actions",
+            "annotations"
+        ],
+        "objectCount": 1,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "SetSettingsResp"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "NewTurnStarted",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified",
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "players",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 1,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "ObjectIdChanged",
+            "PhaseOrStepModified",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "Draw"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "zones",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "SetSettingsResp"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "Uimessage"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "ObjectIdChanged",
+            "UserActionTaken",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "PlayLand"
+        ],
+        "fieldPresence": [
+            "zones",
+            "objects",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "objectCount": 1,
+        "actionTypes": [
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "ActivateMana",
+            "Cast",
+            "Play",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "Uimessage"
+    }
+]

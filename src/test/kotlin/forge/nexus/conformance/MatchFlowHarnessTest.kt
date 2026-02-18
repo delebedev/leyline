@@ -126,6 +126,43 @@ class MatchFlowHarnessTest {
         assertTrue(harness!!.allMessages.size >= 4, "Should have at least 4 messages (game-start bundle)")
     }
 
+    @Test(description = "gsId chain valid through play-land, pass, and phase transitions")
+    fun gsIdChainValidThroughPhases() {
+        harness = MatchFlowHarness(seed = 42L)
+        harness!!.connectAndKeep()
+
+        assertEquals(harness!!.turn(), 1, "Should start at turn 1")
+        assertEquals(harness!!.phase(), "MAIN1", "Should start at Main1")
+        assertFalse(harness!!.isAiTurn(), "Should be human's turn")
+
+        // Validate chain from game start
+        assertGsIdChain(harness!!.allMessages, context = "game start")
+
+        harness!!.playLand()
+        assertGsIdChain(harness!!.allMessages, context = "after play land")
+
+        harness!!.passPriority()
+        assertFalse(harness!!.isGameOver(), "Game should not be over after land + pass")
+
+        // Full chain from game start through all phase transitions
+        assertGsIdChain(harness!!.allMessages, context = "after pass")
+    }
+
+    @Test(description = "AI-first game: gsId chain valid through AI opening turn")
+    fun aiFirstTurnGsIdChainIsValid() {
+        harness = MatchFlowHarness(seed = AI_FIRST_SEED)
+        harness!!.connectAndKeep()
+
+        // After connectAndKeep, AI went first and we auto-passed through
+        assertFalse(harness!!.isGameOver(), "Game should not be over")
+
+        // Validate full gsId chain from game start
+        assertGsIdChain(harness!!.allMessages, context = "AI-first game start")
+
+        // Validate accumulated state consistency
+        harness!!.accumulator.assertConsistent("after AI-first turn")
+    }
+
     @Test(description = "AI turn actions produce Diff messages (not silently swallowed)")
     fun aiTurnProducesDiffMessages() {
         harness = MatchFlowHarness(seed = 42L)

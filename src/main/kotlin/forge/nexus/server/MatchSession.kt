@@ -66,7 +66,10 @@ class MatchSession(
 
         // Discard any AI action diffs queued during awaitPriority — the game-start
         // Full state already captures the post-AI board. Stale diffs would conflict.
+        // Also clear the snapshot: AI actions during awaitPriority snapshot with
+        // unseeded counters, leaving prevGsId pointing at stale gsIds.
         bridge.playback?.drainQueue()
+        bridge.clearPreviousState()
 
         traceEvent(GameStateCollector.EventType.GAME_START, game, "post-mulligan, entering Main1")
 

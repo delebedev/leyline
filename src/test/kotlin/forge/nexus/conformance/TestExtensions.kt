@@ -2,6 +2,7 @@ package forge.nexus.conformance
 
 import forge.nexus.game.BundleBuilder
 import org.testng.Assert.assertEquals
+import org.testng.Assert.assertNotEquals
 import org.testng.Assert.assertTrue
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -80,6 +81,60 @@ fun ClientAccumulator.assertZoneCountMatchesObjects(zoneId: Int) {
         objCount,
         "Zone $zoneId objectIds count ($zoneCount) should match objects with that zoneId ($objCount)",
     )
+}
+
+// ----- Tier 2: gsId chain validation -----
+
+/**
+ * Assert gsId chain invariants across a sequence of GRE messages.
+ * @param messages the message sequence to validate
+ * @param priorGsIds gsIds from messages sent before this sequence (for prevGsId lookups)
+ * @param context label for assertion messages
+ */
+fun assertGsIdChain(
+    messages: List<GREToClientMessage>,
+    priorGsIds: Set<Int> = emptySet(),
+    context: String = "",
+) {
+    val suffix = if (context.isNotEmpty()) " ($context)" else ""
+    val gsms = messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+    val knownGsIds = priorGsIds.toMutableSet()
+
+    // gsIds strictly monotonic
+    for (i in 1 until gsms.size) {
+        assertTrue(
+            gsms[i].gameStateId > gsms[i - 1].gameStateId,
+            "gsIds not monotonic$suffix: ${gsms[i - 1].gameStateId} -> ${gsms[i].gameStateId}",
+        )
+    }
+    // No self-referential prevGameStateId
+    for (gsm in gsms) {
+        if (gsm.prevGameStateId != 0) {
+            assertNotEquals(
+                gsm.prevGameStateId,
+                gsm.gameStateId,
+                "Self-referential prevGsId$suffix: gsId=${gsm.gameStateId}",
+            )
+        }
+    }
+    // prevGameStateId references a known gsId
+    for (gsm in gsms) {
+        if (gsm.prevGameStateId != 0) {
+            assertTrue(
+                knownGsIds.contains(gsm.prevGameStateId),
+                "prevGsId ${gsm.prevGameStateId} not in known set $knownGsIds$suffix (gsId=${gsm.gameStateId})",
+            )
+        }
+        knownGsIds.add(gsm.gameStateId)
+    }
+    // msgIds strictly monotonic
+    val msgIds = messages.map { it.msgId }
+    for (i in 1 until msgIds.size) {
+        assertTrue(
+            msgIds[i] > msgIds[i - 1],
+            "msgIds not monotonic$suffix: ${msgIds[i - 1]} -> ${msgIds[i]}",
+        )
+    }
 }
 
 // ----- Tier 2: Limbo assertions -----

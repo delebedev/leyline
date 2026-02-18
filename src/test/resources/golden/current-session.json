@@ -1,0 +1,143 @@
+[
+    {
+        "greMessageType": "PromptReq",
+        "hasPrompt": true,
+        "promptId": 37
+    },
+    {
+        "greMessageType": "SetSettingsResp"
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "annotationTypes": [
+            "PhaseOrStepModified",
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "gameInfo",
+            "turnInfo",
+            "players",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "Cast",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendHiFi",
+        "fieldPresence": [
+            "turnInfo",
+            "actions"
+        ],
+        "actionTypes": [
+            "Cast",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "PhaseOrStepModified"
+        ],
+        "fieldPresence": [
+            "turnInfo",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "actionTypes": [
+            "Cast",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "PromptReq",
+        "hasPrompt": true,
+        "promptId": 37
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "Cast",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Pass",
+            "Play",
+            "Play"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    },
+    {
+        "greMessageType": "GameStateMessage",
+        "gsType": "Diff",
+        "updateType": "SendAndRecord",
+        "annotationTypes": [
+            "ObjectIdChanged",
+            "UserActionTaken",
+            "ZoneTransfer"
+        ],
+        "annotationCategories": [
+            "PlayLand"
+        ],
+        "fieldPresence": [
+            "zones",
+            "objects",
+            "timers",
+            "actions",
+            "annotations"
+        ],
+        "zoneCount": 3,
+        "objectCount": 2,
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Play"
+        ]
+    },
+    {
+        "greMessageType": "ActionsAvailableReq",
+        "actionTypes": [
+            "ActivateMana",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Cast",
+            "Cast",
+            "FloatMana",
+            "Pass"
+        ],
+        "hasPrompt": true,
+        "promptId": 2
+    }
+]
