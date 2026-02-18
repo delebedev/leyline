@@ -7,6 +7,7 @@ nexus_dir    := justfile_directory()
 web_dir      := root_dir / "forge-web"
 classpath    := nexus_dir / "target/classpath.txt"
 logback      := nexus_dir / "src/main/resources/logback.xml"
+logback_cli  := nexus_dir / "src/main/resources/logback-cli.xml"
 templates    := nexus_dir / "src/main/resources/arena-templates"
 certs        := env("NEXUS_CERTS", "/tmp/arena-capture")
 fd_ip        := env("NEXUS_FD_IP", "52.88.10.148")
@@ -15,6 +16,7 @@ payloads     := env("NEXUS_PAYLOADS", "/tmp/arena-capture/payloads")
 ports        := "30010 30003 8090"
 
 jvm_opts := "-Dio.netty.tryReflectionSetAccessible=true --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dlogback.configurationFile=" + logback
+jvm_opts_cli := "-Dio.netty.tryReflectionSetAccessible=true --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dlogback.configurationFile=" + logback_cli + " -Dlogback.statusListenerClass=ch.qos.logback.core.status.NopStatusListener"
 
 # auto-format Kotlin sources (spotless/ktlint)
 fmt: check-java
@@ -234,6 +236,31 @@ proto-decode-recording dir output="": (_require classpath) check-java
 proto-accumulate dir output="": (_require classpath) check-java
     @{{_nexus_cli}} forge.nexus.conformance.RecordingDecoderMainKt "{{dir}}" --accumulate {{output}}
 
+# list discovered recording sessions (engine/proxy)
+rec-list: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt list
+
+# compact summary for one recording session directory (or session id from rec-list)
+# accepts extra args for convenience (ignored)
+rec-summary session *args: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt summary "{{session}}"
+
+# action timeline query (all actions)
+rec-actions session limit="500": (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt actions "{{session}}" --limit "{{limit}}"
+
+# action timeline query (filtered; positional: session card [actor] [limit])
+rec-actions-filtered session card actor="" limit="500": (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt actions "{{session}}" --card "{{card}}" --actor "{{actor}}" --limit "{{limit}}"
+
+# who played a specific card (name or grp id)
+rec-who-played session card: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt who-played "{{session}}" --card "{{card}}"
+
+# compare two recordings by compact action stream
+rec-compare left right: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt compare "{{left}}" "{{right}}"
+
 # --- Private helpers ---
 
 [private]
@@ -259,4 +286,4 @@ _clean-surefire:
 
 _nexus_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill $pid 2>/dev/null || true; done; done; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp "$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
 # Same as _nexus_java but without killing ports — for read-only CLI tools
-_nexus_cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp "$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
+_nexus_cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts_cli + ' -cp "$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'

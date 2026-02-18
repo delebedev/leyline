@@ -60,7 +60,7 @@ fun main(args: Array<String>) {
 
     val messages = RecordingDecoder.decodeDirectory(dir, seatFilter)
     if (messages.isEmpty()) {
-        System.err.println("No S-C_MATCH_DATA_*.bin files found in $dir")
+        System.err.println("No parseable MatchServiceToClientMessage payloads found in $dir")
         System.exit(1)
         return
     }

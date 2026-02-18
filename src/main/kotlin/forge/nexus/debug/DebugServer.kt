@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpServer
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.net.InetSocketAddress
+import java.net.URLDecoder
 import java.util.concurrent.Executors
 
 /**
@@ -20,6 +21,10 @@ import java.util.concurrent.Executors
  * - `GET /api/state-diff`  → diff between two gsIds (`?from=X&to=Y`)
  * - `GET /api/priority-events` → priority trace events
  * - `GET /api/instance-history` → zone history for an instanceId (`?id=N`)
+ * - `GET /api/recordings` → discover recording sessions on disk
+ * - `GET /api/recording-summary?id=...` → compact summary for one session
+ * - `GET /api/recording-actions?id=...` → extracted action timeline
+ * - `GET /api/recording-compare?left=...&right=...` → action-level comparison
  */
 class DebugServer(private val port: Int = 8090) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
@@ -41,6 +46,10 @@ class DebugServer(private val port: Int = 8090) {
         srv.createContext("/api/state-diff") { ex -> safe(ex) { serveStateDiff(ex) } }
         srv.createContext("/api/priority-events") { ex -> safe(ex) { servePriorityEvents(ex) } }
         srv.createContext("/api/instance-history") { ex -> safe(ex) { serveInstanceHistory(ex) } }
+        srv.createContext("/api/recordings") { ex -> safe(ex) { serveRecordings(ex) } }
+        srv.createContext("/api/recording-summary") { ex -> safe(ex) { serveRecordingSummary(ex) } }
+        srv.createContext("/api/recording-actions") { ex -> safe(ex) { serveRecordingActions(ex) } }
+        srv.createContext("/api/recording-compare") { ex -> safe(ex) { serveRecordingCompare(ex) } }
         srv.createContext("/api/events") { ex ->
             try {
                 if (ex.requestMethod != "GET") {
@@ -169,6 +178,56 @@ class DebugServer(private val port: Int = 8090) {
         respondJsonList(ex, json.encodeToString(history), null)
     }
 
+    private fun serveRecordings(ex: HttpExchange) {
+        val sessions = RecordingInspector.listSessions()
+        respondJsonList(ex, json.encodeToString(sessions), null)
+    }
+
+    private fun serveRecordingSummary(ex: HttpExchange) {
+        val params = parseQuery(ex.requestURI.rawQuery)
+        val id = params["id"]
+        if (id.isNullOrBlank()) {
+            respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
+            return
+        }
+        val summary = RecordingInspector.summary(id)
+        if (summary == null) {
+            respond(ex, 404, "text/plain", "Recording session not found or not parseable")
+            return
+        }
+        respondJson(ex, json.encodeToString(summary))
+    }
+
+    private fun serveRecordingActions(ex: HttpExchange) {
+        val params = parseQuery(ex.requestURI.rawQuery)
+        val id = params["id"]
+        if (id.isNullOrBlank()) {
+            respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
+            return
+        }
+        val card = params["card"]
+        val actor = params["actor"]
+        val limit = params["limit"]?.toIntOrNull() ?: 1000
+        val actions = RecordingInspector.actions(id, cardFilter = card, actorFilter = actor, limit = limit)
+        respondJsonList(ex, json.encodeToString(actions), null)
+    }
+
+    private fun serveRecordingCompare(ex: HttpExchange) {
+        val params = parseQuery(ex.requestURI.rawQuery)
+        val left = params["left"]
+        val right = params["right"]
+        if (left.isNullOrBlank() || right.isNullOrBlank()) {
+            respond(ex, 400, "text/plain", "Required: ?left=<sessionId>&right=<sessionId>")
+            return
+        }
+        val diff = RecordingInspector.compare(left, right)
+        if (diff == null) {
+            respond(ex, 404, "text/plain", "Could not compare sessions (missing or unparsable)")
+            return
+        }
+        respondJson(ex, json.encodeToString(diff))
+    }
+
     // --- Helpers ---
 
     private fun safe(ex: HttpExchange, block: () -> Unit) {
@@ -252,7 +311,13 @@ class DebugServer(private val port: Int = 8090) {
         if (query.isNullOrEmpty()) return emptyMap()
         return query.split("&").mapNotNull { part ->
             val eq = part.indexOf('=')
-            if (eq > 0) part.substring(0, eq) to part.substring(eq + 1) else null
+            if (eq > 0) {
+                val key = URLDecoder.decode(part.substring(0, eq), Charsets.UTF_8)
+                val value = URLDecoder.decode(part.substring(eq + 1), Charsets.UTF_8)
+                key to value
+            } else {
+                null
+            }
         }.toMap()
     }
 }
