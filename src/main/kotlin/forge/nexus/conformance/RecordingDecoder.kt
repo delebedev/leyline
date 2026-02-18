@@ -239,7 +239,7 @@ object RecordingDecoder {
      */
     fun listRecordingFiles(dir: File): List<File> =
         dir.listFiles()
-            ?.filter { it.isFile && it.extension == "bin" }
+            ?.filter { it.isFile && it.extension == "bin" && !it.name.startsWith("C-S_") }
             ?.sortedBy { it.name }
             ?: emptyList()
 
@@ -256,7 +256,7 @@ object RecordingDecoder {
 
     private fun parseRaw(bytes: ByteArray): MatchServiceToClientMessage? = try {
         MatchServiceToClientMessage.parseFrom(bytes)
-    } catch (_: Exception) {
+    } catch (_: Throwable) {
         null
     }
 

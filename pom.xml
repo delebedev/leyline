@@ -127,7 +127,6 @@
               </compilerPlugins>
               <sourceDirs>
                 <sourceDir>${project.basedir}/src/main/kotlin</sourceDir>
-                <sourceDir>${project.build.directory}/generated-sources/protobuf/java</sourceDir>
               </sourceDirs>
             </configuration>
           </execution>
