@@ -1,5 +1,7 @@
 package forge.nexus.conformance
 
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.PrintWriter
 
@@ -148,66 +150,72 @@ class AccumulatorSimulator {
     }
 
     /** Produce a JSON snapshot of the current accumulated state. */
-    fun snapshot(afterIndex: Int, afterGsId: Int): String = buildString {
-        append("{\"afterIndex\":$afterIndex,\"afterGsId\":$afterGsId")
-
-        // Turn info
-        turnInfo?.let { t ->
-            append(",\"turnInfo\":{\"phase\":\"${t.phase}\",\"step\":\"${t.step}\",\"turn\":${t.turn}")
-            append(",\"activePlayer\":${t.activePlayer},\"priorityPlayer\":${t.priorityPlayer}}")
-        }
-
-        // Players
-        if (players.isNotEmpty()) {
-            append(",\"players\":[")
-            players.values.sortedBy { it.seat }.forEachIndexed { i, p ->
-                if (i > 0) append(",")
-                append("{\"seat\":${p.seat},\"life\":${p.life}}")
-            }
-            append("]")
-        }
-
-        // Object count and zone count (brief)
-        append(",\"objectCount\":${objects.size},\"zoneCount\":${zones.size}")
-
-        // Zone summary (type -> [objectIds])
-        append(",\"zones\":{")
-        var first = true
-        for ((zoneId, z) in zones.toSortedMap()) {
-            if (!first) append(",")
-            first = false
-            append("\"$zoneId\":{\"type\":\"${z.type}\",\"owner\":${z.owner},\"objectIds\":[${z.objectIds.joinToString(",")}]}")
-        }
-        append("}")
-
-        // Invariant checks
+    fun snapshot(afterIndex: Int, afterGsId: Int): String {
         val zoneRefsMissing = mutableListOf<String>()
         val objectsNotInZones = mutableListOf<Int>()
 
-        // Check: every visible zone objectId exists in objects
         for ((zoneId, z) in zones) {
             if (z.visibility == "Hidden" || z.visibility == "Private") continue
             if (z.type == "Limbo") continue
             for (oid in z.objectIds) {
-                if (oid !in objects) {
-                    zoneRefsMissing.add("z$zoneId:$oid")
-                }
+                if (oid !in objects) zoneRefsMissing.add("z$zoneId:$oid")
             }
         }
-
-        // Check: every object's zoneId has a matching zone, and that zone lists it
         for ((iid, obj) in objects) {
             val zone = zones[obj.zoneId]
-            if (zone == null || iid !in zone.objectIds) {
-                objectsNotInZones.add(iid)
-            }
+            if (zone == null || iid !in zone.objectIds) objectsNotInZones.add(iid)
         }
 
-        append(",\"invariants\":{")
-        append("\"zoneRefsMissingFromObjects\":[${zoneRefsMissing.joinToString(",") { "\"$it\"" }}]")
-        append(",\"objectsNotInTheirZone\":[${objectsNotInZones.joinToString(",")}]")
-        append("}")
-
-        append("}")
+        val data = AccumulatorSnapshot(
+            afterIndex = afterIndex,
+            afterGsId = afterGsId,
+            turnInfo = turnInfo?.let { SnapshotTurnInfo(it.phase, it.step, it.turn, it.activePlayer, it.priorityPlayer) },
+            players = players.values.sortedBy { it.seat }.map { SnapshotPlayer(it.seat, it.life) },
+            objectCount = objects.size,
+            zoneCount = zones.size,
+            zones = zones.toSortedMap().map { (id, z) ->
+                id.toString() to SnapshotZone(z.type, z.owner, z.objectIds)
+            }.toMap(),
+            invariants = SnapshotInvariants(zoneRefsMissing, objectsNotInZones),
+        )
+        return snapshotJson.encodeToString(data)
     }
 }
+
+private val snapshotJson = Json {
+    encodeDefaults = false
+    explicitNulls = false
+}
+
+@Serializable
+private data class AccumulatorSnapshot(
+    val afterIndex: Int,
+    val afterGsId: Int,
+    val turnInfo: SnapshotTurnInfo? = null,
+    val players: List<SnapshotPlayer> = emptyList(),
+    val objectCount: Int,
+    val zoneCount: Int,
+    val zones: Map<String, SnapshotZone> = emptyMap(),
+    val invariants: SnapshotInvariants,
+)
+
+@Serializable
+private data class SnapshotTurnInfo(
+    val phase: String,
+    val step: String,
+    val turn: Int,
+    val activePlayer: Int,
+    val priorityPlayer: Int,
+)
+
+@Serializable
+private data class SnapshotPlayer(val seat: Int, val life: Int)
+
+@Serializable
+private data class SnapshotZone(val type: String, val owner: Int, val objectIds: List<Int>)
+
+@Serializable
+private data class SnapshotInvariants(
+    val zoneRefsMissingFromObjects: List<String> = emptyList(),
+    val objectsNotInTheirZone: List<Int> = emptyList(),
+)

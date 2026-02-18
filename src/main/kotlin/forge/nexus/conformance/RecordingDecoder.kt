@@ -1,5 +1,18 @@
 package forge.nexus.conformance
 
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
 
@@ -88,43 +101,46 @@ object RecordingDecoder {
     private val PROTO_SUFFIX = Regex("_[a-f0-9]{3,4}$")
     private fun String.strip(): String = replace(PROTO_SUFFIX, "")
 
+    @Serializable
     data class DecodedMessage(
         val index: Int,
         val file: String,
         val greType: String,
-        val msgId: Int,
-        val gsId: Int,
-        val gsmType: String?,
-        val updateType: String?,
-        val prevGsId: Int?,
-        val zones: List<ZoneSummary>,
-        val objects: List<ObjectSummary>,
-        val annotations: List<AnnotationSummary>,
-        val persistentAnnotations: List<AnnotationSummary>,
-        val diffDeletedInstanceIds: List<Int>,
-        val diffDeletedPersistentAnnotationIds: List<Int>,
-        val actions: List<ActionSummary>,
-        val hasActionsAvailableReq: Boolean,
-        val hasMulliganReq: Boolean,
-        val hasDeclareAttackersReq: Boolean,
-        val hasDeclareBlockersReq: Boolean,
-        val hasSelectTargetsReq: Boolean,
-        val hasIntermissionReq: Boolean,
-        val players: List<PlayerSummary>,
-        val turnInfo: TurnInfoSummary?,
-        val promptId: Int?,
-        val systemSeatIds: List<Int>,
+        val msgId: Int = 0,
+        val gsId: Int = 0,
+        val gsmType: String? = null,
+        val updateType: String? = null,
+        val prevGsId: Int? = null,
+        val zones: List<ZoneSummary> = emptyList(),
+        val objects: List<ObjectSummary> = emptyList(),
+        val annotations: List<AnnotationSummary> = emptyList(),
+        val persistentAnnotations: List<AnnotationSummary> = emptyList(),
+        val diffDeletedInstanceIds: List<Int> = emptyList(),
+        val diffDeletedPersistentAnnotationIds: List<Int> = emptyList(),
+        val actions: List<ActionSummary> = emptyList(),
+        val hasActionsAvailableReq: Boolean = false,
+        val hasMulliganReq: Boolean = false,
+        val hasDeclareAttackersReq: Boolean = false,
+        val hasDeclareBlockersReq: Boolean = false,
+        val hasSelectTargetsReq: Boolean = false,
+        val hasIntermissionReq: Boolean = false,
+        val players: List<PlayerSummary> = emptyList(),
+        val turnInfo: TurnInfoSummary? = null,
+        val promptId: Int? = null,
+        val systemSeatIds: List<Int> = emptyList(),
     )
 
+    @Serializable
     data class ZoneSummary(
         val zoneId: Int,
         val type: String,
         val owner: Int,
         val visibility: String,
         val objectIds: List<Int>,
-        val viewers: List<Int>,
+        val viewers: List<Int> = emptyList(),
     )
 
+    @Serializable
     data class ObjectSummary(
         val instanceId: Int,
         val grpId: Int,
@@ -133,38 +149,43 @@ object RecordingDecoder {
         val visibility: String,
         val owner: Int,
         val controller: Int,
-        val isTapped: Boolean,
-        val hasSummoningSickness: Boolean,
-        val power: Int?,
-        val toughness: Int?,
-        val viewers: List<Int>,
-        val superTypes: List<String>,
-        val cardTypes: List<String>,
-        val subtypes: List<String>,
-        val uniqueAbilityCount: Int,
+        val isTapped: Boolean = false,
+        val hasSummoningSickness: Boolean = false,
+        val power: Int? = null,
+        val toughness: Int? = null,
+        val viewers: List<Int> = emptyList(),
+        val superTypes: List<String> = emptyList(),
+        val cardTypes: List<String> = emptyList(),
+        val subtypes: List<String> = emptyList(),
+        val uniqueAbilityCount: Int = 0,
     )
 
+    @Serializable
     data class AnnotationSummary(
         val id: Int,
         val types: List<String>,
-        val affectorId: Int,
-        val affectedIds: List<Int>,
-        val details: Map<String, Any>,
+        val affectorId: Int = 0,
+        val affectedIds: List<Int> = emptyList(),
+        @Serializable(with = AnyMapSerializer::class)
+        val details: Map<String, Any> = emptyMap(),
     )
 
+    @Serializable
     data class ActionSummary(
         val type: String,
-        val instanceId: Int,
-        val grpId: Int,
-        val seatId: Int?,
+        val instanceId: Int = 0,
+        val grpId: Int = 0,
+        val seatId: Int? = null,
     )
 
+    @Serializable
     data class PlayerSummary(
         val seat: Int,
         val life: Int,
         val status: String,
     )
 
+    @Serializable
     data class TurnInfoSummary(
         val phase: String,
         val step: String,
@@ -389,151 +410,34 @@ object RecordingDecoder {
         decisionPlayer = t.decisionPlayer,
     )
 
-    /** Serialize a DecodedMessage to a JSON string (manual, no kotlinx dependency needed). */
-    fun toJsonLine(msg: DecodedMessage): String = buildString {
-        append("{")
-        append("\"index\":${msg.index}")
-        append(",\"file\":${jsonStr(msg.file)}")
-        append(",\"greType\":${jsonStr(msg.greType)}")
-        if (msg.msgId != 0) append(",\"msgId\":${msg.msgId}")
-        if (msg.gsId != 0) append(",\"gsId\":${msg.gsId}")
-        if (msg.gsmType != null) append(",\"gsmType\":${jsonStr(msg.gsmType)}")
-        if (msg.updateType != null) append(",\"updateType\":${jsonStr(msg.updateType)}")
-        if (msg.prevGsId != null) append(",\"prevGsId\":${msg.prevGsId}")
-        if (msg.systemSeatIds.isNotEmpty()) append(",\"systemSeatIds\":${jsonArr(msg.systemSeatIds)}")
-
-        if (msg.turnInfo != null) {
-            val t = msg.turnInfo
-            append(",\"turnInfo\":{\"phase\":${jsonStr(t.phase)},\"step\":${jsonStr(t.step)},\"turn\":${t.turn}")
-            append(",\"activePlayer\":${t.activePlayer},\"priorityPlayer\":${t.priorityPlayer}")
-            append(",\"decisionPlayer\":${t.decisionPlayer}}")
-        }
-
-        if (msg.players.isNotEmpty()) {
-            append(",\"players\":[")
-            msg.players.forEachIndexed { i, p ->
-                if (i > 0) append(",")
-                append("{\"seat\":${p.seat},\"life\":${p.life},\"status\":${jsonStr(p.status)}}")
-            }
-            append("]")
-        }
-
-        if (msg.zones.isNotEmpty()) {
-            append(",\"zones\":[")
-            msg.zones.forEachIndexed { i, z ->
-                if (i > 0) append(",")
-                append("{\"zoneId\":${z.zoneId},\"type\":${jsonStr(z.type)},\"owner\":${z.owner}")
-                append(",\"visibility\":${jsonStr(z.visibility)},\"objectIds\":${jsonArr(z.objectIds)}")
-                if (z.viewers.isNotEmpty()) append(",\"viewers\":${jsonArr(z.viewers)}")
-                append("}")
-            }
-            append("]")
-        }
-
-        if (msg.objects.isNotEmpty()) {
-            append(",\"objects\":[")
-            msg.objects.forEachIndexed { i, o ->
-                if (i > 0) append(",")
-                append("{\"instanceId\":${o.instanceId},\"grpId\":${o.grpId},\"zoneId\":${o.zoneId}")
-                append(",\"type\":${jsonStr(o.type)},\"visibility\":${jsonStr(o.visibility)}")
-                append(",\"owner\":${o.owner},\"controller\":${o.controller}")
-                if (o.isTapped) append(",\"isTapped\":true")
-                if (o.hasSummoningSickness) append(",\"hasSummoningSickness\":true")
-                if (o.power != null) append(",\"power\":${o.power}")
-                if (o.toughness != null) append(",\"toughness\":${o.toughness}")
-                if (o.viewers.isNotEmpty()) append(",\"viewers\":${jsonArr(o.viewers)}")
-                if (o.superTypes.isNotEmpty()) append(",\"superTypes\":${jsonStrArr(o.superTypes)}")
-                if (o.cardTypes.isNotEmpty()) append(",\"cardTypes\":${jsonStrArr(o.cardTypes)}")
-                if (o.subtypes.isNotEmpty()) append(",\"subtypes\":${jsonStrArr(o.subtypes)}")
-                if (o.uniqueAbilityCount > 0) append(",\"uniqueAbilityCount\":${o.uniqueAbilityCount}")
-                append("}")
-            }
-            append("]")
-        }
-
-        if (msg.annotations.isNotEmpty()) {
-            append(",\"annotations\":[")
-            msg.annotations.forEachIndexed { i, a ->
-                if (i > 0) append(",")
-                appendAnnotation(a)
-            }
-            append("]")
-        }
-
-        if (msg.persistentAnnotations.isNotEmpty()) {
-            append(",\"persistentAnnotations\":[")
-            msg.persistentAnnotations.forEachIndexed { i, a ->
-                if (i > 0) append(",")
-                appendAnnotation(a)
-            }
-            append("]")
-        }
-
-        if (msg.diffDeletedInstanceIds.isNotEmpty()) {
-            append(",\"diffDeletedInstanceIds\":${jsonArr(msg.diffDeletedInstanceIds)}")
-        }
-        if (msg.diffDeletedPersistentAnnotationIds.isNotEmpty()) {
-            append(",\"diffDeletedPersistentAnnotationIds\":${jsonArr(msg.diffDeletedPersistentAnnotationIds)}")
-        }
-
-        if (msg.actions.isNotEmpty()) {
-            append(",\"actions\":[")
-            msg.actions.forEachIndexed { i, a ->
-                if (i > 0) append(",")
-                append("{\"type\":${jsonStr(a.type)}")
-                if (a.instanceId != 0) append(",\"instanceId\":${a.instanceId}")
-                if (a.grpId != 0) append(",\"grpId\":${a.grpId}")
-                if (a.seatId != null) append(",\"seatId\":${a.seatId}")
-                append("}")
-            }
-            append("]")
-        }
-
-        if (msg.hasActionsAvailableReq) append(",\"hasActionsAvailableReq\":true")
-        if (msg.hasMulliganReq) append(",\"hasMulliganReq\":true")
-        if (msg.hasDeclareAttackersReq) append(",\"hasDeclareAttackersReq\":true")
-        if (msg.hasDeclareBlockersReq) append(",\"hasDeclareBlockersReq\":true")
-        if (msg.hasSelectTargetsReq) append(",\"hasSelectTargetsReq\":true")
-        if (msg.hasIntermissionReq) append(",\"hasIntermissionReq\":true")
-        if (msg.promptId != null) append(",\"promptId\":${msg.promptId}")
-
-        append("}")
+    private val json = Json {
+        encodeDefaults = false
+        explicitNulls = false
     }
 
-    private fun StringBuilder.appendAnnotation(a: AnnotationSummary) {
-        append("{\"id\":${a.id},\"types\":${jsonStrArr(a.types)}")
-        if (a.affectorId != 0) append(",\"affectorId\":${a.affectorId}")
-        if (a.affectedIds.isNotEmpty()) append(",\"affectedIds\":${jsonArr(a.affectedIds)}")
-        if (a.details.isNotEmpty()) {
-            append(",\"details\":{")
-            var first = true
-            for ((k, v) in a.details) {
-                if (!first) append(",")
-                first = false
-                append("${jsonStr(k)}:${jsonValue(v)}")
-            }
-            append("}")
-        }
-        append("}")
+    /** Serialize a DecodedMessage to a JSON string. */
+    fun toJsonLine(msg: DecodedMessage): String = json.encodeToString(msg)
+}
+
+/** Serializer for Map<String, Any> where values are primitives or lists of primitives. */
+internal object AnyMapSerializer : KSerializer<Map<String, Any>> {
+    private val delegate = MapSerializer(String.serializer(), JsonElement.serializer())
+    override val descriptor: SerialDescriptor = delegate.descriptor
+
+    override fun serialize(encoder: Encoder, value: Map<String, Any>) {
+        (encoder as JsonEncoder).encodeJsonElement(
+            buildJsonObject { for ((k, v) in value) put(k, v.toJsonElement()) },
+        )
     }
 
-    private fun jsonStr(s: String): String = "\"${s.replace("\\", "\\\\").replace("\"", "\\\"")}\""
-    private fun jsonArr(ints: List<Int>): String = ints.joinToString(",", "[", "]")
-    private fun jsonStrArr(strs: List<String>): String = strs.joinToString(",", "[", "]") { jsonStr(it) }
+    override fun deserialize(decoder: Decoder): Map<String, Any> =
+        throw UnsupportedOperationException("Deserialization not supported")
+}
 
-    @Suppress("UNCHECKED_CAST")
-    private fun jsonValue(v: Any): String = when (v) {
-        is String -> jsonStr(v)
-        is Number -> v.toString()
-        is Boolean -> v.toString()
-        is List<*> -> {
-            val list = v as List<Any>
-            if (list.isEmpty()) {
-                "[]"
-            } else {
-                list.joinToString(",", "[", "]") { jsonValue(it) }
-            }
-        }
-        else -> jsonStr(v.toString())
-    }
+private fun Any.toJsonElement(): JsonElement = when (this) {
+    is String -> JsonPrimitive(this)
+    is Number -> JsonPrimitive(this)
+    is Boolean -> JsonPrimitive(this)
+    is List<*> -> JsonArray(mapNotNull { (it as? Any)?.toJsonElement() })
+    else -> JsonPrimitive(toString())
 }
