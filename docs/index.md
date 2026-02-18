@@ -6,8 +6,9 @@ Quick links for debugging, reverse-engineering, and conformance workflows.
 
 - `recording-cli.md` — day-to-day CLI (`rec-*`, `proto-*`), practical queries
 - `recording-analysis-runbook.md` — end-to-end capture/analyze/golden workflow
-- `reading-player-logs.md` — read Arena/player logs for transport/protocol context
-- `wire-format.md` — Arena frame + protobuf wire format details
+- `reading-player-logs.md` — read client/player logs for transport/protocol context
+- `wire-format.md` — client frame + protobuf wire format details
+- `debug-api.md` — debug panel REST/SSE endpoint reference
 - `match-sequence.md` — expected match lifecycle and key message order
 
 ## Gameplay Semantics
@@ -20,9 +21,9 @@ Quick links for debugging, reverse-engineering, and conformance workflows.
 
 ## Architecture / Design
 
-- `bridge-architecture.md` — current bridge architecture
+- `architecture.md` — package wiring, server layout, wire protocol, bridge threading, match lifecycle
+- `bridge-architecture.md` — original bridge design doc
 - `bridge-vision.md` — target architecture and direction
-- `type-safety-opportunities.md` — refactor opportunities for safer APIs
 
 ## Bugs / Tracking
 
