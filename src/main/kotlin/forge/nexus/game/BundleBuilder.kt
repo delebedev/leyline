@@ -11,13 +11,6 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  */
 object BundleBuilder {
 
-    private const val PROMPT_PASS_PRIORITY = PromptIds.PASS_PRIORITY
-    private const val PROMPT_SELECT_TARGETS = PromptIds.SELECT_TARGETS
-    private const val PROMPT_ORDER_BLOCKERS = PromptIds.ORDER_BLOCKERS
-    private const val PROMPT_DISTRIBUTE_DAMAGE = PromptIds.DISTRIBUTE_DAMAGE
-    private const val PROMPT_SELECT_ATTACKERS = PromptIds.MULLIGAN
-    private const val PROMPT_STARTING_PLAYER = PromptIds.STARTING_PLAYER
-
     data class BundleResult(
         val messages: List<GREToClientMessage>,
         val nextMsgId: Int,
@@ -92,7 +85,7 @@ object BundleBuilder {
         messages.add(
             makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, seatId, nextMsg++) {
                 it.actionsAvailableReq = actions
-                it.setPrompt(Prompt.newBuilder().setPromptId(PROMPT_PASS_PRIORITY).build())
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
             },
         )
 
@@ -130,7 +123,7 @@ object BundleBuilder {
             },
             makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, seatId, nextMsg++) {
                 it.actionsAvailableReq = actions
-                it.setPrompt(Prompt.newBuilder().setPromptId(PROMPT_PASS_PRIORITY).build())
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
             },
         )
 
@@ -321,13 +314,13 @@ object BundleBuilder {
 
         // Message 4: PromptReq (promptId=37)
         val msg4 = makeGRE(GREMessageType.PromptReq, nextGs, seatId, nextMsg++) {
-            it.setPrompt(Prompt.newBuilder().setPromptId(PROMPT_STARTING_PLAYER).build())
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.STARTING_PLAYER).build())
         }
 
         // Message 5: ActionsAvailableReq (promptId=2)
         val msg5 = makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, seatId, nextMsg++) {
             it.actionsAvailableReq = actions
-            it.setPrompt(Prompt.newBuilder().setPromptId(PROMPT_PASS_PRIORITY).build())
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
         }
 
         return BundleResult(listOf(msg1, msg2, msg3, msg4, msg5), nextMsg, nextGs)
@@ -374,7 +367,7 @@ object BundleBuilder {
         val req = prebuiltReq ?: StateMapper.buildDeclareAttackersReq(game, seatId, bridge)
         val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, seatId, nextMsg++) {
             it.declareAttackersReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PROMPT_SELECT_TARGETS).build())
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
         }
 
         return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)
@@ -403,7 +396,7 @@ object BundleBuilder {
         val req = StateMapper.buildDeclareBlockersReq(game, seatId, bridge)
         val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, seatId, nextMsg++) {
             it.declareBlockersReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PROMPT_ORDER_BLOCKERS).build())
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
         }
 
         return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)
@@ -432,7 +425,7 @@ object BundleBuilder {
 
         val msg2 = makeGRE(GREMessageType.SelectTargetsReq_695e, nextGs, seatId, nextMsg++) {
             it.selectTargetsReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PROMPT_DISTRIBUTE_DAMAGE).build())
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DISTRIBUTE_DAMAGE).build())
         }
 
         return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)
