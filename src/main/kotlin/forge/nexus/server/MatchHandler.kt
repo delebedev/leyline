@@ -135,7 +135,6 @@ class MatchHandler(
                 log.info("Match Door GRE: seat {} chose starting player", seatId)
                 sendDealHandAndMulligan(ctx) // seat 2: DealHand + MulliganReq
                 // Cross-connection: find seat 1's handler to send DealHand + MulliganReq
-                // Stub — will be wired properly via registry in Task 6
                 val seat1Handler = registry.getHandler(matchId, 1)
                 if (seat1Handler != null) {
                     seat1Handler.sendDealHand()

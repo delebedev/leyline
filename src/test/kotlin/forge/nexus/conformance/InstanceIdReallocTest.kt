@@ -35,12 +35,12 @@ class InstanceIdReallocTest : ConformanceTestBase() {
     fun playLandReallocsInstanceId() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val player = b.getPlayer(1) ?: return
-        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return
+        val player = b.getPlayer(1) ?: error("Player 1 not found")
+        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
         val origInstanceId = b.getOrAllocInstanceId(land.id)
         val forgeCardId = land.id
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         postAction(game, b, 1, gsId)
 
         val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
@@ -51,11 +51,11 @@ class InstanceIdReallocTest : ConformanceTestBase() {
     fun playLandRetiresToLimbo() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val player = b.getPlayer(1) ?: return
-        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return
+        val player = b.getPlayer(1) ?: error("Player 1 not found")
+        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
         val origInstanceId = b.getOrAllocInstanceId(land.id)
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         postAction(game, b, 1, gsId)
 
         assertTrue(
@@ -68,11 +68,11 @@ class InstanceIdReallocTest : ConformanceTestBase() {
     fun playLandLimboGameObjectVisibility() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val player = b.getPlayer(1) ?: return
-        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return
+        val player = b.getPlayer(1) ?: error("Player 1 not found")
+        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
         val origInstanceId = b.getOrAllocInstanceId(land.id)
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         val gsm = postAction(game, b, 1, gsId).gsm
 
         val limboObj = gsm.gameObjectsList.firstOrNull { it.instanceId == origInstanceId }
@@ -88,15 +88,15 @@ class InstanceIdReallocTest : ConformanceTestBase() {
     @Test(description = "CastSpell: instanceId changes on zone transfer (Hand -> Stack)")
     fun castSpellReallocsInstanceId() {
         val (b, game, gsId) = startGameAtMain1()
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         b.snapshotState(game)
 
-        val player = b.getPlayer(1) ?: return
-        val creature = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return
+        val player = b.getPlayer(1) ?: error("Player 1 not found")
+        val creature = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: error("No creature in hand at seed 42")
         val origInstanceId = b.getOrAllocInstanceId(creature.id)
         val forgeCardId = creature.id
 
-        castCreature(b) ?: return
+        castCreature(b) ?: error("castCreature failed at seed 42")
         postAction(game, b, 1, gsId + 2)
 
         val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
@@ -108,15 +108,15 @@ class InstanceIdReallocTest : ConformanceTestBase() {
     @Test(description = "Resolve: instanceId NOT reallocated (Stack -> Battlefield keeps same ID)")
     fun resolveKeepsSameInstanceId() {
         val (b, game, gsId) = startGameAtMain1()
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         b.snapshotState(game)
         var nextGsId = gsId + 2
 
-        val player = b.getPlayer(1) ?: return
-        val creature = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return
+        val player = b.getPlayer(1) ?: error("Player 1 not found")
+        val creature = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: error("No creature in hand at seed 42")
         val forgeCardId = creature.id
 
-        castCreature(b) ?: return
+        castCreature(b) ?: error("castCreature failed at seed 42")
         val castResult = postAction(game, b, 1, nextGsId)
         nextGsId = castResult.nextGsId
 
@@ -140,13 +140,13 @@ class InstanceIdReallocTest : ConformanceTestBase() {
     fun limboGrowsAcrossMultiplePlays() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val player = b.getPlayer(1) ?: return
+        val player = b.getPlayer(1) ?: error("Player 1 not found")
         val lands = player.getZone(forge.game.zone.ZoneType.Hand).cards.filter { it.isLand }
         if (lands.size < 2) return
 
         val land1 = lands[0]
         val origId1 = b.getOrAllocInstanceId(land1.id)
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         postAction(game, b, 1, gsId)
         b.snapshotState(game)
 
@@ -155,11 +155,11 @@ class InstanceIdReallocTest : ConformanceTestBase() {
 
         advanceToNextMainPhase(b)
 
-        val player2 = b.getPlayer(1) ?: return
-        val land2 = player2.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return
+        val player2 = b.getPlayer(1) ?: error("Player 1 not found")
+        val land2 = player2.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
         val origId2 = b.getOrAllocInstanceId(land2.id)
 
-        val pending = awaitFreshPending(b, null) ?: return
+        val pending = awaitFreshPending(b, null) ?: error("No pending action available")
         b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(land2.id))
         awaitFreshPending(b, pending.actionId)
 
@@ -175,11 +175,11 @@ class InstanceIdReallocTest : ConformanceTestBase() {
     fun limboZoneInGsmContainsAllRetiredIds() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val player = b.getPlayer(1) ?: return
-        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return
+        val player = b.getPlayer(1) ?: error("Player 1 not found")
+        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
         val origInstanceId = b.getOrAllocInstanceId(land.id)
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         val gsm = postAction(game, b, 1, gsId).gsm
 
         assertLimboContains(gsm, origInstanceId)
@@ -189,11 +189,11 @@ class InstanceIdReallocTest : ConformanceTestBase() {
     fun noDiffDeletedOnRetirement() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val player = b.getPlayer(1) ?: return
-        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return
+        val player = b.getPlayer(1) ?: error("Player 1 not found")
+        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
         val origInstanceId = b.getOrAllocInstanceId(land.id)
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         val gsm = postAction(game, b, 1, gsId).gsm
 
         assertTrue(
@@ -208,12 +208,12 @@ class InstanceIdReallocTest : ConformanceTestBase() {
     fun objectIdChangedConsistency() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val player = b.getPlayer(1) ?: return
-        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return
+        val player = b.getPlayer(1) ?: error("Player 1 not found")
+        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
         val origInstanceId = b.getOrAllocInstanceId(land.id)
         val forgeCardId = land.id
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         val gsm = postAction(game, b, 1, gsId).gsm
         val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
 

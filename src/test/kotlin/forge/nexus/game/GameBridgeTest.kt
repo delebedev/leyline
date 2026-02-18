@@ -179,9 +179,9 @@ class GameBridgeTest {
         val bfBefore = player.getZone(ZoneType.Battlefield).size()
 
         val landInHand = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
-            ?: return // no lands in hand (unlikely but possible)
+            ?: error("No land in hand at seed 42")
         val pending = awaitFreshPending(b, null)
-            ?: return // engine hasn't granted priority
+            ?: error("No pending action available")
 
         b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(landInHand.id))
         awaitFreshPending(b, pending.actionId)
@@ -834,9 +834,9 @@ class GameBridgeTest {
         // Play a land
         val player = b.getPlayer(1)!!
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
-            ?: return // no lands in hand (unlikely but possible)
+            ?: error("No land in hand at seed 42")
         val pending = awaitFreshPending(b, null)
-            ?: return // engine hasn't granted priority
+            ?: error("No pending action available")
         b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(land.id))
         awaitFreshPending(b, pending.actionId)
 
@@ -963,14 +963,14 @@ class GameBridgeTest {
         val player = b.getPlayer(1)!!
 
         // Play a land for mana
-        val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return
-        val pending1 = awaitFreshPending(b, null) ?: return
+        val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
+        val pending1 = awaitFreshPending(b, null) ?: error("No pending action available")
         b.actionBridge.submitAction(pending1.actionId, PlayerAction.PlayLand(land.id))
         awaitFreshPending(b, pending1.actionId)
 
         // Cast a creature
-        val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return
-        val pending2 = awaitFreshPending(b, pending1.actionId) ?: return
+        val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: error("No creature in hand at seed 42")
+        val pending2 = awaitFreshPending(b, pending1.actionId) ?: error("No pending action available")
         b.actionBridge.submitAction(pending2.actionId, PlayerAction.CastSpell(creature.id))
         awaitFreshPending(b, pending2.actionId)
 
@@ -990,7 +990,7 @@ class GameBridgeTest {
         // Play a land
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
         if (land != null) {
-            val pending = awaitFreshPending(b, lastId) ?: return
+            val pending = awaitFreshPending(b, lastId) ?: error("No pending action available")
             b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(land.id))
             lastId = pending.actionId
             awaitFreshPending(b, lastId)
@@ -999,7 +999,7 @@ class GameBridgeTest {
         // Try to cast a creature
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
         if (creature != null) {
-            val pending = awaitFreshPending(b, lastId) ?: return
+            val pending = awaitFreshPending(b, lastId) ?: error("No pending action available")
             b.actionBridge.submitAction(pending.actionId, PlayerAction.CastSpell(creature.id))
             awaitFreshPending(b, pending.actionId)
         }

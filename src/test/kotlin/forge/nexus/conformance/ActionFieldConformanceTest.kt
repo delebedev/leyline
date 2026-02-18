@@ -26,7 +26,7 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
     @Test(description = "After playing a land: ActivateMana present for untapped mana source")
     fun afterPlayLandHasActivateMana() {
         val (b, game, _) = startGameAtMain1()
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
 
         val actions = StateMapper.buildActions(game, 1, b)
         val manaActions = actions.actionsList.filter { it.actionType == ActionType.ActivateMana }
@@ -48,7 +48,7 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
         val (b, game, _) = startGameAtMain1()
 
         // Play a land first to enable casting (need mana)
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
 
         val actions = StateMapper.buildActions(game, 1, b)
         val castActions = actions.actionsList.filter { it.actionType == ActionType.Cast }
@@ -108,7 +108,7 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
     @Test(description = "ActionsAvailableReq in postAction bundle matches direct buildActions")
     fun postActionBundleContainsActions() {
         val (b, game, gsId) = startGameAtMain1()
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
 
         val result = postAction(game, b, 1, gsId)
 
@@ -130,9 +130,9 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
     @Test(description = "GSM embedded actions are stripped (no grpId/facetId/shouldStop/autoTapSolution)")
     fun gsmEmbeddedActionsStripped() {
         val (b, game, gsId) = startGameAtMain1()
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
 
-        val gsm = postAction(game, b, 1, gsId).gsmOrNull ?: return
+        val gsm = postAction(game, b, 1, gsId).gsmOrNull ?: error("No GSM in post-action result")
 
         for (actionInfo in gsm.actionsList) {
             val a = actionInfo.action
@@ -160,7 +160,7 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
     @Test(description = "AutoTapSolution maps mana sources to spell cost")
     fun autoTapSolutionMapsCorrectly() {
         val (b, game, _) = startGameAtMain1()
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
 
         val actions = StateMapper.buildActions(game, 1, b)
         val castActions = actions.actionsList.filter {

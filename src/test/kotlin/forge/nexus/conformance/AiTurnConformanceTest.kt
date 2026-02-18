@@ -29,7 +29,7 @@ class AiTurnConformanceTest : ConformanceTestBase() {
         playback!!.seedCounters(1, gsId)
 
         // Play a land to have mana, then snapshot
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         b.snapshotState(game)
 
         // Pass through the rest of the human's turn until AI gets priority.
@@ -47,25 +47,8 @@ class AiTurnConformanceTest : ConformanceTestBase() {
         val batches = playback.drainQueue()
 
         if (batches.isEmpty()) {
-            // AI may not have acted (passed through all phases)
-            println("AI turn: no action batches captured (AI may have passed)")
+            // AI may not have acted (passed through all phases) — valid skip
             return
-        }
-
-        println("AI turn captured ${batches.size} action batches:")
-        for ((i, batch) in batches.withIndex()) {
-            for (msg in batch) {
-                val gs = if (msg.hasGameStateMessage()) msg.gameStateMessage else null
-                println(
-                    "  [$i] type=${msg.type} " +
-                        "gsType=${gs?.type} update=${gs?.update} " +
-                        "annotations=${
-                            gs?.annotationsList
-                                ?.flatMap { it.typeList }
-                                ?.map { it.name }
-                        }",
-                )
-            }
         }
 
         // All messages should be GameStateMessage (no ActionsAvailableReq)
@@ -111,7 +94,7 @@ class AiTurnConformanceTest : ConformanceTestBase() {
         playback!!.seedCounters(1, gsId)
 
         // Play a land so AI has something to respond to, then snapshot
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         b.snapshotState(game)
 
         // Pass through multiple turns until AI plays something with zone changes.
@@ -132,7 +115,7 @@ class AiTurnConformanceTest : ConformanceTestBase() {
 
         val batches = allBatches
         if (batches.isEmpty()) {
-            println("AI turn: no action batches captured — AI may have passed all phases")
+            // AI may not have acted — valid skip
             return
         }
 
