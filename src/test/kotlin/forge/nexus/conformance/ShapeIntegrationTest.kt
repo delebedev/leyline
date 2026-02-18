@@ -6,16 +6,16 @@ import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 
 /**
- * Integration tests that validate our BundleBuilder output shape matches Arena patterns.
+ * Integration tests that validate our BundleBuilder output shape matches client patterns.
  *
  * These tests boot the Forge engine, run a BundleBuilder method, fingerprint the output,
  * and assert that the structural shape (message types, updateType, annotation presence)
- * matches known Arena patterns.
+ * matches known client patterns.
  *
- * Arena wire shape tests (no engine, read-only) are in [ArenaWireShapeTest].
+ * Client wire shape tests (no engine, read-only) are in [WireShapeTest].
  */
 @Test(groups = ["integration"])
-class ArenaShapeIntegrationTest : ConformanceTestBase() {
+class ShapeIntegrationTest : ConformanceTestBase() {
 
     @Test(description = "aiActionDiff produces 2-message SendHiFi pattern: diff + echo")
     fun aiActionDiffProducesTwoMessages() {

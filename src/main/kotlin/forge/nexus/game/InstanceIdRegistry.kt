@@ -3,12 +3,12 @@ package forge.nexus.game
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Bidirectional mapping between Forge card IDs and Arena instanceIds.
+ * Bidirectional mapping between Forge card IDs and client instanceIds.
  *
- * Arena's protocol uses opaque `instanceId` integers to identify game objects.
+ * The client protocol uses opaque `instanceId` integers to identify game objects.
  * Forge uses its own `Card.id` sequence. This registry translates between the two,
  * allocating fresh instanceIds on first sight and supporting reallocation when
- * cards change zones (Arena assigns new IDs on zone transfer).
+ * cards change zones (the protocol assigns new IDs on zone transfer).
  *
  * Thread-safe: concurrent maps + atomic counter. One registry per game.
  */
@@ -23,7 +23,7 @@ class InstanceIdRegistry(startId: Int = 100) {
      */
     data class IdReallocation(val old: Int, val new: Int)
 
-    /** Allocate or return existing Arena instanceId for a Forge card ID. */
+    /** Allocate or return existing client instanceId for a Forge card ID. */
     fun getOrAlloc(forgeCardId: Int): Int =
         forgeIdToInstanceId.computeIfAbsent(forgeCardId) {
             val id = nextInstanceId++
@@ -45,7 +45,7 @@ class InstanceIdRegistry(startId: Int = 100) {
         return IdReallocation(oldId, newId)
     }
 
-    /** Reverse lookup: Arena instanceId → Forge card ID. */
+    /** Reverse lookup: client instanceId → Forge card ID. */
     fun getForgeCardId(instanceId: Int): Int? = instanceIdToForgeId[instanceId]
 
     /** Read-only snapshot of instanceId → forgeCardId (for debug panel). */

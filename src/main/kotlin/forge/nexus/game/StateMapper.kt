@@ -17,7 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
- * Maps live Forge [forge.game.Game] state to Arena's [GameStateMessage] protobuf.
+ * Maps live Forge [forge.game.Game] state to the client's [GameStateMessage] protobuf.
  *
  * Core method: [buildFromGame] snapshots zones, players, phase, and card objects
  * from the engine and produces a Full GameStateMessage the MTGA client renders.
@@ -422,7 +422,7 @@ object StateMapper {
     /**
      * Build a full [GameStateMessage] from live Forge [forge.game.Game] state.
      * Reads zones, players, phase info from the engine and maps cards
-     * to Arena instanceIds via the bridge's card ID mapping.
+     * to client instanceIds via the bridge's card ID mapping.
      *
      * [viewingSeatId] controls hand visibility: opponent's hand cards get
      * objectInstanceIds (for card count) but no GameObjectInfo (renders face-down).
@@ -894,7 +894,7 @@ object StateMapper {
             if (!canPay) continue
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
-            // Real Arena Cast: grpId + instanceId + facetId + manaCost + shouldStop
+            // Real client Cast: grpId + instanceId + facetId + manaCost + shouldStop
             // Note: abilityGrpId NOT set on Cast in ActionsAvailableReq (only in GSM embedded actions)
             val actionBuilder = Action.newBuilder()
                 .setActionType(ActionType.Cast)
@@ -933,7 +933,7 @@ object StateMapper {
 
     /**
      * Build a [SelectTargetsReq] from an [InteractivePromptBridge.PendingPrompt].
-     * Maps prompt candidate refs (entity IDs) to Arena instanceIds via the bridge.
+     * Maps prompt candidate refs (entity IDs) to client instanceIds via the bridge.
      */
     fun buildSelectTargetsReq(
         prompt: InteractivePromptBridge.PendingPrompt,
@@ -1081,13 +1081,13 @@ object StateMapper {
             .setStatus(PlayerStatus.InGame_a1c6)
             .setControllerSeatId(seatId)
             .setControllerType(ControllerType.Player_abfa)
-            .addTimerIds(seatId) // real Arena: timerIds=[seatId]
+            .addTimerIds(seatId) // real client: timerIds=[seatId]
         if (player != null) {
             builder.setLifeTotal(player.life)
                 .setStartingLifeTotal(20)
                 .setMaxHandSize(player.maxHandSize)
 
-            // Mana pool — disabled for now: Arena client auto-subtracts floating mana
+            // Mana pool — disabled for now: client auto-subtracts floating mana
             // from displayed card costs, causing confusing 0-cost display.
             // TODO: re-enable once we understand the client's cost rendering rules
             // var manaId = 1
@@ -1099,7 +1099,7 @@ object StateMapper {
         return builder.build()
     }
 
-    /** Inactivity timers — real Arena sends 2 per game state (one per seat). */
+    /** Inactivity timers — real client sends 2 per game state (one per seat). */
     internal fun buildTimers(): List<TimerInfo> = listOf(
         TimerInfo.newBuilder()
             .setTimerId(1)
@@ -1309,7 +1309,7 @@ object StateMapper {
      * Apply dynamic Forge game state onto a [GameObjectInfo.Builder] already enriched
      * with static card data from [CardDb.buildObjectInfo].
      *
-     * Static fields (types, colors, abilities, base P/T) come from the Arena DB.
+     * Static fields (types, colors, abilities, base P/T) come from the client DB.
      * This method adds: live P/T, tapped, sickness, damage, loyalty, combat, attachment.
      */
     private fun GameObjectInfo.Builder.applyCardFields(card: Card, bridge: GameBridge? = null, game: Game? = null): GameObjectInfo.Builder {

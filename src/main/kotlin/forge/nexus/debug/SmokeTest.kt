@@ -1,9 +1,9 @@
 package forge.nexus.debug
 
 import com.google.protobuf.ByteString
-import forge.nexus.protocol.ArenaFrameDecoder
-import forge.nexus.protocol.ArenaHeaderPrepender
-import forge.nexus.protocol.ArenaHeaderStripper
+import forge.nexus.protocol.ClientFrameDecoder
+import forge.nexus.protocol.ClientHeaderPrepender
+import forge.nexus.protocol.ClientHeaderStripper
 import io.netty.bootstrap.Bootstrap
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
@@ -25,8 +25,8 @@ import java.util.concurrent.TimeUnit
 private val log = LoggerFactory.getLogger("forge.nexus.debug.SmokeTest")
 
 /**
- * Headless smoke test: connects to the Arena stub as a fake MTGA client
- * and validates the full auth → mulligan flow without launching MTGA.
+ * Headless smoke test: connects to the client stub as a fake client
+ * and validates the full auth → mulligan flow without launching the client.
  *
  * Usage: `make arena-smoke` (requires stub running on localhost)
  */
@@ -94,7 +94,7 @@ private data class FrontDoorResult(val sessionOk: Boolean, val matchCreatedOk: B
 private fun testFrontDoor(group: NioEventLoopGroup, ssl: SslContext): FrontDoorResult {
     val handler = FrontDoorTestHandler()
     val ch = connect(group, ssl, 30010) { ch ->
-        ch.pipeline().addLast("frameDecoder", ArenaFrameDecoder())
+        ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
         ch.pipeline().addLast("handler", handler)
     }
 
@@ -132,8 +132,8 @@ private class FrontDoorTestHandler : ChannelInboundHandlerAdapter() {
         try {
             val bytes = ByteArray(msg.readableBytes())
             msg.readBytes(bytes)
-            if (bytes.size <= ArenaFrameDecoder.HEADER_SIZE) return
-            val payload = bytes.copyOfRange(ArenaFrameDecoder.HEADER_SIZE, bytes.size)
+            if (bytes.size <= ClientFrameDecoder.HEADER_SIZE) return
+            val payload = bytes.copyOfRange(ClientFrameDecoder.HEADER_SIZE, bytes.size)
             val text = payload.toString(Charsets.UTF_8)
             when {
                 "SessionId" in text -> {
@@ -156,9 +156,9 @@ private fun sendFdMessage(ch: Channel, transactionId: String, json: String) {
     writeProtoString(buf, 4, json)
     val envelope = buf.toByteArray()
 
-    val header = ByteArray(ArenaFrameDecoder.HEADER_SIZE)
-    header[0] = ArenaFrameDecoder.VERSION
-    header[1] = ArenaFrameDecoder.TYPE_DATA_FD
+    val header = ByteArray(ClientFrameDecoder.HEADER_SIZE)
+    header[0] = ClientFrameDecoder.VERSION
+    header[1] = ClientFrameDecoder.TYPE_DATA_FD
     header[2] = (envelope.size and 0xFF).toByte()
     header[3] = ((envelope.size shr 8) and 0xFF).toByte()
 
@@ -187,10 +187,10 @@ private fun testMatchDoor(
 ): MatchDoorResult {
     val handler = MatchDoorTestHandler()
     val ch = connect(group, ssl, 30003) { ch ->
-        ch.pipeline().addLast("frameDecoder", ArenaFrameDecoder())
-        ch.pipeline().addLast("headerStripper", ArenaHeaderStripper())
+        ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
+        ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
         ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(MatchServiceToClientMessage.getDefaultInstance()))
-        ch.pipeline().addLast("headerPrepender", ArenaHeaderPrepender(ArenaFrameDecoder.TYPE_DATA_FD))
+        ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender(ClientFrameDecoder.TYPE_DATA_FD))
         ch.pipeline().addLast("handler", handler)
     }
 

@@ -4,7 +4,7 @@ import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.io.File
 
 /**
- * Parses real Arena binary captures into [StructuralFingerprint] sequences.
+ * Parses real client binary captures into [StructuralFingerprint] sequences.
  *
  * Input: directory of S-C_MATCH_*.bin files (MatchServiceToClientMessage protos)
  * Output: ordered list of fingerprints for every GRE message in the recording.

@@ -1,7 +1,7 @@
 package forge.nexus.game
 
 /**
- * Zone transfer categories for Arena protocol annotations.
+ * Zone transfer categories for client protocol annotations.
  *
  * When a card moves between zones, the annotation carries a `category` string
  * that the client uses to pick the right animation and log text.

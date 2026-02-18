@@ -6,7 +6,7 @@ import org.testng.annotations.Test
 import java.io.File
 
 /**
- * Tests for RecordingDecoder — validates it can read real Arena recordings
+ * Tests for RecordingDecoder — validates it can read real client recordings
  * and produce correct structured summaries.
  *
  * These tests run against the actual .bin recording files in test resources.

@@ -1,6 +1,6 @@
 package forge.nexus.server
 
-import forge.nexus.protocol.ArenaFrameDecoder
+import forge.nexus.protocol.ClientFrameDecoder
 import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
@@ -11,7 +11,7 @@ import java.util.UUID
 /**
  * Minimal Front Door stub (port 30010).
  *
- * The real Arena Front Door uses a **protobuf envelope wrapping JSON strings** —
+ * The real client Front Door uses a **protobuf envelope wrapping JSON strings** —
  * NOT the same [ClientToMatchServiceMessage] protobuf used by the Match Door.
  * The envelope schema is not in `messages.proto`, so we handle raw bytes.
  *
@@ -43,24 +43,24 @@ class FrontDoorStub(
             val bytes = ByteArray(msg.readableBytes())
             msg.readBytes(bytes)
 
-            // ArenaFrameDecoder gives us header + payload as one ByteBuf
-            if (bytes.size < ArenaFrameDecoder.Companion.HEADER_SIZE) return
+            // ClientFrameDecoder gives us header + payload as one ByteBuf
+            if (bytes.size < ClientFrameDecoder.Companion.HEADER_SIZE) return
 
             val frameType = bytes[1]
 
             // Handle control frames: echo full frame (header + nonce) with type flipped
-            if (frameType == ArenaFrameDecoder.Companion.TYPE_CTRL_INIT) {
+            if (frameType == ClientFrameDecoder.Companion.TYPE_CTRL_INIT) {
                 log.debug("Front Door: CTRL_INIT received, sending ACK")
                 sendCtrlAck(ctx, bytes)
                 return
             }
-            if (frameType == ArenaFrameDecoder.Companion.TYPE_CTRL_ACK) {
+            if (frameType == ClientFrameDecoder.Companion.TYPE_CTRL_ACK) {
                 log.debug("Front Door: CTRL_ACK received (ignored)")
                 return
             }
 
-            val payload = if (bytes.size > ArenaFrameDecoder.Companion.HEADER_SIZE) {
-                bytes.copyOfRange(ArenaFrameDecoder.Companion.HEADER_SIZE, bytes.size)
+            val payload = if (bytes.size > ClientFrameDecoder.Companion.HEADER_SIZE) {
+                bytes.copyOfRange(ClientFrameDecoder.Companion.HEADER_SIZE, bytes.size)
             } else {
                 null
             }
@@ -125,7 +125,7 @@ class FrontDoorStub(
     /** Respond to a CTRL_INIT by echoing the full frame (header + nonce) with type flipped. */
     private fun sendCtrlAck(ctx: ChannelHandlerContext, initFrame: ByteArray) {
         val ack = initFrame.copyOf()
-        ack[1] = ArenaFrameDecoder.Companion.TYPE_CTRL_ACK
+        ack[1] = ClientFrameDecoder.Companion.TYPE_CTRL_ACK
         val buf = ctx.alloc().buffer(ack.size)
         buf.writeBytes(ack)
         ctx.writeAndFlush(buf)
@@ -175,9 +175,9 @@ class FrontDoorStub(
 
     /** Build a 6-byte outgoing header (version + type + LE payload length). */
     private fun buildOutgoingHeader(payloadLength: Int): ByteArray {
-        val h = ByteArray(ArenaFrameDecoder.Companion.HEADER_SIZE)
-        h[0] = ArenaFrameDecoder.Companion.VERSION
-        h[1] = ArenaFrameDecoder.Companion.TYPE_DATA_FD
+        val h = ByteArray(ClientFrameDecoder.Companion.HEADER_SIZE)
+        h[0] = ClientFrameDecoder.Companion.VERSION
+        h[1] = ClientFrameDecoder.Companion.TYPE_DATA_FD
         // Bytes 2-5: payload length (little-endian)
         h[2] = (payloadLength and 0xFF).toByte()
         h[3] = ((payloadLength shr 8) and 0xFF).toByte()

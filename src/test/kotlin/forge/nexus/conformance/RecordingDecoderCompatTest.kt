@@ -16,7 +16,7 @@ import java.nio.file.Files
 class RecordingDecoderCompatTest {
 
     @Test
-    fun parseMatchMessageAcceptsArenaFrame() {
+    fun parseMatchMessageAcceptsClientFrame() {
         val payload = buildMessage(gsId = 77).toByteArray()
         val framed = arenaFrame(payload)
 

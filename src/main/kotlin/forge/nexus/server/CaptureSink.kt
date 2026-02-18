@@ -1,13 +1,17 @@
 package forge.nexus.server
 
 import forge.nexus.debug.NexusPaths
-import forge.nexus.protocol.ArenaFrameDecoder
+import forge.nexus.protocol.ClientFrameDecoder
 import io.netty.buffer.ByteBuf
 import java.io.File
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * Reassembles proxy TCP chunks into full protocol frames and stores:
+ * Reassembles proxy TCP chunks into full protocol frames and stores.
+ * Lives in server/ (not debug/) because it's called directly from
+ * the proxy handler pipeline in [NexusServer].
+ *
+ * Stores:
  * - Lossless frames: `<capture>/frames/<seq>_<dir>_<type>.bin`
  * - Data payloads:   `<capture>/payloads/<seq>_<dir>_<type>.bin`
  */
@@ -33,16 +37,16 @@ internal object CaptureSink {
             if (bytes.isNotEmpty()) bytes.copyInto(merged, destinationOffset = prev.size)
 
             var offset = 0
-            while (merged.size - offset >= ArenaFrameDecoder.HEADER_SIZE) {
-                val payloadLen = readIntLE(merged, offset + ArenaFrameDecoder.LENGTH_OFFSET)
+            while (merged.size - offset >= ClientFrameDecoder.HEADER_SIZE) {
+                val payloadLen = readIntLE(merged, offset + ClientFrameDecoder.LENGTH_OFFSET)
 
-                if (payloadLen < 0 || payloadLen > ArenaFrameDecoder.MAX_PAYLOAD) {
+                if (payloadLen < 0 || payloadLen > ClientFrameDecoder.MAX_PAYLOAD) {
                     // Desync guard: shift by one byte until a plausible header appears.
                     offset += 1
                     continue
                 }
 
-                val frameLen = ArenaFrameDecoder.HEADER_SIZE + payloadLen
+                val frameLen = ClientFrameDecoder.HEADER_SIZE + payloadLen
                 if (merged.size - offset < frameLen) break
 
                 val frame = merged.copyOfRange(offset, offset + frameLen)
@@ -55,11 +59,11 @@ internal object CaptureSink {
     }
 
     private fun writeFrame(dir: String, frame: ByteArray) {
-        if (frame.size < ArenaFrameDecoder.HEADER_SIZE) return
+        if (frame.size < ClientFrameDecoder.HEADER_SIZE) return
 
         val ft = frame[1]
-        val payloadLen = readIntLE(frame, ArenaFrameDecoder.LENGTH_OFFSET)
-        if (payloadLen < 0 || frame.size < ArenaFrameDecoder.HEADER_SIZE + payloadLen) return
+        val payloadLen = readIntLE(frame, ClientFrameDecoder.LENGTH_OFFSET)
+        if (payloadLen < 0 || frame.size < ClientFrameDecoder.HEADER_SIZE + payloadLen) return
 
         val fileSeq = seq.incrementAndGet()
         val base = "%09d_%s_%s".format(fileSeq, sanitize(dir), frameTypeName(ft))
@@ -67,10 +71,10 @@ internal object CaptureSink {
         File(frameDir, "$base.bin").writeBytes(frame)
 
         // Only write data payloads for parser/trace tools.
-        if (ft == ArenaFrameDecoder.TYPE_CTRL_INIT || ft == ArenaFrameDecoder.TYPE_CTRL_ACK) return
+        if (ft == ClientFrameDecoder.TYPE_CTRL_INIT || ft == ClientFrameDecoder.TYPE_CTRL_ACK) return
         if (payloadLen <= 0) return
 
-        val payload = frame.copyOfRange(ArenaFrameDecoder.HEADER_SIZE, ArenaFrameDecoder.HEADER_SIZE + payloadLen)
+        val payload = frame.copyOfRange(ClientFrameDecoder.HEADER_SIZE, ClientFrameDecoder.HEADER_SIZE + payloadLen)
         File(payloadDir, "$base.bin").writeBytes(payload)
     }
 
@@ -87,9 +91,9 @@ internal object CaptureSink {
 }
 
 internal fun frameTypeName(ft: Byte) = when (ft) {
-    ArenaFrameDecoder.Companion.TYPE_CTRL_INIT -> "CTRL_INIT"
-    ArenaFrameDecoder.Companion.TYPE_CTRL_ACK -> "CTRL_ACK"
-    ArenaFrameDecoder.Companion.TYPE_DATA_FD -> "DATA"
-    ArenaFrameDecoder.Companion.TYPE_DATA_MATCH -> "MATCH_DATA"
+    ClientFrameDecoder.Companion.TYPE_CTRL_INIT -> "CTRL_INIT"
+    ClientFrameDecoder.Companion.TYPE_CTRL_ACK -> "CTRL_ACK"
+    ClientFrameDecoder.Companion.TYPE_DATA_FD -> "DATA"
+    ClientFrameDecoder.Companion.TYPE_DATA_MATCH -> "MATCH_DATA"
     else -> "0x${String.format("%02x", ft)}"
 }

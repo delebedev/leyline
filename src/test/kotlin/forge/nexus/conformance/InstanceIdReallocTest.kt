@@ -14,7 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 /**
  * Tests for instanceId reallocation on zone transfer and Limbo zone accumulation.
  *
- * Real Arena server allocates a new instanceId every time a card changes zones
+ * Real client server allocates a new instanceId every time a card changes zones
  * (except Stack->Battlefield on resolve). The old instanceId is retired to Limbo
  * with a Private gameObject so the client moves the card out of its old zone.
  *

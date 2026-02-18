@@ -13,7 +13,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  * Field-level integration test for play-land protocol messages.
  *
  * Starts a deterministic game, plays a land, then asserts every field
- * on the resulting GameStateMessage matches real Arena recordings.
+ * on the resulting GameStateMessage matches real client recordings.
  */
 @Test(groups = ["integration", "conformance"])
 class PlayLandFieldTest : ConformanceTestBase() {

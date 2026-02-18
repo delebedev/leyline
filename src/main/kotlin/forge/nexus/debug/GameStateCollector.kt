@@ -14,7 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Also collects priority trace events from [forge.nexus.server.MatchHandler]
  * decision points.
  *
- * Lives alongside [ArenaDebugCollector] — that stores raw JSON, this stores
+ * Lives alongside [NexusDebugCollector] — that stores raw JSON, this stores
  * structured/queryable data. Same integration pattern: explicit calls at
  * MatchHandler send sites.
  */

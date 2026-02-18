@@ -58,8 +58,8 @@ class GameBridgeTest {
 
         val hand = b.getHandGrpIds(1)
         // All cards in the deck (Llanowar Elves, Elvish Mystic, Giant Growth, Forest)
-        // should resolve to non-zero grpIds via ArenaCardDb
-        // Some may be 0 if Arena DB isn't installed, but the engine dealt real cards
+        // should resolve to non-zero grpIds via client card DB
+        // Some may be 0 if client DB isn't installed, but the engine dealt real cards
         Assert.assertEquals(hand.size, 7)
     }
 
@@ -420,7 +420,7 @@ class GameBridgeTest {
 
     // --- Double-diff tests ---
 
-    /** phaseTransitionDiff emits the full 5-message Arena pattern. */
+    /** phaseTransitionDiff emits the full 5-message client pattern. */
     @Test
     fun phaseTransitionEmitsFiveMessagePattern() {
         val b = GameBridge()
@@ -629,10 +629,10 @@ class GameBridgeTest {
         Assert.assertEquals(msg.gameStateMessage.gameStateId, 42)
     }
 
-    // --- Game loop contract tests (match real Arena message shapes) ---
+    // --- Game loop contract tests (match real client message shapes) ---
 
     /**
-     * Full state at Main1 must have timers (real Arena: 2 inactivity timers).
+     * Full state at Main1 must have timers (real client: 2 inactivity timers).
      * Client may lock out or hide turn timer without them.
      */
     @Test
@@ -655,11 +655,11 @@ class GameBridgeTest {
     }
 
     /**
-     * Zone visibility must match real Arena:
+     * Zone visibility must match real client:
      * Suppressed/Pending = Public, Sideboard = Private.
      */
     @Test
-    fun zoneVisibilityMatchesRealArena() {
+    fun zoneVisibilityMatchesRealClient() {
         val b = GameBridge()
         bridge = b
         b.start(seed = 42L)
@@ -670,16 +670,16 @@ class GameBridgeTest {
         val gs = StateMapper.buildFromGame(game, 1, "test-match", b)
 
         val byId = gs.zonesList.associateBy { it.zoneId }
-        // Real Arena: Suppressed + Pending are Public
+        // Real client: Suppressed + Pending are Public
         assertEquals(byId[24]!!.visibility, Messages.Visibility.Public, "Suppressed should be Public")
         assertEquals(byId[25]!!.visibility, Messages.Visibility.Public, "Pending should be Public")
-        // Real Arena: Sideboard is Private
+        // Real client: Sideboard is Private
         assertEquals(byId[34]!!.visibility, Messages.Visibility.Private, "P1 Sideboard should be Private")
         assertEquals(byId[38]!!.visibility, Messages.Visibility.Private, "P2 Sideboard should be Private")
     }
 
     /**
-     * Cast actions must include abilityGrpId and manaCost (not facetId).
+     * client Cast actions must include abilityGrpId and manaCost (not facetId).
      * Without abilityGrpId the client won't highlight cards as castable.
      */
     @Test
@@ -710,7 +710,7 @@ class GameBridgeTest {
 
         if (castActions.isNotEmpty()) {
             val cast = castActions.first()
-            // Real Arena Cast in AAR: no abilityGrpId, yes facetId=instanceId, yes manaCost
+            // Real client Cast in AAR: no abilityGrpId, yes facetId=instanceId, yes manaCost
             assertEquals(
                 cast.abilityGrpId,
                 0,
@@ -730,7 +730,7 @@ class GameBridgeTest {
     }
 
     /**
-     * PlayerInfo must include timerIds (real Arena: timerIds=[seatId]).
+     * PlayerInfo must include timerIds (real client: timerIds=[seatId]).
      */
     @Test
     fun playerInfoHasTimerIds() {
@@ -758,7 +758,7 @@ class GameBridgeTest {
 
     /**
      * GSM embedded actions are stripped-down ActionInfo (seatId + minimal action, no actionId).
-     * Real server: no grpId/facetId/shouldStop/autoTapSolution in GSM actions.
+     * Real client server: no grpId/facetId/shouldStop/autoTapSolution in GSM actions.
      */
     @Test
     fun embeddedActionsHaveStrippedFormat() {

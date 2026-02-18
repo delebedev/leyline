@@ -5,28 +5,28 @@ import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 
 /**
- * Arena wire protocol shape validation.
+ * Client wire protocol shape validation.
  *
- * These tests load structural fingerprints extracted from real Arena recordings
- * and assert on the exact message patterns Arena uses for each game action.
+ * These tests load structural fingerprints extracted from real client recordings
+ * and assert on the exact message patterns the client uses for each game action.
  * They do NOT boot the Forge engine — they validate our understanding of what
  * the real server sends, which guides our BundleBuilder implementation.
  *
  * Source recordings live in src/test/resources/golden/arena-*.json.
  * Each file is a JSON array of [StructuralFingerprint] extracted from a real
- * Arena session capture.
+ * client session capture.
  */
 @Test(groups = ["recording"])
-class ArenaWireShapeTest {
+class WireShapeTest {
 
-    private fun loadArena(name: String): List<StructuralFingerprint> =
+    private fun loadGolden(name: String): List<StructuralFingerprint> =
         GoldenSequence.fromResource("golden/arena-$name.json")
 
     // ===== Draw step =====
 
     @Test(description = "Draw step: 2 msgs — ZoneTransfer(Draw) diff + echo")
     fun drawStepShape() {
-        val fps = loadArena("draw-step")
+        val fps = loadGolden("draw-step")
         assertEquals(fps.size, 2, "Draw step should have 2 messages")
 
         assertEquals(fps[0].greMessageType, "GameStateMessage")
@@ -51,7 +51,7 @@ class ArenaWireShapeTest {
 
     @Test(description = "New turn: 2 msgs — NewTurnStarted + 4x PhaseOrStepModified diff + echo")
     fun newTurnShape() {
-        val fps = loadArena("new-turn")
+        val fps = loadGolden("new-turn")
         assertEquals(fps.size, 2, "New turn should have 2 messages")
 
         assertEquals(fps[0].greMessageType, "GameStateMessage")
@@ -74,7 +74,7 @@ class ArenaWireShapeTest {
 
     @Test(description = "Game end: 3x empty GS Diff SendAndRecord + IntermissionReq")
     fun gameEndShape() {
-        val fps = loadArena("game-end")
+        val fps = loadGolden("game-end")
         assertEquals(fps.size, 4, "Game end should have 4 messages")
 
         for (i in 0..2) {
@@ -98,7 +98,7 @@ class ArenaWireShapeTest {
 
     @Test(description = "Cast spell player: 2x GS SendAndRecord CastSpell + ActionsAvailableReq")
     fun castSpellPlayerShape() {
-        val fps = loadArena("cast-spell-player")
+        val fps = loadGolden("cast-spell-player")
         assertEquals(fps.size, 3, "Cast spell (player) should have 3 messages")
 
         for (i in 0..1) {
@@ -124,8 +124,8 @@ class ArenaWireShapeTest {
 
     @Test(description = "Cast creature AI: 4 msgs — cast diff+echo, resolve diff+echo (SendHiFi)")
     fun castCreatureAiShape() {
-        val fps = loadArena("cast-creature")
-        assertEquals(fps.size, 4, "Arena cast-creature should have 4 messages")
+        val fps = loadGolden("cast-creature")
+        assertEquals(fps.size, 4, "Client cast-creature should have 4 messages")
 
         // Cast diff
         assertEquals(fps[0].greMessageType, "GameStateMessage")
@@ -152,7 +152,7 @@ class ArenaWireShapeTest {
 
     @Test(description = "Combat simple: 11 msgs from DeclareAttackersReq through post-combat")
     fun combatSimpleShape() {
-        val fps = loadArena("combat-simple")
+        val fps = loadGolden("combat-simple")
         assertEquals(fps.size, 11, "Combat simple should have 11 messages")
 
         // [0] DeclareAttackersReq promptId=6
@@ -211,7 +211,7 @@ class ArenaWireShapeTest {
 
     @Test(description = "Combat damage: 14 msgs with full attack/block flow")
     fun combatDamageShape() {
-        val fps = loadArena("combat-damage")
+        val fps = loadGolden("combat-damage")
         assertEquals(fps.size, 14, "Combat damage should have 14 messages")
 
         // [0] DeclareAttackersReq
@@ -268,7 +268,7 @@ class ArenaWireShapeTest {
 
     @Test(description = "Targeted spell: 18-message interaction with SelectTargetsReq, SelectNreq, QueuedGSM")
     fun targetedSpellShape() {
-        val fps = loadArena("targeted-spell")
+        val fps = loadGolden("targeted-spell")
         assertEquals(fps.size, 18, "Targeted spell should have 18 messages")
 
         // [0] GS Diff Send — CastSpell + PlayerSelectingTargets
@@ -318,7 +318,7 @@ class ArenaWireShapeTest {
 
     @Test(description = "Edictal context: SendAndRecord GS → EdictalMessage → SendHiFi GS")
     fun edictalShape() {
-        val fps = loadArena("edictal-pass")
+        val fps = loadGolden("edictal-pass")
         assertEquals(fps.size, 3)
         assertEquals(fps[0].updateType, "SendAndRecord")
         assertEquals(fps[1].greMessageType, "EdictalMessage")
@@ -329,7 +329,7 @@ class ArenaWireShapeTest {
 
     @Test(description = "Declare attackers: GS Diff + DeclareAttackersReq promptId=6")
     fun declareAttackersShape() {
-        val fps = loadArena("declare-attackers")
+        val fps = loadGolden("declare-attackers")
         assertEquals(fps.size, 2)
         assertEquals(fps[0].greMessageType, "GameStateMessage")
         assertEquals(fps[1].greMessageType, "DeclareAttackersReq")

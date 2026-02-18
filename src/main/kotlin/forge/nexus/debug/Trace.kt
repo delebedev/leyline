@@ -16,7 +16,7 @@ private val INT_TYPES = setOf(
 )
 
 /**
- * Trace an ID across all recorded Arena payloads.
+ * Trace an ID across all recorded client payloads.
  *
  * Recursively walks every proto field via reflection. When an ObjectIdChanged
  * annotation renames orig_id → new_id, the new ID is added to the trace set

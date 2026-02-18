@@ -6,7 +6,7 @@ import java.io.File
 import java.sql.DriverManager
 
 /**
- * Read-only lookup into Arena's local card database (SQLite).
+ * Read-only lookup into the client's local card database (SQLite).
  *
  * DB enum values (CardColor, CardType, SubType) map 1:1 to proto enum values.
  * Path: ~/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga
@@ -58,7 +58,7 @@ object CardDb {
         nameToGrpId[cardName] = grpId
     }
 
-    /** Register card with full metadata (for tests without Arena SQLite DB). */
+    /** Register card with full metadata (for tests without client SQLite DB). */
     fun registerData(data: CardData, cardName: String) {
         register(data.grpId, cardName)
         cache[data.grpId] = data
@@ -70,17 +70,17 @@ object CardDb {
         cache.clear()
     }
 
-    /** Find the Arena card database on disk. */
+    /** Find the client card database on disk. */
     fun init(): Boolean {
         val raw = File(System.getProperty("user.home"))
             .resolve("Library/Application Support/com.wizards.mtga/Downloads/Raw")
         val db = raw.listFiles()?.firstOrNull { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
         if (db == null) {
-            log.warn("Arena card database not found in {}", raw)
+            log.warn("Client card database not found in {}", raw)
             return false
         }
         dbPath = db.absolutePath
-        log.info("Arena card database: {} ({} MB)", db.name, db.length() / 1024 / 1024)
+        log.info("Client card database: {} ({} MB)", db.name, db.length() / 1024 / 1024)
         return true
     }
 
@@ -194,7 +194,7 @@ object CardDb {
                 }
             }
         } catch (e: Exception) {
-            log.warn("Failed to query Arena card DB for grpId={}: {}", grpId, e.message)
+            log.warn("Failed to query client card DB for grpId={}: {}", grpId, e.message)
             null
         }
     }
@@ -206,7 +206,7 @@ object CardDb {
     }
 
     /**
-     * Basic land mana ability grpIds — implicit in Arena client, not stored in DB.
+     * Basic land mana ability grpIds — implicit in the client, not stored in DB.
      * SubType enum values: Plains=54, Island=43, Swamp=69, Mountain=49, Forest=29.
      */
     private val BASIC_LAND_ABILITIES = mapOf(
@@ -251,12 +251,12 @@ object CardDb {
             }
         }
     } catch (e: Exception) {
-        log.warn("Failed to query Arena card DB for name='{}': {}", cardName, e.message)
+        log.warn("Failed to query client card DB for name='{}': {}", cardName, e.message)
         null
     }
 
     /**
-     * Parse Arena's OldSchoolManaText format into (ManaColor, count) pairs.
+     * Parse the client's OldSchoolManaText format into (ManaColor, count) pairs.
      * Format: "oG" = {G}, "o3oGoG" = {3}{G}{G}, "oXoRoR" = {X}{R}{R}.
      * Each "o" prefix starts a mana symbol; digits = generic count, letters = color.
      */
