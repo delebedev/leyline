@@ -31,7 +31,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "PlayLand: annotation order is ObjectIdChanged -> ZoneTransfer -> UserActionTaken")
     fun playLandAnnotationOrder() {
-        val gsm = playLandAndCapture() ?: return
+        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
 
         val types = gsm.annotationsList.map { it.typeList.first() }
         val oicIdx = types.indexOf(AnnotationType.ObjectIdChanged)
@@ -54,7 +54,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "PlayLand: exactly 3 annotations (ObjectIdChanged + ZoneTransfer + UserActionTaken)")
     fun playLandAnnotationCount() {
-        val gsm = playLandAndCapture() ?: return
+        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
 
         val types = gsm.annotationsList.map { it.typeList.first() }
         val expected = listOf(
@@ -67,7 +67,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "PlayLand: ZoneTransfer affectorId is 0 (no acting seat for land play)")
     fun playLandZoneTransferAffectorIdIsZero() {
-        val gsm = playLandAndCapture() ?: return
+        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
 
         val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
         assertEquals(zt.affectorId, 0, "PlayLand ZoneTransfer affectorId should be 0 (default), got: ${zt.affectorId}")
@@ -75,7 +75,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "PlayLand: UserActionTaken affectorId equals acting seat (1=human)")
     fun playLandUserActionTakenAffectorId() {
-        val gsm = playLandAndCapture() ?: return
+        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
 
         val uat = gsm.annotation(AnnotationType.UserActionTaken)
         assertEquals(uat.affectorId, 1, "PlayLand UserActionTaken affectorId should be seat 1 (human)")
@@ -83,7 +83,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "PlayLand: UserActionTaken actionType=3 (Play)")
     fun playLandUserActionTakenActionType() {
-        val gsm = playLandAndCapture() ?: return
+        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
 
         val uat = gsm.annotation(AnnotationType.UserActionTaken)
         assertEquals(uat.detailInt("actionType"), 3, "PlayLand UserActionTaken actionType should be 3 (Play)")
@@ -91,7 +91,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "PlayLand: ObjectIdChanged has no affectorId set (default 0)")
     fun playLandObjectIdChangedNoAffector() {
-        val gsm = playLandAndCapture() ?: return
+        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
 
         val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
         assertEquals(oic.affectorId, 0, "ObjectIdChanged should not have affectorId set")
@@ -101,7 +101,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "CastSpell: annotation order is ObjectIdChanged -> ZoneTransfer -> AbilityInstanceCreated -> TappedUntappedPermanent -> ManaPaid -> AbilityInstanceDeleted -> UserActionTaken")
     fun castSpellAnnotationOrder() {
-        val gsm = castSpellAndCapture() ?: return
+        val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
         val types = gsm.annotationsList.map { it.typeList.first() }
 
@@ -131,7 +131,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "CastSpell: exactly 7 annotations in the expected order")
     fun castSpellAnnotationCount() {
-        val gsm = castSpellAndCapture() ?: return
+        val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
         val types = gsm.annotationsList.map { it.typeList.first() }
         val expected = listOf(
@@ -148,7 +148,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "CastSpell: ZoneTransfer category is CastSpell, zones are Hand->Stack")
     fun castSpellZoneTransferFields() {
-        val gsm = castSpellAndCapture() ?: return
+        val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
         val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
         assertEquals(zt.detailString("category"), "CastSpell")
@@ -158,7 +158,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "CastSpell: UserActionTaken has actionType=1 (Cast)")
     fun castSpellUserActionTakenActionType() {
-        val gsm = castSpellAndCapture() ?: return
+        val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
         val uat = gsm.annotation(AnnotationType.UserActionTaken)
         assertEquals(uat.detailInt("actionType"), 1, "CastSpell UserActionTaken actionType should be 1 (Cast)")
@@ -166,7 +166,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "CastSpell: TappedUntappedPermanent has tapped=1 detail")
     fun castSpellTappedUntappedDetail() {
-        val gsm = castSpellAndCapture() ?: return
+        val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
         val tup = gsm.annotation(AnnotationType.TappedUntappedPermanent)
         assertEquals(tup.detailUint("tapped"), 1, "TappedUntappedPermanent tapped should be 1")
@@ -174,7 +174,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "CastSpell: all annotations reference the new (post-realloc) instanceId")
     fun castSpellAnnotationsReferenceNewInstanceId() {
-        val (gsm, _, newInstanceId) = castSpellAndCaptureWithIds() ?: return
+        val (gsm, _, newInstanceId) = castSpellAndCaptureWithIds() ?: error("Could not cast spell at seed 42")
 
         val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
         assertTrue(zt.affectedIdsList.contains(newInstanceId), "ZoneTransfer affectedIds should contain new instanceId $newInstanceId")
@@ -193,7 +193,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "Resolve: annotation order is ResolutionStart -> ResolutionComplete -> ZoneTransfer")
     fun resolveAnnotationOrder() {
-        val gsm = resolveAndCapture() ?: return
+        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
 
         val types = gsm.annotationsList.map { it.typeList.first() }
         val rsIdx = types.indexOf(AnnotationType.ResolutionStart)
@@ -210,7 +210,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "Resolve: exactly 3 annotations (ResolutionStart + ResolutionComplete + ZoneTransfer)")
     fun resolveAnnotationCount() {
-        val gsm = resolveAndCapture() ?: return
+        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
 
         val types = gsm.annotationsList.map { it.typeList.first() }
         val expected = listOf(
@@ -223,7 +223,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "Resolve: ZoneTransfer category is Resolve, affectorId is acting seat")
     fun resolveZoneTransferAffectorId() {
-        val gsm = resolveAndCapture() ?: return
+        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
 
         val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
         assertEquals(zt.detailString("category"), "Resolve")
@@ -232,7 +232,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "Resolve: ZoneTransfer zones are Stack->Battlefield")
     fun resolveZoneTransferZones() {
-        val gsm = resolveAndCapture() ?: return
+        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
 
         val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
         assertEquals(zt.detailInt("zone_src"), ZONE_STACK, "Resolve zone_src should be Stack ($ZONE_STACK)")
@@ -241,7 +241,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "Resolve: ResolutionStart has affectorId=instanceId and grpid detail")
     fun resolveResolutionStartFields() {
-        val gsm = resolveAndCapture() ?: return
+        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
 
         val rs = gsm.annotation(AnnotationType.ResolutionStart)
         assertTrue(rs.affectorId > 0, "ResolutionStart affectorId should be the spell instanceId")
@@ -259,7 +259,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "Resolve: ResolutionComplete has same affectorId and grpid as ResolutionStart")
     fun resolveResolutionCompleteMatchesStart() {
-        val gsm = resolveAndCapture() ?: return
+        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
 
         val rs = gsm.annotation(AnnotationType.ResolutionStart)
         val rc = gsm.annotation(AnnotationType.ResolutionComplete)
@@ -280,7 +280,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "Resolve: instanceId NOT reallocated (Stack->Battlefield keeps same ID)")
     fun resolveKeepsSameInstanceId() {
-        val gsm = resolveAndCapture() ?: return
+        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
 
         val oicAnns = gsm.annotationsList.filter { AnnotationType.ObjectIdChanged in it.typeList }
         assertTrue(
@@ -292,7 +292,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "Resolve: no Limbo retirement (no old instanceId to retire)")
     fun resolveNoLimboRetirement() {
-        val gsm = resolveAndCapture() ?: return
+        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
 
         val bfObjects = gsm.gameObjectsList.filter { it.zoneId == ZONE_BATTLEFIELD }
         val limboZone = gsm.zonesList.firstOrNull { it.type == ZoneType.Limbo }
@@ -310,7 +310,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "All annotation IDs are sequential and monotonically increasing within a GSM")
     fun annotationIdsSequentialAcrossCategories() {
-        val gsm = playLandAndCapture() ?: return
+        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
         assertAnnotationIdsSequential(gsm)
 
         val castGsm = castSpellAndCapture()
@@ -324,7 +324,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     @Test(description = "Resolve: EnteredZoneThisTurn persistent annotation for creature landing on battlefield")
     fun resolveCreatureGetsPersistentAnnotation() {
-        val gsm = resolveAndCapture() ?: return
+        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
 
         assertTrue(
             gsm.persistentAnnotationsCount > 0,

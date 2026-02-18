@@ -25,7 +25,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: annotation IDs are sequential, non-zero, monotonically increasing")
     fun annotationIdsAreSequential() {
-        val gsm = playLandAndCapture() ?: return
+        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
 
         val ids = gsm.annotationsList.map { it.id }
         assertTrue(ids.isNotEmpty(), "Should have annotations")
@@ -36,7 +36,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: ZoneTransfer has affectedIds=[land], typed zone details, category=PlayLand")
     fun zoneTransferAnnotationFields() {
-        val (gsm, _, newInstanceId) = playLandAndCaptureWithIds() ?: return
+        val (gsm, _, newInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
 
         val zt = gsm.annotationOrNull(AnnotationType.ZoneTransfer_af5a)
         assertTrue(zt != null, "Should have ZoneTransfer annotation")
@@ -63,7 +63,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: ObjectIdChanged has orig_id/new_id details with typed int32 values")
     fun objectIdChangedDetails() {
-        val (gsm, origInstanceId, newInstanceId) = playLandAndCaptureWithIds() ?: return
+        val (gsm, origInstanceId, newInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
 
         val oic = gsm.annotationOrNull(AnnotationType.ObjectIdChanged)
         assertTrue(oic != null, "Should have ObjectIdChanged annotation")
@@ -86,7 +86,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: UserActionTaken has affectorId=seatId, actionType + abilityGrpId details")
     fun userActionTakenFields() {
-        val (gsm, _, landInstanceId) = playLandAndCaptureWithIds() ?: return
+        val (gsm, _, landInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
 
         val uat = gsm.annotationOrNull(AnnotationType.UserActionTaken)
         assertTrue(uat != null, "Should have UserActionTaken annotation")
@@ -107,7 +107,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: GSM has prevGameStateId referencing prior state")
     fun prevGameStateIdPresent() {
-        val gsm = playLandAndCapture() ?: return
+        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
 
         assertNotEquals(gsm.prevGameStateId.toInt(), 0, "GSM should have prevGameStateId set (non-zero)")
         assertTrue(gsm.prevGameStateId < gsm.gameStateId, "prevGameStateId (${gsm.prevGameStateId}) should be less than gameStateId (${gsm.gameStateId})")
@@ -115,7 +115,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: persistentAnnotations includes EnteredZoneThisTurn for the land")
     fun persistentAnnotationsPresent() {
-        val (gsm, _, landInstanceId) = playLandAndCaptureWithIds() ?: return
+        val (gsm, _, landInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
 
         assertTrue(gsm.persistentAnnotationsCount > 0, "GSM should have persistentAnnotations after playing a land")
 
@@ -131,7 +131,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: land gameObject on battlefield has uniqueAbilities (mana ability)")
     fun landHasUniqueAbilities() {
-        val (gsm, _, landInstanceId) = playLandAndCaptureWithIds() ?: return
+        val (gsm, _, landInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
 
         val landObj = gsm.gameObjectsList.firstOrNull { it.instanceId == landInstanceId }
         assertTrue(landObj != null, "GSM should have gameObject for the played land")
@@ -143,7 +143,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: old instanceId retired to Limbo with gameObject")
     fun oldInstanceRetiredToLimbo() {
-        val (gsm, origInstanceId, newInstanceId) = playLandAndCaptureWithIds() ?: return
+        val (gsm, origInstanceId, newInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
 
         assertNotEquals(origInstanceId, newInstanceId, "Zone transfer must allocate a new instanceId")
 
@@ -171,12 +171,12 @@ class PlayLandFieldTest : ConformanceTestBase() {
         acc.processAll(startResult.messages)
         b.snapshotState(game)
 
-        val player = b.getPlayer(1) ?: return
-        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return
+        val player = b.getPlayer(1) ?: error("Player 1 not found")
+        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
         val origInstanceId = b.getOrAllocInstanceId(land.id)
         val forgeCardId = land.id
 
-        playLand(b) ?: return
+        playLand(b) ?: error("No land in hand at seed 42")
         val postResult = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
         acc.processAll(postResult.messages)
         val newInstanceId = b.getOrAllocInstanceId(forgeCardId)

@@ -77,10 +77,10 @@ class GameEventCollectorTest {
 
         val player = b.getPlayer(1)!!
         val landInHand = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
-            ?: return // no lands (unlikely)
+            ?: error("No land in hand at seed 42")
         val landId = landInHand.id
 
-        val pending = awaitFreshPending(b, null) ?: return
+        val pending = awaitFreshPending(b, null) ?: error("No pending action available")
         b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(landId))
         awaitFreshPending(b, pending.actionId)
 
@@ -104,10 +104,10 @@ class GameEventCollectorTest {
 
         val player = b.getPlayer(1)!!
         val landInHand = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
-            ?: return
+            ?: error("No land in hand at seed 42")
         val landId = landInHand.id
 
-        val pending = awaitFreshPending(b, null) ?: return
+        val pending = awaitFreshPending(b, null) ?: error("No pending action available")
         b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(landId))
         awaitFreshPending(b, pending.actionId)
 
@@ -134,15 +134,15 @@ class GameEventCollectorTest {
         val game = b.getGame()!!
 
         // First, play a Forest for mana
-        val forest = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return
-        val pending1 = awaitFreshPending(b, null) ?: return
+        val forest = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
+        val pending1 = awaitFreshPending(b, null) ?: error("No pending action available")
         b.actionBridge.submitAction(pending1.actionId, PlayerAction.PlayLand(forest.id))
-        val pending2 = awaitFreshPending(b, pending1.actionId) ?: return
+        val pending2 = awaitFreshPending(b, pending1.actionId) ?: error("No pending action available after land play")
         collector.drainEvents() // clear land play events
 
         // Find a castable creature (Llanowar Elves or Elvish Mystic)
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { !it.isLand }
-            ?: return // no creatures in hand
+            ?: error("No creature in hand at seed 42")
         val creatureId = creature.id
 
         // Try to cast — need to tap Forest first

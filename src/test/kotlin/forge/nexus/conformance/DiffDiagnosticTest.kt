@@ -42,7 +42,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         val player = b.getPlayer(1)!!
         val land1 = player.getZone(ForgeZoneType.Hand).cards.first { it.isLand }
         val land1OrigId = b.getOrAllocInstanceId(land1.id)
-        playLand(b) ?: fail("Failed to play first land")
+        playLand(b) ?: error("Failed to play first land")
 
         val afterLand1 = postAction(game, b, firstDiff.nextMsgId, firstDiff.nextGsId)
         acc.processAll(afterLand1.messages)
@@ -99,7 +99,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         b.snapshotState(game)
         val firstDiff = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
 
         val result = postAction(game, b, firstDiff.nextMsgId, firstDiff.nextGsId)
         val gsm = result.gsm
@@ -135,16 +135,16 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         acc.processAll(startResult.messages)
         b.snapshotState(game)
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         val afterLand = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
         acc.processAll(afterLand.messages)
 
         val player = b.getPlayer(1)!!
-        val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return
+        val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature } ?: error("No creature in hand at seed 42")
         val creatureForgeId = creature.id
         val creatureOrigId = b.getOrAllocInstanceId(creatureForgeId)
 
-        castCreature(b) ?: return
+        castCreature(b) ?: error("castCreature failed at seed 42")
 
         val afterCast = postAction(game, b, afterLand.nextMsgId, afterLand.nextGsId)
         acc.processAll(afterCast.messages)
@@ -205,14 +205,14 @@ class DiffDiagnosticTest : ConformanceTestBase() {
     fun resolveKeepsInstanceId() {
         val (b, game, gsId) = startGameAtMain1()
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         val afterLand = postAction(game, b, 1, gsId)
 
         val player = b.getPlayer(1)!!
-        val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return
+        val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature } ?: error("No creature in hand at seed 42")
         val creatureForgeId = creature.id
 
-        castCreature(b) ?: return
+        castCreature(b) ?: error("castCreature failed at seed 42")
         val afterCast = postAction(game, b, afterLand.nextMsgId, afterLand.nextGsId)
         val castId = b.getOrAllocInstanceId(creatureForgeId)
 
@@ -234,7 +234,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         val startResult = gameStart(game, b, 1, gsId)
         b.snapshotState(game)
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
 
         val aiResult = BundleBuilder.aiActionDiff(
             game,
@@ -290,7 +290,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         acc.processAll(startResult.messages)
         b.snapshotState(game)
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         val afterLand = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
         acc.processAll(afterLand.messages)
 

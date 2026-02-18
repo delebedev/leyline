@@ -114,9 +114,9 @@ class GsIdChainTest : ConformanceTestBase() {
     fun postActionPrevGsIdPresent() {
         val (b, game, gsId) = startGameAtMain1()
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         val result = postAction(game, b, 1, gsId)
-        val gsm = result.gsmOrNull ?: return
+        val gsm = result.gsmOrNull ?: error("No GSM in bundle result")
 
         assertEquals(
             gsm.prevGameStateId,
@@ -129,9 +129,9 @@ class GsIdChainTest : ConformanceTestBase() {
     fun postActionHasPendingForAar() {
         val (b, game, gsId) = startGameAtMain1()
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         val result = postAction(game, b, 1, gsId)
-        val gsm = result.gsmOrNull ?: return
+        val gsm = result.gsmOrNull ?: error("No GSM in bundle result")
 
         assertEquals(
             gsm.pendingMessageCount,
@@ -144,11 +144,11 @@ class GsIdChainTest : ConformanceTestBase() {
     fun chainedPostActionsGsIdMonotonic() {
         val (b, game, gsId) = startGameAtMain1()
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         val result1 = postAction(game, b, 1, gsId)
         b.snapshotState(game)
 
-        castCreature(b) ?: return
+        castCreature(b) ?: error("castCreature failed at seed 42")
         val result2 = postAction(game, b, result1.nextMsgId, result1.nextGsId)
 
         assertTrue(
@@ -219,9 +219,9 @@ class GsIdChainTest : ConformanceTestBase() {
         val startResult = gameStart(game, b, 1, gsId)
         b.snapshotState(game, startResult.nextGsId)
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
         val postResult = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
-        val gsm = postResult.gsmOrNull ?: return
+        val gsm = postResult.gsmOrNull ?: error("No GSM in post-action result")
 
         assertEquals(
             gsm.prevGameStateId,

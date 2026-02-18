@@ -19,7 +19,10 @@ fun main(args: Array<String>) {
         return
     }
 
-    val json = Json { prettyPrint = true; encodeDefaults = true }
+    val json = Json {
+        prettyPrint = true
+        encodeDefaults = true
+    }
 
     when (val cmd = args[0]) {
         "list" -> {

@@ -41,7 +41,7 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
         val acc = ClientAccumulator()
         acc.processAll(startResult.messages)
 
-        playLand(b) ?: return
+        playLand(b) ?: error("playLand failed at seed 42")
 
         val postResult = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
         acc.processAll(postResult.messages)
@@ -62,7 +62,7 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
         val postLand = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
         acc.processAll(postLand.messages)
 
-        castCreature(b) ?: return
+        castCreature(b) ?: error("castCreature failed at seed 42")
         val postCast = postAction(game, b, postLand.nextMsgId, postLand.nextGsId)
         acc.processAll(postCast.messages)
 
