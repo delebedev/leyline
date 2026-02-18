@@ -1,5 +1,9 @@
 # GRE Diff Semantics — Findings from Recording Analysis
 
+> **Status:** Working notes — derived from two recordings, not yet validated as
+> ground truth. Patterns may not generalize to all game situations. Cross-check
+> against additional recordings before treating as authoritative.
+
 Based on analysis of two real Arena recordings:
 - `on-play`: 31 messages, simple land-drop game ending in concession
 - `on-draw-sparky-two-creatures-player-attacked`: 155 messages, full game with

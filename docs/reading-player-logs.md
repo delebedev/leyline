@@ -1,6 +1,7 @@
-# Reading MTGA Player.log
+# Reading Client Player.log
 
 Quick-reference for extracting game state and debugging annotation errors from the client's log.
+These are ad-hoc investigative scripts, not `just` targets — they require editing (e.g. TARGET_GSID) per use.
 
 **Location:** `~/Library/Logs/Wizards of the Coast/MTGA/Player.log` (macOS)
 
