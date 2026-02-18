@@ -208,7 +208,7 @@ class AnnotationBuilderTest {
 
     @Test
     fun enteredZoneThisTurnFields() {
-        val ann = AnnotationBuilder.enteredZoneThisTurn(zoneId = 28, 100, 200)
+        val ann = AnnotationBuilder.enteredZoneThisTurn(zoneId = ZoneIds.BATTLEFIELD, 100, 200)
         assertTrue(ann.typeList.contains(AnnotationType.EnteredZoneThisTurn))
         assertEquals(ann.affectorId, 28, "affectorId should be the zone ID")
         assertTrue(ann.affectedIdsList.contains(100))
@@ -218,7 +218,7 @@ class AnnotationBuilderTest {
 
     @Test
     fun enteredZoneThisTurnSingleId() {
-        val ann = AnnotationBuilder.enteredZoneThisTurn(zoneId = 28, 100)
+        val ann = AnnotationBuilder.enteredZoneThisTurn(zoneId = ZoneIds.BATTLEFIELD, 100)
         assertEquals(ann.affectedIdsCount, 1)
         assertTrue(ann.affectedIdsList.contains(100))
     }

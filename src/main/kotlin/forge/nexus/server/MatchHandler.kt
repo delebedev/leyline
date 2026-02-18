@@ -5,8 +5,8 @@ import forge.nexus.debug.GameStateCollector
 import forge.nexus.debug.NexusTap
 import forge.nexus.game.GameBridge
 import forge.nexus.game.StateMapper
+import forge.nexus.protocol.HandshakeMessages
 import forge.nexus.protocol.ProtoDump
-import forge.nexus.protocol.Templates
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.SimpleChannelInboundHandler
 import org.slf4j.LoggerFactory
@@ -212,7 +212,7 @@ class MatchHandler(
 
     private fun sendRoomState(ctx: ChannelHandlerContext) {
         val playerId = clientId.removeSuffix("_Familiar")
-        val msg = Templates.roomState(matchId, playerId)
+        val msg = HandshakeMessages.roomState(matchId, playerId)
         NexusTap.outboundTemplate("RoomState matchId=$matchId")
         ProtoDump.dump(msg, "RoomState")
         ctx.writeAndFlush(msg)
@@ -224,7 +224,7 @@ class MatchHandler(
         s.gameStateId++
         val deckGrpIds = bridge.getDeckGrpIds(seatId)
         val deck = StateMapper.buildDeckMessage(deckGrpIds)
-        val (msg, nextMsgId) = Templates.initialBundle(seatId, matchId, s.msgIdCounter, s.gameStateId, deck, bridge)
+        val (msg, nextMsgId) = HandshakeMessages.initialBundle(seatId, matchId, s.msgIdCounter, s.gameStateId, deck, bridge)
         s.msgIdCounter = nextMsgId
         NexusTap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")
@@ -237,7 +237,7 @@ class MatchHandler(
         val s = session ?: return
         val bridge = s.gameBridge ?: return
         s.gameStateId++
-        val (msg, nextMsgId) = Templates.dealHandSeat1(s.msgIdCounter, s.gameStateId, bridge)
+        val (msg, nextMsgId) = HandshakeMessages.dealHandSeat1(s.msgIdCounter, s.gameStateId, bridge)
         s.msgIdCounter = nextMsgId
         NexusTap.outboundTemplate("DealHand seat=$seatId")
         ProtoDump.dump(msg, "DealHand-seat$seatId")
@@ -250,7 +250,7 @@ class MatchHandler(
         val s = session ?: return
         val bridge = s.gameBridge ?: return
         s.gameStateId++
-        val (msg, nextMsgId) = Templates.mulliganReqSeat1(s.msgIdCounter, s.gameStateId, bridge)
+        val (msg, nextMsgId) = HandshakeMessages.mulliganReqSeat1(s.msgIdCounter, s.gameStateId, bridge)
         s.msgIdCounter = nextMsgId
         NexusTap.outboundTemplate("MulliganReq seat=$seatId")
         ProtoDump.dump(msg, "MulliganReq-seat$seatId")
@@ -262,7 +262,7 @@ class MatchHandler(
         val s = session ?: return
         val bridge = s.gameBridge ?: return
         s.gameStateId++
-        val (msg, nextMsgId) = Templates.dealHandMulliganSeat2(s.msgIdCounter, s.gameStateId, bridge)
+        val (msg, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(s.msgIdCounter, s.gameStateId, bridge)
         s.msgIdCounter = nextMsgId
         NexusTap.outboundTemplate("DealHand+MulliganReq seat=$seatId")
         ProtoDump.dump(msg, "DealHand+MullReq-seat$seatId")

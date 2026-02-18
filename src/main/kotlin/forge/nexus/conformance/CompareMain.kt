@@ -1,5 +1,6 @@
 package forge.nexus.conformance
 
+import forge.nexus.debug.NexusPaths
 import java.io.File
 
 /**
@@ -98,9 +99,9 @@ fun main(args: Array<String>) {
     val realFps = RecordingParser.parseDirectory(realDir, seatFilter)
     println("Real recording: ${realFps.size} GRE messages from ${realDir.name} (seat $seatFilter)")
 
-    val ourDir = File("/tmp/arena-dump")
+    val ourDir = NexusPaths.ENGINE_DUMP
     if (!ourDir.isDirectory) {
-        println("No /tmp/arena-dump/ found — run ARENA_DUMP=1 just serve first")
+        println("No ${NexusPaths.ENGINE_DUMP}/ found — run ARENA_DUMP=1 just serve first")
         println("\nReal recording fingerprints:")
         for ((i, fp) in realFps.withIndex()) {
             println(

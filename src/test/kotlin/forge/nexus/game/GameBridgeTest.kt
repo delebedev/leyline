@@ -881,7 +881,7 @@ class GameBridgeTest {
         if (game.phaseHandler.phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return
 
         val gs = StateMapper.buildFromGame(game, 1, "test-match", b)
-        val bfObjects = gs.gameObjectsList.filter { it.zoneId == 28 } // Battlefield
+        val bfObjects = gs.gameObjectsList.filter { it.zoneId == ZoneIds.BATTLEFIELD }
 
         // If combat is active, attacking creatures should have attackState
         val combat = game.phaseHandler.combat

@@ -1,5 +1,6 @@
 package forge.nexus.conformance
 
+import forge.nexus.game.ZoneIds
 import forge.nexus.game.awaitFreshPending
 import forge.web.game.PlayerAction
 import org.testng.Assert.assertEquals
@@ -22,12 +23,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  */
 @Test(groups = ["integration", "conformance"])
 class InstanceIdReallocTest : ConformanceTestBase() {
-
-    private companion object {
-        const val ZONE_BATTLEFIELD = 28
-        const val ZONE_LIMBO = 30
-        const val ZONE_P1_HAND = 31
-    }
 
     // ===== PlayLand realloc =====
 
@@ -78,7 +73,7 @@ class InstanceIdReallocTest : ConformanceTestBase() {
         val limboObj = gsm.gameObjectsList.firstOrNull { it.instanceId == origInstanceId }
         assertTrue(limboObj != null, "Should have Limbo gameObject for retired ID $origInstanceId")
         assertEquals(limboObj!!.visibility, Visibility.Private, "Limbo gameObject should be Private")
-        assertEquals(limboObj.zoneId, ZONE_LIMBO, "Limbo gameObject should be in Limbo zone")
+        assertEquals(limboObj.zoneId, ZoneIds.LIMBO, "Limbo gameObject should be in Limbo zone")
         assertTrue(limboObj.viewersList.isNotEmpty(), "Limbo gameObject should have viewers")
         assertEquals(limboObj.getViewers(0), 1, "Limbo gameObject viewers should include owner seat (1)")
     }

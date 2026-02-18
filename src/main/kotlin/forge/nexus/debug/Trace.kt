@@ -32,7 +32,7 @@ fun main(args: Array<String>) {
         return
     }
 
-    val dir = File(args.getOrElse(1) { "/tmp/arena-capture/payloads" })
+    val dir = File(args.getOrElse(1) { NexusPaths.CAPTURE_PAYLOADS.absolutePath })
     if (!dir.isDirectory) {
         System.err.println("Not a directory: $dir")
         System.exit(1)

@@ -1,5 +1,6 @@
 package forge.nexus.conformance
 
+import forge.nexus.game.ZoneIds
 import org.testng.Assert.*
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -143,7 +144,7 @@ class AiTurnConformanceTest : ConformanceTestBase() {
         // Every GSM with objects on battlefield/stack must have ZoneTransfer
         for (gsm in gsmsWithObjects) {
             val bfOrStackObjs = gsm.gameObjectsList.filter {
-                it.zoneId == 28 || it.zoneId == 27 // Battlefield or Stack
+                it.zoneId == ZoneIds.BATTLEFIELD || it.zoneId == ZoneIds.STACK
             }
             if (bfOrStackObjs.isEmpty()) continue
 

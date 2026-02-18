@@ -1,5 +1,6 @@
 package forge.nexus.conformance
 
+import forge.nexus.game.ZoneIds
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
@@ -20,12 +21,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  */
 @Test(groups = ["integration", "conformance"])
 class AnnotationOrderingTest : ConformanceTestBase() {
-
-    private companion object {
-        const val ZONE_STACK = 27
-        const val ZONE_BATTLEFIELD = 28
-        const val ZONE_P1_HAND = 31
-    }
 
     // ===== PlayLand ordering =====
 
@@ -152,8 +147,8 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
         val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
         assertEquals(zt.detailString("category"), "CastSpell")
-        assertEquals(zt.detailInt("zone_src"), ZONE_P1_HAND, "zone_src should be Hand ($ZONE_P1_HAND)")
-        assertEquals(zt.detailInt("zone_dest"), ZONE_STACK, "zone_dest should be Stack ($ZONE_STACK)")
+        assertEquals(zt.detailInt("zone_src"), ZoneIds.P1_HAND, "zone_src should be Hand (${ZoneIds.P1_HAND})")
+        assertEquals(zt.detailInt("zone_dest"), ZoneIds.STACK, "zone_dest should be Stack (${ZoneIds.STACK})")
     }
 
     @Test(description = "CastSpell: UserActionTaken has actionType=1 (Cast)")
@@ -235,8 +230,8 @@ class AnnotationOrderingTest : ConformanceTestBase() {
         val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
 
         val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
-        assertEquals(zt.detailInt("zone_src"), ZONE_STACK, "Resolve zone_src should be Stack ($ZONE_STACK)")
-        assertEquals(zt.detailInt("zone_dest"), ZONE_BATTLEFIELD, "Resolve zone_dest should be Battlefield ($ZONE_BATTLEFIELD)")
+        assertEquals(zt.detailInt("zone_src"), ZoneIds.STACK, "Resolve zone_src should be Stack (${ZoneIds.STACK})")
+        assertEquals(zt.detailInt("zone_dest"), ZoneIds.BATTLEFIELD, "Resolve zone_dest should be Battlefield (${ZoneIds.BATTLEFIELD})")
     }
 
     @Test(description = "Resolve: ResolutionStart has affectorId=instanceId and grpid detail")
@@ -294,7 +289,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
     fun resolveNoLimboRetirement() {
         val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
 
-        val bfObjects = gsm.gameObjectsList.filter { it.zoneId == ZONE_BATTLEFIELD }
+        val bfObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.BATTLEFIELD }
         val limboZone = gsm.zonesList.firstOrNull { it.type == ZoneType.Limbo }
         for (obj in bfObjects) {
             if (limboZone != null) {
@@ -336,8 +331,8 @@ class AnnotationOrderingTest : ConformanceTestBase() {
         assertTrue(entered != null, "Should have EnteredZoneThisTurn persistent annotation")
         assertEquals(
             entered!!.affectorId,
-            ZONE_BATTLEFIELD,
-            "EnteredZoneThisTurn affectorId should be battlefield zone ($ZONE_BATTLEFIELD)",
+            ZoneIds.BATTLEFIELD,
+            "EnteredZoneThisTurn affectorId should be battlefield zone (${ZoneIds.BATTLEFIELD})",
         )
     }
 

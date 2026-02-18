@@ -1,5 +1,6 @@
 package forge.nexus.conformance
 
+import forge.nexus.game.ZoneIds
 import org.testng.Assert.*
 import org.testng.annotations.Test
 import java.io.File
@@ -83,7 +84,7 @@ class RecordingDecoderTest {
         val gs7seat2 = messages.first { it.gsId == 7 && it.greType == "GameStateMessage" && 2 in it.systemSeatIds }
 
         // Seat 1 (owner) should see the old Limbo object
-        val seat1LimboObj = gs7seat1.objects.firstOrNull { it.instanceId == 161 && it.zoneId == 30 }
+        val seat1LimboObj = gs7seat1.objects.firstOrNull { it.instanceId == 161 && it.zoneId == ZoneIds.LIMBO }
         assertNotNull(seat1LimboObj, "Seat 1 should see instanceId 161 in Limbo")
 
         // Seat 2 should NOT see the old Limbo object (not the owner)

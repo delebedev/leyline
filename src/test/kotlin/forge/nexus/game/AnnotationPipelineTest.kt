@@ -25,14 +25,6 @@ class AnnotationPipelineTest {
         GameBootstrap.initializeCardDatabase()
     }
 
-    private companion object {
-        const val ZONE_STACK = 27
-        const val ZONE_BATTLEFIELD = 28
-        const val ZONE_EXILE = 29
-        const val ZONE_P1_HAND = 31
-        const val ZONE_P1_GRAVEYARD = 33
-    }
-
     // --- annotationsForTransfer: PlayLand ---
 
     @Test
@@ -41,8 +33,8 @@ class AnnotationPipelineTest {
             origId = 100,
             newId = 200,
             category = TransferCategory.PlayLand,
-            srcZoneId = ZONE_P1_HAND,
-            destZoneId = ZONE_BATTLEFIELD,
+            srcZoneId = ZoneIds.P1_HAND,
+            destZoneId = ZoneIds.BATTLEFIELD,
             grpId = 12345,
             ownerSeatId = 1,
         )
@@ -64,8 +56,8 @@ class AnnotationPipelineTest {
             origId = 100,
             newId = 200,
             category = TransferCategory.PlayLand,
-            srcZoneId = ZONE_P1_HAND,
-            destZoneId = ZONE_BATTLEFIELD,
+            srcZoneId = ZoneIds.P1_HAND,
+            destZoneId = ZoneIds.BATTLEFIELD,
             grpId = 12345,
             ownerSeatId = 1,
         )
@@ -83,8 +75,8 @@ class AnnotationPipelineTest {
             origId = 100,
             newId = 200,
             category = TransferCategory.PlayLand,
-            srcZoneId = ZONE_P1_HAND,
-            destZoneId = ZONE_BATTLEFIELD,
+            srcZoneId = ZoneIds.P1_HAND,
+            destZoneId = ZoneIds.BATTLEFIELD,
             grpId = 12345,
             ownerSeatId = 1,
         )
@@ -102,8 +94,8 @@ class AnnotationPipelineTest {
             origId = 100,
             newId = 200,
             category = TransferCategory.CastSpell,
-            srcZoneId = ZONE_P1_HAND,
-            destZoneId = ZONE_STACK,
+            srcZoneId = ZoneIds.P1_HAND,
+            destZoneId = ZoneIds.STACK,
             grpId = 67890,
             ownerSeatId = 1,
         )
@@ -128,8 +120,8 @@ class AnnotationPipelineTest {
             origId = 100,
             newId = 200,
             category = TransferCategory.CastSpell,
-            srcZoneId = ZONE_P1_HAND,
-            destZoneId = ZONE_STACK,
+            srcZoneId = ZoneIds.P1_HAND,
+            destZoneId = ZoneIds.STACK,
             grpId = 67890,
             ownerSeatId = 1,
         )
@@ -147,8 +139,8 @@ class AnnotationPipelineTest {
             origId = 200,
             newId = 200,
             category = TransferCategory.Resolve,
-            srcZoneId = ZONE_STACK,
-            destZoneId = ZONE_BATTLEFIELD,
+            srcZoneId = ZoneIds.STACK,
+            destZoneId = ZoneIds.BATTLEFIELD,
             grpId = 67890,
             ownerSeatId = 1,
         )
@@ -169,8 +161,8 @@ class AnnotationPipelineTest {
             origId = 200,
             newId = 200,
             category = TransferCategory.Resolve,
-            srcZoneId = ZONE_STACK,
-            destZoneId = ZONE_BATTLEFIELD,
+            srcZoneId = ZoneIds.STACK,
+            destZoneId = ZoneIds.BATTLEFIELD,
             grpId = 67890,
             ownerSeatId = 1,
         )
@@ -186,8 +178,8 @@ class AnnotationPipelineTest {
             origId = 200,
             newId = 200,
             category = TransferCategory.Resolve,
-            srcZoneId = ZONE_STACK,
-            destZoneId = ZONE_BATTLEFIELD,
+            srcZoneId = ZoneIds.STACK,
+            destZoneId = ZoneIds.BATTLEFIELD,
             grpId = 67890,
             ownerSeatId = 1,
         )
@@ -205,8 +197,8 @@ class AnnotationPipelineTest {
             origId = 100,
             newId = 200,
             category = TransferCategory.ZoneTransfer,
-            srcZoneId = ZONE_EXILE,
-            destZoneId = ZONE_P1_GRAVEYARD,
+            srcZoneId = ZoneIds.EXILE,
+            destZoneId = ZoneIds.P1_GRAVEYARD,
             grpId = 0,
             ownerSeatId = 1,
         )
@@ -222,8 +214,8 @@ class AnnotationPipelineTest {
             origId = 100,
             newId = 200,
             category = TransferCategory.CastSpell,
-            srcZoneId = ZONE_P1_HAND,
-            destZoneId = ZONE_STACK,
+            srcZoneId = ZoneIds.P1_HAND,
+            destZoneId = ZoneIds.STACK,
             grpId = 67890,
             ownerSeatId = 1,
         )
@@ -238,8 +230,8 @@ class AnnotationPipelineTest {
             origId = 200,
             newId = 200,
             category = TransferCategory.Resolve,
-            srcZoneId = ZONE_STACK,
-            destZoneId = ZONE_P1_GRAVEYARD,
+            srcZoneId = ZoneIds.STACK,
+            destZoneId = ZoneIds.P1_GRAVEYARD,
             grpId = 67890,
             ownerSeatId = 1,
         )
