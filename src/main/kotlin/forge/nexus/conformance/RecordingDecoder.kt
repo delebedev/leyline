@@ -14,6 +14,9 @@ import java.io.File
  */
 object RecordingDecoder {
 
+    private const val ARENA_HEADER_SIZE = 6
+    private const val MAX_FRAME_PAYLOAD = 1_048_576
+
     /** Seat identity extracted from MatchGameRoomStateChangedEvent. */
     data class SeatInfo(
         val systemSeatId: Int,
@@ -34,20 +37,14 @@ object RecordingDecoder {
      * Returns map of systemSeatId -> SeatInfo.
      */
     fun detectSeats(dir: File): Map<Int, SeatInfo> {
-        val files = dir.listFiles()
-            ?.filter { it.name.startsWith("S-C_MATCH_DATA") && it.name.endsWith(".bin") }
-            ?.sortedBy { it.name }
-            ?: return emptyMap()
+        val files = listRecordingFiles(dir)
+        if (files.isEmpty()) return emptyMap()
 
         val seats = mutableMapOf<Int, SeatInfo>()
 
         // Strategy 1: MatchGameRoomStateChangedEvent (richest info)
         for (file in files) {
-            val msg = try {
-                MatchServiceToClientMessage.parseFrom(file.readBytes())
-            } catch (_: Exception) {
-                continue
-            }
+            val msg = parseMatchMessage(file.readBytes()) ?: continue
             if (msg.hasMatchGameRoomStateChangedEvent()) {
                 val room = msg.matchGameRoomStateChangedEvent.gameRoomInfo
                 for (p in room.playersList) {
@@ -70,11 +67,7 @@ object RecordingDecoder {
         // Strategy 2: enumerate seats from GRE systemSeatIds
         val seenSeats = mutableSetOf<Int>()
         for (file in files) {
-            val msg = try {
-                MatchServiceToClientMessage.parseFrom(file.readBytes())
-            } catch (_: Exception) {
-                continue
-            }
+            val msg = parseMatchMessage(file.readBytes()) ?: continue
             if (!msg.hasGreToClientEvent()) continue
             for (gre in msg.greToClientEvent.greToClientMessagesList) {
                 for (sid in gre.systemSeatIdsList) {
@@ -186,10 +179,8 @@ object RecordingDecoder {
      * @param seatFilter if non-null, only include GRE messages addressed to this seat
      */
     fun decodeDirectory(dir: File, seatFilter: Int? = null): List<DecodedMessage> {
-        val files = dir.listFiles()
-            ?.filter { it.name.startsWith("S-C_MATCH_DATA") && it.name.endsWith(".bin") }
-            ?.sortedBy { it.name }
-            ?: return emptyList()
+        val files = listRecordingFiles(dir)
+        if (files.isEmpty()) return emptyList()
 
         var index = 0
         return files.flatMap { file ->
@@ -202,11 +193,7 @@ object RecordingDecoder {
      * @param seatFilter if non-null, only include GRE messages addressed to this seat
      */
     fun decodeFile(file: File, startIndex: Int = 0, seatFilter: Int? = null): List<DecodedMessage> {
-        val msg = try {
-            MatchServiceToClientMessage.parseFrom(file.readBytes())
-        } catch (_: Exception) {
-            return emptyList()
-        }
+        val msg = parseMatchMessage(file.readBytes()) ?: return emptyList()
         if (!msg.hasGreToClientEvent()) return emptyList()
 
         var idx = startIndex
@@ -219,6 +206,52 @@ object RecordingDecoder {
             result.add(decodeGRE(gre, idx++, file.name))
         }
         return result
+    }
+
+    /**
+     * Return candidate .bin files from a recording directory.
+     *
+     * Supports both:
+     * - Legacy proxy capture names (`S-C_MATCH_DATA_*.bin`)
+     * - Engine dump names (`001-GameStateMessage+....bin`)
+     * - New frame-accurate capture names
+     */
+    fun listRecordingFiles(dir: File): List<File> =
+        dir.listFiles()
+            ?.filter { it.isFile && it.extension == "bin" }
+            ?.sortedBy { it.name }
+            ?: emptyList()
+
+    /**
+     * Parse a MatchServiceToClientMessage from either:
+     * - raw protobuf payload bytes
+     * - Arena framed bytes (6-byte header + payload)
+     */
+    fun parseMatchMessage(bytes: ByteArray): MatchServiceToClientMessage? {
+        parseRaw(bytes)?.let { return it }
+        val payload = extractArenaPayload(bytes) ?: return null
+        return parseRaw(payload)
+    }
+
+    private fun parseRaw(bytes: ByteArray): MatchServiceToClientMessage? = try {
+        MatchServiceToClientMessage.parseFrom(bytes)
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun extractArenaPayload(bytes: ByteArray): ByteArray? {
+        if (bytes.size <= ARENA_HEADER_SIZE) return null
+        if (bytes[0].toInt() != 0x04) return null
+
+        val payloadLen =
+            (bytes[2].toInt() and 0xff) or
+                ((bytes[3].toInt() and 0xff) shl 8) or
+                ((bytes[4].toInt() and 0xff) shl 16) or
+                ((bytes[5].toInt() and 0xff) shl 24)
+
+        if (payloadLen <= 0 || payloadLen > MAX_FRAME_PAYLOAD) return null
+        if (bytes.size < ARENA_HEADER_SIZE + payloadLen) return null
+        return bytes.copyOfRange(ARENA_HEADER_SIZE, ARENA_HEADER_SIZE + payloadLen)
     }
 
     /** Decode a single GREToClientMessage. */

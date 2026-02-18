@@ -394,6 +394,66 @@
   }
   .st-history-row { padding: 1px 0; }
 
+  /* Recordings view */
+  #recordings-wrap {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  #recordings-list {
+    width: 320px;
+    border-right: 1px solid var(--border);
+    background: var(--bg2);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .rec-row {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(42, 42, 78, 0.5);
+    cursor: pointer;
+  }
+  .rec-row:hover { background: var(--bg3); }
+  .rec-row.active { background: rgba(78, 168, 222, 0.2); border-left: 3px solid var(--blue); }
+  .rec-title { color: var(--fg); font-size: 11px; font-weight: 700; }
+  .rec-meta { color: var(--fg2); font-size: 10px; margin-top: 2px; }
+  #recordings-main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+  .rec-summary {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px;
+    margin-bottom: 8px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .rec-actions {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .rec-actions th {
+    text-align: left;
+    color: var(--fg2);
+    border-bottom: 1px solid var(--border);
+    padding: 4px 6px;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+  }
+  .rec-actions td {
+    border-bottom: 1px solid rgba(42, 42, 78, 0.5);
+    padding: 4px 6px;
+    vertical-align: top;
+  }
+  .rec-actions tr:hover { background: var(--bg2); }
+  .rec-card { color: var(--yellow); }
+  .rec-actor { color: var(--blue); }
+  .rec-cat { color: var(--orange); font-weight: 700; }
+
   /* Copy buttons */
   .copy-btn {
     display: inline-flex;
@@ -432,6 +492,7 @@
   <button class="view-tab" :class="{ active: view === 'messages' }" @click="view = 'messages'">Messages</button>
   <button class="view-tab" :class="{ active: view === 'states' }" @click="view = 'states'">States</button>
   <button class="view-tab" :class="{ active: view === 'logs' }" @click="view = 'logs'">Logs</button>
+  <button class="view-tab" :class="{ active: view === 'recordings' }" @click="view = 'recordings'; fetchRecordings()">Recordings</button>
   <button class="header-btn active-purple" :class="{ on: showIdPanel }" @click="showIdPanel = !showIdPanel; if (showIdPanel) fetchIdMap()">ID Map</button>
   <button class="header-btn" :class="{ paused }" @click="paused = !paused" x-text="paused ? 'Resume' : 'Pause'"></button>
 </div>
@@ -454,6 +515,16 @@
   </template>
   <input class="filter-input" style="margin-left:auto" type="text" placeholder="filter logger or text..."
          x-model.debounce.150ms="logFilter">
+</div>
+
+<!-- Recordings filter bar -->
+<div class="filter-bar" x-show="view === 'recordings'" x-cloak>
+  <label>Card:</label>
+  <input class="filter-input" type="text" placeholder="name or grpId..." x-model.debounce.150ms="recordingCardFilter">
+  <label>Actor:</label>
+  <input class="filter-input" type="text" placeholder="seat or player..." x-model.debounce.150ms="recordingActorFilter">
+  <button class="header-btn" @click="refreshRecordingActions()" x-show="selectedRecordingId">Reload</button>
+  <button class="clear-btn" @click="recordingCardFilter=''; recordingActorFilter=''">Clear</button>
 </div>
 
 <!-- Main area -->
@@ -549,6 +620,86 @@
     </template>
   </div>
 
+  <!-- Recordings view -->
+  <div id="recordings-wrap" x-show="view === 'recordings'" x-cloak>
+    <div id="recordings-list">
+      <template x-for="r in recordings" :key="r.id">
+        <div class="rec-row" :class="{ active: selectedRecordingId === r.id }" @click="loadRecording(r.id)">
+          <div class="rec-title" x-text="r.name"></div>
+          <div class="rec-meta" x-text="r.mode + ' • ' + r.fileCount + ' files'"></div>
+          <div class="rec-meta" x-text="r.path"></div>
+        </div>
+      </template>
+      <div class="rec-row" x-show="recordings.length === 0">
+        <div class="rec-meta">No sessions found in /tmp/arena-recordings, /tmp/arena-dump, /tmp/arena-capture/payloads.</div>
+      </div>
+    </div>
+
+    <div id="recordings-main">
+      <div class="rec-summary" x-show="recordingSummary">
+        <div><span class="pill pill-count">mode</span> <span x-text="recordingSummary?.mode"></span></div>
+        <div><span class="pill pill-count">messages</span> <span x-text="recordingSummary?.messageCount"></span>
+             <span class="pill pill-count" style="margin-left:8px;">actions</span> <span x-text="recordingSummary?.actionCount"></span></div>
+        <div><span class="pill pill-count">turns</span> <span x-text="(recordingSummary?.firstTurn ?? '-') + ' → ' + (recordingSummary?.lastTurn ?? '-')"></span></div>
+        <div>
+          <span class="pill pill-count">seats</span>
+          <span x-text="(recordingSummary?.seats || []).map(s => 'seat ' + s.seatId + '=' + s.playerName).join(', ')"></span>
+        </div>
+        <div>
+          <span class="pill pill-count">top cards</span>
+          <span x-text="(recordingSummary?.topCards || []).slice(0, 6).map(c => c.card + ' x' + c.count).join(', ')"></span>
+        </div>
+        <div style="margin-top:6px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+          <span class="pill pill-count">compare</span>
+          <select class="filter-input" style="width:260px;" x-model="recordingCompareTargetId">
+            <option value="">select session...</option>
+            <template x-for="r in recordings.filter(x => x.id !== selectedRecordingId)" :key="'cmp-' + r.id">
+              <option :value="r.id" x-text="r.name + ' (' + r.mode + ')'"></option>
+            </template>
+          </select>
+          <button class="header-btn" @click="runRecordingCompare()" :disabled="!recordingCompareTargetId">Run</button>
+        </div>
+        <div style="margin-top:4px;" x-show="recordingCompare">
+          <span class="pill pill-count">left</span> <span x-text="recordingCompare?.leftActions"></span>
+          <span class="pill pill-count" style="margin-left:8px;">right</span> <span x-text="recordingCompare?.rightActions"></span>
+          <span class="pill pill-count" style="margin-left:8px;">first divergence</span>
+          <span x-text="recordingCompare?.firstDivergence ? ('#' + recordingCompare.firstDivergence.index) : 'none'"></span>
+        </div>
+      </div>
+
+      <table class="rec-actions" x-show="recordingActions.length > 0">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Turn</th>
+            <th>Action</th>
+            <th>Actor</th>
+            <th>Card</th>
+            <th>gs/msg</th>
+            <th>File</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="a in filteredRecordingActions" :key="a.seq + '-' + a.file">
+            <tr>
+              <td x-text="a.seq"></td>
+              <td x-text="'T' + (a.turn || 0)"></td>
+              <td class="rec-cat" x-text="a.category"></td>
+              <td class="rec-actor" x-text="a.actor || (a.actorSeat ? 'seat-' + a.actorSeat : '?')"></td>
+              <td class="rec-card" x-text="a.card || (a.grpId ? 'grp:' + a.grpId : '?')"></td>
+              <td x-text="a.gsId + '/' + a.msgId"></td>
+              <td x-text="a.file"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+
+      <div class="rec-summary" x-show="selectedRecordingId && filteredRecordingActions.length === 0">
+        <span>No actions match current filter.</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Logs panel -->
   <div id="log-panel" x-show="view === 'logs'" x-cloak>
     <template x-for="l in filteredLogs" :key="l.seq">
@@ -590,6 +741,14 @@ function debugApp() {
     state: { phase: null, turn: 0, activePlayer: null, entryCount: 0 },
     idMap: [],
 
+    // Recordings tab data
+    recordings: [],
+    selectedRecordingId: null,
+    recordingSummary: null,
+    recordingActions: [],
+    recordingCompareTargetId: null,
+    recordingCompare: null,
+
     // States tab data
     gameStates: [],
     priorityEvents: [],
@@ -605,6 +764,8 @@ function debugApp() {
     hlIid: null,
     msgFilter: '',
     logFilter: '',
+    recordingCardFilter: '',
+    recordingActorFilter: '',
     logLevels: { DEBUG: true, INFO: true, WARN: true, ERROR: true },
     expanded: {},
 
@@ -628,6 +789,24 @@ function debugApp() {
         out.push(e);
       }
       return out;
+    },
+
+    get filteredRecordingActions() {
+      const card = this.recordingCardFilter.trim().toLowerCase();
+      const actor = this.recordingActorFilter.trim().toLowerCase();
+      return this.recordingActions.filter(a => {
+        if (card) {
+          const cardText = (a.card || '').toLowerCase();
+          const grpText = a.grpId ? String(a.grpId) : '';
+          if (!cardText.includes(card) && !grpText.includes(card)) return false;
+        }
+        if (actor) {
+          const actorText = (a.actor || '').toLowerCase();
+          const seatText = a.actorSeat ? String(a.actorSeat) : '';
+          if (!actorText.includes(actor) && seatText !== actor) return false;
+        }
+        return true;
+      });
     },
 
     get filteredLogs() {
@@ -665,6 +844,7 @@ function debugApp() {
     init() {
       this.connectSSE();
       this.poll();
+      this.fetchRecordings();
     },
 
     connectSSE() {
@@ -778,6 +958,57 @@ function debugApp() {
         } catch (_) { /* server not up */ }
       }
       setTimeout(() => this.poll(), this._sseConnected ? 2000 : 500);
+    },
+
+    async fetchRecordings() {
+      try {
+        const env = await (await fetch('/api/recordings')).json();
+        this.recordings = env.data || env;
+        if (!this.selectedRecordingId && this.recordings.length > 0) {
+          this.loadRecording(this.recordings[0].id);
+        }
+      } catch (_) {}
+    },
+
+    async loadRecording(id) {
+      this.selectedRecordingId = id;
+      this.recordingSummary = null;
+      this.recordingActions = [];
+      this.recordingCompare = null;
+      this.recordingCompareTargetId = null;
+      await Promise.all([this.refreshRecordingSummary(), this.refreshRecordingActions()]);
+    },
+
+    async refreshRecordingSummary() {
+      if (!this.selectedRecordingId) return;
+      try {
+        const r = await fetch('/api/recording-summary?id=' + encodeURIComponent(this.selectedRecordingId));
+        if (!r.ok) return;
+        this.recordingSummary = await r.json();
+      } catch (_) {}
+    },
+
+    async refreshRecordingActions() {
+      if (!this.selectedRecordingId) return;
+      try {
+        const card = this.recordingCardFilter ? '&card=' + encodeURIComponent(this.recordingCardFilter) : '';
+        const actor = this.recordingActorFilter ? '&actor=' + encodeURIComponent(this.recordingActorFilter) : '';
+        const r = await fetch('/api/recording-actions?id=' + encodeURIComponent(this.selectedRecordingId) + card + actor + '&limit=2000');
+        if (!r.ok) return;
+        const env = await r.json();
+        this.recordingActions = env.data || env;
+      } catch (_) {}
+    },
+
+    async runRecordingCompare() {
+      if (!this.selectedRecordingId || !this.recordingCompareTargetId) return;
+      try {
+        const left = encodeURIComponent(this.selectedRecordingId);
+        const right = encodeURIComponent(this.recordingCompareTargetId);
+        const r = await fetch('/api/recording-compare?left=' + left + '&right=' + right);
+        if (!r.ok) return;
+        this.recordingCompare = await r.json();
+      } catch (_) {}
     },
 
     // Actions

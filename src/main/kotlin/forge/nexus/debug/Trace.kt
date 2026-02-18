@@ -2,9 +2,9 @@ package forge.nexus.debug
 
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
+import forge.nexus.conformance.RecordingDecoder
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
-import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.io.File
 
 private val INT_TYPES = setOf(
@@ -39,13 +39,10 @@ fun main(args: Array<String>) {
         return
     }
 
-    val files = dir.listFiles()
-        ?.filter { it.name.startsWith("S-C_MATCH") && it.name.endsWith(".bin") }
-        ?.sortedBy { it.name }
-        ?: emptyList()
+    val files = RecordingDecoder.listRecordingFiles(dir)
 
     if (files.isEmpty()) {
-        System.err.println("No S-C_MATCH_*.bin files in $dir")
+        System.err.println("No .bin files in $dir")
         System.exit(1)
         return
     }
@@ -60,11 +57,7 @@ fun main(args: Array<String>) {
     println()
 
     for (file in files) {
-        val msg = try {
-            MatchServiceToClientMessage.parseFrom(file.readBytes())
-        } catch (_: Exception) {
-            continue
-        }
+        val msg = RecordingDecoder.parseMatchMessage(file.readBytes()) ?: continue
 
         if (!msg.hasGreToClientEvent()) continue
         val greMessages = msg.greToClientEvent.greToClientMessagesList

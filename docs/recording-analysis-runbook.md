@@ -2,6 +2,8 @@
 
 How to record a real game, extract golden files, and validate conformance tests.
 
+For day-to-day CLI reference (`rec-*` + `proto-*`), see `docs/recording-cli.md`.
+
 ## Prerequisites
 
 - `just build` in forge-nexus (compiles proto + Kotlin)

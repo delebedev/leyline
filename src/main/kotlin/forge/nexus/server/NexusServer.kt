@@ -21,6 +21,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import java.io.File
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Arena-compatible TLS TCP server.
@@ -321,54 +322,88 @@ private fun logArenaFrame(log: Logger, dir: String, buf: ByteBuf) {
     val pl = buf.getIntLE(idx + 2)
     val tn = frameTypeName(ft)
     log.info("  {} type={} payload={} total={}", dir, tn, pl, buf.readableBytes())
-    dumpPayload(dir, buf)
+    ArenaCaptureSink.ingestChunk(dir, buf)
 }
 
-/** Dump payload bytes: extract printable text (JSON) from data frames. */
-private fun dumpPayload(dir: String, buf: ByteBuf) {
-    val log = LoggerFactory.getLogger("ArenaPayloadDump")
-    if (buf.readableBytes() <= 6) return
-    val idx = buf.readerIndex()
-    val ft = buf.getByte(idx + 1)
-    // Only dump data frames, not control frames
-    if (ft == ArenaFrameDecoder.Companion.TYPE_CTRL_INIT || ft == ArenaFrameDecoder.Companion.TYPE_CTRL_ACK) return
-    val payloadStart = idx + 6
-    val payloadLen = buf.readableBytes() - 6
-    if (payloadLen <= 0) return
-    val bytes = ByteArray(payloadLen)
-    buf.getBytes(payloadStart, bytes)
-    // Extract JSON substrings from the protobuf payload
-    val text = bytes.toString(Charsets.UTF_8)
-    val jsons = mutableListOf<String>()
-    var i = 0
-    while (i < text.length) {
-        if (text[i] == '{') {
-            var depth = 0
-            for (j in i until text.length) {
-                when (text[j]) {
-                    '{' -> depth++
-                    '}' -> {
-                        depth--
-                        if (depth == 0) {
-                            jsons.add(text.substring(i, j + 1))
-                            i = j
-                            break
-                        }
-                    }
+/**
+ * Reassembles proxy TCP chunks into full Arena frames and stores:
+ * - Lossless frames: /tmp/arena-capture/frames/<seq>_<dir>_<type>.bin
+ * - Data payloads:   /tmp/arena-capture/payloads/<seq>_<dir>_<type>.bin
+ */
+private object ArenaCaptureSink {
+    private val lock = Any()
+    private val seq = AtomicLong(0)
+    private val pending = mutableMapOf<String, ByteArray>()
+
+    private val rootDir = File("/tmp/arena-capture")
+    private val payloadDir = File(rootDir, "payloads")
+    private val frameDir = File(rootDir, "frames")
+
+    fun ingestChunk(dir: String, buf: ByteBuf) {
+        val bytes = ByteArray(buf.readableBytes())
+        buf.getBytes(buf.readerIndex(), bytes)
+
+        synchronized(lock) {
+            payloadDir.mkdirs()
+            frameDir.mkdirs()
+
+            val prev = pending[dir] ?: ByteArray(0)
+            val merged = ByteArray(prev.size + bytes.size)
+            if (prev.isNotEmpty()) prev.copyInto(merged, destinationOffset = 0)
+            if (bytes.isNotEmpty()) bytes.copyInto(merged, destinationOffset = prev.size)
+
+            var offset = 0
+            while (merged.size - offset >= ArenaFrameDecoder.HEADER_SIZE) {
+                val payloadLen = readIntLE(merged, offset + ArenaFrameDecoder.LENGTH_OFFSET)
+
+                if (payloadLen < 0 || payloadLen > ArenaFrameDecoder.MAX_PAYLOAD) {
+                    // Desync guard: shift by one byte until a plausible header appears.
+                    offset += 1
+                    continue
                 }
+
+                val frameLen = ArenaFrameDecoder.HEADER_SIZE + payloadLen
+                if (merged.size - offset < frameLen) break
+
+                val frame = merged.copyOfRange(offset, offset + frameLen)
+                writeFrame(dir, frame)
+                offset += frameLen
             }
+
+            pending[dir] = if (offset < merged.size) merged.copyOfRange(offset, merged.size) else ByteArray(0)
         }
-        i++
     }
-    for (json in jsons) {
-        log.info("  {} JSON: {}", dir, json.take(500))
+
+    private fun writeFrame(dir: String, frame: ByteArray) {
+        if (frame.size < ArenaFrameDecoder.HEADER_SIZE) return
+
+        val ft = frame[1]
+        val payloadLen = readIntLE(frame, ArenaFrameDecoder.LENGTH_OFFSET)
+        if (payloadLen < 0 || frame.size < ArenaFrameDecoder.HEADER_SIZE + payloadLen) return
+
+        val fileSeq = seq.incrementAndGet()
+        val base = "%09d_%s_%s".format(fileSeq, sanitize(dir), frameTypeName(ft))
+
+        File(frameDir, "$base.bin").writeBytes(frame)
+
+        // Only write data payloads for parser/trace tools.
+        if (ft == ArenaFrameDecoder.TYPE_CTRL_INIT || ft == ArenaFrameDecoder.TYPE_CTRL_ACK) return
+        if (payloadLen <= 0) return
+
+        val payload = frame.copyOfRange(ArenaFrameDecoder.HEADER_SIZE, ArenaFrameDecoder.HEADER_SIZE + payloadLen)
+        File(payloadDir, "$base.bin").writeBytes(payload)
     }
-    // Also write raw payload to sequential dump files
-    val dumpDir = File("/tmp/arena-capture/payloads")
-    dumpDir.mkdirs()
-    val seq = System.nanoTime()
-    val file = File(dumpDir, "${dir.replace("→", "-")}_${frameTypeName(ft)}_$seq.bin")
-    file.writeBytes(bytes)
+
+    private fun sanitize(value: String): String =
+        value.replace("→", "-").replace(Regex("[^A-Za-z0-9._-]"), "_")
+
+    private fun readIntLE(bytes: ByteArray, offset: Int): Int {
+        if (offset + 4 > bytes.size) return -1
+        return (bytes[offset].toInt() and 0xff) or
+            ((bytes[offset + 1].toInt() and 0xff) shl 8) or
+            ((bytes[offset + 2].toInt() and 0xff) shl 16) or
+            ((bytes[offset + 3].toInt() and 0xff) shl 24)
+    }
 }
 
 private fun frameTypeName(ft: Byte) = when (ft) {
