@@ -203,15 +203,17 @@ object BundleBuilder {
             .setActivePlayer(activeSeat)
             .setPriorityPlayer(prioritySeat)
             .setDecisionPlayer(prioritySeat)
+        val msg1GsId = nextGs
         val echoBuilder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(++nextGs)
+            .setPrevGameStateId(msg1GsId)
             .setTurnInfo(turnInfo)
             .setUpdate(GameStateUpdate.SendHiFi)
-        embedActions(echoBuilder, actions, activeSeat)
+        embedActions(echoBuilder, actions, activeSeat, pending = false)
 
         val messages = listOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs - 1, seatId, nextMsg++) {
+            makeGRE(GREMessageType.GameStateMessage_695e, msg1GsId, seatId, nextMsg++) {
                 it.gameStateMessage = gs
             },
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
@@ -281,22 +283,26 @@ object BundleBuilder {
         }
 
         // Message 2: SendHiFi echo (turnInfo + actions, no annotations)
+        val msg1GsId = nextGs
         nextGs++
         val echoBuilder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(nextGs)
+            .setPrevGameStateId(msg1GsId)
             .setTurnInfo(turnInfo)
             .setUpdate(GameStateUpdate.SendHiFi)
-        embedActions(echoBuilder, actions, activeSeat)
+        embedActions(echoBuilder, actions, activeSeat, pending = false)
         val msg2 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
             it.gameStateMessage = echoBuilder.build()
         }
 
         // Message 3: SendAndRecord with 1x PhaseOrStepModified
+        val msg2GsId = nextGs
         nextGs++
         val commitBuilder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(nextGs)
+            .setPrevGameStateId(msg2GsId)
             .setTurnInfo(turnInfo)
             .addAnnotations(AnnotationBuilder.phaseOrStepModified())
             .addAllTimers(StateMapper.buildTimers())
@@ -325,8 +331,9 @@ object BundleBuilder {
         builder: GameStateMessage.Builder,
         actions: ActionsAvailableReq,
         seatId: Int,
+        pending: Boolean = true,
     ) {
-        builder.setPendingMessageCount(1)
+        if (pending) builder.setPendingMessageCount(1)
         for (action in actions.actionsList) {
             builder.addActions(
                 ActionInfo.newBuilder()

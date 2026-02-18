@@ -127,6 +127,11 @@ class MatchSession(
             traceEvent(GameStateCollector.EventType.CLIENT_ACTION, game, "$actionName iid=${action.instanceId}$cardName")
         }
 
+        // Seed playback BEFORE submit — submitAction unblocks the game thread
+        // immediately via CompletableFuture.complete(), and the game thread may
+        // fire events captured by NexusGamePlayback before we reach awaitPriority.
+        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
+
         when (action.actionType) {
             ActionType.Pass -> {
                 bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
@@ -216,11 +221,6 @@ class MatchSession(
 
         log.info("MatchSession: DeclareAttackers forgeCardIds={}", attackerCardIds)
 
-        bridge.actionBridge.submitAction(
-            pending.actionId,
-            PlayerAction.DeclareAttackers(attackerCardIds, defenderPlayerId = null),
-        )
-
         sendBundledGRE(
             listOf(
                 makeGRE(GREMessageType.SubmitAttackersResp_695e, gameStateId) {
@@ -229,6 +229,12 @@ class MatchSession(
             ),
         )
 
+        // Seed BEFORE submit — submitAction unblocks the game thread immediately
+        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
+        bridge.actionBridge.submitAction(
+            pending.actionId,
+            PlayerAction.DeclareAttackers(attackerCardIds, defenderPlayerId = null),
+        )
         bridge.awaitPriority()
         autoPassAndAdvance(bridge)
     }
@@ -257,11 +263,6 @@ class MatchSession(
 
         log.info("MatchSession: DeclareBlockersResp blocks={}", blockAssignments)
 
-        bridge.actionBridge.submitAction(
-            pending.actionId,
-            PlayerAction.DeclareBlockers(blockAssignments),
-        )
-
         sendBundledGRE(
             listOf(
                 makeGRE(GREMessageType.SubmitBlockersResp_695e, gameStateId) {
@@ -270,6 +271,12 @@ class MatchSession(
             ),
         )
 
+        // Seed BEFORE submit — submitAction unblocks the game thread immediately
+        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
+        bridge.actionBridge.submitAction(
+            pending.actionId,
+            PlayerAction.DeclareBlockers(blockAssignments),
+        )
         bridge.awaitPriority()
         autoPassAndAdvance(bridge)
     }
@@ -295,7 +302,6 @@ class MatchSession(
         }.filter { it >= 0 }
 
         log.info("MatchSession: SelectTargetsResp indices={}", selectedIndices)
-        bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
 
         sendBundledGRE(
             listOf(
@@ -305,6 +311,9 @@ class MatchSession(
             ),
         )
 
+        // Seed BEFORE submit — submitResponse unblocks the game thread immediately
+        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
+        bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
         bridge.awaitPriority()
         autoPassAndAdvance(bridge)
     }
@@ -352,6 +361,7 @@ class MatchSession(
                 msgIdCounter = nextMsg
                 gameStateId = nextGs
                 bridge.snapshotState(game, gameStateId)
+                return@repeat // re-evaluate; don't fall through to sendRealGameState
             }
 
             val human = bridge.getPlayer(seatId)
@@ -448,10 +458,14 @@ class MatchSession(
                 val edictal = BundleBuilder.edictalPass(seatId, msgIdCounter, gameStateId)
                 msgIdCounter = edictal.nextMsgId
                 sendBundledGRE(edictal.messages)
+                // Seed BEFORE submit — submitAction unblocks the game thread immediately
+                // and it may fire events captured by NexusGamePlayback with stale counters.
+                bridge.playback?.seedCounters(msgIdCounter, gameStateId)
                 bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
                 bridge.awaitPriority()
             } else if (isAiTurn) {
                 traceEvent(GameStateCollector.EventType.AI_TURN_WAIT, game, "waiting for AI")
+                bridge.playback?.seedCounters(msgIdCounter, gameStateId)
                 val reachedPriority = bridge.awaitPriorityWithTimeout(GameBridge.AI_TURN_WAIT_MS)
                 if (!reachedPriority) {
                     val g = bridge.getGame()
@@ -468,6 +482,7 @@ class MatchSession(
             } else {
                 traceEvent(GameStateCollector.EventType.PRIORITY_GRANT, game, "waiting for engine")
                 log.warn("autoPass: no pending action, waiting for priority")
+                bridge.playback?.seedCounters(msgIdCounter, gameStateId)
                 bridge.awaitPriority()
             }
         }
