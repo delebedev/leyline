@@ -519,12 +519,24 @@
 
 <!-- Recordings filter bar -->
 <div class="filter-bar" x-show="view === 'recordings'" x-cloak>
-  <label>Card:</label>
-  <input class="filter-input" type="text" placeholder="name or grpId..." x-model.debounce.150ms="recordingCardFilter">
-  <label>Actor:</label>
-  <input class="filter-input" type="text" placeholder="seat or player..." x-model.debounce.150ms="recordingActorFilter">
-  <button class="header-btn" @click="refreshRecordingActions()" x-show="selectedRecordingId">Reload</button>
-  <button class="clear-btn" @click="recordingCardFilter=''; recordingActorFilter=''">Clear</button>
+  <button class="view-tab" :class="{ active: recSubView === 'messages' }" @click="recSubView = 'messages'; if (selectedRecordingId && recordingMessages.length === 0) refreshRecordingMessages()">Messages</button>
+  <button class="view-tab" :class="{ active: recSubView === 'actions' }" @click="recSubView = 'actions'">Actions</button>
+  <template x-if="recSubView === 'actions'">
+    <span style="display:contents">
+      <label>Card:</label>
+      <input class="filter-input" type="text" placeholder="name or grpId..." x-model.debounce.150ms="recordingCardFilter">
+      <label>Actor:</label>
+      <input class="filter-input" type="text" placeholder="seat or player..." x-model.debounce.150ms="recordingActorFilter">
+    </span>
+  </template>
+  <template x-if="recSubView === 'messages'">
+    <span style="display:contents">
+      <label>Filter:</label>
+      <input class="filter-input" type="text" placeholder="type or text..." x-model.debounce.150ms="recMsgFilter">
+    </span>
+  </template>
+  <button class="header-btn" @click="recSubView === 'actions' ? refreshRecordingActions() : refreshRecordingMessages()" x-show="selectedRecordingId">Reload</button>
+  <button class="clear-btn" @click="recordingCardFilter=''; recordingActorFilter=''; recMsgFilter=''">Clear</button>
 </div>
 
 <!-- Main area -->
@@ -667,36 +679,99 @@
         </div>
       </div>
 
-      <table class="rec-actions" x-show="recordingActions.length > 0">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Turn</th>
-            <th>Action</th>
-            <th>Actor</th>
-            <th>Card</th>
-            <th>gs/msg</th>
-            <th>File</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template x-for="a in filteredRecordingActions" :key="a.seq + '-' + a.file">
-            <tr>
-              <td x-text="a.seq"></td>
-              <td x-text="'T' + (a.turn || 0)"></td>
-              <td class="rec-cat" x-text="a.category"></td>
-              <td class="rec-actor" x-text="a.actor || (a.actorSeat ? 'seat-' + a.actorSeat : '?')"></td>
-              <td class="rec-card" x-text="a.card || (a.grpId ? 'grp:' + a.grpId : '?')"></td>
-              <td x-text="a.gsId + '/' + a.msgId"></td>
-              <td x-text="a.file"></td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
+      <!-- Actions sub-view -->
+      <template x-if="recSubView === 'actions'">
+        <div>
+          <table class="rec-actions" x-show="recordingActions.length > 0">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Turn</th>
+                <th>Phase</th>
+                <th>Action</th>
+                <th>Actor</th>
+                <th>Card</th>
+                <th>gs/msg</th>
+                <th>File</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="a in filteredRecordingActions" :key="a.seq + '-' + a.file">
+                <tr>
+                  <td x-text="a.seq"></td>
+                  <td x-text="'T' + (a.turn || 0)"></td>
+                  <td style="color:var(--fg2)" x-text="a.phase || ''"></td>
+                  <td class="rec-cat" x-text="a.category"></td>
+                  <td class="rec-actor" x-text="a.actor || (a.actorSeat ? 'seat-' + a.actorSeat : '?')"></td>
+                  <td class="rec-card" x-text="a.card || (a.grpId ? 'grp:' + a.grpId : '?')"></td>
+                  <td x-text="a.gsId + '/' + a.msgId"></td>
+                  <td x-text="a.file"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div class="rec-summary" x-show="selectedRecordingId && filteredRecordingActions.length === 0">
+            <span>No actions match current filter.</span>
+          </div>
+        </div>
+      </template>
 
-      <div class="rec-summary" x-show="selectedRecordingId && filteredRecordingActions.length === 0">
-        <span>No actions match current filter.</span>
-      </div>
+      <!-- Messages sub-view -->
+      <template x-if="recSubView === 'messages'">
+        <div>
+          <template x-for="m in filteredRecordingMessages" :key="m.index">
+            <div class="entry" :class="'dir-in' + (recMsgExpanded[m.index] ? ' highlight' : '')"
+                 @click="recMsgExpanded[m.index] = !recMsgExpanded[m.index]">
+              <div class="entry-header">
+                <span class="entry-meta" x-text="'#' + m.index" style="min-width:32px"></span>
+                <span class="type-badge" :class="'type-' + m.greType" x-text="m.greType"></span>
+                <template x-if="m.gsmType">
+                  <span class="pill pill-count" x-text="m.gsmType"></span>
+                </template>
+                <template x-if="m.updateType">
+                  <span class="pill" :class="m.updateType === 'SendHiFi' ? 'pill-turn' : m.updateType === 'SendAndRecord' ? 'pill-active' : 'pill-phase'"
+                        x-text="m.updateType"></span>
+                </template>
+                <template x-if="m.turnInfo">
+                  <span class="pill pill-turn" x-text="'T' + m.turnInfo.turn + ' ' + m.turnInfo.phase + '/' + m.turnInfo.step"></span>
+                </template>
+                <span class="entry-meta" x-text="'gs=' + m.gsId + ' msg=' + m.msgId"></span>
+                <template x-if="m.file">
+                  <span class="entry-meta" x-text="m.file" style="opacity:0.4"></span>
+                </template>
+              </div>
+              <!-- Annotation chips -->
+              <div class="entry-ids" x-show="m.annotations.length > 0" style="margin-top:3px">
+                <template x-for="ann in m.annotations" :key="ann.id">
+                  <span class="iid-chip" style="background:var(--bg3);color:var(--orange)"
+                        x-text="ann.types.join('+')"></span>
+                </template>
+              </div>
+              <!-- Action summary line -->
+              <div x-show="m.actions.length > 0" style="margin-top:2px">
+                <span class="entry-meta" x-text="m.actions.map(a => a.type).join(', ')"></span>
+              </div>
+              <!-- Prompt/req badges -->
+              <div class="entry-ids" style="margin-top:2px"
+                   x-show="m.hasMulliganReq || m.hasActionsAvailableReq || m.hasDeclareAttackersReq || m.hasDeclareBlockersReq || m.hasSelectTargetsReq || m.hasIntermissionReq">
+                <span class="iid-chip" x-show="m.hasMulliganReq" style="color:var(--yellow)">MulliganReq</span>
+                <span class="iid-chip" x-show="m.hasActionsAvailableReq" style="color:var(--orange)">ActionsAvailableReq</span>
+                <span class="iid-chip" x-show="m.hasDeclareAttackersReq" style="color:var(--red)">DeclareAttackersReq</span>
+                <span class="iid-chip" x-show="m.hasDeclareBlockersReq" style="color:var(--red)">DeclareBlockersReq</span>
+                <span class="iid-chip" x-show="m.hasSelectTargetsReq" style="color:var(--purple)">SelectTargetsReq</span>
+                <span class="iid-chip" x-show="m.hasIntermissionReq" style="color:var(--red)">IntermissionReq</span>
+              </div>
+              <!-- Expanded detail -->
+              <div class="json-wrap" x-show="recMsgExpanded[m.index]"
+                   x-effect="if (recMsgExpanded[m.index] && !$el.dataset.loaded) { $el.innerHTML = buildJsonHtml(JSON.stringify(m)); $el.dataset.loaded = '1'; }"
+                   @click.stop="handleJsonClick($event)"></div>
+            </div>
+          </template>
+          <div class="rec-summary" x-show="selectedRecordingId && filteredRecordingMessages.length === 0">
+            <span>No messages found.</span>
+          </div>
+        </div>
+      </template>
     </div>
   </div>
 
@@ -746,8 +821,12 @@ function debugApp() {
     selectedRecordingId: null,
     recordingSummary: null,
     recordingActions: [],
+    recordingMessages: [],
     recordingCompareTargetId: null,
     recordingCompare: null,
+    recSubView: 'messages',
+    recMsgFilter: '',
+    recMsgExpanded: {},
 
     // States tab data
     gameStates: [],
@@ -789,6 +868,19 @@ function debugApp() {
         out.push(e);
       }
       return out;
+    },
+
+    get filteredRecordingMessages() {
+      const f = this.recMsgFilter.toLowerCase();
+      if (!f) return this.recordingMessages;
+      return this.recordingMessages.filter(m => {
+        if (m.greType.toLowerCase().includes(f)) return true;
+        if (m.gsmType && m.gsmType.toLowerCase().includes(f)) return true;
+        if (m.updateType && m.updateType.toLowerCase().includes(f)) return true;
+        if (m.annotations.some(a => a.types.some(t => t.toLowerCase().includes(f)))) return true;
+        if (m.actions.some(a => a.type.toLowerCase().includes(f))) return true;
+        return false;
+      });
     },
 
     get filteredRecordingActions() {
@@ -974,9 +1066,14 @@ function debugApp() {
       this.selectedRecordingId = id;
       this.recordingSummary = null;
       this.recordingActions = [];
+      this.recordingMessages = [];
+      this.recMsgExpanded = {};
       this.recordingCompare = null;
       this.recordingCompareTargetId = null;
-      await Promise.all([this.refreshRecordingSummary(), this.refreshRecordingActions()]);
+      const fetches = [this.refreshRecordingSummary()];
+      if (this.recSubView === 'messages') fetches.push(this.refreshRecordingMessages());
+      else fetches.push(this.refreshRecordingActions());
+      await Promise.all(fetches);
     },
 
     async refreshRecordingSummary() {
@@ -997,6 +1094,17 @@ function debugApp() {
         if (!r.ok) return;
         const env = await r.json();
         this.recordingActions = env.data || env;
+      } catch (_) {}
+    },
+
+    async refreshRecordingMessages() {
+      if (!this.selectedRecordingId) return;
+      try {
+        const r = await fetch('/api/recording-messages?id=' + encodeURIComponent(this.selectedRecordingId));
+        if (!r.ok) return;
+        const env = await r.json();
+        this.recordingMessages = env.data || env;
+        this.recMsgExpanded = {};
       } catch (_) {}
     },
 
