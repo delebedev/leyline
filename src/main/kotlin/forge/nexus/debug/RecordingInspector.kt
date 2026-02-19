@@ -215,6 +215,13 @@ object RecordingInspector {
             .toList()
     }
 
+    fun messages(sessionIdOrPath: String): List<RecordingDecoder.DecodedMessage>? {
+        val dir = resolveSessionDir(sessionIdOrPath) ?: return null
+        val files = RecordingDecoder.listRecordingFiles(dir)
+        if (files.isEmpty()) return null
+        return RecordingDecoder.decodeDirectory(dir, seatFilter = null)
+    }
+
     fun compare(leftSessionIdOrPath: String, rightSessionIdOrPath: String): CompareResult? {
         val left = actions(leftSessionIdOrPath, limit = Int.MAX_VALUE)
         val right = actions(rightSessionIdOrPath, limit = Int.MAX_VALUE)

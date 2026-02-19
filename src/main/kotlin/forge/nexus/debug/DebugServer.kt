@@ -52,6 +52,7 @@ class DebugServer(private val port: Int = 8090) {
         srv.createContext("/api/recording-summary") { ex -> safe(ex) { serveRecordingSummary(ex) } }
         srv.createContext("/api/recording-actions") { ex -> safe(ex) { serveRecordingActions(ex) } }
         srv.createContext("/api/recording-compare") { ex -> safe(ex) { serveRecordingCompare(ex) } }
+        srv.createContext("/api/recording-messages") { ex -> safe(ex) { serveRecordingMessages(ex) } }
         srv.createContext("/api/events") { ex ->
             try {
                 if (ex.requestMethod != "GET") {
@@ -212,6 +213,21 @@ class DebugServer(private val port: Int = 8090) {
         val limit = params["limit"]?.toIntOrNull() ?: 1000
         val actions = RecordingInspector.actions(id, cardFilter = card, actorFilter = actor, limit = limit)
         respondJsonList(ex, json.encodeToString(actions), null)
+    }
+
+    private fun serveRecordingMessages(ex: HttpExchange) {
+        val params = parseQuery(ex.requestURI.rawQuery)
+        val id = params["id"]
+        if (id.isNullOrBlank()) {
+            respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
+            return
+        }
+        val messages = RecordingInspector.messages(id)
+        if (messages == null) {
+            respond(ex, 404, "text/plain", "Recording session not found or not parseable")
+            return
+        }
+        respondJsonList(ex, json.encodeToString(messages), null)
     }
 
     private fun serveRecordingCompare(ex: HttpExchange) {
