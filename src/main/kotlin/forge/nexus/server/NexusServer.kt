@@ -1,8 +1,8 @@
 package forge.nexus.server
 
-import forge.nexus.protocol.ArenaFrameDecoder
-import forge.nexus.protocol.ArenaHeaderPrepender
-import forge.nexus.protocol.ArenaHeaderStripper
+import forge.nexus.protocol.ClientFrameDecoder
+import forge.nexus.protocol.ClientHeaderPrepender
+import forge.nexus.protocol.ClientHeaderStripper
 import io.netty.bootstrap.Bootstrap
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.buffer.ByteBuf
@@ -23,13 +23,13 @@ import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import java.io.File
 
 /**
- * Arena-compatible TLS TCP server.
+ * Client-compatible TLS TCP server.
  *
  * Two modes:
  * - **Stub** (default): responds with fake auth/game state for smoke testing
- * - **Proxy**: relays to real Arena servers, decodes + logs frames, validates our codec
+ * - **Proxy**: relays to real client servers, decodes + logs frames, validates our codec
  *
- * Both doors use the same 6-byte header framing (see [ArenaFrameDecoder]).
+ * Both doors use the same 6-byte header framing (see [ClientFrameDecoder]).
  *
  * Architecture doc: forge-nexus/docs/bridge-architecture.md
  * Wire format doc:  forge-nexus/docs/wire-format.md
@@ -92,20 +92,20 @@ class NexusServer(
 
     private fun startStub(fdSsl: SslContext, mdSsl: SslContext) {
         frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
-            ch.pipeline().addLast("frameDecoder", ArenaFrameDecoder())
+            ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
             ch.pipeline().addLast("handler", FrontDoorStub())
         }
-        log.info("Arena Front Door (stub) listening on :{}", frontDoorPort)
+        log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
 
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor") { ch ->
-            ch.pipeline().addLast("frameDecoder", ArenaFrameDecoder())
-            ch.pipeline().addLast("headerStripper", ArenaHeaderStripper())
+            ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
+            ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
             ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
-            ch.pipeline().addLast("headerPrepender", ArenaHeaderPrepender())
+            ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
             ch.pipeline().addLast("protobufEncoder", ProtobufEncoder())
             ch.pipeline().addLast("handler", MatchHandler())
         }
-        log.info("Arena Match Door (stub) listening on :{}", matchDoorPort)
+        log.info("Client Match Door (stub) listening on :{}", matchDoorPort)
     }
 
     private fun startReplay(fdSsl: SslContext, mdSsl: SslContext) {
@@ -116,46 +116,46 @@ class NexusServer(
         val fdHost = upstreamFrontDoor
         if (fdHost != null) {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Proxy") { ch ->
-                ch.pipeline().addLast("proxy", ArenaProxyFrontHandler(workerGroup, fdHost, frontDoorPort))
+                ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, fdHost, frontDoorPort))
             }
-            log.info("Arena Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
+            log.info("Client Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
         } else {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
-                ch.pipeline().addLast("frameDecoder", ArenaFrameDecoder())
+                ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
                 ch.pipeline().addLast("handler", FrontDoorStub())
             }
-            log.info("Arena Front Door (stub) listening on :{}", frontDoorPort)
+            log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
         }
 
         // Match Door: replay recorded payloads
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor-Replay") { ch ->
-            ch.pipeline().addLast("frameDecoder", ArenaFrameDecoder())
-            ch.pipeline().addLast("headerStripper", ArenaHeaderStripper())
+            ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
+            ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
             ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
-            ch.pipeline().addLast("headerPrepender", ArenaHeaderPrepender())
+            ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
             // No protobufEncoder — replay handler sends raw bytes that go through headerPrepender
             ch.pipeline().addLast("handler", ReplayHandler(dir))
         }
-        log.info("Arena Match Door (replay from {}) listening on :{}", dir, matchDoorPort)
+        log.info("Client Match Door (replay from {}) listening on :{}", dir, matchDoorPort)
     }
 
     private fun startHybrid(fdSsl: SslContext, mdSsl: SslContext) {
         val fdHost = upstreamFrontDoor!!
 
         frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Proxy") { ch ->
-            ch.pipeline().addLast("proxy", ArenaProxyFrontHandler(workerGroup, fdHost, frontDoorPort))
+            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, fdHost, frontDoorPort))
         }
-        log.info("Arena Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
+        log.info("Client Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
 
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor") { ch ->
-            ch.pipeline().addLast("frameDecoder", ArenaFrameDecoder())
-            ch.pipeline().addLast("headerStripper", ArenaHeaderStripper())
+            ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
+            ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
             ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
-            ch.pipeline().addLast("headerPrepender", ArenaHeaderPrepender())
+            ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
             ch.pipeline().addLast("protobufEncoder", ProtobufEncoder())
             ch.pipeline().addLast("handler", MatchHandler())
         }
-        log.info("Arena Match Door (stub) listening on :{}", matchDoorPort)
+        log.info("Client Match Door (stub) listening on :{}", matchDoorPort)
     }
 
     private fun startProxy(fdSsl: SslContext, mdSsl: SslContext) {
@@ -163,18 +163,18 @@ class NexusServer(
         val mdHost = upstreamMatchDoor ?: fdHost
 
         frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Proxy") { ch ->
-            ch.pipeline().addLast("proxy", ArenaProxyFrontHandler(workerGroup, fdHost, frontDoorPort))
+            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, fdHost, frontDoorPort))
         }
-        log.info("Arena Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
+        log.info("Client Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
 
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor-Proxy") { ch ->
-            ch.pipeline().addLast("proxy", ArenaProxyFrontHandler(workerGroup, mdHost, matchDoorPort))
+            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, mdHost, matchDoorPort))
         }
-        log.info("Arena Match Door (proxy → {}:{}) listening on :{}", mdHost, matchDoorPort, matchDoorPort)
+        log.info("Client Match Door (proxy → {}:{}) listening on :{}", mdHost, matchDoorPort, matchDoorPort)
     }
 
     fun stop() {
-        log.info("Shutting down Arena server")
+        log.info("Shutting down client server")
         frontDoorChannel?.close()?.sync()
         matchDoorChannel?.close()?.sync()
         workerGroup.shutdownGracefully()
@@ -204,21 +204,21 @@ class NexusServer(
 }
 
 // ---------------------------------------------------------------------------
-// Proxy handlers: relay raw bytes while logging Arena frames.
+// Proxy handlers: relay raw bytes while logging client frames.
 // Simple auto-read on both sides — no manual flow control.
 // ---------------------------------------------------------------------------
 
 /**
  * Client-side proxy handler. On connect, opens TLS upstream and relays
- * bytes bidirectionally. Logs Arena frame headers for debugging.
+ * bytes bidirectionally. Logs client frame headers for debugging.
  */
-class ArenaProxyFrontHandler(
+class ProxyFrontHandler(
     private val workerGroup: EventLoopGroup,
     private val remoteHost: String,
     private val remotePort: Int,
 ) : ChannelInboundHandlerAdapter() {
 
-    private val log = LoggerFactory.getLogger(ArenaProxyFrontHandler::class.java)
+    private val log = LoggerFactory.getLogger(ProxyFrontHandler::class.java)
 
     @Volatile private var outboundChannel: Channel? = null
     private val pendingWrites = mutableListOf<Any>()
@@ -282,7 +282,7 @@ class ArenaProxyFrontHandler(
         ctx.close()
     }
 
-    private fun logFrame(dir: String, buf: ByteBuf) = logArenaFrame(log, dir, buf)
+    private fun logFrame(dir: String, buf: ByteBuf) = logClientFrame(log, dir, buf)
 }
 
 /** Relays bytes from one channel to another, logging frame headers + payloads. */
@@ -294,7 +294,7 @@ class RelayHandler(
     private val log = LoggerFactory.getLogger(RelayHandler::class.java)
 
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
-        if (msg is ByteBuf) logArenaFrame(log, direction, msg)
+        if (msg is ByteBuf) logClientFrame(log, direction, msg)
         if (relayTarget.isActive) {
             relayTarget.writeAndFlush(msg)
         } else {
@@ -313,68 +313,13 @@ class RelayHandler(
     }
 }
 
-/** Log Arena frame header fields for proxy debugging. */
-private fun logArenaFrame(log: Logger, dir: String, buf: ByteBuf) {
+/** Log client frame header fields for proxy debugging. */
+private fun logClientFrame(log: Logger, dir: String, buf: ByteBuf) {
     if (buf.readableBytes() < 6) return
     val idx = buf.readerIndex()
     val ft = buf.getByte(idx + 1)
     val pl = buf.getIntLE(idx + 2)
     val tn = frameTypeName(ft)
     log.info("  {} type={} payload={} total={}", dir, tn, pl, buf.readableBytes())
-    dumpPayload(dir, buf)
-}
-
-/** Dump payload bytes: extract printable text (JSON) from data frames. */
-private fun dumpPayload(dir: String, buf: ByteBuf) {
-    val log = LoggerFactory.getLogger("ArenaPayloadDump")
-    if (buf.readableBytes() <= 6) return
-    val idx = buf.readerIndex()
-    val ft = buf.getByte(idx + 1)
-    // Only dump data frames, not control frames
-    if (ft == ArenaFrameDecoder.Companion.TYPE_CTRL_INIT || ft == ArenaFrameDecoder.Companion.TYPE_CTRL_ACK) return
-    val payloadStart = idx + 6
-    val payloadLen = buf.readableBytes() - 6
-    if (payloadLen <= 0) return
-    val bytes = ByteArray(payloadLen)
-    buf.getBytes(payloadStart, bytes)
-    // Extract JSON substrings from the protobuf payload
-    val text = bytes.toString(Charsets.UTF_8)
-    val jsons = mutableListOf<String>()
-    var i = 0
-    while (i < text.length) {
-        if (text[i] == '{') {
-            var depth = 0
-            for (j in i until text.length) {
-                when (text[j]) {
-                    '{' -> depth++
-                    '}' -> {
-                        depth--
-                        if (depth == 0) {
-                            jsons.add(text.substring(i, j + 1))
-                            i = j
-                            break
-                        }
-                    }
-                }
-            }
-        }
-        i++
-    }
-    for (json in jsons) {
-        log.info("  {} JSON: {}", dir, json.take(500))
-    }
-    // Also write raw payload to sequential dump files
-    val dumpDir = File("/tmp/arena-capture/payloads")
-    dumpDir.mkdirs()
-    val seq = System.nanoTime()
-    val file = File(dumpDir, "${dir.replace("→", "-")}_${frameTypeName(ft)}_$seq.bin")
-    file.writeBytes(bytes)
-}
-
-private fun frameTypeName(ft: Byte) = when (ft) {
-    ArenaFrameDecoder.Companion.TYPE_CTRL_INIT -> "CTRL_INIT"
-    ArenaFrameDecoder.Companion.TYPE_CTRL_ACK -> "CTRL_ACK"
-    ArenaFrameDecoder.Companion.TYPE_DATA_FD -> "DATA"
-    ArenaFrameDecoder.Companion.TYPE_DATA_MATCH -> "MATCH_DATA"
-    else -> "0x${String.format("%02x", ft)}"
+    CaptureSink.ingestChunk(dir, buf)
 }

@@ -6,7 +6,7 @@ import java.io.File
 import java.sql.DriverManager
 
 /**
- * Read-only lookup into Arena's local card database (SQLite).
+ * Read-only lookup into the client's local card database (SQLite).
  *
  * DB enum values (CardColor, CardType, SubType) map 1:1 to proto enum values.
  * Path: ~/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga
@@ -58,23 +58,29 @@ object CardDb {
         nameToGrpId[cardName] = grpId
     }
 
+    /** Register card with full metadata (for tests without client SQLite DB). */
+    fun registerData(data: CardData, cardName: String) {
+        register(data.grpId, cardName)
+        cache[data.grpId] = data
+    }
+
     fun clear() {
         grpIdToName.clear()
         nameToGrpId.clear()
         cache.clear()
     }
 
-    /** Find the Arena card database on disk. */
+    /** Find the client card database on disk. */
     fun init(): Boolean {
         val raw = File(System.getProperty("user.home"))
             .resolve("Library/Application Support/com.wizards.mtga/Downloads/Raw")
         val db = raw.listFiles()?.firstOrNull { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
         if (db == null) {
-            log.warn("Arena card database not found in {}", raw)
+            log.warn("Client card database not found in {}", raw)
             return false
         }
         dbPath = db.absolutePath
-        log.info("Arena card database: {} ({} MB)", db.name, db.length() / 1024 / 1024)
+        log.info("Client card database: {} ({} MB)", db.name, db.length() / 1024 / 1024)
         return true
     }
 
@@ -103,7 +109,10 @@ object CardDb {
         if (card.power.isNotEmpty()) builder.setPower(Int32Value.newBuilder().setValue(card.power.toIntOrNull() ?: 0))
         if (card.toughness.isNotEmpty()) builder.setToughness(Int32Value.newBuilder().setValue(card.toughness.toIntOrNull() ?: 0))
         var abilitySeqId = 50
-        card.abilityIds.forEach { (abilityGrpId, _) ->
+        val abilities = card.abilityIds.ifEmpty {
+            basicLandAbility(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
+        }
+        abilities.forEach { (abilityGrpId, _) ->
             builder.addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(abilityGrpId))
         }
         return builder
@@ -149,7 +158,10 @@ object CardDb {
         // Abilities — abilityGrpId is the lookup key, id is sequential per object
         builder.clearUniqueAbilities()
         var abilitySeqId = template.uniqueAbilitiesList.firstOrNull()?.id ?: 50
-        card.abilityIds.forEach { (abilityGrpId, _) ->
+        val abilities = card.abilityIds.ifEmpty {
+            basicLandAbility(card.subtypes)?.let { listOf(it to 0) } ?: emptyList()
+        }
+        abilities.forEach { (abilityGrpId, _) ->
             builder.addUniqueAbilities(
                 UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(abilityGrpId),
             )
@@ -182,7 +194,7 @@ object CardDb {
                 }
             }
         } catch (e: Exception) {
-            log.warn("Failed to query Arena card DB for grpId={}: {}", grpId, e.message)
+            log.warn("Failed to query client card DB for grpId={}: {}", grpId, e.message)
             null
         }
     }
@@ -192,6 +204,22 @@ object CardDb {
         if (s.isNullOrBlank()) return emptyList()
         return s.split(",").mapNotNull { it.trim().toIntOrNull() }
     }
+
+    /**
+     * Basic land mana ability grpIds — implicit in the client, not stored in DB.
+     * SubType enum values: Plains=54, Island=43, Swamp=69, Mountain=49, Forest=29.
+     */
+    private val BASIC_LAND_ABILITIES = mapOf(
+        54 to 1001, // Plains → {T}: Add {W}
+        43 to 1002, // Island → {T}: Add {U}
+        69 to 1003, // Swamp → {T}: Add {B}
+        49 to 1004, // Mountain → {T}: Add {R}
+        29 to 1005, // Forest → {T}: Add {G}
+    )
+
+    /** Returns the implicit mana ability grpId for a basic land, or null. */
+    private fun basicLandAbility(subtypes: List<Int>): Int? =
+        subtypes.firstNotNullOfOrNull { BASIC_LAND_ABILITIES[it] }
 
     /** Parse "1005:227393" or "1005:227393 2010:300000" → list of (abilityGrpId, textId). */
     private fun parseAbilityIds(s: String?): List<Pair<Int, Int>> {
@@ -223,12 +251,12 @@ object CardDb {
             }
         }
     } catch (e: Exception) {
-        log.warn("Failed to query Arena card DB for name='{}': {}", cardName, e.message)
+        log.warn("Failed to query client card DB for name='{}': {}", cardName, e.message)
         null
     }
 
     /**
-     * Parse Arena's OldSchoolManaText format into (ManaColor, count) pairs.
+     * Parse the client's OldSchoolManaText format into (ManaColor, count) pairs.
      * Format: "oG" = {G}, "o3oGoG" = {3}{G}{G}, "oXoRoR" = {X}{R}{R}.
      * Each "o" prefix starts a mana symbol; digits = generic count, letters = color.
      */

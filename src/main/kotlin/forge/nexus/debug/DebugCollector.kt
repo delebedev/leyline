@@ -7,16 +7,18 @@ import com.google.protobuf.util.JsonFormat
 import forge.nexus.game.CardDb
 import forge.nexus.server.MatchHandler
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.collections.iterator
 
 /**
- * Ring-buffer collector for Arena protocol messages. Thread-safe singleton.
+ * Ring-buffer collector for client protocol messages. Thread-safe singleton.
  * Powers the debug panel at :8090.
  */
-object ArenaDebugCollector {
-    private val log = LoggerFactory.getLogger(ArenaDebugCollector::class.java)
+object NexusDebugCollector {
+    private val log = LoggerFactory.getLogger(NexusDebugCollector::class.java)
 
     private const val MAX_ENTRIES = 500
     private val buffer = ArrayDeque<Entry>(MAX_ENTRIES)
@@ -25,6 +27,8 @@ object ArenaDebugCollector {
     private val jsonPrinter: JsonFormat.Printer = JsonFormat.printer()
         .omittingInsignificantWhitespace()
         .preservingProtoFieldNames()
+
+    private val sseJson = Json { encodeDefaults = true }
 
     @Serializable
     data class Entry(
@@ -79,6 +83,9 @@ object ArenaDebugCollector {
         }
     }
 
+    /** Current message sequence number (for cross-referencing with other timelines). */
+    fun currentSeq(): Int = synchronized(buffer) { seq }
+
     /** Return entries with seq > sinceSeq. */
     fun snapshot(sinceSeq: Int): List<Entry> = synchronized(buffer) {
         buffer.filter { it.seq > sinceSeq }
@@ -86,10 +93,12 @@ object ArenaDebugCollector {
 
     /** Current match state summary. */
     fun matchState(): MatchStateSnapshot {
-        val bridges = MatchHandler.Companion.sharedBridges
+        val bridges = MatchHandler.defaultRegistry.activeBridges()
         if (bridges.isEmpty()) return MatchStateSnapshot()
 
-        val (matchId, bridge) = bridges.entries.first()
+        val first = bridges.entries.first()
+        val matchId = first.key
+        val bridge = first.value
         val game = bridge.getGame()
         return MatchStateSnapshot(
             matchId = matchId,
@@ -104,7 +113,7 @@ object ArenaDebugCollector {
     /** Instance ID cross-reference table from all active bridges. */
     fun idMap(): List<IdMapEntry> {
         val result = mutableListOf<IdMapEntry>()
-        for ((_, bridge) in MatchHandler.Companion.sharedBridges) {
+        for ((_, bridge) in MatchHandler.defaultRegistry.activeBridges()) {
             val game = bridge.getGame() ?: continue
             val map = bridge.getInstanceIdMap()
             for ((instanceId, forgeCardId) in map) {
@@ -142,13 +151,33 @@ object ArenaDebugCollector {
         val grpId: Int,
     )
 
+    /** Clear all protocol message and log buffers (for match reset). */
+    fun clear() {
+        synchronized(buffer) {
+            buffer.clear()
+            seq = 0
+        }
+        synchronized(logBuffer) {
+            logBuffer.clear()
+            logSeq = 0
+        }
+    }
+
     // --- Internal ---
 
-    private fun add(entry: Entry) = synchronized(buffer) {
-        seq++
-        val numbered = entry.copy(seq = seq)
-        if (buffer.size >= MAX_ENTRIES) buffer.removeFirst()
-        buffer.addLast(numbered)
+    private fun add(entry: Entry) {
+        val numbered: Entry
+        synchronized(buffer) {
+            seq++
+            numbered = entry.copy(seq = seq)
+            if (buffer.size >= MAX_ENTRIES) buffer.removeFirst()
+            buffer.addLast(numbered)
+        }
+        try {
+            DebugEventBus.emit("message", sseJson.encodeToString(numbered))
+        } catch (e: Exception) {
+            log.debug("Failed to emit SSE message event", e)
+        }
     }
 
     private fun safeToJson(msg: MessageOrBuilder): String = try {
@@ -255,10 +284,17 @@ object ArenaDebugCollector {
     )
 
     internal fun recordLog(ts: Long, level: String, logger: String, message: String, thread: String) {
+        val entry: LogEntry
         synchronized(logBuffer) {
             logSeq++
+            entry = LogEntry(logSeq, ts, level, logger, message, thread)
             if (logBuffer.size >= MAX_LOG_ENTRIES) logBuffer.removeFirst()
-            logBuffer.addLast(LogEntry(logSeq, ts, level, logger, message, thread))
+            logBuffer.addLast(entry)
+        }
+        try {
+            DebugEventBus.emit("log", sseJson.encodeToString(entry))
+        } catch (e: Exception) {
+            log.debug("Failed to emit SSE log event", e)
         }
     }
 
@@ -285,15 +321,41 @@ object ArenaDebugCollector {
     }
 }
 
-/** Logback appender that feeds log events into [ArenaDebugCollector]. */
-class ArenaDebugLogAppender : AppenderBase<ILoggingEvent>() {
+/** Logback appender that feeds log events into [NexusDebugCollector]. */
+class NexusDebugLogAppender : AppenderBase<ILoggingEvent>() {
     override fun append(event: ILoggingEvent) {
-        ArenaDebugCollector.recordLog(
+        NexusDebugCollector.recordLog(
             ts = event.timeStamp,
             level = event.level.toString(),
             logger = event.loggerName.substringAfterLast('.'),
             message = event.formattedMessage ?: "",
             thread = event.threadName ?: "",
         )
+    }
+}
+
+/**
+ * Pub/sub bus for real-time debug events (SSE).
+ * Collectors emit typed events; [DebugServer] SSE endpoint subscribes.
+ */
+object DebugEventBus {
+    private val log = LoggerFactory.getLogger(DebugEventBus::class.java)
+    private val listeners = CopyOnWriteArrayList<(String, String) -> Unit>()
+
+    fun addListener(listener: (String, String) -> Unit) {
+        listeners.add(listener)
+    }
+    fun removeListener(listener: (String, String) -> Unit) {
+        listeners.remove(listener)
+    }
+
+    fun emit(type: String, data: String) {
+        for (l in listeners) {
+            try {
+                l(type, data)
+            } catch (e: Exception) {
+                log.debug("SSE listener dispatch failed", e)
+            }
+        }
     }
 }

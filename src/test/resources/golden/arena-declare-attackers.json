@@ -1,0 +1,33 @@
+[
+  {
+    "greMessageType": "GameStateMessage",
+    "gsType": "Diff",
+    "updateType": "SendAndRecord",
+    "annotationTypes": [
+      "PhaseOrStepModified"
+    ],
+    "fieldPresence": [
+      "turnInfo",
+      "timers",
+      "actions",
+      "annotations"
+    ],
+    "actionTypes": [
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "ActivateMana",
+      "Cast",
+      "Cast",
+      "Play",
+      "Play"
+    ]
+  },
+  {
+    "greMessageType": "DeclareAttackersReq",
+    "hasPrompt": true,
+    "promptId": 6
+  }
+]

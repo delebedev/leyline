@@ -1,0 +1,373 @@
+package forge.nexus.debug
+
+import forge.nexus.conformance.RecordingDecoder
+import forge.nexus.game.CardDb
+import kotlinx.serialization.Serializable
+import java.io.File
+import java.util.Base64
+
+/**
+ * Filesystem-backed recording inspector used by DebugServer and CLI.
+ *
+ * Supports both:
+ * - Engine dumps (`/tmp/arena-dump`)
+ * - Proxy captures (`/tmp/arena-capture/payloads`)
+ * - Session directories under `/tmp/arena-recordings/<session>`
+ */
+object RecordingInspector {
+
+    private val defaultRoots = listOf(
+        NexusPaths.RECORDINGS,
+        NexusPaths.ENGINE_DUMP,
+        NexusPaths.CAPTURE_PAYLOADS,
+    )
+
+    @Serializable
+    data class SessionRef(
+        val id: String,
+        val name: String,
+        val path: String,
+        val mode: String,
+        val fileCount: Int,
+        val updatedAt: Long,
+    )
+
+    @Serializable
+    data class Seat(
+        val seatId: Int,
+        val playerName: String,
+        val role: String,
+    )
+
+    @Serializable
+    data class ActionEvent(
+        val seq: Int,
+        val file: String,
+        val gsId: Int,
+        val msgId: Int,
+        val turn: Int?,
+        val phase: String?,
+        val category: String,
+        val actorSeat: Int?,
+        val actor: String?,
+        val instanceId: Int?,
+        val grpId: Int?,
+        val card: String?,
+        val details: Map<String, String>,
+    )
+
+    @Serializable
+    data class Summary(
+        val sessionId: String,
+        val path: String,
+        val mode: String,
+        val fileCount: Int,
+        val messageCount: Int,
+        val actionCount: Int,
+        val firstTurn: Int?,
+        val lastTurn: Int?,
+        val seats: List<Seat>,
+        val topCards: List<CardCount>,
+        val actionsByActor: List<ActorCount>,
+    )
+
+    @Serializable
+    data class CardCount(
+        val card: String,
+        val count: Int,
+    )
+
+    @Serializable
+    data class ActorCount(
+        val actor: String,
+        val count: Int,
+    )
+
+    @Serializable
+    data class CompareResult(
+        val leftSessionId: String,
+        val rightSessionId: String,
+        val leftActions: Int,
+        val rightActions: Int,
+        val firstDivergence: Divergence?,
+    )
+
+    @Serializable
+    data class Divergence(
+        val index: Int,
+        val left: ActionSignature?,
+        val right: ActionSignature?,
+    )
+
+    @Serializable
+    data class ActionSignature(
+        val category: String,
+        val actorSeat: Int?,
+        val grpId: Int?,
+        val card: String?,
+    )
+
+    fun listSessions(): List<SessionRef> {
+        val dirs = linkedSetOf<File>()
+
+        val root = defaultRoots[0]
+        if (root.isDirectory) {
+            root.listFiles()
+                ?.filter { it.isDirectory }
+                ?.sortedByDescending { it.lastModified() }
+                ?.forEach { dirs.add(it) }
+        }
+
+        defaultRoots.drop(1).forEach { if (it.isDirectory) dirs.add(it) }
+
+        val sessions = dirs.mapNotNull { dir ->
+            val files = RecordingDecoder.listRecordingFiles(dir)
+            if (files.isEmpty()) return@mapNotNull null
+            SessionRef(
+                id = encodeSessionId(dir),
+                name = dir.name,
+                path = dir.absolutePath,
+                mode = detectMode(dir),
+                fileCount = files.size,
+                updatedAt = files.maxOfOrNull { it.lastModified() } ?: dir.lastModified(),
+            )
+        }
+
+        return sessions.sortedByDescending { it.updatedAt }
+    }
+
+    fun summary(sessionIdOrPath: String): Summary? {
+        val dir = resolveSessionDir(sessionIdOrPath) ?: return null
+        val files = RecordingDecoder.listRecordingFiles(dir)
+        if (files.isEmpty()) return null
+
+        val seats = RecordingDecoder.detectSeats(dir)
+        val messages = RecordingDecoder.decodeDirectory(dir, seatFilter = null)
+        val actions = extractActionEvents(messages, seats)
+
+        val topCards = actions
+            .asSequence()
+            .filter { it.category == "PlayLand" || it.category == "CastSpell" }
+            .map { it.card ?: it.grpId?.let { id -> "grp:$id" } ?: "unknown" }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .take(10)
+            .map { CardCount(it.key, it.value) }
+
+        val actionsByActor = actions
+            .asSequence()
+            .map { it.actor ?: it.actorSeat?.let { seat -> "seat-$seat" } ?: "unknown" }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedByDescending { it.value }
+            .map { ActorCount(it.key, it.value) }
+
+        return Summary(
+            sessionId = encodeSessionId(dir),
+            path = dir.absolutePath,
+            mode = detectMode(dir),
+            fileCount = files.size,
+            messageCount = messages.size,
+            actionCount = actions.size,
+            firstTurn = messages.mapNotNull { it.turnInfo?.turn }.filter { it > 0 }.minOrNull(),
+            lastTurn = messages.mapNotNull { it.turnInfo?.turn }.filter { it > 0 }.maxOrNull(),
+            seats = seats.values
+                .sortedBy { it.systemSeatId }
+                .map { Seat(it.systemSeatId, it.playerName, it.role) },
+            topCards = topCards,
+            actionsByActor = actionsByActor,
+        )
+    }
+
+    fun actions(
+        sessionIdOrPath: String,
+        cardFilter: String? = null,
+        actorFilter: String? = null,
+        limit: Int = 1000,
+    ): List<ActionEvent> {
+        val dir = resolveSessionDir(sessionIdOrPath) ?: return emptyList()
+        val seats = RecordingDecoder.detectSeats(dir)
+        val messages = RecordingDecoder.decodeDirectory(dir, seatFilter = null)
+        val actions = extractActionEvents(messages, seats)
+
+        val cardNeedle = cardFilter?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        val actorNeedle = actorFilter?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+
+        return actions
+            .asSequence()
+            .filter { event ->
+                if (cardNeedle != null) {
+                    val cardOk = (event.card?.lowercase()?.contains(cardNeedle) == true) ||
+                        (event.grpId?.toString()?.contains(cardNeedle) == true)
+                    if (!cardOk) return@filter false
+                }
+                if (actorNeedle != null) {
+                    val actorOk = (event.actor?.lowercase()?.contains(actorNeedle) == true) ||
+                        (event.actorSeat?.toString() == actorNeedle)
+                    if (!actorOk) return@filter false
+                }
+                true
+            }
+            .take(limit.coerceAtLeast(1))
+            .toList()
+    }
+
+    fun compare(leftSessionIdOrPath: String, rightSessionIdOrPath: String): CompareResult? {
+        val left = actions(leftSessionIdOrPath, limit = Int.MAX_VALUE)
+        val right = actions(rightSessionIdOrPath, limit = Int.MAX_VALUE)
+        if (left.isEmpty() && right.isEmpty()) return null
+
+        val max = maxOf(left.size, right.size)
+        var divergence: Divergence? = null
+
+        for (i in 0 until max) {
+            val l = left.getOrNull(i)
+            val r = right.getOrNull(i)
+            if (!sameAction(l, r)) {
+                divergence = Divergence(
+                    index = i,
+                    left = l?.toSignature(),
+                    right = r?.toSignature(),
+                )
+                break
+            }
+        }
+
+        return CompareResult(
+            leftSessionId = encodeOrKeep(leftSessionIdOrPath),
+            rightSessionId = encodeOrKeep(rightSessionIdOrPath),
+            leftActions = left.size,
+            rightActions = right.size,
+            firstDivergence = divergence,
+        )
+    }
+
+    fun resolveSessionDir(sessionIdOrPath: String): File? {
+        decodeSessionId(sessionIdOrPath)?.let { decoded ->
+            if (decoded.isDirectory) return decoded
+        }
+
+        val direct = File(sessionIdOrPath)
+        if (direct.isDirectory) return direct
+        return null
+    }
+
+    private fun extractActionEvents(
+        messages: List<RecordingDecoder.DecodedMessage>,
+        seats: Map<Int, RecordingDecoder.SeatInfo>,
+    ): List<ActionEvent> {
+        val seen = mutableSetOf<String>()
+        val events = mutableListOf<ActionEvent>()
+        val instanceToGrp = mutableMapOf<Int, Int>()
+
+        for (msg in messages) {
+            for (obj in msg.objects) {
+                if (obj.grpId != 0) instanceToGrp[obj.instanceId] = obj.grpId
+            }
+
+            val fallbackActorSeat = msg.annotations
+                .firstOrNull { "UserActionTaken" in it.types && it.affectorId in 1..8 }
+                ?.affectorId
+
+            for (ann in msg.annotations) {
+                val category = detailAsString(ann.details["category"]) ?: continue
+                val actorSeat = ann.affectorId.takeIf { it in 1..8 } ?: fallbackActorSeat
+                val actor = actorSeat?.let { seats[it]?.playerName ?: "seat-$it" }
+                val instanceId = ann.affectedIds.firstOrNull { it > 0 }
+
+                val grpFromDetails = detailAsInt(ann.details["grpId"])
+                val grpId = grpFromDetails ?: instanceId?.let { instanceToGrp[it] }
+                val card = grpId?.let { CardDb.getCardName(it) ?: "grp:$it" }
+
+                val key = listOf(
+                    msg.msgId,
+                    msg.gsId,
+                    ann.id,
+                    category,
+                    actorSeat ?: 0,
+                    instanceId ?: 0,
+                    grpId ?: 0,
+                ).joinToString(":")
+                if (!seen.add(key)) continue
+
+                events.add(
+                    ActionEvent(
+                        seq = events.size + 1,
+                        file = msg.file,
+                        gsId = msg.gsId,
+                        msgId = msg.msgId,
+                        turn = msg.turnInfo?.turn,
+                        phase = msg.turnInfo?.phase,
+                        category = category,
+                        actorSeat = actorSeat,
+                        actor = actor,
+                        instanceId = instanceId,
+                        grpId = grpId,
+                        card = card,
+                        details = ann.details.mapValues { (_, v) -> detailAsString(v) ?: v.toString() },
+                    ),
+                )
+            }
+        }
+
+        return events
+    }
+
+    private fun detailAsString(value: Any?): String? = when (value) {
+        null -> null
+        is String -> value
+        is Number -> value.toString()
+        is Boolean -> value.toString()
+        is List<*> -> value.firstOrNull()?.toString()
+        else -> value.toString()
+    }
+
+    private fun detailAsInt(value: Any?): Int? = when (value) {
+        is Int -> value
+        is Long -> value.toInt()
+        is Double -> value.toInt()
+        is String -> value.toIntOrNull()
+        is List<*> -> value.firstOrNull()?.toString()?.toIntOrNull()
+        else -> null
+    }
+
+    private fun ActionEvent.toSignature(): ActionSignature = ActionSignature(
+        category = category,
+        actorSeat = actorSeat,
+        grpId = grpId,
+        card = card,
+    )
+
+    private fun sameAction(left: ActionEvent?, right: ActionEvent?): Boolean {
+        if (left == null || right == null) return left == right
+        return left.category == right.category &&
+            left.actorSeat == right.actorSeat &&
+            left.grpId == right.grpId
+    }
+
+    private fun detectMode(dir: File): String = when (dir.absolutePath) {
+        NexusPaths.ENGINE_DUMP.absolutePath -> "engine"
+        NexusPaths.CAPTURE_PAYLOADS.absolutePath -> "proxy"
+        else -> {
+            if (dir.name.contains("proxy", ignoreCase = true)) "proxy" else "recording"
+        }
+    }
+
+    private fun encodeOrKeep(sessionIdOrPath: String): String {
+        val file = resolveSessionDir(sessionIdOrPath) ?: return sessionIdOrPath
+        return encodeSessionId(file)
+    }
+
+    private fun encodeSessionId(dir: File): String =
+        Base64.getUrlEncoder().withoutPadding().encodeToString(dir.absolutePath.toByteArray(Charsets.UTF_8))
+
+    private fun decodeSessionId(sessionId: String): File? = try {
+        val path = String(Base64.getUrlDecoder().decode(sessionId), Charsets.UTF_8)
+        File(path)
+    } catch (_: Exception) {
+        null
+    }
+}
