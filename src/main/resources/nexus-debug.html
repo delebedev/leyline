@@ -317,6 +317,143 @@
   }
   .clear-btn:hover { background: var(--accent); color: #fff; }
 
+  /* State timeline */
+  .st-row {
+    border-left: 3px solid var(--border);
+    padding: 4px 10px;
+    margin-bottom: 1px;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+  }
+  .st-row:hover { background: var(--bg2); }
+  .st-row.st-snapshot { border-left-color: var(--yellow); }
+  .st-row.st-event { border-left-color: var(--purple); }
+  .st-row.st-event-AUTO_PASS { border-left-color: var(--fg2); opacity: 0.6; }
+  .st-row.st-event-GAME_OVER { border-left-color: var(--red); }
+  .st-row.st-event-CLIENT_ACTION { border-left-color: var(--blue); }
+  .st-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .st-gsid { color: var(--yellow); font-weight: 700; font-size: 11px; min-width: 42px; }
+  .st-type { font-size: 10px; padding: 1px 5px; border-radius: 3px; background: var(--bg3); }
+  .st-type-Full { color: var(--green); }
+  .st-type-Diff { color: var(--blue); }
+  .st-phase { color: var(--fg2); font-size: 11px; }
+  .st-zones { color: var(--fg2); font-size: 10px; }
+  .st-event-badge {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--bg3);
+    font-weight: 600;
+  }
+  .st-event-badge-AUTO_PASS { color: var(--fg2); }
+  .st-event-badge-SEND_STATE { color: var(--green); }
+  .st-event-badge-CLIENT_ACTION { color: var(--blue); }
+  .st-event-badge-COMBAT_PROMPT { color: var(--red); }
+  .st-event-badge-TARGET_PROMPT { color: var(--orange); }
+  .st-event-badge-GAME_START { color: var(--yellow); }
+  .st-event-badge-GAME_OVER { color: var(--red); }
+  .st-event-badge-AI_TURN_WAIT { color: var(--fg2); }
+  .st-event-badge-AI_TURN_TIMEOUT { color: var(--orange); }
+  .st-event-badge-PRIORITY_GRANT { color: var(--purple); }
+  .st-detail { color: var(--fg2); font-size: 11px; }
+  .st-stack { color: var(--orange); font-size: 10px; }
+  .st-priority { font-size: 10px; }
+  .st-priority-human { color: var(--blue); }
+  .st-priority-ai { color: var(--red); }
+
+  /* Diff inline */
+  .st-diff {
+    margin: 4px 0 4px 48px;
+    padding: 6px 10px;
+    background: var(--bg2);
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .st-diff-empty { color: var(--fg2); opacity: 0.5; font-style: italic; }
+  .st-diff-zone { margin-bottom: 2px; }
+  .st-diff-added { color: var(--green); }
+  .st-diff-removed { color: var(--red); }
+  .st-diff-modified { color: var(--orange); }
+  .st-diff-phase { color: var(--yellow); }
+  .st-diff-life { color: var(--accent); }
+
+  /* Instance history popup */
+  .st-history {
+    margin: 4px 0 4px 48px;
+    padding: 6px 10px;
+    background: var(--bg2);
+    border-radius: 4px;
+    font-size: 11px;
+    border: 1px solid var(--purple);
+  }
+  .st-history-row { padding: 1px 0; }
+
+  /* Recordings view */
+  #recordings-wrap {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+  #recordings-list {
+    width: 320px;
+    border-right: 1px solid var(--border);
+    background: var(--bg2);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .rec-row {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(42, 42, 78, 0.5);
+    cursor: pointer;
+  }
+  .rec-row:hover { background: var(--bg3); }
+  .rec-row.active { background: rgba(78, 168, 222, 0.2); border-left: 3px solid var(--blue); }
+  .rec-title { color: var(--fg); font-size: 11px; font-weight: 700; }
+  .rec-meta { color: var(--fg2); font-size: 10px; margin-top: 2px; }
+  #recordings-main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+  .rec-summary {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px;
+    margin-bottom: 8px;
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .rec-actions {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .rec-actions th {
+    text-align: left;
+    color: var(--fg2);
+    border-bottom: 1px solid var(--border);
+    padding: 4px 6px;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+  }
+  .rec-actions td {
+    border-bottom: 1px solid rgba(42, 42, 78, 0.5);
+    padding: 4px 6px;
+    vertical-align: top;
+  }
+  .rec-actions tr:hover { background: var(--bg2); }
+  .rec-card { color: var(--yellow); }
+  .rec-actor { color: var(--blue); }
+  .rec-cat { color: var(--orange); font-weight: 700; }
+
   /* Copy buttons */
   .copy-btn {
     display: inline-flex;
@@ -353,7 +490,9 @@
   <span class="pill pill-count" x-text="state.entryCount + ' msgs'"></span>
   <div class="spacer"></div>
   <button class="view-tab" :class="{ active: view === 'messages' }" @click="view = 'messages'">Messages</button>
+  <button class="view-tab" :class="{ active: view === 'states' }" @click="view = 'states'">States</button>
   <button class="view-tab" :class="{ active: view === 'logs' }" @click="view = 'logs'">Logs</button>
+  <button class="view-tab" :class="{ active: view === 'recordings' }" @click="view = 'recordings'; fetchRecordings()">Recordings</button>
   <button class="header-btn active-purple" :class="{ on: showIdPanel }" @click="showIdPanel = !showIdPanel; if (showIdPanel) fetchIdMap()">ID Map</button>
   <button class="header-btn" :class="{ paused }" @click="paused = !paused" x-text="paused ? 'Resume' : 'Pause'"></button>
 </div>
@@ -376,6 +515,16 @@
   </template>
   <input class="filter-input" style="margin-left:auto" type="text" placeholder="filter logger or text..."
          x-model.debounce.150ms="logFilter">
+</div>
+
+<!-- Recordings filter bar -->
+<div class="filter-bar" x-show="view === 'recordings'" x-cloak>
+  <label>Card:</label>
+  <input class="filter-input" type="text" placeholder="name or grpId..." x-model.debounce.150ms="recordingCardFilter">
+  <label>Actor:</label>
+  <input class="filter-input" type="text" placeholder="seat or player..." x-model.debounce.150ms="recordingActorFilter">
+  <button class="header-btn" @click="refreshRecordingActions()" x-show="selectedRecordingId">Reload</button>
+  <button class="clear-btn" @click="recordingCardFilter=''; recordingActorFilter=''">Clear</button>
 </div>
 
 <!-- Main area -->
@@ -408,6 +557,147 @@
              @click.stop="handleJsonClick($event)"></div>
       </div>
     </template>
+  </div>
+
+  <!-- States timeline -->
+  <div id="timeline" x-show="view === 'states'" x-cloak style="overflow-y:auto; flex:1; padding:8px;">
+    <template x-for="item in stateTimeline" :key="item.key">
+      <div>
+        <!-- Snapshot row -->
+        <template x-if="item.kind === 'snapshot'">
+          <div class="st-row st-snapshot" @click="toggleStateDiff(item.data.gsId)">
+            <div class="st-header">
+              <span class="st-gsid" x-text="'gs=' + item.data.gsId"></span>
+              <span class="st-type" :class="'st-type-' + item.data.type" x-text="item.data.type"></span>
+              <span class="st-phase" x-text="item.data.phase + '/' + item.data.step + ' T' + item.data.turn"></span>
+              <span class="st-zones" x-text="zoneSummary(item.data)"></span>
+              <span class="st-priority" :class="'st-priority-' + (item.data.priorityPlayer === 1 ? 'human' : 'ai')"
+                    x-text="'priority=' + (item.data.priorityPlayer === 1 ? 'human' : 'ai')"></span>
+              <template x-if="item.data.actions.length > 0">
+                <span class="st-zones" x-text="actionSummary(item.data)"></span>
+              </template>
+              <template x-if="item.data.msgSeq > 0">
+                <span class="entry-meta" x-text="'msg#' + item.data.msgSeq"></span>
+              </template>
+            </div>
+            <!-- Inline diff -->
+            <template x-if="expandedDiffs[item.data.gsId]">
+              <div class="st-diff" x-html="renderDiff(expandedDiffs[item.data.gsId])"></div>
+            </template>
+          </div>
+        </template>
+        <!-- Priority event row -->
+        <template x-if="item.kind === 'event'">
+          <div class="st-row st-event" :class="'st-event-' + item.data.type">
+            <div class="st-header">
+              <span class="st-gsid" x-text="'gs=' + item.data.gsId"></span>
+              <span class="st-event-badge" :class="'st-event-badge-' + item.data.type" x-text="item.data.type"></span>
+              <span class="st-detail" x-text="item.data.detail"></span>
+              <template x-if="item.data.stackDepth > 0">
+                <span class="st-stack" x-text="'stack=' + item.data.stackDepth"></span>
+              </template>
+              <template x-if="item.data.priorityPlayer">
+                <span class="st-priority" :class="'st-priority-' + item.data.priorityPlayer"
+                      x-text="item.data.priorityPlayer"></span>
+              </template>
+              <span class="st-phase" x-text="item.data.phase + ' T' + item.data.turn"></span>
+              <template x-if="item.data.msgSeq > 0">
+                <span class="entry-meta" x-text="'msg#' + item.data.msgSeq"></span>
+              </template>
+            </div>
+          </div>
+        </template>
+        <!-- Instance history (shown when an iid is selected) -->
+        <template x-if="item.kind === 'snapshot' && stateHlIid !== null && hasInstance(item.data, stateHlIid)">
+          <div class="st-history">
+            <span style="color:var(--purple);font-weight:700" x-text="'iid=' + stateHlIid"></span>
+            <span x-text="item.data.objects[stateHlIid]?.name || '?'"></span>
+            <span :class="'zone-' + (item.data.objects[stateHlIid]?.zoneName || '')"
+                  x-text="item.data.objects[stateHlIid]?.zoneName || '?'"></span>
+          </div>
+        </template>
+      </div>
+    </template>
+  </div>
+
+  <!-- Recordings view -->
+  <div id="recordings-wrap" x-show="view === 'recordings'" x-cloak>
+    <div id="recordings-list">
+      <template x-for="r in recordings" :key="r.id">
+        <div class="rec-row" :class="{ active: selectedRecordingId === r.id }" @click="loadRecording(r.id)">
+          <div class="rec-title" x-text="r.name"></div>
+          <div class="rec-meta" x-text="r.mode + ' • ' + r.fileCount + ' files'"></div>
+          <div class="rec-meta" x-text="r.path"></div>
+        </div>
+      </template>
+      <div class="rec-row" x-show="recordings.length === 0">
+        <div class="rec-meta">No sessions found in /tmp/arena-recordings, /tmp/arena-dump, /tmp/arena-capture/payloads.</div>
+      </div>
+    </div>
+
+    <div id="recordings-main">
+      <div class="rec-summary" x-show="recordingSummary">
+        <div><span class="pill pill-count">mode</span> <span x-text="recordingSummary?.mode"></span></div>
+        <div><span class="pill pill-count">messages</span> <span x-text="recordingSummary?.messageCount"></span>
+             <span class="pill pill-count" style="margin-left:8px;">actions</span> <span x-text="recordingSummary?.actionCount"></span></div>
+        <div><span class="pill pill-count">turns</span> <span x-text="(recordingSummary?.firstTurn ?? '-') + ' → ' + (recordingSummary?.lastTurn ?? '-')"></span></div>
+        <div>
+          <span class="pill pill-count">seats</span>
+          <span x-text="(recordingSummary?.seats || []).map(s => 'seat ' + s.seatId + '=' + s.playerName).join(', ')"></span>
+        </div>
+        <div>
+          <span class="pill pill-count">top cards</span>
+          <span x-text="(recordingSummary?.topCards || []).slice(0, 6).map(c => c.card + ' x' + c.count).join(', ')"></span>
+        </div>
+        <div style="margin-top:6px; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+          <span class="pill pill-count">compare</span>
+          <select class="filter-input" style="width:260px;" x-model="recordingCompareTargetId">
+            <option value="">select session...</option>
+            <template x-for="r in recordings.filter(x => x.id !== selectedRecordingId)" :key="'cmp-' + r.id">
+              <option :value="r.id" x-text="r.name + ' (' + r.mode + ')'"></option>
+            </template>
+          </select>
+          <button class="header-btn" @click="runRecordingCompare()" :disabled="!recordingCompareTargetId">Run</button>
+        </div>
+        <div style="margin-top:4px;" x-show="recordingCompare">
+          <span class="pill pill-count">left</span> <span x-text="recordingCompare?.leftActions"></span>
+          <span class="pill pill-count" style="margin-left:8px;">right</span> <span x-text="recordingCompare?.rightActions"></span>
+          <span class="pill pill-count" style="margin-left:8px;">first divergence</span>
+          <span x-text="recordingCompare?.firstDivergence ? ('#' + recordingCompare.firstDivergence.index) : 'none'"></span>
+        </div>
+      </div>
+
+      <table class="rec-actions" x-show="recordingActions.length > 0">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Turn</th>
+            <th>Action</th>
+            <th>Actor</th>
+            <th>Card</th>
+            <th>gs/msg</th>
+            <th>File</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="a in filteredRecordingActions" :key="a.seq + '-' + a.file">
+            <tr>
+              <td x-text="a.seq"></td>
+              <td x-text="'T' + (a.turn || 0)"></td>
+              <td class="rec-cat" x-text="a.category"></td>
+              <td class="rec-actor" x-text="a.actor || (a.actorSeat ? 'seat-' + a.actorSeat : '?')"></td>
+              <td class="rec-card" x-text="a.card || (a.grpId ? 'grp:' + a.grpId : '?')"></td>
+              <td x-text="a.gsId + '/' + a.msgId"></td>
+              <td x-text="a.file"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+
+      <div class="rec-summary" x-show="selectedRecordingId && filteredRecordingActions.length === 0">
+        <span>No actions match current filter.</span>
+      </div>
+    </div>
   </div>
 
   <!-- Logs panel -->
@@ -451,6 +741,20 @@ function debugApp() {
     state: { phase: null, turn: 0, activePlayer: null, entryCount: 0 },
     idMap: [],
 
+    // Recordings tab data
+    recordings: [],
+    selectedRecordingId: null,
+    recordingSummary: null,
+    recordingActions: [],
+    recordingCompareTargetId: null,
+    recordingCompare: null,
+
+    // States tab data
+    gameStates: [],
+    priorityEvents: [],
+    expandedDiffs: {},
+    stateHlIid: null,
+
     // UI state
     paused: false,
     view: 'messages',
@@ -460,19 +764,25 @@ function debugApp() {
     hlIid: null,
     msgFilter: '',
     logFilter: '',
+    recordingCardFilter: '',
+    recordingActorFilter: '',
     logLevels: { DEBUG: true, INFO: true, WARN: true, ERROR: true },
     expanded: {},
 
     // Internal
     _lastSeq: 0,
     _lastLogSeq: 0,
+    _lastEventSeq: 0,
 
     // Computed
     get filteredEntries() {
       const f = this.msgFilter.toLowerCase();
       const out = [];
+      const seen = new Set();
       for (let i = this.entries.length - 1; i >= 0; i--) {
         const e = this.entries[i];
+        if (seen.has(e.seq)) continue;
+        seen.add(e.seq);
         if (e.dir === 'in' && !this.showIn) continue;
         if (e.dir === 'out' && !this.showOut) continue;
         if (f && !e.type.toLowerCase().includes(f) && !e.summary.toLowerCase().includes(f)) continue;
@@ -481,11 +791,32 @@ function debugApp() {
       return out;
     },
 
+    get filteredRecordingActions() {
+      const card = this.recordingCardFilter.trim().toLowerCase();
+      const actor = this.recordingActorFilter.trim().toLowerCase();
+      return this.recordingActions.filter(a => {
+        if (card) {
+          const cardText = (a.card || '').toLowerCase();
+          const grpText = a.grpId ? String(a.grpId) : '';
+          if (!cardText.includes(card) && !grpText.includes(card)) return false;
+        }
+        if (actor) {
+          const actorText = (a.actor || '').toLowerCase();
+          const seatText = a.actorSeat ? String(a.actorSeat) : '';
+          if (!actorText.includes(actor) && seatText !== actor) return false;
+        }
+        return true;
+      });
+    },
+
     get filteredLogs() {
       const f = this.logFilter.toLowerCase();
       const out = [];
+      const seen = new Set();
       for (let i = this.logEntries.length - 1; i >= 0; i--) {
         const l = this.logEntries[i];
+        if (seen.has(l.seq)) continue;
+        seen.add(l.seq);
         if (!this.logLevels[l.level]) continue;
         if (f && !l.logger.toLowerCase().includes(f) && !l.message.toLowerCase().includes(f)) continue;
         out.push(l);
@@ -493,43 +824,191 @@ function debugApp() {
       return out;
     },
 
-    // Lifecycle
-    init() { this.poll(); },
+    // Unified state timeline: snapshots + priority events, sorted by ts
+    get stateTimeline() {
+      const items = [];
+      for (const s of this.gameStates) {
+        items.push({ kind: 'snapshot', ts: s.ts, key: 's' + s.gsId, data: s });
+      }
+      for (const e of this.priorityEvents) {
+        items.push({ kind: 'event', ts: e.ts, key: 'e' + e.seq, data: e });
+      }
+      items.sort((a, b) => a.ts - b.ts);
+      return items;
+    },
 
-    // Polling
+    // SSE state
+    _sseConnected: false,
+
+    // Lifecycle
+    init() {
+      this.connectSSE();
+      this.poll();
+      this.fetchRecordings();
+    },
+
+    connectSSE() {
+      try {
+        const es = new EventSource('/api/events');
+        es.addEventListener('message', (ev) => {
+          if (this.paused) return;
+          const e = JSON.parse(ev.data);
+          if (e.seq <= this._lastSeq) return; // dedupe
+          this.entries.push(e);
+          this._lastSeq = e.seq;
+          if (this.entries.length > 1000) this.entries.splice(0, this.entries.length - 500);
+        });
+        es.addEventListener('log', (ev) => {
+          if (this.paused) return;
+          const l = JSON.parse(ev.data);
+          if (l.seq <= this._lastLogSeq) return; // dedupe
+          this.logEntries.push(l);
+          this._lastLogSeq = l.seq;
+          if (this.logEntries.length > 5000) this.logEntries.splice(0, this.logEntries.length - 2000);
+        });
+        es.addEventListener('priority', (ev) => {
+          if (this.paused) return;
+          const e = JSON.parse(ev.data);
+          if (e.seq <= this._lastEventSeq) return; // dedupe
+          this.priorityEvents.push(e);
+          this._lastEventSeq = e.seq;
+          if (this.priorityEvents.length > 1000) this.priorityEvents.splice(0, this.priorityEvents.length - 500);
+        });
+        es.addEventListener('state', (ev) => {
+          if (this.paused) return;
+          const s = JSON.parse(ev.data);
+          const idx = this.gameStates.findIndex(gs => gs.gsId === s.gsId);
+          if (idx >= 0) this.gameStates[idx] = s;
+          else this.gameStates.push(s);
+        });
+        es.onopen = () => { this._sseConnected = true; };
+        es.onerror = () => { this._sseConnected = false; };
+        this._sse = es;
+      } catch (_) { this._sseConnected = false; }
+    },
+
+    // Polling — SSE handles incremental data; poll only for state header + id-map + game-states timeline
     async poll() {
       if (!this.paused) {
         try {
-          const [msgR, stateR, logR] = await Promise.all([
-            fetch('/api/messages?since=' + this._lastSeq),
-            fetch('/api/state'),
-            fetch('/api/logs?since=' + this._lastLogSeq + '&level=DEBUG'),
-          ]);
-          const msgs = await msgR.json();
-          const state = await stateR.json();
-          const logs = await logR.json();
-
-          if (msgs.length > 0) {
-            for (const e of msgs) {
-              this.entries.push(e);
-              if (e.seq > this._lastSeq) this._lastSeq = e.seq;
+          const fetches = [fetch('/api/state')];
+          // When SSE is not connected, fall back to REST polling for incremental data
+          if (!this._sseConnected) {
+            fetches.push(fetch('/api/messages?since=' + this._lastSeq));
+            fetches.push(fetch('/api/logs?since=' + this._lastLogSeq + '&level=DEBUG'));
+          }
+          // Game states timeline (full reload) — only when States tab is active
+          if (this.view === 'states') {
+            fetches.push(fetch('/api/game-states'));
+            if (!this._sseConnected) {
+              fetches.push(fetch('/api/priority-events?since=' + this._lastEventSeq));
             }
-            if (this.entries.length > 1000) this.entries = this.entries.slice(-500);
+          }
+          const responses = await Promise.all(fetches);
+          let ri = 0;
+          this.state = await responses[ri++].json();
+
+          if (!this._sseConnected) {
+            // Messages (envelope)
+            const msgsEnv = await responses[ri++].json();
+            const msgs = msgsEnv.data || msgsEnv;
+            if (msgs.length > 0) {
+              for (const e of msgs) {
+                if (e.seq <= this._lastSeq) continue;
+                this.entries.push(e);
+                this._lastSeq = e.seq;
+              }
+              if (msgsEnv.cursor) this._lastSeq = msgsEnv.cursor;
+              if (this.entries.length > 1000) this.entries.splice(0, this.entries.length - 500);
+            }
+            // Logs (envelope)
+            const logsEnv = await responses[ri++].json();
+            const logs = logsEnv.data || logsEnv;
+            if (logs.length > 0) {
+              for (const l of logs) {
+                if (l.seq <= this._lastLogSeq) continue;
+                this.logEntries.push(l);
+                this._lastLogSeq = l.seq;
+              }
+              if (logsEnv.cursor) this._lastLogSeq = logsEnv.cursor;
+              if (this.logEntries.length > 5000) this.logEntries.splice(0, this.logEntries.length - 2000);
+            }
           }
 
-          if (logs.length > 0) {
-            for (const l of logs) {
-              this.logEntries.push(l);
-              if (l.seq > this._lastLogSeq) this._lastLogSeq = l.seq;
+          // Game states timeline (envelope)
+          if (this.view === 'states') {
+            const gsEnv = await responses[ri++].json();
+            this.gameStates = gsEnv.data || gsEnv;
+            if (!this._sseConnected) {
+              const evEnv = await responses[ri++].json();
+              const newEvents = evEnv.data || evEnv;
+              if (newEvents.length > 0) {
+                for (const ev of newEvents) {
+                  if (ev.seq <= this._lastEventSeq) continue;
+                  this.priorityEvents.push(ev);
+                  this._lastEventSeq = ev.seq;
+                }
+                if (evEnv.cursor) this._lastEventSeq = evEnv.cursor;
+                if (this.priorityEvents.length > 1000) this.priorityEvents.splice(0, this.priorityEvents.length - 500);
+              }
             }
-            if (this.logEntries.length > 5000) this.logEntries = this.logEntries.slice(-2000);
           }
 
-          this.state = state;
           if (this.showIdPanel) this.fetchIdMap();
         } catch (_) { /* server not up */ }
       }
-      setTimeout(() => this.poll(), 500);
+      setTimeout(() => this.poll(), this._sseConnected ? 2000 : 500);
+    },
+
+    async fetchRecordings() {
+      try {
+        const env = await (await fetch('/api/recordings')).json();
+        this.recordings = env.data || env;
+        if (!this.selectedRecordingId && this.recordings.length > 0) {
+          this.loadRecording(this.recordings[0].id);
+        }
+      } catch (_) {}
+    },
+
+    async loadRecording(id) {
+      this.selectedRecordingId = id;
+      this.recordingSummary = null;
+      this.recordingActions = [];
+      this.recordingCompare = null;
+      this.recordingCompareTargetId = null;
+      await Promise.all([this.refreshRecordingSummary(), this.refreshRecordingActions()]);
+    },
+
+    async refreshRecordingSummary() {
+      if (!this.selectedRecordingId) return;
+      try {
+        const r = await fetch('/api/recording-summary?id=' + encodeURIComponent(this.selectedRecordingId));
+        if (!r.ok) return;
+        this.recordingSummary = await r.json();
+      } catch (_) {}
+    },
+
+    async refreshRecordingActions() {
+      if (!this.selectedRecordingId) return;
+      try {
+        const card = this.recordingCardFilter ? '&card=' + encodeURIComponent(this.recordingCardFilter) : '';
+        const actor = this.recordingActorFilter ? '&actor=' + encodeURIComponent(this.recordingActorFilter) : '';
+        const r = await fetch('/api/recording-actions?id=' + encodeURIComponent(this.selectedRecordingId) + card + actor + '&limit=2000');
+        if (!r.ok) return;
+        const env = await r.json();
+        this.recordingActions = env.data || env;
+      } catch (_) {}
+    },
+
+    async runRecordingCompare() {
+      if (!this.selectedRecordingId || !this.recordingCompareTargetId) return;
+      try {
+        const left = encodeURIComponent(this.selectedRecordingId);
+        const right = encodeURIComponent(this.recordingCompareTargetId);
+        const r = await fetch('/api/recording-compare?left=' + left + '&right=' + right);
+        if (!r.ok) return;
+        this.recordingCompare = await r.json();
+      } catch (_) {}
     },
 
     // Actions
@@ -552,9 +1031,82 @@ function debugApp() {
       }).catch(() => {});
     },
 
+    // --- States tab helpers ---
+
+    zoneSummary(s) {
+      const counts = {};
+      for (const z of Object.values(s.zones)) {
+        const n = z.objectInstanceIds.length;
+        if (n > 0) counts[z.type] = (counts[z.type] || 0) + n;
+      }
+      return Object.entries(counts).map(([t, n]) => t + '=' + n).join(' ');
+    },
+
+    actionSummary(s) {
+      const counts = {};
+      for (const a of s.actions) counts[a.actionType] = (counts[a.actionType] || 0) + 1;
+      return Object.entries(counts).map(([t, n]) => t + '=' + n).join(' ');
+    },
+
+    hasInstance(s, iid) {
+      return s.objects && s.objects[iid] !== undefined;
+    },
+
+    async toggleStateDiff(gsId) {
+      if (this.expandedDiffs[gsId]) {
+        delete this.expandedDiffs[gsId];
+        return;
+      }
+      // Find previous gsId
+      const idx = this.gameStates.findIndex(s => s.gsId === gsId);
+      if (idx <= 0) {
+        this.expandedDiffs[gsId] = { empty: true };
+        return;
+      }
+      const prevGsId = this.gameStates[idx - 1].gsId;
+      try {
+        const resp = await fetch('/api/state-diff?from=' + prevGsId + '&to=' + gsId);
+        const diff = await resp.json();
+        this.expandedDiffs[gsId] = diff;
+      } catch (_) {
+        this.expandedDiffs[gsId] = { empty: true };
+      }
+    },
+
+    renderDiff(diff) {
+      if (!diff || diff.empty) return '<span class="st-diff-empty">NO CHANGES</span>';
+      let h = '';
+      if (diff.phaseChange) h += '<div class="st-diff-phase">' + esc(diff.phaseChange) + '</div>';
+      if (diff.turnChange) h += '<div class="st-diff-phase">turn: ' + esc(diff.turnChange) + '</div>';
+      for (const p of (diff.playerDeltas || [])) {
+        h += '<div class="st-diff-life">seat ' + p.seatId + ' life: ' + esc(p.lifeChange || '') + '</div>';
+      }
+      for (const z of (diff.zoneDeltas || [])) {
+        for (const r of z.added) {
+          h += '<div class="st-diff-added">+ ' + esc(z.type) + ': ' + (r.name || 'iid=' + r.instanceId) + ' (iid=' + r.instanceId + ')</div>';
+        }
+        for (const r of z.removed) {
+          h += '<div class="st-diff-removed">- ' + esc(z.type) + ': ' + (r.name || 'iid=' + r.instanceId) + ' (iid=' + r.instanceId + ')</div>';
+        }
+      }
+      for (const o of (diff.objectDeltas || [])) {
+        if (o.changeType === 'added') {
+          h += '<div class="st-diff-added">+ obj ' + (o.name || 'iid=' + o.instanceId) + '</div>';
+        } else if (o.changeType === 'removed') {
+          h += '<div class="st-diff-removed">- obj ' + (o.name || 'iid=' + o.instanceId) + '</div>';
+        } else if (o.changeType === 'modified') {
+          const changes = Object.entries(o.changes).map(([k, v]) => k + ': ' + v).join(', ');
+          h += '<div class="st-diff-modified">' + esc(o.name || 'iid=' + o.instanceId) + ': ' + esc(changes) + '</div>';
+        }
+      }
+      if (diff.actionsSummary) h += '<div style="color:var(--fg2)">actions: ' + esc(diff.actionsSummary) + '</div>';
+      return h || '<span class="st-diff-empty">NO CHANGES</span>';
+    },
+
     async fetchIdMap() {
       try {
-        this.idMap = await (await fetch('/api/id-map')).json();
+        const env = await (await fetch('/api/id-map')).json();
+        this.idMap = env.data || env;
       } catch (_) {}
     },
 

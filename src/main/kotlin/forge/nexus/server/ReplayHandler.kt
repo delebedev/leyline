@@ -14,7 +14,7 @@ import kotlin.collections.get
  * Patches matchId and clientId in replayed messages to match the current
  * session (the Front Door assigns new IDs each time).
  *
- * Usage: `--replay /tmp/arena-capture/payloads`
+ * Usage: `--replay <payloads-dir>` (default: NexusPaths.CAPTURE_PAYLOADS)
  */
 class ReplayHandler(
     private val payloadDir: File,

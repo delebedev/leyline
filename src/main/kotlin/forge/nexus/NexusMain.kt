@@ -5,7 +5,7 @@ import forge.nexus.server.NexusServer
 import java.io.File
 
 /**
- * Standalone entry point for the Nexus server (Arena compat layer).
+ * Standalone entry point for the Nexus server (client compat layer).
  *
  * Run via justfile targets: `just serve`, `just serve-stub`, etc.
  * See forge-nexus/CLAUDE.md for mode descriptions.
@@ -36,10 +36,10 @@ fun main(args: Array<String>) {
     val debugPort = a["--debug-port"]?.toIntOrNull() ?: 8090
     val debugServer = DebugServer(debugPort)
 
-    println("Starting Arena server ($mode mode)...")
+    println("Starting Nexus server ($mode mode)...")
     server.start()
     debugServer.start()
-    println("Arena server running. Press Ctrl+C to stop.")
+    println("Nexus server running. Press Ctrl+C to stop.")
     println("Debug panel: http://localhost:$debugPort")
 
     Thread.currentThread().join()

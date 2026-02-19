@@ -5,7 +5,7 @@ import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.io.File
 
 /**
- * CLI tool to inspect Arena .bin templates as structured proto text.
+ * CLI tool to inspect client .bin templates as structured proto text.
  *
  * Usage:
  *   make -C forge-web arena-inspect ARENA_TEMPLATE=path/to/file.bin
@@ -13,7 +13,7 @@ import java.io.File
 fun main(args: Array<String>) {
     val path = args.firstOrNull()
     if (path == null) {
-        System.err.println("Usage: ArenaInspect <file.bin>")
+        System.err.println("Usage: proto-inspect <file.bin>")
         System.exit(1)
     }
 

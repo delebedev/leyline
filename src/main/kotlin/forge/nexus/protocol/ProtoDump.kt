@@ -1,13 +1,14 @@
 package forge.nexus.protocol
 
 import com.google.protobuf.TextFormat
+import forge.nexus.debug.NexusPaths
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Dumps outgoing Arena proto messages to `/tmp/arena-dump/` as text-format files.
+ * Dumps outgoing client proto messages to `/tmp/arena-dump/` as text-format files.
  *
  * Enabled by `ARENA_DUMP=1` env var (or `-Darena.dump=true`).
  * Each send produces a sequentially numbered file: `001-GameStateMessage.txt`, etc.
@@ -23,31 +24,24 @@ object ProtoDump {
         System.getProperty("arena.dump") == "true"
 
     private val dumpDir: File by lazy {
-        File("/tmp/arena-dump").also {
+        NexusPaths.ENGINE_DUMP.also {
             if (it.exists()) it.listFiles()?.forEach { f -> f.delete() }
             it.mkdirs()
-            log.info("Arena proto dump → {}", it.absolutePath)
+            log.info("Client proto dump → {}", it.absolutePath)
         }
     }
 
-    /** Dump an outgoing [MatchServiceToClientMessage] to a numbered text file. */
+    /** Dump an outgoing [MatchServiceToClientMessage] to numbered text + binary files. */
     fun dump(msg: MatchServiceToClientMessage, label: String = "") {
         if (!enabled) return
         val seq = counter.incrementAndGet()
         val tag = label.ifEmpty { classify(msg) }
-        val name = "%03d-%s.txt".format(seq, tag)
-        val file = File(dumpDir, name)
-        file.writeText(printer.printToString(msg))
-        log.debug("Dumped {} ({} bytes text)", name, file.length())
-    }
-
-    /** Dump raw bytes alongside text for binary comparison. */
-    fun dumpBin(msg: MatchServiceToClientMessage, label: String = "") {
-        if (!enabled) return
-        val seq = counter.get() // use same seq as last text dump
-        val tag = label.ifEmpty { classify(msg) }
-        val name = "%03d-%s.bin".format(seq, tag)
-        File(dumpDir, name).writeBytes(msg.toByteArray())
+        val txtName = "%03d-%s.txt".format(seq, tag)
+        val txtFile = File(dumpDir, txtName)
+        txtFile.writeText(printer.printToString(msg))
+        // Also write binary for proto-compare CLI (RecordingParser reads .bin)
+        File(dumpDir, "%03d-%s.bin".format(seq, tag)).writeBytes(msg.toByteArray())
+        log.debug("Dumped {} ({} bytes text)", txtName, txtFile.length())
     }
 
     private fun classify(msg: MatchServiceToClientMessage): String = when {

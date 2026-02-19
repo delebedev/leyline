@@ -7,14 +7,21 @@ nexus_dir    := justfile_directory()
 web_dir      := root_dir / "forge-web"
 classpath    := nexus_dir / "target/classpath.txt"
 logback      := nexus_dir / "src/main/resources/logback.xml"
+logback_cli  := nexus_dir / "src/main/resources/logback-cli.xml"
 templates    := nexus_dir / "src/main/resources/arena-templates"
 certs        := env("NEXUS_CERTS", "/tmp/arena-capture")
-fd_ip        := env("NEXUS_FD_IP", "54.190.138.101")
-md_ip        := env("NEXUS_MD_IP", "54.218.223.216")
+fd_ip        := env("NEXUS_FD_IP", "52.88.10.148")
+md_ip        := env("NEXUS_MD_IP", "54.71.214.244")
 payloads     := env("NEXUS_PAYLOADS", "/tmp/arena-capture/payloads")
 ports        := "30010 30003 8090"
 
 jvm_opts := "-Dio.netty.tryReflectionSetAccessible=true --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dlogback.configurationFile=" + logback
+jvm_opts_cli := "-Dio.netty.tryReflectionSetAccessible=true --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dlogback.configurationFile=" + logback_cli + " -Dlogback.statusListenerClass=ch.qos.logback.core.status.NopStatusListener"
+
+# auto-format Kotlin sources (spotless/ktlint)
+fmt: check-java
+    cd "{{root_dir}}" && mvn -pl forge-nexus com.diffplug.spotless:spotless-maven-plugin:apply -q
+    @echo "fmt done."
 
 # --- Build ---
 
@@ -43,7 +50,7 @@ build: check-java _check-upstream
 dev-build: check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_skip}} compile -q
+    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_skip}} compile -q && echo "dev-build OK"
     if [ ! -f "{{classpath}}" ] || [ "{{nexus_dir}}/pom.xml" -nt "{{classpath}}" ] || [ "{{root_dir}}/pom.xml" -nt "{{classpath}}" ]; then
         cd "{{root_dir}}" && mvn -pl forge-nexus \
             {{mvn_skip}} \
@@ -55,6 +62,36 @@ dev-build: check-java
 test: check-java _check-upstream _clean-surefire
     cd "{{root_dir}}" && mvn -pl forge-nexus \
         {{mvn_quiet}} test
+
+# single test class (e.g. `just test-one StructuralFingerprintTest`)
+test-one class: check-java _check-upstream _clean-surefire
+    cd "{{root_dir}}" && mvn -pl forge-nexus \
+        {{mvn_quiet}} \
+        -Dtest="{{class}}" -Dsurefire.failIfNoSpecifiedTests=false test
+
+# unit tests only (no engine bootstrap, fastest)
+test-unit: check-java _check-upstream _clean-surefire
+    cd "{{root_dir}}" && mvn -pl forge-nexus \
+        {{mvn_quiet}} \
+        -Dgroups=unit test
+
+# all conformance tests (~5s, wire-shape checks against Arena patterns)
+test-conformance: check-java _check-upstream _clean-surefire
+    cd "{{root_dir}}" && mvn -pl forge-nexus \
+        {{mvn_quiet}} \
+        -Dgroups=conformance test
+
+# integration tests (~30s, boots engine — includes conformance)
+test-integration: check-java _check-upstream _clean-surefire
+    cd "{{root_dir}}" && mvn -pl forge-nexus \
+        {{mvn_quiet}} \
+        -Dgroups=integration test
+
+# pre-commit gate: unit + conformance + integration (skips recording)
+test-gate: check-java _check-upstream _clean-surefire
+    cd "{{root_dir}}" && mvn -pl forge-nexus \
+        {{mvn_quiet}} \
+        -Dgroups="unit,conformance,integration" test
 
 # watch *.kt, recompile + restart hybrid on change (fast: nexus-only compile)
 dev: check-java
@@ -129,13 +166,13 @@ serve-replay: (_require classpath) check-java
 
 # --- Proto inspection ---
 
-# inspect a .bin template
+# inspect a .bin template (no port kill — safe while server runs)
 proto-inspect file=(templates / "mulligan-req-seat1.bin"): (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.debug.InspectKt "{{file}}"
+    @{{_nexus_cli}} forge.nexus.debug.InspectKt "{{file}}"
 
 # decode Match Door payloads
 proto-decode: (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.protocol.DecodeCaptureKt {{payloads}}
+    @{{_nexus_cli}} forge.nexus.protocol.DecodeCaptureKt {{payloads}}
 
 # save last S→C payload as template
 proto-extract name="extracted": (_require classpath) check-java
@@ -161,7 +198,7 @@ proto-diff-prep: (_require classpath) check-java
     for f in {{payloads}}/S-C_*.bin; do
         [ -f "$f" ] || continue
         base=$(basename "$f" .bin)
-        {{_nexus_java}} forge.nexus.debug.InspectKt "$f" > "$real_dir/$base.txt" 2>/dev/null
+        {{_nexus_cli}} forge.nexus.debug.InspectKt "$f" > "$real_dir/$base.txt" 2>/dev/null
         echo "  $base.txt"
     done
     echo "Real payloads dumped to $real_dir/"
@@ -182,6 +219,47 @@ proto-diff:
     echo ""
     echo "--- diff example ---"
     echo "  diff $real/<name>.txt $stub/<name>.txt"
+
+# compare our output vs real Arena captures structurally (no port kill)
+proto-compare *args: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.conformance.CompareMainKt {{args}}
+
+# trace an ID across all recorded payloads (no port kill — safe while server runs)
+proto-trace id: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.TraceKt "{{id}}" {{payloads}}
+
+# decode a recording directory to structured JSONL (no port kill)
+proto-decode-recording dir output="": (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.conformance.RecordingDecoderMainKt "{{dir}}" {{output}}
+
+# decode + accumulate state snapshots from a recording (no port kill)
+proto-accumulate dir output="": (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.conformance.RecordingDecoderMainKt "{{dir}}" --accumulate {{output}}
+
+# list discovered recording sessions (engine/proxy)
+rec-list: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt list
+
+# compact summary for one recording session directory (or session id from rec-list)
+# accepts extra args for convenience (ignored)
+rec-summary session *args: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt summary "{{session}}"
+
+# action timeline query (all actions)
+rec-actions session limit="500": (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt actions "{{session}}" --limit "{{limit}}"
+
+# action timeline query (filtered; positional: session card [actor] [limit])
+rec-actions-filtered session card actor="" limit="500": (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt actions "{{session}}" --card "{{card}}" --actor "{{actor}}" --limit "{{limit}}"
+
+# who played a specific card (name or grp id)
+rec-who-played session card: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt who-played "{{session}}" --card "{{card}}"
+
+# compare two recordings by compact action stream
+rec-compare left right: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt compare "{{left}}" "{{right}}"
 
 # --- Private helpers ---
 
@@ -207,3 +285,5 @@ _clean-surefire:
     @rm -rf "{{nexus_dir}}/target/surefire-reports"
 
 _nexus_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill $pid 2>/dev/null || true; done; done; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp "$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
+# Same as _nexus_java but without killing ports — for read-only CLI tools
+_nexus_cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts_cli + ' -cp "$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
