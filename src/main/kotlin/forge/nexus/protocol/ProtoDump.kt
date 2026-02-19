@@ -25,7 +25,6 @@ object ProtoDump {
 
     private val dumpDir: File by lazy {
         NexusPaths.ENGINE_DUMP.also {
-            if (it.exists()) it.listFiles()?.forEach { f -> f.delete() }
             it.mkdirs()
             log.info("Client proto dump → {}", it.absolutePath)
         }
