@@ -163,12 +163,12 @@ class NexusServer(
         val mdHost = upstreamMatchDoor ?: fdHost
 
         frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Proxy") { ch ->
-            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, fdHost, frontDoorPort))
+            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, fdHost, frontDoorPort, "FD"))
         }
         log.info("Client Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
 
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor-Proxy") { ch ->
-            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, mdHost, matchDoorPort))
+            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, mdHost, matchDoorPort, "MD"))
         }
         log.info("Client Match Door (proxy → {}:{}) listening on :{}", mdHost, matchDoorPort, matchDoorPort)
     }
@@ -216,6 +216,7 @@ class ProxyFrontHandler(
     private val workerGroup: EventLoopGroup,
     private val remoteHost: String,
     private val remotePort: Int,
+    private val door: String = "FD",
 ) : ChannelInboundHandlerAdapter() {
 
     private val log = LoggerFactory.getLogger(ProxyFrontHandler::class.java)
@@ -225,7 +226,7 @@ class ProxyFrontHandler(
 
     override fun channelActive(ctx: ChannelHandlerContext) {
         val inbound = ctx.channel()
-        log.info("Proxy: client from {}, connecting upstream {}:{}", inbound.remoteAddress(), remoteHost, remotePort)
+        log.info("Proxy [{}]: client from {}, connecting upstream {}:{}", door, inbound.remoteAddress(), remoteHost, remotePort)
 
         val upstreamSsl = SslContextBuilder.forClient()
             .trustManager(InsecureTrustManagerFactory.INSTANCE)
@@ -237,7 +238,7 @@ class ProxyFrontHandler(
             .handler(object : ChannelInitializer<SocketChannel>() {
                 override fun initChannel(ch: SocketChannel) {
                     ch.pipeline().addLast("ssl", upstreamSsl.newHandler(ch.alloc(), remoteHost, remotePort))
-                    ch.pipeline().addLast("relay", RelayHandler(inbound, "S→C"))
+                    ch.pipeline().addLast("relay", RelayHandler(inbound, "S→C", door))
                 }
             })
 
@@ -245,8 +246,7 @@ class ProxyFrontHandler(
             ChannelFutureListener { future ->
                 if (future.isSuccess) {
                     outboundChannel = future.channel()
-                    log.info("Proxy: upstream connected to {}:{}", remoteHost, remotePort)
-                    // Flush any data that arrived before upstream was ready
+                    log.info("Proxy [{}]: upstream connected to {}:{}", door, remoteHost, remotePort)
                     synchronized(pendingWrites) {
                         for (msg in pendingWrites) {
                             future.channel().writeAndFlush(msg)
@@ -254,7 +254,7 @@ class ProxyFrontHandler(
                         pendingWrites.clear()
                     }
                 } else {
-                    log.error("Proxy: upstream connect failed: {}", future.cause().message)
+                    log.error("Proxy [{}]: upstream connect failed: {}", door, future.cause().message)
                     inbound.close()
                 }
             },
@@ -267,34 +267,34 @@ class ProxyFrontHandler(
         if (out != null && out.isActive) {
             out.writeAndFlush(msg)
         } else {
-            // Buffer until upstream is ready
             synchronized(pendingWrites) { pendingWrites.add(msg) }
         }
     }
 
     override fun channelInactive(ctx: ChannelHandlerContext) {
-        log.info("Proxy: client disconnected")
+        log.info("Proxy [{}]: client disconnected", door)
         outboundChannel?.close()
     }
 
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-        log.error("Proxy front: {}", cause.message)
+        log.error("Proxy [{}]: {}", door, cause.message)
         ctx.close()
     }
 
-    private fun logFrame(dir: String, buf: ByteBuf) = logClientFrame(log, dir, buf)
+    private fun logFrame(dir: String, buf: ByteBuf) = logClientFrame(log, "$door:$dir", buf)
 }
 
 /** Relays bytes from one channel to another, logging frame headers + payloads. */
 class RelayHandler(
     private val relayTarget: Channel,
     private val direction: String,
+    private val door: String = "FD",
 ) : ChannelInboundHandlerAdapter() {
 
     private val log = LoggerFactory.getLogger(RelayHandler::class.java)
 
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
-        if (msg is ByteBuf) logClientFrame(log, direction, msg)
+        if (msg is ByteBuf) logClientFrame(log, "$door:$direction", msg)
         if (relayTarget.isActive) {
             relayTarget.writeAndFlush(msg)
         } else {
@@ -303,12 +303,12 @@ class RelayHandler(
     }
 
     override fun channelInactive(ctx: ChannelHandlerContext) {
-        log.info("Proxy: {} channel closed", direction)
+        log.info("Proxy [{}]: {} channel closed", door, direction)
         if (relayTarget.isActive) relayTarget.close()
     }
 
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
-        log.error("Proxy {}: {}", direction, cause.message)
+        log.error("Proxy [{}] {}: {}", door, direction, cause.message)
         ctx.close()
     }
 }

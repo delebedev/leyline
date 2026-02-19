@@ -16,11 +16,7 @@ import java.util.Base64
  */
 object RecordingInspector {
 
-    private val defaultRoots = listOf(
-        NexusPaths.RECORDINGS,
-        NexusPaths.ENGINE_DUMP,
-        NexusPaths.CAPTURE_PAYLOADS,
-    )
+    private val recordingsRoot = NexusPaths.RECORDINGS
 
     @Serializable
     data class SessionRef(
@@ -110,22 +106,26 @@ object RecordingInspector {
     fun listSessions(): List<SessionRef> {
         val dirs = linkedSetOf<File>()
 
-        val root = defaultRoots[0]
+        // Scan session directories under RECORDINGS (timestamped dirs with engine/capture subdirs)
+        val root = NexusPaths.RECORDINGS
         if (root.isDirectory) {
             root.listFiles()
-                ?.filter { it.isDirectory }
+                ?.filter { it.isDirectory && it.name != "latest" }
                 ?.sortedByDescending { it.lastModified() }
-                ?.forEach { dirs.add(it) }
+                ?.forEach { sessionDir ->
+                    // Add leaf dirs that contain .bin files (engine/, capture/payloads/)
+                    sessionDir.walk()
+                        .filter { it.isDirectory && RecordingDecoder.listRecordingFiles(it).isNotEmpty() }
+                        .forEach { dirs.add(it) }
+                }
         }
-
-        defaultRoots.drop(1).forEach { if (it.isDirectory) dirs.add(it) }
 
         val sessions = dirs.mapNotNull { dir ->
             val files = RecordingDecoder.listRecordingFiles(dir)
             if (files.isEmpty()) return@mapNotNull null
             SessionRef(
                 id = encodeSessionId(dir),
-                name = dir.name,
+                name = dir.relativeTo(root).path,
                 path = dir.absolutePath,
                 mode = detectMode(dir),
                 fileCount = files.size,
@@ -348,12 +348,10 @@ object RecordingInspector {
             left.grpId == right.grpId
     }
 
-    private fun detectMode(dir: File): String = when (dir.absolutePath) {
-        NexusPaths.ENGINE_DUMP.absolutePath -> "engine"
-        NexusPaths.CAPTURE_PAYLOADS.absolutePath -> "proxy"
-        else -> {
-            if (dir.name.contains("proxy", ignoreCase = true)) "proxy" else "recording"
-        }
+    private fun detectMode(dir: File): String = when {
+        dir.name == "engine" || dir.absolutePath.contains("/engine") -> "engine"
+        dir.name == "payloads" || dir.absolutePath.contains("/capture/") -> "proxy"
+        else -> "recording"
     }
 
     private fun encodeOrKeep(sessionIdOrPath: String): String {

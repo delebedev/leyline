@@ -6,7 +6,7 @@ For day-to-day CLI reference (`rec-*` + `proto-*`), see `docs/recording-cli.md`.
 
 ## Prerequisites
 
-- `just build` in forge-nexus (compiles proto + Kotlin)
+- `just dev-build` in forge-nexus (Kotlin-only, ~3-5s; use `just build` only after proto changes)
 - MTGA client configured to connect through nexus proxy (certs installed)
 - Sparky bot queue selected (Practice → Sparky)
 

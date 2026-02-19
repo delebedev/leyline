@@ -232,14 +232,24 @@ object RecordingDecoder {
     /**
      * Return candidate .bin files from a recording directory.
      *
-     * Supports both:
+     * Supports:
      * - Legacy proxy capture names (`S-C_MATCH_DATA_*.bin`)
      * - Engine dump names (`001-GameStateMessage+....bin`)
-     * - New frame-accurate capture names
+     * - Door-tagged proxy captures (`*_MD_S-C_*.bin`) — excludes FD and C→S
      */
     fun listRecordingFiles(dir: File): List<File> =
         dir.listFiles()
-            ?.filter { it.isFile && it.extension == "bin" && !it.name.startsWith("C-S_") }
+            ?.filter { f ->
+                if (!f.isFile || f.extension != "bin") return@filter false
+                val n = f.name
+                // Door-tagged captures: only keep MD S→C
+                if (n.contains("MD_") || n.contains("FD_")) {
+                    return@filter n.contains("MD_S-C")
+                }
+                // Legacy: exclude C→S
+                if (n.startsWith("C-S_")) return@filter false
+                true
+            }
             ?.sortedBy { it.name }
             ?: emptyList()
 

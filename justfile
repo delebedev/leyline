@@ -12,7 +12,7 @@ templates    := nexus_dir / "src/main/resources/arena-templates"
 certs        := env("NEXUS_CERTS", "/tmp/arena-capture")
 fd_ip        := env("NEXUS_FD_IP", "52.88.10.148")
 md_ip        := env("NEXUS_MD_IP", "54.71.214.244")
-payloads     := env("NEXUS_PAYLOADS", "/tmp/arena-capture/payloads")
+payloads     := env("NEXUS_PAYLOADS", "/tmp/arena-recordings/latest/capture/payloads")
 ports        := "30010 30003 8090"
 
 # --- JVM flags (shared base + per-mode overrides) ---

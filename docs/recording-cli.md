@@ -12,7 +12,7 @@ Use this for day-to-day questions:
 
 ```bash
 cd forge-nexus
-just build
+just dev-build   # Kotlin-only, ~3-5s (use `just build` only after proto changes)
 ```
 
 ## Recording Sources
