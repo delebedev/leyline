@@ -121,7 +121,7 @@ class MatchHandler(
 
                 // Only one bridge per match — first seat to arrive creates it
                 val bridge = registry.getOrCreateBridge(matchId) {
-                    GameBridge().also { it.start() }
+                    GameBridge().also { it.start(seed = 2L) }
                 }
                 s?.gameBridge = bridge
                 seat1Hand = bridge.getHandGrpIds(1)

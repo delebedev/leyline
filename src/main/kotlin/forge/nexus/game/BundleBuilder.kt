@@ -192,7 +192,7 @@ object BundleBuilder {
             updateType = GameStateUpdate.SendHiFi,
             viewingSeatId = seatId,
         )
-        val actions = StateMapper.buildActions(game, seatId, bridge)
+        val actions = StateMapper.buildActions(game, activeSeat, bridge)
 
         // Message 1: Diff with annotations + actions
         val gsWithAnnotations = if (phaseChanged || turnStarted) {
