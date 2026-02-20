@@ -119,7 +119,9 @@
     background: var(--bg3);
     color: var(--fg);
     font-weight: 600;
+    cursor: pointer;
   }
+  .type-badge:hover { opacity: 0.6; }
   .type-GameStateMessage { color: var(--yellow); }
   .type-ActionsAvailableReq { color: var(--orange); }
   .type-PerformActionResp { color: var(--purple); }
@@ -420,6 +422,7 @@
     flex: 1;
     overflow-y: auto;
     padding: 8px;
+    position: relative;
   }
   .rec-summary {
     background: var(--bg2);
@@ -453,6 +456,20 @@
   .rec-card { color: var(--yellow); }
   .rec-actor { color: var(--blue); }
   .rec-cat { color: var(--orange); font-weight: 700; }
+
+  /* Compare columns */
+  .compare-columns {
+    display: flex;
+    gap: 8px;
+  }
+  .compare-col {
+    flex: 1;
+    overflow-y: auto;
+    max-height: calc(100vh - 200px);
+    min-width: 0;
+  }
+  .compare-col-left { border-left: 3px solid var(--blue); padding-left: 6px; }
+  .compare-col-right { border-left: 3px solid var(--orange); padding-left: 6px; }
 
   /* Copy buttons */
   .copy-btn {
@@ -634,7 +651,7 @@
 
   <!-- Recordings view -->
   <div id="recordings-wrap" x-show="view === 'recordings'" x-cloak>
-    <div id="recordings-list">
+    <div id="recordings-list" x-show="!recListCollapsed">
       <template x-for="r in recordings" :key="r.id">
         <div class="rec-row" :class="{ active: selectedRecordingId === r.id }" @click="loadRecording(r.id)">
           <div class="rec-title" x-text="r.name"></div>
@@ -643,11 +660,19 @@
         </div>
       </template>
       <div class="rec-row" x-show="recordings.length === 0">
-        <div class="rec-meta">No sessions found in /tmp/arena-recordings, /tmp/arena-dump, /tmp/arena-capture/payloads.</div>
+        <div class="rec-meta">No sessions found in /tmp/arena-recordings.</div>
       </div>
     </div>
 
+    <div id="recordings-list-toggle" x-show="recListCollapsed"
+         @click="recListCollapsed = false"
+         style="width:20px; flex-shrink:0; cursor:pointer; display:flex; align-items:center; justify-content:center;
+                border-right:1px solid var(--border); background:var(--bg2); color:var(--fg2); font-size:14px;"
+         title="Show session list">&rsaquo;</div>
     <div id="recordings-main">
+      <button class="header-btn" @click="recListCollapsed = !recListCollapsed"
+              style="position:absolute; top:4px; left:4px; z-index:1; font-size:10px; padding:1px 5px;"
+              x-text="recListCollapsed ? '\u25B6' : '\u25C0'" title="Toggle session list"></button>
       <div class="rec-summary" x-show="recordingSummary">
         <div><span class="pill pill-count">mode</span> <span x-text="recordingSummary?.mode"></span></div>
         <div><span class="pill pill-count">messages</span> <span x-text="recordingSummary?.messageCount"></span>
@@ -677,6 +702,17 @@
           <span class="pill pill-count" style="margin-left:8px;">first divergence</span>
           <span x-text="recordingCompare?.firstDivergence ? ('#' + recordingCompare.firstDivergence.index) : 'none'"></span>
         </div>
+      </div>
+
+      <!-- Hidden types bar -->
+      <div x-show="Object.keys(recHiddenTypes).length > 0" style="margin-bottom:6px; display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+        <span class="entry-meta">hidden:</span>
+        <template x-for="t in Object.keys(recHiddenTypes)" :key="'h-' + t">
+          <span class="pill pill-count" style="cursor:pointer; text-decoration:line-through; opacity:0.6"
+                @click="const h = {...recHiddenTypes}; delete h[t]; recHiddenTypes = h" x-text="t"></span>
+        </template>
+        <span class="pill pill-count" style="cursor:pointer; color:var(--accent)"
+              @click="recHiddenTypes = {}">show all</span>
       </div>
 
       <!-- Actions sub-view -->
@@ -716,15 +752,16 @@
         </div>
       </template>
 
-      <!-- Messages sub-view -->
-      <template x-if="recSubView === 'messages'">
+      <!-- Messages sub-view (single session) -->
+      <template x-if="recSubView === 'messages' && !compareMode">
         <div>
           <template x-for="m in filteredRecordingMessages" :key="m.index">
             <div class="entry" :class="'dir-in' + (recMsgExpanded[m.index] ? ' highlight' : '')"
                  @click="recMsgExpanded[m.index] = !recMsgExpanded[m.index]">
               <div class="entry-header">
                 <span class="entry-meta" x-text="'#' + m.index" style="min-width:32px"></span>
-                <span class="type-badge" :class="'type-' + m.greType" x-text="m.greType"></span>
+                <span class="type-badge" :class="'type-' + m.greType" x-text="m.greType"
+                          @click.stop="recHiddenTypes = {...recHiddenTypes, [m.greType]: true}"></span>
                 <template x-if="m.gsmType">
                   <span class="pill pill-count" x-text="m.gsmType"></span>
                 </template>
@@ -769,6 +806,112 @@
           </template>
           <div class="rec-summary" x-show="selectedRecordingId && filteredRecordingMessages.length === 0">
             <span>No messages found.</span>
+          </div>
+        </div>
+      </template>
+
+      <!-- Messages compare view (side-by-side) -->
+      <template x-if="recSubView === 'messages' && compareMode">
+        <div>
+          <div style="display:flex; gap:6px; margin-bottom:6px; align-items:center;">
+            <span class="pill pill-active" x-text="compareLeftName"></span>
+            <span style="color:var(--fg2)">vs</span>
+            <span class="pill pill-turn" x-text="compareRightName"></span>
+            <span class="entry-meta" style="margin-left:8px"
+                  x-text="'(' + filteredCompareLeftMessages.length + ' / ' + filteredCompareRightMessages.length + ' msgs)'"></span>
+            <button class="header-btn" @click="compareMode = false" style="margin-left:auto">Close</button>
+          </div>
+          <div class="compare-columns">
+            <!-- Left column -->
+            <div class="compare-col compare-col-left">
+              <template x-for="m in filteredCompareLeftMessages" :key="'L' + m.index">
+                <div class="entry dir-in" :class="recMsgExpanded['L'+m.index] ? 'highlight' : ''"
+                     @click="recMsgExpanded['L'+m.index] = !recMsgExpanded['L'+m.index]">
+                  <div class="entry-header">
+                    <span class="entry-meta" x-text="'#' + m.index" style="min-width:32px"></span>
+                    <span class="type-badge" :class="'type-' + m.greType" x-text="m.greType"
+                          @click.stop="recHiddenTypes = {...recHiddenTypes, [m.greType]: true}"></span>
+                    <template x-if="m.gsmType">
+                      <span class="pill pill-count" x-text="m.gsmType"></span>
+                    </template>
+                    <template x-if="m.updateType">
+                      <span class="pill" :class="m.updateType === 'SendHiFi' ? 'pill-turn' : m.updateType === 'SendAndRecord' ? 'pill-active' : 'pill-phase'"
+                            x-text="m.updateType"></span>
+                    </template>
+                    <template x-if="m.turnInfo">
+                      <span class="pill pill-turn" x-text="'T' + m.turnInfo.turn + ' ' + m.turnInfo.phase + '/' + m.turnInfo.step"></span>
+                    </template>
+                    <span class="entry-meta" x-text="'gs=' + m.gsId + ' msg=' + m.msgId"></span>
+                  </div>
+                  <div class="entry-ids" x-show="m.annotations.length > 0" style="margin-top:3px">
+                    <template x-for="ann in m.annotations" :key="ann.id">
+                      <span class="iid-chip" style="background:var(--bg3);color:var(--orange)"
+                            x-text="ann.types.join('+')"></span>
+                    </template>
+                  </div>
+                  <div x-show="m.actions.length > 0" style="margin-top:2px">
+                    <span class="entry-meta" x-text="m.actions.map(a => a.type).join(', ')"></span>
+                  </div>
+                  <div class="entry-ids" style="margin-top:2px"
+                       x-show="m.hasMulliganReq || m.hasActionsAvailableReq || m.hasDeclareAttackersReq || m.hasDeclareBlockersReq || m.hasSelectTargetsReq || m.hasIntermissionReq">
+                    <span class="iid-chip" x-show="m.hasMulliganReq" style="color:var(--yellow)">MulliganReq</span>
+                    <span class="iid-chip" x-show="m.hasActionsAvailableReq" style="color:var(--orange)">ActionsAvailableReq</span>
+                    <span class="iid-chip" x-show="m.hasDeclareAttackersReq" style="color:var(--red)">DeclareAttackersReq</span>
+                    <span class="iid-chip" x-show="m.hasDeclareBlockersReq" style="color:var(--red)">DeclareBlockersReq</span>
+                    <span class="iid-chip" x-show="m.hasSelectTargetsReq" style="color:var(--purple)">SelectTargetsReq</span>
+                    <span class="iid-chip" x-show="m.hasIntermissionReq" style="color:var(--red)">IntermissionReq</span>
+                  </div>
+                  <div class="json-wrap" x-show="recMsgExpanded['L'+m.index]"
+                       x-effect="if (recMsgExpanded['L'+m.index] && !$el.dataset.loaded) { $el.innerHTML = buildJsonHtml(JSON.stringify(m)); $el.dataset.loaded = '1'; }"
+                       @click.stop="handleJsonClick($event)"></div>
+                </div>
+              </template>
+            </div>
+            <!-- Right column -->
+            <div class="compare-col compare-col-right">
+              <template x-for="m in filteredCompareRightMessages" :key="'R' + m.index">
+                <div class="entry dir-in" :class="recMsgExpanded['R'+m.index] ? 'highlight' : ''"
+                     @click="recMsgExpanded['R'+m.index] = !recMsgExpanded['R'+m.index]">
+                  <div class="entry-header">
+                    <span class="entry-meta" x-text="'#' + m.index" style="min-width:32px"></span>
+                    <span class="type-badge" :class="'type-' + m.greType" x-text="m.greType"
+                          @click.stop="recHiddenTypes = {...recHiddenTypes, [m.greType]: true}"></span>
+                    <template x-if="m.gsmType">
+                      <span class="pill pill-count" x-text="m.gsmType"></span>
+                    </template>
+                    <template x-if="m.updateType">
+                      <span class="pill" :class="m.updateType === 'SendHiFi' ? 'pill-turn' : m.updateType === 'SendAndRecord' ? 'pill-active' : 'pill-phase'"
+                            x-text="m.updateType"></span>
+                    </template>
+                    <template x-if="m.turnInfo">
+                      <span class="pill pill-turn" x-text="'T' + m.turnInfo.turn + ' ' + m.turnInfo.phase + '/' + m.turnInfo.step"></span>
+                    </template>
+                    <span class="entry-meta" x-text="'gs=' + m.gsId + ' msg=' + m.msgId"></span>
+                  </div>
+                  <div class="entry-ids" x-show="m.annotations.length > 0" style="margin-top:3px">
+                    <template x-for="ann in m.annotations" :key="ann.id">
+                      <span class="iid-chip" style="background:var(--bg3);color:var(--orange)"
+                            x-text="ann.types.join('+')"></span>
+                    </template>
+                  </div>
+                  <div x-show="m.actions.length > 0" style="margin-top:2px">
+                    <span class="entry-meta" x-text="m.actions.map(a => a.type).join(', ')"></span>
+                  </div>
+                  <div class="entry-ids" style="margin-top:2px"
+                       x-show="m.hasMulliganReq || m.hasActionsAvailableReq || m.hasDeclareAttackersReq || m.hasDeclareBlockersReq || m.hasSelectTargetsReq || m.hasIntermissionReq">
+                    <span class="iid-chip" x-show="m.hasMulliganReq" style="color:var(--yellow)">MulliganReq</span>
+                    <span class="iid-chip" x-show="m.hasActionsAvailableReq" style="color:var(--orange)">ActionsAvailableReq</span>
+                    <span class="iid-chip" x-show="m.hasDeclareAttackersReq" style="color:var(--red)">DeclareAttackersReq</span>
+                    <span class="iid-chip" x-show="m.hasDeclareBlockersReq" style="color:var(--red)">DeclareBlockersReq</span>
+                    <span class="iid-chip" x-show="m.hasSelectTargetsReq" style="color:var(--purple)">SelectTargetsReq</span>
+                    <span class="iid-chip" x-show="m.hasIntermissionReq" style="color:var(--red)">IntermissionReq</span>
+                  </div>
+                  <div class="json-wrap" x-show="recMsgExpanded['R'+m.index]"
+                       x-effect="if (recMsgExpanded['R'+m.index] && !$el.dataset.loaded) { $el.innerHTML = buildJsonHtml(JSON.stringify(m)); $el.dataset.loaded = '1'; }"
+                       @click.stop="handleJsonClick($event)"></div>
+                </div>
+              </template>
+            </div>
           </div>
         </div>
       </template>
@@ -824,9 +967,16 @@ function debugApp() {
     recordingMessages: [],
     recordingCompareTargetId: null,
     recordingCompare: null,
+    compareMode: false,
+    compareLeftMessages: [],
+    compareRightMessages: [],
+    compareLeftName: '',
+    compareRightName: '',
     recSubView: 'messages',
     recMsgFilter: '',
     recMsgExpanded: {},
+    recHiddenTypes: JSON.parse(localStorage.getItem('recHiddenTypes') || '{}'),
+    recListCollapsed: false,
 
     // States tab data
     gameStates: [],
@@ -870,10 +1020,12 @@ function debugApp() {
       return out;
     },
 
-    get filteredRecordingMessages() {
+    _filterRecMessages(msgs) {
+      const hidden = this.recHiddenTypes;
       const f = this.recMsgFilter.toLowerCase();
-      if (!f) return this.recordingMessages;
-      return this.recordingMessages.filter(m => {
+      return msgs.filter(m => {
+        if (hidden[m.greType]) return false;
+        if (!f) return true;
         if (m.greType.toLowerCase().includes(f)) return true;
         if (m.gsmType && m.gsmType.toLowerCase().includes(f)) return true;
         if (m.updateType && m.updateType.toLowerCase().includes(f)) return true;
@@ -881,6 +1033,18 @@ function debugApp() {
         if (m.actions.some(a => a.type.toLowerCase().includes(f))) return true;
         return false;
       });
+    },
+
+    get filteredRecordingMessages() {
+      return this._filterRecMessages(this.recordingMessages);
+    },
+
+    get filteredCompareLeftMessages() {
+      return this._filterRecMessages(this.compareLeftMessages);
+    },
+
+    get filteredCompareRightMessages() {
+      return this._filterRecMessages(this.compareRightMessages);
     },
 
     get filteredRecordingActions() {
@@ -934,6 +1098,7 @@ function debugApp() {
 
     // Lifecycle
     init() {
+      this.$watch('recHiddenTypes', (v) => localStorage.setItem('recHiddenTypes', JSON.stringify(v)));
       this.connectSSE();
       this.poll();
       this.fetchRecordings();
@@ -1070,6 +1235,7 @@ function debugApp() {
       this.recMsgExpanded = {};
       this.recordingCompare = null;
       this.recordingCompareTargetId = null;
+      this.compareMode = false;
       const fetches = [this.refreshRecordingSummary()];
       if (this.recSubView === 'messages') fetches.push(this.refreshRecordingMessages());
       else fetches.push(this.refreshRecordingActions());
@@ -1111,11 +1277,21 @@ function debugApp() {
     async runRecordingCompare() {
       if (!this.selectedRecordingId || !this.recordingCompareTargetId) return;
       try {
-        const left = encodeURIComponent(this.selectedRecordingId);
-        const right = encodeURIComponent(this.recordingCompareTargetId);
-        const r = await fetch('/api/recording-compare?left=' + left + '&right=' + right);
-        if (!r.ok) return;
-        this.recordingCompare = await r.json();
+        const [leftR, rightR, cmpR] = await Promise.all([
+          fetch('/api/recording-messages?id=' + encodeURIComponent(this.selectedRecordingId)),
+          fetch('/api/recording-messages?id=' + encodeURIComponent(this.recordingCompareTargetId)),
+          fetch('/api/recording-compare?left=' + encodeURIComponent(this.selectedRecordingId) + '&right=' + encodeURIComponent(this.recordingCompareTargetId)),
+        ]);
+        if (leftR.ok && rightR.ok) {
+          const leftEnv = await leftR.json();
+          const rightEnv = await rightR.json();
+          this.compareLeftMessages = leftEnv.data || leftEnv;
+          this.compareRightMessages = rightEnv.data || rightEnv;
+          this.compareLeftName = this.recordings.find(r => r.id === this.selectedRecordingId)?.name || '?';
+          this.compareRightName = this.recordings.find(r => r.id === this.recordingCompareTargetId)?.name || '?';
+          this.compareMode = true;
+        }
+        if (cmpR.ok) this.recordingCompare = await cmpR.json();
       } catch (_) {}
     },
 
