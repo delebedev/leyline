@@ -16,6 +16,8 @@ class BundleBuilderAiDiffTest {
             Int::class.javaPrimitiveType,
             Int::class.javaPrimitiveType,
             Int::class.javaPrimitiveType,
+            Boolean::class.javaPrimitiveType,
+            Boolean::class.javaPrimitiveType,
         )
         assertNotNull(method, "aiActionDiff method should exist on BundleBuilder")
     }

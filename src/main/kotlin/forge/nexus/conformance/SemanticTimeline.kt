@@ -111,20 +111,27 @@ object SemanticTimeline {
      * ZoneTransfer: affectorId = new instanceId, details["category"] = category string
      */
     private fun extractZoneTransfers(msg: DecodedMessage, out: MutableList<Event>) {
-        // Build lookup: newInstanceId -> (origInstanceId) from ObjectIdChanged
+        // Build lookup: newInstanceId -> origInstanceId from ObjectIdChanged.
+        // Real protos use details {orig_id, new_id} (affectorId is 0).
         val idChanges = mutableMapOf<Int, Int>() // newId -> origId
         for (ann in msg.annotations) {
-            if ("ObjectIdChanged" in ann.types && ann.affectedIds.isNotEmpty()) {
-                val origId = ann.affectorId
-                val newId = ann.affectedIds[0]
-                idChanges[newId] = origId
-            }
+            if ("ObjectIdChanged" !in ann.types) continue
+            val origId = (ann.details["orig_id"] as? Number)?.toInt()
+                ?: ann.affectorId.takeIf { it != 0 }
+                ?: continue
+            val newId = (ann.details["new_id"] as? Number)?.toInt()
+                ?: ann.affectedIds.firstOrNull()
+                ?: continue
+            idChanges[newId] = origId
         }
 
-        // Find ZoneTransfer annotations and pair with ObjectIdChanged
+        // Find ZoneTransfer annotations and pair with ObjectIdChanged.
+        // ZoneTransfer.affectedIds[0] = newInstanceId (affectorId may be 0).
         for (ann in msg.annotations) {
             if ("ZoneTransfer" !in ann.types) continue
-            val newInstanceId = ann.affectorId
+            val newInstanceId = ann.affectedIds.firstOrNull()
+                ?: ann.affectorId.takeIf { it != 0 }
+                ?: continue
             val origInstanceId = idChanges[newInstanceId] ?: newInstanceId
             val category = ann.details["category"]?.toString()
             val destZoneType = findZoneTypeForObject(msg, newInstanceId)
