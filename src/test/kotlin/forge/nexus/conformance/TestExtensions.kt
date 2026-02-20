@@ -127,6 +127,14 @@ fun assertGsIdChain(
         }
         knownGsIds.add(gsm.gameStateId)
     }
+    // gsIds globally unique (no collisions from counter re-seeding)
+    val allGsIds = gsms.map { it.gameStateId }
+    val duplicates = allGsIds.groupBy { it }.filter { it.value.size > 1 }.keys
+    assertTrue(
+        duplicates.isEmpty(),
+        "Duplicate gsIds$suffix: $duplicates (total ${allGsIds.size} GSMs)",
+    )
+
     // msgIds strictly monotonic
     val msgIds = messages.map { it.msgId }
     for (i in 1 until msgIds.size) {
@@ -135,6 +143,14 @@ fun assertGsIdChain(
             "msgIds not monotonic$suffix: ${msgIds[i - 1]} -> ${msgIds[i]}",
         )
     }
+
+    // msgIds globally unique
+    val allMsgIds = msgIds
+    val dupMsgIds = allMsgIds.groupBy { it }.filter { it.value.size > 1 }.keys
+    assertTrue(
+        dupMsgIds.isEmpty(),
+        "Duplicate msgIds$suffix: $dupMsgIds",
+    )
 }
 
 // ----- Tier 2: Limbo assertions -----
