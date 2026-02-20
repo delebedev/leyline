@@ -153,11 +153,13 @@ class AnnotationBuilderTest {
     // --- PhaseOrStepModified ---
 
     @Test
-    fun phaseOrStepModifiedMinimal() {
-        val ann = AnnotationBuilder.phaseOrStepModified()
+    fun phaseOrStepModifiedHasContent() {
+        val ann = AnnotationBuilder.phaseOrStepModified(activeSeat = 2, phase = 1, step = 2)
         assertTrue(ann.typeList.contains(AnnotationType.PhaseOrStepModified))
-        assertEquals(ann.affectorId, 0, "No affectorId for phase change")
-        assertEquals(ann.affectedIdsCount, 0, "No affectedIds for phase change")
+        assertTrue(ann.affectedIdsList.contains(2), "Should have activeSeat in affectedIds")
+        val detailKeys = ann.detailsList.map { it.key }.toSet()
+        assertTrue("phase" in detailKeys, "Should have phase detail")
+        assertTrue("step" in detailKeys, "Should have step detail")
     }
 
     // --- ManaPaid ---

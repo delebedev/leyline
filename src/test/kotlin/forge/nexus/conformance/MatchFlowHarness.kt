@@ -117,6 +117,14 @@ class MatchFlowHarness(private val seed: Long = 42L) {
         drainSink()
     }
 
+    /** Keep passing until a target turn is reached (or game over / max iterations). */
+    fun passUntilTurn(targetTurn: Int, maxPasses: Int = 30) {
+        repeat(maxPasses) {
+            if (turn() >= targetTurn || isGameOver()) return
+            passPriority()
+        }
+    }
+
     fun phase(): String? = game().phaseHandler.phase?.name
     fun turn(): Int = game().phaseHandler.turn
     fun isAiTurn(): Boolean {

@@ -33,6 +33,10 @@ class NexusGamePlayback(
 
     private val log = LoggerFactory.getLogger(NexusGamePlayback::class.java)
 
+    /** Dedup: last turn+phase captured by TurnBegan, so TurnPhase can skip the duplicate. */
+    private var lastCapturedTurn = 0
+    private var lastCapturedPhase: PhaseType? = null
+
     /** Thread-safe queue of GRE message batches for the handler to drain. */
     private val queue = ConcurrentLinkedQueue<List<GREToClientMessage>>()
 
@@ -81,11 +85,21 @@ class NexusGamePlayback(
 
     override fun visit(ev: GameEventTurnBegan) {
         if (!isAiActing()) return
+        val game = bridge.getGame() ?: return
+        lastCapturedTurn = game.phaseHandler.turn
+        lastCapturedPhase = game.phaseHandler.phase
         captureAndPause(PHASE_DELAY, phaseChanged = true, turnStarted = true)
     }
 
     override fun visit(ev: GameEventTurnPhase) {
         if (!isAiActing()) return
+        val game = bridge.getGame() ?: return
+        val turn = game.phaseHandler.turn
+        val phase = game.phaseHandler.phase
+        // Skip if TurnBegan already captured this exact turn+phase
+        if (turn == lastCapturedTurn && phase == lastCapturedPhase) return
+        lastCapturedTurn = turn
+        lastCapturedPhase = phase
         val delay = when (ev.phase()) {
             PhaseType.COMBAT_DECLARE_ATTACKERS,
             PhaseType.COMBAT_DECLARE_BLOCKERS,

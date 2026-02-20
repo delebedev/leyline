@@ -225,7 +225,11 @@ object StateMapper {
             }
         }
 
-        annotations.add(AnnotationBuilder.phaseOrStepModified())
+        val human = bridge.getPlayer(1)
+        val activeSeat = if (handler.playerTurn == human) 1 else 2
+        val protoPhase = mapPhase(handler.phase).number
+        val protoStep = mapStep(handler.phase).number
+        annotations.add(AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep))
         annotations.add(AnnotationBuilder.syntheticEvent())
         return annotations
     }
@@ -738,8 +742,8 @@ object StateMapper {
             .setTurnInfo(turnInfo)
             .addPlayers(buildPlayerInfo(bridge.getPlayer(1), 1))
             .addPlayers(buildPlayerInfo(bridge.getPlayer(2), 2))
-            .addAnnotations(AnnotationBuilder.phaseOrStepModified()) // phase change
-            .addAnnotations(AnnotationBuilder.phaseOrStepModified()) // step change
+            .addAnnotations(AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)) // phase change
+            .addAnnotations(AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)) // step change
             .addAllTimers(buildTimers())
             .setUpdate(GameStateUpdate.SendHiFi)
 

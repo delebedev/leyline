@@ -5,6 +5,7 @@ import forge.nexus.game.GameBridge
 import org.testng.Assert.*
 import org.testng.annotations.AfterMethod
 import org.testng.annotations.Test
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
@@ -176,6 +177,31 @@ class MatchFlowHarnessTest {
         assertGsIdChain(harness!!.allMessages, context = "AI-first 2 turns")
     }
 
+    @Test(description = "AI turn produces fewer AAR than before fix (no pass-only spam)")
+    fun aiTurnHasReducedAARCount() {
+        harness = MatchFlowHarness(seed = AI_FIRST_SEED)
+        harness!!.connectAndKeep()
+
+        // Game-start bundle is allowed to have AAR (it's the initial prompt).
+        // Grab messages after game-start, which are AI turn diffs.
+        val gameStartSize = harness!!.allMessages.indexOfLast {
+            it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Full
+        } + 1
+
+        val aiTurnMessages = harness!!.allMessages.subList(gameStartSize, harness!!.allMessages.size)
+        val aars = aiTurnMessages.filter { it.hasActionsAvailableReq() }
+
+        // Before fix: every phase transition during AI turn sent AAR with pass-only
+        // actions, flooding the client with "waiting for input" prompts (~6-8 AARs).
+        // After fix: only combat/stack resolution paths send AAR (legitimate prompts,
+        // typically 1-2). Allow up to 3 for edge cases.
+        assertTrue(
+            aars.size <= 3,
+            "AI turn should have at most 3 AAR (combat/stack checkpoints), " +
+                "but got ${aars.size} (total AI-turn messages: ${aiTurnMessages.size})",
+        )
+    }
+
     @Test(description = "AI turn actions produce Diff messages (not silently swallowed)")
     fun aiTurnProducesDiffMessages() {
         harness = MatchFlowHarness(seed = 42L)
@@ -197,6 +223,68 @@ class MatchFlowHarnessTest {
         assertTrue(
             diffs.size >= 2,
             "AI turn should produce at least 2 Diff messages (got ${diffs.size} diffs out of ${newMessages.size} total new messages)",
+        )
+    }
+
+    @Test(description = "AI turn NewTurnStarted annotation has affectorId and affectedIds")
+    fun aiTurnNewTurnStartedAnnotationHasContent() {
+        // AI goes first (turn 1). connectAndKeep drains turn-1 playback.
+        // Pass through human turn 2 → triggers AI turn 3 via playback.
+        harness = MatchFlowHarness(seed = AI_FIRST_SEED)
+        harness!!.connectAndKeep()
+
+        val prePassCount = harness!!.allMessages.size
+        harness!!.passUntilTurn(3)
+        assertFalse(harness!!.isGameOver(), "Game should not be over")
+
+        val aiMessages = harness!!.allMessages.subList(prePassCount, harness!!.allMessages.size)
+        val newTurnAnno = aiMessages
+            .filter { it.hasGameStateMessage() }
+            .flatMap { it.gameStateMessage.annotationsList }
+            .firstOrNull { it.typeList.contains(AnnotationType.NewTurnStarted) }
+        assertNotNull(newTurnAnno, "No NewTurnStarted annotation in AI turn messages (${aiMessages.size} post-pass msgs)")
+
+        assertTrue(
+            newTurnAnno!!.affectedIdsList.isNotEmpty(),
+            "NewTurnStarted must have affectedIds (active player seat), but was empty",
+        )
+        assertTrue(
+            newTurnAnno.affectorId > 0,
+            "NewTurnStarted must have affectorId (active player seat), but was 0",
+        )
+    }
+
+    @Test(description = "AI turn PhaseOrStepModified annotation has affectedIds and phase/step details")
+    fun aiTurnPhaseAnnotationHasDetails() {
+        // AI goes first (turn 1). connectAndKeep drains turn-1 playback.
+        // Pass through human turn 2 → triggers AI turn 3 via playback.
+        harness = MatchFlowHarness(seed = AI_FIRST_SEED)
+        harness!!.connectAndKeep()
+
+        val prePassCount = harness!!.allMessages.size
+        harness!!.passUntilTurn(3)
+        assertFalse(harness!!.isGameOver(), "Game should not be over")
+
+        val aiMessages = harness!!.allMessages.subList(prePassCount, harness!!.allMessages.size)
+        val phaseAnno = aiMessages
+            .filter { it.hasGameStateMessage() }
+            .flatMap { it.gameStateMessage.annotationsList }
+            .firstOrNull { it.typeList.contains(AnnotationType.PhaseOrStepModified) }
+        assertNotNull(phaseAnno, "No PhaseOrStepModified annotation in AI turn messages (${aiMessages.size} post-pass msgs)")
+
+        assertTrue(
+            phaseAnno!!.affectedIdsList.isNotEmpty(),
+            "PhaseOrStepModified must have affectedIds (active player seat), but was empty",
+        )
+
+        val detailKeys = phaseAnno.detailsList.map { it.key }.toSet()
+        assertTrue(
+            "phase" in detailKeys,
+            "PhaseOrStepModified must have 'phase' detail, but keys were: $detailKeys",
+        )
+        assertTrue(
+            "step" in detailKeys,
+            "PhaseOrStepModified must have 'step' detail, but keys were: $detailKeys",
         )
     }
 }
