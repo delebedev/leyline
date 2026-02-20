@@ -173,6 +173,8 @@ object BundleBuilder {
         seatId: Int,
         msgId: Int,
         gsId: Int,
+        phaseChanged: Boolean = false,
+        turnStarted: Boolean = false,
     ): BundleResult {
         var nextMsg = msgId
         var nextGs = gsId
@@ -193,7 +195,18 @@ object BundleBuilder {
         val actions = StateMapper.buildActions(game, seatId, bridge)
 
         // Message 1: Diff with annotations + actions
-        val gs = StateMapper.embedActions(gsBase, actions, game, bridge)
+        val gsWithAnnotations = if (phaseChanged || turnStarted) {
+            gsBase.toBuilder().apply {
+                if (turnStarted) addAnnotations(AnnotationBuilder.newTurnStarted())
+                if (phaseChanged) {
+                    addAnnotations(AnnotationBuilder.phaseOrStepModified())
+                    addAnnotations(AnnotationBuilder.phaseOrStepModified())
+                }
+            }.build()
+        } else {
+            gsBase
+        }
+        val gs = StateMapper.embedActions(gsWithAnnotations, actions, game, bridge)
 
         // Message 2: Echo with turnInfo + actions (matches real server pattern)
         val turnInfo = TurnInfo.newBuilder()

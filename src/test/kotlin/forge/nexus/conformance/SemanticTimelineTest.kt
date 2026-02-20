@@ -64,30 +64,76 @@ class SemanticTimelineTest {
 
     // --- ZoneTransfer ---
 
-    @Test(description = "Extract ZoneTransfer from ObjectIdChanged + ZoneTransfer annotations")
-    fun extractZoneTransfer() {
+    @Test(description = "Extract ZoneTransfer using details-based IDs (real proto shape)")
+    fun extractZoneTransferFromDetails() {
+        // Real protos: affectorId=0, IDs in details map
         val messages = listOf(
             msg(
                 annotations = listOf(
                     AnnotationSummary(
                         id = 1,
                         types = listOf("ObjectIdChanged"),
-                        affectorId = 100, // orig instanceId
-                        affectedIds = listOf(200), // new instanceId
+                        affectorId = 0,
+                        affectedIds = listOf(100),
+                        details = mapOf("orig_id" to 100, "new_id" to 220),
                     ),
                     AnnotationSummary(
                         id = 2,
                         types = listOf("ZoneTransfer"),
-                        affectorId = 200, // new instanceId
+                        affectorId = 0,
+                        affectedIds = listOf(220),
+                        details = mapOf("zone_src" to 31, "zone_dest" to 28, "category" to "PlayLand"),
+                    ),
+                ),
+                zones = listOf(
+                    ZoneSummary(
+                        zoneId = 28,
+                        type = "Battlefield",
+                        owner = 0,
+                        visibility = "Public",
+                        objectIds = listOf(220),
+                    ),
+                ),
+            ),
+        )
+
+        val events = SemanticTimeline.extract(messages)
+        val transfers = events.filterIsInstance<ZoneTransfer>()
+
+        assertEquals(transfers.size, 1, "Should extract exactly 1 ZoneTransfer")
+        val zt = transfers[0]
+        assertEquals(zt.origInstanceId, 100)
+        assertEquals(zt.newInstanceId, 220)
+        assertEquals(zt.category, "PlayLand")
+        assertEquals(zt.destZoneType, "Battlefield")
+    }
+
+    @Test(description = "Extract ZoneTransfer using affectorId fallback (legacy shape)")
+    fun extractZoneTransferFromAffectorId() {
+        // Fallback: affectorId-based (no details map)
+        val messages = listOf(
+            msg(
+                annotations = listOf(
+                    AnnotationSummary(
+                        id = 1,
+                        types = listOf("ObjectIdChanged"),
+                        affectorId = 100,
+                        affectedIds = listOf(200),
+                    ),
+                    AnnotationSummary(
+                        id = 2,
+                        types = listOf("ZoneTransfer"),
+                        affectorId = 0,
+                        affectedIds = listOf(200),
                         details = mapOf("category" to "PlayLand"),
                     ),
                 ),
                 zones = listOf(
                     ZoneSummary(
                         zoneId = 10,
-                        type = "ZoneType_Battlefield",
+                        type = "Battlefield",
                         owner = 1,
-                        visibility = "Visibility_Public",
+                        visibility = "Public",
                         objectIds = listOf(200),
                     ),
                 ),
@@ -102,7 +148,7 @@ class SemanticTimelineTest {
         assertEquals(zt.origInstanceId, 100)
         assertEquals(zt.newInstanceId, 200)
         assertEquals(zt.category, "PlayLand")
-        assertEquals(zt.destZoneType, "ZoneType_Battlefield")
+        assertEquals(zt.destZoneType, "Battlefield")
     }
 
     // --- PhaseChange ---

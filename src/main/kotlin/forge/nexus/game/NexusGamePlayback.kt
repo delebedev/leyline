@@ -73,6 +73,11 @@ class NexusGamePlayback(
         captureAndPause(RESOLVE_DELAY)
     }
 
+    override fun visit(ev: GameEventTurnBegan) {
+        if (!isAiActing()) return
+        captureAndPause(PHASE_DELAY, phaseChanged = true, turnStarted = true)
+    }
+
     override fun visit(ev: GameEventTurnPhase) {
         if (!isAiActing()) return
         val delay = when (ev.phase()) {
@@ -82,7 +87,7 @@ class NexusGamePlayback(
             -> COMBAT_DELAY
             else -> PHASE_DELAY
         }
-        captureAndPause(delay)
+        captureAndPause(delay, phaseChanged = true)
     }
 
     override fun visit(ev: GameEventAttackersDeclared) {
@@ -118,7 +123,11 @@ class NexusGamePlayback(
      *
      * Called on the engine thread -- state is frozen, safe to serialize.
      */
-    private fun captureAndPause(delayMs: Int) {
+    private fun captureAndPause(
+        delayMs: Int,
+        phaseChanged: Boolean = false,
+        turnStarted: Boolean = false,
+    ) {
         val game = bridge.getGame() ?: return
 
         try {
@@ -129,6 +138,8 @@ class NexusGamePlayback(
                 seatId,
                 msgIdCounter.get(),
                 gsIdCounter.get(),
+                phaseChanged = phaseChanged,
+                turnStarted = turnStarted,
             )
             msgIdCounter.set(result.nextMsgId)
             gsIdCounter.set(result.nextGsId)

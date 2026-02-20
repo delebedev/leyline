@@ -37,10 +37,12 @@ class TimelineDumpTest {
         }
 
         // --- Engine timeline ---
-        val h = MatchFlowHarness(42L)
+        // Use AI-first seed (2L) to match capture where AI goes first
+        val h = MatchFlowHarness(MatchFlowHarnessTest.AI_FIRST_SEED)
         harness = h
         h.connectAndKeep()
-        h.playLand()
+        // Don't play land — in the capture, AI plays first and human
+        // just gets priority at turn 2. Pass to trigger AI turn cycle.
         h.passPriority()
 
         val engineDecoded = h.allMessages.mapIndexed { i, gre ->

@@ -78,6 +78,12 @@ object AnnotationBuilder {
             .addDetails(uint32Detail("grpid", grpId))
             .build()
 
+    /** A new turn started. Client uses this to reset turn-scoped state. */
+    fun newTurnStarted(): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.NewTurnStarted)
+            .build()
+
     /** Phase/step changed. Client uses this to animate the phase tracker. */
     fun phaseOrStepModified(): AnnotationInfo =
         AnnotationInfo.newBuilder()
