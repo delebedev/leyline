@@ -42,10 +42,16 @@ class NexusGamePlayback(
     /** Counter for msgId -- shared via atomic for thread safety. */
     private val msgIdCounter = AtomicInteger(0)
 
-    /** Initialize counters from MatchHandler's current values. */
+    /**
+     * Sync counters from MatchHandler's current values.
+     *
+     * Uses max semantics: never goes backwards. The game thread may have already
+     * advanced the counters via [captureAndPause] between the handler's drain and
+     * this seed call. Clobbering with a stale value causes gsId collisions.
+     */
     fun seedCounters(msgId: Int, gsId: Int) {
-        msgIdCounter.set(msgId)
-        gsIdCounter.set(gsId)
+        msgIdCounter.updateAndGet { maxOf(it, msgId) }
+        gsIdCounter.updateAndGet { maxOf(it, gsId) }
     }
 
     /** Returns current counter values so MatchHandler can sync after drain. */

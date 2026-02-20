@@ -163,6 +163,19 @@ class MatchFlowHarnessTest {
         harness!!.accumulator.assertConsistent("after AI-first turn")
     }
 
+    @Test(description = "AI-first multi-turn: gsId chain stays unique across 2 AI turns")
+    fun aiFirstMultiTurnGsIdChainUnique() {
+        harness = MatchFlowHarness(seed = AI_FIRST_SEED)
+        harness!!.connectAndKeep()
+
+        // Pass through first human turn → triggers AI turn 2
+        harness!!.passPriority()
+        assertFalse(harness!!.isGameOver(), "Game should not be over after first pass")
+
+        // Validate full gsId chain including 2 AI turns (turn 1 from connectAndKeep, turn 2 from pass)
+        assertGsIdChain(harness!!.allMessages, context = "AI-first 2 turns")
+    }
+
     @Test(description = "AI turn actions produce Diff messages (not silently swallowed)")
     fun aiTurnProducesDiffMessages() {
         harness = MatchFlowHarness(seed = 42L)
