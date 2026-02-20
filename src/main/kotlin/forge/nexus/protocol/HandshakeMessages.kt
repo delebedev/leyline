@@ -97,7 +97,7 @@ object HandshakeMessages {
                     .setChooseStartingPlayerReq(
                         ChooseStartingPlayerReq.newBuilder()
                             .setTeamType(TeamType.Individual)
-                            .addSystemSeatIds(1).addSystemSeatIds(2),
+                            .addSystemSeatIds(2).addSystemSeatIds(1),
                     )
                     .build(),
             )
@@ -179,7 +179,7 @@ object HandshakeMessages {
         // 2) PromptReq: "who's going first" notification (promptId=37, PlayerId→seat 2)
         val grePrompt = GREToClientMessage.newBuilder()
             .setType(GREMessageType.PromptReq)
-            .addSystemSeatIds(1).addSystemSeatIds(2)
+            .addSystemSeatIds(2).addSystemSeatIds(1)
             .setMsgId(msgId++)
             .setGameStateId(gameStateId)
             .setPrompt(
@@ -228,7 +228,7 @@ object HandshakeMessages {
     private fun buildDieRollResults(msgId: Int): GREToClientMessage =
         GREToClientMessage.newBuilder()
             .setType(GREMessageType.DieRollResultsResp_695e)
-            .addSystemSeatIds(1).addSystemSeatIds(2)
+            .addSystemSeatIds(2).addSystemSeatIds(1)
             .setMsgId(msgId)
             .setDieRollResultsResp(
                 DieRollResultsResp.newBuilder()
