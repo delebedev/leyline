@@ -196,11 +196,13 @@ object BundleBuilder {
 
         // Message 1: Diff with annotations + actions
         val gsWithAnnotations = if (phaseChanged || turnStarted) {
+            val protoPhase = StateMapper.mapPhase(handler.phase).number
+            val protoStep = StateMapper.mapStep(handler.phase).number
             gsBase.toBuilder().apply {
-                if (turnStarted) addAnnotations(AnnotationBuilder.newTurnStarted())
+                if (turnStarted) addAnnotations(AnnotationBuilder.newTurnStarted(activeSeat))
                 if (phaseChanged) {
-                    addAnnotations(AnnotationBuilder.phaseOrStepModified())
-                    addAnnotations(AnnotationBuilder.phaseOrStepModified())
+                    addAnnotations(AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep))
+                    addAnnotations(AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep))
                 }
             }.build()
         } else {
@@ -208,14 +210,18 @@ object BundleBuilder {
         }
         val gs = StateMapper.embedActions(gsWithAnnotations, actions, game, bridge)
 
-        // Message 2: Echo with turnInfo + actions (matches real server pattern)
+        // Message 2: Echo with turnInfo + actions (matches real server pattern).
+        // Real server sends the echo with opponent's priority (both players
+        // must pass for phase to advance). prioritySeat is the active player;
+        // the echo flips to the other seat.
+        val echoPrioritySeat = if (activeSeat == 1) 2 else 1
         val turnInfo = TurnInfo.newBuilder()
             .setPhase(StateMapper.mapPhase(handler.phase))
             .setStep(StateMapper.mapStep(handler.phase))
             .setTurnNumber(handler.turn.coerceAtLeast(1))
             .setActivePlayer(activeSeat)
-            .setPriorityPlayer(prioritySeat)
-            .setDecisionPlayer(prioritySeat)
+            .setPriorityPlayer(echoPrioritySeat)
+            .setDecisionPlayer(echoPrioritySeat)
         val msg1GsId = nextGs
         val echoBuilder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
@@ -242,7 +248,11 @@ object BundleBuilder {
      * Used to decide whether to auto-pass or send state to the client.
      */
     fun shouldAutoPass(actions: ActionsAvailableReq): Boolean =
-        actions.actionsList.all { it.actionType == ActionType.Pass || it.actionType == ActionType.FloatMana }
+        actions.actionsList.all {
+            it.actionType == ActionType.Pass ||
+                it.actionType == ActionType.FloatMana ||
+                it.actionType == ActionType.ActivateMana
+        }
 
     /**
      * Phase transition bundle matching real server pattern (5 messages):
@@ -317,7 +327,7 @@ object BundleBuilder {
             .setGameStateId(nextGs)
             .setPrevGameStateId(msg2GsId)
             .setTurnInfo(turnInfo)
-            .addAnnotations(AnnotationBuilder.phaseOrStepModified())
+            .addAnnotations(AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number))
             .addAllTimers(StateMapper.buildTimers())
             .setUpdate(GameStateUpdate.SendAndRecord)
         embedActions(commitBuilder, actions, activeSeat)

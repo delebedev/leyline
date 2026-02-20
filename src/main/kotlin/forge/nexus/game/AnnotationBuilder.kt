@@ -78,16 +78,23 @@ object AnnotationBuilder {
             .addDetails(uint32Detail("grpid", grpId))
             .build()
 
-    /** A new turn started. Client uses this to reset turn-scoped state. */
-    fun newTurnStarted(): AnnotationInfo =
+    /** A new turn started. Client uses this to reset turn-scoped state.
+     *  [activeSeat] = the active player's seat for the new turn. */
+    fun newTurnStarted(activeSeat: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.NewTurnStarted)
+            .setAffectorId(activeSeat)
+            .addAffectedIds(activeSeat)
             .build()
 
-    /** Phase/step changed. Client uses this to animate the phase tracker. */
-    fun phaseOrStepModified(): AnnotationInfo =
+    /** Phase/step changed. Client uses this to animate the phase tracker.
+     *  [activeSeat] = active player seat, [phase]/[step] = proto enum ordinals. */
+    fun phaseOrStepModified(activeSeat: Int, phase: Int, step: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.PhaseOrStepModified)
+            .addAffectedIds(activeSeat)
+            .addDetails(int32Detail("phase", phase))
+            .addDetails(int32Detail("step", step))
             .build()
 
     /** Card's instanceId changed (e.g. zone move creates new object). */

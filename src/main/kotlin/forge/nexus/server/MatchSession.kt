@@ -357,7 +357,8 @@ class MatchSession(
             val playback = bridge.playback
             if (playback != null && playback.hasPendingMessages()) {
                 val batches = playback.drainQueue()
-                for (batch in batches) {
+                for ((idx, batch) in batches.withIndex()) {
+                    if (idx > 0) paceDelay(1)
                     sendBundledGRE(batch)
                 }
                 val (nextMsg, nextGs) = playback.getCounters()
@@ -441,15 +442,20 @@ class MatchSession(
                 return
             }
 
-            val actions = StateMapper.buildActions(game, seatId, bridge)
-            if (!BundleBuilder.shouldAutoPass(actions)) {
-                val actionSummary = actions.actionsList
-                    .groupBy { it.actionType.name.removeSuffix("_add3") }
-                    .map { (t, v) -> "$t=${v.size}" }
-                    .joinToString(" ")
-                traceEvent(GameStateCollector.EventType.SEND_STATE, game, "actions: $actionSummary")
-                sendRealGameState(bridge)
-                return
+            // Only prompt human when it's NOT AI's turn — sending AAR during
+            // AI turn puts the client into "waiting for input" mode repeatedly,
+            // which suppresses animations.
+            if (!isAiTurn) {
+                val actions = StateMapper.buildActions(game, seatId, bridge)
+                if (!BundleBuilder.shouldAutoPass(actions)) {
+                    val actionSummary = actions.actionsList
+                        .groupBy { it.actionType.name.removeSuffix("_add3") }
+                        .map { (t, v) -> "$t=${v.size}" }
+                        .joinToString(" ")
+                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "actions: $actionSummary")
+                    sendRealGameState(bridge)
+                    return
+                }
             }
 
             val pending = bridge.actionBridge.getPending()
@@ -457,10 +463,14 @@ class MatchSession(
 
             if (pending != null) {
                 traceEvent(GameStateCollector.EventType.AUTO_PASS, game, "human priority, pass-only")
-                // EdictalMessage: tell client we're server-forcing a pass (breaks autoPassPriority mode)
-                val edictal = BundleBuilder.edictalPass(seatId, msgIdCounter, gameStateId)
-                msgIdCounter = edictal.nextMsgId
-                sendBundledGRE(edictal.messages)
+                // During AI turn, skip sending EdictalMessage — real server never
+                // sends edictal passes during AI turn. Sending them interrupts the
+                // client's animation pipeline (enters post-pass "waiting" state).
+                if (!isAiTurn) {
+                    val edictal = BundleBuilder.edictalPass(seatId, msgIdCounter, gameStateId)
+                    msgIdCounter = edictal.nextMsgId
+                    sendBundledGRE(edictal.messages)
+                }
                 // Seed BEFORE submit — submitAction unblocks the game thread immediately
                 // and it may fire events captured by NexusGamePlayback with stale counters.
                 bridge.playback?.seedCounters(msgIdCounter, gameStateId)
