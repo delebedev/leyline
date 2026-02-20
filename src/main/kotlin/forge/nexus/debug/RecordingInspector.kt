@@ -114,8 +114,9 @@ object RecordingInspector {
                 ?.sortedByDescending { it.lastModified() }
                 ?.forEach { sessionDir ->
                     // Add leaf dirs that contain .bin files (engine/, capture/payloads/)
+                    // Skip frames/ — raw wire captures with 6-byte headers, not useful in UI
                     sessionDir.walk()
-                        .filter { it.isDirectory && RecordingDecoder.listRecordingFiles(it).isNotEmpty() }
+                        .filter { it.isDirectory && it.name != "frames" && RecordingDecoder.listRecordingFiles(it).isNotEmpty() }
                         .forEach { dirs.add(it) }
                 }
         }
