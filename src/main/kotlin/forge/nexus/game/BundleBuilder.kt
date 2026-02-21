@@ -200,6 +200,24 @@ object BundleBuilder {
                 it.actionType == ActionType.ActivateMana
         }
 
+    // --- Request builders (delegate to StateMapper) ---
+    // MatchSession uses these instead of calling StateMapper directly,
+    // keeping StateMapper as an internal dependency of the bundle layer.
+
+    /** Build playable actions for a seat (with legality checks). */
+    fun buildActions(game: Game, seatId: Int, bridge: GameBridge): ActionsAvailableReq =
+        StateMapper.buildActions(game, seatId, bridge)
+
+    /** Build a [SelectTargetsReq] from a pending interactive prompt. */
+    fun buildSelectTargetsReq(
+        prompt: forge.web.game.InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): SelectTargetsReq = StateMapper.buildSelectTargetsReq(prompt, bridge)
+
+    /** Build a [DeclareAttackersReq] listing legal attackers. */
+    fun buildDeclareAttackersReq(game: Game, seatId: Int, bridge: GameBridge): DeclareAttackersReq =
+        StateMapper.buildDeclareAttackersReq(game, seatId, bridge)
+
     /**
      * Phase transition bundle matching real server pattern (5 messages):
      *   1. GS Diff SendHiFi (2x PhaseOrStepModified, gameInfo, players, actions)
