@@ -145,8 +145,9 @@ class GameBridge {
      * Blocks caller until engine has dealt hands and is waiting for keep/mull.
      *
      * @param seed if non-null, seeds the RNG for deterministic shuffles (tests/replays)
+     * @param deckList if non-null, uses this decklist instead of DEFAULT_DECK (tests)
      */
-    fun start(seed: Long? = null) {
+    fun start(seed: Long? = null, deckList: String? = null) {
         log.info("GameBridge: initializing card database")
         GameBootstrap.initializeCardDatabase()
 
@@ -155,8 +156,9 @@ class GameBridge {
             MyRandom.setRandom(Random(seed))
         }
 
-        val deck1 = DeckLoader.parseDeckList(DEFAULT_DECK.trimIndent())
-        val deck2 = DeckLoader.parseDeckList(DEFAULT_DECK.trimIndent())
+        val deckStr = (deckList ?: DEFAULT_DECK).trimIndent()
+        val deck1 = DeckLoader.parseDeckList(deckStr)
+        val deck2 = DeckLoader.parseDeckList(deckStr)
         log.info(
             "GameBridge: parsed decks (seat1={} cards, seat2={} cards)",
             deck1.main.countAll(),
@@ -245,7 +247,14 @@ class GameBridge {
     fun awaitPriority() = awaitPriorityWithTimeout(PRIORITY_WAIT_MS)
 
     /**
-     * Block until the engine reaches a priority stop or game ends.
+     * Block until the engine reaches a priority stop, an interactive prompt
+     * is pending, or the game ends.
+     *
+     * The prompt check is needed because targeted spells (e.g. Giant Growth)
+     * block the engine thread in [InteractivePromptBridge.requestChoice] before
+     * the next action-bridge priority stop is reached. Without this, casting a
+     * targeted spell would appear to time out.
+     *
      * @param timeoutMs max wait time (use longer values for AI turns)
      * @return true if priority was reached, false if timed out or game over
      */
@@ -259,6 +268,12 @@ class GameBridge {
             }
             if (actionBridge.getPending() != null) {
                 // Let engine thread finish in-flight zone moves before we snapshot state
+                Thread.sleep(10)
+                return true
+            }
+            // A pending prompt (targeting, sacrifice, etc.) also counts as
+            // "engine waiting for input" — treat it like reaching priority.
+            if (promptBridge.getPendingPrompt() != null) {
                 Thread.sleep(10)
                 return true
             }

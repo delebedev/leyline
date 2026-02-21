@@ -19,6 +19,8 @@ object TestCardRegistry {
     const val LLANOWAR_ELVES_GRPID = 70001
     const val ELVISH_MYSTIC_GRPID = 70002
     const val GIANT_GROWTH_GRPID = 70003
+    const val MOUNTAIN_GRPID = 70004
+    const val RAGING_GOBLIN_GRPID = 70005
 
     fun ensureRegistered() {
         if (CardDb.registeredCount > 0) return
@@ -85,6 +87,38 @@ object TestCardRegistry {
                 manaCost = listOf(ManaColor.Green_afc9 to 1),
             ),
             "Giant Growth",
+        )
+        // Mountain: Basic Land — Mountain, {T}: Add {R}
+        CardDb.registerData(
+            CardDb.CardData(
+                grpId = MOUNTAIN_GRPID,
+                titleId = 5,
+                power = "",
+                toughness = "",
+                colors = emptyList(),
+                types = listOf(5), // CardType.Land_a80b = 5
+                subtypes = listOf(49), // SubType.Mountain = 49
+                supertypes = listOf(1), // SuperType.Basic = 1
+                abilityIds = listOf(1006 to 0), // implicit basic land mana ability
+                manaCost = emptyList(),
+            ),
+            "Mountain",
+        )
+        // Raging Goblin: Creature — Goblin Berserker, 1/1, {R}, Haste
+        CardDb.registerData(
+            CardDb.CardData(
+                grpId = RAGING_GOBLIN_GRPID,
+                titleId = 6,
+                power = "1",
+                toughness = "1",
+                colors = listOf(4), // CardColor.Red_a3b0 = 4
+                types = listOf(2), // CardType.Creature = 2
+                subtypes = listOf(34, 11), // SubType.Goblin = 34, SubType.Berserker = 11
+                supertypes = emptyList(),
+                abilityIds = listOf(3001 to 0), // Haste keyword ability
+                manaCost = listOf(ManaColor.Red_afc9 to 1),
+            ),
+            "Raging Goblin",
         )
     }
 }
