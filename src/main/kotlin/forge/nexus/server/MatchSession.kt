@@ -64,16 +64,18 @@ class MatchSession(
 
         val game = bridge.getGame() ?: return
 
-        // Discard any AI action diffs queued during awaitPriority — the game-start
-        // Full state already captures the post-AI board. Stale diffs would conflict.
-        // Also clear the snapshot: AI actions during awaitPriority snapshot with
-        // unseeded counters, leaving prevGsId pointing at stale gsIds.
+        // Discard any AI action diffs queued during awaitPriority — stale diffs
+        // would conflict with the fresh phaseTransitionDiff we're about to send.
         bridge.playback?.drainQueue()
-        bridge.clearPreviousState()
+        // Don't clearPreviousState — it's already null (handshake doesn't snapshot).
+        // phaseTransitionDiff builds thin metadata Diffs, no snapshot needed.
+        // TODO: when handshake sends a proper Full with real game objects,
+        // the first Diff here needs diffDeletedInstanceIds to retire stale IDs
+        // from the handshake Full (real server does this post-mulligan).
 
         traceEvent(GameStateCollector.EventType.GAME_START, game, "post-mulligan, entering Main1")
 
-        val result = BundleBuilder.gameStart(game, bridge, matchId, seatId, msgIdCounter, gameStateId)
+        val result = BundleBuilder.phaseTransitionDiff(game, bridge, matchId, seatId, msgIdCounter, gameStateId)
         msgIdCounter = result.nextMsgId
         gameStateId = result.nextGsId
 

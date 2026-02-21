@@ -8,6 +8,7 @@ import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
+import forge.nexus.game.StateMapper
 import forge.nexus.game.advanceToMain1
 import forge.nexus.game.awaitFreshPending
 import forge.web.game.GameBootstrap
@@ -103,14 +104,25 @@ abstract class ConformanceTestBase {
     ): BundleBuilder.BundleResult =
         BundleBuilder.postAction(game, b, TEST_MATCH_ID, SEAT_ID, prevMsgId, prevGsId)
 
-    /** Build a gameStart bundle with standard test constants. */
+    /** Build a gameStart bundle (phaseTransitionDiff) with standard test constants. */
     protected fun gameStart(
         game: Game,
         b: GameBridge,
         prevMsgId: Int,
         prevGsId: Int,
     ): BundleBuilder.BundleResult =
-        BundleBuilder.gameStart(game, b, TEST_MATCH_ID, SEAT_ID, prevMsgId, prevGsId)
+        BundleBuilder.phaseTransitionDiff(game, b, TEST_MATCH_ID, SEAT_ID, prevMsgId, prevGsId)
+
+    /**
+     * Build a Full state GSM simulating the handshake baseline.
+     * Accumulator-based tests need this before processing thin Diffs from gameStart.
+     */
+    protected fun handshakeFull(
+        game: Game,
+        b: GameBridge,
+        gsId: Int,
+    ): GameStateMessage =
+        StateMapper.buildFromGame(game, gsId, TEST_MATCH_ID, b, viewingSeatId = SEAT_ID)
 
     /** Play a land and capture the resulting GSM. */
     protected fun playLandAndCapture(): GameStateMessage? {

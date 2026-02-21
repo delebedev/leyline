@@ -16,12 +16,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *
  * The .bin files are the real server's output. Our dynamic builders must produce
  * structurally equivalent messages: same GRE types, GSM type, update type,
- * annotations, zone count, and prompt fields.
- *
- * Known intentional difference: .bin templates contain embedded actions from the
- * recording's deck. The old pipeline cleared these (stale costs cause "Cost Modified"
- * overlay), and our dynamic builder also omits them. So "actions" in fieldPresence
- * is expected to differ.
+ * annotations, zone count, object count, actions, and prompt fields.
  */
 @Test(groups = ["integration"])
 class DealHandConformanceTest {
@@ -69,10 +64,10 @@ class DealHandConformanceTest {
         assertEquals(actual.updateType, golden.updateType, "Update type")
         assertEquals(actual.annotationTypes, golden.annotationTypes, "Annotation types")
         assertEquals(actual.zoneCount, golden.zoneCount, "Zone count")
+        assertEquals(actual.objectCount, golden.objectCount, "Object count (viewing seat hand only)")
+        assertEquals(actual.actionTypes.size, golden.actionTypes.size, "Action count (viewing seat playable actions)")
 
-        // Field presence: actual must have everything golden has, except "actions"
-        // (actions were always cleared by the old pipeline — intentional omission)
-        val requiredFields = golden.fieldPresence - "actions"
+        val requiredFields = golden.fieldPresence
         val missing = requiredFields - actual.fieldPresence
         assertTrue(missing.isEmpty(), "Missing required fields: $missing")
     }
@@ -96,8 +91,9 @@ class DealHandConformanceTest {
         assertEquals(actualGsm.updateType, goldenGsm.updateType, "GSM: update type")
         assertEquals(actualGsm.annotationTypes, goldenGsm.annotationTypes, "GSM: annotation types")
         assertEquals(actualGsm.zoneCount, goldenGsm.zoneCount, "GSM: zone count")
+        assertEquals(actualGsm.objectCount, goldenGsm.objectCount, "GSM: object count (viewing seat hand only)")
 
-        val requiredFields = goldenGsm.fieldPresence - "actions"
+        val requiredFields = goldenGsm.fieldPresence
         val missing = requiredFields - actualGsm.fieldPresence
         assertTrue(missing.isEmpty(), "GSM: Missing required fields: $missing")
 
@@ -129,7 +125,7 @@ class DealHandConformanceTest {
         assertEquals(actualGsm.zoneCount, goldenGsm.zoneCount, "GSM: zone count (0)")
         assertEquals(actualGsm.objectCount, goldenGsm.objectCount, "GSM: object count (0)")
 
-        val requiredFields = goldenGsm.fieldPresence - "actions"
+        val requiredFields = goldenGsm.fieldPresence
         val missing = requiredFields - actualGsm.fieldPresence
         assertTrue(missing.isEmpty(), "GSM: Missing required fields: $missing")
 
@@ -196,7 +192,7 @@ class DealHandConformanceTest {
         assertEquals(actualGsm.updateType, goldenGsm.updateType, "GSM: update type")
         assertEquals(actualGsm.zoneCount, goldenGsm.zoneCount, "GSM: zone count (17)")
 
-        val requiredFields = goldenGsm.fieldPresence - "actions"
+        val requiredFields = goldenGsm.fieldPresence
         val missing = requiredFields - actualGsm.fieldPresence
         assertTrue(missing.isEmpty(), "GSM: Missing required fields: $missing")
 
@@ -230,7 +226,7 @@ class DealHandConformanceTest {
         assertEquals(actualGsm.updateType, goldenGsm.updateType, "GSM: update type")
         assertEquals(actualGsm.zoneCount, goldenGsm.zoneCount, "GSM: zone count (17)")
 
-        val requiredFields = goldenGsm.fieldPresence - "actions"
+        val requiredFields = goldenGsm.fieldPresence
         val missing = requiredFields - actualGsm.fieldPresence
         assertTrue(missing.isEmpty(), "GSM: Missing required fields: $missing")
 

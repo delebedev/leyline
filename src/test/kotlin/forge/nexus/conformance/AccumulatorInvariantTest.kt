@@ -7,13 +7,24 @@ import org.testng.annotations.Test
 @Test(groups = ["integration", "conformance"])
 class AccumulatorInvariantTest : ConformanceTestBase() {
 
+    /** Create an accumulator seeded with handshake Full (like real client). */
+    private fun seededAccumulator(
+        game: forge.game.Game,
+        b: forge.nexus.game.GameBridge,
+        gsId: Int,
+    ): ClientAccumulator {
+        val acc = ClientAccumulator()
+        acc.seedFull(handshakeFull(game, b, gsId))
+        return acc
+    }
+
     @Test(description = "After game-start bundle, all action instanceIds exist in accumulated objects")
     fun gameStartActionIdsExistInObjects() {
         val (b, game, gsId) = startGameAtMain1()
 
         val result = gameStart(game, b, 1, gsId)
 
-        val acc = ClientAccumulator()
+        val acc = seededAccumulator(game, b, gsId)
         acc.processAll(result.messages)
 
         val missing = acc.actionInstanceIdsMissingFromObjects()
@@ -26,7 +37,7 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
 
         val result = gameStart(game, b, 1, gsId)
 
-        val acc = ClientAccumulator()
+        val acc = seededAccumulator(game, b, gsId)
         acc.processAll(result.messages)
 
         val missing = acc.zoneObjectsMissingFromObjects()
@@ -38,7 +49,7 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
         val (b, game, gsId) = startGameAtMain1()
 
         val startResult = gameStart(game, b, 1, gsId)
-        val acc = ClientAccumulator()
+        val acc = seededAccumulator(game, b, gsId)
         acc.processAll(startResult.messages)
 
         playLand(b) ?: error("playLand failed at seed 42")
@@ -55,7 +66,7 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
         val (b, game, gsId) = startGameAtMain1()
 
         val startResult = gameStart(game, b, 1, gsId)
-        val acc = ClientAccumulator()
+        val acc = seededAccumulator(game, b, gsId)
         acc.processAll(startResult.messages)
 
         playLand(b)
@@ -74,7 +85,7 @@ class AccumulatorInvariantTest : ConformanceTestBase() {
     fun aiActionDiffsKeepStateValid() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val acc = ClientAccumulator()
+        val acc = seededAccumulator(game, b, gsId)
 
         val startResult = gameStart(game, b, 1, gsId)
         acc.processAll(startResult.messages)

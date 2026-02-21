@@ -251,12 +251,12 @@ class GameBridgeTest {
     // --- Proto shape assertions (uses same builder as handler) ---
 
     /**
-     * Validates the game-start GRE bundle shape via [BundleBuilder.gameStart]:
-     *   GRE 1: Diff, Beginning/Upkeep, SendHiFi (stage transition)
-     *   GRE 2: Diff, empty priority-pass marker
-     *   GRE 3: Full, Main1, SendAndRecord, zones + objects + actions
-     *   GRE 4: ActionsAvailableReq, actions > 0
-     *   All instanceIds in actions exist in GRE 3's zones.
+     * Validates the game-start GRE bundle shape via [BundleBuilder.phaseTransitionDiff]:
+     *   GRE 1: Diff/SendHiFi, 2x PhaseOrStepModified, gameInfo
+     *   GRE 2: Diff/SendHiFi echo (turnInfo + actions)
+     *   GRE 3: Diff/SendAndRecord, 1x PhaseOrStepModified
+     *   GRE 4: PromptReq
+     *   GRE 5: ActionsAvailableReq, actions > 0
      */
     @Test
     fun gameStartBundleHasCorrectShape() {
@@ -267,91 +267,74 @@ class GameBridgeTest {
         advanceToMain1(b)
 
         val game = b.getGame()!!
-        val result = BundleBuilder.gameStart(game, b, "test-match", 1, 1, 10)
+        val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, 1, 10)
         val messages = result.messages
 
-        // Bundle has exactly 4 GRE messages (double-diff pattern)
-        Assert.assertEquals(messages.size, 4, "Game start bundle should have 4 GRE messages")
+        // Bundle has exactly 5 GRE messages (phaseTransitionDiff pattern)
+        Assert.assertEquals(messages.size, 5, "Game start bundle should have 5 GRE messages")
 
-        // GRE 1: stage transition
+        // GRE 1: SendHiFi with 2x PhaseOrStepModified + gameInfo
         val gre1 = messages[0]
-        assertEquals(
-            gre1.gameStateMessage.turnInfo.phase,
-            wotc.mtgo.gre.external.messaging.Messages.Phase.Beginning_a549,
-            "GRE 1 should be Beginning phase",
-        )
         assertEquals(
             gre1.gameStateMessage.update,
             wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate.SendHiFi,
-            "GRE 1 (stage transition) should use SendHiFi",
+            "GRE 1 should use SendHiFi",
         )
+        Assert.assertTrue(
+            gre1.gameStateMessage.hasGameInfo(),
+            "GRE 1 should have gameInfo",
+        )
+        val phaseAnnotations1 = gre1.gameStateMessage.annotationsList.flatMap { it.typeList }
+            .count { it == wotc.mtgo.gre.external.messaging.Messages.AnnotationType.PhaseOrStepModified }
+        Assert.assertTrue(phaseAnnotations1 >= 2, "GRE 1 should have 2+ PhaseOrStepModified annotations")
 
-        // GRE 2: empty priority-pass marker
+        // GRE 2: SendHiFi echo (turnInfo + actions, no annotations)
         val gre2 = messages[1]
         assertEquals(
             gre2.gameStateMessage.type,
             wotc.mtgo.gre.external.messaging.Messages.GameStateType.Diff,
-            "GRE 2 should be Diff (priority-pass marker)",
+            "GRE 2 should be Diff",
+        )
+        assertEquals(
+            gre2.gameStateMessage.update,
+            wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate.SendHiFi,
+            "GRE 2 should use SendHiFi",
         )
         Assert.assertTrue(
             gre2.gameStateMessage.gameStateId > gre1.gameStateMessage.gameStateId,
             "GRE 2 gsId should be > GRE 1 gsId",
         )
 
-        // GRE 3: Full state at Main1 with zones + actions
+        // GRE 3: SendAndRecord with 1x PhaseOrStepModified
         val gre3 = messages[2]
-        assertEquals(
-            gre3.gameStateMessage.type,
-            wotc.mtgo.gre.external.messaging.Messages.GameStateType.Full,
-            "GRE 3 should be Full state",
-        )
-        assertEquals(
-            gre3.gameStateMessage.turnInfo.phase,
-            wotc.mtgo.gre.external.messaging.Messages.Phase.Main1_a549,
-            "GRE 3 should be Main1 phase",
-        )
         assertEquals(
             gre3.gameStateMessage.update,
             wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate.SendAndRecord,
-            "GRE 3 (Main1) should use SendAndRecord",
+            "GRE 3 should use SendAndRecord",
         )
-        Assert.assertTrue(
-            gre3.gameStateMessage.actionsCount > 0,
-            "GRE 3 should have embedded actions",
-        )
-        Assert.assertTrue(
-            gre3.gameStateMessage.zonesCount > 0,
-            "GRE 3 (Full) should have zones",
-        )
-        Assert.assertTrue(
-            gre3.gameStateMessage.gameObjectsCount > 0,
-            "GRE 3 (Full) should have game objects",
-        )
+        val phaseAnnotations3 = gre3.gameStateMessage.annotationsList.flatMap { it.typeList }
+            .count { it == wotc.mtgo.gre.external.messaging.Messages.AnnotationType.PhaseOrStepModified }
+        Assert.assertEquals(phaseAnnotations3, 1, "GRE 3 should have 1 PhaseOrStepModified")
 
-        // GRE 4: actions available
+        // GRE 4: PromptReq
         val gre4 = messages[3]
         assertEquals(
             gre4.type,
-            wotc.mtgo.gre.external.messaging.Messages.GREMessageType.ActionsAvailableReq_695e,
-            "GRE 4 should be ActionsAvailableReq",
-        )
-        Assert.assertTrue(
-            gre4.actionsAvailableReq.actionsCount > 0,
-            "GRE 4 should have actions",
+            wotc.mtgo.gre.external.messaging.Messages.GREMessageType.PromptReq,
+            "GRE 4 should be PromptReq",
         )
 
-        // Cross-reference: every instanceId in actions exists in GRE 3's zones
-        val allZoneInstanceIds = gre3.gameStateMessage.zonesList
-            .flatMap { it.objectInstanceIdsList }
-            .toSet()
-        for (action in gre4.actionsAvailableReq.actionsList) {
-            if (action.instanceId != 0) {
-                Assert.assertTrue(
-                    action.instanceId in allZoneInstanceIds,
-                    "Action instanceId ${action.instanceId} not found in any zone",
-                )
-            }
-        }
+        // GRE 5: ActionsAvailableReq
+        val gre5 = messages[4]
+        assertEquals(
+            gre5.type,
+            wotc.mtgo.gre.external.messaging.Messages.GREMessageType.ActionsAvailableReq_695e,
+            "GRE 5 should be ActionsAvailableReq",
+        )
+        Assert.assertTrue(
+            gre5.actionsAvailableReq.actionsCount > 0,
+            "GRE 5 should have actions",
+        )
     }
 
     /**
@@ -801,7 +784,7 @@ class GameBridgeTest {
         advanceToMain1(b)
 
         val game = b.getGame()!!
-        val result = BundleBuilder.gameStart(game, b, "test-match", 1, 1, 10)
+        val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, 1, 10)
 
         var prevGsId = 0
         for (msg in result.messages) {
