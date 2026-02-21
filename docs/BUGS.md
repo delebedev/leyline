@@ -19,7 +19,7 @@
 - **Combat targeting**: attack-all somewhat works; declaring blockers targeting doesn't
   - *Partially fixed (2026-02-21):* `defenderPlayerId` now resolved explicitly in `MatchSession.onDeclareAttackers` (was null). Combat damage resolves for unblocked attackers. Blocker declaration path not changed — may still have issues. Verified in `CombatFlowTest` (7 tests). Needs manual client test for blockers.
 - **Double DeclareBlockersReq stalls client**: `checkCombatPhase()` sends DeclareBlockersReq again during the priority window after blockers are submitted. No dedup guard (unlike `pendingLegalAttackers` for attackers). Client freezes on the unexpected second prompt even though server continues to game-over. Confirmed via recording 2026-02-21. Fix: add `pendingBlockersSent` flag, clear in `onDeclareBlockers`. See `MatchSession.kt:471-475`.
-- **Hand overflow**: suspected game stuck on 8+ cards (discard not implemented) — not confirmed
+- **Hand overflow / Cleanup stall**: confirmed — 8 cards in hand at Cleanup triggers discard-to-hand-size prompt (non-targeting `choose_cards`). `checkPendingPrompt` only handles targeting prompts → falls through → infinite ActionsAvailableReq loop with only Pass. Fix on `fix/conformance-test-assertions` branch (`75fd2dfb63`): auto-resolve non-targeting prompts. Confirmed via recording 2026-02-21_20-51-31.
 - **Concede**: tried wiring client concede button but doesn't work yet
 - **Phase indicators**: glitch where player and AI indicators update in sync
 
