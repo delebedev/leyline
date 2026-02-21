@@ -19,7 +19,7 @@ class GameEventCollectorTest {
 
     @BeforeClass(alwaysRun = true)
     fun initCardDatabase() {
-        GameBootstrap.initializeCardDatabase()
+        GameBootstrap.initializeCardDatabase(quiet = true)
         forge.nexus.conformance.TestCardRegistry.ensureRegistered()
     }
 
