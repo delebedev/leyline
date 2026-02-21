@@ -80,14 +80,51 @@ class TargetingHandler(private val ops: SessionOps) {
         return false
     }
 
-    /** Check for pending interactive prompt (targeting, sacrifice, etc.). Returns true if prompt was sent. */
-    fun checkPendingPrompt(bridge: GameBridge, game: Game): Boolean {
-        val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: return false
-        if (pendingPrompt.request.candidateRefs.isEmpty()) return false
-        ops.traceEvent(GameStateCollector.EventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
-        val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)
-        sendSelectTargetsReq(bridge, req)
-        return true
+    /** Result from [checkPendingPrompt]. */
+    enum class PromptResult {
+        /** No prompt pending. */
+        NONE,
+
+        /** Targeting prompt sent to client — caller should exit loop and wait. */
+        SENT_TO_CLIENT,
+
+        /** Non-targeting prompt auto-resolved — caller should re-evaluate (loop continues). */
+        AUTO_RESOLVED,
+    }
+
+    /**
+     * Check for pending interactive prompt (targeting, sacrifice, discard, etc.).
+     * - Targeting prompts (candidateRefs non-empty) → send SelectTargetsReq to client.
+     * - Non-targeting prompts (confirm, choose_cards, order) → auto-resolve with
+     *   defaultIndex. Covers discard-to-hand-size at Cleanup and similar engine prompts.
+     *   These can be wired to client UI later.
+     */
+    fun checkPendingPrompt(bridge: GameBridge, game: Game): PromptResult {
+        val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: return PromptResult.NONE
+        if (pendingPrompt.request.candidateRefs.isNotEmpty()) {
+            // Targeting prompt → send SelectTargetsReq to client
+            ops.traceEvent(GameStateCollector.EventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
+            val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)
+            sendSelectTargetsReq(bridge, req)
+            return PromptResult.SENT_TO_CLIENT
+        }
+        // Non-targeting prompt → auto-resolve with default
+        val req = pendingPrompt.request
+        log.info(
+            "TargetingHandler: auto-resolving non-targeting prompt [{}] \"{}\" opts={} default={}",
+            req.promptType,
+            req.message,
+            req.options.size,
+            req.defaultIndex,
+        )
+        ops.traceEvent(
+            GameStateCollector.EventType.AUTO_PASS,
+            game,
+            "auto-resolve prompt [${req.promptType}] default=${req.defaultIndex}",
+        )
+        bridge.promptBridge.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+        bridge.awaitPriority()
+        return PromptResult.AUTO_RESOLVED
     }
 
     // --- Sending helper ---

@@ -52,13 +52,23 @@ class AutoPassEngine(
             // Combat phase handling
             val combatSignal = combatHandler.checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)
             if (combatSignal == CombatHandler.Signal.STOP) return
-            if (combatSignal == CombatHandler.Signal.SEND_STATE) { ops.sendRealGameState(bridge); return }
+            if (combatSignal == CombatHandler.Signal.SEND_STATE) {
+                ops.sendRealGameState(bridge)
+                return
+            }
 
-            // Interactive prompt (targeting, sacrifice, etc.)
-            if (targetingHandler.checkPendingPrompt(bridge, game)) return
+            // Interactive prompt (targeting, sacrifice, discard, etc.)
+            when (targetingHandler.checkPendingPrompt(bridge, game)) {
+                TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
+                TargetingHandler.PromptResult.AUTO_RESOLVED -> return@repeat // re-evaluate
+                TargetingHandler.PromptResult.NONE -> {} // continue
+            }
 
             // Action check — prompt human if meaningful actions exist
-            if (checkHumanActions(bridge, game, isAiTurn)) { ops.sendRealGameState(bridge); return }
+            if (checkHumanActions(bridge, game, isAiTurn)) {
+                ops.sendRealGameState(bridge)
+                return
+            }
 
             // Auto-pass or wait
             advanceOrWait(bridge, game, phase, isAiTurn) ?: return
