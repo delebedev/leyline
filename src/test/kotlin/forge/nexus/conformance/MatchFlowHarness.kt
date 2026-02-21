@@ -150,6 +150,21 @@ class MatchFlowHarness(
         }
     }
 
+    /**
+     * Replace the AI seat's controller with a [ScriptedPlayerController].
+     * Call after [connectAndKeep] — the AI player must already exist.
+     * Returns the scripted controller for inspection.
+     */
+    fun installScriptedAi(script: List<ScriptedAction>): ScriptedPlayerController {
+        val game = game()
+        val aiPlayer = bridge.getPlayer(2)
+            ?: error("No AI player found")
+        val controller = ScriptedPlayerController(game, aiPlayer, script)
+        // Use highest timestamp so this controller takes priority over the default AI
+        aiPlayer.addController(Long.MAX_VALUE, aiPlayer, controller, false)
+        return controller
+    }
+
     fun phase(): String? = game().phaseHandler.phase?.name
     fun turn(): Int = game().phaseHandler.turn
     fun isAiTurn(): Boolean {

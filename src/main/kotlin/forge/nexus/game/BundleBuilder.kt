@@ -57,7 +57,7 @@ object BundleBuilder {
                         activeSeat,
                         gsBase.turnInfo.phase.number,
                         gsBase.turnInfo.step.number,
-                    ),
+                    ).toBuilder().setId(bridge.nextAnnotationId()).build(),
                 )
                 .build()
         } else {
@@ -145,15 +145,25 @@ object BundleBuilder {
         // Real server embeds human's potential actions during AI turn.
         val actions = StateMapper.buildNaiveActions(seatId, bridge)
 
-        // Inject phase/turn annotations when applicable
+        // Inject phase/turn annotations when applicable — must assign IDs to avoid
+        // mixed-id violations when gsBase already contains numbered zone-transfer annotations.
         val gsWithAnnotations = if (phaseChanged || turnStarted) {
             val protoPhase = StateMapper.mapPhase(handler.phase).number
             val protoStep = StateMapper.mapStep(handler.phase).number
             gsBase.toBuilder().apply {
-                if (turnStarted) addAnnotations(AnnotationBuilder.newTurnStarted(activeSeat))
+                if (turnStarted) addAnnotations(
+                    AnnotationBuilder.newTurnStarted(activeSeat)
+                        .toBuilder().setId(bridge.nextAnnotationId()).build(),
+                )
                 if (phaseChanged) {
-                    addAnnotations(AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep))
-                    addAnnotations(AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep))
+                    addAnnotations(
+                        AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep)
+                            .toBuilder().setId(bridge.nextAnnotationId()).build(),
+                    )
+                    addAnnotations(
+                        AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep)
+                            .toBuilder().setId(bridge.nextAnnotationId()).build(),
+                    )
                 }
             }.build()
         } else {
@@ -268,7 +278,10 @@ object BundleBuilder {
             .setGameStateId(nextGs)
             .setPrevGameStateId(msg2GsId)
             .setTurnInfo(turnInfo)
-            .addAnnotations(AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number))
+            .addAnnotations(
+                AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)
+                    .toBuilder().setId(bridge.nextAnnotationId()).build(),
+            )
             .addAllTimers(StateMapper.buildTimers())
             .setUpdate(GameStateUpdate.SendAndRecord)
         embedActions(commitBuilder, actions, seatId)
