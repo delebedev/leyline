@@ -1,3 +1,6 @@
+// TODO: share a single GameBridge per class via @BeforeClass instead of creating one per
+//  @BeforeMethod. Engine bootstrap (deck parse + match setup + mulligan + advance-to-main1)
+//  costs ~1.5s per test — sharing would cut ~90s from the integration suite.
 package forge.nexus.conformance
 
 import forge.game.Game
