@@ -143,7 +143,9 @@ object BundleBuilder {
             updateType = GameStateUpdate.SendAndRecord,
             viewingSeatId = seatId,
         )
-        val actions = StateMapper.buildActions(game, seatId, bridge)
+        // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
+        // Real server embeds human's potential actions during AI turn.
+        val actions = StateMapper.buildNaiveActions(seatId, bridge)
 
         // Message 1: Diff with annotations + actions
         val gsWithAnnotations = if (phaseChanged || turnStarted) {
@@ -226,10 +228,10 @@ object BundleBuilder {
 
         val phase = StateMapper.mapPhase(game.phaseHandler.phase)
         val step = StateMapper.mapStep(game.phaseHandler.phase)
-        // TODO: buildActions is phase-sensitive — at upkeep it returns only Pass/FloatMana.
+        // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
         // Real server embeds Cast/Play actions regardless of current phase (cosmetic only;
         // actual priority gating uses ActionsAvailableReq sent when human gets priority).
-        val actions = StateMapper.buildActions(game, seatId, bridge)
+        val actions = StateMapper.buildNaiveActions(seatId, bridge)
         val handler = game.phaseHandler
         val human = bridge.getPlayer(1)
         val activeSeat = if (handler.playerTurn == human) 1 else 2
