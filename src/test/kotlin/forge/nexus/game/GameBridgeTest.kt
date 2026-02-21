@@ -27,12 +27,11 @@ class GameBridgeTest {
         forge.nexus.conformance.TestCardRegistry.ensureRegistered()
     }
 
-    private var bridge: GameBridge? = null
+    private lateinit var bridge: GameBridge
 
     @AfterMethod
     fun tearDown() {
-        bridge?.shutdown()
-        bridge = null
+        if (::bridge.isInitialized) bridge.shutdown()
     }
 
     @Test
@@ -128,9 +127,9 @@ class GameBridgeTest {
 
         // Hand zone should have 7 cards (or 6 if draw happened)
         val handZone = gs.zonesList.find { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand && it.ownerSeatId == 1 }
-        Assert.assertNotNull(handZone, "Should have seat 1 hand zone")
+        checkNotNull(handZone) { "Should have seat 1 hand zone" }
         Assert.assertTrue(
-            handZone!!.objectInstanceIdsCount >= 6,
+            handZone.objectInstanceIdsCount >= 6,
             "Hand should have cards, got ${handZone.objectInstanceIdsCount}",
         )
 

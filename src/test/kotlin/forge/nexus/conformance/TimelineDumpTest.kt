@@ -16,7 +16,7 @@ import java.io.StringWriter
 @Test(groups = ["recording"])
 class TimelineDumpTest {
 
-    private var harness: MatchFlowHarness? = null
+    private lateinit var harness: MatchFlowHarness
 
     @BeforeClass(alwaysRun = true)
     fun initCardDatabase() {
@@ -25,8 +25,7 @@ class TimelineDumpTest {
 
     @AfterMethod(alwaysRun = true)
     fun cleanup() {
-        harness?.shutdown()
-        harness = null
+        if (::harness.isInitialized) harness.shutdown()
     }
 
     @Test(groups = ["recording"])

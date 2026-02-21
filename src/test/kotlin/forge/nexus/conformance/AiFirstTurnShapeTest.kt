@@ -22,12 +22,11 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 @Test(groups = ["integration", "conformance"])
 class AiFirstTurnShapeTest {
 
-    private var harness: MatchFlowHarness? = null
+    private lateinit var harness: MatchFlowHarness
 
     @AfterMethod
     fun tearDown() {
-        harness?.shutdown()
-        harness = null
+        if (::harness.isInitialized) harness.shutdown()
     }
 
     private fun runAiFirstGame(): MatchFlowHarness {

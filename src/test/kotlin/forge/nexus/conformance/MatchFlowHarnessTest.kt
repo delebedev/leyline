@@ -17,71 +17,70 @@ class MatchFlowHarnessTest {
         const val AI_FIRST_SEED = 2L
     }
 
-    private var harness: MatchFlowHarness? = null
+    private lateinit var harness: MatchFlowHarness
 
     @AfterMethod
     fun tearDown() {
-        harness?.shutdown()
-        harness = null
+        if (::harness.isInitialized) harness.shutdown()
     }
 
     @Test(description = "Harness can start game and reach Main1 with valid accumulated state")
     fun startGameReachesMain1() {
         harness = MatchFlowHarness(seed = 42L)
-        harness!!.connectAndKeep()
+        harness.connectAndKeep()
 
-        val acc = harness!!.accumulator
+        val acc = harness.accumulator
         assertTrue(acc.objects.isNotEmpty(), "Should have accumulated game objects")
         assertNotNull(acc.actions, "Should have actions available")
 
         val missing = acc.actionInstanceIdsMissingFromObjects()
         assertTrue(missing.isEmpty(), "Action instanceIds missing after game start: $missing")
 
-        assertEquals(harness!!.phase(), "MAIN1", "Should be at Main1")
+        assertEquals(harness.phase(), "MAIN1", "Should be at Main1")
     }
 
     @Test(description = "Play land, pass turn, survive AI turn, reach next Main1 with valid state")
     fun playLandAndPassTurn() {
         harness = MatchFlowHarness(seed = 42L)
-        harness!!.connectAndKeep()
+        harness.connectAndKeep()
 
         // Play a land
-        val landPlayed = harness!!.playLand()
+        val landPlayed = harness.playLand()
         assertTrue(landPlayed, "Should have a land to play")
 
         // Verify state is valid after land play
-        val missingAfterLand = harness!!.accumulator.actionInstanceIdsMissingFromObjects()
+        val missingAfterLand = harness.accumulator.actionInstanceIdsMissingFromObjects()
         assertTrue(missingAfterLand.isEmpty(), "Missing instanceIds after land: $missingAfterLand")
 
         // Pass priority to end turn
-        harness!!.passPriority()
+        harness.passPriority()
 
         // After auto-pass through AI turn, should be back at human's turn
         // (or AI turn if AI has actions — either way, state should be valid)
-        assertFalse(harness!!.isGameOver(), "Game should not be over after 1 turn")
+        assertFalse(harness.isGameOver(), "Game should not be over after 1 turn")
 
-        val missingAfterTurn = harness!!.accumulator.actionInstanceIdsMissingFromObjects()
+        val missingAfterTurn = harness.accumulator.actionInstanceIdsMissingFromObjects()
         assertTrue(missingAfterTurn.isEmpty(), "Missing instanceIds after full turn cycle: $missingAfterTurn")
     }
 
     @Test(description = "Play land + cast creature, verify object tracking through stack resolution")
     fun castCreatureTracksObjectThroughZones() {
         harness = MatchFlowHarness(seed = 42L)
-        harness!!.connectAndKeep()
+        harness.connectAndKeep()
 
         // Play land for mana
-        harness!!.playLand()
+        harness.playLand()
 
         // Cast creature (hand → stack → battlefield)
-        val cast = harness!!.castCreature()
+        val cast = harness.castCreature()
         assertTrue(cast, "Should be able to cast a creature")
 
         // Verify accumulated state
-        val missing = harness!!.accumulator.actionInstanceIdsMissingFromObjects()
+        val missing = harness.accumulator.actionInstanceIdsMissingFromObjects()
         assertTrue(missing.isEmpty(), "Missing instanceIds after cast: $missing")
 
         // Verify we have objects on battlefield (not just hand/library)
-        val battlefieldZone = harness!!.accumulator.zones.values
+        val battlefieldZone = harness.accumulator.zones.values
             .firstOrNull { it.type == ZoneType.Battlefield }
         assertNotNull(battlefieldZone, "Should have a battlefield zone")
     }
@@ -89,18 +88,18 @@ class MatchFlowHarnessTest {
     @Test(description = "Multi-turn game: play land each turn, verify state validity across 3 turns")
     fun multiTurnAccumulatedStateValid() {
         harness = MatchFlowHarness(seed = 42L)
-        harness!!.connectAndKeep()
+        harness.connectAndKeep()
 
         repeat(3) { turn ->
-            if (harness!!.isGameOver()) return
+            if (harness.isGameOver()) return
 
             // Play a land if possible (OK if no land available)
-            harness!!.playLand()
+            harness.playLand()
 
-            harness!!.accumulator.assertConsistent("turn ${turn + 1}")
+            harness.accumulator.assertConsistent("turn ${turn + 1}")
 
             // Pass turn
-            harness!!.passPriority()
+            harness.passPriority()
         }
     }
 
@@ -116,79 +115,79 @@ class MatchFlowHarnessTest {
         assertTrue(aiFirst, "Seed $AI_FIRST_SEED should have AI going first")
 
         harness = MatchFlowHarness(seed = AI_FIRST_SEED)
-        harness!!.connectAndKeep()
+        harness.connectAndKeep()
 
         // After connectAndKeep + autoPass, we should have valid state
-        assertFalse(harness!!.isGameOver(), "Game should not be over at start")
+        assertFalse(harness.isGameOver(), "Game should not be over at start")
 
-        harness!!.accumulator.assertConsistent("after AI-first connect")
+        harness.accumulator.assertConsistent("after AI-first connect")
 
         // Should have received at least game-start bundle (4 messages)
-        assertTrue(harness!!.allMessages.size >= 4, "Should have at least 4 messages (game-start bundle)")
+        assertTrue(harness.allMessages.size >= 4, "Should have at least 4 messages (game-start bundle)")
     }
 
     @Test(description = "gsId chain valid through play-land, pass, and phase transitions")
     fun gsIdChainValidThroughPhases() {
         harness = MatchFlowHarness(seed = 42L)
-        harness!!.connectAndKeep()
+        harness.connectAndKeep()
 
-        assertEquals(harness!!.turn(), 1, "Should start at turn 1")
-        assertEquals(harness!!.phase(), "MAIN1", "Should start at Main1")
-        assertFalse(harness!!.isAiTurn(), "Should be human's turn")
+        assertEquals(harness.turn(), 1, "Should start at turn 1")
+        assertEquals(harness.phase(), "MAIN1", "Should start at Main1")
+        assertFalse(harness.isAiTurn(), "Should be human's turn")
 
         // Validate chain from game start
-        assertGsIdChain(harness!!.allMessages, context = "game start")
+        assertGsIdChain(harness.allMessages, context = "game start")
 
-        harness!!.playLand()
-        assertGsIdChain(harness!!.allMessages, context = "after play land")
+        harness.playLand()
+        assertGsIdChain(harness.allMessages, context = "after play land")
 
-        harness!!.passPriority()
-        assertFalse(harness!!.isGameOver(), "Game should not be over after land + pass")
+        harness.passPriority()
+        assertFalse(harness.isGameOver(), "Game should not be over after land + pass")
 
         // Full chain from game start through all phase transitions
-        assertGsIdChain(harness!!.allMessages, context = "after pass")
+        assertGsIdChain(harness.allMessages, context = "after pass")
     }
 
     @Test(description = "AI-first game: gsId chain valid through AI opening turn")
     fun aiFirstTurnGsIdChainIsValid() {
         harness = MatchFlowHarness(seed = AI_FIRST_SEED)
-        harness!!.connectAndKeep()
+        harness.connectAndKeep()
 
         // After connectAndKeep, AI went first and we auto-passed through
-        assertFalse(harness!!.isGameOver(), "Game should not be over")
+        assertFalse(harness.isGameOver(), "Game should not be over")
 
         // Validate full gsId chain from game start
-        assertGsIdChain(harness!!.allMessages, context = "AI-first game start")
+        assertGsIdChain(harness.allMessages, context = "AI-first game start")
 
         // Validate accumulated state consistency
-        harness!!.accumulator.assertConsistent("after AI-first turn")
+        harness.accumulator.assertConsistent("after AI-first turn")
     }
 
     @Test(description = "AI-first multi-turn: gsId chain stays unique across 2 AI turns")
     fun aiFirstMultiTurnGsIdChainUnique() {
         harness = MatchFlowHarness(seed = AI_FIRST_SEED)
-        harness!!.connectAndKeep()
+        harness.connectAndKeep()
 
         // Pass through first human turn → triggers AI turn 2
-        harness!!.passPriority()
-        assertFalse(harness!!.isGameOver(), "Game should not be over after first pass")
+        harness.passPriority()
+        assertFalse(harness.isGameOver(), "Game should not be over after first pass")
 
         // Validate full gsId chain including 2 AI turns (turn 1 from connectAndKeep, turn 2 from pass)
-        assertGsIdChain(harness!!.allMessages, context = "AI-first 2 turns")
+        assertGsIdChain(harness.allMessages, context = "AI-first 2 turns")
     }
 
     @Test(description = "AI turn produces fewer AAR than before fix (no pass-only spam)")
     fun aiTurnHasReducedAARCount() {
         harness = MatchFlowHarness(seed = AI_FIRST_SEED)
-        harness!!.connectAndKeep()
+        harness.connectAndKeep()
 
         // Game-start bundle is allowed to have AAR (it's the initial prompt).
         // Grab messages after game-start, which are AI turn diffs.
-        val gameStartSize = harness!!.allMessages.indexOfLast {
+        val gameStartSize = harness.allMessages.indexOfLast {
             it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Full
         } + 1
 
-        val aiTurnMessages = harness!!.allMessages.subList(gameStartSize, harness!!.allMessages.size)
+        val aiTurnMessages = harness.allMessages.subList(gameStartSize, harness.allMessages.size)
         val aars = aiTurnMessages.filter { it.hasActionsAvailableReq() }
 
         // Before fix: every phase transition during AI turn sent AAR with pass-only
@@ -205,18 +204,18 @@ class MatchFlowHarnessTest {
     @Test(description = "AI turn actions produce Diff messages (not silently swallowed)")
     fun aiTurnProducesDiffMessages() {
         harness = MatchFlowHarness(seed = 42L)
-        harness!!.connectAndKeep()
+        harness.connectAndKeep()
 
-        val messagesBeforePass = harness!!.allMessages.size
+        val messagesBeforePass = harness.allMessages.size
 
         // Play a land then pass — triggers AI turn
-        harness!!.playLand()
-        harness!!.passPriority()
+        harness.playLand()
+        harness.passPriority()
 
         // After passing through the AI turn, we should have received Diff messages
         // for AI actions (land plays, spells, phase transitions).
         // If autoPassAndAdvance silently drains playback without sending, this fails.
-        val newMessages = harness!!.allMessages.subList(messagesBeforePass, harness!!.allMessages.size)
+        val newMessages = harness.allMessages.subList(messagesBeforePass, harness.allMessages.size)
         val diffs = newMessages.filter {
             it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Diff
         }
@@ -234,21 +233,22 @@ class MatchFlowHarnessTest {
         // AI goes first (turn 1). connectAndKeep drains turn-1 playback.
         // Pass through human turn 2 → triggers AI turn 3 via playback.
         harness = MatchFlowHarness(seed = AI_FIRST_SEED)
-        harness!!.connectAndKeep()
+        harness.connectAndKeep()
 
-        val prePassCount = harness!!.allMessages.size
-        harness!!.passUntilTurn(3)
-        assertFalse(harness!!.isGameOver(), "Game should not be over")
+        val prePassCount = harness.allMessages.size
+        harness.passUntilTurn(3)
+        assertFalse(harness.isGameOver(), "Game should not be over")
 
-        val aiMessages = harness!!.allMessages.subList(prePassCount, harness!!.allMessages.size)
-        val newTurnAnno = aiMessages
-            .filter { it.hasGameStateMessage() }
-            .flatMap { it.gameStateMessage.annotationsList }
-            .firstOrNull { it.typeList.contains(AnnotationType.NewTurnStarted) }
-        assertNotNull(newTurnAnno, "No NewTurnStarted annotation in AI turn messages (${aiMessages.size} post-pass msgs)")
+        val aiMessages = harness.allMessages.subList(prePassCount, harness.allMessages.size)
+        val newTurnAnno = checkNotNull(
+            aiMessages
+                .filter { it.hasGameStateMessage() }
+                .flatMap { it.gameStateMessage.annotationsList }
+                .firstOrNull { it.typeList.contains(AnnotationType.NewTurnStarted) },
+        ) { "No NewTurnStarted annotation in AI turn messages (${aiMessages.size} post-pass msgs)" }
 
         assertTrue(
-            newTurnAnno!!.affectedIdsList.isNotEmpty(),
+            newTurnAnno.affectedIdsList.isNotEmpty(),
             "NewTurnStarted must have affectedIds (active player seat), but was empty",
         )
         assertTrue(
@@ -264,21 +264,22 @@ class MatchFlowHarnessTest {
         // AI goes first (turn 1). connectAndKeep drains turn-1 playback.
         // Pass through human turn 2 → triggers AI turn 3 via playback.
         harness = MatchFlowHarness(seed = AI_FIRST_SEED)
-        harness!!.connectAndKeep()
+        harness.connectAndKeep()
 
-        val prePassCount = harness!!.allMessages.size
-        harness!!.passUntilTurn(3)
-        assertFalse(harness!!.isGameOver(), "Game should not be over")
+        val prePassCount = harness.allMessages.size
+        harness.passUntilTurn(3)
+        assertFalse(harness.isGameOver(), "Game should not be over")
 
-        val aiMessages = harness!!.allMessages.subList(prePassCount, harness!!.allMessages.size)
-        val phaseAnno = aiMessages
-            .filter { it.hasGameStateMessage() }
-            .flatMap { it.gameStateMessage.annotationsList }
-            .firstOrNull { it.typeList.contains(AnnotationType.PhaseOrStepModified) }
-        assertNotNull(phaseAnno, "No PhaseOrStepModified annotation in AI turn messages (${aiMessages.size} post-pass msgs)")
+        val aiMessages = harness.allMessages.subList(prePassCount, harness.allMessages.size)
+        val phaseAnno = checkNotNull(
+            aiMessages
+                .filter { it.hasGameStateMessage() }
+                .flatMap { it.gameStateMessage.annotationsList }
+                .firstOrNull { it.typeList.contains(AnnotationType.PhaseOrStepModified) },
+        ) { "No PhaseOrStepModified annotation in AI turn messages (${aiMessages.size} post-pass msgs)" }
 
         assertTrue(
-            phaseAnno!!.affectedIdsList.isNotEmpty(),
+            phaseAnno.affectedIdsList.isNotEmpty(),
             "PhaseOrStepModified must have affectedIds (active player seat), but was empty",
         )
 

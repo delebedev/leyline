@@ -43,9 +43,8 @@ class RecordingDecoderTest {
     @Test(description = "on-play: mulligan request present")
     fun onPlayHasMulliganReq() {
         val messages = RecordingDecoder.decodeDirectory(onPlayDir)
-        val mulligan = messages.firstOrNull { it.hasMulliganReq }
-        assertNotNull(mulligan, "Should have a MulliganReq message")
-        assertEquals(mulligan!!.gsId, 3, "MulliganReq should be at gsId=3")
+        val mulligan = checkNotNull(messages.firstOrNull { it.hasMulliganReq }) { "Should have a MulliganReq message" }
+        assertEquals(mulligan.gsId, 3, "MulliganReq should be at gsId=3")
     }
 
     @Test(description = "on-play: play land produces ObjectIdChanged + ZoneTransfer + UserActionTaken")
@@ -54,9 +53,9 @@ class RecordingDecoderTest {
         val playLand = messages.firstOrNull { msg ->
             msg.annotations.any { a -> "ZoneTransfer" in a.types && a.details["category"] == "PlayLand" }
         }
-        assertNotNull(playLand, "Should have a PlayLand ZoneTransfer annotation")
+        checkNotNull(playLand) { "Should have a PlayLand ZoneTransfer annotation" }
 
-        val anns = playLand!!.annotations
+        val anns = playLand.annotations
         assertTrue(anns.any { "ObjectIdChanged" in it.types }, "PlayLand should have ObjectIdChanged")
         assertTrue(anns.any { "ZoneTransfer" in it.types }, "PlayLand should have ZoneTransfer")
         assertTrue(anns.any { "UserActionTaken" in it.types }, "PlayLand should have UserActionTaken")
@@ -98,8 +97,8 @@ class RecordingDecoderTest {
         val pending = messages.firstOrNull { msg ->
             msg.players.any { it.status == "PendingLoss" }
         }
-        assertNotNull(pending, "Should have a PendingLoss status message")
-        assertEquals(pending!!.players.first { it.status == "PendingLoss" }.seat, 1, "Seat 1 (Sparky) should have PendingLoss")
+        checkNotNull(pending) { "Should have a PendingLoss status message" }
+        assertEquals(pending.players.first { it.status == "PendingLoss" }.seat, 1, "Seat 1 (Sparky) should have PendingLoss")
 
         val intermission = messages.firstOrNull { it.hasIntermissionReq }
         assertNotNull(intermission, "Should have IntermissionReq at game end")
@@ -114,9 +113,9 @@ class RecordingDecoderTest {
             msg.annotations.any { a -> "ZoneTransfer" in a.types && a.details["category"] == "CastSpell" } &&
                 msg.objects.any { it.grpId == 75485 } // Bird
         }
-        assertNotNull(castBird, "Should have CastSpell for Bird (grpId=75485)")
+        checkNotNull(castBird) { "Should have CastSpell for Bird (grpId=75485)" }
 
-        val anns = castBird!!.annotations
+        val anns = castBird.annotations
         assertTrue(anns.any { "ObjectIdChanged" in it.types }, "CastSpell should have ObjectIdChanged")
         assertTrue(anns.any { "AbilityInstanceCreated" in it.types }, "CastSpell should have mana ability created")
         assertTrue(anns.any { "TappedUntappedPermanent" in it.types }, "CastSpell should have land tap")
@@ -132,8 +131,8 @@ class RecordingDecoderTest {
             msg.annotations.any { a -> "ZoneTransfer" in a.types && a.details["category"] == "Resolve" } &&
                 msg.objects.any { it.grpId == 75485 && it.hasSummoningSickness }
         }
-        assertNotNull(resolve, "Should have Resolve with summoning sickness on Bird")
-        val bird = resolve!!.objects.first { it.grpId == 75485 }
+        checkNotNull(resolve) { "Should have Resolve with summoning sickness on Bird" }
+        val bird = resolve.objects.first { it.grpId == 75485 }
         assertTrue(bird.hasSummoningSickness, "Bird should have summoning sickness on resolve")
         assertEquals(bird.power, 1, "Bird should have power 1")
         assertEquals(bird.toughness, 1, "Bird should have toughness 1")
@@ -145,9 +144,9 @@ class RecordingDecoderTest {
         val auraResolve = messages.firstOrNull { msg ->
             msg.annotations.any { "AttachmentCreated" in it.types }
         }
-        assertNotNull(auraResolve, "Should have AttachmentCreated annotation")
+        checkNotNull(auraResolve) { "Should have AttachmentCreated annotation" }
 
-        val anns = auraResolve!!.annotations
+        val anns = auraResolve.annotations
         assertTrue(anns.any { "ResolutionStart" in it.types }, "Should have ResolutionStart")
         assertTrue(anns.any { "ResolutionComplete" in it.types }, "Should have ResolutionComplete")
         assertTrue(anns.any { "LayeredEffectCreated" in it.types }, "Should have LayeredEffectCreated")
@@ -155,8 +154,8 @@ class RecordingDecoderTest {
 
         // Bird should now be 2/2 (was 1/1, Aura adds +1/+1)
         val bird = auraResolve.objects.firstOrNull { it.grpId == 75485 }
-        assertNotNull(bird, "Bird should be in the resolve GSM")
-        assertEquals(bird!!.power, 2, "Bird should have power 2 after Aura")
+        checkNotNull(bird) { "Bird should be in the resolve GSM" }
+        assertEquals(bird.power, 2, "Bird should have power 2 after Aura")
         assertEquals(bird.toughness, 2, "Bird should have toughness 2 after Aura")
 
         // Persistent annotations should include Attachment and LayeredEffect
@@ -174,9 +173,9 @@ class RecordingDecoderTest {
         val damage = messages.firstOrNull { msg ->
             msg.annotations.any { "DamageDealt" in it.types }
         }
-        assertNotNull(damage, "Should have DamageDealt annotation")
+        checkNotNull(damage) { "Should have DamageDealt annotation" }
 
-        val anns = damage!!.annotations
+        val anns = damage.annotations
         val dmg = anns.first { "DamageDealt" in it.types }
         assertEquals(dmg.details["damage"], 2, "Bird (2/2) should deal 2 combat damage")
         assertEquals(dmg.affectorId, 280, "Attacker should be Bird (instanceId=280)")
@@ -238,14 +237,12 @@ class RecordingDecoderTest {
         for (msg in messages) acc.process(msg)
 
         // After full game, seat 1 should have taken damage
-        val seat1 = acc.players[1]
-        assertNotNull(seat1, "Should have seat 1 player")
-        assertEquals(seat1!!.life, 18, "Seat 1 should be at 18 life (took 2 combat damage)")
+        val seat1 = checkNotNull(acc.players[1]) { "Should have seat 1 player" }
+        assertEquals(seat1.life, 18, "Seat 1 should be at 18 life (took 2 combat damage)")
 
         // Seat 2 should have taken damage too (Snake/Ninja attacked)
-        val seat2 = acc.players[2]
-        assertNotNull(seat2, "Should have seat 2 player")
-        assertEquals(seat2!!.life, 19, "Seat 2 should be at 19 life (took 1 combat damage)")
+        val seat2 = checkNotNull(acc.players[2]) { "Should have seat 2 player" }
+        assertEquals(seat2.life, 19, "Seat 2 should be at 19 life (took 1 combat damage)")
     }
 
     @Test(description = "AccumulatorSimulator: on-draw battlefield has correct creature set")
@@ -261,15 +258,15 @@ class RecordingDecoderTest {
 
         // Battlefield should have: Bird(280), Aura(288), Wall not yet, 2 Islands, 1 Forest, 1 creature
         val bfZone = acc.zones.values.firstOrNull { it.type == "Battlefield" }
-        assertNotNull(bfZone, "Should have Battlefield zone")
-        assertTrue(bfZone!!.objectIds.contains(280), "Battlefield should contain Bird (280)")
+        checkNotNull(bfZone) { "Should have Battlefield zone" }
+        assertTrue(bfZone.objectIds.contains(280), "Battlefield should contain Bird (280)")
         assertTrue(bfZone.objectIds.contains(288), "Battlefield should contain Aura (288)")
         assertTrue(bfZone.objectIds.contains(279), "Battlefield should contain Island (279)")
 
         // Bird should be 2/2 (Aura applied)
         val bird = acc.objects[280]
-        assertNotNull(bird, "Should have Bird in objects")
-        assertEquals(bird!!.power, 2, "Bird should have power 2 (Aura applied)")
+        checkNotNull(bird) { "Should have Bird in objects" }
+        assertEquals(bird.power, 2, "Bird should have power 2 (Aura applied)")
         assertEquals(bird.toughness, 2, "Bird should have toughness 2 (Aura applied)")
     }
 
