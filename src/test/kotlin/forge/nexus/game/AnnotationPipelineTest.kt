@@ -192,7 +192,7 @@ class AnnotationPipelineTest {
     // --- Edge cases ---
 
     @Test
-    fun unknownCategoryProducesNoAnnotations() {
+    fun genericZoneTransferProducesAnnotations() {
         val transfer = StateMapper.AppliedTransfer(
             origId = 100,
             newId = 200,
@@ -204,7 +204,10 @@ class AnnotationPipelineTest {
         )
         val (annotations, persistent) = StateMapper.annotationsForTransfer(transfer, actingSeat = 1)
 
-        assertTrue(annotations.isEmpty(), "Unknown category should produce no annotations")
+        // ZoneTransfer category produces ObjectIdChanged (when origId != newId) + ZoneTransfer
+        assertEquals(annotations.size, 2, "ZoneTransfer should produce ObjectIdChanged + ZoneTransfer")
+        assertEquals(annotations[0].typeList.first(), AnnotationType.ObjectIdChanged)
+        assertEquals(annotations[1].typeList.first(), AnnotationType.ZoneTransfer_af5a)
         assertTrue(persistent.isEmpty(), "Graveyard dest should produce no persistent annotation")
     }
 

@@ -130,6 +130,19 @@ object StateMapper {
                 bridge.recordZone(obj.instanceId, obj.zoneId)
             }
         }
+
+        // Also record zones for instanceIds that appear only in zone objectInstanceIds
+        // but not in gameObjects (e.g. library cards — hidden, no GameObjectInfo).
+        // This enables zone-transfer detection when they later move to a visible zone.
+        val gameObjectIds = gameObjects.map { it.instanceId }.toSet()
+        for (zone in zones) {
+            for (iid in zone.objectInstanceIdsList) {
+                if (iid !in gameObjectIds) {
+                    bridge.recordZone(iid, zone.zoneId)
+                }
+            }
+        }
+
         return transfers
     }
 
@@ -169,7 +182,12 @@ object StateMapper {
             }
             TransferCategory.Destroy, TransferCategory.Sacrifice, TransferCategory.Countered,
             TransferCategory.Bounce, TransferCategory.Draw, TransferCategory.Discard,
-            TransferCategory.Mill, TransferCategory.Exile, TransferCategory.ZoneTransfer -> {}
+            TransferCategory.Mill, TransferCategory.Exile, TransferCategory.ZoneTransfer -> {
+                if (origId != newId) {
+                    annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
+                }
+                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
+            }
         }
 
         // Persistent: EnteredZoneThisTurn for cards landing on battlefield
@@ -575,12 +593,13 @@ object StateMapper {
                 },
             )
         }
+
+        // Stage 3: Combat damage annotations (must be added before numbering)
+        annotations.addAll(combatAnnotations(game, bridge))
+
         val numberedAnnotations = annotations.map {
             it.toBuilder().setId(bridge.nextAnnotationId()).build()
         }
-
-        // Stage 3: Combat damage annotations
-        annotations.addAll(combatAnnotations(game, bridge))
 
         // prevGameStateId: reference prior state if one exists
         val prevState = bridge.getPreviousState()
@@ -771,8 +790,14 @@ object StateMapper {
             .setTurnInfo(turnInfo)
             .addPlayers(buildPlayerInfo(bridge.getPlayer(1), 1))
             .addPlayers(buildPlayerInfo(bridge.getPlayer(2), 2))
-            .addAnnotations(AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)) // phase change
-            .addAnnotations(AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)) // step change
+            .addAnnotations(
+                AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)
+                    .toBuilder().setId(bridge.nextAnnotationId()).build(),
+            ) // phase change
+            .addAnnotations(
+                AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)
+                    .toBuilder().setId(bridge.nextAnnotationId()).build(),
+            ) // step change
             .addAllTimers(buildTimers())
             .setUpdate(GameStateUpdate.SendHiFi)
 
