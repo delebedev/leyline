@@ -656,6 +656,14 @@ object StateMapper {
             prevObj == null || prevObj != obj
         }
 
+        // Detect objects in prev but not in current (e.g. abilities leaving stack).
+        // Limbo-retired IDs still appear in zone objectInstanceIds, so exclude those.
+        val currentObjIds = current.gameObjectsList.map { it.instanceId }.toSet()
+        val currentZoneTrackedIds = current.zonesList.flatMap { it.objectInstanceIdsList }.toSet()
+        val deletedIds = prev.gameObjectsList
+            .map { it.instanceId }
+            .filter { it !in currentObjIds && it !in currentZoneTrackedIds }
+
         val builder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
@@ -668,6 +676,10 @@ object StateMapper {
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
             .setPrevGameStateId(prev.gameStateId)
+
+        if (deletedIds.isNotEmpty()) {
+            builder.addAllDiffDeletedInstanceIds(deletedIds)
+        }
 
         // Embed stripped-down actions + set pendingMessageCount when AAR follows
         if (actions != null) {
