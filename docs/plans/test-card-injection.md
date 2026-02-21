@@ -232,6 +232,35 @@ Alternatively, `CardDb.lookupByName` could short-circuit with `FALLBACK_GRPID`
 when a test flag is set, skipping SQLite entirely. Tests don't need real
 grpIds — only that proto fields are populated. This is a 5-line change.
 
+## Performance: why parallel forks, not shared-game reset
+
+**Considered: shared `GameBridge` per test class** — boot engine once in
+`@BeforeClass`, reset board between `@Test` methods via
+`Zone.removeAllCards(true)` + `PhaseHandler.devModeSet()` +
+`Player.setLife(20)`. Forge's `GameState.applyToGame()` (used by dev mode
+and puzzles) does exactly this.
+
+**Why we didn't:**
+- Only ~15-20 test methods (out of ~135 live-engine tests) could use it —
+  the ones that inject cards + read proto without submitting actions.
+- Most integration tests need the full action loop (combat, targeting,
+  multi-turn priority). `devModeSet` can't reliably restore the engine
+  thread's phase machine after actions have been submitted.
+- `InstanceIdRegistry` and `DiffSnapshotter` accumulate state across the
+  bridge's lifetime. Clearing them between tests risks subtle leaks.
+- Marginal payoff: saves ~1.5s boot per test, but only for the small
+  subset that doesn't need real actions.
+
+**What we did instead:** `forkCount=4` in maven-surefire for integration
+tests. Each fork gets its own JVM with clean globals. No shared state,
+no fragile reset logic. ~3.3x speedup (308s → 92s) for zero test changes.
+
+**Constraint:** Can't mix unit/conformance and integration in the same
+forked execution — Forge's static initializers (`ZoneType`, `StaticData`)
+fail if a unit test class loads them before `GameBootstrap` runs. Solution:
+`test-full` chains `test-gate` (unit+conformance, 1 fork) then
+`test-integration` (4 forks) as separate maven invocations.
+
 ## Non-goals
 
 - Production card data derivation (production uses real SQLite DB)
