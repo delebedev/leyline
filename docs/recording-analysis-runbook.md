@@ -537,6 +537,63 @@ These appear in comparisons but are intentional:
 | Timer `running` | Only changed timer | Both timers | We send full timer state; real server sends delta-only. Low priority. |
 | Action counts | Vary by deck/board state | Vary by deck/board state | Deck-dependent, not a structural gap |
 
+## 8. Debugging Game Stalls
+
+When the client freezes/hangs mid-game, the recording captures what the server sent. The client may have stopped responding even though the server continued. Use these patterns to diagnose.
+
+### Triage flow
+
+1. **Identify the stall point.** Look at the last few `.txt` filenames — the message types tell the story. A stall during combat will show `DeclareBlockersReq` or `ActionsAvailableReq` as the last interactive message before phase advances.
+
+2. **Check for duplicate prompts.** Grep filenames for repeated Req types:
+   ```bash
+   ls engine/ | grep -E '(DeclareBlockersReq|DeclareAttackersReq|SelectTargetsReq)' | sort
+   ```
+   If the same Req type appears in multiple non-adjacent files (separated by a Resp), it's a duplicate prompt bug. One Req→Resp cycle is normal; two cycles for the same combat step is a bug.
+
+3. **Trace the gameStateId chain.** Each `.txt` file has `gameStateId: N`. Walk the chain: if gsId increments between two identical Req types without the phase changing (`turnInfo.step` stays the same), the server re-prompted within the same step.
+
+4. **Check `turnInfo` progression.** Key fields:
+   - `phase` / `step` — did the game actually advance after the Resp?
+   - `decisionPlayer` / `priorityPlayer` — who has the ball?
+   - `activePlayer` — whose turn is it?
+
+5. **Look for priority windows between prompts.** A `GameStateMessage` with `actions` (Pass, Cast, etc.) between two identical Req types means the server gave priority after the first Req response, then re-entered the same combat check. This is the "no dedup guard" pattern.
+
+6. **Verify the game completed.** Check the last message for `IntermissionReq` or `GameOver` stage. If the server reached game-over but the client appeared stuck, the bug is in our protocol (duplicate/unexpected messages confused the client's state machine).
+
+### Known stall patterns
+
+| Pattern | Symptom | Root cause | Code location |
+|---------|---------|------------|---------------|
+| Double DeclareBlockersReq | Blocker prompt appears twice, client freezes | `checkCombatPhase()` re-triggers during priority window after blockers submitted | `MatchSession.kt:471-475` — no `pendingBlockersSent` guard (cf. `pendingLegalAttackers` for attackers) |
+| Missing ActionsAvailableReq | Client waits for actions that never arrive | `sendRealGameState` doesn't include ActionsAvailableReq for this phase | `BundleBuilder.postAction()` |
+| Stuck on SelectTargetsReq | Target prompt never resolves | Second `SelectTargetsReq` sent before first response processed | Check `onSelectTargets` pending-prompt guard |
+
+### Recording analysis checklist (combat stalls)
+
+```
+[ ] Filename scan: count Req/Resp pairs per combat step
+[ ] gsId chain: verify monotonic, no gaps
+[ ] turnInfo.step: confirm phase actually changed between Req pairs
+[ ] Priority window: check for GameStateMessage with actions between Req pairs
+[ ] Game completion: did IntermissionReq arrive? (server-side stall vs client-side)
+[ ] Compare with combat-protocol.md: expected flow vs actual
+```
+
+### Example: double DeclareBlockersReq (2026-02-21 recording)
+
+```
+156: DeclareBlockersReq  gsId=67  (first prompt)
+158: SubmitBlockersResp  gsId=67  Success
+160: GameStateMessage    gsId=68  step=DeclareBlock, actions=[Pass,Cast,...]  ← priority window
+162: DeclareBlockersReq  gsId=69  (DUPLICATE — same step, same blocker/attacker)
+164: SubmitBlockersResp  gsId=69  Success
+166: GameStateMessage    gsId=70  step=FirstStrikeDamage  ← phase finally advances
+```
+
+Server continued to game-over (msg 172). Client froze on the unexpected second blocker prompt.
+
 ## File Inventory
 
 | File | Purpose |
