@@ -658,6 +658,22 @@ class GameBridgeTest {
         // Real client: Sideboard is Private
         assertEquals(byId[34]!!.visibility, Messages.Visibility.Private, "P1 Sideboard should be Private")
         assertEquals(byId[38]!!.visibility, Messages.Visibility.Private, "P2 Sideboard should be Private")
+
+        // Graveyard objects must be Public (rosetta.md Table 3)
+        val gyObjects = gs.gameObjectsList.filter { obj ->
+            obj.zoneId == ZoneIds.P1_GRAVEYARD || obj.zoneId == ZoneIds.P2_GRAVEYARD
+        }
+        for (obj in gyObjects) {
+            assertEquals(obj.visibility, Messages.Visibility.Public, "Graveyard GameObjectInfo should be Public (zoneId=${obj.zoneId})")
+        }
+
+        // Hand objects must be Private
+        val handObjects = gs.gameObjectsList.filter { obj ->
+            obj.zoneId == ZoneIds.P1_HAND || obj.zoneId == ZoneIds.P2_HAND
+        }
+        for (obj in handObjects) {
+            assertEquals(obj.visibility, Messages.Visibility.Private, "Hand GameObjectInfo should be Private (zoneId=${obj.zoneId})")
+        }
     }
 
     /**

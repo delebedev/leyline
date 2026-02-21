@@ -62,9 +62,10 @@ class TargetingHandler(private val ops: SessionOps) {
     fun handlePostCastPrompt(bridge: GameBridge): Boolean {
         val pendingPrompt = bridge.promptBridge.getPendingPrompt()
         if (pendingPrompt != null && pendingPrompt.request.candidateRefs.isNotEmpty()) {
+            val game = bridge.getGame() ?: return false
             ops.traceEvent(
                 GameStateCollector.EventType.TARGET_PROMPT,
-                bridge.getGame()!!,
+                game,
                 "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
             )
             val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)

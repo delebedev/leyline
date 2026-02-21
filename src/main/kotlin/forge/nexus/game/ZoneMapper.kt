@@ -74,7 +74,7 @@ object ZoneMapper {
         for (card in gy.cards) {
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             gyBuilder.addObjectInstanceIds(instanceId)
-            gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, gyZoneId, seatId))
+            gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, gyZoneId, seatId, Visibility.Public))
         }
         zones.add(gyBuilder.build())
     }

@@ -15,12 +15,12 @@ import java.util.concurrent.atomic.AtomicInteger
  * Eliminates the need for the client SQLite DB in tests — all card metadata
  * is derived from Forge's own card database (already loaded at test startup).
  *
- * Synthetic grpIds start at 80000 (well above real Arena grpIds which top out ~90000).
+ * Synthetic grpIds start at 200000 (well above real Arena grpIds which reach ~100000+).
  */
 object CardDataDeriver {
     private val log = LoggerFactory.getLogger(CardDataDeriver::class.java)
 
-    private val nextGrpId = AtomicInteger(80000)
+    private val nextGrpId = AtomicInteger(200000)
     private val nextTitleId = AtomicInteger(10000)
     private val nextAbilityGrpId = AtomicInteger(10000)
 

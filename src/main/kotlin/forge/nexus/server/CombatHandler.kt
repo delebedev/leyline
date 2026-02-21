@@ -19,7 +19,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class CombatHandler(private val ops: SessionOps) {
     private val log = LoggerFactory.getLogger(CombatHandler::class.java)
 
-    /** Legal attacker instanceIds from the last DeclareAttackersReq we sent. */
+    /** Legal attacker instanceIds from the last DeclareAttackersReq we sent.
+     *  Guarded by MatchSession.sessionLock — all reads/writes occur within synchronized entry points. */
     var pendingLegalAttackers: List<Int> = emptyList()
         private set
 
