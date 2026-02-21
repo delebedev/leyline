@@ -40,7 +40,7 @@ object BundleBuilder {
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
         val gsBase = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
-        val actions = StateMapper.buildActions(game, seatId, bridge)
+        val actions = ActionMapper.buildActions(game, seatId, bridge)
 
         // Detect phase/step change vs previous snapshot and inject PhaseOrStepModified
         val gsWithPhaseAnnotation = if (prevSnapshot != null &&
@@ -143,13 +143,13 @@ object BundleBuilder {
         )
         // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
         // Real server embeds human's potential actions during AI turn.
-        val actions = StateMapper.buildNaiveActions(seatId, bridge)
+        val actions = ActionMapper.buildNaiveActions(seatId, bridge)
 
         // Inject phase/turn annotations when applicable — must assign IDs to avoid
         // mixed-id violations when gsBase already contains numbered zone-transfer annotations.
         val gsWithAnnotations = if (phaseChanged || turnStarted) {
-            val protoPhase = StateMapper.mapPhase(handler.phase).number
-            val protoStep = StateMapper.mapStep(handler.phase).number
+            val protoPhase = PlayerMapper.mapPhase(handler.phase).number
+            val protoStep = PlayerMapper.mapStep(handler.phase).number
             gsBase.toBuilder().apply {
                 if (turnStarted) addAnnotations(
                     AnnotationBuilder.newTurnStarted(activeSeat)
@@ -176,7 +176,7 @@ object BundleBuilder {
             gs.addActions(
                 ActionInfo.newBuilder()
                     .setSeatId(seatId)
-                    .setAction(StateMapper.stripActionForGsm(action)),
+                    .setAction(ActionMapper.stripActionForGsm(action)),
             )
         }
 
@@ -206,7 +206,7 @@ object BundleBuilder {
 
     /** Build playable actions for a seat (with legality checks). */
     fun buildActions(game: Game, seatId: Int, bridge: GameBridge): ActionsAvailableReq =
-        StateMapper.buildActions(game, seatId, bridge)
+        ActionMapper.buildActions(game, seatId, bridge)
 
     /** Build a [SelectTargetsReq] from a pending interactive prompt. */
     fun buildSelectTargetsReq(
@@ -237,12 +237,12 @@ object BundleBuilder {
         var nextMsg = msgId
         var nextGs = gsId + 1
 
-        val phase = StateMapper.mapPhase(game.phaseHandler.phase)
-        val step = StateMapper.mapStep(game.phaseHandler.phase)
+        val phase = PlayerMapper.mapPhase(game.phaseHandler.phase)
+        val step = PlayerMapper.mapStep(game.phaseHandler.phase)
         // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
         // Real server embeds Cast/Play actions regardless of current phase (cosmetic only;
         // actual priority gating uses ActionsAvailableReq sent when human gets priority).
-        val actions = StateMapper.buildNaiveActions(seatId, bridge)
+        val actions = ActionMapper.buildNaiveActions(seatId, bridge)
         val handler = game.phaseHandler
         val human = bridge.getPlayer(1)
         val activeSeat = if (handler.playerTurn == human) 1 else 2
@@ -300,7 +300,7 @@ object BundleBuilder {
                 AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)
                     .toBuilder().setId(bridge.nextAnnotationId()).build(),
             )
-            .addAllTimers(StateMapper.buildTimers())
+            .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(GameStateUpdate.SendAndRecord)
         embedActions(commitBuilder, actions, seatId)
         val msg3 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
@@ -333,7 +333,7 @@ object BundleBuilder {
             builder.addActions(
                 ActionInfo.newBuilder()
                     .setSeatId(seatId)
-                    .setAction(StateMapper.stripActionForGsm(action)),
+                    .setAction(ActionMapper.stripActionForGsm(action)),
             )
         }
     }
