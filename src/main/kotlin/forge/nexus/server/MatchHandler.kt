@@ -123,7 +123,7 @@ class MatchHandler(
                 val bridge = registry.getOrCreateBridge(matchId) {
                     GameBridge().also { it.start(seed = 2L) }
                 }
-                s?.gameBridge = bridge
+                s?.connectBridge(bridge)
                 seat1Hand = bridge.getHandGrpIds(1)
                 seat2Hand = bridge.getHandGrpIds(2)
                 log.info("Match Door: seat {} connected, hands seat1={} seat2={}", seatId, seat1Hand, seat2Hand)
@@ -221,11 +221,11 @@ class MatchHandler(
     private fun sendInitialBundle(ctx: ChannelHandlerContext) {
         val s = session ?: return
         val bridge = s.gameBridge ?: return
-        s.gameStateId++
+        val gsId = s.nextGameStateId()
         val deckGrpIds = bridge.getDeckGrpIds(seatId)
         val deck = StateMapper.buildDeckMessage(deckGrpIds)
-        val (msg, nextMsgId) = HandshakeMessages.initialBundle(seatId, matchId, s.msgIdCounter, s.gameStateId, deck, bridge)
-        s.msgIdCounter = nextMsgId
+        val (msg, nextMsgId) = HandshakeMessages.initialBundle(seatId, matchId, s.msgIdCounter, gsId, deck, bridge)
+        s.applyHandshakeCounters(nextMsgId)
         NexusTap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")
         ctx.writeAndFlush(msg)
@@ -236,9 +236,9 @@ class MatchHandler(
         val ctx = nettyCtx ?: return
         val s = session ?: return
         val bridge = s.gameBridge ?: return
-        s.gameStateId++
-        val (msg, nextMsgId) = HandshakeMessages.dealHandSeat1(s.msgIdCounter, s.gameStateId, bridge)
-        s.msgIdCounter = nextMsgId
+        val gsId = s.nextGameStateId()
+        val (msg, nextMsgId) = HandshakeMessages.dealHandSeat1(s.msgIdCounter, gsId, bridge)
+        s.applyHandshakeCounters(nextMsgId)
         NexusTap.outboundTemplate("DealHand seat=$seatId")
         ProtoDump.dump(msg, "DealHand-seat$seatId")
         ctx.writeAndFlush(msg)
@@ -249,9 +249,9 @@ class MatchHandler(
         val ctx = nettyCtx ?: return
         val s = session ?: return
         val bridge = s.gameBridge ?: return
-        s.gameStateId++
-        val (msg, nextMsgId) = HandshakeMessages.mulliganReqSeat1(s.msgIdCounter, s.gameStateId, bridge)
-        s.msgIdCounter = nextMsgId
+        val gsId = s.nextGameStateId()
+        val (msg, nextMsgId) = HandshakeMessages.mulliganReqSeat1(s.msgIdCounter, gsId, bridge)
+        s.applyHandshakeCounters(nextMsgId)
         NexusTap.outboundTemplate("MulliganReq seat=$seatId")
         ProtoDump.dump(msg, "MulliganReq-seat$seatId")
         ctx.writeAndFlush(msg)
@@ -261,9 +261,9 @@ class MatchHandler(
     private fun sendDealHandAndMulligan(ctx: ChannelHandlerContext) {
         val s = session ?: return
         val bridge = s.gameBridge ?: return
-        s.gameStateId++
-        val (msg, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(s.msgIdCounter, s.gameStateId, bridge)
-        s.msgIdCounter = nextMsgId
+        val gsId = s.nextGameStateId()
+        val (msg, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(s.msgIdCounter, gsId, bridge)
+        s.applyHandshakeCounters(nextMsgId)
         NexusTap.outboundTemplate("DealHand+MulliganReq seat=$seatId")
         ProtoDump.dump(msg, "DealHand+MullReq-seat$seatId")
         ctx.writeAndFlush(msg)
