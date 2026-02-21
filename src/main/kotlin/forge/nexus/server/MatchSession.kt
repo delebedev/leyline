@@ -1,7 +1,6 @@
 package forge.nexus.server
 
 import forge.game.Game
-import forge.game.phase.PhaseType
 import forge.nexus.debug.GameStateCollector
 import forge.nexus.debug.NexusDebugCollector
 import forge.nexus.debug.NexusTap
@@ -23,29 +22,29 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  * [MatchHandler] creates one per connection and delegates GRE messages here.
  */
 class MatchSession(
-    val seatId: Int,
-    val matchId: String,
+    override val seatId: Int,
+    override val matchId: String,
     val sink: MessageSink,
     val registry: MatchRegistry,
     val paceDelayMs: Long = 200L,
-) {
+) : SessionOps {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
     /** Serializes all game-logic entry points (Netty I/O threads are concurrent). */
     private val sessionLock = Any()
 
-    var msgIdCounter = 1
-        private set
-    var gameStateId = 0
-        private set
+    override var msgIdCounter = 1
+    override var gameStateId = 0
     var gameBridge: GameBridge? = null
         private set
 
     /** Saved client settings for echoing in SetSettingsResp. */
     var clientSettings: SettingsMessage? = null
 
-    /** Legal attacker instanceIds from the last DeclareAttackersReq we sent. */
-    private var pendingLegalAttackers: List<Int> = emptyList()
+    /** Sub-handlers for combat, targeting, and auto-pass flows. */
+    val combatHandler = CombatHandler(this)
+    val targetingHandler = TargetingHandler(this)
+    val autoPassEngine = AutoPassEngine(this, combatHandler, targetingHandler)
 
     /** Wire the game bridge (called by [MatchHandler] after bridge creation). */
     fun connectBridge(bridge: GameBridge) {
@@ -61,10 +60,6 @@ class MatchSession(
     /** Update counters from a handshake result. Used by [MatchHandler] handshake senders. */
     fun applyHandshakeCounters(nextMsgId: Int) {
         msgIdCounter = nextMsgId
-    }
-
-    companion object {
-        private const val AUTO_PASS_MAX_ITERATIONS = 50
     }
 
     // --- Public entry points (called by MatchHandler) ---
@@ -104,7 +99,7 @@ class MatchSession(
         bridge.snapshotState(StateMapper.buildFromGame(game, gameStateId, matchId, bridge))
 
         // Auto-pass through phases where human has no real actions
-        autoPassAndAdvance(bridge)
+        autoPassEngine.autoPassAndAdvance(bridge)
     }
 
     /**
@@ -123,7 +118,7 @@ class MatchSession(
 
         val pending = bridge.actionBridge.getPending() ?: run {
             log.warn("MatchSession: PerformActionResp but no pending action — recovering")
-            autoPassAndAdvance(bridge)
+            autoPassEngine.autoPassAndAdvance(bridge)
             return
         }
 
@@ -198,140 +193,25 @@ class MatchSession(
             }
         }
 
-        autoPassAndAdvance(bridge)
+        autoPassEngine.autoPassAndAdvance(bridge)
     }
 
-    /**
-     * Handle DeclareAttackersResp: map instanceIds to forge card IDs and submit.
-     */
+    /** Handle DeclareAttackersResp — delegates to [CombatHandler]. */
     fun onDeclareAttackers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
-        val pending = bridge.actionBridge.getPending() ?: run {
-            log.warn("MatchSession: DeclareAttackersResp but no pending action — recovering")
-            sendRealGameState(bridge)
-            return
-        }
-
-        val resp = greMsg.declareAttackersResp
-        val selectedInstanceIds = resp.selectedAttackersList.map { it.attackerInstanceId }
-            .ifEmpty { pendingLegalAttackers }
-
-        log.info(
-            "MatchSession: DeclareAttackers instanceIds={} (fromResp={} pending={})",
-            selectedInstanceIds,
-            resp.selectedAttackersList.size,
-            pendingLegalAttackers.size,
-        )
-        val attackerCardIds = selectedInstanceIds.mapNotNull { instanceId ->
-            val forgeId = bridge.getForgeCardId(instanceId)
-            if (forgeId == null) {
-                log.warn("MatchSession: instanceId {} not in map (map size={})", instanceId, bridge.getInstanceIdMap().size)
-            }
-            forgeId
-        }
-        pendingLegalAttackers = emptyList()
-
-        log.info("MatchSession: DeclareAttackers forgeCardIds={}", attackerCardIds)
-
-        sendBundledGRE(
-            listOf(
-                makeGRE(GREMessageType.SubmitAttackersResp_695e, gameStateId, msgIdCounter++) {
-                    it.submitAttackersResp = SubmitAttackersResp.newBuilder().setResult(ResultCode.Success_a500).build()
-                },
-            ),
-        )
-
-        // Resolve the defending player: the opponent of the active (attacking) player.
-        val game = bridge.getGame()
-        val humanPlayer = bridge.getPlayer(seatId)
-        val defenderPlayerId = game?.players
-            ?.firstOrNull { it != humanPlayer }?.id
-
-        // Seed BEFORE submit — submitAction unblocks the game thread immediately
-        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
-        bridge.actionBridge.submitAction(
-            pending.actionId,
-            PlayerAction.DeclareAttackers(attackerCardIds, defenderPlayerId = defenderPlayerId),
-        )
-        bridge.awaitPriority()
-        autoPassAndAdvance(bridge)
+        combatHandler.onDeclareAttackers(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
-    /**
-     * Handle DeclareBlockersResp: map blocker->attacker assignments and submit.
-     */
+    /** Handle DeclareBlockersResp — delegates to [CombatHandler]. */
     fun onDeclareBlockers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
-
-        val pending = bridge.actionBridge.getPending() ?: run {
-            log.warn("MatchSession: DeclareBlockersResp but no pending action — recovering")
-            sendRealGameState(bridge)
-            return
-        }
-
-        val resp = greMsg.declareBlockersResp
-        val blockAssignments = mutableMapOf<Int, Int>()
-        for (blocker in resp.selectedBlockersList) {
-            val blockerCardId = bridge.getForgeCardId(blocker.blockerInstanceId) ?: continue
-            val attackerInstanceId = blocker.selectedAttackerInstanceIdsList.firstOrNull() ?: continue
-            val attackerCardId = bridge.getForgeCardId(attackerInstanceId) ?: continue
-            blockAssignments[blockerCardId] = attackerCardId
-        }
-
-        log.info("MatchSession: DeclareBlockersResp blocks={}", blockAssignments)
-
-        sendBundledGRE(
-            listOf(
-                makeGRE(GREMessageType.SubmitBlockersResp_695e, gameStateId, msgIdCounter++) {
-                    it.submitBlockersResp = SubmitBlockersResp.newBuilder().setResult(ResultCode.Success_a500).build()
-                },
-            ),
-        )
-
-        // Seed BEFORE submit — submitAction unblocks the game thread immediately
-        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
-        bridge.actionBridge.submitAction(
-            pending.actionId,
-            PlayerAction.DeclareBlockers(blockAssignments),
-        )
-        bridge.awaitPriority()
-        autoPassAndAdvance(bridge)
+        combatHandler.onDeclareBlockers(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
-    /**
-     * Handle SelectTargetsResp: map client instanceIds back to prompt option indices and submit.
-     */
+    /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
     fun onSelectTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
-
-        val resp = greMsg.selectTargetsResp
-        val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: run {
-            log.warn("MatchSession: SelectTargetsResp but no pending prompt")
-            return
-        }
-
-        val selectedTarget = resp.target
-        val selectedIndices = selectedTarget.targetsList.mapNotNull { target ->
-            val forgeCardId = bridge.getForgeCardId(target.targetInstanceId)
-            if (forgeCardId == null) return@mapNotNull null
-            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId }
-        }.filter { it >= 0 }
-
-        log.info("MatchSession: SelectTargetsResp indices={}", selectedIndices)
-
-        sendBundledGRE(
-            listOf(
-                makeGRE(GREMessageType.SubmitTargetsResp_695e, gameStateId, msgIdCounter++) {
-                    it.submitTargetsResp = SubmitTargetsResp.newBuilder().setResult(ResultCode.Success_a500).build()
-                },
-            ),
-        )
-
-        // Seed BEFORE submit — submitResponse unblocks the game thread immediately
-        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
-        bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
-        bridge.awaitPriority()
-        autoPassAndAdvance(bridge)
+        targetingHandler.onSelectTargets(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /** Handle concede: remove bridge and send game-over. */
@@ -351,227 +231,16 @@ class MatchSession(
         sink.sendRaw(msg)
     }
 
-    /**
-     * After a cast, check for a pending targeting prompt or intermediate stack state.
-     * Returns true if handled (caller should return), false to continue normal flow.
-     */
-    private fun handlePostCastPrompt(bridge: GameBridge): Boolean {
-        val pendingPrompt = bridge.promptBridge.getPendingPrompt()
-        if (pendingPrompt != null && pendingPrompt.request.candidateRefs.isNotEmpty()) {
-            traceEvent(
-                GameStateCollector.EventType.TARGET_PROMPT,
-                bridge.getGame()!!,
-                "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
-            )
-            val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)
-            sendSelectTargetsReq(bridge, req)
-            return true
-        }
-        val g = bridge.getGame()
-        if (g != null && !g.stack.isEmpty) {
-            sendRealGameState(bridge)
-            return true
-        }
-        return false
-    }
-
-    // --- Auto-pass engine ---
-
-    /** Signals from sub-steps back to the auto-pass loop. */
-    private enum class LoopSignal { STOP, SEND_STATE, CONTINUE }
-
-    /**
-     * Auto-pass through phases where the player has no meaningful actions.
-     * Detects combat phases and sends appropriate combat prompts.
-     */
-    private fun autoPassAndAdvance(bridge: GameBridge) {
-        repeat(AUTO_PASS_MAX_ITERATIONS) {
-            val game = bridge.getGame() ?: return
-            if (game.isGameOver) {
-                traceEvent(GameStateCollector.EventType.GAME_OVER, game, "game over detected")
-                sendGameOver()
-                return
-            }
-
-            // Drain pending AI-action diffs
-            if (drainPlayback(bridge, game)) return@repeat
-
-            val human = bridge.getPlayer(seatId)
-            val phase = game.phaseHandler.phase
-            val isHumanTurn = human != null && game.phaseHandler.playerTurn == human
-            val isAiTurn = human != null && !isHumanTurn
-
-            // Combat phase handling
-            val combatSignal = checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)
-            if (combatSignal == LoopSignal.STOP) return
-            if (combatSignal == LoopSignal.SEND_STATE) { sendRealGameState(bridge); return }
-
-            // Interactive prompt (targeting, sacrifice, etc.)
-            if (checkPendingPrompt(bridge, game)) return
-
-            // Action check — prompt human if meaningful actions exist
-            if (checkHumanActions(bridge, game, isAiTurn)) { sendRealGameState(bridge); return }
-
-            // Auto-pass or wait
-            advanceOrWait(bridge, game, phase, isAiTurn) ?: return
-        }
-
-        log.warn("autoPassAndAdvance: hit max iterations ({})", AUTO_PASS_MAX_ITERATIONS)
-        sendRealGameState(bridge)
-    }
-
-    /**
-     * Drain pending AI-action playback diffs. Returns true if diffs were sent
-     * (caller should re-evaluate in next iteration), false if nothing pending.
-     */
-    private fun drainPlayback(bridge: GameBridge, game: Game): Boolean {
-        val playback = bridge.playback ?: return false
-        if (!playback.hasPendingMessages()) return false
-        val batches = playback.drainQueue()
-        for ((idx, batch) in batches.withIndex()) {
-            if (idx > 0) paceDelay(1)
-            sendBundledGRE(batch)
-        }
-        val (nextMsg, nextGs) = playback.getCounters()
-        msgIdCounter = nextMsg
-        gameStateId = nextGs
-        bridge.snapshotState(StateMapper.buildFromGame(game, gameStateId, matchId, bridge))
-        return true
-    }
-
-    /**
-     * Check combat phases and send appropriate prompts or state.
-     * Returns [LoopSignal.STOP] if a combat prompt was sent (return from loop),
-     * [LoopSignal.SEND_STATE] if state should be sent, or [LoopSignal.CONTINUE] to proceed.
-     */
-    private fun checkCombatPhase(
-        bridge: GameBridge,
-        game: Game,
-        phase: PhaseType?,
-        isHumanTurn: Boolean,
-        isAiTurn: Boolean,
-    ): LoopSignal {
-        val combat = game.phaseHandler.combat
-
-        when (phase) {
-            PhaseType.COMBAT_DECLARE_ATTACKERS -> {
-                if (isHumanTurn) {
-                    val req = BundleBuilder.buildDeclareAttackersReq(game, seatId, bridge)
-                    if (req.attackersCount > 0) {
-                        traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
-                        sendDeclareAttackersReq(bridge, req)
-                        return LoopSignal.STOP
-                    }
-                } else if (isAiTurn && combat != null && combat.attackers.isNotEmpty()) {
-                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "AI attacking, ${combat.attackers.size} attackers")
-                    paceDelay(2)
-                    return LoopSignal.SEND_STATE
-                }
-            }
-            PhaseType.COMBAT_DECLARE_BLOCKERS -> {
-                if (isAiTurn && combat != null && combat.attackers.isNotEmpty()) {
-                    traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
-                    sendDeclareBlockersReq(bridge)
-                    return LoopSignal.STOP
-                } else if (isHumanTurn && combat != null && combat.attackers.isNotEmpty()) {
-                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "AI blocking result")
-                    paceDelay(2)
-                    return LoopSignal.SEND_STATE
-                }
-            }
-            PhaseType.COMBAT_DAMAGE -> {
-                traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat damage")
-                paceDelay(2)
-                return LoopSignal.SEND_STATE
-            }
-            PhaseType.COMBAT_END -> {
-                if (combat != null && combat.attackers.isNotEmpty()) {
-                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat end")
-                    return LoopSignal.SEND_STATE
-                }
-            }
-            else -> {}
-        }
-        return LoopSignal.CONTINUE
-    }
-
-    /** Check for pending interactive prompt. Returns true if prompt was sent (caller should return). */
-    private fun checkPendingPrompt(bridge: GameBridge, game: Game): Boolean {
-        val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: return false
-        if (pendingPrompt.request.candidateRefs.isEmpty()) return false
-        traceEvent(GameStateCollector.EventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
-        val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)
-        sendSelectTargetsReq(bridge, req)
-        return true
-    }
-
-    /** Check if human has meaningful actions. Returns true if state should be sent. */
-    private fun checkHumanActions(bridge: GameBridge, game: Game, isAiTurn: Boolean): Boolean {
-        if (isAiTurn) return false
-        val actions = BundleBuilder.buildActions(game, seatId, bridge)
-        if (BundleBuilder.shouldAutoPass(actions)) return false
-        val actionSummary = actions.actionsList
-            .groupBy { it.actionType.name.removeSuffix("_add3") }
-            .map { (t, v) -> "$t=${v.size}" }
-            .joinToString(" ")
-        traceEvent(GameStateCollector.EventType.SEND_STATE, game, "actions: $actionSummary")
-        return true
-    }
-
-    /**
-     * Submit auto-pass or wait for AI/engine. Returns Unit on success (loop continues),
-     * or null to signal the caller should return (game over / timeout).
-     */
-    private fun advanceOrWait(bridge: GameBridge, game: Game, phase: PhaseType?, isAiTurn: Boolean): Unit? {
-        val pending = bridge.actionBridge.getPending()
-        log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
-
-        if (pending != null) {
-            traceEvent(GameStateCollector.EventType.AUTO_PASS, game, "human priority, pass-only")
-            // During AI turn, skip sending EdictalMessage — real server never
-            // sends edictal passes during AI turn. Sending them interrupts the
-            // client's animation pipeline (enters post-pass "waiting" state).
-            if (!isAiTurn) {
-                val edictal = BundleBuilder.edictalPass(seatId, msgIdCounter, gameStateId)
-                msgIdCounter = edictal.nextMsgId
-                sendBundledGRE(edictal.messages)
-            }
-            // Seed BEFORE submit — submitAction unblocks the game thread immediately
-            // and it may fire events captured by NexusGamePlayback with stale counters.
-            bridge.playback?.seedCounters(msgIdCounter, gameStateId)
-            bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
-            bridge.awaitPriority()
-        } else if (isAiTurn) {
-            traceEvent(GameStateCollector.EventType.AI_TURN_WAIT, game, "waiting for AI")
-            bridge.playback?.seedCounters(msgIdCounter, gameStateId)
-            val reachedPriority = bridge.awaitPriorityWithTimeout(GameBridge.AI_TURN_WAIT_MS)
-            if (!reachedPriority) {
-                val g = bridge.getGame()
-                if (g != null && g.isGameOver) {
-                    traceEvent(GameStateCollector.EventType.GAME_OVER, game, "game over during AI wait")
-                    sendGameOver()
-                    return null
-                }
-                traceEvent(GameStateCollector.EventType.AI_TURN_TIMEOUT, game, "AI turn timed out")
-                log.warn("autoPass: AI turn timed out, sending current state")
-                sendRealGameState(bridge)
-                return null
-            }
-        } else {
-            traceEvent(GameStateCollector.EventType.PRIORITY_GRANT, game, "waiting for engine")
-            log.warn("autoPass: no pending action, waiting for priority")
-            bridge.playback?.seedCounters(msgIdCounter, gameStateId)
-            bridge.awaitPriority()
-        }
-        return Unit
-    }
+    /** Post-cast prompt check — delegates to [TargetingHandler]. */
+    private fun handlePostCastPrompt(bridge: GameBridge): Boolean =
+        targetingHandler.handlePostCastPrompt(bridge)
 
     // --- Sending helpers ---
 
     /**
      * Build and send current game state + available actions from the live Forge engine.
      */
-    private fun sendRealGameState(bridge: GameBridge) {
+    override fun sendRealGameState(bridge: GameBridge) {
         val game = bridge.getGame() ?: run {
             log.warn("MatchSession: sendRealGameState but game is null")
             return
@@ -582,47 +251,8 @@ class MatchSession(
         bridge.playback?.seedCounters(msgIdCounter, gameStateId)
     }
 
-    private fun sendDeclareAttackersReq(
-        bridge: GameBridge,
-        req: DeclareAttackersReq? = null,
-    ) {
-        val game = bridge.getGame() ?: return
-        val result = BundleBuilder.declareAttackersBundle(game, bridge, matchId, seatId, msgIdCounter, gameStateId, req)
-        msgIdCounter = result.nextMsgId
-        gameStateId = result.nextGsId
-
-        val builtReq = result.messages.firstOrNull { it.hasDeclareAttackersReq() }?.declareAttackersReq
-        pendingLegalAttackers = builtReq?.attackersList?.map { it.attackerInstanceId } ?: emptyList()
-        log.debug("DeclareAttackersReq: pendingLegalAttackers={}", pendingLegalAttackers)
-
-        NexusTap.outboundTemplate("DeclareAttackersReq seat=$seatId")
-        sendBundledGRE(result.messages)
-        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
-    }
-
-    private fun sendDeclareBlockersReq(bridge: GameBridge) {
-        val game = bridge.getGame() ?: return
-        val result = BundleBuilder.declareBlockersBundle(game, bridge, matchId, seatId, msgIdCounter, gameStateId)
-        msgIdCounter = result.nextMsgId
-        gameStateId = result.nextGsId
-
-        NexusTap.outboundTemplate("DeclareBlockersReq seat=$seatId")
-        sendBundledGRE(result.messages)
-        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
-    }
-
-    private fun sendSelectTargetsReq(bridge: GameBridge, req: SelectTargetsReq) {
-        val game = bridge.getGame() ?: return
-        val result = BundleBuilder.selectTargetsBundle(game, bridge, matchId, seatId, msgIdCounter, gameStateId, req)
-        msgIdCounter = result.nextMsgId
-        gameStateId = result.nextGsId
-        NexusTap.outboundTemplate("SelectTargetsReq seat=$seatId")
-        sendBundledGRE(result.messages)
-        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
-    }
-
     /** Apply a [BundleBuilder.BundleResult]: update counters, tap-log, and send. */
-    private fun sendBundle(result: BundleBuilder.BundleResult) {
+    override fun sendBundle(result: BundleBuilder.BundleResult) {
         msgIdCounter = result.nextMsgId
         gameStateId = result.nextGsId
         for (gre in result.messages) {
@@ -635,7 +265,7 @@ class MatchSession(
     /**
      * Send game-over sequence: 3x GS Diff + IntermissionReq.
      */
-    private fun sendGameOver() {
+    override fun sendGameOver() {
         val bridge = gameBridge
         val humanPlayer = bridge?.getPlayer(1)
         val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
@@ -651,7 +281,7 @@ class MatchSession(
     // --- Low-level helpers ---
 
     /** Build a single GRE message with an explicit msgId (no side-effect on counters). */
-    private fun makeGRE(
+    override fun makeGRE(
         type: GREMessageType,
         gsId: Int,
         msgId: Int,
@@ -664,7 +294,7 @@ class MatchSession(
     }
 
     /** Send multiple GRE messages bundled in one GreToClientEvent + mirror to peer. */
-    private fun sendBundledGRE(messages: List<GREToClientMessage>) {
+    override fun sendBundledGRE(messages: List<GREToClientMessage>) {
         NexusDebugCollector.recordOutbound(messages, seatId)
         GameStateCollector.collectOutbound(messages, NexusDebugCollector.currentSeq())
         sink.send(messages)
@@ -694,7 +324,7 @@ class MatchSession(
     }
 
     /** Emit a priority trace event to [GameStateCollector]. */
-    private fun traceEvent(type: GameStateCollector.EventType, game: Game, detail: String) {
+    override fun traceEvent(type: GameStateCollector.EventType, game: Game, detail: String) {
         val phase = game.phaseHandler.phase?.name
         val turn = game.phaseHandler.turn
         val human = gameBridge?.getPlayer(seatId)
@@ -707,7 +337,7 @@ class MatchSession(
     }
 
     /** Pacing delay — skipped when paceDelayMs == 0 (tests). */
-    private fun paceDelay(multiplier: Int) {
+    override fun paceDelay(multiplier: Int) {
         val delay = paceDelayMs * multiplier
         if (delay > 0) Thread.sleep(delay)
     }
