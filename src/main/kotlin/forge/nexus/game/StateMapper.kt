@@ -832,96 +832,82 @@ object StateMapper {
      * Build playable actions for a seat from the current game state.
      * Includes: ActivateMana, Activate, Cast, Play, Pass.
      */
-    fun buildActions(game: Game, seatId: Int, bridge: GameBridge): ActionsAvailableReq {
+    fun buildActions(game: Game, seatId: Int, bridge: GameBridge): ActionsAvailableReq =
+        buildActionList(seatId, bridge, checkLegality = true)
+
+    /**
+     * Naive action list: Cast for all non-lands, Play for all lands in hand,
+     * ActivateMana for untapped permanents — no canPlay/canPay checks.
+     * Real server embeds human's potential actions during AI turn regardless of phase.
+     */
+    fun buildNaiveActions(seatId: Int, bridge: GameBridge): ActionsAvailableReq =
+        buildActionList(seatId, bridge, checkLegality = false)
+
+    /**
+     * Shared action list builder.
+     *
+     * @param checkLegality true → full legality checks (canPlayLand, canPayManaCost,
+     *   activated ability canPlay, autoTapSolution, inactive land actions).
+     *   false → naive mode (everything playable, no autoTap, no Activate abilities).
+     */
+    private fun buildActionList(
+        seatId: Int,
+        bridge: GameBridge,
+        checkLegality: Boolean,
+    ): ActionsAvailableReq {
         val player = bridge.getPlayer(seatId) ?: return passOnlyActions()
         val builder = ActionsAvailableReq.newBuilder()
 
         // Battlefield permanents: ActivateMana + Activate
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+            // Naive mode only cares about ActivateMana — skip tapped cards entirely
+            if (!checkLegality && card.isTapped) continue
+
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
 
             // ActivateMana — untapped permanents with mana abilities
-            // Real server: grpId, instanceId, facetId, abilityGrpId, manaPaymentOptions,
-            //   isBatchable, uniqueAbilityId, manaSelections
-            if (!card.isTapped) {
-                val manaAbilities = card.manaAbilities
-                if (manaAbilities.isNotEmpty()) {
-                    val cardData = CardDb.lookup(grpId)
-                    val abilityEntry = cardData?.abilityIds?.firstOrNull()
-                    val abilityGrpId = abilityEntry?.first ?: 0
-                    // uniqueAbilityId: references UniqueAbilityInfo.id on the card object
-                    // Not critical for basic flow; omitted for now
-                    val sa = manaAbilities.first()
-                    val produced = sa.manaPart?.origProduced ?: ""
-                    val manaColor = producedToManaColor(produced) ?: ManaColor.Generic
+            if (!card.isTapped && card.manaAbilities.isNotEmpty()) {
+                builder.addActions(buildActivateManaAction(card, instanceId, grpId))
+            }
 
+            // Activate — non-mana activated abilities (only with legality checks)
+            if (checkLegality) {
+                for (ability in card.spellAbilities) {
+                    ability.setActivatingPlayer(player)
+                    if (!ability.isActivatedAbility) continue
+                    if (ability.isManaAbility()) continue
+                    if (!ability.canPlay()) continue
+                    val cardData = CardDb.lookup(grpId)
                     val actionBuilder = Action.newBuilder()
-                        .setActionType(ActionType.ActivateMana)
+                        .setActionType(ActionType.Activate_add3)
                         .setInstanceId(instanceId)
                         .setGrpId(grpId)
                         .setFacetId(instanceId)
-                        .setIsBatchable(true)
-                    if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-
-                    // manaPaymentOptions: what mana this source produces
-                    actionBuilder.addManaPaymentOptions(
-                        ManaPaymentOption.newBuilder().addMana(
-                            ManaInfo.newBuilder()
-                                .setManaId(10)
-                                .setColor(manaColor)
-                                .setSrcInstanceId(instanceId)
-                                .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
-                                .setAbilityGrpId(abilityGrpId)
-                                .setCount(1),
-                        ),
-                    )
-
-                    // manaSelections: available mana selection options
-                    actionBuilder.addManaSelections(
-                        ManaSelection.newBuilder()
-                            .setInstanceId(instanceId)
-                            .setAbilityGrpId(abilityGrpId)
-                            .addOptions(
-                                ManaSelectionOption.newBuilder().addMana(
-                                    ManaColorCount.newBuilder().setColor(manaColor).setCount(1),
-                                ),
-                            ),
-                    )
-
+                    if (cardData != null) {
+                        val abilityEntry = cardData.abilityIds.firstOrNull()
+                        if (abilityEntry != null) actionBuilder.setAbilityGrpId(abilityEntry.first)
+                    }
                     builder.addActions(actionBuilder)
                 }
             }
-
-            // Activate — non-mana activated abilities (same pattern as forge-web PlayableActionQuery)
-            for (ability in card.spellAbilities) {
-                ability.setActivatingPlayer(player)
-                if (!ability.isActivatedAbility) continue
-                if (ability.isManaAbility()) continue
-                if (!ability.canPlay()) continue
-                val cardData = CardDb.lookup(grpId)
-                val actionBuilder = Action.newBuilder()
-                    .setActionType(ActionType.Activate_add3)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
-                if (cardData != null) {
-                    val abilityEntry = cardData.abilityIds.firstOrNull()
-                    if (abilityEntry != null) actionBuilder.setAbilityGrpId(abilityEntry.first)
-                }
-                builder.addActions(actionBuilder)
-            }
         }
 
-        // Lands: playable → actions, not playable → inactiveActions
+        // Hand cards: Lands + Spells
         val handCards = player.getZone(ForgeZoneType.Hand).cards
-        val lands = CardLists.filter(handCards, CardPredicates.LANDS)
-        for (card in lands) {
+
+        // Lands: playable → actions, not playable → inactiveActions (legality only)
+        for (card in CardLists.filter(handCards, CardPredicates.LANDS)) {
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
-            val landAbility = LandAbility(card, card.currentState)
-            landAbility.activatingPlayer = player
-            if (player.canPlayLand(card, false, landAbility)) {
+            val canPlay = if (checkLegality) {
+                val landAbility = LandAbility(card, card.currentState)
+                landAbility.activatingPlayer = player
+                player.canPlayLand(card, false, landAbility)
+            } else {
+                true
+            }
+            if (canPlay) {
                 builder.addActions(
                     Action.newBuilder()
                         .setActionType(ActionType.Play_add3)
@@ -942,20 +928,19 @@ object StateMapper {
             }
         }
 
-        // Castable non-land spells
-        val nonLands = CardLists.filter(handCards, CardPredicates.NON_LANDS)
-        for (card in nonLands) {
-            val sa = chooseCastAbility(card, player) ?: continue
-            val canPay = try {
-                ComputerUtilMana.canPayManaCost(sa, player, 0, false)
-            } catch (_: Exception) {
-                false
+        // Non-land spells
+        for (card in CardLists.filter(handCards, CardPredicates.NON_LANDS)) {
+            if (checkLegality) {
+                val sa = chooseCastAbility(card, player) ?: continue
+                val canPay = try {
+                    ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+                } catch (_: Exception) {
+                    false
+                }
+                if (!canPay) continue
             }
-            if (!canPay) continue
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
-            // Real client Cast: grpId + instanceId + facetId + manaCost + shouldStop
-            // Note: abilityGrpId NOT set on Cast in ActionsAvailableReq (only in GSM embedded actions)
             val actionBuilder = Action.newBuilder()
                 .setActionType(ActionType.Cast)
                 .setInstanceId(instanceId)
@@ -969,127 +954,72 @@ object StateMapper {
                         ManaRequirement.newBuilder().addColor(color).setCount(count),
                     )
                 }
-                // autoTapSolution: recommend which lands to tap for one-click casting
-                val autoTap = buildAutoTapSolution(cardData.manaCost, player, bridge)
-                if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
+                if (checkLegality) {
+                    val autoTap = buildAutoTapSolution(cardData.manaCost, player, bridge)
+                    if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
+                }
             }
             builder.addActions(actionBuilder)
         }
 
-        // Pass always available + FloatMana (real server always includes both)
+        // Pass + FloatMana always available
         builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
         builder.addActions(Action.newBuilder().setActionType(ActionType.FloatMana))
 
+        // Logging
         val manaCount = builder.actionsList.count { it.actionType == ActionType.ActivateMana }
-        val activateCount = builder.actionsList.count { it.actionType == ActionType.Activate_add3 }
         val landCount = builder.actionsList.count { it.actionType == ActionType.Play_add3 }
         val castCount = builder.actionsList.count { it.actionType == ActionType.Cast }
-        log.info("buildActions: seat={} mana={} activate={} lands={} casts={} total={}", seatId, manaCount, activateCount, landCount, castCount, builder.actionsCount)
+        if (checkLegality) {
+            val activateCount = builder.actionsList.count { it.actionType == ActionType.Activate_add3 }
+            log.info("buildActions: seat={} mana={} activate={} lands={} casts={} total={}", seatId, manaCount, activateCount, landCount, castCount, builder.actionsCount)
+        } else {
+            log.info("buildNaiveActions: seat={} mana={} lands={} casts={} total={}", seatId, manaCount, landCount, castCount, builder.actionsCount)
+        }
 
         return builder.build()
     }
 
-    /**
-     * Naive action list: Cast for all non-lands, Play for all lands in hand,
-     * ActivateMana for untapped permanents — no canPlay/canPay checks.
-     * Real server embeds human's potential actions during AI turn regardless of phase.
-     */
-    fun buildNaiveActions(seatId: Int, bridge: GameBridge): ActionsAvailableReq {
-        val player = bridge.getPlayer(seatId) ?: return passOnlyActions()
-        val builder = ActionsAvailableReq.newBuilder()
+    /** Build an ActivateMana action for an untapped permanent with mana abilities. */
+    private fun buildActivateManaAction(card: Card, instanceId: Int, grpId: Int): Action {
+        val cardData = CardDb.lookup(grpId)
+        val abilityGrpId = cardData?.abilityIds?.firstOrNull()?.first ?: 0
+        val sa = card.manaAbilities.first()
+        val produced = sa.manaPart?.origProduced ?: ""
+        val manaColor = producedToManaColor(produced) ?: ManaColor.Generic
 
-        // ActivateMana for untapped permanents with mana abilities
-        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-            if (card.isTapped) continue
-            if (card.manaAbilities.isEmpty()) continue
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
-            val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
-            val cardData = CardDb.lookup(grpId)
-            val abilityGrpId = cardData?.abilityIds?.firstOrNull()?.first ?: 0
-            val sa = card.manaAbilities.first()
-            val produced = sa.manaPart?.origProduced ?: ""
-            val manaColor = producedToManaColor(produced) ?: ManaColor.Generic
-            val actionBuilder = Action.newBuilder()
-                .setActionType(ActionType.ActivateMana)
-                .setInstanceId(instanceId)
-                .setGrpId(grpId)
-                .setFacetId(instanceId)
-                .setIsBatchable(true)
-            if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
-            actionBuilder.addManaPaymentOptions(
-                ManaPaymentOption.newBuilder().addMana(
-                    ManaInfo.newBuilder()
-                        .setManaId(10)
-                        .setColor(manaColor)
-                        .setSrcInstanceId(instanceId)
-                        .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
-                        .setAbilityGrpId(abilityGrpId)
-                        .setCount(1),
-                ),
-            )
-            actionBuilder.addManaSelections(
-                ManaSelection.newBuilder()
-                    .setInstanceId(instanceId)
+        val actionBuilder = Action.newBuilder()
+            .setActionType(ActionType.ActivateMana)
+            .setInstanceId(instanceId)
+            .setGrpId(grpId)
+            .setFacetId(instanceId)
+            .setIsBatchable(true)
+        if (abilityGrpId != 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+
+        actionBuilder.addManaPaymentOptions(
+            ManaPaymentOption.newBuilder().addMana(
+                ManaInfo.newBuilder()
+                    .setManaId(10)
+                    .setColor(manaColor)
+                    .setSrcInstanceId(instanceId)
+                    .addSpecs(ManaInfo.Spec.newBuilder().setType(ManaSpecType.Predictive))
                     .setAbilityGrpId(abilityGrpId)
-                    .addOptions(
-                        ManaSelectionOption.newBuilder().addMana(
-                            ManaColorCount.newBuilder().setColor(manaColor).setCount(1),
-                        ),
-                    ),
-            )
-            builder.addActions(actionBuilder)
-        }
-
-        val handCards = player.getZone(ForgeZoneType.Hand).cards
-
-        // Play for all lands
-        for (card in CardLists.filter(handCards, CardPredicates.LANDS)) {
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
-            val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
-            builder.addActions(
-                Action.newBuilder()
-                    .setActionType(ActionType.Play_add3)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
-                    .setShouldStop(true),
-            )
-        }
-
-        // Cast for all non-land spells (no mana check)
-        for (card in CardLists.filter(handCards, CardPredicates.NON_LANDS)) {
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
-            val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
-            val actionBuilder = Action.newBuilder()
-                .setActionType(ActionType.Cast)
-                .setInstanceId(instanceId)
-                .setGrpId(grpId)
-                .setFacetId(instanceId)
-                .setShouldStop(true)
-            val cardData = CardDb.lookup(grpId)
-            if (cardData != null) {
-                for ((color, count) in cardData.manaCost) {
-                    actionBuilder.addManaCost(
-                        ManaRequirement.newBuilder().addColor(color).setCount(count),
-                    )
-                }
-            }
-            builder.addActions(actionBuilder)
-        }
-
-        builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
-        builder.addActions(Action.newBuilder().setActionType(ActionType.FloatMana))
-
-        log.info(
-            "buildNaiveActions: seat={} mana={} lands={} casts={} total={}",
-            seatId,
-            builder.actionsList.count { it.actionType == ActionType.ActivateMana },
-            builder.actionsList.count { it.actionType == ActionType.Play_add3 },
-            builder.actionsList.count { it.actionType == ActionType.Cast },
-            builder.actionsCount,
+                    .setCount(1),
+            ),
         )
 
-        return builder.build()
+        actionBuilder.addManaSelections(
+            ManaSelection.newBuilder()
+                .setInstanceId(instanceId)
+                .setAbilityGrpId(abilityGrpId)
+                .addOptions(
+                    ManaSelectionOption.newBuilder().addMana(
+                        ManaColorCount.newBuilder().setColor(manaColor).setCount(1),
+                    ),
+                ),
+        )
+
+        return actionBuilder.build()
     }
 
     // --- Targeting requests ---
