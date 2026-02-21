@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap
  *
  * Two responsibilities:
  * 1. **Zone tracking** — records which zone each instanceId was last seen in,
- *    so [StateMapper.detectAndApplyZoneTransfers] can detect zone changes.
+ *    so [StateMapper.detectZoneTransfers] can detect zone changes.
  * 2. **State snapshots** — stores the previous [GameStateMessage] so diff builders
  *    can compute what changed (life totals, combat damage, etc.).
  *

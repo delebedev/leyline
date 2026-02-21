@@ -58,13 +58,13 @@ object StateMapper {
     private const val ZONE_P2_SIDEBOARD = ZoneIds.P2_SIDEBOARD
 
     // ---- Three-stage diff pipeline types and methods ----
-    // Stage 1: detectAndApplyZoneTransfers  → List<AppliedTransfer>
+    // Stage 1: detectZoneTransfers  → TransferResult (patched objects/zones + transfers)
     // Stage 2: annotationsForTransfer       → List<AnnotationInfo>  (pure, testable)
     // Stage 3: combatAnnotations            → List<AnnotationInfo>  (pure, testable)
 
     /**
      * Record of a zone transfer after ID reallocation.
-     * Produced by [detectAndApplyZoneTransfers], consumed by [annotationsForTransfer].
+     * Produced by [detectZoneTransfers], consumed by [annotationsForTransfer].
      * All fields are plain ints/strings — no Forge engine references, independently testable.
      */
     data class AppliedTransfer(
@@ -78,22 +78,46 @@ object StateMapper {
     )
 
     /**
-     * Stage 1: Detect zone transfers, realloc instanceIds, patch gameObjects/zones,
-     * retire old IDs to Limbo. Returns the list of applied transfers for annotation building.
+     * Result of Stage 1 zone-transfer detection.
      *
-     * Mutates [gameObjects] and [zones] (patches new instanceIds, appends Limbo entries).
-     * Updates [bridge] zone tracking and Limbo state.
+     * Contains patched copies of gameObjects/zones (with reallocated instanceIds
+     * and Limbo entries) plus deferred side effects the caller must apply.
      */
-    internal fun detectAndApplyZoneTransfers(
-        gameObjects: MutableList<GameObjectInfo>,
-        zones: MutableList<ZoneInfo>,
+    data class TransferResult(
+        /** Detected zone transfers for annotation building. */
+        val transfers: List<AppliedTransfer>,
+        /** GameObjects with instanceIds patched for zone transfers. */
+        val patchedObjects: List<GameObjectInfo>,
+        /** Zones with instanceIds patched + Limbo entries appended. */
+        val patchedZones: List<ZoneInfo>,
+        /** InstanceIds to retire to Limbo (caller applies via [ZoneTracking.retireToLimbo]). */
+        val retiredIds: List<Int>,
+        /** (instanceId, zoneId) pairs to record (caller applies via [ZoneTracking.recordZone]). */
+        val zoneRecordings: List<Pair<Int, Int>>,
+    )
+
+    /**
+     * Stage 1: Detect zone transfers and realloc instanceIds.
+     *
+     * Returns a [TransferResult] with patched copies of objects/zones.
+     * Does not mutate [gameObjects] or [zones]. Calls [IdMapping.reallocInstanceId]
+     * for ID allocation but defers tracking side effects (retireToLimbo, recordZone)
+     * to the caller via the result.
+     */
+    internal fun detectZoneTransfers(
+        gameObjects: List<GameObjectInfo>,
+        zones: List<ZoneInfo>,
         bridge: GameBridge,
         events: List<NexusGameEvent>,
-    ): List<AppliedTransfer> {
+    ): TransferResult {
+        val patchedObjects = gameObjects.toMutableList()
+        val patchedZones = zones.toMutableList()
         val transfers = mutableListOf<AppliedTransfer>()
+        val retiredIds = mutableListOf<Int>()
+        val zoneRecordings = mutableListOf<Pair<Int, Int>>()
 
-        for (i in gameObjects.indices) {
-            val obj = gameObjects[i]
+        for (i in patchedObjects.indices) {
+            val obj = patchedObjects[i]
             val prevZone = bridge.getPreviousZone(obj.instanceId)
             if (prevZone != null && prevZone != obj.zoneId) {
                 val forgeCardId = bridge.getForgeCardId(obj.instanceId)
@@ -115,35 +139,33 @@ object StateMapper {
                 log.debug("zone transfer: iid {} → {} category={}", origId, newId, category)
                 // Patch gameObject and zone with new instanceId
                 if (newId != origId) {
-                    gameObjects[i] = obj.toBuilder().setInstanceId(newId).build()
-                    patchZoneInstanceId(zones, obj.zoneId, origId, newId)
-                    bridge.retireToLimbo(origId)
-                    appendToZone(zones, ZONE_LIMBO, origId)
-                    // Real server doesn't send GameObjectInfo for Limbo objects.
-                    // Zone IDs tracked via objectInstanceIds in Limbo ZoneInfo.
+                    patchedObjects[i] = obj.toBuilder().setInstanceId(newId).build()
+                    patchZoneInstanceId(patchedZones, obj.zoneId, origId, newId)
+                    retiredIds.add(origId)
+                    appendToZone(patchedZones, ZONE_LIMBO, origId)
                 }
                 transfers.add(
                     AppliedTransfer(origId, newId, category, prevZone, obj.zoneId, obj.grpId, obj.ownerSeatId),
                 )
-                bridge.recordZone(newId, obj.zoneId)
+                zoneRecordings.add(newId to obj.zoneId)
             } else {
-                bridge.recordZone(obj.instanceId, obj.zoneId)
+                zoneRecordings.add(obj.instanceId to obj.zoneId)
             }
         }
 
         // Also record zones for instanceIds that appear only in zone objectInstanceIds
         // but not in gameObjects (e.g. library cards — hidden, no GameObjectInfo).
         // This enables zone-transfer detection when they later move to a visible zone.
-        val gameObjectIds = gameObjects.map { it.instanceId }.toSet()
-        for (zone in zones) {
+        val gameObjectIds = patchedObjects.map { it.instanceId }.toSet()
+        for (zone in patchedZones) {
             for (iid in zone.objectInstanceIdsList) {
                 if (iid !in gameObjectIds) {
-                    bridge.recordZone(iid, zone.zoneId)
+                    zoneRecordings.add(iid to zone.zoneId)
                 }
             }
         }
 
-        return transfers
+        return TransferResult(transfers, patchedObjects, patchedZones, retiredIds, zoneRecordings)
     }
 
     /**
@@ -576,15 +598,18 @@ object StateMapper {
         )
 
         // --- Three-stage annotation pipeline ---
-        // Stage 1: Detect zone transfers, realloc IDs, patch objects/zones
+        // Stage 1: Detect zone transfers, realloc IDs, get patched objects/zones
         val events = bridge.drainEvents()
-        val transfers = detectAndApplyZoneTransfers(gameObjects, zones, bridge, events)
+        val transferResult = detectZoneTransfers(gameObjects, zones, bridge, events)
+        // Apply deferred tracking side effects
+        for (id in transferResult.retiredIds) bridge.retireToLimbo(id)
+        for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(iid, zid)
 
         // Stage 2: Generate annotations from transfers (pure, no side effects)
         val actingSeat = if (handler.priorityPlayer == human) 1 else 2
         val annotations = mutableListOf<AnnotationInfo>()
         val persistentAnnotations = mutableListOf<AnnotationInfo>()
-        for (transfer in transfers) {
+        for (transfer in transferResult.transfers) {
             val (transient, persistent) = annotationsForTransfer(transfer, actingSeat)
             annotations.addAll(transient)
             persistentAnnotations.addAll(
@@ -611,8 +636,8 @@ object StateMapper {
             .addAllTeams(listOf(team1.build(), team2.build()))
             .setTurnInfo(turnInfo)
             .addAllPlayers(listOf(player1, player2))
-            .addAllZones(zones.sortedBy { it.zoneId })
-            .addAllGameObjects(gameObjects)
+            .addAllZones(transferResult.patchedZones.sortedBy { it.zoneId })
+            .addAllGameObjects(transferResult.patchedObjects)
             .addAllAnnotations(numberedAnnotations)
             .addAllPersistentAnnotations(persistentAnnotations)
             .addAllTimers(buildTimers())
