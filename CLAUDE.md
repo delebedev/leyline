@@ -73,10 +73,10 @@ See `docs/architecture.md` for diagrams. This is the fast orientation.
 
 ### Debugging a test timeout
 
-1. Engine thread is blocked on `CompletableFuture.get()` — waiting for a response
-2. Check which bridge: `GameActionBridge` (priority action) or `InteractivePromptBridge` (engine-initiated choice like targeting)
-3. Check `MatchSession` — the handler for the client's action type likely isn't wiring through to the bridge, or isn't translating the proto correctly
-4. Check phase: if engine is in combat, `MatchSession` needs combat-specific handlers (`onDeclareAttackers` etc.), not just `onPerformAction`
+1. Read the timeout log — `BridgeTimeoutDiagnostic` auto-captures phase, stack, priority holder, and engine thread trace on every timeout
+2. If engine thread is in a bridge's `CompletableFuture.get()`: `MatchSession` handler isn't wiring through, or isn't translating the proto correctly
+3. If engine thread is elsewhere (e.g. desktop `Input` class): unimplemented `WebPlayerController` override — needs bridge integration
+4. Check phase in diagnostic: combat phases need combat-specific handlers (`onDeclareAttackers` etc.), not just `onPerformAction`
 
 ### Debugging a proto conformance failure
 
