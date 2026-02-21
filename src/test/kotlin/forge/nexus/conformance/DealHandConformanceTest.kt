@@ -30,7 +30,7 @@ class DealHandConformanceTest {
 
     @BeforeClass(alwaysRun = true)
     fun initCardDatabase() {
-        GameBootstrap.initializeCardDatabase()
+        GameBootstrap.initializeCardDatabase(quiet = true)
     }
 
     @AfterMethod

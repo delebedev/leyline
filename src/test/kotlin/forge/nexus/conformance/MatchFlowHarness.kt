@@ -33,7 +33,7 @@ class MatchFlowHarness(private val seed: Long = 42L) {
 
     /** Start game, keep hand, advance to first real-action phase via MatchSession. */
     fun connectAndKeep() {
-        GameBootstrap.initializeCardDatabase()
+        GameBootstrap.initializeCardDatabase(quiet = true)
 
         bridge = GameBridge()
         bridge.start(seed = seed)

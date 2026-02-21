@@ -22,7 +22,7 @@ class AnnotationPipelineTest {
     // requires the card DB to be loaded. Bootstrap once for the whole class.
     @BeforeClass(alwaysRun = true)
     fun initCardDatabase() {
-        GameBootstrap.initializeCardDatabase()
+        GameBootstrap.initializeCardDatabase(quiet = true)
     }
 
     // --- annotationsForTransfer: PlayLand ---
