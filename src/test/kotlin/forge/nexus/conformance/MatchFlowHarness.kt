@@ -52,7 +52,8 @@ class MatchFlowHarness(
     fun connectAndKeep() {
         GameBootstrap.initializeCardDatabase(quiet = true)
 
-        bridge = GameBridge()
+        bridge = GameBridge(bridgeTimeoutMs = 5_000L)
+        bridge.priorityWaitMs = 2_000L
         bridge.start(seed = seed, deckList = deckList)
 
         session = MatchSession(

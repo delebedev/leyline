@@ -32,20 +32,24 @@ import java.util.Random
  * Threading: [start] blocks the caller (~2-3s first call for card DB, <100ms after).
  * The engine thread blocks at mulligan via [forge.web.game.MulliganBridge].
  */
-class GameBridge {
+class GameBridge(
+    /** Timeout for action bridge / prompt bridge / mulligan bridge.
+     *  Production: 120s. Tests: ~2-5s (engine responds in <100ms). */
+    private val bridgeTimeoutMs: Long = 120_000L,
+) {
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
 
     private var game: Game? = null
     private var loopController: GameLoopController? = null
 
     /** seat 1 = human (autoKeep=false). AI uses its default controller. */
-    private val seat1MulliganBridge = MulliganBridge(autoKeep = false, timeoutMs = 120_000)
+    private val seat1MulliganBridge = MulliganBridge(autoKeep = false, timeoutMs = bridgeTimeoutMs)
 
     /** Action bridge for seat 1 — blocks engine at priority stops. */
-    val actionBridge = GameActionBridge(timeoutMs = 120_000)
+    val actionBridge = GameActionBridge(timeoutMs = bridgeTimeoutMs)
 
     /** Prompt bridge for seat 1 — blocks engine on targeting/choice prompts. */
-    val promptBridge = InteractivePromptBridge(timeoutMs = 120_000)
+    val promptBridge = InteractivePromptBridge(timeoutMs = bridgeTimeoutMs)
 
     /** AI action playback — captures per-action state diffs via EventBus. Null before start(). */
     var playback: NexusGamePlayback? = null
@@ -133,12 +137,19 @@ class GameBridge {
 
         /** Max time to wait for engine to reach mulligan after start/mull. */
         private const val MULLIGAN_WAIT_MS = 10_000L
-        private const val PRIORITY_WAIT_MS = 15_000L
+        private const val DEFAULT_PRIORITY_WAIT_MS = 15_000L
 
         /** Longer timeout for AI turns (AI plays full turn: lands, spells, combat). */
         const val AI_TURN_WAIT_MS = 30_000L
         private const val POLL_INTERVAL_MS = 50L
     }
+
+    /**
+     * How long [awaitPriority] waits for the engine to reach a priority stop.
+     * Production default: 15s. Tests should use ~2s since the engine responds
+     * in <100ms and the extra headroom only delays timeout-based test failures.
+     */
+    var priorityWaitMs: Long = DEFAULT_PRIORITY_WAIT_MS
 
     /**
      * Initialize card DB, create game, start engine loop, wait for mulligan.
@@ -244,7 +255,7 @@ class GameBridge {
      * Block until the engine reaches a priority stop (via [GameActionBridge]).
      * After keep, the engine auto-advances through Beginning → Main1.
      */
-    fun awaitPriority() = awaitPriorityWithTimeout(PRIORITY_WAIT_MS)
+    fun awaitPriority() = awaitPriorityWithTimeout(priorityWaitMs)
 
     /**
      * Block until the engine reaches a priority stop, an interactive prompt

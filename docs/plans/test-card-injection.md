@@ -211,6 +211,27 @@ val test = nexusScenario(seed = 42) {
 
 This is shorter syntax for the same TestCardInjector calls — cosmetic, not structural. The real value of this plan is CardDataDeriver (unlocking any of Forge's 32k cards for nexus tests). DSL is sugar on top; add later if warranted.
 
+## Performance: CardDb SQLite kills test speed
+
+**Finding (2026-02-21):** Integration tests take 8-10s each. The dominant
+cost is `CardDb.lookupByName()` falling through to the 221MB Arena SQLite
+(`Raw_CardDatabase_*.mtga`) for any card not in `TestCardRegistry`. The
+default 60-card deck has ~5 registered cards; the other 55 (lands, dupes)
+trigger the lazy SQLite load on first miss.
+
+**Impact:** ~6-8s per test class (one-time load, then cached). Across 7+
+integration test classes this adds 6-8s total (loaded once per JVM fork),
+but each `lookupByName` query against SQLite also adds ~10-50ms per card.
+
+**Fix path:** `CardDataDeriver.fromCardRules()` (this plan) eliminates the
+SQLite dependency entirely. For a quick win before that: `TestCardRegistry`
+could pre-register all cards in the default deck list by deriving from
+Forge's in-memory `CardRules` at startup. Zero SQLite queries needed.
+
+Alternatively, `CardDb.lookupByName` could short-circuit with `FALLBACK_GRPID`
+when a test flag is set, skipping SQLite entirely. Tests don't need real
+grpIds — only that proto fields are populated. This is a 5-line change.
+
 ## Non-goals
 
 - Production card data derivation (production uses real SQLite DB)
