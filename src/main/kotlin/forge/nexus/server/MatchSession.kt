@@ -16,7 +16,11 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 /**
- * Game orchestration session — all post-mulligan game logic.
+ * Game orchestration session — thin dispatcher for post-mulligan game logic.
+ *
+ * Delegates combat flows to [CombatHandler], targeting to [TargetingHandler],
+ * and the auto-pass loop to [AutoPassEngine]. Owns the [sessionLock], message
+ * sending, counter state, and Familiar mirroring.
  *
  * Transport-agnostic: sends messages through [MessageSink].
  * [MatchHandler] creates one per connection and delegates GRE messages here.
@@ -180,7 +184,7 @@ class MatchSession(
         bridge.awaitPriority()
 
         // After a cast, check for targeting prompt or intermediate stack state
-        if (isCast && handlePostCastPrompt(bridge)) return
+        if (isCast && targetingHandler.handlePostCastPrompt(bridge)) return
 
         // After stack resolution: send intermediate state so the client sees the
         // creature move from stack to battlefield with resolution annotations.
@@ -230,10 +234,6 @@ class MatchSession(
         ProtoDump.dump(msg, "SettingsResp")
         sink.sendRaw(msg)
     }
-
-    /** Post-cast prompt check — delegates to [TargetingHandler]. */
-    private fun handlePostCastPrompt(bridge: GameBridge): Boolean =
-        targetingHandler.handlePostCastPrompt(bridge)
 
     // --- Sending helpers ---
 

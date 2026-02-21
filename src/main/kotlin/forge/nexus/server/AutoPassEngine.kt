@@ -28,9 +28,6 @@ class AutoPassEngine(
         private const val MAX_ITERATIONS = 50
     }
 
-    /** Signals from sub-steps back to the loop. */
-    enum class Signal { STOP, SEND_STATE, CONTINUE }
-
     /**
      * Auto-pass through phases where the player has no meaningful actions.
      * Detects combat phases and sends appropriate combat prompts.
@@ -53,9 +50,9 @@ class AutoPassEngine(
             val isAiTurn = human != null && !isHumanTurn
 
             // Combat phase handling
-            val combatSignal = checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)
-            if (combatSignal == Signal.STOP) return
-            if (combatSignal == Signal.SEND_STATE) { ops.sendRealGameState(bridge); return }
+            val combatSignal = combatHandler.checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)
+            if (combatSignal == CombatHandler.Signal.STOP) return
+            if (combatSignal == CombatHandler.Signal.SEND_STATE) { ops.sendRealGameState(bridge); return }
 
             // Interactive prompt (targeting, sacrifice, etc.)
             if (targetingHandler.checkPendingPrompt(bridge, game)) return
@@ -88,19 +85,6 @@ class AutoPassEngine(
         ops.gameStateId = nextGs
         bridge.snapshotState(StateMapper.buildFromGame(game, ops.gameStateId, ops.matchId, bridge))
         return true
-    }
-
-    /** Map [CombatHandler.Signal] into the auto-pass loop. */
-    private fun checkCombatPhase(
-        bridge: GameBridge,
-        game: Game,
-        phase: PhaseType?,
-        isHumanTurn: Boolean,
-        isAiTurn: Boolean,
-    ): Signal = when (combatHandler.checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)) {
-        CombatHandler.Signal.STOP -> Signal.STOP
-        CombatHandler.Signal.SEND_STATE -> Signal.SEND_STATE
-        CombatHandler.Signal.CONTINUE -> Signal.CONTINUE
     }
 
     /** Check if human has meaningful actions. Returns true if state should be sent. */
