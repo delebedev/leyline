@@ -24,14 +24,22 @@ object ObjectMapper {
      * Build a [GameObjectInfo] for a card in a private/player zone (hand, library, graveyard).
      * Does not set combat state or attachment — those are battlefield-only concerns
      * handled by [applyCardFields] when called with bridge+game args.
+     *
+     * @param visibility [Visibility.Private] for hand cards, [Visibility.Public] for graveyard.
      */
-    fun buildCardObject(card: Card, instanceId: Int, zoneId: Int, ownerSeatId: Int): GameObjectInfo {
+    fun buildCardObject(
+        card: Card,
+        instanceId: Int,
+        zoneId: Int,
+        ownerSeatId: Int,
+        visibility: Visibility = Visibility.Private,
+    ): GameObjectInfo {
         val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
         return CardDb.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Card)
             .setZoneId(zoneId)
-            .setVisibility(Visibility.Private)
+            .setVisibility(visibility)
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(ownerSeatId)
             .applyCardFields(card)

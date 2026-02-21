@@ -76,7 +76,9 @@ object ActionMapper {
                         .setInstanceId(instanceId)
                         .setGrpId(grpId)
                         .setFacetId(instanceId)
+                        .setShouldStop(true)
                     if (cardData != null) {
+                        // TODO: correlate loop index with abilityIds entries for multi-ability cards
                         val abilityEntry = cardData.abilityIds.firstOrNull()
                         if (abilityEntry != null) actionBuilder.setAbilityGrpId(abilityEntry.first)
                     }
@@ -333,7 +335,7 @@ object ActionMapper {
                 b.addAllManaCost(action.manaCostList)
             }
             ActionType.Play_add3 -> b.setInstanceId(action.instanceId)
-            ActionType.ActivateMana -> {
+            ActionType.ActivateMana, ActionType.Activate_add3 -> {
                 b.setInstanceId(action.instanceId)
                 if (action.abilityGrpId != 0) b.setAbilityGrpId(action.abilityGrpId)
             }

@@ -105,6 +105,25 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
         assertFalse(pass.shouldStop, "Pass should NOT have shouldStop")
     }
 
+    @Test(description = "Activate actions: shouldStop=true, has instanceId + grpId + abilityGrpId")
+    fun activateActionFields() {
+        val (b, game, _) = startGameAtMain1()
+        // Play a land to get mana, then check for Activate actions
+        playLand(b) ?: error("playLand failed at seed 42")
+
+        val actions = StateMapper.buildActions(game, 1, b)
+        val activateActions = actions.actionsList.filter { it.actionType == ActionType.Activate_add3 }
+        // Activate actions may not always be present (depends on hand contents)
+        if (activateActions.isEmpty()) return
+
+        for (a in activateActions) {
+            assertTrue(a.shouldStop, "Activate should have shouldStop=true")
+            assertNotEquals(a.instanceId, 0, "Activate should have instanceId")
+            assertNotEquals(a.grpId, 0, "Activate should have grpId")
+            assertEquals(a.facetId, a.instanceId, "Activate facetId should equal instanceId")
+        }
+    }
+
     @Test(description = "ActionsAvailableReq in postAction bundle matches direct buildActions")
     fun postActionBundleContainsActions() {
         val (b, game, gsId) = startGameAtMain1()

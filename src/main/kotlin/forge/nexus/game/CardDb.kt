@@ -76,6 +76,7 @@ object CardDb {
         grpIdToName.clear()
         nameToGrpId.clear()
         cache.clear()
+        testMode = false
     }
 
     /** Find the client card database on disk. */
