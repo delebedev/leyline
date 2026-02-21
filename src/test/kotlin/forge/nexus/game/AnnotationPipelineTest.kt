@@ -9,10 +9,10 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
  * Unit tests for the three-stage annotation pipeline extracted from
- * [StateMapper.buildFromGame]. Tests [StateMapper.annotationsForTransfer]
+ * [StateMapper.buildFromGame]. Tests [AnnotationPipeline.annotationsForTransfer]
  * as a pure function — no game engine, no bridge, no card DB.
  *
- * Each test constructs an [StateMapper.AppliedTransfer] and verifies the
+ * Each test constructs an [AnnotationPipeline.AppliedTransfer] and verifies the
  * annotation sequence matches the real client server pattern.
  */
 @Test(groups = ["unit"])
@@ -29,7 +29,7 @@ class AnnotationPipelineTest {
 
     @Test
     fun playLandProducesThreeAnnotations() {
-        val transfer = StateMapper.AppliedTransfer(
+        val transfer = AnnotationPipeline.AppliedTransfer(
             origId = 100,
             newId = 200,
             category = TransferCategory.PlayLand,
@@ -38,7 +38,7 @@ class AnnotationPipelineTest {
             grpId = 12345,
             ownerSeatId = 1,
         )
-        val (annotations, persistent) = StateMapper.annotationsForTransfer(transfer, actingSeat = 1)
+        val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
         assertEquals(annotations.size, 3, "PlayLand should produce 3 annotations")
         assertEquals(annotations[0].typeList.first(), AnnotationType.ObjectIdChanged)
@@ -52,7 +52,7 @@ class AnnotationPipelineTest {
 
     @Test
     fun playLandHasCorrectIds() {
-        val transfer = StateMapper.AppliedTransfer(
+        val transfer = AnnotationPipeline.AppliedTransfer(
             origId = 100,
             newId = 200,
             category = TransferCategory.PlayLand,
@@ -61,7 +61,7 @@ class AnnotationPipelineTest {
             grpId = 12345,
             ownerSeatId = 1,
         )
-        val (annotations, _) = StateMapper.annotationsForTransfer(transfer, actingSeat = 1)
+        val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
         // ObjectIdChanged should reference origId in affectedIds
         assertTrue(annotations[0].affectedIdsList.contains(100))
@@ -71,7 +71,7 @@ class AnnotationPipelineTest {
 
     @Test
     fun playLandProducesPersistentAnnotation() {
-        val transfer = StateMapper.AppliedTransfer(
+        val transfer = AnnotationPipeline.AppliedTransfer(
             origId = 100,
             newId = 200,
             category = TransferCategory.PlayLand,
@@ -80,7 +80,7 @@ class AnnotationPipelineTest {
             grpId = 12345,
             ownerSeatId = 1,
         )
-        val (_, persistent) = StateMapper.annotationsForTransfer(transfer, actingSeat = 1)
+        val (_, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
         assertEquals(persistent.size, 1, "Battlefield entry should produce EnteredZoneThisTurn")
         assertEquals(persistent[0].typeList.first(), AnnotationType.EnteredZoneThisTurn)
@@ -90,7 +90,7 @@ class AnnotationPipelineTest {
 
     @Test
     fun castSpellProducesSevenAnnotations() {
-        val transfer = StateMapper.AppliedTransfer(
+        val transfer = AnnotationPipeline.AppliedTransfer(
             origId = 100,
             newId = 200,
             category = TransferCategory.CastSpell,
@@ -99,7 +99,7 @@ class AnnotationPipelineTest {
             grpId = 67890,
             ownerSeatId = 1,
         )
-        val (annotations, persistent) = StateMapper.annotationsForTransfer(transfer, actingSeat = 1)
+        val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
         assertEquals(annotations.size, 7, "CastSpell should produce 7 annotations")
         assertEquals(annotations[0].typeList.first(), AnnotationType.ObjectIdChanged)
@@ -116,7 +116,7 @@ class AnnotationPipelineTest {
 
     @Test
     fun castSpellUserActionIsCast() {
-        val transfer = StateMapper.AppliedTransfer(
+        val transfer = AnnotationPipeline.AppliedTransfer(
             origId = 100,
             newId = 200,
             category = TransferCategory.CastSpell,
@@ -125,7 +125,7 @@ class AnnotationPipelineTest {
             grpId = 67890,
             ownerSeatId = 1,
         )
-        val (annotations, _) = StateMapper.annotationsForTransfer(transfer, actingSeat = 1)
+        val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
         val actionType = annotations[6].detailsList.first { it.key == "actionType" }
         assertEquals(actionType.getValueInt32(0), 1, "actionType should be 1 (Cast)")
@@ -135,7 +135,7 @@ class AnnotationPipelineTest {
 
     @Test
     fun resolveProducesThreeAnnotations() {
-        val transfer = StateMapper.AppliedTransfer(
+        val transfer = AnnotationPipeline.AppliedTransfer(
             origId = 200,
             newId = 200,
             category = TransferCategory.Resolve,
@@ -144,7 +144,7 @@ class AnnotationPipelineTest {
             grpId = 67890,
             ownerSeatId = 1,
         )
-        val (annotations, persistent) = StateMapper.annotationsForTransfer(transfer, actingSeat = 1)
+        val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
         assertEquals(annotations.size, 3, "Resolve should produce 3 annotations")
         assertEquals(annotations[0].typeList.first(), AnnotationType.ResolutionStart)
@@ -157,7 +157,7 @@ class AnnotationPipelineTest {
 
     @Test
     fun resolveZoneTransferHasActingSeat() {
-        val transfer = StateMapper.AppliedTransfer(
+        val transfer = AnnotationPipeline.AppliedTransfer(
             origId = 200,
             newId = 200,
             category = TransferCategory.Resolve,
@@ -166,7 +166,7 @@ class AnnotationPipelineTest {
             grpId = 67890,
             ownerSeatId = 1,
         )
-        val (annotations, _) = StateMapper.annotationsForTransfer(transfer, actingSeat = 2)
+        val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 2)
 
         // Resolve ZoneTransfer should carry actingSeat as affectorId
         assertEquals(annotations[2].affectorId, 2)
@@ -174,7 +174,7 @@ class AnnotationPipelineTest {
 
     @Test
     fun resolveUsesGrpId() {
-        val transfer = StateMapper.AppliedTransfer(
+        val transfer = AnnotationPipeline.AppliedTransfer(
             origId = 200,
             newId = 200,
             category = TransferCategory.Resolve,
@@ -183,7 +183,7 @@ class AnnotationPipelineTest {
             grpId = 67890,
             ownerSeatId = 1,
         )
-        val (annotations, _) = StateMapper.annotationsForTransfer(transfer, actingSeat = 1)
+        val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
         val grpid = annotations[0].detailsList.first { it.key == "grpid" }
         assertEquals(grpid.getValueUint32(0), 67890)
@@ -193,7 +193,7 @@ class AnnotationPipelineTest {
 
     @Test
     fun genericZoneTransferProducesAnnotations() {
-        val transfer = StateMapper.AppliedTransfer(
+        val transfer = AnnotationPipeline.AppliedTransfer(
             origId = 100,
             newId = 200,
             category = TransferCategory.ZoneTransfer,
@@ -202,7 +202,7 @@ class AnnotationPipelineTest {
             grpId = 0,
             ownerSeatId = 1,
         )
-        val (annotations, persistent) = StateMapper.annotationsForTransfer(transfer, actingSeat = 1)
+        val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
         // ZoneTransfer category produces ObjectIdChanged (when origId != newId) + ZoneTransfer
         assertEquals(annotations.size, 2, "ZoneTransfer should produce ObjectIdChanged + ZoneTransfer")
@@ -213,7 +213,7 @@ class AnnotationPipelineTest {
 
     @Test
     fun noBattlefieldDestNoPersistentAnnotation() {
-        val transfer = StateMapper.AppliedTransfer(
+        val transfer = AnnotationPipeline.AppliedTransfer(
             origId = 100,
             newId = 200,
             category = TransferCategory.CastSpell,
@@ -222,14 +222,14 @@ class AnnotationPipelineTest {
             grpId = 67890,
             ownerSeatId = 1,
         )
-        val (_, persistent) = StateMapper.annotationsForTransfer(transfer, actingSeat = 1)
+        val (_, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
         assertTrue(persistent.isEmpty(), "Stack dest should not produce EnteredZoneThisTurn")
     }
 
     @Test
     fun resolveToGraveyardNoPersistentAnnotation() {
         // Spell resolves but goes to graveyard (instant/sorcery)
-        val transfer = StateMapper.AppliedTransfer(
+        val transfer = AnnotationPipeline.AppliedTransfer(
             origId = 200,
             newId = 200,
             category = TransferCategory.Resolve,
@@ -238,7 +238,7 @@ class AnnotationPipelineTest {
             grpId = 67890,
             ownerSeatId = 1,
         )
-        val (annotations, persistent) = StateMapper.annotationsForTransfer(transfer, actingSeat = 1)
+        val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
         assertEquals(annotations.size, 3, "Resolve still produces 3 annotations")
         assertTrue(persistent.isEmpty(), "Graveyard dest should not produce EnteredZoneThisTurn")
