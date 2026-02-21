@@ -119,15 +119,8 @@ object StateMapper {
                     patchZoneInstanceId(zones, obj.zoneId, origId, newId)
                     bridge.retireToLimbo(origId)
                     appendToZone(zones, ZONE_LIMBO, origId)
-                    gameObjects.add(
-                        obj.toBuilder()
-                            .setInstanceId(origId)
-                            .setZoneId(ZONE_LIMBO)
-                            .setVisibility(Visibility.Private)
-                            .clearViewers()
-                            .addViewers(obj.ownerSeatId)
-                            .build(),
-                    )
+                    // Real server doesn't send GameObjectInfo for Limbo objects.
+                    // Zone IDs tracked via objectInstanceIds in Limbo ZoneInfo.
                 }
                 transfers.add(
                     AppliedTransfer(origId, newId, category, prevZone, obj.zoneId, obj.grpId, obj.ownerSeatId),

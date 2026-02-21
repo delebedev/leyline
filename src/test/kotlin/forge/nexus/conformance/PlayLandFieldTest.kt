@@ -136,7 +136,14 @@ class PlayLandFieldTest : ConformanceTestBase() {
         assertTrue(landObj.uniqueAbilitiesCount > 0, "Land gameObject should have uniqueAbilities (mana ability), got 0")
     }
 
-    @Test(description = "Play land: old instanceId retired to Limbo with gameObject")
+    @Test(description = "PlayLand diff should not contain GameObjectInfo for Limbo objects")
+    fun noLimboGameObjectInDiff() {
+        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
+        val limboObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.LIMBO }
+        assertTrue(limboObjects.isEmpty(), "Diff should not contain GameObjectInfo for Limbo objects, got: ${limboObjects.map { "iid=${it.instanceId}" }}")
+    }
+
+    @Test(description = "Play land: old instanceId retired to Limbo zone")
     fun oldInstanceRetiredToLimbo() {
         val (gsm, origInstanceId, newInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
 
@@ -182,10 +189,9 @@ class PlayLandFieldTest : ConformanceTestBase() {
         assertTrue(newObj != null, "Accumulated objects should have new instanceId $newInstanceId")
         assertEquals(newObj!!.zoneId, ZoneIds.BATTLEFIELD, "New object should be on battlefield")
 
-        // Old instanceId in Limbo
-        val oldObj = acc.objects[origInstanceId]
-        assertTrue(oldObj != null, "Old instanceId $origInstanceId should still be in accumulated objects (as Limbo gameObject)")
-        assertEquals(oldObj!!.zoneId, ZoneIds.LIMBO, "Old object should be in Limbo, not ${oldObj.zoneId}")
+        // Old instanceId: no Limbo GameObjectInfo in diff (real server omits it).
+        // The accumulator may still hold the stale hand object until
+        // diffDeletedInstanceIds is implemented.
 
         val handZone = acc.zones.values.firstOrNull { it.type == ZoneType.Hand && it.ownerSeatId == 1 }
         assertTrue(handZone != null, "Should have P1 hand zone")

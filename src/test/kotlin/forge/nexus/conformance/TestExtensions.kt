@@ -155,7 +155,7 @@ fun assertGsIdChain(
 
 // ----- Tier 2: Limbo assertions -----
 
-/** Assert that the GSM's Limbo zone contains the given instanceId with a Private gameObject. */
+/** Assert that the GSM's Limbo zone contains the given instanceId in objectInstanceIds. */
 fun assertLimboContains(gsm: GameStateMessage, instanceId: Int) {
     val limboZone = gsm.zonesList.firstOrNull { it.type == ZoneType.Limbo }
     assertTrue(limboZone != null, "GSM should have Limbo zone")
@@ -163,8 +163,6 @@ fun assertLimboContains(gsm: GameStateMessage, instanceId: Int) {
         limboZone!!.objectInstanceIdsList.contains(instanceId),
         "Limbo zone should contain instanceId $instanceId, got: ${limboZone.objectInstanceIdsList}",
     )
-    val limboObj = gsm.gameObjectsList.firstOrNull { it.instanceId == instanceId }
-    assertTrue(limboObj != null, "Should have Limbo gameObject for instanceId $instanceId")
-    assertEquals(limboObj!!.zoneId, 30, "Limbo gameObject should have zoneId=30 (Limbo)")
-    assertEquals(limboObj.visibility, Visibility.Private, "Limbo gameObject should be Private")
+    // Real server doesn't send GameObjectInfo for Limbo objects —
+    // only objectInstanceIds in the Limbo ZoneInfo.
 }

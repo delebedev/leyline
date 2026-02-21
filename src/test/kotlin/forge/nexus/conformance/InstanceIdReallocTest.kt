@@ -8,7 +8,6 @@ import org.testng.Assert.assertNotEquals
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.Visibility
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
 /**
@@ -16,7 +15,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  *
  * Real client server allocates a new instanceId every time a card changes zones
  * (except Stack->Battlefield on resolve). The old instanceId is retired to Limbo
- * with a Private gameObject so the client moves the card out of its old zone.
+ * via objectInstanceIds in the Limbo ZoneInfo — no GameObjectInfo is emitted for it.
  *
  * Limbo is monotonically growing -- retired IDs are never removed. Each subsequent
  * buildFromGame must include the full retirement history.
@@ -59,8 +58,8 @@ class InstanceIdReallocTest : ConformanceTestBase() {
         )
     }
 
-    @Test(description = "PlayLand: Limbo gameObject has Private visibility and viewers=[owner]")
-    fun playLandLimboGameObjectVisibility() {
+    @Test(description = "PlayLand: retired instanceId tracked in Limbo zone, no GameObjectInfo")
+    fun playLandLimboZoneTracking() {
         val (b, game, gsId) = startGameAtMain1()
 
         val player = b.getPlayer(1) ?: error("Player 1 not found")
@@ -70,12 +69,12 @@ class InstanceIdReallocTest : ConformanceTestBase() {
         playLand(b) ?: error("playLand failed at seed 42")
         val gsm = postAction(game, b, 1, gsId).gsm
 
-        val limboObj = gsm.gameObjectsList.firstOrNull { it.instanceId == origInstanceId }
-        assertTrue(limboObj != null, "Should have Limbo gameObject for retired ID $origInstanceId")
-        assertEquals(limboObj!!.visibility, Visibility.Private, "Limbo gameObject should be Private")
-        assertEquals(limboObj.zoneId, ZoneIds.LIMBO, "Limbo gameObject should be in Limbo zone")
-        assertTrue(limboObj.viewersList.isNotEmpty(), "Limbo gameObject should have viewers")
-        assertEquals(limboObj.getViewers(0), 1, "Limbo gameObject viewers should include owner seat (1)")
+        // Limbo zone should contain the retired instanceId
+        assertLimboContains(gsm, origInstanceId)
+
+        // Real server doesn't send GameObjectInfo for Limbo objects
+        val limboObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.LIMBO }
+        assertTrue(limboObjects.isEmpty(), "Diff should not contain GameObjectInfo for Limbo objects, got: ${limboObjects.map { "iid=${it.instanceId}" }}")
     }
 
     // ===== CastSpell realloc =====
