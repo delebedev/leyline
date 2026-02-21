@@ -36,7 +36,7 @@ class GameBridge(
     /** Timeout for action bridge / prompt bridge / mulligan bridge.
      *  Production: 120s. Tests: ~2-5s (engine responds in <100ms). */
     private val bridgeTimeoutMs: Long = 120_000L,
-) {
+) : IdMapping, PlayerLookup, ZoneTracking, StateSnapshot, AnnotationIds, EventDrain {
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
 
     private var game: Game? = null
@@ -73,49 +73,41 @@ class GameBridge(
     /** Monotonic annotation ID counter. Real server starts around 49; we start at 50. */
     private var nextAnnotationId = INITIAL_ANNOTATION_ID
 
-    /** Allocate the next sequential annotation ID. */
-    fun nextAnnotationId(): Int = nextAnnotationId++
+    override fun nextAnnotationId(): Int = nextAnnotationId++
 
     /** Monotonic persistent annotation ID counter. Real server uses a separate sequence. */
     private var nextPersistentAnnotationId = INITIAL_PERSISTENT_ANNOTATION_ID
 
-    /** Allocate the next sequential persistent annotation ID. */
-    fun nextPersistentAnnotationId(): Int = nextPersistentAnnotationId++
+    override fun nextPersistentAnnotationId(): Int = nextPersistentAnnotationId++
 
-    // --- Delegate methods (keep public API stable for existing call sites) ---
+    // --- Interface implementations (IdMapping, PlayerLookup, ZoneTracking, etc.) ---
 
-    /** Allocate or return existing client instanceId for a Forge card ID. */
-    fun getOrAllocInstanceId(forgeCardId: Int): Int = ids.getOrAlloc(forgeCardId)
+    override fun getOrAllocInstanceId(forgeCardId: Int): Int = ids.getOrAlloc(forgeCardId)
 
-    /** Allocate a fresh instanceId for a Forge card that changed zones. */
-    fun reallocInstanceId(forgeCardId: Int): InstanceIdRegistry.IdReallocation = ids.realloc(forgeCardId)
+    override fun reallocInstanceId(forgeCardId: Int): InstanceIdRegistry.IdReallocation = ids.realloc(forgeCardId)
 
-    /** Reverse lookup: client instanceId → Forge card ID. */
-    fun getForgeCardId(instanceId: Int): Int? = ids.getForgeCardId(instanceId)
+    override fun getForgeCardId(instanceId: Int): Int? = ids.getForgeCardId(instanceId)
 
     /** Read-only snapshot of instanceId → forgeCardId (for debug panel). */
     fun getInstanceIdMap(): Map<Int, Int> = ids.snapshot()
 
-    /** Add an instanceId to the persistent Limbo set. */
-    fun retireToLimbo(instanceId: Int) = limbo.retire(instanceId)
+    override fun retireToLimbo(instanceId: Int) = limbo.retire(instanceId)
 
-    /** Current ordered list of all retired instanceIds. */
-    fun getLimboInstanceIds(): List<Int> = limbo.all()
+    override fun getLimboInstanceIds(): List<Int> = limbo.all()
 
-    /** Record current zone for an instance. Returns previous zone or null if new. */
-    fun recordZone(instanceId: Int, zoneId: Int): Int? = diff.recordZone(instanceId, zoneId)
+    override fun recordZone(instanceId: Int, zoneId: Int): Int? = diff.recordZone(instanceId, zoneId)
 
-    /** Snapshot current zones for annotation building. */
-    fun getPreviousZone(instanceId: Int): Int? = diff.getPreviousZone(instanceId)
+    override fun getPreviousZone(instanceId: Int): Int? = diff.getPreviousZone(instanceId)
 
-    /** Store a full GameStateMessage snapshot for future diff computation. */
-    fun snapshotState(state: GameStateMessage) {
+    override fun snapshotState(state: GameStateMessage) {
         diff.snapshotState(state)
     }
 
-    fun getPreviousState(): GameStateMessage? = diff.getPreviousState()
+    override fun getPreviousState(): GameStateMessage? = diff.getPreviousState()
 
     fun clearPreviousState() = diff.clear()
+
+    override fun drainEvents(): List<NexusGameEvent> = eventCollector?.drainEvents() ?: emptyList()
 
     companion object {
         /** Fallback grpId for cards not in client DB (renders face-down). */
@@ -238,11 +230,9 @@ class GameBridge(
         return allCards.map { CardDb.lookupByName(it) ?: FALLBACK_GRPID }
     }
 
-    /** Get the underlying Forge game (null before [start]). */
-    fun getGame(): Game? = game
+    override fun getGame(): Game? = game
 
-    /** Map seat ID to Forge player. */
-    fun getPlayer(seatId: Int): Player? {
+    override fun getPlayer(seatId: Int): Player? {
         val g = game ?: return null
         return if (seatId == 1) {
             g.players.firstOrNull { it.lobbyPlayer !is LobbyPlayerAi }
