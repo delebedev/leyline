@@ -577,7 +577,7 @@ object StateMapper {
 
         // --- Three-stage annotation pipeline ---
         // Stage 1: Detect zone transfers, realloc IDs, patch objects/zones
-        val events = bridge.eventCollector?.drainEvents() ?: emptyList()
+        val events = bridge.drainEvents()
         val transfers = detectAndApplyZoneTransfers(gameObjects, zones, bridge, events)
 
         // Stage 2: Generate annotations from transfers (pure, no side effects)
