@@ -186,7 +186,7 @@ class CombatHandler(private val ops: SessionOps) {
 
     // --- Sending helpers ---
 
-    fun sendDeclareAttackersReq(
+    private fun sendDeclareAttackersReq(
         bridge: GameBridge,
         req: DeclareAttackersReq? = null,
     ) {
@@ -204,7 +204,7 @@ class CombatHandler(private val ops: SessionOps) {
         bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
     }
 
-    fun sendDeclareBlockersReq(bridge: GameBridge) {
+    private fun sendDeclareBlockersReq(bridge: GameBridge) {
         val game = bridge.getGame() ?: return
         val result = BundleBuilder.declareBlockersBundle(game, bridge, ops.matchId, ops.seatId, ops.msgIdCounter, ops.gameStateId)
         ops.msgIdCounter = result.nextMsgId

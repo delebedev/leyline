@@ -91,7 +91,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
     // --- Sending helper ---
 
-    fun sendSelectTargetsReq(bridge: GameBridge, req: SelectTargetsReq) {
+    private fun sendSelectTargetsReq(bridge: GameBridge, req: SelectTargetsReq) {
         val game = bridge.getGame() ?: return
         val result = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.msgIdCounter, ops.gameStateId, req)
         ops.msgIdCounter = result.nextMsgId
