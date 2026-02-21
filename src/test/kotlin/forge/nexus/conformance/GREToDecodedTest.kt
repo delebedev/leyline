@@ -2,7 +2,6 @@ package forge.nexus.conformance
 
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertFalse
-import org.testng.Assert.assertNotNull
 import org.testng.Assert.assertNull
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
@@ -188,11 +187,11 @@ class GREToDecodedTest {
         assertEquals(decoded.players[0].life, 20)
 
         // turnInfo
-        assertNotNull(decoded.turnInfo)
-        assertEquals(decoded.turnInfo!!.turn, 1)
-        assertEquals(decoded.turnInfo!!.activePlayer, 1)
-        assertEquals(decoded.turnInfo!!.phase, "Beginning")
-        assertEquals(decoded.turnInfo!!.step, "Upkeep")
+        val turnInfo = checkNotNull(decoded.turnInfo)
+        assertEquals(turnInfo.turn, 1)
+        assertEquals(turnInfo.activePlayer, 1)
+        assertEquals(turnInfo.phase, "Beginning")
+        assertEquals(turnInfo.step, "Upkeep")
 
         // systemSeatIds
         assertEquals(decoded.systemSeatIds, listOf(1))

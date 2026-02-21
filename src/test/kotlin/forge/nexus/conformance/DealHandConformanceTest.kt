@@ -21,7 +21,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 @Test(groups = ["integration"])
 class DealHandConformanceTest {
 
-    private var bridge: GameBridge? = null
+    private lateinit var bridge: GameBridge
 
     @BeforeClass(alwaysRun = true)
     fun initCardDatabase() {
@@ -30,8 +30,7 @@ class DealHandConformanceTest {
 
     @AfterMethod
     fun tearDown() {
-        bridge?.shutdown()
-        bridge = null
+        if (::bridge.isInitialized) bridge.shutdown()
     }
 
     private fun loadBin(name: String): ByteArray =

@@ -147,8 +147,9 @@ class DiffDiagnosticTest : ConformanceTestBase() {
 
         val creatureNewId = b.getOrAllocInstanceId(creatureForgeId)
 
-        val creatureObj = acc.objects[creatureNewId]
-        assertNotNull(creatureObj, "Creature should exist in accumulated objects with instanceId $creatureNewId")
+        val creatureObj = checkNotNull(acc.objects[creatureNewId]) {
+            "Creature should exist in accumulated objects with instanceId $creatureNewId"
+        }
 
         val stackZone = acc.zones[ZoneIds.STACK]
         val bfZone = acc.zones[ZoneIds.BATTLEFIELD]
@@ -160,22 +161,21 @@ class DiffDiagnosticTest : ConformanceTestBase() {
             assertTrue(onBF, "After stack resolution, creature $creatureNewId should be on BF")
             assertFalse(onStack, "After stack resolution, creature $creatureNewId should NOT be on stack")
             assertEquals(
-                creatureObj!!.zoneId,
+                creatureObj.zoneId,
                 ZoneIds.BATTLEFIELD,
                 "Creature object should have zoneId=BF after resolution",
             )
         } else {
             assertTrue(onStack, "While on stack, creature $creatureNewId should be in stack zone")
-            assertEquals(creatureObj!!.zoneId, ZoneIds.STACK, "Creature should have zoneId=Stack while on stack")
+            assertEquals(creatureObj.zoneId, ZoneIds.STACK, "Creature should have zoneId=Stack while on stack")
 
             passPriority(b)
             val afterPass = postAction(game, b, afterCast.nextMsgId, afterCast.nextGsId)
             acc.processAll(afterPass.messages)
 
-            val creaturePostResolve = acc.objects[creatureNewId]
-            assertNotNull(creaturePostResolve, "Creature should still exist after resolve")
+            val creaturePostResolve = checkNotNull(acc.objects[creatureNewId]) { "Creature should still exist after resolve" }
             assertEquals(
-                creaturePostResolve!!.zoneId,
+                creaturePostResolve.zoneId,
                 ZoneIds.BATTLEFIELD,
                 "Creature should be on BF after resolution",
             )

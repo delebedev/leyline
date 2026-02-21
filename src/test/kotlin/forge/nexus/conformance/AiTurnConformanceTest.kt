@@ -25,9 +25,8 @@ class AiTurnConformanceTest : ConformanceTestBase() {
         val (b, game, gsId) = startGameAtMain1()
 
         // Playback is registered in GameBridge.start()
-        val playback = b.playback
-        assertNotNull(playback, "NexusGamePlayback should be registered")
-        playback!!.seedCounters(1, gsId)
+        val playback = checkNotNull(b.playback) { "NexusGamePlayback should be registered" }
+        playback.seedCounters(1, gsId)
 
         // Play a land to have mana, then snapshot
         playLand(b) ?: error("playLand failed at seed 42")
@@ -90,9 +89,8 @@ class AiTurnConformanceTest : ConformanceTestBase() {
     fun aiActionDiffsContainZoneTransferAnnotations() {
         val (b, game, gsId) = startGameAtMain1()
 
-        val playback = b.playback
-        assertNotNull(playback, "NexusGamePlayback should be registered")
-        playback!!.seedCounters(1, gsId)
+        val playback = checkNotNull(b.playback) { "NexusGamePlayback should be registered" }
+        playback.seedCounters(1, gsId)
 
         // Play a land so AI has something to respond to, then snapshot
         playLand(b) ?: error("playLand failed at seed 42")

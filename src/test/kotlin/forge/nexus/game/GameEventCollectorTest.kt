@@ -23,12 +23,11 @@ class GameEventCollectorTest {
         forge.nexus.conformance.TestCardRegistry.ensureRegistered()
     }
 
-    private var bridge: GameBridge? = null
+    private lateinit var bridge: GameBridge
 
     @AfterMethod
     fun tearDown() {
-        bridge?.shutdown()
-        bridge = null
+        if (::bridge.isInitialized) bridge.shutdown()
     }
 
     @Test

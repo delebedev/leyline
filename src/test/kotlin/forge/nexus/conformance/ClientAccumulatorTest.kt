@@ -143,8 +143,8 @@ class ClientAccumulatorTest {
             .build()
         acc.process(gre)
 
-        assertNotNull(acc.actions)
-        assertEquals(acc.actions!!.actionsCount, 1)
+        val storedActions = checkNotNull(acc.actions)
+        assertEquals(storedActions.actionsCount, 1)
     }
 
     @Test

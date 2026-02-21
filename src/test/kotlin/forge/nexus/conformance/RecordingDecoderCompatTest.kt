@@ -1,7 +1,6 @@
 package forge.nexus.conformance
 
 import org.testng.Assert.assertEquals
-import org.testng.Assert.assertNotNull
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -20,9 +19,8 @@ class RecordingDecoderCompatTest {
         val payload = buildMessage(gsId = 77).toByteArray()
         val framed = arenaFrame(payload)
 
-        val parsed = RecordingDecoder.parseMatchMessage(framed)
-        assertNotNull(parsed)
-        assertEquals(parsed!!.greToClientEvent.greToClientMessagesList.first().gameStateId, 77)
+        val parsed = checkNotNull(RecordingDecoder.parseMatchMessage(framed))
+        assertEquals(parsed.greToClientEvent.greToClientMessagesList.first().gameStateId, 77)
     }
 
     @Test
