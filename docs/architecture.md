@@ -217,7 +217,7 @@ Game (forge-game)
   ├── StateMapper.mapZones()           → ZoneMsg[]        (hand, library, battlefield, etc.)
   ├── StateMapper.mapPlayers()         → PlayerMsg[]      (life, mana, counters)
   ├── AnnotationBuilder.build()        → AnnotationMsg[]  (zone transfers, combat, abilities)
-  │     ├── detectAndApplyZoneTransfers()
+  │     ├── detectZoneTransfers() → TransferResult
   │     ├── annotationsForTransfer()
   │     └── combatAnnotations()
   └── BundleBuilder.bundle()           → GREToClientMessage

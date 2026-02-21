@@ -47,7 +47,7 @@ See `docs/architecture.md` for diagrams. This is the fast orientation.
 
 **Event-driven annotations:** Forge fires `GameEvent` on its Guava EventBus → `GameEventCollector` (subscribes synchronously on engine thread) translates to `NexusGameEvent` sealed variants → queued in `ConcurrentLinkedQueue` → `StateMapper` drains at diff-build time → `AnnotationBuilder.categoryFromEvents()` picks most-specific category (LandPlayed > ZoneChanged) → builder methods construct proto `AnnotationInfo` with correct Arena type numbers and detail keys.
 
-**Three-stage diff pipeline:** (1) `detectAndApplyZoneTransfers` — realloc instanceIds, patch objects/zones, retire old IDs to Limbo. (2) `annotationsForTransfer` — pure function, proto annotations per transfer. (3) `combatAnnotations` — damage/life/phase annotations. All numbered after assembly.
+**Three-stage diff pipeline:** (1) `detectZoneTransfers` → `TransferResult` — realloc instanceIds, return patched objects/zones + deferred retirements/zone recordings. (2) `annotationsForTransfer` — pure function, proto annotations per transfer. (3) `combatAnnotations` — damage/life/phase annotations. All numbered after assembly.
 
 ## Cookbook
 
