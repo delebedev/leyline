@@ -109,13 +109,12 @@ object BundleBuilder {
     }
 
     /**
-     * AI action diff: GS Diff + empty marker for opponent-perspective state updates.
+     * AI action diff: single GS Diff with SendHiFi.
      *
-     * Primary diff uses SendAndRecord (client must persist zone changes).
-     * Echo uses SendHiFi (transient state update). No ActionsAvailableReq.
-     * Produces the double-diff pattern matching real server AI turn messages:
-     *   1. GS Diff with annotations (zone transfers, state changes)
-     *   2. GS Diff empty marker (turnInfo only)
+     * Real server sends exactly one GSM per AI action — no echo, no
+     * pendingMessageCount. Uses SendHiFi (transient update the client
+     * doesn't need to persist as a save point). Actions are embedded
+     * without the pending flag so the client dispatches immediately.
      */
     fun aiActionDiff(
         game: Game,
@@ -133,21 +132,20 @@ object BundleBuilder {
         val handler = game.phaseHandler
         val human = bridge.getPlayer(1)
         val activeSeat = if (handler.playerTurn == human) 1 else 2
-        val prioritySeat = if (handler.priorityPlayer == human) 1 else 2
         // Build state first (triggers instanceId realloc), then actions with new IDs
         val gsBase = StateMapper.buildDiffFromGame(
             game,
             ++nextGs,
             matchId,
             bridge,
-            updateType = GameStateUpdate.SendAndRecord,
+            updateType = GameStateUpdate.SendHiFi,
             viewingSeatId = seatId,
         )
         // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
         // Real server embeds human's potential actions during AI turn.
         val actions = StateMapper.buildNaiveActions(seatId, bridge)
 
-        // Message 1: Diff with annotations + actions
+        // Inject phase/turn annotations when applicable
         val gsWithAnnotations = if (phaseChanged || turnStarted) {
             val protoPhase = StateMapper.mapPhase(handler.phase).number
             val protoStep = StateMapper.mapStep(handler.phase).number
@@ -161,35 +159,20 @@ object BundleBuilder {
         } else {
             gsBase
         }
-        val gs = StateMapper.embedActions(gsWithAnnotations, actions, game, bridge, recipientSeatId = seatId)
 
-        // Message 2: Echo with turnInfo + actions (matches real server pattern).
-        // Real server sends the echo with opponent's priority (both players
-        // must pass for phase to advance). prioritySeat is the active player;
-        // the echo flips to the other seat.
-        val echoPrioritySeat = if (activeSeat == 1) 2 else 1
-        val turnInfo = TurnInfo.newBuilder()
-            .setPhase(StateMapper.mapPhase(handler.phase))
-            .setStep(StateMapper.mapStep(handler.phase))
-            .setTurnNumber(handler.turn.coerceAtLeast(1))
-            .setActivePlayer(activeSeat)
-            .setPriorityPlayer(echoPrioritySeat)
-            .setDecisionPlayer(echoPrioritySeat)
-        val msg1GsId = nextGs
-        val echoBuilder = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff)
-            .setGameStateId(++nextGs)
-            .setPrevGameStateId(msg1GsId)
-            .setTurnInfo(turnInfo)
-            .setUpdate(GameStateUpdate.SendHiFi)
-        embedActions(echoBuilder, actions, seatId, pending = false)
+        // Embed actions WITHOUT pendingMessageCount (no follow-up message expected)
+        val gs = gsWithAnnotations.toBuilder()
+        for (action in actions.actionsList) {
+            gs.addActions(
+                ActionInfo.newBuilder()
+                    .setSeatId(seatId)
+                    .setAction(StateMapper.stripActionForGsm(action)),
+            )
+        }
 
         val messages = listOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, msg1GsId, seatId, nextMsg++) {
-                it.gameStateMessage = gs
-            },
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
-                it.gameStateMessage = echoBuilder.build()
+                it.gameStateMessage = gs.build()
             },
         )
 
