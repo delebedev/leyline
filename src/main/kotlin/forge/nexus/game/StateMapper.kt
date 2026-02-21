@@ -1046,8 +1046,12 @@ object StateMapper {
 
     /**
      * Resolve the correct updateType for a game state message.
-     * - SendAndRecord: viewing seat IS the acting player (your actions)
-     * - SendHiFi: viewing seat is NOT the acting player (opponent/spectator)
+     * - SendAndRecord: state change the client must persist (zone transfers, actions)
+     * - SendHiFi: transient update (phase echoes, state refreshes)
+     *
+     * Note: real server uses SendAndRecord for ALL zone-transfer diffs, regardless
+     * of whose turn it is. This heuristic (acting == viewing) is an approximation
+     * used by postAction; aiActionDiff hardcodes SendAndRecord directly.
      */
     fun resolveUpdateType(game: Game, bridge: GameBridge, viewingSeatId: Int): GameStateUpdate {
         val human = bridge.getPlayer(1)

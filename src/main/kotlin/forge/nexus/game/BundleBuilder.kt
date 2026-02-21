@@ -111,7 +111,8 @@ object BundleBuilder {
     /**
      * AI action diff: GS Diff + empty marker for opponent-perspective state updates.
      *
-     * Always uses SendHiFi (opponent viewing AI's actions). No ActionsAvailableReq.
+     * Primary diff uses SendAndRecord (client must persist zone changes).
+     * Echo uses SendHiFi (transient state update). No ActionsAvailableReq.
      * Produces the double-diff pattern matching real server AI turn messages:
      *   1. GS Diff with annotations (zone transfers, state changes)
      *   2. GS Diff empty marker (turnInfo only)
@@ -139,7 +140,7 @@ object BundleBuilder {
             ++nextGs,
             matchId,
             bridge,
-            updateType = GameStateUpdate.SendHiFi,
+            updateType = GameStateUpdate.SendAndRecord,
             viewingSeatId = seatId,
         )
         val actions = StateMapper.buildActions(game, seatId, bridge)
