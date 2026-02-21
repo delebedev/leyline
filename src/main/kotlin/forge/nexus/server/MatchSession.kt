@@ -85,7 +85,7 @@ class MatchSession(
         bridge.playback?.seedCounters(msgIdCounter, gameStateId)
 
         // Seed state snapshot for subsequent diff computation
-        bridge.snapshotState(game, gameStateId)
+        bridge.snapshotState(StateMapper.buildFromGame(game, gameStateId, matchId, bridge))
 
         // Auto-pass through phases where human has no real actions
         autoPassAndAdvance(bridge)
@@ -386,7 +386,7 @@ class MatchSession(
                 val (nextMsg, nextGs) = playback.getCounters()
                 msgIdCounter = nextMsg
                 gameStateId = nextGs
-                bridge.snapshotState(game, gameStateId)
+                bridge.snapshotState(StateMapper.buildFromGame(game, gameStateId, matchId, bridge))
                 return@repeat // re-evaluate; don't fall through to sendRealGameState
             }
 

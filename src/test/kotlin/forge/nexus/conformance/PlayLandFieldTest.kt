@@ -1,6 +1,7 @@
 package forge.nexus.conformance
 
 import forge.nexus.game.ZoneIds
+import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotEquals
 import org.testng.Assert.assertTrue
@@ -172,7 +173,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
         val acc = ClientAccumulator()
         acc.seedFull(handshakeFull(game, b, gsId))
         acc.processAll(startResult.messages)
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         val player = b.getPlayer(1) ?: error("Player 1 not found")
         val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")

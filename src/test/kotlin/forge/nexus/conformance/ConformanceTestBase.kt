@@ -11,6 +11,7 @@ import forge.nexus.game.GameBridge
 import forge.nexus.game.StateMapper
 import forge.nexus.game.advanceToMain1
 import forge.nexus.game.awaitFreshPending
+import forge.nexus.game.snapshotFromGame
 import forge.web.game.GameBootstrap
 import forge.web.game.PlayerAction
 import org.testng.Assert
@@ -41,11 +42,24 @@ abstract class ConformanceTestBase {
         bridge = null
     }
 
-    /** Start a deterministic game, keep hand, advance to Main1. Returns (bridge, game, startingGsId). */
-    protected fun startGameAtMain1(seed: Long = 42L): Triple<GameBridge, Game, Int> {
+    /**
+     * Start a deterministic game, keep hand, advance to Main1.
+     *
+     * @param seed RNG seed for deterministic shuffles
+     * @param deckList custom deck list (e.g. "30 Plains\n30 Forest"); null uses default mono-green
+     * @return (bridge, game, startingGsId)
+     */
+    protected fun startGameAtMain1(
+        seed: Long = 42L,
+        deckList: String? = null,
+    ): Triple<GameBridge, Game, Int> {
+        // Auto-register CardData for all cards in the deck list
+        if (deckList != null) {
+            TestCardRegistry.ensureDeckRegistered(deckList)
+        }
         val b = GameBridge()
         bridge = b
-        b.start(seed = seed)
+        b.start(seed = seed, deckList = deckList)
         b.submitKeep(1)
         advanceToMain1(b)
         val game = b.getGame()!!
@@ -55,7 +69,7 @@ abstract class ConformanceTestBase {
             "Game should be at Main1 after advanceToMain1 (actual: ${game.phaseHandler.phase})",
         )
         val gsId = 20
-        b.snapshotState(game, gsId)
+        b.snapshotFromGame(game, gsId)
         return Triple(b, game, gsId)
     }
 
@@ -172,7 +186,7 @@ abstract class ConformanceTestBase {
     protected fun castSpellAndCapture(): GameStateMessage? {
         val (b, game, gsId) = startGameAtMain1()
         playLand(b) ?: return null
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
         castCreature(b) ?: return null
         return postAction(game, b, 1, gsId + 2).gsmOrNull
     }
@@ -184,7 +198,7 @@ abstract class ConformanceTestBase {
     protected fun castSpellAndCaptureWithIds(): Triple<GameStateMessage, Int, Int>? {
         val (b, game, gsId) = startGameAtMain1()
         playLand(b) ?: return null
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         val player = b.getPlayer(1) ?: return null
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
@@ -205,11 +219,11 @@ abstract class ConformanceTestBase {
     protected fun resolveAndCapture(): GameStateMessage? {
         val (b, game, gsId) = startGameAtMain1()
         playLand(b) ?: return null
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         castCreature(b) ?: return null
         val castResult = postAction(game, b, 1, gsId + 2)
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         passPriority(b)
         return postAction(game, b, 1, castResult.nextGsId).gsmOrNull

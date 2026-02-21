@@ -1,5 +1,6 @@
 package forge.nexus.game
 
+import forge.game.Game
 import forge.web.game.GameActionBridge
 import forge.web.game.PlayerAction
 
@@ -9,6 +10,15 @@ import forge.web.game.PlayerAction
  * Extracted from ConformanceTestBase so both conformance and
  * integration tests use the same race-free implementations.
  */
+
+/**
+ * Convenience: build a full GSM snapshot from the live game and store it.
+ * Production code passes pre-built GSMs to [GameBridge.snapshotState] directly;
+ * this wrapper avoids boilerplate in tests.
+ */
+fun GameBridge.snapshotFromGame(game: Game, gameStateId: Int = 0) {
+    snapshotState(StateMapper.buildFromGame(game, gameStateId, "", this))
+}
 
 /**
  * Wait for a pending action whose actionId differs from [previousId].

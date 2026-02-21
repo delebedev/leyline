@@ -1,6 +1,7 @@
 package forge.nexus.conformance
 
 import forge.nexus.game.ZoneIds
+import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.*
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -30,7 +31,7 @@ class AiTurnConformanceTest : ConformanceTestBase() {
 
         // Play a land to have mana, then snapshot
         playLand(b) ?: error("playLand failed at seed 42")
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         // Pass through the rest of the human's turn until AI gets priority.
         // Each pass advances through Main1 → Combat → Main2 → End → AI turn.
@@ -94,7 +95,7 @@ class AiTurnConformanceTest : ConformanceTestBase() {
 
         // Play a land so AI has something to respond to, then snapshot
         playLand(b) ?: error("playLand failed at seed 42")
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         // Pass through multiple turns until AI plays something with zone changes.
         // Phase-only transitions produce empty diffs; we need actual card movement.

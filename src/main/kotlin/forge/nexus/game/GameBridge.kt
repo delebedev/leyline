@@ -108,9 +108,9 @@ class GameBridge(
     /** Snapshot current zones for annotation building. */
     fun getPreviousZone(instanceId: Int): Int? = diff.getPreviousZone(instanceId)
 
-    /** Previous full GameStateMessage — used to compute diffs. Null before first state. */
-    fun snapshotState(game: Game, gameStateId: Int = 0) {
-        diff.snapshotState(StateMapper.buildFromGame(game, gameStateId, "", this))
+    /** Store a full GameStateMessage snapshot for future diff computation. */
+    fun snapshotState(state: GameStateMessage) {
+        diff.snapshotState(state)
     }
 
     fun getPreviousState(): GameStateMessage? = diff.getPreviousState()
