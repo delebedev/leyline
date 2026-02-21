@@ -7,6 +7,7 @@ import forge.game.player.Player
 import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
+import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertFalse
 import org.testng.Assert.assertNotNull
@@ -48,11 +49,11 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
         // No creature on BF — play a land + cast one
         playLand(b)
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
         castCreature(b)
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
         passPriority(b) // resolve
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         return bf.cards.firstOrNull { it.isCreature }
             ?: error("Failed to get creature on battlefield")
@@ -68,7 +69,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         gsId: Int,
         action: () -> Unit,
     ): GameStateMessage {
-        b.snapshotState(game, gsId)
+        b.snapshotFromGame(game, gsId)
         action()
         val result = BundleBuilder.stateOnlyDiff(
             game, b, TEST_MATCH_ID, SEAT_ID, 1, gsId,
@@ -166,7 +167,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
     fun handToStackCastSpell() {
         val (b, game, gsId) = startGameAtMain1()
         playLand(b) // need mana
-        b.snapshotState(game, gsId + 1)
+        b.snapshotFromGame(game, gsId + 1)
 
         val player = human(b)
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
@@ -197,7 +198,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
     fun stackToBattlefieldResolve() {
         val (b, game, gsId) = startGameAtMain1()
         playLand(b)
-        b.snapshotState(game, gsId + 1)
+        b.snapshotFromGame(game, gsId + 1)
 
         val player = human(b)
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
@@ -206,7 +207,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
         castCreature(b)
         val castResult = postAction(game, b, 1, gsId + 1)
-        b.snapshotState(game, castResult.nextGsId)
+        b.snapshotFromGame(game, castResult.nextGsId)
         val stackId = b.getOrAllocInstanceId(forgeCardId)
 
         // Resolve by passing priority
@@ -429,7 +430,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
         // First exile the creature
         game.action.exile(creature, null, AbilityKey.newMap())
-        b.snapshotState(game, gsId + 10)
+        b.snapshotFromGame(game, gsId + 10)
 
         // Find the exiled card (may be a new Card object after zone change)
         val player = human(b)
@@ -463,7 +464,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
         // First destroy the creature to put it in GY
         game.action.destroy(creature, null, false, AbilityKey.newMap())
-        b.snapshotState(game, gsId + 10)
+        b.snapshotFromGame(game, gsId + 10)
 
         val player = human(b)
         val inGY = player.getZone(ZoneType.Graveyard).cards.firstOrNull { it.isCreature }
@@ -492,7 +493,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
         // First destroy to put in GY
         game.action.destroy(creature, null, false, AbilityKey.newMap())
-        b.snapshotState(game, gsId + 10)
+        b.snapshotFromGame(game, gsId + 10)
 
         val player = human(b)
         val inGY = player.getZone(ZoneType.Graveyard).cards.firstOrNull { it.isCreature }

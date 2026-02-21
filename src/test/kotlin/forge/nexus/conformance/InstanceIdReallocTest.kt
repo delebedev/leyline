@@ -2,6 +2,7 @@ package forge.nexus.conformance
 
 import forge.nexus.game.ZoneIds
 import forge.nexus.game.awaitFreshPending
+import forge.nexus.game.snapshotFromGame
 import forge.web.game.PlayerAction
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotEquals
@@ -83,7 +84,7 @@ class InstanceIdReallocTest : ConformanceTestBase() {
     fun castSpellReallocsInstanceId() {
         val (b, game, gsId) = startGameAtMain1()
         playLand(b) ?: error("playLand failed at seed 42")
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         val player = b.getPlayer(1) ?: error("Player 1 not found")
         val creature = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: error("No creature in hand at seed 42")
@@ -103,7 +104,7 @@ class InstanceIdReallocTest : ConformanceTestBase() {
     fun resolveKeepsSameInstanceId() {
         val (b, game, gsId) = startGameAtMain1()
         playLand(b) ?: error("playLand failed at seed 42")
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
         var nextGsId = gsId + 2
 
         val player = b.getPlayer(1) ?: error("Player 1 not found")
@@ -115,7 +116,7 @@ class InstanceIdReallocTest : ConformanceTestBase() {
         nextGsId = castResult.nextGsId
 
         val stackInstanceId = b.getOrAllocInstanceId(forgeCardId)
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         passPriority(b)
         postAction(game, b, 1, nextGsId)
@@ -142,7 +143,7 @@ class InstanceIdReallocTest : ConformanceTestBase() {
         val origId1 = b.getOrAllocInstanceId(land1.id)
         playLand(b) ?: error("playLand failed at seed 42")
         postAction(game, b, 1, gsId)
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         assertEquals(b.getLimboInstanceIds().size, 1, "After 1 land play, Limbo should have 1 entry")
         assertTrue(b.getLimboInstanceIds().contains(origId1), "Limbo should contain first retired ID")

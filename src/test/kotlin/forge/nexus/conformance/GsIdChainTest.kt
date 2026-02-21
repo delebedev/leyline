@@ -1,6 +1,7 @@
 package forge.nexus.conformance
 
 import forge.nexus.game.BundleBuilder
+import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.*
 import org.testng.annotations.Test
 
@@ -20,7 +21,7 @@ class GsIdChainTest : ConformanceTestBase() {
     @Test(description = "aiActionDiff produces single GSM with no pendingMessageCount")
     fun aiDiffNoPendingMessageCount() {
         val (b, game, gsId) = startGameAtMain1()
-        b.snapshotState(game, gsId)
+        b.snapshotFromGame(game, gsId)
 
         val result = BundleBuilder.aiActionDiff(game, b, TEST_MATCH_ID, SEAT_ID, 1, gsId)
         assertEquals(result.messages.size, 1, "aiActionDiff should produce 1 GSM")

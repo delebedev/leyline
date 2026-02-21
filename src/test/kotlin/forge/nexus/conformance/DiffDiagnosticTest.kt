@@ -1,6 +1,7 @@
 package forge.nexus.conformance
 
 import forge.nexus.game.BundleBuilder
+import forge.nexus.game.snapshotFromGame
 import forge.nexus.game.ZoneIds
 import org.testng.Assert.*
 import org.testng.annotations.Test
@@ -22,7 +23,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         val (b, game, gsId) = startGameAtMain1()
 
         val startResult = gameStart(game, b, 1, gsId)
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
         val firstDiff = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
 
         playLand(b) ?: error("playLand failed at seed 42")
@@ -58,7 +59,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
 
         val startResult = gameStart(game, b, 1, gsId)
         acc.processAll(startResult.messages)
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         playLand(b) ?: error("playLand failed at seed 42")
         val afterLand = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
@@ -128,7 +129,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         val (b, game, gsId) = startGameAtMain1()
 
         val startResult = gameStart(game, b, 1, gsId)
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         playLand(b) ?: error("playLand failed at seed 42")
 

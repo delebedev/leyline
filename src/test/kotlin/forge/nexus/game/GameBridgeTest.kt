@@ -889,7 +889,7 @@ class GameBridgeTest {
         val game = b.getGame()!!
 
         // Seed snapshot — subsequent buildDiffFromGame should produce Diff
-        b.snapshotState(game)
+        b.snapshotFromGame(game)
 
         val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, 10)
         val gs = result.messages.first().gameStateMessage

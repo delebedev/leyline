@@ -717,8 +717,8 @@ object StateMapper {
             }
         }
 
-        // Update snapshot for next diff (pass gsId so prevGameStateId is correct)
-        bridge.snapshotState(game, gameStateId)
+        // Update snapshot for next diff (reuse the full GSM already built above)
+        bridge.snapshotState(current)
 
         return builder.build()
     }
