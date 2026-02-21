@@ -16,12 +16,14 @@ TestNG groups control what runs. Use `just --list` for all targets.
 |--------|-------|------|-------|
 | `just test-unit` | `unit` | Pure logic, no engine | ~1s |
 | `just test-conformance` | `conformance` | Wire shape vs client patterns | ~5s |
-| `just test-integration` | `integration` | Full engine boot (includes conformance) | ~30s |
+| `just test-integration` | `integration` | Full engine boot, 4 parallel forks | ~90s |
 | `just test-gate` | unit+conformance | Pre-commit gate (skips integration + recording) | ~5s |
+| `just test-full` | all three | Gate then integration (chained) | ~95s |
 | `just test-one Foo` | — | Single class by name | varies |
 | `just test` | ungrouped | Everything (may hit pre-existing init issues) | slow |
 
 **Before committing:** run `just test-gate`.
+**After big/risky changes** (StateMapper, GameBridge, annotation pipeline, zone transitions, combat/targeting): run `just test-integration` or `just test-full`.
 
 **RULE: Every test class MUST have at least one group.** Annotate with `@Test(groups = ["unit"])`, `@Test(groups = ["conformance"])`, `@Test(groups = ["integration"])`, etc. Tests without a group are invisible to `just test-unit`/`test-conformance`/`test-integration` and only run via `just test` (which is slow and unreliable). If a test is pure logic with no engine, use `unit`. If it boots GameBridge, use `integration`.
 
