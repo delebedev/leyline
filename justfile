@@ -194,8 +194,17 @@ proto-compare *args: (_require classpath) check-java
     @{{_nexus_cli}} forge.nexus.conformance.CompareMainKt {{args}}
 
 # trace an ID across all recorded payloads (no port kill — safe while server runs)
-proto-trace id: (_require classpath) check-java
-    @{{_nexus_cli}} forge.nexus.debug.TraceKt "{{id}}" {{payloads}}
+# dir: payloads dir (default: capture), or "engine" / "latest-engine" shortcuts
+proto-trace id dir="": (_require classpath) check-java
+    #!/usr/bin/env bash
+    set -euo pipefail
+    d="{{dir}}"
+    if [[ -z "$d" ]]; then d="{{payloads}}"; fi
+    if [[ "$d" == "engine" || "$d" == "latest-engine" ]]; then
+        d="$(ls -dt /tmp/arena-recordings/*/engine 2>/dev/null | head -1)"
+        [[ -z "$d" ]] && { echo "No engine recording found"; exit 1; }
+    fi
+    {{_nexus_cli}} forge.nexus.debug.TraceKt "{{id}}" "$d"
 
 # decode a recording directory to structured JSONL (no port kill)
 proto-decode-recording dir output="": (_require classpath) check-java
