@@ -180,7 +180,7 @@ class MatchSession(
                     bridge.getGame()!!,
                     "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
                 )
-                val req = StateMapper.buildSelectTargetsReq(pendingPrompt, bridge)
+                val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)
                 sendSelectTargetsReq(bridge, req)
                 return
             }
@@ -397,7 +397,7 @@ class MatchSession(
 
             // Combat: DeclareAttackers on human's attacking turn
             if (phase == PhaseType.COMBAT_DECLARE_ATTACKERS && isHumanTurn) {
-                val req = StateMapper.buildDeclareAttackersReq(game, seatId, bridge)
+                val req = BundleBuilder.buildDeclareAttackersReq(game, seatId, bridge)
                 if (req.attackersCount > 0) {
                     traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
                     sendDeclareAttackersReq(bridge, req)
@@ -459,7 +459,7 @@ class MatchSession(
             val pendingPrompt = bridge.promptBridge.getPendingPrompt()
             if (pendingPrompt != null && pendingPrompt.request.candidateRefs.isNotEmpty()) {
                 traceEvent(GameStateCollector.EventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
-                val req = StateMapper.buildSelectTargetsReq(pendingPrompt, bridge)
+                val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)
                 sendSelectTargetsReq(bridge, req)
                 return
             }
@@ -468,7 +468,7 @@ class MatchSession(
             // AI turn puts the client into "waiting for input" mode repeatedly,
             // which suppresses animations.
             if (!isAiTurn) {
-                val actions = StateMapper.buildActions(game, seatId, bridge)
+                val actions = BundleBuilder.buildActions(game, seatId, bridge)
                 if (!BundleBuilder.shouldAutoPass(actions)) {
                     val actionSummary = actions.actionsList
                         .groupBy { it.actionType.name.removeSuffix("_add3") }
