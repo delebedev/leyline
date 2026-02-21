@@ -80,4 +80,46 @@ sealed interface NexusGameEvent {
         val blockerForgeIds: List<Int>,
         val seatId: Int,
     ) : NexusGameEvent
+
+    // -- Group A: zone-transition disambiguation (CardSacrificed only — rest inferred from ZoneChanged) --
+
+    /** A permanent was sacrificed (BF→GY via sacrifice effect). */
+    data class CardSacrificed(
+        val forgeCardId: Int,
+        val seatId: Int,
+    ) : NexusGameEvent
+
+    // -- Group B: annotation-producing events --
+
+    /** Counters added or removed on a card (+1/+1, loyalty, poison, stun, etc.). */
+    data class CountersChanged(
+        val forgeCardId: Int,
+        val counterType: String,
+        val oldCount: Int,
+        val newCount: Int,
+    ) : NexusGameEvent
+
+    /** A player's library was shuffled. */
+    data class LibraryShuffled(
+        val seatId: Int,
+    ) : NexusGameEvent
+
+    /** A player scried (looked at top N, put some on top / some on bottom). */
+    data class Scry(
+        val seatId: Int,
+        val topCount: Int,
+        val bottomCount: Int,
+    ) : NexusGameEvent
+
+    /** A player surveilled (looked at top N, put some in library / some in graveyard). */
+    data class Surveil(
+        val seatId: Int,
+        val toLibrary: Int,
+        val toGraveyard: Int,
+    ) : NexusGameEvent
+
+    // -- Group C: combat enrichment --
+
+    /** Combat phase ended — signal to clear combat state. */
+    data object CombatEnded : NexusGameEvent
 }

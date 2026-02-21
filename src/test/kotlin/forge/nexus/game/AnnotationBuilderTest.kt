@@ -6,7 +6,7 @@ import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
-@Test
+@Test(groups = ["unit"])
 class AnnotationBuilderTest {
 
     @Test
@@ -266,5 +266,62 @@ class AnnotationBuilderTest {
         assertTrue(ann.typeList.contains(AnnotationType.SyntheticEvent))
         assertEquals(ann.affectorId, 0)
         assertEquals(ann.affectedIdsCount, 0)
+    }
+
+    // --- CounterAdded (Group B) ---
+
+    @Test
+    fun counterAddedFields() {
+        val ann = AnnotationBuilder.counterAdded(instanceId = 100, counterType = "P1P1", amount = 2)
+        assertTrue(ann.typeList.contains(AnnotationType.CounterAdded))
+        assertTrue(ann.affectedIdsList.contains(100))
+
+        val type = ann.detailsList.first { it.key == "counter_type" }
+        assertEquals(type.type, KeyValuePairValueType.String)
+        assertEquals(type.getValueString(0), "P1P1")
+
+        val txn = ann.detailsList.first { it.key == "transaction_amount" }
+        assertEquals(txn.type, KeyValuePairValueType.Int32)
+        assertEquals(txn.getValueInt32(0), 2)
+    }
+
+    // --- CounterRemoved (Group B) ---
+
+    @Test
+    fun counterRemovedFields() {
+        val ann = AnnotationBuilder.counterRemoved(instanceId = 200, counterType = "LOYALTY", amount = 3)
+        assertTrue(ann.typeList.contains(AnnotationType.CounterRemoved))
+        assertTrue(ann.affectedIdsList.contains(200))
+
+        val type = ann.detailsList.first { it.key == "counter_type" }
+        assertEquals(type.getValueString(0), "LOYALTY")
+
+        val txn = ann.detailsList.first { it.key == "transaction_amount" }
+        assertEquals(txn.getValueInt32(0), 3)
+    }
+
+    // --- Shuffle (Group B) ---
+
+    @Test
+    fun shuffleFields() {
+        val ann = AnnotationBuilder.shuffle(seatId = 1)
+        assertTrue(ann.typeList.contains(AnnotationType.Shuffle))
+        assertTrue(ann.affectedIdsList.contains(1))
+    }
+
+    // --- Scry (Group B) ---
+
+    @Test
+    fun scryFields() {
+        val ann = AnnotationBuilder.scry(seatId = 1, topCount = 2, bottomCount = 1)
+        assertTrue(ann.typeList.contains(AnnotationType.Scry_af5a))
+        assertTrue(ann.affectedIdsList.contains(1))
+
+        val top = ann.detailsList.first { it.key == "topCount" }
+        assertEquals(top.type, KeyValuePairValueType.Int32)
+        assertEquals(top.getValueInt32(0), 2)
+
+        val bottom = ann.detailsList.first { it.key == "bottomCount" }
+        assertEquals(bottom.getValueInt32(0), 1)
     }
 }
