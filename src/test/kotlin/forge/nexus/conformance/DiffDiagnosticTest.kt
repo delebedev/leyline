@@ -21,6 +21,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
     fun twoLandPlaysNoDuplicates() {
         val (b, game, gsId) = startGameAtMain1()
         val acc = ClientAccumulator()
+        acc.seedFull(handshakeFull(game, b, gsId))
 
         val startResult = gameStart(game, b, 1, gsId)
         acc.processAll(startResult.messages)
@@ -124,6 +125,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
     fun castCreatureResolveFlow() {
         val (b, game, gsId) = startGameAtMain1()
         val acc = ClientAccumulator()
+        acc.seedFull(handshakeFull(game, b, gsId))
 
         val startResult = gameStart(game, b, 1, gsId)
         acc.processAll(startResult.messages)
@@ -257,6 +259,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
     fun multiplePostActionConsistency() {
         val (b, game, gsId) = startGameAtMain1()
         val acc = ClientAccumulator()
+        acc.seedFull(handshakeFull(game, b, gsId))
 
         val startResult = gameStart(game, b, 1, gsId)
         acc.processAll(startResult.messages)
@@ -279,6 +282,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
     fun fullStateBetweenDiffsNoCorruption() {
         val (b, game, gsId) = startGameAtMain1()
         val acc = ClientAccumulator()
+        acc.seedFull(handshakeFull(game, b, gsId))
 
         val startResult = gameStart(game, b, 1, gsId)
         acc.processAll(startResult.messages)

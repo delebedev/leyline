@@ -259,9 +259,11 @@ object StateMapper {
         val zones = mutableListOf<ZoneInfo>()
         val gameObjects = mutableListOf<GameObjectInfo>()
 
-        // Both seats' hand + library only (real server omits graveyard at deal-hand)
-        addHandAndLibrary(game, human, 1, bridge, zones, gameObjects, ZONE_P1_HAND, ZONE_P1_LIBRARY)
-        addHandAndLibrary(game, ai, 2, bridge, zones, gameObjects, ZONE_P2_HAND, ZONE_P2_LIBRARY)
+        // Both seats' hand + library only (real server omits graveyard at deal-hand).
+        // Only include GameObjectInfo for the viewing seat's hand — opponent's hand
+        // cards appear in objectInstanceIds (for count) but render face-down.
+        addHandAndLibrary(game, human, 1, bridge, zones, gameObjects, ZONE_P1_HAND, ZONE_P1_LIBRARY, viewingSeatId = seatId)
+        addHandAndLibrary(game, ai, 2, bridge, zones, gameObjects, ZONE_P2_HAND, ZONE_P2_LIBRARY, viewingSeatId = seatId)
 
         // Players — both have pendingMessageType: MulliganResp during mulligan
         val player1 = buildPlayerInfo(human, 1).toBuilder()
@@ -272,6 +274,9 @@ object StateMapper {
         // activePlayer=2 (seat 2 won die roll in template), decisionPlayer=2
         val turnInfo = TurnInfo.newBuilder()
             .setActivePlayer(2).setDecisionPlayer(2)
+
+        // Build actions for the viewing seat's opening hand (Cast/Play from hand)
+        val actions = buildActions(game, seatId, bridge)
 
         val gsm = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
@@ -288,8 +293,15 @@ object StateMapper {
             .setPrevGameStateId(gameStateId - 1)
             .setUpdate(GameStateUpdate.SendAndRecord)
 
-        // Only include actions for the target seat (stripped for GSM)
-        // At deal-hand time, actions are stale — clear them like the template does
+        // Embed stripped actions matching real server deal-hand shape
+        for (action in actions.actionsList) {
+            gsm.addActions(
+                ActionInfo.newBuilder()
+                    .setSeatId(seatId)
+                    .setAction(stripActionForGsm(action)),
+            )
+        }
+
         return gsm.build()
     }
 
@@ -691,16 +703,23 @@ object StateMapper {
         actions: ActionsAvailableReq,
         game: Game,
         bridge: GameBridge,
+        recipientSeatId: Int = 0,
     ): GameStateMessage {
         val builder = gsm.toBuilder()
             .setPendingMessageCount(1)
-        val handler = game.phaseHandler
-        val human = bridge.getPlayer(1)
-        val activeSeat = if (handler.priorityPlayer == human) 1 else 2
+        // Actions are always attributed to the recipient (human) seat,
+        // not the active/priority player. Real server embeds the recipient's
+        // actions so the client knows what it can do regardless of whose turn it is.
+        val seatForActions = if (recipientSeatId != 0) {
+            recipientSeatId
+        } else {
+            val human = bridge.getPlayer(1)
+            if (game.phaseHandler.priorityPlayer == human) 1 else 2
+        }
         for (action in actions.actionsList) {
             builder.addActions(
                 ActionInfo.newBuilder()
-                    .setSeatId(activeSeat)
+                    .setSeatId(seatForActions)
                     .setAction(stripActionForGsm(action)),
             )
         }
@@ -721,6 +740,7 @@ object StateMapper {
         step: Step,
         isStageTransition: Boolean = false,
         actions: ActionsAvailableReq? = null,
+        actionSeatId: Int = 0,
     ): GameStateMessage {
         val handler = game.phaseHandler
         val human = bridge.getPlayer(1)
@@ -757,13 +777,15 @@ object StateMapper {
             )
         }
 
-        // Embed stripped-down actions when AAR follows
+        // Embed stripped-down actions when AAR follows.
+        // actionSeatId = recipient seat (human), not necessarily the active player.
         if (actions != null) {
+            val embedSeat = if (actionSeatId != 0) actionSeatId else activeSeat
             builder.setPendingMessageCount(1)
             for (action in actions.actionsList) {
                 builder.addActions(
                     ActionInfo.newBuilder()
-                        .setSeatId(activeSeat)
+                        .setSeatId(embedSeat)
                         .setAction(stripActionForGsm(action)),
                 )
             }
@@ -1186,6 +1208,7 @@ object StateMapper {
         gameObjects: MutableList<GameObjectInfo>,
         handZoneId: Int,
         libZoneId: Int,
+        viewingSeatId: Int = 0,
     ) {
         if (player == null) return
 
@@ -1193,10 +1216,16 @@ object StateMapper {
         val handBuilder = ZoneInfo.newBuilder()
             .setZoneId(handZoneId).setType(ZoneType.Hand)
             .setOwnerSeatId(seatId).setVisibility(Visibility.Private)
+        // Real server only includes GameObjectInfo for the viewing seat's hand.
+        // Opponent hand cards appear in objectInstanceIds (for count) but have
+        // no GameObjectInfo — client renders them face-down.
+        val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId
         for (card in hand.cards) {
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             handBuilder.addObjectInstanceIds(instanceId)
-            gameObjects.add(buildCardObject(card, instanceId, handZoneId, seatId))
+            if (canSeeHand) {
+                gameObjects.add(buildCardObject(card, instanceId, handZoneId, seatId))
+            }
         }
         handBuilder.addViewers(seatId)
         zones.add(handBuilder.build())

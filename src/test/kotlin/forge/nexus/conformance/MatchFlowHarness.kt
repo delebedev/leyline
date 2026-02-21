@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.zone.ZoneType
 import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
+import forge.nexus.game.StateMapper
 import forge.nexus.server.ListMessageSink
 import forge.nexus.server.MatchRegistry
 import forge.nexus.server.MatchSession
@@ -49,6 +50,15 @@ class MatchFlowHarness(private val seed: Long = 42L) {
         registry.registerSession(matchId, seatId, session)
 
         bridge.submitKeep(seatId)
+
+        // Seed accumulator with handshake Full (simulates the Full state the real
+        // client gets before phaseTransitionDiff thin Diffs)
+        val game = bridge.getGame()
+        if (game != null) {
+            val fullGsm = StateMapper.buildFromGame(game, 0, matchId, bridge, viewingSeatId = seatId)
+            accumulator.seedFull(fullGsm)
+        }
+
         session.onMulliganKeep()
         drainSink()
     }

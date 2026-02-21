@@ -163,6 +163,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
         val startResult = gameStart(game, b, 1, gsId)
         val acc = ClientAccumulator()
+        acc.seedFull(handshakeFull(game, b, gsId))
         acc.processAll(startResult.messages)
         b.snapshotState(game)
 

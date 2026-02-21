@@ -53,6 +53,12 @@ class ClientAccumulator {
         messages.forEach { process(it) }
     }
 
+    /** Seed the accumulator with a Full GSM (simulates handshake baseline). */
+    fun seedFull(gsm: GameStateMessage) {
+        require(gsm.type == GameStateType.Full) { "seedFull requires Full GSM, got ${gsm.type}" }
+        processGameState(gsm)
+    }
+
     // --- Invariant checks ---
 
     /**

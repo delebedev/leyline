@@ -10,14 +10,14 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *
  * Runs a game with [MatchFlowHarnessTest.AI_FIRST_SEED] so Sparky goes first.
  * Captures messages through MatchSession/MatchFlowHarness (production code path)
- * and asserts properties that currently diverge from the real server:
+ * and asserts properties matching the real server:
  *
- * 1. **gameStart at T0** — the initial Full state should be at turn 0 (pre-game),
- *    not at T1/Upkeep where the human first gets priority. Real server sends
- *    Full at T0 immediately, then AI actions as Diffs.
- * 2. **Human actions in AI-turn GSMs** — GSMs during AI turn (activePlayer=2)
+ * 1. **No post-handshake Full** — gameStart uses thin Diffs (phaseTransitionDiff),
+ *    not a Full state with all zones/objects.
+ * 2. **Phase transition pattern** — first 3 GSMs match phaseTransitionDiff shape.
+ * 3. **Human actions in AI-turn GSMs** — GSMs during AI turn (activePlayer=2)
  *    should embed the human's available actions, not the AI's.
- * 3. **PhaseOrStepModified** — every phase/step transition must have annotations.
+ * 4. **PhaseOrStepModified** — every phase/step transition must have annotations.
  */
 @Test(groups = ["integration", "conformance"])
 class AiFirstTurnShapeTest {
@@ -39,47 +39,70 @@ class AiFirstTurnShapeTest {
     }
 
     /**
-     * The gameStart Full state should be at turn 0 (pre-game), matching the
-     * real server which sends its initial Full before any turns begin.
-     *
-     * Currently our engine waits for human priority before sending gameStart,
-     * so with AI-first the Full lands at T1/Upkeep instead of T0.
+     * No post-handshake GSM should be Full with zones/objects.
+     * The only Full is gsId=1 in the handshake (not captured by harness).
+     * gameStart now uses phaseTransitionDiff which produces thin Diffs.
      */
-    @Test(description = "gameStart Full is at T0, not at a later turn/phase")
-    fun gameStartFullIsAtTurnZero() {
+    @Test(description = "No post-handshake Full GSM with zones")
+    fun gameStartIsDiffNotFull() {
         val h = runAiFirstGame()
 
-        // Find the gameStart Full GSM (the Full with zones + objects)
-        val fullGsms = h.allMessages
+        val fullWithZones = h.allMessages
             .filter { it.hasGameStateMessage() && it.gameStateMessage.type == GameStateType.Full }
             .map { it.gameStateMessage }
-            .filter { it.zonesCount > 0 } // gameStart Full has zones; handshake Fulls don't
+            .filter { it.zonesCount > 0 }
 
-        assertTrue(fullGsms.isNotEmpty(), "Should have at least one Full GSM with zones (gameStart)")
+        assertTrue(
+            fullWithZones.isEmpty(),
+            "No post-handshake GSM should be Full with zones, but found ${fullWithZones.size}: " +
+                fullWithZones.map { "gsId=${it.gameStateId}" },
+        )
+    }
 
-        // The gameStart Full should be at turn 0 (pre-game), like the real server
-        val gameStartGsm = fullGsms.first()
-        val turn = gameStartGsm.turnInfo.turnNumber
-        val phase = gameStartGsm.turnInfo.phase
+    /**
+     * First 3 GSMs after handshake should match phaseTransitionDiff shape:
+     *   [0]: Diff/SendHiFi, 2x PhaseOrStepModified, has gameInfo
+     *   [1]: Diff/SendHiFi, turnInfo + actions only (echo)
+     *   [2]: Diff/SendAndRecord, 1x PhaseOrStepModified (checkpoint)
+     */
+    @Test(description = "gameStart has phaseTransitionDiff pattern")
+    fun gameStartHasPhaseTransitionPattern() {
+        val h = runAiFirstGame()
 
-        // Real server: Full at T0 None/None
-        // Current engine: Full at T1 Beginning/Upkeep (human first gets priority at AI's upkeep)
-        if (turn > 0) {
-            fail(
-                "gameStart Full should be at turn 0 (pre-game) but was at " +
-                    "turn=$turn phase=$phase. Real server sends Full at T0, " +
-                    "then AI actions as Diffs.",
-            )
-        }
+        val gsms = h.allMessages
+            .filter { it.hasGameStateMessage() }
+            .map { it.gameStateMessage }
+
+        assertTrue(gsms.size >= 3, "Expected at least 3 GSMs, got ${gsms.size}")
+
+        // GSM 0: SendHiFi with 2+ PhaseOrStepModified + gameInfo
+        val gsm0 = gsms[0]
+        assertEquals(gsm0.type, GameStateType.Diff, "GSM[0] should be Diff")
+        assertEquals(gsm0.update, GameStateUpdate.SendHiFi, "GSM[0] should be SendHiFi")
+        assertTrue(gsm0.hasGameInfo(), "GSM[0] should have gameInfo")
+        val phaseAnns0 = gsm0.annotationsList.flatMap { it.typeList }
+            .count { it == AnnotationType.PhaseOrStepModified }
+        assertTrue(phaseAnns0 >= 2, "GSM[0] should have 2+ PhaseOrStepModified, got $phaseAnns0")
+
+        // GSM 1: SendHiFi echo (turnInfo + actions)
+        val gsm1 = gsms[1]
+        assertEquals(gsm1.type, GameStateType.Diff, "GSM[1] should be Diff")
+        assertEquals(gsm1.update, GameStateUpdate.SendHiFi, "GSM[1] should be SendHiFi")
+        assertTrue(gsm1.hasTurnInfo(), "GSM[1] should have turnInfo")
+
+        // GSM 2: SendAndRecord with 1x PhaseOrStepModified
+        val gsm2 = gsms[2]
+        assertEquals(gsm2.type, GameStateType.Diff, "GSM[2] should be Diff")
+        assertEquals(gsm2.update, GameStateUpdate.SendAndRecord, "GSM[2] should be SendAndRecord")
+        val phaseAnns2 = gsm2.annotationsList.flatMap { it.typeList }
+            .count { it == AnnotationType.PhaseOrStepModified }
+        assertEquals(phaseAnns2, 1, "GSM[2] should have exactly 1 PhaseOrStepModified")
     }
 
     /**
      * GSMs during AI turns (activePlayer=2) should embed the human's available
      * actions (seat 1), not the AI's. The real server always includes the
      * recipient's actions so the client knows what it can do.
-     *
-     * Currently aiActionDiff embeds AI's actions (Pass/FloatMana at upkeep)
-     * instead of human's.
      */
     @Test(description = "AI-turn GSMs embed human's actions, not AI's")
     fun aiTurnGsmsEmbedHumanActions() {
@@ -121,7 +144,7 @@ class AiFirstTurnShapeTest {
 
     /**
      * Every phase/step transition must have PhaseOrStepModified annotations.
-     * The real server annotates every transition; our engine misses some.
+     * The real server annotates every transition; our engine must too.
      */
     @Test(description = "Phase transitions have PhaseOrStepModified annotations")
     fun phaseTransitionsHaveAnnotations() {

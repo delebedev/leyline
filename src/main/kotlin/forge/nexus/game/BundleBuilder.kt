@@ -18,84 +18,6 @@ object BundleBuilder {
     )
 
     /**
-     * Game-start bundle (post-keep):
-     *   GRE 1: Diff, Beginning/Upkeep, SendHiFi (stage transition)
-     *   GRE 2: Diff, empty priority-pass marker (gsId++)
-     *   GRE 3: Full, Main1, SendAndRecord, zones + objects + actions
-     *   GRE 4: ActionsAvailableReq
-     */
-    fun gameStart(
-        game: Game,
-        bridge: GameBridge,
-        matchId: String,
-        seatId: Int,
-        msgId: Int,
-        gsId: Int,
-    ): BundleResult {
-        var nextMsg = msgId
-        var nextGs = gsId
-        val messages = mutableListOf<GREToClientMessage>()
-
-        // GRE 1: Beginning/Upkeep transition (stage → Play)
-        nextGs++
-        val beginGs = StateMapper.buildTransitionState(
-            game,
-            nextGs,
-            matchId,
-            bridge,
-            Phase.Beginning_a549,
-            Step.Upkeep_a2cb,
-            isStageTransition = true,
-        )
-        messages.add(
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
-                it.gameStateMessage = beginGs
-            },
-        )
-
-        // GRE 2: empty priority-pass marker (double-diff pattern)
-        nextGs++
-        messages.add(
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
-                it.gameStateMessage = StateMapper.buildEmptyDiff(nextGs)
-            },
-        )
-
-        // GRE 3: Full state at Main1 with zones, objects, and actions.
-        // Must be Full (not Diff) because prior states used template instanceIds
-        // that don't match the bridge's ID mapping.
-        nextGs++
-        val actions = StateMapper.buildActions(game, seatId, bridge)
-        val mainGs = StateMapper.buildFromGame(
-            game,
-            nextGs,
-            matchId,
-            bridge,
-            actions,
-            updateType = StateMapper.resolveUpdateType(game, bridge, seatId),
-            viewingSeatId = seatId,
-        )
-        messages.add(
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
-                it.gameStateMessage = mainGs
-            },
-        )
-        // Seed the diff snapshotter so subsequent buildDiffFromGame calls
-        // produce actual Diff messages instead of falling back to Full.
-        bridge.snapshotState(game, nextGs)
-
-        // GRE 4: ActionsAvailableReq
-        messages.add(
-            makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, seatId, nextMsg++) {
-                it.actionsAvailableReq = actions
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-            },
-        )
-
-        return BundleResult(messages, nextMsg, nextGs)
-    }
-
-    /**
      * Post-action state bundle:
      *   GRE 1: Diff GameStateMessage with embedded actions (only changed zones/objects)
      *   GRE 2: ActionsAvailableReq
@@ -121,7 +43,9 @@ object BundleBuilder {
         val actions = StateMapper.buildActions(game, seatId, bridge)
 
         // Detect phase/step change vs previous snapshot and inject PhaseOrStepModified
-        val gsWithPhaseAnnotation = if (prevSnapshot != null && gsBase.hasTurnInfo() && prevSnapshot.hasTurnInfo() &&
+        val gsWithPhaseAnnotation = if (prevSnapshot != null &&
+            gsBase.hasTurnInfo() &&
+            prevSnapshot.hasTurnInfo() &&
             (gsBase.turnInfo.phase != prevSnapshot.turnInfo.phase || gsBase.turnInfo.step != prevSnapshot.turnInfo.step)
         ) {
             val handler = game.phaseHandler
@@ -141,7 +65,7 @@ object BundleBuilder {
         }
 
         // Re-embed stripped actions into the GSM
-        val gs = StateMapper.embedActions(gsWithPhaseAnnotation, actions, game, bridge)
+        val gs = StateMapper.embedActions(gsWithPhaseAnnotation, actions, game, bridge, recipientSeatId = seatId)
 
         val messages = listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
@@ -218,7 +142,7 @@ object BundleBuilder {
             updateType = GameStateUpdate.SendHiFi,
             viewingSeatId = seatId,
         )
-        val actions = StateMapper.buildActions(game, activeSeat, bridge)
+        val actions = StateMapper.buildActions(game, seatId, bridge)
 
         // Message 1: Diff with annotations + actions
         val gsWithAnnotations = if (phaseChanged || turnStarted) {
@@ -234,7 +158,7 @@ object BundleBuilder {
         } else {
             gsBase
         }
-        val gs = StateMapper.embedActions(gsWithAnnotations, actions, game, bridge)
+        val gs = StateMapper.embedActions(gsWithAnnotations, actions, game, bridge, recipientSeatId = seatId)
 
         // Message 2: Echo with turnInfo + actions (matches real server pattern).
         // Real server sends the echo with opponent's priority (both players
@@ -255,7 +179,7 @@ object BundleBuilder {
             .setPrevGameStateId(msg1GsId)
             .setTurnInfo(turnInfo)
             .setUpdate(GameStateUpdate.SendHiFi)
-        embedActions(echoBuilder, actions, activeSeat, pending = false)
+        embedActions(echoBuilder, actions, seatId, pending = false)
 
         val messages = listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, msg1GsId, seatId, nextMsg++) {
@@ -301,6 +225,9 @@ object BundleBuilder {
 
         val phase = StateMapper.mapPhase(game.phaseHandler.phase)
         val step = StateMapper.mapStep(game.phaseHandler.phase)
+        // TODO: buildActions is phase-sensitive — at upkeep it returns only Pass/FloatMana.
+        // Real server embeds Cast/Play actions regardless of current phase (cosmetic only;
+        // actual priority gating uses ActionsAvailableReq sent when human gets priority).
         val actions = StateMapper.buildActions(game, seatId, bridge)
         val handler = game.phaseHandler
         val human = bridge.getPlayer(1)
@@ -326,6 +253,7 @@ object BundleBuilder {
             step,
             isStageTransition = true,
             actions = actions,
+            actionSeatId = seatId,
         )
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
             it.gameStateMessage = gs1
@@ -340,7 +268,7 @@ object BundleBuilder {
             .setPrevGameStateId(msg1GsId)
             .setTurnInfo(turnInfo)
             .setUpdate(GameStateUpdate.SendHiFi)
-        embedActions(echoBuilder, actions, activeSeat, pending = false)
+        embedActions(echoBuilder, actions, seatId, pending = false)
         val msg2 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
             it.gameStateMessage = echoBuilder.build()
         }
@@ -356,7 +284,7 @@ object BundleBuilder {
             .addAnnotations(AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number))
             .addAllTimers(StateMapper.buildTimers())
             .setUpdate(GameStateUpdate.SendAndRecord)
-        embedActions(commitBuilder, actions, activeSeat)
+        embedActions(commitBuilder, actions, seatId)
         val msg3 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
             it.gameStateMessage = commitBuilder.build()
         }
