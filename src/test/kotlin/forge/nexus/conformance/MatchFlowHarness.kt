@@ -16,14 +16,28 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *
  * Creates a MatchSession with [ListMessageSink] (paceDelayMs=0).
  * All auto-pass, combat, targeting, game-over flows run through production code.
+ *
+ * @param validating when true (default), wraps the sink in [ValidatingMessageSink]
+ *                   to get automatic invariant checking on every message
  */
-class MatchFlowHarness(private val seed: Long = 42L) {
+class MatchFlowHarness(
+    private val seed: Long = 42L,
+    validating: Boolean = true,
+) {
 
     private val matchId = "test-match"
     private val seatId = 1
 
     val registry = MatchRegistry()
     val sink = ListMessageSink()
+
+    /** Validating decorator — null when [validating] is false. */
+    val validatingSink: ValidatingMessageSink? =
+        if (validating) ValidatingMessageSink(sink, strict = true) else null
+
+    /** The [MessageSink] passed to [MatchSession] (validating wrapper or plain). */
+    private val effectiveSink get() = validatingSink ?: sink
+
     val accumulator = ClientAccumulator()
     val allMessages = mutableListOf<GREToClientMessage>()
 
@@ -42,7 +56,7 @@ class MatchFlowHarness(private val seed: Long = 42L) {
         session = MatchSession(
             seatId = seatId,
             matchId = matchId,
-            sink = sink,
+            sink = effectiveSink,
             registry = registry,
             paceDelayMs = 0,
         )
@@ -57,6 +71,7 @@ class MatchFlowHarness(private val seed: Long = 42L) {
         if (game != null) {
             val fullGsm = StateMapper.buildFromGame(game, 0, matchId, bridge, viewingSeatId = seatId)
             accumulator.seedFull(fullGsm)
+            validatingSink?.seedFull(fullGsm)
         }
 
         session.onMulliganKeep()

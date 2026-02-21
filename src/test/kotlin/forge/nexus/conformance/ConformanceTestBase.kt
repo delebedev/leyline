@@ -90,6 +90,21 @@ abstract class ConformanceTestBase {
 
     // ----- Shared capture helpers -----
 
+    /**
+     * Create a [ValidatingMessageSink] seeded with the handshake Full GSM.
+     * Use in conformance tests to get automatic invariant coverage on every message.
+     */
+    protected fun validatingSink(
+        game: forge.game.Game,
+        b: GameBridge,
+        gsId: Int,
+        strict: Boolean = true,
+    ): ValidatingMessageSink {
+        val sink = ValidatingMessageSink(strict = strict)
+        sink.seedFull(handshakeFull(game, b, gsId))
+        return sink
+    }
+
     companion object {
         const val TEST_MATCH_ID = "test-match"
         const val SEAT_ID = 1
