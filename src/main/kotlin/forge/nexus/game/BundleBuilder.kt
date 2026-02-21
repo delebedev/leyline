@@ -250,6 +250,7 @@ object BundleBuilder {
         val gs1 = StateMapper.buildTransitionState(
             game,
             nextGs,
+            prevGameStateId = gsId,
             matchId,
             bridge,
             phase,
