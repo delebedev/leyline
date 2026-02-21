@@ -15,42 +15,70 @@ object AnnotationBuilder {
      * based on the **most specific** event (LandPlayed > ZoneChanged, etc.).
      * Returns null if no matching event was found — caller should fall back
      * to [StateMapper.inferCategory].
+     *
+     * Priority: specific mechanic events > CardSacrificed override > zone-pair inference.
      */
     fun categoryFromEvents(forgeCardId: Int, events: List<NexusGameEvent>): TransferCategory? {
-        // Walk events in reverse — most recent event for this card wins.
-        // Specific events (LandPlayed, SpellCast, SpellResolved) take priority
-        // over generic ZoneChanged.
         var generic: NexusGameEvent.ZoneChanged? = null
+        var sacrificed = false
+
         for (ev in events) {
             when (ev) {
+                // Highest priority — mechanic-specific events
                 is NexusGameEvent.LandPlayed -> if (ev.forgeCardId == forgeCardId) return TransferCategory.PlayLand
                 is NexusGameEvent.SpellCast -> if (ev.forgeCardId == forgeCardId) return TransferCategory.CastSpell
                 is NexusGameEvent.SpellResolved -> if (ev.forgeCardId == forgeCardId) return TransferCategory.Resolve
+                // Sacrifice flag — overrides BF→GY default of Destroy
+                is NexusGameEvent.CardSacrificed -> if (ev.forgeCardId == forgeCardId) sacrificed = true
+                // Generic zone change — infer category from zone pair
                 is NexusGameEvent.ZoneChanged -> if (ev.forgeCardId == forgeCardId) generic = ev
-                else -> {} // CardTapped, Damage, Life, etc. don't affect zone-transfer category
+                // Other events (tapped, damage, life, counters, etc.) don't affect transfer category
+                else -> {}
             }
         }
-        // Fall back to generic zone change if we saw one but no specific event
+
         if (generic != null) {
+            if (sacrificed) return TransferCategory.Sacrifice
             return zoneChangedCategory(generic)
         }
         return null
     }
 
-    /** Map a generic ZoneChanged event to an annotation category. */
+    /**
+     * Map a generic ZoneChanged event to an annotation category using zone-pair heuristics.
+     *
+     * This covers Group A categories that lack dedicated Forge events:
+     * Destroy (BF→GY), Bounce (BF→Hand), Draw (Lib→Hand), Discard (Hand→GY),
+     * Mill (Lib→GY), Countered (Stack→GY), and Exile (any→Exile).
+     */
     private fun zoneChangedCategory(ev: NexusGameEvent.ZoneChanged): TransferCategory = when {
         ev.from == forge.game.zone.ZoneType.Hand -> when (ev.to) {
             forge.game.zone.ZoneType.Battlefield -> TransferCategory.PlayLand
             forge.game.zone.ZoneType.Stack -> TransferCategory.CastSpell
-            else -> TransferCategory.ZoneTransfer
-        }
-        ev.from == forge.game.zone.ZoneType.Stack && ev.to == forge.game.zone.ZoneType.Battlefield ->
-            TransferCategory.Resolve
-        ev.from == forge.game.zone.ZoneType.Battlefield -> when (ev.to) {
-            forge.game.zone.ZoneType.Graveyard -> TransferCategory.Destroy
+            forge.game.zone.ZoneType.Graveyard -> TransferCategory.Discard
             forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
             else -> TransferCategory.ZoneTransfer
         }
+        ev.from == forge.game.zone.ZoneType.Stack -> when (ev.to) {
+            forge.game.zone.ZoneType.Battlefield -> TransferCategory.Resolve
+            forge.game.zone.ZoneType.Graveyard -> TransferCategory.Countered
+            forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
+            else -> TransferCategory.ZoneTransfer
+        }
+        ev.from == forge.game.zone.ZoneType.Battlefield -> when (ev.to) {
+            forge.game.zone.ZoneType.Graveyard -> TransferCategory.Destroy
+            forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
+            forge.game.zone.ZoneType.Hand -> TransferCategory.Bounce
+            forge.game.zone.ZoneType.Library -> TransferCategory.Bounce
+            else -> TransferCategory.ZoneTransfer
+        }
+        ev.from == forge.game.zone.ZoneType.Library -> when (ev.to) {
+            forge.game.zone.ZoneType.Hand -> TransferCategory.Draw
+            forge.game.zone.ZoneType.Graveyard -> TransferCategory.Mill
+            forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
+            else -> TransferCategory.ZoneTransfer
+        }
+        ev.to == forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
         else -> TransferCategory.ZoneTransfer
     }
 
@@ -198,6 +226,42 @@ object AnnotationBuilder {
             .addType(AnnotationType.EnteredZoneThisTurn)
             .setAffectorId(zoneId)
             .apply { instanceIds.forEach { addAffectedIds(it) } }
+            .build()
+
+    // -- Group B annotation builders --
+
+    /** Counter added to a permanent. Arena type 16 (CounterAdded). */
+    fun counterAdded(instanceId: Int, counterType: String, amount: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.CounterAdded)
+            .addAffectedIds(instanceId)
+            .addDetails(typedStringDetail("counter_type", counterType))
+            .addDetails(int32Detail("transaction_amount", amount))
+            .build()
+
+    /** Counter removed from a permanent. Arena type 17 (CounterRemoved). */
+    fun counterRemoved(instanceId: Int, counterType: String, amount: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.CounterRemoved)
+            .addAffectedIds(instanceId)
+            .addDetails(typedStringDetail("counter_type", counterType))
+            .addDetails(int32Detail("transaction_amount", amount))
+            .build()
+
+    /** Library shuffled. Arena type 56 (Shuffle). */
+    fun shuffle(seatId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.Shuffle)
+            .addAffectedIds(seatId)
+            .build()
+
+    /** Scry action. Arena annotation type 65 (Scry_af5a). */
+    fun scry(seatId: Int, topCount: Int, bottomCount: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.Scry_af5a)
+            .addAffectedIds(seatId)
+            .addDetails(int32Detail("topCount", topCount))
+            .addDetails(int32Detail("bottomCount", bottomCount))
             .build()
 
     private fun typedStringDetail(key: String, value: String): KeyValuePairInfo =

@@ -167,7 +167,9 @@ object StateMapper {
                 annotations.add(AnnotationBuilder.resolutionComplete(newId, grpId))
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, actingSeat))
             }
-            TransferCategory.Destroy, TransferCategory.Exile, TransferCategory.ZoneTransfer -> {}
+            TransferCategory.Destroy, TransferCategory.Sacrifice, TransferCategory.Countered,
+            TransferCategory.Bounce, TransferCategory.Draw, TransferCategory.Discard,
+            TransferCategory.Mill, TransferCategory.Exile, TransferCategory.ZoneTransfer -> {}
         }
 
         // Persistent: EnteredZoneThisTurn for cards landing on battlefield

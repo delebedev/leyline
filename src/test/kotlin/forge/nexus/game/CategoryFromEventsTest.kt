@@ -11,7 +11,7 @@ import org.testng.annotations.Test
  * categories, matching the behavior of [StateMapper.inferCategory]
  * but using rich event data instead of zone-pair heuristics.
  */
-@Test
+@Test(groups = ["unit"])
 class CategoryFromEventsTest {
 
     @Test
@@ -69,9 +69,19 @@ class CategoryFromEventsTest {
     }
 
     @Test
-    fun zoneChangedGenericReturnsZoneTransfer() {
+    fun zoneChangedGraveyardToExileReturnsExile() {
+        // GY→Exile now correctly returns Exile (was ZoneTransfer before zone-pair expansion)
         val events = listOf(
             NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Graveyard, to = ZoneType.Exile),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Exile)
+    }
+
+    @Test
+    fun zoneChangedGenericReturnsZoneTransfer() {
+        // Truly generic zone pair that doesn't match any specific category
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Graveyard, to = ZoneType.Library),
         )
         assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.ZoneTransfer)
     }
@@ -110,5 +120,138 @@ class CategoryFromEventsTest {
         assertEquals(AnnotationBuilder.categoryFromEvents(99, events), TransferCategory.CastSpell)
         assertEquals(AnnotationBuilder.categoryFromEvents(77, events), TransferCategory.Resolve)
         assertNull(AnnotationBuilder.categoryFromEvents(1, events))
+    }
+
+    // -- Group A: zone-transition disambiguation --
+
+    @Test
+    fun sacrificedOverridesDestroy() {
+        // When both CardSacrificed and ZoneChanged(BF→GY) fire, Sacrifice wins
+        val events = listOf(
+            NexusGameEvent.CardSacrificed(forgeCardId = 55, seatId = 1),
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Battlefield, to = ZoneType.Graveyard),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Sacrifice)
+    }
+
+    @Test
+    fun sacrificedWithoutZoneChangedReturnsNull() {
+        // CardSacrificed alone without a ZoneChanged should not produce a category
+        val events = listOf(
+            NexusGameEvent.CardSacrificed(forgeCardId = 55, seatId = 1),
+        )
+        assertNull(AnnotationBuilder.categoryFromEvents(55, events))
+    }
+
+    @Test
+    fun battlefieldToGraveyardWithoutSacrificeReturnsDestroy() {
+        // BF→GY without a CardSacrificed event defaults to Destroy
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Battlefield, to = ZoneType.Graveyard),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Destroy)
+    }
+
+    @Test
+    fun stackToGraveyardReturnsCountered() {
+        // Stack→GY without SpellResolved = countered
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 77, from = ZoneType.Stack, to = ZoneType.Graveyard),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(77, events), TransferCategory.Countered)
+    }
+
+    @Test
+    fun stackToGraveyardWithSpellResolvedReturnsResolve() {
+        // Stack→GY with SpellResolved = resolved (e.g. sorcery finishing)
+        val events = listOf(
+            NexusGameEvent.SpellResolved(forgeCardId = 77, hasFizzled = false),
+            NexusGameEvent.ZoneChanged(forgeCardId = 77, from = ZoneType.Stack, to = ZoneType.Graveyard),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(77, events), TransferCategory.Resolve)
+    }
+
+    @Test
+    fun battlefieldToHandReturnsBounce() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Battlefield, to = ZoneType.Hand),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Bounce)
+    }
+
+    @Test
+    fun battlefieldToLibraryReturnsBounce() {
+        // Tuck effects (BF→Library) also use Bounce category per Arena client
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Battlefield, to = ZoneType.Library),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Bounce)
+    }
+
+    @Test
+    fun libraryToHandReturnsDraw() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Library, to = ZoneType.Hand),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Draw)
+    }
+
+    @Test
+    fun handToGraveyardReturnsDiscard() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Hand, to = ZoneType.Graveyard),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Discard)
+    }
+
+    @Test
+    fun libraryToGraveyardReturnsMill() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Library, to = ZoneType.Graveyard),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Mill)
+    }
+
+    @Test
+    fun libraryToExileReturnsExile() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Library, to = ZoneType.Exile),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Exile)
+    }
+
+    @Test
+    fun handToExileReturnsExile() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Hand, to = ZoneType.Exile),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Exile)
+    }
+
+    @Test
+    fun stackToExileReturnsExile() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Stack, to = ZoneType.Exile),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Exile)
+    }
+
+    @Test
+    fun anyToExileFallbackReturnsExile() {
+        // Graveyard→Exile uses the catch-all any→Exile rule
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Graveyard, to = ZoneType.Exile),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Exile)
+    }
+
+    @Test
+    fun sacrificedForOtherCardDoesNotAffect() {
+        // CardSacrificed for a different card should not affect the target card
+        val events = listOf(
+            NexusGameEvent.CardSacrificed(forgeCardId = 99, seatId = 1),
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Battlefield, to = ZoneType.Graveyard),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Destroy)
     }
 }

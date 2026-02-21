@@ -14,6 +14,12 @@ enum class TransferCategory(val label: String) {
     CastSpell("CastSpell"),
     Resolve("Resolve"),
     Destroy("Destroy"),
+    Sacrifice("Sacrifice"),
+    Countered("Countered"),
+    Bounce("Bounce"),
+    Draw("Draw"),
+    Discard("Discard"),
+    Mill("Mill"),
     Exile("Exile"),
     ZoneTransfer("ZoneTransfer"),
 }

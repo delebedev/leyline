@@ -131,6 +131,54 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         }
     }
 
+    // -- Group A: zone-transition disambiguation --
+
+    override fun visit(ev: GameEventCardSacrificed) {
+        val card = ev.card()
+        val seat = seatOf(card.controller) ?: return
+        queue.add(NexusGameEvent.CardSacrificed(card.id, seat))
+        log.debug("event: CardSacrificed card={} seat={}", card.name, seat)
+    }
+
+    // -- Group B: annotation-producing events --
+
+    override fun visit(ev: GameEventCardCounters) {
+        queue.add(
+            NexusGameEvent.CountersChanged(
+                forgeCardId = ev.card().id,
+                counterType = ev.type().name,
+                oldCount = ev.oldValue(),
+                newCount = ev.newValue(),
+            ),
+        )
+        log.debug("event: CountersChanged card={} {} {}→{}", ev.card().name, ev.type(), ev.oldValue(), ev.newValue())
+    }
+
+    override fun visit(ev: GameEventShuffle) {
+        val seat = seatOf(ev.player()) ?: return
+        queue.add(NexusGameEvent.LibraryShuffled(seat))
+        log.debug("event: LibraryShuffled seat={}", seat)
+    }
+
+    override fun visit(ev: GameEventScry) {
+        val seat = seatOf(ev.player()) ?: return
+        queue.add(NexusGameEvent.Scry(seat, ev.toTop(), ev.toBottom()))
+        log.debug("event: Scry seat={} top={} bottom={}", seat, ev.toTop(), ev.toBottom())
+    }
+
+    override fun visit(ev: GameEventSurveil) {
+        val seat = seatOf(ev.player()) ?: return
+        queue.add(NexusGameEvent.Surveil(seat, ev.toLibrary(), ev.toGraveyard()))
+        log.debug("event: Surveil seat={} lib={} gy={}", seat, ev.toLibrary(), ev.toGraveyard())
+    }
+
+    // -- Group C: combat enrichment --
+
+    override fun visit(ev: GameEventCombatEnded) {
+        queue.add(NexusGameEvent.CombatEnded)
+        log.debug("event: CombatEnded")
+    }
+
     // -- helpers --
 
     private fun seatOf(player: forge.game.player.Player?): Int? {

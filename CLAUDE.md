@@ -21,7 +21,9 @@ TestNG groups control what runs. Use `just --list` for all targets.
 | `just test-one Foo` | — | Single class by name | varies |
 | `just test` | ungrouped | Everything (may hit pre-existing init issues) | slow |
 
-**Before committing:** run `just test-gate`. Annotate new test classes with `groups = [...]`.
+**Before committing:** run `just test-gate`.
+
+**RULE: Every test class MUST have at least one group.** Annotate with `@Test(groups = ["unit"])`, `@Test(groups = ["conformance"])`, `@Test(groups = ["integration"])`, etc. Tests without a group are invisible to `just test-unit`/`test-conformance`/`test-integration` and only run via `just test` (which is slow and unreliable). If a test is pure logic with no engine, use `unit`. If it boots GameBridge, use `integration`.
 
 **`recording` group** requires client capture files — skip in CI/normal dev.
 
