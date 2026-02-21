@@ -24,6 +24,12 @@ class CombatHandler(private val ops: SessionOps) {
     var pendingLegalAttackers: List<Int> = emptyList()
         private set
 
+    /** True while a DeclareBlockersReq is outstanding (sent but not yet responded to).
+     *  Prevents [checkCombatPhase] from re-sending during the priority window after
+     *  blockers are submitted. Cleared in [onDeclareBlockers]. */
+    var pendingBlockersSent: Boolean = false
+        private set
+
     /** Loop signal from combat phase checks. */
     enum class Signal { STOP, SEND_STATE, CONTINUE }
 
@@ -111,6 +117,7 @@ class CombatHandler(private val ops: SessionOps) {
         }
 
         log.info("CombatHandler: DeclareBlockersResp blocks={}", blockAssignments)
+        pendingBlockersSent = false
 
         ops.sendBundledGRE(
             listOf(
@@ -159,7 +166,7 @@ class CombatHandler(private val ops: SessionOps) {
                 }
             }
             PhaseType.COMBAT_DECLARE_BLOCKERS -> {
-                if (isAiTurn && combat != null && combat.attackers.isNotEmpty()) {
+                if (isAiTurn && combat != null && combat.attackers.isNotEmpty() && !pendingBlockersSent) {
                     ops.traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
                     sendDeclareBlockersReq(bridge)
                     return Signal.STOP
@@ -211,6 +218,7 @@ class CombatHandler(private val ops: SessionOps) {
         ops.msgIdCounter = result.nextMsgId
         ops.gameStateId = result.nextGsId
 
+        pendingBlockersSent = true
         NexusTap.outboundTemplate("DeclareBlockersReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
         bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
