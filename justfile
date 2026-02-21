@@ -60,38 +60,45 @@ dev-build: check-java
 
 # run tests (assumes `just build` has been run)
 test: check-java _check-upstream _clean-surefire
-    cd "{{root_dir}}" && mvn -pl forge-nexus \
-        {{mvn_quiet}} test
+    #!/usr/bin/env bash
+    set +e
+    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} test; rc=$?
+    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
 
 # single test class (e.g. `just test-one StructuralFingerprintTest`)
 test-one class: check-java _check-upstream _clean-surefire
-    cd "{{root_dir}}" && mvn -pl forge-nexus \
-        {{mvn_quiet}} \
-        -Dtest="{{class}}" -Dsurefire.failIfNoSpecifiedTests=false test
+    #!/usr/bin/env bash
+    set +e
+    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} -Dtest="{{class}}" -Dsurefire.failIfNoSpecifiedTests=false test; rc=$?
+    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
 
 # unit tests only (no engine bootstrap, fastest)
 test-unit: check-java _check-upstream _clean-surefire
-    cd "{{root_dir}}" && mvn -pl forge-nexus \
-        {{mvn_quiet}} \
-        -Dgroups=unit test
+    #!/usr/bin/env bash
+    set +e
+    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} -Dgroups=unit test; rc=$?
+    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
 
 # all conformance tests (~5s, wire-shape checks against Arena patterns)
 test-conformance: check-java _check-upstream _clean-surefire
-    cd "{{root_dir}}" && mvn -pl forge-nexus \
-        {{mvn_quiet}} \
-        -Dgroups=conformance test
+    #!/usr/bin/env bash
+    set +e
+    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} -Dgroups=conformance test; rc=$?
+    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
 
 # integration tests (~30s, boots engine — includes conformance)
 test-integration: check-java _check-upstream _clean-surefire
-    cd "{{root_dir}}" && mvn -pl forge-nexus \
-        {{mvn_quiet}} \
-        -Dgroups=integration test
+    #!/usr/bin/env bash
+    set +e
+    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} -Dgroups=integration test; rc=$?
+    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
 
 # pre-commit gate: unit + conformance + integration (skips recording)
 test-gate: check-java _check-upstream _clean-surefire
-    cd "{{root_dir}}" && mvn -pl forge-nexus \
-        {{mvn_quiet}} \
-        -Dgroups="unit,conformance,integration" test
+    #!/usr/bin/env bash
+    set +e
+    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} -Dgroups="unit,conformance,integration" test; rc=$?
+    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
 
 # watch *.kt, recompile + restart hybrid on change (fast: nexus-only compile)
 dev: check-java
@@ -283,6 +290,23 @@ _check-upstream:
 [private]
 _clean-surefire:
     @rm -rf "{{nexus_dir}}/target/surefire-reports"
+
+[private]
+_show-failures:
+    #!/usr/bin/env bash
+    report="{{nexus_dir}}/target/surefire-reports/testng-results.xml"
+    [ -f "$report" ] || exit 0
+    if rg -q 'status="FAIL"' "$report" 2>/dev/null; then
+        echo ""
+        echo "=== FAILED TESTS ==="
+        rg 'status="FAIL"' "$report" 2>/dev/null \
+            | while IFS= read -r line; do
+                method=$(echo "$line" | grep -oE 'name="[^"]+"' | head -1 | sed 's/name="//;s/"//')
+                class=$(echo "$line" | grep -oE 'instance:[^@]+' | sed 's/instance://')
+                echo "  ${class}.${method}"
+            done | sort
+        echo ""
+    fi
 
 _nexus_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill $pid 2>/dev/null || true; done; done; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp "$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
 # Same as _nexus_java but without killing ports — for read-only CLI tools
