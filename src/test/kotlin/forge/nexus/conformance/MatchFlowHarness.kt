@@ -65,7 +65,7 @@ class MatchFlowHarness(
             registry = registry,
             paceDelayMs = 0,
         )
-        session.gameBridge = bridge
+        session.connectBridge(bridge)
         registry.registerSession(matchId, seatId, session)
 
         bridge.submitKeep(seatId)

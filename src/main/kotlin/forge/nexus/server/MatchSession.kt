@@ -35,17 +35,33 @@ class MatchSession(
     private val sessionLock = Any()
 
     var msgIdCounter = 1
+        private set
     var gameStateId = 0
+        private set
     var gameBridge: GameBridge? = null
+        private set
 
     /** Saved client settings for echoing in SetSettingsResp. */
     var clientSettings: SettingsMessage? = null
 
-    /** True while this seat is in an interactive prompt (attackers/blockers/targets). */
-    private var inInteractivePrompt = false
-
     /** Legal attacker instanceIds from the last DeclareAttackersReq we sent. */
     private var pendingLegalAttackers: List<Int> = emptyList()
+
+    /** Wire the game bridge (called by [MatchHandler] after bridge creation). */
+    fun connectBridge(bridge: GameBridge) {
+        gameBridge = bridge
+    }
+
+    /** Advance gameStateId and return the new value. Used by [MatchHandler] handshake senders. */
+    fun nextGameStateId(): Int {
+        gameStateId++
+        return gameStateId
+    }
+
+    /** Update counters from a handshake result. Used by [MatchHandler] handshake senders. */
+    fun applyHandshakeCounters(nextMsgId: Int) {
+        msgIdCounter = nextMsgId
+    }
 
     companion object {
         private const val AUTO_PASS_MAX_ITERATIONS = 50
@@ -211,8 +227,6 @@ class MatchSession(
      */
     fun onDeclareAttackers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
-        inInteractivePrompt = false
-
         val pending = bridge.actionBridge.getPending() ?: run {
             log.warn("MatchSession: DeclareAttackersResp but no pending action — recovering")
             sendRealGameState(bridge)
@@ -242,7 +256,7 @@ class MatchSession(
 
         sendBundledGRE(
             listOf(
-                makeGRE(GREMessageType.SubmitAttackersResp_695e, gameStateId) {
+                makeGRE(GREMessageType.SubmitAttackersResp_695e, gameStateId, msgIdCounter++) {
                     it.submitAttackersResp = SubmitAttackersResp.newBuilder().setResult(ResultCode.Success_a500).build()
                 },
             ),
@@ -269,7 +283,6 @@ class MatchSession(
      */
     fun onDeclareBlockers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
-        inInteractivePrompt = false
 
         val pending = bridge.actionBridge.getPending() ?: run {
             log.warn("MatchSession: DeclareBlockersResp but no pending action — recovering")
@@ -290,7 +303,7 @@ class MatchSession(
 
         sendBundledGRE(
             listOf(
-                makeGRE(GREMessageType.SubmitBlockersResp_695e, gameStateId) {
+                makeGRE(GREMessageType.SubmitBlockersResp_695e, gameStateId, msgIdCounter++) {
                     it.submitBlockersResp = SubmitBlockersResp.newBuilder().setResult(ResultCode.Success_a500).build()
                 },
             ),
@@ -311,7 +324,6 @@ class MatchSession(
      */
     fun onSelectTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
-        inInteractivePrompt = false
 
         val resp = greMsg.selectTargetsResp
         val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: run {
@@ -330,7 +342,7 @@ class MatchSession(
 
         sendBundledGRE(
             listOf(
-                makeGRE(GREMessageType.SubmitTargetsResp_695e, gameStateId) {
+                makeGRE(GREMessageType.SubmitTargetsResp_695e, gameStateId, msgIdCounter++) {
                     it.submitTargetsResp = SubmitTargetsResp.newBuilder().setResult(ResultCode.Success_a500).build()
                 },
             ),
@@ -550,7 +562,6 @@ class MatchSession(
         val result = BundleBuilder.declareAttackersBundle(game, bridge, matchId, seatId, msgIdCounter, gameStateId, req)
         msgIdCounter = result.nextMsgId
         gameStateId = result.nextGsId
-        inInteractivePrompt = true
 
         val builtReq = result.messages.firstOrNull { it.hasDeclareAttackersReq() }?.declareAttackersReq
         pendingLegalAttackers = builtReq?.attackersList?.map { it.attackerInstanceId } ?: emptyList()
@@ -566,7 +577,6 @@ class MatchSession(
         val result = BundleBuilder.declareBlockersBundle(game, bridge, matchId, seatId, msgIdCounter, gameStateId)
         msgIdCounter = result.nextMsgId
         gameStateId = result.nextGsId
-        inInteractivePrompt = true
 
         NexusTap.outboundTemplate("DeclareBlockersReq seat=$seatId")
         sendBundledGRE(result.messages)
@@ -578,7 +588,6 @@ class MatchSession(
         val result = BundleBuilder.selectTargetsBundle(game, bridge, matchId, seatId, msgIdCounter, gameStateId, req)
         msgIdCounter = result.nextMsgId
         gameStateId = result.nextGsId
-        inInteractivePrompt = true
         NexusTap.outboundTemplate("SelectTargetsReq seat=$seatId")
         sendBundledGRE(result.messages)
         bridge.playback?.seedCounters(msgIdCounter, gameStateId)
@@ -644,13 +653,13 @@ class MatchSession(
             .setUpdate(GameStateUpdate.SendAndRecord)
 
         val messages = mutableListOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, gameStateId - 2) { it.gameStateMessage = gs1.build() },
-            makeGRE(GREMessageType.GameStateMessage_695e, gameStateId - 1) { it.gameStateMessage = gs2.build() },
-            makeGRE(GREMessageType.GameStateMessage_695e, gameStateId) { it.gameStateMessage = gs3.build() },
+            makeGRE(GREMessageType.GameStateMessage_695e, gameStateId - 2, msgIdCounter++) { it.gameStateMessage = gs1.build() },
+            makeGRE(GREMessageType.GameStateMessage_695e, gameStateId - 1, msgIdCounter++) { it.gameStateMessage = gs2.build() },
+            makeGRE(GREMessageType.GameStateMessage_695e, gameStateId, msgIdCounter++) { it.gameStateMessage = gs3.build() },
         )
 
         messages.add(
-            makeGRE(GREMessageType.IntermissionReq_695e, gameStateId) {
+            makeGRE(GREMessageType.IntermissionReq_695e, gameStateId, msgIdCounter++) {
                 it.intermissionReq = IntermissionReq.newBuilder()
                     .setResult(
                         ResultSpec.newBuilder()
@@ -668,14 +677,15 @@ class MatchSession(
 
     // --- Low-level helpers ---
 
-    /** Build a single GRE message (doesn't send). */
+    /** Build a single GRE message with an explicit msgId (no side-effect on counters). */
     private fun makeGRE(
         type: GREMessageType,
         gsId: Int,
+        msgId: Int,
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage {
         val gre = GREToClientMessage.newBuilder()
-            .setType(type).setMsgId(msgIdCounter++).setGameStateId(gsId).addSystemSeatIds(seatId)
+            .setType(type).setMsgId(msgId).setGameStateId(gsId).addSystemSeatIds(seatId)
         configure(gre)
         return gre.build()
     }
