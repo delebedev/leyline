@@ -1,6 +1,6 @@
 # Test Card Injection for forge-nexus
 
-**Status:** Plan  
+**Status:** Implemented  
 **Date:** 2026-02-21  
 
 ## Problem
