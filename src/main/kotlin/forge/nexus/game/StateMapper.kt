@@ -27,8 +27,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
 object StateMapper {
     private val log = LoggerFactory.getLogger(StateMapper::class.java)
 
-    /** Offset added to source card IDs for stack ability instance IDs. */
-    private const val STACK_ABILITY_ID_OFFSET = 100_000
+    /** @see ObjectMapper.STACK_ABILITY_ID_OFFSET */
+    private val STACK_ABILITY_ID_OFFSET = ObjectMapper.STACK_ABILITY_ID_OFFSET
 
     // Zone IDs — see ZoneIds object
     private const val ZONE_REVEALED_P1 = ZoneIds.REVEALED_P1
@@ -214,41 +214,12 @@ object StateMapper {
         return builder.build()
     }
 
-    /** Player zones for initial bundle: empty hand, full library, empty graveyard/sideboard. */
+    // --- Delegates to ZoneMapper ---
+
     private fun addInitialPlayerZones(
-        player: Player?,
-        seatId: Int,
-        bridge: GameBridge,
-        zones: MutableList<ZoneInfo>,
-        handZoneId: Int,
-        libZoneId: Int,
-        gyZoneId: Int,
-        sbZoneId: Int,
-    ) {
-        if (player == null) return
-        // Hand — empty, with viewer
-        zones.add(
-            ZoneInfo.newBuilder().setZoneId(handZoneId).setType(ZoneType.Hand)
-                .setOwnerSeatId(seatId).setVisibility(Visibility.Private).addViewers(seatId).build(),
-        )
-        // Library — all cards (hand + library combined = full deck, pre-deal)
-        val libBuilder = ZoneInfo.newBuilder().setZoneId(libZoneId).setType(ZoneType.Library)
-            .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
-        for (card in player.getZone(ForgeZoneType.Library).cards) {
-            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(card.id))
-        }
-        for (card in player.getZone(ForgeZoneType.Hand).cards) {
-            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(card.id))
-        }
-        zones.add(libBuilder.build())
-        // Graveyard — empty
-        zones.add(makeZone(gyZoneId, ZoneType.Graveyard, seatId, Visibility.Public))
-        // Sideboard — empty, with viewer
-        zones.add(
-            ZoneInfo.newBuilder().setZoneId(sbZoneId).setType(ZoneType.Sideboard)
-                .setOwnerSeatId(seatId).setVisibility(Visibility.Private).addViewers(seatId).build(),
-        )
-    }
+        player: Player?, seatId: Int, bridge: GameBridge, zones: MutableList<ZoneInfo>,
+        handZoneId: Int, libZoneId: Int, gyZoneId: Int, sbZoneId: Int,
+    ) = ZoneMapper.addInitialPlayerZones(player, seatId, bridge, zones, handZoneId, libZoneId, gyZoneId, sbZoneId)
 
     // --- Real game state from Forge engine ---
 
@@ -772,242 +743,32 @@ object StateMapper {
     internal fun buildTimers(): List<TimerInfo> = PlayerMapper.buildTimers()
 
     private fun addPlayerZones(
-        game: Game,
-        player: Player?,
-        seatId: Int,
-        bridge: GameBridge,
-        zones: MutableList<ZoneInfo>,
-        gameObjects: MutableList<GameObjectInfo>,
-        handZoneId: Int,
-        libZoneId: Int,
-        gyZoneId: Int,
-        viewingSeatId: Int = 0,
-    ) {
-        if (player == null) return
+        game: Game, player: Player?, seatId: Int, bridge: GameBridge,
+        zones: MutableList<ZoneInfo>, gameObjects: MutableList<GameObjectInfo>,
+        handZoneId: Int, libZoneId: Int, gyZoneId: Int, viewingSeatId: Int = 0,
+    ) = ZoneMapper.addPlayerZones(game, player, seatId, bridge, zones, gameObjects, handZoneId, libZoneId, gyZoneId, viewingSeatId)
 
-        // Hand — objectInstanceIds always (for card count), GameObjectInfo only for viewer.
-        // Real server omits GameObjectInfo for opponent's hand → renders face-down.
-        val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId
-        val hand = player.getZone(ForgeZoneType.Hand)
-        val handBuilder = ZoneInfo.newBuilder()
-            .setZoneId(handZoneId).setType(ZoneType.Hand)
-            .setOwnerSeatId(seatId).setVisibility(Visibility.Private)
-            .addViewers(seatId)
-        for (card in hand.cards) {
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
-            handBuilder.addObjectInstanceIds(instanceId)
-            if (canSeeHand) {
-                gameObjects.add(buildCardObject(card, instanceId, handZoneId, seatId))
-            }
-        }
-        zones.add(handBuilder.build())
-
-        // Library — instance IDs only (hidden)
-        val lib = player.getZone(ForgeZoneType.Library)
-        val libBuilder = ZoneInfo.newBuilder()
-            .setZoneId(libZoneId).setType(ZoneType.Library)
-            .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
-        for (card in lib.cards) {
-            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(card.id))
-        }
-        zones.add(libBuilder.build())
-
-        // Graveyard — visible
-        val gy = player.getZone(ForgeZoneType.Graveyard)
-        val gyBuilder = ZoneInfo.newBuilder()
-            .setZoneId(gyZoneId).setType(ZoneType.Graveyard)
-            .setOwnerSeatId(seatId).setVisibility(Visibility.Public)
-        for (card in gy.cards) {
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
-            gyBuilder.addObjectInstanceIds(instanceId)
-            gameObjects.add(buildCardObject(card, instanceId, gyZoneId, seatId))
-        }
-        zones.add(gyBuilder.build())
-    }
-
-    /** Hand + library only (no graveyard) — used for deal-hand at mulligan time. */
     private fun addHandAndLibrary(
-        game: Game,
-        player: Player?,
-        seatId: Int,
-        bridge: GameBridge,
-        zones: MutableList<ZoneInfo>,
-        gameObjects: MutableList<GameObjectInfo>,
-        handZoneId: Int,
-        libZoneId: Int,
-        viewingSeatId: Int = 0,
-    ) {
-        if (player == null) return
-
-        val hand = player.getZone(ForgeZoneType.Hand)
-        val handBuilder = ZoneInfo.newBuilder()
-            .setZoneId(handZoneId).setType(ZoneType.Hand)
-            .setOwnerSeatId(seatId).setVisibility(Visibility.Private)
-        // Real server only includes GameObjectInfo for the viewing seat's hand.
-        // Opponent hand cards appear in objectInstanceIds (for count) but have
-        // no GameObjectInfo — client renders them face-down.
-        val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId
-        for (card in hand.cards) {
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
-            handBuilder.addObjectInstanceIds(instanceId)
-            if (canSeeHand) {
-                gameObjects.add(buildCardObject(card, instanceId, handZoneId, seatId))
-            }
-        }
-        handBuilder.addViewers(seatId)
-        zones.add(handBuilder.build())
-
-        val lib = player.getZone(ForgeZoneType.Library)
-        val libBuilder = ZoneInfo.newBuilder()
-            .setZoneId(libZoneId).setType(ZoneType.Library)
-            .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
-        for (card in lib.cards) {
-            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(card.id))
-        }
-        zones.add(libBuilder.build())
-    }
+        game: Game, player: Player?, seatId: Int, bridge: GameBridge,
+        zones: MutableList<ZoneInfo>, gameObjects: MutableList<GameObjectInfo>,
+        handZoneId: Int, libZoneId: Int, viewingSeatId: Int = 0,
+    ) = ZoneMapper.addHandAndLibrary(game, player, seatId, bridge, zones, gameObjects, handZoneId, libZoneId, viewingSeatId)
 
     private fun addSharedZoneCards(
-        game: Game,
-        forgeZone: ForgeZoneType,
-        arenaZoneId: Int,
-        bridge: GameBridge,
-        zones: MutableList<ZoneInfo>,
-        gameObjects: MutableList<GameObjectInfo>,
-        human: Player?,
-        ai: Player?,
-    ) {
-        // Find the zone builder we already added
-        val zoneBuilder = zones.find { it.zoneId == arenaZoneId }?.toBuilder() ?: return
-        zones.removeIf { it.zoneId == arenaZoneId }
+        game: Game, forgeZone: ForgeZoneType, arenaZoneId: Int, bridge: GameBridge,
+        zones: MutableList<ZoneInfo>, gameObjects: MutableList<GameObjectInfo>,
+        human: Player?, ai: Player?,
+    ) = ZoneMapper.addSharedZoneCards(game, forgeZone, arenaZoneId, bridge, zones, gameObjects, human, ai)
 
-        val allCards = game.getCardsIn(forgeZone)
-        for (card in allCards) {
-            val ownerSeatId = if (card.owner == human) 1 else 2
-            val controllerSeatId = if (card.controller == human) 1 else 2
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
-            zoneBuilder.addObjectInstanceIds(instanceId)
-
-            val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
-            gameObjects.add(
-                CardDb.buildObjectInfo(grpId)
-                    .setInstanceId(instanceId)
-                    .setType(GameObjectType.Card)
-                    .setZoneId(arenaZoneId)
-                    .setVisibility(Visibility.Public)
-                    .setOwnerSeatId(ownerSeatId)
-                    .setControllerSeatId(controllerSeatId)
-                    .applyCardFields(card, bridge, game)
-                    .build(),
-            )
-        }
-        zones.add(zoneBuilder.build())
-    }
-
-    /**
-     * Add [GameObjectType.Ability] entries for stack items not already represented
-     * as cards in the stack zone. Uses the stack instance's unique ID + offset for
-     * stable instance IDs.
-     */
     private fun addStackAbilities(
-        game: Game,
-        bridge: GameBridge,
-        zones: MutableList<ZoneInfo>,
-        gameObjects: MutableList<GameObjectInfo>,
-        human: Player?,
-    ) {
-        val stack = game.getStack()
-        if (stack.isEmpty) return
+        game: Game, bridge: GameBridge, zones: MutableList<ZoneInfo>,
+        gameObjects: MutableList<GameObjectInfo>, human: Player?,
+    ) = ZoneMapper.addStackAbilities(game, bridge, zones, gameObjects, human)
 
-        val zoneBuilder = zones.find { it.zoneId == ZONE_STACK }?.toBuilder() ?: return
-        zones.removeIf { it.zoneId == ZONE_STACK }
+    // --- Delegates to ObjectMapper ---
 
-        // Track which source cards are already in the zone (from addSharedZoneCards)
-        val existingIds = zoneBuilder.objectInstanceIdsList.toSet()
-
-        for (entry in stack) {
-            val sourceCard = entry.sourceCard ?: continue
-            val cardInstanceId = bridge.getOrAllocInstanceId(sourceCard.id)
-            // Skip if the source card is already represented in the stack zone
-            if (cardInstanceId in existingIds) continue
-
-            // Use a separate instance ID for the ability on the stack
-            val abilityInstanceId = bridge.getOrAllocInstanceId(sourceCard.id + STACK_ABILITY_ID_OFFSET)
-            val ownerSeatId = if (sourceCard.owner == human) 1 else 2
-            val grpId = CardDb.lookupByName(sourceCard.name) ?: GameBridge.FALLBACK_GRPID
-
-            zoneBuilder.addObjectInstanceIds(abilityInstanceId)
-            gameObjects.add(
-                CardDb.buildObjectInfo(grpId)
-                    .setInstanceId(abilityInstanceId)
-                    .setType(GameObjectType.Ability)
-                    .setZoneId(ZONE_STACK)
-                    .setVisibility(Visibility.Public)
-                    .setOwnerSeatId(ownerSeatId)
-                    .setControllerSeatId(ownerSeatId)
-                    .setObjectSourceGrpId(grpId)
-                    .build(),
-            )
-        }
-        zones.add(zoneBuilder.build())
-    }
-
-    private fun buildCardObject(card: Card, instanceId: Int, zoneId: Int, ownerSeatId: Int): GameObjectInfo {
-        val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
-        return CardDb.buildObjectInfo(grpId)
-            .setInstanceId(instanceId)
-            .setType(GameObjectType.Card)
-            .setZoneId(zoneId)
-            .setVisibility(Visibility.Private)
-            .setOwnerSeatId(ownerSeatId)
-            .setControllerSeatId(ownerSeatId)
-            .applyCardFields(card)
-            .build()
-    }
-
-    /**
-     * Apply dynamic Forge game state onto a [GameObjectInfo.Builder] already enriched
-     * with static card data from [CardDb.buildObjectInfo].
-     *
-     * Static fields (types, colors, abilities, base P/T) come from the client DB.
-     * This method adds: live P/T, tapped, sickness, damage, loyalty, combat, attachment.
-     */
-    private fun GameObjectInfo.Builder.applyCardFields(card: Card, bridge: GameBridge? = null, game: Game? = null): GameObjectInfo.Builder {
-        val type = card.type
-
-        // Live P/T from Forge (may differ from base due to buffs/counters)
-        if (type.isCreature) {
-            setPower(Int32Value.newBuilder().setValue(card.netPower))
-            setToughness(Int32Value.newBuilder().setValue(card.netToughness))
-        }
-
-        // Permanent state — battlefield only
-        if (card.isInZone(ForgeZoneType.Battlefield)) {
-            setIsTapped(card.isTapped)
-            if (type.isCreature) {
-                setHasSummoningSickness(card.hasSickness())
-                if (card.damage > 0) setDamage(card.damage)
-            }
-            if (type.isPlaneswalker) {
-                setLoyalty(UInt32Value.newBuilder().setValue(card.currentLoyalty))
-            }
-        }
-
-        // Attachment (Auras, Equipment)
-        val attachedTo = card.attachedTo
-        if (attachedTo != null && bridge != null) {
-            setParentId(bridge.getOrAllocInstanceId(attachedTo.id))
-        }
-
-        // Combat state
-        val combat = game?.phaseHandler?.combat
-        if (combat != null && type.isCreature) {
-            if (combat.isAttacking(card)) setAttackState(AttackState.Attacking)
-            if (combat.isBlocking(card)) setBlockState(BlockState.Blocking)
-        }
-
-        return this
-    }
+    private fun buildCardObject(card: Card, instanceId: Int, zoneId: Int, ownerSeatId: Int): GameObjectInfo =
+        ObjectMapper.buildCardObject(card, instanceId, zoneId, ownerSeatId)
 
     private fun passOnlyActions(): ActionsAvailableReq = ActionMapper.passOnlyActions()
 
@@ -1017,30 +778,13 @@ object StateMapper {
 
     internal fun stripActionForGsm(action: Action): Action = ActionMapper.stripActionForGsm(action)
 
-    // --- helpers ---
+    // --- Delegates to ZoneMapper (helpers) ---
 
     private fun makeZone(zoneId: Int, type: ZoneType, ownerSeatId: Int, visibility: Visibility): ZoneInfo =
-        ZoneInfo.newBuilder()
-            .setZoneId(zoneId)
-            .setType(type)
-            .setOwnerSeatId(ownerSeatId)
-            .setVisibility(visibility)
-            .build()
+        ZoneMapper.makeZone(zoneId, type, ownerSeatId, visibility)
 
-    /** Returns the hand zone ID of the opponent, or 0 if viewingSeatId is 0 (no filtering). */
-    private fun opponentHandZone(viewingSeatId: Int): Int = when (viewingSeatId) {
-        1 -> ZONE_P2_HAND
-        2 -> ZONE_P1_HAND
-        else -> 0
-    }
+    private fun opponentHandZone(viewingSeatId: Int): Int = ZoneMapper.opponentHandZone(viewingSeatId)
 
-    /** Private zone with viewers=[ownerSeatId] (hand, sideboard). */
     private fun makePrivateZone(zoneId: Int, type: ZoneType, ownerSeatId: Int): ZoneInfo =
-        ZoneInfo.newBuilder()
-            .setZoneId(zoneId)
-            .setType(type)
-            .setOwnerSeatId(ownerSeatId)
-            .setVisibility(Visibility.Private)
-            .addViewers(ownerSeatId)
-            .build()
+        ZoneMapper.makePrivateZone(zoneId, type, ownerSeatId)
 }
