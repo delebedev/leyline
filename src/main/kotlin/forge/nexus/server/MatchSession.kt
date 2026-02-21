@@ -168,9 +168,23 @@ class MatchSession(
         // Wait for engine to reach next priority stop
         bridge.awaitPriority()
 
-        // After a cast, the spell is on the stack. Send state with Pass
-        // so the client shows the spell on stack.
+        // After a cast, check for a pending interactive prompt (targeting).
+        // Targeted spells (Giant Growth, etc.) block the engine in the prompt
+        // bridge before reaching the next priority stop. Detect this and emit
+        // SelectTargetsReq so the client can choose targets.
         if (isCast) {
+            val pendingPrompt = bridge.promptBridge.getPendingPrompt()
+            if (pendingPrompt != null && pendingPrompt.request.candidateRefs.isNotEmpty()) {
+                traceEvent(
+                    GameStateCollector.EventType.TARGET_PROMPT,
+                    bridge.getGame()!!,
+                    "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
+                )
+                val req = StateMapper.buildSelectTargetsReq(pendingPrompt, bridge)
+                sendSelectTargetsReq(bridge, req)
+                return
+            }
+
             val g = bridge.getGame()
             if (g != null && !g.stack.isEmpty) {
                 sendRealGameState(bridge)
@@ -234,11 +248,17 @@ class MatchSession(
             ),
         )
 
+        // Resolve the defending player: the opponent of the active (attacking) player.
+        val game = bridge.getGame()
+        val humanPlayer = bridge.getPlayer(seatId)
+        val defenderPlayerId = game?.players
+            ?.firstOrNull { it != humanPlayer }?.id
+
         // Seed BEFORE submit — submitAction unblocks the game thread immediately
         bridge.playback?.seedCounters(msgIdCounter, gameStateId)
         bridge.actionBridge.submitAction(
             pending.actionId,
-            PlayerAction.DeclareAttackers(attackerCardIds, defenderPlayerId = null),
+            PlayerAction.DeclareAttackers(attackerCardIds, defenderPlayerId = defenderPlayerId),
         )
         bridge.awaitPriority()
         autoPassAndAdvance(bridge)

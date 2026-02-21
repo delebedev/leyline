@@ -64,7 +64,13 @@ class ScriptedPlayerController(
         return script[scriptIndex++]
     }
 
-    override fun chooseSpellAbilityToPlay(): List<SpellAbility> {
+    /**
+     * Choose spell ability to play. Returns:
+     * - non-empty list → play those abilities
+     * - **null** → pass priority (Forge convention: null = "I pass", emptyList = "tried but
+     *   failed" which causes PhaseHandler to retry up to 999 times)
+     */
+    override fun chooseSpellAbilityToPlay(): List<SpellAbility>? {
         val action = peekAction()
         return when (action) {
             is ScriptedAction.PlayLand -> {
@@ -75,7 +81,7 @@ class ScriptedPlayerController(
                 } else {
                     log.warn("Script: PlayLand({}) — card not found/playable, passing", action.cardName)
                     nextAction() // consume anyway to avoid infinite loop
-                    emptyList()
+                    null
                 }
             }
             is ScriptedAction.CastSpell -> {
@@ -86,15 +92,15 @@ class ScriptedPlayerController(
                 } else {
                     log.warn("Script: CastSpell({}) — card not found/castable, passing", action.cardName)
                     nextAction()
-                    emptyList()
+                    null
                 }
             }
             is ScriptedAction.PassPriority -> {
                 nextAction()
-                emptyList()
+                null
             }
-            null -> emptyList() // script exhausted → pass
-            else -> emptyList() // combat actions handled in declare* methods
+            null -> null // script exhausted → pass
+            else -> null // combat actions handled in declare* methods
         }
     }
 
