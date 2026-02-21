@@ -184,29 +184,8 @@ class MatchSession(
         // Wait for engine to reach next priority stop
         bridge.awaitPriority()
 
-        // After a cast, check for a pending interactive prompt (targeting).
-        // Targeted spells (Giant Growth, etc.) block the engine in the prompt
-        // bridge before reaching the next priority stop. Detect this and emit
-        // SelectTargetsReq so the client can choose targets.
-        if (isCast) {
-            val pendingPrompt = bridge.promptBridge.getPendingPrompt()
-            if (pendingPrompt != null && pendingPrompt.request.candidateRefs.isNotEmpty()) {
-                traceEvent(
-                    GameStateCollector.EventType.TARGET_PROMPT,
-                    bridge.getGame()!!,
-                    "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
-                )
-                val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)
-                sendSelectTargetsReq(bridge, req)
-                return
-            }
-
-            val g = bridge.getGame()
-            if (g != null && !g.stack.isEmpty) {
-                sendRealGameState(bridge)
-                return
-            }
-        }
+        // After a cast, check for targeting prompt or intermediate stack state
+        if (isCast && handlePostCastPrompt(bridge)) return
 
         // After stack resolution: send intermediate state so the client sees the
         // creature move from stack to battlefield with resolution annotations.
@@ -372,7 +351,34 @@ class MatchSession(
         sink.sendRaw(msg)
     }
 
+    /**
+     * After a cast, check for a pending targeting prompt or intermediate stack state.
+     * Returns true if handled (caller should return), false to continue normal flow.
+     */
+    private fun handlePostCastPrompt(bridge: GameBridge): Boolean {
+        val pendingPrompt = bridge.promptBridge.getPendingPrompt()
+        if (pendingPrompt != null && pendingPrompt.request.candidateRefs.isNotEmpty()) {
+            traceEvent(
+                GameStateCollector.EventType.TARGET_PROMPT,
+                bridge.getGame()!!,
+                "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
+            )
+            val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)
+            sendSelectTargetsReq(bridge, req)
+            return true
+        }
+        val g = bridge.getGame()
+        if (g != null && !g.stack.isEmpty) {
+            sendRealGameState(bridge)
+            return true
+        }
+        return false
+    }
+
     // --- Auto-pass engine ---
+
+    /** Signals from sub-steps back to the auto-pass loop. */
+    private enum class LoopSignal { STOP, SEND_STATE, CONTINUE }
 
     /**
      * Auto-pass through phases where the player has no meaningful actions.
@@ -387,155 +393,177 @@ class MatchSession(
                 return
             }
 
-            // Send any pending AI-action diffs to the client
-            val playback = bridge.playback
-            if (playback != null && playback.hasPendingMessages()) {
-                val batches = playback.drainQueue()
-                for ((idx, batch) in batches.withIndex()) {
-                    if (idx > 0) paceDelay(1)
-                    sendBundledGRE(batch)
-                }
-                val (nextMsg, nextGs) = playback.getCounters()
-                msgIdCounter = nextMsg
-                gameStateId = nextGs
-                bridge.snapshotState(StateMapper.buildFromGame(game, gameStateId, matchId, bridge))
-                return@repeat // re-evaluate; don't fall through to sendRealGameState
-            }
+            // Drain pending AI-action diffs
+            if (drainPlayback(bridge, game)) return@repeat
 
             val human = bridge.getPlayer(seatId)
             val phase = game.phaseHandler.phase
             val isHumanTurn = human != null && game.phaseHandler.playerTurn == human
             val isAiTurn = human != null && !isHumanTurn
 
-            // Combat: DeclareAttackers on human's attacking turn
-            if (phase == PhaseType.COMBAT_DECLARE_ATTACKERS && isHumanTurn) {
-                val req = BundleBuilder.buildDeclareAttackersReq(game, seatId, bridge)
-                if (req.attackersCount > 0) {
-                    traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
-                    sendDeclareAttackersReq(bridge, req)
-                    return
-                }
-            }
+            // Combat phase handling
+            val combatSignal = checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)
+            if (combatSignal == LoopSignal.STOP) return
+            if (combatSignal == LoopSignal.SEND_STATE) { sendRealGameState(bridge); return }
 
-            // AI attacking: send state so client sees creatures with attackState
-            if (phase == PhaseType.COMBAT_DECLARE_ATTACKERS && isAiTurn) {
-                val combat = game.phaseHandler.combat
-                if (combat != null && combat.attackers.isNotEmpty()) {
-                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "AI attacking, ${combat.attackers.size} attackers")
-                    paceDelay(2)
-                    sendRealGameState(bridge)
-                    return
-                }
-            }
+            // Interactive prompt (targeting, sacrifice, etc.)
+            if (checkPendingPrompt(bridge, game)) return
 
-            // Combat: DeclareBlockers on AI's attacking turn (human is defending)
-            if (phase == PhaseType.COMBAT_DECLARE_BLOCKERS && isAiTurn) {
-                val combat = game.phaseHandler.combat
-                if (combat != null && combat.attackers.isNotEmpty()) {
-                    traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
-                    sendDeclareBlockersReq(bridge)
-                    return
-                }
-            }
+            // Action check — prompt human if meaningful actions exist
+            if (checkHumanActions(bridge, game, isAiTurn)) { sendRealGameState(bridge); return }
 
-            // AI blocking (defending against human attack): send state
-            if (phase == PhaseType.COMBAT_DECLARE_BLOCKERS && isHumanTurn) {
-                val combat = game.phaseHandler.combat
-                if (combat != null && combat.attackers.isNotEmpty()) {
-                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "AI blocking result")
-                    paceDelay(2)
-                    sendRealGameState(bridge)
-                    return
-                }
-            }
-
-            // Combat damage: send state so damage is visible
-            if (phase == PhaseType.COMBAT_DAMAGE) {
-                traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat damage")
-                paceDelay(2)
-                sendRealGameState(bridge)
-                return
-            }
-
-            // Combat end: send state if combat actually happened
-            if (phase == PhaseType.COMBAT_END) {
-                val combat = game.phaseHandler.combat
-                if (combat != null && combat.attackers.isNotEmpty()) {
-                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat end")
-                    sendRealGameState(bridge)
-                    return
-                }
-            }
-
-            // Check for pending interactive prompt (targeting, sacrifice, etc.)
-            val pendingPrompt = bridge.promptBridge.getPendingPrompt()
-            if (pendingPrompt != null && pendingPrompt.request.candidateRefs.isNotEmpty()) {
-                traceEvent(GameStateCollector.EventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
-                val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)
-                sendSelectTargetsReq(bridge, req)
-                return
-            }
-
-            // Only prompt human when it's NOT AI's turn — sending AAR during
-            // AI turn puts the client into "waiting for input" mode repeatedly,
-            // which suppresses animations.
-            if (!isAiTurn) {
-                val actions = BundleBuilder.buildActions(game, seatId, bridge)
-                if (!BundleBuilder.shouldAutoPass(actions)) {
-                    val actionSummary = actions.actionsList
-                        .groupBy { it.actionType.name.removeSuffix("_add3") }
-                        .map { (t, v) -> "$t=${v.size}" }
-                        .joinToString(" ")
-                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "actions: $actionSummary")
-                    sendRealGameState(bridge)
-                    return
-                }
-            }
-
-            val pending = bridge.actionBridge.getPending()
-            log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
-
-            if (pending != null) {
-                traceEvent(GameStateCollector.EventType.AUTO_PASS, game, "human priority, pass-only")
-                // During AI turn, skip sending EdictalMessage — real server never
-                // sends edictal passes during AI turn. Sending them interrupts the
-                // client's animation pipeline (enters post-pass "waiting" state).
-                if (!isAiTurn) {
-                    val edictal = BundleBuilder.edictalPass(seatId, msgIdCounter, gameStateId)
-                    msgIdCounter = edictal.nextMsgId
-                    sendBundledGRE(edictal.messages)
-                }
-                // Seed BEFORE submit — submitAction unblocks the game thread immediately
-                // and it may fire events captured by NexusGamePlayback with stale counters.
-                bridge.playback?.seedCounters(msgIdCounter, gameStateId)
-                bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
-                bridge.awaitPriority()
-            } else if (isAiTurn) {
-                traceEvent(GameStateCollector.EventType.AI_TURN_WAIT, game, "waiting for AI")
-                bridge.playback?.seedCounters(msgIdCounter, gameStateId)
-                val reachedPriority = bridge.awaitPriorityWithTimeout(GameBridge.AI_TURN_WAIT_MS)
-                if (!reachedPriority) {
-                    val g = bridge.getGame()
-                    if (g != null && g.isGameOver) {
-                        traceEvent(GameStateCollector.EventType.GAME_OVER, game, "game over during AI wait")
-                        sendGameOver()
-                        return
-                    }
-                    traceEvent(GameStateCollector.EventType.AI_TURN_TIMEOUT, game, "AI turn timed out")
-                    log.warn("autoPass: AI turn timed out, sending current state")
-                    sendRealGameState(bridge)
-                    return
-                }
-            } else {
-                traceEvent(GameStateCollector.EventType.PRIORITY_GRANT, game, "waiting for engine")
-                log.warn("autoPass: no pending action, waiting for priority")
-                bridge.playback?.seedCounters(msgIdCounter, gameStateId)
-                bridge.awaitPriority()
-            }
+            // Auto-pass or wait
+            advanceOrWait(bridge, game, phase, isAiTurn) ?: return
         }
 
         log.warn("autoPassAndAdvance: hit max iterations ({})", AUTO_PASS_MAX_ITERATIONS)
         sendRealGameState(bridge)
+    }
+
+    /**
+     * Drain pending AI-action playback diffs. Returns true if diffs were sent
+     * (caller should re-evaluate in next iteration), false if nothing pending.
+     */
+    private fun drainPlayback(bridge: GameBridge, game: Game): Boolean {
+        val playback = bridge.playback ?: return false
+        if (!playback.hasPendingMessages()) return false
+        val batches = playback.drainQueue()
+        for ((idx, batch) in batches.withIndex()) {
+            if (idx > 0) paceDelay(1)
+            sendBundledGRE(batch)
+        }
+        val (nextMsg, nextGs) = playback.getCounters()
+        msgIdCounter = nextMsg
+        gameStateId = nextGs
+        bridge.snapshotState(StateMapper.buildFromGame(game, gameStateId, matchId, bridge))
+        return true
+    }
+
+    /**
+     * Check combat phases and send appropriate prompts or state.
+     * Returns [LoopSignal.STOP] if a combat prompt was sent (return from loop),
+     * [LoopSignal.SEND_STATE] if state should be sent, or [LoopSignal.CONTINUE] to proceed.
+     */
+    private fun checkCombatPhase(
+        bridge: GameBridge,
+        game: Game,
+        phase: PhaseType?,
+        isHumanTurn: Boolean,
+        isAiTurn: Boolean,
+    ): LoopSignal {
+        val combat = game.phaseHandler.combat
+
+        when (phase) {
+            PhaseType.COMBAT_DECLARE_ATTACKERS -> {
+                if (isHumanTurn) {
+                    val req = BundleBuilder.buildDeclareAttackersReq(game, seatId, bridge)
+                    if (req.attackersCount > 0) {
+                        traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
+                        sendDeclareAttackersReq(bridge, req)
+                        return LoopSignal.STOP
+                    }
+                } else if (isAiTurn && combat != null && combat.attackers.isNotEmpty()) {
+                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "AI attacking, ${combat.attackers.size} attackers")
+                    paceDelay(2)
+                    return LoopSignal.SEND_STATE
+                }
+            }
+            PhaseType.COMBAT_DECLARE_BLOCKERS -> {
+                if (isAiTurn && combat != null && combat.attackers.isNotEmpty()) {
+                    traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
+                    sendDeclareBlockersReq(bridge)
+                    return LoopSignal.STOP
+                } else if (isHumanTurn && combat != null && combat.attackers.isNotEmpty()) {
+                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "AI blocking result")
+                    paceDelay(2)
+                    return LoopSignal.SEND_STATE
+                }
+            }
+            PhaseType.COMBAT_DAMAGE -> {
+                traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat damage")
+                paceDelay(2)
+                return LoopSignal.SEND_STATE
+            }
+            PhaseType.COMBAT_END -> {
+                if (combat != null && combat.attackers.isNotEmpty()) {
+                    traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat end")
+                    return LoopSignal.SEND_STATE
+                }
+            }
+            else -> {}
+        }
+        return LoopSignal.CONTINUE
+    }
+
+    /** Check for pending interactive prompt. Returns true if prompt was sent (caller should return). */
+    private fun checkPendingPrompt(bridge: GameBridge, game: Game): Boolean {
+        val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: return false
+        if (pendingPrompt.request.candidateRefs.isEmpty()) return false
+        traceEvent(GameStateCollector.EventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
+        val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)
+        sendSelectTargetsReq(bridge, req)
+        return true
+    }
+
+    /** Check if human has meaningful actions. Returns true if state should be sent. */
+    private fun checkHumanActions(bridge: GameBridge, game: Game, isAiTurn: Boolean): Boolean {
+        if (isAiTurn) return false
+        val actions = BundleBuilder.buildActions(game, seatId, bridge)
+        if (BundleBuilder.shouldAutoPass(actions)) return false
+        val actionSummary = actions.actionsList
+            .groupBy { it.actionType.name.removeSuffix("_add3") }
+            .map { (t, v) -> "$t=${v.size}" }
+            .joinToString(" ")
+        traceEvent(GameStateCollector.EventType.SEND_STATE, game, "actions: $actionSummary")
+        return true
+    }
+
+    /**
+     * Submit auto-pass or wait for AI/engine. Returns Unit on success (loop continues),
+     * or null to signal the caller should return (game over / timeout).
+     */
+    private fun advanceOrWait(bridge: GameBridge, game: Game, phase: PhaseType?, isAiTurn: Boolean): Unit? {
+        val pending = bridge.actionBridge.getPending()
+        log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
+
+        if (pending != null) {
+            traceEvent(GameStateCollector.EventType.AUTO_PASS, game, "human priority, pass-only")
+            // During AI turn, skip sending EdictalMessage — real server never
+            // sends edictal passes during AI turn. Sending them interrupts the
+            // client's animation pipeline (enters post-pass "waiting" state).
+            if (!isAiTurn) {
+                val edictal = BundleBuilder.edictalPass(seatId, msgIdCounter, gameStateId)
+                msgIdCounter = edictal.nextMsgId
+                sendBundledGRE(edictal.messages)
+            }
+            // Seed BEFORE submit — submitAction unblocks the game thread immediately
+            // and it may fire events captured by NexusGamePlayback with stale counters.
+            bridge.playback?.seedCounters(msgIdCounter, gameStateId)
+            bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+            bridge.awaitPriority()
+        } else if (isAiTurn) {
+            traceEvent(GameStateCollector.EventType.AI_TURN_WAIT, game, "waiting for AI")
+            bridge.playback?.seedCounters(msgIdCounter, gameStateId)
+            val reachedPriority = bridge.awaitPriorityWithTimeout(GameBridge.AI_TURN_WAIT_MS)
+            if (!reachedPriority) {
+                val g = bridge.getGame()
+                if (g != null && g.isGameOver) {
+                    traceEvent(GameStateCollector.EventType.GAME_OVER, game, "game over during AI wait")
+                    sendGameOver()
+                    return null
+                }
+                traceEvent(GameStateCollector.EventType.AI_TURN_TIMEOUT, game, "AI turn timed out")
+                log.warn("autoPass: AI turn timed out, sending current state")
+                sendRealGameState(bridge)
+                return null
+            }
+        } else {
+            traceEvent(GameStateCollector.EventType.PRIORITY_GRANT, game, "waiting for engine")
+            log.warn("autoPass: no pending action, waiting for priority")
+            bridge.playback?.seedCounters(msgIdCounter, gameStateId)
+            bridge.awaitPriority()
+        }
+        return Unit
     }
 
     // --- Sending helpers ---
