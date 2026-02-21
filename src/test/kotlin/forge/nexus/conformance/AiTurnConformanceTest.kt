@@ -13,7 +13,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
  *
  * Verifies that during an AI turn, the NexusGamePlayback captures
  * individual state diffs with:
- *   - SendAndRecord updateType (client must persist zone changes)
+ *   - SendHiFi updateType (transient updates, not save points)
  *   - No ActionsAvailableReq messages
  *   - Annotations matching the action type
  */
@@ -62,15 +62,15 @@ class AiTurnConformanceTest : ConformanceTestBase() {
             )
         }
 
-        // All non-marker diffs should use SendAndRecord (client persists zone changes)
+        // All diffs should use SendHiFi (transient updates, not save points)
         val diffs = allMessages.filter {
             it.hasGameStateMessage() && it.gameStateMessage.annotationsCount > 0
         }
         for (diff in diffs) {
             assertEquals(
                 diff.gameStateMessage.update,
-                GameStateUpdate.SendAndRecord,
-                "AI action diffs should use SendAndRecord (client persists zone changes)",
+                GameStateUpdate.SendHiFi,
+                "AI action diffs should use SendHiFi (transient, not save points)",
             )
         }
     }

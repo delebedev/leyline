@@ -17,56 +17,19 @@ class GsIdChainTest : ConformanceTestBase() {
 
     // --- AI diff chain ---
 
-    @Test(description = "aiActionDiff echo has prevGameStateId == msg1's gameStateId")
-    fun aiDiffEchoPrevGsIdChains() {
+    @Test(description = "aiActionDiff produces single GSM with no pendingMessageCount")
+    fun aiDiffNoPendingMessageCount() {
         val (b, game, gsId) = startGameAtMain1()
         b.snapshotState(game, gsId)
 
         val result = BundleBuilder.aiActionDiff(game, b, TEST_MATCH_ID, SEAT_ID, 1, gsId)
-        val gsms = result.messages.map { it.gameStateMessage }
+        assertEquals(result.messages.size, 1, "aiActionDiff should produce 1 GSM")
 
-        assertEquals(gsms.size, 2, "aiActionDiff should produce 2 GSMs")
-        val msg1 = gsms[0]
-        val echo = gsms[1]
-
+        val gsm = result.messages[0].gameStateMessage
         assertEquals(
-            echo.prevGameStateId,
-            msg1.gameStateId,
-            "Echo prevGameStateId should equal msg1 gameStateId",
-        )
-        assertTrue(
-            echo.gameStateId > msg1.gameStateId,
-            "Echo gsId (${echo.gameStateId}) should be > msg1 gsId (${msg1.gameStateId})",
-        )
-    }
-
-    @Test(description = "aiActionDiff echo does NOT have pendingMessageCount")
-    fun aiDiffEchoNoPendingMessageCount() {
-        val (b, game, gsId) = startGameAtMain1()
-        b.snapshotState(game, gsId)
-
-        val result = BundleBuilder.aiActionDiff(game, b, TEST_MATCH_ID, SEAT_ID, 1, gsId)
-        val echo = result.messages[1].gameStateMessage
-
-        assertEquals(
-            echo.pendingMessageCount,
+            gsm.pendingMessageCount,
             0,
-            "Echo (terminal message) must NOT have pendingMessageCount set",
-        )
-    }
-
-    @Test(description = "aiActionDiff msg1 has pendingMessageCount=1 (echo follows)")
-    fun aiDiffMsg1HasPending() {
-        val (b, game, gsId) = startGameAtMain1()
-        b.snapshotState(game, gsId)
-
-        val result = BundleBuilder.aiActionDiff(game, b, TEST_MATCH_ID, SEAT_ID, 1, gsId)
-        val msg1 = result.messages[0].gameStateMessage
-
-        assertEquals(
-            msg1.pendingMessageCount,
-            1,
-            "msg1 should have pendingMessageCount=1 (echo follows)",
+            "AI action diff must NOT have pendingMessageCount (no follow-up expected)",
         )
     }
 
@@ -87,7 +50,7 @@ class GsIdChainTest : ConformanceTestBase() {
             b.snapshotState(game, nextGs)
         }
 
-        // Every consecutive pair should chain
+        // Every GSM should have strictly increasing gsId
         for (i in 1 until allGsms.size) {
             val prev = allGsms[i - 1]
             val curr = allGsms[i]
@@ -95,16 +58,6 @@ class GsIdChainTest : ConformanceTestBase() {
                 curr.gameStateId > prev.gameStateId,
                 "gsId[$i] (${curr.gameStateId}) should be > gsId[${i - 1}] (${prev.gameStateId})",
             )
-            // Within each pair (msg1→echo), echo has prevGsId.
-            // Across pairs, msg1 of next pair doesn't need prevGsId (different bundle).
-            if (i % 2 == 1) {
-                // echo within pair
-                assertEquals(
-                    curr.prevGameStateId,
-                    prev.gameStateId,
-                    "Echo[$i] prevGameStateId should chain from msg1",
-                )
-            }
         }
     }
 
