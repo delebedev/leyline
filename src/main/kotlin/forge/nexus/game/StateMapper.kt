@@ -739,6 +739,7 @@ object StateMapper {
     fun buildTransitionState(
         game: Game,
         gameStateId: Int,
+        prevGameStateId: Int,
         matchId: String,
         bridge: GameBridge,
         phase: Phase,
@@ -764,6 +765,7 @@ object StateMapper {
         val builder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
+            .setPrevGameStateId(prevGameStateId)
             .setTurnInfo(turnInfo)
             .addPlayers(buildPlayerInfo(bridge.getPlayer(1), 1))
             .addPlayers(buildPlayerInfo(bridge.getPlayer(2), 2))
