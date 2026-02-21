@@ -460,6 +460,80 @@ object BundleBuilder {
         return BundleResult(listOf(msg), msgId + 1, gsId)
     }
 
+    /**
+     * Game-over sequence: 3x GS Diff + IntermissionReq.
+     * Pure proto construction — no bridge or game engine access.
+     */
+    fun gameOverBundle(
+        winningTeam: Int,
+        seatId: Int,
+        msgId: Int,
+        gsId: Int,
+    ): BundleResult {
+        var nextMsg = msgId
+        var nextGs = gsId
+
+        val gameResult = ResultSpec.newBuilder()
+            .setScope(MatchScope.Game_a146)
+            .setResult(ResultType.WinLoss)
+            .setWinningTeamId(winningTeam)
+
+        val matchResult = ResultSpec.newBuilder()
+            .setScope(MatchScope.Match)
+            .setResult(ResultType.WinLoss)
+            .setWinningTeamId(winningTeam)
+
+        val gameInfo = GameInfo.newBuilder()
+            .setStage(GameStage.GameOver)
+            .setMatchState(MatchState.MatchComplete)
+            .setMulliganType(MulliganType.London)
+            .setMatchWinCondition(MatchWinCondition.SingleElimination)
+            .addResults(gameResult)
+            .addResults(matchResult)
+
+        val players = listOf(
+            PlayerInfo.newBuilder().setSystemSeatNumber(1).setStatus(PlayerStatus.Removed_a1c6).setTeamId(1),
+            PlayerInfo.newBuilder().setSystemSeatNumber(2).setStatus(PlayerStatus.Removed_a1c6).setTeamId(2),
+        )
+
+        nextGs++
+        val gs1 = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff).setGameStateId(nextGs)
+            .setGameInfo(gameInfo).setUpdate(GameStateUpdate.SendAndRecord)
+        players.forEach { gs1.addPlayers(it) }
+
+        nextGs++
+        val gs2 = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff).setGameStateId(nextGs)
+            .setGameInfo(gameInfo).setUpdate(GameStateUpdate.SendAndRecord)
+
+        nextGs++
+        val gs3 = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff).setGameStateId(nextGs)
+            .setUpdate(GameStateUpdate.SendAndRecord)
+
+        val messages = mutableListOf(
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs - 2, seatId, nextMsg++) { it.gameStateMessage = gs1.build() },
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs - 1, seatId, nextMsg++) { it.gameStateMessage = gs2.build() },
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) { it.gameStateMessage = gs3.build() },
+        )
+
+        messages.add(
+            makeGRE(GREMessageType.IntermissionReq_695e, nextGs, seatId, nextMsg++) {
+                it.intermissionReq = IntermissionReq.newBuilder()
+                    .setResult(
+                        ResultSpec.newBuilder()
+                            .setScope(MatchScope.Match)
+                            .setResult(ResultType.WinLoss)
+                            .setWinningTeamId(winningTeam),
+                    )
+                    .build()
+            },
+        )
+
+        return BundleResult(messages, nextMsg, nextGs)
+    }
+
     /** Build a single GRE message. */
     private fun makeGRE(
         type: GREMessageType,
