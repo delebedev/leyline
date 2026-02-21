@@ -1,6 +1,7 @@
 package forge.nexus.protocol
 
 import forge.nexus.game.GameBridge
+import forge.nexus.game.PlayerMapper
 import forge.nexus.game.PromptIds
 import forge.nexus.game.StateMapper
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -158,14 +159,14 @@ object HandshakeMessages {
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
             .addPlayers(
-                StateMapper.buildPlayerInfo(bridge.getPlayer(2), 2),
+                PlayerMapper.buildPlayerInfo(bridge.getPlayer(2), 2),
             )
             .setTurnInfo(
                 TurnInfo.newBuilder().setActivePlayer(2).setDecisionPlayer(1),
             )
             .setPendingMessageCount(2)
             .setPrevGameStateId(gameStateId - 1)
-            .addAllTimers(StateMapper.buildTimers())
+             .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(GameStateUpdate.SendAndRecord)
             .build()
         val greGsm = GREToClientMessage.newBuilder()
