@@ -75,11 +75,14 @@ test-unit: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=unit"
 # all conformance tests (~5s, wire-shape checks against Arena patterns)
 test-conformance: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=conformance")
 
-# integration tests (~30s, boots engine — includes conformance)
-test-integration: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=integration")
+# integration tests (parallel forks — boots engine per fork, runs classes concurrently)
+test-integration: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=integration -DforkCount=4 -DreuseForks=true")
 
-# pre-commit gate: unit + conformance (skips integration + recording)
+# pre-commit gate: unit + conformance (fast, single fork)
 test-gate: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=unit,conformance")
+
+# full gate: unit + conformance, then integration in parallel forks
+test-full: test-gate test-integration
 
 # --- Dev ---
 
