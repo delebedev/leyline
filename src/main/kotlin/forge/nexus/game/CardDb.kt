@@ -30,6 +30,13 @@ object CardDb {
     private val cache = mutableMapOf<Int, CardData?>()
     private var dbPath: String? = null
 
+    /**
+     * When true, [lookupByName] and [lookup] never fall through to SQLite.
+     * Set by test harnesses so tests run purely from in-memory registrations.
+     */
+    @Volatile
+    var testMode: Boolean = false
+
     // In-memory grpId ↔ name table (for tests + manual registration)
     private val grpIdToName = mutableMapOf<Int, String>()
     private val nameToGrpId = mutableMapOf<String, Int>()
@@ -40,10 +47,11 @@ object CardDb {
 
     /**
      * Look up grpId by card name. Checks in-memory cache first, then queries SQLite.
-     * Caches result on hit.
+     * In [testMode], returns null immediately if name is not pre-registered.
      */
     fun lookupByName(cardName: String): Int? {
         nameToGrpId[cardName]?.let { return it }
+        if (testMode) return null
         val path = dbPath ?: if (init()) dbPath else return null
         path ?: return null
         return queryByName(path, cardName)?.also { grpId ->
@@ -84,9 +92,13 @@ object CardDb {
         return true
     }
 
-    /** Look up card data by grpId. Returns null if DB not available or grpId not found. */
+    /**
+     * Look up card data by grpId. Returns null if DB not available or grpId not found.
+     * In [testMode], returns null immediately if grpId is not in the cache.
+     */
     fun lookup(grpId: Int): CardData? {
         cache[grpId]?.let { return it }
+        if (testMode) return null
         val path = dbPath ?: if (init()) dbPath else return null
         path ?: return null
 

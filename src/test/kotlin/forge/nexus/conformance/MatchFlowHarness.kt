@@ -51,6 +51,8 @@ class MatchFlowHarness(
     /** Start game, keep hand, advance to first real-action phase via MatchSession. */
     fun connectAndKeep() {
         GameBootstrap.initializeCardDatabase(quiet = true)
+        TestCardRegistry.ensureRegistered()
+        if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
 
         bridge = GameBridge(bridgeTimeoutMs = 5_000L)
         bridge.priorityWaitMs = 2_000L

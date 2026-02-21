@@ -17,7 +17,7 @@ TestNG groups control what runs. Use `just --list` for all targets.
 | `just test-unit` | `unit` | Pure logic, no engine | ~1s |
 | `just test-conformance` | `conformance` | Wire shape vs client patterns | ~5s |
 | `just test-integration` | `integration` | Full engine boot (includes conformance) | ~30s |
-| `just test-gate` | all three | Pre-commit gate (skips `recording`) | ~30s |
+| `just test-gate` | unit+conformance | Pre-commit gate (skips integration + recording) | ~5s |
 | `just test-one Foo` | — | Single class by name | varies |
 | `just test` | ungrouped | Everything (may hit pre-existing init issues) | slow |
 

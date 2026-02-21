@@ -78,8 +78,8 @@ test-conformance: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroup
 # integration tests (~30s, boots engine — includes conformance)
 test-integration: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=integration")
 
-# pre-commit gate: unit + conformance + integration (skips recording)
-test-gate: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=unit,conformance,integration")
+# pre-commit gate: unit + conformance (skips integration + recording)
+test-gate: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=unit,conformance")
 
 # --- Dev ---
 

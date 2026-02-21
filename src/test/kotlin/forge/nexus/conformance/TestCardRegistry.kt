@@ -1,124 +1,77 @@
 package forge.nexus.conformance
 
+import forge.game.card.Card
+import forge.model.FModel
 import forge.nexus.game.CardDb
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
+import org.slf4j.LoggerFactory
 
 /**
- * Registers the test deck cards with synthetic client-like metadata.
+ * Registers test deck cards in [CardDb] using [CardDataDeriver] — no SQLite.
  *
- * Provides just enough data for grpId lookups, buildObjectInfo (cardTypes,
- * subtypes, uniqueAbilities, manaCost) to work without the real client SQLite DB.
+ * Enables [CardDb.testMode] so `lookupByName`/`lookup` never touch SQLite.
+ * All card metadata is derived from Forge's in-memory CardRules at test startup.
  *
- * Cards match [forge.nexus.game.GameBridge.DEFAULT_DECK]: mono-green stompy.
- * Proto enum values from messages.proto.
+ * Synthetic grpIds start at 80000 (allocated by [CardDataDeriver]).
  */
 object TestCardRegistry {
+    private val log = LoggerFactory.getLogger(TestCardRegistry::class.java)
 
-    // Synthetic grpIds — stable across runs, don't collide with real client IDs
-    const val FOREST_GRPID = 70000
-    const val LLANOWAR_ELVES_GRPID = 70001
-    const val ELVISH_MYSTIC_GRPID = 70002
-    const val GIANT_GROWTH_GRPID = 70003
-    const val MOUNTAIN_GRPID = 70004
-    const val RAGING_GOBLIN_GRPID = 70005
+    /** Default deck card names (GameBridge.DEFAULT_DECK). */
+    private val DEFAULT_DECK_CARDS = listOf(
+        "Forest", "Llanowar Elves", "Elvish Mystic", "Giant Growth",
+        "Mountain", "Raging Goblin",
+    )
 
+    /**
+     * Auto-register a card by name. If already in CardDb, returns existing grpId.
+     * Otherwise derives CardData from Forge's in-memory CardRules and registers it.
+     * Returns the grpId (synthetic, 0 on failure).
+     */
+    fun ensureCardRegistered(cardName: String): Int {
+        CardDb.getGrpId(cardName)?.let { return it }
+
+        val db = FModel.getMagicDb()?.commonCards ?: run {
+            log.warn("Card DB not initialized, cannot auto-register '{}'", cardName)
+            return 0
+        }
+        val paperCard = db.getCard(cardName) ?: run {
+            forge.StaticData.instance().attemptToLoadCard(cardName)
+            db.getCard(cardName)
+        } ?: run {
+            log.warn("Card '{}' not found in Forge DB", cardName)
+            return 0
+        }
+
+        val tempCard = Card.fromPaperCard(paperCard, null)
+        val cardData = CardDataDeriver.fromForgeCard(tempCard)
+        CardDb.registerData(cardData, cardName)
+        log.debug("Auto-registered '{}' with grpId={}", cardName, cardData.grpId)
+        return cardData.grpId
+    }
+
+    /**
+     * Bulk-register all card names from a deck list string.
+     * Parses "N CardName" lines, registers each unique name.
+     */
+    fun ensureDeckRegistered(deckList: String) {
+        val names = deckList.trim().lines()
+            .filter { it.isNotBlank() }
+            .map { it.trim().replaceFirst(Regex("^\\d+\\s+"), "") }
+            .distinct()
+        for (name in names) {
+            ensureCardRegistered(name)
+        }
+    }
+
+    /**
+     * Register all default deck cards and enable [CardDb.testMode].
+     * Idempotent — safe to call from multiple test setup methods.
+     */
     fun ensureRegistered() {
+        CardDb.testMode = true
         if (CardDb.registeredCount > 0) return
-        // Forest: Basic Land — Forest, mana ability {T}: Add {G}
-        CardDb.registerData(
-            CardDb.CardData(
-                grpId = FOREST_GRPID,
-                titleId = 1,
-                power = "",
-                toughness = "",
-                colors = emptyList(),
-                types = listOf(5), // CardType.Land_a80b = 5
-                subtypes = listOf(29), // SubType.Forest = 29
-                supertypes = listOf(1), // SuperType.Basic = 1
-                abilityIds = listOf(1005 to 0), // implicit basic land mana ability
-                manaCost = emptyList(),
-            ),
-            "Forest",
-        )
-        // Llanowar Elves: Creature — Elf Druid, 1/1, {G}
-        CardDb.registerData(
-            CardDb.CardData(
-                grpId = LLANOWAR_ELVES_GRPID,
-                titleId = 2,
-                power = "1",
-                toughness = "1",
-                colors = listOf(5), // CardColor.Green_a3b0 = 5
-                types = listOf(2), // CardType.Creature = 2
-                subtypes = listOf(27, 23), // SubType.Elf = 27, SubType.Druid = 23
-                supertypes = emptyList(),
-                abilityIds = listOf(2001 to 0), // {T}: Add {G}
-                manaCost = listOf(ManaColor.Green_afc9 to 1),
-            ),
-            "Llanowar Elves",
-        )
-        // Elvish Mystic: Creature — Elf Druid, 1/1, {G}
-        CardDb.registerData(
-            CardDb.CardData(
-                grpId = ELVISH_MYSTIC_GRPID,
-                titleId = 3,
-                power = "1",
-                toughness = "1",
-                colors = listOf(5),
-                types = listOf(2),
-                subtypes = listOf(27, 23),
-                supertypes = emptyList(),
-                abilityIds = listOf(2002 to 0),
-                manaCost = listOf(ManaColor.Green_afc9 to 1),
-            ),
-            "Elvish Mystic",
-        )
-        // Giant Growth: Instant, {G}
-        CardDb.registerData(
-            CardDb.CardData(
-                grpId = GIANT_GROWTH_GRPID,
-                titleId = 4,
-                power = "",
-                toughness = "",
-                colors = listOf(5),
-                types = listOf(4), // CardType.Instant = 4
-                subtypes = emptyList(),
-                supertypes = emptyList(),
-                abilityIds = emptyList(),
-                manaCost = listOf(ManaColor.Green_afc9 to 1),
-            ),
-            "Giant Growth",
-        )
-        // Mountain: Basic Land — Mountain, {T}: Add {R}
-        CardDb.registerData(
-            CardDb.CardData(
-                grpId = MOUNTAIN_GRPID,
-                titleId = 5,
-                power = "",
-                toughness = "",
-                colors = emptyList(),
-                types = listOf(5), // CardType.Land_a80b = 5
-                subtypes = listOf(49), // SubType.Mountain = 49
-                supertypes = listOf(1), // SuperType.Basic = 1
-                abilityIds = listOf(1006 to 0), // implicit basic land mana ability
-                manaCost = emptyList(),
-            ),
-            "Mountain",
-        )
-        // Raging Goblin: Creature — Goblin Berserker, 1/1, {R}, Haste
-        CardDb.registerData(
-            CardDb.CardData(
-                grpId = RAGING_GOBLIN_GRPID,
-                titleId = 6,
-                power = "1",
-                toughness = "1",
-                colors = listOf(4), // CardColor.Red_a3b0 = 4
-                types = listOf(2), // CardType.Creature = 2
-                subtypes = listOf(34, 11), // SubType.Goblin = 34, SubType.Berserker = 11
-                supertypes = emptyList(),
-                abilityIds = listOf(3001 to 0), // Haste keyword ability
-                manaCost = listOf(ManaColor.Red_afc9 to 1),
-            ),
-            "Raging Goblin",
-        )
+        for (name in DEFAULT_DECK_CARDS) {
+            ensureCardRegistered(name)
+        }
     }
 }
