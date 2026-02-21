@@ -15,35 +15,43 @@ md_ip        := env("NEXUS_MD_IP", "54.71.214.244")
 payloads     := env("NEXUS_PAYLOADS", "/tmp/arena-capture/payloads")
 ports        := "30010 30003 8090"
 
-jvm_opts := "-Dio.netty.tryReflectionSetAccessible=true --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dlogback.configurationFile=" + logback
-jvm_opts_cli := "-Dio.netty.tryReflectionSetAccessible=true --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED -Dlogback.configurationFile=" + logback_cli + " -Dlogback.statusListenerClass=ch.qos.logback.core.status.NopStatusListener"
+# --- JVM flags (shared base + per-mode overrides) ---
+
+_jvm_base    := "-Dio.netty.tryReflectionSetAccessible=true --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED"
+jvm_opts     := _jvm_base + " -Dlogback.configurationFile=" + logback
+jvm_opts_cli := _jvm_base + " -Dlogback.configurationFile=" + logback_cli + " -Dlogback.statusListenerClass=ch.qos.logback.core.status.NopStatusListener"
+
+# --- Java launch helpers ---
+
+# Full classpath expression (shared by _nexus_java and _nexus_cli)
+_cp := '"$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
+
+# Kill ports + launch (for server targets)
+_nexus_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill $pid 2>/dev/null || true; done; done; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp ' + _cp
+# Read-only CLI (no port kill)
+_nexus_cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts_cli + ' -cp ' + _cp
+
+# --- Cert flags (shared by all serve-* targets) ---
+
+_cert_flags := "--fd-cert " + certs + "/frontdoor-combined.pem --fd-key " + certs + "/frontdoor.key --md-cert " + certs + "/matchdoor-combined.pem --md-key " + certs + "/matchdoor.key"
+
+# --- Build ---
+
+flatten := "org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten"
 
 # auto-format Kotlin sources (spotless/ktlint)
 fmt: check-java
     cd "{{root_dir}}" && mvn -pl forge-nexus com.diffplug.spotless:spotless-maven-plugin:apply -q
     @echo "fmt done."
 
-# --- Build ---
-
-flatten := "org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten"
-
 # compile proto + Kotlin, install forge-web JAR to ~/.m2
 build: check-java _check-upstream
     #!/usr/bin/env bash
     set -euo pipefail
-    # clear cached ${revision} failures
     rm -rf "$HOME/.m2/repository/forge/forge/\${revision}" 2>/dev/null || true
-    # install forge-web (flattened) so nexus can resolve it without -am
-    cd "{{root_dir}}" && mvn -pl forge-web \
-        {{flatten}} {{mvn_skip}} install -q
-    cd "{{root_dir}}" && mvn -pl forge-nexus \
-        {{mvn_skip}} compile
-    if [ ! -f "{{classpath}}" ] || [ "{{nexus_dir}}/pom.xml" -nt "{{classpath}}" ] || [ "{{root_dir}}/pom.xml" -nt "{{classpath}}" ]; then
-        cd "{{root_dir}}" && mvn -pl forge-nexus \
-            {{mvn_skip}} \
-            -DincludeScope=runtime dependency:build-classpath \
-            -Dmdep.outputFile="{{classpath}}"
-    fi
+    cd "{{root_dir}}" && mvn -pl forge-web {{flatten}} {{mvn_skip}} install -q
+    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_skip}} compile
+    just -f "{{nexus_dir}}/justfile" _refresh-classpath
     echo "Build complete. Classpath: {{classpath}}"
 
 # fast Kotlin-only compile (~3-5s, skip forge-web install)
@@ -51,54 +59,29 @@ dev-build: check-java
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_skip}} compile -q && echo "dev-build OK"
-    if [ ! -f "{{classpath}}" ] || [ "{{nexus_dir}}/pom.xml" -nt "{{classpath}}" ] || [ "{{root_dir}}/pom.xml" -nt "{{classpath}}" ]; then
-        cd "{{root_dir}}" && mvn -pl forge-nexus \
-            {{mvn_skip}} \
-            -DincludeScope=runtime dependency:build-classpath \
-            -Dmdep.outputFile="{{classpath}}"
-    fi
+    just -f "{{nexus_dir}}/justfile" _refresh-classpath
+
+# --- Test ---
 
 # run tests (assumes `just build` has been run)
-test: check-java _check-upstream _clean-surefire
-    #!/usr/bin/env bash
-    set +e
-    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} test; rc=$?
-    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
+test: check-java _check-upstream _clean-surefire (_mvn-test "")
 
 # single test class (e.g. `just test-one StructuralFingerprintTest`)
-test-one class: check-java _check-upstream _clean-surefire
-    #!/usr/bin/env bash
-    set +e
-    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} -Dtest="{{class}}" -Dsurefire.failIfNoSpecifiedTests=false test; rc=$?
-    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
+test-one class: check-java _check-upstream _clean-surefire (_mvn-test ("-Dtest=" + class + " -Dsurefire.failIfNoSpecifiedTests=false"))
 
 # unit tests only (no engine bootstrap, fastest)
-test-unit: check-java _check-upstream _clean-surefire
-    #!/usr/bin/env bash
-    set +e
-    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} -Dgroups=unit test; rc=$?
-    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
+test-unit: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=unit")
 
 # all conformance tests (~5s, wire-shape checks against Arena patterns)
-test-conformance: check-java _check-upstream _clean-surefire
-    #!/usr/bin/env bash
-    set +e
-    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} -Dgroups=conformance test; rc=$?
-    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
+test-conformance: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=conformance")
 
 # integration tests (~30s, boots engine — includes conformance)
-test-integration: check-java _check-upstream _clean-surefire
-    #!/usr/bin/env bash
-    set +e
-    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} -Dgroups=integration test; rc=$?
-    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
+test-integration: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=integration")
 
 # pre-commit gate: unit + conformance + integration (skips recording)
-test-gate: check-java _check-upstream _clean-surefire
-    #!/usr/bin/env bash
-    set +e
-    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} -Dgroups="unit,conformance,integration" test; rc=$?
-    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
+test-gate: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=unit,conformance,integration")
+
+# --- Dev ---
 
 # watch *.kt, recompile + restart hybrid on change (fast: nexus-only compile)
 dev: check-java
@@ -136,40 +119,19 @@ smoke: (_require classpath) check-java
 
 # hybrid mode: proxy FD to real Arena, stub MD (default dev mode)
 serve: (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.NexusMainKt \
-        --fd-cert {{certs}}/frontdoor-combined.pem \
-        --fd-key  {{certs}}/frontdoor.key \
-        --md-cert {{certs}}/matchdoor-combined.pem \
-        --md-key  {{certs}}/matchdoor.key \
-        --proxy-fd {{fd_ip}}
+    @{{_nexus_java}} forge.nexus.NexusMainKt {{_cert_flags}} --proxy-fd {{fd_ip}}
 
 # stub mode (fake both doors, fully offline)
 serve-stub: (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.NexusMainKt \
-        --fd-cert {{certs}}/frontdoor-combined.pem \
-        --fd-key  {{certs}}/frontdoor.key \
-        --md-cert {{certs}}/matchdoor-combined.pem \
-        --md-key  {{certs}}/matchdoor.key
+    @{{_nexus_java}} forge.nexus.NexusMainKt {{_cert_flags}}
 
 # proxy mode (both doors, capture traffic)
 serve-proxy: (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.NexusMainKt \
-        --fd-cert {{certs}}/frontdoor-combined.pem \
-        --fd-key  {{certs}}/frontdoor.key \
-        --md-cert {{certs}}/matchdoor-combined.pem \
-        --md-key  {{certs}}/matchdoor.key \
-        --proxy-fd {{fd_ip}} \
-        --proxy-md {{md_ip}}
+    @{{_nexus_java}} forge.nexus.NexusMainKt {{_cert_flags}} --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
 
 # replay mode (proxy FD, replay recorded bytes on MD)
 serve-replay: (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.NexusMainKt \
-        --fd-cert {{certs}}/frontdoor-combined.pem \
-        --fd-key  {{certs}}/frontdoor.key \
-        --md-cert {{certs}}/matchdoor-combined.pem \
-        --md-key  {{certs}}/matchdoor.key \
-        --proxy-fd {{fd_ip}} \
-        --replay {{payloads}}
+    @{{_nexus_java}} forge.nexus.NexusMainKt {{_cert_flags}} --proxy-fd {{fd_ip}} --replay {{payloads}}
 
 # --- Proto inspection ---
 
@@ -243,12 +205,13 @@ proto-decode-recording dir output="": (_require classpath) check-java
 proto-accumulate dir output="": (_require classpath) check-java
     @{{_nexus_cli}} forge.nexus.conformance.RecordingDecoderMainKt "{{dir}}" --accumulate {{output}}
 
+# --- Recording CLI ---
+
 # list discovered recording sessions (engine/proxy)
 rec-list: (_require classpath) check-java
     @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt list
 
 # compact summary for one recording session directory (or session id from rec-list)
-# accepts extra args for convenience (ignored)
 rec-summary session *args: (_require classpath) check-java
     @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt summary "{{session}}"
 
@@ -291,23 +254,55 @@ _check-upstream:
 _clean-surefire:
     @rm -rf "{{nexus_dir}}/target/surefire-reports"
 
+# Run mvn test with extra flags, show failures, preserve exit code.
+[private]
+_mvn-test extra_flags:
+    #!/usr/bin/env bash
+    set +e
+    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} {{extra_flags}} test; rc=$?
+    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
+
 [private]
 _show-failures:
-    #!/usr/bin/env bash
-    report="{{nexus_dir}}/target/surefire-reports/testng-results.xml"
-    [ -f "$report" ] || exit 0
-    if rg -q 'status="FAIL"' "$report" 2>/dev/null; then
-        echo ""
-        echo "=== FAILED TESTS ==="
-        rg 'status="FAIL"' "$report" 2>/dev/null \
-            | while IFS= read -r line; do
-                method=$(echo "$line" | grep -oE 'name="[^"]+"' | head -1 | sed 's/name="//;s/"//')
-                class=$(echo "$line" | grep -oE 'instance:[^@]+' | sed 's/instance://')
-                echo "  ${class}.${method}"
-            done | sort
-        echo ""
-    fi
+    #!/usr/bin/env python3
+    import xml.etree.ElementTree as ET, sys, os
+    report = "{{nexus_dir}}/target/surefire-reports/testng-results.xml"
+    if not os.path.isfile(report):
+        sys.exit(0)
+    tree = ET.parse(report)
+    fails = []
+    for tm in tree.iter("test-method"):
+        if tm.get("status") != "FAIL" or tm.get("is-config") == "true":
+            continue
+        sig = tm.get("signature", "")
+        # extract class from "instance:com.foo.Bar@hex" in signature
+        cls = ""
+        if "instance:" in sig:
+            cls = sig.split("instance:")[1].split("@")[0]
+        name = tm.get("name", "")
+        msg = ""
+        exc = tm.find("exception")
+        if exc is not None:
+            m = exc.find("message")
+            if m is not None and m.text:
+                # first line only, trim whitespace
+                msg = m.text.strip().split("\n")[0][:120]
+        fails.append((cls, name, msg))
+    if fails:
+        print("\n=== FAILED TESTS ===")
+        for cls, name, msg in sorted(fails):
+            print(f"  {cls}.{name}")
+            if msg:
+                print(f"    {msg}")
+        print()
 
-_nexus_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill $pid 2>/dev/null || true; done; done; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp "$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
-# Same as _nexus_java but without killing ports — for read-only CLI tools
-_nexus_cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts_cli + ' -cp "$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
+# Refresh classpath file if pom changed (used by build + dev-build).
+[private]
+_refresh-classpath:
+    #!/usr/bin/env bash
+    if [ ! -f "{{classpath}}" ] || [ "{{nexus_dir}}/pom.xml" -nt "{{classpath}}" ] || [ "{{root_dir}}/pom.xml" -nt "{{classpath}}" ]; then
+        cd "{{root_dir}}" && mvn -pl forge-nexus \
+            {{mvn_skip}} \
+            -DincludeScope=runtime dependency:build-classpath \
+            -Dmdep.outputFile="{{classpath}}"
+    fi
