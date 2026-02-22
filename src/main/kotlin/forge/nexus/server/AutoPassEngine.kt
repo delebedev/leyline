@@ -103,17 +103,10 @@ class AutoPassEngine(
         val batches = playback.drainQueue()
         for ((idx, batch) in batches.withIndex()) {
             if (idx > 0) ops.paceDelay(1)
-            // Update lastSentTurnInfo from playback diffs before sending —
-            // sendBundledGRE also updates, but explicit here for clarity.
-            for (gre in batch) {
-                if (gre.hasGameStateMessage()) {
-                    bridge.updateLastSentTurnInfo(gre.gameStateMessage)
-                }
-            }
-            ops.sendBundledGRE(batch)
+            ops.sendBundledGRE(batch) // sendBundledGRE updates lastSentTurnInfo
         }
         val (nextMsg, nextGs) = playback.getCounters()
-        log.info("drainPlayback: drained, counters msgId={} gsId={} (was msgId={} gsId={})", nextMsg, nextGs, ops.msgIdCounter, ops.gameStateId)
+        log.debug("drainPlayback: drained, counters msgId={} gsId={} (was msgId={} gsId={})", nextMsg, nextGs, ops.msgIdCounter, ops.gameStateId)
         ops.msgIdCounter = nextMsg
         ops.gameStateId = nextGs
         // Do NOT snapshot current engine state here — the playback diffs represent

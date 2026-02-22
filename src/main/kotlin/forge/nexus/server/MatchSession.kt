@@ -270,7 +270,7 @@ class MatchSession(
             profile.setEnabled(humanPlayer.id, phase, false)
         }
 
-        log.info(
+        log.debug(
             "MatchSession: applied stops — enabled={} disabled={} profile={}",
             teamEnabled.map { it.name },
             teamDisabled.map { it.name },

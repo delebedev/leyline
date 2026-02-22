@@ -180,7 +180,7 @@ class CombatHandler(private val ops: SessionOps) {
                     // advancing the snapshot's gsId past ops.gameStateId. Without this,
                     // declareBlockersBundle reads a snapshot with gsId > ops.gameStateId
                     // and produces a self-referential prevGameStateId.
-                    syncCountersFromPlayback(bridge)
+                    drainAndSyncPlayback(bridge)
                     ops.traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
                     sendDeclareBlockersReq(bridge)
                     return Signal.STOP
@@ -246,28 +246,29 @@ class CombatHandler(private val ops: SessionOps) {
      * with new gsIds. If we only sync counters but don't send these messages,
      * the next bundle references a prevGsId the client never received.
      */
-    private fun syncCountersFromPlayback(bridge: GameBridge) {
+    /**
+     * Drain any pending playback messages and sync ops counters.
+     *
+     * The engine thread may have captured AI actions (via [NexusGamePlayback])
+     * between the last [AutoPassEngine] drain and now, queuing messages with
+     * new gsIds. If we only sync counters but don't send these messages,
+     * the next bundle references a prevGsId the client never received.
+     */
+    private fun drainAndSyncPlayback(bridge: GameBridge) {
         val playback = bridge.playback ?: return
-        // Drain and send any queued AI-action diffs first
         if (playback.hasPendingMessages()) {
             val batches = playback.drainQueue()
             for (batch in batches) {
-                for (gre in batch) {
-                    if (gre.hasGameStateMessage()) {
-                        bridge.updateLastSentTurnInfo(gre.gameStateMessage)
-                    }
-                }
-                ops.sendBundledGRE(batch)
+                ops.sendBundledGRE(batch) // sendBundledGRE updates lastSentTurnInfo
             }
         }
-        // Then sync counters (may be ahead of what was queued)
         val (nextMsg, nextGs) = playback.getCounters()
         if (nextMsg > ops.msgIdCounter) {
-            log.debug("syncCounters: msgId {} → {}", ops.msgIdCounter, nextMsg)
+            log.debug("drainAndSyncPlayback: msgId {} → {}", ops.msgIdCounter, nextMsg)
             ops.msgIdCounter = nextMsg
         }
         if (nextGs > ops.gameStateId) {
-            log.debug("syncCounters: gsId {} → {}", ops.gameStateId, nextGs)
+            log.debug("drainAndSyncPlayback: gsId {} → {}", ops.gameStateId, nextGs)
             ops.gameStateId = nextGs
         }
     }

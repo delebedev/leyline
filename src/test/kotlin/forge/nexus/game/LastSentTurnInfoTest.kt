@@ -80,9 +80,9 @@ class LastSentTurnInfoTest {
         snap.updateLastSentTurnInfo(gsm(tiMain1))
 
         // Different phase → changed
-        assertTrue(snap.isPhaseChangedFrom(tiCombat), "Combat vs Main1 should be a phase change")
+        assertTrue(snap.isPhaseChangedFromLastSent(tiCombat), "Combat vs Main1 should be a phase change")
         // Same phase → not changed
-        assertFalse(snap.isPhaseChangedFrom(tiMain1Again), "Same phase should not be a change")
+        assertFalse(snap.isPhaseChangedFromLastSent(tiMain1Again), "Same phase should not be a change")
     }
 
     @Test
@@ -90,7 +90,7 @@ class LastSentTurnInfoTest {
         val snap = DiffSnapshotter(InstanceIdRegistry())
         val ti = turnInfo(Phase.Main1_a549, Step.None_a2cb)
         // When we have no prior info, we should detect a change (first state sent)
-        assertTrue(snap.isPhaseChangedFrom(ti), "Should detect change when no prior turnInfo exists")
+        assertTrue(snap.isPhaseChangedFromLastSent(ti), "Should detect change when no prior turnInfo exists")
     }
 
     @Test
@@ -100,7 +100,7 @@ class LastSentTurnInfoTest {
         val tiBlockers = turnInfo(Phase.Combat_a549, Step.DeclareBlock_a2cb)
 
         snap.updateLastSentTurnInfo(gsm(tiAttackers))
-        assertTrue(snap.isPhaseChangedFrom(tiBlockers), "Step change within same phase should be detected")
+        assertTrue(snap.isPhaseChangedFromLastSent(tiBlockers), "Step change within same phase should be detected")
     }
 
     @Test

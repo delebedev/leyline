@@ -3,6 +3,7 @@ package forge.nexus.game
 import forge.game.Game
 import forge.game.player.Player
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
 
 /**
  * Focused interfaces for [GameBridge] capabilities.
@@ -65,7 +66,7 @@ interface StateSnapshot {
      * True if [currentTurnInfo] represents a phase/step change from the last
      * state sent to the client. Also true when no prior state has been sent.
      */
-    fun isPhaseChangedFromLastSent(currentTurnInfo: wotc.mtgo.gre.external.messaging.Messages.TurnInfo): Boolean
+    fun isPhaseChangedFromLastSent(currentTurnInfo: TurnInfo): Boolean
 }
 
 /** Monotonic annotation ID counters. */

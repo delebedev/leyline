@@ -16,6 +16,7 @@ import forge.web.game.PhaseStopProfile
 import forge.web.game.WebPlayerController
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
 import java.util.Random
 
 /**
@@ -114,8 +115,8 @@ class GameBridge(
         diff.updateLastSentTurnInfo(gsm)
     }
 
-    override fun isPhaseChangedFromLastSent(currentTurnInfo: wotc.mtgo.gre.external.messaging.Messages.TurnInfo): Boolean =
-        diff.isPhaseChangedFrom(currentTurnInfo)
+    override fun isPhaseChangedFromLastSent(currentTurnInfo: TurnInfo): Boolean =
+        diff.isPhaseChangedFromLastSent(currentTurnInfo)
 
     fun clearPreviousState() = diff.clear()
 
