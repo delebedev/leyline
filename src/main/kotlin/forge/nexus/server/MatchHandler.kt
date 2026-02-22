@@ -208,6 +208,12 @@ class MatchHandler(
                 }
             }
 
+            ClientMessageType.CheckpointReq -> {
+                // Client acknowledges IntermissionReq — MatchCompleted room state
+                // was already sent in sendGameOver(). Nothing to do here.
+                log.info("Match Door GRE: CheckpointReq (post-game acknowledgement)")
+            }
+
             else -> log.warn("Match Door GRE: unhandled type: {}", greMsg.type)
         }
     }

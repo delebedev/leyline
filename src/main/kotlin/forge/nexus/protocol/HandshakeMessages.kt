@@ -51,6 +51,35 @@ object HandshakeMessages {
     }
 
     /**
+     * Match-completed room state — sent after IntermissionReq to trigger
+     * the client's result screen.
+     *
+     * Per mtga-internals/docs/post-game-protocol.md, the client waits for
+     * [MatchGameRoomStateType.MatchCompleted] before showing the result UI.
+     */
+    fun matchCompleted(matchId: String, winningTeam: Int): MatchServiceToClientMessage {
+        val result = FinalMatchResult.newBuilder()
+            .setMatchId(matchId)
+            .setMatchCompletedReason(MatchCompletedReasonType.Success_a26d)
+            .addResultList(
+                ResultSpec.newBuilder()
+                    .setScope(MatchScope.Match)
+                    .setResult(ResultType.WinLoss)
+                    .setWinningTeamId(winningTeam),
+            )
+
+        val roomInfo = MatchGameRoomInfo.newBuilder()
+            .setStateType(MatchGameRoomStateType.MatchCompleted)
+            .setFinalMatchResult(result)
+
+        return MatchServiceToClientMessage.newBuilder()
+            .setMatchGameRoomStateChangedEvent(
+                MatchGameRoomStateChangedEvent.newBuilder().setGameRoomInfo(roomInfo),
+            )
+            .build()
+    }
+
+    /**
      * Initial GRE bundle — built dynamically.
      * Seat 1: ConnectResp + DieRollResults + GameState
      * Seat 2: DieRollResults + GameState + ChooseStartingPlayerReq
