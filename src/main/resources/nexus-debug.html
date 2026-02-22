@@ -538,6 +538,8 @@
 <div class="filter-bar" x-show="view === 'recordings'" x-cloak>
   <button class="view-tab" :class="{ active: recSubView === 'messages' }" @click="recSubView = 'messages'; if (selectedRecordingId && recordingMessages.length === 0) refreshRecordingMessages()">Messages</button>
   <button class="view-tab" :class="{ active: recSubView === 'actions' }" @click="recSubView = 'actions'">Actions</button>
+  <button class="view-tab" :class="{ active: recSubView === 'events' }" @click="recSubView = 'events'; if (selectedRecordingId && recordingEvents.length === 0) refreshRecordingEvents()">Events</button>
+  <button class="view-tab" :class="{ active: recSubView === 'analysis' }" @click="recSubView = 'analysis'; if (selectedRecordingId && !recordingAnalysis) refreshRecordingAnalysis()">Analysis</button>
   <template x-if="recSubView === 'actions'">
     <span style="display:contents">
       <label>Card:</label>
@@ -660,7 +662,7 @@
         </div>
       </template>
       <div class="rec-row" x-show="recordings.length === 0">
-        <div class="rec-meta">No sessions found in /tmp/arena-recordings.</div>
+        <div class="rec-meta">No sessions found. Play a game to generate recordings.</div>
       </div>
     </div>
 
@@ -673,6 +675,64 @@
       <button class="header-btn" @click="recListCollapsed = !recListCollapsed"
               style="position:absolute; top:4px; left:4px; z-index:1; font-size:10px; padding:1px 5px;"
               x-text="recListCollapsed ? '\u25B6' : '\u25C0'" title="Toggle session list"></button>
+      <!-- Analysis summary bar -->
+      <div class="rec-summary" x-show="recordingAnalysis" style="border-left:3px solid var(--accent); margin-bottom:8px;">
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:4px;">
+          <span class="pill pill-count">analysis</span>
+          <span class="pill" :class="recordingAnalysis?.termination === 'game_over' ? 'pill-active' : 'pill-phase'"
+                x-text="recordingAnalysis?.termination || 'unknown'"></span>
+          <span class="pill pill-turn" x-text="'T' + (recordingAnalysis?.turns || 0)"></span>
+          <span class="pill" :class="recordingAnalysis?.winner === 'human' ? 'pill-active' : recordingAnalysis?.winner === 'ai' ? 'pill-phase' : 'pill-count'"
+                x-text="'winner: ' + (recordingAnalysis?.winner || '?')"></span>
+          <span class="pill pill-count" x-text="(recordingAnalysis?.durationMs / 1000).toFixed(1) + 's'"></span>
+          <template x-if="recordingAnalysis?.invariantViolations?.length > 0">
+            <span class="pill" style="background:var(--red);color:#fff"
+                  x-text="recordingAnalysis.invariantViolations.length + ' violations'"></span>
+          </template>
+          <template x-if="recordingAnalysis?.invariantViolations?.length === 0">
+            <span class="pill" style="background:var(--green);color:var(--bg)">clean</span>
+          </template>
+          <span class="pill" :class="recordingAnalysis?.gsidChain?.valid ? 'pill-active' : ''"
+                :style="!recordingAnalysis?.gsidChain?.valid ? 'background:var(--red);color:#fff' : ''"
+                x-text="'gsId chain: ' + (recordingAnalysis?.gsidChain?.valid ? 'valid' : 'BROKEN') + ' (' + (recordingAnalysis?.gsidChain?.length || 0) + ')'"></span>
+        </div>
+        <!-- Mechanics chips -->
+        <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:4px;" x-show="recordingAnalysis?.mechanicsExercised?.length > 0">
+          <span class="pill pill-count">mechanics</span>
+          <template x-for="m in (recordingAnalysis?.mechanicsExercised || [])" :key="m.type">
+            <span class="pill" style="background:var(--bg3);color:var(--green);font-size:10px"
+                  x-text="m.type + ' x' + m.count"></span>
+          </template>
+        </div>
+        <!-- Violations detail (collapsible) -->
+        <template x-if="recordingAnalysis?.invariantViolations?.length > 0">
+          <div style="margin-top:4px;">
+            <div style="color:var(--red);font-weight:700;cursor:pointer" @click="showViolations = !showViolations"
+                 x-text="(showViolations ? '\u25bc' : '\u25b6') + ' Violations (' + recordingAnalysis.invariantViolations.length + ')'"></div>
+            <div x-show="showViolations" style="margin-top:4px;">
+              <template x-for="(v, i) in recordingAnalysis.invariantViolations" :key="i">
+                <div style="color:var(--red);font-size:10px;padding:2px 0;border-bottom:1px solid rgba(233,69,96,0.2)">
+                  <span style="color:var(--fg2)">seq=<span x-text="v.seq"></span> gs=<span x-text="v.gsId"></span></span>
+                  <span style="color:var(--orange);margin:0 4px" x-text="v.check"></span>
+                  <span x-text="v.message"></span>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+        <!-- Interesting moments -->
+        <template x-if="recordingAnalysis?.interestingMoments?.length > 0">
+          <div style="margin-top:4px;">
+            <span class="pill pill-count">interesting</span>
+            <template x-for="m in recordingAnalysis.interestingMoments" :key="m.seq">
+              <div style="font-size:10px;color:var(--yellow);padding:1px 0">
+                seq=<span x-text="m.seq"></span>: <span x-text="m.reason"></span>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+
       <div class="rec-summary" x-show="recordingSummary">
         <div><span class="pill pill-count">mode</span> <span x-text="recordingSummary?.mode"></span></div>
         <div><span class="pill pill-count">messages</span> <span x-text="recordingSummary?.messageCount"></span>
@@ -806,6 +866,76 @@
           </template>
           <div class="rec-summary" x-show="selectedRecordingId && filteredRecordingMessages.length === 0">
             <span>No messages found.</span>
+          </div>
+        </div>
+      </template>
+
+      <!-- Events sub-view (paired JSONL timeline) -->
+      <template x-if="recSubView === 'events'">
+        <div>
+          <template x-for="(ev, i) in recordingEvents" :key="i">
+            <div class="entry" :class="'dir-' + (ev.stream === 'client' ? 'in' : 'out')"
+                 style="padding:4px 10px; margin-bottom:1px;">
+              <div class="entry-header">
+                <span class="entry-meta" x-text="'#' + ev.seq" style="min-width:32px"></span>
+                <span class="pill" :class="{
+                  'pill-active': ev.stream === 'proto',
+                  'pill-turn': ev.stream === 'forge',
+                  'pill-phase': ev.stream === 'client',
+                  'pill-count': ev.stream === 'golden'
+                }" x-text="ev.stream" style="font-size:9px"></span>
+                <template x-if="ev.stream === 'proto'">
+                  <span style="display:contents">
+                    <span class="type-badge" :class="'type-' + ev.greType" x-text="ev.greType"></span>
+                    <template x-if="ev.updateType">
+                      <span class="pill" :class="ev.updateType === 'SendHiFi' ? 'pill-turn' : 'pill-active'" x-text="ev.updateType"></span>
+                    </template>
+                    <span class="entry-meta" x-text="'gs=' + ev.gsId + ' msg=' + ev.msgId"></span>
+                    <template x-if="ev.categories?.length > 0">
+                      <span class="rec-cat" x-text="ev.categories.join(', ')"></span>
+                    </template>
+                    <span class="entry-meta" x-text="ev.objectCount ? ev.objectCount + ' objs' : ''"></span>
+                  </span>
+                </template>
+                <template x-if="ev.stream === 'forge'">
+                  <span style="display:contents">
+                    <template x-for="fe in (ev.events || [])" :key="fe.type">
+                      <span class="pill" style="background:var(--bg3);color:var(--green);font-size:10px" x-text="fe.type + (fe.seat ? ' s' + fe.seat : '')"></span>
+                    </template>
+                  </span>
+                </template>
+                <template x-if="ev.stream === 'client'">
+                  <span style="display:contents">
+                    <span class="type-badge type-PerformActionResp" x-text="ev.actionType"></span>
+                    <span class="entry-meta" x-text="'iid=' + ev.instanceId + ' grp=' + ev.grpId + ' gs=' + ev.gsId"></span>
+                  </span>
+                </template>
+                <template x-if="ev.stream === 'golden'">
+                  <span style="display:contents">
+                    <span class="type-badge" x-text="ev.greType"></span>
+                    <span class="entry-meta" x-text="'gs=' + ev.gsId + ' msg=' + ev.msgId"></span>
+                  </span>
+                </template>
+                <span class="entry-meta" style="opacity:0.4" x-text="ev.ts ? ev.ts.substring(11, 23) : ''"></span>
+              </div>
+            </div>
+          </template>
+          <div class="rec-summary" x-show="selectedRecordingId && recordingEvents.length === 0">
+            <span>No events.jsonl found for this session.</span>
+          </div>
+        </div>
+      </template>
+
+      <!-- Analysis sub-view (full analysis detail) -->
+      <template x-if="recSubView === 'analysis'">
+        <div>
+          <div class="rec-summary" x-show="!recordingAnalysis">
+            <span>No analysis available. Play a game to generate analysis.json.</span>
+          </div>
+          <div x-show="recordingAnalysis">
+            <div class="json-wrap" style="max-height:none"
+                 x-effect="if (recordingAnalysis && $el) { $el.innerHTML = buildJsonHtml(JSON.stringify(recordingAnalysis)); }"
+                 @click.stop="handleJsonClick($event)"></div>
           </div>
         </div>
       </template>
@@ -963,8 +1093,10 @@ function debugApp() {
     recordings: [],
     selectedRecordingId: null,
     recordingSummary: null,
+    recordingAnalysis: null,
     recordingActions: [],
     recordingMessages: [],
+    recordingEvents: [],
     recordingCompareTargetId: null,
     recordingCompare: null,
     compareMode: false,
@@ -996,6 +1128,7 @@ function debugApp() {
     recordingCardFilter: '',
     recordingActorFilter: '',
     logLevels: { DEBUG: true, INFO: true, WARN: true, ERROR: true },
+    showViolations: false,
     expanded: {},
 
     // Internal
@@ -1230,14 +1363,17 @@ function debugApp() {
     async loadRecording(id) {
       this.selectedRecordingId = id;
       this.recordingSummary = null;
+      this.recordingAnalysis = null;
       this.recordingActions = [];
       this.recordingMessages = [];
+      this.recordingEvents = [];
       this.recMsgExpanded = {};
       this.recordingCompare = null;
       this.recordingCompareTargetId = null;
       this.compareMode = false;
-      const fetches = [this.refreshRecordingSummary()];
+      const fetches = [this.refreshRecordingSummary(), this.refreshRecordingAnalysis()];
       if (this.recSubView === 'messages') fetches.push(this.refreshRecordingMessages());
+      else if (this.recSubView === 'events') fetches.push(this.refreshRecordingEvents());
       else fetches.push(this.refreshRecordingActions());
       await Promise.all(fetches);
     },
@@ -1271,6 +1407,25 @@ function debugApp() {
         const env = await r.json();
         this.recordingMessages = env.data || env;
         this.recMsgExpanded = {};
+      } catch (_) {}
+    },
+
+    async refreshRecordingAnalysis() {
+      if (!this.selectedRecordingId) return;
+      try {
+        const r = await fetch('/api/recording-analysis?id=' + encodeURIComponent(this.selectedRecordingId));
+        if (!r.ok) { this.recordingAnalysis = null; return; }
+        this.recordingAnalysis = await r.json();
+      } catch (_) { this.recordingAnalysis = null; }
+    },
+
+    async refreshRecordingEvents() {
+      if (!this.selectedRecordingId) return;
+      try {
+        const r = await fetch('/api/recording-events?id=' + encodeURIComponent(this.selectedRecordingId));
+        if (!r.ok) return;
+        const env = await r.json();
+        this.recordingEvents = env.data || [];
       } catch (_) {}
     },
 

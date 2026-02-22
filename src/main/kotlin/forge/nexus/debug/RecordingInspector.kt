@@ -9,10 +9,9 @@ import java.util.Base64
 /**
  * Filesystem-backed recording inspector used by DebugServer and CLI.
  *
- * Supports both:
- * - Engine dumps (`/tmp/arena-dump`)
- * - Proxy captures (`/tmp/arena-capture/payloads`)
- * - Session directories under `/tmp/arena-recordings/<session>`
+ * Scans session directories under `forge-nexus/recordings/<session>/`
+ * (or `/tmp/arena-recordings/` fallback). Supports engine dumps, proxy
+ * captures, and the always-on events.jsonl paired stream.
  */
 object RecordingInspector {
 

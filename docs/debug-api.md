@@ -34,4 +34,12 @@ Snapshots and priority events include `msgSeq` — the NexusDebugCollector seque
 - `GET /api/recordings` — discover recording sessions on disk
 - `GET /api/recording-summary?id=...` — compact summary for one session
 - `GET /api/recording-actions?id=...` — extracted action timeline (supports `?card=`, `?actor=`, `?limit=`)
+- `GET /api/recording-messages?id=...` — decoded messages for a session
 - `GET /api/recording-compare?left=...&right=...` — action-level comparison between sessions
+
+## Recording analysis (post-game)
+
+- `GET /api/recording-analysis?id=...` — post-game analysis (mechanics, invariants, gsId chain). Auto-generates if missing.
+- `GET /api/recording-events?id=...&stream=proto&since=N` — paired event stream from events.jsonl with filtering
+- `GET /api/recording-invariants?id=...` — invariant violations shortcut (from analysis.json)
+- `GET /api/recording-mechanics` — cross-session mechanic manifest (all mechanics seen across all sessions)

@@ -3,6 +3,7 @@ package forge.nexus.server
 import forge.nexus.debug.GameStateCollector
 import forge.nexus.debug.NexusDebugCollector
 import forge.nexus.debug.NexusTap
+import forge.nexus.debug.SessionRecorder
 import forge.nexus.game.GameBridge
 import forge.nexus.game.StateMapper
 import forge.nexus.protocol.HandshakeMessages
@@ -89,9 +90,11 @@ class MatchHandler(
             log.info("Match Door: detected seatId={}", seatId)
             nettyCtx = ctx
 
-            // Create session + sink
+            // Create session + sink + recorder
             val sink = NettyMessageSink(ctx)
-            val s = MatchSession(seatId, matchId, sink, registry)
+            val rec = SessionRecorder(mode = "engine")
+            SessionRecorder.register(rec)
+            val s = MatchSession(seatId, matchId, sink, registry, recorder = rec)
             session = s
             registry.registerSession(matchId, seatId, s)
             registry.registerHandler(matchId, seatId, this)
@@ -269,8 +272,18 @@ class MatchHandler(
         ctx.writeAndFlush(msg)
     }
 
+    override fun channelInactive(ctx: ChannelHandlerContext) {
+        log.info("Match Door: client disconnected")
+        // Close recorder on disconnect (triggers analysis if game didn't end cleanly)
+        session?.recorder?.close()
+        session?.recorder?.let { SessionRecorder.unregister(it) }
+        super.channelInactive(ctx)
+    }
+
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
         log.error("Match Door error: {}", cause.message, cause)
+        session?.recorder?.close()
+        session?.recorder?.let { SessionRecorder.unregister(it) }
         session?.gameBridge?.shutdown()
         ctx.close()
     }
