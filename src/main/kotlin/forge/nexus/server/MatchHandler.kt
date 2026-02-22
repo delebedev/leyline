@@ -91,7 +91,8 @@ class MatchHandler(
             nettyCtx = ctx
 
             // Create session + sink + recorder
-            val sink = NettyMessageSink(ctx)
+            // Seat 2 (Familiar) sink skips ProtoDump to avoid duplicate .bin files
+            val sink = NettyMessageSink(ctx, dumpEnabled = seatId == 1)
             val rec = SessionRecorder(mode = "engine")
             SessionRecorder.register(rec)
             val s = MatchSession(seatId, matchId, sink, registry, recorder = rec)
