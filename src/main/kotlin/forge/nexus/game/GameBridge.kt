@@ -12,6 +12,7 @@ import forge.web.game.GameLoopController
 import forge.web.game.InteractivePromptBridge
 import forge.web.game.MulliganBridge
 import forge.web.game.MulliganPhase
+import forge.web.game.PhaseStopProfile
 import forge.web.game.WebPlayerController
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
@@ -105,6 +106,13 @@ class GameBridge(
 
     override fun getPreviousState(): GameStateMessage? = diff.getPreviousState()
 
+    override fun updateLastSentTurnInfo(gsm: GameStateMessage) {
+        diff.updateLastSentTurnInfo(gsm)
+    }
+
+    override fun isPhaseChangedFromLastSent(currentTurnInfo: wotc.mtgo.gre.external.messaging.Messages.TurnInfo): Boolean =
+        diff.isPhaseChangedFrom(currentTurnInfo)
+
     fun clearPreviousState() = diff.clear()
 
     override fun drainEvents(): List<NexusGameEvent> = eventCollector?.drainEvents() ?: emptyList()
@@ -173,6 +181,8 @@ class GameBridge(
 
         // Wire WebPlayerController for seat 1 (human) with mulligan bridge
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
+        val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
+        val phaseStops = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
         val controller = WebPlayerController(
             game = g,
             player = human,
@@ -180,6 +190,7 @@ class GameBridge(
             bridge = this.promptBridge,
             actionBridge = actionBridge,
             mulliganBridge = seat1MulliganBridge,
+            phaseStopProfile = phaseStops,
         )
         human.addController(Long.MAX_VALUE - 1, human, controller, false)
 

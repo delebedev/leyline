@@ -69,11 +69,13 @@ class DiscardHandSizeTest {
         //   T2 (AI): AI's turn -> human hand unchanged
         //   T3 (human): draw -> hand=8 -> cleanup: must discard 1 -> hand=7
         //   T4 (AI): AI's turn -> human hand=7
-        // Must pass PAST turn 3's cleanup to observe the discard effect.
+        // Pass until turn 4 (AI's turn) — this is AFTER turn 3's cleanup,
+        // so the discard has resolved. Passing to turn 5 would stop at
+        // human's Main1 where a fresh draw pushes hand back to 8.
         val player = harness.bridge.getPlayer(1)!!
         val gyBefore = player.getZone(ZoneType.Graveyard).size()
 
-        harness.passUntilTurn(5)
+        harness.passUntilTurn(4)
 
         val handAfter = player.getZone(ZoneType.Hand).size()
         val gyAfter = player.getZone(ZoneType.Graveyard).size()

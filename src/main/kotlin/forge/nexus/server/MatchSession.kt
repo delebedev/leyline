@@ -297,6 +297,16 @@ class MatchSession(
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
         NexusDebugCollector.recordOutbound(messages, seatId)
         GameStateCollector.collectOutbound(messages, NexusDebugCollector.currentSeq())
+        // Track last-sent TurnInfo so BundleBuilder.postAction() can detect phase
+        // transitions even when PhaseStopProfile causes the engine to skip phases.
+        val bridge = gameBridge
+        if (bridge != null) {
+            for (gre in messages) {
+                if (gre.hasGameStateMessage()) {
+                    bridge.updateLastSentTurnInfo(gre.gameStateMessage)
+                }
+            }
+        }
         sink.send(messages)
         mirrorToFamiliar(messages)
     }

@@ -84,16 +84,43 @@ class AutoPassEngine(
      */
     private fun drainPlayback(bridge: GameBridge, game: Game): Boolean {
         val playback = bridge.playback ?: return false
-        if (!playback.hasPendingMessages()) return false
+        if (!playback.hasPendingMessages()) {
+            // No queued messages, but the engine thread may have advanced
+            // counters (via NexusGamePlayback.captureAndPause) between
+            // iterations. Sync so ops.gameStateId stays ahead of the
+            // snapshot's gameStateId.
+            val (nextMsg, nextGs) = playback.getCounters()
+            if (nextMsg > ops.msgIdCounter) {
+                log.debug("drainPlayback: sync msgId {} → {}", ops.msgIdCounter, nextMsg)
+                ops.msgIdCounter = nextMsg
+            }
+            if (nextGs > ops.gameStateId) {
+                log.debug("drainPlayback: sync gsId {} → {}", ops.gameStateId, nextGs)
+                ops.gameStateId = nextGs
+            }
+            return false
+        }
         val batches = playback.drainQueue()
         for ((idx, batch) in batches.withIndex()) {
             if (idx > 0) ops.paceDelay(1)
+            // Update lastSentTurnInfo from playback diffs before sending —
+            // sendBundledGRE also updates, but explicit here for clarity.
+            for (gre in batch) {
+                if (gre.hasGameStateMessage()) {
+                    bridge.updateLastSentTurnInfo(gre.gameStateMessage)
+                }
+            }
             ops.sendBundledGRE(batch)
         }
         val (nextMsg, nextGs) = playback.getCounters()
+        log.info("drainPlayback: drained, counters msgId={} gsId={} (was msgId={} gsId={})", nextMsg, nextGs, ops.msgIdCounter, ops.gameStateId)
         ops.msgIdCounter = nextMsg
         ops.gameStateId = nextGs
-        bridge.snapshotState(StateMapper.buildFromGame(game, ops.gameStateId, ops.matchId, bridge))
+        // Do NOT snapshot current engine state here — the playback diffs represent
+        // an earlier point in time. Snapshotting now would advance the diff baseline
+        // past phases the client never saw (e.g. Draw phase skipped by PhaseStopProfile),
+        // causing subsequent diffs to omit new objects (drawn cards) that the client
+        // hasn't received yet. The next buildDiffFromGame() call will snapshot correctly.
         return true
     }
 

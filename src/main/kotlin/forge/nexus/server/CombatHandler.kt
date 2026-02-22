@@ -50,7 +50,6 @@ class CombatHandler(private val ops: SessionOps) {
 
         val resp = greMsg.declareAttackersResp
         val selectedInstanceIds = resp.selectedAttackersList.map { it.attackerInstanceId }
-            .ifEmpty { pendingLegalAttackers }
 
         log.info(
             "CombatHandler: DeclareAttackers instanceIds={} (fromResp={} pending={})",
@@ -117,7 +116,9 @@ class CombatHandler(private val ops: SessionOps) {
         }
 
         log.info("CombatHandler: DeclareBlockersResp blocks={}", blockAssignments)
-        pendingBlockersSent = false
+        // Don't clear pendingBlockersSent here — a priority window may follow
+        // in DECLARE_BLOCKERS step before moving to damage. Cleared when a new
+        // combat starts (COMBAT_DECLARE_ATTACKERS).
 
         ops.sendBundledGRE(
             listOf(
@@ -152,6 +153,8 @@ class CombatHandler(private val ops: SessionOps) {
 
         when (phase) {
             PhaseType.COMBAT_DECLARE_ATTACKERS -> {
+                // New combat round — reset blocker-sent flag from previous combat.
+                pendingBlockersSent = false
                 if (isHumanTurn) {
                     val req = BundleBuilder.buildDeclareAttackersReq(game, ops.seatId, bridge)
                     if (req.attackersCount > 0) {
@@ -167,6 +170,17 @@ class CombatHandler(private val ops: SessionOps) {
             }
             PhaseType.COMBAT_DECLARE_BLOCKERS -> {
                 if (isAiTurn && combat != null && combat.attackers.isNotEmpty() && !pendingBlockersSent) {
+                    // Wait for engine to reach declareBlockers() on the human player's
+                    // WebPlayerController — it creates a pending action via awaitAction().
+                    // Without this, we'd send DeclareBlockersReq before the engine is
+                    // ready to accept the response, causing "no pending action" errors.
+                    bridge.awaitPriority()
+                    // Sync counters — the engine thread may have captured AI actions
+                    // (via NexusGamePlayback) between the last drainPlayback and now,
+                    // advancing the snapshot's gsId past ops.gameStateId. Without this,
+                    // declareBlockersBundle reads a snapshot with gsId > ops.gameStateId
+                    // and produces a self-referential prevGameStateId.
+                    syncCountersFromPlayback(bridge)
                     ops.traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
                     sendDeclareBlockersReq(bridge)
                     return Signal.STOP
@@ -222,5 +236,39 @@ class CombatHandler(private val ops: SessionOps) {
         NexusTap.outboundTemplate("DeclareBlockersReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
         bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
+    }
+
+    /**
+     * Drain any pending playback messages and sync ops counters.
+     *
+     * The engine thread may have captured AI actions (via [NexusGamePlayback])
+     * between the last [AutoPassEngine.drainPlayback] and now, queuing messages
+     * with new gsIds. If we only sync counters but don't send these messages,
+     * the next bundle references a prevGsId the client never received.
+     */
+    private fun syncCountersFromPlayback(bridge: GameBridge) {
+        val playback = bridge.playback ?: return
+        // Drain and send any queued AI-action diffs first
+        if (playback.hasPendingMessages()) {
+            val batches = playback.drainQueue()
+            for (batch in batches) {
+                for (gre in batch) {
+                    if (gre.hasGameStateMessage()) {
+                        bridge.updateLastSentTurnInfo(gre.gameStateMessage)
+                    }
+                }
+                ops.sendBundledGRE(batch)
+            }
+        }
+        // Then sync counters (may be ahead of what was queued)
+        val (nextMsg, nextGs) = playback.getCounters()
+        if (nextMsg > ops.msgIdCounter) {
+            log.debug("syncCounters: msgId {} → {}", ops.msgIdCounter, nextMsg)
+            ops.msgIdCounter = nextMsg
+        }
+        if (nextGs > ops.gameStateId) {
+            log.debug("syncCounters: gsId {} → {}", ops.gameStateId, nextGs)
+            ops.gameStateId = nextGs
+        }
     }
 }

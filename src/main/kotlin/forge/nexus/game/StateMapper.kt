@@ -505,7 +505,15 @@ object StateMapper {
         // Update snapshot for next diff (reuse the full GSM already built above)
         bridge.snapshotState(current)
 
-        return builder.build()
+        val built = builder.build()
+        if (built.gameStateId != 0 && built.gameStateId == built.prevGameStateId) {
+            log.error(
+                "SELF-REF gsId={} prev.gsId={} prev.prevGsId={} param={} caller={}",
+                built.gameStateId, prev.gameStateId, prev.prevGameStateId, gameStateId,
+                Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
+            )
+        }
+        return built
     }
 
     /** Embed stripped-down actions into an already-built GSM (post-realloc). */

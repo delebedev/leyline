@@ -70,6 +70,10 @@ abstract class ConformanceTestBase {
         )
         val gsId = 20
         b.snapshotFromGame(game, gsId)
+        // Seed lastSentTurnInfo so postAction() doesn't inject a spurious
+        // PhaseOrStepModified on the first call. ConformanceTestBase bypasses
+        // MatchSession (which normally updates this via sendBundledGRE).
+        b.updateLastSentTurnInfo(StateMapper.buildFromGame(game, gsId, TEST_MATCH_ID, b))
         return Triple(b, game, gsId)
     }
 
