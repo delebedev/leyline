@@ -1425,7 +1425,7 @@ function debugApp() {
         const r = await fetch('/api/recording-events?id=' + encodeURIComponent(this.selectedRecordingId));
         if (!r.ok) return;
         const env = await r.json();
-        this.recordingEvents = env.data || [];
+        this.recordingEvents = (env.data || []).map(ev => ({ stream: 'proto', ...ev }));
       } catch (_) {}
     },
 

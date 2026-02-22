@@ -261,11 +261,14 @@ class DebugServer(private val port: Int = 8090) {
             respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
             return
         }
-        val sessionDir = RecordingInspector.resolveSessionDir(id)
-        if (sessionDir == null) {
+        val recordingDir = RecordingInspector.resolveSessionDir(id)
+        if (recordingDir == null) {
             respond(ex, 404, "text/plain", "Session not found")
             return
         }
+        // Resolve session root: recording dir may be a leaf (engine/, capture/payloads/)
+        // but analysis.json lives at the session root (parent of engine/ or grandparent of capture/payloads/)
+        val sessionDir = RecordingInspector.resolveSessionRoot(recordingDir)
         // Read existing analysis or run on demand
         val analysis = SessionAnalyzer.readAnalysis(sessionDir)
             ?: SessionAnalyzer.analyze(sessionDir)
@@ -283,11 +286,12 @@ class DebugServer(private val port: Int = 8090) {
             respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
             return
         }
-        val sessionDir = RecordingInspector.resolveSessionDir(id)
-        if (sessionDir == null) {
+        val recordingDir = RecordingInspector.resolveSessionDir(id)
+        if (recordingDir == null) {
             respond(ex, 404, "text/plain", "Session not found")
             return
         }
+        val sessionDir = RecordingInspector.resolveSessionRoot(recordingDir)
         val eventsFile = File(sessionDir, "events.jsonl")
         if (!eventsFile.exists()) {
             respondJsonList(ex, "[]", null)
@@ -324,11 +328,12 @@ class DebugServer(private val port: Int = 8090) {
             respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
             return
         }
-        val sessionDir = RecordingInspector.resolveSessionDir(id)
-        if (sessionDir == null) {
+        val recordingDir = RecordingInspector.resolveSessionDir(id)
+        if (recordingDir == null) {
             respond(ex, 404, "text/plain", "Session not found")
             return
         }
+        val sessionDir = RecordingInspector.resolveSessionRoot(recordingDir)
         val analysis = SessionAnalyzer.readAnalysis(sessionDir)
         if (analysis == null) {
             respondJsonList(ex, "[]", null)

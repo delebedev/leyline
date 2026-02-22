@@ -88,10 +88,16 @@ object SessionAnalyzer {
         val modeFile = File(sessionDir, "mode.txt")
         val mode = if (modeFile.exists()) modeFile.readText().trim() else "unknown"
 
-        // Decode engine messages
+        // Decode messages — prefer engine/ dumps, fall back to capture/payloads/
         val engineDir = File(sessionDir, "engine")
-        val messages = if (engineDir.isDirectory) {
-            RecordingDecoder.decodeDirectory(engineDir, seatFilter = null)
+        val captureDir = File(sessionDir, "capture/payloads")
+        val sourceDir = when {
+            engineDir.isDirectory && RecordingDecoder.listRecordingFiles(engineDir).isNotEmpty() -> engineDir
+            captureDir.isDirectory && RecordingDecoder.listRecordingFiles(captureDir).isNotEmpty() -> captureDir
+            else -> null
+        }
+        val messages = if (sourceDir != null) {
+            RecordingDecoder.decodeDirectory(sourceDir, seatFilter = null)
         } else {
             emptyList()
         }
@@ -102,7 +108,7 @@ object SessionAnalyzer {
         }
 
         // Duration estimate from first/last message timestamps (file mod times)
-        val engineFiles = RecordingDecoder.listRecordingFiles(engineDir)
+        val engineFiles = RecordingDecoder.listRecordingFiles(sourceDir ?: engineDir)
         val durationMs = if (engineFiles.size >= 2) {
             val first = engineFiles.first().lastModified()
             val last = engineFiles.last().lastModified()
