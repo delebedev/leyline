@@ -194,9 +194,14 @@ class MatchFlowHarness(
             .map { bridge.getOrAllocInstanceId(it.id) to it.name }
     }
 
-    /** Declare attackers by instanceId. Builds proto and calls [MatchSession.onDeclareAttackers]. */
+    /**
+     * Declare attackers by instanceId using the two-phase Arena protocol:
+     * 1. Send [DeclareAttackersResp] with selection (iterative update)
+     * 2. Send [SubmitAttackersReq] to finalize (the "Done" button)
+     */
     fun declareAttackers(attackerInstanceIds: List<Int>) {
-        val greMsg = ClientToGREMessage.newBuilder()
+        // Phase 1: iterative update with selection
+        val updateMsg = ClientToGREMessage.newBuilder()
             .setType(ClientMessageType.DeclareAttackersResp_097b)
             .setDeclareAttackersResp(
                 DeclareAttackersResp.newBuilder().apply {
@@ -205,21 +210,72 @@ class MatchFlowHarness(
                     }
                 },
             ).build()
-        session.onDeclareAttackers(greMsg)
+        session.onDeclareAttackers(updateMsg)
+        drainSink()
+
+        // Phase 2: finalize (Done button)
+        val submitMsg = ClientToGREMessage.newBuilder()
+            .setType(ClientMessageType.SubmitAttackersReq)
+            .setSystemSeatId(seatId)
+            .build()
+        session.onDeclareAttackers(submitMsg)
         drainSink()
     }
 
-    /** Declare no attackers (skip combat). */
+    /** Declare no attackers (skip combat). Sends empty selection then submits. */
     fun declareNoAttackers() {
         declareAttackers(emptyList())
     }
 
     /**
-     * Declare blockers with assignments: blockerInstanceId → attackerInstanceId.
+     * Send SubmitAttackersReq (type=31, no payload) — the real client's "Done" button.
+     *
+     * In Arena's two-phase combat protocol, iterative creature toggles send
+     * [DeclareAttackersResp] (type=30) with selection state, while the final
+     * confirmation sends [SubmitAttackersReq] (type=31) which is **type-only,
+     * no payload**. The server must use the last known selection.
+     */
+    fun submitAttackers() {
+        val greMsg = ClientToGREMessage.newBuilder()
+            .setType(ClientMessageType.SubmitAttackersReq)
+            .setSystemSeatId(seatId)
+            .build()
+        session.onDeclareAttackers(greMsg)
+        drainSink()
+    }
+
+    /**
+     * Send DeclareAttackersResp with auto_declare=true — the "Attack All" button.
+     *
+     * In Arena, this is the iterative update that selects all qualified attackers
+     * targeting the specified damage recipient. Should be followed by [submitAttackers].
+     */
+    fun declareAllAttackers() {
+        val greMsg = ClientToGREMessage.newBuilder()
+            .setType(ClientMessageType.DeclareAttackersResp_097b)
+            .setDeclareAttackersResp(
+                DeclareAttackersResp.newBuilder()
+                    .setAutoDeclare(true)
+                    .setAutoDeclareDamageRecipient(
+                        DamageRecipient.newBuilder()
+                            .setType(DamageRecType.Player_a0e5)
+                            .setPlayerSystemSeatId(2),
+                    ),
+            ).build()
+        session.onDeclareAttackers(greMsg)
+        drainSink()
+    }
+
+    /**
+     * Declare blockers with assignments using two-phase Arena protocol:
+     * 1. Send [DeclareBlockersResp] with assignments (iterative update)
+     * 2. Send [SubmitBlockersReq] to finalize
+     *
      * Each entry means "this blocker blocks that attacker."
      */
     fun declareBlockers(assignments: Map<Int, Int>) {
-        val greMsg = ClientToGREMessage.newBuilder()
+        // Phase 1: iterative update
+        val updateMsg = ClientToGREMessage.newBuilder()
             .setType(ClientMessageType.DeclareBlockersResp_097b)
             .setDeclareBlockersResp(
                 DeclareBlockersResp.newBuilder().apply {
@@ -232,17 +288,32 @@ class MatchFlowHarness(
                     }
                 },
             ).build()
-        session.onDeclareBlockers(greMsg)
+        session.onDeclareBlockers(updateMsg)
+        drainSink()
+
+        // Phase 2: finalize
+        val submitMsg = ClientToGREMessage.newBuilder()
+            .setType(ClientMessageType.SubmitBlockersReq)
+            .setSystemSeatId(seatId)
+            .build()
+        session.onDeclareBlockers(submitMsg)
         drainSink()
     }
 
-    /** Declare no blockers (let all attackers through). */
+    /** Declare no blockers (let all attackers through). Two-phase: empty update + submit. */
     fun declareNoBlockers() {
-        val greMsg = ClientToGREMessage.newBuilder()
+        val updateMsg = ClientToGREMessage.newBuilder()
             .setType(ClientMessageType.DeclareBlockersResp_097b)
             .setDeclareBlockersResp(DeclareBlockersResp.newBuilder())
             .build()
-        session.onDeclareBlockers(greMsg)
+        session.onDeclareBlockers(updateMsg)
+        drainSink()
+
+        val submitMsg = ClientToGREMessage.newBuilder()
+            .setType(ClientMessageType.SubmitBlockersReq)
+            .setSystemSeatId(seatId)
+            .build()
+        session.onDeclareBlockers(submitMsg)
         drainSink()
     }
 
