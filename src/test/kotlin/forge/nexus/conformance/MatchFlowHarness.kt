@@ -43,6 +43,9 @@ class MatchFlowHarness(
     val accumulator = ClientAccumulator()
     val allMessages = mutableListOf<GREToClientMessage>()
 
+    /** Raw messages (SettingsResp, auth, etc.) sent via [MessageSink.sendRaw]. */
+    val rawMessages: List<MatchServiceToClientMessage> get() = sink.rawMessages
+
     lateinit var session: MatchSession
         private set
     lateinit var bridge: GameBridge
@@ -313,7 +316,7 @@ class MatchFlowHarness(
     fun game(): Game = bridge.getGame()!!
     fun shutdown() = bridge.shutdown()
 
-    private fun drainSink() {
+    internal fun drainSink() {
         allMessages.addAll(sink.messages)
         accumulator.processAll(sink.messages)
         sink.clear()
