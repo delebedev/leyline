@@ -9,7 +9,7 @@ classpath    := nexus_dir / "target/classpath.txt"
 logback      := nexus_dir / "src/main/resources/logback.xml"
 logback_cli  := nexus_dir / "src/main/resources/logback-cli.xml"
 templates    := nexus_dir / "src/main/resources/arena-templates"
-certs        := env("NEXUS_CERTS", "/tmp/arena-capture")
+certs        := env("NEXUS_CERTS", env("HOME", "/tmp") / ".local/share/forge-nexus/certs")
 fd_ip        := env("NEXUS_FD_IP", "52.88.10.148")
 md_ip        := env("NEXUS_MD_IP", "54.71.214.244")
 payloads     := env("NEXUS_PAYLOADS", "/tmp/arena-recordings/latest/capture/payloads")
@@ -32,8 +32,14 @@ _nexus_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null
 _nexus_cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts_cli + ' -cp ' + _cp
 
 # --- Cert flags (shared by all serve-* targets) ---
+# Only passed when all four files exist; otherwise server uses self-signed.
 
-_cert_flags := "--fd-cert " + certs + "/frontdoor-combined.pem --fd-key " + certs + "/frontdoor.key --md-cert " + certs + "/matchdoor-combined.pem --md-key " + certs + "/matchdoor.key"
+_fd_cert := certs / "frontdoor-combined.pem"
+_fd_key  := certs / "frontdoor.key"
+_md_cert := certs / "matchdoor-combined.pem"
+_md_key  := certs / "matchdoor.key"
+_cert_check := '[ -f "' + _fd_cert + '" ] && [ -f "' + _fd_key + '" ] && [ -f "' + _md_cert + '" ] && [ -f "' + _md_key + '" ]'
+_cert_flags := '--fd-cert "' + _fd_cert + '" --fd-key "' + _fd_key + '" --md-cert "' + _md_cert + '" --md-key "' + _md_key + '"'
 
 # --- Build ---
 
@@ -118,23 +124,79 @@ dev: check-java
 smoke: (_require classpath) check-java
     @{{_nexus_java}} forge.nexus.debug.SmokeTestKt
 
+# --- Certs ---
+
+# regenerate TLS certs signed by mitmproxy CA (run after Arena patch)
+gen-certs fd_host="" md_host="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ca_cert="$HOME/.mitmproxy/mitmproxy-ca-cert.pem"
+    ca_key="$HOME/.mitmproxy/mitmproxy-ca.pem"
+    out="{{certs}}"
+    if [ ! -f "$ca_cert" ] || [ ! -f "$ca_key" ]; then
+        echo "mitmproxy CA not found. Run: brew install mitmproxy && mitmdump -q & sleep 2 && kill %1" >&2
+        exit 1
+    fi
+    # auto-discover hostnames from Player.log if not provided
+    player_log="$HOME/Library/Logs/Wizards Of The Coast/MTGA/Player.log"
+    fd="{{fd_host}}"
+    md="{{md_host}}"
+    if [ -z "$fd" ] && [ -f "$player_log" ]; then
+        fd=$(grep -oE "frontdoor-mtga-production-[a-zA-Z0-9._-]+\.w2\.mtgarena\.com" "$player_log" | sort -u | tail -1)
+    fi
+    if [ -z "$md" ] && [ -f "$player_log" ]; then
+        md=$(grep -oE "matchdoor-mtga-production-[a-zA-Z0-9._-]+\.w2\.mtgarena\.com" "$player_log" | sort -u | tail -1)
+    fi
+    if [ -z "$fd" ]; then echo "Cannot auto-detect FD hostname. Pass fd_host= or launch Arena once." >&2; exit 1; fi
+    if [ -z "$md" ]; then echo "Cannot auto-detect MD hostname. Pass md_host= or launch Arena once." >&2; exit 1; fi
+    mkdir -p "$out"
+    echo "Generating certs in $out"
+    echo "  FD: $fd"
+    echo "  MD: $md"
+    for door in frontdoor matchdoor; do
+        host="$fd"; [ "$door" = "matchdoor" ] && host="$md"
+        openssl req -new -newkey rsa:2048 -nodes \
+            -keyout "$out/$door.key" -out "$out/$door.csr" \
+            -subj "/CN=$host" 2>/dev/null
+        openssl x509 -req -in "$out/$door.csr" \
+            -CA "$ca_cert" -CAkey "$ca_key" -CAcreateserial \
+            -out "$out/$door.crt" -days 365 \
+            -extfile <(echo "subjectAltName=DNS:$host,DNS:localhost,IP:127.0.0.1") 2>/dev/null
+        cat "$out/$door.crt" "$out/$door.key" > "$out/$door-combined.pem"
+        rm -f "$out/$door.csr"
+        echo "  ✓ $door-combined.pem"
+    done
+    echo "Done. Certs valid for 365 days."
+
 # --- Serve ---
 
 # hybrid mode: proxy FD to real Arena, stub MD (default dev mode)
 serve: (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.NexusMainKt {{_cert_flags}} --proxy-fd {{fd_ip}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
+    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags --proxy-fd {{fd_ip}}
 
 # stub mode (fake both doors, fully offline)
 serve-stub: (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.NexusMainKt {{_cert_flags}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
+    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags
 
 # proxy mode (both doors, capture traffic)
 serve-proxy: (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.NexusMainKt {{_cert_flags}} --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
+    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
 
 # replay mode (proxy FD, replay recorded bytes on MD)
 serve-replay: (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.NexusMainKt {{_cert_flags}} --proxy-fd {{fd_ip}} --replay {{payloads}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
+    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags --proxy-fd {{fd_ip}} --replay {{payloads}}
 
 # --- Proto inspection ---
 
