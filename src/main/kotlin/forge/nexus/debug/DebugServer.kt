@@ -2,8 +2,10 @@ package forge.nexus.debug
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import forge.nexus.analysis.SessionAnalyzer
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.util.concurrent.Executors
@@ -53,6 +55,10 @@ class DebugServer(private val port: Int = 8090) {
         srv.createContext("/api/recording-actions") { ex -> safe(ex) { serveRecordingActions(ex) } }
         srv.createContext("/api/recording-compare") { ex -> safe(ex) { serveRecordingCompare(ex) } }
         srv.createContext("/api/recording-messages") { ex -> safe(ex) { serveRecordingMessages(ex) } }
+        srv.createContext("/api/recording-analysis") { ex -> safe(ex) { serveRecordingAnalysis(ex) } }
+        srv.createContext("/api/recording-events") { ex -> safe(ex) { serveRecordingEvents(ex) } }
+        srv.createContext("/api/recording-invariants") { ex -> safe(ex) { serveRecordingInvariants(ex) } }
+        srv.createContext("/api/recording-mechanics") { ex -> safe(ex) { serveRecordingMechanics(ex) } }
         srv.createContext("/api/events") { ex ->
             try {
                 if (ex.requestMethod != "GET") {
@@ -244,6 +250,96 @@ class DebugServer(private val port: Int = 8090) {
             return
         }
         respondJson(ex, json.encodeToString(diff))
+    }
+
+    // --- Recording analysis endpoints ---
+
+    private fun serveRecordingAnalysis(ex: HttpExchange) {
+        val params = parseQuery(ex.requestURI.rawQuery)
+        val id = params["id"]
+        if (id.isNullOrBlank()) {
+            respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
+            return
+        }
+        val sessionDir = RecordingInspector.resolveSessionDir(id)
+        if (sessionDir == null) {
+            respond(ex, 404, "text/plain", "Session not found")
+            return
+        }
+        // Read existing analysis or run on demand
+        val analysis = SessionAnalyzer.readAnalysis(sessionDir)
+            ?: SessionAnalyzer.analyze(sessionDir)
+        if (analysis == null) {
+            respond(ex, 404, "text/plain", "No analysis available (no messages)")
+            return
+        }
+        respondJson(ex, json.encodeToString(analysis))
+    }
+
+    private fun serveRecordingEvents(ex: HttpExchange) {
+        val params = parseQuery(ex.requestURI.rawQuery)
+        val id = params["id"]
+        if (id.isNullOrBlank()) {
+            respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
+            return
+        }
+        val sessionDir = RecordingInspector.resolveSessionDir(id)
+        if (sessionDir == null) {
+            respond(ex, 404, "text/plain", "Session not found")
+            return
+        }
+        val eventsFile = File(sessionDir, "events.jsonl")
+        if (!eventsFile.exists()) {
+            respondJsonList(ex, "[]", null)
+            return
+        }
+        val streamFilter = params["stream"]
+        val sinceSeq = params["since"]?.toIntOrNull() ?: 0
+
+        val lines = eventsFile.readLines()
+            .filter { it.isNotBlank() }
+            .let { allLines ->
+                if (streamFilter != null || sinceSeq > 0) {
+                    allLines.filter { line ->
+                        val streamOk = streamFilter == null || line.contains("\"stream\":\"$streamFilter\"")
+                        val seqOk = sinceSeq <= 0 || run {
+                            val seqMatch = Regex("\"seq\":(\\d+)").find(line)
+                            val lineSeq = seqMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                            lineSeq > sinceSeq
+                        }
+                        streamOk && seqOk
+                    }
+                } else {
+                    allLines
+                }
+            }
+
+        respondJson(ex, "{\"version\":1,\"data\":[${lines.joinToString(",")}]}")
+    }
+
+    private fun serveRecordingInvariants(ex: HttpExchange) {
+        val params = parseQuery(ex.requestURI.rawQuery)
+        val id = params["id"]
+        if (id.isNullOrBlank()) {
+            respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
+            return
+        }
+        val sessionDir = RecordingInspector.resolveSessionDir(id)
+        if (sessionDir == null) {
+            respond(ex, 404, "text/plain", "Session not found")
+            return
+        }
+        val analysis = SessionAnalyzer.readAnalysis(sessionDir)
+        if (analysis == null) {
+            respondJsonList(ex, "[]", null)
+            return
+        }
+        respondJsonList(ex, json.encodeToString(analysis.invariantViolations), null)
+    }
+
+    private fun serveRecordingMechanics(ex: HttpExchange) {
+        val manifest = SessionAnalyzer.readManifest()
+        respondJson(ex, json.encodeToString(manifest.sorted()))
     }
 
     // --- Helpers ---

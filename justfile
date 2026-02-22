@@ -12,7 +12,7 @@ templates    := nexus_dir / "src/main/resources/arena-templates"
 certs        := env("NEXUS_CERTS", env("HOME", "/tmp") / ".local/share/forge-nexus/certs")
 fd_ip        := env("NEXUS_FD_IP", "52.88.10.148")
 md_ip        := env("NEXUS_MD_IP", "54.71.214.244")
-payloads     := env("NEXUS_PAYLOADS", "/tmp/arena-recordings/latest/capture/payloads")
+payloads     := env("NEXUS_PAYLOADS", nexus_dir / "recordings/latest/capture/payloads")
 ports        := "30010 30003 8090"
 
 # --- JVM flags (shared base + per-mode overrides) ---
@@ -266,7 +266,7 @@ proto-trace id dir="": (_require classpath) check-java
     d="{{dir}}"
     if [[ -z "$d" ]]; then d="{{payloads}}"; fi
     if [[ "$d" == "engine" || "$d" == "latest-engine" ]]; then
-        d="$(ls -dt /tmp/arena-recordings/*/engine 2>/dev/null | head -1)"
+        d="$(ls -dt "{{nexus_dir}}"/recordings/*/engine 2>/dev/null | head -1)"
         [[ -z "$d" ]] && { echo "No engine recording found"; exit 1; }
     fi
     {{_nexus_cli}} forge.nexus.debug.TraceKt "{{id}}" "$d"
@@ -304,6 +304,28 @@ rec-who-played session card: (_require classpath) check-java
 # compare two recordings by compact action stream
 rec-compare left right: (_require classpath) check-java
     @{{_nexus_cli}} forge.nexus.debug.RecordingCliKt compare "{{left}}" "{{right}}"
+
+# --- Recording Analysis ---
+
+# run SessionAnalyzer on a session (if analysis.json missing or --force)
+rec-analyze session *args: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.analysis.AnalysisCliKt analyze "{{session}}" {{args}}
+
+# run analysis on all sessions missing analysis.json
+rec-analyze-all: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.analysis.AnalysisCliKt analyze-all
+
+# show invariant violations (latest session if omitted)
+rec-violations session="": (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.analysis.AnalysisCliKt violations {{session}}
+
+# show cross-session mechanic coverage report
+rec-mechanics: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.analysis.AnalysisCliKt mechanics
+
+# show summary + analysis of most recent session
+rec-latest: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.analysis.AnalysisCliKt latest
 
 # --- Private helpers ---
 

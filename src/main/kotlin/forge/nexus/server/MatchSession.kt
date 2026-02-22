@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.nexus.debug.GameStateCollector
 import forge.nexus.debug.NexusDebugCollector
 import forge.nexus.debug.NexusTap
+import forge.nexus.debug.SessionRecorder
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
@@ -32,6 +33,7 @@ class MatchSession(
     val sink: MessageSink,
     val registry: MatchRegistry,
     val paceDelayMs: Long = 200L,
+    val recorder: SessionRecorder? = null,
 ) : SessionOps {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
@@ -134,6 +136,7 @@ class MatchSession(
         }
 
         NexusTap.inboundAction(action)
+        recorder?.recordClientAction(greMsg)
 
         val isCast = action.actionType == ActionType.Cast
         val game = bridge.getGame()
@@ -319,6 +322,11 @@ class MatchSession(
         gameStateId = result.nextGsId
         sendBundledGRE(result.messages)
         log.info("MatchSession: sent game-over sequence (winner=team{})", winningTeam)
+
+        // Trigger post-game analysis
+        recorder?.markGameOver()
+        recorder?.close()
+        recorder?.let { SessionRecorder.unregister(it) }
     }
 
     // --- Low-level helpers ---
@@ -350,6 +358,7 @@ class MatchSession(
                 }
             }
         }
+        recorder?.recordOutbound(messages)
         sink.send(messages)
         mirrorToFamiliar(messages)
     }

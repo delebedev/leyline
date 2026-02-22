@@ -17,10 +17,15 @@ just dev-build   # Kotlin-only, ~3-5s (use `just build` only after proto changes
 
 ## Recording Sources
 
-- Engine dump: `/tmp/arena-dump`
-- Proxy payload capture: `/tmp/arena-capture/payloads`
-- Proxy lossless frames: `/tmp/arena-capture/frames`
-- Optional grouped sessions: `/tmp/arena-recordings/<session>`
+Recordings are **always-on** — every game is automatically recorded. No flags needed.
+
+- Persistent: `forge-nexus/recordings/<session>/` (project-local, gitignored)
+- Engine messages: `<session>/engine/*.bin` + `*.txt`
+- Paired event stream: `<session>/events.jsonl`
+- Post-game analysis: `<session>/analysis.json` (auto-generated on game end)
+- Proxy captures: `<session>/capture/payloads/` and `capture/frames/`
+- Session metadata: `<session>/mode.txt`
+- Symlink to latest: `forge-nexus/recordings/latest`
 
 Decoder accepts:
 
@@ -139,6 +144,34 @@ Rule of thumb:
 ## Noise-Free Output
 
 `rec-*` commands run with CLI-specific Logback config (`logback-cli.xml`) so output is data-first (no startup INFO wall).
+
+## Post-Game Analysis
+
+Analysis runs automatically when a game ends. Results are in `<session>/analysis.json`.
+
+Run analysis manually on a session:
+
+```bash
+just rec-analyze <session>           # skip if analysis.json exists
+just rec-analyze <session> --force   # re-analyze
+just rec-analyze-all                 # all sessions missing analysis.json
+```
+
+View analysis results:
+
+```bash
+just rec-latest                # summary + analysis of most recent session
+just rec-violations            # invariant violations (latest session)
+just rec-violations <session>  # specific session
+just rec-mechanics             # cross-session mechanic coverage
+```
+
+Analysis includes:
+- Invariant violations (gsId monotonicity, prevGsId validity, annotation sequentiality, action/zone consistency)
+- gsId chain validation
+- Mechanic classification (land_play, spell_cast, combat_damage, etc.)
+- Interesting moments (first occurrence of a mechanic across all sessions)
+- Annotation type coverage
 
 ## Troubleshooting
 

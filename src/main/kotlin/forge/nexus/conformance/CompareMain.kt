@@ -101,7 +101,7 @@ fun main(args: Array<String>) {
 
     val ourDir = NexusPaths.ENGINE_DUMP
     if (!ourDir.isDirectory) {
-        println("No ${NexusPaths.ENGINE_DUMP}/ found — run ARENA_DUMP=1 just serve first")
+        println("No ${NexusPaths.ENGINE_DUMP}/ found — run just serve first (recording is always-on)")
         println("\nReal recording fingerprints:")
         for ((i, fp) in realFps.withIndex()) {
             println(

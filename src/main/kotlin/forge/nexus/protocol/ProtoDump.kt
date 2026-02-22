@@ -8,9 +8,11 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Dumps outgoing client proto messages to `/tmp/arena-dump/` as text-format files.
+ * Dumps outgoing client proto messages as text-format + binary files.
  *
- * Enabled by `ARENA_DUMP=1` env var (or `-Darena.dump=true`).
+ * Always enabled — every game is recorded. Files go to the session's
+ * `engine/` subdirectory under [NexusPaths.ENGINE_DUMP].
+ *
  * Each send produces a sequentially numbered file: `001-GameStateMessage.txt`, etc.
  *
  * Usage: inspect files with `cat`, diff against templates, etc.
@@ -19,9 +21,6 @@ object ProtoDump {
     private val log = LoggerFactory.getLogger(ProtoDump::class.java)
     private val counter = AtomicInteger(0)
     private val printer = TextFormat.printer()
-
-    val enabled: Boolean = System.getenv("ARENA_DUMP") == "1" ||
-        System.getProperty("arena.dump") == "true"
 
     private val dumpDir: File by lazy {
         NexusPaths.ENGINE_DUMP.also {
@@ -32,7 +31,6 @@ object ProtoDump {
 
     /** Dump an outgoing [MatchServiceToClientMessage] to numbered text + binary files. */
     fun dump(msg: MatchServiceToClientMessage, label: String = "") {
-        if (!enabled) return
         val seq = counter.incrementAndGet()
         val tag = label.ifEmpty { classify(msg) }
         val txtName = "%03d-%s.txt".format(seq, tag)
