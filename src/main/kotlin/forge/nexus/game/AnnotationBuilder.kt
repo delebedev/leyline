@@ -21,22 +21,38 @@ object AnnotationBuilder {
     fun categoryFromEvents(forgeCardId: Int, events: List<NexusGameEvent>): TransferCategory? {
         var generic: NexusGameEvent.ZoneChanged? = null
         var sacrificed = false
+        var zoneCategory: TransferCategory? = null
 
         for (ev in events) {
             when (ev) {
-                // Highest priority — mechanic-specific events
+                // Highest priority — mechanic-specific events (immediate return)
                 is NexusGameEvent.LandPlayed -> if (ev.forgeCardId == forgeCardId) return TransferCategory.PlayLand
                 is NexusGameEvent.SpellCast -> if (ev.forgeCardId == forgeCardId) return TransferCategory.CastSpell
                 is NexusGameEvent.SpellResolved -> if (ev.forgeCardId == forgeCardId) return TransferCategory.Resolve
-                // Sacrifice flag — overrides BF→GY default of Destroy
+                // Sacrifice flag — overrides Destroy when both fire for same card
                 is NexusGameEvent.CardSacrificed -> if (ev.forgeCardId == forgeCardId) sacrificed = true
-                // Generic zone change — infer category from zone pair
+                // Zone-specific events (emitted by enriched ZoneChanged handler)
+                is NexusGameEvent.CardDestroyed -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Destroy
+                is NexusGameEvent.CardBounced -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Bounce
+                is NexusGameEvent.CardExiled -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Exile
+                is NexusGameEvent.CardDiscarded -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Discard
+                is NexusGameEvent.CardMilled -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Mill
+                is NexusGameEvent.SpellCountered -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Countered
+                // Generic zone change — fallback, infer category from zone pair
                 is NexusGameEvent.ZoneChanged -> if (ev.forgeCardId == forgeCardId) generic = ev
                 // Other events (tapped, damage, life, counters, etc.) don't affect transfer category
                 else -> {}
             }
         }
 
+        // Zone-specific events take priority over generic ZoneChanged
+        if (zoneCategory != null) {
+            // CardSacrificed overrides CardDestroyed (BF→GY) when both fire
+            if (sacrificed && zoneCategory == TransferCategory.Destroy) return TransferCategory.Sacrifice
+            return zoneCategory
+        }
+
+        // Fallback: generic ZoneChanged → zone-pair heuristic
         if (generic != null) {
             if (sacrificed) return TransferCategory.Sacrifice
             return zoneChangedCategory(generic)
@@ -229,6 +245,14 @@ object AnnotationBuilder {
             .build()
 
     // -- Group B annotation builders --
+
+    /** Token was created. Arena type 35 (TokenCreated).
+     *  [instanceId] = the new token's instanceId in the game state. */
+    fun tokenCreated(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.TokenCreated)
+            .addAffectedIds(instanceId)
+            .build()
 
     /** Counter added to a permanent. Arena type 16 (CounterAdded). */
     fun counterAdded(instanceId: Int, counterType: String, amount: Int): AnnotationInfo =

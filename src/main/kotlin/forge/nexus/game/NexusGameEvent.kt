@@ -81,10 +81,57 @@ sealed interface NexusGameEvent {
         val seatId: Int,
     ) : NexusGameEvent
 
-    // -- Group A: zone-transition disambiguation (CardSacrificed only — rest inferred from ZoneChanged) --
+    // -- Group A: zone-transition disambiguation --
+    // These replace generic ZoneChanged for specific zone pairs, enabling
+    // direct category mapping without the zoneChangedCategory() fallback.
+
+    /** A permanent was destroyed (BF→GY, not sacrifice). */
+    data class CardDestroyed(
+        val forgeCardId: Int,
+        val seatId: Int,
+    ) : NexusGameEvent
 
     /** A permanent was sacrificed (BF→GY via sacrifice effect). */
     data class CardSacrificed(
+        val forgeCardId: Int,
+        val seatId: Int,
+    ) : NexusGameEvent
+
+    /** A permanent was bounced (BF→Hand or BF→Library). */
+    data class CardBounced(
+        val forgeCardId: Int,
+        val seatId: Int,
+    ) : NexusGameEvent
+
+    /** A card was exiled (any zone → Exile). */
+    data class CardExiled(
+        val forgeCardId: Int,
+        val seatId: Int,
+    ) : NexusGameEvent
+
+    /** A card was discarded (Hand→GY). */
+    data class CardDiscarded(
+        val forgeCardId: Int,
+        val seatId: Int,
+    ) : NexusGameEvent
+
+    /** A card was milled (Library→GY). */
+    data class CardMilled(
+        val forgeCardId: Int,
+        val seatId: Int,
+    ) : NexusGameEvent
+
+    /** A spell was countered (Stack→GY without resolving).
+     *  Not wired from a dedicated Forge event — inferred from zone pair. */
+    data class SpellCountered(
+        val forgeCardId: Int,
+        val seatId: Int,
+    ) : NexusGameEvent
+
+    /** A token was created.
+     *  Note: GameEventTokenCreated is an empty record in Forge so this
+     *  cannot be wired from the event bus. Placeholder for pipeline use. */
+    data class TokenCreated(
         val forgeCardId: Int,
         val seatId: Int,
     ) : NexusGameEvent
