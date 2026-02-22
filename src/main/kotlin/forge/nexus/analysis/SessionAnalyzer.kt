@@ -96,8 +96,10 @@ object SessionAnalyzer {
             captureDir.isDirectory && RecordingDecoder.listRecordingFiles(captureDir).isNotEmpty() -> captureDir
             else -> null
         }
+        // Filter to seat 1 (human player) — engine/ dumps contain both seat copies
+        // (primary send + mirrorToFamiliar) so seatFilter=null would double-count gsIds
         val messages = if (sourceDir != null) {
-            RecordingDecoder.decodeDirectory(sourceDir, seatFilter = null)
+            RecordingDecoder.decodeDirectory(sourceDir, seatFilter = 1)
         } else {
             emptyList()
         }
@@ -126,7 +128,7 @@ object SessionAnalyzer {
         // --- Invariant checking via proto replay ---
         val checker = InvariantChecker()
         // Convert decoded messages back to GRE protos for invariant checking
-        val greMessages = replayGREMessages(engineDir)
+        val greMessages = replayGREMessages(sourceDir ?: engineDir)
         greMessages.forEach { checker.process(it) }
 
         // --- GsId chain validation ---
@@ -229,19 +231,23 @@ object SessionAnalyzer {
 
     /**
      * Replay engine .bin files through protobuf parser to get actual GRE messages
-     * for invariant checking. Returns empty list on parse failure.
+     * for invariant checking. Filters to seat 1 to avoid duplicates from mirror path.
      */
-    private fun replayGREMessages(engineDir: File): List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage> {
-        if (!engineDir.isDirectory) return emptyList()
+    private fun replayGREMessages(sourceDir: File, seatFilter: Int = 1): List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage> {
+        if (!sourceDir.isDirectory) return emptyList()
         val result = mutableListOf<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage>()
-        val files = RecordingDecoder.listRecordingFiles(engineDir).sortedBy { it.name }
+        val files = RecordingDecoder.listRecordingFiles(sourceDir).sortedBy { it.name }
 
         for (file in files) {
             try {
                 val bytes = file.readBytes()
                 val matchMsg = RecordingDecoder.parseMatchMessage(bytes) ?: continue
                 if (matchMsg.hasGreToClientEvent()) {
-                    result.addAll(matchMsg.greToClientEvent.greToClientMessagesList)
+                    for (gre in matchMsg.greToClientEvent.greToClientMessagesList) {
+                        val seats = gre.systemSeatIdsList.map { it.toInt() }
+                        if (seats.isNotEmpty() && seatFilter !in seats) continue
+                        result.add(gre)
+                    }
                 }
             } catch (_: Exception) {
                 // Skip unparseable files

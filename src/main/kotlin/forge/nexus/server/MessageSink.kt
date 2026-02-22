@@ -36,14 +36,18 @@ class ListMessageSink : MessageSink {
 }
 
 /** Production sink: wraps Netty [ChannelHandlerContext.writeAndFlush]. */
-class NettyMessageSink(private val ctx: ChannelHandlerContext) : MessageSink {
+class NettyMessageSink(
+    private val ctx: ChannelHandlerContext,
+    /** When false, skips ProtoDump — used for mirror/familiar sinks to avoid duplicate .bin files. */
+    private val dumpEnabled: Boolean = true,
+) : MessageSink {
     override fun send(messages: List<GREToClientMessage>) {
         val event = GreToClientEvent.newBuilder()
         messages.forEach { event.addGreToClientMessages(it) }
         val msg = MatchServiceToClientMessage.newBuilder()
             .setGreToClientEvent(event.build())
             .build()
-        ProtoDump.dump(msg)
+        if (dumpEnabled) ProtoDump.dump(msg)
         ctx.writeAndFlush(msg)
     }
 
