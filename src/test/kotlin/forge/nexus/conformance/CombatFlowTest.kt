@@ -418,7 +418,96 @@ class CombatFlowTest {
         harness.accumulator.assertConsistent("after full combat cycle")
     }
 
-    // --- Test 7: declareNoAttackersSkipsCombat ---
+    // --- Test 7: submitAttackersReqConfirmsPreSelected ---
+
+    /**
+     * BUG REPRO: Arena client sends SubmitAttackersReq (type=31, NO payload) when
+     * user clicks "Done". Since our DeclareAttackersReq pre-selects all eligible
+     * attackers (selectedDamageRecipient set), the client shows them as declared
+     * and the user just confirms. The server must treat SubmitAttackersReq as
+     * "confirm the current selection" (= pendingLegalAttackers), not as empty
+     * DeclareAttackersResp (= 0 attackers).
+     */
+    @Test(description = "SubmitAttackersReq (Done button) confirms pre-selected attackers; AI takes damage")
+    fun submitAttackersReqConfirmsPreSelected() {
+        val attackerIid = setupSingleAttacker()
+
+        val aiPlayer = harness.bridge.getPlayer(2)!!
+        val lifeBefore = aiPlayer.life
+        val startTurn = harness.turn()
+
+        // Advance from Main1 to combat
+        harness.passPriority()
+
+        // Verify DeclareAttackersReq was sent with our creature
+        val daReq = harness.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
+        assertNotNull(daReq, "Should receive DeclareAttackersReq")
+        val eligible = daReq!!.declareAttackersReq.attackersList.map { it.attackerInstanceId }
+        assertTrue(attackerIid in eligible, "Raging Goblin should be eligible")
+
+        // Send SubmitAttackersReq (type-only, no payload) — real client "Done" button
+        harness.submitAttackers()
+
+        // Pass through remaining combat
+        repeat(15) {
+            if (harness.isGameOver()) return@repeat
+            if (harness.turn() > startTurn) return@repeat
+            harness.passPriority()
+        }
+
+        // Verify AI took damage — Raging Goblin 1/1 unblocked = 1 damage
+        val lifeAfter = aiPlayer.life
+        assertTrue(
+            lifeAfter < lifeBefore,
+            "AI life should decrease after SubmitAttackersReq: was $lifeBefore, now $lifeAfter " +
+                "(turn=${harness.turn()} phase=${harness.phase()})",
+        )
+    }
+
+    // --- Test 8: attackAllThenSubmitDealsDamage ---
+
+    /**
+     * "Attack All" button sends DeclareAttackersResp with auto_declare=true,
+     * then "Done" sends SubmitAttackersReq. AI should take damage.
+     */
+    @Test(description = "Attack All + Done deals damage through two-phase combat protocol")
+    fun attackAllThenSubmitDealsDamage() {
+        val attackerIid = setupSingleAttacker()
+
+        val aiPlayer = harness.bridge.getPlayer(2)!!
+        val lifeBefore = aiPlayer.life
+        val startTurn = harness.turn()
+
+        // Advance from Main1 to combat
+        harness.passPriority()
+
+        // Verify DeclareAttackersReq was sent
+        val daReq = harness.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
+        assertNotNull(daReq, "Should receive DeclareAttackersReq")
+
+        // Send "Attack All" (DeclareAttackersResp with auto_declare=true)
+        harness.declareAllAttackers()
+
+        // Send "Done" (SubmitAttackersReq, empty)
+        harness.submitAttackers()
+
+        // Pass through remaining combat
+        repeat(15) {
+            if (harness.isGameOver()) return@repeat
+            if (harness.turn() > startTurn) return@repeat
+            harness.passPriority()
+        }
+
+        // Verify AI took damage
+        val lifeAfter = aiPlayer.life
+        assertTrue(
+            lifeAfter < lifeBefore,
+            "AI life should decrease after Attack All + Submit: was $lifeBefore, now $lifeAfter " +
+                "(turn=${harness.turn()} phase=${harness.phase()})",
+        )
+    }
+
+    // --- Test 9: declareNoAttackersSkipsCombat ---
 
     @Test(description = "Declaring no attackers skips combat and advances past combat phase")
     fun declareNoAttackersSkipsCombat() {

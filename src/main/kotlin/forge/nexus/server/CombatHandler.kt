@@ -24,6 +24,16 @@ class CombatHandler(private val ops: SessionOps) {
     var pendingLegalAttackers: List<Int> = emptyList()
         private set
 
+    /** Last declared attacker instanceIds — updated by iterative DeclareAttackersResp
+     *  (creature toggles / "Attack All"), defaults to [pendingLegalAttackers] when we
+     *  send DeclareAttackersReq with pre-selected attackers. Used by SubmitAttackersReq
+     *  (the "Done" button, which carries no payload). */
+    private var lastDeclaredAttackerIds: List<Int> = emptyList()
+
+    /** Last declared blocker assignments: blockerInstanceId → attackerInstanceId.
+     *  Updated by iterative DeclareBlockersResp, consumed by SubmitBlockersReq. */
+    private val lastDeclaredBlockAssignments = mutableMapOf<Int, Int>()
+
     /** True while a DeclareBlockersReq is outstanding (sent but not yet responded to).
      *  Prevents [checkCombatPhase] from re-sending during the priority window after
      *  blockers are submitted. Cleared in [onDeclareBlockers]. */
@@ -34,29 +44,52 @@ class CombatHandler(private val ops: SessionOps) {
     enum class Signal { STOP, SEND_STATE, CONTINUE }
 
     /**
-     * Handle DeclareAttackersResp: map instanceIds to forge card IDs and submit.
-     * Returns a post-combat callback: caller should invoke `autoPassAndAdvance`.
+     * Handle DeclareAttackersResp or SubmitAttackersReq from the client.
+     *
+     * Arena uses a two-phase combat protocol:
+     * - **DeclareAttackersResp** (type=30): iterative update — client sends current
+     *   attacker selection on each creature toggle or "Attack All" click.
+     *   If `auto_declare=true`, selects all [pendingLegalAttackers].
+     * - **SubmitAttackersReq** (type=31): finalize — client sends empty "Done" signal.
+     *   Server uses [lastDeclaredAttackerIds] (the last known selection).
      */
     fun onDeclareAttackers(
         greMsg: ClientToGREMessage,
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
+        val isSubmit = greMsg.type == ClientMessageType.SubmitAttackersReq
+
+        if (!isSubmit) {
+            // Iterative update: DeclareAttackersResp — update tracked selection
+            val resp = greMsg.declareAttackersResp
+            if (resp.autoDeclare) {
+                // "Attack All" — select all legal attackers
+                lastDeclaredAttackerIds = pendingLegalAttackers.toList()
+                log.info("CombatHandler: Attack All — selected all {} pending attackers", lastDeclaredAttackerIds.size)
+            } else {
+                lastDeclaredAttackerIds = resp.selectedAttackersList.map { it.attackerInstanceId }
+                log.info("CombatHandler: iterative update — selected {}", lastDeclaredAttackerIds)
+            }
+            // TODO: send updated DeclareAttackersReq back (refreshed warnings/canSubmit).
+            // For now, the initial req is sufficient — client doesn't require re-sends.
+            return
+        }
+
+        // SubmitAttackersReq: finalize — use last known selection
         val pending = bridge.actionBridge.getPending() ?: run {
-            log.warn("CombatHandler: DeclareAttackersResp but no pending action — recovering")
+            log.warn("CombatHandler: SubmitAttackersReq but no pending action — recovering")
             ops.sendRealGameState(bridge)
             return
         }
 
-        val resp = greMsg.declareAttackersResp
-        val selectedInstanceIds = resp.selectedAttackersList.map { it.attackerInstanceId }
-
+        val selectedInstanceIds = lastDeclaredAttackerIds
         log.info(
-            "CombatHandler: DeclareAttackers instanceIds={} (fromResp={} pending={})",
+            "CombatHandler: SubmitAttackers instanceIds={} (pending={})",
             selectedInstanceIds,
-            resp.selectedAttackersList.size,
             pendingLegalAttackers.size,
         )
+
         val attackerCardIds = selectedInstanceIds.mapNotNull { instanceId ->
             val forgeId = bridge.getForgeCardId(instanceId)
             if (forgeId == null) {
@@ -65,8 +98,9 @@ class CombatHandler(private val ops: SessionOps) {
             forgeId
         }
         pendingLegalAttackers = emptyList()
+        lastDeclaredAttackerIds = emptyList()
 
-        log.info("CombatHandler: DeclareAttackers forgeCardIds={}", attackerCardIds)
+        log.info("CombatHandler: SubmitAttackers forgeCardIds={}", attackerCardIds)
 
         ops.sendBundledGRE(
             listOf(
@@ -93,29 +127,47 @@ class CombatHandler(private val ops: SessionOps) {
     }
 
     /**
-     * Handle DeclareBlockersResp: map blocker->attacker assignments and submit.
+     * Handle DeclareBlockersResp or SubmitBlockersReq from the client.
+     *
+     * Same two-phase protocol as attackers:
+     * - **DeclareBlockersResp** (type=32): iterative update with blocker assignments
+     * - **SubmitBlockersReq** (type=33): finalize — uses [lastDeclaredBlockAssignments]
      */
     fun onDeclareBlockers(
         greMsg: ClientToGREMessage,
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
+        val isSubmit = greMsg.type == ClientMessageType.SubmitBlockersReq
+
+        if (!isSubmit) {
+            // Iterative update: save blocker assignments
+            val resp = greMsg.declareBlockersResp
+            lastDeclaredBlockAssignments.clear()
+            for (blocker in resp.selectedBlockersList) {
+                lastDeclaredBlockAssignments[blocker.blockerInstanceId] =
+                    blocker.selectedAttackerInstanceIdsList.firstOrNull() ?: continue
+            }
+            log.info("CombatHandler: blocker update — assignments={}", lastDeclaredBlockAssignments)
+            return
+        }
+
+        // SubmitBlockersReq: finalize
         val pending = bridge.actionBridge.getPending() ?: run {
-            log.warn("CombatHandler: DeclareBlockersResp but no pending action — recovering")
+            log.warn("CombatHandler: SubmitBlockersReq but no pending action — recovering")
             ops.sendRealGameState(bridge)
             return
         }
 
-        val resp = greMsg.declareBlockersResp
         val blockAssignments = mutableMapOf<Int, Int>()
-        for (blocker in resp.selectedBlockersList) {
-            val blockerCardId = bridge.getForgeCardId(blocker.blockerInstanceId) ?: continue
-            val attackerInstanceId = blocker.selectedAttackerInstanceIdsList.firstOrNull() ?: continue
-            val attackerCardId = bridge.getForgeCardId(attackerInstanceId) ?: continue
+        for ((blockerIid, attackerIid) in lastDeclaredBlockAssignments) {
+            val blockerCardId = bridge.getForgeCardId(blockerIid) ?: continue
+            val attackerCardId = bridge.getForgeCardId(attackerIid) ?: continue
             blockAssignments[blockerCardId] = attackerCardId
         }
+        lastDeclaredBlockAssignments.clear()
 
-        log.info("CombatHandler: DeclareBlockersResp blocks={}", blockAssignments)
+        log.info("CombatHandler: SubmitBlockers blocks={}", blockAssignments)
         // Don't clear pendingBlockersSent here — a priority window may follow
         // in DECLARE_BLOCKERS step before moving to damage. Cleared when a new
         // combat starts (COMBAT_DECLARE_ATTACKERS).
@@ -219,7 +271,11 @@ class CombatHandler(private val ops: SessionOps) {
 
         val builtReq = result.messages.firstOrNull { it.hasDeclareAttackersReq() }?.declareAttackersReq
         pendingLegalAttackers = builtReq?.attackersList?.map { it.attackerInstanceId } ?: emptyList()
-        log.debug("DeclareAttackersReq: pendingLegalAttackers={}", pendingLegalAttackers)
+        // Pre-select all legal attackers as the default declaration — our DeclareAttackersReq
+        // sets selectedDamageRecipient on each attacker, so the client shows them as declared.
+        // If the user clicks "Done" (SubmitAttackersReq) without toggling, this is the selection.
+        lastDeclaredAttackerIds = pendingLegalAttackers.toList()
+        log.debug("DeclareAttackersReq: pendingLegalAttackers={} lastDeclared={}", pendingLegalAttackers, lastDeclaredAttackerIds)
 
         NexusTap.outboundTemplate("DeclareAttackersReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
