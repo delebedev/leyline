@@ -78,13 +78,22 @@ class MatchSession(
     fun onMulliganKeep() = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         log.info("MatchSession: waiting for engine to reach priority after keep")
+
+        // Seed an initial snapshot BEFORE awaitPriority so that any AI action diffs
+        // captured by NexusGamePlayback.captureAndPause during the await produce
+        // proper Diff messages (not Full). Without this, the first captureAndPause
+        // has no baseline and falls back to buildFromGame → Full.
+        val preGame = bridge.getGame()
+        if (preGame != null) {
+            bridge.snapshotState(
+                StateMapper.buildFromGame(preGame, 0, matchId, bridge, viewingSeatId = seatId),
+            )
+        }
+
         bridge.awaitPriority()
 
         val game = bridge.getGame() ?: return
 
-        // Discard any AI action diffs queued during awaitPriority — stale diffs
-        // would conflict with the fresh phaseTransitionDiff we're about to send.
-        bridge.playback?.drainQueue()
         // Don't clearPreviousState — it's already null (handshake doesn't snapshot).
         // phaseTransitionDiff builds thin metadata Diffs, no snapshot needed.
         // TODO: when handshake sends a proper Full with real game objects,
@@ -99,10 +108,39 @@ class MatchSession(
 
         sendBundle(result)
 
-        // Seed playback counters so AI action diffs use correct sequence
+        // Re-number and send AI action diffs queued during awaitPriority.
+        // When AI goes first, the engine fires GameEventLandPlayed / SpellAbilityCast
+        // while we blocked in awaitPriority. NexusGamePlayback.captureAndPause built
+        // correct diff chains (each relative to the previous) but with pre-seed gsIds
+        // starting from 0. Re-number them to follow phaseTransitionDiff so the client
+        // sees PlayLand and CastSpell as separate animations.
+        val playback = bridge.playback
+        if (playback != null) {
+            for (batch in playback.drainQueue()) {
+                val renumbered = batch.map { msg ->
+                    val b = msg.toBuilder()
+                    b.msgId = msgIdCounter++
+                    if (msg.hasGameStateMessage()) {
+                        val prevGsId = gameStateId
+                        gameStateId++
+                        b.gameStateId = gameStateId
+                        b.gameStateMessage = msg.gameStateMessage.toBuilder()
+                            .setGameStateId(gameStateId)
+                            .setPrevGameStateId(prevGsId)
+                            .build()
+                    }
+                    b.build()
+                }
+                sendBundledGRE(renumbered)
+            }
+        }
+
+        // Seed playback counters so subsequent AI action diffs use correct sequence
         bridge.playback?.seedCounters(msgIdCounter, gameStateId)
 
-        // Seed state snapshot for subsequent diff computation
+        // Seed state snapshot for subsequent diff computation.
+        // captureAndPause already updated the bridge snapshot during awaitPriority,
+        // but with pre-seed gsIds. Rebuild to align gsId with the renumbered chain.
         bridge.snapshotState(StateMapper.buildFromGame(game, gameStateId, matchId, bridge))
 
         // Auto-pass through phases where human has no real actions
