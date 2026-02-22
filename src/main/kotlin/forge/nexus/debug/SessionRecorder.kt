@@ -41,7 +41,7 @@ class SessionRecorder(
         private set
 
     private val json = Json {
-        encodeDefaults = false
+        encodeDefaults = true
     }
 
     private val writer: BufferedWriter? = try {

@@ -262,6 +262,20 @@ object RecordingInspector {
         return null
     }
 
+    /**
+     * Walk up from a recording leaf dir (engine/, capture/payloads/) to the session root.
+     * The session root is the timestamped dir directly under RECORDINGS that contains
+     * engine/, capture/, mode.txt, analysis.json, etc.
+     */
+    fun resolveSessionRoot(recordingDir: File): File {
+        val root = NexusPaths.RECORDINGS.canonicalFile
+        var dir = recordingDir.canonicalFile
+        while (dir.parentFile != null && dir.parentFile != root) {
+            dir = dir.parentFile
+        }
+        return dir
+    }
+
     private fun extractActionEvents(
         messages: List<RecordingDecoder.DecodedMessage>,
         seats: Map<Int, RecordingDecoder.SeatInfo>,
