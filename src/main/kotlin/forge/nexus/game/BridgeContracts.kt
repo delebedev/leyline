@@ -50,13 +50,22 @@ interface ZoneTracking {
     fun getLimboInstanceIds(): List<Int>
 }
 
-/** Full GameStateMessage snapshots for diff computation. */
+/** Full GameStateMessage snapshots for diff computation + client tracking. */
 interface StateSnapshot {
     /** Store a full GSM snapshot for future diff computation. */
     fun snapshotState(state: GameStateMessage)
 
     /** Previous snapshot (null before first state). */
     fun getPreviousState(): GameStateMessage?
+
+    /** Update the last TurnInfo sent to the client (for phase annotation decisions). */
+    fun updateLastSentTurnInfo(gsm: GameStateMessage)
+
+    /**
+     * True if [currentTurnInfo] represents a phase/step change from the last
+     * state sent to the client. Also true when no prior state has been sent.
+     */
+    fun isPhaseChangedFromLastSent(currentTurnInfo: wotc.mtgo.gre.external.messaging.Messages.TurnInfo): Boolean
 }
 
 /** Monotonic annotation ID counters. */

@@ -69,6 +69,11 @@ class ScriptedPlayerController(
      * - non-empty list → play those abilities
      * - **null** → pass priority (Forge convention: null = "I pass", emptyList = "tried but
      *   failed" which causes PhaseHandler to retry up to 999 times)
+     *
+     * PlayLand/CastSpell actions are only consumed when the ability is actually
+     * found and playable. If not playable yet (wrong turn, tapped out, etc.),
+     * the action stays at the top of the script queue and we pass — the engine
+     * advances to the next priority window where the action may become valid.
      */
     override fun chooseSpellAbilityToPlay(): List<SpellAbility>? {
         val action = peekAction()
@@ -79,8 +84,8 @@ class ScriptedPlayerController(
                     nextAction() // consume
                     listOf(sa)
                 } else {
-                    log.warn("Script: PlayLand({}) — card not found/playable, passing", action.cardName)
-                    nextAction() // consume anyway to avoid infinite loop
+                    // Don't consume — card may become playable on a later turn.
+                    // Returning null passes priority; engine advances.
                     null
                 }
             }
@@ -90,9 +95,7 @@ class ScriptedPlayerController(
                     nextAction() // consume
                     listOf(sa)
                 } else {
-                    log.warn("Script: CastSpell({}) — card not found/castable, passing", action.cardName)
-                    nextAction()
-                    null
+                    null // don't consume — try again when castable
                 }
             }
             is ScriptedAction.PassPriority -> {

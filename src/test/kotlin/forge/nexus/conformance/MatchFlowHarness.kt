@@ -211,6 +211,28 @@ class MatchFlowHarness(
         declareAttackers(emptyList())
     }
 
+    /**
+     * Declare blockers with assignments: blockerInstanceId → attackerInstanceId.
+     * Each entry means "this blocker blocks that attacker."
+     */
+    fun declareBlockers(assignments: Map<Int, Int>) {
+        val greMsg = ClientToGREMessage.newBuilder()
+            .setType(ClientMessageType.DeclareBlockersResp_097b)
+            .setDeclareBlockersResp(
+                DeclareBlockersResp.newBuilder().apply {
+                    for ((blockerIid, attackerIid) in assignments) {
+                        addSelectedBlockers(
+                            Blocker.newBuilder()
+                                .setBlockerInstanceId(blockerIid)
+                                .addSelectedAttackerInstanceIds(attackerIid),
+                        )
+                    }
+                },
+            ).build()
+        session.onDeclareBlockers(greMsg)
+        drainSink()
+    }
+
     /** Declare no blockers (let all attackers through). */
     fun declareNoBlockers() {
         val greMsg = ClientToGREMessage.newBuilder()

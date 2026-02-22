@@ -35,18 +35,17 @@ object BundleBuilder {
 
         nextGs++
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
-        // Capture previous snapshot BEFORE buildDiffFromGame overwrites it
-        val prevSnapshot = bridge.getPreviousState()
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
         val gsBase = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
         val actions = ActionMapper.buildActions(game, seatId, bridge)
 
-        // Detect phase/step change vs previous snapshot and inject PhaseOrStepModified
-        val gsWithPhaseAnnotation = if (prevSnapshot != null &&
-            gsBase.hasTurnInfo() &&
-            prevSnapshot.hasTurnInfo() &&
-            (gsBase.turnInfo.phase != prevSnapshot.turnInfo.phase || gsBase.turnInfo.step != prevSnapshot.turnInfo.step)
+        // Detect phase/step change vs last state sent to client.
+        // Uses lastSentTurnInfo (what client saw) instead of prevSnapshot (diff computation).
+        // This handles the case where PhaseStopProfile skips phases on the engine thread —
+        // prevSnapshot may already show the new phase, but the client hasn't seen it.
+        val gsWithPhaseAnnotation = if (gsBase.hasTurnInfo() &&
+            bridge.isPhaseChangedFromLastSent(gsBase.turnInfo)
         ) {
             val handler = game.phaseHandler
             val human = bridge.getPlayer(1)

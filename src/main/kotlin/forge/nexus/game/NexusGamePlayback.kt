@@ -166,9 +166,10 @@ class NexusGamePlayback(
 
             queue.add(result.messages)
 
-            // Update bridge snapshot so next diff is relative to this state.
-            // Pass the last gsId we emitted so prevGameStateId chains correctly.
-            bridge.snapshotState(StateMapper.buildFromGame(game, result.nextGsId, matchId, bridge))
+            // No need to snapshot here — buildDiffFromGame (called by aiActionDiff)
+            // already updates the bridge snapshot at StateMapper line 506.
+            // A redundant buildFromGame with the same gsId creates a self-referential
+            // snapshot (gameStateId == prevGameStateId).
 
             log.debug(
                 "AI action captured: phase={} turn={} queued={} msgs={}",
