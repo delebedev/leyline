@@ -127,13 +127,13 @@ class ClientSettingsTest {
             stop(StopType.DrawStep, SettingScope.Team_ac6e, SettingStatus.Set),
         )
 
-        // SettingsResp goes via sendRaw, captured in rawMessages
+        // SettingsResp goes via sendRaw → GreToClientEvent wrapper
         assertTrue(harness.rawMessages.isNotEmpty(), "Should receive SettingsResp raw message")
         val last = harness.rawMessages.last()
-        assertTrue(
-            last.hasGreToClientEvent() || last.toString().contains("settings"),
-            "Raw message should contain settings response",
-        )
+        assertTrue(last.hasGreToClientEvent(), "Raw message should be a GreToClientEvent")
+        val hasSettingsResp = last.greToClientEvent.greToClientMessagesList
+            .any { it.type == GREMessageType.SetSettingsResp_695e }
+        assertTrue(hasSettingsResp, "Should contain a SetSettingsResp message")
     }
 
     // --- Helpers ---

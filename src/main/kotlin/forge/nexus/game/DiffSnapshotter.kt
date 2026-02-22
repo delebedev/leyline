@@ -46,14 +46,8 @@ class DiffSnapshotter(private val idRegistry: InstanceIdRegistry) {
 
     // --- Last-sent TurnInfo tracking ---
     //
-    // Tracks the TurnInfo from the last GSM actually sent to the client.
-    // Independent from [previousState] (used for diff computation).
-    //
-    // Why separate: drainPlayback() snapshots the current engine state for diff
-    // computation, but if the engine skipped phases (via PhaseStopProfile), the
-    // snapshot phase may match the current phase — hiding a transition the client
-    // hasn't seen. lastSentTurnInfo reflects what the client knows, so
-    // BundleBuilder.postAction() can reliably detect phase changes.
+    // Separate from [previousState] (diff baseline). Tracks what the client
+    // actually received, so BundleBuilder can detect skipped-phase transitions.
 
     /** TurnInfo from the most recent GSM sent to the client. */
     @Volatile
@@ -73,7 +67,7 @@ class DiffSnapshotter(private val idRegistry: InstanceIdRegistry) {
      * True if [currentTurnInfo] represents a phase/step change from the last
      * sent state. Also true when no prior state has been sent (first message).
      */
-    fun isPhaseChangedFrom(currentTurnInfo: TurnInfo): Boolean {
+    fun isPhaseChangedFromLastSent(currentTurnInfo: TurnInfo): Boolean {
         val last = lastSentTurnInfo ?: return true
         return last.phase != currentTurnInfo.phase || last.step != currentTurnInfo.step
     }

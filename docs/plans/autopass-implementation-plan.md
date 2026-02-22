@@ -1,12 +1,24 @@
 # Implementation Plan: Auto-Pass, Priority & Phase Stops
 
-> Status: In progress
+> Status: **Phases 1-3 complete.** Phase 4 deferred.
 > Branch: `feat/auto-passing-state-transitions`
-> Ref: `autopass-and-priority-findings.md`, `phase-stop-profile.md`
+> Ref: `autopass-and-priority-findings.md`, `phase-stop-profile.md`, `learnings.md`
+
+## What's implemented
+
+- **PhaseStopProfile wired** — engine skips non-stop phases (UPKEEP/DRAW by default)
+- **lastSentTurnInfo tracking** — phase annotations compare against what client saw, not diff snapshot
+- **Combat/blocking works** — awaitPriority before DeclareBlockersReq, no involuntary attackers, no duplicate blocker reqs
+- **gsId chain monotonic** — playback drain + counter sync before bundle building; SELF-REF guard in StateMapper
+- **Discard-to-hand-size** — auto-resolves via TargetingHandler non-targeting prompt path
+- **Client settings → PhaseStopProfile** — SetSettingsReq Team-scope stops update the live profile
+- **StopTypeMapping** — bidirectional Arena StopType ↔ Forge PhaseType, scope-filtered parseStops
+
+Tests: 207/207 pass (unit + conformance + integration)
 
 ---
 
-## Phase 1 — Wire PhaseStopProfile + Fix Annotation Regression
+## Phase 1 — Wire PhaseStopProfile + Fix Annotation Regression ✅
 
 ### Problem
 
@@ -52,7 +64,7 @@ what diff computation needs. They diverge when the engine skips phases internall
 
 ---
 
-## Phase 2 — Fix Blocker Declaration
+## Phase 2 — Fix Blocker Declaration ✅
 
 ### Problem
 
@@ -89,7 +101,7 @@ Client: DeclareBlockersResp with assignments
 
 ---
 
-## Phase 3 — Apply Client Settings (Stops)
+## Phase 3 — Apply Client Settings (Stops) ✅
 
 ### Problem
 
@@ -150,24 +162,25 @@ support deferred.
 ## Execution Order
 
 ```
-1a-test   PhaseStopProfileTest (unit)                    ← DONE
-1b-test   LastSentTurnInfoTest (unit)                    ← DONE
-1a-impl   DiffSnapshotter: lastSentTurnInfo
-1b-impl   BridgeContracts: interface additions
-1c-impl   GameBridge: expose + wire PhaseStopProfile
-1d-impl   BundleBuilder.postAction: use lastSentTurnInfo
-1e-impl   MatchSession.sendBundledGRE: update tracker
-1f-impl   AutoPassEngine.drainPlayback: update tracker
-1-verify  test-gate (AiFirstTurnShapeTest must pass)
+1a-test   PhaseStopProfileTest (integration)              ✅
+1b-test   LastSentTurnInfoTest (unit)                     ✅
+1a-impl   DiffSnapshotter: lastSentTurnInfo               ✅
+1b-impl   BridgeContracts: interface additions             ✅
+1c-impl   GameBridge: expose + wire PhaseStopProfile       ✅
+1d-impl   BundleBuilder.postAction: use lastSentTurnInfo   ✅
+1e-impl   MatchSession.sendBundledGRE: update tracker      ✅
+1f-impl   AutoPassEngine.drainPlayback: update tracker     ✅
+1-verify  test-gate (214/214)                              ✅
 
-2a-test   BlockerDeclarationTest (integration)
-2-impl    CombatHandler + MatchFlowHarness
-2-verify  test-integration
+2a-test   BlockerDeclarationTest (integration)             ✅
+2-impl    CombatHandler + MatchFlowHarness                 ✅
+2-extra   gsId race fix, thin-diff fix, ScriptedPC fix     ✅
+2-verify  test-integration (173/173)                       ✅
 
-3a-test   StopTypeMappingTest (unit)
-3b-impl   StopTypeMapping.kt
-3c-test   ClientSettingsTest (integration)
-3d-impl   GameBridge expose profile
-3e-impl   MatchSession.onSettings wiring
-3-verify  test-gate + test-integration
+3a-test   StopTypeMappingTest (integration)                ✅
+3b-impl   StopTypeMapping.kt                               ✅
+3c-test   ClientSettingsTest (integration)                  ✅
+3d-impl   GameBridge expose profile                        ✅
+3e-impl   MatchSession.onSettings wiring                   ✅
+3-verify  test-full (207/207)                              ✅
 ```

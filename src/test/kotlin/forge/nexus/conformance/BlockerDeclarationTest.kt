@@ -122,13 +122,9 @@ class BlockerDeclarationTest {
         assertEquals(lifeAfter, lifeBefore, "Human life should not change when 1/1 is fully blocked")
 
         // Both 1/1s should have traded — human's creature should be in graveyard
-        val humanBf = harness.humanBattlefieldCreatures()
         val humanGy = humanPlayer.getZone(ZoneType.Graveyard).cards
         val blockerInGy = humanGy.any { it.name == "Raging Goblin" }
-        assertTrue(
-            blockerInGy || humanBf.none { it.first == blockerIid },
-            "Human's Raging Goblin should have died in combat (trade)",
-        )
+        assertTrue(blockerInGy, "Human's Raging Goblin should be in graveyard after trade")
 
         assertFalse(harness.isGameOver(), "Game should not be over")
     }
@@ -151,11 +147,11 @@ class BlockerDeclarationTest {
             harness.passPriority()
         }
 
-        // Human should have taken 1 damage (Raging Goblin is 1/1)
+        // Human should have taken exactly 1 damage (Raging Goblin is 1/1)
         val lifeAfter = humanPlayer.life
-        assertTrue(
-            lifeAfter < lifeBefore,
-            "Human life should decrease when not blocking: was $lifeBefore, now $lifeAfter",
+        assertEquals(
+            lifeAfter, lifeBefore - 1,
+            "Human should take exactly 1 damage from unblocked Raging Goblin",
         )
 
         // Human's creature should still be alive
