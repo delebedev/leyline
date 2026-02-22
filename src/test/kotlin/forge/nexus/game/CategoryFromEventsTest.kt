@@ -254,4 +254,107 @@ class CategoryFromEventsTest {
         )
         assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Destroy)
     }
+
+    // -- Group A: zone-specific event variants (enriched ZoneChanged handler) --
+
+    @Test
+    fun cardDestroyedReturnsDestroy() {
+        // CardDestroyed emitted by enriched ZoneChanged handler for BF→GY
+        val events = listOf(
+            NexusGameEvent.CardDestroyed(forgeCardId = 55, seatId = 1),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Destroy)
+    }
+
+    @Test
+    fun cardDestroyedWithSacrificeReturnsSacrifice() {
+        // CardSacrificed (from dedicated event) overrides CardDestroyed (from zone pair)
+        val events = listOf(
+            NexusGameEvent.CardSacrificed(forgeCardId = 55, seatId = 1),
+            NexusGameEvent.CardDestroyed(forgeCardId = 55, seatId = 1),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Sacrifice)
+    }
+
+    @Test
+    fun cardDestroyedWithSacrificeReverseOrder() {
+        // Order shouldn't matter — sacrifice always overrides destroy
+        val events = listOf(
+            NexusGameEvent.CardDestroyed(forgeCardId = 55, seatId = 1),
+            NexusGameEvent.CardSacrificed(forgeCardId = 55, seatId = 1),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Sacrifice)
+    }
+
+    @Test
+    fun cardBouncedReturnsBounce() {
+        val events = listOf(
+            NexusGameEvent.CardBounced(forgeCardId = 55, seatId = 1),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Bounce)
+    }
+
+    @Test
+    fun cardExiledReturnsExile() {
+        val events = listOf(
+            NexusGameEvent.CardExiled(forgeCardId = 55, seatId = 1),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Exile)
+    }
+
+    @Test
+    fun cardDiscardedReturnsDiscard() {
+        val events = listOf(
+            NexusGameEvent.CardDiscarded(forgeCardId = 55, seatId = 1),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Discard)
+    }
+
+    @Test
+    fun cardMilledReturnsMill() {
+        val events = listOf(
+            NexusGameEvent.CardMilled(forgeCardId = 55, seatId = 1),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Mill)
+    }
+
+    @Test
+    fun spellCounteredReturnsCountered() {
+        val events = listOf(
+            NexusGameEvent.SpellCountered(forgeCardId = 77, seatId = 1),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(77, events), TransferCategory.Countered)
+    }
+
+    @Test
+    fun zoneSpecificTakesPriorityOverGenericZoneChanged() {
+        // If both a zone-specific event and generic ZoneChanged exist for the
+        // same card, the specific event wins (e.g. enriched handler emitted
+        // CardDestroyed but a ZoneChanged also leaked through)
+        val events = listOf(
+            NexusGameEvent.CardDestroyed(forgeCardId = 55, seatId = 1),
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Battlefield, to = ZoneType.Graveyard),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Destroy)
+    }
+
+    @Test
+    fun mechanicEventTakesPriorityOverZoneSpecific() {
+        // LandPlayed (mechanic) takes priority even if CardBounced is present
+        val events = listOf(
+            NexusGameEvent.LandPlayed(forgeCardId = 42, seatId = 1),
+            NexusGameEvent.CardBounced(forgeCardId = 42, seatId = 1),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(42, events), TransferCategory.PlayLand)
+    }
+
+    @Test
+    fun sacrificeDoesNotAffectNonDestroyZoneCategory() {
+        // CardSacrificed only overrides Destroy, not other zone categories
+        val events = listOf(
+            NexusGameEvent.CardSacrificed(forgeCardId = 55, seatId = 1),
+            NexusGameEvent.CardExiled(forgeCardId = 55, seatId = 1),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Exile)
+    }
 }

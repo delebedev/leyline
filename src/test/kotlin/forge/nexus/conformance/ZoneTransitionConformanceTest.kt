@@ -3,6 +3,7 @@ package forge.nexus.conformance
 import forge.game.Game
 import forge.game.ability.AbilityKey
 import forge.game.card.Card
+import forge.game.card.CounterEnumType
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
@@ -506,5 +507,103 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
         val zt = findZoneTransfer(gsm, newId)
         assertNotNull(zt, "Should have ZoneTransfer for GY→Hand")
+    }
+
+    // -----------------------------------------------------------------------
+    // 16. Hand → Exile
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun handToExile() {
+        val (b, game, gsId) = startGameAtMain1()
+        val player = human(b)
+        val cardInHand = player.getZone(ZoneType.Hand).cards.firstOrNull()
+            ?: error("Hand empty")
+        val forgeCardId = cardInHand.id
+        val origId = b.getOrAllocInstanceId(forgeCardId)
+
+        val gsm = captureAfterAction(b, game, gsId + 10) {
+            game.action.exile(cardInHand, null, AbilityKey.newMap())
+        }
+        val newId = b.getOrAllocInstanceId(forgeCardId)
+
+        val zt = findZoneTransfer(gsm, newId)
+        assertNotNull(zt, "Should have ZoneTransfer for Hand→Exile")
+        assertEquals(zt!!.category, "Exile", "Hand→Exile should be Exile category")
+    }
+
+    // =======================================================================
+    // Group B: Mechanic annotations (Stage 4 pipeline)
+    // =======================================================================
+
+    // -----------------------------------------------------------------------
+    // B1. Counter added
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun counterAddedProducesAnnotation() {
+        val (b, game, gsId) = startGameAtMain1()
+        val creature = ensureCreatureOnBattlefield(b, game)
+
+        val gsm = captureAfterAction(b, game, gsId + 10) {
+            creature.addCounterInternal(CounterEnumType.P1P1, 2, human(b), true, null, AbilityKey.newMap())
+        }
+
+        val counterAnn = gsm.annotationsList.firstOrNull {
+            AnnotationType.CounterAdded in it.typeList
+        }
+        assertNotNull(counterAnn, "Should have CounterAdded annotation")
+        val counterType = counterAnn!!.detailsList.firstOrNull { it.key == "counter_type" }
+        assertNotNull(counterType, "CounterAdded should have counter_type detail")
+        // CounterEnumType.P1P1.getName() returns "+1/+1" (display name, not enum name)
+        assertEquals(counterType!!.getValueString(0), "+1/+1")
+        val txnAmount = counterAnn.detailsList.first { it.key == "transaction_amount" }
+        assertEquals(txnAmount.getValueInt32(0), 2, "transaction_amount should be 2")
+    }
+
+    // -----------------------------------------------------------------------
+    // B2. Counter removed
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun counterRemovedProducesAnnotation() {
+        val (b, game, gsId) = startGameAtMain1()
+        val creature = ensureCreatureOnBattlefield(b, game)
+
+        // First add counters
+        creature.addCounterInternal(CounterEnumType.P1P1, 3, human(b), true, null, AbilityKey.newMap())
+        b.snapshotFromGame(game, gsId + 10)
+        b.drainEvents() // clear counter-add events
+
+        val gsm = captureAfterAction(b, game, gsId + 11) {
+            creature.subtractCounter(CounterEnumType.P1P1, 2, human(b))
+        }
+
+        val counterAnn = gsm.annotationsList.firstOrNull {
+            AnnotationType.CounterRemoved in it.typeList
+        }
+        assertNotNull(counterAnn, "Should have CounterRemoved annotation")
+        val txnAmount = counterAnn!!.detailsList.first { it.key == "transaction_amount" }
+        assertEquals(txnAmount.getValueInt32(0), 2, "transaction_amount should be 2")
+    }
+
+    // -----------------------------------------------------------------------
+    // B3. Library shuffle
+    // -----------------------------------------------------------------------
+
+    @Test
+    fun shuffleProducesAnnotation() {
+        val (b, game, gsId) = startGameAtMain1()
+        val player = human(b)
+
+        val gsm = captureAfterAction(b, game, gsId + 10) {
+            player.shuffle(null)
+        }
+
+        val shuffleAnn = gsm.annotationsList.firstOrNull {
+            AnnotationType.Shuffle in it.typeList
+        }
+        assertNotNull(shuffleAnn, "Should have Shuffle annotation")
+        assertTrue(shuffleAnn!!.affectedIdsList.contains(1), "Shuffle affectedId should be seat 1")
     }
 }

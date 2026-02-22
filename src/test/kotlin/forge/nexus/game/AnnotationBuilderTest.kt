@@ -268,6 +268,17 @@ class AnnotationBuilderTest {
         assertEquals(ann.affectedIdsCount, 0)
     }
 
+    // --- TokenCreated (Group B) ---
+
+    @Test
+    fun tokenCreatedFields() {
+        val ann = AnnotationBuilder.tokenCreated(instanceId = 1100)
+        assertTrue(ann.typeList.contains(AnnotationType.TokenCreated))
+        assertTrue(ann.affectedIdsList.contains(1100))
+        assertEquals(ann.affectorId, 0, "TokenCreated has no affectorId")
+        assertEquals(ann.detailsCount, 0, "TokenCreated has no detail keys")
+    }
+
     // --- CounterAdded (Group B) ---
 
     @Test

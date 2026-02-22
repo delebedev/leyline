@@ -35,7 +35,7 @@ Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `
 | 30 | DynamicAbility | -- | -- | -- | `cost`, `grpid`, `base_grpid`, `action_cost_string` | MISSING |
 | 31 | ObjectsSelected | -- | -- | -- | (none) | MISSING |
 | 34 | ManaPaid | `GameEventManaPool` | -- | `manaPaid()` | `id`, `color` | Implemented (stub, no details) |
-| 35 | TokenCreated | `GameEventTokenCreated` | -- | -- | affected ids | MISSING |
+| 35 | TokenCreated | `GameEventTokenCreated` | `TokenCreated` | `tokenCreated()` | affected ids | Implemented (builder only; event empty, not wired from EventBus) |
 | 36 | AbilityInstanceCreated | `GameEventSpellAbilityCast` | `SpellCast` | `abilityInstanceCreated()` | affected ids | Implemented |
 | 37 | AbilityInstanceDeleted | `GameEventSpellResolved` / `GameEventSpellRemovedFromStack` | `SpellResolved` | `abilityInstanceDeleted()` | affected ids | Implemented |
 | 38 | DisplayCardUnderCard | -- | -- | -- | `Disable`, `DisplayUnderObjects` | MISSING |
@@ -109,7 +109,7 @@ Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `
 | 111 | CopyException | -- | -- | -- | `manaCost` | MISSING |
 | 113 | ModifiedCost | -- | -- | -- | (unknown) | MISSING |
 
-**Implemented: 19 types. Missing: 75+ types.**
+**Implemented: 20 types. Missing: 74+ types.**
 
 ## Table 2: Zone Transfer Categories
 
@@ -119,12 +119,12 @@ Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `
 | 7 | PlayLand | Hand → Battlefield | `PlayLand` | `LandPlayed` | Implemented |
 | 8 | Return | GY/Exile → Hand/BF | -- | -- | MISSING |
 | 9 | Countered | Stack → GY | `Countered` | `SpellResolved(fizzled=true)` | Implemented |
-| 10 | Draw | Library → Hand | `Draw` | `ZoneChanged` inferred | Implemented |
-| 11 | Discard | Hand → GY | `Discard` | `ZoneChanged` inferred | Implemented |
+| 10 | Draw | Library → Hand | `Draw` | `ZoneChanged` inferred (Lib→Hand stays generic) | Implemented |
+| 11 | Discard | Hand → GY | `Discard` | `CardDiscarded` (enriched zone handler) | Implemented |
 | 13 | Resolve | Stack → Battlefield | `Resolve` | `SpellResolved` | Implemented |
 | 14 | Search | Library → Hand/BF | -- | -- | MISSING |
-| 16 | Exile | Any → Exile | `Exile` | `ZoneChanged` inferred | Implemented |
-| 17 | Destroy | Battlefield → GY | `Destroy` | `CardDestroyed` event (not yet wired) | Implemented (fallback) |
+| 16 | Exile | Any → Exile | `Exile` | `CardExiled` (enriched zone handler) | Implemented |
+| 17 | Destroy | Battlefield → GY | `Destroy` | `CardDestroyed` (enriched zone handler) | Implemented |
 | 18 | Sacrifice | Battlefield → GY | `Sacrifice` | `CardSacrificed` | Implemented |
 | 19 | Put | Any → Any | -- | -- | MISSING |
 | 20 | ZeroToughness | Battlefield → GY | -- | -- | MISSING (falls back to `ZoneTransfer`) |
@@ -134,8 +134,8 @@ Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `
 | 24 | ZeroLoyalty | Battlefield → GY | -- | -- | MISSING |
 | 25 | Legend | Battlefield → GY | -- | -- | MISSING |
 | 28 | Token | (creation) | -- | -- | MISSING |
-| 32 | Bounce | Battlefield → Hand/Library | `Bounce` | `ZoneChanged` inferred | Implemented |
-| 33 | Mill | Library → GY (same owner) | `Mill` | `ZoneChanged` inferred | Implemented |
+| 32 | Bounce | Battlefield → Hand/Library | `Bounce` | `CardBounced` (enriched zone handler) | Implemented |
+| 33 | Mill | Library → GY (same owner) | `Mill` | `CardMilled` (enriched zone handler) | Implemented |
 | 34 | LibToExile | Library → Exile | -- | -- | MISSING (falls back to `Exile`) |
 | 37 | Conjure | (creation) | -- | -- | MISSING |
 
@@ -298,10 +298,10 @@ All 57 concrete `GameEvent` classes in `forge.game.event`:
 | `GameEventAttackersDeclared` | player, attackersMap | Yes → `AttackersDeclared` |
 | `GameEventBlockersDeclared` | defendingPlayer, blockers | Yes → `BlockersDeclared` |
 | `GameEventCardAttachment` | equipment, oldEntity, newTarget | No |
-| `GameEventCardChangeZone` | card, from, to | Yes → `ZoneChanged` |
+| `GameEventCardChangeZone` | card, from, to | Yes → `ZoneChanged` / `CardDestroyed` / `CardBounced` / `CardExiled` / `CardDiscarded` / `CardMilled` (zone-pair dispatch) |
 | `GameEventCardCounters` | card, type, oldValue, newValue | Yes → `CountersChanged` |
 | `GameEventCardDamaged` | card, source, amount, type | Yes → `DamageDealtToCard` |
-| `GameEventCardDestroyed` | (empty) | No |
+| `GameEventCardDestroyed` | (empty) | No (empty record; BF→GY inferred via `CardDestroyed` from zone handler) |
 | `GameEventCardForetold` | activatingPlayer | No |
 | `GameEventCardModeChosen` | player, cardName, mode | No |
 | `GameEventCardPhased` | card, phaseState | No |
@@ -346,10 +346,12 @@ All 57 concrete `GameEvent` classes in `forge.game.event`:
 | `GameEventSubgameEnd` | maingame, message | No |
 | `GameEventSubgameStart` | subgame, message | No |
 | `GameEventSurveil` | player, toLibrary, toGraveyard | Yes → `Surveil` |
-| `GameEventTokenCreated` | (empty) | No |
+| `GameEventTokenCreated` | (empty) | No (empty record; `TokenCreated` variant + builder exist, not wired from EventBus) |
 | `GameEventTurnBegan` | turnOwner, turnNumber | No |
 | `GameEventTurnEnded` | (empty) | No |
 | `GameEventTurnPhase` | playerTurn, phase, phaseDesc | No |
 | `GameEventZone` | zoneType, player, mode, card, sa | No |
 
-**Wired: 17 of 57 events** (30%). Key unwired events for future work: `CardAttachment`, `CardDestroyed`, `CardPhased`, `TokenCreated`, `SpellRemovedFromStack`, `FlipCoin`, `RollDie`, `PlayerControl`, `CardStatsChanged`.
+**Wired: 17 of 57 events** (30%). `CardChangeZone` now dispatches 6 zone-specific variants in addition to generic `ZoneChanged`. Key unwired events for future work: `CardAttachment`, `CardPhased`, `SpellRemovedFromStack`, `FlipCoin`, `RollDie`, `PlayerControl`, `CardStatsChanged`.
+
+**Known limitation:** `GameEventCardDestroyed` and `GameEventTokenCreated` are empty Java records (`record Foo() implements GameEvent`) — no card field, no superclass fields (Forge has no `GameEventCard` base class; `GameEvent` is a bare interface). Zone-pair inference from `GameEventCardChangeZone` covers destroy/exile/bounce/etc., but token creation cannot be detected from the EventBus without an upstream forge-game change to add a card reference to `GameEventTokenCreated`.

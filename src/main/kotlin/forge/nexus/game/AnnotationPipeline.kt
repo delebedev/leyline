@@ -7,11 +7,12 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 
 /**
- * Three-stage annotation pipeline for zone-transfer detection and annotation building.
+ * Four-stage annotation pipeline for zone-transfer detection and annotation building.
  *
  * Stage 1: [detectZoneTransfers] → [TransferResult] (patched objects/zones + transfers)
  * Stage 2: [annotationsForTransfer] → List<[AnnotationInfo]> (pure, testable)
  * Stage 3: [combatAnnotations] → List<[AnnotationInfo]> (pure, testable)
+ * Stage 4: [mechanicAnnotations] → List<[AnnotationInfo]> (Group B: counters, shuffle, scry, tokens)
  *
  * Extracted from [StateMapper] for independent testability.
  */
@@ -232,6 +233,59 @@ object AnnotationPipeline {
         val protoStep = PlayerMapper.mapStep(handler.phase).number
         annotations.add(AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep))
         annotations.add(AnnotationBuilder.syntheticEvent())
+        return annotations
+    }
+
+    /**
+     * Stage 4: Generate standalone annotations for mechanic events (Group B).
+     *
+     * These are NOT zone-transfer annotations — they appear alongside zone transfers
+     * in the same GSM. Processes events that Stage 1-2 ignore: counters, shuffle,
+     * scry, surveil, token creation.
+     *
+     * **Pure function** — uses [idResolver] to map forgeCardId → instanceId.
+     * Returns empty list if no relevant events.
+     */
+    internal fun mechanicAnnotations(
+        events: List<NexusGameEvent>,
+        idResolver: (Int) -> Int,
+    ): List<AnnotationInfo> {
+        val annotations = mutableListOf<AnnotationInfo>()
+        for (ev in events) {
+            when (ev) {
+                is NexusGameEvent.CountersChanged -> {
+                    val delta = ev.newCount - ev.oldCount
+                    if (delta == 0) continue
+                    val instanceId = idResolver(ev.forgeCardId)
+                    if (delta > 0) {
+                        annotations.add(AnnotationBuilder.counterAdded(instanceId, ev.counterType, delta))
+                    } else {
+                        annotations.add(AnnotationBuilder.counterRemoved(instanceId, ev.counterType, -delta))
+                    }
+                    log.debug("mechanic: counter {} {} on iid={}", if (delta > 0) "added" else "removed", ev.counterType, instanceId)
+                }
+                is NexusGameEvent.LibraryShuffled -> {
+                    annotations.add(AnnotationBuilder.shuffle(ev.seatId))
+                    log.debug("mechanic: shuffle seat={}", ev.seatId)
+                }
+                is NexusGameEvent.Scry -> {
+                    annotations.add(AnnotationBuilder.scry(ev.seatId, ev.topCount, ev.bottomCount))
+                    log.debug("mechanic: scry seat={} top={} bottom={}", ev.seatId, ev.topCount, ev.bottomCount)
+                }
+                is NexusGameEvent.Surveil -> {
+                    // Surveil is mechanically similar to scry — use scry annotation
+                    // with surveil semantics (toLibrary = top, toGraveyard = bottom)
+                    annotations.add(AnnotationBuilder.scry(ev.seatId, ev.toLibrary, ev.toGraveyard))
+                    log.debug("mechanic: surveil seat={} lib={} gy={}", ev.seatId, ev.toLibrary, ev.toGraveyard)
+                }
+                is NexusGameEvent.TokenCreated -> {
+                    val instanceId = idResolver(ev.forgeCardId)
+                    annotations.add(AnnotationBuilder.tokenCreated(instanceId))
+                    log.debug("mechanic: tokenCreated iid={}", instanceId)
+                }
+                else -> {} // Zone-transfer events handled in Stages 1-2, combat in Stage 3
+            }
+        }
         return annotations
     }
 

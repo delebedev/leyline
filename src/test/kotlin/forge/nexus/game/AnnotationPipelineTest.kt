@@ -243,4 +243,248 @@ class AnnotationPipelineTest {
         assertEquals(annotations.size, 3, "Resolve still produces 3 annotations")
         assertTrue(persistent.isEmpty(), "Graveyard dest should not produce EnteredZoneThisTurn")
     }
+
+    // --- Stage 4: mechanicAnnotations (Group B) ---
+
+    /** Identity resolver for unit tests — forgeCardId maps to forgeCardId + 1000. */
+    private fun testResolver(forgeCardId: Int): Int = forgeCardId + 1000
+
+    // -- CountersChanged --
+
+    @Test
+    fun counterAddedAnnotation() {
+        val events = listOf(
+            NexusGameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 0, newCount = 2),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+
+        assertEquals(annotations.size, 1, "Should produce one CounterAdded annotation")
+        assertTrue(annotations[0].typeList.contains(AnnotationType.CounterAdded))
+        assertTrue(annotations[0].affectedIdsList.contains(1042), "instanceId should be resolved via idResolver")
+
+        val counterType = annotations[0].detailsList.first { it.key == "counter_type" }
+        assertEquals(counterType.getValueString(0), "P1P1")
+        val txnAmount = annotations[0].detailsList.first { it.key == "transaction_amount" }
+        assertEquals(txnAmount.getValueInt32(0), 2)
+    }
+
+    @Test
+    fun counterRemovedAnnotation() {
+        val events = listOf(
+            NexusGameEvent.CountersChanged(forgeCardId = 42, counterType = "LOYALTY", oldCount = 5, newCount = 2),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+
+        assertEquals(annotations.size, 1, "Should produce one CounterRemoved annotation")
+        assertTrue(annotations[0].typeList.contains(AnnotationType.CounterRemoved))
+        val txnAmount = annotations[0].detailsList.first { it.key == "transaction_amount" }
+        assertEquals(txnAmount.getValueInt32(0), 3, "Removed amount should be abs(delta)")
+    }
+
+    @Test
+    fun counterUnchangedSkipped() {
+        val events = listOf(
+            NexusGameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 3, newCount = 3),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        assertTrue(annotations.isEmpty(), "No annotation when counter count unchanged")
+    }
+
+    // -- LibraryShuffled --
+
+    @Test
+    fun shuffleAnnotation() {
+        val events = listOf(
+            NexusGameEvent.LibraryShuffled(seatId = 1),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+
+        assertEquals(annotations.size, 1)
+        assertTrue(annotations[0].typeList.contains(AnnotationType.Shuffle))
+        assertTrue(annotations[0].affectedIdsList.contains(1), "Shuffle affectedId should be seatId")
+    }
+
+    // -- Scry --
+
+    @Test
+    fun scryAnnotation() {
+        val events = listOf(
+            NexusGameEvent.Scry(seatId = 2, topCount = 1, bottomCount = 2),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+
+        assertEquals(annotations.size, 1)
+        assertTrue(annotations[0].typeList.contains(AnnotationType.Scry_af5a))
+        val top = annotations[0].detailsList.first { it.key == "topCount" }
+        assertEquals(top.getValueInt32(0), 1)
+        val bottom = annotations[0].detailsList.first { it.key == "bottomCount" }
+        assertEquals(bottom.getValueInt32(0), 2)
+    }
+
+    // -- Surveil --
+
+    @Test
+    fun surveilAnnotation() {
+        val events = listOf(
+            NexusGameEvent.Surveil(seatId = 1, toLibrary = 1, toGraveyard = 1),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+
+        assertEquals(annotations.size, 1, "Surveil should produce a scry-type annotation")
+        assertTrue(annotations[0].typeList.contains(AnnotationType.Scry_af5a))
+    }
+
+    // -- TokenCreated --
+
+    @Test
+    fun tokenCreatedAnnotation() {
+        val events = listOf(
+            NexusGameEvent.TokenCreated(forgeCardId = 99, seatId = 1),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+
+        assertEquals(annotations.size, 1)
+        assertTrue(annotations[0].typeList.contains(AnnotationType.TokenCreated))
+        assertTrue(annotations[0].affectedIdsList.contains(1099), "instanceId should be resolved")
+    }
+
+    // -- Mixed events --
+
+    @Test
+    fun mechanicAnnotationsIgnoresZoneTransferEvents() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 1, from = forge.game.zone.ZoneType.Hand, to = forge.game.zone.ZoneType.Battlefield),
+            NexusGameEvent.LandPlayed(forgeCardId = 1, seatId = 1),
+            NexusGameEvent.CardDestroyed(forgeCardId = 2, seatId = 1),
+            NexusGameEvent.CardTapped(forgeCardId = 3, tapped = true),
+            NexusGameEvent.DamageDealtToPlayer(sourceForgeId = 4, targetSeatId = 1, amount = 3, combat = true),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        assertTrue(annotations.isEmpty(), "Zone transfer and combat events should be ignored by Stage 4")
+    }
+
+    @Test
+    fun mechanicAnnotationsMultipleEvents() {
+        val events = listOf(
+            NexusGameEvent.LibraryShuffled(seatId = 1),
+            NexusGameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 0, newCount = 1),
+            NexusGameEvent.Scry(seatId = 1, topCount = 2, bottomCount = 0),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        assertEquals(annotations.size, 3, "Should produce one annotation per Group B event")
+        assertTrue(annotations[0].typeList.contains(AnnotationType.Shuffle))
+        assertTrue(annotations[1].typeList.contains(AnnotationType.CounterAdded))
+        assertTrue(annotations[2].typeList.contains(AnnotationType.Scry_af5a))
+    }
+
+    // --- annotationsForTransfer: new zone-specific categories ---
+
+    @Test
+    fun destroyProducesAnnotations() {
+        val transfer = AnnotationPipeline.AppliedTransfer(
+            origId = 100, newId = 200,
+            category = TransferCategory.Destroy,
+            srcZoneId = ZoneIds.BATTLEFIELD, destZoneId = ZoneIds.P1_GRAVEYARD,
+            grpId = 0, ownerSeatId = 1,
+        )
+        val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+
+        assertEquals(annotations.size, 2, "Destroy: ObjectIdChanged + ZoneTransfer")
+        assertEquals(annotations[0].typeList.first(), AnnotationType.ObjectIdChanged)
+        assertEquals(annotations[1].typeList.first(), AnnotationType.ZoneTransfer_af5a)
+        val category = annotations[1].detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "Destroy")
+        assertTrue(persistent.isEmpty(), "GY dest should have no persistent annotation")
+    }
+
+    @Test
+    fun sacrificeProducesAnnotations() {
+        val transfer = AnnotationPipeline.AppliedTransfer(
+            origId = 100, newId = 200,
+            category = TransferCategory.Sacrifice,
+            srcZoneId = ZoneIds.BATTLEFIELD, destZoneId = ZoneIds.P1_GRAVEYARD,
+            grpId = 0, ownerSeatId = 1,
+        )
+        val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+        val category = annotations.last().detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "Sacrifice")
+    }
+
+    @Test
+    fun bounceProducesAnnotations() {
+        val transfer = AnnotationPipeline.AppliedTransfer(
+            origId = 100, newId = 200,
+            category = TransferCategory.Bounce,
+            srcZoneId = ZoneIds.BATTLEFIELD, destZoneId = ZoneIds.P1_HAND,
+            grpId = 0, ownerSeatId = 1,
+        )
+        val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+        val category = annotations.last().detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "Bounce")
+    }
+
+    @Test
+    fun exileProducesAnnotations() {
+        val transfer = AnnotationPipeline.AppliedTransfer(
+            origId = 100, newId = 200,
+            category = TransferCategory.Exile,
+            srcZoneId = ZoneIds.BATTLEFIELD, destZoneId = ZoneIds.EXILE,
+            grpId = 0, ownerSeatId = 1,
+        )
+        val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+        val category = annotations.last().detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "Exile")
+    }
+
+    @Test
+    fun discardProducesAnnotations() {
+        val transfer = AnnotationPipeline.AppliedTransfer(
+            origId = 100, newId = 200,
+            category = TransferCategory.Discard,
+            srcZoneId = ZoneIds.P1_HAND, destZoneId = ZoneIds.P1_GRAVEYARD,
+            grpId = 0, ownerSeatId = 1,
+        )
+        val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+        val category = annotations.last().detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "Discard")
+    }
+
+    @Test
+    fun drawProducesAnnotations() {
+        val transfer = AnnotationPipeline.AppliedTransfer(
+            origId = 100, newId = 200,
+            category = TransferCategory.Draw,
+            srcZoneId = ZoneIds.P1_LIBRARY, destZoneId = ZoneIds.P1_HAND,
+            grpId = 0, ownerSeatId = 1,
+        )
+        val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+        val category = annotations.last().detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "Draw")
+    }
+
+    @Test
+    fun millProducesAnnotations() {
+        val transfer = AnnotationPipeline.AppliedTransfer(
+            origId = 100, newId = 200,
+            category = TransferCategory.Mill,
+            srcZoneId = ZoneIds.P1_LIBRARY, destZoneId = ZoneIds.P1_GRAVEYARD,
+            grpId = 0, ownerSeatId = 1,
+        )
+        val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+        val category = annotations.last().detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "Mill")
+    }
+
+    @Test
+    fun counteredProducesAnnotations() {
+        val transfer = AnnotationPipeline.AppliedTransfer(
+            origId = 100, newId = 200,
+            category = TransferCategory.Countered,
+            srcZoneId = ZoneIds.STACK, destZoneId = ZoneIds.P1_GRAVEYARD,
+            grpId = 0, ownerSeatId = 1,
+        )
+        val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+        val category = annotations.last().detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "Countered")
+    }
 }

@@ -3,6 +3,7 @@ package forge.nexus.game
 import com.google.common.eventbus.Subscribe
 import forge.ai.LobbyPlayerAi
 import forge.game.event.*
+import forge.game.zone.ZoneType
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentLinkedQueue
 
@@ -69,8 +70,32 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
     override fun visit(ev: GameEventCardChangeZone) {
         val card = ev.card()
-        queue.add(NexusGameEvent.ZoneChanged(card.id, ev.from().zoneType, ev.to().zoneType))
-        log.debug("event: ZoneChanged card={} {} → {}", card.name, ev.from().zoneType, ev.to().zoneType)
+        val from = ev.from().zoneType
+        val to = ev.to().zoneType
+        val seat = seatOf(card.controller)
+
+        // Emit the most specific variant possible based on zone pair.
+        // When seat is unavailable, fall back to generic ZoneChanged.
+        val event = if (seat != null) {
+            when {
+                from == ZoneType.Battlefield && to == ZoneType.Graveyard ->
+                    NexusGameEvent.CardDestroyed(card.id, seat)
+                from == ZoneType.Battlefield && (to == ZoneType.Hand || to == ZoneType.Library) ->
+                    NexusGameEvent.CardBounced(card.id, seat)
+                to == ZoneType.Exile ->
+                    NexusGameEvent.CardExiled(card.id, seat)
+                from == ZoneType.Hand && to == ZoneType.Graveyard ->
+                    NexusGameEvent.CardDiscarded(card.id, seat)
+                from == ZoneType.Library && to == ZoneType.Graveyard ->
+                    NexusGameEvent.CardMilled(card.id, seat)
+                else -> NexusGameEvent.ZoneChanged(card.id, from, to)
+            }
+        } else {
+            NexusGameEvent.ZoneChanged(card.id, from, to)
+        }
+
+        queue.add(event)
+        log.debug("event: {} card={} {} → {}", event::class.simpleName, card.name, from, to)
     }
 
     override fun visit(ev: GameEventCardTapped) {
