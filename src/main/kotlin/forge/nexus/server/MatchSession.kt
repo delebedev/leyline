@@ -8,6 +8,7 @@ import forge.nexus.game.BundleBuilder
 import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
 import forge.nexus.game.StateMapper
+import forge.nexus.game.StopTypeMapping
 import forge.nexus.protocol.HandshakeMessages
 import forge.nexus.protocol.ProtoDump
 import forge.web.game.PlayerAction
@@ -224,15 +225,57 @@ class MatchSession(
         sendGameOver()
     }
 
-    /** Handle SetSettingsReq: save settings and echo response. */
+    /** Handle SetSettingsReq: save settings, apply stops to PhaseStopProfile, echo response. */
     fun onSettings(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val reqSettings = greMsg.setSettingsReq
         clientSettings = reqSettings.settings
         log.info("MatchSession: SetSettingsReq (stops={})", reqSettings.settings.stopsCount)
+
+        // Apply stop changes to the live PhaseStopProfile so the engine
+        // respects client's phase ladder toggles.
+        applyStopsToProfile(reqSettings.settings)
+
         val (msg, nextMsgId) = HandshakeMessages.settingsResp(seatId, msgIdCounter, gameStateId, clientSettings)
         msgIdCounter = nextMsgId
         ProtoDump.dump(msg, "SettingsResp")
         sink.sendRaw(msg)
+    }
+
+    /**
+     * Map client [SettingsMessage] stops to [PhaseStopProfile] updates.
+     *
+     * Team scope → human player's own-turn stops.
+     * Opponents scope → logged but deferred (v1: AI_DEFAULTS handle opponent turns).
+     */
+    private fun applyStopsToProfile(settings: SettingsMessage) {
+        val bridge = gameBridge ?: return
+        val profile = bridge.phaseStopProfile ?: return
+        val humanPlayer = bridge.getPlayer(seatId) ?: return
+
+        val stops = settings.stopsList
+        if (stops.isEmpty()) return
+
+        // Parse Team-scope stops (human's own turn)
+        val teamEnabled = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
+        val teamDisabled = stops
+            .filter { it.status == SettingStatus.Clear_a3fe }
+            .filter { it.appliesTo == SettingScope.Team_ac6e || it.appliesTo == SettingScope.AnyPlayer }
+            .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
+            .toSet()
+
+        for (phase in teamEnabled) {
+            profile.setEnabled(humanPlayer.id, phase, true)
+        }
+        for (phase in teamDisabled) {
+            profile.setEnabled(humanPlayer.id, phase, false)
+        }
+
+        log.info(
+            "MatchSession: applied stops — enabled={} disabled={} profile={}",
+            teamEnabled.map { it.name },
+            teamDisabled.map { it.name },
+            profile.getEnabled(humanPlayer.id).map { it.name },
+        )
     }
 
     // --- Sending helpers ---

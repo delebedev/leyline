@@ -60,6 +60,10 @@ class GameBridge(
     var eventCollector: GameEventCollector? = null
         private set
 
+    /** Phase stop profile — controls which phases the engine stops at per player. Null before start(). */
+    var phaseStopProfile: PhaseStopProfile? = null
+        private set
+
     // --- Composed components ---
 
     /** Card ID mapping (Forge cardId ↔ client instanceId). */
@@ -182,7 +186,7 @@ class GameBridge(
         // Wire WebPlayerController for seat 1 (human) with mulligan bridge
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
         val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
-        val phaseStops = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
+        phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
         val controller = WebPlayerController(
             game = g,
             player = human,
@@ -190,7 +194,7 @@ class GameBridge(
             bridge = this.promptBridge,
             actionBridge = actionBridge,
             mulliganBridge = seat1MulliganBridge,
-            phaseStopProfile = phaseStops,
+            phaseStopProfile = phaseStopProfile,
         )
         human.addController(Long.MAX_VALUE - 1, human, controller, false)
 
