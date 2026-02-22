@@ -251,62 +251,21 @@ _require file:
 
 [private]
 _check-upstream:
-    #!/usr/bin/env bash
-    stamp="{{root_dir}}/.upstream-installed"
-    upstream_hash=$(cd "{{root_dir}}" && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml)
-    if [ ! -f "$stamp" ]; then
-        echo "Upstream JARs not installed. Run: just install-upstream (from repo root)" >&2; exit 1
-    fi
-    stamp_hash=$(cat "$stamp")
-    if [ "$stamp_hash" != "$upstream_hash" ]; then
-        echo "Upstream sources changed. Run: just install-upstream (from repo root)" >&2; exit 1
-    fi
+    @"{{root_dir}}/build/check-upstream.sh" "{{root_dir}}"
 
 [private]
 _clean-surefire:
     @rm -rf "{{nexus_dir}}/target/surefire-reports"
 
-# Run mvn test with extra flags, show failures, preserve exit code.
+# Run mvn test with extra flags, emit summary, preserve exit code.
 [private]
 _mvn-test extra_flags:
     #!/usr/bin/env bash
     set +e
     cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} {{extra_flags}} test; rc=$?
-    just -f "{{nexus_dir}}/justfile" _show-failures; exit $rc
-
-[private]
-_show-failures:
-    #!/usr/bin/env python3
-    import xml.etree.ElementTree as ET, sys, os
-    report = "{{nexus_dir}}/target/surefire-reports/testng-results.xml"
-    if not os.path.isfile(report):
-        sys.exit(0)
-    tree = ET.parse(report)
-    fails = []
-    for tm in tree.iter("test-method"):
-        if tm.get("status") != "FAIL" or tm.get("is-config") == "true":
-            continue
-        sig = tm.get("signature", "")
-        # extract class from "instance:com.foo.Bar@hex" in signature
-        cls = ""
-        if "instance:" in sig:
-            cls = sig.split("instance:")[1].split("@")[0]
-        name = tm.get("name", "")
-        msg = ""
-        exc = tm.find("exception")
-        if exc is not None:
-            m = exc.find("message")
-            if m is not None and m.text:
-                # first line only, trim whitespace
-                msg = m.text.strip().split("\n")[0][:120]
-        fails.append((cls, name, msg))
-    if fails:
-        print("\n=== FAILED TESTS ===")
-        for cls, name, msg in sorted(fails):
-            print(f"  {cls}.{name}")
-            if msg:
-                print(f"    {msg}")
-        print()
+    python3 "{{root_dir}}/build/test-summary.py" "{{nexus_dir}}/target" 2>/dev/null \
+        || echo "⚠ Could not parse test results"
+    exit $rc
 
 # Refresh classpath file if pom changed (used by build + dev-build).
 [private]

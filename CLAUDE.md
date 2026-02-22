@@ -29,6 +29,8 @@ TestNG groups control what runs. Use `just --list` for all targets.
 
 **`recording` group** requires client capture files — skip in CI/normal dev.
 
+**Test output:** every test target prints a structured summary (and writes `target/test-summary.txt`). First word is `PASS` or `FAIL`. On failure, the summary lists class.method + assertion message — no need to grep Maven output or parse XML. Only dig deeper if the summary message is unclear.
+
 ## Debug Panel & API
 
 Debug server on `:8090` (auto-starts with `just serve`). Full endpoint reference: `docs/debug-api.md`.
