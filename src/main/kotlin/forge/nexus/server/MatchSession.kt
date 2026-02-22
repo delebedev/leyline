@@ -347,7 +347,16 @@ class MatchSession(
     }
 
     /**
-     * Send game-over sequence: 3x GS Diff + IntermissionReq.
+     * Send game-over sequence: 3x GS Diff + IntermissionReq + MatchCompleted room state.
+     *
+     * Per mtga-internals/docs/post-game-protocol.md, the full sequence is:
+     * 1. Server sends 3x GSM (GameOver) + IntermissionReq
+     * 2. Client responds with CheckpointReq (handled in MatchHandler)
+     * 3. Server sends MatchGameRoomStateChangedEvent (MatchCompleted)
+     *
+     * We send MatchCompleted immediately after IntermissionReq rather than
+     * waiting for CheckpointReq — the client tolerates this ordering and it
+     * avoids needing cross-layer coordination between MatchHandler and MatchSession.
      */
     override fun sendGameOver() {
         val bridge = gameBridge
@@ -359,7 +368,12 @@ class MatchSession(
         msgIdCounter = result.nextMsgId
         gameStateId = result.nextGsId
         sendBundledGRE(result.messages)
-        log.info("MatchSession: sent game-over sequence (winner=team{})", winningTeam)
+        log.info("MatchSession: sent game-over GRE sequence (winner=team{})", winningTeam)
+
+        // Send MatchCompleted room state — triggers the client's result screen
+        val matchCompletedMsg = HandshakeMessages.matchCompleted(matchId, winningTeam)
+        sink.sendRaw(matchCompletedMsg)
+        log.info("MatchSession: sent MatchCompleted room state")
 
         // Trigger post-game analysis
         recorder?.markGameOver()
