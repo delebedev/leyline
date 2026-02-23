@@ -17,6 +17,18 @@ Root cause is shared: reaching combat with creatures on both sides requires mult
 - Scripted AI controller to skip AI think time
 - Dedicated "combat-ready" seed/fixture that starts at a board state closer to combat
 
+## Split justfile into delegated groups
+
+The root justfile delegates `fmt`/`fmt-check` to per-module justfiles — extend this pattern to more target groups. The nexus justfile is 360+ LOC with serve/proto/recording/cert targets all in one file.
+
+Candidates:
+- `proto.just` — proto-inspect, proto-decode, proto-diff, proto-compare, proto-trace, proto-extract, proto-accumulate
+- `recording.just` — rec-list, rec-summary, rec-actions, rec-compare, rec-analyze, rec-violations, rec-mechanics, rec-latest
+- `certs.just` — gen-certs (standalone, rarely used)
+- Keep serve/test/build/dev in the main justfile (daily workflow)
+
+Use `import` to keep `just <target>` working from the nexus dir.
+
 ## Pre-validate test decks somehow
 
 Cards that resolved to grpId=0 (no client card data):
