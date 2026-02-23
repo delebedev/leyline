@@ -9,7 +9,6 @@ import forge.nexus.game.GameBridge
 import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotNull
-import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
@@ -54,7 +53,12 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
         game.action.moveToHand(creature, null)
 
         val result = BundleBuilder.stateOnlyDiff(
-            game, b, TEST_MATCH_ID, SEAT_ID, 1, captureGsId,
+            game,
+            b,
+            TEST_MATCH_ID,
+            SEAT_ID,
+            1,
+            captureGsId,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -84,7 +88,12 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
         game.action.destroy(creature, null, false, AbilityKey.newMap())
 
         val result = BundleBuilder.stateOnlyDiff(
-            game, b, TEST_MATCH_ID, SEAT_ID, 1, captureGsId,
+            game,
+            b,
+            TEST_MATCH_ID,
+            SEAT_ID,
+            1,
+            captureGsId,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -114,7 +123,12 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
         game.action.exile(creature, null, AbilityKey.newMap())
 
         val result = BundleBuilder.stateOnlyDiff(
-            game, b, TEST_MATCH_ID, SEAT_ID, 1, captureGsId,
+            game,
+            b,
+            TEST_MATCH_ID,
+            SEAT_ID,
+            1,
+            captureGsId,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -153,9 +167,12 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
         b.snapshotFromGame(game, captureGsId)
 
         // Fire SpellResolved for the spell card (simulating removal spell resolving)
-        game.fireEvent(forge.game.event.GameEventSpellResolved(
-            spellCard.firstSpellAbility, false,
-        ))
+        game.fireEvent(
+            forge.game.event.GameEventSpellResolved(
+                spellCard.firstSpellAbility,
+                false,
+            ),
+        )
         // Then the spell's effect: exile the creature
         game.action.exile(creature, null, AbilityKey.newMap())
         // And the spell goes to GY (Stack→GY for the instant)
@@ -163,7 +180,12 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
         // are what matter for categoryFromEvents testing
 
         val result = BundleBuilder.stateOnlyDiff(
-            game, b, TEST_MATCH_ID, SEAT_ID, 1, captureGsId,
+            game,
+            b,
+            TEST_MATCH_ID,
+            SEAT_ID,
+            1,
+            captureGsId,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 

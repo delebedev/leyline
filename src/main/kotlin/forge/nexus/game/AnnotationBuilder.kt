@@ -30,8 +30,11 @@ object AnnotationBuilder {
                 is NexusGameEvent.SpellCast -> if (ev.forgeCardId == forgeCardId) return TransferCategory.CastSpell
                 is NexusGameEvent.SpellResolved -> if (ev.forgeCardId == forgeCardId) {
                     // Fizzled spells (countered) go Stack→GY — not a successful resolve
-                    if (ev.hasFizzled) zoneCategory = TransferCategory.Countered
-                    else return TransferCategory.Resolve
+                    if (ev.hasFizzled) {
+                        zoneCategory = TransferCategory.Countered
+                    } else {
+                        return TransferCategory.Resolve
+                    }
                 }
                 // Sacrifice flag — overrides Destroy when both fire for same card
                 is NexusGameEvent.CardSacrificed -> if (ev.forgeCardId == forgeCardId) sacrificed = true
@@ -246,6 +249,26 @@ object AnnotationBuilder {
             .addType(AnnotationType.EnteredZoneThisTurn)
             .setAffectorId(zoneId)
             .apply { instanceIds.forEach { addAffectedIds(it) } }
+            .build()
+
+    // -- Group A+ annotation builders (attachments) --
+
+    /** Transient: Aura/Equipment attached to target. Arena type 70 (AttachmentCreated).
+     *  [auraIid] = the aura/equipment instanceId, [targetIid] = the enchanted/equipped permanent. */
+    fun attachmentCreated(auraIid: Int, targetIid: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.AttachmentCreated)
+            .addAffectedIds(auraIid)
+            .addAffectedIds(targetIid)
+            .build()
+
+    /** Persistent: Ongoing attachment relationship. Arena type 20 (Attachment).
+     *  [auraIid] = the aura/equipment instanceId, [targetIid] = the enchanted/equipped permanent. */
+    fun attachment(auraIid: Int, targetIid: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.Attachment)
+            .addAffectedIds(auraIid)
+            .addAffectedIds(targetIid)
             .build()
 
     // -- Group B annotation builders --

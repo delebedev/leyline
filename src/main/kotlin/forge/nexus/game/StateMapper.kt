@@ -381,10 +381,14 @@ object StateMapper {
         // Stage 3: Combat damage annotations (must be added before numbering)
         annotations.addAll(AnnotationPipeline.combatAnnotations(game, bridge))
 
-        // Stage 4: Mechanic annotations (Group B: counters, shuffle, scry, tokens)
-        annotations.addAll(
-            AnnotationPipeline.mechanicAnnotations(events) { forgeCardId ->
-                bridge.getOrAllocInstanceId(forgeCardId)
+        // Stage 4: Mechanic annotations (Group B: counters, shuffle, scry, tokens + Group A+: attachments)
+        val mechanicResult = AnnotationPipeline.mechanicAnnotations(events) { forgeCardId ->
+            bridge.getOrAllocInstanceId(forgeCardId)
+        }
+        annotations.addAll(mechanicResult.transient)
+        persistentAnnotations.addAll(
+            mechanicResult.persistent.map {
+                it.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
             },
         )
 

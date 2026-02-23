@@ -165,6 +165,21 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         log.debug("event: CardSacrificed card={} seat={}", card.name, seat)
     }
 
+    // -- Group A+: attachment events --
+
+    override fun visit(ev: GameEventCardAttachment) {
+        val card = ev.equipment()
+        val seat = seatOf(card.controller) ?: return
+        val newTarget = ev.newTarget()
+        if (newTarget != null && newTarget is forge.game.card.Card) {
+            queue.add(NexusGameEvent.CardAttached(card.id, newTarget.id, seat))
+            log.debug("event: CardAttached card={} target={} seat={}", card.name, newTarget, seat)
+        } else {
+            queue.add(NexusGameEvent.CardDetached(card.id, seat))
+            log.debug("event: CardDetached card={} seat={}", card.name, seat)
+        }
+    }
+
     // -- Group B: annotation-producing events --
 
     override fun visit(ev: GameEventCardCounters) {

@@ -136,6 +136,21 @@ sealed interface NexusGameEvent {
         val seatId: Int,
     ) : NexusGameEvent
 
+    // -- Group A+: attachment events --
+
+    /** A card was attached to another permanent (aura enchanting, equipment equipping). */
+    data class CardAttached(
+        val forgeCardId: Int,
+        val targetForgeId: Int,
+        val seatId: Int,
+    ) : NexusGameEvent
+
+    /** A card was detached from its target (aura falling off, equipment unequipped). */
+    data class CardDetached(
+        val forgeCardId: Int,
+        val seatId: Int,
+    ) : NexusGameEvent
+
     // -- Group B: annotation-producing events --
 
     /** Counters added or removed on a card (+1/+1, loyalty, poison, stun, etc.). */

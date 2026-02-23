@@ -151,7 +151,12 @@ class SbaDeathTest : ConformanceTestBase() {
         setup()
         game.action.checkStateEffects(true)
         val result = BundleBuilder.stateOnlyDiff(
-            game, b, TEST_MATCH_ID, SEAT_ID, 1, gsId,
+            game,
+            b,
+            TEST_MATCH_ID,
+            SEAT_ID,
+            1,
+            gsId,
         )
         return result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
     }

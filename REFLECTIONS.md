@@ -65,3 +65,13 @@ Current behavior: the auto-pass engine still auto-resolves "choose_cards" prompt
 **Limitation:** abilityIndex always 0 (first non-mana ability). Multi-ability cards (planeswalkers) need abilityGrpId→index correlation via CardDb. Deferred.
 
 **How to find faster:** The `else` branch logging "unhandled action type" was the clue. Any time an action type falls through to else, it's a missing handler.
+
+## Item 9 — Attachment Annotations
+
+**New feature.** Full attachment annotation pipeline: `GameEventCardAttachment` → `GameEventCollector.visit()` emits `CardAttached`/`CardDetached` → `AnnotationPipeline.mechanicAnnotations()` produces transient `AttachmentCreated` (type 70) + persistent `Attachment` (type 20) → `StateMapper` Stage 4 routes persistent annotations through `nextPersistentAnnotationId()`.
+
+**Design decision:** Extended `mechanicAnnotations()` to return `MechanicAnnotationResult(transient, persistent)` instead of flat `List<AnnotationInfo>`. Follows the same pattern as `annotationsForTransfer()` which already returns `Pair<transient, persistent>`. Cleaner than adding a separate method — all mechanic events go through one pipeline.
+
+**Key insight:** `GameEventCardAttachment.newTarget()` is null for detach, non-null for attach. Cast `newTarget` to `Card` to extract forge ID. Detach events are captured (CardDetached) but not yet wired to annotation deletion — would need a `RemoveAttachment` annotation or persistent annotation removal pipeline. Deferred.
+
+**Files touched:** NexusGameEvent.kt, GameEventCollector.kt, AnnotationBuilder.kt, AnnotationPipeline.kt, StateMapper.kt, MechanicClassifier.kt, AnnotationPipelineTest.kt (adapted for new return type), AttachmentAnnotationTest.kt (new).

@@ -69,7 +69,8 @@ class AiLandPlayOrderTest {
 
         // PlayLand must have its own gsId, separate from CastSpell
         assertNotEquals(
-            playLandGsId, castSpellGsId,
+            playLandGsId,
+            castSpellGsId,
             "PlayLand and CastSpell must have different gsIds (dedicated diffs)",
         )
 

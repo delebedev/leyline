@@ -256,7 +256,7 @@ class AnnotationPipelineTest {
         val events = listOf(
             NexusGameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 0, newCount = 2),
         )
-        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
 
         assertEquals(annotations.size, 1, "Should produce one CounterAdded annotation")
         assertTrue(annotations[0].typeList.contains(AnnotationType.CounterAdded))
@@ -273,7 +273,7 @@ class AnnotationPipelineTest {
         val events = listOf(
             NexusGameEvent.CountersChanged(forgeCardId = 42, counterType = "LOYALTY", oldCount = 5, newCount = 2),
         )
-        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
 
         assertEquals(annotations.size, 1, "Should produce one CounterRemoved annotation")
         assertTrue(annotations[0].typeList.contains(AnnotationType.CounterRemoved))
@@ -286,7 +286,7 @@ class AnnotationPipelineTest {
         val events = listOf(
             NexusGameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 3, newCount = 3),
         )
-        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
         assertTrue(annotations.isEmpty(), "No annotation when counter count unchanged")
     }
 
@@ -297,7 +297,7 @@ class AnnotationPipelineTest {
         val events = listOf(
             NexusGameEvent.LibraryShuffled(seatId = 1),
         )
-        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
 
         assertEquals(annotations.size, 1)
         assertTrue(annotations[0].typeList.contains(AnnotationType.Shuffle))
@@ -311,7 +311,7 @@ class AnnotationPipelineTest {
         val events = listOf(
             NexusGameEvent.Scry(seatId = 2, topCount = 1, bottomCount = 2),
         )
-        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
 
         assertEquals(annotations.size, 1)
         assertTrue(annotations[0].typeList.contains(AnnotationType.Scry_af5a))
@@ -328,7 +328,7 @@ class AnnotationPipelineTest {
         val events = listOf(
             NexusGameEvent.Surveil(seatId = 1, toLibrary = 1, toGraveyard = 1),
         )
-        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
 
         assertEquals(annotations.size, 1, "Surveil should produce a scry-type annotation")
         assertTrue(annotations[0].typeList.contains(AnnotationType.Scry_af5a))
@@ -341,7 +341,7 @@ class AnnotationPipelineTest {
         val events = listOf(
             NexusGameEvent.TokenCreated(forgeCardId = 99, seatId = 1),
         )
-        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
 
         assertEquals(annotations.size, 1)
         assertTrue(annotations[0].typeList.contains(AnnotationType.TokenCreated))
@@ -359,7 +359,7 @@ class AnnotationPipelineTest {
             NexusGameEvent.CardTapped(forgeCardId = 3, tapped = true),
             NexusGameEvent.DamageDealtToPlayer(sourceForgeId = 4, targetSeatId = 1, amount = 3, combat = true),
         )
-        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
         assertTrue(annotations.isEmpty(), "Zone transfer and combat events should be ignored by Stage 4")
     }
 
@@ -370,7 +370,7 @@ class AnnotationPipelineTest {
             NexusGameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 0, newCount = 1),
             NexusGameEvent.Scry(seatId = 1, topCount = 2, bottomCount = 0),
         )
-        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
         assertEquals(annotations.size, 3, "Should produce one annotation per Group B event")
         assertTrue(annotations[0].typeList.contains(AnnotationType.Shuffle))
         assertTrue(annotations[1].typeList.contains(AnnotationType.CounterAdded))
