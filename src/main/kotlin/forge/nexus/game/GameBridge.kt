@@ -17,6 +17,7 @@ import forge.web.game.InteractivePromptBridge
 import forge.web.game.MulliganBridge
 import forge.web.game.MulliganPhase
 import forge.web.game.PhaseStopProfile
+import forge.web.game.PrioritySignal
 import forge.web.game.WebPlayerController
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
@@ -56,6 +57,9 @@ class GameBridge(
     private var game: Game? = null
     private var loopController: GameLoopController? = null
 
+    /** Shared signal — bridges notify when they have a pending item, replacing poll loops. */
+    val prioritySignal = PrioritySignal()
+
     /** seat 1 = human. autoKeep driven by config skipMulligan. AI uses its default controller. */
     private val seat1MulliganBridge = MulliganBridge(
         autoKeep = playtestConfig.game.skipMulligan,
@@ -63,10 +67,10 @@ class GameBridge(
     )
 
     /** Action bridge for seat 1 — blocks engine at priority stops. */
-    val actionBridge = GameActionBridge(timeoutMs = bridgeTimeoutMs)
+    val actionBridge = GameActionBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
 
     /** Prompt bridge for seat 1 — blocks engine on targeting/choice prompts. */
-    val promptBridge = InteractivePromptBridge(timeoutMs = bridgeTimeoutMs)
+    val promptBridge = InteractivePromptBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
 
     /** AI action playback — captures per-action state diffs via EventBus. Null before start(). */
     var playback: NexusGamePlayback? = null
@@ -161,6 +165,12 @@ class GameBridge(
 
         /** Longer timeout for AI turns (AI plays full turn: lands, spells, combat). */
         const val AI_TURN_WAIT_MS = 30_000L
+
+        /** Short settle delay after detecting pending state — lets engine thread finish
+         *  in-flight zone moves before we snapshot. */
+        private const val SETTLE_MS = 10L
+
+        /** Poll interval for mulligan ready check (no signal available for mulligan). */
         private const val POLL_INTERVAL_MS = 50L
     }
 
@@ -300,6 +310,10 @@ class GameBridge(
      * Block until the engine reaches a priority stop, an interactive prompt
      * is pending, or the game ends.
      *
+     * Uses [PrioritySignal] (semaphore-based) instead of polling — both
+     * [GameActionBridge] and [InteractivePromptBridge] signal when they post
+     * a pending item, so we wake up immediately with no 50ms poll latency.
+     *
      * The prompt check is needed because targeted spells (e.g. Giant Growth)
      * block the engine thread in [InteractivePromptBridge.requestChoice] before
      * the next action-bridge priority stop is reached. Without this, casting a
@@ -310,7 +324,8 @@ class GameBridge(
      */
     fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
+        while (true) {
+            // Check conditions first (handles already-pending case)
             val g = game
             if (g != null && g.isGameOver) {
                 log.info("GameBridge: game over detected while waiting for priority")
@@ -318,19 +333,23 @@ class GameBridge(
             }
             if (actionBridge.getPending() != null) {
                 // Let engine thread finish in-flight zone moves before we snapshot state
-                Thread.sleep(10)
+                Thread.sleep(SETTLE_MS)
                 return true
             }
-            // A pending prompt (targeting, sacrifice, etc.) also counts as
-            // "engine waiting for input" — treat it like reaching priority.
             if (promptBridge.getPendingPrompt() != null) {
-                Thread.sleep(10)
+                Thread.sleep(SETTLE_MS)
                 return true
             }
-            Thread.sleep(POLL_INTERVAL_MS)
+
+            val remaining = deadline - System.currentTimeMillis()
+            if (remaining <= 0) {
+                log.warn("GameBridge: timed out waiting for priority ({}ms)", timeoutMs)
+                return false
+            }
+
+            // Wait for signal from either bridge (or timeout)
+            prioritySignal.awaitSignal(remaining)
         }
-        log.warn("GameBridge: timed out waiting for priority ({}ms)", timeoutMs)
-        return false
     }
 
     /** Submit keep decision for seat. */
