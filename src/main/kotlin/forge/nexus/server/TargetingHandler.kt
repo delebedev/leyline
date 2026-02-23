@@ -56,6 +56,36 @@ class TargetingHandler(private val ops: SessionOps) {
     }
 
     /**
+     * Handle SelectNResp: map client instanceIds back to prompt option indices and submit.
+     * Mirrors [onSelectTargets] but for "choose N cards" prompts.
+     */
+    fun onSelectN(
+        greMsg: ClientToGREMessage,
+        bridge: GameBridge,
+        autoPass: (GameBridge) -> Unit,
+    ) {
+        val resp = greMsg.selectNResp
+        val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: run {
+            log.warn("TargetingHandler: SelectNResp but no pending prompt")
+            return
+        }
+
+        val selectedIndices = resp.idsList.mapNotNull { instanceId ->
+            val forgeCardId = bridge.getForgeCardId(instanceId)
+            if (forgeCardId == null) return@mapNotNull null
+            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId }
+        }.filter { it >= 0 }
+
+        log.info("TargetingHandler: SelectNResp indices={}", selectedIndices)
+
+        // Seed BEFORE submit — submitResponse unblocks the game thread immediately
+        bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
+        bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
+        bridge.awaitPriority()
+        autoPass(bridge)
+    }
+
+    /**
      * After a cast, check for a pending targeting prompt or intermediate stack state.
      * Returns true if handled (caller should return), false to continue normal flow.
      */
