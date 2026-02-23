@@ -358,7 +358,11 @@ object StateMapper {
 
         // --- Three-stage annotation pipeline (delegated to AnnotationPipeline) ---
         // Stage 1: Detect zone transfers, realloc IDs, get patched objects/zones
-        val events = bridge.drainEvents()
+        val events = bridge.drainEvents().toMutableList()
+        // Drain reveal records from the prompt bridge (captured in WebPlayerController.reveal())
+        for (reveal in bridge.promptBridge.drainReveals()) {
+            events.add(NexusGameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
+        }
         val transferResult = AnnotationPipeline.detectZoneTransfers(gameObjects, zones, bridge, events)
         // Apply deferred tracking side effects
         for (id in transferResult.retiredIds) bridge.retireToLimbo(id)

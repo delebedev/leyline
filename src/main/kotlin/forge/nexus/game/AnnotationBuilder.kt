@@ -271,6 +271,24 @@ object AnnotationBuilder {
             .addAffectedIds(targetIid)
             .build()
 
+    // -- Group B+ annotation builders (reveals) --
+
+    /** Card revealed to all players. Arena type 59 (RevealedCardCreated).
+     *  [instanceId] = the revealed card's instanceId. */
+    fun revealedCardCreated(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.RevealedCardCreated)
+            .addAffectedIds(instanceId)
+            .build()
+
+    /** Card un-revealed (no longer visible). Arena type 60 (RevealedCardDeleted).
+     *  [instanceId] = the card's instanceId being removed from revealed zone. */
+    fun revealedCardDeleted(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.RevealedCardDeleted)
+            .addAffectedIds(instanceId)
+            .build()
+
     // -- Group B annotation builders --
 
     /** Token was created. Arena type 35 (TokenCreated).
