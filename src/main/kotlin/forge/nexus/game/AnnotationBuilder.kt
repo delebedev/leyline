@@ -28,7 +28,11 @@ object AnnotationBuilder {
                 // Highest priority — mechanic-specific events (immediate return)
                 is NexusGameEvent.LandPlayed -> if (ev.forgeCardId == forgeCardId) return TransferCategory.PlayLand
                 is NexusGameEvent.SpellCast -> if (ev.forgeCardId == forgeCardId) return TransferCategory.CastSpell
-                is NexusGameEvent.SpellResolved -> if (ev.forgeCardId == forgeCardId) return TransferCategory.Resolve
+                is NexusGameEvent.SpellResolved -> if (ev.forgeCardId == forgeCardId) {
+                    // Fizzled spells (countered) go Stack→GY — not a successful resolve
+                    if (ev.hasFizzled) zoneCategory = TransferCategory.Countered
+                    else return TransferCategory.Resolve
+                }
                 // Sacrifice flag — overrides Destroy when both fire for same card
                 is NexusGameEvent.CardSacrificed -> if (ev.forgeCardId == forgeCardId) sacrificed = true
                 // Zone-specific events (emitted by enriched ZoneChanged handler)
