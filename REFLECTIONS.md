@@ -35,3 +35,9 @@ Outbound path also added: StateMapper.buildSelectNReq() → BundleBuilder.select
 Current behavior: the auto-pass engine still auto-resolves "choose_cards" prompts with `defaultIndex` before the client sees SelectNReq. To send it to the client instead, modify `checkPendingPrompt()` to detect choose_cards + candidateRefs and call `sendSelectNReq()` instead of auto-resolving.
 
 **How to find faster:** The SelectTargetsReq/Resp pattern is the template. Every new prompt type follows the same 6-file pattern: PromptIds → StateMapper → BundleBuilder → TargetingHandler → MatchSession → MatchHandler. Could create a checklist/template for this.
+
+## 2.2 PayCostsReq Plumbing
+
+**Outbound-only.** PayCostsReq (type 36) is server→client; the response comes back as PerformActionResp (already handled). Added BundleBuilder.payCostsBundle() for when we want to show the Arena client's native mana payment UI instead of auto-solving.
+
+**Current behavior:** Engine's AI mana solver + WebCostDecision handles payment automatically. PayCostsReq is cosmetic — lets the client display its tap-land animation properly.

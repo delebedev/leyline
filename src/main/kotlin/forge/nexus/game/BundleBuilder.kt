@@ -463,6 +463,41 @@ object BundleBuilder {
     }
 
     /**
+     * PayCosts bundle: GameState + PayCostsReq.
+     * Tells the Arena client to show its native mana payment UI.
+     *
+     * Currently unused — mana payment auto-resolves via the engine's AI
+     * mana solver + checkPendingPrompt(). Wire this in when implementing
+     * interactive mana payment for the real client.
+     *
+     * The client responds with PerformActionResp (already handled).
+     */
+    fun payCostsBundle(
+        game: Game,
+        bridge: GameBridge,
+        matchId: String,
+        seatId: Int,
+        msgId: Int,
+        gsId: Int,
+        req: PayCostsReq,
+    ): BundleResult {
+        var nextMsg = msgId
+        var nextGs = gsId + 1
+
+        val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId)
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+            it.gameStateMessage = gs
+        }
+
+        val msg2 = makeGRE(GREMessageType.PayCostsReq_695e, nextGs, seatId, nextMsg++) {
+            it.payCostsReq = req
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
+        }
+
+        return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)
+    }
+
+    /**
      * Wrap a GameStateMessage as QueuedGameStateMessage (type 51) for opponent during prompts.
      */
     fun queuedGameState(
