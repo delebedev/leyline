@@ -301,6 +301,13 @@ object AnnotationPipeline {
                     persistent.add(AnnotationBuilder.attachment(auraIid, targetIid))
                     log.debug("mechanic: attachment aura={} target={}", auraIid, targetIid)
                 }
+                is NexusGameEvent.CardsRevealed -> {
+                    for (forgeCardId in ev.forgeCardIds) {
+                        val instanceId = idResolver(forgeCardId)
+                        annotations.add(AnnotationBuilder.revealedCardCreated(instanceId))
+                        log.debug("mechanic: revealedCardCreated iid={} seat={}", instanceId, ev.ownerSeatId)
+                    }
+                }
                 else -> {} // Zone-transfer events handled in Stages 1-2, combat in Stage 3
             }
         }

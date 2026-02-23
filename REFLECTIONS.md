@@ -75,3 +75,19 @@ Current behavior: the auto-pass engine still auto-resolves "choose_cards" prompt
 **Key insight:** `GameEventCardAttachment.newTarget()` is null for detach, non-null for attach. Cast `newTarget` to `Card` to extract forge ID. Detach events are captured (CardDetached) but not yet wired to annotation deletion — would need a `RemoveAttachment` annotation or persistent annotation removal pipeline. Deferred.
 
 **Files touched:** NexusGameEvent.kt, GameEventCollector.kt, AnnotationBuilder.kt, AnnotationPipeline.kt, StateMapper.kt, MechanicClassifier.kt, AnnotationPipelineTest.kt (adapted for new return type), AttachmentAnnotationTest.kt (new).
+
+## Item 6 — Reveal Pipeline
+
+**New feature.** Reveal annotations (RevealedCardCreated, type 59) now fire when the engine reveals cards. Architecture:
+
+1. **forge-web**: `WebPlayerController.reveal()` override intercepts the `PlayerController.reveal(CardCollectionView, ZoneType, Player, String, boolean)` call. Captures forge card IDs and pushes them to `InteractivePromptBridge.revealQueue` (new `ConcurrentLinkedQueue<RevealRecord>`).
+
+2. **forge-nexus**: `StateMapper.buildFromGame()` drains `bridge.promptBridge.drainReveals()` alongside `bridge.drainEvents()`, converts to `NexusGameEvent.CardsRevealed`. `AnnotationPipeline.mechanicAnnotations()` produces `RevealedCardCreated` transient annotations.
+
+**Key insight:** Forge has NO `GameEvent` for reveals — the engine communicates reveals through `PlayerController.reveal()` → `IGuiGame.reveal()` (a GUI callback chain, not EventBus). The 36+ call sites in `GameAction.reveal()` all route through this chain. Overriding at the controller level is the natural injection point without touching forge-game.
+
+**Not yet implemented:** `RevealedCardDeleted` (type 60, when reveal display ends), populating Revealed zones (18/19) with temporary `GameObjectInfo` entries of `ObjectType.RevealedCard = 8`. These are cosmetic — the client handles missing deletions gracefully (card just stays visible until next GSM).
+
+**Design decision:** Capture mechanism uses `InteractivePromptBridge` as the conduit (already accessible from both forge-web controller and forge-nexus StateMapper). Alternative was adding a callback interface — simpler to use the existing bridge object.
+
+**Files touched:** InteractivePromptBridge.kt (revealQueue + RevealRecord), WebPlayerController.kt (reveal override), NexusGameEvent.kt (CardsRevealed variant), AnnotationBuilder.kt (revealedCardCreated/Deleted factories), AnnotationPipeline.kt (wiring), StateMapper.kt (drain), MechanicClassifier.kt (reveal tag), RevealAnnotationTest.kt (new, 3 tests).

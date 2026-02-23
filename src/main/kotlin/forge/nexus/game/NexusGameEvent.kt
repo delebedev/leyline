@@ -180,6 +180,16 @@ sealed interface NexusGameEvent {
         val toGraveyard: Int,
     ) : NexusGameEvent
 
+    // -- Group B+: reveal events --
+    // Not from EventBus — captured via InteractivePromptBridge.drainReveals()
+    // in WebPlayerController.reveal() override.
+
+    /** Cards were revealed to all players (e.g. draw-and-reveal, Explore, etc.). */
+    data class CardsRevealed(
+        val forgeCardIds: List<Int>,
+        val ownerSeatId: Int,
+    ) : NexusGameEvent
+
     // -- Group C: combat enrichment --
 
     /** Combat phase ended — signal to clear combat state. */

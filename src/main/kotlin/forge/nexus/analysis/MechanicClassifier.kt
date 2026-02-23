@@ -42,6 +42,7 @@ object MechanicClassifier {
         is NexusGameEvent.Surveil -> "surveil"
         is NexusGameEvent.CardAttached -> "attachment"
         is NexusGameEvent.CardDetached -> "detachment"
+        is NexusGameEvent.CardsRevealed -> "reveal"
         is NexusGameEvent.CombatEnded -> "combat_end"
     }
 
