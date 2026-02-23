@@ -50,6 +50,8 @@ class NexusServer(
     private val replayDir: File? = null,
     /** Playtest configuration (decks, seed, die roll, AI speed). */
     val playtestConfig: forge.nexus.config.PlaytestConfig = forge.nexus.config.PlaytestConfig(),
+    /** Puzzle mode: if set, load this .pzl file for all client connections. */
+    val puzzleFile: File? = null,
 ) {
     private val log = LoggerFactory.getLogger(NexusServer::class.java)
 
@@ -105,7 +107,7 @@ class NexusServer(
             ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
             ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
             ch.pipeline().addLast("protobufEncoder", ProtobufEncoder())
-            ch.pipeline().addLast("handler", MatchHandler(playtestConfig = playtestConfig))
+            ch.pipeline().addLast("handler", MatchHandler(playtestConfig = playtestConfig, puzzleFile = puzzleFile))
         }
         log.info("Client Match Door (stub) listening on :{}", matchDoorPort)
     }
@@ -155,7 +157,7 @@ class NexusServer(
             ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
             ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
             ch.pipeline().addLast("protobufEncoder", ProtobufEncoder())
-            ch.pipeline().addLast("handler", MatchHandler(playtestConfig = playtestConfig))
+            ch.pipeline().addLast("handler", MatchHandler(playtestConfig = playtestConfig, puzzleFile = puzzleFile))
         }
         log.info("Client Match Door (stub) listening on :{}", matchDoorPort)
     }

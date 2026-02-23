@@ -21,8 +21,16 @@ fun main(args: Array<String>) {
         ?: File(nexusDir, PlaytestConfig.DEFAULT_FILENAME)
     val config = PlaytestConfig.load(configFile)
 
-    // Validate deck files at startup (before engine boot)
-    validateDecks(config, nexusDir)
+    // Puzzle mode: --puzzle <file> overrides normal constructed flow
+    val puzzleFile = a["--puzzle"]?.let { File(it) }
+    if (puzzleFile != null) {
+        require(puzzleFile.exists()) { "Puzzle file not found: ${puzzleFile.absolutePath}" }
+    }
+
+    // Validate deck files at startup (skip in puzzle mode — no decks needed)
+    if (puzzleFile == null) {
+        validateDecks(config, nexusDir)
+    }
 
     val server = NexusServer(
         frontDoorPort = a["--fd-port"]?.toIntOrNull() ?: 30010,
@@ -35,6 +43,7 @@ fun main(args: Array<String>) {
         upstreamMatchDoor = a["--proxy-md"],
         replayDir = a["--replay"]?.let { File(it) },
         playtestConfig = config,
+        puzzleFile = puzzleFile,
     )
 
     Runtime.getRuntime().addShutdownHook(Thread { server.stop() })
@@ -45,15 +54,20 @@ fun main(args: Array<String>) {
         server.isProxy -> "proxy"
         else -> "stub"
     }
+    val puzzleSuffix = if (puzzleFile != null) " + puzzle" else ""
     val debugPort = a["--debug-port"]?.toIntOrNull() ?: 8090
     val debugServer = DebugServer(debugPort)
 
-    println("Starting Nexus server ($mode mode)...")
+    println("Starting Nexus server ($mode$puzzleSuffix mode)...")
     server.start()
     debugServer.start()
     println("Nexus server running. Press Ctrl+C to stop.")
     println("Debug panel: http://localhost:$debugPort")
-    println("Config: ${config.summary()}")
+    if (puzzleFile != null) {
+        println("Puzzle: ${puzzleFile.name}")
+    } else {
+        println("Config: ${config.summary()}")
+    }
 
     Thread.currentThread().join()
 }
