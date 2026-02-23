@@ -7,6 +7,7 @@ import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.*
 
+@Test(groups = ["unit"])
 class StructuralFingerprintTest {
 
     @Test

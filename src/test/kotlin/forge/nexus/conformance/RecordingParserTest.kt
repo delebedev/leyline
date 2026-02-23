@@ -4,7 +4,7 @@ import org.testng.Assert.*
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.*
 
-@Test
+@Test(groups = ["unit"])
 class RecordingParserTest {
 
     @Test

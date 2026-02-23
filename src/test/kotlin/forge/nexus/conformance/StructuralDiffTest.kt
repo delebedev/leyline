@@ -3,7 +3,7 @@ package forge.nexus.conformance
 import org.testng.Assert.*
 import org.testng.annotations.Test
 
-@Test
+@Test(groups = ["unit"])
 class StructuralDiffTest {
 
     private val gsFingerprint = StructuralFingerprint(

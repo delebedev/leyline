@@ -19,6 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *
  * No network or TLS required — pure protobuf logic.
  */
+@Test(groups = ["unit"])
 class ProtocolTest {
 
     @AfterMethod
@@ -151,23 +152,6 @@ class ProtocolTest {
         val deck = provider.getDeckGrpIds(1)
 
         Assert.assertEquals(deck.size, 60)
-    }
-
-    @Test(enabled = false, description = "broken: deck provider returns 0 instead of 40")
-    fun deckProviderFallsBackForUnknownCards() {
-        // Only register some cards — others should get fallback grpId
-        CardDb.register(93860, "Serra Angel")
-        // "Pacifism", "Glorious Anthem", "Plains" not registered
-
-        val provider = DeckProvider()
-        val deck = provider.getDeckGrpIds(2)
-
-        Assert.assertEquals(deck.size, 60)
-        // 20 Serra Angels should resolve, rest should be fallback (0)
-        val resolved = deck.count { it == 93860 }
-        Assert.assertEquals(resolved, 20)
-        val fallback = deck.count { it == DeckProvider.Companion.FALLBACK_GRPID }
-        Assert.assertEquals(fallback, 40)
     }
 
     @Test

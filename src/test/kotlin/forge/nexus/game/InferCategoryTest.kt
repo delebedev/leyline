@@ -13,7 +13,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
  *   CastSpell → ObjectIdChanged + ZoneTransfer + mana cycle + UserActionTaken
  *   Resolve → ResolutionStart + ResolutionComplete + ZoneTransfer
  */
-@Test
+@Test(groups = ["unit"])
 class InferCategoryTest {
 
     private fun dummyObj(): GameObjectInfo = GameObjectInfo.getDefaultInstance()
