@@ -192,7 +192,19 @@ object BundleBuilder {
 
     /**
      * True when the only action available is Pass (no Cast, Play, Activate).
-     * Used to decide whether to auto-pass or send state to the client.
+     * Used by [AutoPassEngine] on the session thread to skip empty priority
+     * points — mainly on the opponent's turn.
+     *
+     * This is the **session-side** layer of a two-layer auto-pass system:
+     *
+     * 1. **Engine-side** — [PlayableActionQuery.hasPlayableNonManaAction] runs
+     *    inside [WebPlayerController.chooseSpellAbilityToPlay] on the engine
+     *    thread, own-turn only. When false, the engine auto-passes before the
+     *    bridge round-trip even happens. The session thread never sees it.
+     *
+     * 2. **Session-side** (this) — checks the proto action list we already
+     *    built. Covers opponent-turn priority and any case the engine-side
+     *    skip didn't fire. No redundant Game queries needed.
      */
     fun shouldAutoPass(actions: ActionsAvailableReq): Boolean =
         actions.actionsList.all {

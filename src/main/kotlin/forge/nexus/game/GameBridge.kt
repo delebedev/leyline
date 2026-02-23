@@ -229,10 +229,12 @@ class GameBridge(
         val loop = GameLoopController(
             g,
             actionBridges = listOf(actionBridge),
+            promptBridges = listOf(promptBridge),
             mulliganBridges = listOf(seat1MulliganBridge),
         )
         loopController = loop
         loop.start()
+        loop.awaitStarted()
 
         // Register event collector FIRST — must fire before playback so drainEvents()
         // includes the current event when playback's captureAndPause runs.
@@ -401,10 +403,12 @@ class GameBridge(
         val loop = GameLoopController(
             g,
             actionBridges = listOf(actionBridge),
+            promptBridges = listOf(promptBridge),
             mulliganBridges = listOf(seat1MulliganBridge),
         )
         loopController = loop
         loop.startFromCurrentState()
+        loop.awaitStarted()
 
         // Register event collector and playback (same as constructed)
         val collector = GameEventCollector(this)
