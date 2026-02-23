@@ -12,7 +12,7 @@ die_roll_winner = 2
 
 [decks]
 # Deck file names (resolved from decks/ directory, .txt optional).
-seat1 = "green-stompy"   # human player
+seat1 = "mono-black-midrange"   # human player
 seat2 = "green-stompy"   # AI (Sparky)
 
 [ai]
