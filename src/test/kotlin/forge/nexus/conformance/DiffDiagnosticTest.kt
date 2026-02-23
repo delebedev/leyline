@@ -1,8 +1,8 @@
 package forge.nexus.conformance
 
 import forge.nexus.game.BundleBuilder
-import forge.nexus.game.snapshotFromGame
 import forge.nexus.game.ZoneIds
+import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.*
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.*

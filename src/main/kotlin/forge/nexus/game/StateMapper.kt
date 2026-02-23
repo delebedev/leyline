@@ -217,8 +217,14 @@ object StateMapper {
     // --- Delegates to ZoneMapper ---
 
     private fun addInitialPlayerZones(
-        player: Player?, seatId: Int, bridge: GameBridge, zones: MutableList<ZoneInfo>,
-        handZoneId: Int, libZoneId: Int, gyZoneId: Int, sbZoneId: Int,
+        player: Player?,
+        seatId: Int,
+        bridge: GameBridge,
+        zones: MutableList<ZoneInfo>,
+        handZoneId: Int,
+        libZoneId: Int,
+        gyZoneId: Int,
+        sbZoneId: Int,
     ) = ZoneMapper.addInitialPlayerZones(player, seatId, bridge, zones, handZoneId, libZoneId, gyZoneId, sbZoneId)
 
     // --- Real game state from Forge engine ---
@@ -509,7 +515,10 @@ object StateMapper {
         if (built.gameStateId != 0 && built.gameStateId == built.prevGameStateId) {
             log.error(
                 "SELF-REF gsId={} prev.gsId={} prev.prevGsId={} param={} caller={}",
-                built.gameStateId, prev.gameStateId, prev.prevGameStateId, gameStateId,
+                built.gameStateId,
+                prev.gameStateId,
+                prev.prevGameStateId,
+                gameStateId,
                 Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
             )
         }
@@ -758,26 +767,47 @@ object StateMapper {
     internal fun buildTimers(): List<TimerInfo> = PlayerMapper.buildTimers()
 
     private fun addPlayerZones(
-        game: Game, player: Player?, seatId: Int, bridge: GameBridge,
-        zones: MutableList<ZoneInfo>, gameObjects: MutableList<GameObjectInfo>,
-        handZoneId: Int, libZoneId: Int, gyZoneId: Int, viewingSeatId: Int = 0,
+        game: Game,
+        player: Player?,
+        seatId: Int,
+        bridge: GameBridge,
+        zones: MutableList<ZoneInfo>,
+        gameObjects: MutableList<GameObjectInfo>,
+        handZoneId: Int,
+        libZoneId: Int,
+        gyZoneId: Int,
+        viewingSeatId: Int = 0,
     ) = ZoneMapper.addPlayerZones(game, player, seatId, bridge, zones, gameObjects, handZoneId, libZoneId, gyZoneId, viewingSeatId)
 
     private fun addHandAndLibrary(
-        game: Game, player: Player?, seatId: Int, bridge: GameBridge,
-        zones: MutableList<ZoneInfo>, gameObjects: MutableList<GameObjectInfo>,
-        handZoneId: Int, libZoneId: Int, viewingSeatId: Int = 0,
+        game: Game,
+        player: Player?,
+        seatId: Int,
+        bridge: GameBridge,
+        zones: MutableList<ZoneInfo>,
+        gameObjects: MutableList<GameObjectInfo>,
+        handZoneId: Int,
+        libZoneId: Int,
+        viewingSeatId: Int = 0,
     ) = ZoneMapper.addHandAndLibrary(game, player, seatId, bridge, zones, gameObjects, handZoneId, libZoneId, viewingSeatId)
 
     private fun addSharedZoneCards(
-        game: Game, forgeZone: ForgeZoneType, arenaZoneId: Int, bridge: GameBridge,
-        zones: MutableList<ZoneInfo>, gameObjects: MutableList<GameObjectInfo>,
-        human: Player?, ai: Player?,
+        game: Game,
+        forgeZone: ForgeZoneType,
+        arenaZoneId: Int,
+        bridge: GameBridge,
+        zones: MutableList<ZoneInfo>,
+        gameObjects: MutableList<GameObjectInfo>,
+        human: Player?,
+        ai: Player?,
     ) = ZoneMapper.addSharedZoneCards(game, forgeZone, arenaZoneId, bridge, zones, gameObjects, human, ai)
 
     private fun addStackAbilities(
-        game: Game, bridge: GameBridge, zones: MutableList<ZoneInfo>,
-        gameObjects: MutableList<GameObjectInfo>, human: Player?,
+        game: Game,
+        bridge: GameBridge,
+        zones: MutableList<ZoneInfo>,
+        gameObjects: MutableList<GameObjectInfo>,
+        human: Player?,
     ) = ZoneMapper.addStackAbilities(game, bridge, zones, gameObjects, human)
 
     // --- Delegates to ObjectMapper ---

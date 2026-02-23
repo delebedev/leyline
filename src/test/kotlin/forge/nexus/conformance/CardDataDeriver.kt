@@ -49,9 +49,9 @@ object CardDataDeriver {
         val colorSet = card.rules.color
         val colors = mutableListOf<Int>()
         if (colorSet.hasWhite()) colors.add(1) // White
-        if (colorSet.hasBlue()) colors.add(2)  // Blue
+        if (colorSet.hasBlue()) colors.add(2) // Blue
         if (colorSet.hasBlack()) colors.add(3) // Black
-        if (colorSet.hasRed()) colors.add(4)   // Red
+        if (colorSet.hasRed()) colors.add(4) // Red
         if (colorSet.hasGreen()) colors.add(5) // Green
 
         // Power / Toughness

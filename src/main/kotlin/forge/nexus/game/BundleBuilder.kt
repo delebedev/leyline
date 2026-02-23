@@ -150,10 +150,12 @@ object BundleBuilder {
             val protoPhase = PlayerMapper.mapPhase(handler.phase).number
             val protoStep = PlayerMapper.mapStep(handler.phase).number
             gsBase.toBuilder().apply {
-                if (turnStarted) addAnnotations(
-                    AnnotationBuilder.newTurnStarted(activeSeat)
-                        .toBuilder().setId(bridge.nextAnnotationId()).build(),
-                )
+                if (turnStarted) {
+                    addAnnotations(
+                        AnnotationBuilder.newTurnStarted(activeSeat)
+                            .toBuilder().setId(bridge.nextAnnotationId()).build(),
+                    )
+                }
                 if (phaseChanged) {
                     addAnnotations(
                         AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep)
