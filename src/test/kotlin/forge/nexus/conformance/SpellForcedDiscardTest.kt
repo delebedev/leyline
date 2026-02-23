@@ -47,7 +47,12 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
         player.discard(cardInHand, null, false, AbilityKey.newMap())
 
         val result = BundleBuilder.stateOnlyDiff(
-            game, b, TEST_MATCH_ID, SEAT_ID, 1, captureGsId,
+            game,
+            b,
+            TEST_MATCH_ID,
+            SEAT_ID,
+            1,
+            captureGsId,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -91,7 +96,12 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
         player.discard(card2, null, false, AbilityKey.newMap())
 
         val result = BundleBuilder.stateOnlyDiff(
-            game, b, TEST_MATCH_ID, SEAT_ID, 1, captureGsId,
+            game,
+            b,
+            TEST_MATCH_ID,
+            SEAT_ID,
+            1,
+            captureGsId,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
@@ -129,14 +139,22 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
         b.snapshotFromGame(game, captureGsId)
 
         // Fire SpellResolved for the spell (simulating the discard spell resolving)
-        game.fireEvent(forge.game.event.GameEventSpellResolved(
-            spellCard.firstSpellAbility, false,
-        ))
+        game.fireEvent(
+            forge.game.event.GameEventSpellResolved(
+                spellCard.firstSpellAbility,
+                false,
+            ),
+        )
         // Then the effect: target discards
         player.discard(discardTarget, null, false, AbilityKey.newMap())
 
         val result = BundleBuilder.stateOnlyDiff(
-            game, b, TEST_MATCH_ID, SEAT_ID, 1, captureGsId,
+            game,
+            b,
+            TEST_MATCH_ID,
+            SEAT_ID,
+            1,
+            captureGsId,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(discardForgeId)

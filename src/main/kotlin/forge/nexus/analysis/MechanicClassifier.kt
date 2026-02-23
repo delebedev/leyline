@@ -40,6 +40,8 @@ object MechanicClassifier {
         is NexusGameEvent.LibraryShuffled -> "shuffle"
         is NexusGameEvent.Scry -> "scry"
         is NexusGameEvent.Surveil -> "surveil"
+        is NexusGameEvent.CardAttached -> "attachment"
+        is NexusGameEvent.CardDetached -> "detachment"
         is NexusGameEvent.CombatEnded -> "combat_end"
     }
 

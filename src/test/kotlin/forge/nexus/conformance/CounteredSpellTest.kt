@@ -58,7 +58,12 @@ class CounteredSpellTest : ConformanceTestBase() {
         game.action.moveToGraveyard(stackCard, null)
 
         val result = BundleBuilder.stateOnlyDiff(
-            game, b, TEST_MATCH_ID, SEAT_ID, 1, captureGsId,
+            game,
+            b,
+            TEST_MATCH_ID,
+            SEAT_ID,
+            1,
+            captureGsId,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -117,7 +122,12 @@ class CounteredSpellTest : ConformanceTestBase() {
         game.action.moveToGraveyard(stackCard, null)
 
         val result = BundleBuilder.stateOnlyDiff(
-            game, b, TEST_MATCH_ID, SEAT_ID, 1, captureGsId,
+            game,
+            b,
+            TEST_MATCH_ID,
+            SEAT_ID,
+            1,
+            captureGsId,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(forgeCardId)

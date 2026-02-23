@@ -12,7 +12,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
  * Stage 1: [detectZoneTransfers] → [TransferResult] (patched objects/zones + transfers)
  * Stage 2: [annotationsForTransfer] → List<[AnnotationInfo]> (pure, testable)
  * Stage 3: [combatAnnotations] → List<[AnnotationInfo]> (pure, testable)
- * Stage 4: [mechanicAnnotations] → List<[AnnotationInfo]> (Group B: counters, shuffle, scry, tokens)
+ * Stage 4: [mechanicAnnotations] → [MechanicAnnotationResult] (Group B: counters, shuffle, scry, tokens + Group A+: attachments)
  *
  * Extracted from [StateMapper] for independent testability.
  */
@@ -238,20 +238,30 @@ object AnnotationPipeline {
     }
 
     /**
-     * Stage 4: Generate standalone annotations for mechanic events (Group B).
+     * Result of Stage 4 mechanic annotation generation.
+     * Separates transient (numbered per-GSM) from persistent (stable IDs) annotations.
+     */
+    data class MechanicAnnotationResult(
+        val transient: List<AnnotationInfo>,
+        val persistent: List<AnnotationInfo>,
+    )
+
+    /**
+     * Stage 4: Generate standalone annotations for mechanic events (Group B + A+).
      *
      * These are NOT zone-transfer annotations — they appear alongside zone transfers
      * in the same GSM. Processes events that Stage 1-2 ignore: counters, shuffle,
-     * scry, surveil, token creation.
+     * scry, surveil, token creation, attachments.
      *
      * **Pure function** — uses [idResolver] to map forgeCardId → instanceId.
-     * Returns empty list if no relevant events.
+     * Returns [MechanicAnnotationResult] with both transient and persistent annotations.
      */
     internal fun mechanicAnnotations(
         events: List<NexusGameEvent>,
         idResolver: (Int) -> Int,
-    ): List<AnnotationInfo> {
+    ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
+        val persistent = mutableListOf<AnnotationInfo>()
         for (ev in events) {
             when (ev) {
                 is NexusGameEvent.CountersChanged -> {
@@ -284,10 +294,17 @@ object AnnotationPipeline {
                     annotations.add(AnnotationBuilder.tokenCreated(instanceId))
                     log.debug("mechanic: tokenCreated iid={}", instanceId)
                 }
+                is NexusGameEvent.CardAttached -> {
+                    val auraIid = idResolver(ev.forgeCardId)
+                    val targetIid = idResolver(ev.targetForgeId)
+                    annotations.add(AnnotationBuilder.attachmentCreated(auraIid, targetIid))
+                    persistent.add(AnnotationBuilder.attachment(auraIid, targetIid))
+                    log.debug("mechanic: attachment aura={} target={}", auraIid, targetIid)
+                }
                 else -> {} // Zone-transfer events handled in Stages 1-2, combat in Stage 3
             }
         }
-        return annotations
+        return MechanicAnnotationResult(annotations, persistent)
     }
 
     /** Infer category for a zone transfer annotation from zone IDs. */
