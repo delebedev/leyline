@@ -176,7 +176,8 @@ class MatchSession(
         NexusTap.inboundAction(action)
         recorder?.recordClientAction(greMsg)
 
-        val isCast = action.actionType == ActionType.Cast
+        val isCastOrActivate = action.actionType == ActionType.Cast ||
+            action.actionType == ActionType.Activate_add3
         val game = bridge.getGame()
         val stackWasNonEmpty = game != null && !game.stack.isEmpty
         if (game != null) {
@@ -216,6 +217,22 @@ class MatchSession(
                 }
                 NexusTap.actionResult(action.actionType, action.instanceId, forgeCardId, submitted)
             }
+            ActionType.Activate_add3 -> {
+                val forgeCardId = bridge.getForgeCardId(action.instanceId)
+                // Map abilityGrpId → index in card's non-mana activated abilities.
+                // For single-ability cards (most common), index 0 is correct.
+                // TODO: correlate abilityGrpId with CardDb.abilityIds for multi-ability cards
+                val abilityIndex = 0
+                val submitted = if (forgeCardId != null) {
+                    bridge.actionBridge.submitAction(
+                        pending.actionId,
+                        PlayerAction.ActivateAbility(forgeCardId, abilityIndex),
+                    )
+                } else {
+                    bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+                }
+                NexusTap.actionResult(action.actionType, action.instanceId, forgeCardId, submitted)
+            }
             else -> {
                 log.info("MatchSession: unhandled action type {}, passing", action.actionType)
                 bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
@@ -225,8 +242,8 @@ class MatchSession(
         // Wait for engine to reach next priority stop
         bridge.awaitPriority()
 
-        // After a cast, check for targeting prompt or intermediate stack state
-        if (isCast && targetingHandler.handlePostCastPrompt(bridge)) return
+        // After a cast or activate, check for targeting prompt or intermediate stack state
+        if (isCastOrActivate && targetingHandler.handlePostCastPrompt(bridge)) return
 
         // After stack resolution: send intermediate state so the client sees the
         // creature move from stack to battlefield with resolution annotations.

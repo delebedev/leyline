@@ -57,3 +57,11 @@ Current behavior: the auto-pass engine still auto-resolves "choose_cards" prompt
 **No bug found.** Spell-forced discard (simulating Mind Rot etc.) correctly produces Discard category for Hand→GY. Multiple discards in a batch each get their own Discard annotation. Cross-contamination with SpellResolved events is prevented by forgeCardId matching (same fix pattern as 1.3-1.5).
 
 **Key insight:** The `player.discard()` path fires `GameEventCardChangeZone` Hand→GY which the collector maps to `CardDiscarded`. This is identical to cleanup discard-to-hand-size. No special handling needed for spell-vs-cleanup discard — the zone-pair heuristic in the collector handles both.
+
+## Item 8 — Activate Action Handler
+
+**Bug fix.** `MatchSession.onPerformAction()` had no `Activate_add3` arm — activated abilities from the Arena client were silently converted to PassPriority. Added the handler mapping to `PlayerAction.ActivateAbility(forgeCardId, abilityIndex)`. Also generalized post-action prompt check to trigger after Activate (not just Cast), since targeted activated abilities need the same targeting flow.
+
+**Limitation:** abilityIndex always 0 (first non-mana ability). Multi-ability cards (planeswalkers) need abilityGrpId→index correlation via CardDb. Deferred.
+
+**How to find faster:** The `else` branch logging "unhandled action type" was the clue. Any time an action type falls through to else, it's a missing handler.
