@@ -89,7 +89,7 @@ object CardDb {
             return false
         }
         dbPath = db.absolutePath
-        log.info("Client card database: {} ({} MB)", db.name, db.length() / 1024 / 1024)
+        log.info("Client card database found: {} ({} MB)", db.name, db.length() / 1024 / 1024)
         return true
     }
 
