@@ -1,0 +1,5 @@
+Deck
+20 Llanowar Elves
+4 Elvish Mystic
+4 Giant Growth
+32 Forest

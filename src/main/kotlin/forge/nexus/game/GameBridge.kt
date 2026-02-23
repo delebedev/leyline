@@ -4,6 +4,7 @@ import forge.ai.LobbyPlayerAi
 import forge.game.Game
 import forge.game.player.Player
 import forge.game.zone.ZoneType
+import forge.nexus.config.PlaytestConfig
 import forge.util.MyRandom
 import forge.web.game.DeckLoader
 import forge.web.game.GameActionBridge
@@ -38,7 +39,14 @@ class GameBridge(
     /** Timeout for action bridge / prompt bridge / mulligan bridge.
      *  Production: 120s. Tests: ~2-5s (engine responds in <100ms). */
     private val bridgeTimeoutMs: Long = 120_000L,
-) : IdMapping, PlayerLookup, ZoneTracking, StateSnapshot, AnnotationIds, EventDrain {
+    /** Playtest config — controls AI speed, die roll, etc. */
+    val playtestConfig: PlaytestConfig = PlaytestConfig(),
+) : IdMapping,
+    PlayerLookup,
+    ZoneTracking,
+    StateSnapshot,
+    AnnotationIds,
+    EventDrain {
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
 
     private var game: Game? = null
@@ -126,19 +134,19 @@ class GameBridge(
         /** Fallback grpId for cards not in client DB (renders face-down). */
         const val FALLBACK_GRPID = 0
 
-        /** Annotation IDs start at 50 to avoid collision with persistent annotation IDs. */
-        private const val INITIAL_ANNOTATION_ID = 50
-
-        /** Persistent annotation IDs start at 1. */
-        private const val INITIAL_PERSISTENT_ANNOTATION_ID = 1
-
-        /** Deck shared by both seats (mono-green stompy for testing). */
-        private const val DEFAULT_DECK = """
+        /** Fallback deck when no config/decklist is provided (tests, legacy). */
+        private const val FALLBACK_DECK = """
 20 Llanowar Elves
 4 Elvish Mystic
 4 Giant Growth
 32 Forest
 """
+
+        /** Annotation IDs start at 50 to avoid collision with persistent annotation IDs. */
+        private const val INITIAL_ANNOTATION_ID = 50
+
+        /** Persistent annotation IDs start at 1. */
+        private const val INITIAL_PERSISTENT_ANNOTATION_ID = 1
 
         /** Max time to wait for engine to reach mulligan after start/mull. */
         private const val MULLIGAN_WAIT_MS = 10_000L
@@ -161,20 +169,30 @@ class GameBridge(
      * Blocks caller until engine has dealt hands and is waiting for keep/mull.
      *
      * @param seed if non-null, seeds the RNG for deterministic shuffles (tests/replays)
-     * @param deckList if non-null, uses this decklist instead of DEFAULT_DECK (tests)
+     * @param deckList1 decklist text for seat 1 (human). Falls back to [deckList] or built-in fallback.
+     * @param deckList2 decklist text for seat 2 (AI). Falls back to [deckList1].
+     * @param deckList legacy single-deck param for tests — applies to both seats.
      */
-    fun start(seed: Long? = null, deckList: String? = null) {
+    fun start(
+        seed: Long? = null,
+        deckList: String? = null,
+        deckList1: String? = null,
+        deckList2: String? = null,
+    ) {
         log.info("GameBridge: initializing card database")
         GameBootstrap.initializeCardDatabase()
 
         if (seed != null) {
             log.info("GameBridge: using deterministic seed={}", seed)
             MyRandom.setRandom(Random(seed))
+        } else {
+            log.info("GameBridge: using random seed")
         }
 
-        val deckStr = (deckList ?: DEFAULT_DECK).trimIndent()
-        val deck1 = DeckLoader.parseDeckList(deckStr)
-        val deck2 = DeckLoader.parseDeckList(deckStr)
+        val seat1Str = (deckList1 ?: deckList ?: FALLBACK_DECK).trimIndent()
+        val seat2Str = (deckList2 ?: deckList ?: seat1Str).trimIndent()
+        val deck1 = DeckLoader.parseDeckList(seat1Str)
+        val deck2 = DeckLoader.parseDeckList(seat2Str)
         log.info(
             "GameBridge: parsed decks (seat1={} cards, seat2={} cards)",
             deck1.main.countAll(),
@@ -217,7 +235,7 @@ class GameBridge(
         log.info("GameBridge: registered GameEventCollector for event-driven annotations")
 
         // Register AI action playback subscriber (after collector)
-        val pb = NexusGamePlayback(this, "forge-match-1", 1)
+        val pb = NexusGamePlayback(this, "forge-match-1", 1, playtestConfig.aiDelayMultiplier)
         playback = pb
         g.subscribeToEvents(pb)
         log.info("GameBridge: registered NexusGamePlayback for AI action streaming")

@@ -29,6 +29,8 @@ class NexusGamePlayback(
     private val bridge: GameBridge,
     private val matchId: String,
     private val seatId: Int,
+    /** Delay multiplier (1.0 = default, 0.5 = 2x speed, 0 = instant). Derived from config ai.speed. */
+    private val delayMultiplier: Double = 1.0,
 ) : IGameEventVisitor.Base<Unit>() {
 
     private val log = LoggerFactory.getLogger(NexusGamePlayback::class.java)
@@ -182,10 +184,13 @@ class NexusGamePlayback(
         }
 
         // Pacing: sleep engine thread so client can animate
-        try {
-            Thread.sleep(delayMs.toLong())
-        } catch (_: InterruptedException) {
-            Thread.currentThread().interrupt()
+        val adjustedDelay = (delayMs * delayMultiplier).toLong()
+        if (adjustedDelay > 0) {
+            try {
+                Thread.sleep(adjustedDelay)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
         }
     }
 

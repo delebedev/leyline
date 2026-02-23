@@ -1,5 +1,7 @@
 package forge.nexus
 
+import forge.nexus.config.DeckValidator
+import forge.nexus.config.PlaytestConfig
 import forge.nexus.debug.DebugServer
 import forge.nexus.server.NexusServer
 import java.io.File
@@ -13,6 +15,15 @@ import java.io.File
 fun main(args: Array<String>) {
     val a = parseArgs(args)
 
+    // Load playtest config (TOML)
+    val nexusDir = findNexusDir()
+    val configFile = a["--config"]?.let { File(it) }
+        ?: File(nexusDir, PlaytestConfig.DEFAULT_FILENAME)
+    val config = PlaytestConfig.load(configFile)
+
+    // Validate deck files at startup (before engine boot)
+    validateDecks(config, nexusDir)
+
     val server = NexusServer(
         frontDoorPort = a["--fd-port"]?.toIntOrNull() ?: 30010,
         matchDoorPort = a["--md-port"]?.toIntOrNull() ?: 30003,
@@ -23,6 +34,7 @@ fun main(args: Array<String>) {
         upstreamFrontDoor = a["--proxy-fd"],
         upstreamMatchDoor = a["--proxy-md"],
         replayDir = a["--replay"]?.let { File(it) },
+        playtestConfig = config,
     )
 
     Runtime.getRuntime().addShutdownHook(Thread { server.stop() })
@@ -41,8 +53,29 @@ fun main(args: Array<String>) {
     debugServer.start()
     println("Nexus server running. Press Ctrl+C to stop.")
     println("Debug panel: http://localhost:$debugPort")
+    println("Config: ${config.summary()}")
 
     Thread.currentThread().join()
+}
+
+/** Locate forge-nexus root (for resolving deck paths). */
+private fun findNexusDir(): File {
+    // Try CWD first, then look for forge-nexus subdir
+    val cwd = File(System.getProperty("user.dir"))
+    if (File(cwd, "decks").isDirectory) return cwd
+    val sub = File(cwd, "forge-nexus")
+    if (sub.isDirectory) return sub
+    return cwd
+}
+
+/** Validate both deck files from config. Throws on invalid. */
+private fun validateDecks(config: PlaytestConfig, nexusDir: File) {
+    val seat1File = PlaytestConfig.resolveDeckFile(config.decks.seat1, nexusDir)
+    val seat2File = PlaytestConfig.resolveDeckFile(config.decks.seat2, nexusDir)
+    DeckValidator.validateOrThrow(seat1File)
+    if (seat1File.absolutePath != seat2File.absolutePath) {
+        DeckValidator.validateOrThrow(seat2File)
+    }
 }
 
 private fun parseArgs(args: Array<String>): Map<String, String> {
