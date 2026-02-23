@@ -2,9 +2,12 @@ package forge.nexus.game
 
 import forge.ai.LobbyPlayerAi
 import forge.game.Game
+import forge.game.GameType
 import forge.game.player.Player
 import forge.game.zone.ZoneType
+import forge.gamemodes.puzzle.Puzzle
 import forge.nexus.config.PlaytestConfig
+import forge.player.PlayerControllerHuman
 import forge.util.MyRandom
 import forge.web.game.DeckLoader
 import forge.web.game.GameActionBridge
@@ -18,6 +21,7 @@ import forge.web.game.WebPlayerController
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
+import java.lang.reflect.InvocationTargetException
 import java.util.Random
 
 /**
@@ -337,6 +341,76 @@ class GameBridge(
         }
     }
 
+    /** True when this bridge is running a puzzle game. */
+    val isPuzzle: Boolean
+        get() = game?.rules?.gameType == GameType.Puzzle
+
+    /**
+     * Initialize card DB, create a puzzle game, apply puzzle state, finalize,
+     * start the game loop from current state (no mulligan), and wait for priority.
+     *
+     * @param puzzle the parsed [Puzzle] object to apply
+     */
+    fun startPuzzle(puzzle: Puzzle) {
+        log.info("GameBridge: starting puzzle mode")
+        GameBootstrap.initializeCardDatabase()
+
+        val g = GameBootstrap.createPuzzleGame()
+        game = g
+
+        // Apply puzzle state via reflection (applyGameOnThread is protected).
+        // Install temp WebPlayerControllers with autoKeep + zero-timeout bridges
+        // to handle any SBAs/triggers during setup (forge-web pattern).
+        applyPuzzleSafely(puzzle, g)
+
+        // Finalize: set age=Play, position at MAIN1 turn 1
+        GameBootstrap.finalizeForPuzzle(g)
+        log.info("GameBridge: puzzle applied, game at {} turn {}", g.phaseHandler.phase, g.phaseHandler.turn)
+
+        // Register all puzzle cards in CardDb and InstanceIdRegistry.
+        // Puzzle.applyGameOnThread creates cards via Card.fromPaperCard — they
+        // need synthetic grpIds and instanceId mappings for proto output.
+        registerPuzzleCards(g)
+
+        // Wire WebPlayerController for seat 1 (human) — same as constructed
+        // but no mulligan bridge needed (autoKeep=true, unused).
+        val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
+        val aiPlayer = g.players.first { it.lobbyPlayer is LobbyPlayerAi }
+        phaseStopProfile = PhaseStopProfile.createDefaults(human.id, aiPlayer.id)
+        val controller = WebPlayerController(
+            game = g,
+            player = human,
+            lobbyPlayer = human.lobbyPlayer,
+            bridge = this.promptBridge,
+            actionBridge = actionBridge,
+            mulliganBridge = seat1MulliganBridge,
+            phaseStopProfile = phaseStopProfile,
+        )
+        human.addController(Long.MAX_VALUE - 1, human, controller, false)
+
+        // Start game loop from current state (skip Match.startGame/mulligan)
+        val loop = GameLoopController(
+            g,
+            actionBridges = listOf(actionBridge),
+            mulliganBridges = listOf(seat1MulliganBridge),
+        )
+        loopController = loop
+        loop.startFromCurrentState()
+
+        // Register event collector and playback (same as constructed)
+        val collector = GameEventCollector(this)
+        eventCollector = collector
+        g.subscribeToEvents(collector)
+
+        val pb = NexusGamePlayback(this, "forge-match-1", 1, playtestConfig.aiDelayMultiplier)
+        playback = pb
+        g.subscribeToEvents(pb)
+
+        log.info("GameBridge: puzzle loop started, waiting for priority")
+        awaitPriority()
+        log.info("GameBridge: puzzle engine reached priority, ready")
+    }
+
     fun shutdown() {
         log.info("GameBridge: shutting down")
         loopController?.shutdown()
@@ -344,6 +418,83 @@ class GameBridge(
         playback = null
         eventCollector = null
         game = null
+    }
+
+    // --- Puzzle internals ---
+
+    /**
+     * Apply puzzle state to the game via reflection.
+     * Installs temp [WebPlayerController]s with autoKeep/zero-timeout during
+     * application to handle any SBAs or triggers that fire during setup.
+     */
+    private fun applyPuzzleSafely(puzzle: Puzzle, game: Game) {
+        val method = puzzle.javaClass.superclass.getDeclaredMethod("applyGameOnThread", Game::class.java)
+        method.isAccessible = true
+        runWithTempControllers(game.players.filter { it.controller is PlayerControllerHuman }) {
+            try {
+                method.invoke(puzzle, game)
+            } catch (e: InvocationTargetException) {
+                throw RuntimeException("Puzzle application failed", e.targetException)
+            }
+        }
+    }
+
+    /**
+     * Recursively install temp [WebPlayerController]s with zero-timeout bridges
+     * on each human-controlled player during [block]. Removed automatically after.
+     */
+    private fun runWithTempControllers(players: List<Player>, block: () -> Unit) {
+        val player = players.firstOrNull() ?: run {
+            block()
+            return
+        }
+        val tempPrompt = InteractivePromptBridge(timeoutMs = 0)
+        val tempAction = GameActionBridge(timeoutMs = 0)
+        val tempMulligan = MulliganBridge(autoKeep = true, timeoutMs = 0)
+        val tempController = WebPlayerController(
+            game = player.game,
+            player = player,
+            lobbyPlayer = player.lobbyPlayer,
+            bridge = tempPrompt,
+            actionBridge = tempAction,
+            mulliganBridge = tempMulligan,
+        )
+        player.runWithController(
+            { runWithTempControllers(players.drop(1), block) },
+            tempController,
+        )
+    }
+
+    /**
+     * After puzzle application: iterate all cards in all zones, register them
+     * in [CardDb] (via PuzzleCardRegistrar) and [InstanceIdRegistry].
+     *
+     * Uses `ensureCardRegisteredByName` because puzzle-applied cards may have
+     * null `rules` — the by-name path creates a fresh temp Card from the paper DB
+     * where rules are guaranteed loaded.
+     */
+    private fun registerPuzzleCards(game: Game) {
+        val allZones = listOf(
+            ZoneType.Hand,
+            ZoneType.Battlefield,
+            ZoneType.Library,
+            ZoneType.Graveyard,
+            ZoneType.Exile,
+            ZoneType.Command,
+        )
+        var registered = 0
+        for (player in game.players) {
+            for (zone in allZones) {
+                for (card in player.getZone(zone).cards) {
+                    // Register in CardDb by name (derives from paper DB)
+                    PuzzleCardRegistrar.ensureCardRegisteredByName(card.name)
+                    // Pre-seed instanceId mapping
+                    ids.getOrAlloc(card.id)
+                    registered++
+                }
+            }
+        }
+        log.info("GameBridge: registered {} puzzle cards in CardDb + InstanceIdRegistry", registered)
     }
 
     // --- Internal ---

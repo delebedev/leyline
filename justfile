@@ -128,6 +128,13 @@ dev: check-java
 smoke: (_require classpath) check-java
     @{{_nexus_java}} forge.nexus.debug.SmokeTestKt
 
+# puzzle mode: serve with a specific .pzl file
+serve-puzzle filename: (_require classpath) check-java
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
+    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags --proxy-fd {{fd_ip}} --puzzle "{{filename}}"
+
 # --- Certs ---
 
 # regenerate TLS certs signed by mitmproxy CA (run after Arena patch)

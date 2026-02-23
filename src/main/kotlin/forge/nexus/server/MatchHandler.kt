@@ -6,6 +6,7 @@ import forge.nexus.debug.NexusDebugCollector
 import forge.nexus.debug.NexusTap
 import forge.nexus.debug.SessionRecorder
 import forge.nexus.game.GameBridge
+import forge.nexus.game.PuzzleSource
 import forge.nexus.game.StateMapper
 import forge.nexus.protocol.HandshakeMessages
 import forge.nexus.protocol.ProtoDump
@@ -24,6 +25,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class MatchHandler(
     private val registry: MatchRegistry = defaultRegistry,
     private val playtestConfig: PlaytestConfig = PlaytestConfig(),
+    /** CLI --puzzle override: forces puzzle mode for all connections. */
+    private val puzzleFile: java.io.File? = null,
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
@@ -125,51 +128,73 @@ class MatchHandler(
                     log.info("Match Door: evicted {} stale bridge(s)", evicted.size)
                 }
 
-                // Only one bridge per match — first seat to arrive creates it
-                val bridge = registry.getOrCreateBridge(matchId) {
-                    GameBridge(playtestConfig = playtestConfig).also {
-                        it.start(
-                            seed = playtestConfig.game.seed,
-                            deckList1 = loadDeckFromConfig(playtestConfig.decks.seat1),
-                            deckList2 = loadDeckFromConfig(playtestConfig.decks.seat2),
-                        )
+                if (isPuzzleMatch(matchId)) {
+                    // Puzzle mode: create bridge with puzzle game, skip mulligan
+                    val bridge = registry.getOrCreateBridge(matchId) {
+                        GameBridge(playtestConfig = playtestConfig).also {
+                            val puzzle = loadPuzzleForMatch(matchId)
+                            it.startPuzzle(puzzle)
+                        }
                     }
+                    s?.connectBridge(bridge)
+                    log.info("Match Door: puzzle mode, seat {} connected", seatId)
+                    sendRoomState(ctx)
+                    sendPuzzleInitialBundle(ctx)
+                } else {
+                    // Constructed mode: normal flow
+                    val bridge = registry.getOrCreateBridge(matchId) {
+                        GameBridge(playtestConfig = playtestConfig).also {
+                            it.start(
+                                seed = playtestConfig.game.seed,
+                                deckList1 = loadDeckFromConfig(playtestConfig.decks.seat1),
+                                deckList2 = loadDeckFromConfig(playtestConfig.decks.seat2),
+                            )
+                        }
+                    }
+                    s?.connectBridge(bridge)
+                    seat1Hand = bridge.getHandGrpIds(1)
+                    seat2Hand = bridge.getHandGrpIds(2)
+                    log.info("Match Door: seat {} connected, hands seat1={} seat2={}", seatId, seat1Hand, seat2Hand)
+                    sendRoomState(ctx)
+                    sendInitialBundle(ctx)
                 }
-                s?.connectBridge(bridge)
-                seat1Hand = bridge.getHandGrpIds(1)
-                seat2Hand = bridge.getHandGrpIds(2)
-                log.info("Match Door: seat {} connected, hands seat1={} seat2={}", seatId, seat1Hand, seat2Hand)
-                sendRoomState(ctx)
-                sendInitialBundle(ctx)
             }
 
             ClientMessageType.ChooseStartingPlayerResp_097b -> {
-                log.info("Match Door GRE: seat {} chose starting player", seatId)
-                sendDealHandAndMulligan(ctx) // seat 2: DealHand + MulliganReq
-                // Cross-connection: find seat 1's handler to send DealHand + MulliganReq
-                val seat1Handler = registry.getHandler(matchId, 1)
-                if (seat1Handler != null) {
-                    seat1Handler.sendDealHand()
-                    seat1Handler.sendMulliganReq()
+                if (s?.gameBridge?.isPuzzle == true) {
+                    log.info("Match Door GRE: ignoring ChooseStartingPlayerResp for puzzle")
                 } else {
-                    log.warn("Match Door: seat 1 peer not found for matchId={}", matchId)
+                    log.info("Match Door GRE: seat {} chose starting player", seatId)
+                    sendDealHandAndMulligan(ctx) // seat 2: DealHand + MulliganReq
+                    // Cross-connection: find seat 1's handler to send DealHand + MulliganReq
+                    val seat1Handler = registry.getHandler(matchId, 1)
+                    if (seat1Handler != null) {
+                        seat1Handler.sendDealHand()
+                        seat1Handler.sendMulliganReq()
+                    } else {
+                        log.warn("Match Door: seat 1 peer not found for matchId={}", matchId)
+                    }
                 }
             }
 
             ClientMessageType.MulliganResp_097b -> {
-                val decision = greMsg.mulliganResp.decision
-                log.info("Match Door GRE: seat {} mulligan decision={}", seatId, decision)
-                val bridge = s?.gameBridge
-                if (seatId == 2) {
-                    // Familiar responded — ignored
-                } else if (decision == MulliganOption.AcceptHand) {
-                    bridge?.submitKeep(seatId)
-                    s?.onMulliganKeep()
+                if (s?.gameBridge?.isPuzzle == true) {
+                    log.info("Match Door GRE: ignoring MulliganResp for puzzle")
                 } else {
-                    mulliganCount++
-                    bridge?.submitMull(seatId)
-                    seat1Hand = bridge?.getHandGrpIds(1) ?: emptyList()
-                    sendDealHandAndMulligan(ctx)
+                    val decision = greMsg.mulliganResp.decision
+                    log.info("Match Door GRE: seat {} mulligan decision={}", seatId, decision)
+                    val bridge = s?.gameBridge
+                    if (seatId == 2) {
+                        // Familiar responded — ignored
+                    } else if (decision == MulliganOption.AcceptHand) {
+                        bridge?.submitKeep(seatId)
+                        s?.onMulliganKeep()
+                    } else {
+                        mulliganCount++
+                        bridge?.submitMull(seatId)
+                        seat1Hand = bridge?.getHandGrpIds(1) ?: emptyList()
+                        sendDealHandAndMulligan(ctx)
+                    }
                 }
             }
 
@@ -315,6 +340,73 @@ class MatchHandler(
         session?.recorder?.let { SessionRecorder.unregister(it) }
         session?.gameBridge?.shutdown()
         ctx.close()
+    }
+
+    // --- Puzzle-mode senders ---
+
+    /** Send puzzle initial bundle: ConnectResp + Full GSM (stage=Play) + ActionsAvailableReq. */
+    private fun sendPuzzleInitialBundle(ctx: ChannelHandlerContext) {
+        val s = session ?: return
+        val bridge = s.gameBridge ?: return
+        val gsId = s.nextGameStateId()
+
+        val (bundleMsg, nextMsgId) = HandshakeMessages.puzzleInitialBundle(
+            seatId,
+            matchId,
+            s.msgIdCounter,
+            gsId,
+            bridge,
+        )
+        s.applyHandshakeCounters(nextMsgId)
+        NexusTap.outboundTemplate("PuzzleInitialBundle seat=$seatId")
+        ProtoDump.dump(bundleMsg, "PuzzleInitialBundle-seat$seatId")
+        ctx.writeAndFlush(bundleMsg)
+
+        // Send ActionsAvailableReq immediately after
+        val (actionsMsg, nextMsgId2) = HandshakeMessages.puzzleActionsReq(
+            s.msgIdCounter,
+            gsId,
+            seatId,
+            bridge,
+        )
+        s.applyHandshakeCounters(nextMsgId2)
+        NexusTap.outboundTemplate("PuzzleActionsReq seat=$seatId")
+        ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")
+        ctx.writeAndFlush(actionsMsg)
+
+        // Enter the game loop — same as onMulliganKeep but without mulligan
+        s.onPuzzleStart()
+    }
+
+    // --- Puzzle detection ---
+
+    /** Puzzle mode if --puzzle CLI flag is set, or matchId starts with "puzzle-". */
+    private fun isPuzzleMatch(matchId: String): Boolean =
+        puzzleFile != null || matchId.startsWith("puzzle-")
+
+    /** Load puzzle: prefer --puzzle CLI file, fall back to matchId convention. */
+    private fun loadPuzzleForMatch(matchId: String): forge.gamemodes.puzzle.Puzzle {
+        // Puzzle constructor triggers GameState.<clinit> which needs localization
+        forge.web.game.GameBootstrap.initializeLocalization()
+
+        // CLI override takes precedence
+        if (puzzleFile != null) {
+            require(puzzleFile.exists()) { "Puzzle file not found: ${puzzleFile.absolutePath}" }
+            return PuzzleSource.loadFromFile(puzzleFile.absolutePath)
+        }
+        // Fall back to matchId convention
+        val puzzleName = matchId.removePrefix("puzzle-")
+        val nexusDir = findNexusDir()
+        val puzzlesDir = java.io.File(nexusDir, "puzzles")
+        val pzlFile = java.io.File(puzzlesDir, "$puzzleName.pzl")
+        if (pzlFile.exists()) {
+            return PuzzleSource.loadFromFile(pzlFile.absolutePath)
+        }
+        val pzlFile2 = java.io.File(puzzlesDir, puzzleName)
+        if (pzlFile2.exists()) {
+            return PuzzleSource.loadFromFile(pzlFile2.absolutePath)
+        }
+        error("Puzzle not found: $puzzleName (looked in ${puzzlesDir.absolutePath})")
     }
 
     /** Load deck text from a config deck name (resolved from decks/ dir). */

@@ -236,6 +236,74 @@ object HandshakeMessages {
         return wrapGre(greGsm, grePrompt, greMull) to msgId
     }
 
+    /**
+     * Puzzle initial bundle — ConnectResp + Full GSM with stage=Play and
+     * all zones populated from the live game state. No DieRoll, no mulligan.
+     *
+     * pendingMessageCount=1 because ActionsAvailableReq follows immediately.
+     */
+    fun puzzleInitialBundle(
+        seatId: Int,
+        matchId: String,
+        msgIdStart: Int,
+        gameStateId: Int,
+        bridge: GameBridge,
+    ): Pair<MatchServiceToClientMessage, Int> {
+        var msgId = msgIdStart
+        val messages = mutableListOf<GREToClientMessage>()
+
+        if (seatId == 1) {
+            // ConnectResp with empty deck (puzzle doesn't use deck message)
+            val emptyDeck = StateMapper.buildDeckMessage(emptyList())
+            messages.add(buildConnectResp(msgId++, seatId, emptyDeck))
+        }
+
+        // Full GSM built from live game state (stage=Play, cards in zones)
+        val gsm = StateMapper.buildFromGame(
+            game = bridge.getGame()!!,
+            gameStateId = gameStateId,
+            matchId = matchId,
+            bridge = bridge,
+            viewingSeatId = seatId,
+        ).toBuilder()
+            .setPendingMessageCount(1) // ActionsAvailableReq follows
+            .build()
+
+        messages.add(
+            GREToClientMessage.newBuilder()
+                .setType(GREMessageType.GameStateMessage_695e)
+                .addSystemSeatIds(seatId)
+                .setMsgId(msgId++)
+                .setGameStateId(gameStateId)
+                .setGameStateMessage(gsm)
+                .build(),
+        )
+
+        return wrapGre(*messages.toTypedArray()) to msgId
+    }
+
+    /**
+     * Puzzle ActionsAvailableReq — first priority stop actions for the puzzle.
+     * Follows the Full GSM in the puzzle initial bundle.
+     */
+    fun puzzleActionsReq(
+        msgId: Int,
+        gameStateId: Int,
+        seatId: Int,
+        bridge: GameBridge,
+    ): Pair<MatchServiceToClientMessage, Int> {
+        val game = bridge.getGame()!!
+        val actions = StateMapper.buildActions(game, seatId, bridge)
+        val gre = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.ActionsAvailableReq_695e)
+            .addSystemSeatIds(seatId)
+            .setMsgId(msgId)
+            .setGameStateId(gameStateId)
+            .setActionsAvailableReq(actions)
+            .build()
+        return wrapGre(gre) to (msgId + 1)
+    }
+
     /** SetSettingsResp — echo client settings back. */
     fun settingsResp(
         seatId: Int,

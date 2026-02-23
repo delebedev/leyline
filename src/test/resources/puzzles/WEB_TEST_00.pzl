@@ -1,0 +1,15 @@
+[metadata]
+Name:Web Test #00 - One Bolt
+Goal:Win
+Turns:1
+Difficulty:Tutorial
+Description:Tap Mountain, cast Lightning Bolt at opponent, win.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+
+humanhand=Lightning Bolt
+humanbattlefield=Mountain

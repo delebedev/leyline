@@ -22,7 +22,7 @@ object PlayerMapper {
             .addTimerIds(seatId) // real client: timerIds=[seatId]
         if (player != null) {
             builder.setLifeTotal(player.life)
-                .setStartingLifeTotal(20)
+                .setStartingLifeTotal(player.startingLife)
                 .setMaxHandSize(player.maxHandSize)
 
             // Mana pool — disabled for now: client auto-subtracts floating mana

@@ -12,6 +12,10 @@ Quick links for debugging, reverse-engineering, and conformance workflows.
 - `debug-api.md` — debug panel REST/SSE endpoint reference
 - `match-sequence.md` — expected match lifecycle and key message order
 
+## Game Modes
+
+- `puzzles.md` — puzzle mode: `.pzl` loading, protocol differences, card registration, architecture
+
 ## Gameplay Semantics
 
 - `action-format.md` — normalized action payload format

@@ -148,6 +148,31 @@ class MatchSession(
     }
 
     /**
+     * Puzzle start: seed snapshot, enter auto-pass loop.
+     * Similar to [onMulliganKeep] but without mulligan seeding or phaseTransitionDiff
+     * — the puzzle initial bundle already sent a Full GSM with the board state.
+     */
+    fun onPuzzleStart() = synchronized(sessionLock) {
+        val bridge = gameBridge ?: return
+        log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
+
+        val game = bridge.getGame() ?: return
+
+        traceEvent(GameStateCollector.EventType.GAME_START, game, "puzzle-start")
+
+        // Seed state snapshot for subsequent diff computation.
+        // The puzzle initial bundle already sent the Full GSM, so the bridge
+        // needs a matching snapshot for the first Diff to be correct.
+        bridge.snapshotState(StateMapper.buildFromGame(game, gameStateId, matchId, bridge))
+
+        // Seed playback counters so AI action diffs use correct sequence
+        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
+
+        // Auto-pass through phases where human has no real actions
+        autoPassEngine.autoPassAndAdvance(bridge)
+    }
+
+    /**
      * Handle a client action (land play, spell cast, pass) and advance the engine.
      */
     fun onPerformAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
