@@ -127,11 +127,4 @@ object GoldenSequence {
 
     fun fromFile(file: java.io.File): List<StructuralFingerprint> =
         fromJson(file.readText())
-
-    /** Load from classpath resource (e.g. "golden/play-land.json"). */
-    fun fromResource(path: String): List<StructuralFingerprint> {
-        val stream = GoldenSequence::class.java.classLoader.getResourceAsStream(path)
-            ?: error("Golden resource not found: $path")
-        return fromJson(stream.bufferedReader().readText())
-    }
 }
