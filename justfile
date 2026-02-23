@@ -50,6 +50,10 @@ fmt: check-java
     cd "{{root_dir}}" && mvn -pl forge-nexus com.diffplug.spotless:spotless-maven-plugin:apply -q
     @echo "fmt done."
 
+# check formatting without modifying (CI)
+fmt-check: check-java
+    cd "{{root_dir}}" && mvn -pl forge-nexus com.diffplug.spotless:spotless-maven-plugin:check -q
+
 # compile proto + Kotlin, install forge-web JAR to ~/.m2
 build: check-java _check-upstream
     #!/usr/bin/env bash
