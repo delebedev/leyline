@@ -41,3 +41,19 @@ Current behavior: the auto-pass engine still auto-resolves "choose_cards" prompt
 **Outbound-only.** PayCostsReq (type 36) is server→client; the response comes back as PerformActionResp (already handled). Added BundleBuilder.payCostsBundle() for when we want to show the Arena client's native mana payment UI instead of auto-solving.
 
 **Current behavior:** Engine's AI mana solver + WebCostDecision handles payment automatically. PayCostsReq is cosmetic — lets the client display its tap-land animation properly.
+
+## 2.3 Reveal Annotations (RevealedCardCreated/Deleted)
+
+**Deferred — requires forge-game changes.** Arena uses annotation types 59/60 (RevealedCardCreated/Deleted) to animate card reveals. Forge has no `GameEvent` for reveals — the Revealed zone exists and StateMapper maps it, but there's no event-driven signal when cards enter/leave.
+
+**Options:**
+1. Add `GameEventCardRevealed` to forge-game's EventBus → subscribe in GameEventCollector → emit annotation. Most correct but invasive (touches a module we don't own).
+2. Detect reveals in StateMapper by diffing Revealed zone contents between snapshots. Less invasive but fragile — must track per-player revealed zones and handle transient reveals.
+
+**Moving on** per instructions. The client handles missing reveal annotations gracefully (no animation, card just appears/disappears in revealed zone).
+
+## 2.4 Spell-Forced Discard
+
+**No bug found.** Spell-forced discard (simulating Mind Rot etc.) correctly produces Discard category for Hand→GY. Multiple discards in a batch each get their own Discard annotation. Cross-contamination with SpellResolved events is prevented by forgeCardId matching (same fix pattern as 1.3-1.5).
+
+**Key insight:** The `player.discard()` path fires `GameEventCardChangeZone` Hand→GY which the collector maps to `CardDiscarded`. This is identical to cleanup discard-to-hand-size. No special handling needed for spell-vs-cleanup discard — the zone-pair heuristic in the collector handles both.
