@@ -1,5 +1,6 @@
 package forge.nexus.server
 
+import forge.nexus.config.PlaytestConfig
 import forge.nexus.debug.GameStateCollector
 import forge.nexus.debug.NexusDebugCollector
 import forge.nexus.debug.NexusTap
@@ -22,6 +23,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  */
 class MatchHandler(
     private val registry: MatchRegistry = defaultRegistry,
+    private val playtestConfig: PlaytestConfig = PlaytestConfig(),
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
@@ -125,7 +127,13 @@ class MatchHandler(
 
                 // Only one bridge per match — first seat to arrive creates it
                 val bridge = registry.getOrCreateBridge(matchId) {
-                    GameBridge().also { it.start(seed = 2L) }
+                    GameBridge(playtestConfig = playtestConfig).also {
+                        it.start(
+                            seed = playtestConfig.game.seed,
+                            deckList1 = loadDeckFromConfig(playtestConfig.decks.seat1),
+                            deckList2 = loadDeckFromConfig(playtestConfig.decks.seat2),
+                        )
+                    }
                 }
                 s?.connectBridge(bridge)
                 seat1Hand = bridge.getHandGrpIds(1)
@@ -234,7 +242,15 @@ class MatchHandler(
         val gsId = s.nextGameStateId()
         val deckGrpIds = bridge.getDeckGrpIds(seatId)
         val deck = StateMapper.buildDeckMessage(deckGrpIds)
-        val (msg, nextMsgId) = HandshakeMessages.initialBundle(seatId, matchId, s.msgIdCounter, gsId, deck, bridge)
+        val (msg, nextMsgId) = HandshakeMessages.initialBundle(
+            seatId,
+            matchId,
+            s.msgIdCounter,
+            gsId,
+            deck,
+            bridge,
+            dieRollWinner = playtestConfig.game.dieRollWinner,
+        )
         s.applyHandshakeCounters(nextMsgId)
         NexusTap.outboundTemplate("InitialBundle seat=$seatId")
         ProtoDump.dump(msg, "InitialBundle-seat$seatId")
@@ -293,5 +309,20 @@ class MatchHandler(
         session?.recorder?.let { SessionRecorder.unregister(it) }
         session?.gameBridge?.shutdown()
         ctx.close()
+    }
+
+    /** Load deck text from a config deck name (resolved from decks/ dir). */
+    private fun loadDeckFromConfig(deckName: String): String {
+        val nexusDir = findNexusDir()
+        val file = PlaytestConfig.resolveDeckFile(deckName, nexusDir)
+        return file.readText()
+    }
+
+    private fun findNexusDir(): java.io.File {
+        val cwd = java.io.File(System.getProperty("user.dir"))
+        if (java.io.File(cwd, "decks").isDirectory) return cwd
+        val sub = java.io.File(cwd, "forge-nexus")
+        if (sub.isDirectory) return sub
+        return cwd
     }
 }

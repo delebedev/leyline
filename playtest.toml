@@ -1,0 +1,20 @@
+# Forge Nexus — Playtest Configuration
+#
+# Deck files live in decks/ (standard Arena/MTGO export format).
+# Changes take effect on next server start.
+
+[game]
+# RNG seed for deterministic shuffles. Remove or comment out for random.
+seed = 2
+
+# Which seat wins the die roll and goes first (1 = human, 2 = AI).
+die_roll_winner = 2
+
+[decks]
+# Deck file names (resolved from decks/ directory, .txt optional).
+seat1 = "green-stompy"   # human player
+seat2 = "green-stompy"   # AI (Sparky)
+
+[ai]
+# AI animation speed. 2 = twice as fast, 1 = default, 0 = instant.
+speed = 1.0

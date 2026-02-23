@@ -83,6 +83,8 @@ object HandshakeMessages {
      * Initial GRE bundle — built dynamically.
      * Seat 1: ConnectResp + DieRollResults + GameState
      * Seat 2: DieRollResults + GameState + ChooseStartingPlayerReq
+     *
+     * @param dieRollWinner which seat wins the die roll (1 or 2, default 2)
      */
     fun initialBundle(
         seatId: Int,
@@ -91,6 +93,7 @@ object HandshakeMessages {
         gameStateId: Int,
         deckMessage: DeckMessage,
         bridge: GameBridge,
+        dieRollWinner: Int = 2,
     ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
         val messages = mutableListOf<GREToClientMessage>()
@@ -101,7 +104,7 @@ object HandshakeMessages {
         }
 
         // DieRollResults (both seats see this)
-        messages.add(buildDieRollResults(msgId++))
+        messages.add(buildDieRollResults(msgId++, dieRollWinner))
 
         // Full initial GameState
         val pendingCount = if (seatId == 2) 1 else 0 // ChooseStartingPlayerReq follows
@@ -195,7 +198,7 @@ object HandshakeMessages {
             )
             .setPendingMessageCount(2)
             .setPrevGameStateId(gameStateId - 1)
-             .addAllTimers(PlayerMapper.buildTimers())
+            .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(GameStateUpdate.SendAndRecord)
             .build()
         val greGsm = GREToClientMessage.newBuilder()
@@ -254,18 +257,22 @@ object HandshakeMessages {
 
     // --- private helpers ---
 
-    /** DieRollResults — seat 2 wins (rolls higher). */
-    private fun buildDieRollResults(msgId: Int): GREToClientMessage =
-        GREToClientMessage.newBuilder()
+    /** DieRollResults — [winner] seat rolls higher. */
+    private fun buildDieRollResults(msgId: Int, winner: Int = 2): GREToClientMessage {
+        // Winner gets the high roll (18), loser gets the low roll (2)
+        val seat1Roll = if (winner == 1) 18 else 2
+        val seat2Roll = if (winner == 2) 18 else 2
+        return GREToClientMessage.newBuilder()
             .setType(GREMessageType.DieRollResultsResp_695e)
-            .addSystemSeatIds(2).addSystemSeatIds(1)
+            .addSystemSeatIds(winner).addSystemSeatIds(if (winner == 1) 2 else 1)
             .setMsgId(msgId)
             .setDieRollResultsResp(
                 DieRollResultsResp.newBuilder()
-                    .addPlayerDieRolls(PlayerDieRoll.newBuilder().setSystemSeatId(1).setRollValue(2))
-                    .addPlayerDieRolls(PlayerDieRoll.newBuilder().setSystemSeatId(2).setRollValue(18)),
+                    .addPlayerDieRolls(PlayerDieRoll.newBuilder().setSystemSeatId(1).setRollValue(seat1Roll))
+                    .addPlayerDieRolls(PlayerDieRoll.newBuilder().setSystemSeatId(2).setRollValue(seat2Roll)),
             )
             .build()
+    }
 
     /** ConnectResp — success + deck + default settings + version info. */
     private fun buildConnectResp(msgId: Int, seatId: Int, deckMessage: DeckMessage): GREToClientMessage =
