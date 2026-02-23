@@ -215,6 +215,12 @@ object BundleBuilder {
         bridge: GameBridge,
     ): SelectTargetsReq = StateMapper.buildSelectTargetsReq(prompt, bridge)
 
+    /** Build a [SelectNReq] from a pending "choose cards" prompt. */
+    fun buildSelectNReq(
+        prompt: forge.web.game.InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): SelectNReq = StateMapper.buildSelectNReq(prompt, bridge)
+
     /** Build a [DeclareAttackersReq] listing legal attackers. */
     fun buildDeclareAttackersReq(game: Game, seatId: Int, bridge: GameBridge): DeclareAttackersReq =
         StateMapper.buildDeclareAttackersReq(game, seatId, bridge)
@@ -422,6 +428,35 @@ object BundleBuilder {
         val msg2 = makeGRE(GREMessageType.SelectTargetsReq_695e, nextGs, seatId, nextMsg++) {
             it.selectTargetsReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DISTRIBUTE_DAMAGE).build())
+        }
+
+        return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)
+    }
+
+    /**
+     * SelectN bundle: GameState + SelectNReq.
+     * Used for "choose N cards" prompts (discard, sacrifice, etc.).
+     */
+    fun selectNBundle(
+        game: Game,
+        bridge: GameBridge,
+        matchId: String,
+        seatId: Int,
+        msgId: Int,
+        gsId: Int,
+        req: SelectNReq,
+    ): BundleResult {
+        var nextMsg = msgId
+        var nextGs = gsId + 1
+
+        val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId)
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+            it.gameStateMessage = gs
+        }
+
+        val msg2 = makeGRE(GREMessageType.SelectNreq, nextGs, seatId, nextMsg++) {
+            it.selectNReq = req
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
         }
 
         return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)

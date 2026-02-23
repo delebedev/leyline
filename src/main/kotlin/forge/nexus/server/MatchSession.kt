@@ -260,6 +260,12 @@ class MatchSession(
         targetingHandler.onSelectTargets(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
+    /** Handle SelectNResp — delegates to [TargetingHandler]. */
+    fun onSelectN(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+        val bridge = gameBridge ?: return
+        targetingHandler.onSelectN(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
+    }
+
     /** Handle concede: remove bridge and send game-over. */
     fun onConcede() = synchronized(sessionLock) {
         registry.removeBridge(matchId)?.shutdown()

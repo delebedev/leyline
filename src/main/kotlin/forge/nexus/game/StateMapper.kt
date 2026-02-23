@@ -668,6 +668,32 @@ object StateMapper {
         return builder.build()
     }
 
+    /**
+     * Build a [SelectNReq] from a pending prompt with candidateRefs.
+     * Used for "choose N cards" prompts (discard, sacrifice selection, etc.).
+     *
+     * Maps prompt candidate entity IDs to client instanceIds. The client
+     * responds with SelectNResp containing selected instanceIds.
+     */
+    fun buildSelectNReq(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+    ): SelectNReq {
+        val builder = SelectNReq.newBuilder()
+            .setMinSel(prompt.request.min)
+            .setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
+            .setContext(SelectionContext.Discard_a163) // TODO: map promptType → context
+            .setListType(SelectionListType.Static)
+            .setIdType(IdType.InstanceId_ab2c)
+            .setValidationType(SelectionValidationType.NonRepeatable)
+        for (ref in prompt.request.candidateRefs) {
+            val instanceId = bridge.getOrAllocInstanceId(ref.entityId)
+            builder.addIds(instanceId)
+        }
+        builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+        return builder.build()
+    }
+
     // --- Combat requests ---
 
     /**

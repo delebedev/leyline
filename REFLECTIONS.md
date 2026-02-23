@@ -25,3 +25,13 @@ Post-fix notes: what could we have figured out faster?
 **No bug found.** All three removal categories (Bounce=BF→Hand, Destroy=BF→GY, Exile=BF→Exile) produce correct annotations. The critical cross-contamination test passed: when SpellResolved fires in the same event batch as a target's zone change, `categoryFromEvents` correctly attributes each card independently (forgeCardId match prevents cross-contamination).
 
 **Key insight:** The `ZoneTransitionConformanceTest` already covered these zone pairs via direct GameAction calls. The new tests add value by testing the event-batch interleaving scenario (SpellResolved + target zone change in same drain window). This is the scenario that the fizzled-spell bug could have affected for non-fizzled spells too — but forgeCardId matching prevents it.
+
+## 2.1 SelectNReq Handler Plumbing
+
+**No bug; new feature.** Full request/response path wired: MatchHandler dispatches `SelectNresp` → MatchSession.onSelectN() → TargetingHandler.onSelectN() maps instanceIds back to prompt indices → submits to engine.
+
+Outbound path also added: StateMapper.buildSelectNReq() → BundleBuilder.selectNBundle() builds GS Diff + SelectNReq proto message.
+
+Current behavior: the auto-pass engine still auto-resolves "choose_cards" prompts with `defaultIndex` before the client sees SelectNReq. To send it to the client instead, modify `checkPendingPrompt()` to detect choose_cards + candidateRefs and call `sendSelectNReq()` instead of auto-resolving.
+
+**How to find faster:** The SelectTargetsReq/Resp pattern is the template. Every new prompt type follows the same 6-file pattern: PromptIds → StateMapper → BundleBuilder → TargetingHandler → MatchSession → MatchHandler. Could create a checklist/template for this.

@@ -216,6 +216,12 @@ class MatchHandler(
                 }
             }
 
+            ClientMessageType.SelectNresp -> {
+                if (seatId == 1) {
+                    s?.onSelectN(greMsg)
+                }
+            }
+
             ClientMessageType.CheckpointReq -> {
                 // Client acknowledges IntermissionReq — MatchCompleted room state
                 // was already sent in sendGameOver(). Nothing to do here.

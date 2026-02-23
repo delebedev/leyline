@@ -8,4 +8,6 @@ object PromptIds {
     const val DISTRIBUTE_DAMAGE = 10
     const val MULLIGAN = 34
     const val STARTING_PLAYER = 37
+    const val SELECT_N = 1243
+    const val PAY_COSTS = 1244
 }
