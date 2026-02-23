@@ -229,3 +229,144 @@ Game (forge-game)
 **Per-seat filtering:** Each seat gets its own `GameStateMessage`. Private zones (opponent's hand, face-down library) are filtered. The same engine state produces different protobuf payloads per seat.
 
 **gsId chain:** Each game state message gets a monotonic `gameStateId`. The client expects sequential delivery — gaps cause resync requests.
+
+---
+
+## 7. forge-web Reuse Boundary
+
+What forge-nexus reuses from forge-web, and the clean separation between transport-agnostic orchestration and transport-specific handling.
+
+### Reused Layer (transport-agnostic game orchestration)
+
+```
+forge-web/src/main/kotlin/forge/web/game/
+  ├── GameActionBridge.kt        ← CompletableFuture: block engine at priority, unblock on player action
+  ├── InteractivePromptBridge.kt ← CompletableFuture: block engine on choices (targeting, sacrifice, scry)
+  ├── MulliganBridge.kt          ← CompletableFuture: block engine on keep/mulligan/tuck
+  ├── WebPlayerController.kt     ← PlayerControllerHuman override routing to bridges
+  ├── WebGuiGame.kt              ← IGuiGame adapter routing to bridges
+  ├── GameLoopController.kt      ← Daemon thread lifecycle management
+  ├── GameBootstrap.kt           ← Game factory + card DB initialization
+  ├── PhaseStopProfile.kt        ← Per-player phase-stop configuration
+  ├── PlayerAction.kt            ← Sealed class: the shared action vocabulary
+  ├── CardLookup.kt              ← chooseCastAbility(), ability queries
+  └── BridgeTimeoutDiagnostic.kt ← Structured timeout diagnostics
+```
+
+### Not Consumed (web-UI-specific, correctly excluded)
+
+```
+forge-web/src/main/kotlin/forge/web/
+  ├── GameRoom.kt                ← Ktor WebSocket session management
+  ├── GameSessionManager.kt      ← Multi-room WS routing
+  ├── GameStateMapper.kt         ← Game → GameStateDto (web UI DTOs)
+  ├── WebGamePlayback.kt         ← Web UI AI action pacing
+  ├── ReplayCollector.kt         ← Web UI replay recording
+  └── dto/                       ← JSON DTOs for web UI wire format
+```
+
+### How Nexus Consumes Bridges
+
+```
+GameBridge.kt (nexus)
+  ├── GameBootstrap.createConstructedGame(deck1, deck2)
+  ├── GameLoopController(game).start()
+  ├── GameActionBridge()
+  │     ├── getPending() → read engine state at priority stop
+  │     └── submitAction(PlayerAction) → unblock engine
+  ├── InteractivePromptBridge()
+  │     ├── getPendingPrompt() → read engine prompt
+  │     ├── submitResponse(indices) → unblock engine
+  │     └── drainReveals() → annotation pipeline
+  ├── MulliganBridge()
+  │     ├── submitKeep() / submitMull()
+  │     └── pendingPhase → read mulligan state
+  ├── WebPlayerController(game, player, bridges)
+  └── PhaseStopProfile.createDefaults()
+```
+
+### Thin Coupling Points
+
+Two forge-web DTO types leak through the bridge API:
+
+| Type | Where | Impact |
+|------|-------|--------|
+| `TargetDto` | In `PlayerAction.CastSpell/ActivateAbility` | Nexus passes empty lists; cosmetic dependency |
+| `PromptCandidateRefDto` | In `PromptRequest.candidateRefs` | Nexus reads for instanceId mapping in SelectTargetsReq |
+
+Both are trivial `@Serializable` data classes (2-3 fields). Extractable to a shared-types package if the dependency bothers us, but functionally harmless — nexus never serializes them to JSON.
+
+### Design Principle
+
+The bridge layer is intentionally transport-agnostic. The `CompletableFuture` pattern doesn't know or care whether the completion comes from a WebSocket JSON handler, a protobuf handler, or a test harness. This is what makes nexus possible without forking forge-web.
+
+---
+
+## 8. Package Structure & Scale
+
+```
+forge-nexus/src/main/kotlin/forge/nexus/     65 files, ~14.5K LOC
+  ├── NexusMain.kt                            ← Entry point
+  ├── game/           (22 files, ~5.5K LOC)   ← Core: StateMapper, BundleBuilder, AnnotationBuilder,
+  │                                              GameBridge, AnnotationPipeline, GameEventCollector,
+  │                                              NexusGamePlayback, ObjectMapper, ZoneMapper, CardDb
+  ├── server/         (12 files, ~2.5K LOC)   ← Transport: MatchHandler, MatchSession, AutoPassEngine,
+  │                                              CombatHandler, TargetingHandler, FrontDoorStub,
+  │                                              MatchRegistry, MessageSink
+  ├── protocol/       (4 files, ~600 LOC)     ← Wire: FrameCodec, HandshakeMessages, DecodeCapture
+  ├── debug/          (11 files, ~2.5K LOC)   ← Debug panel: DebugServer, DebugCollector, GameStateCollector
+  ├── conformance/    (8 files, ~2K LOC)      ← Recording tools: StructuralFingerprint, RecordingDecoder,
+  │                                              GameFlowAnalyzer, StructuralDiff
+  ├── config/         (2 files, ~200 LOC)     ← TOML config, deck validation
+  └── analysis/       (4 files, ~1K LOC)      ← Session analysis, invariant checking
+
+forge-nexus/src/test/kotlin/                  63 files, ~13.4K LOC
+  ├── game/           (14 files)              ← Unit + integration: AnnotationBuilder, StateMapper,
+  │                                              CategoryFromEvents, MatchFlowHarness tests
+  ├── conformance/    (48 files)              ← Golden conformance, flow tests, field tests,
+  │                                              MatchFlowHarness (integration test infra)
+  └── protocol/       (1 file)               ← FrameCodec tests
+```
+
+### Largest Files
+
+| File | LOC | Concern |
+|------|-----|---------|
+| `StateMapper.kt` | ~869 | Forge→proto mapping + annotation wiring + diff assembly |
+| `MatchSession.kt` | ~450 | Per-seat session: message routing + action dispatch |
+| `BundleBuilder.kt` | ~400 | GRE message assembly (multiple bundle types) |
+| `AnnotationBuilder.kt` | ~350 | Proto annotation factories (20 types) |
+
+---
+
+## 9. Architectural Assessment
+
+### Strengths
+
+**Transport-head pattern.** The most consequential design choice: reusing forge-web's `CompletableFuture` bridges means the entire engine integration layer (157 `PlayerControllerHuman` overrides, game lifecycle, bridge threading) is shared. Nexus is a second transport head, not a parallel implementation. This halved the integration surface.
+
+**Three-stage diff pipeline.** `detectZoneTransfers → annotationsForTransfer → combatAnnotations` is a pure, composable pipeline. Each stage's output is deterministic from its inputs. Easy to test in isolation, easy to extend.
+
+**Event-driven annotations.** The `GameEventCollector → NexusGameEvent → AnnotationBuilder.categoryFromEvents()` chain decouples Forge's Guava EventBus from proto construction. Adding a new annotation type is a 5-step cookbook recipe touching known files.
+
+**Conformance infrastructure.** `StructuralFingerprint` / `StructuralDiff` / golden files / `ValidatingMessageSink` / `MatchFlowHarness` — the testing infra is more sophisticated than most game servers. The `recording` group tests against real Arena traffic are the gold standard.
+
+**Observability.** Debug server on :8090 with SSE, state timeline, instance history, priority trace, recording introspection. This is production-grade observability for a dev project.
+
+### Weaknesses
+
+**StateMapper is a God Object.** At 869 LOC, it owns: zone mapping, object mapping, annotation wiring, diff computation, snapshot management, request building (combat, targeting, selectN), and updateType resolution. Sub-mappers were extracted (ObjectMapper, ZoneMapper) but the orchestration and request builders still live here.
+
+**Two-timeline snapshot divergence.** `prevSnapshot` (diff computation) vs `lastSentTurnInfo` (client awareness) — the learnings doc devotes 3 sections to bugs from confusing these. The abstraction leak is that `DiffSnapshotter` serves two masters (correct diffs and correct annotations) with different timing requirements.
+
+**Counter synchronization.** `gsIdCounter` and `msgIdCounter` live in two places (`SessionOps` and `NexusGamePlayback`) with `max()` semantics. Learnings §4 documents the trap. This is a structural concurrency problem that `max()` patches but doesn't solve.
+
+**74 missing annotation types.** Rosetta shows 20/94 implemented. Many are cosmetic (client degrades gracefully), but attachment (11/12/18/19/20/70), P/T modification (5/6), and targeting (26/92/93) affect gameplay correctness for the respective card categories.
+
+**CardDb global singleton.** Mutable global with `volatile testMode` flag. Not injected. Makes parallel test execution fragile and prevents multiple concurrent configurations.
+
+### Risks
+
+**forge-web coupling creep.** Currently 10 classes imported. The `TargetDto`/`PromptCandidateRefDto` leak is minor today but sets a precedent. If forge-web adds web-specific behavior to bridge classes (WS keepalive, session affinity), nexus breaks.
+
+**Engine-thread mutations.** `GameEventCollector` subscribes synchronously on the engine thread and mutates a `ConcurrentLinkedQueue`. `NexusGamePlayback` sleeps the engine thread. Both are correct today but any new subscriber that does I/O or acquires locks on the engine thread path creates deadlock risk.
