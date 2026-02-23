@@ -99,7 +99,9 @@ class InvariantChecker {
                 if (gsms[i].gameStateId <= gsms[i - 1].gameStateId) {
                     violations.add(
                         Violation(
-                            i, gsms[i].gameStateId, "gsid_monotonicity",
+                            i,
+                            gsms[i].gameStateId,
+                            "gsid_monotonicity",
                             "gsIds not monotonic: ${gsms[i - 1].gameStateId} -> ${gsms[i].gameStateId}",
                         ),
                     )
@@ -111,7 +113,9 @@ class InvariantChecker {
                 if (gsm.prevGameStateId != 0 && gsm.prevGameStateId == gsm.gameStateId) {
                     violations.add(
                         Violation(
-                            i, gsm.gameStateId, "gsid_self_ref",
+                            i,
+                            gsm.gameStateId,
+                            "gsid_self_ref",
                             "Self-referential prevGsId: gsId=${gsm.gameStateId}",
                         ),
                     )
@@ -123,7 +127,9 @@ class InvariantChecker {
                 if (gsm.prevGameStateId != 0 && !knownGsIds.contains(gsm.prevGameStateId)) {
                     violations.add(
                         Violation(
-                            i, gsm.gameStateId, "gsid_prev_unknown",
+                            i,
+                            gsm.gameStateId,
+                            "gsid_prev_unknown",
                             "prevGsId ${gsm.prevGameStateId} not in known set (gsId=${gsm.gameStateId})",
                         ),
                     )
@@ -211,7 +217,8 @@ class InvariantChecker {
                 val prev = annotations[idx - 1].id
                 if (ann.id != prev + 1) {
                     record(
-                        gsm.gameStateId, "annotation_seq",
+                        gsm.gameStateId,
+                        "annotation_seq",
                         "Annotation IDs not sequential: index $idx has id=${ann.id}, expected ${prev + 1} (gsId=${gsm.gameStateId})",
                     )
                 }
@@ -222,15 +229,13 @@ class InvariantChecker {
     private fun checkPendingMessageCountContract(gsm: GameStateMessage) {
         val isSendAndRecord = gsm.update == GameStateUpdate.SendAndRecord
 
-        // TODO: too strict — our phaseTransitionDiff sets pendingMessageCount=1
-        // but AI action diffs can arrive before the expected follow-up.
-        // Revisit once the diff pipeline guarantees correct pending counts.
-        // if (pendingCountdown > 0 && isSendAndRecord) {
-        //     record(
-        //         gsm.gameStateId, "pending_count",
-        //         "pendingMessageCount violation: countdown was $pendingCountdown when SendAndRecord arrived (gsId=${gsm.gameStateId})",
-        //     )
-        // }
+        if (pendingCountdown > 0 && isSendAndRecord) {
+            record(
+                gsm.gameStateId,
+                "pending_count",
+                "pendingMessageCount violation: countdown was $pendingCountdown when SendAndRecord arrived (gsId=${gsm.gameStateId})",
+            )
+        }
 
         val pending = gsm.pendingMessageCount
         if (pending > 0) {

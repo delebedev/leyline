@@ -301,15 +301,17 @@ class SessionRecorder(
         private val activeRecorders = java.util.concurrent.CopyOnWriteArrayList<SessionRecorder>()
 
         init {
-            Runtime.getRuntime().addShutdownHook(Thread({
-                for (recorder in activeRecorders) {
-                    try {
-                        if (!recorder.closed.get()) {
-                            recorder.close(triggerAnalysis = true)
-                        }
-                    } catch (_: Exception) {}
-                }
-            }, "session-recorder-shutdown"))
+            Runtime.getRuntime().addShutdownHook(
+                Thread({
+                    for (recorder in activeRecorders) {
+                        try {
+                            if (!recorder.closed.get()) {
+                                recorder.close(triggerAnalysis = true)
+                            }
+                        } catch (_: Exception) {}
+                    }
+                }, "session-recorder-shutdown"),
+            )
         }
 
         /** Register a recorder for shutdown hook cleanup. */

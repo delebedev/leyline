@@ -150,7 +150,8 @@ class BlockerDeclarationTest {
         // Human should have taken exactly 1 damage (Raging Goblin is 1/1)
         val lifeAfter = humanPlayer.life
         assertEquals(
-            lifeAfter, lifeBefore - 1,
+            lifeAfter,
+            lifeBefore - 1,
             "Human should take exactly 1 damage from unblocked Raging Goblin",
         )
 

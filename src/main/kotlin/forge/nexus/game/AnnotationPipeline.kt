@@ -171,7 +171,8 @@ object AnnotationPipeline {
             }
             TransferCategory.Destroy, TransferCategory.Sacrifice, TransferCategory.Countered,
             TransferCategory.Bounce, TransferCategory.Draw, TransferCategory.Discard,
-            TransferCategory.Mill, TransferCategory.Exile, TransferCategory.ZoneTransfer -> {
+            TransferCategory.Mill, TransferCategory.Exile, TransferCategory.ZoneTransfer,
+            -> {
                 if (origId != newId) {
                     annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
                 }

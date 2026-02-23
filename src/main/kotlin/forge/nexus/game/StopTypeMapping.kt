@@ -45,11 +45,9 @@ object StopTypeMapping {
      * Only stops with [SettingStatus.Set] and a matching scope are included.
      * [SettingScope.AnyPlayer] matches any requested scope.
      */
-    fun parseStops(stops: List<Stop>, scope: SettingScope): Set<PhaseType> {
-        return stops
-            .filter { it.status == SettingStatus.Set }
-            .filter { it.appliesTo == scope || it.appliesTo == SettingScope.AnyPlayer }
-            .mapNotNull { toPhaseType(it.stopType) }
-            .toSet()
-    }
+    fun parseStops(stops: List<Stop>, scope: SettingScope): Set<PhaseType> = stops
+        .filter { it.status == SettingStatus.Set }
+        .filter { it.appliesTo == scope || it.appliesTo == SettingScope.AnyPlayer }
+        .mapNotNull { toPhaseType(it.stopType) }
+        .toSet()
 }

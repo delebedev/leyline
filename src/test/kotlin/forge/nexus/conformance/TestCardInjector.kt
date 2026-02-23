@@ -78,7 +78,11 @@ object TestCardInjector {
 
         log.info(
             "Injected '{}' → {} (grpId={}, instanceId={}, forgeId={})",
-            cardName, zone, grpId, instanceId, card.id,
+            cardName,
+            zone,
+            grpId,
+            instanceId,
+            card.id,
         )
 
         return InjectedCard(

@@ -18,8 +18,12 @@ object TestCardRegistry {
 
     /** Default deck card names (GameBridge.DEFAULT_DECK). */
     private val DEFAULT_DECK_CARDS = listOf(
-        "Forest", "Llanowar Elves", "Elvish Mystic", "Giant Growth",
-        "Mountain", "Raging Goblin",
+        "Forest",
+        "Llanowar Elves",
+        "Elvish Mystic",
+        "Giant Growth",
+        "Mountain",
+        "Raging Goblin",
     )
 
     /**

@@ -23,7 +23,6 @@ class PhaseStopProfileTest {
         forge.web.game.GameBootstrap.initializeCardDatabase(quiet = true)
     }
 
-
     @Test
     fun humanDefaultsHaveCorrectPhases() {
         val profile = PhaseStopProfile.createDefaults(humanPlayerId = 1, aiPlayerId = 2)

@@ -382,10 +382,13 @@ class AnnotationPipelineTest {
     @Test
     fun destroyProducesAnnotations() {
         val transfer = AnnotationPipeline.AppliedTransfer(
-            origId = 100, newId = 200,
+            origId = 100,
+            newId = 200,
             category = TransferCategory.Destroy,
-            srcZoneId = ZoneIds.BATTLEFIELD, destZoneId = ZoneIds.P1_GRAVEYARD,
-            grpId = 0, ownerSeatId = 1,
+            srcZoneId = ZoneIds.BATTLEFIELD,
+            destZoneId = ZoneIds.P1_GRAVEYARD,
+            grpId = 0,
+            ownerSeatId = 1,
         )
         val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
@@ -400,10 +403,13 @@ class AnnotationPipelineTest {
     @Test
     fun sacrificeProducesAnnotations() {
         val transfer = AnnotationPipeline.AppliedTransfer(
-            origId = 100, newId = 200,
+            origId = 100,
+            newId = 200,
             category = TransferCategory.Sacrifice,
-            srcZoneId = ZoneIds.BATTLEFIELD, destZoneId = ZoneIds.P1_GRAVEYARD,
-            grpId = 0, ownerSeatId = 1,
+            srcZoneId = ZoneIds.BATTLEFIELD,
+            destZoneId = ZoneIds.P1_GRAVEYARD,
+            grpId = 0,
+            ownerSeatId = 1,
         )
         val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
         val category = annotations.last().detailsList.first { it.key == "category" }
@@ -413,10 +419,13 @@ class AnnotationPipelineTest {
     @Test
     fun bounceProducesAnnotations() {
         val transfer = AnnotationPipeline.AppliedTransfer(
-            origId = 100, newId = 200,
+            origId = 100,
+            newId = 200,
             category = TransferCategory.Bounce,
-            srcZoneId = ZoneIds.BATTLEFIELD, destZoneId = ZoneIds.P1_HAND,
-            grpId = 0, ownerSeatId = 1,
+            srcZoneId = ZoneIds.BATTLEFIELD,
+            destZoneId = ZoneIds.P1_HAND,
+            grpId = 0,
+            ownerSeatId = 1,
         )
         val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
         val category = annotations.last().detailsList.first { it.key == "category" }
@@ -426,10 +435,13 @@ class AnnotationPipelineTest {
     @Test
     fun exileProducesAnnotations() {
         val transfer = AnnotationPipeline.AppliedTransfer(
-            origId = 100, newId = 200,
+            origId = 100,
+            newId = 200,
             category = TransferCategory.Exile,
-            srcZoneId = ZoneIds.BATTLEFIELD, destZoneId = ZoneIds.EXILE,
-            grpId = 0, ownerSeatId = 1,
+            srcZoneId = ZoneIds.BATTLEFIELD,
+            destZoneId = ZoneIds.EXILE,
+            grpId = 0,
+            ownerSeatId = 1,
         )
         val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
         val category = annotations.last().detailsList.first { it.key == "category" }
@@ -439,10 +451,13 @@ class AnnotationPipelineTest {
     @Test
     fun discardProducesAnnotations() {
         val transfer = AnnotationPipeline.AppliedTransfer(
-            origId = 100, newId = 200,
+            origId = 100,
+            newId = 200,
             category = TransferCategory.Discard,
-            srcZoneId = ZoneIds.P1_HAND, destZoneId = ZoneIds.P1_GRAVEYARD,
-            grpId = 0, ownerSeatId = 1,
+            srcZoneId = ZoneIds.P1_HAND,
+            destZoneId = ZoneIds.P1_GRAVEYARD,
+            grpId = 0,
+            ownerSeatId = 1,
         )
         val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
         val category = annotations.last().detailsList.first { it.key == "category" }
@@ -452,10 +467,13 @@ class AnnotationPipelineTest {
     @Test
     fun drawProducesAnnotations() {
         val transfer = AnnotationPipeline.AppliedTransfer(
-            origId = 100, newId = 200,
+            origId = 100,
+            newId = 200,
             category = TransferCategory.Draw,
-            srcZoneId = ZoneIds.P1_LIBRARY, destZoneId = ZoneIds.P1_HAND,
-            grpId = 0, ownerSeatId = 1,
+            srcZoneId = ZoneIds.P1_LIBRARY,
+            destZoneId = ZoneIds.P1_HAND,
+            grpId = 0,
+            ownerSeatId = 1,
         )
         val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
         val category = annotations.last().detailsList.first { it.key == "category" }
@@ -465,10 +483,13 @@ class AnnotationPipelineTest {
     @Test
     fun millProducesAnnotations() {
         val transfer = AnnotationPipeline.AppliedTransfer(
-            origId = 100, newId = 200,
+            origId = 100,
+            newId = 200,
             category = TransferCategory.Mill,
-            srcZoneId = ZoneIds.P1_LIBRARY, destZoneId = ZoneIds.P1_GRAVEYARD,
-            grpId = 0, ownerSeatId = 1,
+            srcZoneId = ZoneIds.P1_LIBRARY,
+            destZoneId = ZoneIds.P1_GRAVEYARD,
+            grpId = 0,
+            ownerSeatId = 1,
         )
         val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
         val category = annotations.last().detailsList.first { it.key == "category" }
@@ -478,10 +499,13 @@ class AnnotationPipelineTest {
     @Test
     fun counteredProducesAnnotations() {
         val transfer = AnnotationPipeline.AppliedTransfer(
-            origId = 100, newId = 200,
+            origId = 100,
+            newId = 200,
             category = TransferCategory.Countered,
-            srcZoneId = ZoneIds.STACK, destZoneId = ZoneIds.P1_GRAVEYARD,
-            grpId = 0, ownerSeatId = 1,
+            srcZoneId = ZoneIds.STACK,
+            destZoneId = ZoneIds.P1_GRAVEYARD,
+            grpId = 0,
+            ownerSeatId = 1,
         )
         val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
         val category = annotations.last().detailsList.first { it.key == "category" }

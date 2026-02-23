@@ -1,10 +1,10 @@
 package forge.nexus.conformance
 
-import forge.game.zone.ZoneType as ForgeZoneType
 import org.testng.Assert.*
 import org.testng.annotations.AfterMethod
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.*
+import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Tier 2 end-to-end targeting tests driven through real [MatchSession] code.

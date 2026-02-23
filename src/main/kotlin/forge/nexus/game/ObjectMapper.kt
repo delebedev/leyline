@@ -2,7 +2,6 @@ package forge.nexus.game
 
 import forge.game.Game
 import forge.game.card.Card
-import forge.game.player.Player
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 

@@ -5,7 +5,6 @@ import forge.game.phase.PhaseType
 import forge.nexus.debug.GameStateCollector
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
-import forge.nexus.game.StateMapper
 import forge.web.game.PlayerAction
 import org.slf4j.LoggerFactory
 
