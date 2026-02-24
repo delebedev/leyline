@@ -17,7 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 interface SessionOps {
     val seatId: Int
     val matchId: String
-    val counter: MessageCounter
+    var counter: MessageCounter
 
     fun sendBundledGRE(messages: List<GREToClientMessage>)
     fun sendRealGameState(bridge: GameBridge)
