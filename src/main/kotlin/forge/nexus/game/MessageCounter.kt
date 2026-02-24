@@ -3,22 +3,14 @@ package forge.nexus.game
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Single-owner protocol counter for GRE message sequencing.
+ * Shared atomic counter for GRE gsId/msgId sequencing (ADR-003).
  *
- * Replaces the dual-counter pattern where SessionOps and NexusGamePlayback each
- * maintained independent copies synced bidirectionally via `seedCounters()`/`getCounters()`.
- * That pattern required 17 seed callsites, 4 sync points, and a `max()` hack to prevent
- * stale values from clobbering advanced counters — and still had race windows.
+ * One instance is shared between the session thread (Netty I/O) and the engine
+ * thread (game daemon). Both call [nextMsgId]/[nextGsId] on the same atomics —
+ * no duplicates, no sync points.
  *
- * With a single shared [MessageCounter], both the session thread and engine thread
- * call [nextMsgId]/[nextGsId] on the same atomic. No seeding, no syncing, no races.
- *
- * Thread safety: all operations are atomic. The session thread (Netty I/O) and engine
- * thread (game daemon) may call [nextMsgId]/[nextGsId] concurrently — AtomicInteger
- * guarantees no duplicates.
- *
- * @param initialGsId starting gameStateId (handshake sets this before game start)
- * @param initialMsgId starting msgId (handshake sets this before game start)
+ * @param initialGsId starting gameStateId (handshake advances before game start)
+ * @param initialMsgId starting msgId (handshake advances before game start)
  * @see <a href="../docs/decisions/003-message-counter.md">ADR-003</a>
  */
 class MessageCounter(initialGsId: Int = 0, initialMsgId: Int = 1) {

@@ -35,6 +35,11 @@
 - **gameOverBundle missing prevGameStateId**: `BundleBuilder.gameOverBundle()` does not set `setPrevGameStateId()` on any of the 3 GS Diff messages. Breaks the prevGameStateId chain required by the real server. Client may show blank game-over screen or fail to transition to intermission. Fix: chain gs1→gsId, gs2→gs1, gs3→gs2.
 - **Face-down cards not implemented**: `ObjectMapper.applyCardFields()` never checks `card.isFaceDown` and never sets `isFacedown=true` or overrides `overlayGrpId`. Morph/manifest/disguise cards would leak identity to opponent. Low priority — morph/manifest rarely triggered in current integration.
 
+## TODO
+
+- **Wire ValidatingMessageSink in dev server** *(LOW)*: Run `ValidatingMessageSink(strict=false)` wrapping the production `MessageSink` during `just serve`. Logs invariant violations (gsId monotonicity, prevGsId validity, annotation sequentiality, instanceId consistency) without crashing. Negligible overhead — O(1) per message, no allocations on happy path. Would catch protocol bugs in real-time during playtesting instead of only in tests.
+- **Replace SETTLE_MS with proper happens-before sync** *(MEDIUM)*: `GameBridge.awaitPriority()` sleeps 10ms (`SETTLE_MS`) after `PrioritySignal` fires before returning to `MatchSession` for state snapshot. The signal fires when the engine calls `awaitAction()` but in-flight side effects (Guava EventBus → `GameEventCollector` queue) may not have settled yet. Fix: engine thread should signal AFTER all side effects are committed, giving `buildFromGame` a consistent snapshot with no race window. Current 10ms is empirical — could be too short under load or too long for responsiveness.
+
 ## Test / Conformance Gaps
 
 - **AnnotationPipelineTest missing category coverage**: Only PlayLand/CastSpell/Resolve/ZoneTransfer have pipeline annotation-shape tests. Missing: Destroy, Sacrifice, Exile, Countered, Bounce, Draw, Discard, Mill. Proto output shape for these categories is untested.
