@@ -24,6 +24,12 @@
 - **Concede**: tried wiring client concede button but doesn't work yet
 - **Phase indicators**: glitch where player and AI indicators update in sync
 
+## Runtime Crashes
+
+- **GameEventCollector NPE on null source zone** *(2026-02-24)*: `GameEventCardChangeZone.from()` returns null when a card enters a zone from nowhere (e.g. effect/token entering Command zone). `visit(ev: GameEventCardChangeZone)` calls `ev.from().zoneType` unconditionally → NPE. Fix: null-check `ev.from()`, skip or emit generic event when null. Triggered by Reckless Impulse effect entering Command zone.
+- **~~Shuffle annotations missing detail keys~~** *(2026-02-24, fixed)*: `AnnotationBuilder.shuffle()` emitted `type=[Shuffle]` with no `details`. Client's `ShuffleAnnotationParser` requires `OldIds`/`NewIds` detail keys → `ArgumentException`. **Fixed by suppressing Shuffle annotations** in `AnnotationPipeline` — cosmetic only (shuffle animation). Caused the `InvalidOperationException: Sequence contains no matching element` that blocked the client at mulligan.
+- **Shuffle animation not implemented** *(2026-02-24, LOW)*: Shuffle annotations are suppressed because we don't capture library card order before/after shuffle. To implement: extend `GameEventShuffle`/`LibraryShuffled` to carry pre/post library instanceId lists, then populate `OldIds`/`NewIds` detail keys in `AnnotationBuilder.shuffle()`. Purely cosmetic — client shows no shuffle animation without it, game functions fine.
+
 ## Protocol / Proto Bugs
 
 - **gameOverBundle missing prevGameStateId**: `BundleBuilder.gameOverBundle()` does not set `setPrevGameStateId()` on any of the 3 GS Diff messages. Breaks the prevGameStateId chain required by the real server. Client may show blank game-over screen or fail to transition to intermission. Fix: chain gs1→gsId, gs2→gs1, gs3→gs2.
