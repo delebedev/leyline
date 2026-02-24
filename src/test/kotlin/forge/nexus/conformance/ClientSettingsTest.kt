@@ -140,15 +140,14 @@ class ClientSettingsTest {
     // --- Helpers ---
 
     private fun sendSettings(vararg stops: Stop) {
-        val settings = SettingsMessage.newBuilder()
-            .addAllStops(stops.toList())
-            .build()
-        val greMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.SetSettingsReq_097b)
-            .setSetSettingsReq(
-                SetSettingsReq.newBuilder().setSettings(settings),
-            ).build()
-        harness.session.onSettings(greMsg)
+        val msg = clientMessage(ClientMessageType.SetSettingsReq_097b) {
+            setSetSettingsReq(
+                SetSettingsReq.newBuilder().setSettings(
+                    SettingsMessage.newBuilder().addAllStops(stops.toList()),
+                ),
+            )
+        }
+        harness.session.onSettings(msg)
     }
 
     private fun stop(type: StopType, scope: SettingScope, status: SettingStatus): Stop =

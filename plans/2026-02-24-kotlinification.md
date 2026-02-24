@@ -5,8 +5,9 @@ Scope: forge-nexus production + test modules (66 main, 60 test Kotlin files)
 
 ---
 
-## 1. Proto Builder DSL
+## 1. Proto Builder DSL ✅
 
+**Status:** Done (2026-02-24)
 **Priority:** Highest ROI
 **Why:** Cuts test verbosity everywhere; ~10 call sites in MatchFlowHarness alone, more in test files.
 

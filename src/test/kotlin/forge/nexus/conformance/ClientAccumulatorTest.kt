@@ -21,8 +21,7 @@ class ClientAccumulatorTest {
                 GameObjectInfo.newBuilder().setInstanceId(101).setType(GameObjectType.Card),
             )
             .build()
-        val gre = makeGsGRE(gs, 1)
-        acc.process(gre)
+        acc.process(greMessage(msgId = 1, gsm = gs))
 
         assertEquals(acc.objects.size, 2)
         assertTrue(acc.objects.containsKey(100))
@@ -41,7 +40,7 @@ class ClientAccumulatorTest {
                 GameObjectInfo.newBuilder().setInstanceId(100).setType(GameObjectType.Card),
             )
             .build()
-        acc.process(makeGsGRE(full, 1))
+        acc.process(greMessage(msgId = 1, gsm = full))
 
         val diff = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
@@ -50,7 +49,7 @@ class ClientAccumulatorTest {
                 GameObjectInfo.newBuilder().setInstanceId(101).setType(GameObjectType.Card),
             )
             .build()
-        acc.process(makeGsGRE(diff, 2))
+        acc.process(greMessage(msgId = 2, gsm = diff))
 
         assertEquals(acc.objects.size, 2, "Diff should ADD, not replace")
         assertTrue(acc.objects.containsKey(100))
@@ -69,7 +68,7 @@ class ClientAccumulatorTest {
                 GameObjectInfo.newBuilder().setInstanceId(100).setType(GameObjectType.Card),
             )
             .build()
-        acc.process(makeGsGRE(full1, 1))
+        acc.process(greMessage(msgId = 1, gsm = full1))
 
         val full2 = GameStateMessage.newBuilder()
             .setType(GameStateType.Full)
@@ -78,7 +77,7 @@ class ClientAccumulatorTest {
                 GameObjectInfo.newBuilder().setInstanceId(200).setType(GameObjectType.Card),
             )
             .build()
-        acc.process(makeGsGRE(full2, 2))
+        acc.process(greMessage(msgId = 2, gsm = full2))
 
         assertEquals(acc.objects.size, 1, "Second Full should replace all objects")
         assertFalse(acc.objects.containsKey(100))
@@ -101,7 +100,7 @@ class ClientAccumulatorTest {
                     .addObjectInstanceIds(200),
             )
             .build()
-        acc.process(makeGsGRE(gs, 1))
+        acc.process(greMessage(msgId = 1, gsm = gs))
 
         assertEquals(acc.zones.size, 2)
         assertEquals(acc.zones[10]!!.objectInstanceIdsList.size, 2)
@@ -113,12 +112,12 @@ class ClientAccumulatorTest {
 
         val gs1 = GameStateMessage.newBuilder()
             .setType(GameStateType.Full).setGameStateId(5).build()
-        acc.process(makeGsGRE(gs1, 1))
+        acc.process(greMessage(msgId = 1, gsm = gs1))
         assertEquals(acc.latestGsId, 5)
 
         val gs2 = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff).setGameStateId(3).build()
-        acc.process(makeGsGRE(gs2, 2))
+        acc.process(greMessage(msgId = 2, gsm = gs2))
 
         assertEquals(acc.latestGsId, 5, "latestGsId should track high-water mark")
     }
@@ -127,21 +126,13 @@ class ClientAccumulatorTest {
     fun actionsAvailableReqTracked() {
         val acc = ClientAccumulator()
 
-        val actions = ActionsAvailableReq.newBuilder()
-            .addActions(
+        acc.process(actionsMessage(msgId = 1, gsId = 1) {
+            addActions(
                 Action.newBuilder()
                     .setActionType(ActionType.Play_add3)
                     .setInstanceId(100),
             )
-            .build()
-        val gre = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.ActionsAvailableReq_695e)
-            .setMsgId(1)
-            .setGameStateId(1)
-            .addSystemSeatIds(1)
-            .setActionsAvailableReq(actions)
-            .build()
-        acc.process(gre)
+        })
 
         val storedActions = checkNotNull(acc.actions)
         assertEquals(storedActions.actionsCount, 1)
@@ -159,31 +150,16 @@ class ClientAccumulatorTest {
                 GameObjectInfo.newBuilder().setInstanceId(100).setType(GameObjectType.Card),
             )
             .build()
-        acc.process(makeGsGRE(gs, 1))
+        acc.process(greMessage(msgId = 1, gsm = gs))
 
         // Actions referencing iid 100 (exists) and 200 (missing)
-        val actions = ActionsAvailableReq.newBuilder()
-            .addActions(Action.newBuilder().setActionType(ActionType.Play_add3).setInstanceId(100))
-            .addActions(Action.newBuilder().setActionType(ActionType.Cast).setInstanceId(200))
-            .build()
-        val actionsGre = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.ActionsAvailableReq_695e)
-            .setMsgId(2).setGameStateId(1).addSystemSeatIds(1)
-            .setActionsAvailableReq(actions)
-            .build()
-        acc.process(actionsGre)
+        acc.process(actionsMessage(msgId = 2, gsId = 1) {
+            addActions(Action.newBuilder().setActionType(ActionType.Play_add3).setInstanceId(100))
+            addActions(Action.newBuilder().setActionType(ActionType.Cast).setInstanceId(200))
+        })
 
         val missing = acc.actionInstanceIdsMissingFromObjects()
         assertEquals(missing.size, 1)
         assertEquals(missing[0], 200)
     }
-
-    private fun makeGsGRE(gs: GameStateMessage, msgId: Int): GREToClientMessage =
-        GREToClientMessage.newBuilder()
-            .setType(GREMessageType.GameStateMessage_695e)
-            .setMsgId(msgId)
-            .setGameStateId(gs.gameStateId)
-            .addSystemSeatIds(1)
-            .setGameStateMessage(gs)
-            .build()
 }
