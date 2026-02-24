@@ -14,7 +14,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Handles combat-related client messages and auto-pass combat phase detection.
  *
  * Extracted from [MatchSession] for independent testability.
- * Uses [SessionOps] for counter management, message sending, and tracing.
+ * Uses [SessionOps] for message sending and tracing. Protocol sequencing
+ * uses the shared [MessageCounter][forge.nexus.game.MessageCounter] via
+ * `ops.counter` — no seeding or syncing needed.
  */
 class CombatHandler(private val ops: SessionOps) {
     private val log = LoggerFactory.getLogger(CombatHandler::class.java)
@@ -104,7 +106,7 @@ class CombatHandler(private val ops: SessionOps) {
 
         ops.sendBundledGRE(
             listOf(
-                ops.makeGRE(GREMessageType.SubmitAttackersResp_695e, ops.gameStateId, ops.msgIdCounter++) {
+                ops.makeGRE(GREMessageType.SubmitAttackersResp_695e, ops.counter.currentGsId(), ops.counter.nextMsgId()) {
                     it.submitAttackersResp = SubmitAttackersResp.newBuilder().setResult(ResultCode.Success_a500).build()
                 },
             ),
@@ -116,8 +118,6 @@ class CombatHandler(private val ops: SessionOps) {
         val defenderPlayerId = game?.players
             ?.firstOrNull { it != humanPlayer }?.id
 
-        // Seed BEFORE submit — submitAction unblocks the game thread immediately
-        bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
         bridge.actionBridge.submitAction(
             pending.actionId,
             PlayerAction.DeclareAttackers(attackerCardIds, defenderPlayerId = defenderPlayerId),
@@ -174,14 +174,12 @@ class CombatHandler(private val ops: SessionOps) {
 
         ops.sendBundledGRE(
             listOf(
-                ops.makeGRE(GREMessageType.SubmitBlockersResp_695e, ops.gameStateId, ops.msgIdCounter++) {
+                ops.makeGRE(GREMessageType.SubmitBlockersResp_695e, ops.counter.currentGsId(), ops.counter.nextMsgId()) {
                     it.submitBlockersResp = SubmitBlockersResp.newBuilder().setResult(ResultCode.Success_a500).build()
                 },
             ),
         )
 
-        // Seed BEFORE submit — submitAction unblocks the game thread immediately
-        bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
         bridge.actionBridge.submitAction(
             pending.actionId,
             PlayerAction.DeclareBlockers(blockAssignments),
@@ -227,12 +225,9 @@ class CombatHandler(private val ops: SessionOps) {
                     // Without this, we'd send DeclareBlockersReq before the engine is
                     // ready to accept the response, causing "no pending action" errors.
                     bridge.awaitPriority()
-                    // Sync counters — the engine thread may have captured AI actions
-                    // (via NexusGamePlayback) between the last drainPlayback and now,
-                    // advancing the snapshot's gsId past ops.gameStateId. Without this,
-                    // declareBlockersBundle reads a snapshot with gsId > ops.gameStateId
-                    // and produces a self-referential prevGameStateId.
-                    drainAndSyncPlayback(bridge)
+                    // Drain any pending playback messages — the engine thread may have
+                    // captured AI actions between the last drain and now.
+                    drainPendingPlayback(bridge)
                     ops.traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
                     sendDeclareBlockersReq(bridge)
                     return Signal.STOP
@@ -265,9 +260,7 @@ class CombatHandler(private val ops: SessionOps) {
         req: DeclareAttackersReq? = null,
     ) {
         val game = bridge.getGame() ?: return
-        val result = BundleBuilder.declareAttackersBundle(game, bridge, ops.matchId, ops.seatId, ops.msgIdCounter, ops.gameStateId, req)
-        ops.msgIdCounter = result.nextMsgId
-        ops.gameStateId = result.nextGsId
+        val result = BundleBuilder.declareAttackersBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, req)
 
         val builtReq = result.messages.firstOrNull { it.hasDeclareAttackersReq() }?.declareAttackersReq
         pendingLegalAttackers = builtReq?.attackersList?.map { it.attackerInstanceId } ?: emptyList()
@@ -279,53 +272,32 @@ class CombatHandler(private val ops: SessionOps) {
 
         NexusTap.outboundTemplate("DeclareAttackersReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
-        bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
     }
 
     private fun sendDeclareBlockersReq(bridge: GameBridge) {
         val game = bridge.getGame() ?: return
-        val result = BundleBuilder.declareBlockersBundle(game, bridge, ops.matchId, ops.seatId, ops.msgIdCounter, ops.gameStateId)
-        ops.msgIdCounter = result.nextMsgId
-        ops.gameStateId = result.nextGsId
+        val result = BundleBuilder.declareBlockersBundle(game, bridge, ops.matchId, ops.seatId, ops.counter)
 
         pendingBlockersSent = true
         NexusTap.outboundTemplate("DeclareBlockersReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
-        bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
     }
 
     /**
-     * Drain any pending playback messages and sync ops counters.
+     * Drain any pending playback messages.
      *
      * The engine thread may have captured AI actions (via [NexusGamePlayback])
-     * between the last [AutoPassEngine.drainPlayback] and now, queuing messages
-     * with new gsIds. If we only sync counters but don't send these messages,
-     * the next bundle references a prevGsId the client never received.
+     * between the last drain and now, queuing messages with new gsIds.
+     * With the shared MessageCounter, no counter syncing is needed — just
+     * drain and send.
      */
-    /**
-     * Drain any pending playback messages and sync ops counters.
-     *
-     * The engine thread may have captured AI actions (via [NexusGamePlayback])
-     * between the last [AutoPassEngine] drain and now, queuing messages with
-     * new gsIds. If we only sync counters but don't send these messages,
-     * the next bundle references a prevGsId the client never received.
-     */
-    private fun drainAndSyncPlayback(bridge: GameBridge) {
+    private fun drainPendingPlayback(bridge: GameBridge) {
         val playback = bridge.playback ?: return
         if (playback.hasPendingMessages()) {
             val batches = playback.drainQueue()
             for (batch in batches) {
                 ops.sendBundledGRE(batch) // sendBundledGRE updates lastSentTurnInfo
             }
-        }
-        val (nextMsg, nextGs) = playback.getCounters()
-        if (nextMsg > ops.msgIdCounter) {
-            log.debug("drainAndSyncPlayback: msgId {} → {}", ops.msgIdCounter, nextMsg)
-            ops.msgIdCounter = nextMsg
-        }
-        if (nextGs > ops.gameStateId) {
-            log.debug("drainAndSyncPlayback: gsId {} → {}", ops.gameStateId, nextGs)
-            ops.gameStateId = nextGs
         }
     }
 }

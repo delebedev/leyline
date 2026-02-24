@@ -14,7 +14,9 @@ import org.slf4j.LoggerFactory
  * [CombatHandler] / [TargetingHandler] when interactive prompts arise.
  *
  * Extracted from [MatchSession] for independent testability.
- * Uses [SessionOps] for counter management, message sending, and tracing.
+ * Uses [SessionOps] for message sending and tracing. Protocol sequencing
+ * uses the shared [MessageCounter][forge.nexus.game.MessageCounter] via
+ * `ops.counter` — no seeding or syncing needed.
  */
 class AutoPassEngine(
     private val ops: SessionOps,
@@ -41,7 +43,7 @@ class AutoPassEngine(
             }
 
             // Drain pending AI-action diffs
-            if (drainPlayback(bridge, game)) return@repeat
+            if (drainPlayback(bridge)) return@repeat
 
             val human = bridge.getPlayer(ops.seatId)
             val phase = game.phaseHandler.phase
@@ -80,34 +82,19 @@ class AutoPassEngine(
     /**
      * Drain pending AI-action playback diffs. Returns true if diffs were sent
      * (caller should re-evaluate in next iteration), false if nothing pending.
+     *
+     * With the shared [MessageCounter], no counter syncing is needed — messages
+     * produced by [NexusGamePlayback] already have correct sequence numbers.
      */
-    private fun drainPlayback(bridge: GameBridge, game: Game): Boolean {
+    private fun drainPlayback(bridge: GameBridge): Boolean {
         val playback = bridge.playback ?: return false
-        if (!playback.hasPendingMessages()) {
-            // No queued messages, but the engine thread may have advanced
-            // counters (via NexusGamePlayback.captureAndPause) between
-            // iterations. Sync so ops.gameStateId stays ahead of the
-            // snapshot's gameStateId.
-            val (nextMsg, nextGs) = playback.getCounters()
-            if (nextMsg > ops.msgIdCounter) {
-                log.debug("drainPlayback: sync msgId {} → {}", ops.msgIdCounter, nextMsg)
-                ops.msgIdCounter = nextMsg
-            }
-            if (nextGs > ops.gameStateId) {
-                log.debug("drainPlayback: sync gsId {} → {}", ops.gameStateId, nextGs)
-                ops.gameStateId = nextGs
-            }
-            return false
-        }
+        if (!playback.hasPendingMessages()) return false
         val batches = playback.drainQueue()
         for ((idx, batch) in batches.withIndex()) {
             if (idx > 0) ops.paceDelay(1)
             ops.sendBundledGRE(batch) // sendBundledGRE updates lastSentTurnInfo
         }
-        val (nextMsg, nextGs) = playback.getCounters()
-        log.debug("drainPlayback: drained, counters msgId={} gsId={} (was msgId={} gsId={})", nextMsg, nextGs, ops.msgIdCounter, ops.gameStateId)
-        ops.msgIdCounter = nextMsg
-        ops.gameStateId = nextGs
+        log.debug("drainPlayback: drained {} batches", batches.size)
         // Do NOT snapshot current engine state here — the playback diffs represent
         // an earlier point in time. Snapshotting now would advance the diff baseline
         // past phases the client never saw (e.g. Draw phase skipped by PhaseStopProfile),
@@ -143,18 +130,13 @@ class AutoPassEngine(
             // sends edictal passes during AI turn. Sending them interrupts the
             // client's animation pipeline (enters post-pass "waiting" state).
             if (!isAiTurn) {
-                val edictal = BundleBuilder.edictalPass(ops.seatId, ops.msgIdCounter, ops.gameStateId)
-                ops.msgIdCounter = edictal.nextMsgId
+                val edictal = BundleBuilder.edictalPass(ops.seatId, ops.counter)
                 ops.sendBundledGRE(edictal.messages)
             }
-            // Seed BEFORE submit — submitAction unblocks the game thread immediately
-            // and it may fire events captured by NexusGamePlayback with stale counters.
-            bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
             bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
             bridge.awaitPriority()
         } else if (isAiTurn) {
             ops.traceEvent(GameStateCollector.EventType.AI_TURN_WAIT, game, "waiting for AI")
-            bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
             val reachedPriority = bridge.awaitPriorityWithTimeout(GameBridge.AI_TURN_WAIT_MS)
             if (!reachedPriority) {
                 val g = bridge.getGame()
@@ -171,7 +153,6 @@ class AutoPassEngine(
         } else {
             ops.traceEvent(GameStateCollector.EventType.PRIORITY_GRANT, game, "waiting for engine")
             log.warn("autoPass: no pending action, waiting for priority")
-            bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
             bridge.awaitPriority()
         }
         return Unit

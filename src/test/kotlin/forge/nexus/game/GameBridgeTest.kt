@@ -4,6 +4,7 @@ import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.nexus.config.GameConfig
 import forge.nexus.config.PlaytestConfig
+import forge.nexus.game.MessageCounter
 import forge.web.game.GameBootstrap
 import forge.web.game.PlayerAction
 import org.testng.Assert
@@ -268,7 +269,7 @@ class GameBridgeTest {
         advanceToMain1(b)
 
         val game = b.getGame()!!
-        val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, 1, 10)
+        val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
         val messages = result.messages
 
         // Bundle has exactly 5 GRE messages (phaseTransitionDiff pattern)
@@ -357,7 +358,7 @@ class GameBridgeTest {
         b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(landInHand.id))
         awaitFreshPending(b, pending.actionId)
 
-        val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, 10)
+        val result = BundleBuilder.postAction(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
         val gs = result.messages.first().gameStateMessage
         val actions = result.messages.last().actionsAvailableReq
 
@@ -414,7 +415,7 @@ class GameBridgeTest {
         advanceToMain1(b)
 
         val game = b.getGame()!!
-        val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, 1, 10)
+        val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
 
         Assert.assertEquals(result.messages.size, 5, "Phase transition should emit 5 messages")
 
@@ -503,7 +504,7 @@ class GameBridgeTest {
         advanceToMain1(b)
 
         val game = b.getGame()!!
-        val result = BundleBuilder.declareAttackersBundle(game, b, "test-match", 1, 1, 10)
+        val result = BundleBuilder.declareAttackersBundle(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
 
         Assert.assertEquals(result.messages.size, 2, "Attackers bundle should have 2 messages")
         assertEquals(
@@ -533,7 +534,7 @@ class GameBridgeTest {
         advanceToMain1(b)
 
         val game = b.getGame()!!
-        val result = BundleBuilder.declareBlockersBundle(game, b, "test-match", 1, 1, 10)
+        val result = BundleBuilder.declareBlockersBundle(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
 
         Assert.assertEquals(result.messages.size, 2, "Blockers bundle should have 2 messages")
         assertEquals(
@@ -578,7 +579,7 @@ class GameBridgeTest {
         advanceToMain1(b)
 
         val game = b.getGame()!!
-        val result = BundleBuilder.selectTargetsBundle(game, b, "test-match", 1, 1, 10, req)
+        val result = BundleBuilder.selectTargetsBundle(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0), req)
 
         assertEquals(result.messages.size, 2, "Targets bundle should have 2 messages")
         assertEquals(
@@ -602,7 +603,7 @@ class GameBridgeTest {
             .setGameStateId(42)
             .build()
 
-        val msg = BundleBuilder.queuedGameState(gs, 2, 10, 42)
+        val msg = BundleBuilder.queuedGameState(gs, 2, MessageCounter(initialGsId = 42, initialMsgId = 9))
 
         assertEquals(
             msg.type,
@@ -801,7 +802,7 @@ class GameBridgeTest {
         advanceToMain1(b)
 
         val game = b.getGame()!!
-        val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, 1, 10)
+        val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
 
         var prevGsId = 0
         for (msg in result.messages) {
@@ -909,7 +910,7 @@ class GameBridgeTest {
         // Seed snapshot — subsequent buildDiffFromGame should produce Diff
         b.snapshotFromGame(game)
 
-        val result = BundleBuilder.postAction(game, b, "test-match", 1, 1, 10)
+        val result = BundleBuilder.postAction(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
         val gs = result.messages.first().gameStateMessage
 
         assertEquals(

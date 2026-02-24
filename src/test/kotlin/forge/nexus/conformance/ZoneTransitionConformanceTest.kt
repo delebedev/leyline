@@ -8,6 +8,7 @@ import forge.game.player.Player
 import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
+import forge.nexus.game.MessageCounter
 import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertFalse
@@ -62,23 +63,22 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     /**
      * Capture a diff after a forced zone transition.
-     * Takes a snapshot, runs [action], then builds a postAction bundle.
+     * Takes a snapshot, runs [action], then builds a stateOnlyDiff.
      */
     private fun captureAfterAction(
         b: GameBridge,
         game: Game,
-        gsId: Int,
+        counter: MessageCounter,
         action: () -> Unit,
     ): GameStateMessage {
-        b.snapshotFromGame(game, gsId)
+        b.snapshotFromGame(game, counter.currentGsId())
         action()
         val result = BundleBuilder.stateOnlyDiff(
             game,
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            gsId,
+            counter,
         )
         return result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
     }
@@ -136,7 +136,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun handToBattlefieldPlayLand() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val player = human(b)
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
             ?: error("No land in hand")
@@ -144,7 +144,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val forgeCardId = land.id
 
         playLand(b)
-        val gsm = postAction(game, b, 1, gsId).gsmOrNull ?: error("No GSM after play land")
+        val gsm = postAction(game, b, counter).gsmOrNull ?: error("No GSM after play land")
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
         // Category = PlayLand
@@ -171,9 +171,9 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun handToStackCastSpell() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         playLand(b) // need mana
-        b.snapshotFromGame(game, gsId + 1)
+        b.snapshotFromGame(game)
 
         val player = human(b)
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
@@ -182,7 +182,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val forgeCardId = creature.id
 
         castCreature(b)
-        val gsm = postAction(game, b, 1, gsId + 1).gsmOrNull ?: error("No GSM after cast")
+        val gsm = postAction(game, b, counter).gsmOrNull ?: error("No GSM after cast")
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
         val zt = findZoneTransfer(gsm, newId)
@@ -202,9 +202,9 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun stackToBattlefieldResolve() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         playLand(b)
-        b.snapshotFromGame(game, gsId + 1)
+        b.snapshotFromGame(game)
 
         val player = human(b)
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
@@ -212,22 +212,19 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val forgeCardId = creature.id
 
         castCreature(b)
-        val castResult = postAction(game, b, 1, gsId + 1)
-        b.snapshotFromGame(game, castResult.nextGsId)
+        postAction(game, b, counter)
+        b.snapshotFromGame(game)
         val stackId = b.getOrAllocInstanceId(forgeCardId)
 
         // Resolve by passing priority
         passPriority(b)
-        val gsm = postAction(game, b, 1, castResult.nextGsId).gsmOrNull ?: error("No GSM after resolve")
+        val gsm = postAction(game, b, counter).gsmOrNull ?: error("No GSM after resolve")
         val resolvedId = b.getOrAllocInstanceId(forgeCardId)
 
         val zt = findZoneTransfer(gsm, resolvedId)
         assertNotNull(zt, "Should have ZoneTransfer for resolve")
         assertEquals(zt!!.category, "Resolve")
 
-        // Stack→BF keeps instanceId (per spec)
-        // Note: in practice Forge may or may not realloc here depending on engine behavior
-        // The important assertion is the category
         assertTrue(hasEnteredZoneThisTurn(gsm, resolvedId), "BF destination should have EnteredZoneThisTurn")
     }
 
@@ -237,12 +234,12 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun battlefieldToGraveyardDestroy() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val origId = b.getOrAllocInstanceId(creature.id)
         val forgeCardId = creature.id
 
-        val gsm = captureAfterAction(b, game, gsId + 10) {
+        val gsm = captureAfterAction(b, game, counter) {
             game.action.destroy(creature, null, false, AbilityKey.newMap())
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -263,12 +260,12 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun battlefieldToGraveyardSacrifice() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val origId = b.getOrAllocInstanceId(creature.id)
         val forgeCardId = creature.id
 
-        val gsm = captureAfterAction(b, game, gsId + 10) {
+        val gsm = captureAfterAction(b, game, counter) {
             // Fire the sacrifice event manually and move to GY.
             // game.action.sacrifice() NPEs without a full SpellAbility context,
             // so we fire the event + zone change separately.
@@ -291,12 +288,12 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun battlefieldToExile() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val origId = b.getOrAllocInstanceId(creature.id)
         val forgeCardId = creature.id
 
-        val gsm = captureAfterAction(b, game, gsId + 10) {
+        val gsm = captureAfterAction(b, game, counter) {
             game.action.exile(creature, null, AbilityKey.newMap())
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -315,12 +312,12 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun battlefieldToHandBounce() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val origId = b.getOrAllocInstanceId(creature.id)
         val forgeCardId = creature.id
 
-        val gsm = captureAfterAction(b, game, gsId + 10) {
+        val gsm = captureAfterAction(b, game, counter) {
             game.action.moveToHand(creature, null)
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -339,14 +336,14 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun libraryToHandDraw() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val player = human(b)
         val topCard = player.getZone(ZoneType.Library).cards.firstOrNull()
             ?: error("Library empty")
         val forgeCardId = topCard.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
-        val gsm = captureAfterAction(b, game, gsId + 10) {
+        val gsm = captureAfterAction(b, game, counter) {
             player.drawCard()
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -362,14 +359,14 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun handToGraveyardDiscard() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val player = human(b)
         val cardInHand = player.getZone(ZoneType.Hand).cards.firstOrNull()
             ?: error("Hand empty")
         val forgeCardId = cardInHand.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
-        val gsm = captureAfterAction(b, game, gsId + 10) {
+        val gsm = captureAfterAction(b, game, counter) {
             player.discard(cardInHand, null, false, AbilityKey.newMap())
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -385,14 +382,14 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun libraryToGraveyardMill() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val player = human(b)
         val topCard = player.getZone(ZoneType.Library).cards.firstOrNull()
             ?: error("Library empty")
         val forgeCardId = topCard.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
-        val gsm = captureAfterAction(b, game, gsId + 10) {
+        val gsm = captureAfterAction(b, game, counter) {
             game.action.moveToGraveyard(topCard, null)
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -408,13 +405,13 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun libraryToExile() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val player = human(b)
         val topCard = player.getZone(ZoneType.Library).cards.firstOrNull()
             ?: error("Library empty")
         val forgeCardId = topCard.id
 
-        val gsm = captureAfterAction(b, game, gsId + 10) {
+        val gsm = captureAfterAction(b, game, counter) {
             game.action.exile(topCard, null, AbilityKey.newMap())
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -430,13 +427,13 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun exileToBattlefield() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val forgeCardId = creature.id
 
         // First exile the creature
         game.action.exile(creature, null, AbilityKey.newMap())
-        b.snapshotFromGame(game, gsId + 10)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Find the exiled card (may be a new Card object after zone change)
         val player = human(b)
@@ -446,7 +443,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
             ?: error("No creature in exile")
         val exileId = b.getOrAllocInstanceId(exiled.id)
 
-        val gsm = captureAfterAction(b, game, gsId + 11) {
+        val gsm = captureAfterAction(b, game, counter) {
             game.action.moveToPlay(exiled, null, AbilityKey.newMap())
         }
         val newId = b.getOrAllocInstanceId(exiled.id)
@@ -464,20 +461,20 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun graveyardToBattlefield() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val forgeCardId = creature.id
 
         // First destroy the creature to put it in GY
         game.action.destroy(creature, null, false, AbilityKey.newMap())
-        b.snapshotFromGame(game, gsId + 10)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         val player = human(b)
         val inGY = player.getZone(ZoneType.Graveyard).cards.firstOrNull { it.isCreature }
             ?: error("No creature in graveyard")
         val gyId = b.getOrAllocInstanceId(inGY.id)
 
-        val gsm = captureAfterAction(b, game, gsId + 11) {
+        val gsm = captureAfterAction(b, game, counter) {
             game.action.moveToPlay(inGY, null, AbilityKey.newMap())
         }
         val newId = b.getOrAllocInstanceId(inGY.id)
@@ -493,19 +490,19 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun graveyardToHand() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val forgeCardId = creature.id
 
         // First destroy to put in GY
         game.action.destroy(creature, null, false, AbilityKey.newMap())
-        b.snapshotFromGame(game, gsId + 10)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         val player = human(b)
         val inGY = player.getZone(ZoneType.Graveyard).cards.firstOrNull { it.isCreature }
             ?: error("No creature in graveyard")
 
-        val gsm = captureAfterAction(b, game, gsId + 11) {
+        val gsm = captureAfterAction(b, game, counter) {
             game.action.moveToHand(inGY, null)
         }
         val newId = b.getOrAllocInstanceId(inGY.id)
@@ -520,14 +517,14 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun handToExile() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val player = human(b)
         val cardInHand = player.getZone(ZoneType.Hand).cards.firstOrNull()
             ?: error("Hand empty")
         val forgeCardId = cardInHand.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
-        val gsm = captureAfterAction(b, game, gsId + 10) {
+        val gsm = captureAfterAction(b, game, counter) {
             game.action.exile(cardInHand, null, AbilityKey.newMap())
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -547,10 +544,10 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun counterAddedProducesAnnotation() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
 
-        val gsm = captureAfterAction(b, game, gsId + 10) {
+        val gsm = captureAfterAction(b, game, counter) {
             creature.addCounterInternal(CounterEnumType.P1P1, 2, human(b), true, null, AbilityKey.newMap())
         }
 
@@ -572,15 +569,15 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun counterRemovedProducesAnnotation() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
 
         // First add counters
         creature.addCounterInternal(CounterEnumType.P1P1, 3, human(b), true, null, AbilityKey.newMap())
-        b.snapshotFromGame(game, gsId + 10)
+        b.snapshotFromGame(game, counter.currentGsId())
         b.drainEvents() // clear counter-add events
 
-        val gsm = captureAfterAction(b, game, gsId + 11) {
+        val gsm = captureAfterAction(b, game, counter) {
             creature.subtractCounter(CounterEnumType.P1P1, 2, human(b))
         }
 
@@ -598,10 +595,10 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     @Test
     fun shuffleProducesAnnotation() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val player = human(b)
 
-        val gsm = captureAfterAction(b, game, gsId + 10) {
+        val gsm = captureAfterAction(b, game, counter) {
             player.shuffle(null)
         }
 

@@ -126,10 +126,10 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
 
     @Test(description = "ActionsAvailableReq in postAction bundle matches direct buildActions")
     fun postActionBundleContainsActions() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         playLand(b) ?: error("playLand failed at seed 42")
 
-        val result = postAction(game, b, 1, gsId)
+        val result = postAction(game, b, counter)
 
         val aar = result.aarOrNull
         assertTrue(aar != null, "postAction bundle should contain ActionsAvailableReq")
@@ -148,10 +148,10 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
 
     @Test(description = "GSM embedded actions are stripped (no grpId/facetId/shouldStop/autoTapSolution)")
     fun gsmEmbeddedActionsStripped() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         playLand(b) ?: error("playLand failed at seed 42")
 
-        val gsm = postAction(game, b, 1, gsId).gsmOrNull ?: error("No GSM in post-action result")
+        val gsm = postAction(game, b, counter).gsmOrNull ?: error("No GSM in post-action result")
 
         for (actionInfo in gsm.actionsList) {
             val a = actionInfo.action

@@ -5,62 +5,77 @@ import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 
 /**
- * Counter invariants for [NexusGamePlayback].
+ * Counter invariants for [MessageCounter].
  *
- * The playback's atomic counters are written by two threads:
- *   - Game thread: captureAndPause increments after building each bundle
- *   - Handler thread: seedCounters sets values before unblocking the game thread
+ * The shared counter is accessed by two threads:
+ *   - Game thread: NexusGamePlayback.captureAndPause calls nextMsgId/nextGsId
+ *   - Handler thread: BundleBuilder methods call nextMsgId/nextGsId
  *
- * Seeding with a stale value must never clobber a counter that the game thread
- * already advanced — otherwise gsIds collide and the client drops state.
+ * AtomicInteger guarantees no duplicates. These tests verify the basic
+ * contract and thread safety model.
  */
 @Test(groups = ["unit"])
 class NexusGamePlaybackCounterTest {
 
-    /**
-     * seedCounters must not overwrite a counter that already advanced past the
-     * seeded value. This is the root cause of gsId collisions during AI turns:
-     *
-     *   1. Game thread fires TurnBegan → captureAndPause → atomics advance to N
-     *   2. Handler drains, syncs local to N
-     *   3. Game thread fires TurnPhase → captureAndPause → atomics advance to N+4
-     *   4. Handler re-seeds with N (stale!) → clobbers N+4
-     *   5. Next captureAndPause reads N → produces gsIds that already exist
-     */
-    @Test(description = "seedCounters with stale value must not clobber advanced counter")
-    fun seedCountersDoesNotClobberAdvancedValue() {
-        val playback = NexusGamePlayback(
-            bridge = GameBridge(),
-            matchId = "test",
-            seatId = 1,
-        )
-
-        // Simulate: game thread advanced counters to 20
-        playback.seedCounters(msgId = 20, gsId = 20)
-        assertEquals(playback.getCounters(), 20 to 20)
-
-        // Simulate: handler tries to re-seed with stale value (15)
-        playback.seedCounters(msgId = 15, gsId = 15)
-
-        // Counter must NOT go backwards
-        val (msgId, gsId) = playback.getCounters()
-        assertTrue(msgId >= 20, "msgId went backwards: $msgId < 20")
-        assertTrue(gsId >= 20, "gsId went backwards: $gsId < 20")
+    @Test(description = "MessageCounter nextGsId increments atomically")
+    fun nextGsIdIncrements() {
+        val counter = MessageCounter(initialGsId = 10, initialMsgId = 1)
+        assertEquals(counter.nextGsId(), 11)
+        assertEquals(counter.nextGsId(), 12)
+        assertEquals(counter.currentGsId(), 12)
     }
 
-    @Test(description = "seedCounters with higher value advances counter normally")
-    fun seedCountersAdvancesWithHigherValue() {
-        val playback = NexusGamePlayback(
-            bridge = GameBridge(),
-            matchId = "test",
-            seatId = 1,
-        )
+    @Test(description = "MessageCounter nextMsgId increments atomically")
+    fun nextMsgIdIncrements() {
+        val counter = MessageCounter(initialGsId = 0, initialMsgId = 5)
+        assertEquals(counter.nextMsgId(), 6)
+        assertEquals(counter.nextMsgId(), 7)
+        assertEquals(counter.currentMsgId(), 7)
+    }
 
-        playback.seedCounters(msgId = 10, gsId = 10)
-        playback.seedCounters(msgId = 20, gsId = 20)
+    @Test(description = "Concurrent access produces unique IDs")
+    fun concurrentAccessProducesUniqueIds() {
+        val counter = MessageCounter(initialGsId = 0, initialMsgId = 0)
+        val iterations = 10_000
+        val ids = java.util.concurrent.ConcurrentLinkedQueue<Int>()
 
-        val (msgId, gsId) = playback.getCounters()
-        assertEquals(msgId, 20)
-        assertEquals(gsId, 20)
+        val t1 = Thread { repeat(iterations) { ids.add(counter.nextGsId()) } }
+        val t2 = Thread { repeat(iterations) { ids.add(counter.nextGsId()) } }
+
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        val all = ids.toList()
+        assertEquals(all.size, iterations * 2, "Should have ${iterations * 2} IDs total")
+        assertEquals(all.toSet().size, all.size, "All IDs should be unique (no duplicates)")
+        assertEquals(counter.currentGsId(), iterations * 2, "Final counter should be ${iterations * 2}")
+    }
+
+    @Test(description = "setGsId and setMsgId work for handshake setup")
+    fun settersWork() {
+        val counter = MessageCounter()
+        counter.setGsId(42)
+        counter.setMsgId(99)
+        assertEquals(counter.currentGsId(), 42)
+        assertEquals(counter.currentMsgId(), 99)
+        assertEquals(counter.nextGsId(), 43)
+        assertEquals(counter.nextMsgId(), 100)
+    }
+
+    @Test(description = "NexusGamePlayback uses shared counter (no local atomics)")
+    fun playbackUsesSharedCounter() {
+        val counter = MessageCounter(initialGsId = 10, initialMsgId = 20)
+        val bridge = GameBridge(messageCounter = counter)
+        val playback = NexusGamePlayback(bridge, "test", 1, counter)
+
+        // Playback queue is accessible
+        assertTrue(playback.drainQueue().isEmpty())
+        assertTrue(!playback.hasPendingMessages())
+
+        // Counter is shared — advancing from outside is visible
+        assertEquals(counter.nextGsId(), 11)
+        assertEquals(counter.currentGsId(), 11)
     }
 }

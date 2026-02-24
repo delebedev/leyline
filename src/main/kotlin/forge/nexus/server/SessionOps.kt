@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.nexus.debug.GameStateCollector
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
+import forge.nexus.game.MessageCounter
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -16,8 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 interface SessionOps {
     val seatId: Int
     val matchId: String
-    var msgIdCounter: Int
-    var gameStateId: Int
+    val counter: MessageCounter
 
     fun sendBundledGRE(messages: List<GREToClientMessage>)
     fun sendRealGameState(bridge: GameBridge)

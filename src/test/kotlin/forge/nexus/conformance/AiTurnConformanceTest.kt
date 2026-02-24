@@ -23,11 +23,10 @@ class AiTurnConformanceTest : ConformanceTestBase() {
 
     @Test(description = "AI turn produces per-action diffs via EventBus playback")
     fun aiTurnProducesPerActionDiffs() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
-        // Playback is registered in GameBridge.start()
+        // Playback is registered in GameBridge.start() with the shared counter
         val playback = checkNotNull(b.playback) { "NexusGamePlayback should be registered" }
-        playback.seedCounters(1, gsId)
 
         // Play a land to have mana, then snapshot
         playLand(b) ?: error("playLand failed at seed 42")
@@ -88,10 +87,9 @@ class AiTurnConformanceTest : ConformanceTestBase() {
      */
     @Test(description = "AI action diffs contain ZoneTransfer annotations (Sparky visibility)")
     fun aiActionDiffsContainZoneTransferAnnotations() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
         val playback = checkNotNull(b.playback) { "NexusGamePlayback should be registered" }
-        playback.seedCounters(1, gsId)
 
         // Play a land so AI has something to respond to, then snapshot
         playLand(b) ?: error("playLand failed at seed 42")

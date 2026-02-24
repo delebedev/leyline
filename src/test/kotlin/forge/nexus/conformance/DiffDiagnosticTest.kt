@@ -20,15 +20,15 @@ class DiffDiagnosticTest : ConformanceTestBase() {
 
     @Test(description = "Diff after land play has correct GSM type, zones, and annotations")
     fun landPlayDiffStructure() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
-        val startResult = gameStart(game, b, 1, gsId)
+        gameStart(game, b, counter)
         b.snapshotFromGame(game)
-        val firstDiff = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
+        postAction(game, b, counter)
 
         playLand(b) ?: error("playLand failed at seed 42")
 
-        val result = postAction(game, b, firstDiff.nextMsgId, firstDiff.nextGsId)
+        val result = postAction(game, b, counter)
         val gsm = result.gsm
 
         assertEquals(gsm.type, GameStateType.Diff, "Post-action GSM should be Diff type")
@@ -53,16 +53,16 @@ class DiffDiagnosticTest : ConformanceTestBase() {
 
     @Test(description = "Cast creature -> pass -> resolve tracks zone placement correctly")
     fun castCreatureResolveFlow() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val acc = ClientAccumulator()
-        acc.seedFull(handshakeFull(game, b, gsId))
+        acc.seedFull(handshakeFull(game, b, counter.currentGsId()))
 
-        val startResult = gameStart(game, b, 1, gsId)
+        val startResult = gameStart(game, b, counter)
         acc.processAll(startResult.messages)
         b.snapshotFromGame(game)
 
         playLand(b) ?: error("playLand failed at seed 42")
-        val afterLand = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
+        val afterLand = postAction(game, b, counter)
         acc.processAll(afterLand.messages)
 
         val player = b.getPlayer(1)!!
@@ -71,7 +71,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         val creatureForgeId = creature.id
 
         castCreature(b) ?: error("castCreature failed at seed 42")
-        val afterCast = postAction(game, b, afterLand.nextMsgId, afterLand.nextGsId)
+        val afterCast = postAction(game, b, counter)
         acc.processAll(afterCast.messages)
 
         val creatureNewId = b.getOrAllocInstanceId(creatureForgeId)
@@ -85,7 +85,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
             assertEquals(creatureObj.zoneId, ZoneIds.STACK, "Creature should be on Stack while on stack")
 
             passPriority(b)
-            val afterPass = postAction(game, b, afterCast.nextMsgId, afterCast.nextGsId)
+            val afterPass = postAction(game, b, counter)
             acc.processAll(afterPass.messages)
 
             val resolved = checkNotNull(acc.objects[creatureNewId]) { "Creature should still exist after resolve" }
@@ -101,10 +101,10 @@ class DiffDiagnosticTest : ConformanceTestBase() {
 
     @Test(description = "Resolve (Stack->BF) does NOT realloc instanceId")
     fun resolveKeepsInstanceId() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
         playLand(b) ?: error("playLand failed at seed 42")
-        val afterLand = postAction(game, b, 1, gsId)
+        postAction(game, b, counter)
 
         val player = b.getPlayer(1)!!
         val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature }
@@ -112,12 +112,12 @@ class DiffDiagnosticTest : ConformanceTestBase() {
         val creatureForgeId = creature.id
 
         castCreature(b) ?: error("castCreature failed at seed 42")
-        val afterCast = postAction(game, b, afterLand.nextMsgId, afterLand.nextGsId)
+        postAction(game, b, counter)
         val castId = b.getOrAllocInstanceId(creatureForgeId)
 
         if (!game.stack.isEmpty) {
             passPriority(b)
-            postAction(game, b, afterCast.nextMsgId, afterCast.nextGsId)
+            postAction(game, b, counter)
         }
 
         val resolvedId = b.getOrAllocInstanceId(creatureForgeId)
@@ -126,9 +126,9 @@ class DiffDiagnosticTest : ConformanceTestBase() {
 
     @Test(description = "aiActionDiff produces BF objects for AI land play")
     fun aiActionDiffContainsBattlefieldObjects() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
-        val startResult = gameStart(game, b, 1, gsId)
+        gameStart(game, b, counter)
         b.snapshotFromGame(game)
 
         playLand(b) ?: error("playLand failed at seed 42")
@@ -138,8 +138,7 @@ class DiffDiagnosticTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            startResult.nextMsgId,
-            startResult.nextGsId,
+            counter,
         )
 
         val gsm = aiResult.gsm

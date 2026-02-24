@@ -7,14 +7,12 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Pure functions that build GRE message bundles for each flow milestone.
  *
  * No side effects, no Netty, no mutable handler state — takes everything as params,
- * returns messages + updated counters. Handler sends them; tests assert on them.
+ * returns messages. The shared [MessageCounter] advances atomically on each call.
  */
 object BundleBuilder {
 
     data class BundleResult(
         val messages: List<GREToClientMessage>,
-        val nextMsgId: Int,
-        val nextGsId: Int,
     )
 
     /**
@@ -27,13 +25,9 @@ object BundleBuilder {
         bridge: GameBridge,
         matchId: String,
         seatId: Int,
-        msgId: Int,
-        gsId: Int,
+        counter: MessageCounter,
     ): BundleResult {
-        var nextMsg = msgId
-        var nextGs = gsId
-
-        nextGs++
+        val nextGs = counter.nextGsId()
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
@@ -67,16 +61,16 @@ object BundleBuilder {
         val gs = StateMapper.embedActions(gsWithPhaseAnnotation, actions, game, bridge, recipientSeatId = seatId)
 
         val messages = listOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
                 it.gameStateMessage = gs
             },
-            makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, seatId, nextMsg++) {
+            makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, seatId, counter.nextMsgId()) {
                 it.actionsAvailableReq = actions
                 it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
             },
         )
 
-        return BundleResult(messages, nextMsg, nextGs)
+        return BundleResult(messages)
     }
 
     /**
@@ -89,22 +83,20 @@ object BundleBuilder {
         bridge: GameBridge,
         matchId: String,
         seatId: Int,
-        msgId: Int,
-        gsId: Int,
+        counter: MessageCounter,
     ): BundleResult {
-        var nextMsg = msgId
-        val nextGs = gsId + 1
+        val nextGs = counter.nextGsId()
 
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
 
         val messages = listOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
                 it.gameStateMessage = gs
             },
         )
 
-        return BundleResult(messages, nextMsg, nextGs)
+        return BundleResult(messages)
     }
 
     /**
@@ -120,21 +112,18 @@ object BundleBuilder {
         bridge: GameBridge,
         matchId: String,
         seatId: Int,
-        msgId: Int,
-        gsId: Int,
+        counter: MessageCounter,
         phaseChanged: Boolean = false,
         turnStarted: Boolean = false,
     ): BundleResult {
-        var nextMsg = msgId
-        var nextGs = gsId
-
         val handler = game.phaseHandler
         val human = bridge.getPlayer(1)
         val activeSeat = if (handler.playerTurn == human) 1 else 2
+        val nextGs = counter.nextGsId()
         // Build state first (triggers instanceId realloc), then actions with new IDs
         val gsBase = StateMapper.buildDiffFromGame(
             game,
-            ++nextGs,
+            nextGs,
             matchId,
             bridge,
             updateType = GameStateUpdate.SendHiFi,
@@ -182,12 +171,12 @@ object BundleBuilder {
         }
 
         val messages = listOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
                 it.gameStateMessage = gs.build()
             },
         )
 
-        return BundleResult(messages, nextMsg, nextGs)
+        return BundleResult(messages)
     }
 
     /**
@@ -250,11 +239,10 @@ object BundleBuilder {
         bridge: GameBridge,
         matchId: String,
         seatId: Int,
-        msgId: Int,
-        gsId: Int,
+        counter: MessageCounter,
     ): BundleResult {
-        var nextMsg = msgId
-        var nextGs = gsId + 1
+        val prevGs = counter.currentGsId()
+        val nextGs = counter.nextGsId()
 
         val phase = PlayerMapper.mapPhase(game.phaseHandler.phase)
         val step = PlayerMapper.mapStep(game.phaseHandler.phase)
@@ -280,7 +268,7 @@ object BundleBuilder {
         val gs1 = StateMapper.buildTransitionState(
             game,
             nextGs,
-            prevGameStateId = gsId,
+            prevGameStateId = prevGs,
             matchId,
             bridge,
             phase,
@@ -289,31 +277,30 @@ object BundleBuilder {
             actions = actions,
             actionSeatId = seatId,
         )
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
             it.gameStateMessage = gs1
         }
 
         // Message 2: SendHiFi echo (turnInfo + actions, no annotations)
         val msg1GsId = nextGs
-        nextGs++
+        val echoGs = counter.nextGsId()
         val echoBuilder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
-            .setGameStateId(nextGs)
+            .setGameStateId(echoGs)
             .setPrevGameStateId(msg1GsId)
             .setTurnInfo(turnInfo)
             .setUpdate(GameStateUpdate.SendHiFi)
         embedActions(echoBuilder, actions, seatId, pending = false)
-        val msg2 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+        val msg2 = makeGRE(GREMessageType.GameStateMessage_695e, echoGs, seatId, counter.nextMsgId()) {
             it.gameStateMessage = echoBuilder.build()
         }
 
         // Message 3: SendAndRecord with 1x PhaseOrStepModified
-        val msg2GsId = nextGs
-        nextGs++
+        val commitGs = counter.nextGsId()
         val commitBuilder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
-            .setGameStateId(nextGs)
-            .setPrevGameStateId(msg2GsId)
+            .setGameStateId(commitGs)
+            .setPrevGameStateId(echoGs)
             .setTurnInfo(turnInfo)
             .addAnnotations(
                 AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)
@@ -322,22 +309,22 @@ object BundleBuilder {
             .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(GameStateUpdate.SendAndRecord)
         embedActions(commitBuilder, actions, seatId)
-        val msg3 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+        val msg3 = makeGRE(GREMessageType.GameStateMessage_695e, commitGs, seatId, counter.nextMsgId()) {
             it.gameStateMessage = commitBuilder.build()
         }
 
         // Message 4: PromptReq (promptId=37)
-        val msg4 = makeGRE(GREMessageType.PromptReq, nextGs, seatId, nextMsg++) {
+        val msg4 = makeGRE(GREMessageType.PromptReq, commitGs, seatId, counter.nextMsgId()) {
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.STARTING_PLAYER).build())
         }
 
         // Message 5: ActionsAvailableReq (promptId=2)
-        val msg5 = makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, seatId, nextMsg++) {
+        val msg5 = makeGRE(GREMessageType.ActionsAvailableReq_695e, commitGs, seatId, counter.nextMsgId()) {
             it.actionsAvailableReq = actions
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
         }
 
-        return BundleResult(listOf(msg1, msg2, msg3, msg4, msg5), nextMsg, nextGs)
+        return BundleResult(listOf(msg1, msg2, msg3, msg4, msg5))
     }
 
     /** Embed stripped-down actions from ActionsAvailableReq into a GSM builder. */
@@ -365,26 +352,24 @@ object BundleBuilder {
         bridge: GameBridge,
         matchId: String,
         seatId: Int,
-        msgId: Int,
-        gsId: Int,
+        counter: MessageCounter,
         prebuiltReq: DeclareAttackersReq? = null,
     ): BundleResult {
-        var nextMsg = msgId
-        var nextGs = gsId + 1
+        val nextGs = counter.nextGsId()
 
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
 
         val req = prebuiltReq ?: StateMapper.buildDeclareAttackersReq(game, seatId, bridge)
-        val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, seatId, nextMsg++) {
+        val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.declareAttackersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
         }
 
-        return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)
+        return BundleResult(listOf(msg1, msg2))
     }
 
     /**
@@ -395,25 +380,23 @@ object BundleBuilder {
         bridge: GameBridge,
         matchId: String,
         seatId: Int,
-        msgId: Int,
-        gsId: Int,
+        counter: MessageCounter,
     ): BundleResult {
-        var nextMsg = msgId
-        var nextGs = gsId + 1
+        val nextGs = counter.nextGsId()
 
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
 
         val req = StateMapper.buildDeclareBlockersReq(game, seatId, bridge)
-        val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, seatId, nextMsg++) {
+        val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.declareBlockersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
         }
 
-        return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)
+        return BundleResult(listOf(msg1, msg2))
     }
 
     /**
@@ -424,25 +407,23 @@ object BundleBuilder {
         bridge: GameBridge,
         matchId: String,
         seatId: Int,
-        msgId: Int,
-        gsId: Int,
+        counter: MessageCounter,
         req: SelectTargetsReq,
     ): BundleResult {
-        var nextMsg = msgId
-        var nextGs = gsId + 1
+        val nextGs = counter.nextGsId()
 
         // Interactive prompts use Send updateType (not SendAndRecord/SendHiFi)
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId)
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
 
-        val msg2 = makeGRE(GREMessageType.SelectTargetsReq_695e, nextGs, seatId, nextMsg++) {
+        val msg2 = makeGRE(GREMessageType.SelectTargetsReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.selectTargetsReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DISTRIBUTE_DAMAGE).build())
         }
 
-        return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)
+        return BundleResult(listOf(msg1, msg2))
     }
 
     /**
@@ -454,24 +435,22 @@ object BundleBuilder {
         bridge: GameBridge,
         matchId: String,
         seatId: Int,
-        msgId: Int,
-        gsId: Int,
+        counter: MessageCounter,
         req: SelectNReq,
     ): BundleResult {
-        var nextMsg = msgId
-        var nextGs = gsId + 1
+        val nextGs = counter.nextGsId()
 
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId)
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
 
-        val msg2 = makeGRE(GREMessageType.SelectNreq, nextGs, seatId, nextMsg++) {
+        val msg2 = makeGRE(GREMessageType.SelectNreq, nextGs, seatId, counter.nextMsgId()) {
             it.selectNReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
         }
 
-        return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)
+        return BundleResult(listOf(msg1, msg2))
     }
 
     /**
@@ -489,24 +468,22 @@ object BundleBuilder {
         bridge: GameBridge,
         matchId: String,
         seatId: Int,
-        msgId: Int,
-        gsId: Int,
+        counter: MessageCounter,
         req: PayCostsReq,
     ): BundleResult {
-        var nextMsg = msgId
-        var nextGs = gsId + 1
+        val nextGs = counter.nextGsId()
 
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId)
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
 
-        val msg2 = makeGRE(GREMessageType.PayCostsReq_695e, nextGs, seatId, nextMsg++) {
+        val msg2 = makeGRE(GREMessageType.PayCostsReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.payCostsReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
         }
 
-        return BundleResult(listOf(msg1, msg2), nextMsg, nextGs)
+        return BundleResult(listOf(msg1, msg2))
     }
 
     /**
@@ -515,9 +492,8 @@ object BundleBuilder {
     fun queuedGameState(
         gameState: GameStateMessage,
         seatId: Int,
-        msgId: Int,
-        gsId: Int,
-    ): GREToClientMessage = makeGRE(GREMessageType.QueuedGameStateMessage, gsId, seatId, msgId) {
+        counter: MessageCounter,
+    ): GREToClientMessage = makeGRE(GREMessageType.QueuedGameStateMessage, counter.currentGsId(), seatId, counter.nextMsgId()) {
         it.gameStateMessage = gameState
     }
 
@@ -525,7 +501,7 @@ object BundleBuilder {
      * Server-forced pass (EdictalMessage). Tells the client "I'm passing priority for seat X".
      * Breaks the client out of autoPassPriority mode so it re-renders action buttons.
      */
-    fun edictalPass(seatId: Int, msgId: Int, gsId: Int): BundleResult {
+    fun edictalPass(seatId: Int, counter: MessageCounter): BundleResult {
         val edictal = EdictalMessage.newBuilder()
             .setEdictMessage(
                 ClientToGREMessage.newBuilder()
@@ -537,10 +513,10 @@ object BundleBuilder {
                     ),
             )
             .build()
-        val msg = makeGRE(GREMessageType.EdictalMessage_695e, gsId, seatId, msgId) {
+        val msg = makeGRE(GREMessageType.EdictalMessage_695e, counter.currentGsId(), seatId, counter.nextMsgId()) {
             it.edictalMessage = edictal
         }
-        return BundleResult(listOf(msg), msgId + 1, gsId)
+        return BundleResult(listOf(msg))
     }
 
     /**
@@ -550,12 +526,8 @@ object BundleBuilder {
     fun gameOverBundle(
         winningTeam: Int,
         seatId: Int,
-        msgId: Int,
-        gsId: Int,
+        counter: MessageCounter,
     ): BundleResult {
-        var nextMsg = msgId
-        var nextGs = gsId
-
         val gameResult = ResultSpec.newBuilder()
             .setScope(MatchScope.Game_a146)
             .setResult(ResultType.WinLoss)
@@ -579,30 +551,30 @@ object BundleBuilder {
             PlayerInfo.newBuilder().setSystemSeatNumber(2).setStatus(PlayerStatus.Removed_a1c6).setTeamId(2),
         )
 
-        nextGs++
+        val gs1Id = counter.nextGsId()
         val gs1 = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff).setGameStateId(nextGs)
+            .setType(GameStateType.Diff).setGameStateId(gs1Id)
             .setGameInfo(gameInfo).setUpdate(GameStateUpdate.SendAndRecord)
         players.forEach { gs1.addPlayers(it) }
 
-        nextGs++
+        val gs2Id = counter.nextGsId()
         val gs2 = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff).setGameStateId(nextGs)
+            .setType(GameStateType.Diff).setGameStateId(gs2Id)
             .setGameInfo(gameInfo).setUpdate(GameStateUpdate.SendAndRecord)
 
-        nextGs++
+        val gs3Id = counter.nextGsId()
         val gs3 = GameStateMessage.newBuilder()
-            .setType(GameStateType.Diff).setGameStateId(nextGs)
+            .setType(GameStateType.Diff).setGameStateId(gs3Id)
             .setUpdate(GameStateUpdate.SendAndRecord)
 
         val messages = mutableListOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs - 2, seatId, nextMsg++) { it.gameStateMessage = gs1.build() },
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs - 1, seatId, nextMsg++) { it.gameStateMessage = gs2.build() },
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, nextMsg++) { it.gameStateMessage = gs3.build() },
+            makeGRE(GREMessageType.GameStateMessage_695e, gs1Id, seatId, counter.nextMsgId()) { it.gameStateMessage = gs1.build() },
+            makeGRE(GREMessageType.GameStateMessage_695e, gs2Id, seatId, counter.nextMsgId()) { it.gameStateMessage = gs2.build() },
+            makeGRE(GREMessageType.GameStateMessage_695e, gs3Id, seatId, counter.nextMsgId()) { it.gameStateMessage = gs3.build() },
         )
 
         messages.add(
-            makeGRE(GREMessageType.IntermissionReq_695e, nextGs, seatId, nextMsg++) {
+            makeGRE(GREMessageType.IntermissionReq_695e, gs3Id, seatId, counter.nextMsgId()) {
                 it.intermissionReq = IntermissionReq.newBuilder()
                     .setResult(
                         ResultSpec.newBuilder()
@@ -614,7 +586,7 @@ object BundleBuilder {
             },
         )
 
-        return BundleResult(messages, nextMsg, nextGs)
+        return BundleResult(messages)
     }
 
     /** Build a single GRE message. */

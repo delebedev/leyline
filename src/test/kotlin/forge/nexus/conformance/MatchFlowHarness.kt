@@ -57,10 +57,6 @@ class MatchFlowHarness(
         TestCardRegistry.ensureRegistered()
         if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
 
-        bridge = GameBridge(bridgeTimeoutMs = 5_000L)
-        bridge.priorityWaitMs = 2_000L
-        bridge.start(seed = seed, deckList = deckList)
-
         session = MatchSession(
             seatId = seatId,
             matchId = matchId,
@@ -68,19 +64,27 @@ class MatchFlowHarness(
             registry = registry,
             paceDelayMs = 0,
         )
+
+        bridge = GameBridge(bridgeTimeoutMs = 5_000L, messageCounter = session.counter)
+        bridge.priorityWaitMs = 2_000L
+        bridge.start(seed = seed, deckList = deckList)
+
         session.connectBridge(bridge)
         registry.registerSession(matchId, seatId, session)
 
-        bridge.submitKeep(seatId)
-
-        // Seed accumulator with handshake Full (simulates the Full state the real
-        // client gets before phaseTransitionDiff thin Diffs)
+        // Seed accumulator + validator with a Full GSM BEFORE submitKeep.
+        // At this point the engine is blocked at mulligan — safe to call
+        // buildFromGame without racing the engine thread's AI action capture.
+        // After submitKeep, the engine runs (potentially AI-first) and concurrent
+        // buildFromGame calls would race on drainEvents/nextAnnotationId.
         val game = bridge.getGame()
         if (game != null) {
             val fullGsm = StateMapper.buildFromGame(game, 0, matchId, bridge, viewingSeatId = seatId)
             accumulator.seedFull(fullGsm)
             validatingSink?.seedFull(fullGsm)
         }
+
+        bridge.submitKeep(seatId)
 
         session.onMulliganKeep()
         drainSink()

@@ -19,80 +19,39 @@ class NexusGamePlaybackTest {
         assertTrue(queue.isEmpty())
     }
 
-    @Test(description = "NexusGamePlayback class exists with expected API")
-    fun classContract() {
-        val clazz = NexusGamePlayback::class.java
-        assertNotNull(clazz.getMethod("drainQueue"))
-        assertNotNull(clazz.getMethod("hasPendingMessages"))
+    @Test(description = "Shared MessageCounter is used by playback — no local atomics")
+    fun sharedCounterContract() {
+        val counter = MessageCounter(initialGsId = 10, initialMsgId = 20)
+        val pb = createMinimalPlayback(counter)
+
+        // Counter state accessible via shared counter
+        assertEquals(counter.currentGsId(), 10)
+        assertEquals(counter.currentMsgId(), 20)
+
+        // Advancing counter from outside is visible to playback's counter
+        counter.nextGsId()
+        assertEquals(counter.currentGsId(), 11)
     }
 
-    @Test(description = "seedCounters updates atomics read by getCounters")
-    fun seedAndGetCounters() {
-        val pb = createMinimalPlayback()
-        pb.seedCounters(10, 20)
-        val (msg, gs) = pb.getCounters()
-        assertEquals(msg, 10)
-        assertEquals(gs, 20)
+    @Test(description = "No duplicate msgIds when two threads use the same counter")
+    fun noDuplicateMsgIdsWithSharedCounter() {
+        // Scenario: session thread advances msgId for edictal passes,
+        // engine thread advances msgId for AI diffs — both on same counter.
+        val counter = MessageCounter(initialGsId = 10, initialMsgId = 10)
+
+        // Simulate session thread: 3 edictal passes advance msgId
+        val sessionMsgIds = (1..3).map { counter.nextMsgId() }
+
+        // Simulate engine thread: 2 AI diffs advance msgId
+        val engineMsgIds = (1..2).map { counter.nextMsgId() }
+
+        val allMsgIds = sessionMsgIds + engineMsgIds
+        assertEquals(allMsgIds.toSet().size, allMsgIds.size, "All msgIds should be unique")
+        assertTrue(allMsgIds.last() > allMsgIds.first(), "msgIds should be monotonically increasing")
     }
 
-    @Test(description = "After edictal-like msgId advance without re-seed, playback has stale msgId")
-    fun staleCountersAfterEdictalAdvance() {
-        val pb = createMinimalPlayback()
-        // Initial seed: simulates sendRealGameState seeding playback
-        pb.seedCounters(10, 20)
-
-        // Simulate 3 edictal passes: MatchSession advances msgId by 3 but never re-seeds.
-        // edictalPass returns gsId unchanged, msgId+1 each time.
-        val matchMsgId = 13 // 10 + 3 edictals
-        val matchGsId = 20 // unchanged by edictalPass
-
-        // Playback still has stale counters from initial seed
-        val (pbMsg, pbGs) = pb.getCounters()
-        assertEquals(pbMsg, 10, "Playback msgId should be stale (10, not $matchMsgId)")
-        assertEquals(pbGs, 20, "Playback gsId matches (edictals don't change gsId)")
-
-        // If AI captured now, it would use msgId=10 — colliding with already-sent edictals
-        // that used msgIds 10, 11, 12. The fix: re-seed before awaitPriority.
-        assertTrue(pbMsg < matchMsgId, "Stale playback msgId ($pbMsg) < match msgId ($matchMsgId)")
-
-        // After re-seeding (the fix), counters should be in sync
-        pb.seedCounters(matchMsgId, matchGsId)
-        val (fixedMsg, fixedGs) = pb.getCounters()
-        assertEquals(fixedMsg, matchMsgId)
-        assertEquals(fixedGs, matchGsId)
-    }
-
-    @Test(description = "Stale counters cause msgId overlap with edictal messages")
-    fun staleCountersMsgIdOverlap() {
-        // Scenario: postAction seeds playback at (msgId=28, gsId=14)
-        // 2 edictals advance MatchSession msgId to 30, gsId stays 14
-        // Without re-seed, AI captures with msgId=28 → collides with edictal msgs
-
-        val pb = createMinimalPlayback()
-        pb.seedCounters(28, 14)
-
-        // Edictals sent at msgIds 28, 29 — MatchSession msgId now 30
-        val edictalMsgIds = listOf(28, 29)
-        val matchMsgIdAfterEdictals = 30
-
-        // Playback would start AI diffs at stale msgId=28
-        val (staleMsgId, _) = pb.getCounters()
-        assertTrue(
-            staleMsgId in edictalMsgIds.first()..edictalMsgIds.last(),
-            "Stale playback msgId ($staleMsgId) overlaps edictal range $edictalMsgIds",
-        )
-
-        // Fix: re-seed before awaitPriority
-        pb.seedCounters(matchMsgIdAfterEdictals, 14)
-        val (fixedMsgId, _) = pb.getCounters()
-        assertTrue(
-            fixedMsgId > edictalMsgIds.last(),
-            "After re-seed, playback msgId ($fixedMsgId) is past edictal range",
-        )
-    }
-
-    private fun createMinimalPlayback(): NexusGamePlayback {
-        val bridge = GameBridge()
-        return NexusGamePlayback(bridge, "test", 1)
+    private fun createMinimalPlayback(counter: MessageCounter = MessageCounter()): NexusGamePlayback {
+        val bridge = GameBridge(messageCounter = counter)
+        return NexusGamePlayback(bridge, "test", 1, counter)
     }
 }

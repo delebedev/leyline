@@ -33,15 +33,14 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
      */
     @Test
     fun spellForcedDiscardProducesDiscardCategory() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val player = b.getPlayer(1)!!
         val cardInHand = player.getZone(ZoneType.Hand).cards.firstOrNull()
             ?: error("Hand empty")
         val forgeCardId = cardInHand.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
-        val captureGsId = gsId + 10
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Simulate spell-forced discard (same as what Mind Rot's resolution does)
         player.discard(cardInHand, null, false, AbilityKey.newMap())
@@ -51,8 +50,7 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -78,7 +76,7 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
      */
     @Test
     fun multipleSpellForcedDiscardsAllProduceDiscardCategory() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val player = b.getPlayer(1)!!
         val hand = player.getZone(ZoneType.Hand).cards.toList()
         assertTrue(hand.size >= 2, "Need at least 2 cards in hand")
@@ -88,8 +86,7 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
         val forgeId1 = card1.id
         val forgeId2 = card2.id
 
-        val captureGsId = gsId + 10
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Discard two cards (simulating Mind Rot effect)
         player.discard(card1, null, false, AbilityKey.newMap())
@@ -100,8 +97,7 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
@@ -125,7 +121,7 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
      */
     @Test
     fun discardWithSpellResolvedDoesNotContaminate() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val player = b.getPlayer(1)!!
         val hand = player.getZone(ZoneType.Hand).cards.toList()
         assertTrue(hand.size >= 2, "Need at least 2 cards")
@@ -135,8 +131,7 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
         val discardTarget = hand[1]
         val discardForgeId = discardTarget.id
 
-        val captureGsId = gsId + 10
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Fire SpellResolved for the spell (simulating the discard spell resolving)
         game.fireEvent(
@@ -153,8 +148,7 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(discardForgeId)

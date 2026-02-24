@@ -34,15 +34,14 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
      */
     @Test
     fun bounceSpellResolutionProducesBounceCategory() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val forgeCardId = creature.id
 
         // Simulate Unsummon-style spell resolving:
         // 1. Create a dummy spell on the stack (to emit SpellResolved)
         // 2. Move target creature BF→Hand (what the spell effect does)
-        val captureGsId = gsId + 10
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Fire SpellResolved for the removal spell itself (non-fizzled)
         // Note: we use a different card's SA to simulate the spell, but
@@ -57,8 +56,7 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -78,12 +76,11 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
      */
     @Test
     fun destroySpellResolutionProducesDestroyCategory() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val forgeCardId = creature.id
 
-        val captureGsId = gsId + 10
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         game.action.destroy(creature, null, false, AbilityKey.newMap())
 
@@ -92,8 +89,7 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -113,12 +109,11 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
      */
     @Test
     fun exileSpellResolutionProducesExileCategory() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val forgeCardId = creature.id
 
-        val captureGsId = gsId + 10
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         game.action.exile(creature, null, AbilityKey.newMap())
 
@@ -127,8 +122,7 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -153,7 +147,7 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
      */
     @Test
     fun spellResolvedDoesNotContaminateTargetCategory() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val creatureForgeId = creature.id
 
@@ -163,8 +157,7 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
             ?: error("No cards in hand to simulate spell")
         val spellForgeId = spellCard.id
 
-        val captureGsId = gsId + 10
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Fire SpellResolved for the spell card (simulating removal spell resolving)
         game.fireEvent(
@@ -184,8 +177,7 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 

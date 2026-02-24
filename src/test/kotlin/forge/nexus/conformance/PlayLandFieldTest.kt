@@ -167,11 +167,11 @@ class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: accumulated client state has new object on BF, old removed")
     fun accumulatedStateAfterPlayLand() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
-        val startResult = gameStart(game, b, 1, gsId)
+        val startResult = gameStart(game, b, counter)
         val acc = ClientAccumulator()
-        acc.seedFull(handshakeFull(game, b, gsId))
+        acc.seedFull(handshakeFull(game, b, counter.currentGsId()))
         acc.processAll(startResult.messages)
         b.snapshotFromGame(game)
 
@@ -181,7 +181,7 @@ class PlayLandFieldTest : ConformanceTestBase() {
         val forgeCardId = land.id
 
         playLand(b) ?: error("No land in hand at seed 42")
-        val postResult = postAction(game, b, startResult.nextMsgId, startResult.nextGsId)
+        val postResult = postAction(game, b, counter)
         acc.processAll(postResult.messages)
         val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
 
