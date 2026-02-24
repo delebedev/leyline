@@ -50,7 +50,7 @@ class DealHandConformanceTest {
         assertEquals(binFps.size, 1, "Recording should have 1 GRE message")
 
         val b = startBridge()
-        val (msg, _) = HandshakeMessages.dealHandSeat1(6, 2, b)
+        val (msg, _) = HandshakeMessages.dealHand(6, 2, b, seatId = 1)
         val dynFps = msg.greToClientEvent.greToClientMessagesList
             .map { StructuralFingerprint.fromGRE(it) }
         assertEquals(dynFps.size, 1, "Dynamic should have 1 GRE message")

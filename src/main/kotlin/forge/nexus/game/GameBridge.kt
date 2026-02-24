@@ -56,8 +56,11 @@ class GameBridge(
     private var game: Game? = null
     private var loopController: GameLoopController? = null
 
-    /** seat 1 = human (autoKeep=false). AI uses its default controller. */
-    private val seat1MulliganBridge = MulliganBridge(autoKeep = false, timeoutMs = bridgeTimeoutMs)
+    /** seat 1 = human. autoKeep driven by config skipMulligan. AI uses its default controller. */
+    private val seat1MulliganBridge = MulliganBridge(
+        autoKeep = playtestConfig.game.skipMulligan,
+        timeoutMs = bridgeTimeoutMs,
+    )
 
     /** Action bridge for seat 1 — blocks engine at priority stops. */
     val actionBridge = GameActionBridge(timeoutMs = bridgeTimeoutMs)
@@ -244,9 +247,15 @@ class GameBridge(
         g.subscribeToEvents(pb)
         log.info("GameBridge: registered NexusGamePlayback for AI action streaming")
 
-        log.info("GameBridge: game loop started, waiting for mulligan")
-        awaitMulliganReady()
-        log.info("GameBridge: engine reached mulligan, hand ready")
+        if (playtestConfig.game.skipMulligan) {
+            log.info("GameBridge: skipMulligan — engine auto-kept, waiting for priority")
+            awaitPriority()
+            log.info("GameBridge: engine reached priority after auto-keep")
+        } else {
+            log.info("GameBridge: game loop started, waiting for mulligan")
+            awaitMulliganReady()
+            log.info("GameBridge: engine reached mulligan, hand ready")
+        }
     }
 
     /** Get the current hand for a seat as client grpIds. */

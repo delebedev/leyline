@@ -163,6 +163,15 @@ class MatchHandler(
             ClientMessageType.ChooseStartingPlayerResp_097b -> {
                 if (s?.gameBridge?.isPuzzle == true) {
                     log.info("Match Door GRE: ignoring ChooseStartingPlayerResp for puzzle")
+                } else if (playtestConfig.game.skipMulligan) {
+                    // Skip mulligan: send DealHand (client needs the hand) but no MulliganReq.
+                    // Engine auto-kept via MulliganBridge(autoKeep=true), go straight to game.
+                    log.info("Match Door GRE: skipMulligan — bypassing mulligan phase")
+                    sendDealHand(ctx) // this handler's seat (2): DealHand only
+                    val seat1Handler = registry.getHandler(matchId, 1)
+                    seat1Handler?.sendDealHand() // seat 1's handler: DealHand only
+                    // Enter game loop via seat 1's session so bundles go to the human player
+                    seat1Handler?.session?.onMulliganKeep()
                 } else {
                     log.info("Match Door GRE: seat {} chose starting player", seatId)
                     sendDealHandAndMulligan(ctx) // seat 2: DealHand + MulliganReq
@@ -288,13 +297,18 @@ class MatchHandler(
         ctx.writeAndFlush(msg)
     }
 
-    /** DealHand only (no MulliganReq) for seat 1. Called cross-connection. */
+    /** DealHand only (no MulliganReq). Uses stored nettyCtx; public for cross-connection calls. */
     fun sendDealHand() {
         val ctx = nettyCtx ?: return
+        sendDealHand(ctx)
+    }
+
+    /** DealHand only (no MulliganReq) for this handler's seat, on the given channel. */
+    private fun sendDealHand(ctx: ChannelHandlerContext) {
         val s = session ?: return
         val bridge = s.gameBridge ?: return
         val gsId = s.nextGameStateId()
-        val (msg, nextMsgId) = HandshakeMessages.dealHandSeat1(s.msgIdCounter, gsId, bridge)
+        val (msg, nextMsgId) = HandshakeMessages.dealHand(s.msgIdCounter, gsId, bridge, seatId)
         s.applyHandshakeCounters(nextMsgId)
         NexusTap.outboundTemplate("DealHand seat=$seatId")
         ProtoDump.dump(msg, "DealHand-seat$seatId")
