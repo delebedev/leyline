@@ -15,7 +15,7 @@ skip_mulligan = true
 
 [decks]
 # Deck file names (resolved from decks/ directory, .txt optional).
-seat1 = "mono-red-rally"   # human player
+seat1 = "pauper-elves"   # human player
 seat2 = "mono-red-rally"   # AI (Sparky)
 
 [ai]
