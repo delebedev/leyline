@@ -3,6 +3,7 @@ package forge.nexus.analysis
 import forge.nexus.debug.NexusPaths
 import forge.nexus.debug.RecordingInspector
 import java.io.File
+import kotlin.system.exitProcess
 
 /**
  * CLI entry points for recording analysis commands.
@@ -11,7 +12,7 @@ import java.io.File
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
         System.err.println("Usage: analyze <session> [--force] | analyze-all | violations [session] | mechanics | latest")
-        System.exit(1)
+        exitProcess(1)
     }
 
     when (args[0]) {
@@ -22,7 +23,7 @@ fun main(args: Array<String>) {
         "latest" -> cmdLatest()
         else -> {
             System.err.println("Unknown command: ${args[0]}")
-            System.exit(1)
+            exitProcess(1)
         }
     }
 }
@@ -30,7 +31,7 @@ fun main(args: Array<String>) {
 private fun cmdAnalyze(args: List<String>) {
     if (args.isEmpty()) {
         System.err.println("Usage: analyze <session> [--force]")
-        System.exit(1)
+        exitProcess(1)
     }
     val force = "--force" in args
     val sessionArg = args.first { it != "--force" }

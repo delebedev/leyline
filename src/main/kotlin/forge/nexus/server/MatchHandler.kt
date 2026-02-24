@@ -343,15 +343,19 @@ class MatchHandler(
     override fun channelInactive(ctx: ChannelHandlerContext) {
         log.info("Match Door: client disconnected")
         // Close recorder on disconnect (triggers analysis if game didn't end cleanly)
-        session?.recorder?.close()
-        session?.recorder?.let { SessionRecorder.unregister(it) }
+        session?.recorder?.run {
+            close()
+            SessionRecorder.unregister(this)
+        }
         super.channelInactive(ctx)
     }
 
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
         log.error("Match Door error: {}", cause.message, cause)
-        session?.recorder?.close()
-        session?.recorder?.let { SessionRecorder.unregister(it) }
+        session?.recorder?.run {
+            close()
+            SessionRecorder.unregister(this)
+        }
         session?.gameBridge?.shutdown()
         ctx.close()
     }

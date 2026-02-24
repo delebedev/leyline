@@ -51,11 +51,13 @@ class AutoPassEngine(
             val isAiTurn = human != null && !isHumanTurn
 
             // Combat phase handling
-            val combatSignal = combatHandler.checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)
-            if (combatSignal == CombatHandler.Signal.STOP) return
-            if (combatSignal == CombatHandler.Signal.SEND_STATE) {
-                ops.sendRealGameState(bridge)
-                return
+            when (combatHandler.checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)) {
+                CombatHandler.Signal.STOP -> return
+                CombatHandler.Signal.SEND_STATE -> {
+                    ops.sendRealGameState(bridge)
+                    return
+                }
+                CombatHandler.Signal.CONTINUE -> {} // fall through to action check
             }
 
             // Interactive prompt (targeting, sacrifice, discard, etc.)

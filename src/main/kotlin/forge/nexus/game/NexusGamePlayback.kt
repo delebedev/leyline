@@ -108,13 +108,10 @@ class NexusGamePlayback(
     // -- Queue access (called from MatchHandler / Netty thread) --
 
     /** Drain all queued message batches. Returns empty list if nothing queued. */
-    fun drainQueue(): List<List<GREToClientMessage>> {
-        val result = mutableListOf<List<GREToClientMessage>>()
+    fun drainQueue(): List<List<GREToClientMessage>> = buildList {
         while (true) {
-            val batch = queue.poll() ?: break
-            result.add(batch)
+            add(queue.poll() ?: break)
         }
-        return result
     }
 
     /** True if there are messages waiting to be sent. */

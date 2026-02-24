@@ -11,13 +11,13 @@ package forge.nexus.game
  * Not thread-safe by itself; callers synchronize externally if needed.
  */
 class LimboTracker {
-    private val retired = mutableListOf<Int>()
+    private val retired = linkedSetOf<Int>()
 
     /** Add an instanceId to the persistent Limbo set. Idempotent. */
     fun retire(instanceId: Int) {
-        if (instanceId !in retired) retired.add(instanceId)
+        retired.add(instanceId)
     }
 
     /** Current ordered list of all retired instanceIds. */
-    fun all(): List<Int> = retired
+    fun all(): List<Int> = retired.toList()
 }

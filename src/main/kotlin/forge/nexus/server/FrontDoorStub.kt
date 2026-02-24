@@ -44,23 +44,23 @@ class FrontDoorStub(
             msg.readBytes(bytes)
 
             // ClientFrameDecoder gives us header + payload as one ByteBuf
-            if (bytes.size < ClientFrameDecoder.Companion.HEADER_SIZE) return
+            if (bytes.size < ClientFrameDecoder.HEADER_SIZE) return
 
             val frameType = bytes[1]
 
             // Handle control frames: echo full frame (header + nonce) with type flipped
-            if (frameType == ClientFrameDecoder.Companion.TYPE_CTRL_INIT) {
+            if (frameType == ClientFrameDecoder.TYPE_CTRL_INIT) {
                 log.debug("Front Door: CTRL_INIT received, sending ACK")
                 sendCtrlAck(ctx, bytes)
                 return
             }
-            if (frameType == ClientFrameDecoder.Companion.TYPE_CTRL_ACK) {
+            if (frameType == ClientFrameDecoder.TYPE_CTRL_ACK) {
                 log.debug("Front Door: CTRL_ACK received (ignored)")
                 return
             }
 
-            val payload = if (bytes.size > ClientFrameDecoder.Companion.HEADER_SIZE) {
-                bytes.copyOfRange(ClientFrameDecoder.Companion.HEADER_SIZE, bytes.size)
+            val payload = if (bytes.size > ClientFrameDecoder.HEADER_SIZE) {
+                bytes.copyOfRange(ClientFrameDecoder.HEADER_SIZE, bytes.size)
             } else {
                 null
             }
@@ -125,7 +125,7 @@ class FrontDoorStub(
     /** Respond to a CTRL_INIT by echoing the full frame (header + nonce) with type flipped. */
     private fun sendCtrlAck(ctx: ChannelHandlerContext, initFrame: ByteArray) {
         val ack = initFrame.copyOf()
-        ack[1] = ClientFrameDecoder.Companion.TYPE_CTRL_ACK
+        ack[1] = ClientFrameDecoder.TYPE_CTRL_ACK
         val buf = ctx.alloc().buffer(ack.size)
         buf.writeBytes(ack)
         ctx.writeAndFlush(buf)
@@ -175,9 +175,9 @@ class FrontDoorStub(
 
     /** Build a 6-byte outgoing header (version + type + LE payload length). */
     private fun buildOutgoingHeader(payloadLength: Int): ByteArray {
-        val h = ByteArray(ClientFrameDecoder.Companion.HEADER_SIZE)
-        h[0] = ClientFrameDecoder.Companion.VERSION
-        h[1] = ClientFrameDecoder.Companion.TYPE_DATA_FD
+        val h = ByteArray(ClientFrameDecoder.HEADER_SIZE)
+        h[0] = ClientFrameDecoder.VERSION
+        h[1] = ClientFrameDecoder.TYPE_DATA_FD
         // Bytes 2-5: payload length (little-endian)
         h[2] = (payloadLength and 0xFF).toByte()
         h[3] = ((payloadLength shr 8) and 0xFF).toByte()
