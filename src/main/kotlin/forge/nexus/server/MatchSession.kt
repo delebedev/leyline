@@ -385,9 +385,11 @@ class MatchSession(
         log.info("MatchSession: sent MatchCompleted room state")
 
         // Trigger post-game analysis
-        recorder?.markGameOver()
-        recorder?.close()
-        recorder?.let { SessionRecorder.unregister(it) }
+        recorder?.run {
+            markGameOver()
+            close()
+            SessionRecorder.unregister(this)
+        }
     }
 
     // --- Low-level helpers ---

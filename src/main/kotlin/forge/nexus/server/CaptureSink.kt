@@ -32,9 +32,7 @@ internal object CaptureSink {
             frameDir.mkdirs()
 
             val prev = pending[dir] ?: ByteArray(0)
-            val merged = ByteArray(prev.size + bytes.size)
-            if (prev.isNotEmpty()) prev.copyInto(merged, destinationOffset = 0)
-            if (bytes.isNotEmpty()) bytes.copyInto(merged, destinationOffset = prev.size)
+            val merged = prev + bytes
 
             var offset = 0
             while (merged.size - offset >= ClientFrameDecoder.HEADER_SIZE) {
@@ -91,9 +89,9 @@ internal object CaptureSink {
 }
 
 internal fun frameTypeName(ft: Byte) = when (ft) {
-    ClientFrameDecoder.Companion.TYPE_CTRL_INIT -> "CTRL_INIT"
-    ClientFrameDecoder.Companion.TYPE_CTRL_ACK -> "CTRL_ACK"
-    ClientFrameDecoder.Companion.TYPE_DATA_FD -> "DATA"
-    ClientFrameDecoder.Companion.TYPE_DATA_MATCH -> "MATCH_DATA"
+    ClientFrameDecoder.TYPE_CTRL_INIT -> "CTRL_INIT"
+    ClientFrameDecoder.TYPE_CTRL_ACK -> "CTRL_ACK"
+    ClientFrameDecoder.TYPE_DATA_FD -> "DATA"
+    ClientFrameDecoder.TYPE_DATA_MATCH -> "MATCH_DATA"
     else -> "0x${String.format("%02x", ft)}"
 }

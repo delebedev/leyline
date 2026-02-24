@@ -27,13 +27,10 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     private val queue = ConcurrentLinkedQueue<NexusGameEvent>()
 
     /** Drain all queued events since last drain. Returns events in firing order. */
-    fun drainEvents(): List<NexusGameEvent> {
-        val result = mutableListOf<NexusGameEvent>()
+    fun drainEvents(): List<NexusGameEvent> = buildList {
         while (true) {
-            val ev = queue.poll() ?: break
-            result.add(ev)
+            add(queue.poll() ?: break)
         }
-        return result
     }
 
     /** Peek at queued events without draining (for tests). */
