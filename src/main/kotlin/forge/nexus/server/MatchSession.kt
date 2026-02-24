@@ -39,7 +39,7 @@ class MatchSession(
     val registry: MatchRegistry,
     val paceDelayMs: Long = 200L,
     val recorder: SessionRecorder? = null,
-    override val counter: MessageCounter = MessageCounter(),
+    override var counter: MessageCounter = MessageCounter(),
 ) : SessionOps {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
@@ -57,9 +57,29 @@ class MatchSession(
     val targetingHandler = TargetingHandler(this)
     val autoPassEngine = AutoPassEngine(this, combatHandler, targetingHandler)
 
-    /** Wire the game bridge (called by [MatchHandler] after bridge creation). */
+    /**
+     * Wire the game bridge (called by [MatchHandler] after bridge creation).
+     *
+     * When the bridge was created by a different seat (seat 2 creates, seat 1
+     * reuses), the bridge's [MessageCounter] is a different instance from this
+     * session's counter. Handshake messages already advanced this session's
+     * counter, so we sync the bridge's counter up to our values, then adopt
+     * it as our own — ensuring the engine thread (NexusGamePlayback) and this
+     * session share a single counter.
+     */
     fun connectBridge(bridge: GameBridge) {
         gameBridge = bridge
+        val bridgeCounter = bridge.messageCounter
+        if (bridgeCounter !== counter) {
+            // Advance bridge counter to at least where our handshake left off
+            if (counter.currentGsId() > bridgeCounter.currentGsId()) {
+                bridgeCounter.setGsId(counter.currentGsId())
+            }
+            if (counter.currentMsgId() > bridgeCounter.currentMsgId()) {
+                bridgeCounter.setMsgId(counter.currentMsgId())
+            }
+            counter = bridgeCounter
+        }
     }
 
     // --- Public entry points (called by MatchHandler) ---
