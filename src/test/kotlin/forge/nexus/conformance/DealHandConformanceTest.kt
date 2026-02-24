@@ -1,6 +1,7 @@
 package forge.nexus.conformance
 
 import forge.nexus.game.GameBridge
+import forge.nexus.game.PromptIds
 import forge.nexus.game.StateMapper
 import forge.nexus.protocol.HandshakeMessages
 import forge.web.game.GameBootstrap
@@ -12,11 +13,11 @@ import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Compares dynamically-built pre-mulligan messages against recorded client .bin templates.
+ * Verifies pre-mulligan handshake message structure produced by [HandshakeMessages].
  *
- * The .bin files are the real server's output. Our dynamic builders must produce
- * structurally equivalent messages: same GRE types, GSM type, update type,
- * annotations, zone count, object count, actions, and prompt fields.
+ * Checks message counts, GRE types, GSM type/update, zone counts, prompt IDs,
+ * settings round-trip, and field presence — all against hardcoded expectations
+ * derived from real Arena server recordings.
  */
 @Test(groups = ["integration"])
 class DealHandConformanceTest {
@@ -34,9 +35,6 @@ class DealHandConformanceTest {
         bridge = null
     }
 
-    private fun loadBin(name: String): ByteArray =
-        javaClass.classLoader.getResourceAsStream("arena-templates/$name")!!.readBytes()
-
     private fun startBridge(): GameBridge {
         val b = GameBridge()
         bridge = b
@@ -44,220 +42,221 @@ class DealHandConformanceTest {
         return b
     }
 
-    @Test
-    fun dealHandSeat1MatchesRecording() {
-        val binFps = RecordingParser.parsePayload(loadBin("deal-hand-seat1.bin"))
-        assertEquals(binFps.size, 1, "Recording should have 1 GRE message")
+    /** Helper: extract GRE messages from a MatchServiceToClientMessage. */
+    private fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> =
+        msg.greToClientEvent.greToClientMessagesList
 
+    // --- dealHand ---
+
+    @Test(description = "dealHand seat 1: 1 GRE msg, Diff GSM with zones/objects/actions")
+    fun dealHandSeat1Structure() {
         val b = startBridge()
-        val (msg, _) = HandshakeMessages.dealHand(6, 2, b, seatId = 1)
-        val dynFps = msg.greToClientEvent.greToClientMessagesList
-            .map { StructuralFingerprint.fromGRE(it) }
-        assertEquals(dynFps.size, 1, "Dynamic should have 1 GRE message")
+        val (msg, nextMsgId) = HandshakeMessages.dealHand(6, 2, b, seatId = 1)
+        val messages = greMessages(msg)
 
-        val golden = binFps[0]
-        val actual = dynFps[0]
+        assertEquals(messages.size, 1, "Should produce 1 GRE message")
+        assertEquals(nextMsgId, 7, "Next msgId should advance by 1")
 
-        // Core structural match
-        assertEquals(actual.greMessageType, golden.greMessageType, "GRE message type")
-        assertEquals(actual.gsType, golden.gsType, "GSM type")
-        assertEquals(actual.updateType, golden.updateType, "Update type")
-        assertEquals(actual.annotationTypes, golden.annotationTypes, "Annotation types")
-        assertEquals(actual.zoneCount, golden.zoneCount, "Zone count")
-        assertEquals(actual.objectCount, golden.objectCount, "Object count (viewing seat hand only)")
-        // Action count varies with seeded hand — just verify actions are present
-        assertTrue(actual.actionTypes.isNotEmpty(), "Should have at least one action in deal-hand GSM")
+        val gre = messages[0]
+        assertEquals(gre.type, GREMessageType.GameStateMessage_695e, "GRE type")
+        assertEquals(gre.msgId, 6, "msgId")
 
-        val requiredFields = golden.fieldPresence
-        val missing = requiredFields - actual.fieldPresence
-        assertTrue(missing.isEmpty(), "Missing required fields: $missing")
+        val gsm = gre.gameStateMessage
+        assertEquals(gsm.type, GameStateType.Diff, "GSM type should be Diff")
+        assertEquals(gsm.update, GameStateUpdate.SendAndRecord, "Update type")
+        assertEquals(gsm.gameStateId, 2, "gsId")
+        assertEquals(gsm.prevGameStateId, 1, "prevGsId = gsId - 1")
+
+        // 4 zones: hand + library for each player
+        assertEquals(gsm.zonesCount, 4, "Zone count (hand+library per player)")
+        // Objects: viewing seat's hand cards only (7 cards for a fresh hand)
+        assertTrue(gsm.gameObjectsCount > 0, "Should have game objects for viewing seat's hand")
+
+        // NewTurnStarted annotation
+        val annTypes = gsm.annotationsList.flatMap { it.typeList }
+        assertTrue(AnnotationType.NewTurnStarted in annTypes, "Should have NewTurnStarted annotation")
+
+        // Actions present (cast/play from opening hand)
+        assertTrue(gsm.actionsCount > 0, "Should have embedded actions")
+
+        // Both players present with MulliganResp pending
+        assertEquals(gsm.playersCount, 2, "Should have 2 players")
+        for (player in gsm.playersList) {
+            assertEquals(
+                player.pendingMessageType,
+                ClientMessageType.MulliganResp_097b,
+                "Player seat ${player.systemSeatNumber} should have MulliganResp pending",
+            )
+        }
     }
 
-    @Test
-    fun dealHandMulliganSeat2MatchesRecording() {
-        val binFps = RecordingParser.parsePayload(loadBin("deal-hand-mulligan-seat2.bin"))
-        assertEquals(binFps.size, 2, "Recording should have 2 GRE messages (GSM + MulliganReq)")
+    // --- dealHandMulliganSeat2 ---
 
+    @Test(description = "dealHandMulliganSeat2: 2 msgs (GSM + MulliganReq)")
+    fun dealHandMulliganSeat2Structure() {
         val b = startBridge()
-        val (msg, _) = HandshakeMessages.dealHandMulliganSeat2(6, 2, b)
-        val dynFps = msg.greToClientEvent.greToClientMessagesList
-            .map { StructuralFingerprint.fromGRE(it) }
-        assertEquals(dynFps.size, 2, "Dynamic should have 2 GRE messages")
+        val (msg, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(6, 2, b)
+        val messages = greMessages(msg)
 
-        // Message 0: GameStateMessage (deal hand)
-        val goldenGsm = binFps[0]
-        val actualGsm = dynFps[0]
-        assertEquals(actualGsm.greMessageType, goldenGsm.greMessageType, "GSM: GRE message type")
-        assertEquals(actualGsm.gsType, goldenGsm.gsType, "GSM: type")
-        assertEquals(actualGsm.updateType, goldenGsm.updateType, "GSM: update type")
-        assertEquals(actualGsm.annotationTypes, goldenGsm.annotationTypes, "GSM: annotation types")
-        assertEquals(actualGsm.zoneCount, goldenGsm.zoneCount, "GSM: zone count")
-        assertEquals(actualGsm.objectCount, goldenGsm.objectCount, "GSM: object count (viewing seat hand only)")
+        assertEquals(messages.size, 2, "Should produce 2 GRE messages")
+        assertEquals(nextMsgId, 8, "Next msgId should advance by 2")
 
-        val requiredFields = goldenGsm.fieldPresence
-        val missing = requiredFields - actualGsm.fieldPresence
-        assertTrue(missing.isEmpty(), "GSM: Missing required fields: $missing")
+        // Message 0: GSM with deal-hand state
+        val gsm = messages[0]
+        assertEquals(gsm.type, GREMessageType.GameStateMessage_695e, "msg[0] GRE type")
+        assertEquals(gsm.gameStateMessage.type, GameStateType.Diff, "msg[0] GSM type")
+        assertEquals(gsm.gameStateMessage.update, GameStateUpdate.SendAndRecord, "msg[0] update")
+        assertEquals(gsm.gameStateMessage.zonesCount, 4, "msg[0] zone count")
+        assertTrue(gsm.gameStateMessage.gameObjectsCount > 0, "msg[0] should have objects")
+        assertEquals(gsm.gameStateMessage.pendingMessageCount, 1, "msg[0] pendingMessageCount (MulliganReq follows)")
 
-        // Message 1: MulliganReq
-        val goldenMull = binFps[1]
-        val actualMull = dynFps[1]
-        assertEquals(actualMull.greMessageType, goldenMull.greMessageType, "MulliganReq: GRE type")
-        assertEquals(actualMull.hasPrompt, goldenMull.hasPrompt, "MulliganReq: has prompt")
-        assertEquals(actualMull.promptId, goldenMull.promptId, "MulliganReq: prompt ID")
+        // Message 1: MulliganReq with promptId=34
+        val mull = messages[1]
+        assertEquals(mull.type, GREMessageType.MulliganReq_aa0d, "msg[1] GRE type")
+        assertTrue(mull.hasPrompt(), "msg[1] should have prompt")
+        assertEquals(mull.prompt.promptId, PromptIds.MULLIGAN, "msg[1] promptId = MULLIGAN (34)")
     }
 
-    @Test
-    fun mulliganReqSeat1MatchesRecording() {
-        val binFps = RecordingParser.parsePayload(loadBin("mulligan-req-seat1.bin"))
-        assertEquals(binFps.size, 3, "Recording should have 3 GRE messages (GSM + PromptReq + MulliganReq)")
+    // --- mulliganReqSeat1 ---
 
+    @Test(description = "mulliganReqSeat1: 3 msgs (thin Diff + PromptReq + MulliganReq)")
+    fun mulliganReqSeat1Structure() {
         val b = startBridge()
-        val (msg, _) = HandshakeMessages.mulliganReqSeat1(10, 3, b)
-        val dynFps = msg.greToClientEvent.greToClientMessagesList
-            .map { StructuralFingerprint.fromGRE(it) }
-        assertEquals(dynFps.size, 3, "Dynamic should have 3 GRE messages")
+        val (msg, nextMsgId) = HandshakeMessages.mulliganReqSeat1(10, 3, b)
+        val messages = greMessages(msg)
 
-        // Message 0: GameStateMessage (thin Diff — seat 2 status, decisionPlayer=1)
-        val goldenGsm = binFps[0]
-        val actualGsm = dynFps[0]
-        assertEquals(actualGsm.greMessageType, goldenGsm.greMessageType, "GSM: GRE message type")
-        assertEquals(actualGsm.gsType, goldenGsm.gsType, "GSM: type")
-        assertEquals(actualGsm.updateType, goldenGsm.updateType, "GSM: update type")
-        assertEquals(actualGsm.zoneCount, goldenGsm.zoneCount, "GSM: zone count (0)")
-        assertEquals(actualGsm.objectCount, goldenGsm.objectCount, "GSM: object count (0)")
+        assertEquals(messages.size, 3, "Should produce 3 GRE messages")
+        assertEquals(nextMsgId, 13, "Next msgId should advance by 3")
 
-        // Thin Diff for decision-player doesn't need actions — exclude from required fields
-        val requiredFields = goldenGsm.fieldPresence - "actions"
-        val missing = requiredFields - actualGsm.fieldPresence
-        assertTrue(missing.isEmpty(), "GSM: Missing required fields: $missing")
+        // Message 0: thin Diff GSM (seat 2 status, decisionPlayer=1)
+        val gsm = messages[0].gameStateMessage
+        assertEquals(messages[0].type, GREMessageType.GameStateMessage_695e, "msg[0] GRE type")
+        assertEquals(gsm.type, GameStateType.Diff, "msg[0] GSM type")
+        assertEquals(gsm.update, GameStateUpdate.SendAndRecord, "msg[0] update")
+        assertEquals(gsm.zonesCount, 0, "msg[0] should have 0 zones (thin Diff)")
+        assertEquals(gsm.gameObjectsCount, 0, "msg[0] should have 0 objects (thin Diff)")
+        assertEquals(gsm.turnInfo.decisionPlayer, 1, "msg[0] decisionPlayer should be seat 1")
+        assertEquals(gsm.pendingMessageCount, 2, "msg[0] pendingMessageCount (PromptReq + MulliganReq)")
+        assertEquals(gsm.prevGameStateId, 2, "msg[0] prevGsId = gsId - 1")
 
         // Message 1: PromptReq (promptId=37, "who goes first")
-        val goldenPrompt = binFps[1]
-        val actualPrompt = dynFps[1]
-        assertEquals(actualPrompt.greMessageType, goldenPrompt.greMessageType, "PromptReq: GRE type")
-        assertEquals(actualPrompt.hasPrompt, goldenPrompt.hasPrompt, "PromptReq: has prompt")
-        assertEquals(actualPrompt.promptId, goldenPrompt.promptId, "PromptReq: prompt ID")
+        val prompt = messages[1]
+        assertEquals(prompt.type, GREMessageType.PromptReq, "msg[1] GRE type")
+        assertTrue(prompt.hasPrompt(), "msg[1] should have prompt")
+        assertEquals(prompt.prompt.promptId, PromptIds.STARTING_PLAYER, "msg[1] promptId = STARTING_PLAYER (37)")
 
-        // Message 2: MulliganReq (promptId=34, NumberOfCards=7)
-        val goldenMull = binFps[2]
-        val actualMull = dynFps[2]
-        assertEquals(actualMull.greMessageType, goldenMull.greMessageType, "MulliganReq: GRE type")
-        assertEquals(actualMull.hasPrompt, goldenMull.hasPrompt, "MulliganReq: has prompt")
-        assertEquals(actualMull.promptId, goldenMull.promptId, "MulliganReq: prompt ID")
+        // Message 2: MulliganReq (promptId=34)
+        val mull = messages[2]
+        assertEquals(mull.type, GREMessageType.MulliganReq_aa0d, "msg[2] GRE type")
+        assertTrue(mull.hasPrompt(), "msg[2] should have prompt")
+        assertEquals(mull.prompt.promptId, PromptIds.MULLIGAN, "msg[2] promptId = MULLIGAN (34)")
     }
 
-    @Test
-    fun settingsRespSeat1MatchesRecording() {
-        val binFps = RecordingParser.parsePayload(loadBin("settings-resp-seat1.bin"))
-        assertEquals(binFps.size, 1, "Recording should have 1 GRE message")
+    // --- initialBundle ---
 
-        // Parse the recording's settings to use as client input
-        val binMsg = MatchServiceToClientMessage.parseFrom(loadBin("settings-resp-seat1.bin"))
-        val binSettings = binMsg.greToClientEvent.getGreToClientMessages(0).setSettingsResp.settings
-
-        val (msg, nextMsgId) = HandshakeMessages.settingsResp(1, 9, 2, binSettings)
-        assertEquals(nextMsgId, 10, "Next msgId should be 10")
-
-        val dynFps = msg.greToClientEvent.greToClientMessagesList
-            .map { StructuralFingerprint.fromGRE(it) }
-        assertEquals(dynFps.size, 1, "Dynamic should have 1 GRE message")
-
-        val golden = binFps[0]
-        val actual = dynFps[0]
-        assertEquals(actual.greMessageType, golden.greMessageType, "GRE message type")
-
-        // Verify settings round-trip: echoed settings match input
-        val echoed = msg.greToClientEvent.getGreToClientMessages(0).setSettingsResp.settings
-        assertEquals(echoed, binSettings, "Settings should round-trip exactly")
-    }
-
-    @Test
-    fun initialBundleSeat2MatchesRecording() {
-        val binFps = RecordingParser.parsePayload(loadBin("initial-bundle-seat2.bin"))
-        assertEquals(binFps.size, 3, "Recording should have 3 GRE messages (DieRoll + GSM + ChooseStartingPlayerReq)")
-
-        val b = startBridge()
-        val deck = StateMapper.buildDeckMessage(b.getDeckGrpIds(2))
-        val (msg, _) = HandshakeMessages.initialBundle(2, "test-match", 3, 1, deck, b)
-        val dynFps = msg.greToClientEvent.greToClientMessagesList
-            .map { StructuralFingerprint.fromGRE(it) }
-        assertEquals(dynFps.size, 3, "Dynamic should have 3 GRE messages")
-
-        // Message 0: DieRollResultsResp
-        assertEquals(dynFps[0].greMessageType, binFps[0].greMessageType, "DieRoll: GRE type")
-
-        // Message 1: GameStateMessage (Full)
-        val goldenGsm = binFps[1]
-        val actualGsm = dynFps[1]
-        assertEquals(actualGsm.greMessageType, goldenGsm.greMessageType, "GSM: GRE type")
-        assertEquals(actualGsm.gsType, goldenGsm.gsType, "GSM: type (Full)")
-        assertEquals(actualGsm.updateType, goldenGsm.updateType, "GSM: update type")
-        assertEquals(actualGsm.zoneCount, goldenGsm.zoneCount, "GSM: zone count (17)")
-
-        val requiredFields = goldenGsm.fieldPresence
-        val missing = requiredFields - actualGsm.fieldPresence
-        assertTrue(missing.isEmpty(), "GSM: Missing required fields: $missing")
-
-        // Message 2: ChooseStartingPlayerReq
-        assertEquals(dynFps[2].greMessageType, binFps[2].greMessageType, "ChooseStartingPlayerReq: GRE type")
-    }
-
-    @Test
-    fun initialBundleSeat1MatchesRecording() {
-        val binFps = RecordingParser.parsePayload(loadBin("initial-bundle-seat1.bin"))
-        assertEquals(binFps.size, 3, "Recording should have 3 GRE messages (ConnectResp + DieRoll + GSM)")
-
+    @Test(description = "initialBundle seat 1: ConnectResp + DieRoll + Full GSM with 17 zones")
+    fun initialBundleSeat1Structure() {
         val b = startBridge()
         val deck = StateMapper.buildDeckMessage(b.getDeckGrpIds(1))
-        val (msg, _) = HandshakeMessages.initialBundle(1, "test-match", 2, 1, deck, b)
-        val dynFps = msg.greToClientEvent.greToClientMessagesList
-            .map { StructuralFingerprint.fromGRE(it) }
-        assertEquals(dynFps.size, 3, "Dynamic should have 3 GRE messages")
+        val (msg, nextMsgId) = HandshakeMessages.initialBundle(1, "test-match", 2, 1, deck, b)
+        val messages = greMessages(msg)
+
+        assertEquals(messages.size, 3, "Should produce 3 GRE messages")
+        assertEquals(nextMsgId, 5, "Next msgId should advance by 3")
 
         // Message 0: ConnectResp
-        assertEquals(dynFps[0].greMessageType, binFps[0].greMessageType, "ConnectResp: GRE type")
+        assertEquals(messages[0].type, GREMessageType.ConnectResp_695e, "msg[0] GRE type")
+        val connectResp = messages[0].connectResp
+        assertEquals(connectResp.status, ConnectionStatus.Success_aa9e, "ConnectResp status")
+        assertTrue(connectResp.hasDeckMessage(), "ConnectResp should have deck")
+        assertTrue(connectResp.deckMessage.deckCardsCount > 0, "Deck should have cards")
+        assertTrue(connectResp.hasSettings(), "ConnectResp should have default settings")
 
         // Message 1: DieRollResultsResp
-        assertEquals(dynFps[1].greMessageType, binFps[1].greMessageType, "DieRoll: GRE type")
+        assertEquals(messages[1].type, GREMessageType.DieRollResultsResp_695e, "msg[1] GRE type")
+        val dieRoll = messages[1].dieRollResultsResp
+        assertEquals(dieRoll.playerDieRollsCount, 2, "Should have 2 die rolls")
 
-        // Message 2: GameStateMessage (Full)
-        val goldenGsm = binFps[2]
-        val actualGsm = dynFps[2]
-        assertEquals(actualGsm.greMessageType, goldenGsm.greMessageType, "GSM: GRE type")
-        assertEquals(actualGsm.gsType, goldenGsm.gsType, "GSM: type (Full)")
-        assertEquals(actualGsm.updateType, goldenGsm.updateType, "GSM: update type")
-        assertEquals(actualGsm.zoneCount, goldenGsm.zoneCount, "GSM: zone count (17)")
-
-        val requiredFields = goldenGsm.fieldPresence
-        val missing = requiredFields - actualGsm.fieldPresence
-        assertTrue(missing.isEmpty(), "GSM: Missing required fields: $missing")
-
-        // Verify ConnectResp has deck
-        val connectResp = msg.greToClientEvent.getGreToClientMessages(0).connectResp
-        assertEquals(connectResp.status, ConnectionStatus.Success_aa9e, "ConnectResp status")
-        assertTrue(connectResp.deckMessage.deckCardsCount > 0, "ConnectResp should have deck")
+        // Message 2: Full GSM (pre-deal initial state)
+        assertEquals(messages[2].type, GREMessageType.GameStateMessage_695e, "msg[2] GRE type")
+        val gsm = messages[2].gameStateMessage
+        assertEquals(gsm.type, GameStateType.Full, "msg[2] GSM type = Full")
+        assertEquals(gsm.update, GameStateUpdate.SendAndRecord, "msg[2] update")
+        assertEquals(gsm.zonesCount, 17, "msg[2] zone count (9 shared + 4 per player)")
+        assertTrue(gsm.hasGameInfo(), "msg[2] should have gameInfo")
+        assertEquals(gsm.gameInfo.stage, GameStage.Start_a920, "msg[2] stage = Start")
+        assertEquals(gsm.teamsCount, 2, "msg[2] should have 2 teams")
+        assertEquals(gsm.playersCount, 2, "msg[2] should have 2 players")
     }
 
-    @Test
-    fun settingsRespSeat2MatchesRecording() {
-        val binFps = RecordingParser.parsePayload(loadBin("settings-resp-seat2.bin"))
-        assertEquals(binFps.size, 1, "Recording should have 1 GRE message")
+    @Test(description = "initialBundle seat 2: DieRoll + Full GSM + ChooseStartingPlayerReq")
+    fun initialBundleSeat2Structure() {
+        val b = startBridge()
+        val deck = StateMapper.buildDeckMessage(b.getDeckGrpIds(2))
+        val (msg, nextMsgId) = HandshakeMessages.initialBundle(2, "test-match", 3, 1, deck, b)
+        val messages = greMessages(msg)
 
-        val binMsg = MatchServiceToClientMessage.parseFrom(loadBin("settings-resp-seat2.bin"))
-        val binSettings = binMsg.greToClientEvent.getGreToClientMessages(0).setSettingsResp.settings
+        assertEquals(messages.size, 3, "Should produce 3 GRE messages")
+        assertEquals(nextMsgId, 6, "Next msgId should advance by 3")
 
-        val (msg, nextMsgId) = HandshakeMessages.settingsResp(2, 8, 2, binSettings)
-        assertEquals(nextMsgId, 9, "Next msgId should be 9")
+        // Message 0: DieRollResultsResp (no ConnectResp for seat 2)
+        assertEquals(messages[0].type, GREMessageType.DieRollResultsResp_695e, "msg[0] GRE type")
 
-        val dynFps = msg.greToClientEvent.greToClientMessagesList
-            .map { StructuralFingerprint.fromGRE(it) }
-        assertEquals(dynFps.size, 1, "Dynamic should have 1 GRE message")
+        // Message 1: Full GSM with 17 zones + pendingMessageCount=1
+        assertEquals(messages[1].type, GREMessageType.GameStateMessage_695e, "msg[1] GRE type")
+        val gsm = messages[1].gameStateMessage
+        assertEquals(gsm.type, GameStateType.Full, "msg[1] GSM type = Full")
+        assertEquals(gsm.update, GameStateUpdate.SendAndRecord, "msg[1] update")
+        assertEquals(gsm.zonesCount, 17, "msg[1] zone count")
+        assertEquals(gsm.pendingMessageCount, 1, "msg[1] pendingMessageCount (ChooseStartingPlayerReq follows)")
+        assertTrue(gsm.hasGameInfo(), "msg[1] should have gameInfo")
 
-        val golden = binFps[0]
-        val actual = dynFps[0]
-        assertEquals(actual.greMessageType, golden.greMessageType, "GRE message type")
+        // Message 2: ChooseStartingPlayerReq
+        assertEquals(messages[2].type, GREMessageType.ChooseStartingPlayerReq_695e, "msg[2] GRE type")
+        val req = messages[2].chooseStartingPlayerReq
+        assertEquals(req.systemSeatIdsCount, 2, "ChooseStartingPlayerReq should list 2 seats")
+    }
 
-        val echoed = msg.greToClientEvent.getGreToClientMessages(0).setSettingsResp.settings
-        assertEquals(echoed, binSettings, "Settings should round-trip exactly")
+    // --- settingsResp ---
+
+    @Test(description = "settingsResp round-trips settings and advances msgId")
+    fun settingsRespRoundTrip() {
+        // Build sample settings
+        val settings = SettingsMessage.newBuilder()
+            .addStops(
+                Stop.newBuilder()
+                    .setStopType(StopType.PrecombatMainPhase)
+                    .setAppliesTo(SettingScope.Team_ac6e)
+                    .setStatus(SettingStatus.Set),
+            )
+            .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
+            .build()
+
+        val (msg, nextMsgId) = HandshakeMessages.settingsResp(1, 9, 2, settings)
+        val messages = greMessages(msg)
+
+        assertEquals(messages.size, 1, "Should produce 1 GRE message")
+        assertEquals(nextMsgId, 10, "Next msgId should advance by 1")
+
+        val gre = messages[0]
+        assertEquals(gre.type, GREMessageType.SetSettingsResp_695e, "GRE type")
+        assertEquals(gre.msgId, 9, "msgId")
+
+        // Settings round-trip: echoed settings match input
+        val echoed = gre.setSettingsResp.settings
+        assertEquals(echoed, settings, "Settings should round-trip exactly")
+    }
+
+    @Test(description = "settingsResp with null settings produces empty resp")
+    fun settingsRespNullSettings() {
+        val (msg, nextMsgId) = HandshakeMessages.settingsResp(2, 8, 2, null)
+        val messages = greMessages(msg)
+
+        assertEquals(messages.size, 1, "Should produce 1 GRE message")
+        assertEquals(nextMsgId, 9, "Next msgId should advance by 1")
+
+        val gre = messages[0]
+        assertEquals(gre.type, GREMessageType.SetSettingsResp_695e, "GRE type")
+        assertTrue(gre.hasSetSettingsResp(), "Should have SetSettingsResp")
     }
 }
