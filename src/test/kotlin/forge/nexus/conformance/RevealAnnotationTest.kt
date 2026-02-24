@@ -30,15 +30,14 @@ class RevealAnnotationTest : ConformanceTestBase() {
      */
     @Test
     fun revealProducesRevealedCardCreatedAnnotation() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
         // Pick a card from hand to simulate being revealed
         val player = b.getPlayer(1)!!
         val handCard = player.getZone(ZoneType.Hand).cards.firstOrNull()
             ?: error("No cards in hand to reveal")
 
-        val captureGsId = gsId + 10
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Simulate what WebPlayerController.reveal() does: push card IDs
         // through the prompt bridge's reveal queue
@@ -49,8 +48,7 @@ class RevealAnnotationTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
@@ -71,14 +69,13 @@ class RevealAnnotationTest : ConformanceTestBase() {
      */
     @Test
     fun multiCardRevealProducesMultipleAnnotations() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
         val player = b.getPlayer(1)!!
         val handCards = player.getZone(ZoneType.Hand).cards.take(3)
         assertTrue(handCards.size >= 2, "Need at least 2 cards to test multi-reveal")
 
-        val captureGsId = gsId + 10
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Reveal multiple cards at once
         b.promptBridge.recordReveal(handCards.map { it.id }, 1)
@@ -88,8 +85,7 @@ class RevealAnnotationTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
@@ -107,10 +103,9 @@ class RevealAnnotationTest : ConformanceTestBase() {
      */
     @Test
     fun noRevealProducesNoAnnotation() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
-        val captureGsId = gsId + 10
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Don't record any reveals
         val result = BundleBuilder.stateOnlyDiff(
@@ -118,8 +113,7 @@ class RevealAnnotationTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 

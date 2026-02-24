@@ -18,10 +18,10 @@ class CardInjectionTest : ConformanceTestBase() {
 
     @Test(groups = ["integration"])
     fun `injected Serra Angel appears in GSM with correct metadata`() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val injected = TestCardInjector.inject(b, 1, "Serra Angel", ZoneType.Battlefield, sick = false)
 
-        val gsm = StateMapper.buildFromGame(game, gsId + 1, "test", b, viewingSeatId = 1)
+        val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1)
         val obj = gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }
 
         assertNotNull(obj, "Injected card should appear in gameObjectsList")
@@ -49,10 +49,10 @@ class CardInjectionTest : ConformanceTestBase() {
 
     @Test(groups = ["integration"])
     fun `injected creature to hand is visible in hand zone`() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val injected = TestCardInjector.inject(b, 1, "Lightning Bolt", ZoneType.Hand)
 
-        val gsm = StateMapper.buildFromGame(game, gsId + 1, "test", b, viewingSeatId = 1)
+        val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1)
         val obj = gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }
 
         assertNotNull(obj, "Injected card should appear in gameObjectsList")
@@ -94,10 +94,10 @@ class CardInjectionTest : ConformanceTestBase() {
 
     @Test(groups = ["integration"])
     fun `injected land enters tapped when requested`() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val injected = TestCardInjector.inject(b, 1, "Plains", ZoneType.Battlefield, tapped = true)
 
-        val gsm = StateMapper.buildFromGame(game, gsId + 1, "test", b, viewingSeatId = 1)
+        val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1)
         val obj = gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }
 
         assertNotNull(obj, "Injected land should appear in gameObjectsList")

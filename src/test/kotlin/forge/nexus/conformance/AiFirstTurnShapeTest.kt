@@ -38,11 +38,13 @@ class AiFirstTurnShapeTest {
     }
 
     /**
-     * No post-handshake GSM should be Full with zones/objects.
-     * The only Full is gsId=1 in the handshake (not captured by harness).
-     * gameStart now uses phaseTransitionDiff which produces thin Diffs.
+     * At most one Full GSM with zones should exist post-handshake.
+     * When AI goes first, the very first AI action diff has no prior baseline
+     * and falls back to Full (buildDiffFromGame seeds a snapshot for subsequent
+     * Diffs). This mirrors the real Arena server where the first post-mulligan
+     * GSM is Full. All subsequent GSMs should be Diffs.
      */
-    @Test(description = "No post-handshake Full GSM with zones")
+    @Test(description = "At most one post-handshake Full GSM with zones")
     fun gameStartIsDiffNotFull() {
         val h = runAiFirstGame()
 
@@ -52,17 +54,19 @@ class AiFirstTurnShapeTest {
             .filter { it.zonesCount > 0 }
 
         assertTrue(
-            fullWithZones.isEmpty(),
-            "No post-handshake GSM should be Full with zones, but found ${fullWithZones.size}: " +
+            fullWithZones.size <= 1,
+            "Expected at most 1 post-handshake Full GSM (initial baseline), but found ${fullWithZones.size}: " +
                 fullWithZones.map { "gsId=${it.gameStateId}" },
         )
     }
 
     /**
-     * First 3 GSMs after handshake should match phaseTransitionDiff shape:
-     *   [0]: Diff/SendHiFi, 2x PhaseOrStepModified, has gameInfo
-     *   [1]: Diff/SendHiFi, turnInfo + actions only (echo)
-     *   [2]: Diff/SendAndRecord, 1x PhaseOrStepModified (checkpoint)
+     * AI action diffs (queued during awaitPriority) come first with lower gsIds,
+     * followed by phaseTransitionDiff (3 GSMs) with higher gsIds.
+     * The 3 phaseTransitionDiff GSMs should match this shape:
+     *   [N+0]: Diff/SendHiFi, 2x PhaseOrStepModified, has gameInfo
+     *   [N+1]: Diff/SendHiFi, turnInfo + actions only (echo)
+     *   [N+2]: Diff/SendAndRecord, 1x PhaseOrStepModified (checkpoint)
      */
     @Test(description = "gameStart has phaseTransitionDiff pattern")
     fun gameStartHasPhaseTransitionPattern() {
@@ -72,30 +76,37 @@ class AiFirstTurnShapeTest {
             .filter { it.hasGameStateMessage() }
             .map { it.gameStateMessage }
 
-        assertTrue(gsms.size >= 3, "Expected at least 3 GSMs, got ${gsms.size}")
+        // Find the first Diff GSM with gameInfo — that's the phaseTransitionDiff start.
+        // AI action GSMs may precede it (the first one can be Full if no baseline existed).
+        val ptStart = gsms.indexOfFirst { it.type == GameStateType.Diff && it.hasGameInfo() }
+        assertTrue(ptStart >= 0, "Expected at least one GSM with gameInfo")
+        assertTrue(
+            gsms.size >= ptStart + 3,
+            "Expected at least 3 GSMs after phaseTransition start at index $ptStart, got ${gsms.size}",
+        )
 
-        // GSM 0: SendHiFi with 2+ PhaseOrStepModified + gameInfo
-        val gsm0 = gsms[0]
-        assertEquals(gsm0.type, GameStateType.Diff, "GSM[0] should be Diff")
-        assertEquals(gsm0.update, GameStateUpdate.SendHiFi, "GSM[0] should be SendHiFi")
-        assertTrue(gsm0.hasGameInfo(), "GSM[0] should have gameInfo")
+        // GSM N+0: SendHiFi with 2+ PhaseOrStepModified + gameInfo
+        val gsm0 = gsms[ptStart]
+        assertEquals(gsm0.type, GameStateType.Diff, "phaseTransition[0] should be Diff")
+        assertEquals(gsm0.update, GameStateUpdate.SendHiFi, "phaseTransition[0] should be SendHiFi")
+        assertTrue(gsm0.hasGameInfo(), "phaseTransition[0] should have gameInfo")
         val phaseAnns0 = gsm0.annotationsList.flatMap { it.typeList }
             .count { it == AnnotationType.PhaseOrStepModified }
-        assertTrue(phaseAnns0 >= 2, "GSM[0] should have 2+ PhaseOrStepModified, got $phaseAnns0")
+        assertTrue(phaseAnns0 >= 2, "phaseTransition[0] should have 2+ PhaseOrStepModified, got $phaseAnns0")
 
-        // GSM 1: SendHiFi echo (turnInfo + actions)
-        val gsm1 = gsms[1]
-        assertEquals(gsm1.type, GameStateType.Diff, "GSM[1] should be Diff")
-        assertEquals(gsm1.update, GameStateUpdate.SendHiFi, "GSM[1] should be SendHiFi")
-        assertTrue(gsm1.hasTurnInfo(), "GSM[1] should have turnInfo")
+        // GSM N+1: SendHiFi echo (turnInfo + actions)
+        val gsm1 = gsms[ptStart + 1]
+        assertEquals(gsm1.type, GameStateType.Diff, "phaseTransition[1] should be Diff")
+        assertEquals(gsm1.update, GameStateUpdate.SendHiFi, "phaseTransition[1] should be SendHiFi")
+        assertTrue(gsm1.hasTurnInfo(), "phaseTransition[1] should have turnInfo")
 
-        // GSM 2: SendAndRecord with 1x PhaseOrStepModified
-        val gsm2 = gsms[2]
-        assertEquals(gsm2.type, GameStateType.Diff, "GSM[2] should be Diff")
-        assertEquals(gsm2.update, GameStateUpdate.SendAndRecord, "GSM[2] should be SendAndRecord")
+        // GSM N+2: SendAndRecord with 1x PhaseOrStepModified
+        val gsm2 = gsms[ptStart + 2]
+        assertEquals(gsm2.type, GameStateType.Diff, "phaseTransition[2] should be Diff")
+        assertEquals(gsm2.update, GameStateUpdate.SendAndRecord, "phaseTransition[2] should be SendAndRecord")
         val phaseAnns2 = gsm2.annotationsList.flatMap { it.typeList }
             .count { it == AnnotationType.PhaseOrStepModified }
-        assertEquals(phaseAnns2, 1, "GSM[2] should have exactly 1 PhaseOrStepModified")
+        assertEquals(phaseAnns2, 1, "phaseTransition[2] should have exactly 1 PhaseOrStepModified")
     }
 
     /**

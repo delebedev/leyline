@@ -28,11 +28,11 @@ class CounteredSpellTest : ConformanceTestBase() {
      */
     @Test
     fun counteredCreatureGoesToGraveyardWithCounteredCategory() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
         // Play land for mana
         playLand(b)
-        b.snapshotFromGame(game, gsId + 1)
+        b.snapshotFromGame(game, counter.nextGsId())
 
         // Cast creature (goes to Stack)
         val player = b.getPlayer(1)!!
@@ -41,7 +41,7 @@ class CounteredSpellTest : ConformanceTestBase() {
         val forgeCardId = creature.id
 
         castCreature(b)
-        b.snapshotFromGame(game, gsId + 2)
+        b.snapshotFromGame(game, counter.nextGsId())
         val stackId = b.getOrAllocInstanceId(forgeCardId)
 
         // Now counter it: move from Stack to Graveyard directly.
@@ -51,8 +51,7 @@ class CounteredSpellTest : ConformanceTestBase() {
         val stackCard = game.stackZone.cards.firstOrNull { it.id == forgeCardId }
             ?: error("Creature not found on stack (forgeCardId=$forgeCardId)")
 
-        val captureGsId = gsId + 5
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Counter the spell via game action (fires SpellResolved with fizzled + zone change)
         game.action.moveToGraveyard(stackCard, null)
@@ -62,8 +61,7 @@ class CounteredSpellTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -97,10 +95,10 @@ class CounteredSpellTest : ConformanceTestBase() {
      */
     @Test
     fun fizzledSpellResolvedEventProducesCounteredNotResolve() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
         playLand(b)
-        b.snapshotFromGame(game, gsId + 1)
+        b.snapshotFromGame(game, counter.nextGsId())
 
         val player = b.getPlayer(1)!!
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
@@ -108,13 +106,12 @@ class CounteredSpellTest : ConformanceTestBase() {
         val forgeCardId = creature.id
 
         castCreature(b)
-        b.snapshotFromGame(game, gsId + 2)
+        b.snapshotFromGame(game, counter.nextGsId())
 
         val stackCard = game.stackZone.cards.firstOrNull { it.id == forgeCardId }
             ?: error("Creature not found on stack")
 
-        val captureGsId = gsId + 5
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Manually fire SpellResolved with fizzled=true (simulates counter)
         // then move to GY — this is what Forge does when a spell is countered.
@@ -126,8 +123,7 @@ class CounteredSpellTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
         val newId = b.getOrAllocInstanceId(forgeCardId)

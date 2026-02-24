@@ -7,7 +7,6 @@ import forge.game.phase.PhaseType
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.ConcurrentLinkedQueue
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Paces AI turns by sleeping the game thread at key events and capturing
@@ -17,18 +16,23 @@ import java.util.concurrent.atomic.AtomicInteger
  * the game thread -- sleeping here freezes engine progress and state, making
  * it safe to snapshot and diff. Mirrors [forge.web.game.WebGamePlayback].
  *
+ * Uses the shared [MessageCounter] for protocol sequencing. Both the session
+ * thread and this (engine thread) call `counter.nextMsgId()`/`counter.nextGsId()`
+ * on the same atomic — no seeding or syncing needed.
+ *
  * The [MatchHandler][forge.nexus.server.MatchHandler] drains the queue
- * via [drainQueue] and sends messages to the TCP socket with correct
- * protocol counters.
+ * via [drainQueue] and sends messages to the TCP socket.
  *
  * @param bridge the GameBridge for state mapping and zone tracking
  * @param matchId match identifier for GRE messages
  * @param seatId the human player's seat (messages are from their perspective)
+ * @param counter shared protocol counter (same instance used by MatchSession)
  */
 class NexusGamePlayback(
     private val bridge: GameBridge,
     private val matchId: String,
     private val seatId: Int,
+    private val counter: MessageCounter,
     /** Delay multiplier (1.0 = default, 0.5 = 2x speed, 0 = instant). Derived from config ai.speed. */
     private val delayMultiplier: Double = 1.0,
 ) : IGameEventVisitor.Base<Unit>() {
@@ -41,27 +45,6 @@ class NexusGamePlayback(
 
     /** Thread-safe queue of GRE message batches for the handler to drain. */
     private val queue = ConcurrentLinkedQueue<List<GREToClientMessage>>()
-
-    /** Counter for gsId -- shared via atomic for thread safety. */
-    private val gsIdCounter = AtomicInteger(0)
-
-    /** Counter for msgId -- shared via atomic for thread safety. */
-    private val msgIdCounter = AtomicInteger(0)
-
-    /**
-     * Sync counters from MatchHandler's current values.
-     *
-     * Uses max semantics: never goes backwards. The game thread may have already
-     * advanced the counters via [captureAndPause] between the handler's drain and
-     * this seed call. Clobbering with a stale value causes gsId collisions.
-     */
-    fun seedCounters(msgId: Int, gsId: Int) {
-        msgIdCounter.updateAndGet { maxOf(it, msgId) }
-        gsIdCounter.updateAndGet { maxOf(it, gsId) }
-    }
-
-    /** Returns current counter values so MatchHandler can sync after drain. */
-    fun getCounters(): Pair<Int, Int> = msgIdCounter.get() to gsIdCounter.get()
 
     // -- EventBus entry point --
 
@@ -144,6 +127,7 @@ class NexusGamePlayback(
      * update the bridge snapshot, then sleep for animation pacing.
      *
      * Called on the engine thread -- state is frozen, safe to serialize.
+     * Uses the shared [counter] — no seeding needed.
      */
     private fun captureAndPause(
         delayMs: Int,
@@ -158,13 +142,10 @@ class NexusGamePlayback(
                 bridge,
                 matchId,
                 seatId,
-                msgIdCounter.get(),
-                gsIdCounter.get(),
+                counter,
                 phaseChanged = phaseChanged,
                 turnStarted = turnStarted,
             )
-            msgIdCounter.set(result.nextMsgId)
-            gsIdCounter.set(result.nextGsId)
 
             queue.add(result.messages)
 

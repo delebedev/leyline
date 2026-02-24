@@ -20,10 +20,10 @@ class GsIdChainTest : ConformanceTestBase() {
 
     @Test(description = "aiActionDiff produces single GSM with no pendingMessageCount")
     fun aiDiffNoPendingMessageCount() {
-        val (b, game, gsId) = startGameAtMain1()
-        b.snapshotFromGame(game, gsId)
+        val (b, game, counter) = startGameAtMain1()
+        b.snapshotFromGame(game, counter.currentGsId())
 
-        val result = BundleBuilder.aiActionDiff(game, b, TEST_MATCH_ID, SEAT_ID, 1, gsId)
+        val result = BundleBuilder.aiActionDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
         assertEquals(result.messages.size, 1, "aiActionDiff should produce 1 GSM")
 
         val gsm = result.messages[0].gameStateMessage
@@ -36,10 +36,10 @@ class GsIdChainTest : ConformanceTestBase() {
 
     @Test(description = "postAction GSM has pendingMessageCount=1 (AAR follows)")
     fun postActionHasPendingForAar() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
         playLand(b) ?: error("playLand failed at seed 42")
-        val result = postAction(game, b, 1, gsId)
+        val result = postAction(game, b, counter)
         val gsm = result.gsmOrNull ?: error("No GSM in bundle result")
 
         assertEquals(
@@ -51,9 +51,9 @@ class GsIdChainTest : ConformanceTestBase() {
 
     @Test(description = "phaseTransitionDiff produces 5 messages with correct echo chain")
     fun phaseTransitionEchoFields() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
-        val result = BundleBuilder.phaseTransitionDiff(game, b, TEST_MATCH_ID, SEAT_ID, 1, gsId)
+        val result = BundleBuilder.phaseTransitionDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
         assertEquals(result.messages.size, 5, "phaseTransitionDiff should produce 5 messages")
 
         val gsms = result.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }

@@ -1,6 +1,7 @@
 package forge.nexus.conformance
 
 import forge.nexus.game.BundleBuilder
+import forge.nexus.game.MessageCounter
 import org.testng.Assert.assertEquals
 import org.testng.annotations.Test
 
@@ -18,9 +19,9 @@ class ShapeIntegrationTest : ConformanceTestBase() {
 
     @Test(description = "aiActionDiff produces single SendHiFi GSM (no echo)")
     fun aiActionDiffProducesSingleMessage() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
-        val result = BundleBuilder.aiActionDiff(game, b, TEST_MATCH_ID, SEAT_ID, 1, gsId)
+        val result = BundleBuilder.aiActionDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
         val captured = fingerprint(result.messages)
 
         assertEquals(captured.size, 1, "aiActionDiff should produce 1 message")
@@ -30,9 +31,9 @@ class ShapeIntegrationTest : ConformanceTestBase() {
 
     @Test(description = "declareAttackersBundle produces GS + DeclareAttackersReq with promptId=6")
     fun declareAttackersBundleShape() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
-        val result = BundleBuilder.declareAttackersBundle(game, b, TEST_MATCH_ID, SEAT_ID, 1, gsId)
+        val result = BundleBuilder.declareAttackersBundle(game, b, TEST_MATCH_ID, SEAT_ID, counter)
         val captured = fingerprint(result.messages)
 
         assertEquals(captured.size, 2, "Should produce 2 messages")
@@ -43,7 +44,7 @@ class ShapeIntegrationTest : ConformanceTestBase() {
 
     @Test(description = "edictalPass produces single EdictalMessage")
     fun edictalPassShape() {
-        val result = BundleBuilder.edictalPass(1, 1, 10)
+        val result = BundleBuilder.edictalPass(1, MessageCounter(initialGsId = 10, initialMsgId = 0))
         val captured = fingerprint(result.messages)
 
         assertEquals(captured.size, 1, "edictalPass should produce 1 message")

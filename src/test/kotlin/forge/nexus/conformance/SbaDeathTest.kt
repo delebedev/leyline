@@ -5,6 +5,7 @@ import forge.game.card.Card
 import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
+import forge.nexus.game.MessageCounter
 import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotNull
@@ -34,12 +35,12 @@ class SbaDeathTest : ConformanceTestBase() {
      */
     @Test
     fun zeroToughnessCreatureDiesToSba() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val forgeCardId = creature.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
-        val gsm = captureAfterSba(b, game, gsId + 10) {
+        val gsm = captureAfterSba(b, game, counter) {
             creature.baseToughness = 0
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
@@ -67,12 +68,12 @@ class SbaDeathTest : ConformanceTestBase() {
      */
     @Test
     fun lethalDamageCreatureDiesToSba() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val forgeCardId = creature.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
-        val gsm = captureAfterSba(b, game, gsId + 10) {
+        val gsm = captureAfterSba(b, game, counter) {
             // Mark damage equal to toughness — lethal
             creature.damage = creature.netToughness
         }
@@ -94,12 +95,12 @@ class SbaDeathTest : ConformanceTestBase() {
      */
     @Test
     fun deathtouchDamageCreatureDiesToSba() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
         val forgeCardId = creature.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
-        val gsm = captureAfterSba(b, game, gsId + 10) {
+        val gsm = captureAfterSba(b, game, counter) {
             // Any amount of damage + deathtouch flag = lethal
             creature.damage = 1
             creature.setHasBeenDealtDeathtouchDamage(true)
@@ -144,10 +145,10 @@ class SbaDeathTest : ConformanceTestBase() {
     private fun captureAfterSba(
         b: GameBridge,
         game: Game,
-        gsId: Int,
+        counter: MessageCounter,
         setup: () -> Unit,
     ): GameStateMessage {
-        b.snapshotFromGame(game, gsId)
+        b.snapshotFromGame(game, counter.currentGsId())
         setup()
         game.action.checkStateEffects(true)
         val result = BundleBuilder.stateOnlyDiff(
@@ -155,8 +156,7 @@ class SbaDeathTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            gsId,
+            counter,
         )
         return result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
     }

@@ -46,6 +46,9 @@ class GameBridge(
     private val bridgeTimeoutMs: Long = 120_000L,
     /** Playtest config — controls AI speed, die roll, etc. */
     val playtestConfig: PlaytestConfig = PlaytestConfig(),
+    /** Shared protocol counter for GRE message sequencing.
+     *  Production: shared with MatchSession. Tests: local default. */
+    val messageCounter: MessageCounter = MessageCounter(),
 ) : IdMapping,
     PlayerLookup,
     ZoneTracking,
@@ -254,7 +257,7 @@ class GameBridge(
         log.info("GameBridge: registered GameEventCollector for event-driven annotations")
 
         // Register AI action playback subscriber (after collector)
-        val pb = NexusGamePlayback(this, "forge-match-1", 1, playtestConfig.aiDelayMultiplier)
+        val pb = NexusGamePlayback(this, "forge-match-1", 1, messageCounter, playtestConfig.aiDelayMultiplier)
         playback = pb
         g.subscribeToEvents(pb)
         log.info("GameBridge: registered NexusGamePlayback for AI action streaming")
@@ -434,7 +437,7 @@ class GameBridge(
         eventCollector = collector
         g.subscribeToEvents(collector)
 
-        val pb = NexusGamePlayback(this, "forge-match-1", 1, playtestConfig.aiDelayMultiplier)
+        val pb = NexusGamePlayback(this, "forge-match-1", 1, messageCounter, playtestConfig.aiDelayMultiplier)
         playback = pb
         g.subscribeToEvents(pb)
 

@@ -12,7 +12,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Handles targeting-related client messages and prompt detection.
  *
  * Extracted from [MatchSession] for independent testability.
- * Uses [SessionOps] for counter management, message sending, and tracing.
+ * Uses [SessionOps] for message sending and tracing. Protocol sequencing
+ * uses the shared [MessageCounter][forge.nexus.game.MessageCounter] via
+ * `ops.counter` — no seeding or syncing needed.
  */
 class TargetingHandler(private val ops: SessionOps) {
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
@@ -42,14 +44,12 @@ class TargetingHandler(private val ops: SessionOps) {
 
         ops.sendBundledGRE(
             listOf(
-                ops.makeGRE(GREMessageType.SubmitTargetsResp_695e, ops.gameStateId, ops.msgIdCounter++) {
+                ops.makeGRE(GREMessageType.SubmitTargetsResp_695e, ops.counter.currentGsId(), ops.counter.nextMsgId()) {
                     it.submitTargetsResp = SubmitTargetsResp.newBuilder().setResult(ResultCode.Success_a500).build()
                 },
             ),
         )
 
-        // Seed BEFORE submit — submitResponse unblocks the game thread immediately
-        bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
         bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
         bridge.awaitPriority()
         autoPass(bridge)
@@ -78,8 +78,6 @@ class TargetingHandler(private val ops: SessionOps) {
 
         log.info("TargetingHandler: SelectNResp indices={}", selectedIndices)
 
-        // Seed BEFORE submit — submitResponse unblocks the game thread immediately
-        bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
         bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
         bridge.awaitPriority()
         autoPass(bridge)
@@ -161,11 +159,8 @@ class TargetingHandler(private val ops: SessionOps) {
 
     private fun sendSelectTargetsReq(bridge: GameBridge, req: SelectTargetsReq) {
         val game = bridge.getGame() ?: return
-        val result = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.msgIdCounter, ops.gameStateId, req)
-        ops.msgIdCounter = result.nextMsgId
-        ops.gameStateId = result.nextGsId
+        val result = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, req)
         NexusTap.outboundTemplate("SelectTargetsReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
-        bridge.playback?.seedCounters(ops.msgIdCounter, ops.gameStateId)
     }
 }

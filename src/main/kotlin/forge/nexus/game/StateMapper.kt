@@ -453,7 +453,13 @@ object StateMapper {
         viewingSeatId: Int = 0,
     ): GameStateMessage {
         val prev = bridge.getPreviousState()
-            ?: return buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId)
+        if (prev == null) {
+            // No baseline exists — fall back to Full, but snapshot it so the next
+            // buildDiffFromGame call has a baseline and produces a real Diff.
+            val full = buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId)
+            bridge.snapshotState(full)
+            return full
+        }
 
         // Build current full state (for comparison + to seed next diff).
         // Pass actions=null to avoid redundant action embedding (we embed below).

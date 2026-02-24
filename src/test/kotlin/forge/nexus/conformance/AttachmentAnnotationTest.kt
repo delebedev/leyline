@@ -31,7 +31,7 @@ class AttachmentAnnotationTest : ConformanceTestBase() {
      */
     @Test
     fun attachmentProducesTransientAndPersistentAnnotations() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
 
         // Get a second card from hand to simulate an aura/equipment
@@ -42,8 +42,7 @@ class AttachmentAnnotationTest : ConformanceTestBase() {
         // Move aura to battlefield (simulating resolve)
         game.action.moveToPlay(auraCard, null, AbilityKey.newMap())
 
-        val captureGsId = gsId + 10
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Fire attachment event (simulates aura enchanting creature)
         game.fireEvent(GameEventCardAttachment(auraCard, null, creature))
@@ -53,8 +52,7 @@ class AttachmentAnnotationTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
@@ -101,7 +99,7 @@ class AttachmentAnnotationTest : ConformanceTestBase() {
      */
     @Test
     fun detachDoesNotProduceAttachmentCreated() {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         val creature = ensureCreatureOnBattlefield(b, game)
 
         val player = b.getPlayer(1)!!
@@ -110,8 +108,7 @@ class AttachmentAnnotationTest : ConformanceTestBase() {
 
         game.action.moveToPlay(auraCard, null, AbilityKey.newMap())
 
-        val captureGsId = gsId + 10
-        b.snapshotFromGame(game, captureGsId)
+        b.snapshotFromGame(game, counter.currentGsId())
 
         // Fire detach event (aura falling off — newTarget is null)
         game.fireEvent(GameEventCardAttachment(auraCard, creature, null))
@@ -121,8 +118,7 @@ class AttachmentAnnotationTest : ConformanceTestBase() {
             b,
             TEST_MATCH_ID,
             SEAT_ID,
-            1,
-            captureGsId,
+            counter,
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 

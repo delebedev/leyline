@@ -8,6 +8,7 @@ import forge.nexus.debug.SessionRecorder
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
+import forge.nexus.game.MessageCounter
 import forge.nexus.game.StateMapper
 import forge.nexus.game.StopTypeMapping
 import forge.nexus.protocol.HandshakeMessages
@@ -22,7 +23,11 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  *
  * Delegates combat flows to [CombatHandler], targeting to [TargetingHandler],
  * and the auto-pass loop to [AutoPassEngine]. Owns the [sessionLock], message
- * sending, counter state, and Familiar mirroring.
+ * sending, and Familiar mirroring.
+ *
+ * Protocol sequencing uses a shared [MessageCounter] — same instance is passed
+ * to [NexusGamePlayback][forge.nexus.game.NexusGamePlayback]. No seeding or
+ * syncing needed.
  *
  * Transport-agnostic: sends messages through [MessageSink].
  * [MatchHandler] creates one per connection and delegates GRE messages here.
@@ -34,14 +39,13 @@ class MatchSession(
     val registry: MatchRegistry,
     val paceDelayMs: Long = 200L,
     val recorder: SessionRecorder? = null,
+    override val counter: MessageCounter = MessageCounter(),
 ) : SessionOps {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
     /** Serializes all game-logic entry points (Netty I/O threads are concurrent). */
     private val sessionLock = Any()
 
-    override var msgIdCounter = 1
-    override var gameStateId = 0
     var gameBridge: GameBridge? = null
         private set
 
@@ -58,17 +62,6 @@ class MatchSession(
         gameBridge = bridge
     }
 
-    /** Advance gameStateId and return the new value. Used by [MatchHandler] handshake senders. */
-    fun nextGameStateId(): Int {
-        gameStateId++
-        return gameStateId
-    }
-
-    /** Update counters from a handshake result. Used by [MatchHandler] handshake senders. */
-    fun applyHandshakeCounters(nextMsgId: Int) {
-        msgIdCounter = nextMsgId
-    }
-
     // --- Public entry points (called by MatchHandler) ---
 
     /**
@@ -79,69 +72,30 @@ class MatchSession(
         val bridge = gameBridge ?: return
         log.info("MatchSession: waiting for engine to reach priority after keep")
 
-        // Seed an initial snapshot BEFORE awaitPriority so that any AI action diffs
-        // captured by NexusGamePlayback.captureAndPause during the await produce
-        // proper Diff messages (not Full). Without this, the first captureAndPause
-        // has no baseline and falls back to buildFromGame → Full.
-        val preGame = bridge.getGame()
-        if (preGame != null) {
-            bridge.snapshotState(
-                StateMapper.buildFromGame(preGame, 0, matchId, bridge, viewingSeatId = seatId),
-            )
-        }
-
         bridge.awaitPriority()
 
         val game = bridge.getGame() ?: return
 
-        // Don't clearPreviousState — it's already null (handshake doesn't snapshot).
-        // phaseTransitionDiff builds thin metadata Diffs, no snapshot needed.
-        // TODO: when handshake sends a proper Full with real game objects,
-        // the first Diff here needs diffDeletedInstanceIds to retire stale IDs
-        // from the handshake Full (real server does this post-mulligan).
-
         traceEvent(GameStateCollector.EventType.GAME_START, game, "post-mulligan, entering Main1")
 
-        val result = BundleBuilder.phaseTransitionDiff(game, bridge, matchId, seatId, msgIdCounter, gameStateId)
-        msgIdCounter = result.nextMsgId
-        gameStateId = result.nextGsId
-
-        sendBundle(result)
-
-        // Re-number and send AI action diffs queued during awaitPriority.
-        // When AI goes first, the engine fires GameEventLandPlayed / SpellAbilityCast
-        // while we blocked in awaitPriority. NexusGamePlayback.captureAndPause built
-        // correct diff chains (each relative to the previous) but with pre-seed gsIds
-        // starting from 0. Re-number them to follow phaseTransitionDiff so the client
-        // sees PlayLand and CastSpell as separate animations.
+        // Drain AI action diffs queued during awaitPriority.
+        // These have gsIds allocated by the engine thread via the shared counter
+        // during awaitPriority. Send them first (lower gsIds).
         val playback = bridge.playback
         if (playback != null) {
             for (batch in playback.drainQueue()) {
-                val renumbered = batch.map { msg ->
-                    val b = msg.toBuilder()
-                    b.msgId = msgIdCounter++
-                    if (msg.hasGameStateMessage()) {
-                        val prevGsId = gameStateId
-                        gameStateId++
-                        b.gameStateId = gameStateId
-                        b.gameStateMessage = msg.gameStateMessage.toBuilder()
-                            .setGameStateId(gameStateId)
-                            .setPrevGameStateId(prevGsId)
-                            .build()
-                    }
-                    b.build()
-                }
-                sendBundledGRE(renumbered)
+                sendBundledGRE(batch)
             }
         }
 
-        // Seed playback counters so subsequent AI action diffs use correct sequence
-        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
+        // phaseTransitionDiff after AI diffs — uses the shared counter which is
+        // now past whatever the engine allocated. gsIds are higher than AI diffs
+        // but the prevGsId chain is valid (references last AI diff's gsId).
+        val result = BundleBuilder.phaseTransitionDiff(game, bridge, matchId, seatId, counter)
+        sendBundle(result)
 
         // Seed state snapshot for subsequent diff computation.
-        // captureAndPause already updated the bridge snapshot during awaitPriority,
-        // but with pre-seed gsIds. Rebuild to align gsId with the renumbered chain.
-        bridge.snapshotState(StateMapper.buildFromGame(game, gameStateId, matchId, bridge))
+        bridge.snapshotState(StateMapper.buildFromGame(game, counter.currentGsId(), matchId, bridge))
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(bridge)
@@ -163,10 +117,7 @@ class MatchSession(
         // Seed state snapshot for subsequent diff computation.
         // The puzzle initial bundle already sent the Full GSM, so the bridge
         // needs a matching snapshot for the first Diff to be correct.
-        bridge.snapshotState(StateMapper.buildFromGame(game, gameStateId, matchId, bridge))
-
-        // Seed playback counters so AI action diffs use correct sequence
-        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
+        bridge.snapshotState(StateMapper.buildFromGame(game, counter.currentGsId(), matchId, bridge))
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(bridge)
@@ -177,12 +128,12 @@ class MatchSession(
      */
     fun onPerformAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
-        log.info("MatchSession: onPerformAction enter gsId={} (current={})", greMsg.gameStateId, gameStateId)
+        log.info("MatchSession: onPerformAction enter gsId={} (current={})", greMsg.gameStateId, counter.currentGsId())
 
         // Reject stale actions — client may resend with outdated gameStateId
         val clientGsId = greMsg.gameStateId
-        if (clientGsId != 0 && clientGsId < gameStateId) {
-            log.warn("MatchSession: stale PerformActionResp gsId={} (current={}), ignoring", clientGsId, gameStateId)
+        if (clientGsId != 0 && clientGsId < counter.currentGsId()) {
+            log.warn("MatchSession: stale PerformActionResp gsId={} (current={}), ignoring", clientGsId, counter.currentGsId())
             return
         }
 
@@ -214,11 +165,6 @@ class MatchSession(
             }
             traceEvent(GameStateCollector.EventType.CLIENT_ACTION, game, "$actionName iid=${action.instanceId}$cardName")
         }
-
-        // Seed playback BEFORE submit — submitAction unblocks the game thread
-        // immediately via CompletableFuture.complete(), and the game thread may
-        // fire events captured by NexusGamePlayback before we reach awaitPriority.
-        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
 
         when (action.actionType) {
             ActionType.Pass -> {
@@ -324,8 +270,8 @@ class MatchSession(
         // respects client's phase ladder toggles.
         applyStopsToProfile(reqSettings.settings)
 
-        val (msg, nextMsgId) = HandshakeMessages.settingsResp(seatId, msgIdCounter, gameStateId, clientSettings)
-        msgIdCounter = nextMsgId
+        val (msg, nextMsgId) = HandshakeMessages.settingsResp(seatId, counter.currentMsgId(), counter.currentGsId(), clientSettings)
+        counter.setMsgId(nextMsgId)
         ProtoDump.dump(msg, "SettingsResp")
         sink.sendRaw(msg)
     }
@@ -378,15 +324,12 @@ class MatchSession(
             return
         }
 
-        val result = BundleBuilder.postAction(game, bridge, matchId, seatId, msgIdCounter, gameStateId)
+        val result = BundleBuilder.postAction(game, bridge, matchId, seatId, counter)
         sendBundle(result)
-        bridge.playback?.seedCounters(msgIdCounter, gameStateId)
     }
 
-    /** Apply a [BundleBuilder.BundleResult]: update counters, tap-log, and send. */
+    /** Apply a [BundleBuilder.BundleResult]: tap-log and send. */
     override fun sendBundle(result: BundleBuilder.BundleResult) {
-        msgIdCounter = result.nextMsgId
-        gameStateId = result.nextGsId
         for (gre in result.messages) {
             if (gre.hasGameStateMessage()) NexusTap.outboundState(gre.gameStateMessage)
             if (gre.hasActionsAvailableReq()) NexusTap.outboundActions(gre.actionsAvailableReq)
@@ -412,9 +355,7 @@ class MatchSession(
         val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
         val winningTeam = if (humanWon) 1 else 2
 
-        val result = BundleBuilder.gameOverBundle(winningTeam, seatId, msgIdCounter, gameStateId)
-        msgIdCounter = result.nextMsgId
-        gameStateId = result.nextGsId
+        val result = BundleBuilder.gameOverBundle(winningTeam, seatId, counter)
         sendBundledGRE(result.messages)
         log.info("MatchSession: sent game-over GRE sequence (winner=team{})", winningTeam)
 
@@ -495,7 +436,7 @@ class MatchSession(
             else -> "ai"
         }
         val stackDepth = game.stack?.size() ?: 0
-        GameStateCollector.recordEvent(gameStateId, type, phase, turn, detail, priority, stackDepth, NexusDebugCollector.currentSeq())
+        GameStateCollector.recordEvent(counter.currentGsId(), type, phase, turn, detail, priority, stackDepth, NexusDebugCollector.currentSeq())
     }
 
     /** Pacing delay — skipped when paceDelayMs == 0 (tests). */

@@ -8,6 +8,7 @@ import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
+import forge.nexus.game.MessageCounter
 import forge.nexus.game.StateMapper
 import forge.nexus.game.advanceToMain1
 import forge.nexus.game.awaitFreshPending
@@ -25,10 +26,15 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  *
  * Provides helpers to start deterministic games, play actions,
  * and capture outbound GRE messages via BundleBuilder.
+ *
+ * Each test gets a fresh [MessageCounter] to track protocol sequencing.
  */
 abstract class ConformanceTestBase {
 
     protected var bridge: GameBridge? = null
+
+    /** Shared counter for the current test. Reset per test via [startGameAtMain1]. */
+    protected var testCounter: MessageCounter = MessageCounter()
 
     @BeforeClass(alwaysRun = true)
     fun initCardDatabase() {
@@ -40,6 +46,7 @@ abstract class ConformanceTestBase {
     fun tearDown() {
         bridge?.shutdown()
         bridge = null
+        testCounter = MessageCounter()
     }
 
     /**
@@ -47,17 +54,19 @@ abstract class ConformanceTestBase {
      *
      * @param seed RNG seed for deterministic shuffles
      * @param deckList custom deck list (e.g. "30 Plains\n30 Forest"); null uses default mono-green
-     * @return (bridge, game, startingGsId)
+     * @return (bridge, game, counter)
      */
     protected fun startGameAtMain1(
         seed: Long = 42L,
         deckList: String? = null,
-    ): Triple<GameBridge, Game, Int> {
+    ): Triple<GameBridge, Game, MessageCounter> {
         // Auto-register CardData for all cards in the deck list
         if (deckList != null) {
             TestCardRegistry.ensureDeckRegistered(deckList)
         }
-        val b = GameBridge()
+        val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
+        testCounter = counter
+        val b = GameBridge(messageCounter = counter)
         bridge = b
         b.start(seed = seed, deckList = deckList)
         b.submitKeep(1)
@@ -68,13 +77,12 @@ abstract class ConformanceTestBase {
             PhaseType.MAIN1,
             "Game should be at Main1 after advanceToMain1 (actual: ${game.phaseHandler.phase})",
         )
-        val gsId = 20
-        b.snapshotFromGame(game, gsId)
+        b.snapshotFromGame(game, counter.currentGsId())
         // Seed lastSentTurnInfo so postAction() doesn't inject a spurious
         // PhaseOrStepModified on the first call. ConformanceTestBase bypasses
         // MatchSession (which normally updates this via sendBundledGRE).
-        b.updateLastSentTurnInfo(StateMapper.buildFromGame(game, gsId, TEST_MATCH_ID, b))
-        return Triple(b, game, gsId)
+        b.updateLastSentTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
+        return Triple(b, game, counter)
     }
 
     protected fun fingerprint(messages: List<GREToClientMessage>): List<StructuralFingerprint> =
@@ -132,19 +140,17 @@ abstract class ConformanceTestBase {
     protected fun postAction(
         game: Game,
         b: GameBridge,
-        prevMsgId: Int,
-        prevGsId: Int,
+        counter: MessageCounter,
     ): BundleBuilder.BundleResult =
-        BundleBuilder.postAction(game, b, TEST_MATCH_ID, SEAT_ID, prevMsgId, prevGsId)
+        BundleBuilder.postAction(game, b, TEST_MATCH_ID, SEAT_ID, counter)
 
     /** Build a gameStart bundle (phaseTransitionDiff) with standard test constants. */
     protected fun gameStart(
         game: Game,
         b: GameBridge,
-        prevMsgId: Int,
-        prevGsId: Int,
+        counter: MessageCounter,
     ): BundleBuilder.BundleResult =
-        BundleBuilder.phaseTransitionDiff(game, b, TEST_MATCH_ID, SEAT_ID, prevMsgId, prevGsId)
+        BundleBuilder.phaseTransitionDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
 
     /**
      * Build a Full state GSM simulating the handshake baseline.
@@ -159,9 +165,9 @@ abstract class ConformanceTestBase {
 
     /** Play a land and capture the resulting GSM. */
     protected fun playLandAndCapture(): GameStateMessage? {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         playLand(b) ?: return null
-        return postAction(game, b, 1, gsId).gsmOrNull
+        return postAction(game, b, counter).gsmOrNull
     }
 
     /**
@@ -169,7 +175,7 @@ abstract class ConformanceTestBase {
      * Returns (gsm, origInstanceId, newInstanceId).
      */
     protected fun playLandAndCaptureWithIds(): Triple<GameStateMessage, Int, Int>? {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
 
         val player = b.getPlayer(1) ?: return null
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
@@ -177,7 +183,7 @@ abstract class ConformanceTestBase {
         val forgeCardId = land.id
 
         playLand(b) ?: return null
-        val gsm = postAction(game, b, 1, gsId).gsmOrNull ?: return null
+        val gsm = postAction(game, b, counter).gsmOrNull ?: return null
         val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
 
         return Triple(gsm, origInstanceId, newInstanceId)
@@ -188,11 +194,11 @@ abstract class ConformanceTestBase {
      * Plays a land first for mana.
      */
     protected fun castSpellAndCapture(): GameStateMessage? {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         playLand(b) ?: return null
         b.snapshotFromGame(game)
         castCreature(b) ?: return null
-        return postAction(game, b, 1, gsId + 2).gsmOrNull
+        return postAction(game, b, counter).gsmOrNull
     }
 
     /**
@@ -200,7 +206,7 @@ abstract class ConformanceTestBase {
      * Returns (gsm, origInstanceId, newInstanceId).
      */
     protected fun castSpellAndCaptureWithIds(): Triple<GameStateMessage, Int, Int>? {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         playLand(b) ?: return null
         b.snapshotFromGame(game)
 
@@ -210,7 +216,7 @@ abstract class ConformanceTestBase {
         val forgeCardId = creature.id
 
         castCreature(b) ?: return null
-        val gsm = postAction(game, b, 1, gsId + 2).gsmOrNull ?: return null
+        val gsm = postAction(game, b, counter).gsmOrNull ?: return null
         val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
 
         return Triple(gsm, origInstanceId, newInstanceId)
@@ -221,15 +227,15 @@ abstract class ConformanceTestBase {
      * Returns the GSM from the resolution step.
      */
     protected fun resolveAndCapture(): GameStateMessage? {
-        val (b, game, gsId) = startGameAtMain1()
+        val (b, game, counter) = startGameAtMain1()
         playLand(b) ?: return null
         b.snapshotFromGame(game)
 
         castCreature(b) ?: return null
-        val castResult = postAction(game, b, 1, gsId + 2)
+        postAction(game, b, counter) // capture cast result (advances counter)
         b.snapshotFromGame(game)
 
         passPriority(b)
-        return postAction(game, b, 1, castResult.nextGsId).gsmOrNull
+        return postAction(game, b, counter).gsmOrNull
     }
 }
