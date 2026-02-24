@@ -10,8 +10,8 @@ logback      := nexus_dir / "src/main/resources/logback.xml"
 logback_cli  := nexus_dir / "src/main/resources/logback-cli.xml"
 templates    := nexus_dir / "src/main/resources/arena-templates"
 certs        := env("NEXUS_CERTS", env("HOME", "/tmp") / ".local/share/forge-nexus/certs")
-fd_ip        := env("NEXUS_FD_IP", "52.88.10.148")
-md_ip        := env("NEXUS_MD_IP", "54.71.214.244")
+fd_ip        := env("NEXUS_FD_IP", "35.160.172.88")
+md_ip        := env("NEXUS_MD_IP", "44.245.90.131")
 payloads     := env("NEXUS_PAYLOADS", nexus_dir / "recordings/latest/capture/payloads")
 ports        := "30010 30003 8090"
 
