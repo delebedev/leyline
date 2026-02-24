@@ -140,15 +140,17 @@ object HandshakeMessages {
     }
 
     /** DealHand for seat 1 (no MulliganReq) — built from game state. */
-    fun dealHandSeat1(
+    /** DealHand only (no MulliganReq) for the given seat. */
+    fun dealHand(
         msgId: Int,
         gameStateId: Int,
         bridge: GameBridge,
+        seatId: Int,
     ): Pair<MatchServiceToClientMessage, Int> {
-        val gsm = StateMapper.buildDealHand(bridge, gameStateId, 1)
+        val gsm = StateMapper.buildDealHand(bridge, gameStateId, seatId)
         val gre = GREToClientMessage.newBuilder()
             .setType(GREMessageType.GameStateMessage_695e)
-            .addSystemSeatIds(1)
+            .addSystemSeatIds(seatId)
             .setMsgId(msgId)
             .setGameStateId(gameStateId)
             .setGameStateMessage(gsm)

@@ -84,6 +84,7 @@ data class PlaytestConfig(
         append("seed=")
         append(game.seed ?: "random")
         append(" first=seat${game.dieRollWinner}")
+        append(" skipMulligan=${game.skipMulligan}")
         append(" decks=[${decks.seat1}, ${decks.seat2}]")
         append(" aiSpeed=${ai.speed}x")
     }
@@ -103,6 +104,13 @@ data class GameConfig(
      */
     @SerialName("die_roll_winner")
     val dieRollWinner: Int = 2,
+
+    /**
+     * Skip the mulligan phase — auto-keep opening hand.
+     * Speeds up playtesting by going straight to Main1.
+     */
+    @SerialName("skip_mulligan")
+    val skipMulligan: Boolean = false,
 )
 
 @Serializable

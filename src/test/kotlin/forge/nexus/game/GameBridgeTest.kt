@@ -2,6 +2,8 @@ package forge.nexus.game
 
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
+import forge.nexus.config.GameConfig
+import forge.nexus.config.PlaytestConfig
 import forge.web.game.GameBootstrap
 import forge.web.game.PlayerAction
 import org.testng.Assert
@@ -976,6 +978,52 @@ class GameBridgeTest {
         val stack = game.getStack()
         // Stack may already be empty if engine auto-resolved — that's the current bug
         // After fix: caster retains priority, stack should have the spell
+    }
+
+    // --- skipMulligan tests ---
+
+    /** With skipMulligan=true, engine auto-keeps and reaches priority without explicit submitKeep. */
+    @Test
+    fun skipMulliganAdvancesToPriorityWithoutKeep() {
+        val config = PlaytestConfig(game = GameConfig(skipMulligan = true))
+        val b = GameBridge(playtestConfig = config)
+        bridge = b
+        b.start(seed = 42L)
+
+        // No submitKeep — engine should auto-keep via MulliganBridge(autoKeep=true)
+        b.awaitPriority()
+
+        val pending = b.actionBridge.getPending()
+        Assert.assertNotNull(pending, "Engine should reach priority without explicit submitKeep")
+
+        val game = b.getGame()!!
+        val phase = game.phaseHandler.phase
+        Assert.assertTrue(
+            phase == PhaseType.MAIN1 || phase == PhaseType.UPKEEP || phase == PhaseType.DRAW,
+            "Engine should be at MAIN1 or beginning step after skipMulligan, got $phase",
+        )
+
+        // Hand should still have 7 cards (auto-kept, no mull)
+        val hand = b.getHandGrpIds(1)
+        Assert.assertEquals(hand.size, 7, "Auto-kept hand should have 7 cards")
+    }
+
+    /** With skipMulligan=true, buildFromGame produces valid state at Main1. */
+    @Test
+    fun skipMulliganProducesValidGameState() {
+        val config = PlaytestConfig(game = GameConfig(skipMulligan = true))
+        val b = GameBridge(playtestConfig = config)
+        bridge = b
+        b.start(seed = 42L)
+        b.awaitPriority()
+
+        val game = b.getGame()!!
+        val gs = StateMapper.buildFromGame(game, 1, "test-match", b)
+
+        Assert.assertTrue(gs.zonesCount > 0, "GameState should have zones")
+        Assert.assertTrue(gs.gameObjectsCount > 0, "GameState should have game objects")
+        Assert.assertTrue(gs.hasTurnInfo(), "Should have turn info")
+        Assert.assertTrue(gs.turnInfo.turnNumber >= 1, "Turn should be >= 1")
     }
 
     // --- Helpers ---
