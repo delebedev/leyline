@@ -10,7 +10,6 @@ import forge.nexus.server.MatchRegistry
 import forge.nexus.server.MatchSession
 import forge.web.game.GameBootstrap
 import wotc.mtgo.gre.external.messaging.Messages.*
-import wotc.mtgo.gre.external.messaging.Messages.Target as ProtoTarget
 
 /**
  * Test harness wrapping real [MatchSession] — zero reimplemented logic.
@@ -96,21 +95,13 @@ class MatchFlowHarness(
         val land = player.getZone(ZoneType.Hand).cards
             .firstOrNull { it.isLand } ?: return false
 
-        val instanceId = bridge.getOrAllocInstanceId(land.id)
-        val grpId = CardDb.lookupByName(land.name) ?: 0
+        val msg = performAction {
+            actionType = ActionType.Play_add3
+            instanceId = bridge.getOrAllocInstanceId(land.id)
+            grpId = CardDb.lookupByName(land.name) ?: 0
+        }
 
-        val greMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.PerformActionResp_097b)
-            .setPerformActionResp(
-                PerformActionResp.newBuilder().addActions(
-                    Action.newBuilder()
-                        .setActionType(ActionType.Play_add3)
-                        .setInstanceId(instanceId)
-                        .setGrpId(grpId),
-                ),
-            ).build()
-
-        session.onPerformAction(greMsg)
+        session.onPerformAction(msg)
         drainSink()
         return true
     }
@@ -121,36 +112,20 @@ class MatchFlowHarness(
         val creature = player.getZone(ZoneType.Hand).cards
             .firstOrNull { it.isCreature } ?: return false
 
-        val instanceId = bridge.getOrAllocInstanceId(creature.id)
-        val grpId = CardDb.lookupByName(creature.name) ?: 0
+        val msg = performAction {
+            actionType = ActionType.Cast
+            instanceId = bridge.getOrAllocInstanceId(creature.id)
+            grpId = CardDb.lookupByName(creature.name) ?: 0
+        }
 
-        val greMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.PerformActionResp_097b)
-            .setPerformActionResp(
-                PerformActionResp.newBuilder().addActions(
-                    Action.newBuilder()
-                        .setActionType(ActionType.Cast)
-                        .setInstanceId(instanceId)
-                        .setGrpId(grpId),
-                ),
-            ).build()
-
-        session.onPerformAction(greMsg)
+        session.onPerformAction(msg)
         drainSink()
         return true
     }
 
     /** Pass priority — sends a real Pass action through MatchSession. */
     fun passPriority() {
-        val greMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.PerformActionResp_097b)
-            .setPerformActionResp(
-                PerformActionResp.newBuilder().addActions(
-                    Action.newBuilder().setActionType(ActionType.Pass),
-                ),
-            ).build()
-
-        session.onPerformAction(greMsg)
+        session.onPerformAction(performAction { actionType = ActionType.Pass })
         drainSink()
     }
 
@@ -204,25 +179,10 @@ class MatchFlowHarness(
      * 2. Send [SubmitAttackersReq] to finalize (the "Done" button)
      */
     fun declareAttackers(attackerInstanceIds: List<Int>) {
-        // Phase 1: iterative update with selection
-        val updateMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.DeclareAttackersResp_097b)
-            .setDeclareAttackersResp(
-                DeclareAttackersResp.newBuilder().apply {
-                    for (iid in attackerInstanceIds) {
-                        addSelectedAttackers(Attacker.newBuilder().setAttackerInstanceId(iid))
-                    }
-                },
-            ).build()
-        session.onDeclareAttackers(updateMsg)
+        session.onDeclareAttackers(declareAttackersResp(attackers = attackerInstanceIds))
         drainSink()
 
-        // Phase 2: finalize (Done button)
-        val submitMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.SubmitAttackersReq)
-            .setSystemSeatId(seatId)
-            .build()
-        session.onDeclareAttackers(submitMsg)
+        session.onDeclareAttackers(submitAttackersReq(seatId))
         drainSink()
     }
 
@@ -240,11 +200,7 @@ class MatchFlowHarness(
      * no payload**. The server must use the last known selection.
      */
     fun submitAttackers() {
-        val greMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.SubmitAttackersReq)
-            .setSystemSeatId(seatId)
-            .build()
-        session.onDeclareAttackers(greMsg)
+        session.onDeclareAttackers(submitAttackersReq(seatId))
         drainSink()
     }
 
@@ -255,18 +211,7 @@ class MatchFlowHarness(
      * targeting the specified damage recipient. Should be followed by [submitAttackers].
      */
     fun declareAllAttackers() {
-        val greMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.DeclareAttackersResp_097b)
-            .setDeclareAttackersResp(
-                DeclareAttackersResp.newBuilder()
-                    .setAutoDeclare(true)
-                    .setAutoDeclareDamageRecipient(
-                        DamageRecipient.newBuilder()
-                            .setType(DamageRecType.Player_a0e5)
-                            .setPlayerSystemSeatId(2),
-                    ),
-            ).build()
-        session.onDeclareAttackers(greMsg)
+        session.onDeclareAttackers(declareAttackersResp(autoDeclare = true, autoDeclareTarget = 2))
         drainSink()
     }
 
@@ -278,46 +223,19 @@ class MatchFlowHarness(
      * Each entry means "this blocker blocks that attacker."
      */
     fun declareBlockers(assignments: Map<Int, Int>) {
-        // Phase 1: iterative update
-        val updateMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.DeclareBlockersResp_097b)
-            .setDeclareBlockersResp(
-                DeclareBlockersResp.newBuilder().apply {
-                    for ((blockerIid, attackerIid) in assignments) {
-                        addSelectedBlockers(
-                            Blocker.newBuilder()
-                                .setBlockerInstanceId(blockerIid)
-                                .addSelectedAttackerInstanceIds(attackerIid),
-                        )
-                    }
-                },
-            ).build()
-        session.onDeclareBlockers(updateMsg)
+        session.onDeclareBlockers(declareBlockersResp(assignments))
         drainSink()
 
-        // Phase 2: finalize
-        val submitMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.SubmitBlockersReq)
-            .setSystemSeatId(seatId)
-            .build()
-        session.onDeclareBlockers(submitMsg)
+        session.onDeclareBlockers(submitBlockersReq(seatId))
         drainSink()
     }
 
     /** Declare no blockers (let all attackers through). Two-phase: empty update + submit. */
     fun declareNoBlockers() {
-        val updateMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.DeclareBlockersResp_097b)
-            .setDeclareBlockersResp(DeclareBlockersResp.newBuilder())
-            .build()
-        session.onDeclareBlockers(updateMsg)
+        session.onDeclareBlockers(declareBlockersResp())
         drainSink()
 
-        val submitMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.SubmitBlockersReq)
-            .setSystemSeatId(seatId)
-            .build()
-        session.onDeclareBlockers(submitMsg)
+        session.onDeclareBlockers(submitBlockersReq(seatId))
         drainSink()
     }
 
@@ -325,23 +243,7 @@ class MatchFlowHarness(
 
     /** Select targets by instanceId for a pending SelectTargetsReq. */
     fun selectTargets(targetInstanceIds: List<Int>) {
-        val greMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.SelectTargetsResp_097b)
-            .setSelectTargetsResp(
-                SelectTargetsResp.newBuilder()
-                    .setTarget(
-                        TargetSelection.newBuilder().apply {
-                            for (iid in targetInstanceIds) {
-                                addTargets(
-                                    ProtoTarget.newBuilder()
-                                        .setTargetInstanceId(iid)
-                                        .setLegalAction(SelectAction.Select_a1ad),
-                                )
-                            }
-                        },
-                    ),
-            ).build()
-        session.onSelectTargets(greMsg)
+        session.onSelectTargets(selectTargetsResp(targets = targetInstanceIds))
         drainSink()
     }
 
@@ -351,21 +253,13 @@ class MatchFlowHarness(
         val card = player.getZone(ZoneType.Hand).cards
             .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
 
-        val instanceId = bridge.getOrAllocInstanceId(card.id)
-        val grpId = CardDb.lookupByName(card.name) ?: 0
+        val msg = performAction {
+            actionType = ActionType.Cast
+            instanceId = bridge.getOrAllocInstanceId(card.id)
+            grpId = CardDb.lookupByName(card.name) ?: 0
+        }
 
-        val greMsg = ClientToGREMessage.newBuilder()
-            .setType(ClientMessageType.PerformActionResp_097b)
-            .setPerformActionResp(
-                PerformActionResp.newBuilder().addActions(
-                    Action.newBuilder()
-                        .setActionType(ActionType.Cast)
-                        .setInstanceId(instanceId)
-                        .setGrpId(grpId),
-                ),
-            ).build()
-
-        session.onPerformAction(greMsg)
+        session.onPerformAction(msg)
         drainSink()
         return true
     }

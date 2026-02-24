@@ -51,17 +51,6 @@ class ValidatingMessageSinkTest {
             .addType(type)
             .build()
 
-    private fun greWithGsm(
-        msgId: Int,
-        gsm: GameStateMessage,
-    ): GREToClientMessage =
-        GREToClientMessage.newBuilder()
-            .setType(GREMessageType.GameStateMessage_695e)
-            .setMsgId(msgId)
-            .setGameStateId(gsm.gameStateId)
-            .setGameStateMessage(gsm)
-            .build()
-
     private fun lenientSink() = ValidatingMessageSink(strict = false)
     private fun strictSink() = ValidatingMessageSink(strict = true)
 
@@ -75,9 +64,9 @@ class ValidatingMessageSinkTest {
         val gsm2 = gsm(gsId = 2, prevGsId = 1, annotations = listOf(annotation(1), annotation(2)))
         val gsm3 = gsm(gsId = 3, prevGsId = 2)
 
-        sink.send(listOf(greWithGsm(1, gsm1)))
-        sink.send(listOf(greWithGsm(2, gsm2)))
-        sink.send(listOf(greWithGsm(3, gsm3)))
+        sink.send(listOf(greMessage(msgId = 1, gsm = gsm1)))
+        sink.send(listOf(greMessage(msgId = 2, gsm = gsm2)))
+        sink.send(listOf(greMessage(msgId = 3, gsm = gsm3)))
 
         assertTrue(sink.violations.isEmpty(), "Expected no violations, got: ${sink.violations}")
         assertEquals(sink.messages.size, 3)
@@ -93,8 +82,8 @@ class ValidatingMessageSinkTest {
         val gsm1 = gsm(gsId = 5, type = GameStateType.Full)
         val gsm2 = gsm(gsId = 3) // violation: 3 < 5
 
-        sink.send(listOf(greWithGsm(1, gsm1)))
-        sink.send(listOf(greWithGsm(2, gsm2)))
+        sink.send(listOf(greMessage(msgId = 1, gsm = gsm1)))
+        sink.send(listOf(greMessage(msgId = 2, gsm = gsm2)))
 
         assertTrue(sink.violations.any { "gsId not monotonic" in it }, "Expected gsId monotonicity violation: ${sink.violations}")
     }
@@ -104,10 +93,10 @@ class ValidatingMessageSinkTest {
         val sink = strictSink()
         val gsm1 = gsm(gsId = 5, type = GameStateType.Full)
 
-        sink.send(listOf(greWithGsm(1, gsm1)))
+        sink.send(listOf(greMessage(msgId = 1, gsm = gsm1)))
 
         try {
-            sink.send(listOf(greWithGsm(2, gsm(gsId = 3))))
+            sink.send(listOf(greMessage(msgId = 2, gsm = gsm(gsId = 3))))
             fail("Expected AssertionError")
         } catch (e: AssertionError) {
             assertTrue("gsId not monotonic" in e.message!!)
@@ -123,8 +112,8 @@ class ValidatingMessageSinkTest {
         val gsm1 = gsm(gsId = 1, type = GameStateType.Full)
         val gsm2 = gsm(gsId = 2, prevGsId = 99) // violation: 99 never seen
 
-        sink.send(listOf(greWithGsm(1, gsm1)))
-        sink.send(listOf(greWithGsm(2, gsm2)))
+        sink.send(listOf(greMessage(msgId = 1, gsm = gsm1)))
+        sink.send(listOf(greMessage(msgId = 2, gsm = gsm2)))
 
         assertTrue(sink.violations.any { "prevGsId 99 not in known set" in it }, "Expected prevGsId violation: ${sink.violations}")
     }
@@ -137,10 +126,10 @@ class ValidatingMessageSinkTest {
 
         // Seed gsId=5 first so monotonicity passes
         val seed = gsm(gsId = 5, type = GameStateType.Full)
-        sink.send(listOf(greWithGsm(1, seed)))
+        sink.send(listOf(greMessage(msgId = 1, gsm = seed)))
 
         val bad = gsm(gsId = 7, prevGsId = 7) // violation: self-ref
-        sink.send(listOf(greWithGsm(2, bad)))
+        sink.send(listOf(greMessage(msgId = 2, gsm = bad)))
 
         assertTrue(sink.violations.any { "Self-referential gsId" in it }, "Expected self-ref violation: ${sink.violations}")
     }
@@ -173,7 +162,7 @@ class ValidatingMessageSinkTest {
             annotations = listOf(annotation(1), annotation(5)),
         )
 
-        sink.send(listOf(greWithGsm(1, badGsm)))
+        sink.send(listOf(greMessage(msgId = 1, gsm = badGsm)))
 
         assertTrue(sink.violations.any { "Annotation IDs not sequential" in it }, "Expected annotation violation: ${sink.violations}")
     }
@@ -189,7 +178,7 @@ class ValidatingMessageSinkTest {
             annotations = listOf(annotation(50), annotation(51), annotation(52)),
         )
 
-        sink.send(listOf(greWithGsm(1, goodGsm)))
+        sink.send(listOf(greMessage(msgId = 1, gsm = goodGsm)))
 
         assertTrue(sink.violations.isEmpty(), "Contiguous IDs should not violate: ${sink.violations}")
     }
@@ -205,7 +194,7 @@ class ValidatingMessageSinkTest {
             annotations = listOf(annotation(1), annotation(0)), // violation: id=0 mixed with assigned
         )
 
-        sink.send(listOf(greWithGsm(1, badGsm)))
+        sink.send(listOf(greMessage(msgId = 1, gsm = badGsm)))
 
         assertTrue(sink.violations.any { "id=0" in it }, "Expected zero annotation ID violation: ${sink.violations}")
     }
@@ -218,19 +207,12 @@ class ValidatingMessageSinkTest {
 
         // Send a Full GSM with no objects
         val fullGsm = gsm(gsId = 1, type = GameStateType.Full)
-        sink.send(listOf(greWithGsm(1, fullGsm)))
+        sink.send(listOf(greMessage(msgId = 1, gsm = fullGsm)))
 
         // Send AAR referencing instanceId=999 which doesn't exist
-        val aar = ActionsAvailableReq.newBuilder()
-            .addActions(Action.newBuilder().setActionType(ActionType.Play_add3).setInstanceId(999))
-            .build()
-        val aarMsg = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.ActionsAvailableReq_695e)
-            .setMsgId(2)
-            .setActionsAvailableReq(aar)
-            .build()
-
-        sink.send(listOf(aarMsg))
+        sink.send(listOf(actionsMessage(msgId = 2) {
+            addActions(Action.newBuilder().setActionType(ActionType.Play_add3).setInstanceId(999))
+        }))
 
         assertTrue(sink.violations.any { "Action instanceIds missing" in it }, "Expected action instanceId violation: ${sink.violations}")
     }
@@ -242,19 +224,16 @@ class ValidatingMessageSinkTest {
         val sink = lenientSink()
 
         // Full GSM with a visible zone referencing instanceId=42, but no matching object
-        val zone = ZoneInfo.newBuilder()
-            .setZoneId(1)
-            .setType(ZoneType.Battlefield)
-            .setVisibility(Visibility.Public)
-            .addObjectInstanceIds(42)
-            .build()
-        val fullGsm = GameStateMessage.newBuilder()
-            .setGameStateId(1)
-            .setType(GameStateType.Full)
-            .addZones(zone)
-            .build()
-
-        sink.send(listOf(greWithGsm(1, fullGsm)))
+        sink.send(listOf(greMessage(msgId = 1, gsId = 1) {
+            setType(GameStateType.Full)
+            addZones(
+                ZoneInfo.newBuilder()
+                    .setZoneId(1)
+                    .setType(ZoneType.Battlefield)
+                    .setVisibility(Visibility.Public)
+                    .addObjectInstanceIds(42),
+            )
+        }))
 
         assertTrue(sink.violations.any { "Zone objects missing" in it }, "Expected zone object violation: ${sink.violations}")
     }
@@ -263,29 +242,24 @@ class ValidatingMessageSinkTest {
     fun hiddenZonesSkipped() {
         val sink = lenientSink()
 
-        // Zones with objectInstanceIds but no matching objects — should be OK for hidden/private/limbo
-        val hiddenZone = ZoneInfo.newBuilder()
-            .setZoneId(1).setType(ZoneType.Library).setVisibility(Visibility.Hidden)
-            .addObjectInstanceIds(100)
-            .build()
-        val privateZone = ZoneInfo.newBuilder()
-            .setZoneId(2).setType(ZoneType.Hand).setVisibility(Visibility.Private)
-            .addObjectInstanceIds(200)
-            .build()
-        val limboZone = ZoneInfo.newBuilder()
-            .setZoneId(3).setType(ZoneType.Limbo).setVisibility(Visibility.Public)
-            .addObjectInstanceIds(300)
-            .build()
-
-        val fullGsm = GameStateMessage.newBuilder()
-            .setGameStateId(1)
-            .setType(GameStateType.Full)
-            .addZones(hiddenZone)
-            .addZones(privateZone)
-            .addZones(limboZone)
-            .build()
-
-        sink.send(listOf(greWithGsm(1, fullGsm)))
+        sink.send(listOf(greMessage(msgId = 1, gsId = 1) {
+            setType(GameStateType.Full)
+            addZones(
+                ZoneInfo.newBuilder()
+                    .setZoneId(1).setType(ZoneType.Library).setVisibility(Visibility.Hidden)
+                    .addObjectInstanceIds(100),
+            )
+            addZones(
+                ZoneInfo.newBuilder()
+                    .setZoneId(2).setType(ZoneType.Hand).setVisibility(Visibility.Private)
+                    .addObjectInstanceIds(200),
+            )
+            addZones(
+                ZoneInfo.newBuilder()
+                    .setZoneId(3).setType(ZoneType.Limbo).setVisibility(Visibility.Public)
+                    .addObjectInstanceIds(300),
+            )
+        }))
 
         assertTrue(sink.violations.isEmpty(), "Hidden/Private/Limbo zones should not trigger violations: ${sink.violations}")
     }
@@ -364,7 +338,7 @@ class ValidatingMessageSinkTest {
 
         // Diff referencing prevGsId=10 should be fine
         val diffGsm = gsm(gsId = 11, prevGsId = 10)
-        sink.send(listOf(greWithGsm(1, diffGsm)))
+        sink.send(listOf(greMessage(msgId = 1, gsm = diffGsm)))
 
         assertTrue(sink.violations.isEmpty(), "Seeded gsId should be recognized: ${sink.violations}")
     }
