@@ -218,6 +218,65 @@
   #id-table tr:hover { background: var(--bg3); }
   #id-table tr.highlight { background: rgba(233, 69, 96, 0.15); }
 
+  /* Client errors tab */
+  .ce-row {
+    border-left: 3px solid var(--red);
+    padding: 6px 10px;
+    margin-bottom: 2px;
+    border-radius: 0 4px 4px 0;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .ce-row:hover { background: var(--bg2); }
+  .ce-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .ce-type {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--red);
+    color: #fff;
+  }
+  .ce-msg { color: var(--fg); font-size: 11px; }
+  .ce-meta { color: var(--fg2); font-size: 10px; opacity: 0.6; }
+  .ce-annot {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: var(--bg3);
+    color: var(--orange);
+  }
+  .ce-stack {
+    margin-top: 4px;
+    padding: 6px 8px;
+    background: var(--bg2);
+    border-radius: 4px;
+    font-size: 10px;
+    line-height: 1.5;
+    color: var(--fg2);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .ce-badge {
+    display: inline-block;
+    min-width: 16px;
+    padding: 0 5px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+    background: var(--red);
+    color: #fff;
+    margin-left: 4px;
+  }
+
   /* Log panel */
   #log-panel {
     flex: 1;
@@ -226,18 +285,18 @@
     font-size: 11px;
     line-height: 1.6;
   }
-  .log-row { padding: 1px 6px; border-radius: 2px; white-space: pre-wrap; word-break: break-all; }
+  .log-row { display: flex; align-items: baseline; padding: 1px 6px; border-radius: 2px; }
   .log-row:hover { background: var(--bg2); }
-  .log-ts { color: var(--fg2); opacity: 0.5; margin-right: 6px; }
-  .log-logger { color: var(--purple); margin-right: 6px; }
-  .log-thread { color: var(--fg2); opacity: 0.4; margin-right: 6px; font-size: 9px; }
-  .log-level { font-weight: 700; margin-right: 6px; min-width: 42px; display: inline-block; }
+  .log-ts { color: var(--fg2); opacity: 0.5; margin-right: 6px; white-space: nowrap; }
+  .log-logger { color: var(--purple); margin-right: 6px; white-space: nowrap; }
+  .log-thread { color: var(--fg2); opacity: 0.4; margin-right: 6px; font-size: 9px; white-space: nowrap; }
+  .log-level { font-weight: 700; margin-right: 6px; min-width: 42px; white-space: nowrap; }
   .log-level-ERROR { color: var(--red); }
   .log-level-WARN { color: var(--orange); }
   .log-level-INFO { color: var(--green); }
   .log-level-DEBUG { color: var(--blue); }
   .log-level-TRACE { color: var(--fg2); }
-  .log-msg { color: var(--fg); }
+  .log-msg { color: var(--fg); word-break: break-all; }
   .log-msg-ERROR { color: var(--red); }
   .log-msg-WARN { color: var(--orange); }
 
@@ -509,6 +568,9 @@
   <button class="view-tab" :class="{ active: view === 'messages' }" @click="view = 'messages'">Messages</button>
   <button class="view-tab" :class="{ active: view === 'states' }" @click="view = 'states'">States</button>
   <button class="view-tab" :class="{ active: view === 'logs' }" @click="view = 'logs'">Logs</button>
+  <button class="view-tab" :class="{ active: view === 'errors' }" @click="view = 'errors'; fetchClientErrors()" style="position:relative">
+    Errors<span class="ce-badge" x-show="clientErrors.length > 0" x-text="clientErrors.length"></span>
+  </button>
   <button class="view-tab" :class="{ active: view === 'recordings' }" @click="view = 'recordings'; fetchRecordings()">Recordings</button>
   <button class="header-btn active-purple" :class="{ on: showIdPanel }" @click="showIdPanel = !showIdPanel; if (showIdPanel) fetchIdMap()">ID Map</button>
   <button class="header-btn" :class="{ paused }" @click="paused = !paused" x-text="paused ? 'Resume' : 'Pause'"></button>
@@ -1048,6 +1110,27 @@
     </div>
   </div>
 
+  <!-- Client errors panel -->
+  <div id="timeline" x-show="view === 'errors'" x-cloak style="overflow-y:auto; flex:1; padding:8px;">
+    <div x-show="clientErrors.length === 0" style="color:var(--fg2); padding:20px; text-align:center;">
+      No client errors captured. Errors from Player.log appear here in real-time.
+    </div>
+    <template x-for="ce in clientErrors.slice(-50).reverse()" :key="ce.seq">
+      <div class="ce-row" @click="ceExpanded[ce.seq] = !ceExpanded[ce.seq]">
+        <div class="ce-header">
+          <span class="ce-type" x-text="ce.exceptionType"></span>
+          <span class="ce-msg" x-text="ce.message"></span>
+          <template x-if="ce.annotationId != null">
+            <span class="ce-annot" x-text="'annot #' + ce.annotationId + (ce.annotationType ? ' type=' + ce.annotationType.join(',') : '')"></span>
+          </template>
+          <span class="ce-meta" x-text="'#' + ce.seq + ' ' + ce.ts.substring(11, 23)"></span>
+        </div>
+        <div class="ce-stack" x-show="ceExpanded[ce.seq] && ce.stackTrace" x-text="ce.stackTrace"></div>
+        <div class="ce-stack" x-show="ceExpanded[ce.seq]" style="margin-top:2px; color:var(--fg2); opacity:0.5;" x-text="ce.raw"></div>
+      </div>
+    </template>
+  </div>
+
   <!-- Logs panel -->
   <div id="log-panel" x-show="view === 'logs'" x-cloak>
     <template x-for="l in filteredLogs" :key="l.seq">
@@ -1109,6 +1192,11 @@ function debugApp() {
     recMsgExpanded: {},
     recHiddenTypes: JSON.parse(localStorage.getItem('recHiddenTypes') || '{}'),
     recListCollapsed: false,
+
+    // Client errors tab data
+    clientErrors: [],
+    ceExpanded: {},
+    _lastCeSeq: 0,
 
     // States tab data
     gameStates: [],
@@ -1235,6 +1323,7 @@ function debugApp() {
       this.connectSSE();
       this.poll();
       this.fetchRecordings();
+      this.fetchClientErrors();
     },
 
     connectSSE() {
@@ -1270,6 +1359,13 @@ function debugApp() {
           const idx = this.gameStates.findIndex(gs => gs.gsId === s.gsId);
           if (idx >= 0) this.gameStates[idx] = s;
           else this.gameStates.push(s);
+        });
+        es.addEventListener('client-error', (ev) => {
+          const ce = JSON.parse(ev.data);
+          if (ce.seq <= this._lastCeSeq) return;
+          this.clientErrors.push(ce);
+          this._lastCeSeq = ce.seq;
+          if (this.clientErrors.length > 500) this.clientErrors.splice(0, this.clientErrors.length - 200);
         });
         es.onopen = () => { this._sseConnected = true; };
         es.onerror = () => { this._sseConnected = false; };
@@ -1342,6 +1438,11 @@ function debugApp() {
                 if (this.priorityEvents.length > 1000) this.priorityEvents.splice(0, this.priorityEvents.length - 500);
               }
             }
+          }
+
+          // Client errors — poll when on Errors tab or when SSE is down
+          if (this.view === 'errors' || !this._sseConnected) {
+            await this.fetchClientErrors();
           }
 
           if (this.showIdPanel) this.fetchIdMap();
@@ -1426,6 +1527,21 @@ function debugApp() {
         if (!r.ok) return;
         const env = await r.json();
         this.recordingEvents = (env.data || []).map(ev => ({ stream: 'proto', ...ev }));
+      } catch (_) {}
+    },
+
+    async fetchClientErrors() {
+      try {
+        const r = await fetch('/api/client-errors?since=' + this._lastCeSeq);
+        if (!r.ok) return;
+        const env = await r.json();
+        const errors = env.data || [];
+        for (const ce of errors) {
+          if (ce.seq <= this._lastCeSeq) continue;
+          this.clientErrors.push(ce);
+          this._lastCeSeq = ce.seq;
+        }
+        if (env.cursor) this._lastCeSeq = env.cursor;
       } catch (_) {}
     },
 

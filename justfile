@@ -209,6 +209,10 @@ serve-replay: (_require classpath) check-java
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
     {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags --proxy-fd {{fd_ip}} --replay {{payloads}}
 
+# tail Player.log for client-side exceptions (standalone, no server)
+watch-client: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.WatchClientLogKt
+
 # --- Proto inspection ---
 
 # inspect a .bin template (no port kill — safe while server runs)

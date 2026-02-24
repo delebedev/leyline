@@ -29,6 +29,7 @@ import java.util.concurrent.Executors
  * - `GET /api/recording-summary?id=...` → compact summary for one session
  * - `GET /api/recording-actions?id=...` → extracted action timeline
  * - `GET /api/recording-compare?left=...&right=...` → action-level comparison
+ * - `GET /api/client-errors` → Player.log errors (supports `?since=N`, `?type=...`)
  */
 class DebugServer(private val port: Int = 8090) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
@@ -59,6 +60,7 @@ class DebugServer(private val port: Int = 8090) {
         srv.createContext("/api/recording-events") { ex -> safe(ex) { serveRecordingEvents(ex) } }
         srv.createContext("/api/recording-invariants") { ex -> safe(ex) { serveRecordingInvariants(ex) } }
         srv.createContext("/api/recording-mechanics") { ex -> safe(ex) { serveRecordingMechanics(ex) } }
+        srv.createContext("/api/client-errors") { ex -> safe(ex) { serveClientErrors(ex) } }
         srv.createContext("/api/events") { ex ->
             try {
                 if (ex.requestMethod != "GET") {
@@ -345,6 +347,28 @@ class DebugServer(private val port: Int = 8090) {
     private fun serveRecordingMechanics(ex: HttpExchange) {
         val manifest = SessionAnalyzer.readManifest()
         respondJson(ex, json.encodeToString(manifest.sorted()))
+    }
+
+    // --- Client error watcher ---
+
+    private fun serveClientErrors(ex: HttpExchange) {
+        val watcher = PlayerLogWatcher.active
+        if (watcher == null) {
+            respondJsonList(ex, "[]", null)
+            return
+        }
+        val params = parseQuery(ex.requestURI.rawQuery)
+        val since = params["since"]?.toIntOrNull() ?: 0
+        var errors = watcher.snapshot(since)
+
+        // Optional filters
+        val typeFilter = params["type"]
+        if (typeFilter != null) {
+            errors = errors.filter { it.exceptionType.contains(typeFilter, ignoreCase = true) }
+        }
+
+        val cursor = errors.maxOfOrNull { it.seq }
+        respondJsonList(ex, json.encodeToString(errors), cursor)
     }
 
     // --- Helpers ---
