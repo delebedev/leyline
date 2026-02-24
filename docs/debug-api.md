@@ -37,6 +37,20 @@ Snapshots and priority events include `msgSeq` — the NexusDebugCollector seque
 - `GET /api/recording-messages?id=...` — decoded messages for a session
 - `GET /api/recording-compare?left=...&right=...` — action-level comparison between sessions
 
+## Client error watcher
+
+Auto-tails `~/Library/Logs/Wizards of the Coast/MTGA/Player.log` during `just serve`. Captures any line matching `Exception` — annotation parse failures, missing fields, etc.
+
+- `GET /api/client-errors` — current session errors (ring buffer, max 200)
+- `GET /api/client-errors?since=N` — poll for new (cursor-based)
+- `GET /api/client-errors?type=ArgumentException` — filter by exception type
+
+SSE event type: `client-error` — emitted on each new error for real-time updates.
+
+Errors also written to `recordings/<session>/client-errors.jsonl`.
+
+Standalone mode (no server): `just watch-client`
+
 ## Recording analysis (post-game)
 
 - `GET /api/recording-analysis?id=...` — post-game analysis (mechanics, invariants, gsId chain). Auto-generates if missing.

@@ -3,6 +3,7 @@ package forge.nexus
 import forge.nexus.config.DeckValidator
 import forge.nexus.config.PlaytestConfig
 import forge.nexus.debug.DebugServer
+import forge.nexus.debug.PlayerLogWatcher
 import forge.nexus.server.NexusServer
 import java.io.File
 
@@ -46,7 +47,12 @@ fun main(args: Array<String>) {
         puzzleFile = puzzleFile,
     )
 
-    Runtime.getRuntime().addShutdownHook(Thread { server.stop() })
+    val logWatcher = PlayerLogWatcher()
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        logWatcher.stop()
+        server.stop()
+    })
 
     val mode = when {
         server.isReplay -> "replay (proxy FD, replay MD)"
@@ -61,6 +67,7 @@ fun main(args: Array<String>) {
     println("Starting Nexus server ($mode$puzzleSuffix mode)...")
     server.start()
     debugServer.start()
+    logWatcher.start()
     println("Nexus server running. Press Ctrl+C to stop.")
     println("Debug panel: http://localhost:$debugPort")
     if (puzzleFile != null) {

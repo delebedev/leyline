@@ -35,6 +35,8 @@ TestNG groups control what runs. Use `just --list` for all targets.
 
 Debug server on `:8090` (auto-starts with `just serve`). Full endpoint reference: `docs/debug-api.md`.
 
+**Client error watcher:** auto-tails `Player.log` during `just serve`. Client-side exceptions (annotation parse failures, missing fields) appear inline in server output and are queryable at `/api/client-errors`. Errors persisted to `recordings/<session>/client-errors.jsonl`. Standalone: `just watch-client`.
+
 ## Reference
 
 - **Rosetta table:** `docs/rosetta.md` — Arena protocol ↔ Forge engine ↔ forge-nexus code. Annotation types, zone IDs, transfer categories, action types, GRE messages, phase mapping, GameEvent wiring status. Look here first when mapping between the three layers.

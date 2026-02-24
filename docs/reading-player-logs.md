@@ -1,9 +1,34 @@
 # Reading Client Player.log
 
 Quick-reference for extracting game state and debugging annotation errors from the client's log.
-These are ad-hoc investigative scripts, not `just` targets — they require editing (e.g. TARGET_GSID) per use.
 
 **Location:** `~/Library/Logs/Wizards of the Coast/MTGA/Player.log` (macOS)
+
+## Automated error watcher
+
+`just serve` auto-tails Player.log and captures any exception the client logs. No manual grepping needed for the common case.
+
+```bash
+# Errors appear inline in serve output as:
+#   WARN  CLIENT ERROR [ArgumentException]: Annotation does not contain shuffled card details.
+
+# Query via debug API:
+curl -s http://localhost:8090/api/client-errors | python3 -m json.tool
+
+# Filter by exception type:
+curl -s 'http://localhost:8090/api/client-errors?type=ArgumentException'
+
+# Poll for new errors (cursor-based):
+curl -s 'http://localhost:8090/api/client-errors?since=3'
+```
+
+Errors are also persisted to `recordings/<session>/client-errors.jsonl` (one JSON object per line).
+
+Standalone watcher (no server): `just watch-client`
+
+## Ad-hoc scripts
+
+The scripts below are for deeper investigation — they require editing (e.g. TARGET_GSID) per use.
 
 ## Structure
 
