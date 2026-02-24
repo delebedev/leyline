@@ -276,6 +276,8 @@ object AnnotationPipeline {
                     log.debug("mechanic: counter {} {} on iid={}", if (delta > 0) "added" else "removed", ev.counterType, instanceId)
                 }
                 is NexusGameEvent.LibraryShuffled -> {
+                    // TODO: re-enable once LibraryShuffled carries pre/post instanceId lists
+                    // annotations.add(AnnotationBuilder.shuffle(ev.seatId))
                     // Suppressed: client's ShuffleAnnotationParser requires OldIds/NewIds
                     // detail keys we don't have. Shuffle is cosmetic (animation only).
                     log.debug("mechanic: shuffle seat={} (suppressed — no detail keys)", ev.seatId)
