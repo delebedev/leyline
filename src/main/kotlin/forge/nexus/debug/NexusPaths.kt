@@ -46,6 +46,7 @@ object NexusPaths {
     val CAPTURE_ROOT: File = File(SESSION_DIR, "capture")
     val CAPTURE_PAYLOADS: File = File(CAPTURE_ROOT, "payloads")
     val CAPTURE_FRAMES: File = File(CAPTURE_ROOT, "frames")
+    val FD_FRAMES_JSONL: File = File(CAPTURE_ROOT, "fd-frames.jsonl")
     val EVENTS_JSONL: File = File(SESSION_DIR, "events.jsonl")
     val ANALYSIS_JSON: File = File(SESSION_DIR, "analysis.json")
     val MODE_TXT: File = File(SESSION_DIR, "mode.txt")

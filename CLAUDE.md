@@ -92,3 +92,53 @@ See `docs/architecture.md` for diagrams. This is the fast orientation.
 ### Debugging a proto conformance failure
 
 See `docs/conformance-debugging.md` — covers annotation ordering, category codes, instanceId lifecycle, gsId chain, detail key types, diff vs full, and triage flow.
+
+## Client UI Automation
+
+Synthetic mouse clicks work on macOS 15+ with Unity. Two requirements:
+
+1. **Window must be foreground** — Unity ignores input on background windows
+2. **CGEvent timestamp must be non-zero** — macOS Sequoia+ silently drops events with timestamp=0
+
+### Tools
+
+| Command | What |
+|---------|------|
+| `just click <x> <y>` | Left click (activates window first) |
+| `just click <x> <y> move` | Move cursor only |
+| `just click <x> <y> right` | Right click |
+| `just click <x> <y> double` | Double click |
+| `just capture-screenshot` | JPEG screenshot to `/tmp/mtga.jpg` |
+
+Implementation: `tools/click.swift` — compiled binary at `tools/click`. Uses `CGEvent` + `mach_absolute_time()` posted at `kCGHIDEventTap`.
+
+### Coordinate System
+
+- Screen is 4K (3840x2160) but CGEvent uses **logical points** (1920x1080)
+- Client window: origin (0,0), 1920x1108 (1080 content + 28 title bar)
+- Screenshots are downscaled to 1280px wide (factor 1.5x from 1920)
+- **To convert screenshot coords to click coords**: multiply by 1.5
+
+Example: "Play" button at screenshot (1140, 710) → click at (1710, 1065).
+
+### Coordinate mapping is fragile
+
+The 1280→1920 scaling assumes a fixed window size and position. If the window moves or resizes, coordinates break. Future improvement: detect window bounds at click time and compute dynamically, or use relative coordinates (percentage of window).
+
+### Iteration Loop
+
+```
+just capture-screenshot          # see current state
+just click <x> <y>              # click a UI element
+sleep 1
+just capture-screenshot          # verify result
+```
+
+Check `/api/client-errors` after interactions for silent failures.
+
+### What DOESN'T Work
+
+- `cliclick` — uses CGEvent with timestamp=0, dropped by Sequoia
+- AppleScript `click at` — same issue
+- Clicking without activating window — Unity ignores background input
+- `osascript -e 'tell app "System Events" to click'` — Accessibility API, Unity doesn't respond

@@ -63,6 +63,7 @@ class DebugServer(private val port: Int = 8090) {
             "/api/recording-invariants" to ::serveRecordingInvariants,
             "/api/recording-mechanics" to ::serveRecordingMechanics,
             "/api/client-errors" to ::serveClientErrors,
+            "/api/fd-messages" to ::serveFdMessages,
         ).forEach { (path, handler) ->
             srv.createContext(path) { ex -> safe(ex) { handler(ex) } }
         }
@@ -314,11 +315,12 @@ class DebugServer(private val port: Int = 8090) {
                 if (streamFilter != null || sinceSeq > 0) {
                     allLines.filter { line ->
                         val streamOk = streamFilter == null || line.contains("\"stream\":\"$streamFilter\"")
-                        val seqOk = sinceSeq <= 0 || run {
-                            val seqMatch = Regex("\"seq\":(\\d+)").find(line)
-                            val lineSeq = seqMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
-                            lineSeq > sinceSeq
-                        }
+                        val seqOk = sinceSeq <= 0 ||
+                            run {
+                                val seqMatch = Regex("\"seq\":(\\d+)").find(line)
+                                val lineSeq = seqMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                                lineSeq > sinceSeq
+                            }
                         streamOk && seqOk
                     }
                 } else {
@@ -375,6 +377,16 @@ class DebugServer(private val port: Int = 8090) {
 
         val cursor = errors.maxOfOrNull { it.seq }
         respondJsonList(ex, json.encodeToString(errors), cursor)
+    }
+
+    // --- Front Door messages ---
+
+    private fun serveFdMessages(ex: HttpExchange) {
+        val params = parseQuery(ex.requestURI.rawQuery)
+        val since = params["since"]?.toIntOrNull() ?: 0
+        val entries = FdDebugCollector.snapshot(since)
+        val cursor = entries.maxOfOrNull { it.seq }
+        respondJsonList(ex, json.encodeToString(entries), cursor)
     }
 
     // --- Helpers ---

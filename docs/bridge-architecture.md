@@ -44,7 +44,7 @@ forge-game (Java rules engine) ─── UNCHANGED
     │ GameStateMapper → GameStateDto              ArenaStateMapper → GameStateMessage
     │ Ktor WebSocket                              TLS TCP :30003
     │ Browser (Svelte)                            Arena Client (Unity)
-    │                                             + FrontDoorStub :30010
+    │                                             + FrontDoorService :30010
     └─────────────────────────────────────────────────────────┘
 ```
 
@@ -71,7 +71,7 @@ forge-game (Java rules engine) ─── UNCHANGED
 | Component | Role |
 |---|---|
 | `ArenaServer` | Netty TLS TCP on :30003 + :30010 |
-| `FrontDoorStub` | Minimal auth replay (login → session → match config) |
+| `FrontDoorService` | Minimal auth replay (login → session → match config) |
 | `ArenaMatchHandler` | `ClientToGREMessage` → `bridge.submitAction()` |
 | `ArenaStateMapper` | `Game` → `GameStateMessage` (direct, no DTO hop) |
 | `ArenaActionMapper` | `ClientToGREMessage` → `PlayerAction` |
@@ -87,7 +87,7 @@ New package within `forge-web`, not a new Maven module:
 ```
 forge-web/src/main/kotlin/forge/web/arena/
   ArenaServer.kt
-  FrontDoorStub.kt
+  FrontDoorService.kt
   ArenaMatchHandler.kt
   ArenaStateMapper.kt
   ArenaActionMapper.kt
@@ -103,7 +103,7 @@ Rationale: the Arena handler imports and uses the existing bridges directly. A s
 ```
 Arena Client                    Forge Private Server
      │                                │
-     ├──TLS TCP :30010───────────────►│ FrontDoorStub
+     ├──TLS TCP :30010───────────────►│ FrontDoorService
      │  "credentials"                 │  → "auth success"
      │  "queue for match"             │  → "match found: localhost:30003"
      │                                │

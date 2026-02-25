@@ -1,9 +1,16 @@
 package forge.nexus.server
 
+import forge.nexus.debug.FdDebugCollector
 import forge.nexus.debug.NexusPaths
 import forge.nexus.protocol.ClientFrameDecoder
+import forge.nexus.protocol.FdEnvelope
 import io.netty.buffer.ByteBuf
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileWriter
+import java.io.PrintWriter
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -14,14 +21,30 @@ import java.util.concurrent.atomic.AtomicLong
  * Stores:
  * - Lossless frames: `<capture>/frames/<seq>_<dir>_<type>.bin`
  * - Data payloads:   `<capture>/payloads/<seq>_<dir>_<type>.bin`
+ * - FD decoded JSONL: `<capture>/fd-frames.jsonl` (CmdType + JSON per frame)
  */
-internal object CaptureSink {
+internal object CaptureSink : AutoCloseable {
     private val lock = Any()
     private val seq = AtomicLong(0)
     private val pending = mutableMapOf<String, ByteArray>()
 
     private val payloadDir = NexusPaths.CAPTURE_PAYLOADS
     private val frameDir = NexusPaths.CAPTURE_FRAMES
+    private val fdJsonlFile = File(NexusPaths.CAPTURE_ROOT, "fd-frames.jsonl")
+    private var fdJsonlWriter: PrintWriter? = null
+
+    private val jsonFmt = Json { encodeDefaults = true }
+
+    @Serializable
+    data class FdFrameRecord(
+        val seq: Long,
+        val dir: String,
+        val cmdType: Int? = null,
+        val cmdTypeName: String? = null,
+        val transactionId: String? = null,
+        val envelopeType: String? = null,
+        val jsonPayload: String? = null,
+    )
 
     fun ingestChunk(dir: String, buf: ByteBuf) {
         val bytes = ByteArray(buf.readableBytes())
@@ -74,6 +97,43 @@ internal object CaptureSink {
 
         val payload = frame.copyOfRange(ClientFrameDecoder.HEADER_SIZE, ClientFrameDecoder.HEADER_SIZE + payloadLen)
         File(payloadDir, "$base.bin").writeBytes(payload)
+
+        // Decode FD envelope and write to JSONL + debug collector
+        if (dir.startsWith("FD")) {
+            try {
+                val decoded = FdEnvelope.decode(payload)
+                val direction = if ("C→S" in dir || "C-S" in dir) "C2S" else "S2C"
+                FdDebugCollector.record(direction, decoded)
+
+                val record = FdFrameRecord(
+                    seq = fileSeq,
+                    dir = direction,
+                    cmdType = decoded.cmdType,
+                    cmdTypeName = decoded.cmdType?.let { FdEnvelope.cmdTypeName(it) },
+                    transactionId = decoded.transactionId,
+                    envelopeType = decoded.envelopeType.name,
+                    jsonPayload = decoded.jsonPayload,
+                )
+                writeFdJsonl(record)
+            } catch (_: Exception) {
+                // Best-effort — don't break capture on decode failure
+            }
+        }
+    }
+
+    private fun writeFdJsonl(record: FdFrameRecord) {
+        if (fdJsonlWriter == null) {
+            fdJsonlFile.parentFile.mkdirs()
+            fdJsonlWriter = PrintWriter(FileWriter(fdJsonlFile, true), true)
+        }
+        fdJsonlWriter?.println(jsonFmt.encodeToString(record))
+    }
+
+    override fun close() {
+        synchronized(lock) {
+            fdJsonlWriter?.close()
+            fdJsonlWriter = null
+        }
     }
 
     private fun sanitize(value: String): String =

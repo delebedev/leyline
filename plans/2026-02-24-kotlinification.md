@@ -275,7 +275,7 @@ Quick wins applied during audit, all tests green (PASS 259/259):
 |---|---|
 | `LimboTracker.kt` | `MutableList` --> `linkedSetOf` (O(1) contains) |
 | `CaptureSink.kt` | Manual `copyInto` --> `prev + bytes` |
-| `FrontDoorStub.kt` | 8x `.Companion.` removal |
+| `FrontDoorService.kt` | 8x `.Companion.` removal |
 | `MatchSession.kt` | 3x `recorder?.X()` chains --> `recorder?.run {}` |
 | `MatchHandler.kt` | Same recorder scope-function pattern |
 | `AutoPassEngine.kt` | `if`/`if` on `CombatHandler.Signal` --> exhaustive `when` |

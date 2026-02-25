@@ -136,7 +136,7 @@ const val VERSION: Byte = 0x04
 
 Netty decoder uses `getIntLE()` (little-endian) at offset 2 to read the payload length.
 
-### `FrontDoorStub.kt`
+### `FrontDoorService.kt`
 
 ```kotlin
 // C→S fields

@@ -29,6 +29,16 @@ Snapshots and priority events include `msgSeq` — the NexusDebugCollector seque
 - `GET /api/id-map` — instanceId ↔ card name cross-reference (auto-cleans on new match)
 - `GET /api/logs?since=N&level=DEBUG` — Logback stream
 
+## Front Door messages (`FdDebugCollector`)
+
+- `GET /api/fd-messages?since=N` — ring buffer of FD C→S/S→C messages with decoded CmdType, transactionId, JSON payload
+
+Each entry includes `cmdType` (int), `cmdTypeName` (human-readable), `dir` ("C2S"/"S2C"), `envelopeType` ("CMD"/"REQUEST"/"RESPONSE"), `transactionId`, `jsonPayload`.
+
+SSE event type: `fd-message` — emitted on each FD message for real-time updates.
+
+In proxy mode, FD frames are also written to `recordings/<session>/capture/fd-frames.jsonl` (decoded JSONL with CmdType + JSON per frame).
+
 ## Recording introspection
 
 - `GET /api/recordings` — discover recording sessions on disk

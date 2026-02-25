@@ -195,6 +195,23 @@ serve-stub: (_require classpath) check-java
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
     {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags
 
+# replay-stub mode: replay captured FD session (fd-frames.jsonl), stub MD
+serve-replay-stub golden="": (_require classpath) check-java
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
+    golden="{{golden}}"
+    if [ -z "$golden" ]; then
+        # Auto-detect: latest capture with fd-frames.jsonl
+        golden=$(ls -td recordings/*/capture/fd-frames.jsonl 2>/dev/null | head -1)
+        if [ -z "$golden" ]; then
+            echo "No fd-frames.jsonl found. Run: just serve-proxy (then connect client)" >&2
+            exit 1
+        fi
+        echo "Using golden: $golden"
+    fi
+    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags --fd-golden "$golden"
+
 # proxy mode (both doors, capture traffic)
 serve-proxy: (_require classpath) check-java
     #!/usr/bin/env bash
@@ -208,6 +225,96 @@ serve-replay: (_require classpath) check-java
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
     {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags --proxy-fd {{fd_ip}} --replay {{payloads}}
+
+# smoke test: start stub, launch MTGA, check for FD errors via debug API
+smoke-client timeout="60": (_require classpath) check-java
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
+    echo "Starting stub server..."
+    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags &
+    SERVER_PID=$!
+    trap "kill $SERVER_PID 2>/dev/null" EXIT
+    sleep 5
+    if ! kill -0 $SERVER_PID 2>/dev/null; then echo "FAIL: server didn't start"; exit 1; fi
+    echo "Launching MTGA..."
+    open -a "MTGA"
+    sleep 3
+    echo "Monitoring for {{timeout}}s..."
+    deadline=$((SECONDS + {{timeout}}))
+    match_door_connected=false
+    while [ $SECONDS -lt $deadline ]; do
+        # Check for MatchCreated in FD messages
+        if curl -sf "http://localhost:8090/api/fd-messages" | grep -q '"cmdType":600'; then
+            echo "  MatchCreated pushed!"
+        fi
+        # Check for client errors
+        err_count=$(curl -sf "http://localhost:8090/api/client-errors" | grep -co '"exceptionType"' 2>/dev/null | tail -1)
+        if [ "${err_count:-0}" -gt 0 ] 2>/dev/null; then echo "  Client errors: $err_count"; fi
+        # Check if Match Door got a connection
+        if curl -sf "http://localhost:8090/api/logs?level=INFO" | grep -q 'Match Door: client connected'; then
+            echo ""; echo "PASS: Client connected to Match Door!"; match_door_connected=true; break
+        fi
+        sleep 3
+    done
+    if [ "$match_door_connected" = "false" ]; then
+        echo ""; echo "FAIL: Client did not connect to Match Door within {{timeout}}s"
+        echo "Check: curl http://localhost:8090/api/fd-messages"
+        echo "Check: curl http://localhost:8090/api/client-errors"
+        exit 1
+    fi
+
+# launch client with log-driven automation (screenshots + cliclick)
+client-auto mode="--proxy" timeout="120":
+    @bash scripts/client-auto.sh {{mode}} {{timeout}}
+
+# synthetic mouse click (works on macOS 15+ / Unity via timestamp fix)
+# NOTE: must activate MTGA window first — Unity ignores clicks on background windows
+click x y action="click":
+    @osascript -e 'tell application "MTGA" to activate' 2>/dev/null; sleep 0.3; {{nexus_dir}}/tools/click {{x}} {{y}} {{action}}
+
+# screenshot game client window (by window ID, JPEG q60, max 1280px)
+capture-screenshot out="/tmp/mtga.jpg":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    wid=$(swift -e 'import CoreGraphics; let l=CGWindowListCopyWindowInfo(.optionAll,kCGNullWindowID) as! [[String:Any]]; var best=0; var bestArea=0; for w in l { let o=w["kCGWindowOwnerName"] as? String ?? ""; if o.contains("MTGA"){ let b=w["kCGWindowBounds"] as? [String:Any] ?? [:]; let h=b["Height"] as? Int ?? 0; let ww=b["Width"] as? Int ?? 0; let a=h*ww; if a>bestArea{ bestArea=a; best=w["kCGWindowNumber"] as? Int ?? 0}}}; if best>0{print(best)}' 2>/dev/null)
+    if [ -z "$wid" ]; then echo "MTGA window not found"; exit 1; fi
+    screencapture -x -l "$wid" /tmp/_cap_raw.png
+    sips --resampleWidth 1280 /tmp/_cap_raw.png --out /tmp/_cap_r.png >/dev/null 2>&1
+    sips -s format jpeg -s formatOptions 60 /tmp/_cap_r.png --out {{out}} >/dev/null 2>&1
+    rm -f /tmp/_cap_raw.png /tmp/_cap_r.png
+    echo "{{out}} ($(du -h {{out}} | cut -f1))"
+
+# one-shot client state from Player.log (no server needed)
+client-state:
+    #!/usr/bin/env bash
+    log="$HOME/Library/Logs/Wizards Of The Coast/MTGA/Player.log"
+    if [ ! -f "$log" ]; then echo "NO_LOG"; exit 0; fi
+    lines=$(wc -l < "$log" | tr -d ' ')
+    last=$(tail -30 "$log")
+    state="UNKNOWN"
+    if echo "$last" | grep -q "ArgumentNullException"; then state="NRE_LOOP"
+    elif echo "$last" | grep -q "home page notification"; then state="LOBBY"
+    elif echo "$last" | grep -q "TcpConnection.Close"; then state="DISCONNECTED"
+    elif echo "$last" | grep -q "PrepareAssets\|loadDesignerMetadata"; then state="LOADING"
+    elif echo "$last" | grep -q "FrontDoorConnectionAWS.Open"; then state="FD_CONNECTED"
+    elif echo "$last" | grep -q "Doorbell response"; then state="DOORBELL_OK"
+    elif echo "$last" | grep -q "Ringing Doorbell"; then state="DOORBELL_WAIT"
+    elif echo "$last" | grep -q "Initialize engine"; then state="ENGINE_INIT"
+    fi
+    echo "$state ($lines lines)"
+    tail -5 "$log"
+
+# re-decode FD raw frames → fd-frames.jsonl (fixes compressed payloads)
+decode-golden dir="": (_require classpath) check-java
+    #!/usr/bin/env bash
+    set -euo pipefail
+    d="{{dir}}"
+    if [ -z "$d" ]; then
+        d=$(ls -td recordings/*/capture 2>/dev/null | head -1)
+        if [ -z "$d" ]; then echo "No captures found." >&2; exit 1; fi
+    fi
+    {{_nexus_cli}} forge.nexus.protocol.DecodeFdCaptureKt "$d"
 
 # tail Player.log for client-side exceptions (standalone, no server)
 watch-client: (_require classpath) check-java

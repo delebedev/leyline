@@ -21,9 +21,11 @@ fun main() {
     println()
 
     val watcher = PlayerLogWatcher()
-    Runtime.getRuntime().addShutdownHook(Thread {
-        watcher.stop()
-    })
+    Runtime.getRuntime().addShutdownHook(
+        Thread {
+            watcher.stop()
+        },
+    )
     watcher.start()
 
     // Block until interrupted
