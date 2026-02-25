@@ -1,0 +1,783 @@
+# Nexus Mechanic Catalog
+#
+# What works when the Arena client connects to Forge via nexus.
+# Organized by what a player would ask about, not protocol internals.
+#
+# Status values:
+#   works     — end-to-end functional, tested, player can use it
+#   wired     — plumbing exists, happy path works, edge cases or UX rough
+#   partial   — some sub-cases work, others don't or are missing
+#   broken    — code exists but doesn't function correctly
+#   missing   — not implemented in the nexus layer
+#   suppressed — deliberately disabled (cosmetic, causes client errors)
+#   n/a       — not applicable to Arena Standard/Pioneer
+#
+# Updated: 2026-02-25
+# Authoritative source for protocol-level detail: rosetta.md
+
+# ─── Client Infrastructure ───────────────────────────────────────────
+# The connection layers outside the game scene itself.
+
+client-infrastructure:
+  front-door:
+    status: wired
+    notes: >
+      Auth replay stub on :30010. Proxies enough of the auth handshake
+      for client to reach match door. Not a real auth server — just replays
+      canned responses. Works for single-player Sparky flow.
+
+  match-door:
+    status: wired
+    notes: >
+      Netty TLS on :30020. 6-byte framing + protobuf. Handles ConnectReq,
+      settings exchange, mulligan, then enters game loop. Production-path
+      MatchHandler → MatchSession dispatch.
+
+  concede:
+    status: broken
+    notes: >
+      ConcedeReq handler exists in MatchSession (type 7) but doesn't
+      work end-to-end. Client button fires but game doesn't end cleanly.
+
+  game-over:
+    status: broken
+    notes: >
+      gameOverBundle() sends 3 GS Diff messages + IntermissionReq but
+      prevGameStateId chain is broken (not set). Client may show blank
+      game-over screen or fail to transition.
+
+  timers:
+    status: missing
+    notes: "TimerStateMessage (type 56) not implemented."
+
+  starting-player:
+    status: missing
+    notes: >
+      ChooseStartingPlayerReq (type 6) not sent. Server always picks.
+
+  settings:
+    status: wired
+    notes: >
+      SetSettingsReq/Resp handled. Client can send settings, server acks.
+      No actual behavior changes from settings yet.
+
+  emotes:
+    status: missing
+
+  reconnect:
+    status: missing
+    notes: "No session persistence. Disconnect = game lost."
+
+
+# ─── Game Flow ────────────────────────────────────────────────────────
+# Turn structure, priority, phases — the skeleton of a game.
+
+game-flow:
+  turn-structure:
+    status: wired
+    notes: >
+      Untap → Upkeep → Draw → Main1 → Combat → Main2 → End → Cleanup.
+      Works but every phase grants priority (see phase-stops).
+
+  priority:
+    status: wired
+    notes: >
+      Double-pass mechanism works. Player gets ActionsAvailableReq,
+      can pass or act. But no smart auto-pass — client prompted at
+      every phase even when nothing can be done.
+
+  phase-stops:
+    status: broken
+    notes: >
+      PhaseStopProfile not wired. Every phase grants priority including
+      CombatDamage/CombatEnd/EndOfTurn where Arena auto-passes. Client
+      times out (120s) at unimportant phases, engine auto-passes silently.
+      Blocked on PhaseOrStepModified annotation regression.
+
+  phase-indicator:
+    status: broken
+    notes: >
+      Player and AI phase indicators update in sync (should be separate).
+
+  mulligan:
+    status: partial
+    notes: >
+      MulliganReq sent, player can see hand and choose to keep.
+      Cannot request re-deal (new hand) or scry after mulligan to 6 or fewer.
+
+  upkeep-triggers:
+    status: wired
+    notes: "Triggers fire on upkeep, go on stack, resolve normally."
+
+  draw-step:
+    status: wired
+    notes: "Active player draws. Draw annotation fires."
+
+  cleanup-discard:
+    status: partial
+    notes: >
+      Engine forces discard to hand size. Hand overflow prompt was stalling
+      (fixed 2026-02-21) but discard interaction may still be rough.
+
+
+# ─── Spells & Stack ──────────────────────────────────────────────────
+
+spells:
+  cast-creature:
+    status: wired
+    notes: "Cast from hand → stack → resolve → battlefield. Auto-tap works."
+
+  cast-instant:
+    status: wired
+    notes: >
+      Casting works. Targeting wired (fixed 2026-02-21, needs client QA).
+      Player receives SelectTargetsReq for targeted instants.
+
+  cast-sorcery:
+    status: wired
+    notes: "Same as creature — cast, stack, resolve."
+
+  cast-enchantment:
+    status: partial
+    notes: >
+      Non-aura enchantments cast and resolve. Aura attachment annotation
+      missing (CreateAttachment/RemoveAttachment) — aura goes to battlefield
+      but client doesn't show visual link to enchanted permanent.
+
+  cast-artifact:
+    status: partial
+    notes: "Casts and resolves. Equipment same issue as auras — no attachment visual."
+
+  cast-planeswalker:
+    status: partial
+    notes: >
+      Casts and enters battlefield. Loyalty counters tracked.
+      Ability activation wired. Emblem zone not mapped.
+      LoyaltyActivationsRemaining annotation missing.
+
+  cast-mdfc:
+    status: missing
+    notes: "CastMdfc/PlayMdfc action types not implemented."
+
+  cast-adventure:
+    status: missing
+    notes: "CastAdventure action type not implemented."
+
+  cast-split:
+    status: missing
+    notes: "CastLeft/CastRight action types not implemented."
+
+  cast-prototype:
+    status: missing
+    notes: "CastPrototype action type not implemented."
+
+  cast-room:
+    status: missing
+    notes: "CastLeftRoom/CastRightRoom action types not implemented."
+
+  cast-foretell:
+    status: missing
+    notes: "CastOmen action type not implemented."
+
+  stack-resolution:
+    status: wired
+    notes: >
+      LIFO resolution. ResolutionStart/ResolutionComplete annotations fire.
+      AbilityInstanceCreated/Deleted track stack objects.
+
+  counterspell:
+    status: wired
+    notes: "Countered category fires, spell → graveyard."
+
+  fizzle:
+    status: wired
+    notes: "Spell fizzles if all targets illegal. SpellResolved(fizzled=true)."
+
+  mana-payment:
+    status: wired
+    notes: >
+      autoTapSolution provides one-click casting (greedy solver: colored first,
+      then generic). ~95% correct. Manual tap via ActivateMana as fallback.
+      ManaPaid annotation fires but has no detail keys (stub).
+
+  float-mana:
+    status: missing
+    notes: "FloatMana action type observed in Arena but not generated by nexus."
+
+  convoke-improvise:
+    status: partial
+    notes: "Cost reduction partially fixed (2026-02-21). Edge cases remain."
+
+
+# ─── Combat ──────────────────────────────────────────────────────────
+
+combat:
+  declare-attackers:
+    status: wired
+    notes: >
+      DeclareAttackersReq sent to active player. Interactive per-creature
+      toggles. SubmitAttackersResp confirms. defenderPlayerId fix (2026-02-21).
+
+  declare-blockers:
+    status: partial
+    notes: >
+      DeclareBlockersReq sent to defending player. Toggle mechanism same as
+      attackers. Double-send stall fixed (2026-02-21). Blocker targeting
+      itself may still be clunky — needs client QA.
+
+  combat-damage:
+    status: wired
+    notes: >
+      Auto-distributed for unblocked attackers. DamageDealt annotation fires.
+      Manual damage assignment (AssignDamageReq) not implemented.
+
+  first-strike:
+    status: wired
+    notes: >
+      Separate FirstStrikeDamage phase (step 11) occurs when relevant.
+      Engine handles correctly.
+
+  trample:
+    status: partial
+    notes: >
+      Engine resolves excess damage correctly. Annotation for excess
+      damage to player may not fire visually. Needs QA.
+
+  deathtouch:
+    status: wired
+    notes: "Engine handles. Any damage = lethal for assignment purposes."
+
+  lifelink:
+    status: wired
+    notes: "LifeChanged annotation fires for life gain from combat damage."
+
+  vigilance:
+    status: wired
+    notes: "Engine handles (attacker doesn't tap). No special annotation needed."
+
+
+# ─── Targeting ───────────────────────────────────────────────────────
+
+targeting:
+  spell-targeting:
+    status: wired
+    notes: >
+      SelectTargetsReq sent for targeted spells. Single and multi-target.
+      Fixed 2026-02-21 (was hanging). 6 tests in TargetingFlowTest.
+      Needs client QA.
+
+  ability-targeting:
+    status: wired
+    notes: "Same SelectTargetsReq path for activated abilities."
+
+  targeting-arrows:
+    status: missing
+    notes: >
+      PlayerSelectingTargets/PlayerSubmittedTargets annotations (92/93)
+      not implemented. Client doesn't show targeting arrow feedback.
+
+  damage-assignment:
+    status: missing
+    notes: "AssignDamageReq (type 30) not sent. Damage auto-distributed."
+
+
+# ─── Permanents & State ──────────────────────────────────────────────
+
+permanents:
+  tap-untap:
+    status: wired
+    notes: "TappedUntapped annotation fires. Untap step works."
+
+  counters:
+    status: wired
+    notes: >
+      +1/+1, -1/-1, loyalty, poison, stun. CounterAdded/CounterRemoved
+      annotations fire with type and amount. Counter annihilation works
+      (engine handles +1/+1 canceling -1/-1).
+
+  power-toughness-changes:
+    status: partial
+    notes: >
+      Engine applies correctly. ModifiedPower/ModifiedToughness annotations
+      (5/6) missing — client won't show buff/debuff overlays. Stats in
+      zone objects are correct, just no visual delta feedback.
+
+  attachment:
+    status: missing
+    notes: >
+      CreateAttachment/RemoveAttachment/Attachment annotations (11/12/20)
+      all missing. Equipment equips and auras attach in the engine, but
+      client doesn't render the visual link. P/T effects still apply.
+
+  tokens:
+    status: partial
+    notes: >
+      TokenCreated annotation builder exists but event not wired from
+      EventBus (GameEventTokenCreated is an empty record — no card ref).
+      Tokens appear on battlefield via zone transfer but no creation
+      animation. TokenDeleted not implemented.
+
+  face-down:
+    status: missing
+    notes: >
+      ObjectMapper never sets isFacedown=true or overrides overlayGrpId.
+      Morph/manifest/disguise cards would leak identity. Low priority for
+      Standard/Pioneer.
+
+  phasing:
+    status: missing
+    notes: >
+      PhasedOut/PhasedIn annotations (95/96) not implemented.
+      Forge tracks phasing as card state, not zone. GameEventCardPhased
+      fires but not wired to nexus events.
+
+  controller-change:
+    status: missing
+    notes: "ControllerChanged annotation (15) not implemented."
+
+  color-change:
+    status: missing
+    notes: "ModifiedColor annotation (7) not implemented."
+
+  type-change:
+    status: missing
+    notes: "ModifiedType annotation (25) not implemented."
+
+
+# ─── Keywords ────────────────────────────────────────────────────────
+# Status = does the mechanic work from the player's perspective?
+# Most keywords just work because the engine handles them — the question
+# is whether the client gets enough visual feedback.
+
+keywords:
+  flying:
+    status: wired
+    notes: "Engine resolves evasion. No annotation needed — blocking rules enforce it."
+
+  reach:
+    status: wired
+    notes: "Engine allows blocking fliers. No annotation needed."
+
+  haste:
+    status: wired
+    notes: "Engine allows attacking/activating on entry turn."
+
+  flash:
+    status: wired
+    notes: "Engine allows casting at instant speed. Cast action available during opponent's turn."
+
+  hexproof:
+    status: wired
+    notes: "Engine excludes from targeting. SelectTargetsReq won't include hexproof permanents."
+
+  indestructible:
+    status: wired
+    notes: "Engine skips destroy. SBA won't kill."
+
+  menace:
+    status: wired
+    notes: "Engine requires 2+ blockers. Blocking rules enforce it."
+
+  ward:
+    status: partial
+    notes: "Trigger fires, counter-tax applied by engine. Visual feedback may be incomplete."
+
+  double-strike:
+    status: wired
+    notes: "FirstStrikeDamage phase + regular CombatDamage both resolve."
+
+  prowess:
+    status: partial
+    notes: "Trigger fires, P/T change applies. ModifiedPower/Toughness annotations missing."
+
+  defender:
+    status: wired
+    notes: "Engine prevents attacking."
+
+  protection:
+    status: wired
+    notes: "Engine handles DEBT (damage, enchant/equip, block, target)."
+
+  regenerate:
+    status: partial
+    notes: >
+      Engine handles. RegeneratePending/PermanentRegenerated annotations (99/100)
+      missing — client won't show regen shield visual.
+
+
+# ─── State-Based Actions ─────────────────────────────────────────────
+
+state-based:
+  lethal-damage:
+    status: wired
+    notes: "Creatures with damage >= toughness destroyed. SBA checks before each priority."
+
+  zero-toughness:
+    status: wired
+    notes: >
+      Engine destroys. ZeroToughness transfer category (20) missing in nexus —
+      falls back to generic ZoneTransfer. Functional, less specific annotation.
+
+  legend-rule:
+    status: wired
+    notes: "Duplicate legends destroyed. Legend transfer category (25) falls back to generic."
+
+  planeswalker-uniqueness:
+    status: wired
+    notes: "Engine enforces. ZeroLoyalty category (24) falls back to generic."
+
+  poison-loss:
+    status: wired
+    notes: "10 poison = loss. Engine handles."
+
+  deck-loss:
+    status: wired
+    notes: "Can't draw from empty library = loss. Engine handles."
+
+
+# ─── Zones ───────────────────────────────────────────────────────────
+
+zones:
+  hand:
+    status: wired
+    notes: "Cards served to client. Playable via Cast/Play actions. Private per seat."
+
+  library:
+    status: wired
+    notes: "Hidden zone. Draw works. Scry annotation implemented."
+
+  graveyard:
+    status: wired
+    notes: "Public. Cards arrive via Destroy/Sacrifice/Discard/Mill categories."
+
+  battlefield:
+    status: wired
+    notes: "Public. Creatures, artifacts, enchantments, planeswalkers, lands rendered."
+
+  stack:
+    status: wired
+    notes: >
+      Public. Spells/abilities shown. AbilityInstanceCreated/Deleted track objects.
+      Stack visuals were stuck (Sparky instants) — possibly improved after targeting fix.
+
+  exile:
+    status: wired
+    notes: "Public. Exile transfer category implemented."
+
+  command:
+    status: partial
+    notes: "Used for puzzle goals. Not fully mapped for Commander/emblem use."
+
+  revealed:
+    status: partial
+    notes: >
+      Revealed zone (18/19) exists. InteractivePromptBridge.drainReveals()
+      captures reveals. CardRevealed annotation (47) missing.
+
+  sideboard:
+    status: wired
+    notes: "Zone mapped (34/38). Not exercised outside puzzle mode."
+
+
+# ─── Zone Transfers ──────────────────────────────────────────────────
+# Transfer categories control what animation the client plays when a card
+# moves between zones. Cards always move correctly — the category just
+# determines which animation fires. Missing categories fall back to
+# generic ZoneTransfer (code 2).
+#
+# 11 of 21 categories wired. The remaining 10 still move cards correctly,
+# just with a generic animation instead of the specific one.
+#
+# Ordered: wired first, then missing by importance.
+
+zone-transfers:
+
+  # ── Wired (11) ────────────────────────────────────────────────────
+
+  cast-spell:
+    status: wired
+    notes: "Hand → Stack. Category 6."
+
+  play-land:
+    status: wired
+    notes: "Hand → Battlefield. Category 7."
+
+  resolve:
+    status: wired
+    notes: "Stack → Battlefield (or graveyard for non-permanents). Category 13."
+
+  draw:
+    status: wired
+    notes: "Library → Hand. Category 10."
+
+  destroy:
+    status: wired
+    notes: "Battlefield → Graveyard. Category 17."
+
+  sacrifice:
+    status: wired
+    notes: "Battlefield → Graveyard (via effect). Category 18."
+
+  discard:
+    status: wired
+    notes: "Hand → Graveyard. Category 11."
+
+  exile:
+    status: wired
+    notes: "Any → Exile. Category 16."
+
+  countered:
+    status: wired
+    notes: "Stack → Graveyard (spell countered). Category 9."
+
+  bounce:
+    status: wired
+    notes: "Battlefield → Hand/Library. Category 32."
+
+  mill:
+    status: wired
+    notes: "Library → Graveyard (same owner). Category 33."
+
+  # ── Missing — common, worth adding ────────────────────────────────
+
+  return:
+    status: missing
+    notes: >
+      GY/Exile → Hand/Battlefield. Category 8.
+      Reanimation, recursion, flicker — very common in Standard.
+      Currently plays generic animation instead of return-specific one.
+
+  search:
+    status: missing
+    notes: >
+      Library → Hand/Battlefield. Category 14.
+      Tutors, fetch effects. Common across most constructed decks.
+      Currently plays generic animation.
+
+  put:
+    status: missing
+    notes: >
+      Generic any → any. Category 19.
+      Catch-all for effects that say "put" rather than destroy/exile/etc.
+      Falls back to generic — usually fine.
+
+  # ── Missing — SBA reason variants ─────────────────────────────────
+  # These are all "goes to graveyard" with different reason codes.
+  # Engine handles the move; client just plays Destroy animation instead
+  # of a more specific one. Low visual impact.
+
+  zero-toughness:
+    status: missing
+    notes: "Battlefield → Graveyard (0 toughness SBA). Category 20. Falls back to Destroy animation."
+
+  damage:
+    status: missing
+    notes: "Battlefield → Graveyard (lethal damage SBA). Category 21. Falls back to Destroy animation."
+
+  zero-loyalty:
+    status: missing
+    notes: "Battlefield → Graveyard (0 loyalty PW). Category 24. Falls back to Destroy animation."
+
+  legend:
+    status: missing
+    notes: "Battlefield → Graveyard (legend rule). Category 25. Falls back to Destroy animation."
+
+  illegal-attachment:
+    status: missing
+    notes: "Battlefield → Graveyard (aura/equip lost target). Category 22. Falls back to Destroy animation."
+
+  unattached-aura:
+    status: missing
+    notes: "Battlefield → Graveyard (aura not attached). Category 23. Falls back to Destroy animation."
+
+  # ── N/A ───────────────────────────────────────────────────────────
+
+  conjure:
+    status: n/a
+    notes: "Digital-only creation. Category 37. Not relevant for paper MTG."
+
+
+# ─── Puzzle Mode ─────────────────────────────────────────────────────
+
+puzzle-mode:
+  puzzle-loading:
+    status: wired
+    notes: >
+      Skips pre-game (no die roll, no starting player, no mulligan).
+      Client receives stage=Play with pre-populated board.
+      PuzzleCardRegistrar handles grpId resolution.
+      just serve-puzzle path/to/puzzle.pzl works.
+
+  puzzle-interaction:
+    status: wired
+    notes: >
+      Same game loop as constructed after board setup.
+      Test puzzles: WEB_TEST_00..02 plus custom ones.
+      16 integration tests in PuzzleBridgeTest.
+
+
+# ─── Visual / Animation Fidelity ────────────────────────────────────
+# Things that work in the engine but the client can't display properly.
+
+visual-fidelity:
+  shuffle-animation:
+    status: suppressed
+    notes: >
+      Shuffle annotations suppressed — client crashes without OldIds/NewIds
+      detail keys. Need pre/post library instanceId lists from engine.
+      Purely cosmetic.
+
+  buff-debuff-overlay:
+    status: missing
+    notes: >
+      ModifiedPower/Toughness annotations missing. Client can't show
+      +X/+X or -X/-X overlays. Actual stats are correct in zone data.
+
+  attachment-visual:
+    status: missing
+    notes: "See permanents.attachment. Equipment/aura link not rendered."
+
+  targeting-arrows:
+    status: missing
+    notes: "See targeting.targeting-arrows."
+
+  card-highlighting:
+    status: missing
+    notes: >
+      highlight field on actions exists but not consistently set.
+      Hot/Cold distinction not wired.
+
+  mana-pool-display:
+    status: missing
+    notes: "Disabled in PlayerMapper — client rendering rules unclear."
+
+  scry:
+    status: wired
+    notes: "Scry annotation (65) fires with topCount/bottomCount."
+
+  damage-numbers:
+    status: wired
+    notes: "DamageDealt annotation fires with amount, type, markDamage."
+
+  life-total:
+    status: wired
+    notes: "ModifiedLife annotation fires with delta."
+
+  counter-visuals:
+    status: wired
+    notes: "CounterAdded/CounterRemoved fire with type and amount."
+
+
+# ─── Protocol Coverage Summary ───────────────────────────────────────
+# See rosetta.md for full per-type breakdown.
+#
+# 94 annotation types exist in the Arena proto enum, but most are niche.
+# We tier them by how often they matter in a typical Standard game.
+
+protocol-summary:
+
+  annotation-tiers:
+    # ── Core: needed for most games, absence breaks UX ──────────────
+    # 27 types. We have 16 working, 11 missing.
+    core:
+      have:
+        - ZoneTransfer (1)          # every card move
+        - DamageDealt (3)           # combat + burn
+        - TappedUntapped (4)        # every mana tap, attack
+        - PhaseOrStepModified (8)   # turn structure (hardcoded)
+        - ModifiedLife (10)         # life total changes
+        - ObjectIdChanged (13)      # zone transfer plumbing
+        - CounterAdded (16)         # +1/+1, loyalty, poison
+        - CounterRemoved (17)       # counter removal
+        - AbilityInstanceCreated (36) # spell/ability on stack
+        - AbilityInstanceDeleted (37) # spell/ability leaves stack
+        - ResolutionStart (43)      # spell resolving
+        - ResolutionComplete (44)   # spell resolved
+        - NewTurnStarted (48)       # turn transitions (hardcoded)
+        - EnteredZoneThisTurn (63)  # summoning sickness
+        - Scry (65)                 # scry visual
+        - Shuffle (56)              # suppressed — crashes client without detail keys
+      missing:
+        - ModifiedPower (5)         # every combat trick, anthem, equipment
+        - ModifiedToughness (6)     # same — client can't show +X/+X overlays
+        - AddAbility (9)            # "gains flying/haste/etc" — no keyword badge update
+        - CreateAttachment (11)     # equip/enchant — no visual link between permanents
+        - RemoveAttachment (12)     # unequip/disenchant
+        - ControllerChanged (15)    # steal effects (Claim, Agent) — permanent doesn't move
+        - TokenCreated (35)         # builder exists but not wired from EventBus
+        - CardRevealed (47)         # tutors, impulse draw — no reveal animation
+        - ManaPaid (34)             # stub only, no detail keys — mana payment visual
+        - PlayerSelectingTargets (92)  # targeting arrows during cast
+        - PlayerSubmittedTargets (93)  # targeting arrows confirmed
+
+    # ── Nice-to-have: better UX, common-ish mechanics ──────────────
+    # 20 types. We have 2 working, 18 missing.
+    nice-to-have:
+      have:
+        - UserActionTaken (73)      # action feedback
+        - SyntheticEvent (72)       # internal sequencing
+      missing:
+        - ModifiedColor (7)         # Painter's Servant etc
+        - Counter (14)              # running tally for badge display (vs Added/Removed events)
+        - LayeredEffectCreated (18) # buff source tracking
+        - Attachment (20)           # state-based attachment info
+        - RemoveAbility (23)        # "loses all abilities"
+        - ModifiedType (25)         # type-changing effects
+        - TargetSpec (26)           # targeting UI hints
+        - FaceDown (28)             # morph/manifest/disguise
+        - DynamicAbility (30)       # activated ability cost display
+        - TokenDeleted (41)         # token leaves battlefield animation
+        - CoinFlip (57)             # coin flip results
+        - ReplacementEffect (62)    # replacement effect indicators
+        - DieRoll (85)              # D20 cards, growing in Standard
+        - LinkedDamage (87)         # damage source tracking
+        - PhasedOut (95)            # phasing out visual
+        - PhasedIn (96)             # phasing in visual
+        - LoyaltyActivationsRemaining (97) # PW ability limits
+        - RegeneratePending (99)    # regen shield visual
+
+    # ── Niche: specific cards, digital-only, internal ───────────────
+    # 47 types. We have 0. Most will never matter for paper-MTG play.
+    niche:
+      count: 47
+      examples:
+        - BoonInfo (102)            # digital-only conjure
+        - DungeonStatus (86)        # D&D set mechanic
+        - ClassLevel (88)           # D&D set mechanic
+        - SaddledThisTurn (104)     # saddle mechanic
+        - LoopCount (106)           # loop detection
+        - SuppressedPowerAndToughness (108) # edge case display
+        - Designation (45)          # monarch, initiative
+        - SuspendLike (61)          # suspend/foretell/hideaway
+        - CastingTimeOption (64)    # alt cast timing
+        - MultistepEffectStarted (83) # multi-step resolution UI
+      notes: >
+        Full list in rosetta.md. Client degrades gracefully without these —
+        game mechanics still work via the engine, just no visual flair.
+
+  action-types:
+    implemented: 3  # Cast, Play, Pass (end-to-end)
+    wired: 2        # Activate, ActivateMana (generated, not all paths tested)
+    total: 24
+    notes: >
+      Multi-face variants (10 types) deferred. FloatMana observed but not generated.
+
+  zone-transfer-categories:
+    implemented: 11
+    total: 21
+    notes: >
+      11 wired, 3 worth adding (Return, Search, Put), 6 SBA reason
+      variants (cosmetic — fall back to Destroy animation), 1 n/a.
+      Cards always move correctly; category only affects animation.
+
+  gre-message-types:
+    server-to-client: 13  # implemented
+    client-to-server: 6   # handled
+    missing: 5             # ChooseStartingPlayer, OrderReq, SelectNreq, AssignDamageReq, TimerState
+
+  game-events-wired:
+    wired: 17
+    total: 57
+    notes: >
+      Key unwired: CardAttachment, CardPhased, SpellRemovedFromStack,
+      FlipCoin, RollDie, PlayerControl, CardStatsChanged.
