@@ -39,7 +39,8 @@ Debug server on `:8090` (auto-starts with `just serve`). Full endpoint reference
 
 ## Reference
 
-- **Rosetta table:** `docs/rosetta.md` — Arena protocol ↔ Forge engine ↔ forge-nexus code. Annotation types, zone IDs, transfer categories, action types, GRE messages, phase mapping, GameEvent wiring status. Look here first when mapping between the three layers.
+- **Mechanic catalog:** `docs/catalog.yaml` — what works, what's wired, what's missing. Organized by gameplay mechanic (what players experience), not protocol internals. Read this first to understand current state. Update it when changing mechanic support.
+- **Rosetta table:** `docs/rosetta.md` — Arena protocol ↔ Forge engine ↔ forge-nexus code. Annotation types, zone IDs, transfer categories, action types, GRE messages, phase mapping, GameEvent wiring status. Protocol-level reference for when you need type numbers and field details.
 
 ## Mental Model
 
