@@ -27,7 +27,7 @@ jvm_opts_cli := _jvm_base + " -Dlogback.configurationFile=" + logback_cli + " -D
 _cp := '"$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
 
 # Kill ports + launch (for server targets)
-_nexus_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill $pid 2>/dev/null || true; done; done; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp ' + _cp
+_nexus_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill -9 $pid 2>/dev/null || true; done; done; sleep 0.3; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp ' + _cp
 # Read-only CLI (no port kill)
 _nexus_cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts_cli + ' -cp ' + _cp
 
@@ -263,6 +263,10 @@ smoke-client timeout="60": (_require classpath) check-java
         echo "Check: curl http://localhost:8090/api/client-errors"
         exit 1
     fi
+
+# (re)launch MTGA client — kills existing instance first
+mtga:
+    @pkill -9 -f MTGA 2>/dev/null || true; sleep 1; open -a "MTGA"
 
 # launch client with log-driven automation (screenshots + cliclick)
 client-auto mode="--proxy" timeout="120":

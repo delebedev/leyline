@@ -3,7 +3,7 @@ Name:Web Test #00 - One Bolt
 Goal:Win
 Turns:1
 Difficulty:Tutorial
-Description:Tap Mountain, cast Lightning Bolt at opponent, win.
+Description:Tap Mountain, cast Lightning Bolt at opponent or creatures, win.
 
 [state]
 ActivePlayer=Human
@@ -13,3 +13,4 @@ AILife=3
 
 humanhand=Lightning Bolt
 humanbattlefield=Mountain
+aibattlefield=Runeclaw Bear;Pillarfield Ox
