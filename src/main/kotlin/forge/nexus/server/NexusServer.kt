@@ -48,6 +48,8 @@ class NexusServer(
     private val upstreamMatchDoor: String? = null,
     /** Replay mode: if set, replay recorded payloads from this directory. */
     private val replayDir: File? = null,
+    /** FD golden file: if set, use replay-based FD stub instead of hand-crafted. */
+    val fdGoldenFile: File? = null,
     /** Playtest configuration (decks, seed, die roll, AI speed). */
     val playtestConfig: forge.nexus.config.PlaytestConfig = forge.nexus.config.PlaytestConfig(),
     /** Puzzle mode: if set, load this .pzl file for all client connections. */
@@ -95,11 +97,20 @@ class NexusServer(
     }
 
     private fun startStub(fdSsl: SslContext, mdSsl: SslContext) {
-        frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
-            ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-            ch.pipeline().addLast("handler", FrontDoorStub())
+        val goldenFile = fdGoldenFile
+        if (goldenFile != null) {
+            frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Replay") { ch ->
+                ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
+                ch.pipeline().addLast("handler", FrontDoorReplayStub(goldenFile))
+            }
+            log.info("Client Front Door (replay from {}) listening on :{}", goldenFile.name, frontDoorPort)
+        } else {
+            frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
+                ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
+                ch.pipeline().addLast("handler", FrontDoorService())
+            }
+            log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
         }
-        log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
 
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor") { ch ->
             ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
@@ -126,7 +137,7 @@ class NexusServer(
         } else {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast("handler", FrontDoorStub())
+                ch.pipeline().addLast("handler", FrontDoorService())
             }
             log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
         }

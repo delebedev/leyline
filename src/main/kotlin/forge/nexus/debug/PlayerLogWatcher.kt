@@ -9,7 +9,6 @@ import java.io.File
 import java.io.FileWriter
 import java.io.RandomAccessFile
 import java.time.Instant
-import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -77,16 +76,16 @@ class PlayerLogWatcher(
         /** macOS Player.log path. */
         val PLAYER_LOG: File = File(
             System.getProperty("user.home"),
-            "Library/Logs/Wizards of the Coast/MTGA/Player.log"
+            "Library/Logs/Wizards of the Coast/MTGA/Player.log",
         )
 
         /**
          * Regex for lines like:
          *   `ArgumentException: some message`
-         *   `InvalidOperationException: some message`
+         *   `[UnityCrossThreadLogger]KeyNotFoundException: some message`
          */
         private val BARE_EXCEPTION = Regex(
-            """^(\w+Exception):\s+(.+)$"""
+            """(\w+Exception):\s+(.+)""",
         )
 
         /**
@@ -94,36 +93,53 @@ class PlayerLogWatcher(
          * followed by optional JSON on the same line.
          */
         private val ANNOTATION_EXCEPTION = Regex(
-            """\[UnityCrossThreadLogger\]Exception while parsing annotation\.\s*(\{.+)?$"""
+            """\[UnityCrossThreadLogger\]Exception while parsing annotation\.\s*(\{.+)?$""",
+        )
+
+        /**
+         * Regex for `[TaskLogger]Deserialization function failed for <Type>`
+         * followed by JSON text + exception details on continuation lines.
+         */
+        private val DESERIALIZATION_FAILED = Regex(
+            """\[TaskLogger\]Deserialization function failed for\s+(\S+).*Exception:\s*(.+)""",
+        )
+
+        /**
+         * Fallback: captures the type even when Exception detail is on the next line.
+         * e.g. `[TaskLogger]Deserialization function failed for Wizards.Unification.Models.StoreStatusV2`
+         */
+        private val DESERIALIZATION_FAILED_SHORT = Regex(
+            """\[TaskLogger\]Deserialization function failed for\s+(\S+)""",
         )
 
         /** Extract ExceptionType from JSON payload. */
         private val JSON_EXCEPTION_TYPE = Regex(
-            """"ExceptionType"\s*:\s*"([^"]+)""""
+            """"ExceptionType"\s*:\s*"([^"]+)"""",
         )
 
         /** Extract exception Message from JSON payload. */
         private val JSON_MESSAGE = Regex(
-            """"Message"\s*:\s*"([^"]+)""""
+            """"Message"\s*:\s*"([^"]+)"""",
         )
 
         /** Extract StackTraceString from JSON payload. */
         private val JSON_STACK = Regex(
-            """"StackTraceString"\s*:\s*"([^"]+)""""
+            """"StackTraceString"\s*:\s*"([^"]+)"""",
         )
 
         /** Extract annotation Id from JSON payload. */
         private val JSON_ANNOTATION_ID = Regex(
-            """"Id"\s*:\s*(\d+)"""
+            """"Id"\s*:\s*(\d+)""",
         )
 
         /** Extract annotation Type array from JSON payload. */
         private val JSON_ANNOTATION_TYPE = Regex(
-            """"Type"\s*:\s*\[([^\]]*)]"""
+            """"Type"\s*:\s*\[([^\]]*)]""",
         )
 
         /** Exception types to suppress — too noisy, not actionable. */
         private val SUPPRESSED_TYPES = setOf(
+            "ArgumentNullException",
             "ArgumentOutOfRangeException",
             "NullReferenceException",
         )
@@ -177,7 +193,7 @@ class PlayerLogWatcher(
             log.info(
                 "Player.log watcher stopped — {} client error(s) captured → {}",
                 count,
-                File(sessionDir, "client-errors.jsonl").absolutePath
+                File(sessionDir, "client-errors.jsonl").absolutePath,
             )
         } else {
             log.info("Player.log watcher stopped — no client errors")
@@ -206,7 +222,7 @@ class PlayerLogWatcher(
                 // Check if file was truncated (client relaunch)
                 val currentLen = PLAYER_LOG.length()
                 if (currentLen < raf.filePointer) {
-                    log.info("Player.log truncated (client relaunch?) — resetting to start")
+                    log.debug("Player.log truncated (client relaunch?) — resetting to start")
                     raf.seek(0)
                 }
                 Thread.sleep(pollMs)
@@ -237,6 +253,26 @@ class PlayerLogWatcher(
                     raw = line,
                 )
             }
+            return
+        }
+
+        // Try deserialization failure (TaskLogger)
+        val deserMatch = DESERIALIZATION_FAILED.find(line)
+        if (deserMatch != null) {
+            record(
+                exceptionType = "DeserializationException",
+                message = "Failed to deserialize ${deserMatch.groupValues[1]}: ${deserMatch.groupValues[2]}",
+                raw = line,
+            )
+            return
+        }
+        val deserShort = DESERIALIZATION_FAILED_SHORT.find(line)
+        if (deserShort != null) {
+            record(
+                exceptionType = "DeserializationException",
+                message = "Failed to deserialize ${deserShort.groupValues[1]}",
+                raw = line,
+            )
             return
         }
 

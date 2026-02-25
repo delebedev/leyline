@@ -24,6 +24,10 @@
 - **Concede**: tried wiring client concede button but doesn't work yet
 - **Phase indicators**: glitch where player and AI indicators update in sync
 
+## Debug Panel
+
+- **Server shutdown kills browser tab**: When the Nexus server is killed (Ctrl+C / `kill`), the debug panel's SSE connection drops. Some browsers (Safari) close the tab entirely on abrupt connection loss. Fix: add `onclose`/`onerror` handler in the SSE client JS that shows a "disconnected" banner instead of letting the browser decide. Or switch from SSE to polling with graceful reconnect.
+
 ## Runtime Crashes
 
 - **GameEventCollector NPE on null source zone** *(2026-02-24)*: `GameEventCardChangeZone.from()` returns null when a card enters a zone from nowhere (e.g. effect/token entering Command zone). `visit(ev: GameEventCardChangeZone)` calls `ev.from().zoneType` unconditionally → NPE. Fix: null-check `ev.from()`, skip or emit generic event when null. Triggered by Reckless Impulse effect entering Command zone.

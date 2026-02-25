@@ -22,9 +22,25 @@ client-infrastructure:
   front-door:
     status: wired
     notes: >
-      Auth replay stub on :30010. Proxies enough of the auth handshake
-      for client to reach match door. Not a real auth server — just replays
-      canned responses. Works for single-player Sparky flow.
+      Fully offline FD stub on :30010 with 30+ CmdType handlers.
+      Protobuf envelope codec (Cmd/Request/Response), golden data for
+      StartHook, GraphDefs, Events, PlayBladeQueueConfig, DesignerMetadata.
+      Auth → lobby → Play → Bot Match → MatchCreated push all work offline.
+      FdDebugCollector (ring buffer + SSE) for real-time inspection.
+      CaptureSink records frames to JSONL for replay. FrontDoorReplayStub
+      replays captured sessions. Key insight: S→C always Response envelope,
+      push notifications use fresh txId. See front-door-stub.md in
+      mtga-internals for protocol lessons.
+
+  ui-automation:
+    status: wired
+    notes: >
+      Synthetic mouse clicks via tools/click (CGEvent + mach_absolute_time).
+      Works on macOS 15+ with Unity — window must be foreground. Supports
+      left/right/double click and move. Screenshot capture via just
+      capture-screenshot. client-auto.sh provides log-driven state machine
+      for automated client interaction. Coordinate system: logical points
+      (1920x1080), screenshots downscaled to 1280px (1.5x factor).
 
   match-door:
     status: wired

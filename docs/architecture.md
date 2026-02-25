@@ -15,7 +15,7 @@ graph TB
     end
 
     subgraph "forge-nexus (Kotlin)"
-        SRV["server/<br/><small>Netty TLS TCP · MatchHandler<br/>FrontDoorStub · MatchRegistry</small>"]
+        SRV["server/<br/><small>Netty TLS TCP · MatchHandler<br/>FrontDoorService · MatchRegistry</small>"]
         GAME_PKG["game/<br/><small>GameBridge · BundleBuilder<br/>AnnotationBuilder · StateMapper<br/>CardDb · ZoneIds · PromptIds</small>"]
         PROTO["protocol/<br/><small>FrameCodec · HandshakeMessages<br/>DecodeCapture</small>"]
         DEBUG["debug/<br/><small>DebugServer · DebugCollector<br/>GameStateCollector · Inspect</small>"]
@@ -62,7 +62,7 @@ Two Netty TCP servers, one debug HTTP server.
 ```mermaid
 graph TB
     subgraph "Front Door (:30010)"
-        FD["FrontDoorStub<br/><small>Auth handshake replay<br/>Login → Session → MatchConfig</small>"]
+        FD["FrontDoorService<br/><small>Auth handshake replay<br/>Login → Session → MatchConfig</small>"]
     end
 
     subgraph "Match Door (:30003)"
@@ -171,7 +171,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant C as Client
-    participant FD as FrontDoorStub
+    participant FD as FrontDoorService
     participant MH as MatchHandler
     participant GB as GameBridge
     participant ENG as Engine
@@ -311,7 +311,7 @@ forge-nexus/src/main/kotlin/forge/nexus/     65 files, ~14.5K LOC
   │                                              GameBridge, AnnotationPipeline, GameEventCollector,
   │                                              NexusGamePlayback, ObjectMapper, ZoneMapper, CardDb
   ├── server/         (12 files, ~2.5K LOC)   ← Transport: MatchHandler, MatchSession, AutoPassEngine,
-  │                                              CombatHandler, TargetingHandler, FrontDoorStub,
+  │                                              CombatHandler, TargetingHandler, FrontDoorService,
   │                                              MatchRegistry, MessageSink
   ├── protocol/       (4 files, ~600 LOC)     ← Wire: FrameCodec, HandshakeMessages, DecodeCapture
   ├── debug/          (11 files, ~2.5K LOC)   ← Debug panel: DebugServer, DebugCollector, GameStateCollector

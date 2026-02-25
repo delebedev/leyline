@@ -33,6 +33,12 @@ fun main(args: Array<String>) {
         validateDecks(config, nexusDir)
     }
 
+    // FD golden file for replay stub (captured fd-frames.jsonl)
+    val fdGoldenFile = a["--fd-golden"]?.let { File(it) }
+    if (fdGoldenFile != null) {
+        require(fdGoldenFile.exists()) { "FD golden file not found: ${fdGoldenFile.absolutePath}" }
+    }
+
     val server = NexusServer(
         frontDoorPort = a["--fd-port"]?.toIntOrNull() ?: 30010,
         matchDoorPort = a["--md-port"]?.toIntOrNull() ?: 30003,
@@ -43,16 +49,19 @@ fun main(args: Array<String>) {
         upstreamFrontDoor = a["--proxy-fd"],
         upstreamMatchDoor = a["--proxy-md"],
         replayDir = a["--replay"]?.let { File(it) },
+        fdGoldenFile = fdGoldenFile,
         playtestConfig = config,
         puzzleFile = puzzleFile,
     )
 
     val logWatcher = PlayerLogWatcher()
 
-    Runtime.getRuntime().addShutdownHook(Thread {
-        logWatcher.stop()
-        server.stop()
-    })
+    Runtime.getRuntime().addShutdownHook(
+        Thread {
+            logWatcher.stop()
+            server.stop()
+        },
+    )
 
     val mode = when {
         server.isReplay -> "replay (proxy FD, replay MD)"
