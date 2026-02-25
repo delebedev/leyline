@@ -169,9 +169,8 @@ object GameStateCollector {
     private fun extractSnapshot(gs: GameStateMessage): StateSnapshot {
         val ti = gs.turnInfo
 
-        val zones = mutableMapOf<Int, ZoneSnapshot>()
-        for (z in gs.zonesList) {
-            zones[z.zoneId] = ZoneSnapshot(
+        val zones = gs.zonesList.associate { z ->
+            z.zoneId to ZoneSnapshot(
                 zoneId = z.zoneId,
                 type = z.type.name.removeProtobufSuffix(),
                 ownerSeatId = z.ownerSeatId,
@@ -179,14 +178,12 @@ object GameStateCollector {
             )
         }
 
-        val objects = mutableMapOf<Int, ObjectSnapshot>()
-        for (obj in gs.gameObjectsList) {
-            val name = CardDb.getCardName(obj.grpId)
-            objects[obj.instanceId] = ObjectSnapshot(
+        val objects = gs.gameObjectsList.associate { obj ->
+            obj.instanceId to ObjectSnapshot(
                 instanceId = obj.instanceId,
                 grpId = obj.grpId,
                 type = obj.type.name.removeProtobufSuffix(),
-                name = name,
+                name = CardDb.getCardName(obj.grpId),
                 zoneId = obj.zoneId,
                 zoneName = zones[obj.zoneId]?.type,
                 ownerSeatId = obj.ownerSeatId,
@@ -224,14 +221,13 @@ object GameStateCollector {
 
         val annotations = gs.annotationsList.map { ann ->
             val types = ann.typeList.map { it.name.removeProtobufSuffix() }
-            val details = mutableMapOf<String, String>()
-            for (kv in ann.detailsList) {
+            val details = ann.detailsList.associate { kv ->
                 val value = when {
                     kv.valueStringCount > 0 -> kv.valueStringList.joinToString(",")
                     kv.valueUint32Count > 0 -> kv.valueUint32List.joinToString(",")
                     else -> "?"
                 }
-                details[kv.key] = value
+                kv.key to value
             }
             AnnotationSnapshot(
                 types = types,
@@ -350,19 +346,17 @@ object GameStateCollector {
     }
 
     /** Compare two ObjectSnapshots field by field. */
-    private fun diffObject(a: ObjectSnapshot, b: ObjectSnapshot): Map<String, String> {
-        val changes = mutableMapOf<String, String>()
-        if (a.zoneId != b.zoneId) changes["zone"] = "${a.zoneName} -> ${b.zoneName}"
-        if (a.controllerSeatId != b.controllerSeatId) changes["controller"] = "${a.controllerSeatId} -> ${b.controllerSeatId}"
-        if (a.power != b.power) changes["power"] = "${a.power} -> ${b.power}"
-        if (a.toughness != b.toughness) changes["toughness"] = "${a.toughness} -> ${b.toughness}"
-        if (a.isTapped != b.isTapped) changes["tapped"] = "${a.isTapped} -> ${b.isTapped}"
-        if (a.hasSummoningSickness != b.hasSummoningSickness) changes["sickness"] = "${a.hasSummoningSickness} -> ${b.hasSummoningSickness}"
-        if (a.damage != b.damage) changes["damage"] = "${a.damage} -> ${b.damage}"
-        if (a.loyalty != b.loyalty) changes["loyalty"] = "${a.loyalty} -> ${b.loyalty}"
-        if (a.attackState != b.attackState) changes["attackState"] = "${a.attackState} -> ${b.attackState}"
-        if (a.blockState != b.blockState) changes["blockState"] = "${a.blockState} -> ${b.blockState}"
-        return changes
+    private fun diffObject(a: ObjectSnapshot, b: ObjectSnapshot): Map<String, String> = buildMap {
+        if (a.zoneId != b.zoneId) put("zone", "${a.zoneName} -> ${b.zoneName}")
+        if (a.controllerSeatId != b.controllerSeatId) put("controller", "${a.controllerSeatId} -> ${b.controllerSeatId}")
+        if (a.power != b.power) put("power", "${a.power} -> ${b.power}")
+        if (a.toughness != b.toughness) put("toughness", "${a.toughness} -> ${b.toughness}")
+        if (a.isTapped != b.isTapped) put("tapped", "${a.isTapped} -> ${b.isTapped}")
+        if (a.hasSummoningSickness != b.hasSummoningSickness) put("sickness", "${a.hasSummoningSickness} -> ${b.hasSummoningSickness}")
+        if (a.damage != b.damage) put("damage", "${a.damage} -> ${b.damage}")
+        if (a.loyalty != b.loyalty) put("loyalty", "${a.loyalty} -> ${b.loyalty}")
+        if (a.attackState != b.attackState) put("attackState", "${a.attackState} -> ${b.attackState}")
+        if (a.blockState != b.blockState) put("blockState", "${a.blockState} -> ${b.blockState}")
     }
 
     /** Strip protobuf enum suffixes like "_a549", "_add3", "_695e". */

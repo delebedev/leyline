@@ -157,12 +157,11 @@ fun assertGsIdChain(
 
 /** Assert that the GSM's Limbo zone contains the given instanceId in objectInstanceIds. */
 fun assertLimboContains(gsm: GameStateMessage, instanceId: Int) {
-    val limboZone = gsm.zonesList.firstOrNull { it.type == ZoneType.Limbo }
-    assertTrue(limboZone != null, "GSM should have Limbo zone")
+    val limbo = checkNotNull(gsm.zonesList.firstOrNull { it.type == ZoneType.Limbo }) {
+        "GSM should have Limbo zone"
+    }
     assertTrue(
-        limboZone!!.objectInstanceIdsList.contains(instanceId),
-        "Limbo zone should contain instanceId $instanceId, got: ${limboZone.objectInstanceIdsList}",
+        instanceId in limbo.objectInstanceIdsList,
+        "Limbo zone should contain instanceId $instanceId, got: ${limbo.objectInstanceIdsList}",
     )
-    // Real server doesn't send GameObjectInfo for Limbo objects —
-    // only objectInstanceIds in the Limbo ZoneInfo.
 }

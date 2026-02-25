@@ -42,24 +42,11 @@ fun main(args: Array<String>) {
         val name = args[2]
 
         // Parse --seat flag (default: 1 = player perspective)
-        val seatIdx = args.indexOf("--seat")
-        val rawSeat = if (seatIdx >= 0 && seatIdx + 1 < args.size) {
-            args[seatIdx + 1].toIntOrNull() ?: 1
-        } else {
-            1
-        }
-        // seat 0 = all (no filter), seat N = filter to that seat
-        val seatFilter = if (rawSeat == 0) null else rawSeat
+        val seatFilter = parseSeatFilter(args.toList())
 
         // Detect and print seat identities
         val seats = RecordingDecoder.detectSeats(dir)
-        if (seats.isNotEmpty()) {
-            println("Seat identification:")
-            for ((id, info) in seats.toSortedMap()) {
-                println("  Seat $id: ${info.playerName} (${info.role})")
-            }
-            println()
-        }
+        printSeatIdentification(seats)
 
         val fps = RecordingParser.parseDirectory(dir, seatFilter)
         val filterDesc = if (seatFilter != null) " (seat $seatFilter)" else " (all seats)"

@@ -156,11 +156,12 @@ private fun learnLabels(gre: GREToClientMessage, targets: Set<Int>, labels: Muta
     if (!gre.hasGameStateMessage()) return
     for (obj in gre.gameStateMessage.gameObjectsList) {
         if (obj.instanceId in targets && obj.instanceId !in labels) {
-            val parts = mutableListOf<String>()
-            for (st in obj.superTypesList) parts += st.name.replace(Regex("_.*"), "")
-            for (ct in obj.cardTypesList) parts += ct.name.replace(Regex("_.*"), "")
-            if (parts.isEmpty()) parts += obj.type.name.replace(Regex("_.*"), "")
-            for (sub in obj.subtypesList) parts += sub.name.replace(Regex("_.*"), "")
+            val parts = buildList {
+                for (st in obj.superTypesList) add(st.name.replace(Regex("_.*"), ""))
+                for (ct in obj.cardTypesList) add(ct.name.replace(Regex("_.*"), ""))
+                if (isEmpty()) add(obj.type.name.replace(Regex("_.*"), ""))
+                for (sub in obj.subtypesList) add(sub.name.replace(Regex("_.*"), ""))
+            }
             labels[obj.instanceId] = parts.joinToString("/")
         }
     }

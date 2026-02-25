@@ -21,6 +21,7 @@ import java.io.ByteArrayOutputStream
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
+import kotlin.system.exitProcess
 
 private val log = LoggerFactory.getLogger("forge.nexus.debug.SmokeTest")
 
@@ -81,7 +82,7 @@ fun main() {
 
         val shapeOk = allWarnings.isEmpty()
         println("\n=== Result: ${if (allOk) "PASS" else "FAIL"} (shape: ${if (shapeOk) "OK" else "${allWarnings.size} warnings"}) ===")
-        if (!allOk) System.exit(1)
+        if (!allOk) exitProcess(1)
     } finally {
         group.shutdownGracefully().sync()
     }

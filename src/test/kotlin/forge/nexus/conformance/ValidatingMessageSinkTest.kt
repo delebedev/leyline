@@ -210,9 +210,13 @@ class ValidatingMessageSinkTest {
         sink.send(listOf(greMessage(msgId = 1, gsm = fullGsm)))
 
         // Send AAR referencing instanceId=999 which doesn't exist
-        sink.send(listOf(actionsMessage(msgId = 2) {
-            addActions(Action.newBuilder().setActionType(ActionType.Play_add3).setInstanceId(999))
-        }))
+        sink.send(
+            listOf(
+                actionsMessage(msgId = 2) {
+                    addActions(Action.newBuilder().setActionType(ActionType.Play_add3).setInstanceId(999))
+                },
+            ),
+        )
 
         assertTrue(sink.violations.any { "Action instanceIds missing" in it }, "Expected action instanceId violation: ${sink.violations}")
     }
@@ -224,16 +228,20 @@ class ValidatingMessageSinkTest {
         val sink = lenientSink()
 
         // Full GSM with a visible zone referencing instanceId=42, but no matching object
-        sink.send(listOf(greMessage(msgId = 1, gsId = 1) {
-            setType(GameStateType.Full)
-            addZones(
-                ZoneInfo.newBuilder()
-                    .setZoneId(1)
-                    .setType(ZoneType.Battlefield)
-                    .setVisibility(Visibility.Public)
-                    .addObjectInstanceIds(42),
-            )
-        }))
+        sink.send(
+            listOf(
+                greMessage(msgId = 1, gsId = 1) {
+                    setType(GameStateType.Full)
+                    addZones(
+                        ZoneInfo.newBuilder()
+                            .setZoneId(1)
+                            .setType(ZoneType.Battlefield)
+                            .setVisibility(Visibility.Public)
+                            .addObjectInstanceIds(42),
+                    )
+                },
+            ),
+        )
 
         assertTrue(sink.violations.any { "Zone objects missing" in it }, "Expected zone object violation: ${sink.violations}")
     }
@@ -242,24 +250,28 @@ class ValidatingMessageSinkTest {
     fun hiddenZonesSkipped() {
         val sink = lenientSink()
 
-        sink.send(listOf(greMessage(msgId = 1, gsId = 1) {
-            setType(GameStateType.Full)
-            addZones(
-                ZoneInfo.newBuilder()
-                    .setZoneId(1).setType(ZoneType.Library).setVisibility(Visibility.Hidden)
-                    .addObjectInstanceIds(100),
-            )
-            addZones(
-                ZoneInfo.newBuilder()
-                    .setZoneId(2).setType(ZoneType.Hand).setVisibility(Visibility.Private)
-                    .addObjectInstanceIds(200),
-            )
-            addZones(
-                ZoneInfo.newBuilder()
-                    .setZoneId(3).setType(ZoneType.Limbo).setVisibility(Visibility.Public)
-                    .addObjectInstanceIds(300),
-            )
-        }))
+        sink.send(
+            listOf(
+                greMessage(msgId = 1, gsId = 1) {
+                    setType(GameStateType.Full)
+                    addZones(
+                        ZoneInfo.newBuilder()
+                            .setZoneId(1).setType(ZoneType.Library).setVisibility(Visibility.Hidden)
+                            .addObjectInstanceIds(100),
+                    )
+                    addZones(
+                        ZoneInfo.newBuilder()
+                            .setZoneId(2).setType(ZoneType.Hand).setVisibility(Visibility.Private)
+                            .addObjectInstanceIds(200),
+                    )
+                    addZones(
+                        ZoneInfo.newBuilder()
+                            .setZoneId(3).setType(ZoneType.Limbo).setVisibility(Visibility.Public)
+                            .addObjectInstanceIds(300),
+                    )
+                },
+            ),
+        )
 
         assertTrue(sink.violations.isEmpty(), "Hidden/Private/Limbo zones should not trigger violations: ${sink.violations}")
     }

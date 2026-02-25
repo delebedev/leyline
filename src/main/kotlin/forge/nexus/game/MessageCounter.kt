@@ -34,12 +34,16 @@ class MessageCounter(initialGsId: Int = 0, initialMsgId: Int = 1) {
      * Set gsId to a specific value. Used during handshake setup where the
      * session advances gsId via [nextGameStateId] before the counter is shared.
      */
-    fun setGsId(value: Int) { gsId.set(value) }
+    fun setGsId(value: Int) {
+        gsId.set(value)
+    }
 
     /**
      * Set msgId to a specific value. Used during handshake setup.
      */
-    fun setMsgId(value: Int) { msgId.set(value) }
+    fun setMsgId(value: Int) {
+        msgId.set(value)
+    }
 
     override fun toString(): String = "MessageCounter(gsId=${gsId.get()}, msgId=${msgId.get()})"
 }

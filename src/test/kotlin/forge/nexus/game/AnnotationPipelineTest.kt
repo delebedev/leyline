@@ -292,8 +292,9 @@ class AnnotationPipelineTest {
 
     // -- LibraryShuffled --
 
-    @Test
+    @Test(enabled = false)
     fun shuffleAnnotation() {
+        // Shuffle annotations are suppressed in production (crash client). See commit 76d61d2973.
         val events = listOf(
             NexusGameEvent.LibraryShuffled(seatId = 1),
         )
@@ -365,16 +366,16 @@ class AnnotationPipelineTest {
 
     @Test
     fun mechanicAnnotationsMultipleEvents() {
+        // NOTE: LibraryShuffled is suppressed in production (crash client). See commit 76d61d2973.
+        // Only testing CounterChanged + Scry here (2 events → 2 annotations).
         val events = listOf(
-            NexusGameEvent.LibraryShuffled(seatId = 1),
             NexusGameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 0, newCount = 1),
             NexusGameEvent.Scry(seatId = 1, topCount = 2, bottomCount = 0),
         )
         val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
-        assertEquals(annotations.size, 3, "Should produce one annotation per Group B event")
-        assertTrue(annotations[0].typeList.contains(AnnotationType.Shuffle))
-        assertTrue(annotations[1].typeList.contains(AnnotationType.CounterAdded))
-        assertTrue(annotations[2].typeList.contains(AnnotationType.Scry_af5a))
+        assertEquals(annotations.size, 2, "Should produce one annotation per Group B event")
+        assertTrue(annotations[0].typeList.contains(AnnotationType.CounterAdded))
+        assertTrue(annotations[1].typeList.contains(AnnotationType.Scry_af5a))
     }
 
     // --- annotationsForTransfer: new zone-specific categories ---

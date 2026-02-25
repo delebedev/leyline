@@ -111,26 +111,21 @@ object NexusDebugCollector {
     }
 
     /** Instance ID cross-reference table from all active bridges. */
-    fun idMap(): List<IdMapEntry> {
-        val result = mutableListOf<IdMapEntry>()
-        for ((_, bridge) in MatchHandler.defaultRegistry.activeBridges()) {
-            val game = bridge.getGame() ?: continue
-            val map = bridge.getInstanceIdMap()
-            for ((instanceId, forgeCardId) in map) {
+    fun idMap(): List<IdMapEntry> = MatchHandler.defaultRegistry.activeBridges()
+        .flatMap { (_, bridge) ->
+            val game = bridge.getGame() ?: return@flatMap emptyList()
+            bridge.getInstanceIdMap().map { (instanceId, forgeCardId) ->
                 val card = game.findById(forgeCardId)
-                result.add(
-                    IdMapEntry(
-                        instanceId = instanceId,
-                        forgeCardId = forgeCardId,
-                        cardName = card?.name ?: "?",
-                        zone = card?.zone?.zoneType?.name ?: "?",
-                        grpId = CardDb.lookupByName(card?.name ?: "") ?: 0,
-                    ),
+                IdMapEntry(
+                    instanceId = instanceId,
+                    forgeCardId = forgeCardId,
+                    cardName = card?.name ?: "?",
+                    zone = card?.zone?.zoneType?.name ?: "?",
+                    grpId = CardDb.lookupByName(card?.name ?: "") ?: 0,
                 )
             }
         }
-        return result.sortedBy { it.instanceId }
-    }
+        .sortedBy { it.instanceId }
 
     @Serializable
     data class MatchStateSnapshot(
