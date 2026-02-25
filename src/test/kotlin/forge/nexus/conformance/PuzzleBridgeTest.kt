@@ -163,7 +163,7 @@ class PuzzleBridgeTest {
 
     @Test(groups = ["integration"])
     fun webTest00OneBoltLoads() {
-        val b = startPuzzle("puzzles/WEB_TEST_00.pzl")
+        val b = startPuzzle("puzzles/bolt-face.pzl")
         val game = b.getGame()!!
         assertTrue(b.isPuzzle)
         assertEquals(game.phaseHandler.phase, PhaseType.MAIN1)
@@ -183,7 +183,7 @@ class PuzzleBridgeTest {
 
     @Test(groups = ["integration"])
     fun webTest00ProducesValidGsm() {
-        val b = startPuzzle("puzzles/WEB_TEST_00.pzl")
+        val b = startPuzzle("puzzles/bolt-face.pzl")
         val game = b.getGame()!!
         val gsm = StateMapper.buildFromGame(game, 1, "test-puzzle", b, viewingSeatId = 1)
         assertEquals(gsm.gameInfo.stage, ProtoGameStage.Play_a920)
@@ -198,7 +198,7 @@ class PuzzleBridgeTest {
 
     @Test(groups = ["integration"])
     fun webTest00ActionsIncludeCast() {
-        val b = startPuzzle("puzzles/WEB_TEST_00.pzl")
+        val b = startPuzzle("puzzles/bolt-face.pzl")
         val game = b.getGame()!!
         val actions = StateMapper.buildActions(game, 1, b)
         val actionTypes = actions.actionsList.map { it.actionType.name }
