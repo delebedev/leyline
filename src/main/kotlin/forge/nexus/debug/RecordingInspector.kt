@@ -49,7 +49,10 @@ object RecordingInspector {
         val grpId: Int?,
         val card: String?,
         val details: Map<String, String>,
-    )
+    ) {
+        val actorLabel: String
+            get() = actor ?: actorSeat?.let { "seat-$it" } ?: "?"
+    }
 
     @Serializable
     data class Summary(
@@ -158,7 +161,7 @@ object RecordingInspector {
 
         val actionsByActor = actions
             .asSequence()
-            .map { it.actor ?: it.actorSeat?.let { seat -> "seat-$seat" } ?: "unknown" }
+            .map { it.actorLabel }
             .groupingBy { it }
             .eachCount()
             .entries

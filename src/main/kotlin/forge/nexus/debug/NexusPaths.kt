@@ -4,6 +4,15 @@ import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
+private fun File.walkUpFind(pred: (File) -> Boolean): File? {
+    var dir = parentFile
+    while (dir != null) {
+        if (pred(dir)) return dir
+        dir = dir.parentFile
+    }
+    return null
+}
+
 /**
  * Filesystem paths for recording/debug artifacts.
  *
@@ -68,16 +77,7 @@ object NexusPaths {
             cwd.name == "forge-nexus" -> cwd
             File(cwd, "forge-nexus").isDirectory -> File(cwd, "forge-nexus")
             // Walk up looking for forge-nexus sibling
-            else -> {
-                var dir: File? = cwd.parentFile
-                var found: File? = null
-                while (dir != null && found == null) {
-                    val candidate = File(dir, "forge-nexus")
-                    if (candidate.isDirectory) found = candidate
-                    dir = dir.parentFile
-                }
-                found
-            }
+            else -> cwd.walkUpFind { File(it, "forge-nexus").isDirectory }?.let { File(it, "forge-nexus") }
         }
 
         return if (nexusDir != null) {

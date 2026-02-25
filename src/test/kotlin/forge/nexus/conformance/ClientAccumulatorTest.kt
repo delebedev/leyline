@@ -126,13 +126,15 @@ class ClientAccumulatorTest {
     fun actionsAvailableReqTracked() {
         val acc = ClientAccumulator()
 
-        acc.process(actionsMessage(msgId = 1, gsId = 1) {
-            addActions(
-                Action.newBuilder()
-                    .setActionType(ActionType.Play_add3)
-                    .setInstanceId(100),
-            )
-        })
+        acc.process(
+            actionsMessage(msgId = 1, gsId = 1) {
+                addActions(
+                    Action.newBuilder()
+                        .setActionType(ActionType.Play_add3)
+                        .setInstanceId(100),
+                )
+            },
+        )
 
         val storedActions = checkNotNull(acc.actions)
         assertEquals(storedActions.actionsCount, 1)
@@ -153,10 +155,12 @@ class ClientAccumulatorTest {
         acc.process(greMessage(msgId = 1, gsm = gs))
 
         // Actions referencing iid 100 (exists) and 200 (missing)
-        acc.process(actionsMessage(msgId = 2, gsId = 1) {
-            addActions(Action.newBuilder().setActionType(ActionType.Play_add3).setInstanceId(100))
-            addActions(Action.newBuilder().setActionType(ActionType.Cast).setInstanceId(200))
-        })
+        acc.process(
+            actionsMessage(msgId = 2, gsId = 1) {
+                addActions(Action.newBuilder().setActionType(ActionType.Play_add3).setInstanceId(100))
+                addActions(Action.newBuilder().setActionType(ActionType.Cast).setInstanceId(200))
+            },
+        )
 
         val missing = acc.actionInstanceIdsMissingFromObjects()
         assertEquals(missing.size, 1)

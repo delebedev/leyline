@@ -3,6 +3,7 @@ package forge.nexus.debug
 import com.google.protobuf.TextFormat
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.io.File
+import kotlin.system.exitProcess
 
 /**
  * CLI tool to inspect client .bin templates as structured proto text.
@@ -14,13 +15,13 @@ fun main(args: Array<String>) {
     val path = args.firstOrNull()
     if (path == null) {
         System.err.println("Usage: proto-inspect <file.bin>")
-        System.exit(1)
+        exitProcess(1)
     }
 
     val file = File(path!!)
     if (!file.exists()) {
         System.err.println("File not found: $path")
-        System.exit(1)
+        exitProcess(1)
     }
 
     val bytes = file.readBytes()
@@ -29,7 +30,7 @@ fun main(args: Array<String>) {
         msg = MatchServiceToClientMessage.parseFrom(bytes)
     } catch (e: Exception) {
         System.err.println("Failed to parse as MatchServiceToClientMessage: ${e.message}")
-        System.exit(1)
+        exitProcess(1)
         return // unreachable, satisfies compiler
     }
 
@@ -37,10 +38,11 @@ fun main(args: Array<String>) {
     println("=== ${file.name} (${bytes.size} bytes) ===")
     println()
 
-    val topFields = mutableListOf<String>()
-    if (msg.hasAuthenticateResponse()) topFields += "AuthenticateResponse"
-    if (msg.hasMatchGameRoomStateChangedEvent()) topFields += "MatchGameRoomStateChangedEvent"
-    if (msg.hasGreToClientEvent()) topFields += "GreToClientEvent"
+    val topFields = buildList {
+        if (msg.hasAuthenticateResponse()) add("AuthenticateResponse")
+        if (msg.hasMatchGameRoomStateChangedEvent()) add("MatchGameRoomStateChangedEvent")
+        if (msg.hasGreToClientEvent()) add("GreToClientEvent")
+    }
 
     println("Top-level fields: ${topFields.ifEmpty { listOf("(none)") }.joinToString(", ")}")
 
@@ -49,14 +51,17 @@ fun main(args: Array<String>) {
         val greCount = event.greToClientMessagesCount
         println("GRE messages:     $greCount")
         for (gre in event.greToClientMessagesList) {
-            val parts = mutableListOf("type=${gre.type}", "msgId=${gre.msgId}")
-            if (gre.gameStateId != 0) parts += "gsId=${gre.gameStateId}"
-            if (gre.systemSeatIdsCount > 0) parts += "seats=${gre.systemSeatIdsList}"
-            if (gre.hasGameStateMessage()) {
-                val gs = gre.gameStateMessage
-                parts += "zones=${gs.zonesCount}"
-                parts += "objects=${gs.gameObjectsCount}"
-                parts += "players=${gs.playersCount}"
+            val parts = buildList {
+                add("type=${gre.type}")
+                add("msgId=${gre.msgId}")
+                if (gre.gameStateId != 0) add("gsId=${gre.gameStateId}")
+                if (gre.systemSeatIdsCount > 0) add("seats=${gre.systemSeatIdsList}")
+                if (gre.hasGameStateMessage()) {
+                    val gs = gre.gameStateMessage
+                    add("zones=${gs.zonesCount}")
+                    add("objects=${gs.gameObjectsCount}")
+                    add("players=${gs.playersCount}")
+                }
             }
             println("  - ${parts.joinToString("  ")}")
         }

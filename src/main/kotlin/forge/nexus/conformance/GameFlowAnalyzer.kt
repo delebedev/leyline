@@ -199,169 +199,125 @@ class GameFlowAnalyzer(
 
     // ---- Classification engine ----
 
+    private val classifiers: List<(Int) -> Pair<Segment, Int>?> = listOf(
+        ::tryGameStart,
+        ::tryNewTurn,
+        ::tryDraw,
+        ::tryTargetedSpell,
+        ::tryCastCreatureAI,
+        ::tryCastSpellPlayer,
+        ::tryPlayLandSendAndRecord,
+        ::tryPlayLandAI,
+        ::tryPhaseTransition,
+        ::tryCombat,
+        ::tryNoise,
+    )
+
     private fun classifyAll(): List<Segment> {
         val segments = mutableListOf<Segment>()
         var i = 0
-
         while (i < fingerprints.size) {
-            val fp = fingerprints[i]
-
-            // Game start: first PhaseOrStepModified x2 cluster after mulligan
-            if (isGameStartAt(i)) {
-                segments.add(Segment(SegmentType.GAME_START, i, i + 4, "GAME_START"))
-                i += 5
-                continue
-            }
-
-            // New turn
-            if (hasAnnotation(fp, "NewTurnStarted")) {
-                val end = if (i + 1 < fingerprints.size && isEmptyMarker(fingerprints[i + 1])) {
-                    i + 1
-                } else {
-                    i
-                }
-                segments.add(Segment(SegmentType.NEW_TURN, i, end, "NEW_TURN"))
-                i = end + 1
-                continue
-            }
-
-            // Draw step (comes with PhaseOrStepModified + Draw category)
-            if (fp.annotationCategories.contains("Draw")) {
-                val end = if (i + 1 < fingerprints.size && isEmptyMarker(fingerprints[i + 1])) {
-                    i + 1
-                } else {
-                    i
-                }
-                segments.add(Segment(SegmentType.DRAW, i, end, "DRAW"))
-                i = end + 1
-                continue
-            }
-
-            // Targeted spell: SelectTargetsReq or PlayerSelectingTargets + CastSpell
-            if (isTargetedSpellStart(i)) {
-                val (seg, nextI) = consumeTargetedSpell(i)
-                segments.add(seg)
-                i = nextI
-                continue
-            }
-
-            // Cast creature/spell (AI): CastSpell category + SendHiFi, 4-msg group
-            if (isCastCreatureAI(i)) {
-                val (seg, nextI) = consumeCastCreatureAI(i)
-                segments.add(seg)
-                i = nextI
-                continue
-            }
-
-            // Cast spell (player): CastSpell category + SendAndRecord
-            if (isCastSpellPlayer(i)) {
-                val (seg, nextI) = consumeCastSpellPlayer(i)
-                segments.add(seg)
-                i = nextI
-                continue
-            }
-
-            // Play land with SendAndRecord — dual-message = AI, single = player
-            if (isPlayLandSendAndRecord(fp)) {
-                if (i + 1 < fingerprints.size && isPlayLandSendAndRecord(fingerprints[i + 1])) {
-                    // Dual SendAndRecord (both seats notified) = AI land play
-                    val end = if (i + 2 < fingerprints.size &&
-                        fingerprints[i + 2].greMessageType == "ActionsAvailableReq"
-                    ) {
-                        i + 2
-                    } else {
-                        i + 1
-                    }
-                    segments.add(Segment(SegmentType.PLAY_LAND_AI, i, end, "PLAY_LAND (AI)"))
-                    i = end + 1
-                    continue
-                }
-                // Single SendAndRecord = player land play
-                val end = if (i + 1 < fingerprints.size &&
-                    fingerprints[i + 1].greMessageType == "ActionsAvailableReq"
-                ) {
-                    i + 1
-                } else {
-                    i
-                }
-                segments.add(Segment(SegmentType.PLAY_LAND_PLAYER, i, end, "PLAY_LAND (player)"))
-                i = end + 1
-                continue
-            }
-
-            // Play land (AI): PlayLand category + SendHiFi
-            if (isPlayLandAI(fp)) {
-                val end = if (i + 1 < fingerprints.size && isEmptyMarker(fingerprints[i + 1])) {
-                    i + 1
-                } else {
-                    i
-                }
-                segments.add(Segment(SegmentType.PLAY_LAND_AI, i, end, "PLAY_LAND (AI)"))
-                i = end + 1
-                continue
-            }
-
-            // Phase transition: PhaseOrStepModified on GS Diff + empty marker pair
-            if (isPhaseTransition(i)) {
-                val end = if (i + 1 < fingerprints.size && isEmptyMarker(fingerprints[i + 1])) {
-                    i + 1
-                } else {
-                    i
-                }
-                segments.add(Segment(SegmentType.PHASE_TRANSITION, i, end, "PHASE_TRANSITION"))
-                i = end + 1
-                continue
-            }
-
-            // Combat: DeclareAttackersReq, DeclareBlockersReq, SubmitAttackersResp, SubmitBlockersResp
-            if (isCombatStart(fp)) {
-                val (seg, nextI) = consumeCombat(i)
-                segments.add(seg)
-                i = nextI
-                continue
-            }
-
-            // Game end: IntermissionReq
-            if (fp.greMessageType == "IntermissionReq") {
-                // Collect the preceding empty GS Diffs as part of game end
-                var start = i
-                // Look backward for empty SendAndRecord diffs
-                while (start > 0 && segments.isNotEmpty()) {
-                    val prev = segments.last()
-                    if (prev.type == SegmentType.MISC && prev.endIndex == start - 1) {
-                        val prevFp = fingerprints[prev.startIndex]
-                        if (prevFp.greMessageType == "GameStateMessage" &&
-                            prevFp.updateType == "SendAndRecord" &&
-                            prevFp.annotationTypes.isEmpty()
-                        ) {
-                            start = prev.startIndex
-                            segments.removeLast()
-                        } else {
-                            break
-                        }
-                    } else {
-                        break
-                    }
-                }
-                segments.add(Segment(SegmentType.GAME_END, start, i, "GAME_END"))
-                i++
-                continue
-            }
-
-            // Noise / misc
-            if (isNoise(fp)) {
-                segments.add(Segment(SegmentType.MISC, i, i, fp.greMessageType))
-                i++
-                continue
-            }
-
-            // Unclassified: label with message type
-            segments.add(Segment(SegmentType.MISC, i, i, fp.greMessageType))
-            i++
+            // tryGameEnd needs access to prior segments for backward-folding
+            val result = tryGameEnd(i, segments)
+                ?: classifiers.firstNotNullOfOrNull { it(i) }
+                ?: (Segment(SegmentType.MISC, i, i, fingerprints[i].greMessageType) to 1)
+            segments.add(result.first)
+            i += result.second
         }
-
         return segments
     }
+
+    private fun tryGameStart(i: Int): Pair<Segment, Int>? =
+        if (isGameStartAt(i)) {
+            Segment(SegmentType.GAME_START, i, i + 4, "GAME_START") to 5
+        } else {
+            null
+        }
+
+    private fun tryNewTurn(i: Int): Pair<Segment, Int>? {
+        val fp = fingerprints[i]
+        if (!hasAnnotation(fp, "NewTurnStarted")) return null
+        val end = if (i + 1 < fingerprints.size && isEmptyMarker(fingerprints[i + 1])) i + 1 else i
+        return Segment(SegmentType.NEW_TURN, i, end, "NEW_TURN") to (end - i + 1)
+    }
+
+    private fun tryDraw(i: Int): Pair<Segment, Int>? {
+        val fp = fingerprints[i]
+        if (!fp.annotationCategories.contains("Draw")) return null
+        val end = if (i + 1 < fingerprints.size && isEmptyMarker(fingerprints[i + 1])) i + 1 else i
+        return Segment(SegmentType.DRAW, i, end, "DRAW") to (end - i + 1)
+    }
+
+    private fun tryTargetedSpell(i: Int): Pair<Segment, Int>? =
+        if (isTargetedSpellStart(i)) consumeTargetedSpell(i) else null
+
+    private fun tryCastCreatureAI(i: Int): Pair<Segment, Int>? =
+        if (isCastCreatureAI(i)) consumeCastCreatureAI(i) else null
+
+    private fun tryCastSpellPlayer(i: Int): Pair<Segment, Int>? =
+        if (isCastSpellPlayer(i)) consumeCastSpellPlayer(i) else null
+
+    private fun tryPlayLandSendAndRecord(i: Int): Pair<Segment, Int>? {
+        val fp = fingerprints[i]
+        if (!isPlayLandSendAndRecord(fp)) return null
+        return if (i + 1 < fingerprints.size && isPlayLandSendAndRecord(fingerprints[i + 1])) {
+            val end = if (i + 2 < fingerprints.size && fingerprints[i + 2].greMessageType == "ActionsAvailableReq") i + 2 else i + 1
+            Segment(SegmentType.PLAY_LAND_AI, i, end, "PLAY_LAND (AI)") to (end - i + 1)
+        } else {
+            val end = if (i + 1 < fingerprints.size && fingerprints[i + 1].greMessageType == "ActionsAvailableReq") i + 1 else i
+            Segment(SegmentType.PLAY_LAND_PLAYER, i, end, "PLAY_LAND (player)") to (end - i + 1)
+        }
+    }
+
+    private fun tryPlayLandAI(i: Int): Pair<Segment, Int>? {
+        val fp = fingerprints[i]
+        if (!isPlayLandAI(fp)) return null
+        val end = if (i + 1 < fingerprints.size && isEmptyMarker(fingerprints[i + 1])) i + 1 else i
+        return Segment(SegmentType.PLAY_LAND_AI, i, end, "PLAY_LAND (AI)") to (end - i + 1)
+    }
+
+    private fun tryPhaseTransition(i: Int): Pair<Segment, Int>? =
+        if (isPhaseTransition(i)) {
+            val end = if (i + 1 < fingerprints.size && isEmptyMarker(fingerprints[i + 1])) i + 1 else i
+            Segment(SegmentType.PHASE_TRANSITION, i, end, "PHASE_TRANSITION") to (end - i + 1)
+        } else {
+            null
+        }
+
+    private fun tryCombat(i: Int): Pair<Segment, Int>? =
+        if (isCombatStart(fingerprints[i])) consumeCombat(i) else null
+
+    private fun tryGameEnd(i: Int, segments: MutableList<Segment>): Pair<Segment, Int>? {
+        val fp = fingerprints[i]
+        if (fp.greMessageType != "IntermissionReq") return null
+        // Fold preceding empty SendAndRecord diffs into GAME_END (matches original behavior)
+        var start = i
+        while (start > 0 && segments.isNotEmpty()) {
+            val prev = segments.last()
+            if (prev.type == SegmentType.MISC && prev.endIndex == start - 1) {
+                val prevFp = fingerprints[prev.startIndex]
+                if (prevFp.greMessageType == "GameStateMessage" &&
+                    prevFp.updateType == "SendAndRecord" &&
+                    prevFp.annotationTypes.isEmpty()
+                ) {
+                    start = prev.startIndex
+                    segments.removeLast()
+                } else {
+                    break
+                }
+            } else {
+                break
+            }
+        }
+        return Segment(SegmentType.GAME_END, start, i, "GAME_END") to 1
+    }
+
+    private fun tryNoise(i: Int): Pair<Segment, Int>? =
+        if (isNoise(fingerprints[i])) {
+            Segment(SegmentType.MISC, i, i, fingerprints[i].greMessageType) to 1
+        } else {
+            null
+        }
 
     private fun groupIntoTimeline(segments: List<Segment>): Analysis {
         var preGame: Segment? = null
@@ -393,41 +349,32 @@ class GameFlowAnalyzer(
         var isPlayerTurn = false
         var inGame = false
 
+        fun flushTurn() {
+            if (currentTurnSegments.isNotEmpty()) {
+                turns.add(
+                    Turn(
+                        turnNumber,
+                        isPlayerTurn,
+                        turnStartIndex,
+                        currentTurnSegments.last().endIndex,
+                        currentTurnSegments.toList(),
+                    ),
+                )
+                currentTurnSegments = mutableListOf()
+            }
+        }
+
         for (seg in segments) {
             // Skip pre-game content and game structure markers
             if (!inGame && seg.type != SegmentType.GAME_START) continue
             if (seg.type == SegmentType.GAME_START) {
-                // Flush any accumulated turn
-                if (currentTurnSegments.isNotEmpty()) {
-                    turns.add(
-                        Turn(
-                            turnNumber,
-                            isPlayerTurn,
-                            turnStartIndex,
-                            currentTurnSegments.last().endIndex,
-                            currentTurnSegments.toList(),
-                        ),
-                    )
-                    currentTurnSegments = mutableListOf()
-                }
+                flushTurn()
                 inGame = true
                 turnNumber = 0
                 continue
             }
             if (seg.type == SegmentType.GAME_END) {
-                // Flush turn
-                if (currentTurnSegments.isNotEmpty()) {
-                    turns.add(
-                        Turn(
-                            turnNumber,
-                            isPlayerTurn,
-                            turnStartIndex,
-                            currentTurnSegments.last().endIndex,
-                            currentTurnSegments.toList(),
-                        ),
-                    )
-                    currentTurnSegments = mutableListOf()
-                }
+                flushTurn()
                 inGame = false
                 continue
             }
@@ -443,19 +390,7 @@ class GameFlowAnalyzer(
             }
 
             if (seg.type == SegmentType.NEW_TURN) {
-                // Flush previous turn
-                if (currentTurnSegments.isNotEmpty()) {
-                    turns.add(
-                        Turn(
-                            turnNumber,
-                            isPlayerTurn,
-                            turnStartIndex,
-                            currentTurnSegments.last().endIndex,
-                            currentTurnSegments.toList(),
-                        ),
-                    )
-                    currentTurnSegments = mutableListOf()
-                }
+                flushTurn()
                 turnNumber++
                 turnStartIndex = seg.startIndex
                 // Determine if player or AI turn: check if ActionsAvailableReq follows
@@ -476,17 +411,7 @@ class GameFlowAnalyzer(
         }
 
         // Flush final turn
-        if (currentTurnSegments.isNotEmpty()) {
-            turns.add(
-                Turn(
-                    turnNumber,
-                    isPlayerTurn,
-                    turnStartIndex,
-                    currentTurnSegments.last().endIndex,
-                    currentTurnSegments.toList(),
-                ),
-            )
-        }
+        flushTurn()
 
         return Analysis(preGame, gameStarts, turns, gameEnds, segments)
     }
@@ -574,7 +499,7 @@ class GameFlowAnalyzer(
         return true
     }
 
-    private fun consumeCastCreatureAI(i: Int): Pair<Segment, Int> = Segment(SegmentType.CAST_CREATURE_AI, i, i + 3, "CAST_CREATURE (AI)") to (i + 4)
+    private fun consumeCastCreatureAI(i: Int): Pair<Segment, Int> = Segment(SegmentType.CAST_CREATURE_AI, i, i + 3, "CAST_CREATURE (AI)") to 4
 
     private fun isCastSpellPlayer(i: Int): Boolean {
         val fp = fingerprints[i]
@@ -598,7 +523,7 @@ class GameFlowAnalyzer(
             }
             end = k
         }
-        return Segment(SegmentType.CAST_SPELL_PLAYER, i, end, "CAST_SPELL (player)") to (end + 1)
+        return Segment(SegmentType.CAST_SPELL_PLAYER, i, end, "CAST_SPELL (player)") to (end - i + 1)
     }
 
     private fun isTargetedSpellStart(i: Int): Boolean {
@@ -676,7 +601,7 @@ class GameFlowAnalyzer(
             end,
             "TARGETED_SPELL",
             children,
-        ) to (end + 1)
+        ) to (end - i + 1)
     }
 
     private fun isCombatStart(fp: StructuralFingerprint): Boolean = fp.greMessageType == "DeclareAttackersReq"
@@ -712,7 +637,7 @@ class GameFlowAnalyzer(
                 }
             }
         }
-        return Segment(SegmentType.COMBAT, i, end, "COMBAT") to (end + 1)
+        return Segment(SegmentType.COMBAT, i, end, "COMBAT") to (end - i + 1)
     }
 
     @Suppress("BooleanMethodIsNegation")

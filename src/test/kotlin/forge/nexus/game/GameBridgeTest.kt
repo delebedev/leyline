@@ -4,7 +4,6 @@ import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.nexus.config.GameConfig
 import forge.nexus.config.PlaytestConfig
-import forge.nexus.game.MessageCounter
 import forge.web.game.GameBootstrap
 import forge.web.game.PlayerAction
 import org.testng.Assert

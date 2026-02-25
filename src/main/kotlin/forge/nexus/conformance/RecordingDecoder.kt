@@ -347,8 +347,7 @@ object RecordingDecoder {
     )
 
     private fun summarizeAnnotation(a: AnnotationInfo): AnnotationSummary {
-        val details = mutableMapOf<String, Any>()
-        for (d in a.detailsList) {
+        val details = a.detailsList.associate { d ->
             val key = d.key
             val value: Any = when (d.type) {
                 KeyValuePairValueType.Int32 -> d.valueInt32List.map { it.toInt() }.singleOrList()
@@ -361,7 +360,7 @@ object RecordingDecoder {
                 KeyValuePairValueType.Double -> d.valueDoubleList.singleOrList()
                 else -> "?"
             }
-            details[key] = value
+            key to value
         }
         return AnnotationSummary(
             id = a.id,
@@ -374,12 +373,11 @@ object RecordingDecoder {
 
     private fun <T> List<T>.singleOrList(): Any = if (size == 1) first() as Any else this
 
-    private fun extractActions(gre: GREToClientMessage): List<ActionSummary> {
-        val actions = mutableListOf<ActionSummary>()
+    private fun extractActions(gre: GREToClientMessage): List<ActionSummary> = buildList {
         // Actions from GameStateMessage
         if (gre.hasGameStateMessage()) {
             for (ai in gre.gameStateMessage.actionsList) {
-                actions.add(
+                add(
                     ActionSummary(
                         type = ai.action.actionType.name.strip(),
                         instanceId = ai.action.instanceId.toInt(),
@@ -392,7 +390,7 @@ object RecordingDecoder {
         // Actions from ActionsAvailableReq
         if (gre.hasActionsAvailableReq()) {
             for (a in gre.actionsAvailableReq.actionsList) {
-                actions.add(
+                add(
                     ActionSummary(
                         type = a.actionType.name.strip(),
                         instanceId = a.instanceId.toInt(),
@@ -402,7 +400,6 @@ object RecordingDecoder {
                 )
             }
         }
-        return actions
     }
 
     private fun summarizePlayer(p: PlayerInfo): PlayerSummary = PlayerSummary(

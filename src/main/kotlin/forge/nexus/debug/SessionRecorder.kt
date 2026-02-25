@@ -110,6 +110,15 @@ class SessionRecorder(
         val annotationTypes: List<String> = emptyList(),
     )
 
+    private fun extractAnnotationTypes(gre: GREToClientMessage): List<String> =
+        if (gre.hasGameStateMessage()) {
+            gre.gameStateMessage.annotationsList.flatMap { ann ->
+                ann.typeList.map { it.name.removeSuffix("_695e").removeSuffix("_aa0d") }
+            }
+        } else {
+            emptyList()
+        }
+
     // --- Recording methods ---
 
     /** Record outbound GRE messages (what we told the client). */
@@ -119,13 +128,7 @@ class SessionRecorder(
         val ts = Instant.now().toString()
 
         for (gre in messages) {
-            val annotationTypes = if (gre.hasGameStateMessage()) {
-                gre.gameStateMessage.annotationsList.flatMap { ann ->
-                    ann.typeList.map { it.name.removeSuffix("_695e").removeSuffix("_aa0d") }
-                }
-            } else {
-                emptyList()
-            }
+            val annotationTypes = extractAnnotationTypes(gre)
 
             val categories = if (gre.hasGameStateMessage()) {
                 gre.gameStateMessage.annotationsList.mapNotNull { ann ->
@@ -205,13 +208,7 @@ class SessionRecorder(
         val ts = Instant.now().toString()
 
         for (gre in messages) {
-            val annotationTypes = if (gre.hasGameStateMessage()) {
-                gre.gameStateMessage.annotationsList.flatMap { ann ->
-                    ann.typeList.map { it.name.removeSuffix("_695e").removeSuffix("_aa0d") }
-                }
-            } else {
-                emptyList()
-            }
+            val annotationTypes = extractAnnotationTypes(gre)
 
             val entry = GoldenEntry(
                 seq = s,

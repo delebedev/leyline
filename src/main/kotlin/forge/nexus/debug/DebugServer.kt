@@ -42,25 +42,31 @@ class DebugServer(private val port: Int = 8090) {
 
     fun start() {
         val srv = HttpServer.create(InetSocketAddress(port), 0)
-        srv.createContext("/") { ex -> safe(ex) { serveHtml(ex) } }
-        srv.createContext("/api/messages") { ex -> safe(ex) { serveMessages(ex) } }
-        srv.createContext("/api/state") { ex -> safe(ex) { serveState(ex) } }
-        srv.createContext("/api/id-map") { ex -> safe(ex) { serveIdMap(ex) } }
-        srv.createContext("/api/logs") { ex -> safe(ex) { serveLogs(ex) } }
-        srv.createContext("/api/game-states") { ex -> safe(ex) { serveGameStates(ex) } }
-        srv.createContext("/api/state-diff") { ex -> safe(ex) { serveStateDiff(ex) } }
-        srv.createContext("/api/priority-events") { ex -> safe(ex) { servePriorityEvents(ex) } }
-        srv.createContext("/api/instance-history") { ex -> safe(ex) { serveInstanceHistory(ex) } }
-        srv.createContext("/api/recordings") { ex -> safe(ex) { serveRecordings(ex) } }
-        srv.createContext("/api/recording-summary") { ex -> safe(ex) { serveRecordingSummary(ex) } }
-        srv.createContext("/api/recording-actions") { ex -> safe(ex) { serveRecordingActions(ex) } }
-        srv.createContext("/api/recording-compare") { ex -> safe(ex) { serveRecordingCompare(ex) } }
-        srv.createContext("/api/recording-messages") { ex -> safe(ex) { serveRecordingMessages(ex) } }
-        srv.createContext("/api/recording-analysis") { ex -> safe(ex) { serveRecordingAnalysis(ex) } }
-        srv.createContext("/api/recording-events") { ex -> safe(ex) { serveRecordingEvents(ex) } }
-        srv.createContext("/api/recording-invariants") { ex -> safe(ex) { serveRecordingInvariants(ex) } }
-        srv.createContext("/api/recording-mechanics") { ex -> safe(ex) { serveRecordingMechanics(ex) } }
-        srv.createContext("/api/client-errors") { ex -> safe(ex) { serveClientErrors(ex) } }
+
+        mapOf(
+            "/" to ::serveHtml,
+            "/api/messages" to ::serveMessages,
+            "/api/state" to ::serveState,
+            "/api/id-map" to ::serveIdMap,
+            "/api/logs" to ::serveLogs,
+            "/api/game-states" to ::serveGameStates,
+            "/api/state-diff" to ::serveStateDiff,
+            "/api/priority-events" to ::servePriorityEvents,
+            "/api/instance-history" to ::serveInstanceHistory,
+            "/api/recordings" to ::serveRecordings,
+            "/api/recording-summary" to ::serveRecordingSummary,
+            "/api/recording-actions" to ::serveRecordingActions,
+            "/api/recording-compare" to ::serveRecordingCompare,
+            "/api/recording-messages" to ::serveRecordingMessages,
+            "/api/recording-analysis" to ::serveRecordingAnalysis,
+            "/api/recording-events" to ::serveRecordingEvents,
+            "/api/recording-invariants" to ::serveRecordingInvariants,
+            "/api/recording-mechanics" to ::serveRecordingMechanics,
+            "/api/client-errors" to ::serveClientErrors,
+        ).forEach { (path, handler) ->
+            srv.createContext(path) { ex -> safe(ex) { handler(ex) } }
+        }
+
         srv.createContext("/api/events") { ex ->
             try {
                 if (ex.requestMethod != "GET") {

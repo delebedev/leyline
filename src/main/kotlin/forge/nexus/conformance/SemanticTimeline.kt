@@ -186,34 +186,26 @@ object SemanticTimeline {
      *
      * Empty list = timelines match structurally.
      */
-    fun diff(expected: List<Event>, actual: List<Event>): List<String> {
-        val divergences = mutableListOf<String>()
-
+    fun diff(expected: List<Event>, actual: List<Event>): List<String> = buildList {
         val expectedGsSteps = expected.filterIsInstance<GsIdStep>()
         val actualGsSteps = actual.filterIsInstance<GsIdStep>()
-        diffGsIdSteps(expectedGsSteps, actualGsSteps, divergences)
+        diffGsIdSteps(expectedGsSteps, actualGsSteps, this)
 
         val expectedTransfers = expected.filterIsInstance<ZoneTransfer>()
         val actualTransfers = actual.filterIsInstance<ZoneTransfer>()
-        diffZoneTransfers(expectedTransfers, actualTransfers, divergences)
+        diffZoneTransfers(expectedTransfers, actualTransfers, this)
 
         val expectedPhases = expected.filterIsInstance<PhaseChange>()
         val actualPhases = actual.filterIsInstance<PhaseChange>()
         if (expectedPhases.size != actualPhases.size) {
-            divergences.add(
-                "PhaseChange count: expected ${expectedPhases.size}, actual ${actualPhases.size}",
-            )
+            add("PhaseChange count: expected ${expectedPhases.size}, actual ${actualPhases.size}")
         }
 
         val expectedTurns = expected.filterIsInstance<TurnStart>()
         val actualTurns = actual.filterIsInstance<TurnStart>()
         if (expectedTurns.size != actualTurns.size) {
-            divergences.add(
-                "TurnStart count: expected ${expectedTurns.size}, actual ${actualTurns.size}",
-            )
+            add("TurnStart count: expected ${expectedTurns.size}, actual ${actualTurns.size}")
         }
-
-        return divergences
     }
 
     private fun diffGsIdSteps(

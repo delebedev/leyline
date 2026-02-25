@@ -66,7 +66,7 @@ fun main(args: Array<String>) {
                 return
             }
             actions.forEach {
-                val actorText = it.actor ?: it.actorSeat?.let { seat -> "seat-$seat" } ?: "?"
+                val actorText = it.actorLabel
                 val cardText = it.card ?: it.grpId?.let { id -> "grp:$id" } ?: "?"
                 println("#${it.seq}\tT${it.turn ?: 0}\t${it.category}\t$actorText\t$cardText\t${it.file}")
             }
@@ -86,7 +86,7 @@ fun main(args: Array<String>) {
                 return
             }
             actions.forEach {
-                val actorText = it.actor ?: it.actorSeat?.let { seat -> "seat-$seat" } ?: "?"
+                val actorText = it.actorLabel
                 val cardText = it.card ?: it.grpId?.let { id -> "grp:$id" } ?: "?"
                 println("T${it.turn ?: 0}\t$actorText\t${it.category}\t$cardText\tgs=${it.gsId}\tmsg=${it.msgId}")
             }
