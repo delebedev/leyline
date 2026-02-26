@@ -15,14 +15,63 @@ object HandshakeMessages {
 
     /** Room state event — match room with both players. */
     fun roomState(matchId: String, playerId: String): MatchServiceToClientMessage {
+        val roomInfo = MatchGameRoomInfo.newBuilder()
+            .setGameRoomConfig(buildRoomConfig(matchId, playerId))
+            .setStateType(MatchGameRoomStateType.Playing)
+            .addPlayers(playerInfo(playerId, "Player", 1, 1))
+            .addPlayers(playerInfo("${playerId}_Familiar", "Sparky", 2, 2))
+
+        return wrapRoomState(roomInfo)
+    }
+
+    /**
+     * Match-completed room state — sent after IntermissionReq to trigger
+     * the client's result screen.
+     *
+     * Per mtga-internals/docs/post-game-protocol.md, the client waits for
+     * [MatchGameRoomStateType.MatchCompleted] before showing the result UI.
+     */
+    fun matchCompleted(matchId: String, winningTeam: Int, playerId: String, reason: ResultReason = ResultReason.Concede): MatchServiceToClientMessage {
+        val result = FinalMatchResult.newBuilder()
+            .setMatchId(matchId)
+            .setMatchCompletedReason(MatchCompletedReasonType.Success_a26d)
+            .addResultList(
+                ResultSpec.newBuilder()
+                    .setScope(MatchScope.Game_a146)
+                    .setResult(ResultType.WinLoss)
+                    .setWinningTeamId(winningTeam)
+                    .setReason(reason),
+            )
+            .addResultList(
+                ResultSpec.newBuilder()
+                    .setScope(MatchScope.Match)
+                    .setResult(ResultType.WinLoss)
+                    .setWinningTeamId(winningTeam)
+                    .setReason(reason),
+            )
+
+        val roomInfo = MatchGameRoomInfo.newBuilder()
+            .setGameRoomConfig(buildRoomConfig(matchId, playerId))
+            .setStateType(MatchGameRoomStateType.MatchCompleted)
+            .setFinalMatchResult(result)
+
+        return wrapRoomState(roomInfo)
+    }
+
+    // --- Room state helpers ---
+    // TODO: store the MatchGameRoomConfig built during roomState() on MatchSession,
+    // then pass it into matchCompleted() — single source of truth. Currently both
+    // reconstruct from scratch (fine while data is static: matchId, playerId,
+    // "AIBotMatch"). Matters when we have real player names, event types, deck IDs.
+
+    private fun playerInfo(userId: String, name: String, seat: Int, team: Int) =
+        MatchGameRoomPlayerInfo.newBuilder()
+            .setUserId(userId).setPlayerName(name)
+            .setSystemSeatId(seat).setTeamId(team)
+
+    private fun buildRoomConfig(matchId: String, playerId: String): MatchGameRoomConfig.Builder {
         val familiarId = "${playerId}_Familiar"
-
-        fun playerInfo(userId: String, name: String, seat: Int, team: Int) =
-            MatchGameRoomPlayerInfo.newBuilder()
-                .setUserId(userId).setPlayerName(name)
-                .setSystemSeatId(seat).setTeamId(team)
-
-        val config = MatchGameRoomConfig.newBuilder()
+        return MatchGameRoomConfig.newBuilder()
             .setMatchId(matchId)
             .setEventId("AIBotMatch")
             .addReservedPlayers(
@@ -36,48 +85,14 @@ object HandshakeMessages {
                     .setIsBotPlayer(true)
                     .setEventId("AIBotMatch"),
             )
+    }
 
-        val roomInfo = MatchGameRoomInfo.newBuilder()
-            .setGameRoomConfig(config)
-            .setStateType(MatchGameRoomStateType.Playing)
-            .addPlayers(playerInfo(playerId, "Player", 1, 1))
-            .addPlayers(playerInfo(familiarId, "Sparky", 2, 2))
-
-        return MatchServiceToClientMessage.newBuilder()
+    private fun wrapRoomState(roomInfo: MatchGameRoomInfo.Builder): MatchServiceToClientMessage =
+        MatchServiceToClientMessage.newBuilder()
             .setMatchGameRoomStateChangedEvent(
                 MatchGameRoomStateChangedEvent.newBuilder().setGameRoomInfo(roomInfo),
             )
             .build()
-    }
-
-    /**
-     * Match-completed room state — sent after IntermissionReq to trigger
-     * the client's result screen.
-     *
-     * Per mtga-internals/docs/post-game-protocol.md, the client waits for
-     * [MatchGameRoomStateType.MatchCompleted] before showing the result UI.
-     */
-    fun matchCompleted(matchId: String, winningTeam: Int): MatchServiceToClientMessage {
-        val result = FinalMatchResult.newBuilder()
-            .setMatchId(matchId)
-            .setMatchCompletedReason(MatchCompletedReasonType.Success_a26d)
-            .addResultList(
-                ResultSpec.newBuilder()
-                    .setScope(MatchScope.Match)
-                    .setResult(ResultType.WinLoss)
-                    .setWinningTeamId(winningTeam),
-            )
-
-        val roomInfo = MatchGameRoomInfo.newBuilder()
-            .setStateType(MatchGameRoomStateType.MatchCompleted)
-            .setFinalMatchResult(result)
-
-        return MatchServiceToClientMessage.newBuilder()
-            .setMatchGameRoomStateChangedEvent(
-                MatchGameRoomStateChangedEvent.newBuilder().setGameRoomInfo(roomInfo),
-            )
-            .build()
-    }
 
     /**
      * Initial GRE bundle — built dynamically.

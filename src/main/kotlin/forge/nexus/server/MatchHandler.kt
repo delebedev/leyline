@@ -101,6 +101,7 @@ class MatchHandler(
             val rec = SessionRecorder(mode = "engine")
             SessionRecorder.register(rec)
             val s = MatchSession(seatId, matchId, sink, registry, recorder = rec)
+            s.playerId = clientId.removeSuffix("_Familiar")
             session = s
             registry.registerSession(matchId, seatId, s)
             registry.registerHandler(matchId, seatId, this)

@@ -21,7 +21,7 @@
 - **~~Double DeclareBlockersReq stalls client~~** *(fixed 2026-02-21)*: `pendingBlockersSent` flag in `CombatHandler`. Commit `15d4723786`.
 - **~~Hand overflow / Cleanup stall~~** *(fixed 2026-02-21)*: Non-targeting prompt auto-resolve in `TargetingHandler.checkPendingPrompt`. Commit `15d4723786`.
 - **No PhaseStopProfile → client stalls at non-essential phases**: `GameBridge.start()` creates `WebPlayerController` with no `phaseStopProfile`, so every phase grants priority. Client receives `ActionsAvailableReq` at CombatDamage/CombatEnd/EndOfTurn where real Arena would auto-pass. If client doesn't respond, bridge times out (120s), engine auto-passes silently, client never gets updated state. Confirmed via recording 2026-02-22_10-36-29. Fix: wire `PhaseStopProfile.createDefaults()`. Blocked on `PhaseOrStepModified` annotation regression — see `docs/plans/phase-stop-profile.md`.
-- **Concede**: tried wiring client concede button but doesn't work yet
+- **~~Concede~~** *(fixed 2026-02-26)*: Game-over sequence (3x GSM + IntermissionReq + MatchCompleted room state) now matches real server recordings. Both concede and lethal damage produce the result screen. Key fixes: rich player info in gs1 (PendingLoss + lifeTotal/timers), 2 resultList entries (Game+Match) in MatchCompleted, bridge stays alive after concede (deferred cleanup).
 - **Phase indicators**: glitch where player and AI indicators update in sync
 
 ## Debug Panel
@@ -39,7 +39,7 @@
 
 ## Protocol / Proto Bugs
 
-- **gameOverBundle missing prevGameStateId**: `BundleBuilder.gameOverBundle()` does not set `setPrevGameStateId()` on any of the 3 GS Diff messages. Breaks the prevGameStateId chain required by the real server. Client may show blank game-over screen or fail to transition to intermission. Fix: chain gs1→gsId, gs2→gs1, gs3→gs2.
+- **~~gameOverBundle missing prevGameStateId~~** *(fixed 2026-02-26)*: `gameOverBundle()` now chains gs1.prev=last, gs2.prev=gs1, gs3.prev=gs2. Rewritten to match real server recording structure.
 - **Face-down cards not implemented**: `ObjectMapper.applyCardFields()` never checks `card.isFaceDown` and never sets `isFacedown=true` or overrides `overlayGrpId`. Morph/manifest/disguise cards would leak identity to opponent. Low priority — morph/manifest rarely triggered in current integration.
 
 ## TODO

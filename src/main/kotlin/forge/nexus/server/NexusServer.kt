@@ -335,6 +335,6 @@ private fun logClientFrame(log: Logger, dir: String, buf: ByteBuf) {
     val ft = buf.getByte(idx + 1)
     val pl = buf.getIntLE(idx + 2)
     val tn = frameTypeName(ft)
-    log.info("  {} type={} payload={} total={}", dir, tn, pl, buf.readableBytes())
+    log.trace("  {} type={} payload={} total={}", dir, tn, pl, buf.readableBytes())
     CaptureSink.ingestChunk(dir, buf)
 }

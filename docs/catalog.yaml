@@ -12,7 +12,7 @@
 #   suppressed — deliberately disabled (cosmetic, causes client errors)
 #   n/a       — not applicable to Arena Standard/Pioneer
 #
-# Updated: 2026-02-25
+# Updated: 2026-02-26
 # Authoritative source for protocol-level detail: rosetta.md
 
 # ─── Client Infrastructure ───────────────────────────────────────────
@@ -50,17 +50,19 @@ client-infrastructure:
       MatchHandler → MatchSession dispatch.
 
   concede:
-    status: broken
+    status: works
     notes: >
-      ConcedeReq handler exists in MatchSession (type 7) but doesn't
-      work end-to-end. Client button fires but game doesn't end cleanly.
+      ConcedeReq (type 7) → sendGameOver(Concede) → 3x GSM + IntermissionReq
+      + MatchCompleted room state. Client shows result screen. Bridge stays
+      alive after concede (deferred cleanup). Fixed 2026-02-26.
 
   game-over:
-    status: broken
+    status: works
     notes: >
-      gameOverBundle() sends 3 GS Diff messages + IntermissionReq but
-      prevGameStateId chain is broken (not set). Client may show blank
-      game-over screen or fail to transition.
+      gameOverBundle() sends 3x GSM (GameComplete→MatchComplete→bare diff)
+      + IntermissionReq with options/prompt + MatchCompleted room state.
+      Matches real server recording structure. Both lethal damage and concede
+      produce the result screen. LossOfGame annotation on lethal. Fixed 2026-02-26.
 
   timers:
     status: missing
@@ -807,8 +809,8 @@ protocol-summary:
 
   gre-message-types:
     server-to-client: 13  # implemented
-    client-to-server: 6   # handled
-    missing: 5             # ChooseStartingPlayer, OrderReq, SelectNreq, AssignDamageReq, TimerState
+    client-to-server: 7   # handled (added CheckpointReq)
+    missing: 4             # ChooseStartingPlayer, OrderReq, AssignDamageReq, TimerState
 
   game-events-wired:
     wired: 17
