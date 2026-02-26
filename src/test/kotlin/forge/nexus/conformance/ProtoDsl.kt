@@ -181,6 +181,16 @@ fun selectTargetsResp(targets: List<Int>): ClientToGREMessage =
         )
     }
 
+/**
+ * [CancelActionReq] — cancel the current pending action (e.g. back out of targeting).
+ *
+ * Empty message — the type field (`CancelActionReq_097b = 5`) is the sole signal.
+ */
+fun cancelActionReq(): ClientToGREMessage =
+    clientMessage(ClientMessageType.CancelActionReq_097b) {
+        setCancelActionReq(CancelActionReq.newBuilder())
+    }
+
 // ===========================================================================
 // Outbound GRE fixtures — for unit tests that hand-build server messages
 // ===========================================================================

@@ -12,8 +12,8 @@
 
 ## Bugs / Short-Term Improvements
 
-- **Instant targeting**: player can cast instants but can't target them
-  - *Likely fixed (2026-02-21):* `WebPlayerController.playChosenSpellAbility` now passes `mayChooseTargets=true` for targeted spells → engine invokes `selectTargetsInteractively` → `InteractivePromptBridge` → client receives `SelectTargetsReq`. Verified in `TargetingFlowTest` (6 tests). Needs manual client test.
+- **~~Instant targeting~~** *(fixed 2026-02-25)*: Player can now target creatures AND players (face). `WebPlayerController.selectTargetsInteractively` merges player targets alongside card targets. `StateMapper.buildSelectTargetsReq` emits player seatId as instanceId. `TargetingHandler.onSelectTargets` handles reverse lookup. Verified end-to-end: bolt-to-face on internet match path with puzzle `bolt-face.pzl`. Includes `allowCancel=Abort`, `allowUndo=true`, `highlight: Hot/Cold`, `sourceId`. See `docs/plans/player-targeting.md`.
+- **~~Cancel during targeting blocks game~~** *(fixed 2026-02-26)*: `CancelActionReq` (type 5) was unhandled — fell to `else` in `MatchHandler`, engine blocked 30s on prompt timeout. Fix: dispatch `CancelActionReq_097b` → `TargetingHandler.onCancelAction` → submit empty target list → engine unwinds spell (removes from stack, returns mana). Also fixed `sourceId` in `SelectTargetsReq` — was using pre-realloc instanceId (retired hand ID), client couldn't draw targeting arrow. Fix: build diff before req in `selectTargetsBundle` so sourceId uses post-realloc stack instanceId.
 - **Stack visuals**: Sparky's instants stuck on stack visually (effect applies correctly to field)
   - *Possibly improved:* if client was stuck waiting for targeting prompt that never came, the instant targeting fix should unstick it. Needs manual client test.
 - **Combat targeting**: attack-all somewhat works; declaring blockers targeting doesn't
@@ -27,6 +27,9 @@
 ## Debug Panel
 
 - **Server shutdown kills browser tab**: When the Nexus server is killed (Ctrl+C / `kill`), the debug panel's SSE connection drops. Some browsers (Safari) close the tab entirely on abrupt connection loss. Fix: add `onclose`/`onerror` handler in the SSE client JS that shows a "disconnected" banner instead of letting the browser decide. Or switch from SSE to polling with graceful reconnect.
+
+- **Sparky/AI bot path starts in Combat instead of Main1** *(2026-02-25)*: When launching via Sparky (FD stub creates both seat 1 + seat 2/Familiar), the auto-pass engine advances past Main1 into Combat before the human player's first `ActionsAvailableReq`. The first GSM diff shows `phase: Combat/BeginCombat` instead of `Main1`. Does NOT reproduce on the internet match path (only seat 1 connects, no Familiar). Root cause: Familiar (seat 2) connecting triggers auto-pass for AI, which advances phases. The puzzle `ActivePhase=Main1` is set correctly but the engine loop runs before the human client gets priority. Recording: `2026-02-25_23-49-05` (Sparky, broken) vs `2026-02-25_23-50-50` (internet, correct).
+- **Stale forge-web classes not picked up by `just build`**: `just build` in forge-nexus compiles nexus classes but may skip forge-web recompilation even when forge-web sources changed. Caused a debugging detour where targeting changes in `WebPlayerController` weren't deployed. Workaround: explicit `mvn compile -pl forge-web` or ensure `just build` rebuilds both modules.
 
 ## Runtime Crashes
 

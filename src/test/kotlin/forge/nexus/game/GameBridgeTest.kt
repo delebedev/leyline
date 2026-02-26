@@ -555,22 +555,9 @@ class GameBridgeTest {
 
     // --- SelectTargetsReq tests ---
 
-    /** selectTargetsBundle has correct GRE message types and prompt id=10. */
+    /** selectTargetsBundle has correct GRE message types and prompt id. */
     @Test
     fun selectTargetsBundleShape() {
-        val req = Messages.SelectTargetsReq.newBuilder()
-            .addTargets(
-                Messages.TargetSelection.newBuilder()
-                    .addTargets(
-                        Messages.Target.newBuilder()
-                            .setTargetInstanceId(100)
-                            .setLegalAction(Messages.SelectAction.Select_a1ad),
-                    )
-                    .setMinTargets(1)
-                    .setMaxTargets(1),
-            )
-            .build()
-
         val b = GameBridge()
         bridge = b
         b.start(seed = 42L)
@@ -578,7 +565,23 @@ class GameBridgeTest {
         advanceToMain1(b)
 
         val game = b.getGame()!!
-        val result = BundleBuilder.selectTargetsBundle(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0), req)
+        // Use a dummy candidateRef — the bundle shape test doesn't need real targets
+        val candidateRefs = listOf(
+            forge.web.dto.PromptCandidateRefDto(0, "card", 999, "Battlefield"),
+        )
+        val prompt = forge.web.game.InteractivePromptBridge.PendingPrompt(
+            promptId = "test-prompt",
+            request = forge.web.game.PromptRequest(
+                promptType = "choose_cards",
+                message = "Choose target",
+                options = listOf("Target A"),
+                min = 1,
+                max = 1,
+                candidateRefs = candidateRefs,
+            ),
+            future = java.util.concurrent.CompletableFuture(),
+        )
+        val result = BundleBuilder.selectTargetsBundle(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0), prompt)
 
         assertEquals(result.messages.size, 2, "Targets bundle should have 2 messages")
         assertEquals(
@@ -589,7 +592,13 @@ class GameBridgeTest {
             result.messages[1].type,
             Messages.GREMessageType.SelectTargetsReq_695e,
         )
-        assertEquals(result.messages[1].prompt.promptId, 10)
+        // PromptIds.SELECT_TARGETS = 6 (from the proto constants)
+        assertEquals(result.messages[1].prompt.promptId, PromptIds.SELECT_TARGETS)
+
+        // Verify allowCancel=Abort and allowUndo=true on the wrapper
+        val wrapper = result.messages[1]
+        assertEquals(wrapper.allowCancel, Messages.AllowCancel.Abort, "Should have allowCancel=Abort")
+        Assert.assertTrue(wrapper.allowUndo, "Should have allowUndo=true")
     }
 
     // --- QueuedGameStateMessage tests ---

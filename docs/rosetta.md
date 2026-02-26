@@ -234,12 +234,14 @@ Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `
 
 | Type# | Name | MatchSession Handler |
 |------:|------|---------------------|
+| 5 | CancelActionReq | `onCancelAction` |
+| 7 | ConcedeReq | `onConcede` |
 | 15 | PerformActionResp | `onPerformAction` |
+| 18 | SelectNresp | `onSelectN` |
 | 20 | SetSettingsReq | `onSettings` |
 | 30 | DeclareAttackersResp | `onDeclareAttackers` |
 | 32 | DeclareBlockersResp | `onDeclareBlockers` |
 | 36 | SelectTargetsResp | `onSelectTargets` |
-| 7 | ConcedeReq | `onConcede` |
 
 ## Table 6: Phase/Step Mapping
 

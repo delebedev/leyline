@@ -24,6 +24,7 @@ class TargetingFlowTest {
     @AfterMethod(alwaysRun = true)
     fun tearDown() {
         if (::harness.isInitialized) harness.shutdown()
+        if (::puzzleHarness.isInitialized) puzzleHarness.shutdown()
     }
 
     // --- Setup helpers ---
@@ -316,5 +317,217 @@ class TargetingFlowTest {
 
         harness.accumulator.assertConsistent("after multiple targeted spells")
         assertGsIdChain(harness.allMessages, context = "multiple targeted spells")
+    }
+
+    // ─── Cancel targeting tests ─────────────────────────────────────────
+
+    // --- Test 7: cancelTargetingUnwindsSpell ---
+
+    @Test(description = "Cancel during targeting removes spell from stack and returns to action selection")
+    fun cancelTargetingUnwindsSpell() {
+        val creatureIid = setupForTargeting()
+
+        // Cast Giant Growth — triggers SelectTargetsReq
+        val snap = harness.messageSnapshot()
+        val cast = harness.castSpellByName("Giant Growth")
+        assertTrue(cast, "Should cast Giant Growth")
+
+        val msgs = harness.messagesSince(snap)
+        val stReq = msgs.firstOrNull { it.hasSelectTargetsReq() }
+        assertNotNull(stReq, "Should receive SelectTargetsReq")
+
+        // Cancel instead of selecting a target
+        val cancelSnap = harness.messageSnapshot()
+        harness.cancelAction()
+
+        // Stack should be empty — spell unwound
+        val game = harness.game()
+        assertTrue(game.stack.isEmpty, "Stack should be empty after cancel")
+
+        // Giant Growth should be back in hand (or graveyard — engine may vary)
+        // At minimum, it should NOT still be on the stack.
+        val player = harness.bridge.getPlayer(1)!!
+        val handCards = player.getZone(ForgeZoneType.Hand).cards
+        val hasGG = handCards.any { it.name.equals("Giant Growth", ignoreCase = true) }
+        assertTrue(hasGG, "Giant Growth should be back in hand after cancel")
+
+        // Should receive ActionsAvailableReq (player can act again)
+        val afterMsgs = harness.messagesSince(cancelSnap)
+        val actionsReq = afterMsgs.any { it.hasActionsAvailableReq() }
+        assertTrue(actionsReq, "Should receive ActionsAvailableReq after cancel")
+
+        harness.accumulator.assertConsistent("after cancel targeting")
+    }
+
+    // --- Test 8: cancelThenRecast ---
+
+    @Test(description = "Cancel targeting then re-cast the same spell — full round-trip works")
+    fun cancelThenRecast() {
+        val creatureIid = setupForTargeting()
+
+        // Cast Giant Growth → cancel
+        assertTrue(harness.castSpellByName("Giant Growth"), "Should cast Giant Growth")
+        harness.cancelAction()
+
+        // Re-cast the same spell
+        val snap = harness.messageSnapshot()
+        val recast = harness.castSpellByName("Giant Growth")
+        assertTrue(recast, "Should be able to re-cast Giant Growth after cancel")
+
+        val msgs = harness.messagesSince(snap)
+        val stReq = msgs.firstOrNull { it.hasSelectTargetsReq() }
+        assertNotNull(stReq, "Should receive SelectTargetsReq after re-cast")
+
+        // Select target and resolve
+        harness.selectTargets(listOf(creatureIid))
+        harness.passPriority()
+
+        // Creature should have +3/+3
+        val player = harness.bridge.getPlayer(1)!!
+        val creature = player.getZone(ForgeZoneType.Battlefield).cards
+            .firstOrNull { harness.bridge.getOrAllocInstanceId(it.id) == creatureIid }
+        assertNotNull(creature, "Creature should still be on battlefield")
+        assertTrue(
+            creature!!.netPower >= 4,
+            "Creature should have 4+ power after re-cast Giant Growth, got ${creature.netPower}",
+        )
+
+        harness.accumulator.assertConsistent("after cancel + re-cast")
+    }
+
+    // ─── Player targeting tests (bolt-face puzzle) ──────────────────────
+
+    private lateinit var puzzleHarness: MatchFlowHarness
+
+    private fun setupBoltFacePuzzle(): MatchFlowHarness {
+        puzzleHarness = MatchFlowHarness()
+        puzzleHarness.connectAndKeepPuzzle("puzzles/bolt-face.pzl")
+        return puzzleHarness
+    }
+
+    // --- Test 9: boltFaceSelectTargetsIncludesPlayers ---
+
+    @Test(description = "Lightning Bolt SelectTargetsReq includes player seatIds as targets with Hot/Cold highlights")
+    fun boltFaceSelectTargetsIncludesPlayers() {
+        val h = setupBoltFacePuzzle()
+
+        // Cast Lightning Bolt
+        val snap = h.messageSnapshot()
+        val cast = h.castSpellByName("Lightning Bolt")
+        assertTrue(cast, "Should cast Lightning Bolt")
+
+        val msgs = h.messagesSince(snap)
+        val stMsg = msgs.firstOrNull { it.hasSelectTargetsReq() }
+        assertNotNull(stMsg, "Should receive SelectTargetsReq after casting Lightning Bolt")
+
+        val req = stMsg!!.selectTargetsReq
+        val targets = req.targetsList.first().targetsList
+        val targetIds = targets.map { it.targetInstanceId }
+
+        // Should include player seatIds (1=human, 2=AI)
+        assertTrue(1 in targetIds, "Player 1 (human) should be a legal target, got $targetIds")
+        assertTrue(2 in targetIds, "Player 2 (AI) should be a legal target, got $targetIds")
+
+        // Opponent (seat 2) should be Hot, self (seat 1) should be Cold
+        val opponentTarget = targets.first { it.targetInstanceId == 2 }
+        assertEquals(opponentTarget.highlight, HighlightType.Hot, "Opponent should be highlighted Hot")
+        val selfTarget = targets.first { it.targetInstanceId == 1 }
+        assertEquals(selfTarget.highlight, HighlightType.Cold, "Self should be highlighted Cold")
+
+        // Creature targets should have Tepid highlight (blue/cyan "legal target" glow)
+        val creatureTargets = targets.filter { it.targetInstanceId > 2 }
+        assertTrue(creatureTargets.isNotEmpty(), "Should have creature targets")
+        for (ct in creatureTargets) {
+            assertEquals(ct.highlight, HighlightType.Tepid, "Creature target ${ct.targetInstanceId} should have Tepid highlight (blue glow)")
+        }
+
+        // Should also include creature targets (Runeclaw Bear, Pillarfield Ox)
+        val targetCount = targetIds.size
+        assertTrue(targetCount >= 4, "Should have 2 players + 2 creatures = 4+ targets, got $targetCount")
+
+        // Verify allowCancel and allowUndo on the wrapper
+        assertEquals(stMsg.allowCancel, AllowCancel.Abort, "Should have allowCancel=Abort")
+        assertTrue(stMsg.allowUndo, "Should have allowUndo=true")
+
+        h.accumulator.assertConsistent("after bolt targeting")
+    }
+
+    // --- Test 10: boltFaceSourceIdMatchesStackInstanceId ---
+
+    @Test(description = "SelectTargetsReq sourceId matches the spell's post-realloc instanceId on stack")
+    fun boltFaceSourceIdMatchesStackInstanceId() {
+        val h = setupBoltFacePuzzle()
+
+        val snap = h.messageSnapshot()
+        h.castSpellByName("Lightning Bolt")
+
+        val msgs = h.messagesSince(snap)
+        val stMsg = msgs.firstOrNull { it.hasSelectTargetsReq() }
+        assertNotNull(stMsg, "Should receive SelectTargetsReq")
+
+        // Find the GSM with the stack zone — the spell's instanceId on stack
+        val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+        val stackZone = gsms.flatMap { it.zonesList }
+            .firstOrNull { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Stack }
+        assertNotNull(stackZone, "Should have a Stack zone in the GSM")
+
+        val stackInstanceId = stackZone!!.objectInstanceIdsList.firstOrNull()
+        assertNotNull(stackInstanceId, "Stack should have an object (the spell)")
+
+        // sourceId should match the spell on stack (post-realloc), not the old hand ID
+        val sourceId = stMsg!!.selectTargetsReq.sourceId
+        assertEquals(
+            sourceId,
+            stackInstanceId,
+            "sourceId ($sourceId) should match spell's stack instanceId ($stackInstanceId)",
+        )
+    }
+
+    // --- Test 11: boltFaceResolveKillsOpponent ---
+
+    @Test(description = "Bolt opponent face at 3 life → game over")
+    fun boltFaceResolveKillsOpponent() {
+        val h = setupBoltFacePuzzle()
+
+        h.castSpellByName("Lightning Bolt")
+
+        // Select opponent (seatId=2) as target
+        h.selectTargets(listOf(2))
+
+        // Pass to resolve
+        h.passPriority()
+
+        // AI was at 3 life, bolt deals 3 → game over
+        assertTrue(h.isGameOver(), "Game should be over after bolt to face at 3 life")
+
+        // Verify game-over messages were sent
+        val gameOverMsgs = h.allMessages.filter {
+            it.hasGameStateMessage() && it.gameStateMessage.hasGameInfo() &&
+                it.gameStateMessage.gameInfo.stage == GameStage.GameOver
+        }
+        assertTrue(gameOverMsgs.isNotEmpty(), "Should have game-over GSMs")
+    }
+
+    // --- Test 12: boltFaceCancelAndRecast ---
+
+    @Test(description = "Cancel bolt targeting then re-cast and resolve → game over")
+    fun boltFaceCancelAndRecast() {
+        val h = setupBoltFacePuzzle()
+
+        // Cast → cancel
+        h.castSpellByName("Lightning Bolt")
+        h.cancelAction()
+
+        // Stack should be empty
+        assertTrue(h.game().stack.isEmpty, "Stack should be empty after cancel")
+
+        // Re-cast → target opponent → resolve
+        val recast = h.castSpellByName("Lightning Bolt")
+        assertTrue(recast, "Should re-cast Lightning Bolt after cancel")
+
+        h.selectTargets(listOf(2))
+        h.passPriority()
+
+        assertTrue(h.isGameOver(), "Game should be over after bolt to face")
     }
 }

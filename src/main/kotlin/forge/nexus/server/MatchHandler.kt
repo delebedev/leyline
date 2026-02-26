@@ -250,6 +250,12 @@ class MatchHandler(
                 }
             }
 
+            ClientMessageType.CancelActionReq_097b -> {
+                if (seatId == 1) {
+                    s?.onCancelAction(greMsg)
+                }
+            }
+
             ClientMessageType.SelectNresp -> {
                 if (seatId == 1) {
                     s?.onSelectN(greMsg)
