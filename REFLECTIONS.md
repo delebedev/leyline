@@ -194,3 +194,156 @@ If the boundary starts leaking (more than ~15 imports, or wire types crossing), 
 - **DTO round-trip:** `Game → GameStateDto → GameStateMessage` was explicitly rejected in the bridge-architecture doc. Direct `Game → GameStateMessage` via StateMapper. This is correct — intermediate DTOs exist for the web UI's needs, not the engine's.
 - **God Object accumulation:** StateMapper grew to 869 LOC through incremental feature additions. Each addition was small and reasonable. The fix isn't preventing additions — it's periodic refactoring into pipeline stages.
 - **Test mode flags:** `CardDb.testMode` is the classic antipattern of production code knowing about tests. Fix: dependency injection. The production code should be test-unaware; the test provides a different configuration.
+
+---
+
+## Game-End Sequence — Recording First, Code Second
+
+**Context:** Game-over was broken in both scenarios (lethal damage and concede). The client received our messages but stayed stuck on the game board — no result screen appeared. Fixing this took ~8 roundtrips of guess-test-observe-guess.
+
+**What happened:** We built `gameOverBundle()` from proto field names and documentation. Tests passed (wire shape looked correct). But the client crashed with `NullReferenceException` (missing `gameRoomConfig`), then `ArgumentOutOfRangeException` (wrong GSM structure), then silently stuck (missing player state). Each fix revealed a new failure:
+
+1. Plan: wrote gameOverBundle from first principles → client crashed (NullRef)
+2. Added gameRoomConfig → different crash (ArgumentOutOfRange)
+3. Tweaked individual fields (removed GameInfo from gs2) → still crashed
+4. **Finally decoded the recording** → found ~10 structural differences at once
+5. Rewrote to match recording → lethal worked, concede still stuck
+6. Removed bridge shutdown → still stuck
+7. Compared concede recording → found rich player data + 2 resultList entries → both work
+
+**Root cause of the slow iteration:** The proto schema tells you what fields *exist* but not which ones the client *requires* or in what *combination*. The client is a black box — it silently tolerates some missing fields but crashes or stalls on others, with no useful error messages. Each guess fixed one symptom but didn't address the structural gap.
+
+**What we should have done:** Decode the recording in step 1, before writing any code. The recording IS the spec. One decode session would have revealed all 10 differences simultaneously instead of discovering them one crash at a time.
+
+**Rule:** For any new protocol message type, **always decode a real recording first**. Use `just proto-inspect <file>` on the relevant payload. Build the code to match the recording, not the proto schema. The schema is the vocabulary; the recording is the grammar.
+# Reflections: PlayLand Diff Merge Bug
+
+## What slowed us down
+
+1. **Wrong seed in tests.** Existing tests used seed=42 (human goes first). The bug only manifests with AI-goes-first (seed=2). We spent multiple rounds confirming "tests pass" before realizing the test didn't exercise the failing path. Should have checked who-goes-first immediately from the production recording.
+
+2. **Assumed the bug was in the annotation pipeline.** Spent time tracing `GameEventCollector` → `AnnotationBuilder` → `AnnotationPipeline` — all correct. The real bug was in `MatchSession.onMulliganKeep` (session layer), not the diff/annotation layer. The recording analysis told us PlayLand was missing from turn 1, but we looked at the wrong layer.
+
+3. **No AI-goes-first integration test.** `AiFirstTurnShapeTest` tested shape/structure but never asserted that AI turn 1 actions produce PlayLand/CastSpell categories. A single test checking "turn 1 has PlayLand when AI plays a land" would have caught this during phases 1-3.
+
+4. **Other agent's broken commit.** The `enabled` flag (added without wiring `enable()`) silently broke all AI playback capture. Cost us a detour diagnosing why scripted tests suddenly failed, then moving the commit to a branch and resetting master.
+
+## What we should add
+
+- **Seed matrix in integration tests.** Key tests should run with both human-first (seed=42) and AI-first (seed=2) to cover both code paths through `onMulliganKeep` → `autoPassAndAdvance`.
+- **Category coverage assertion.** A test that asserts: if the AI played a land (check game state), there MUST be a PlayLand-categorized diff. Same for CastSpell. This catches "event fired but diff lost" bugs regardless of the mechanism.
+- **`drainQueue()` should log what it discards.** If it had logged "discarding 5 batches with categories [PlayLand, CastSpell, Resolve, ...]" we'd have found the root cause in the server logs immediately.
+- **test-summary.py staleness was hiding failures.** 60s window meant early-finishing tests in long integration runs were silently dropped. Bumped to 300s — should probably use run-start timestamp instead.
+
+---
+
+# Reflections: Combat Two-Phase Protocol Bug (SubmitAttackersReq)
+
+## The bug
+
+Arena's combat declaration uses a **two-phase protocol**:
+1. `DeclareAttackersResp` (type=30) — iterative updates, sent on each creature toggle / "Attack All"
+2. `SubmitAttackersReq` (type=31) — finalize, **type-only, no payload** — the "Done" button
+
+`MatchHandler` routed both types to the same `CombatHandler.onDeclareAttackers()`, which read `greMsg.declareAttackersResp.selectedAttackersList`. When the client sent `SubmitAttackersReq` (empty), this field was default-empty → 0 attackers submitted → combat skipped every turn.
+
+Same pattern for blockers: `DeclareBlockersResp` (type=32) vs `SubmitBlockersReq` (type=33).
+
+## Why existing tests didn't catch it
+
+1. **Test harness bypassed the real client protocol.** `MatchFlowHarness.declareAttackers()` always sent `DeclareAttackersResp_097b` with fully populated `selectedAttackersList` — it was a single-phase shortcut that never exercised `SubmitAttackersReq`. The harness was correct for phase 1 of the protocol but never sent phase 2. Since the old handler didn't distinguish the two types, the shortcut worked in tests but not in production.
+
+2. **No test simulated the real client message sequence.** The actual client sends `SubmitAttackersReq` as the final confirmation (with pre-selected attackers shown in the UI from the initial `DeclareAttackersReq`). No test ever constructed a `ClientToGREMessage` with `type = SubmitAttackersReq` — the enum existed in the proto but was untested.
+
+3. **The proto dispatch masked the bug.** `MatchHandler` lumped both types into one `when` branch (`DeclareAttackersResp_097b, SubmitAttackersReq -> ...`). This looked intentional — "both paths do the same thing." In reality, they're fundamentally different messages: one carries data, one is a signal.
+
+4. **The pre-selected attacker pattern hid the interaction.** Our `DeclareAttackersReq` sets `selectedDamageRecipient` on every eligible attacker (making them appear pre-declared in the client). So the user never needs to toggle anything — just click "Done". This means the iterative `DeclareAttackersResp` path never fires in normal play. The only path exercised in production is `SubmitAttackersReq`.
+
+## What we should add
+
+- **Protocol-level test helpers.** Harness methods should mirror the actual client protocol, not shortcuts. `declareAttackers()` now sends both phases (update + submit). Added `submitAttackers()` (submit-only, like "Done" with pre-selected) and `declareAllAttackers()` (auto_declare=true, like "Attack All").
+- **Message-type-aware dispatch.** `SubmitAttackersReq` and `DeclareAttackersResp` are different messages with different semantics. The handler now checks `greMsg.type` to distinguish them.
+- **State tracking for two-phase protocols.** Added `lastDeclaredAttackerIds` (defaults to `pendingLegalAttackers` since we pre-select all) and `lastDeclaredBlockAssignments`. `SubmitAttackersReq` reads the tracked state instead of parsing an empty proto.
+- **Read mtga-internals first.** The two-phase protocol was clearly documented in `mtga-internals/docs/combat-flow.md` and the IL2CPP dump. Checking protocol docs before implementing handlers would have prevented both this and any future message-type confusion.
+- **Test with real client message types, not just logical intent.** The distinction between "what the test intends" (declare these attackers) and "what the client actually sends" (SubmitAttackersReq with no payload) is where bugs hide. Tests should exercise both paths explicitly.
+
+---
+
+# Reflections: Game-End Missing Result Screen (MatchCompleted)
+
+## The bug
+
+The engine correctly detected game over, built the game-over GRE bundle (3x GSM with `GameInfo.stage=GameOver` + `IntermissionReq`), and sent it. The client received everything — but never showed the result screen. The game board just froze.
+
+**Root cause:** Arena's post-game protocol has a **match-service layer** step after the GRE layer: the server must send `MatchGameRoomStateChangedEvent` with `stateType = MatchCompleted(15)` and a `FinalMatchResult`. This is the authoritative signal for the client to transition to the result UI. Without it, the client processes the IntermissionReq internally but stays on the game board waiting for the room state change.
+
+Additionally, the client sends `CheckpointReq` (type=10) in response to `IntermissionReq`, which was falling through to the "unhandled type" warning in `MatchHandler`.
+
+## Why it wasn't caught
+
+1. **Two protocol layers, one was implemented.** The game-over GRE sequence (GSMs + IntermissionReq) was correctly implemented and tested. But the match-service-level `MatchGameRoomStateChangedEvent` lives in a different protocol layer. The existing `WireShapeTest.gameEndShape()` only validated the GRE layer (3x GSM + IntermissionReq shape vs Arena golden). No test checked for the room-state transition.
+
+2. **`HandshakeMessages` only had pre-game methods.** `roomState()` hardcoded `stateType = Playing`. No one added a `matchCompleted()` counterpart. The pre-game handshake was ported from the Arena proxy, but the post-game handshake was never implemented — it was invisible because the GRE layer "worked."
+
+3. **Recording analysis confirmed the GRE layer.** The engine recording (`213-GameStateMessage+IntermissionReq.txt`) showed a correct game-over burst. The `analysis.json` said `"termination": "game_over"`. This gave false confidence — the recording only captured GRE messages, not match-service messages.
+
+4. **No end-to-end game-completion test.** Existing tests verified combat damage, attackers/blockers, and game state. No test played a game to actual conclusion and verified the client would see the result. `GameEndTest.lethalDamageProducesMatchCompleted` fills this gap.
+
+5. **Missing `CheckpointReq` handler was a silent warning.** The MatchHandler logged "unhandled type" for CheckpointReq, but this went unnoticed since it happened after the game was "over" from the engine's perspective. No one was watching post-game logs.
+
+## What we should add
+
+- **Test both protocol layers.** GRE-layer tests (WireShapeTest) and match-service-layer tests (GameEndTest checking `allRawMessages` for MatchCompleted) are both needed. One layer being correct doesn't imply the other is.
+- **Protocol checklist from mtga-internals.** `post-game-protocol.md` documents the exact 6-step sequence. Should be used as a checklist when implementing any lifecycle transition (connect → play → game-over → result → disconnect).
+- **Warn on unhandled message types louder.** The `else -> log.warn("unhandled type")` catch-all in MatchHandler should count occurrences and surface them in the debug panel. `CheckpointReq` arriving repeatedly is a signal that something is missing, not just noise.
+- **Pre-existing flaky test.** `ActionFieldConformanceTest.castActionFields` fails intermittently under parallelism but passes in isolation — likely a shared-state issue in `startGameAtMain1()`. Tracked separately.
+
+---
+
+# Reflections: Kotlin Refactorings (2026-02-24)
+
+## Genuinely Valuable
+
+1. **Collection operators (associate/buildList/buildMap).** High ROI. Replaces verbose mutableListOf + for-loops with idiomatic Kotlin. Improves readability significantly, reduces boilerplate. Did ~8 files.
+
+2. **GameFlowAnalyzer classifier chain.** The 160-line `classifyAll()` was a maintenance liability. Extracting 12 classifiers makes it testable, extensible, and easier to reason about. The `firstNotNullOfOrNull` dispatch pattern is clean.
+
+3. **Shared utilities (extractAnnotationTypes, parseSeatFilter).** True DRY wins. Duplicated logic in 2+ places → extracted to reusable helpers. Reduces future bug surface area.
+
+4. **checkNotNull instead of assertTrue + !!.** Minor but genuine improvement. More idiomatic, clearer intent.
+
+5. **DebugServer route consolidation.** 18 repetitive lines → mapOf + forEach. Reduces copy-paste bugs.
+
+## Not Worth It / Skip
+
+1. **System.exit → exitProcess.** Mechanical change, no real benefit. Low value.
+
+2. **walkUpFind extension.** Cute but rarely used. The original manual loop was clear enough.
+
+3. **actorLabel extension property.** Marginal. The pattern was only used 3 times, now shared - but the original inline wasn't that bad.
+
+4. **ChangeType enum.** Nice to have but changeType was never a real bug source. String worked fine.
+
+## Verdict
+
+Prioritize **collection operators** and **classifier extraction** in future refactors. Skip mechanical low-value changes like `System.exit` replacements. Focus on refactors that improve testability, reduce duplication, or fix real bugs — not style for style's sake.
+
+---
+
+# Reflections: Reading Key Protos with Human (2026-02-25)
+
+## The discovery
+
+While implementing player targeting, we inspected real Arena `SelectTargetsReq` protos from a proxy recording **together** (human + agent reading the same proto text output). This immediately surfaced multiple missing "cosmetic" fields that would have been invisible from code analysis alone:
+
+- **`highlight: Hot / Cold`** — the server marks the suggested target (opponent) as Hot, others as Cold. The client uses this for visual glow/emphasis. Without it, all targets look the same — no guidance for the player.
+- **`allowCancel: Abort`** — enables the Cancel button during targeting. Without it, the player is locked into targeting with no way to back out.
+- **`allowUndo: true`** — enables undo after selecting a target. Missing = no second chances.
+- **`sourceId` / `abilityGrpId` / `targetingPlayer`** — metadata the client uses for UI context (which spell is targeting, whose turn).
+- **`prompt.promptId` / `prompt.parameters`** — wrong promptId (`DISTRIBUTE_DAMAGE` vs `11869`) means wrong prompt text in the client.
+
+None of these are functionally blocking — creature targeting "worked" without them. But they're the difference between a functional prototype and a polished experience. An agent working solo would optimize for "does it work?" and skip these. The human eye immediately notices "this doesn't feel right" and asks why.
+
+## Takeaway
+
+**Read key protocol messages with the human, not just in agent code analysis.** Proxy recordings decoded to proto text are the shared artifact. The human spots UX gaps (missing highlights, no cancel button) that an agent would deprioritize as non-functional. Schedule proto review sessions for any new protocol area — especially interactive flows (targeting, combat, mulligan) where cosmetics = usability.

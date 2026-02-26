@@ -34,8 +34,24 @@ Escalate through these steps — stop when you find the issue:
 5. **State inspection:** `curl -s http://localhost:8090/api/game-states | python3 -m json.tool` then `curl -s 'http://localhost:8090/api/state-diff?last=2' | python3 -m json.tool` — what changed in the last state transition
 6. **Card tracking:** `curl -s http://localhost:8090/api/id-map | python3 -m json.tool` to resolve instanceId → card name, then `curl -s 'http://localhost:8090/api/instance-history?id=N' | python3 -m json.tool` for zone history
 
+## Client-side crash triage
+
+When the server-side debug API shows correct messages but the client UI is stuck, **always check Player.log for client-side exceptions**. Our debug API only captures server-side state; client crashes (NullReferenceException, ArgumentOutOfRangeException, etc.) are invisible to it.
+
+```bash
+# Find the relevant log line (e.g. last game-over message) and read lines after it
+grep -n "MatchCompleted\|GameOver\|IntermissionReq" "/Users/denislebedev/Library/Logs/Wizards Of The Coast/MTGA/Player.log" | tail -3
+# Then read ~40 lines after that line number:
+sed -n '<LINE>,<LINE+40>p' "/Users/denislebedev/Library/Logs/Wizards Of The Coast/MTGA/Player.log"
+```
+
+Common client-side crashes and what they mean:
+- **NullReferenceException in ProcessRoomState** — missing required fields in MatchGameRoomInfo (e.g. gameRoomConfig)
+- **ArgumentOutOfRangeException in CullEventsAfterConcedePostProcess** — indexing empty annotation/object lists in game-over GSMs
+- **"Unexpected combination of game type and number"** — missing gameNumber in GameInfo
+
 ## Key conventions
 
 - **Pagination:** list endpoints return `{version:1, data:[...], cursor:N}`. Pass `?since=<cursor>` for next page.
 - **msgSeq:** snapshots and priority events include `msgSeq` — use to correlate between protocol messages and state snapshots.
-- **Client-side logs:** `~/Library/Logs/Wizards of the Coast/MTGA/Player.log`. Compare debug API output (what we sent) vs Player.log (what client received) to isolate serialization vs logic issues. See `docs/reading-player-logs.md` for extraction scripts.
+- **Client-side logs:** `"/Users/denislebedev/Library/Logs/Wizards Of The Coast/MTGA/Player.log"`. Compare debug API output (what we sent) vs Player.log (what client received) to isolate serialization vs logic issues. See `docs/reading-player-logs.md` for extraction scripts.

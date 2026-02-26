@@ -1,5 +1,6 @@
 package forge.nexus.conformance
 
+import forge.nexus.game.PromptIds
 import org.testng.Assert.*
 import org.testng.annotations.AfterMethod
 import org.testng.annotations.Test
@@ -50,13 +51,27 @@ class GameEndTest {
         val firstGsm = msgs.first { it.hasGameStateMessage() }.gameStateMessage
         assertTrue(firstGsm.hasGameInfo(), "First GSM should have gameInfo")
         assertEquals(firstGsm.gameInfo.stage, GameStage.GameOver, "Stage should be GameOver")
-        assertEquals(firstGsm.gameInfo.matchState, MatchState.MatchComplete, "Match should be complete")
+        assertEquals(firstGsm.gameInfo.matchState, MatchState.GameComplete, "First GSM matchState should be GameComplete")
 
-        // IntermissionReq should have result with winning team
+        // IntermissionReq should have result with winning team + reason
         val req = intermission!!.intermissionReq
         assertTrue(req.hasResult(), "IntermissionReq should have result")
         assertEquals(req.result.result, ResultType.WinLoss, "Result type should be WinLoss")
         assertTrue(req.result.winningTeamId > 0, "Should have a winning team")
+        assertEquals(req.result.reason, ResultReason.Concede, "ResultSpec reason should be Concede")
+
+        // IntermissionReq should have options + intermissionPrompt
+        assertTrue(req.optionsCount > 0, "IntermissionReq should have options")
+        assertTrue(req.optionsCount >= 2, "IntermissionReq should have 2+ options")
+        assertTrue(req.hasIntermissionPrompt(), "IntermissionReq should have intermissionPrompt")
+        assertEquals(req.intermissionPrompt.promptId, PromptIds.MATCH_RESULT_WIN_LOSS, "intermissionPrompt promptId should be 27 (MatchResultWinLoss)")
+        assertTrue(req.intermissionPrompt.parametersCount > 0, "intermissionPrompt should have WinningTeamId parameter")
+
+        // prevGameStateId chain: gs1.prev = last-known, gs2.prev = gs1, gs3.prev = gs2
+        val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+        assertTrue(gsms.size >= 3, "Should have 3+ GSMs, got ${gsms.size}")
+        assertEquals(gsms[1].prevGameStateId, gsms[0].gameStateId, "gs2.prev should be gs1")
+        assertEquals(gsms[2].prevGameStateId, gsms[1].gameStateId, "gs3.prev should be gs2")
 
         // MatchCompleted room state should be in allRawMessages
         val rawMsgs = harness.allRawMessages
@@ -162,8 +177,36 @@ class GameEndTest {
             "Lethal damage should produce MatchCompleted room state",
         )
 
-        // Verify IntermissionReq was sent
-        val intermission = harness.allMessages.firstOrNull { it.hasIntermissionReq() }
-        assertNotNull(intermission, "Should have IntermissionReq after lethal damage")
+        // Verify IntermissionReq was sent with correct fields
+        val intermission = checkNotNull(harness.allMessages.firstOrNull { it.hasIntermissionReq() }) {
+            "Should have IntermissionReq after lethal damage"
+        }
+        val req = intermission.intermissionReq
+        assertEquals(req.result.reason, ResultReason.Game_ae0a, "ResultSpec reason should be Game_ae0a for lethal damage")
+
+        // IntermissionReq should have options + intermissionPrompt
+        assertTrue(req.optionsCount >= 2, "IntermissionReq should have 2+ options")
+        assertTrue(req.hasIntermissionPrompt(), "IntermissionReq should have intermissionPrompt")
+        assertEquals(req.intermissionPrompt.promptId, PromptIds.MATCH_RESULT_WIN_LOSS, "intermissionPrompt promptId should be 27")
+        assertTrue(req.intermissionPrompt.parametersCount > 0, "intermissionPrompt should have WinningTeamId parameter")
+
+        // Game-over GSMs: the 3 GSMs immediately before IntermissionReq
+        // (gs3 has no gameInfo, so we can't filter by stage=GameOver)
+        val allMsgs = harness.allMessages
+        val intermissionIdx = allMsgs.indexOfFirst { it.hasIntermissionReq() }
+        assertTrue(intermissionIdx >= 3, "Should have 3+ GSMs before IntermissionReq")
+        val gameOverGsms = allMsgs.subList(intermissionIdx - 3, intermissionIdx)
+            .filter { it.hasGameStateMessage() }
+            .map { it.gameStateMessage }
+        assertEquals(gameOverGsms.size, 3, "Should have exactly 3 game-over GSMs")
+
+        // First game-over GSM should have LossOfGame annotation
+        val lossAnnotation = gameOverGsms[0].annotationsList
+            .firstOrNull { it.typeList.contains(AnnotationType.LossOfGame_af5a) }
+        assertNotNull(lossAnnotation, "First game-over GSM should have LossOfGame annotation")
+
+        // prevGameStateId chain
+        assertEquals(gameOverGsms[1].prevGameStateId, gameOverGsms[0].gameStateId, "gs2.prev should be gs1")
+        assertEquals(gameOverGsms[2].prevGameStateId, gameOverGsms[1].gameStateId, "gs3.prev should be gs2")
     }
 }

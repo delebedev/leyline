@@ -237,6 +237,18 @@ object AnnotationBuilder {
             .addDetails(int32Detail("delta", lifeDelta))
             .build()
 
+    /**
+     * Player lost the game. Arena annotation type 2 (LossOfGame_af5a).
+     * [affectedPlayerSeatId] = seat of the losing player.
+     * [reason] = 0 (LifeTotal), 3 (Concede).
+     */
+    fun lossOfGame(affectedPlayerSeatId: Int, reason: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.LossOfGame_af5a)
+            .addAffectedIds(affectedPlayerSeatId)
+            .addDetails(int32Detail("reason", reason))
+            .build()
+
     /** Generic combat result marker. Client uses this to finalize combat animations. */
     fun syntheticEvent(): AnnotationInfo =
         AnnotationInfo.newBuilder()

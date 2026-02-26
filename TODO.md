@@ -29,6 +29,10 @@ Candidates:
 
 Use `import` to keep `just <target>` working from the nexus dir.
 
+## Client error watcher is too narrow
+
+`/api/client-errors` only catches patterns the watcher knows about. Client-side crashes (`NullReferenceException`, `ArgumentOutOfRangeException`, Unity stack traces) are invisible — have to manually grep `Player.log`. See [#179](https://github.com/delebedev/forge/issues/179).
+
 ## Pre-validate test decks somehow
 
 Cards that resolved to grpId=0 (no client card data):

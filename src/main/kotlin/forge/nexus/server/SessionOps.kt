@@ -22,7 +22,7 @@ interface SessionOps {
     fun sendBundledGRE(messages: List<GREToClientMessage>)
     fun sendRealGameState(bridge: GameBridge)
     fun sendBundle(result: BundleBuilder.BundleResult)
-    fun sendGameOver()
+    fun sendGameOver(reason: ResultReason = ResultReason.Game_ae0a)
     fun traceEvent(type: GameStateCollector.EventType, game: Game, detail: String)
     fun paceDelay(multiplier: Int)
 

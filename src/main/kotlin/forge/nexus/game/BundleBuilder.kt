@@ -210,7 +210,6 @@ object BundleBuilder {
     fun buildActions(game: Game, seatId: Int, bridge: GameBridge): ActionsAvailableReq =
         ActionMapper.buildActions(game, seatId, bridge)
 
-
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
     fun buildSelectNReq(
         prompt: forge.web.game.InteractivePromptBridge.PendingPrompt,
@@ -530,49 +529,98 @@ object BundleBuilder {
     /**
      * Game-over sequence: 3x GS Diff + IntermissionReq.
      * Pure proto construction — no bridge or game engine access.
+     *
+     * Pattern matches real server recordings:
+     * - gs1: GameInfo(stage=GameOver, matchState=GameComplete, 1 result scope=Game),
+     *        players with PendingLoss, teams, LossOfGame annotation (if lethal)
+     * - gs2: GameInfo(stage=GameOver, matchState=MatchComplete, 2 results Game+Match)
+     * - gs3: bare diff with pendingMessageCount=1
+     * - IntermissionReq: options, intermissionPrompt(27) with WinningTeamId param
+     *
+     * @param reason Game_ae0a for natural game end, Concede for concession
+     * @param losingPlayerSeatId seat of the losing player (for LossOfGame annotation)
+     * @param lossReason 0=LifeTotal, 3=Concede (maps to Arena's LossOfGame detail)
      */
     fun gameOverBundle(
         winningTeam: Int,
+        matchId: String,
         seatId: Int,
         counter: MessageCounter,
+        reason: ResultReason = ResultReason.Game_ae0a,
+        losingPlayerSeatId: Int = 0,
+        lossReason: Int = 0,
+        bridge: GameBridge? = null,
     ): BundleResult {
+        val prevGsId = counter.currentGsId()
+        val losingTeam = if (winningTeam == 1) 2 else 1
+
+        // Shared GameInfo fields matching initial bundle (StateMapper.buildFromGame)
+        fun baseGameInfo() = GameInfo.newBuilder()
+            .setMatchID(matchId)
+            .setGameNumber(1)
+            .setStage(GameStage.GameOver)
+            .setType(GameType.Duel)
+            .setVariant(GameVariant.Normal)
+            .setMatchWinCondition(MatchWinCondition.SingleElimination)
+            .setSuperFormat(SuperFormat.Constructed)
+            .setMulliganType(MulliganType.London)
+            .setDeckConstraintInfo(
+                DeckConstraintInfo.newBuilder()
+                    .setMinDeckSize(60).setMaxDeckSize(250).setMaxSideboardSize(15),
+            )
+
         val gameResult = ResultSpec.newBuilder()
             .setScope(MatchScope.Game_a146)
             .setResult(ResultType.WinLoss)
             .setWinningTeamId(winningTeam)
+            .setReason(reason)
 
         val matchResult = ResultSpec.newBuilder()
             .setScope(MatchScope.Match)
             .setResult(ResultType.WinLoss)
             .setWinningTeamId(winningTeam)
+            .setReason(reason)
 
-        val gameInfo = GameInfo.newBuilder()
-            .setStage(GameStage.GameOver)
-            .setMatchState(MatchState.MatchComplete)
-            .setMulliganType(MulliganType.London)
-            .setMatchWinCondition(MatchWinCondition.SingleElimination)
+        // gs1: GameComplete with Game result only, PendingLoss players
+        val gs1Info = baseGameInfo()
+            .setMatchState(MatchState.GameComplete)
             .addResults(gameResult)
-            .addResults(matchResult)
-
-        val players = listOf(
-            PlayerInfo.newBuilder().setSystemSeatNumber(1).setStatus(PlayerStatus.Removed_a1c6).setTeamId(1),
-            PlayerInfo.newBuilder().setSystemSeatNumber(2).setStatus(PlayerStatus.Removed_a1c6).setTeamId(2),
-        )
-
         val gs1Id = counter.nextGsId()
         val gs1 = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff).setGameStateId(gs1Id)
-            .setGameInfo(gameInfo).setUpdate(GameStateUpdate.SendAndRecord)
-        players.forEach { gs1.addPlayers(it) }
+            .setPrevGameStateId(prevGsId)
+            .setGameInfo(gs1Info).setUpdate(GameStateUpdate.SendAndRecord)
+        // Teams with PendingLoss for losing team
+        gs1.addTeams(TeamInfo.newBuilder().setId(losingTeam).addPlayerIds(losingPlayerSeatId).setStatus(TeamStatus.PendingLoss_a458))
+        // Players: loser with full state (lifeTotal, maxHandSize, etc.) + PendingLoss status
+        val loserPlayer = bridge?.getPlayer(losingPlayerSeatId)
+        val loserInfo = PlayerMapper.buildPlayerInfo(loserPlayer, losingPlayerSeatId).toBuilder()
+            .setStatus(PlayerStatus.PendingLoss_a1c6)
+        gs1.addPlayers(loserInfo)
+        // Timers (recording shows inactivity timer on gs1)
+        gs1.addAllTimers(PlayerMapper.buildTimers())
+        // LossOfGame annotation
+        if (losingPlayerSeatId != 0) {
+            gs1.addAnnotations(AnnotationBuilder.lossOfGame(losingPlayerSeatId, lossReason))
+        }
 
+        // gs2: MatchComplete with both Game + Match results
+        val gs2Info = baseGameInfo()
+            .setMatchState(MatchState.MatchComplete)
+            .addResults(gameResult)
+            .addResults(matchResult)
         val gs2Id = counter.nextGsId()
         val gs2 = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff).setGameStateId(gs2Id)
-            .setGameInfo(gameInfo).setUpdate(GameStateUpdate.SendAndRecord)
+            .setPrevGameStateId(gs1Id)
+            .setGameInfo(gs2Info).setUpdate(GameStateUpdate.SendAndRecord)
 
+        // gs3: bare diff with pendingMessageCount=1 (IntermissionReq follows)
         val gs3Id = counter.nextGsId()
         val gs3 = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff).setGameStateId(gs3Id)
+            .setPrevGameStateId(gs2Id)
+            .setPendingMessageCount(1)
             .setUpdate(GameStateUpdate.SendAndRecord)
 
         val messages = mutableListOf(
@@ -588,7 +636,28 @@ object BundleBuilder {
                         ResultSpec.newBuilder()
                             .setScope(MatchScope.Match)
                             .setResult(ResultType.WinLoss)
-                            .setWinningTeamId(winningTeam),
+                            .setWinningTeamId(winningTeam)
+                            .setReason(reason),
+                    )
+                    .addOptions(
+                        UserOption.newBuilder()
+                            .setOptionPrompt(Prompt.newBuilder().setPromptId(30))
+                            .setResponseType(ClientMessageType.DrawCardResp),
+                    )
+                    .addOptions(
+                        UserOption.newBuilder()
+                            .setOptionPrompt(Prompt.newBuilder().setPromptId(29))
+                            .setResponseType(ClientMessageType.RevealHandResp),
+                    )
+                    .setIntermissionPrompt(
+                        Prompt.newBuilder()
+                            .setPromptId(PromptIds.MATCH_RESULT_WIN_LOSS)
+                            .addParameters(
+                                PromptParameter.newBuilder()
+                                    .setParameterName("WinningTeamId")
+                                    .setType(ParameterType.Number)
+                                    .setNumberValue(winningTeam),
+                            ),
                     )
                     .build()
             },

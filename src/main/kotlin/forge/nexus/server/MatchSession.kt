@@ -49,6 +49,9 @@ class MatchSession(
     var gameBridge: GameBridge? = null
         private set
 
+    /** Client player ID — set by MatchHandler after auth, used in MatchCompleted room state. */
+    var playerId: String = "forge-player-1"
+
     /** Saved client settings for echoing in SetSettingsResp. */
     var clientSettings: SettingsMessage? = null
 
@@ -286,10 +289,12 @@ class MatchSession(
         targetingHandler.onCancelAction(bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
-    /** Handle concede: remove bridge and send game-over. */
+    /** Handle concede: send game-over sequence. Bridge stays alive (same as lethal path). */
+    // TODO: clean up bridge after game-over (both concede and lethal paths leak the engine
+    // thread until server restart). Needs a delayed cleanup — immediate shutdown breaks
+    // concede because the client sends messages after game-over that need a live session.
     fun onConcede() = synchronized(sessionLock) {
-        registry.removeBridge(matchId)?.shutdown()
-        sendGameOver()
+        sendGameOver(ResultReason.Concede)
     }
 
     /** Handle SetSettingsReq: save settings, apply stops to PhaseStopProfile, echo response. */
@@ -381,18 +386,29 @@ class MatchSession(
      * waiting for CheckpointReq — the client tolerates this ordering and it
      * avoids needing cross-layer coordination between MatchHandler and MatchSession.
      */
-    override fun sendGameOver() {
+    override fun sendGameOver(reason: ResultReason) {
         val bridge = gameBridge
         val humanPlayer = bridge?.getPlayer(1)
         val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
         val winningTeam = if (humanWon) 1 else 2
+        val losingPlayerSeatId = if (humanWon) 2 else 1
+        val lossReason = if (reason == ResultReason.Concede) 3 else 0
 
-        val result = BundleBuilder.gameOverBundle(winningTeam, seatId, counter)
+        val result = BundleBuilder.gameOverBundle(
+            winningTeam,
+            matchId,
+            seatId,
+            counter,
+            reason = reason,
+            losingPlayerSeatId = losingPlayerSeatId,
+            lossReason = lossReason,
+            bridge = bridge,
+        )
         sendBundledGRE(result.messages)
-        log.info("MatchSession: sent game-over GRE sequence (winner=team{})", winningTeam)
+        log.info("MatchSession: sent game-over GRE sequence (winner=team{}, reason={})", winningTeam, reason)
 
         // Send MatchCompleted room state — triggers the client's result screen
-        val matchCompletedMsg = HandshakeMessages.matchCompleted(matchId, winningTeam)
+        val matchCompletedMsg = HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason)
         sink.sendRaw(matchCompletedMsg)
         log.info("MatchSession: sent MatchCompleted room state")
 
