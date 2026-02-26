@@ -274,6 +274,18 @@ class MatchSession(
         targetingHandler.onSelectN(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
+    /**
+     * Handle CancelActionReq — player cancelled targeting (backed out of spell cast).
+     *
+     * Submits an empty target list to the pending prompt, which causes the engine
+     * to return `TargetSelectionResult(false, false)` → spell targeting fails →
+     * engine unwinds the cast (removes from stack, returns mana).
+     */
+    fun onCancelAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+        val bridge = gameBridge ?: return
+        targetingHandler.onCancelAction(bridge) { autoPassEngine.autoPassAndAdvance(it) }
+    }
+
     /** Handle concede: remove bridge and send game-over. */
     fun onConcede() = synchronized(sessionLock) {
         registry.removeBridge(matchId)?.shutdown()

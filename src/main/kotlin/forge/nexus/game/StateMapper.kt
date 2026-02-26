@@ -660,26 +660,78 @@ object StateMapper {
 
     /**
      * Build a [SelectTargetsReq] from an [InteractivePromptBridge.PendingPrompt].
-     * Maps prompt candidate refs (entity IDs) to client instanceIds via the bridge.
+     *
+     * Maps prompt candidate refs to client instanceIds:
+     * - `kind="card"` → normal card instanceId via [GameBridge.getOrAllocInstanceId]
+     * - `kind="player"` → seatId (1 or 2) as instanceId (Arena convention:
+     *   players use their seatId as instanceId in target selection)
+     *
+     * [chooserSeatId] is the seat choosing targets — used for highlights:
+     * opponent = Hot (suggested), everything else = Cold.
+     *
+     * See `docs/plans/player-targeting.md` for protocol details from proxy recording.
      */
     fun buildSelectTargetsReq(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
+        chooserSeatId: Int = 1,
     ): SelectTargetsReq {
+        val opponentSeatId = if (chooserSeatId == 1) 2 else 1
         val builder = SelectTargetsReq.newBuilder()
         val selBuilder = TargetSelection.newBuilder()
+        selBuilder.setTargetIdx(1)
+        selBuilder.setTargetingPlayer(chooserSeatId)
+
+        // sourceId: map the spell's entity ID to its client instanceId
+        val sourceEntityId = prompt.request.sourceEntityId
+        val sourceInstanceId = if (sourceEntityId != null) {
+            bridge.getOrAllocInstanceId(sourceEntityId)
+        } else {
+            0
+        }
+        if (sourceInstanceId != 0) {
+            builder.setSourceId(sourceInstanceId)
+        }
+
         for (ref in prompt.request.candidateRefs) {
-            val instanceId = bridge.getOrAllocInstanceId(ref.entityId)
+            val instanceId: Int
+            val highlight: HighlightType
+            if (ref.kind == "player") {
+                val seatId = playerEntityIdToSeatId(ref.entityId, bridge) ?: continue
+                instanceId = seatId
+                highlight = if (seatId == opponentSeatId) HighlightType.Hot else HighlightType.Cold
+            } else {
+                instanceId = bridge.getOrAllocInstanceId(ref.entityId)
+                // Tepid = blue/cyan "legal target" glow (matches real Arena).
+                // Cold (1) = yellowish-green, Hot (3) = bright/suggested,
+                // None (0) = no glow at all (proto default, field omitted).
+                highlight = HighlightType.Tepid
+            }
             selBuilder.addTargets(
                 wotc.mtgo.gre.external.messaging.Messages.Target.newBuilder()
                     .setTargetInstanceId(instanceId)
-                    .setLegalAction(SelectAction.Select_a1ad),
+                    .setLegalAction(SelectAction.Select_a1ad)
+                    .setHighlight(highlight),
             )
         }
         selBuilder.setMinTargets(prompt.request.min)
         selBuilder.setMaxTargets(prompt.request.max)
         builder.addTargets(selBuilder)
         return builder.build()
+    }
+
+    /**
+     * Map a Forge [Player.id] to the Arena seatId (1=human, 2=AI).
+     * Returns null if the entityId doesn't match either player.
+     */
+    private fun playerEntityIdToSeatId(entityId: Int, bridge: GameBridge): Int? {
+        val p1 = bridge.getPlayer(1)
+        val p2 = bridge.getPlayer(2)
+        return when (entityId) {
+            p1?.id -> 1
+            p2?.id -> 2
+            else -> null
+        }
     }
 
     /**

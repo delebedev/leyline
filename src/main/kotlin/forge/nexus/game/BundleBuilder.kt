@@ -210,11 +210,6 @@ object BundleBuilder {
     fun buildActions(game: Game, seatId: Int, bridge: GameBridge): ActionsAvailableReq =
         ActionMapper.buildActions(game, seatId, bridge)
 
-    /** Build a [SelectTargetsReq] from a pending interactive prompt. */
-    fun buildSelectTargetsReq(
-        prompt: forge.web.game.InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
-    ): SelectTargetsReq = StateMapper.buildSelectTargetsReq(prompt, bridge)
 
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
     fun buildSelectNReq(
@@ -400,7 +395,16 @@ object BundleBuilder {
     }
 
     /**
-     * Select-targets bundle: GameState + SelectTargetsReq (prompt id=10).
+     * Select-targets bundle: GameState + SelectTargetsReq.
+     *
+     * Builds the diff **first** (which triggers instanceId reallocs for zone
+     * transfers like Hand→Stack), then builds the SelectTargetsReq so that
+     * `sourceId` and target instanceIds reflect the post-realloc state.
+     * Without this ordering, `sourceId` would reference a retired instanceId
+     * and the client wouldn't draw the targeting arrow.
+     *
+     * Sets `allowCancel=Abort` and `allowUndo=true` on the GRE wrapper
+     * (client shows Cancel button and allows undo during targeting).
      */
     fun selectTargetsBundle(
         game: Game,
@@ -408,19 +412,23 @@ object BundleBuilder {
         matchId: String,
         seatId: Int,
         counter: MessageCounter,
-        req: SelectTargetsReq,
+        prompt: forge.web.game.InteractivePromptBridge.PendingPrompt,
     ): BundleResult {
         val nextGs = counter.nextGsId()
 
-        // Interactive prompts use Send updateType (not SendAndRecord/SendHiFi)
+        // Build diff first — triggers instanceId reallocs for zone transfers
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId)
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
 
+        // Build SelectTargetsReq AFTER diff so sourceId uses post-realloc instanceIds
+        val req = StateMapper.buildSelectTargetsReq(prompt, bridge, seatId)
         val msg2 = makeGRE(GREMessageType.SelectTargetsReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.selectTargetsReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DISTRIBUTE_DAMAGE).build())
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
+            it.allowCancel = AllowCancel.Abort
+            it.allowUndo = true
         }
 
         return BundleResult(listOf(msg1, msg2))

@@ -21,6 +21,10 @@ class TargetingHandler(private val ops: SessionOps) {
 
     /**
      * Handle SelectTargetsResp: map client instanceIds back to prompt option indices and submit.
+     *
+     * Player targets use seatId (1/2) as instanceId — these won't be in the card
+     * instanceId registry, so we check for player refs first.
+     * See `docs/plans/player-targeting.md`.
      */
     fun onSelectTargets(
         greMsg: ClientToGREMessage,
@@ -35,8 +39,13 @@ class TargetingHandler(private val ops: SessionOps) {
 
         val selectedTarget = resp.target
         val selectedIndices = selectedTarget.targetsList.mapNotNull { target ->
-            val forgeCardId = bridge.getForgeCardId(target.targetInstanceId)
-            if (forgeCardId == null) return@mapNotNull null
+            val instanceId = target.targetInstanceId
+            // Player targets: instanceId == seatId (1 or 2). Match against player candidateRefs.
+            val playerIdx = resolvePlayerTarget(instanceId, bridge, pendingPrompt)
+            if (playerIdx != null) return@mapNotNull playerIdx
+
+            // Card targets: normal instanceId → forgeCardId reverse lookup
+            val forgeCardId = bridge.getForgeCardId(instanceId) ?: return@mapNotNull null
             pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId }
         }.filter { it >= 0 }
 
@@ -96,8 +105,7 @@ class TargetingHandler(private val ops: SessionOps) {
                 game,
                 "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
             )
-            val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)
-            sendSelectTargetsReq(bridge, req)
+            sendSelectTargetsReq(bridge, pendingPrompt)
             return true
         }
         val g = bridge.getGame()
@@ -132,8 +140,7 @@ class TargetingHandler(private val ops: SessionOps) {
         if (pendingPrompt.request.candidateRefs.isNotEmpty()) {
             // Targeting prompt → send SelectTargetsReq to client
             ops.traceEvent(GameStateCollector.EventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
-            val req = BundleBuilder.buildSelectTargetsReq(pendingPrompt, bridge)
-            sendSelectTargetsReq(bridge, req)
+            sendSelectTargetsReq(bridge, pendingPrompt)
             return PromptResult.SENT_TO_CLIENT
         }
         // Non-targeting prompt → auto-resolve with default
@@ -155,11 +162,59 @@ class TargetingHandler(private val ops: SessionOps) {
         return PromptResult.AUTO_RESOLVED
     }
 
-    // --- Sending helper ---
+    /**
+     * Handle CancelActionReq: player backed out of targeting (cancel spell cast).
+     *
+     * Submits an empty target list to the pending prompt. The engine interprets
+     * empty indices as "no targets chosen" → `TargetSelectionResult(false, false)`
+     * → spell targeting fails → engine unwinds the cast (removes from stack,
+     * returns mana). We then resend the game state so the client sees the
+     * board return to pre-cast state with available actions.
+     */
+    fun onCancelAction(
+        bridge: GameBridge,
+        autoPass: (GameBridge) -> Unit,
+    ) {
+        val pendingPrompt = bridge.promptBridge.getPendingPrompt()
+        if (pendingPrompt == null) {
+            log.warn("TargetingHandler: CancelActionReq but no pending prompt")
+            return
+        }
 
-    private fun sendSelectTargetsReq(bridge: GameBridge, req: SelectTargetsReq) {
+        log.info("TargetingHandler: CancelActionReq — submitting empty targets to unwind spell")
+
+        // Submit empty list → engine sees no targets → spell fails → unwind
+        bridge.promptBridge.submitResponse(pendingPrompt.promptId, emptyList())
+        bridge.awaitPriority()
+        autoPass(bridge)
+    }
+
+    // --- Helpers ---
+
+    /**
+     * Resolve a player target: if [instanceId] is a seatId (1 or 2), find the
+     * matching `kind="player"` candidateRef in the pending prompt.
+     * Returns the candidateRef index, or null if this isn't a player target.
+     */
+    private fun resolvePlayerTarget(
+        instanceId: Int,
+        bridge: GameBridge,
+        pendingPrompt: forge.web.game.InteractivePromptBridge.PendingPrompt,
+    ): Int? {
+        // Arena uses seatId as instanceId for player targets (1 or 2)
+        val player = bridge.getPlayer(instanceId) ?: return null
+        val idx = pendingPrompt.request.candidateRefs.indexOfFirst {
+            it.kind == "player" && it.entityId == player.id
+        }
+        return if (idx >= 0) idx else null
+    }
+
+    private fun sendSelectTargetsReq(
+        bridge: GameBridge,
+        pendingPrompt: forge.web.game.InteractivePromptBridge.PendingPrompt,
+    ) {
         val game = bridge.getGame() ?: return
-        val result = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, req)
+        val result = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, pendingPrompt)
         NexusTap.outboundTemplate("SelectTargetsReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
     }

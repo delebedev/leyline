@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.zone.ZoneType
 import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
+import forge.nexus.game.PuzzleSource
 import forge.nexus.game.StateMapper
 import forge.nexus.server.ListMessageSink
 import forge.nexus.server.MatchRegistry
@@ -86,6 +87,38 @@ class MatchFlowHarness(
         bridge.submitKeep(seatId)
 
         session.onMulliganKeep()
+        drainSink()
+    }
+
+    /** Start puzzle game, advance to first action phase via MatchSession. */
+    fun connectAndKeepPuzzle(resourcePath: String) {
+        GameBootstrap.initializeCardDatabase(quiet = true)
+        TestCardRegistry.ensureRegistered()
+
+        session = MatchSession(
+            seatId = seatId,
+            matchId = matchId,
+            sink = effectiveSink,
+            registry = registry,
+            paceDelayMs = 0,
+        )
+
+        bridge = GameBridge(bridgeTimeoutMs = 5_000L, messageCounter = session.counter)
+        bridge.priorityWaitMs = 2_000L
+        val puzzle = PuzzleSource.loadFromResource(resourcePath)
+        bridge.startPuzzle(puzzle)
+
+        session.connectBridge(bridge)
+        registry.registerSession(matchId, seatId, session)
+
+        val game = bridge.getGame()
+        if (game != null) {
+            val fullGsm = StateMapper.buildFromGame(game, 0, matchId, bridge, viewingSeatId = seatId)
+            accumulator.seedFull(fullGsm)
+            validatingSink?.seedFull(fullGsm)
+        }
+
+        session.onPuzzleStart()
         drainSink()
     }
 
@@ -244,6 +277,12 @@ class MatchFlowHarness(
     /** Select targets by instanceId for a pending SelectTargetsReq. */
     fun selectTargets(targetInstanceIds: List<Int>) {
         session.onSelectTargets(selectTargetsResp(targets = targetInstanceIds))
+        drainSink()
+    }
+
+    /** Cancel a pending targeting action (backs out of spell cast). */
+    fun cancelAction() {
+        session.onCancelAction(cancelActionReq())
         drainSink()
     }
 

@@ -279,18 +279,37 @@ targeting:
     status: wired
     notes: >
       SelectTargetsReq sent for targeted spells. Single and multi-target.
-      Fixed 2026-02-21 (was hanging). 6 tests in TargetingFlowTest.
-      Needs client QA.
+      Fixed 2026-02-21 (creature targeting), 2026-02-25 (player targeting).
+      12 tests in TargetingFlowTest (creature + player + cancel flows).
+
+  player-targeting:
+    status: wired
+    notes: >
+      Players use seatId (1/2) as instanceId in SelectTargetsReq target list.
+      Opponent=Hot highlight, self/creatures=Cold. sourceId set to spell's
+      post-realloc stack instanceId (client draws targeting arrow from source).
+      allowCancel=Abort, allowUndo=true on GRE wrapper.
+      Verified with bolt-face.pzl puzzle (bolt opponent at 3 life → game over).
+
+  cancel-targeting:
+    status: wired
+    notes: >
+      CancelActionReq (type 5) dispatched in MatchHandler → TargetingHandler.
+      Submits empty target list → engine returns TargetSelectionResult(false,false)
+      → spell unwinds (removed from stack, mana returned). Client returns to
+      action selection. Tested in TargetingFlowTest (cancel + cancel-recast).
 
   ability-targeting:
     status: wired
     notes: "Same SelectTargetsReq path for activated abilities."
 
   targeting-arrows:
-    status: missing
+    status: partial
     notes: >
+      sourceId field set on SelectTargetsReq (post-realloc instanceId) —
+      client uses this to draw targeting arc from spell to cursor/target.
       PlayerSelectingTargets/PlayerSubmittedTargets annotations (92/93)
-      not implemented. Client doesn't show targeting arrow feedback.
+      not implemented — these are optional persistent arrow annotations.
 
   damage-assignment:
     status: missing
