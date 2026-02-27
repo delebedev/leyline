@@ -8,6 +8,9 @@ import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
 import forge.nexus.game.PuzzleSource
 import forge.nexus.game.StateMapper
+import forge.nexus.server.ListMessageSink
+import forge.nexus.server.MatchRegistry
+import forge.nexus.server.MatchSession
 import forge.web.game.GameBootstrap
 import forge.web.game.PlayerAction
 import org.testng.Assert.*
@@ -205,6 +208,83 @@ class PuzzleBridgeTest {
         assertTrue(
             actionTypes.any { it == "Cast" },
             "Should be able to Cast Lightning Bolt, got: $actionTypes",
+        )
+    }
+
+    // --- Puzzle race bug (seat 2 auto-passes seat 1's pending action) ---
+
+    /**
+     * Regression test: when both seats connect in puzzle mode (Sparky path),
+     * seat 2's [MatchSession.onPuzzleStart] must NOT consume seat 1's pending
+     * priority action. Before the fix, seat 2's [AutoPassEngine] saw
+     * isAiTurn=true (the turn owner is seat 1's player, not seat 2's) and
+     * auto-passed the human's pending action, advancing the engine past Main1
+     * into Combat.
+     *
+     * See BUGS.md "Sparky/AI bot path starts in Combat instead of Main1".
+     */
+    @Test(groups = ["integration"])
+    fun seat2OnPuzzleStartDoesNotAdvancePastMain1() {
+        val puzzle = PuzzleSource.loadFromResource("puzzles/lands-only.pzl")
+        val registry = MatchRegistry()
+        val matchId = "test-puzzle-race"
+
+        // Create shared bridge — startPuzzle blocks until Main1 priority
+        val b = GameBridge(bridgeTimeoutMs = 5_000)
+        bridge = b
+        b.priorityWaitMs = 5_000
+        b.startPuzzle(puzzle)
+        assertEquals(b.getGame()!!.phaseHandler.phase, PhaseType.MAIN1)
+
+        // Seat 1 (human): connect and run onPuzzleStart — normal path
+        val sink1 = ListMessageSink()
+        val session1 = MatchSession(
+            seatId = 1,
+            matchId = matchId,
+            sink = sink1,
+            registry = registry,
+            paceDelayMs = 0,
+        )
+        session1.connectBridge(b)
+        registry.registerSession(matchId, 1, session1)
+        session1.onPuzzleStart()
+        assertEquals(
+            b.getGame()!!.phaseHandler.phase,
+            PhaseType.MAIN1,
+            "Phase should be Main1 after seat 1 onPuzzleStart",
+        )
+
+        val turnBefore = b.getGame()!!.phaseHandler.turn
+
+        // Seat 2 (Familiar): connect and run onPuzzleStart — this is the race
+        val sink2 = ListMessageSink()
+        val session2 = MatchSession(
+            seatId = 2,
+            matchId = matchId,
+            sink = sink2,
+            registry = registry,
+            paceDelayMs = 0,
+        )
+        session2.connectBridge(b)
+        registry.registerSession(matchId, 2, session2)
+        session2.onPuzzleStart()
+
+        // Turn must not have advanced — seat 2 must not consume seat 1's actions
+        assertEquals(
+            b.getGame()!!.phaseHandler.turn,
+            turnBefore,
+            "Turn should not advance after seat 2 onPuzzleStart (race bug)",
+        )
+        // Phase must still be Main1
+        assertEquals(
+            b.getGame()!!.phaseHandler.phase,
+            PhaseType.MAIN1,
+            "Phase should still be Main1 after seat 2 onPuzzleStart (race bug)",
+        )
+        // Seat 1's pending action must still be available
+        assertNotNull(
+            b.actionBridge.getPending(),
+            "Seat 1 should still have pending actions after seat 2 puzzle start",
         )
     }
 
