@@ -131,6 +131,17 @@ class MatchSession(
      */
     fun onPuzzleStart() = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
+
+        // Only seat 1 (human player) drives the auto-pass game loop.
+        // Familiar (seat 2) is a spectator — it receives mirrored messages
+        // from seat 1 and must not enter the auto-pass loop. Doing so would
+        // consume seat 1's pending priority action via the shared ActionBridge,
+        // advancing the engine past Main1 into later phases/turns.
+        if (seatId != 1) {
+            log.info("MatchSession: skipping puzzle auto-pass for spectator seat {}", seatId)
+            return
+        }
+
         log.info("MatchSession: puzzle start, seeding snapshot and entering game loop")
 
         val game = bridge.getGame() ?: return
