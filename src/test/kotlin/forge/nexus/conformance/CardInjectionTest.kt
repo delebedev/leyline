@@ -26,10 +26,8 @@ class CardInjectionTest : ConformanceTestBase() {
         val injected = TestCardInjector.inject(b, 1, "Serra Angel", ZoneType.Battlefield, sick = false)
 
         val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1)
-        val obj = gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }
-
-        assertNotNull(obj, "Injected card should appear in gameObjectsList")
-        assertEquals(obj!!.grpId, injected.grpId, "grpId should match injected")
+        val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected card should appear in gameObjectsList" }
+        assertEquals(obj.grpId, injected.grpId, "grpId should match injected")
         assertTrue(obj.cardTypesList.contains(CardType.Creature), "Serra Angel should be a Creature")
         assertTrue(obj.hasPower(), "Serra Angel should have power")
         assertEquals(obj.power.value, 4, "Serra Angel power should be 4")
@@ -52,15 +50,12 @@ class CardInjectionTest : ConformanceTestBase() {
         val injected = TestCardInjector.inject(b, 1, "Lightning Bolt", ZoneType.Hand)
 
         val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1)
-        val obj = gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }
+        val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected card should appear in gameObjectsList" }
+        assertTrue(obj.cardTypesList.contains(CardType.Instant), "Lightning Bolt should be an Instant")
 
-        assertNotNull(obj, "Injected card should appear in gameObjectsList")
-        assertTrue(obj!!.cardTypesList.contains(CardType.Instant), "Lightning Bolt should be an Instant")
-
-        val handZone = gsm.zonesList.firstOrNull { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand && it.ownerSeatId == 1 }
-        assertNotNull(handZone, "Hand zone should exist for seat 1")
+        val handZone = checkNotNull(gsm.zonesList.firstOrNull { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand && it.ownerSeatId == 1 }) { "Hand zone should exist for seat 1" }
         assertTrue(
-            handZone!!.objectInstanceIdsList.contains(injected.instanceId),
+            handZone.objectInstanceIdsList.contains(injected.instanceId),
             "Hand zone should contain injected instanceId",
         )
     }
@@ -93,9 +88,7 @@ class CardInjectionTest : ConformanceTestBase() {
         val injected = TestCardInjector.inject(b, 1, "Plains", ZoneType.Battlefield, tapped = true)
 
         val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1)
-        val obj = gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }
-
-        assertNotNull(obj, "Injected land should appear in gameObjectsList")
-        assertTrue(obj!!.cardTypesList.contains(CardType.Land_a80b), "Plains should be a Land")
+        val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected land should appear in gameObjectsList" }
+        assertTrue(obj.cardTypesList.contains(CardType.Land_a80b), "Plains should be a Land")
     }
 }

@@ -3,7 +3,6 @@ package forge.nexus.conformance
 import forge.game.ability.AbilityKey
 import forge.game.zone.ZoneType
 import org.testng.Assert.assertEquals
-import org.testng.Assert.assertNotNull
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 
@@ -33,9 +32,8 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = gsm.findZoneTransfer(newId)
-        assertNotNull(zt, "Should have ZoneTransfer annotation for discarded card")
-        assertEquals(zt!!.category, "Discard", "Spell-forced Hand→GY should produce Discard category")
+        val zt = checkNotNull(gsm.findZoneTransfer(newId)) { "Should have ZoneTransfer annotation for discarded card" }
+        assertEquals(zt.category, "Discard", "Spell-forced Hand→GY should produce Discard category")
         assertTrue(
             human.getZone(ZoneType.Graveyard).cards.any { it.id == forgeCardId },
             "Discarded card should be in graveyard",
@@ -59,13 +57,11 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
             human.discard(card2, null, false, AbilityKey.newMap())
         }
 
-        val zt1 = gsm.findZoneTransfer(b.getOrAllocInstanceId(card1.id))
-        assertNotNull(zt1, "Should have ZoneTransfer for first discarded card")
-        assertEquals(zt1!!.category, "Discard", "First card should be Discard")
+        val zt1 = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(card1.id))) { "Should have ZoneTransfer for first discarded card" }
+        assertEquals(zt1.category, "Discard", "First card should be Discard")
 
-        val zt2 = gsm.findZoneTransfer(b.getOrAllocInstanceId(card2.id))
-        assertNotNull(zt2, "Should have ZoneTransfer for second discarded card")
-        assertEquals(zt2!!.category, "Discard", "Second card should be Discard")
+        val zt2 = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(card2.id))) { "Should have ZoneTransfer for second discarded card" }
+        assertEquals(zt2.category, "Discard", "Second card should be Discard")
     }
 
     /** SpellResolved firing in same batch doesn't contaminate discard category. */
@@ -89,9 +85,7 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(discardForgeId)
 
-        val zt = gsm.findZoneTransfer(newId)
-        assertNotNull(zt, "Should have ZoneTransfer for discarded card")
-        assertEquals(zt!!.category, "Discard", "Discarded card should have Discard category (not Resolve)")
+        val zt = checkNotNull(gsm.findZoneTransfer(newId)) { "Should have ZoneTransfer for discarded card" }
+        assertEquals(zt.category, "Discard", "Discarded card should have Discard category (not Resolve)")
     }
-
 }

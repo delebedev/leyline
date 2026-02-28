@@ -3,7 +3,6 @@ package forge.nexus.conformance
 import forge.game.ability.AbilityKey
 import forge.game.zone.ZoneType
 import org.testng.Assert.assertEquals
-import org.testng.Assert.assertNotNull
 import org.testng.annotations.Test
 
 /**
@@ -28,9 +27,8 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
             game.action.moveToHand(creature, null)
         }
 
-        val zt = gsm.findZoneTransfer(b.getOrAllocInstanceId(forgeCardId))
-        assertNotNull(zt, "Should have ZoneTransfer annotation for bounced creature")
-        assertEquals(zt!!.category, "Bounce", "BF→Hand should produce Bounce category")
+        val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(forgeCardId))) { "Should have ZoneTransfer annotation for bounced creature" }
+        assertEquals(zt.category, "Bounce", "BF→Hand should produce Bounce category")
     }
 
     /** Destroy: BF→GY produces "Destroy" category. */
@@ -46,9 +44,8 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
             game.action.destroy(creature, null, false, AbilityKey.newMap())
         }
 
-        val zt = gsm.findZoneTransfer(b.getOrAllocInstanceId(forgeCardId))
-        assertNotNull(zt, "Should have ZoneTransfer annotation for destroyed creature")
-        assertEquals(zt!!.category, "Destroy", "BF→GY via destroy should produce Destroy category")
+        val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(forgeCardId))) { "Should have ZoneTransfer annotation for destroyed creature" }
+        assertEquals(zt.category, "Destroy", "BF→GY via destroy should produce Destroy category")
     }
 
     /** Exile: BF→Exile produces "Exile" category. */
@@ -64,9 +61,8 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
             game.action.exile(creature, null, AbilityKey.newMap())
         }
 
-        val zt = gsm.findZoneTransfer(b.getOrAllocInstanceId(forgeCardId))
-        assertNotNull(zt, "Should have ZoneTransfer annotation for exiled creature")
-        assertEquals(zt!!.category, "Exile", "BF→Exile should produce Exile category")
+        val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(forgeCardId))) { "Should have ZoneTransfer annotation for exiled creature" }
+        assertEquals(zt.category, "Exile", "BF→Exile should produce Exile category")
     }
 
     /**
@@ -91,9 +87,7 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
             game.action.exile(creature, null, AbilityKey.newMap())
         }
 
-        val zt = gsm.findZoneTransfer(b.getOrAllocInstanceId(creatureForgeId))
-        assertNotNull(zt, "Should have ZoneTransfer for exiled creature")
-        assertEquals(zt!!.category, "Exile", "Target should have Exile category, not Resolve")
+        val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(creatureForgeId))) { "Should have ZoneTransfer for exiled creature" }
+        assertEquals(zt.category, "Exile", "Target should have Exile category, not Resolve")
     }
-
 }
