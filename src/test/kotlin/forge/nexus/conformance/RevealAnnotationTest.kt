@@ -1,9 +1,7 @@
 package forge.nexus.conformance
 
 import forge.game.zone.ZoneType
-import forge.nexus.game.BundleBuilder
-import forge.nexus.game.snapshotFromGame
-import org.testng.Assert.assertNotNull
+import org.testng.Assert.assertNull
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -25,69 +23,39 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 @Test(groups = ["conformance"])
 class RevealAnnotationTest : ConformanceTestBase() {
 
-    /**
-     * Simulates a card reveal by pushing forge card IDs through the prompt
-     * bridge's reveal queue, then verifies RevealedCardCreated annotations
-     * appear in the GSM.
-     */
     @Test
     fun revealProducesRevealedCardCreatedAnnotation() {
-        val (b, game, counter) = startWithBoard { g, human, _ ->
+        val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Lightning Bolt", human, ZoneType.Hand)
         }
-        val human = game.humanPlayer
-        val handCard = human.getZone(ZoneType.Hand).cards.first()
+        val handCard = game.humanPlayer.firstCardIn(ZoneType.Hand)
 
-        b.snapshotFromGame(game, counter.currentGsId())
-
-        b.promptBridge.recordReveal(listOf(handCard.id), 1)
-
-        val result = BundleBuilder.stateOnlyDiff(
-            game,
-            b,
-            TEST_MATCH_ID,
-            SEAT_ID,
-            counter,
-        )
-        val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+        val gsm = captureAfterAction(b, game, counter) {
+            b.promptBridge.recordReveal(listOf(handCard.id), 1)
+        }
 
         val instanceId = b.getOrAllocInstanceId(handCard.id)
-        val revealAnn = gsm.annotationsList.firstOrNull {
-            AnnotationType.RevealedCardCreated in it.typeList
+        val revealAnn = checkNotNull(gsm.annotationOrNull(AnnotationType.RevealedCardCreated)) {
+            "Should have RevealedCardCreated annotation"
         }
-        assertNotNull(revealAnn, "Should have RevealedCardCreated annotation")
         assertTrue(
-            instanceId in revealAnn!!.affectedIdsList,
+            instanceId in revealAnn.affectedIdsList,
             "RevealedCardCreated should reference the revealed card's instanceId ($instanceId)",
         )
     }
 
-    /**
-     * Multiple cards revealed in one batch produce one annotation each.
-     */
     @Test
     fun multiCardRevealProducesMultipleAnnotations() {
-        val (b, game, counter) = startWithBoard { g, human, _ ->
+        val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Lightning Bolt", human, ZoneType.Hand)
             addCard("Giant Growth", human, ZoneType.Hand)
             addCard("Grizzly Bears", human, ZoneType.Hand)
         }
-        val human = game.humanPlayer
-        val handCards = human.getZone(ZoneType.Hand).cards.toList()
-        assertTrue(handCards.size >= 2, "Need at least 2 cards to test multi-reveal")
+        val handCards = game.humanPlayer.getZone(ZoneType.Hand).cards.toList()
 
-        b.snapshotFromGame(game, counter.currentGsId())
-
-        b.promptBridge.recordReveal(handCards.map { it.id }, 1)
-
-        val result = BundleBuilder.stateOnlyDiff(
-            game,
-            b,
-            TEST_MATCH_ID,
-            SEAT_ID,
-            counter,
-        )
-        val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+        val gsm = captureAfterAction(b, game, counter) {
+            b.promptBridge.recordReveal(handCards.map { it.id }, 1)
+        }
 
         val revealAnns = gsm.annotationsList.filter {
             AnnotationType.RevealedCardCreated in it.typeList
@@ -98,31 +66,16 @@ class RevealAnnotationTest : ConformanceTestBase() {
         )
     }
 
-    /**
-     * No reveal recorded → no RevealedCardCreated annotation.
-     */
     @Test
     fun noRevealProducesNoAnnotation() {
-        val (b, game, counter) = startWithBoard { g, human, _ ->
+        val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Forest", human, ZoneType.Hand)
         }
 
-        b.snapshotFromGame(game, counter.currentGsId())
+        val gsm = captureAfterAction(b, game, counter) { /* no reveal */ }
 
-        val result = BundleBuilder.stateOnlyDiff(
-            game,
-            b,
-            TEST_MATCH_ID,
-            SEAT_ID,
-            counter,
-        )
-        val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
-
-        val revealAnn = gsm.annotationsList.firstOrNull {
-            AnnotationType.RevealedCardCreated in it.typeList
-        }
-        assertTrue(
-            revealAnn == null,
+        assertNull(
+            gsm.annotationOrNull(AnnotationType.RevealedCardCreated),
             "Should NOT have RevealedCardCreated when nothing was revealed",
         )
     }

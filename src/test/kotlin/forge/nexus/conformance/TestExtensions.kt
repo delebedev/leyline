@@ -153,6 +153,34 @@ fun assertGsIdChain(
     )
 }
 
+// ----- Tier 1: Annotation lookup by type + affected instanceId -----
+
+/** Find annotation by type that affects a specific instanceId. */
+fun GameStateMessage.annotationAffecting(
+    type: AnnotationType,
+    instanceId: Int,
+): AnnotationInfo? =
+    annotationsList.firstOrNull {
+        type in it.typeList && instanceId in it.affectedIdsList
+    }
+
+/** ZoneTransfer details extracted from annotation. */
+data class ZoneTransferInfo(
+    val category: String,
+    val zoneSrc: Int = -1,
+    val zoneDest: Int = -1,
+)
+
+/** Find the ZoneTransfer annotation for a given instanceId. */
+fun GameStateMessage.findZoneTransfer(instanceId: Int): ZoneTransferInfo? {
+    val ann = annotationAffecting(AnnotationType.ZoneTransfer_af5a, instanceId) ?: return null
+    return ZoneTransferInfo(
+        category = ann.detailsList.firstOrNull { it.key == "category" }?.getValueString(0) ?: "",
+        zoneSrc = ann.detailsList.firstOrNull { it.key == "zone_src" }?.getValueInt32(0) ?: -1,
+        zoneDest = ann.detailsList.firstOrNull { it.key == "zone_dest" }?.getValueInt32(0) ?: -1,
+    )
+}
+
 // ----- Tier 2: Limbo assertions -----
 
 /** Assert that the GSM's Limbo zone contains the given instanceId in objectInstanceIds. */

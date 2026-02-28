@@ -1,17 +1,10 @@
 package forge.nexus.conformance
 
-import forge.game.Game
 import forge.game.zone.ZoneType
-import forge.nexus.game.BundleBuilder
-import forge.nexus.game.GameBridge
-import forge.nexus.game.MessageCounter
-import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotNull
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
  * SBA (state-based action) death conformance: creatures dying to zero
@@ -39,12 +32,12 @@ class SbaDeathTest : ConformanceTestBase() {
         val forgeCardId = creature.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
-        val gsm = captureAfterSba(b, game, counter) {
+        val gsm = captureAfterAction(b, game, counter, checkSba = true) {
             creature.baseToughness = 0
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId) ?: findZoneTransfer(gsm, origId)
+        val zt = gsm.findZoneTransfer(newId) ?: gsm.findZoneTransfer(origId)
         assertNotNull(zt, "Should have ZoneTransfer for SBA zero-toughness death")
         assertEquals(zt!!.category, "Destroy", "SBA zero-toughness BF→GY should produce Destroy category")
 
@@ -65,12 +58,12 @@ class SbaDeathTest : ConformanceTestBase() {
         val forgeCardId = creature.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
-        val gsm = captureAfterSba(b, game, counter) {
+        val gsm = captureAfterAction(b, game, counter, checkSba = true) {
             creature.damage = creature.netToughness
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId) ?: findZoneTransfer(gsm, origId)
+        val zt = gsm.findZoneTransfer(newId) ?: gsm.findZoneTransfer(origId)
         assertNotNull(zt, "Should have ZoneTransfer for SBA lethal damage death")
         assertEquals(zt!!.category, "Destroy", "SBA lethal-damage BF→GY should produce Destroy category")
     }
@@ -86,53 +79,15 @@ class SbaDeathTest : ConformanceTestBase() {
         val forgeCardId = creature.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
-        val gsm = captureAfterSba(b, game, counter) {
+        val gsm = captureAfterAction(b, game, counter, checkSba = true) {
             creature.damage = 1
             creature.setHasBeenDealtDeathtouchDamage(true)
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId) ?: findZoneTransfer(gsm, origId)
+        val zt = gsm.findZoneTransfer(newId) ?: gsm.findZoneTransfer(origId)
         assertNotNull(zt, "Should have ZoneTransfer for SBA deathtouch death")
         assertEquals(zt!!.category, "Destroy", "SBA deathtouch BF→GY should produce Destroy category")
     }
 
-    // -----------------------------------------------------------------------
-    // Helpers
-    // -----------------------------------------------------------------------
-
-    /**
-     * Set up board state via [setup], run SBA check, capture diff.
-     * Uses checkStateEffects(true) to trigger state-based actions.
-     */
-    private fun captureAfterSba(
-        b: GameBridge,
-        game: Game,
-        counter: MessageCounter,
-        setup: () -> Unit,
-    ): GameStateMessage {
-        b.snapshotFromGame(game, counter.currentGsId())
-        setup()
-        game.action.checkStateEffects(true)
-        val result = BundleBuilder.stateOnlyDiff(
-            game,
-            b,
-            TEST_MATCH_ID,
-            SEAT_ID,
-            counter,
-        )
-        return result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
-    }
-
-    private fun findZoneTransfer(gsm: GameStateMessage, instanceId: Int): ZoneTransferInfo? {
-        val ann = gsm.annotationsList.firstOrNull {
-            AnnotationType.ZoneTransfer_af5a in it.typeList &&
-                instanceId in it.affectedIdsList
-        } ?: return null
-        return ZoneTransferInfo(
-            category = ann.detailsList.firstOrNull { it.key == "category" }?.getValueString(0) ?: "",
-        )
-    }
-
-    data class ZoneTransferInfo(val category: String)
 }

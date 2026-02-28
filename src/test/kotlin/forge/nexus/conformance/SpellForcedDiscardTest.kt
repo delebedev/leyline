@@ -2,14 +2,10 @@ package forge.nexus.conformance
 
 import forge.game.ability.AbilityKey
 import forge.game.zone.ZoneType
-import forge.nexus.game.BundleBuilder
-import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotNull
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
  * Spell-forced discard conformance: simulates a spell effect causing
@@ -32,14 +28,12 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
         val cardInHand = human.getZone(ZoneType.Hand).cards.first()
         val forgeCardId = cardInHand.id
 
-        b.snapshotFromGame(game, counter.currentGsId())
-        human.discard(cardInHand, null, false, AbilityKey.newMap())
-
-        val gsm = BundleBuilder.stateOnlyDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
-            .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+        val gsm = captureAfterAction(b, game, counter) {
+            human.discard(cardInHand, null, false, AbilityKey.newMap())
+        }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer annotation for discarded card")
         assertEquals(zt!!.category, "Discard", "Spell-forced Hand→GY should produce Discard category")
         assertTrue(
@@ -60,18 +54,16 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
         val card1 = hand[0]
         val card2 = hand[1]
 
-        b.snapshotFromGame(game, counter.currentGsId())
-        human.discard(card1, null, false, AbilityKey.newMap())
-        human.discard(card2, null, false, AbilityKey.newMap())
+        val gsm = captureAfterAction(b, game, counter) {
+            human.discard(card1, null, false, AbilityKey.newMap())
+            human.discard(card2, null, false, AbilityKey.newMap())
+        }
 
-        val gsm = BundleBuilder.stateOnlyDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
-            .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
-
-        val zt1 = findZoneTransfer(gsm, b.getOrAllocInstanceId(card1.id))
+        val zt1 = gsm.findZoneTransfer(b.getOrAllocInstanceId(card1.id))
         assertNotNull(zt1, "Should have ZoneTransfer for first discarded card")
         assertEquals(zt1!!.category, "Discard", "First card should be Discard")
 
-        val zt2 = findZoneTransfer(gsm, b.getOrAllocInstanceId(card2.id))
+        val zt2 = gsm.findZoneTransfer(b.getOrAllocInstanceId(card2.id))
         assertNotNull(zt2, "Should have ZoneTransfer for second discarded card")
         assertEquals(zt2!!.category, "Discard", "Second card should be Discard")
     }
@@ -89,35 +81,17 @@ class SpellForcedDiscardTest : ConformanceTestBase() {
         val discardTarget = hand[1]
         val discardForgeId = discardTarget.id
 
-        b.snapshotFromGame(game, counter.currentGsId())
-
-        game.fireEvent(
-            forge.game.event.GameEventSpellResolved(spellCard.firstSpellAbility, false),
-        )
-        human.discard(discardTarget, null, false, AbilityKey.newMap())
-
-        val gsm = BundleBuilder.stateOnlyDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
-            .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+        val gsm = captureAfterAction(b, game, counter) {
+            game.fireEvent(
+                forge.game.event.GameEventSpellResolved(spellCard.firstSpellAbility, false),
+            )
+            human.discard(discardTarget, null, false, AbilityKey.newMap())
+        }
         val newId = b.getOrAllocInstanceId(discardForgeId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for discarded card")
         assertEquals(zt!!.category, "Discard", "Discarded card should have Discard category (not Resolve)")
     }
 
-    // -----------------------------------------------------------------------
-    // Helpers
-    // -----------------------------------------------------------------------
-
-    private fun findZoneTransfer(gsm: GameStateMessage, instanceId: Int): ZoneTransferInfo? {
-        val ann = gsm.annotationsList.firstOrNull {
-            AnnotationType.ZoneTransfer_af5a in it.typeList &&
-                instanceId in it.affectedIdsList
-        } ?: return null
-        return ZoneTransferInfo(
-            category = ann.detailsList.firstOrNull { it.key == "category" }?.getValueString(0) ?: "",
-        )
-    }
-
-    data class ZoneTransferInfo(val category: String)
 }

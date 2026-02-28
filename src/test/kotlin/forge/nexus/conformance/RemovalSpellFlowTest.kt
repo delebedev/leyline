@@ -2,13 +2,9 @@ package forge.nexus.conformance
 
 import forge.game.ability.AbilityKey
 import forge.game.zone.ZoneType
-import forge.nexus.game.BundleBuilder
-import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotNull
 import org.testng.annotations.Test
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
  * Removal spell flow conformance: simulates removal effects resolving
@@ -28,13 +24,11 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
         val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val forgeCardId = creature.id
 
-        b.snapshotFromGame(game, counter.currentGsId())
-        game.action.moveToHand(creature, null)
+        val gsm = captureAfterAction(b, game, counter) {
+            game.action.moveToHand(creature, null)
+        }
 
-        val gsm = BundleBuilder.stateOnlyDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
-            .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
-
-        val zt = findZoneTransfer(gsm, b.getOrAllocInstanceId(forgeCardId))
+        val zt = gsm.findZoneTransfer(b.getOrAllocInstanceId(forgeCardId))
         assertNotNull(zt, "Should have ZoneTransfer annotation for bounced creature")
         assertEquals(zt!!.category, "Bounce", "BF→Hand should produce Bounce category")
     }
@@ -48,13 +42,11 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
         val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val forgeCardId = creature.id
 
-        b.snapshotFromGame(game, counter.currentGsId())
-        game.action.destroy(creature, null, false, AbilityKey.newMap())
+        val gsm = captureAfterAction(b, game, counter) {
+            game.action.destroy(creature, null, false, AbilityKey.newMap())
+        }
 
-        val gsm = BundleBuilder.stateOnlyDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
-            .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
-
-        val zt = findZoneTransfer(gsm, b.getOrAllocInstanceId(forgeCardId))
+        val zt = gsm.findZoneTransfer(b.getOrAllocInstanceId(forgeCardId))
         assertNotNull(zt, "Should have ZoneTransfer annotation for destroyed creature")
         assertEquals(zt!!.category, "Destroy", "BF→GY via destroy should produce Destroy category")
     }
@@ -68,13 +60,11 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
         val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val forgeCardId = creature.id
 
-        b.snapshotFromGame(game, counter.currentGsId())
-        game.action.exile(creature, null, AbilityKey.newMap())
+        val gsm = captureAfterAction(b, game, counter) {
+            game.action.exile(creature, null, AbilityKey.newMap())
+        }
 
-        val gsm = BundleBuilder.stateOnlyDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
-            .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
-
-        val zt = findZoneTransfer(gsm, b.getOrAllocInstanceId(forgeCardId))
+        val zt = gsm.findZoneTransfer(b.getOrAllocInstanceId(forgeCardId))
         assertNotNull(zt, "Should have ZoneTransfer annotation for exiled creature")
         assertEquals(zt!!.category, "Exile", "BF→Exile should produce Exile category")
     }
@@ -94,34 +84,16 @@ class RemovalSpellFlowTest : ConformanceTestBase() {
         val spellCard = human.getZone(ZoneType.Hand).cards.first()
         val creatureForgeId = creature.id
 
-        b.snapshotFromGame(game, counter.currentGsId())
+        val gsm = captureAfterAction(b, game, counter) {
+            game.fireEvent(
+                forge.game.event.GameEventSpellResolved(spellCard.firstSpellAbility, false),
+            )
+            game.action.exile(creature, null, AbilityKey.newMap())
+        }
 
-        game.fireEvent(
-            forge.game.event.GameEventSpellResolved(spellCard.firstSpellAbility, false),
-        )
-        game.action.exile(creature, null, AbilityKey.newMap())
-
-        val gsm = BundleBuilder.stateOnlyDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
-            .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
-
-        val zt = findZoneTransfer(gsm, b.getOrAllocInstanceId(creatureForgeId))
+        val zt = gsm.findZoneTransfer(b.getOrAllocInstanceId(creatureForgeId))
         assertNotNull(zt, "Should have ZoneTransfer for exiled creature")
         assertEquals(zt!!.category, "Exile", "Target should have Exile category, not Resolve")
     }
 
-    // -----------------------------------------------------------------------
-    // Helpers
-    // -----------------------------------------------------------------------
-
-    private fun findZoneTransfer(gsm: GameStateMessage, instanceId: Int): ZoneTransferInfo? {
-        val ann = gsm.annotationsList.firstOrNull {
-            AnnotationType.ZoneTransfer_af5a in it.typeList &&
-                instanceId in it.affectedIdsList
-        } ?: return null
-        return ZoneTransferInfo(
-            category = ann.detailsList.firstOrNull { it.key == "category" }?.getValueString(0) ?: "",
-        )
-    }
-
-    data class ZoneTransferInfo(val category: String)
 }
