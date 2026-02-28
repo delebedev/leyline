@@ -140,10 +140,7 @@ abstract class ConformanceTestBase {
         val game = GameBootstrap.createGame()
         b.wrapGame(game)
 
-        val human = game.players.first { it.lobbyPlayer !is forge.ai.LobbyPlayerAi }
-        val ai = game.players.first { it.lobbyPlayer is forge.ai.LobbyPlayerAi }
-
-        board(game, human, ai)
+        board(game, game.humanPlayer, game.aiPlayer)
 
         // Register all cards on the board in CardDb + InstanceIdRegistry
         for (player in game.players) {
@@ -225,6 +222,14 @@ abstract class ConformanceTestBase {
         sink.seedFull(handshakeFull(game, b, gsId))
         return sink
     }
+
+    /** The human (non-AI) player. Use after any start* method. */
+    protected val Game.humanPlayer: Player
+        get() = players.first { it.lobbyPlayer !is forge.ai.LobbyPlayerAi }
+
+    /** The AI player. Use after any start* method. */
+    protected val Game.aiPlayer: Player
+        get() = players.first { it.lobbyPlayer is forge.ai.LobbyPlayerAi }
 
     companion object {
         const val TEST_MATCH_ID = "test-match"

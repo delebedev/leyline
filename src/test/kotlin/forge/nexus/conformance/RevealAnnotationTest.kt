@@ -19,8 +19,10 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *
  * Source: rosetta.md documents RevealedCardCreated = type 59,
  * RevealedCardDeleted = type 60.
+ *
+ * Uses startWithBoard{} — synchronous, no threads (~0.01s per test).
  */
-@Test(groups = ["integration", "conformance"])
+@Test(groups = ["conformance"])
 class RevealAnnotationTest : ConformanceTestBase() {
 
     /**
@@ -30,17 +32,14 @@ class RevealAnnotationTest : ConformanceTestBase() {
      */
     @Test
     fun revealProducesRevealedCardCreatedAnnotation() {
-        val (b, game, counter) = startGameAtMain1()
-
-        // Pick a card from hand to simulate being revealed
-        val player = b.getPlayer(1)!!
-        val handCard = player.getZone(ZoneType.Hand).cards.firstOrNull()
-            ?: error("No cards in hand to reveal")
+        val (b, game, counter) = startWithBoard { g, human, _ ->
+            addCard("Lightning Bolt", human, ZoneType.Hand)
+        }
+        val human = game.humanPlayer
+        val handCard = human.getZone(ZoneType.Hand).cards.first()
 
         b.snapshotFromGame(game, counter.currentGsId())
 
-        // Simulate what WebPlayerController.reveal() does: push card IDs
-        // through the prompt bridge's reveal queue
         b.promptBridge.recordReveal(listOf(handCard.id), 1)
 
         val result = BundleBuilder.stateOnlyDiff(
@@ -52,7 +51,6 @@ class RevealAnnotationTest : ConformanceTestBase() {
         )
         val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
-        // Verify transient RevealedCardCreated annotation
         val instanceId = b.getOrAllocInstanceId(handCard.id)
         val revealAnn = gsm.annotationsList.firstOrNull {
             AnnotationType.RevealedCardCreated in it.typeList
@@ -69,15 +67,17 @@ class RevealAnnotationTest : ConformanceTestBase() {
      */
     @Test
     fun multiCardRevealProducesMultipleAnnotations() {
-        val (b, game, counter) = startGameAtMain1()
-
-        val player = b.getPlayer(1)!!
-        val handCards = player.getZone(ZoneType.Hand).cards.take(3)
+        val (b, game, counter) = startWithBoard { g, human, _ ->
+            addCard("Lightning Bolt", human, ZoneType.Hand)
+            addCard("Giant Growth", human, ZoneType.Hand)
+            addCard("Grizzly Bears", human, ZoneType.Hand)
+        }
+        val human = game.humanPlayer
+        val handCards = human.getZone(ZoneType.Hand).cards.toList()
         assertTrue(handCards.size >= 2, "Need at least 2 cards to test multi-reveal")
 
         b.snapshotFromGame(game, counter.currentGsId())
 
-        // Reveal multiple cards at once
         b.promptBridge.recordReveal(handCards.map { it.id }, 1)
 
         val result = BundleBuilder.stateOnlyDiff(
@@ -103,11 +103,12 @@ class RevealAnnotationTest : ConformanceTestBase() {
      */
     @Test
     fun noRevealProducesNoAnnotation() {
-        val (b, game, counter) = startGameAtMain1()
+        val (b, game, counter) = startWithBoard { g, human, _ ->
+            addCard("Forest", human, ZoneType.Hand)
+        }
 
         b.snapshotFromGame(game, counter.currentGsId())
 
-        // Don't record any reveals
         val result = BundleBuilder.stateOnlyDiff(
             game,
             b,

@@ -1,12 +1,9 @@
 package forge.nexus.conformance
 
-import forge.game.Game
 import forge.game.ability.AbilityKey
-import forge.game.card.Card
 import forge.game.event.GameEventCardAttachment
 import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
-import forge.nexus.game.GameBridge
 import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotNull
@@ -21,8 +18,10 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  *
  * Source: RecordingDecoderTest.onDrawAuraResolve() (lines 141-168) shows
  * the expected annotation pattern from real Arena captures.
+ *
+ * Uses startWithBoard{} — synchronous, no threads (~0.01s per test).
  */
-@Test(groups = ["integration", "conformance"])
+@Test(groups = ["conformance"])
 class AttachmentAnnotationTest : ConformanceTestBase() {
 
     /**
@@ -32,13 +31,13 @@ class AttachmentAnnotationTest : ConformanceTestBase() {
      */
     @Test
     fun attachmentProducesTransientAndPersistentAnnotations() {
-        val (b, game, counter) = startGameAtMain1()
-        val creature = ensureCreatureOnBattlefield(b, game)
-
-        // Get a second card from hand to simulate an aura/equipment
-        val player = b.getPlayer(1)!!
-        val auraCard = player.getZone(ZoneType.Hand).cards.firstOrNull()
-            ?: error("No cards in hand to simulate aura")
+        val (b, game, counter) = startWithBoard { g, human, _ ->
+            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            addCard("Holy Strength", human, ZoneType.Hand)
+        }
+        val human = game.humanPlayer
+        val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+        val auraCard = human.getZone(ZoneType.Hand).cards.first()
 
         // Move aura to battlefield (simulating resolve)
         game.action.moveToPlay(auraCard, null, AbilityKey.newMap())
@@ -96,12 +95,13 @@ class AttachmentAnnotationTest : ConformanceTestBase() {
      */
     @Test
     fun detachDoesNotProduceAttachmentCreated() {
-        val (b, game, counter) = startGameAtMain1()
-        val creature = ensureCreatureOnBattlefield(b, game)
-
-        val player = b.getPlayer(1)!!
-        val auraCard = player.getZone(ZoneType.Hand).cards.firstOrNull()
-            ?: error("No cards in hand to simulate aura")
+        val (b, game, counter) = startWithBoard { g, human, _ ->
+            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            addCard("Holy Strength", human, ZoneType.Hand)
+        }
+        val human = game.humanPlayer
+        val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+        val auraCard = human.getZone(ZoneType.Hand).cards.first()
 
         game.action.moveToPlay(auraCard, null, AbilityKey.newMap())
 
@@ -126,23 +126,5 @@ class AttachmentAnnotationTest : ConformanceTestBase() {
             attachCreated == null,
             "Detach should NOT produce AttachmentCreated annotation",
         )
-    }
-
-    // -- helpers --
-
-    private fun ensureCreatureOnBattlefield(b: GameBridge, game: Game): Card {
-        val player = b.getPlayer(1)!!
-        val bf = player.getZone(ZoneType.Battlefield)
-        bf.cards.firstOrNull { it.isCreature }?.let { return it }
-
-        playLand(b)
-        b.snapshotFromGame(game)
-        castCreature(b)
-        b.snapshotFromGame(game)
-        passPriority(b)
-        b.snapshotFromGame(game)
-
-        return bf.cards.firstOrNull { it.isCreature }
-            ?: error("Failed to get creature on battlefield")
     }
 }

@@ -37,10 +37,6 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
     // Helpers
     // -----------------------------------------------------------------------
 
-    /** Get human player from a board-based game. */
-    private fun human(game: Game): Player =
-        game.players.first { it.lobbyPlayer !is forge.ai.LobbyPlayerAi }
-
     /** Legacy helper for bridge-based tests. */
     private fun human(b: GameBridge): Player = b.getPlayer(1)!!
 
@@ -223,7 +219,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Grizzly Bears", human, ZoneType.Battlefield)
         }
-        val creature = human(game).getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val origId = b.getOrAllocInstanceId(creature.id)
         val forgeCardId = creature.id
 
@@ -251,7 +247,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Grizzly Bears", human, ZoneType.Battlefield)
         }
-        val creature = human(game).getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val origId = b.getOrAllocInstanceId(creature.id)
         val forgeCardId = creature.id
 
@@ -278,7 +274,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Grizzly Bears", human, ZoneType.Battlefield)
         }
-        val creature = human(game).getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val origId = b.getOrAllocInstanceId(creature.id)
         val forgeCardId = creature.id
 
@@ -304,7 +300,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Grizzly Bears", human, ZoneType.Battlefield)
         }
-        val creature = human(game).getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val origId = b.getOrAllocInstanceId(creature.id)
         val forgeCardId = creature.id
 
@@ -330,7 +326,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Forest", human, ZoneType.Library)
         }
-        val player = human(game)
+        val player = game.humanPlayer
         val topCard = player.getZone(ZoneType.Library).cards.first()
         val forgeCardId = topCard.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
@@ -354,7 +350,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Forest", human, ZoneType.Hand)
         }
-        val player = human(game)
+        val player = game.humanPlayer
         val cardInHand = player.getZone(ZoneType.Hand).cards.first()
         val forgeCardId = cardInHand.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
@@ -378,7 +374,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Forest", human, ZoneType.Library)
         }
-        val player = human(game)
+        val player = game.humanPlayer
         val topCard = player.getZone(ZoneType.Library).cards.first()
         val forgeCardId = topCard.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
@@ -402,7 +398,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Forest", human, ZoneType.Library)
         }
-        val player = human(game)
+        val player = game.humanPlayer
         val topCard = player.getZone(ZoneType.Library).cards.first()
         val forgeCardId = topCard.id
 
@@ -425,7 +421,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Grizzly Bears", human, ZoneType.Exile)
         }
-        val player = human(game)
+        val player = game.humanPlayer
         val exiled = player.getZone(ZoneType.Exile).cards.first { it.isCreature }
         val exileId = b.getOrAllocInstanceId(exiled.id)
 
@@ -449,7 +445,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Grizzly Bears", human, ZoneType.Graveyard)
         }
-        val player = human(game)
+        val player = game.humanPlayer
         val inGY = player.getZone(ZoneType.Graveyard).cards.first { it.isCreature }
         val gyId = b.getOrAllocInstanceId(inGY.id)
 
@@ -472,7 +468,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Grizzly Bears", human, ZoneType.Graveyard)
         }
-        val player = human(game)
+        val player = game.humanPlayer
         val inGY = player.getZone(ZoneType.Graveyard).cards.first { it.isCreature }
 
         val gsm = captureAfterAction(b, game, counter) {
@@ -493,7 +489,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Forest", human, ZoneType.Hand)
         }
-        val player = human(game)
+        val player = game.humanPlayer
         val cardInHand = player.getZone(ZoneType.Hand).cards.first()
         val forgeCardId = cardInHand.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
@@ -521,10 +517,10 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Grizzly Bears", human, ZoneType.Battlefield)
         }
-        val creature = human(game).getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
 
         val gsm = captureAfterAction(b, game, counter) {
-            creature.addCounterInternal(CounterEnumType.P1P1, 2, human(game), true, null, AbilityKey.newMap())
+            creature.addCounterInternal(CounterEnumType.P1P1, 2, game.humanPlayer, true, null, AbilityKey.newMap())
         }
 
         val counterAnn = gsm.annotationsList.firstOrNull {
@@ -547,15 +543,15 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, human, _ ->
             addCard("Grizzly Bears", human, ZoneType.Battlefield)
         }
-        val creature = human(game).getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
 
         // First add counters
-        creature.addCounterInternal(CounterEnumType.P1P1, 3, human(game), true, null, AbilityKey.newMap())
+        creature.addCounterInternal(CounterEnumType.P1P1, 3, game.humanPlayer, true, null, AbilityKey.newMap())
         b.snapshotFromGame(game, counter.currentGsId())
         b.drainEvents()
 
         val gsm = captureAfterAction(b, game, counter) {
-            creature.subtractCounter(CounterEnumType.P1P1, 2, human(game))
+            creature.subtractCounter(CounterEnumType.P1P1, 2, game.humanPlayer)
         }
 
         val counterAnn = gsm.annotationsList.firstOrNull {
@@ -585,7 +581,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
             addCard("Forest", human, ZoneType.Library)
             addCard("Forest", human, ZoneType.Library)
         }
-        val player = human(game)
+        val player = game.humanPlayer
 
         val gsm = captureAfterAction(b, game, counter) {
             player.shuffle(null)

@@ -34,7 +34,7 @@ class SbaDeathTest : ConformanceTestBase() {
             addCard("Grizzly Bears", human, ZoneType.Battlefield)
             addCard("Forest", human, ZoneType.Battlefield)
         }
-        val human = game.players.first { it.lobbyPlayer !is forge.ai.LobbyPlayerAi }
+        val human = game.humanPlayer
         val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val forgeCardId = creature.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
@@ -60,7 +60,7 @@ class SbaDeathTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { g, human, _ ->
             addCard("Grizzly Bears", human, ZoneType.Battlefield)
         }
-        val human = game.players.first { it.lobbyPlayer !is forge.ai.LobbyPlayerAi }
+        val human = game.humanPlayer
         val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val forgeCardId = creature.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
@@ -81,7 +81,7 @@ class SbaDeathTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { g, human, _ ->
             addCard("Grizzly Bears", human, ZoneType.Battlefield)
         }
-        val human = game.players.first { it.lobbyPlayer !is forge.ai.LobbyPlayerAi }
+        val human = game.humanPlayer
         val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val forgeCardId = creature.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
