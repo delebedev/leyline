@@ -31,6 +31,9 @@ class DiffSnapshotter(private val idRegistry: InstanceIdRegistry) {
     /** Get the zone an instanceId was last seen in. */
     fun getPreviousZone(instanceId: Int): Int? = previousZones[instanceId]
 
+    /** Read-only snapshot of all zone assignments (for debug panel). */
+    fun allZones(): Map<Int, Int> = HashMap(previousZones)
+
     /** Store a full game state snapshot for future diff computation. */
     fun snapshotState(state: GameStateMessage) {
         previousState = state

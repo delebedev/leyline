@@ -37,6 +37,18 @@ Use `import` to keep `just <target>` working from the nexus dir.
 
 `/api/client-errors` only catches patterns the watcher knows about. Client-side crashes (`NullReferenceException`, `ArgumentOutOfRangeException`, Unity stack traces) are invisible — have to manually grep `Player.log`. See [#179](https://github.com/delebedev/forge/issues/179).
 
+## ~~Remote client connection~~ ✓
+
+Done: `just remote-setup` / `just remote-hosts`. Server already binds 0.0.0.0, certs now accept `extra_san` for Tailscale IP.
+
+## Dynamic server mode switching
+
+Allow proxy/stub/serve mode to change per-match without restarting. E.g. AI matches use Forge engine, but unranked queue routes to real servers for recording. Enables capturing both game types in one server session.
+
+## ~~Debug API: per-seat zone breakdown~~ ✓
+
+Done: `/api/id-map` now includes `ownerSeatId`, `status` (active/limbo/stale), `forgeZone`, `protoZone`. Supports `?seat=`, `?active=`, `?zone=`, `?name=` filters.
+
 ## Pre-validate test decks somehow
 
 Cards that resolved to grpId=0 (no client card data):
