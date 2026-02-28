@@ -90,3 +90,7 @@ proto-decode-recording dir output="": (_require classpath) check-java
 # decode + accumulate state snapshots from a recording (no port kill)
 proto-accumulate dir output="": (_require classpath) check-java
     @{{_nexus_cli}} forge.nexus.recording.RecordingDecoderMainKt "{{dir}}" --accumulate {{output}}
+
+# annotation type variance profile across all proxy recordings (no port kill)
+proto-annotation-variance *args: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.AnnotationVarianceKt {{args}}
