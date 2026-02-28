@@ -237,7 +237,16 @@ object RecordingDecoder {
      * - Engine dump names (`001-GameStateMessage+....bin`)
      * - Door-tagged proxy captures (`*_MD_S-C_*.bin`) — excludes FD and C→S
      */
-    fun listRecordingFiles(dir: File): List<File> =
+    fun listRecordingFiles(dir: File): List<File> {
+        val files = listBinFiles(dir)
+        if (files.isNotEmpty()) return files
+        // Auto-discover capture/payloads/ subdir (proxy recording layout)
+        val payloads = File(dir, "capture/payloads")
+        if (payloads.isDirectory) return listBinFiles(payloads)
+        return emptyList()
+    }
+
+    private fun listBinFiles(dir: File): List<File> =
         dir.listFiles()
             ?.filter { f ->
                 if (!f.isFile || f.extension != "bin") return@filter false
