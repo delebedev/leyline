@@ -13,6 +13,7 @@ import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertFalse
 import org.testng.Assert.assertNotNull
+import org.testng.Assert.assertNull
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -593,8 +594,17 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
     // B3. Library shuffle
     // -----------------------------------------------------------------------
 
+    /**
+     * Shuffle annotation is intentionally suppressed in AnnotationPipeline —
+     * the client's ShuffleAnnotationParser requires OldIds/NewIds detail keys
+     * that we don't yet populate. Shuffle is cosmetic (animation only).
+     *
+     * This test verifies the event fires but no annotation is emitted.
+     * When shuffle annotation support is added (with OldIds/NewIds), flip
+     * this test to assert the annotation IS present.
+     */
     @Test
-    fun shuffleProducesAnnotation() {
+    fun shuffleEventFiresButAnnotationSuppressed() {
         val (b, game, counter) = startGameAtMain1()
         val player = human(b)
 
@@ -605,7 +615,6 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val shuffleAnn = gsm.annotationsList.firstOrNull {
             AnnotationType.Shuffle in it.typeList
         }
-        assertNotNull(shuffleAnn, "Should have Shuffle annotation")
-        assertTrue(shuffleAnn!!.affectedIdsList.contains(1), "Shuffle affectedId should be seat 1")
+        assertNull(shuffleAnn, "Shuffle annotation should be suppressed (no OldIds/NewIds detail keys yet)")
     }
 }

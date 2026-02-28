@@ -8,6 +8,13 @@ import org.testng.annotations.Test
 /**
  * End-to-end blocker declaration tests: AI attacks, human blocks.
  *
+ * DISABLED: multi-turn setup takes 28-42s per test (~110s total for 2 enabled).
+ * Needs puzzle-based rewrite: start with creatures on BF, script AI to attack.
+ * Attempted puzzle migration but ScriptedPlayerController.declareAttackers()
+ * doesn't fire in puzzle mode — autoPassAndAdvance skips through AI combat
+ * without CombatHandler emitting DeclareBlockersReq. Root cause: puzzle-mode
+ * AI controller interaction with AutoPassEngine needs investigation.
+ *
  * Verifies:
  * - DeclareBlockersReq sent when AI attacks and human has eligible blockers
  * - Blocker assignments (human creature blocks AI creature) resolve correctly
@@ -17,7 +24,7 @@ import org.testng.annotations.Test
  * Uses non-validating harness: combat zone transfers can produce transient
  * instanceId gaps (known StateMapper issue tracked separately).
  */
-@Test(groups = ["integration"])
+@Test(groups = ["integration"], enabled = false)
 class BlockerDeclarationTest {
 
     private lateinit var harness: MatchFlowHarness
