@@ -1,25 +1,28 @@
 package forge.nexus.conformance
 
+import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.MessageCounter
 import org.testng.Assert.assertEquals
 import org.testng.annotations.Test
 
 /**
- * Integration tests that validate our BundleBuilder output shape matches client patterns.
+ * Validates BundleBuilder output shape matches client patterns.
  *
- * These tests boot the Forge engine, run a BundleBuilder method, fingerprint the output,
- * and assert that the structural shape (message types, updateType, annotation presence)
- * matches known client patterns.
+ * Structural fingerprinting: message types, updateType, annotation presence,
+ * prompt IDs — all against known client expectations.
  *
- * Client wire shape tests (no engine, read-only) are in [WireShapeTest].
+ * Uses [startWithBoard] for fast synchronous setup (~0.01s).
  */
-@Test(groups = ["integration"])
+@Test(groups = ["conformance"])
 class ShapeIntegrationTest : ConformanceTestBase() {
 
     @Test(description = "aiActionDiff produces single SendHiFi GSM (no echo)")
     fun aiActionDiffProducesSingleMessage() {
-        val (b, game, counter) = startGameAtMain1()
+        val (b, game, counter) = startWithBoard { _, human, _ ->
+            addCard("Plains", human, ZoneType.Hand)
+            addCard("Forest", human, ZoneType.Battlefield)
+        }
 
         val result = BundleBuilder.aiActionDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
         val captured = fingerprint(result.messages)
@@ -31,7 +34,9 @@ class ShapeIntegrationTest : ConformanceTestBase() {
 
     @Test(description = "declareAttackersBundle produces GS + DeclareAttackersReq with promptId=6")
     fun declareAttackersBundleShape() {
-        val (b, game, counter) = startGameAtMain1()
+        val (b, game, counter) = startWithBoard { _, human, _ ->
+            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+        }
 
         val result = BundleBuilder.declareAttackersBundle(game, b, TEST_MATCH_ID, SEAT_ID, counter)
         val captured = fingerprint(result.messages)
