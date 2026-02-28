@@ -1,5 +1,6 @@
 package forge.nexus.conformance
 
+import forge.nexus.recording.GREToDecoded
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertFalse
 import org.testng.Assert.assertNull
