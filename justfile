@@ -138,7 +138,8 @@ serve-puzzle filename: (_require classpath) check-java
 # --- Certs ---
 
 # regenerate TLS certs signed by mitmproxy CA (run after Arena patch)
-gen-certs fd_host="" md_host="":
+# extra_san: additional IP for SAN (e.g. Tailscale IP for remote client)
+gen-certs fd_host="" md_host="" extra_san="":
     #!/usr/bin/env bash
     set -euo pipefail
     ca_cert="$HOME/.mitmproxy/mitmproxy-ca-cert.pem"
@@ -172,7 +173,11 @@ gen-certs fd_host="" md_host="":
         openssl x509 -req -in "$out/$door.csr" \
             -CA "$ca_cert" -CAkey "$ca_key" -CAcreateserial \
             -out "$out/$door.crt" -days 365 \
-            -extfile <(echo "subjectAltName=DNS:$host,DNS:localhost,IP:127.0.0.1") 2>/dev/null
+            -extfile <(
+                san="DNS:$host,DNS:localhost,IP:127.0.0.1"
+                [ -n "{{extra_san}}" ] && san="$san,IP:{{extra_san}}"
+                echo "subjectAltName=$san"
+            ) 2>/dev/null
         cat "$out/$door.crt" "$out/$door.key" > "$out/$door-combined.pem"
         rm -f "$out/$door.csr"
         echo "  ✓ $door-combined.pem"
@@ -476,6 +481,77 @@ _mvn-test extra_flags:
     python3 "{{root_dir}}/build/test-summary.py" "{{nexus_dir}}/target" 2>/dev/null \
         || echo "⚠ Could not parse test results"
     exit $rc
+
+# --- Remote (Tailscale) ---
+
+# auto-detect Tailscale IPv4
+_ts_ip := `tailscale ip -4 2>/dev/null || echo ""`
+
+# server-side: regenerate certs with Tailscale IP in SAN (run on Mac mini)
+remote-certs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ts_ip="{{_ts_ip}}"
+    if [ -z "$ts_ip" ]; then echo "Tailscale not running." >&2; exit 1; fi
+    echo "==> Regenerating certs with Tailscale IP ($ts_ip) in SAN..."
+    just -f "{{nexus_dir}}/justfile" gen-certs extra_san="$ts_ip"
+
+# client-side: fetch CA + hostnames from server, install locally (run on laptop)
+# server: Tailscale hostname or IP of the Mac mini running nexus
+remote-install server:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    server="{{server}}"
+    certs_dir="$HOME/.local/share/forge-nexus/certs"
+    echo "==> Fetching mitmproxy CA from $server..."
+    scp "$server:~/.mitmproxy/mitmproxy-ca-cert.pem" /tmp/nexus-ca.pem
+    echo "==> Fetching cert hostnames from $server..."
+    fd_host=$(ssh "$server" "openssl x509 -in $certs_dir/frontdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
+    md_host=$(ssh "$server" "openssl x509 -in $certs_dir/matchdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
+    server_ip=$(ssh "$server" "tailscale ip -4")
+    if [ -z "$fd_host" ] || [ -z "$md_host" ]; then
+        echo "Cannot read certs on $server. Run 'just remote-certs' there first." >&2; exit 1
+    fi
+    # trust CA
+    echo "==> Trusting CA in Keychain (will prompt for sudo)..."
+    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/nexus-ca.pem
+    echo "  ✓ CA trusted"
+    # update /etc/hosts
+    marker="# forge-nexus remote"
+    hosts_block="$marker ($server)\n$server_ip  $fd_host\n$server_ip  $md_host"
+    if grep -q "$marker" /etc/hosts; then
+        echo "==> Updating existing forge-nexus entries in /etc/hosts..."
+        sudo sed -i '' "/$marker/,+2d" /etc/hosts
+    fi
+    echo "==> Adding to /etc/hosts..."
+    echo -e "$hosts_block" | sudo tee -a /etc/hosts >/dev/null
+    echo "  ✓ /etc/hosts updated"
+    echo ""
+    echo "Done! Launch Arena — it will connect to nexus at $server_ip"
+    echo "Debug panel: http://$server_ip:8090"
+
+# show what remote-install would do (dry run, no sudo)
+remote-status server:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    server="{{server}}"
+    certs_dir="$HOME/.local/share/forge-nexus/certs"
+    fd_host=$(ssh "$server" "openssl x509 -in $certs_dir/frontdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
+    md_host=$(ssh "$server" "openssl x509 -in $certs_dir/matchdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
+    server_ip=$(ssh "$server" "tailscale ip -4")
+    echo "Server:     $server ($server_ip)"
+    echo "FD host:    $fd_host"
+    echo "MD host:    $md_host"
+    echo ""
+    echo "/etc/hosts entries:"
+    grep "forge-nexus" /etc/hosts 2>/dev/null || echo "  (none)"
+    echo ""
+    echo "CA trusted:"
+    security find-certificate -c mitmproxy /Library/Keychains/System.keychain >/dev/null 2>&1 \
+        && echo "  ✓ mitmproxy CA found in System keychain" \
+        || echo "  ✗ mitmproxy CA not in System keychain"
+
+# --- Internal helpers ---
 
 # Refresh classpath file if pom changed (used by build + dev-build).
 [private]
