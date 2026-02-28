@@ -60,6 +60,7 @@ class InvariantChecker {
         }
         if (msg.hasGameStateMessage()) {
             checkZoneObjectConsistency(gsId)
+            checkAnnotationReferentialIntegrity(msg.gameStateMessage)
         }
     }
 
@@ -262,6 +263,40 @@ class InvariantChecker {
         }
     }
 
+    /**
+     * Validate annotation affectorId/affectedIds resolve to known entities.
+     *
+     * Valid targets: accumulated object instanceIds, player seats (1/2),
+     * zone IDs (affector can be a zone, e.g. EnteredZoneThisTurn).
+     * Runs after accumulator.process() so current GSM's objects are included.
+     */
+    private fun checkAnnotationReferentialIntegrity(gsm: GameStateMessage) {
+        val gsId = gsm.gameStateId
+        val annotations = gsm.annotationsList + gsm.persistentAnnotationsList
+        if (annotations.isEmpty()) return
+
+        for (ann in annotations) {
+            if (ann.affectorId != 0 && !accumulator.isKnownEntity(ann.affectorId)) {
+                record(
+                    gsId,
+                    "annotation_ref",
+                    "annotation ${ann.id}: affectorId ${ann.affectorId} unresolvable " +
+                        "(type=${ann.typeList}, gsId=$gsId)",
+                )
+            }
+            for (affected in ann.affectedIdsList) {
+                if (affected != 0 && !accumulator.isKnownEntity(affected)) {
+                    record(
+                        gsId,
+                        "annotation_ref",
+                        "annotation ${ann.id}: affectedId $affected unresolvable " +
+                            "(type=${ann.typeList}, gsId=$gsId)",
+                    )
+                }
+            }
+        }
+    }
+
     private fun record(gsId: Int, check: String, message: String) {
         _violations.add(Violation(messageIndex, gsId, check, message))
     }
@@ -291,6 +326,13 @@ class RuntimeAccumulator {
         require(gsm.type == GameStateType.Full) { "seedFull requires Full GSM, got ${gsm.type}" }
         processGameState(gsm)
     }
+
+    /**
+     * Check if an ID is a known entity: object instanceId, player seat (1/2), or zone ID.
+     * Annotations use affectorId/affectedIds to reference any of these.
+     */
+    fun isKnownEntity(id: Int): Boolean =
+        id in 1..2 || objects.containsKey(id) || zones.containsKey(id)
 
     fun actionInstanceIdsMissingFromObjects(): List<Int> {
         val req = actions ?: return emptyList()
