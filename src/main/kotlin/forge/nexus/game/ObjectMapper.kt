@@ -139,8 +139,54 @@ object ObjectMapper {
         return this
     }
 
+    /**
+     * Build a [GameObjectInfo] with provisional combat state override.
+     *
+     * Used for echo-back GSMs during iterative attacker/blocker declaration.
+     * The engine's combat object doesn't track provisional selections — this
+     * method overrides [AttackState]/[BlockState] and tap state based on the
+     * client's current toggle selection.
+     */
+    fun buildProvisionalCombatObject(
+        card: Card,
+        instanceId: Int,
+        zoneId: Int,
+        ownerSeatId: Int,
+        controllerSeatId: Int,
+        bridge: GameBridge,
+        game: Game,
+        attacking: Boolean = false,
+        blocking: Boolean = false,
+    ): GameObjectInfo {
+        val grpId = resolveGrpId(card)
+        val builder = CardDb.buildObjectInfo(grpId)
+            .setInstanceId(instanceId)
+            .setType(GameObjectType.Card)
+            .setZoneId(zoneId)
+            .setVisibility(Visibility.Public)
+            .setOwnerSeatId(ownerSeatId)
+            .setControllerSeatId(controllerSeatId)
+            .applyCardFields(card, bridge, game)
+
+        // Override combat state from provisional selection
+        if (attacking) {
+            builder.setAttackState(AttackState.Attacking)
+            builder.setIsTapped(true)
+        } else {
+            builder.setAttackState(AttackState.None_a3a9)
+            // Restore original tap state (don't force untapped — card may have been tapped before combat)
+            builder.setIsTapped(card.isTapped)
+        }
+
+        if (blocking) {
+            builder.setBlockState(BlockState.Blocking)
+        }
+
+        return builder.build()
+    }
+
     /** Resolve grpId for a card, using token-specific lookup for tokens. */
-    internal fun resolveGrpId(card: Card): Int {
+    private fun resolveGrpId(card: Card): Int {
         if (card.isToken) {
             return resolveTokenGrpId(card) ?: run {
                 log.error("token grpId=0 for '{}' (forgeId={})", card.name, card.id)

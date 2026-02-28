@@ -73,8 +73,9 @@ class CombatHandler(private val ops: SessionOps) {
                 lastDeclaredAttackerIds = resp.selectedAttackersList.map { it.attackerInstanceId }
                 log.info("CombatHandler: iterative update — selected {}", lastDeclaredAttackerIds)
             }
-            // TODO: send updated DeclareAttackersReq back (refreshed warnings/canSubmit).
-            // For now, the initial req is sufficient — client doesn't require re-sends.
+            // Echo back GSM with provisional attack state + DeclareAttackersReq.
+            // Real server sends the toggled creature with attackState=Attacking.
+            sendAttackerEchoBack(bridge)
             return
         }
 
@@ -127,6 +128,49 @@ class CombatHandler(private val ops: SessionOps) {
     }
 
     /**
+     * Handle CancelActionReq during attack declaration — pass combat with no attackers.
+     *
+     * The client sends CancelActionReq when the player clicks "Cancel" during the
+     * declare attackers phase. This submits an empty attacker list to the engine,
+     * which passes combat entirely (no attacks, skip to post-combat main).
+     */
+    fun onCancelAttackers(
+        bridge: GameBridge,
+        autoPass: (GameBridge) -> Unit,
+    ) {
+        val pending = bridge.actionBridge.getPending() ?: run {
+            log.warn("CombatHandler: CancelAttackers but no pending action — recovering")
+            ops.sendRealGameState(bridge)
+            return
+        }
+
+        log.info("CombatHandler: CancelAttackers — submitting empty attackers to pass combat")
+
+        pendingLegalAttackers = emptyList()
+        lastDeclaredAttackerIds = emptyList()
+
+        ops.sendBundledGRE(
+            listOf(
+                ops.makeGRE(GREMessageType.SubmitAttackersResp_695e, ops.counter.currentGsId(), ops.counter.nextMsgId()) {
+                    it.submitAttackersResp = SubmitAttackersResp.newBuilder().setResult(ResultCode.Success_a500).build()
+                },
+            ),
+        )
+
+        val game = bridge.getGame()
+        val humanPlayer = bridge.getPlayer(ops.seatId)
+        val defenderPlayerId = game?.players
+            ?.firstOrNull { it != humanPlayer }?.id
+
+        bridge.actionBridge.submitAction(
+            pending.actionId,
+            PlayerAction.DeclareAttackers(emptyList(), defenderPlayerId = defenderPlayerId),
+        )
+        bridge.awaitPriority()
+        autoPass(bridge)
+    }
+
+    /**
      * Handle DeclareBlockersResp or SubmitBlockersReq from the client.
      *
      * Same two-phase protocol as attackers:
@@ -141,14 +185,17 @@ class CombatHandler(private val ops: SessionOps) {
         val isSubmit = greMsg.type == ClientMessageType.SubmitBlockersReq
 
         if (!isSubmit) {
-            // Iterative update: save blocker assignments
+            // Iterative update: save blocker assignments, then echo back
+            // DeclareBlockersReq so the client confirms and enables Submit.
+            // Same echo pattern as DeclareAttackersResp → DeclareAttackersReq.
             val resp = greMsg.declareBlockersResp
             lastDeclaredBlockAssignments.clear()
             for (blocker in resp.selectedBlockersList) {
                 lastDeclaredBlockAssignments[blocker.blockerInstanceId] =
                     blocker.selectedAttackerInstanceIdsList.firstOrNull() ?: continue
             }
-            log.info("CombatHandler: blocker update — assignments={}", lastDeclaredBlockAssignments)
+            log.info("CombatHandler: blocker update — assignments={}, echoing DeclareBlockersReq", lastDeclaredBlockAssignments)
+            sendBlockerEchoBack(bridge)
             return
         }
 
@@ -255,22 +302,62 @@ class CombatHandler(private val ops: SessionOps) {
 
     // --- Sending helpers ---
 
+    /**
+     * Echo-back for iterative attacker toggle: sends GSM with provisional
+     * combat state on toggled creatures + fresh DeclareAttackersReq.
+     */
+    private fun sendAttackerEchoBack(bridge: GameBridge) {
+        val game = bridge.getGame() ?: return
+        val result = BundleBuilder.echoAttackersBundle(
+            game,
+            bridge,
+            ops.seatId,
+            ops.counter,
+            selectedAttackerIds = lastDeclaredAttackerIds,
+            allLegalAttackerIds = pendingLegalAttackers,
+        )
+        NexusTap.outboundTemplate("DeclareAttackersReq echo seat=${ops.seatId}")
+        ops.sendBundledGRE(result.messages)
+    }
+
+    /**
+     * @param resetSelection true on initial send (no attackers selected yet),
+     *                       false on echo-back (preserve current [lastDeclaredAttackerIds]).
+     */
     private fun sendDeclareAttackersReq(
         bridge: GameBridge,
         req: DeclareAttackersReq? = null,
+        resetSelection: Boolean = true,
     ) {
         val game = bridge.getGame() ?: return
         val result = BundleBuilder.declareAttackersBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, req)
 
         val builtReq = result.messages.firstOrNull { it.hasDeclareAttackersReq() }?.declareAttackersReq
         pendingLegalAttackers = builtReq?.attackersList?.map { it.attackerInstanceId } ?: emptyList()
-        // Pre-select all legal attackers as the default declaration — our DeclareAttackersReq
-        // sets selectedDamageRecipient on each attacker, so the client shows them as declared.
-        // If the user clicks "Done" (SubmitAttackersReq) without toggling, this is the selection.
-        lastDeclaredAttackerIds = pendingLegalAttackers.toList()
+        if (resetSelection) {
+            // Initial send — no attackers selected yet. Client clicks populate lastDeclaredAttackerIds.
+            lastDeclaredAttackerIds = emptyList()
+        }
         log.debug("DeclareAttackersReq: pendingLegalAttackers={} lastDeclared={}", pendingLegalAttackers, lastDeclaredAttackerIds)
 
         NexusTap.outboundTemplate("DeclareAttackersReq seat=${ops.seatId}")
+        ops.sendBundledGRE(result.messages)
+    }
+
+    /**
+     * Echo-back for iterative blocker toggle: sends GSM with provisional
+     * block state on toggled creatures + fresh DeclareBlockersReq.
+     */
+    private fun sendBlockerEchoBack(bridge: GameBridge) {
+        val game = bridge.getGame() ?: return
+        val result = BundleBuilder.echoBlockersBundle(
+            game,
+            bridge,
+            ops.seatId,
+            ops.counter,
+            blockAssignments = lastDeclaredBlockAssignments.toMap(),
+        )
+        NexusTap.outboundTemplate("DeclareBlockersReq echo seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
     }
 

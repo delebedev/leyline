@@ -2,6 +2,7 @@ package forge.nexus.game
 
 import forge.game.Game
 import wotc.mtgo.gre.external.messaging.Messages.*
+import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Pure functions that build GRE message bundles for each flow milestone.
@@ -339,6 +340,72 @@ object BundleBuilder {
     }
 
     /**
+     * Echo-back bundle for iterative attacker toggle: thin Diff with provisional
+     * combat state on toggled creatures + fresh DeclareAttackersReq.
+     *
+     * Real server sends `objects=1` per toggle with the creature's attack state
+     * and tap state reflecting the provisional selection. We synthesize this
+     * because the engine's combat object doesn't track provisional toggles.
+     *
+     * @param selectedAttackerIds instanceIds currently selected as attackers
+     * @param allLegalAttackerIds all instanceIds eligible to attack (for deselect detection)
+     */
+    fun echoAttackersBundle(
+        game: Game,
+        bridge: GameBridge,
+        seatId: Int,
+        counter: MessageCounter,
+        selectedAttackerIds: List<Int>,
+        allLegalAttackerIds: List<Int>,
+    ): BundleResult {
+        val nextGs = counter.nextGsId()
+        val player = bridge.getPlayer(seatId) ?: return BundleResult(emptyList())
+
+        // Build provisional creature objects for ALL legal attackers
+        val objects = mutableListOf<GameObjectInfo>()
+        val selectedSet = selectedAttackerIds.toSet()
+        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+            if (!card.isCreature) continue
+            val iid = bridge.getOrAllocInstanceId(card.id)
+            if (iid !in allLegalAttackerIds) continue
+
+            objects.add(
+                ObjectMapper.buildProvisionalCombatObject(
+                    card,
+                    iid,
+                    ZoneIds.BATTLEFIELD,
+                    ownerSeatId = seatId,
+                    controllerSeatId = seatId,
+                    bridge = bridge,
+                    game = game,
+                    attacking = iid in selectedSet,
+                ),
+            )
+        }
+
+        val gsm = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(nextGs)
+            .addAllGameObjects(objects)
+            .setPrevGameStateId(nextGs - 1)
+            .setUpdate(GameStateUpdate.SendHiFi)
+            .setPendingMessageCount(1)
+            .build()
+
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+            it.gameStateMessage = gsm
+        }
+
+        val req = StateMapper.buildDeclareAttackersReq(game, seatId, bridge)
+        val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, seatId, counter.nextMsgId()) {
+            it.declareAttackersReq = req
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
+        }
+
+        return BundleResult(listOf(msg1, msg2))
+    }
+
+    /**
      * Declare-attackers bundle: Diff (DeclareAttack step) + DeclareAttackersReq (prompt id=6).
      */
     fun declareAttackersBundle(
@@ -361,6 +428,68 @@ object BundleBuilder {
         val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.declareAttackersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
+        }
+
+        return BundleResult(listOf(msg1, msg2))
+    }
+
+    /**
+     * Echo-back for iterative blocker toggle: thin Diff GSM with provisional
+     * blocker state on toggled creatures + fresh DeclareBlockersReq.
+     *
+     * Same pattern as [echoAttackersBundle] — engine's combat object doesn't
+     * track provisional blocker selections during iterative declaration.
+     */
+    fun echoBlockersBundle(
+        game: Game,
+        bridge: GameBridge,
+        seatId: Int,
+        counter: MessageCounter,
+        blockAssignments: Map<Int, Int>, // blockerInstanceId → attackerInstanceId
+    ): BundleResult {
+        val nextGs = counter.nextGsId()
+        val player = bridge.getPlayer(seatId) ?: return BundleResult(emptyList())
+
+        // Build provisional creature objects for all potential blockers
+        val objects = mutableListOf<GameObjectInfo>()
+        val blockerSet = blockAssignments.keys
+        for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+            if (!card.isCreature) continue
+            val iid = bridge.getOrAllocInstanceId(card.id)
+            // Only include creatures that are assigned as blockers
+            if (iid !in blockerSet) continue
+
+            objects.add(
+                ObjectMapper.buildProvisionalCombatObject(
+                    card,
+                    iid,
+                    ZoneIds.BATTLEFIELD,
+                    ownerSeatId = seatId,
+                    controllerSeatId = seatId,
+                    bridge = bridge,
+                    game = game,
+                    blocking = true,
+                ),
+            )
+        }
+
+        val gsm = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(nextGs)
+            .addAllGameObjects(objects)
+            .setPrevGameStateId(nextGs - 1)
+            .setUpdate(GameStateUpdate.SendHiFi)
+            .setPendingMessageCount(1)
+            .build()
+
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+            it.gameStateMessage = gsm
+        }
+
+        val req = StateMapper.buildDeclareBlockersReq(game, seatId, bridge)
+        val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, seatId, counter.nextMsgId()) {
+            it.declareBlockersReq = req
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
         }
 
         return BundleResult(listOf(msg1, msg2))

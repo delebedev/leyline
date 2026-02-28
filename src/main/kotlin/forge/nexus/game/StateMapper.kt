@@ -802,7 +802,8 @@ object StateMapper {
             val attacker = Attacker.newBuilder()
                 .setAttackerInstanceId(instanceId)
                 .addLegalDamageRecipients(defaultRecipient)
-                .setSelectedDamageRecipient(defaultRecipient)
+            // No selectedDamageRecipient — creatures are eligible, not pre-selected.
+            // Client shows them as available; player clicks to declare each attacker.
             builder.addAttackers(attacker)
             builder.addQualifiedAttackers(attacker)
         }

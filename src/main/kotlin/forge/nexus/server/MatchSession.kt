@@ -297,6 +297,11 @@ class MatchSession(
      */
     fun onCancelAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
+        // During combat declaration, cancel means "pass combat" (submit empty attackers).
+        if (combatHandler.pendingLegalAttackers.isNotEmpty()) {
+            combatHandler.onCancelAttackers(bridge) { autoPassEngine.autoPassAndAdvance(it) }
+            return
+        }
         targetingHandler.onCancelAction(bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 

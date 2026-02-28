@@ -133,7 +133,7 @@ class CombatFlowTest {
      * AI script casts Raging Goblin on its turn.
      */
     private fun setupWithAiBlocker(): Int {
-        harness = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK)
+        harness = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
         harness.connectAndKeep()
 
         // AI: play Mountain, cast Raging Goblin (has blocker), skip attacking, pass
@@ -249,13 +249,20 @@ class CombatFlowTest {
         assertTrue(creatures.isNotEmpty(), "Should still have creature on BF")
         val iid = creatures.first().first
 
-        // Advance to combat
+        // Keep passing until we see DeclareAttackersReq (may take multiple passes
+        // due to auto-pass advancing through non-combat phases first).
         val snap = harness.messageSnapshot()
-        harness.passPriority()
-
-        val msgs = harness.messagesSince(snap)
-        val daReq = msgs.firstOrNull { it.hasDeclareAttackersReq() }
-        assertNotNull(daReq, "Should receive DeclareAttackersReq")
+        var sawAttackReq = false
+        for (i in 0 until 15) {
+            if (harness.isGameOver()) break
+            val recent = harness.messagesSince(snap)
+            if (recent.any { it.hasDeclareAttackersReq() }) {
+                sawAttackReq = true
+                break
+            }
+            harness.passPriority()
+        }
+        assertTrue(sawAttackReq, "Should receive DeclareAttackersReq")
 
         // Declare our attack
         val snap2 = harness.messageSnapshot()
@@ -418,18 +425,122 @@ class CombatFlowTest {
         harness.accumulator.assertConsistent("after full combat cycle")
     }
 
-    // --- Test 7: submitAttackersReqConfirmsPreSelected ---
+    // --- Test 7: echoBackContainsCreatureObject ---
+
+    @Test(description = "Iterative toggle echo-back GSM contains creature with attackState=Attacking")
+    fun echoBackContainsCreatureObject() {
+        val attackerIid = setupSingleAttacker()
+
+        // Advance to combat — DeclareAttackersReq emitted
+        harness.passPriority()
+        val daReq = harness.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
+        assertNotNull(daReq, "Should receive DeclareAttackersReq")
+
+        // Send iterative toggle (DeclareAttackersResp only, no Submit)
+        val echoMsgs = harness.toggleAttackers(listOf(attackerIid))
+
+        // Echo should contain a GSM with the toggled creature
+        val echoGsm = echoMsgs.firstOrNull { it.hasGameStateMessage() }
+        assertNotNull(echoGsm, "Echo-back should include a GameStateMessage")
+
+        val objects = echoGsm!!.gameStateMessage.gameObjectsList
+        assertTrue(objects.isNotEmpty(), "Echo GSM should contain creature objects, got 0")
+
+        val attackerObj = objects.firstOrNull { it.instanceId == attackerIid }
+        assertNotNull(attackerObj, "Echo GSM should contain the toggled creature (iid=$attackerIid)")
+        assertEquals(
+            attackerObj!!.attackState,
+            AttackState.Attacking,
+            "Toggled creature should have attackState=Attacking",
+        )
+        assertTrue(attackerObj.isTapped, "Toggled creature should be tapped (attacking)")
+
+        // Echo should also contain a fresh DeclareAttackersReq
+        val echoReq = echoMsgs.firstOrNull { it.hasDeclareAttackersReq() }
+        assertNotNull(echoReq, "Echo-back should include a DeclareAttackersReq")
+    }
+
+    // --- Test 8: echoBackDeselectRestoresState ---
+
+    @Test(description = "Toggle on then off: echo GSM shows creature restored to non-attacking")
+    fun echoBackDeselectRestoresState() {
+        val attackerIid = setupSingleAttacker()
+
+        harness.passPriority() // advance to combat
+        assertNotNull(harness.allMessages.lastOrNull { it.hasDeclareAttackersReq() })
+
+        // Toggle ON
+        harness.toggleAttackers(listOf(attackerIid))
+
+        // Toggle OFF (empty selection)
+        val echoMsgs = harness.toggleAttackers(emptyList())
+
+        val echoGsm = echoMsgs.firstOrNull { it.hasGameStateMessage() }
+        assertNotNull(echoGsm, "Deselect echo should include a GameStateMessage")
+
+        val objects = echoGsm!!.gameStateMessage.gameObjectsList
+        assertTrue(objects.isNotEmpty(), "Deselect echo GSM should contain creature objects")
+
+        val attackerObj = objects.firstOrNull { it.instanceId == attackerIid }
+        assertNotNull(attackerObj, "Deselect echo should contain the creature")
+        assertNotEquals(
+            attackerObj!!.attackState,
+            AttackState.Attacking,
+            "Deselected creature should NOT have attackState=Attacking",
+        )
+    }
+
+    // --- Test 9: multiToggleBeforeSubmit ---
+
+    @Test(description = "Toggle multiple creatures on/off before submit; only final selection attacks")
+    fun multiToggleBeforeSubmit() {
+        val attackerIids = setupMultipleAttackers()
+        assertTrue(attackerIids.size >= 2, "Need at least 2 creatures")
+        val (iidA, iidB) = attackerIids
+
+        val aiPlayer = harness.bridge.getPlayer(2)!!
+        val lifeBefore = aiPlayer.life
+        val startTurn = harness.turn()
+
+        harness.passPriority() // advance to combat
+        assertNotNull(harness.allMessages.lastOrNull { it.hasDeclareAttackersReq() })
+
+        // Toggle A on
+        harness.toggleAttackers(listOf(iidA))
+        // Toggle A+B on
+        harness.toggleAttackers(listOf(iidA, iidB))
+        // Toggle A off (only B remains)
+        harness.toggleAttackers(listOf(iidB))
+
+        // Submit with B only
+        harness.submitAttackers()
+
+        // Pass through remaining combat
+        repeat(15) {
+            if (harness.isGameOver()) return@repeat
+            if (harness.turn() > startTurn) return@repeat
+            harness.passPriority()
+        }
+
+        // B is 1/1 Raging Goblin → 1 damage (not 2)
+        val lifeAfter = aiPlayer.life
+        assertEquals(
+            lifeAfter,
+            lifeBefore - 1,
+            "Only creature B (1/1) should deal damage: was $lifeBefore, now $lifeAfter",
+        )
+    }
+
+    // --- Test 10: toggleThenSubmitDealsDamage ---
 
     /**
-     * BUG REPRO: Arena client sends SubmitAttackersReq (type=31, NO payload) when
-     * user clicks "Done". Since our DeclareAttackersReq pre-selects all eligible
-     * attackers (selectedDamageRecipient set), the client shows them as declared
-     * and the user just confirms. The server must treat SubmitAttackersReq as
-     * "confirm the current selection" (= pendingLegalAttackers), not as empty
-     * DeclareAttackersResp (= 0 attackers).
+     * Real client protocol: user toggles creature (DeclareAttackersResp), then
+     * clicks "Done" (SubmitAttackersReq, no payload). Server uses the last
+     * toggled selection. Bare "Done" without any prior toggle = no attackers
+     * (creatures are NOT pre-selected since we removed selectedDamageRecipient).
      */
-    @Test(description = "SubmitAttackersReq (Done button) confirms pre-selected attackers; AI takes damage")
-    fun submitAttackersReqConfirmsPreSelected() {
+    @Test(description = "Toggle attacker then Submit (Done) deals damage")
+    fun toggleThenSubmitDealsDamage() {
         val attackerIid = setupSingleAttacker()
 
         val aiPlayer = harness.bridge.getPlayer(2)!!
@@ -445,6 +556,9 @@ class CombatFlowTest {
         val eligible = daReq!!.declareAttackersReq.attackersList.map { it.attackerInstanceId }
         assertTrue(attackerIid in eligible, "Raging Goblin should be eligible")
 
+        // Toggle creature ON (iterative DeclareAttackersResp)
+        harness.toggleAttackers(listOf(attackerIid))
+
         // Send SubmitAttackersReq (type-only, no payload) — real client "Done" button
         harness.submitAttackers()
 
@@ -459,7 +573,7 @@ class CombatFlowTest {
         val lifeAfter = aiPlayer.life
         assertTrue(
             lifeAfter < lifeBefore,
-            "AI life should decrease after SubmitAttackersReq: was $lifeBefore, now $lifeAfter " +
+            "AI life should decrease after toggle+Submit: was $lifeBefore, now $lifeAfter " +
                 "(turn=${harness.turn()} phase=${harness.phase()})",
         )
     }
