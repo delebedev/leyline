@@ -89,7 +89,7 @@ class AnnotationPipelineTest {
     // --- annotationsForTransfer: CastSpell ---
 
     @Test
-    fun castSpellProducesSevenAnnotations() {
+    fun castSpellProducesSixAnnotations() {
         val transfer = AnnotationPipeline.AppliedTransfer(
             origId = 100,
             newId = 200,
@@ -101,14 +101,13 @@ class AnnotationPipelineTest {
         )
         val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-        assertEquals(annotations.size, 7, "CastSpell should produce 7 annotations")
+        assertEquals(annotations.size, 6, "CastSpell should produce 6 annotations (tap events come via Stage 4)")
         assertEquals(annotations[0].typeList.first(), AnnotationType.ObjectIdChanged)
         assertEquals(annotations[1].typeList.first(), AnnotationType.ZoneTransfer_af5a)
         assertEquals(annotations[2].typeList.first(), AnnotationType.AbilityInstanceCreated)
-        assertEquals(annotations[3].typeList.first(), AnnotationType.TappedUntappedPermanent)
-        assertEquals(annotations[4].typeList.first(), AnnotationType.ManaPaid)
-        assertEquals(annotations[5].typeList.first(), AnnotationType.AbilityInstanceDeleted)
-        assertEquals(annotations[6].typeList.first(), AnnotationType.UserActionTaken)
+        assertEquals(annotations[3].typeList.first(), AnnotationType.ManaPaid)
+        assertEquals(annotations[4].typeList.first(), AnnotationType.AbilityInstanceDeleted)
+        assertEquals(annotations[5].typeList.first(), AnnotationType.UserActionTaken)
 
         // Stack is not battlefield — no persistent annotation
         assertTrue(persistent.isEmpty())
@@ -127,7 +126,7 @@ class AnnotationPipelineTest {
         )
         val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-        val actionType = annotations[6].detailsList.first { it.key == "actionType" }
+        val actionType = annotations[5].detailsList.first { it.key == "actionType" }
         assertEquals(actionType.getValueInt32(0), 1, "actionType should be 1 (Cast)")
     }
 
@@ -349,6 +348,111 @@ class AnnotationPipelineTest {
         assertTrue(annotations[0].affectedIdsList.contains(1099), "instanceId should be resolved")
     }
 
+    // -- TokenDestroyed --
+
+    @Test
+    fun tokenDestroyedProducesAnnotation() {
+        val events = listOf(
+            NexusGameEvent.TokenDestroyed(forgeCardId = 88, seatId = 1),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+
+        assertEquals(annotations.size, 1)
+        assertTrue(annotations[0].typeList.contains(AnnotationType.TokenDeleted))
+        assertEquals(annotations[0].affectorId, 1088, "affectorId should be resolved instanceId")
+        assertTrue(annotations[0].affectedIdsList.contains(1088), "affectedIds should contain resolved instanceId")
+    }
+
+    // -- PowerToughnessChanged --
+
+    @Test
+    fun powerToughnessChangedBothAnnotations() {
+        val events = listOf(
+            NexusGameEvent.PowerToughnessChanged(forgeCardId = 50, oldPower = 2, newPower = 4, oldToughness = 3, newToughness = 5),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+
+        assertEquals(annotations.size, 2, "Both power and toughness changed → 2 annotations")
+        assertTrue(annotations[0].typeList.contains(AnnotationType.ModifiedPower))
+        assertTrue(annotations[0].affectedIdsList.contains(1050))
+        val powerValue = annotations[0].detailsList.first { it.key == "value" }
+        assertEquals(powerValue.getValueInt32(0), 4, "value should be the new power")
+
+        assertTrue(annotations[1].typeList.contains(AnnotationType.ModifiedToughness))
+        val toughValue = annotations[1].detailsList.first { it.key == "value" }
+        assertEquals(toughValue.getValueInt32(0), 5, "value should be the new toughness")
+    }
+
+    @Test
+    fun powerOnlyChangedOneAnnotation() {
+        val events = listOf(
+            NexusGameEvent.PowerToughnessChanged(forgeCardId = 50, oldPower = 2, newPower = 5, oldToughness = 3, newToughness = 3),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+
+        assertEquals(annotations.size, 1, "Only power changed → 1 annotation")
+        assertTrue(annotations[0].typeList.contains(AnnotationType.ModifiedPower))
+    }
+
+    @Test
+    fun toughnessOnlyChangedOneAnnotation() {
+        val events = listOf(
+            NexusGameEvent.PowerToughnessChanged(forgeCardId = 50, oldPower = 2, newPower = 2, oldToughness = 3, newToughness = 1),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+
+        assertEquals(annotations.size, 1, "Only toughness changed → 1 annotation")
+        assertTrue(annotations[0].typeList.contains(AnnotationType.ModifiedToughness))
+    }
+
+    // -- CardAttached --
+
+    @Test
+    fun attachProducesCorrectAnnotationShape() {
+        val events = listOf(
+            NexusGameEvent.CardAttached(forgeCardId = 55, targetForgeId = 66, seatId = 1),
+        )
+        val result = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+
+        // Transient: AttachmentCreated
+        assertEquals(result.transient.size, 1)
+        val created = result.transient[0]
+        assertTrue(created.typeList.contains(AnnotationType.AttachmentCreated))
+        assertEquals(created.affectorId, 0, "no affectorId")
+        assertEquals(created.affectedIdsList, listOf(testResolver(55), testResolver(66)), "affectedIds=[aura, target]")
+
+        // Persistent: Attachment
+        assertEquals(result.persistent.size, 1)
+        val attach = result.persistent[0]
+        assertTrue(attach.typeList.contains(AnnotationType.Attachment))
+        assertEquals(attach.affectorId, 0, "no affectorId")
+        assertEquals(attach.affectedIdsList, listOf(testResolver(55), testResolver(66)), "affectedIds=[aura, target]")
+    }
+
+    @Test
+    fun detachReturnsDetachedForgeCardId() {
+        val events = listOf(
+            NexusGameEvent.CardDetached(forgeCardId = 60, seatId = 1),
+        )
+        val result = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        assertEquals(result.detachedForgeCardIds, listOf(60), "detachedForgeCardIds should contain the detached aura's forge card ID")
+    }
+
+    // -- RemoveAttachment --
+
+    @Test
+    fun detachProducesRemoveAttachment() {
+        val events = listOf(
+            NexusGameEvent.CardDetached(forgeCardId = 60, seatId = 1),
+        )
+        val result = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+        val annotations = result.transient
+
+        assertEquals(annotations.size, 1, "CardDetached → 1 RemoveAttachment annotation")
+        assertTrue(annotations[0].typeList.contains(AnnotationType.RemoveAttachment))
+        assertTrue(annotations[0].affectedIdsList.contains(testResolver(60)))
+    }
+
     // -- Mixed events --
 
     @Test
@@ -357,11 +461,39 @@ class AnnotationPipelineTest {
             NexusGameEvent.ZoneChanged(forgeCardId = 1, from = forge.game.zone.ZoneType.Hand, to = forge.game.zone.ZoneType.Battlefield),
             NexusGameEvent.LandPlayed(forgeCardId = 1, seatId = 1),
             NexusGameEvent.CardDestroyed(forgeCardId = 2, seatId = 1),
-            NexusGameEvent.CardTapped(forgeCardId = 3, tapped = true),
             NexusGameEvent.DamageDealtToPlayer(sourceForgeId = 4, targetSeatId = 1, amount = 3, combat = true),
         )
         val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
         assertTrue(annotations.isEmpty(), "Zone transfer and combat events should be ignored by Stage 4")
+    }
+
+    // -- CardTapped --
+
+    @Test
+    fun cardTappedProducesAnnotation() {
+        val events = listOf(
+            NexusGameEvent.CardTapped(forgeCardId = 70, tapped = true),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+
+        assertEquals(annotations.size, 1, "CardTapped should produce one TappedUntappedPermanent annotation")
+        assertTrue(annotations[0].typeList.contains(AnnotationType.TappedUntappedPermanent))
+        assertTrue(annotations[0].affectedIdsList.contains(testResolver(70)))
+        val tapped = annotations[0].detailsList.first { it.key == "tapped" }
+        assertEquals(tapped.getValueUint32(0), 1, "tapped detail should be 1")
+    }
+
+    @Test
+    fun cardUntappedProducesAnnotation() {
+        val events = listOf(
+            NexusGameEvent.CardTapped(forgeCardId = 71, tapped = false),
+        )
+        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+
+        assertEquals(annotations.size, 1, "CardTapped(tapped=false) should produce untap annotation")
+        assertTrue(annotations[0].typeList.contains(AnnotationType.TappedUntappedPermanent))
+        val tapped = annotations[0].detailsList.first { it.key == "tapped" }
+        assertEquals(tapped.getValueUint32(0), 0, "tapped detail should be 0 for untap")
     }
 
     @Test
@@ -511,5 +643,88 @@ class AnnotationPipelineTest {
         val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
         val category = annotations.last().detailsList.first { it.key == "category" }
         assertEquals(category.getValueString(0), "Countered")
+    }
+
+    // --- annotationsForTransfer: Return ---
+
+    @Test
+    fun returnFromGraveyardProducesAnnotations() {
+        val transfer = AnnotationPipeline.AppliedTransfer(
+            origId = 100,
+            newId = 200,
+            category = TransferCategory.Return,
+            srcZoneId = ZoneIds.P1_GRAVEYARD,
+            destZoneId = ZoneIds.BATTLEFIELD,
+            grpId = 0,
+            ownerSeatId = 1,
+        )
+        val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+
+        assertEquals(annotations.size, 2, "Return: ObjectIdChanged + ZoneTransfer")
+        assertEquals(annotations[0].typeList.first(), AnnotationType.ObjectIdChanged)
+        assertEquals(annotations[1].typeList.first(), AnnotationType.ZoneTransfer_af5a)
+        val category = annotations[1].detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "Return")
+        assertEquals(persistent.size, 1, "BF dest should produce EnteredZoneThisTurn")
+    }
+
+    @Test
+    fun returnToHandNoPersistent() {
+        val transfer = AnnotationPipeline.AppliedTransfer(
+            origId = 100,
+            newId = 200,
+            category = TransferCategory.Return,
+            srcZoneId = ZoneIds.P1_GRAVEYARD,
+            destZoneId = ZoneIds.P1_HAND,
+            grpId = 0,
+            ownerSeatId = 1,
+        )
+        val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+
+        val category = annotations.last().detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "Return")
+        assertTrue(persistent.isEmpty(), "Hand dest should have no persistent annotation")
+    }
+
+    // --- annotationsForTransfer: Search ---
+
+    @Test
+    fun searchProducesAnnotations() {
+        val transfer = AnnotationPipeline.AppliedTransfer(
+            origId = 100,
+            newId = 200,
+            category = TransferCategory.Search,
+            srcZoneId = ZoneIds.P1_LIBRARY,
+            destZoneId = ZoneIds.BATTLEFIELD,
+            grpId = 0,
+            ownerSeatId = 1,
+        )
+        val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+
+        assertEquals(annotations.size, 2, "Search: ObjectIdChanged + ZoneTransfer")
+        val category = annotations[1].detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "Search")
+        assertEquals(persistent.size, 1, "BF dest should produce EnteredZoneThisTurn")
+    }
+
+    // --- annotationsForTransfer: Put ---
+
+    @Test
+    fun putProducesAnnotations() {
+        val transfer = AnnotationPipeline.AppliedTransfer(
+            origId = 100,
+            newId = 200,
+            category = TransferCategory.Put,
+            srcZoneId = ZoneIds.EXILE,
+            destZoneId = ZoneIds.P1_GRAVEYARD,
+            grpId = 0,
+            ownerSeatId = 1,
+        )
+        val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+
+        assertEquals(annotations.size, 2, "Put: ObjectIdChanged + ZoneTransfer")
+        val category = annotations[1].detailsList.first { it.key == "category" }
+        assertEquals(category.getValueString(0), "Put")
+        assertTrue(persistent.isEmpty())
     }
 }

@@ -186,6 +186,17 @@ class AnnotationBuilderTest {
         assertEquals(tapped.getValueUint32(0), 1, "tapped should be 1 (true)")
     }
 
+    @Test
+    fun tappedUntappedPermanentUntapVariant() {
+        val ann = AnnotationBuilder.tappedUntappedPermanent(permanentId = 700, abilityId = 800, tapped = false)
+        assertTrue(ann.typeList.contains(AnnotationType.TappedUntappedPermanent))
+        assertEquals(ann.affectorId, 800)
+        assertTrue(ann.affectedIdsList.contains(700))
+
+        val tapped = ann.detailsList.first { it.key == "tapped" }
+        assertEquals(tapped.getValueUint32(0), 0, "tapped should be 0 (false/untap)")
+    }
+
     // --- AbilityInstanceCreated ---
 
     @Test
@@ -279,6 +290,18 @@ class AnnotationBuilderTest {
         assertEquals(ann.detailsCount, 0, "TokenCreated has no detail keys")
     }
 
+    // --- TokenDeleted (Group B) ---
+
+    @Test
+    fun tokenDeletedFields() {
+        val ann = AnnotationBuilder.tokenDeleted(instanceId = 1150)
+        assertTrue(ann.typeList.contains(AnnotationType.TokenDeleted))
+        assertEquals(ann.affectorId, 1150, "affectorId should be the token instanceId")
+        assertTrue(ann.affectedIdsList.contains(1150))
+        assertEquals(ann.affectedIdsCount, 1, "TokenDeleted has one affected ID")
+        assertEquals(ann.detailsCount, 0, "TokenDeleted has no detail keys")
+    }
+
     // --- CounterAdded (Group B) ---
 
     @Test
@@ -318,6 +341,63 @@ class AnnotationBuilderTest {
         val ann = AnnotationBuilder.shuffle(seatId = 1)
         assertTrue(ann.typeList.contains(AnnotationType.Shuffle))
         assertTrue(ann.affectedIdsList.contains(1))
+    }
+
+    // --- ModifiedPower (Group B) ---
+
+    @Test
+    fun modifiedPowerFields() {
+        val ann = AnnotationBuilder.modifiedPower(instanceId = 1200, value = 5)
+        assertTrue(ann.typeList.contains(AnnotationType.ModifiedPower))
+        assertTrue(ann.affectedIdsList.contains(1200))
+        assertEquals(ann.affectorId, 0, "ModifiedPower has no affectorId")
+
+        val value = ann.detailsList.first { it.key == "value" }
+        assertEquals(value.type, KeyValuePairValueType.Int32)
+        assertEquals(value.getValueInt32(0), 5)
+    }
+
+    // --- ModifiedToughness (Group B) ---
+
+    @Test
+    fun modifiedToughnessFields() {
+        val ann = AnnotationBuilder.modifiedToughness(instanceId = 1300, value = 3)
+        assertTrue(ann.typeList.contains(AnnotationType.ModifiedToughness))
+        assertTrue(ann.affectedIdsList.contains(1300))
+
+        val value = ann.detailsList.first { it.key == "value" }
+        assertEquals(value.type, KeyValuePairValueType.Int32)
+        assertEquals(value.getValueInt32(0), 3)
+    }
+
+    // --- RemoveAttachment (Group A+) ---
+
+    @Test
+    fun removeAttachmentFields() {
+        val ann = AnnotationBuilder.removeAttachment(auraIid = 1400)
+        assertTrue(ann.typeList.contains(AnnotationType.RemoveAttachment))
+        assertTrue(ann.affectedIdsList.contains(1400))
+        assertEquals(ann.affectedIdsCount, 1, "RemoveAttachment has only the aura id")
+    }
+
+    // --- AttachmentCreated (Group A+) ---
+
+    @Test
+    fun attachmentCreatedFields() {
+        val ann = AnnotationBuilder.attachmentCreated(auraIid = 1500, targetIid = 1600)
+        assertTrue(ann.typeList.contains(AnnotationType.AttachmentCreated))
+        assertEquals(ann.affectorId, 0, "no affectorId")
+        assertEquals(ann.affectedIdsList, listOf(1500, 1600), "affectedIds=[aura, target]")
+    }
+
+    // --- Attachment (Group A+ persistent) ---
+
+    @Test
+    fun attachmentFields() {
+        val ann = AnnotationBuilder.attachment(auraIid = 1500, targetIid = 1600)
+        assertTrue(ann.typeList.contains(AnnotationType.Attachment))
+        assertEquals(ann.affectorId, 0, "no affectorId")
+        assertEquals(ann.affectedIdsList, listOf(1500, 1600), "affectedIds=[aura, target]")
     }
 
     // --- Scry (Group B) ---

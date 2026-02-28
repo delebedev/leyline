@@ -390,11 +390,28 @@ object StateMapper {
             bridge.getOrAllocInstanceId(forgeCardId)
         }
         annotations.addAll(mechanicResult.transient)
-        persistentAnnotations.addAll(
-            mechanicResult.persistent.map {
-                it.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
-            },
-        )
+
+        // Store new persistent annotations in bridge for carry-forward across GSMs
+        for (ann in persistentAnnotations) {
+            val numbered = ann.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
+            bridge.addPersistentAnnotation(numbered)
+        }
+        for (ann in mechanicResult.persistent) {
+            val numbered = ann.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
+            bridge.addPersistentAnnotation(numbered)
+        }
+
+        // Handle detached auras — remove their Attachment persistent annotations
+        for (forgeCardId in mechanicResult.detachedForgeCardIds) {
+            val auraIid = bridge.getOrAllocInstanceId(forgeCardId)
+            val annId = bridge.findPersistentAnnotationByAura(auraIid)
+            if (annId != null) {
+                bridge.removePersistentAnnotation(annId)
+            }
+        }
+
+        // Use bridge's accumulated store (includes all prior + new persistent annotations)
+        val allPersistentAnnotations = bridge.getAllPersistentAnnotations()
 
         val numberedAnnotations = annotations.map {
             it.toBuilder().setId(bridge.nextAnnotationId()).build()
@@ -413,7 +430,7 @@ object StateMapper {
             .addAllZones(transferResult.patchedZones.sortedBy { it.zoneId })
             .addAllGameObjects(transferResult.patchedObjects)
             .addAllAnnotations(numberedAnnotations)
-            .addAllPersistentAnnotations(persistentAnnotations)
+            .addAllPersistentAnnotations(allPersistentAnnotations)
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
         if (prevState != null && prevState.gameStateId > 0) {
@@ -499,6 +516,7 @@ object StateMapper {
             .addAllGameObjects(changedObjects)
             .addAllAnnotations(current.annotationsList)
             .addAllPersistentAnnotations(current.persistentAnnotationsList)
+            .addAllDiffDeletedPersistentAnnotationIds(bridge.drainPersistentDeletions())
             .addAllTimers(buildTimers())
             .setUpdate(updateType)
             .setPrevGameStateId(prev.gameStateId)

@@ -25,6 +25,7 @@ object CardDb {
         val supertypes: List<Int>, // proto SuperType values
         val abilityIds: List<Pair<Int, Int>>, // abilityGrpId:textId pairs
         val manaCost: List<Pair<ManaColor, Int>>, // (color, count) from OldSchoolManaText
+        val tokenGrpIds: Map<Int, Int> = emptyMap(), // abilityGrpId → tokenGrpId
     )
 
     private val cache = mutableMapOf<Int, CardData?>()
@@ -187,7 +188,7 @@ object CardDb {
         return try {
             DriverManager.getConnection("jdbc:sqlite:$dbPath").use { conn ->
                 conn.prepareStatement(
-                    "SELECT GrpId, TitleId, Power, Toughness, Colors, Types, Subtypes, Supertypes, AbilityIds, OldSchoolManaText FROM Cards WHERE GrpId = ?",
+                    "SELECT GrpId, TitleId, Power, Toughness, Colors, Types, Subtypes, Supertypes, AbilityIds, OldSchoolManaText, AbilityIdToLinkedTokenGrpId FROM Cards WHERE GrpId = ?",
                 ).use { stmt ->
                     stmt.setInt(1, grpId)
                     val rs = stmt.executeQuery()
@@ -203,6 +204,7 @@ object CardDb {
                         supertypes = parseIntList(rs.getString("Supertypes")),
                         abilityIds = parseAbilityIds(rs.getString("AbilityIds")),
                         manaCost = parseManaCost(rs.getString("OldSchoolManaText")),
+                        tokenGrpIds = parseTokenGrpIds(rs.getString("AbilityIdToLinkedTokenGrpId")),
                     )
                 }
             }
@@ -210,6 +212,30 @@ object CardDb {
             log.warn("Failed to query client card DB for grpId={}: {}", grpId, e.message)
             null
         }
+    }
+
+    /**
+     * Look up the token grpId produced by a source card.
+     * If the source card produces exactly one token type, returns it directly.
+     * If multiple, matches by [tokenName] against the token's localized name.
+     * Returns null if source card has no token mappings or no match found.
+     */
+    fun tokenGrpIdForCard(sourceGrpId: Int, tokenName: String? = null): Int? {
+        val data = lookup(sourceGrpId) ?: return null
+        val tokens = data.tokenGrpIds
+        if (tokens.isEmpty()) return null
+        if (tokens.size == 1) return tokens.values.first()
+        if (tokenName == null) return null
+        // Multiple tokens — match by name
+        for ((_, tokenGrpId) in tokens) {
+            val name = getCardName(tokenGrpId) ?: run {
+                // Try loading from DB
+                lookup(tokenGrpId)
+                getCardName(tokenGrpId)
+            }
+            if (name == tokenName) return tokenGrpId
+        }
+        return null
     }
 
     /** Parse "5" or "27,23" → list of ints. */
@@ -247,6 +273,21 @@ object CardDb {
                 null
             }
         }
+    }
+
+    /** Parse "99866:94161,175756:94156" → mapOf(99866 to 94161, 175756 to 94156). */
+    internal fun parseTokenGrpIds(s: String?): Map<Int, Int> {
+        if (s.isNullOrBlank()) return emptyMap()
+        val result = mutableMapOf<Int, Int>()
+        for (entry in s.split(",")) {
+            val parts = entry.trim().split(":")
+            if (parts.size == 2) {
+                val abilityGrpId = parts[0].toIntOrNull() ?: continue
+                val tokenGrpId = parts[1].toIntOrNull() ?: continue
+                result[abilityGrpId] = tokenGrpId
+            }
+        }
+        return result
     }
 
     private fun queryByName(dbPath: String, cardName: String): Int? = try {

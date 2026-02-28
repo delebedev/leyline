@@ -36,6 +36,7 @@ object MechanicClassifier {
         is NexusGameEvent.CardMilled -> "mill"
         is NexusGameEvent.SpellCountered -> "counter"
         is NexusGameEvent.TokenCreated -> "token_create"
+        is NexusGameEvent.TokenDestroyed -> "token_destroy"
         is NexusGameEvent.CountersChanged -> "counters_change"
         is NexusGameEvent.LibraryShuffled -> "shuffle"
         is NexusGameEvent.Scry -> "scry"
@@ -44,6 +45,7 @@ object MechanicClassifier {
         is NexusGameEvent.CardDetached -> "detachment"
         is NexusGameEvent.CardsRevealed -> "reveal"
         is NexusGameEvent.CombatEnded -> "combat_end"
+        is NexusGameEvent.PowerToughnessChanged -> "pt_change"
     }
 
     /**

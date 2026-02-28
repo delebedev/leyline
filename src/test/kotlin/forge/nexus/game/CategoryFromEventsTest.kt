@@ -357,4 +357,73 @@ class CategoryFromEventsTest {
         )
         assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Exile)
     }
+
+    // -- Return / Search / Put zone-pair categories --
+
+    @Test
+    fun graveyardToHandReturnsReturn() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Graveyard, to = ZoneType.Hand),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Return)
+    }
+
+    @Test
+    fun graveyardToBattlefieldReturnsReturn() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Graveyard, to = ZoneType.Battlefield),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Return)
+    }
+
+    @Test
+    fun exileToHandReturnsReturn() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Exile, to = ZoneType.Hand),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Return)
+    }
+
+    @Test
+    fun exileToBattlefieldReturnsReturn() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Exile, to = ZoneType.Battlefield),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Return)
+    }
+
+    @Test
+    fun libraryToBattlefieldReturnsSearch() {
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Library, to = ZoneType.Battlefield),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Search)
+    }
+
+    @Test
+    fun libraryToHandStillReturnsDraw() {
+        // Library→Hand should remain Draw, not be overridden to Search
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Library, to = ZoneType.Hand),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Draw)
+    }
+
+    @Test
+    fun exileToLibraryReturnsZoneTransfer() {
+        // Exile→Library has no specific category
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Exile, to = ZoneType.Library),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.ZoneTransfer)
+    }
+
+    @Test
+    fun graveyardToExileStillReturnsExile() {
+        // GY→Exile should still prefer Exile over Return
+        val events = listOf(
+            NexusGameEvent.ZoneChanged(forgeCardId = 55, from = ZoneType.Graveyard, to = ZoneType.Exile),
+        )
+        assertEquals(AnnotationBuilder.categoryFromEvents(55, events), TransferCategory.Exile)
+    }
 }

@@ -2,6 +2,7 @@ package forge.nexus.game
 
 import forge.game.Game
 import forge.game.card.Card
+import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -15,6 +16,8 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Extracted from [StateMapper] for independent testability.
  */
 object ObjectMapper {
+
+    private val log = LoggerFactory.getLogger(ObjectMapper::class.java)
 
     /** Offset added to source card IDs for stack ability instance IDs. */
     internal const val STACK_ABILITY_ID_OFFSET = 100_000
@@ -33,7 +36,7 @@ object ObjectMapper {
         ownerSeatId: Int,
         visibility: Visibility = Visibility.Private,
     ): GameObjectInfo {
-        val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
+        val grpId = resolveGrpId(card)
         return CardDb.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Card)
@@ -58,7 +61,7 @@ object ObjectMapper {
         bridge: GameBridge,
         game: Game,
     ): GameObjectInfo {
-        val grpId = CardDb.lookupByName(card.name) ?: GameBridge.FALLBACK_GRPID
+        val grpId = resolveGrpId(card)
         return CardDb.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Card)
@@ -134,5 +137,26 @@ object ObjectMapper {
         }
 
         return this
+    }
+
+    /** Resolve grpId for a card, using token-specific lookup for tokens. */
+    internal fun resolveGrpId(card: Card): Int {
+        if (card.isToken) {
+            return resolveTokenGrpId(card) ?: run {
+                log.error("token grpId=0 for '{}' (forgeId={})", card.name, card.id)
+                GameBridge.FALLBACK_GRPID
+            }
+        }
+        return CardDb.lookupByName(card.name) ?: run {
+            log.error("grpId=0 for card '{}' (forgeId={}): not in client card DB", card.name, card.id)
+            GameBridge.FALLBACK_GRPID
+        }
+    }
+
+    /** Resolve token grpId via source card's AbilityIdToLinkedTokenGrpId mapping. */
+    private fun resolveTokenGrpId(card: Card): Int? {
+        val sourceCard = card.tokenSpawningAbility?.hostCard ?: return null
+        val sourceGrpId = CardDb.lookupByName(sourceCard.name) ?: return null
+        return CardDb.tokenGrpIdForCard(sourceGrpId, card.name)
     }
 }
