@@ -4,6 +4,7 @@ import forge.nexus.game.mapper.ZoneIds
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
@@ -167,10 +168,28 @@ class AnnotationBuilderTest {
 
     @Test
     fun manaPaidFields() {
-        val ann = AnnotationBuilder.manaPaid(instanceId = 600)
+        val ann = AnnotationBuilder.manaPaid(instanceId = 600, manaId = 5, color = "Green")
         assertTrue(ann.typeList.contains(AnnotationType.ManaPaid))
         assertTrue(ann.affectedIdsList.contains(600))
         assertEquals(ann.affectorId, 0, "ManaPaid has no affectorId")
+
+        val id = ann.detailsList.first { it.key == "id" }
+        assertEquals(id.type, KeyValuePairValueType.Int32)
+        assertEquals(id.getValueInt32(0), 5)
+
+        val color = ann.detailsList.first { it.key == "color" }
+        assertEquals(color.type, KeyValuePairValueType.String)
+        assertEquals(color.getValueString(0), "Green")
+    }
+
+    @Test
+    fun manaPaidDefaults() {
+        val ann = AnnotationBuilder.manaPaid(instanceId = 600)
+        // Defaults: manaId=0, color=""
+        val id = ann.detailsList.first { it.key == "id" }
+        assertEquals(id.getValueInt32(0), 0, "default manaId should be 0")
+        val color = ann.detailsList.first { it.key == "color" }
+        assertEquals(color.getValueString(0), "", "default color should be empty")
     }
 
     // --- TappedUntappedPermanent ---
@@ -202,10 +221,21 @@ class AnnotationBuilderTest {
 
     @Test
     fun abilityInstanceCreatedFields() {
-        val ann = AnnotationBuilder.abilityInstanceCreated(instanceId = 900)
+        val ann = AnnotationBuilder.abilityInstanceCreated(instanceId = 900, sourceZoneId = 31)
         assertTrue(ann.typeList.contains(AnnotationType.AbilityInstanceCreated))
         assertTrue(ann.affectedIdsList.contains(900))
         assertEquals(ann.affectorId, 0, "No affectorId")
+
+        val srcZone = ann.detailsList.first { it.key == "source_zone" }
+        assertEquals(srcZone.type, KeyValuePairValueType.Int32)
+        assertEquals(srcZone.getValueInt32(0), 31, "source_zone should be Hand (31)")
+    }
+
+    @Test
+    fun abilityInstanceCreatedDefaultZone() {
+        val ann = AnnotationBuilder.abilityInstanceCreated(instanceId = 900)
+        val srcZone = ann.detailsList.first { it.key == "source_zone" }
+        assertEquals(srcZone.getValueInt32(0), 0, "default source_zone should be 0")
     }
 
     // --- AbilityInstanceDeleted ---
@@ -248,6 +278,23 @@ class AnnotationBuilderTest {
         val damage = ann.detailsList.first { it.key == "damage" }
         assertEquals(damage.type, KeyValuePairValueType.Uint32)
         assertEquals(damage.getValueUint32(0), 3)
+
+        // type defaults to 1 (combat)
+        val type = ann.detailsList.first { it.key == "type" }
+        assertEquals(type.type, KeyValuePairValueType.Uint32)
+        assertEquals(type.getValueUint32(0), 1, "default type should be 1 (combat)")
+
+        // markDamage defaults to amount
+        val markDamage = ann.detailsList.first { it.key == "markDamage" }
+        assertEquals(markDamage.type, KeyValuePairValueType.Uint32)
+        assertEquals(markDamage.getValueUint32(0), 3, "markDamage should default to damage amount")
+    }
+
+    @Test
+    fun damageDealtNonCombat() {
+        val ann = AnnotationBuilder.damageDealt(sourceInstanceId = 1000, amount = 2, type = 0, markDamage = 2)
+        val type = ann.detailsList.first { it.key == "type" }
+        assertEquals(type.getValueUint32(0), 0, "type=0 for non-combat damage")
     }
 
     // --- ModifiedLife ---
@@ -415,5 +462,148 @@ class AnnotationBuilderTest {
 
         val bottom = ann.detailsList.first { it.key == "bottomCount" }
         assertEquals(bottom.getValueInt32(0), 1)
+    }
+
+    // =======================================================================
+    // Stateless detail-key shape tests
+    //
+    // Verify each builder method produces the exact set of detail keys
+    // the real Arena server sends (from golden recording reference).
+    // Catches field additions/removals at the builder level without
+    // needing game state or golden files.
+    // =======================================================================
+
+    private fun detailKeys(ann: AnnotationInfo): Set<String> =
+        ann.detailsList.map { it.key }.toSet()
+
+    @Test(description = "DamageDealt shape: {damage, type, markDamage} — matches golden combat-damage.bin gsId=126")
+    fun damageDealtDetailKeyShape() {
+        val ann = AnnotationBuilder.damageDealt(sourceInstanceId = 1, amount = 3)
+        assertEquals(
+            detailKeys(ann),
+            setOf("damage", "type", "markDamage"),
+            "DamageDealt must have all three keys for combat damage animation",
+        )
+    }
+
+    @Test(description = "ManaPaid shape: {id, color} — matches golden stack-resolve.bin gsId=66")
+    fun manaPaidDetailKeyShape() {
+        val ann = AnnotationBuilder.manaPaid(instanceId = 1, manaId = 1, color = "Green")
+        assertEquals(
+            detailKeys(ann),
+            setOf("id", "color"),
+            "ManaPaid must have id and color for mana payment tracking",
+        )
+    }
+
+    @Test(description = "AbilityInstanceCreated shape: {source_zone} — matches golden stack-resolve.bin gsId=66")
+    fun abilityInstanceCreatedDetailKeyShape() {
+        val ann = AnnotationBuilder.abilityInstanceCreated(instanceId = 1, sourceZoneId = 31)
+        assertEquals(
+            detailKeys(ann),
+            setOf("source_zone"),
+            "AbilityInstanceCreated must have source_zone for animation origin",
+        )
+    }
+
+    @Test(description = "ZoneTransfer shape: {zone_src, zone_dest, category}")
+    fun zoneTransferDetailKeyShape() {
+        val ann = AnnotationBuilder.zoneTransfer(1, 31, 28, "PlayLand")
+        assertEquals(detailKeys(ann), setOf("zone_src", "zone_dest", "category"))
+    }
+
+    @Test(description = "ResolutionStart shape: {grpid}")
+    fun resolutionStartDetailKeyShape() {
+        val ann = AnnotationBuilder.resolutionStart(1, 12345)
+        assertEquals(detailKeys(ann), setOf("grpid"))
+    }
+
+    @Test(description = "ResolutionComplete shape: {grpid}")
+    fun resolutionCompleteDetailKeyShape() {
+        val ann = AnnotationBuilder.resolutionComplete(1, 12345)
+        assertEquals(detailKeys(ann), setOf("grpid"))
+    }
+
+    @Test(description = "UserActionTaken shape: {actionType, abilityGrpId}")
+    fun userActionTakenDetailKeyShape() {
+        val ann = AnnotationBuilder.userActionTaken(1, 1, 1, 0)
+        assertEquals(detailKeys(ann), setOf("actionType", "abilityGrpId"))
+    }
+
+    @Test(description = "TappedUntappedPermanent shape: {tapped}")
+    fun tappedUntappedDetailKeyShape() {
+        val ann = AnnotationBuilder.tappedUntappedPermanent(1, 2)
+        assertEquals(detailKeys(ann), setOf("tapped"))
+    }
+
+    @Test(description = "ObjectIdChanged shape: {orig_id, new_id}")
+    fun objectIdChangedDetailKeyShape() {
+        val ann = AnnotationBuilder.objectIdChanged(1, 2)
+        assertEquals(detailKeys(ann), setOf("orig_id", "new_id"))
+    }
+
+    @Test(description = "PhaseOrStepModified shape: {phase, step}")
+    fun phaseOrStepModifiedDetailKeyShape() {
+        val ann = AnnotationBuilder.phaseOrStepModified(1, 1, 2)
+        assertEquals(detailKeys(ann), setOf("phase", "step"))
+    }
+
+    @Test(description = "ModifiedLife shape: {delta}")
+    fun modifiedLifeDetailKeyShape() {
+        val ann = AnnotationBuilder.modifiedLife(1, -3)
+        assertEquals(detailKeys(ann), setOf("delta"))
+    }
+
+    @Test(description = "ModifiedPower shape: {value}")
+    fun modifiedPowerDetailKeyShape() {
+        val ann = AnnotationBuilder.modifiedPower(1, 5)
+        assertEquals(detailKeys(ann), setOf("value"))
+    }
+
+    @Test(description = "ModifiedToughness shape: {value}")
+    fun modifiedToughnessDetailKeyShape() {
+        val ann = AnnotationBuilder.modifiedToughness(1, 3)
+        assertEquals(detailKeys(ann), setOf("value"))
+    }
+
+    @Test(description = "LossOfGame shape: {reason}")
+    fun lossOfGameDetailKeyShape() {
+        val ann = AnnotationBuilder.lossOfGame(1, 0)
+        assertEquals(detailKeys(ann), setOf("reason"))
+    }
+
+    @Test(description = "CounterAdded shape: {counter_type, transaction_amount}")
+    fun counterAddedDetailKeyShape() {
+        val ann = AnnotationBuilder.counterAdded(1, "P1P1", 2)
+        assertEquals(detailKeys(ann), setOf("counter_type", "transaction_amount"))
+    }
+
+    @Test(description = "CounterRemoved shape: {counter_type, transaction_amount}")
+    fun counterRemovedDetailKeyShape() {
+        val ann = AnnotationBuilder.counterRemoved(1, "LOYALTY", 1)
+        assertEquals(detailKeys(ann), setOf("counter_type", "transaction_amount"))
+    }
+
+    @Test(description = "Scry shape: {topCount, bottomCount}")
+    fun scryDetailKeyShape() {
+        val ann = AnnotationBuilder.scry(1, 2, 1)
+        assertEquals(detailKeys(ann), setOf("topCount", "bottomCount"))
+    }
+
+    @Test(description = "No-detail annotations: NewTurnStarted, SyntheticEvent, EnteredZoneThisTurn, etc.")
+    fun noDetailAnnotationShapes() {
+        // These annotations carry no detail keys — just type + affected/affector IDs
+        assertEquals(detailKeys(AnnotationBuilder.newTurnStarted(1)), emptySet<String>(), "NewTurnStarted")
+        assertEquals(detailKeys(AnnotationBuilder.syntheticEvent()), emptySet<String>(), "SyntheticEvent")
+        assertEquals(detailKeys(AnnotationBuilder.enteredZoneThisTurn(28, 1)), emptySet<String>(), "EnteredZoneThisTurn")
+        assertEquals(detailKeys(AnnotationBuilder.abilityInstanceDeleted(1)), emptySet<String>(), "AbilityInstanceDeleted")
+        assertEquals(detailKeys(AnnotationBuilder.tokenCreated(1)), emptySet<String>(), "TokenCreated")
+        assertEquals(detailKeys(AnnotationBuilder.tokenDeleted(1)), emptySet<String>(), "TokenDeleted")
+        assertEquals(detailKeys(AnnotationBuilder.attachmentCreated(1, 2)), emptySet<String>(), "AttachmentCreated")
+        assertEquals(detailKeys(AnnotationBuilder.attachment(1, 2)), emptySet<String>(), "Attachment")
+        assertEquals(detailKeys(AnnotationBuilder.removeAttachment(1)), emptySet<String>(), "RemoveAttachment")
+        assertEquals(detailKeys(AnnotationBuilder.shuffle(1)), emptySet<String>(), "Shuffle")
+        assertEquals(detailKeys(AnnotationBuilder.revealedCardCreated(1)), emptySet<String>(), "RevealedCardCreated")
+        assertEquals(detailKeys(AnnotationBuilder.revealedCardDeleted(1)), emptySet<String>(), "RevealedCardDeleted")
     }
 }

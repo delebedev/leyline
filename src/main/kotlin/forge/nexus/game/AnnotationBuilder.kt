@@ -187,11 +187,18 @@ object AnnotationBuilder {
             .addDetails(int32Detail("abilityGrpId", abilityGrpId))
             .build()
 
-    /** Mana was spent to pay for a spell/ability. */
-    fun manaPaid(instanceId: Int): AnnotationInfo =
+    /**
+     * Mana was spent to pay for a spell/ability.
+     * [manaId] = mana payment tracking ID (real server assigns sequentially).
+     * [color] = mana color string ("White", "Blue", "Black", "Red", "Green", "Colorless").
+     * When mana tracking is not available, pass defaults (0, "").
+     */
+    fun manaPaid(instanceId: Int, manaId: Int = 0, color: String = ""): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ManaPaid)
             .addAffectedIds(instanceId)
+            .addDetails(int32Detail("id", manaId))
+            .addDetails(typedStringDetail("color", color))
             .build()
 
     /**
@@ -208,11 +215,16 @@ object AnnotationBuilder {
             .addDetails(uint32Detail("tapped", if (tapped) 1 else 0))
             .build()
 
-    /** Ability instance created on the stack. */
-    fun abilityInstanceCreated(instanceId: Int): AnnotationInfo =
+    /**
+     * Ability instance created on the stack.
+     * [sourceZoneId] = zone the ability/spell came from (e.g. Hand=31).
+     * Real server always sends this; client may use it for animation origin.
+     */
+    fun abilityInstanceCreated(instanceId: Int, sourceZoneId: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.AbilityInstanceCreated)
             .addAffectedIds(instanceId)
+            .addDetails(int32Detail("source_zone", sourceZoneId))
             .build()
 
     /** Ability instance deleted (e.g. hand's play ability consumed after casting). */
@@ -231,12 +243,18 @@ object AnnotationBuilder {
             .addDetails(uint32Detail("grpid", grpId))
             .build()
 
-    /** Combat damage dealt by a creature. Client uses this for damage flash animation. */
-    fun damageDealt(sourceInstanceId: Int, amount: Int): AnnotationInfo =
+    /**
+     * Combat damage dealt by a creature. Client uses this for damage flash animation.
+     * [type] = damage type: 1=combat, 0=non-combat (real server always sends this).
+     * [markDamage] = damage marked on the creature (usually equals [amount]).
+     */
+    fun damageDealt(sourceInstanceId: Int, amount: Int, type: Int = 1, markDamage: Int = amount): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.DamageDealt_af5a)
             .addAffectedIds(sourceInstanceId)
             .addDetails(uint32Detail("damage", amount))
+            .addDetails(uint32Detail("type", type))
+            .addDetails(uint32Detail("markDamage", markDamage))
             .build()
 
     /** Player life total changed. Client uses this for life counter animation. */

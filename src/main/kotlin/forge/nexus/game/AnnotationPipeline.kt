@@ -162,8 +162,8 @@ object AnnotationPipeline {
             TransferCategory.CastSpell -> {
                 annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
-                annotations.add(AnnotationBuilder.abilityInstanceCreated(newId))
-                annotations.add(AnnotationBuilder.manaPaid(newId))
+                annotations.add(AnnotationBuilder.abilityInstanceCreated(newId, sourceZoneId = srcZone))
+                annotations.add(AnnotationBuilder.manaPaid(newId)) // TODO: pass manaId/color when mana payment tracking is wired
                 annotations.add(AnnotationBuilder.abilityInstanceDeleted(newId))
                 annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
             }
