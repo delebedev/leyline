@@ -33,6 +33,18 @@ In the capture, player toggled 5 times before confirming.
 
 Same interactive pattern. `DeclareBlockersReq` (Prompt id=7). Each toggle = state diff + new request. `SubmitBlockersResp` confirms.
 
+Confirmed in recording `2026-02-28_14-15-29` (real server):
+```
+S→C: DeclareBlockersReq (blocker=360, attackerInstanceIds=[355], maxAttackers=1)
+C→S: DeclareBlockersResp (blocker 360 → attacker 355)
+S→C: DeclareBlockersReq echo (attackerInstanceIds=[] — server reflects toggle-off)
+C→S: DeclareBlockersResp (toggle again)
+  ... 6 echo-backs total
+C→S: SubmitBlockersReq (finalize — empty payload, type=33)
+```
+
+Key detail: the echo-back `DeclareBlockersReq` updates `attackerInstanceIds` to reflect current assignment state (empty when unassigned, populated when assigned).
+
 ### Combat damage
 
 State diff: creatures leave Battlefield → enter Graveyards simultaneously. Death triggers go on Stack, resolve normally.
