@@ -551,9 +551,8 @@ class CombatFlowTest {
         harness.passPriority()
 
         // Verify DeclareAttackersReq was sent with our creature
-        val daReq = harness.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
-        assertNotNull(daReq, "Should receive DeclareAttackersReq")
-        val eligible = daReq!!.declareAttackersReq.attackersList.map { it.attackerInstanceId }
+        val daReq = checkNotNull(harness.allMessages.lastOrNull { it.hasDeclareAttackersReq() }) { "Should receive DeclareAttackersReq" }
+        val eligible = daReq.declareAttackersReq.attackersList.map { it.attackerInstanceId }
         assertTrue(attackerIid in eligible, "Raging Goblin should be eligible")
 
         // Toggle creature ON (iterative DeclareAttackersResp)

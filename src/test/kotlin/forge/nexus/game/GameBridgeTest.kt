@@ -5,7 +5,6 @@ import forge.game.zone.ZoneType
 import forge.nexus.config.GameConfig
 import forge.nexus.config.PlaytestConfig
 import forge.nexus.game.mapper.ActionMapper
-import forge.nexus.game.mapper.PromptIds
 import forge.nexus.game.mapper.ZoneIds
 import forge.web.game.GameBootstrap
 import forge.web.game.PlayerAction

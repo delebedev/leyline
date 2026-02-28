@@ -104,9 +104,8 @@ class AiLandPlayOrderTest {
         val userAction = playLandGsm.annotationsList.first {
             it.typeList.contains(AnnotationType.UserActionTaken)
         }
-        val actionTypeDetail = userAction.detailsList.firstOrNull { it.key == "actionType" }
-        assertNotNull(actionTypeDetail, "UserActionTaken should have actionType detail")
-        assertTrue(actionTypeDetail!!.valueInt32List.contains(3), "actionType should be 3 (Play)")
+        val actionTypeDetail = checkNotNull(userAction.detailsList.firstOrNull { it.key == "actionType" }) { "UserActionTaken should have actionType detail" }
+        assertTrue(actionTypeDetail.valueInt32List.contains(3), "actionType should be 3 (Play)")
 
         // PlayLand diff should contain a land object on the battlefield
         val landObj = playLandGsm.gameObjectsList.firstOrNull { obj ->

@@ -115,5 +115,4 @@ class CounteredSpellTest : ConformanceTestBase() {
             "Fizzled SpellResolved + Stack→GY must produce Countered, not Resolve",
         )
     }
-
 }
