@@ -105,6 +105,7 @@ object RecordingDecoder {
     data class DecodedMessage(
         val index: Int,
         val file: String,
+        val dir: String = "S-C",
         val greType: String,
         val msgId: Int = 0,
         val gsId: Int = 0,
@@ -121,7 +122,7 @@ object RecordingDecoder {
         val hasActionsAvailableReq: Boolean = false,
         val hasMulliganReq: Boolean = false,
         val declareAttackers: DeclareAttackersSummary? = null,
-        val hasDeclareBlockersReq: Boolean = false,
+        val declareBlockers: DeclareBlockersSummary? = null,
         val hasSelectTargetsReq: Boolean = false,
         val hasIntermissionReq: Boolean = false,
         val castingTimeOptions: List<CastingTimeOptionSummary> = emptyList(),
@@ -129,6 +130,12 @@ object RecordingDecoder {
         val turnInfo: TurnInfoSummary? = null,
         val promptId: Int? = null,
         val systemSeatIds: List<Int> = emptyList(),
+        // Client→Server fields (only set when dir="C-S")
+        val clientType: String? = null,
+        val clientAttackers: ClientAttackersSummary? = null,
+        val clientBlockers: ClientBlockersSummary? = null,
+        val clientAction: ClientActionSummary? = null,
+        val clientTargets: ClientTargetsSummary? = null,
     )
 
     @Serializable
@@ -212,6 +219,48 @@ object RecordingDecoder {
     )
 
     @Serializable
+    data class DeclareBlockersSummary(
+        val blockers: List<BlockerSummary>,
+    )
+
+    @Serializable
+    data class BlockerSummary(
+        val instanceId: Int,
+        val attackerInstanceIds: List<Int>,
+        val maxAttackers: Int = 0,
+    )
+
+    // --- Client→Server summary types ---
+
+    @Serializable
+    data class ClientAttackersSummary(
+        val selectedAttackers: List<Int>,
+        val autoDeclare: Boolean = false,
+    )
+
+    @Serializable
+    data class ClientBlockersSummary(
+        val blockers: List<ClientBlockerAssignment>,
+    )
+
+    @Serializable
+    data class ClientBlockerAssignment(
+        val blockerInstanceId: Int,
+        val selectedAttackerInstanceIds: List<Int>,
+    )
+
+    @Serializable
+    data class ClientActionSummary(
+        val actions: List<ActionSummary>,
+    )
+
+    @Serializable
+    data class ClientTargetsSummary(
+        val targetIdx: Int = 0,
+        val targetInstanceIds: List<Int> = emptyList(),
+    )
+
+    @Serializable
     data class CastingTimeOptionSummary(
         val ctoId: Int,
         val type: String,
@@ -261,9 +310,18 @@ object RecordingDecoder {
 
     /**
      * Decode a single .bin file into DecodedMessage list.
+     * Handles both S→C (MatchServiceToClientMessage with GRE events) and
+     * C→S (ClientToMatchServiceMessage with nested ClientToGREMessage payload).
      * @param seatFilter if non-null, only include GRE messages addressed to this seat
      */
     fun decodeFile(file: File, startIndex: Int = 0, seatFilter: Int? = null): List<DecodedMessage> {
+        val isClientToServer = file.name.contains("C-S")
+        if (isClientToServer) {
+            val decoded = decodeClientMessage(file.readBytes(), startIndex, file.name)
+                ?: return emptyList()
+            return listOf(decoded)
+        }
+
         val msg = parseMatchMessage(file.readBytes()) ?: return emptyList()
         if (!msg.hasGreToClientEvent()) return emptyList()
 
@@ -301,16 +359,90 @@ object RecordingDecoder {
             ?.filter { f ->
                 if (!f.isFile || f.extension != "bin") return@filter false
                 val n = f.name
-                // Door-tagged captures: only keep MD S→C
+                // Door-tagged captures: keep MD in both directions
                 if (n.contains("MD_") || n.contains("FD_")) {
-                    return@filter n.contains("MD_S-C")
+                    return@filter n.contains("MD_S-C") || n.contains("MD_C-S")
                 }
-                // Legacy: exclude C→S
-                if (n.startsWith("C-S_")) return@filter false
+                // Legacy: include both directions
                 true
             }
             ?.sortedBy { it.name }
             ?: emptyList()
+
+    // --- Client→Server decoding ---
+
+    /**
+     * Decode a ClientToMatchServiceMessage .bin file.
+     * Extracts the nested [ClientToGREMessage] from the `payload` bytes field.
+     */
+    private fun decodeClientMessage(bytes: ByteArray, index: Int, fileName: String): DecodedMessage? {
+        val wrapper = parseClientWrapper(bytes) ?: return null
+        if (wrapper.payload.isEmpty) return null
+        val gre = try {
+            ClientToGREMessage.parseFrom(wrapper.payload)
+        } catch (_: Throwable) {
+            return null
+        }
+        val typeName = gre.type.name.strip()
+        return DecodedMessage(
+            index = index,
+            file = fileName,
+            dir = "C-S",
+            greType = typeName,
+            gsId = gre.gameStateId,
+            clientType = typeName,
+            clientAttackers = gre.takeIf { it.hasDeclareAttackersResp() }?.let { msg ->
+                val resp = msg.declareAttackersResp
+                ClientAttackersSummary(
+                    selectedAttackers = resp.selectedAttackersList.map { it.attackerInstanceId },
+                    autoDeclare = resp.autoDeclare,
+                )
+            },
+            clientBlockers = gre.takeIf { it.hasDeclareBlockersResp() }?.let { msg ->
+                val resp = msg.declareBlockersResp
+                ClientBlockersSummary(
+                    blockers = resp.selectedBlockersList.map { b ->
+                        ClientBlockerAssignment(
+                            blockerInstanceId = b.blockerInstanceId,
+                            selectedAttackerInstanceIds = b.selectedAttackerInstanceIdsList.map { it.toInt() },
+                        )
+                    },
+                )
+            },
+            clientAction = gre.takeIf { it.hasPerformActionResp() }?.let { msg ->
+                val resp = msg.performActionResp
+                ClientActionSummary(
+                    actions = resp.actionsList.map { a ->
+                        ActionSummary(
+                            type = a.actionType.name.strip(),
+                            instanceId = a.instanceId.toInt(),
+                            grpId = a.grpId.toInt(),
+                        )
+                    },
+                )
+            },
+            clientTargets = gre.takeIf { it.hasSelectTargetsResp() }?.let { msg ->
+                val resp = msg.selectTargetsResp
+                ClientTargetsSummary(
+                    targetIdx = resp.target.targetIdx,
+                    targetInstanceIds = resp.target.targetsList.map { it.targetInstanceId },
+                )
+            },
+        )
+    }
+
+    /** Parse a ClientToMatchServiceMessage from raw or framed bytes. */
+    private fun parseClientWrapper(bytes: ByteArray): ClientToMatchServiceMessage? {
+        try {
+            return ClientToMatchServiceMessage.parseFrom(bytes)
+        } catch (_: Throwable) {}
+        val payload = extractClientPayload(bytes) ?: return null
+        return try {
+            ClientToMatchServiceMessage.parseFrom(payload)
+        } catch (_: Throwable) {
+            null
+        }
+    }
 
     /**
      * Parse a MatchServiceToClientMessage from either:
@@ -368,7 +500,8 @@ object RecordingDecoder {
             hasMulliganReq = gre.hasMulliganReq(),
             declareAttackers = gre.takeIf { it.hasDeclareAttackersReq() }
                 ?.declareAttackersReq?.let { summarizeDeclareAttackers(it) },
-            hasDeclareBlockersReq = gre.hasDeclareBlockersReq(),
+            declareBlockers = gre.takeIf { it.hasDeclareBlockersReq() }
+                ?.declareBlockersReq?.let { summarizeDeclareBlockers(it) },
             hasSelectTargetsReq = gre.hasSelectTargetsReq(),
             hasIntermissionReq = gre.hasIntermissionReq(),
             castingTimeOptions = gre.takeIf { it.hasCastingTimeOptionsReq() }
@@ -491,6 +624,17 @@ object RecordingDecoder {
             canSubmitAttackers = req.canSubmitAttackers,
             hasRequirements = req.hasRequirements,
             hasRestrictions = req.hasRestrictions,
+        )
+
+    private fun summarizeDeclareBlockers(req: DeclareBlockersReq): DeclareBlockersSummary =
+        DeclareBlockersSummary(
+            blockers = req.blockersList.map {
+                BlockerSummary(
+                    instanceId = it.blockerInstanceId,
+                    attackerInstanceIds = it.attackerInstanceIdsList.map { id -> id.toInt() },
+                    maxAttackers = it.maxAttackers,
+                )
+            },
         )
 
     private fun summarizeCastingTimeOption(cto: CastingTimeOptionReq): CastingTimeOptionSummary =
