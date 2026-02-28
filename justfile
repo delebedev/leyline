@@ -260,15 +260,11 @@ _mvn-verify extra_flags:
     cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} {{extra_flags}} verify; rc=$?
     python3 "{{root_dir}}/build/test-summary.py" "{{nexus_dir}}/target" 2>/dev/null \
         || echo "⚠ Could not parse test results"
-    csv="{{nexus_dir}}/target/site/jacoco/jacoco.csv"
-    if [ -f "$csv" ]; then
+    xml="{{nexus_dir}}/target/site/jacoco/jacoco.xml"
+    if [ -f "$xml" ]; then
         echo ""
-        echo "Coverage:"
-        awk -F, 'NR>1 {miss+=$8; cov+=$9} END {tot=miss+cov; pct=(tot?100*cov/tot:0); printf "  %.1f%% (%d/%d lines)\n", pct, cov, tot }' "$csv"
-        echo "Lowest-covered:"
-        awk -F, 'NR>1 {miss=$8; cov=$9; tot=miss+cov; pct=(tot?100*cov/tot:0); printf "%.4f,%s.%s,%d,%d\n", pct, $2, $3, cov, tot }' "$csv" | \
-            sort -t, -k1 -n | head -10 | \
-            awk -F, '{printf "  %5.1f%%  %s.%s  (%d/%d)\n", $1, $2, $3, $4, $5}'
+        python3 "{{root_dir}}/build/coverage-summary.py" "$xml"
+        echo ""
         echo "HTML: forge-nexus/target/site/jacoco/index.html"
     else
         echo "⚠ No coverage report (tests may have failed before verify phase)"

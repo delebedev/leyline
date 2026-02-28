@@ -17,12 +17,9 @@ Root cause is shared: reaching combat with creatures on both sides requires mult
 - Scripted AI controller to skip AI think time
 - Dedicated "combat-ready" seed/fixture that starts at a board state closer to combat
 
-## Restore JaCoCo coverage plugin
+## ~~Restore JaCoCo coverage plugin~~ ✓
 
-JaCoCo plugin removed from pom.xml — `prepare-agent` at `initialize` phase + `${argLine}` in surefire causes spotless 2.43.0 "No value present" crash on JDK 17 CI runners. Justfile recipes (`just coverage`, `just coverage-summary`) are still there but won't produce reports until the plugin is re-added. Options:
-- Bump spotless to a version that doesn't choke on unresolved `${argLine}`
-- Move JaCoCo to a Maven profile (`-Pcoverage`) so it's opt-in and doesn't pollute default lifecycle
-- Switch CI to JDK 21+ where the conflict may not reproduce
+Done: JaCoCo plugin declared in forge-nexus pom.xml with `prepare-agent` + `report` executions. Surefire argLine uses `@{argLine}` (late-binding) to avoid overwriting the agent flag. Report excludes non-testable packages (CLI, analysis, debug, server, protocol, generated proto). `just coverage` prints per-class breakdown via `build/coverage-summary.py`.
 
 ## Coverage: include integration tests
 
