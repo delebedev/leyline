@@ -1,0 +1,18 @@
+[metadata]
+Name:FDN Targeted Removal & Bounce
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Target opponent creatures with removal and bounce spells.\nStab (B): target creature gets -2/-2 (kills Savannah Lions via 0 toughness SBA).\nBanishing Light (2W): exile target nonland permanent.\nUnsummon (U): bounce target creature to hand.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Plains;Plains;Swamp;Swamp;Island
+humanhand=Stab;Banishing Light;Unsummon
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp
+aibattlefield=Savannah Lions;Courageous Goblin;Crackling Cyclops;Mountain;Mountain;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

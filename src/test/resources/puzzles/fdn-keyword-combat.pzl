@@ -1,0 +1,19 @@
+[metadata]
+Name:FDN Keywords - Combat
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Attack and block with keyword creatures.\nVampire Nighthawk: flying + deathtouch + lifelink.\nHealer's Hawk: flying + lifelink.\nTreetop Snarespinner: reach + deathtouch (blocks fliers).\nCast Giant Growth or Sure Strike during combat.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Vampire Nighthawk;Healer's Hawk;Savannah Lions;Swamp;Swamp;Plains;Mountain;Forest
+humanhand=Giant Growth;Sure Strike
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Treetop Snarespinner;Crackling Cyclops;Mountain;Mountain;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

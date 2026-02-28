@@ -5,18 +5,18 @@
 
 [game]
 # RNG seed for deterministic shuffles. Remove or comment out for random.
-seed = 2
+#seed = 2
 
 # Which seat wins the die roll and goes first (1 = human, 2 = AI).
-die_roll_winner = 1
+#die_roll_winner = 1
 
 # Skip mulligan phase — auto-keep opening hand to speed up playtesting.
-skip_mulligan = true
+#skip_mulligan = true
 
 [decks]
 # Deck file names (resolved from decks/ directory, .txt optional).
-seat1 = "pauper-elves"   # human player
-seat2 = "mono-red-rally"   # AI (Sparky)
+seat1 = "simple-test"      # human player
+seat2 = "simple-test"      # AI (Sparky)
 
 [ai]
 # AI animation speed. 2 = twice as fast, 1 = default, 0 = instant.
