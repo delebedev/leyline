@@ -63,6 +63,7 @@ build: check-java _check-upstream
     #!/usr/bin/env bash
     set -euo pipefail
     rm -rf "$HOME/.m2/repository/forge/forge/\${revision}" 2>/dev/null || true
+    rm -rf "{{nexus_dir}}/target/classes"  # purge stale classes from package moves
     cd "{{root_dir}}" && mvn -pl forge-web {{flatten}} {{mvn_skip}} install -q
     cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_skip}} compile
     just -f "{{nexus_dir}}/justfile" _refresh-classpath
