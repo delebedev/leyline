@@ -48,6 +48,9 @@ class InstanceIdRegistry(startId: Int = 100) {
     /** Reverse lookup: client instanceId → Forge card ID. */
     fun getForgeCardId(instanceId: Int): Int? = instanceIdToForgeId[instanceId]
 
-    /** Read-only snapshot of instanceId → forgeCardId (for debug panel). */
+    /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */
     fun snapshot(): Map<Int, Int> = HashMap(instanceIdToForgeId)
+
+    /** Read-only snapshot of forgeCardId → current active instanceId. */
+    fun activeSnapshot(): Map<Int, Int> = HashMap(forgeIdToInstanceId)
 }

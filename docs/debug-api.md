@@ -26,7 +26,12 @@ Snapshots and priority events include `msgSeq` — the NexusDebugCollector seque
 
 - `GET /api/messages?since=N` — ring buffer of inbound/outbound protocol messages
 - `GET /api/state` — current match state (phase, turn, active player)
-- `GET /api/id-map` — instanceId ↔ card name cross-reference (auto-cleans on new match)
+- `GET /api/id-map` — instanceId cross-reference with status/zone/seat tracking
+  - Fields: `instanceId`, `forgeCardId`, `cardName`, `ownerSeatId`, `status` (active/limbo/stale), `forgeZone`, `protoZone`, `protoZoneId`, `grpId`
+  - `?active=true` — only current instanceIds (hide retired/limbo ghosts)
+  - `?seat=1` or `?seat=2` — filter by owner
+  - `?zone=Battlefield` — filter by Forge zone (case-insensitive)
+  - `?name=Prince` — filter by card name substring (case-insensitive)
 - `GET /api/logs?since=N&level=DEBUG` — Logback stream
 
 ## Front Door messages (`FdDebugCollector`)

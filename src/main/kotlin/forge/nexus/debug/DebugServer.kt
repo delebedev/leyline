@@ -119,9 +119,33 @@ class DebugServer(private val port: Int = 8090) {
         respondJson(ex, json.encodeToString(state))
     }
 
+    /**
+     * `/api/id-map` — instanceId cross-reference table with filtering.
+     *
+     * Params:
+     * - `?active=true` — only active instanceIds (default: all)
+     * - `?seat=1` or `?seat=2` — filter by owner seat
+     * - `?zone=Battlefield` — filter by Forge zone name (case-insensitive)
+     * - `?name=Prince` — filter by card name substring (case-insensitive)
+     */
     private fun serveIdMap(ex: HttpExchange) {
-        val map = NexusDebugCollector.idMap()
-        respondJsonList(ex, json.encodeToString(map), null)
+        val params = parseQuery(ex.requestURI.rawQuery)
+        var entries = NexusDebugCollector.idMap()
+
+        if (params["active"]?.lowercase() == "true") {
+            entries = entries.filter { it.status == "active" }
+        }
+        params["seat"]?.toIntOrNull()?.let { seat ->
+            entries = entries.filter { it.ownerSeatId == seat }
+        }
+        params["zone"]?.let { zone ->
+            entries = entries.filter { it.forgeZone.equals(zone, ignoreCase = true) }
+        }
+        params["name"]?.let { name ->
+            entries = entries.filter { it.cardName.contains(name, ignoreCase = true) }
+        }
+
+        respondJsonList(ex, json.encodeToString(entries), null)
     }
 
     private fun serveLogs(ex: HttpExchange) {

@@ -5,6 +5,7 @@ import ch.qos.logback.core.AppenderBase
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
 import forge.nexus.game.CardDb
+import forge.nexus.game.ZoneIds
 import forge.nexus.server.MatchHandler
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -110,22 +111,76 @@ object NexusDebugCollector {
         )
     }
 
-    /** Instance ID cross-reference table from all active bridges. */
+    /**
+     * Instance ID cross-reference table from all active bridges.
+     *
+     * Shows active vs retired status, proto zone (where the protocol placed it)
+     * vs Forge zone (where the engine thinks the card is now). Active = current
+     * instanceId for a forgeCardId; retired = old instanceId now in Limbo.
+     */
     fun idMap(): List<IdMapEntry> = MatchHandler.defaultRegistry.activeBridges()
         .flatMap { (_, bridge) ->
             val game = bridge.getGame() ?: return@flatMap emptyList()
-            bridge.getInstanceIdMap().map { (instanceId, forgeCardId) ->
+            val allIds = bridge.getInstanceIdMap() // instanceId → forgeCardId (all)
+            val activeIds = bridge.getActiveInstanceIdMap() // forgeCardId → active instanceId
+            val limboSet = bridge.getLimboSet() // retired instanceIds
+            val protoZones = bridge.getProtoZones() // instanceId → proto zoneId
+
+            // Invert activeIds for O(1) lookup: active instanceId → forgeCardId
+            val activeInstanceIds = activeIds.values.toSet()
+
+            // Derive seat from player: seat 1 = human, seat 2 = AI
+            val seatByPlayerId = mapOf(
+                bridge.getPlayer(1)?.id to 1,
+                bridge.getPlayer(2)?.id to 2,
+            )
+
+            allIds.map { (instanceId, forgeCardId) ->
                 val card = game.findById(forgeCardId)
+                val isActive = instanceId in activeInstanceIds
+                val isLimbo = instanceId in limboSet
+                val protoZoneId = protoZones[instanceId]
+
                 IdMapEntry(
                     instanceId = instanceId,
                     forgeCardId = forgeCardId,
                     cardName = card?.name ?: "?",
-                    zone = card?.zone?.zoneType?.name ?: "?",
+                    ownerSeatId = seatByPlayerId[card?.owner?.id] ?: 0,
+                    status = when {
+                        isActive -> "active"
+                        isLimbo -> "limbo"
+                        else -> "stale" // in reverse map but not active, not yet in limbo
+                    },
+                    forgeZone = card?.zone?.zoneType?.name ?: "?",
+                    protoZone = protoZoneId?.let { protoZoneName(it) },
+                    protoZoneId = protoZoneId,
                     grpId = CardDb.lookupByName(card?.name ?: "") ?: 0,
                 )
             }
         }
         .sortedBy { it.instanceId }
+
+    /** Human-readable name for a proto zone ID. */
+    private fun protoZoneName(zoneId: Int): String = when (zoneId) {
+        ZoneIds.BATTLEFIELD -> "Battlefield"
+        ZoneIds.STACK -> "Stack"
+        ZoneIds.EXILE -> "Exile"
+        ZoneIds.LIMBO -> "Limbo"
+        ZoneIds.COMMAND -> "Command"
+        ZoneIds.P1_HAND -> "Hand(P1)"
+        ZoneIds.P1_LIBRARY -> "Library(P1)"
+        ZoneIds.P1_GRAVEYARD -> "Graveyard(P1)"
+        ZoneIds.P2_HAND -> "Hand(P2)"
+        ZoneIds.P2_LIBRARY -> "Library(P2)"
+        ZoneIds.P2_GRAVEYARD -> "Graveyard(P2)"
+        ZoneIds.P1_SIDEBOARD -> "Sideboard(P1)"
+        ZoneIds.P2_SIDEBOARD -> "Sideboard(P2)"
+        ZoneIds.REVEALED_P1 -> "Revealed(P1)"
+        ZoneIds.REVEALED_P2 -> "Revealed(P2)"
+        ZoneIds.SUPPRESSED -> "Suppressed"
+        ZoneIds.PENDING -> "Pending"
+        else -> "Zone($zoneId)"
+    }
 
     @Serializable
     data class MatchStateSnapshot(
@@ -142,7 +197,15 @@ object NexusDebugCollector {
         val instanceId: Int,
         val forgeCardId: Int,
         val cardName: String,
-        val zone: String,
+        /** 1 = human, 2 = AI. */
+        val ownerSeatId: Int,
+        /** "active" = current instanceId for this card, "limbo" = retired, "stale" = old but not yet limbo'd. */
+        val status: String,
+        /** Where Forge engine thinks the card is NOW (same for all instanceIds of a card). */
+        val forgeZone: String,
+        /** Where the protocol last placed THIS specific instanceId (null if never tracked). */
+        val protoZone: String? = null,
+        val protoZoneId: Int? = null,
         val grpId: Int,
     )
 

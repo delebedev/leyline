@@ -108,6 +108,34 @@ class GameBridge(
 
     override fun nextPersistentAnnotationId(): Int = nextPersistentAnnotationId++
 
+    // --- Persistent annotation store ---
+    // Persistent annotations (e.g. Attachment) carry forward across GSMs until explicitly deleted.
+
+    private val activePersistentAnnotations = mutableMapOf<Int, wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>()
+    private val pendingPersistentDeletions = mutableListOf<Int>()
+
+    fun addPersistentAnnotation(ann: wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo) {
+        activePersistentAnnotations[ann.id] = ann
+    }
+
+    fun removePersistentAnnotation(id: Int) {
+        activePersistentAnnotations.remove(id)
+        pendingPersistentDeletions.add(id)
+    }
+
+    fun drainPersistentDeletions(): List<Int> =
+        pendingPersistentDeletions.toList().also { pendingPersistentDeletions.clear() }
+
+    fun getAllPersistentAnnotations(): List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo> =
+        activePersistentAnnotations.values.toList()
+
+    /** Find persistent annotation by type and aura instanceId in affectedIds. */
+    fun findPersistentAnnotationByAura(auraIid: Int): Int? =
+        activePersistentAnnotations.entries.firstOrNull { (_, ann) ->
+            ann.typeList.any { it == wotc.mtgo.gre.external.messaging.Messages.AnnotationType.Attachment } &&
+                ann.affectedIdsList.contains(auraIid)
+        }?.key
+
     // --- Interface implementations (IdMapping, PlayerLookup, ZoneTracking, etc.) ---
 
     override fun getOrAllocInstanceId(forgeCardId: Int): Int = ids.getOrAlloc(forgeCardId)
@@ -116,8 +144,17 @@ class GameBridge(
 
     override fun getForgeCardId(instanceId: Int): Int? = ids.getForgeCardId(instanceId)
 
-    /** Read-only snapshot of instanceId → forgeCardId (for debug panel). */
+    /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */
     fun getInstanceIdMap(): Map<Int, Int> = ids.snapshot()
+
+    /** Read-only snapshot of forgeCardId → current active instanceId. */
+    fun getActiveInstanceIdMap(): Map<Int, Int> = ids.activeSnapshot()
+
+    /** Set of instanceIds currently retired to Limbo. */
+    fun getLimboSet(): Set<Int> = limbo.all().toSet()
+
+    /** Proto zone tracking — where the protocol last placed each instanceId. */
+    fun getProtoZones(): Map<Int, Int> = diff.allZones()
 
     override fun retireToLimbo(instanceId: Int) = limbo.retire(instanceId)
 
