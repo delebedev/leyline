@@ -28,18 +28,6 @@ JaCoCo plugin removed from pom.xml — `prepare-agent` at `initialize` phase + `
 
 `just coverage` currently runs unit+conformance only. Integration tests should be included for fuller coverage but they dump ~7min of noisy engine stderr (bridge timeouts, stack traces). `just test-integration` has the same noise problem. Fix: suppress engine log noise in test runs (test-specific logback config with WARN→ERROR for bridge/timeout loggers), then add integration back to coverage.
 
-## Split justfile into delegated groups
-
-The root justfile delegates `fmt`/`fmt-check` to per-module justfiles — extend this pattern to more target groups. The nexus justfile is 360+ LOC with serve/proto/recording/cert targets all in one file.
-
-Candidates:
-- `proto.just` — proto-inspect, proto-decode, proto-diff, proto-compare, proto-trace, proto-extract, proto-accumulate
-- `recording.just` — rec-list, rec-summary, rec-actions, rec-compare, rec-analyze, rec-violations, rec-mechanics, rec-latest
-- `certs.just` — gen-certs (standalone, rarely used)
-- Keep serve/test/build/dev in the main justfile (daily workflow)
-
-Use `import` to keep `just <target>` working from the nexus dir.
-
 ## Client error watcher is too narrow
 
 `/api/client-errors` only catches patterns the watcher knows about. Client-side crashes (`NullReferenceException`, `ArgumentOutOfRangeException`, Unity stack traces) are invisible — have to manually grep `Player.log`. See [#179](https://github.com/delebedev/forge/issues/179).

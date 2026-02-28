@@ -1,0 +1,92 @@
+# Proto inspection & diffing tools
+# Imported by forge-nexus/justfile — all variables available from parent.
+
+# re-decode FD raw frames → fd-frames.jsonl (fixes compressed payloads)
+decode-golden dir="": (_require classpath) check-java
+    #!/usr/bin/env bash
+    set -euo pipefail
+    d="{{dir}}"
+    if [ -z "$d" ]; then
+        d=$(ls -td recordings/*/capture 2>/dev/null | head -1)
+        if [ -z "$d" ]; then echo "No captures found." >&2; exit 1; fi
+    fi
+    {{_nexus_cli}} forge.nexus.protocol.DecodeFdCaptureKt "$d"
+
+# inspect a .bin template (no port kill — safe while server runs)
+proto-inspect file=(templates / "mulligan-req-seat1.bin"): (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.debug.InspectKt "{{file}}"
+
+# decode Match Door payloads
+proto-decode: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.protocol.DecodeCaptureKt {{payloads}}
+
+# save last S→C payload as template
+proto-extract name="extracted": (_require classpath) check-java
+    #!/usr/bin/env bash
+    set -euo pipefail
+    latest=$(ls -t {{payloads}}/S-C_*.bin 2>/dev/null | head -1)
+    if [ -z "$latest" ]; then
+        echo "No S→C payloads found in {{payloads}}" >&2; exit 1
+    fi
+    dest="{{templates}}/{{name}}.bin"
+    cp "$latest" "$dest"
+    echo "Saved $latest → $dest ($(wc -c < "$dest") bytes)"
+
+# dump all payloads as text for diffing
+proto-diff-prep: (_require classpath) check-java
+    #!/usr/bin/env bash
+    set -euo pipefail
+    real_dir=/tmp/arena-diff/real
+    mkdir -p "$real_dir"
+    if [ ! -d "{{payloads}}" ]; then
+        echo "No captures at {{payloads}}. Run: just serve-proxy" >&2; exit 1
+    fi
+    for f in {{payloads}}/S-C_*.bin; do
+        [ -f "$f" ] || continue
+        base=$(basename "$f" .bin)
+        {{_nexus_cli}} forge.nexus.debug.InspectKt "$f" > "$real_dir/$base.txt" 2>/dev/null
+        echo "  $base.txt"
+    done
+    echo "Real payloads dumped to $real_dir/"
+
+# diff stub output vs real captures
+proto-diff:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    real=/tmp/arena-diff/real
+    stub=/tmp/arena-dump
+    [ -d "$real" ] || { echo "No real dumps. Run: just proto-diff-prep" >&2; exit 1; }
+    [ -d "$stub" ] || { echo "No stub dumps. Run stub with ARENA_DUMP=1" >&2; exit 1; }
+    echo "=== Real ($real) ==="
+    ls -1 "$real"/*.txt 2>/dev/null | while read f; do echo "  $(basename $f)"; done
+    echo ""
+    echo "=== Stub ($stub) ==="
+    ls -1 "$stub"/*.txt 2>/dev/null | while read f; do echo "  $(basename $f)"; done
+    echo ""
+    echo "--- diff example ---"
+    echo "  diff $real/<name>.txt $stub/<name>.txt"
+
+# compare our output vs real Arena captures structurally (no port kill)
+proto-compare *args: (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.conformance.CompareMainKt {{args}}
+
+# trace an ID across all recorded payloads (no port kill — safe while server runs)
+# dir: payloads dir (default: capture), or "engine" / "latest-engine" shortcuts
+proto-trace id dir="": (_require classpath) check-java
+    #!/usr/bin/env bash
+    set -euo pipefail
+    d="{{dir}}"
+    if [[ -z "$d" ]]; then d="{{payloads}}"; fi
+    if [[ "$d" == "engine" || "$d" == "latest-engine" ]]; then
+        d="$(ls -dt "{{nexus_dir}}"/recordings/*/engine 2>/dev/null | head -1)"
+        [[ -z "$d" ]] && { echo "No engine recording found"; exit 1; }
+    fi
+    {{_nexus_cli}} forge.nexus.debug.TraceKt "{{id}}" "$d"
+
+# decode a recording directory to structured JSONL (no port kill)
+proto-decode-recording dir output="": (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.conformance.RecordingDecoderMainKt "{{dir}}" {{output}}
+
+# decode + accumulate state snapshots from a recording (no port kill)
+proto-accumulate dir output="": (_require classpath) check-java
+    @{{_nexus_cli}} forge.nexus.conformance.RecordingDecoderMainKt "{{dir}}" --accumulate {{output}}
