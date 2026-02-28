@@ -96,7 +96,7 @@ data class GameConfig(
      * RNG seed for deterministic shuffles. Null = random each game.
      * Useful for reproducing specific board states.
      */
-    val seed: Long? = 2L,
+    val seed: Long? = null,
 
     /**
      * Which seat wins the die roll (and goes first).
