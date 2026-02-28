@@ -8,6 +8,7 @@ import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
 import forge.nexus.game.snapshotFromGame
+import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotNull
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
@@ -64,28 +65,24 @@ class AttachmentAnnotationTest : ConformanceTestBase() {
             AnnotationType.AttachmentCreated in it.typeList
         }
         assertNotNull(attachCreated, "Should have transient AttachmentCreated annotation")
-        assertTrue(
-            auraIid in attachCreated!!.affectedIdsList,
-            "AttachmentCreated should reference aura instanceId ($auraIid)",
+        assertEquals(
+            attachCreated!!.affectedIdsList,
+            listOf(auraIid, creatureIid),
+            "AttachmentCreated affectedIds should be [aura, target]",
         )
-        assertTrue(
-            creatureIid in attachCreated.affectedIdsList,
-            "AttachmentCreated should reference target instanceId ($creatureIid)",
-        )
+        assertEquals(attachCreated.affectorId, 0, "AttachmentCreated should have no affectorId")
 
         // Verify persistent Attachment annotation
         val attachPersistent = gsm.persistentAnnotationsList.firstOrNull {
             AnnotationType.Attachment in it.typeList
         }
         assertNotNull(attachPersistent, "Should have persistent Attachment annotation")
-        assertTrue(
-            auraIid in attachPersistent!!.affectedIdsList,
-            "Attachment persistent should reference aura instanceId ($auraIid)",
+        assertEquals(
+            attachPersistent!!.affectedIdsList,
+            listOf(auraIid, creatureIid),
+            "Attachment affectedIds should be [aura, target]",
         )
-        assertTrue(
-            creatureIid in attachPersistent.affectedIdsList,
-            "Attachment persistent should reference target instanceId ($creatureIid)",
-        )
+        assertEquals(attachPersistent.affectorId, 0, "Attachment should have no affectorId")
         assertTrue(
             attachPersistent.id > 0,
             "Persistent annotation should have a positive ID",

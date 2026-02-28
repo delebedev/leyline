@@ -129,9 +129,16 @@ sealed interface NexusGameEvent {
     ) : NexusGameEvent
 
     /** A token was created.
-     *  Note: GameEventTokenCreated is an empty record in Forge so this
-     *  cannot be wired from the event bus. Placeholder for pipeline use. */
+     *  Wired from GameEventTokenCreated (enriched with List<Card> tokens). */
     data class TokenCreated(
+        val forgeCardId: Int,
+        val seatId: Int,
+        val sourceForgeCardId: Int? = null,
+    ) : NexusGameEvent
+
+    /** A token was destroyed (left the battlefield).
+     *  Wired from GameEventCardChangeZone when card.isToken && from=Battlefield. */
+    data class TokenDestroyed(
         val forgeCardId: Int,
         val seatId: Int,
     ) : NexusGameEvent
@@ -159,6 +166,15 @@ sealed interface NexusGameEvent {
         val counterType: String,
         val oldCount: Int,
         val newCount: Int,
+    ) : NexusGameEvent
+
+    /** A card's power or toughness changed (pump, anthem, equipment, SBA). */
+    data class PowerToughnessChanged(
+        val forgeCardId: Int,
+        val oldPower: Int,
+        val newPower: Int,
+        val oldToughness: Int,
+        val newToughness: Int,
     ) : NexusGameEvent
 
     /** A player's library was shuffled. */

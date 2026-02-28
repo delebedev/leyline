@@ -11,21 +11,21 @@ Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `
 | 1 | ZoneTransfer | `GameEventCardChangeZone` | `ZoneChanged` | `zoneTransfer()` | `zone_src`, `zone_dest`, `category` | Implemented |
 | 3 | DamageDealt | `GameEventCardDamaged`, `GameEventPlayerDamaged` | `DamageDealtToCard`, `DamageDealtToPlayer` | `damageDealt()` | `damage`, `type`, `markDamage` | Implemented |
 | 4 | TappedUntapped | `GameEventCardTapped` | `CardTapped` | `tappedUntappedPermanent()` | `tapped` | Implemented |
-| 5 | ModifiedPower | `GameEventCardStatsChanged` | -- | -- | values from affectedIds | MISSING |
-| 6 | ModifiedToughness | `GameEventCardStatsChanged` | -- | -- | values from affectedIds | MISSING |
+| 5 | ModifiedPower | `GameEventCardStatsChanged` | `PowerToughnessChanged` | `modifiedPower()` | `value` (Int32) | Implemented |
+| 6 | ModifiedToughness | `GameEventCardStatsChanged` | `PowerToughnessChanged` | `modifiedToughness()` | `value` (Int32) | Implemented |
 | 7 | ModifiedColor | -- | -- | -- | values from affectedIds | MISSING |
 | 8 | PhaseOrStepModified | `GameEventTurnPhase` | -- | `phaseOrStepModified()` | `phase`, `step` | Implemented (hardcoded, not event-driven) |
 | 9 | AddAbility | -- | -- | -- | `grpid`, `effect_id`, `sourceAbilityGRPID`, `UniqueAbilityId` | MISSING |
 | 10 | ModifiedLife | `GameEventPlayerLivesChanged` | `LifeChanged` | `modifiedLife()` | `delta` | Implemented |
-| 11 | CreateAttachment | `GameEventCardAttachment` | -- | -- | affector/affected ids | MISSING |
-| 12 | RemoveAttachment | `GameEventCardAttachment` | -- | -- | `invalidating_grpid` | MISSING |
+| 11 | CreateAttachment | `GameEventCardAttachment` | `CardAttached` | `attachmentCreated()` | affector/affected ids | Implemented |
+| 12 | RemoveAttachment | `GameEventCardAttachment` | `CardDetached` | `removeAttachment()` | aura/equipment id | Implemented |
 | 13 | ObjectIdChanged | (internal to StateMapper) | -- | `objectIdChanged()` | `orig_id`, `new_id` | Implemented |
 | 14 | Counter | `GameEventCardCounters` | `CountersChanged` | -- | `count`, `counter_type`, `perpetual_count` | MISSING (state parser; event uses CounterAdded/Removed) |
 | 15 | ControllerChanged | `GameEventPlayerControl` | -- | -- | affector/affected ids | MISSING |
 | 16 | CounterAdded | `GameEventCardCounters` | `CountersChanged` | `counterAdded()` | `counter_type`, `transaction_amount` | Implemented |
 | 17 | CounterRemoved | `GameEventCardCounters` | `CountersChanged` | `counterRemoved()` | `counter_type`, `transaction_amount` | Implemented |
 | 18 | LayeredEffectCreated | `GameEventCardStatsChanged` | -- | -- | sub-handlers for type/color/P+T/ability/controller | MISSING |
-| 20 | Attachment | -- | -- | -- | affector/affected ids (state parser) | MISSING |
+| 20 | Attachment | `GameEventCardAttachment` | `CardAttached` | `attachment()` (persistent) | affector/affected ids | Implemented |
 | 22 | CopiedObject | -- | -- | -- | `abilityGrpId`, `LayeredEffectType`, `CopyObject` | MISSING |
 | 23 | RemoveAbility | -- | -- | -- | `effect_id` | MISSING |
 | 25 | ModifiedType | -- | -- | -- | `effect_id`, `temporaryCardType` | MISSING |
@@ -35,13 +35,13 @@ Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `
 | 30 | DynamicAbility | -- | -- | -- | `cost`, `grpid`, `base_grpid`, `action_cost_string` | MISSING |
 | 31 | ObjectsSelected | -- | -- | -- | (none) | MISSING |
 | 34 | ManaPaid | `GameEventManaPool` | -- | `manaPaid()` | `id`, `color` | Implemented (stub, no details) |
-| 35 | TokenCreated | `GameEventTokenCreated` | `TokenCreated` | `tokenCreated()` | affected ids | Implemented (builder only; event empty, not wired from EventBus) |
+| 35 | TokenCreated | `GameEventTokenCreated` | `TokenCreated` | `tokenCreated()` | affected ids | Implemented |
 | 36 | AbilityInstanceCreated | `GameEventSpellAbilityCast` | `SpellCast` | `abilityInstanceCreated()` | affected ids | Implemented |
 | 37 | AbilityInstanceDeleted | `GameEventSpellResolved` / `GameEventSpellRemovedFromStack` | `SpellResolved` | `abilityInstanceDeleted()` | affected ids | Implemented |
 | 38 | DisplayCardUnderCard | -- | -- | -- | `Disable`, `DisplayUnderObjects` | MISSING |
 | 39 | AbilityWordActive | -- | -- | -- | `AbilityWordName`, `value`, `colors`, `AbilityGrpId` | MISSING |
 | 40 | LinkInfo | -- | -- | -- | `LinkType`, `Choice_Value` | MISSING |
-| 41 | TokenDeleted | -- | -- | -- | affected ids | MISSING |
+| 41 | TokenDeleted | `GameEventCardChangeZone` | `TokenDestroyed` | `tokenDeleted()` | affectorId=instanceId, affectedIds=[instanceId] | Implemented |
 | 42 | Qualification | -- | -- | -- | `QualificationType`, `QualificationSubtype`, `grpid` | MISSING |
 | 43 | ResolutionStart | `GameEventSpellResolved` | `SpellResolved` | `resolutionStart()` | `grpid` | Implemented |
 | 44 | ResolutionComplete | `GameEventSpellResolved` | `SpellResolved` | `resolutionComplete()` | `grpid` | Implemented |
@@ -69,7 +69,7 @@ Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `
 | 66 | PredictedDirectDamage | -- | -- | -- | `value`, `modifierString` | MISSING |
 | 67 | SwitchPowerToughness | -- | -- | -- | (none) | MISSING |
 | 69 | PendingEffect | -- | -- | -- | `effect_type`, `counter_type`, `count` | MISSING |
-| 70 | AttachmentCreated | `GameEventCardAttachment` | -- | -- | affector/affected ids | MISSING |
+| 70 | AttachmentCreated | `GameEventCardAttachment` | `CardAttached` | `attachmentCreated()` | affector/affected ids | Implemented |
 | 71 | PowerToughnessModCreated | -- | -- | -- | `power`, `toughness` | MISSING |
 | 72 | SyntheticEvent | -- | -- | `syntheticEvent()` | `type` | Implemented |
 | 73 | UserActionTaken | -- | -- | `userActionTaken()` | `actionType`, `abilityGrpId` | Implemented |
@@ -109,7 +109,7 @@ Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `
 | 111 | CopyException | -- | -- | -- | `manaCost` | MISSING |
 | 113 | ModifiedCost | -- | -- | -- | (unknown) | MISSING |
 
-**Implemented: 20 types. Missing: 74+ types.**
+**Implemented: 25 types. Missing: 69+ types.**
 
 ## Table 2: Zone Transfer Categories
 
@@ -117,16 +117,16 @@ Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `
 |-----:|------------|-------------------|--------------------------|----------------------|--------|
 | 6 | CastSpell | Hand → Stack | `CastSpell` | `SpellCast` | Implemented |
 | 7 | PlayLand | Hand → Battlefield | `PlayLand` | `LandPlayed` | Implemented |
-| 8 | Return | GY/Exile → Hand/BF | -- | -- | MISSING |
+| 8 | Return | GY/Exile → Hand/BF | `Return` | `ZoneChanged` inferred (GY/Exile→Hand/BF) | Implemented |
 | 9 | Countered | Stack → GY | `Countered` | `SpellResolved(fizzled=true)` | Implemented |
 | 10 | Draw | Library → Hand | `Draw` | `ZoneChanged` inferred (Lib→Hand stays generic) | Implemented |
 | 11 | Discard | Hand → GY | `Discard` | `CardDiscarded` (enriched zone handler) | Implemented |
 | 13 | Resolve | Stack → Battlefield | `Resolve` | `SpellResolved` | Implemented |
-| 14 | Search | Library → Hand/BF | -- | -- | MISSING |
+| 14 | Search | Library → Hand/BF | `Search` | `ZoneChanged` inferred (Library→BF) | Implemented |
 | 16 | Exile | Any → Exile | `Exile` | `CardExiled` (enriched zone handler) | Implemented |
 | 17 | Destroy | Battlefield → GY | `Destroy` | `CardDestroyed` (enriched zone handler) | Implemented |
 | 18 | Sacrifice | Battlefield → GY | `Sacrifice` | `CardSacrificed` | Implemented |
-| 19 | Put | Any → Any | -- | -- | MISSING |
+| 19 | Put | Any → Any | `Put` | (not zone-pair inferred; requires dedicated event) | Partial |
 | 20 | ZeroToughness | Battlefield → GY | -- | -- | MISSING (falls back to `ZoneTransfer`) |
 | 21 | Damage | Battlefield → GY | -- | -- | MISSING (falls back to `ZoneTransfer`) |
 | 22 | IllegalAttachment | Battlefield → GY | -- | -- | MISSING |
@@ -299,7 +299,7 @@ All 57 concrete `GameEvent` classes in `forge.game.event`:
 | `GameEventAnteCardsSelected` | cards multimap | No |
 | `GameEventAttackersDeclared` | player, attackersMap | Yes → `AttackersDeclared` |
 | `GameEventBlockersDeclared` | defendingPlayer, blockers | Yes → `BlockersDeclared` |
-| `GameEventCardAttachment` | equipment, oldEntity, newTarget | No |
+| `GameEventCardAttachment` | equipment, oldEntity, newTarget | Yes → `CardAttached` / `CardDetached` |
 | `GameEventCardChangeZone` | card, from, to | Yes → `ZoneChanged` / `CardDestroyed` / `CardBounced` / `CardExiled` / `CardDiscarded` / `CardMilled` (zone-pair dispatch) |
 | `GameEventCardCounters` | card, type, oldValue, newValue | Yes → `CountersChanged` |
 | `GameEventCardDamaged` | card, source, amount, type | Yes → `DamageDealtToCard` |
@@ -310,7 +310,7 @@ All 57 concrete `GameEvent` classes in `forge.game.event`:
 | `GameEventCardPlotted` | card, activatingPlayer | No |
 | `GameEventCardRegenerated` | cards | No |
 | `GameEventCardSacrificed` | card | Yes → `CardSacrificed` |
-| `GameEventCardStatsChanged` | cards, transform | No |
+| `GameEventCardStatsChanged` | cards, transform | Yes → `PowerToughnessChanged` (delta tracking) |
 | `GameEventCardTapped` | card, tapped | Yes → `CardTapped` |
 | `GameEventCombatChanged` | (empty) | No |
 | `GameEventCombatEnded` | attackers, blockers | Yes → `CombatEnded` |
@@ -348,12 +348,12 @@ All 57 concrete `GameEvent` classes in `forge.game.event`:
 | `GameEventSubgameEnd` | maingame, message | No |
 | `GameEventSubgameStart` | subgame, message | No |
 | `GameEventSurveil` | player, toLibrary, toGraveyard | Yes → `Surveil` |
-| `GameEventTokenCreated` | (empty) | No (empty record; `TokenCreated` variant + builder exist, not wired from EventBus) |
+| `GameEventTokenCreated` | tokens (List\<Card\>) | Yes → `TokenCreated` |
 | `GameEventTurnBegan` | turnOwner, turnNumber | No |
 | `GameEventTurnEnded` | (empty) | No |
 | `GameEventTurnPhase` | playerTurn, phase, phaseDesc | No |
 | `GameEventZone` | zoneType, player, mode, card, sa | No |
 
-**Wired: 17 of 57 events** (30%). `CardChangeZone` now dispatches 6 zone-specific variants in addition to generic `ZoneChanged`. Key unwired events for future work: `CardAttachment`, `CardPhased`, `SpellRemovedFromStack`, `FlipCoin`, `RollDie`, `PlayerControl`, `CardStatsChanged`.
+**Wired: 20 of 57 events** (35%). `CardChangeZone` now dispatches 6 zone-specific variants in addition to generic `ZoneChanged`. Key unwired events for future work: `CardPhased`, `SpellRemovedFromStack`, `FlipCoin`, `RollDie`, `PlayerControl`.
 
-**Known limitation:** `GameEventCardDestroyed` and `GameEventTokenCreated` are empty Java records (`record Foo() implements GameEvent`) — no card field, no superclass fields (Forge has no `GameEventCard` base class; `GameEvent` is a bare interface). Zone-pair inference from `GameEventCardChangeZone` covers destroy/exile/bounce/etc., but token creation cannot be detected from the EventBus without an upstream forge-game change to add a card reference to `GameEventTokenCreated`.
+**Known limitation:** `GameEventCardDestroyed` is an empty Java record (`record Foo() implements GameEvent`) — no card field. Zone-pair inference from `GameEventCardChangeZone` covers destroy/exile/bounce/etc. `GameEventTokenCreated` was enriched with `List<Card> tokens` (4 of 5 callsites pass token refs; `InvestigateEffect` uses empty fallback due to per-player loop).

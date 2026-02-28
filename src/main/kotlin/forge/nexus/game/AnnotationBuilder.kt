@@ -97,8 +97,18 @@ object AnnotationBuilder {
         }
         ev.from == forge.game.zone.ZoneType.Library -> when (ev.to) {
             forge.game.zone.ZoneType.Hand -> TransferCategory.Draw
+            forge.game.zone.ZoneType.Battlefield -> TransferCategory.Search
             forge.game.zone.ZoneType.Graveyard -> TransferCategory.Mill
             forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
+            else -> TransferCategory.ZoneTransfer
+        }
+        ev.from == forge.game.zone.ZoneType.Graveyard -> when (ev.to) {
+            forge.game.zone.ZoneType.Hand, forge.game.zone.ZoneType.Battlefield -> TransferCategory.Return
+            forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
+            else -> TransferCategory.ZoneTransfer
+        }
+        ev.from == forge.game.zone.ZoneType.Exile -> when (ev.to) {
+            forge.game.zone.ZoneType.Hand, forge.game.zone.ZoneType.Battlefield -> TransferCategory.Return
             else -> TransferCategory.ZoneTransfer
         }
         ev.to == forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
@@ -190,12 +200,12 @@ object AnnotationBuilder {
      * [abilityId] = the ability instance that caused the tap (affectorId).
      *   Real server uses a transient mana ability id; we approximate with the spell id.
      */
-    fun tappedUntappedPermanent(permanentId: Int, abilityId: Int): AnnotationInfo =
+    fun tappedUntappedPermanent(permanentId: Int, abilityId: Int, tapped: Boolean = true): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.TappedUntappedPermanent)
             .setAffectorId(abilityId)
             .addAffectedIds(permanentId)
-            .addDetails(uint32Detail("tapped", 1))
+            .addDetails(uint32Detail("tapped", if (tapped) 1 else 0))
             .build()
 
     /** Ability instance created on the stack. */
@@ -237,6 +247,22 @@ object AnnotationBuilder {
             .addDetails(int32Detail("delta", lifeDelta))
             .build()
 
+    /** Card's power changed. Client uses this for buff/debuff overlay. Arena type 5. */
+    fun modifiedPower(instanceId: Int, value: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.ModifiedPower)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("value", value))
+            .build()
+
+    /** Card's toughness changed. Client uses this for buff/debuff overlay. Arena type 6. */
+    fun modifiedToughness(instanceId: Int, value: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.ModifiedToughness)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("value", value))
+            .build()
+
     /**
      * Player lost the game. Arena annotation type 2 (LossOfGame_af5a).
      * [affectedPlayerSeatId] = seat of the losing player.
@@ -266,7 +292,8 @@ object AnnotationBuilder {
     // -- Group A+ annotation builders (attachments) --
 
     /** Transient: Aura/Equipment attached to target. Arena type 70 (AttachmentCreated).
-     *  [auraIid] = the aura/equipment instanceId, [targetIid] = the enchanted/equipped permanent. */
+     *  [auraIid] = the aura/equipment instanceId, [targetIid] = the enchanted/equipped permanent.
+     *  Real server shape: no affectorId, affectedIds=[aura, target]. */
     fun attachmentCreated(auraIid: Int, targetIid: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.AttachmentCreated)
@@ -275,12 +302,21 @@ object AnnotationBuilder {
             .build()
 
     /** Persistent: Ongoing attachment relationship. Arena type 20 (Attachment).
-     *  [auraIid] = the aura/equipment instanceId, [targetIid] = the enchanted/equipped permanent. */
+     *  [auraIid] = the aura/equipment instanceId, [targetIid] = the enchanted/equipped permanent.
+     *  Real server shape: no affectorId, affectedIds=[aura, target]. */
     fun attachment(auraIid: Int, targetIid: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.Attachment)
             .addAffectedIds(auraIid)
             .addAffectedIds(targetIid)
+            .build()
+
+    /** Transient: Aura/Equipment detached from target. Arena type 12 (RemoveAttachment).
+     *  [auraIid] = the aura/equipment instanceId that was removed. */
+    fun removeAttachment(auraIid: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.RemoveAttachment)
+            .addAffectedIds(auraIid)
             .build()
 
     // -- Group B+ annotation builders (reveals) --
@@ -308,6 +344,15 @@ object AnnotationBuilder {
     fun tokenCreated(instanceId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.TokenCreated)
+            .addAffectedIds(instanceId)
+            .build()
+
+    /** Token was destroyed (left battlefield). Arena type 41 (TokenDeleted).
+     *  [instanceId] = the token's instanceId. */
+    fun tokenDeleted(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.TokenDeleted)
+            .setAffectorId(instanceId)
             .addAffectedIds(instanceId)
             .build()
 

@@ -119,9 +119,12 @@ game-flow:
 
   mulligan:
     status: partial
+    plan: docs/mulligan-plan.md
     notes: >
       MulliganReq sent, player can see hand and choose to keep.
       Cannot request re-deal (new hand) or scry after mulligan to 6 or fewer.
+      Missing: GroupReq (promptId=92, context=LondonMulligan) for bottom-card
+      selection, re-dealt hand GSM diff after mull, GroupResp handler.
 
   upkeep-triggers:
     status: wired
@@ -156,15 +159,17 @@ spells:
     notes: "Same as creature — cast, stack, resolve."
 
   cast-enchantment:
-    status: partial
+    status: wired
     notes: >
-      Non-aura enchantments cast and resolve. Aura attachment annotation
-      missing (CreateAttachment/RemoveAttachment) — aura goes to battlefield
-      but client doesn't show visual link to enchanted permanent.
+      Non-aura enchantments cast and resolve. Aura attachment annotations
+      (AttachmentCreated + persistent Attachment) fire on GameEventCardAttachment.
+      Client shows visual link between aura and enchanted permanent.
 
   cast-artifact:
-    status: partial
-    notes: "Casts and resolves. Equipment same issue as auras — no attachment visual."
+    status: wired
+    notes: >
+      Casts and resolves. Equipment attachment annotations fire on equip.
+      Client shows visual link between equipment and equipped creature.
 
   cast-planeswalker:
     status: partial
@@ -333,26 +338,28 @@ permanents:
       (engine handles +1/+1 canceling -1/-1).
 
   power-toughness-changes:
-    status: partial
+    status: wired
     notes: >
-      Engine applies correctly. ModifiedPower/ModifiedToughness annotations
-      (5/6) missing — client won't show buff/debuff overlays. Stats in
-      zone objects are correct, just no visual delta feedback.
+      ModifiedPower/ModifiedToughness annotations (5/6) fire via
+      GameEventCardStatsChanged → PowerToughnessChanged. Collector tracks
+      per-card P/T, emits events on delta. Client can show buff/debuff overlays.
 
   attachment:
-    status: missing
+    status: wired
     notes: >
-      CreateAttachment/RemoveAttachment/Attachment annotations (11/12/20)
-      all missing. Equipment equips and auras attach in the engine, but
-      client doesn't render the visual link. P/T effects still apply.
+      CreateAttachment (11), persistent Attachment (20), and
+      RemoveAttachment (12) annotations all fire via
+      GameEventCardAttachment → CardAttached/CardDetached.
+      Full attach/detach lifecycle wired.
 
   tokens:
-    status: partial
+    status: wired
     notes: >
-      TokenCreated annotation builder exists but event not wired from
-      EventBus (GameEventTokenCreated is an empty record — no card ref).
-      Tokens appear on battlefield via zone transfer but no creation
-      animation. TokenDeleted not implemented.
+      GameEventTokenCreated enriched with List<Card> tokens (forge-game change).
+      Collector wires TokenCreated events from EventBus. TokenCreated annotation
+      fires with correct instanceId. TokenDeleted (41) emitted when tokens leave
+      battlefield. Token grpId resolved via source card's AbilityIdToLinkedTokenGrpId
+      mapping in CardDb. InvestigateEffect uses empty fallback (per-player loop).
 
   face-down:
     status: missing
@@ -424,8 +431,8 @@ keywords:
     notes: "FirstStrikeDamage phase + regular CombatDamage both resolve."
 
   prowess:
-    status: partial
-    notes: "Trigger fires, P/T change applies. ModifiedPower/Toughness annotations missing."
+    status: wired
+    notes: "Trigger fires, P/T change applies. ModifiedPower/Toughness annotations wired."
 
   defender:
     status: wired
@@ -522,14 +529,14 @@ zones:
 # determines which animation fires. Missing categories fall back to
 # generic ZoneTransfer (code 2).
 #
-# 11 of 21 categories wired. The remaining 10 still move cards correctly,
+# 14 of 21 categories wired. The remaining 7 still move cards correctly,
 # just with a generic animation instead of the specific one.
 #
 # Ordered: wired first, then missing by importance.
 
 zone-transfers:
 
-  # ── Wired (11) ────────────────────────────────────────────────────
+  # ── Wired (14) ────────────────────────────────────────────────────
 
   cast-spell:
     status: wired
@@ -575,33 +582,31 @@ zone-transfers:
     status: wired
     notes: "Library → Graveyard (same owner). Category 33."
 
-  # ── Missing — common, worth adding ────────────────────────────────
-
   return:
-    status: missing
+    status: wired
     notes: >
       GY/Exile → Hand/Battlefield. Category 8.
-      Reanimation, recursion, flicker — very common in Standard.
-      Currently plays generic animation instead of return-specific one.
+      Zone-pair heuristic in AnnotationBuilder.zoneChangedCategory().
 
   search:
-    status: missing
+    status: wired
     notes: >
-      Library → Hand/Battlefield. Category 14.
-      Tutors, fetch effects. Common across most constructed decks.
-      Currently plays generic animation.
+      Library → Battlefield. Category 14.
+      Zone-pair heuristic (Library→BF). Library→Hand stays Draw.
 
   put:
-    status: missing
+    status: wired
     notes: >
       Generic any → any. Category 19.
-      Catch-all for effects that say "put" rather than destroy/exile/etc.
-      Falls back to generic — usually fine.
+      Available as TransferCategory enum; used when no specific
+      zone-pair match applies and caller explicitly selects Put.
 
   # ── Missing — SBA reason variants ─────────────────────────────────
-  # These are all "goes to graveyard" with different reason codes.
-  # Engine handles the move; client just plays Destroy animation instead
-  # of a more specific one. Low visual impact.
+  # All BF→GY with different reason codes. GameEventCardChangeZone
+  # doesn't carry a reason field, so distinguishing requires either
+  # engine event enrichment (wide blast radius) or fragile collector-
+  # side heuristics. Client plays the same death animation for all.
+  # Low payoff, high cost — deliberately deferred.
 
   zero-toughness:
     status: missing
@@ -665,14 +670,16 @@ visual-fidelity:
       Purely cosmetic.
 
   buff-debuff-overlay:
-    status: missing
+    status: wired
     notes: >
-      ModifiedPower/Toughness annotations missing. Client can't show
-      +X/+X or -X/-X overlays. Actual stats are correct in zone data.
+      ModifiedPower/ModifiedToughness annotations now fire on P/T deltas.
+      Client can show +X/+X and -X/-X overlays.
 
   attachment-visual:
-    status: missing
-    notes: "See permanents.attachment. Equipment/aura link not rendered."
+    status: wired
+    notes: >
+      AttachmentCreated + persistent Attachment annotations fire on equip/enchant.
+      Client renders visual link between equipment/aura and target permanent.
 
   targeting-arrows:
     status: missing
@@ -715,12 +722,14 @@ protocol-summary:
 
   annotation-tiers:
     # ── Core: needed for most games, absence breaks UX ──────────────
-    # 27 types. We have 16 working, 11 missing.
+    # 28 types. We have 22 working, 6 missing.
     core:
       have:
         - ZoneTransfer (1)          # every card move
         - DamageDealt (3)           # combat + burn
         - TappedUntapped (4)        # every mana tap, attack
+        - ModifiedPower (5)         # buff/debuff overlay
+        - ModifiedToughness (6)     # buff/debuff overlay
         - PhaseOrStepModified (8)   # turn structure (hardcoded)
         - ModifiedLife (10)         # life total changes
         - ObjectIdChanged (13)      # zone transfer plumbing
@@ -734,21 +743,20 @@ protocol-summary:
         - EnteredZoneThisTurn (63)  # summoning sickness
         - Scry (65)                 # scry visual
         - Shuffle (56)              # suppressed — crashes client without detail keys
-      missing:
-        - ModifiedPower (5)         # every combat trick, anthem, equipment
-        - ModifiedToughness (6)     # same — client can't show +X/+X overlays
-        - AddAbility (9)            # "gains flying/haste/etc" — no keyword badge update
-        - CreateAttachment (11)     # equip/enchant — no visual link between permanents
+        - CreateAttachment (11)     # equip/enchant visual link
         - RemoveAttachment (12)     # unequip/disenchant
+        - Attachment (20)           # persistent attachment state
+        - TokenCreated (35)         # token creation annotation
+      missing:
+        - AddAbility (9)            # "gains flying/haste/etc" — no keyword badge update
         - ControllerChanged (15)    # steal effects (Claim, Agent) — permanent doesn't move
-        - TokenCreated (35)         # builder exists but not wired from EventBus
         - CardRevealed (47)         # tutors, impulse draw — no reveal animation
         - ManaPaid (34)             # stub only, no detail keys — mana payment visual
         - PlayerSelectingTargets (92)  # targeting arrows during cast
         - PlayerSubmittedTargets (93)  # targeting arrows confirmed
 
     # ── Nice-to-have: better UX, common-ish mechanics ──────────────
-    # 20 types. We have 2 working, 18 missing.
+    # 20 types. We have 2 working, 17 missing.
     nice-to-have:
       have:
         - UserActionTaken (73)      # action feedback
@@ -757,7 +765,6 @@ protocol-summary:
         - ModifiedColor (7)         # Painter's Servant etc
         - Counter (14)              # running tally for badge display (vs Added/Removed events)
         - LayeredEffectCreated (18) # buff source tracking
-        - Attachment (20)           # state-based attachment info
         - RemoveAbility (23)        # "loses all abilities"
         - ModifiedType (25)         # type-changing effects
         - TargetSpec (26)           # targeting UI hints
@@ -800,21 +807,21 @@ protocol-summary:
       Multi-face variants (10 types) deferred. FloatMana observed but not generated.
 
   zone-transfer-categories:
-    implemented: 11
+    implemented: 14
     total: 21
     notes: >
-      11 wired, 3 worth adding (Return, Search, Put), 6 SBA reason
+      14 wired (+ Return, Search, Put), 6 SBA reason
       variants (cosmetic — fall back to Destroy animation), 1 n/a.
       Cards always move correctly; category only affects animation.
 
   gre-message-types:
     server-to-client: 13  # implemented
     client-to-server: 7   # handled (added CheckpointReq)
-    missing: 4             # ChooseStartingPlayer, OrderReq, AssignDamageReq, TimerState
+    missing: 5             # ChooseStartingPlayer, OrderReq, AssignDamageReq, TimerState, GroupReq/GroupResp
 
   game-events-wired:
-    wired: 17
+    wired: 20
     total: 57
     notes: >
-      Key unwired: CardAttachment, CardPhased, SpellRemovedFromStack,
-      FlipCoin, RollDie, PlayerControl, CardStatsChanged.
+      Key unwired: CardPhased, SpellRemovedFromStack,
+      FlipCoin, RollDie, PlayerControl.

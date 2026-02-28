@@ -5,6 +5,7 @@ import forge.ai.LobbyPlayerAi
 import forge.game.event.*
 import forge.game.zone.ZoneType
 import org.slf4j.LoggerFactory
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
@@ -25,6 +26,9 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     private val log = LoggerFactory.getLogger(GameEventCollector::class.java)
 
     private val queue = ConcurrentLinkedQueue<NexusGameEvent>()
+
+    /** Last-seen P/T per card ID — used to detect deltas on GameEventCardStatsChanged. */
+    private val lastPT = ConcurrentHashMap<Int, Pair<Int, Int>>()
 
     /** Drain all queued events since last drain. Returns events in firing order. */
     fun drainEvents(): List<NexusGameEvent> = buildList {
@@ -91,8 +95,20 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
             NexusGameEvent.ZoneChanged(card.id, from, to)
         }
 
+        // Clear cached P/T when a card leaves the battlefield so re-entering
+        // cards diff against fresh values instead of stale prior-lifetime stats.
+        if (from == ZoneType.Battlefield) {
+            lastPT.remove(card.id)
+        }
+
         queue.add(event)
         log.debug("event: {} card={} {} → {}", event::class.simpleName, card.name, from, to)
+
+        // Emit TokenDestroyed when a token leaves the battlefield
+        if (card.isToken && from == ZoneType.Battlefield && seat != null) {
+            queue.add(NexusGameEvent.TokenDestroyed(card.id, seat))
+            log.debug("event: TokenDestroyed card={} seat={}", card.name, seat)
+        }
     }
 
     override fun visit(ev: GameEventCardTapped) {
@@ -191,6 +207,29 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         log.debug("event: CountersChanged card={} {} {}→{}", ev.card().name, ev.type(), ev.oldValue(), ev.newValue())
     }
 
+    override fun visit(ev: GameEventCardStatsChanged) {
+        for (card in ev.cards()) {
+            val id = card.id
+            val newPower = card.getNetPower()
+            val newTough = card.getNetToughness()
+            val prev = lastPT.put(id, newPower to newTough)
+            val oldPower = prev?.first ?: newPower
+            val oldTough = prev?.second ?: newTough
+            if (oldPower != newPower || oldTough != newTough) {
+                queue.add(
+                    NexusGameEvent.PowerToughnessChanged(
+                        forgeCardId = id,
+                        oldPower = oldPower,
+                        newPower = newPower,
+                        oldToughness = oldTough,
+                        newToughness = newTough,
+                    ),
+                )
+                log.debug("event: P/T changed card={} {}/{}→{}/{}", card.name, oldPower, oldTough, newPower, newTough)
+            }
+        }
+    }
+
     override fun visit(ev: GameEventShuffle) {
         val seat = seatOf(ev.player()) ?: return
         queue.add(NexusGameEvent.LibraryShuffled(seat))
@@ -207,6 +246,15 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val seat = seatOf(ev.player()) ?: return
         queue.add(NexusGameEvent.Surveil(seat, ev.toLibrary(), ev.toGraveyard()))
         log.debug("event: Surveil seat={} lib={} gy={}", seat, ev.toLibrary(), ev.toGraveyard())
+    }
+
+    override fun visit(ev: GameEventTokenCreated) {
+        for (card in ev.tokens()) {
+            val seat = seatOf(card.controller) ?: continue
+            val sourceId = card.tokenSpawningAbility?.hostCard?.id
+            queue.add(NexusGameEvent.TokenCreated(card.id, seat, sourceId))
+            log.debug("event: TokenCreated card={} seat={} source={}", card.name, seat, sourceId)
+        }
     }
 
     // -- Group C: combat enrichment --

@@ -21,5 +21,8 @@ enum class TransferCategory(val label: String) {
     Discard("Discard"),
     Mill("Mill"),
     Exile("Exile"),
+    Return("Return"),
+    Search("Search"),
+    Put("Put"),
     ZoneTransfer("ZoneTransfer"),
 }

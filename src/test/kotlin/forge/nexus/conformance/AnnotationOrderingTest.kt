@@ -94,7 +94,7 @@ class AnnotationOrderingTest : ConformanceTestBase() {
 
     // ===== CastSpell ordering =====
 
-    @Test(description = "CastSpell: annotation order is ObjectIdChanged -> ZoneTransfer -> AbilityInstanceCreated -> TappedUntappedPermanent -> ManaPaid -> AbilityInstanceDeleted -> UserActionTaken")
+    @Test(description = "CastSpell: annotation order is ObjectIdChanged -> ZoneTransfer -> AbilityInstanceCreated -> ManaPaid -> AbilityInstanceDeleted -> UserActionTaken (tap annotations come via Stage 4)")
     fun castSpellAnnotationOrder() {
         val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
@@ -103,7 +103,6 @@ class AnnotationOrderingTest : ConformanceTestBase() {
         val oicIdx = types.indexOf(AnnotationType.ObjectIdChanged)
         val ztIdx = types.indexOf(AnnotationType.ZoneTransfer_af5a)
         val aicIdx = types.indexOf(AnnotationType.AbilityInstanceCreated)
-        val tupIdx = types.indexOf(AnnotationType.TappedUntappedPermanent)
         val mpIdx = types.indexOf(AnnotationType.ManaPaid)
         val aidIdx = types.indexOf(AnnotationType.AbilityInstanceDeleted)
         val uatIdx = types.indexOf(AnnotationType.UserActionTaken)
@@ -111,34 +110,45 @@ class AnnotationOrderingTest : ConformanceTestBase() {
         assertTrue(oicIdx >= 0, "Should have ObjectIdChanged")
         assertTrue(ztIdx >= 0, "Should have ZoneTransfer")
         assertTrue(aicIdx >= 0, "Should have AbilityInstanceCreated")
-        assertTrue(tupIdx >= 0, "Should have TappedUntappedPermanent")
         assertTrue(mpIdx >= 0, "Should have ManaPaid")
         assertTrue(aidIdx >= 0, "Should have AbilityInstanceDeleted")
         assertTrue(uatIdx >= 0, "Should have UserActionTaken")
 
         assertTrue(oicIdx < ztIdx, "ObjectIdChanged ($oicIdx) before ZoneTransfer ($ztIdx)")
         assertTrue(ztIdx < aicIdx, "ZoneTransfer ($ztIdx) before AbilityInstanceCreated ($aicIdx)")
-        assertTrue(aicIdx < tupIdx, "AbilityInstanceCreated ($aicIdx) before TappedUntappedPermanent ($tupIdx)")
-        assertTrue(tupIdx < mpIdx, "TappedUntappedPermanent ($tupIdx) before ManaPaid ($mpIdx)")
+        assertTrue(aicIdx < mpIdx, "AbilityInstanceCreated ($aicIdx) before ManaPaid ($mpIdx)")
         assertTrue(mpIdx < aidIdx, "ManaPaid ($mpIdx) before AbilityInstanceDeleted ($aidIdx)")
         assertTrue(aidIdx < uatIdx, "AbilityInstanceDeleted ($aidIdx) before UserActionTaken ($uatIdx)")
+
+        // TappedUntappedPermanent annotations come via Stage 4 (per-land, after CastSpell sequence)
+        val tupIndices = types.indices.filter { types[it] == AnnotationType.TappedUntappedPermanent }
+        for (tupIdx in tupIndices) {
+            assertTrue(tupIdx > uatIdx, "TappedUntappedPermanent ($tupIdx) should come after CastSpell sequence (UserActionTaken=$uatIdx)")
+        }
     }
 
-    @Test(description = "CastSpell: exactly 7 annotations in the expected order")
+    @Test(description = "CastSpell: CastSpell sequence has 6 annotations + per-land TappedUntappedPermanent from Stage 4")
     fun castSpellAnnotationCount() {
         val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
         val types = gsm.annotationsList.map { it.typeList.first() }
-        val expected = listOf(
+        // First 6 are the CastSpell sequence (Stage 2), followed by per-land tap annotations (Stage 4)
+        val castSequence = listOf(
             AnnotationType.ObjectIdChanged,
             AnnotationType.ZoneTransfer_af5a,
             AnnotationType.AbilityInstanceCreated,
-            AnnotationType.TappedUntappedPermanent,
             AnnotationType.ManaPaid,
             AnnotationType.AbilityInstanceDeleted,
             AnnotationType.UserActionTaken,
         )
-        assertEquals(types, expected, "CastSpell should have exactly 7 annotations in order")
+        assertEquals(types.take(6), castSequence, "First 6 annotations should be the CastSpell sequence")
+        // Remaining annotations should be TappedUntappedPermanent (one per tapped land)
+        val tapAnnotations = types.drop(6)
+        assertTrue(tapAnnotations.isNotEmpty(), "Should have at least one TappedUntappedPermanent from Stage 4")
+        assertTrue(
+            tapAnnotations.all { it == AnnotationType.TappedUntappedPermanent },
+            "All annotations after CastSpell sequence should be TappedUntappedPermanent, got: $tapAnnotations",
+        )
     }
 
     @Test(description = "CastSpell: ZoneTransfer category is CastSpell, zones are Hand->Stack")
@@ -159,12 +169,15 @@ class AnnotationOrderingTest : ConformanceTestBase() {
         assertEquals(uat.detailInt("actionType"), 1, "CastSpell UserActionTaken actionType should be 1 (Cast)")
     }
 
-    @Test(description = "CastSpell: TappedUntappedPermanent has tapped=1 detail")
+    @Test(description = "CastSpell: TappedUntappedPermanent annotations have tapped=1 detail (from Stage 4 per-land events)")
     fun castSpellTappedUntappedDetail() {
         val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
-        val tup = gsm.annotation(AnnotationType.TappedUntappedPermanent)
-        assertEquals(tup.detailUint("tapped"), 1, "TappedUntappedPermanent tapped should be 1")
+        val tups = gsm.annotationsList.filter { AnnotationType.TappedUntappedPermanent in it.typeList }
+        assertTrue(tups.isNotEmpty(), "Should have at least one TappedUntappedPermanent annotation")
+        for (tup in tups) {
+            assertEquals(tup.detailUint("tapped"), 1, "TappedUntappedPermanent tapped should be 1")
+        }
     }
 
     @Test(description = "CastSpell: all annotations reference the new (post-realloc) instanceId")

@@ -26,7 +26,9 @@ object AnnotationPipeline {
     private const val ZONE_LIMBO = ZoneIds.LIMBO
     private const val ZONE_P1_HAND = ZoneIds.P1_HAND
     private const val ZONE_P1_GRAVEYARD = ZoneIds.P1_GRAVEYARD
+    private const val ZONE_P1_LIBRARY = ZoneIds.P1_LIBRARY
     private const val ZONE_P2_HAND = ZoneIds.P2_HAND
+    private const val ZONE_P2_LIBRARY = ZoneIds.P2_LIBRARY
     private const val ZONE_P2_GRAVEYARD = ZoneIds.P2_GRAVEYARD
 
     /**
@@ -159,7 +161,6 @@ object AnnotationPipeline {
                 annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
                 annotations.add(AnnotationBuilder.abilityInstanceCreated(newId))
-                annotations.add(AnnotationBuilder.tappedUntappedPermanent(newId, newId))
                 annotations.add(AnnotationBuilder.manaPaid(newId))
                 annotations.add(AnnotationBuilder.abilityInstanceDeleted(newId))
                 annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
@@ -171,7 +172,8 @@ object AnnotationPipeline {
             }
             TransferCategory.Destroy, TransferCategory.Sacrifice, TransferCategory.Countered,
             TransferCategory.Bounce, TransferCategory.Draw, TransferCategory.Discard,
-            TransferCategory.Mill, TransferCategory.Exile, TransferCategory.ZoneTransfer,
+            TransferCategory.Mill, TransferCategory.Exile, TransferCategory.Return,
+            TransferCategory.Search, TransferCategory.Put, TransferCategory.ZoneTransfer,
             -> {
                 if (origId != newId) {
                     annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
@@ -233,7 +235,9 @@ object AnnotationPipeline {
         val protoPhase = PlayerMapper.mapPhase(handler.phase).number
         val protoStep = PlayerMapper.mapStep(handler.phase).number
         annotations.add(AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep))
-        annotations.add(AnnotationBuilder.syntheticEvent())
+        // SyntheticEvent suppressed: real server sends it empty (no affectedIds/affectorId)
+        // but our client version's SyntheticEventAnnotationParser crashes on missing affectedId.
+        // Cosmetic-only (combat phase marker) — safe to omit.
         return annotations
     }
 
@@ -244,6 +248,8 @@ object AnnotationPipeline {
     data class MechanicAnnotationResult(
         val transient: List<AnnotationInfo>,
         val persistent: List<AnnotationInfo>,
+        /** Forge card IDs of auras/equipment that were detached this GSM. */
+        val detachedForgeCardIds: List<Int> = emptyList(),
     )
 
     /**
@@ -262,6 +268,7 @@ object AnnotationPipeline {
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
+        val detachedForgeCardIds = mutableListOf<Int>()
         for (ev in events) {
             when (ev) {
                 is NexusGameEvent.CountersChanged -> {
@@ -297,12 +304,38 @@ object AnnotationPipeline {
                     annotations.add(AnnotationBuilder.tokenCreated(instanceId))
                     log.debug("mechanic: tokenCreated iid={}", instanceId)
                 }
+                is NexusGameEvent.TokenDestroyed -> {
+                    val instanceId = idResolver(ev.forgeCardId)
+                    annotations.add(AnnotationBuilder.tokenDeleted(instanceId))
+                    log.debug("mechanic: tokenDeleted iid={}", instanceId)
+                }
+                is NexusGameEvent.CardTapped -> {
+                    val instanceId = idResolver(ev.forgeCardId)
+                    annotations.add(AnnotationBuilder.tappedUntappedPermanent(instanceId, instanceId, ev.tapped))
+                    log.debug("mechanic: tapped={} iid={}", ev.tapped, instanceId)
+                }
+                is NexusGameEvent.PowerToughnessChanged -> {
+                    val instanceId = idResolver(ev.forgeCardId)
+                    if (ev.oldPower != ev.newPower) {
+                        annotations.add(AnnotationBuilder.modifiedPower(instanceId, ev.newPower))
+                    }
+                    if (ev.oldToughness != ev.newToughness) {
+                        annotations.add(AnnotationBuilder.modifiedToughness(instanceId, ev.newToughness))
+                    }
+                    log.debug("mechanic: P/T changed iid={} {}/{}→{}/{}", instanceId, ev.oldPower, ev.oldToughness, ev.newPower, ev.newToughness)
+                }
                 is NexusGameEvent.CardAttached -> {
                     val auraIid = idResolver(ev.forgeCardId)
                     val targetIid = idResolver(ev.targetForgeId)
                     annotations.add(AnnotationBuilder.attachmentCreated(auraIid, targetIid))
                     persistent.add(AnnotationBuilder.attachment(auraIid, targetIid))
                     log.debug("mechanic: attachment aura={} target={}", auraIid, targetIid)
+                }
+                is NexusGameEvent.CardDetached -> {
+                    val auraIid = idResolver(ev.forgeCardId)
+                    annotations.add(AnnotationBuilder.removeAttachment(auraIid))
+                    detachedForgeCardIds.add(ev.forgeCardId)
+                    log.debug("mechanic: removeAttachment aura={}", auraIid)
                 }
                 is NexusGameEvent.CardsRevealed -> {
                     for (forgeCardId in ev.forgeCardIds) {
@@ -314,7 +347,7 @@ object AnnotationPipeline {
                 else -> {} // Zone-transfer events handled in Stages 1-2, combat in Stage 3
             }
         }
-        return MechanicAnnotationResult(annotations, persistent)
+        return MechanicAnnotationResult(annotations, persistent, detachedForgeCardIds)
     }
 
     /** Infer category for a zone transfer annotation from zone IDs. */
@@ -329,6 +362,19 @@ object AnnotationPipeline {
             srcZone == ZONE_BATTLEFIELD -> when (destZone) {
                 ZONE_P1_GRAVEYARD, ZONE_P2_GRAVEYARD -> TransferCategory.Destroy
                 ZONE_EXILE -> TransferCategory.Exile
+                else -> TransferCategory.ZoneTransfer
+            }
+            srcZone == ZONE_P1_LIBRARY || srcZone == ZONE_P2_LIBRARY -> when (destZone) {
+                ZONE_BATTLEFIELD -> TransferCategory.Search
+                else -> TransferCategory.ZoneTransfer
+            }
+            srcZone == ZONE_P1_GRAVEYARD || srcZone == ZONE_P2_GRAVEYARD -> when (destZone) {
+                ZONE_P1_HAND, ZONE_P2_HAND, ZONE_BATTLEFIELD -> TransferCategory.Return
+                ZONE_EXILE -> TransferCategory.Exile
+                else -> TransferCategory.ZoneTransfer
+            }
+            srcZone == ZONE_EXILE -> when (destZone) {
+                ZONE_P1_HAND, ZONE_P2_HAND, ZONE_BATTLEFIELD -> TransferCategory.Return
                 else -> TransferCategory.ZoneTransfer
             }
             else -> TransferCategory.ZoneTransfer
