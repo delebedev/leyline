@@ -5,6 +5,7 @@ import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices
 import org.testng.annotations.Test
+import java.nio.file.Path
 
 /**
  * Enforces the forge-nexus package dependency graph (main sources only).
@@ -51,12 +52,18 @@ import org.testng.annotations.Test
 class PackageArchitectureTest {
 
     /**
-     * Import only production classes — test classes legitimately cross package
-     * boundaries (e.g. game tests using conformance.TestCardRegistry).
+     * Import only forge-nexus production classes from this module's target dir.
+     * Using importPath() instead of importPackages() avoids scanning the full
+     * classpath — importPackages resolves transitive deps from forge-web/forge-game
+     * which blows the heap on CI runners with limited memory.
      */
-    private val classes = ClassFileImporter()
-        .withImportOption(ImportOption.DoNotIncludeTests())
-        .importPackages("forge.nexus")
+    private val classes = run {
+        val targetClasses = Path.of("").toAbsolutePath()
+            .resolve("target/classes")
+        ClassFileImporter()
+            .withImportOption(ImportOption.DoNotIncludeTests())
+            .importPath(targetClasses)
+    }
 
     /** No circular dependencies between top-level packages. */
     @Test
