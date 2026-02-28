@@ -1,4 +1,4 @@
-package forge.nexus.game
+package forge.nexus.game.mapper
 
 /** Protocol prompt IDs matching real server values. */
 object PromptIds {

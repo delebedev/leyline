@@ -1,6 +1,6 @@
 package forge.nexus.conformance
 
-import forge.nexus.game.PromptIds
+import forge.nexus.game.mapper.PromptIds
 import org.testng.Assert.*
 import org.testng.annotations.AfterMethod
 import org.testng.annotations.Test

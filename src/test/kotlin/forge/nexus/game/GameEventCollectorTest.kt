@@ -1,6 +1,7 @@
 package forge.nexus.game
 
 import forge.game.zone.ZoneType
+import forge.nexus.game.mapper.ActionMapper
 import forge.web.game.GameBootstrap
 import forge.web.game.PlayerAction
 import org.testng.Assert.assertEquals
@@ -145,7 +146,7 @@ class GameEventCollectorTest {
         val creatureId = creature.id
 
         // Try to cast — need to tap Forest first
-        val actions = StateMapper.buildActions(game, 1, b)
+        val actions = ActionMapper.buildActions(game, 1, b)
         val hasCast = actions.actionsList.any {
             it.actionType == wotc.mtgo.gre.external.messaging.Messages.ActionType.Cast
         }

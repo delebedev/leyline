@@ -8,6 +8,7 @@ import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
 import forge.nexus.game.PuzzleSource
 import forge.nexus.game.StateMapper
+import forge.nexus.game.mapper.ActionMapper
 import forge.nexus.server.ListMessageSink
 import forge.nexus.server.MatchRegistry
 import forge.nexus.server.MatchSession
@@ -203,7 +204,7 @@ class PuzzleBridgeTest {
     fun webTest00ActionsIncludeCast() {
         val b = startPuzzle("puzzles/bolt-face.pzl")
         val game = b.getGame()!!
-        val actions = StateMapper.buildActions(game, 1, b)
+        val actions = ActionMapper.buildActions(game, 1, b)
         val actionTypes = actions.actionsList.map { it.actionType.name }
         assertTrue(
             actionTypes.any { it == "Cast" },

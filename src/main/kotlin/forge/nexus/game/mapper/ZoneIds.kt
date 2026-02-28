@@ -1,4 +1,4 @@
-package forge.nexus.game
+package forge.nexus.game.mapper
 
 /** Protocol zone IDs matching real server layout (starting at 18). */
 object ZoneIds {

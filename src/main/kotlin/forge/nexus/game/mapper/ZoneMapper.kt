@@ -1,7 +1,9 @@
-package forge.nexus.game
+package forge.nexus.game.mapper
 
 import forge.game.Game
 import forge.game.player.Player
+import forge.nexus.game.CardDb
+import forge.nexus.game.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 

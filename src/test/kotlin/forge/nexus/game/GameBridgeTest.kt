@@ -4,6 +4,9 @@ import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
 import forge.nexus.config.GameConfig
 import forge.nexus.config.PlaytestConfig
+import forge.nexus.game.mapper.ActionMapper
+import forge.nexus.game.mapper.PromptIds
+import forge.nexus.game.mapper.ZoneIds
 import forge.web.game.GameBootstrap
 import forge.web.game.PlayerAction
 import org.testng.Assert
@@ -151,7 +154,7 @@ class GameBridgeTest {
         val game = b.getGame()!!
         Assert.assertEquals(game.phaseHandler.phase, PhaseType.MAIN1, "Should be at Main1")
 
-        val actions = StateMapper.buildActions(game, 1, b)
+        val actions = ActionMapper.buildActions(game, 1, b)
 
         val hasPass = actions.actionsList.any {
             it.actionType == wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass
@@ -477,7 +480,7 @@ class GameBridgeTest {
         advanceToPhase(b, "COMBAT_DECLARE_ATTACKERS", maxPasses = 80)
         if (game.isGameOver || game.phaseHandler.phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return
 
-        val req = StateMapper.buildDeclareAttackersReq(game, 1, b)
+        val req = RequestBuilder.buildDeclareAttackersReq(game, 1, b)
         Assert.assertTrue(req.canSubmitAttackers, "canSubmitAttackers should be true")
 
         // If we have eligible attackers, each should have legal + selected damage recipients
@@ -712,7 +715,7 @@ class GameBridgeTest {
             awaitFreshPending(b, pending.actionId)
         }
 
-        val actions = StateMapper.buildActions(game, 1, b)
+        val actions = ActionMapper.buildActions(game, 1, b)
         val castActions = actions.actionsList.filter {
             it.actionType == Messages.ActionType.Cast
         }
@@ -778,7 +781,7 @@ class GameBridgeTest {
         advanceToMain1(b)
 
         val game = b.getGame()!!
-        val actions = StateMapper.buildActions(game, 1, b)
+        val actions = ActionMapper.buildActions(game, 1, b)
         val gs = StateMapper.buildFromGame(game, 1, "test-match", b, actions)
 
         Assert.assertTrue(gs.actionsCount > 0, "Full state should have embedded actions")

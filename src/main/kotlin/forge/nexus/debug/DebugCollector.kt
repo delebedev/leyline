@@ -5,7 +5,7 @@ import ch.qos.logback.core.AppenderBase
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
 import forge.nexus.game.CardDb
-import forge.nexus.game.ZoneIds
+import forge.nexus.game.mapper.ZoneIds
 import forge.nexus.server.MatchHandler
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json

@@ -1,9 +1,11 @@
 package forge.nexus.protocol
 
 import forge.nexus.game.GameBridge
-import forge.nexus.game.PlayerMapper
-import forge.nexus.game.PromptIds
+import forge.nexus.game.GsmBuilder
 import forge.nexus.game.StateMapper
+import forge.nexus.game.mapper.ActionMapper
+import forge.nexus.game.mapper.PlayerMapper
+import forge.nexus.game.mapper.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -123,7 +125,7 @@ object HandshakeMessages {
 
         // Full initial GameState
         val pendingCount = if (seatId == 2) 1 else 0 // ChooseStartingPlayerReq follows
-        val gsm = StateMapper.buildInitialGameState(matchId, gameStateId, seatId, bridge, pendingCount)
+        val gsm = GsmBuilder.buildInitialGameState(matchId, gameStateId, seatId, bridge, pendingCount)
         messages.add(
             GREToClientMessage.newBuilder()
                 .setType(GREMessageType.GameStateMessage_695e)
@@ -162,7 +164,7 @@ object HandshakeMessages {
         bridge: GameBridge,
         seatId: Int,
     ): Pair<MatchServiceToClientMessage, Int> {
-        val gsm = StateMapper.buildDealHand(bridge, gameStateId, seatId)
+        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, seatId)
         val gre = GREToClientMessage.newBuilder()
             .setType(GREMessageType.GameStateMessage_695e)
             .addSystemSeatIds(seatId)
@@ -180,7 +182,7 @@ object HandshakeMessages {
         bridge: GameBridge,
     ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
-        val gsm = StateMapper.buildDealHand(bridge, gameStateId, 2)
+        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, 2)
             .toBuilder().setPendingMessageCount(1).build()
         val greGsm = GREToClientMessage.newBuilder()
             .setType(GREMessageType.GameStateMessage_695e)
@@ -189,7 +191,7 @@ object HandshakeMessages {
             .setGameStateId(gameStateId)
             .setGameStateMessage(gsm)
             .build()
-        val greMull = StateMapper.buildMulliganReq(msgId++, gameStateId, 2)
+        val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 2)
         return wrapGre(greGsm, greMull) to msgId
     }
 
@@ -248,7 +250,7 @@ object HandshakeMessages {
             .build()
 
         // 3) MulliganReq for seat 1
-        val greMull = StateMapper.buildMulliganReq(msgId++, gameStateId, 1)
+        val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 1)
 
         return wrapGre(greGsm, grePrompt, greMull) to msgId
     }
@@ -271,7 +273,7 @@ object HandshakeMessages {
 
         if (seatId == 1) {
             // ConnectResp with empty deck (puzzle doesn't use deck message)
-            val emptyDeck = StateMapper.buildDeckMessage(emptyList())
+            val emptyDeck = GsmBuilder.buildDeckMessage(emptyList())
             messages.add(buildConnectResp(msgId++, seatId, emptyDeck))
         }
 
@@ -310,7 +312,7 @@ object HandshakeMessages {
         bridge: GameBridge,
     ): Pair<MatchServiceToClientMessage, Int> {
         val game = bridge.getGame()!!
-        val actions = StateMapper.buildActions(game, seatId, bridge)
+        val actions = ActionMapper.buildActions(game, seatId, bridge)
         val gre = GREToClientMessage.newBuilder()
             .setType(GREMessageType.ActionsAvailableReq_695e)
             .addSystemSeatIds(seatId)
