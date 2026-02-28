@@ -19,7 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  * These tests exercise the full StateMapper.buildFromGame / BundleBuilder.postAction
  * pipeline with a live Forge engine and assert on the emitted annotation sequence.
  */
-@Test(groups = ["integration", "conformance"])
+@Test(groups = ["conformance"])
 class AnnotationOrderingTest : ConformanceTestBase() {
 
     // ===== PlayLand ordering =====

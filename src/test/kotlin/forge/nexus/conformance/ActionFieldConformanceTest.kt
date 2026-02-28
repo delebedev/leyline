@@ -20,7 +20,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  * - Pass: no fields besides actionType
  * - Activate: has instanceId + grpId, abilityGrpId when card data available
  */
-@Test(groups = ["integration", "conformance"])
+@Test(groups = ["conformance"])
 class ActionFieldConformanceTest : ConformanceTestBase() {
 
     @Test(description = "After playing a land: ActivateMana present for untapped mana source")

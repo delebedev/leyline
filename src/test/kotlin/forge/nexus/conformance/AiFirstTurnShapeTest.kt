@@ -19,7 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *    should embed the human's available actions, not the AI's.
  * 4. **PhaseOrStepModified** — every phase/step transition must have annotations.
  */
-@Test(groups = ["integration", "conformance"])
+@Test(groups = ["conformance"])
 class AiFirstTurnShapeTest {
 
     private lateinit var harness: MatchFlowHarness

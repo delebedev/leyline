@@ -18,7 +18,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
  *   - No ActionsAvailableReq messages
  *   - Annotations matching the action type
  */
-@Test(groups = ["integration", "conformance"])
+@Test(groups = ["conformance"])
 class AiTurnConformanceTest : ConformanceTestBase() {
 
     @Test(description = "AI turn produces per-action diffs via EventBus playback")

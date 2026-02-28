@@ -30,7 +30,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  * Cards are placed directly into zones; transitions triggered via [forge.game.GameAction].
  * Forge events fire synchronously, annotations build inline.
  */
-@Test(groups = ["integration"])
+@Test(groups = ["conformance"])
 class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     // -----------------------------------------------------------------------
@@ -117,7 +117,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
     // 1. Hand → Battlefield (PlayLand)
     // -----------------------------------------------------------------------
 
-    @Test
+    @Test(groups = ["integration"])
     fun handToBattlefieldPlayLand() {
         val (b, game, counter) = startGameAtMain1()
         val player = human(b)
@@ -148,7 +148,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
     // 2. Hand → Stack (CastSpell)
     // -----------------------------------------------------------------------
 
-    @Test
+    @Test(groups = ["integration"])
     fun handToStackCastSpell() {
         val (b, game, counter) = startGameAtMain1()
         playLand(b)
@@ -179,7 +179,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
     // 3. Stack → Battlefield (Resolve)
     // -----------------------------------------------------------------------
 
-    @Test
+    @Test(groups = ["integration"])
     fun stackToBattlefieldResolve() {
         val (b, game, counter) = startGameAtMain1()
         playLand(b)
