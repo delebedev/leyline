@@ -149,11 +149,12 @@ internal object CaptureSink : AutoCloseable {
     /** Auto-decode MD payloads → md-frames.jsonl on shutdown. */
     private fun decodeMdFrames() {
         try {
-            val captureRoot = NexusPaths.CAPTURE_ROOT
-            if (!captureRoot.isDirectory) return
-            val messages = RecordingDecoder.decodeDirectory(captureRoot)
+            // decodeDirectory expects session root — auto-discovers capture/payloads/ inside
+            val sessionDir = NexusPaths.SESSION_DIR
+            if (!sessionDir.isDirectory) return
+            val messages = RecordingDecoder.decodeDirectory(sessionDir)
             if (messages.isEmpty()) return
-            val outFile = File(captureRoot, "md-frames.jsonl")
+            val outFile = File(sessionDir, "md-frames.jsonl")
             outFile.printWriter().use { pw ->
                 for (msg in messages) pw.println(RecordingDecoder.toJsonLine(msg))
             }
