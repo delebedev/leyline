@@ -5,11 +5,11 @@ import forge.nexus.debug.FdDebugCollector
 import forge.nexus.debug.NexusPaths
 import forge.nexus.protocol.ClientFrameDecoder
 import forge.nexus.protocol.FdEnvelope
-import org.slf4j.LoggerFactory
 import io.netty.buffer.ByteBuf
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.FileWriter
 import java.io.PrintWriter
