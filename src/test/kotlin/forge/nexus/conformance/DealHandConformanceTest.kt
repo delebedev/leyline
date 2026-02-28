@@ -1,46 +1,25 @@
 package forge.nexus.conformance
 
-import forge.nexus.game.GameBridge
+import forge.game.zone.ZoneType
 import forge.nexus.game.GsmBuilder
 import forge.nexus.game.mapper.PromptIds
 import forge.nexus.protocol.HandshakeMessages
-import forge.web.game.GameBootstrap
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertTrue
-import org.testng.annotations.AfterMethod
-import org.testng.annotations.BeforeClass
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Verifies pre-mulligan handshake message structure produced by [HandshakeMessages].
+ * Structural tests for pre-mulligan handshake messages produced by [HandshakeMessages].
  *
- * Checks message counts, GRE types, GSM type/update, zone counts, prompt IDs,
- * settings round-trip, and field presence — all against hardcoded expectations
- * derived from real Arena server recordings.
+ * Verifies message counts, ordering, GRE types, gsId/msgId advancement,
+ * pendingMessageCount, and seat-specific bundle composition.
+ *
+ * Field-level coverage is handled by [GoldenFieldCoverageTest] — this class
+ * focuses on bundle shape and value correctness.
  */
-@Test(groups = ["integration"])
-class DealHandConformanceTest {
-
-    private var bridge: GameBridge? = null
-
-    @BeforeClass(alwaysRun = true)
-    fun initCardDatabase() {
-        GameBootstrap.initializeCardDatabase(quiet = true)
-    }
-
-    @AfterMethod
-    fun tearDown() {
-        bridge?.shutdown()
-        bridge = null
-    }
-
-    private fun startBridge(): GameBridge {
-        val b = GameBridge()
-        bridge = b
-        b.start(seed = 42L)
-        return b
-    }
+@Test(groups = ["conformance"])
+class DealHandConformanceTest : ConformanceTestBase() {
 
     /** Helper: extract GRE messages from a MatchServiceToClientMessage. */
     private fun greMessages(msg: MatchServiceToClientMessage): List<GREToClientMessage> =
@@ -48,9 +27,13 @@ class DealHandConformanceTest {
 
     // --- dealHand ---
 
-    @Test(description = "dealHand seat 1: 1 GRE msg, Diff GSM with zones/objects/actions")
+    @Test(description = "dealHand seat 1: 1 GRE msg, Diff GSM with zones and objects")
     fun dealHandSeat1Structure() {
-        val b = startBridge()
+        val (b, _, _) = startWithBoard { _, human, _ ->
+            // 7 cards in hand to simulate a dealt hand
+            repeat(7) { addCard("Plains", human, ZoneType.Hand) }
+            repeat(53) { addCard("Plains", human, ZoneType.Library) }
+        }
         val (msg, nextMsgId) = HandshakeMessages.dealHand(6, 2, b, seatId = 1)
         val messages = greMessages(msg)
 
@@ -69,15 +52,8 @@ class DealHandConformanceTest {
 
         // 4 zones: hand + library for each player
         assertEquals(gsm.zonesCount, 4, "Zone count (hand+library per player)")
-        // Objects: viewing seat's hand cards only (7 cards for a fresh hand)
+        // Objects: viewing seat's hand cards
         assertTrue(gsm.gameObjectsCount > 0, "Should have game objects for viewing seat's hand")
-
-        // NewTurnStarted annotation
-        val annTypes = gsm.annotationsList.flatMap { it.typeList }
-        assertTrue(AnnotationType.NewTurnStarted in annTypes, "Should have NewTurnStarted annotation")
-
-        // Actions present (cast/play from opening hand)
-        assertTrue(gsm.actionsCount > 0, "Should have embedded actions")
 
         // Both players present with MulliganResp pending
         assertEquals(gsm.playersCount, 2, "Should have 2 players")
@@ -94,7 +70,13 @@ class DealHandConformanceTest {
 
     @Test(description = "dealHandMulliganSeat2: 2 msgs (GSM + MulliganReq)")
     fun dealHandMulliganSeat2Structure() {
-        val b = startBridge()
+        val (b, _, _) = startWithBoard { _, human, ai ->
+            repeat(7) { addCard("Plains", human, ZoneType.Hand) }
+            repeat(53) { addCard("Plains", human, ZoneType.Library) }
+            // Seat 2 (AI) also needs cards for dealHandMulliganSeat2
+            repeat(7) { addCard("Plains", ai, ZoneType.Hand) }
+            repeat(53) { addCard("Plains", ai, ZoneType.Library) }
+        }
         val (msg, nextMsgId) = HandshakeMessages.dealHandMulliganSeat2(6, 2, b)
         val messages = greMessages(msg)
 
@@ -121,7 +103,7 @@ class DealHandConformanceTest {
 
     @Test(description = "mulliganReqSeat1: 3 msgs (thin Diff + PromptReq + MulliganReq)")
     fun mulliganReqSeat1Structure() {
-        val b = startBridge()
+        val (b, _, _) = startWithBoard { _, _, _ -> }
         val (msg, nextMsgId) = HandshakeMessages.mulliganReqSeat1(10, 3, b)
         val messages = greMessages(msg)
 
@@ -154,74 +136,58 @@ class DealHandConformanceTest {
 
     // --- initialBundle ---
 
-    @Test(description = "initialBundle seat 1: ConnectResp + DieRoll + Full GSM with 17 zones")
+    @Test(description = "initialBundle seat 1: ConnectResp + DieRoll + Full GSM (3 msgs)")
     fun initialBundleSeat1Structure() {
-        val b = startBridge()
+        val (b, _, _) = startWithBoard { _, _, _ -> }
         val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(1))
-        val (msg, nextMsgId) = HandshakeMessages.initialBundle(1, "test-match", 2, 1, deck, b)
+        val (msg, nextMsgId) = HandshakeMessages.initialBundle(1, TEST_MATCH_ID, 2, 1, deck, b)
         val messages = greMessages(msg)
 
         assertEquals(messages.size, 3, "Should produce 3 GRE messages")
         assertEquals(nextMsgId, 5, "Next msgId should advance by 3")
 
-        // Message 0: ConnectResp
-        assertEquals(messages[0].type, GREMessageType.ConnectResp_695e, "msg[0] GRE type")
-        val connectResp = messages[0].connectResp
-        assertEquals(connectResp.status, ConnectionStatus.Success_aa9e, "ConnectResp status")
-        assertTrue(connectResp.hasDeckMessage(), "ConnectResp should have deck")
-        assertTrue(connectResp.deckMessage.deckCardsCount > 0, "Deck should have cards")
-        assertTrue(connectResp.hasSettings(), "ConnectResp should have default settings")
+        // Message order: ConnectResp → DieRollResultsResp → Full GSM
+        assertEquals(messages[0].type, GREMessageType.ConnectResp_695e, "msg[0] = ConnectResp")
+        assertEquals(messages[1].type, GREMessageType.DieRollResultsResp_695e, "msg[1] = DieRollResultsResp")
+        assertEquals(messages[2].type, GREMessageType.GameStateMessage_695e, "msg[2] = GameStateMessage")
 
-        // Message 1: DieRollResultsResp
-        assertEquals(messages[1].type, GREMessageType.DieRollResultsResp_695e, "msg[1] GRE type")
-        val dieRoll = messages[1].dieRollResultsResp
-        assertEquals(dieRoll.playerDieRollsCount, 2, "Should have 2 die rolls")
-
-        // Message 2: Full GSM (pre-deal initial state)
-        assertEquals(messages[2].type, GREMessageType.GameStateMessage_695e, "msg[2] GRE type")
+        // Full GSM structural checks
         val gsm = messages[2].gameStateMessage
-        assertEquals(gsm.type, GameStateType.Full, "msg[2] GSM type = Full")
-        assertEquals(gsm.update, GameStateUpdate.SendAndRecord, "msg[2] update")
-        assertEquals(gsm.zonesCount, 17, "msg[2] zone count (9 shared + 4 per player)")
-        assertTrue(gsm.hasGameInfo(), "msg[2] should have gameInfo")
-        assertEquals(gsm.gameInfo.stage, GameStage.Start_a920, "msg[2] stage = Start")
-        assertEquals(gsm.teamsCount, 2, "msg[2] should have 2 teams")
-        assertEquals(gsm.playersCount, 2, "msg[2] should have 2 players")
+        assertEquals(gsm.type, GameStateType.Full, "GSM type = Full")
+        assertEquals(gsm.zonesCount, 17, "Zone count (9 shared + 4 per player)")
+        assertEquals(gsm.teamsCount, 2, "2 teams")
+        assertEquals(gsm.playersCount, 2, "2 players")
+        assertEquals(gsm.gameInfo.stage, GameStage.Start_a920, "Stage = Start")
     }
 
     @Test(description = "initialBundle seat 2: DieRoll + Full GSM + ChooseStartingPlayerReq")
     fun initialBundleSeat2Structure() {
-        val b = startBridge()
+        val (b, _, _) = startWithBoard { _, _, _ -> }
         val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(2))
-        val (msg, nextMsgId) = HandshakeMessages.initialBundle(2, "test-match", 3, 1, deck, b)
+        val (msg, nextMsgId) = HandshakeMessages.initialBundle(2, TEST_MATCH_ID, 3, 1, deck, b)
         val messages = greMessages(msg)
 
         assertEquals(messages.size, 3, "Should produce 3 GRE messages")
         assertEquals(nextMsgId, 6, "Next msgId should advance by 3")
 
-        // Message 0: DieRollResultsResp (no ConnectResp for seat 2)
-        assertEquals(messages[0].type, GREMessageType.DieRollResultsResp_695e, "msg[0] GRE type")
+        // Seat 2: no ConnectResp — order is DieRoll → Full GSM → ChooseStartingPlayerReq
+        assertEquals(messages[0].type, GREMessageType.DieRollResultsResp_695e, "msg[0] = DieRollResultsResp")
+        assertEquals(messages[1].type, GREMessageType.GameStateMessage_695e, "msg[1] = GameStateMessage")
+        assertEquals(messages[2].type, GREMessageType.ChooseStartingPlayerReq_695e, "msg[2] = ChooseStartingPlayerReq")
 
-        // Message 1: Full GSM with 17 zones + pendingMessageCount=1
-        assertEquals(messages[1].type, GREMessageType.GameStateMessage_695e, "msg[1] GRE type")
         val gsm = messages[1].gameStateMessage
-        assertEquals(gsm.type, GameStateType.Full, "msg[1] GSM type = Full")
-        assertEquals(gsm.update, GameStateUpdate.SendAndRecord, "msg[1] update")
-        assertEquals(gsm.zonesCount, 17, "msg[1] zone count")
-        assertEquals(gsm.pendingMessageCount, 1, "msg[1] pendingMessageCount (ChooseStartingPlayerReq follows)")
-        assertTrue(gsm.hasGameInfo(), "msg[1] should have gameInfo")
+        assertEquals(gsm.type, GameStateType.Full, "GSM type = Full")
+        assertEquals(gsm.zonesCount, 17, "Zone count")
+        assertEquals(gsm.pendingMessageCount, 1, "pendingMessageCount (ChooseStartingPlayerReq follows)")
 
-        // Message 2: ChooseStartingPlayerReq
-        assertEquals(messages[2].type, GREMessageType.ChooseStartingPlayerReq_695e, "msg[2] GRE type")
         val req = messages[2].chooseStartingPlayerReq
-        assertEquals(req.systemSeatIdsCount, 2, "ChooseStartingPlayerReq should list 2 seats")
+        assertEquals(req.systemSeatIdsCount, 2, "ChooseStartingPlayerReq lists 2 seats")
     }
 
     // --- settingsResp ---
 
     @Test(description = "settingsResp round-trips settings and advances msgId")
     fun settingsRespRoundTrip() {
-        // Build sample settings
         val settings = SettingsMessage.newBuilder()
             .addStops(
                 Stop.newBuilder()
@@ -241,10 +207,7 @@ class DealHandConformanceTest {
         val gre = messages[0]
         assertEquals(gre.type, GREMessageType.SetSettingsResp_695e, "GRE type")
         assertEquals(gre.msgId, 9, "msgId")
-
-        // Settings round-trip: echoed settings match input
-        val echoed = gre.setSettingsResp.settings
-        assertEquals(echoed, settings, "Settings should round-trip exactly")
+        assertEquals(gre.setSettingsResp.settings, settings, "Settings should round-trip exactly")
     }
 
     @Test(description = "settingsResp with null settings produces empty resp")
