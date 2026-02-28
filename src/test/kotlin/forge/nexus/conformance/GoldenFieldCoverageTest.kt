@@ -2,7 +2,9 @@ package forge.nexus.conformance
 
 import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
+import forge.nexus.game.GsmBuilder
 import forge.nexus.game.RequestBuilder
+import forge.nexus.protocol.HandshakeMessages
 import forge.web.dto.PromptCandidateRefDto
 import forge.web.game.InteractivePromptBridge.PendingPrompt
 import forge.web.game.PromptRequest
@@ -296,5 +298,165 @@ class GoldenFieldCoverageTest : ConformanceTestBase() {
 
         // No known extras at wrapper level
         assertFieldCoverage("SelectTargetsReq (wrapper)", goldenFields, ourFields, expectedMissing, emptySet())
+    }
+
+    // -----------------------------------------------------------------------
+    // ConnectResp
+    // -----------------------------------------------------------------------
+
+    @Test(description = "ConnectResp field coverage vs real server")
+    fun connectRespCoverage() {
+        val goldenGRE = loadGoldenGRE("initial-bundle.bin", GREMessageType.ConnectResp_695e)
+        val goldenFields = FieldPathExtractor.extract(goldenGRE.connectResp)
+
+        // Build via initialBundle (seat 1 gets ConnectResp)
+        val (b, _, _) = startWithBoard { _, _, _ -> }
+        val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(1))
+        val (msg, _) = HandshakeMessages.initialBundle(1, TEST_MATCH_ID, 2, 1, deck, b)
+        val oursGRE = msg.greToClientEvent.greToClientMessagesList
+            .first { it.type == GREMessageType.ConnectResp_695e }
+        val ourFields = FieldPathExtractor.extract(oursGRE.connectResp)
+
+        val expectedMissing = setOf(
+            // Deck contents — test board has a minimal deck; real server has full 60-card list.
+            // Our builder does populate deckCards when given real grpIds; gap is test-setup artifact.
+            "deckMessage.deckCards[]",
+            // GRE/GRP changelists — version-specific asset diff info, cosmetic only
+            "greChangelist",
+            "grpChangelist",
+            // Card skins — cosmetic card art selection, not gameplay-relevant
+            "skins[].catalogId",
+            "skins[].skinCode",
+        )
+
+        val expectedExtra = emptySet<String>()
+        assertFieldCoverage("ConnectResp", goldenFields, ourFields, expectedMissing, expectedExtra)
+    }
+
+    // -----------------------------------------------------------------------
+    // DieRollResultsResp
+    // -----------------------------------------------------------------------
+
+    @Test(description = "DieRollResultsResp field coverage vs real server")
+    fun dieRollResultsRespCoverage() {
+        val goldenGRE = loadGoldenGRE("initial-bundle.bin", GREMessageType.DieRollResultsResp_695e)
+        val goldenFields = FieldPathExtractor.extract(goldenGRE.dieRollResultsResp)
+
+        // Build via initialBundle
+        val (b, _, _) = startWithBoard { _, _, _ -> }
+        val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(1))
+        val (msg, _) = HandshakeMessages.initialBundle(1, TEST_MATCH_ID, 2, 1, deck, b)
+        val oursGRE = msg.greToClientEvent.greToClientMessagesList
+            .first { it.type == GREMessageType.DieRollResultsResp_695e }
+        val ourFields = FieldPathExtractor.extract(oursGRE.dieRollResultsResp)
+
+        val expectedMissing = emptySet<String>()
+        val expectedExtra = emptySet<String>()
+        assertFieldCoverage("DieRollResultsResp", goldenFields, ourFields, expectedMissing, expectedExtra)
+    }
+
+    // -----------------------------------------------------------------------
+    // Initial Full GameStateMessage (gsId=1, pre-deal zones)
+    // -----------------------------------------------------------------------
+
+    @Test(description = "Initial Full GSM field coverage vs real server")
+    fun initialFullGsmCoverage() {
+        val goldenGRE = loadGoldenGRE("initial-bundle.bin", GREMessageType.GameStateMessage_695e)
+        val goldenFields = FieldPathExtractor.extract(goldenGRE.gameStateMessage)
+
+        // Build via initialBundle
+        val (b, _, _) = startWithBoard { _, _, _ -> }
+        val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(1))
+        val (msg, _) = HandshakeMessages.initialBundle(1, TEST_MATCH_ID, 2, 1, deck, b)
+        val oursGRE = msg.greToClientEvent.greToClientMessagesList
+            .first { it.type == GREMessageType.GameStateMessage_695e }
+        val ourFields = FieldPathExtractor.extract(oursGRE.gameStateMessage)
+
+        val expectedMissing = setOf(
+            // Real server includes empty diffDeletedInstanceIds[] in Full GSM (quirk)
+            "diffDeletedInstanceIds[]",
+            // Timeout/pip config — server-side match configuration we don't populate
+            "gameInfo.maxPipCount",
+            "gameInfo.maxTimeoutCount",
+            "gameInfo.timeoutDurationSec",
+            // pendingMessageCount — real server sets non-zero even for seat 1
+            // (ChooseStartingPlayerReq follows for seat 2, but seat 1 sees it as pending)
+            "pendingMessageCount",
+            // Timer elapsed — real server initializes with non-zero elapsed
+            "timers[].elapsedMs",
+            // Library zone objectInstanceIds — real server populates library card IDs
+            // in the Full GSM; our builder leaves libraries empty (cards are face-down)
+            "zones[].objectInstanceIds[]",
+        )
+
+        val expectedExtra = emptySet<String>()
+        assertFieldCoverage("Initial Full GSM", goldenFields, ourFields, expectedMissing, expectedExtra)
+    }
+
+    // -----------------------------------------------------------------------
+    // MulliganReq
+    // -----------------------------------------------------------------------
+
+    @Test(description = "MulliganReq field coverage vs real server")
+    fun mulliganReqCoverage() {
+        val goldenGRE = loadGoldenGRE("mulligan-req.bin", GREMessageType.MulliganReq_aa0d)
+        val goldenFields = FieldPathExtractor.extract(goldenGRE)
+
+        // Build via GsmBuilder
+        val ours = GsmBuilder.buildMulliganReq(msgId = 9, gameStateId = 2, seatId = 1)
+        val ourFields = FieldPathExtractor.extract(ours)
+
+        val expectedMissing = emptySet<String>()
+        val expectedExtra = emptySet<String>()
+        assertFieldCoverage("MulliganReq", goldenFields, ourFields, expectedMissing, expectedExtra)
+    }
+
+    // -----------------------------------------------------------------------
+    // SetSettingsResp
+    // -----------------------------------------------------------------------
+
+    @Test(description = "SetSettingsResp field coverage vs real server")
+    fun setSettingsRespCoverage() {
+        val goldenGRE = loadGoldenGRE("set-settings-resp.bin", GREMessageType.SetSettingsResp_695e)
+        val goldenFields = FieldPathExtractor.extract(goldenGRE.setSettingsResp)
+
+        // Extract the settings from the golden itself — real server echoes client's settings.
+        // We just need to confirm field shapes match when we round-trip them.
+        val clientSettings = goldenGRE.setSettingsResp.settings
+        val (msg, _) = HandshakeMessages.settingsResp(1, 6, 1, clientSettings)
+        val oursGRE = msg.greToClientEvent.greToClientMessagesList
+            .first { it.type == GREMessageType.SetSettingsResp_695e }
+        val ourFields = FieldPathExtractor.extract(oursGRE.setSettingsResp)
+
+        val expectedMissing = emptySet<String>()
+        val expectedExtra = emptySet<String>()
+        assertFieldCoverage("SetSettingsResp", goldenFields, ourFields, expectedMissing, expectedExtra)
+    }
+
+    // -----------------------------------------------------------------------
+    // IntermissionReq (game-over sequence)
+    // -----------------------------------------------------------------------
+
+    @Test(description = "IntermissionReq field coverage vs real server")
+    fun intermissionReqCoverage() {
+        val goldenGRE = loadGoldenGRE("intermission-req.bin", GREMessageType.IntermissionReq_695e)
+        val goldenFields = FieldPathExtractor.extract(goldenGRE.intermissionReq)
+
+        // Build via gameOverBundle
+        val (b, _, counter) = startWithBoard { _, _, _ -> }
+        val result = BundleBuilder.gameOverBundle(
+            winningTeam = 1,
+            matchId = TEST_MATCH_ID,
+            seatId = 1,
+            counter = counter,
+            losingPlayerSeatId = 2,
+            bridge = b,
+        )
+        val oursGRE = result.messages.first { it.type == GREMessageType.IntermissionReq_695e }
+        val ourFields = FieldPathExtractor.extract(oursGRE.intermissionReq)
+
+        val expectedMissing = emptySet<String>()
+        val expectedExtra = emptySet<String>()
+        assertFieldCoverage("IntermissionReq", goldenFields, ourFields, expectedMissing, expectedExtra)
     }
 }
