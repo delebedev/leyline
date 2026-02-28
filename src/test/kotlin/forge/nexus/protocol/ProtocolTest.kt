@@ -2,7 +2,7 @@ package forge.nexus.protocol
 
 import forge.nexus.game.CardDb
 import forge.nexus.game.DeckProvider
-import forge.nexus.game.StateMapper
+import forge.nexus.game.GsmBuilder
 import org.testng.Assert
 import org.testng.Assert.assertEquals
 import org.testng.annotations.AfterMethod
@@ -157,7 +157,7 @@ class ProtocolTest {
     @Test
     fun buildDeckMessageFromGrpIdList() {
         val grpIds = listOf(100, 100, 200, 200, 300)
-        val msg = StateMapper.buildDeckMessage(grpIds)
+        val msg = GsmBuilder.buildDeckMessage(grpIds)
 
         Assert.assertEquals(msg.deckCardsCount, 5)
         Assert.assertEquals(msg.getDeckCards(0), 100)

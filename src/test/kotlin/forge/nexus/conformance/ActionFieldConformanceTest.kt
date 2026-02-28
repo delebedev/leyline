@@ -1,6 +1,6 @@
 package forge.nexus.conformance
 
-import forge.nexus.game.StateMapper
+import forge.nexus.game.mapper.ActionMapper
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertFalse
 import org.testng.Assert.assertNotEquals
@@ -28,7 +28,7 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
         val (b, game, _) = startGameAtMain1()
         playLand(b) ?: error("playLand failed at seed 42")
 
-        val actions = StateMapper.buildActions(game, 1, b)
+        val actions = ActionMapper.buildActions(game, 1, b)
         val manaActions = actions.actionsList.filter { it.actionType == ActionType.ActivateMana }
         assertTrue(manaActions.isNotEmpty(), "Should have ActivateMana after playing a land")
 
@@ -50,7 +50,7 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
         // Play a land first to enable casting (need mana)
         playLand(b) ?: error("playLand failed at seed 42")
 
-        val actions = StateMapper.buildActions(game, 1, b)
+        val actions = ActionMapper.buildActions(game, 1, b)
         val castActions = actions.actionsList.filter { it.actionType == ActionType.Cast }
         assertTrue(castActions.isNotEmpty(), "Should have Cast actions after playing a land")
 
@@ -74,7 +74,7 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
     @Test(description = "Play actions: shouldStop=true, no abilityGrpId, no manaCost")
     fun playActionFields() {
         val (b, game, _) = startGameAtMain1()
-        val actions = StateMapper.buildActions(game, 1, b)
+        val actions = ActionMapper.buildActions(game, 1, b)
 
         val playActions = actions.actionsList.filter { it.actionType == ActionType.Play_add3 }
         // At seed 42 turn 1, there may or may not be a playable land depending on hand
@@ -94,7 +94,7 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
     @Test(description = "Pass action: only actionType, no other fields")
     fun passActionFields() {
         val (b, game, _) = startGameAtMain1()
-        val actions = StateMapper.buildActions(game, 1, b)
+        val actions = ActionMapper.buildActions(game, 1, b)
 
         val passActions = actions.actionsList.filter { it.actionType == ActionType.Pass }
         assertEquals(passActions.size, 1, "Should have exactly one Pass action")
@@ -111,7 +111,7 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
         // Play a land to get mana, then check for Activate actions
         playLand(b) ?: error("playLand failed at seed 42")
 
-        val actions = StateMapper.buildActions(game, 1, b)
+        val actions = ActionMapper.buildActions(game, 1, b)
         val activateActions = actions.actionsList.filter { it.actionType == ActionType.Activate_add3 }
         // Activate actions may not always be present (depends on hand contents)
         if (activateActions.isEmpty()) return
@@ -181,7 +181,7 @@ class ActionFieldConformanceTest : ConformanceTestBase() {
         val (b, game, _) = startGameAtMain1()
         playLand(b) ?: error("playLand failed at seed 42")
 
-        val actions = StateMapper.buildActions(game, 1, b)
+        val actions = ActionMapper.buildActions(game, 1, b)
         val castActions = actions.actionsList.filter {
             it.actionType == ActionType.Cast && it.hasAutoTapSolution()
         }

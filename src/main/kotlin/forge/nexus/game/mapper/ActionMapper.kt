@@ -1,4 +1,4 @@
-package forge.nexus.game
+package forge.nexus.game.mapper
 
 import forge.ai.ComputerUtilMana
 import forge.game.Game
@@ -7,6 +7,8 @@ import forge.game.card.CardLists
 import forge.game.card.CardPredicates
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
+import forge.nexus.game.CardDb
+import forge.nexus.game.GameBridge
 import forge.web.game.chooseCastAbility
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*

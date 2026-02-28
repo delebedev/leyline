@@ -8,7 +8,7 @@ import org.testng.annotations.Test
 /**
  * Unit tests for [AnnotationBuilder.categoryFromEvents] — verifies that
  * captured [NexusGameEvent] instances resolve to the correct annotation
- * categories, matching the behavior of [StateMapper.inferCategory]
+ * categories, matching the behavior of [AnnotationPipeline.inferCategory]
  * but using rich event data instead of zone-pair heuristics.
  */
 @Test(groups = ["unit"])

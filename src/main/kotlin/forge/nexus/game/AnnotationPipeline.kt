@@ -2,6 +2,8 @@ package forge.nexus.game
 
 import forge.game.Game
 import forge.game.phase.PhaseType
+import forge.nexus.game.mapper.PlayerMapper
+import forge.nexus.game.mapper.ZoneIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo

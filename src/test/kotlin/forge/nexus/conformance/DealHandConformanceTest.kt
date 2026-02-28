@@ -1,8 +1,8 @@
 package forge.nexus.conformance
 
 import forge.nexus.game.GameBridge
-import forge.nexus.game.PromptIds
-import forge.nexus.game.StateMapper
+import forge.nexus.game.GsmBuilder
+import forge.nexus.game.mapper.PromptIds
 import forge.nexus.protocol.HandshakeMessages
 import forge.web.game.GameBootstrap
 import org.testng.Assert.assertEquals
@@ -157,7 +157,7 @@ class DealHandConformanceTest {
     @Test(description = "initialBundle seat 1: ConnectResp + DieRoll + Full GSM with 17 zones")
     fun initialBundleSeat1Structure() {
         val b = startBridge()
-        val deck = StateMapper.buildDeckMessage(b.getDeckGrpIds(1))
+        val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(1))
         val (msg, nextMsgId) = HandshakeMessages.initialBundle(1, "test-match", 2, 1, deck, b)
         val messages = greMessages(msg)
 
@@ -192,7 +192,7 @@ class DealHandConformanceTest {
     @Test(description = "initialBundle seat 2: DieRoll + Full GSM + ChooseStartingPlayerReq")
     fun initialBundleSeat2Structure() {
         val b = startBridge()
-        val deck = StateMapper.buildDeckMessage(b.getDeckGrpIds(2))
+        val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(2))
         val (msg, nextMsgId) = HandshakeMessages.initialBundle(2, "test-match", 3, 1, deck, b)
         val messages = greMessages(msg)
 

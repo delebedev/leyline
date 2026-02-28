@@ -1,6 +1,11 @@
 package forge.nexus.game
 
 import forge.game.Game
+import forge.nexus.game.mapper.ActionMapper
+import forge.nexus.game.mapper.ObjectMapper
+import forge.nexus.game.mapper.PlayerMapper
+import forge.nexus.game.mapper.PromptIds
+import forge.nexus.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -59,7 +64,7 @@ object BundleBuilder {
         }
 
         // Re-embed stripped actions into the GSM
-        val gs = StateMapper.embedActions(gsWithPhaseAnnotation, actions, game, bridge, recipientSeatId = seatId)
+        val gs = GsmBuilder.embedActions(gsWithPhaseAnnotation, actions, game, bridge, recipientSeatId = seatId)
 
         val messages = listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
@@ -203,9 +208,9 @@ object BundleBuilder {
                 it.actionType == ActionType.ActivateMana
         }
 
-    // --- Request builders (delegate to StateMapper) ---
-    // MatchSession uses these instead of calling StateMapper directly,
-    // keeping StateMapper as an internal dependency of the bundle layer.
+    // --- Request builders (delegate to RequestBuilder) ---
+    // MatchSession uses these instead of calling RequestBuilder directly,
+    // keeping RequestBuilder as an internal dependency of the bundle layer.
 
     /** Build playable actions for a seat (with legality checks). */
     fun buildActions(game: Game, seatId: Int, bridge: GameBridge): ActionsAvailableReq =
@@ -215,11 +220,11 @@ object BundleBuilder {
     fun buildSelectNReq(
         prompt: forge.web.game.InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
-    ): SelectNReq = StateMapper.buildSelectNReq(prompt, bridge)
+    ): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge)
 
     /** Build a [DeclareAttackersReq] listing legal attackers. */
     fun buildDeclareAttackersReq(game: Game, seatId: Int, bridge: GameBridge): DeclareAttackersReq =
-        StateMapper.buildDeclareAttackersReq(game, seatId, bridge)
+        RequestBuilder.buildDeclareAttackersReq(game, seatId, bridge)
 
     /**
      * Phase transition bundle matching real server pattern (5 messages):
@@ -260,7 +265,7 @@ object BundleBuilder {
             .setDecisionPlayer(prioritySeat)
 
         // Message 1: SendHiFi with 2x PhaseOrStepModified + gameInfo
-        val gs1 = StateMapper.buildTransitionState(
+        val gs1 = GsmBuilder.buildTransitionState(
             game,
             nextGs,
             prevGameStateId = prevGs,
@@ -396,7 +401,7 @@ object BundleBuilder {
             it.gameStateMessage = gsm
         }
 
-        val req = StateMapper.buildDeclareAttackersReq(game, seatId, bridge)
+        val req = RequestBuilder.buildDeclareAttackersReq(game, seatId, bridge)
         val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.declareAttackersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
@@ -424,7 +429,7 @@ object BundleBuilder {
             it.gameStateMessage = gs
         }
 
-        val req = prebuiltReq ?: StateMapper.buildDeclareAttackersReq(game, seatId, bridge)
+        val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(game, seatId, bridge)
         val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.declareAttackersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
@@ -486,7 +491,7 @@ object BundleBuilder {
             it.gameStateMessage = gsm
         }
 
-        val req = StateMapper.buildDeclareBlockersReq(game, seatId, bridge)
+        val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge)
         val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.declareBlockersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
@@ -513,7 +518,7 @@ object BundleBuilder {
             it.gameStateMessage = gs
         }
 
-        val req = StateMapper.buildDeclareBlockersReq(game, seatId, bridge)
+        val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge)
         val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.declareBlockersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
@@ -551,7 +556,7 @@ object BundleBuilder {
         }
 
         // Build SelectTargetsReq AFTER diff so sourceId uses post-realloc instanceIds
-        val req = StateMapper.buildSelectTargetsReq(prompt, bridge, seatId)
+        val req = RequestBuilder.buildSelectTargetsReq(prompt, bridge, seatId)
         val msg2 = makeGRE(GREMessageType.SelectTargetsReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.selectTargetsReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())

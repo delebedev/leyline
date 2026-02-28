@@ -1,7 +1,7 @@
 package forge.nexus.conformance
 
-import forge.nexus.game.ZoneIds
 import forge.nexus.game.awaitFreshPending
+import forge.nexus.game.mapper.ZoneIds
 import forge.nexus.game.snapshotFromGame
 import forge.web.game.PlayerAction
 import org.testng.Assert.assertEquals

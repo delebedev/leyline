@@ -1,4 +1,4 @@
-package forge.nexus.game
+package forge.nexus.game.mapper
 
 import forge.game.phase.PhaseType
 import forge.game.player.Player

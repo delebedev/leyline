@@ -1,6 +1,7 @@
 package forge.nexus.game
 
 import forge.game.phase.PhaseType
+import forge.nexus.game.mapper.StopTypeMapping
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNull
 import org.testng.Assert.assertTrue

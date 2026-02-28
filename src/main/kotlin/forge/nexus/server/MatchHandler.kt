@@ -6,8 +6,8 @@ import forge.nexus.debug.NexusDebugCollector
 import forge.nexus.debug.NexusTap
 import forge.nexus.debug.SessionRecorder
 import forge.nexus.game.GameBridge
+import forge.nexus.game.GsmBuilder
 import forge.nexus.game.PuzzleSource
-import forge.nexus.game.StateMapper
 import forge.nexus.protocol.HandshakeMessages
 import forge.nexus.protocol.ProtoDump
 import io.netty.channel.ChannelHandlerContext
@@ -288,7 +288,7 @@ class MatchHandler(
         val bridge = s.gameBridge ?: return
         val gsId = s.counter.nextGsId()
         val deckGrpIds = bridge.getDeckGrpIds(seatId)
-        val deck = StateMapper.buildDeckMessage(deckGrpIds)
+        val deck = GsmBuilder.buildDeckMessage(deckGrpIds)
         val (msg, nextMsgId) = HandshakeMessages.initialBundle(
             seatId,
             matchId,

@@ -1,4 +1,4 @@
-package forge.nexus.game
+package forge.nexus.game.mapper
 
 import forge.game.phase.PhaseType
 import wotc.mtgo.gre.external.messaging.Messages.SettingScope

@@ -10,7 +10,7 @@ import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
 import forge.nexus.game.MessageCounter
 import forge.nexus.game.StateMapper
-import forge.nexus.game.StopTypeMapping
+import forge.nexus.game.mapper.StopTypeMapping
 import forge.nexus.protocol.HandshakeMessages
 import forge.nexus.protocol.ProtoDump
 import forge.web.game.PlayerAction
