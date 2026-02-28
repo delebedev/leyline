@@ -44,6 +44,15 @@ Allow proxy/stub/serve mode to change per-match without restarting. E.g. AI matc
 
 Done: `/api/id-map` now includes `ownerSeatId`, `status` (active/limbo/stale), `forgeZone`, `protoZone`. Supports `?seat=`, `?active=`, `?zone=`, `?name=` filters.
 
+## [tests] Reconsider "conformance" as a group name
+
+"Conformance" originally meant wire-shape checks against Arena protocol patterns, but the group now includes board-based tests (zone transitions, events, annotations, state mapping) that don't check wire conformance at all — they're just "needs forge-game but not the game loop thread." The name is becoming a misnomer for what's really a speed tier. Options:
+- Rename to something like `engine` or `component` (breaking: touches every test class annotation + justfile + CI)
+- Keep the name, redefine in docs as "tests that need forge-game but not the game loop" (cheap, slightly confusing)
+- Split into `conformance` (actual wire-shape checks) + new group for board-based engine tests (more groups = more complexity)
+
+Not urgent — current setup works. Revisit if the naming causes real confusion.
+
 ## Pre-validate test decks somehow
 
 Cards that resolved to grpId=0 (no client card data):
