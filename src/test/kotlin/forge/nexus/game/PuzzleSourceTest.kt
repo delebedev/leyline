@@ -55,13 +55,13 @@ class PuzzleSourceTest {
         assertNull(meta.difficulty)
     }
 
-    @Test(groups = ["integration"])
+    @Test(groups = ["conformance"])
     fun loadFromResourceReturnsValidPuzzle() {
         val puzzle = PuzzleSource.loadFromResource("puzzles/lands-only.pzl")
         assertNotNull(puzzle)
     }
 
-    @Test(groups = ["integration"])
+    @Test(groups = ["conformance"])
     fun loadFromTextReturnsValidPuzzle() {
         val content = """
             [metadata]
