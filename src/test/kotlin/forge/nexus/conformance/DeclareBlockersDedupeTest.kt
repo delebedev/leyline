@@ -66,22 +66,20 @@ class DeclareBlockersDedupeTest {
 
         // Pass to advance through human's turn into AI's turn.
         // AI script runs: plays land, casts creature, attacks.
-        val snap = harness.messageSnapshot()
-
-        // Keep passing until we see DeclareBlockersReq or exhaust attempts
+        // Fresh snap per iteration to avoid re-detecting echo-back messages.
         var sawBlockerReq = false
-        for (i in 0 until 30) {
+        val preLoopSnap = harness.messageSnapshot()
+        for (i in 0 until 50) {
             if (harness.isGameOver()) break
+            val snap = harness.messageSnapshot()
+            harness.passPriority()
             val recent = harness.messagesSince(snap)
             if (recent.any { it.hasDeclareBlockersReq() }) {
                 sawBlockerReq = true
                 break
             }
-            // Handle human's DeclareAttackersReq from subsequent turns
             if (recent.any { it.hasDeclareAttackersReq() }) {
                 harness.declareNoAttackers()
-            } else {
-                harness.passPriority()
             }
         }
 
@@ -100,8 +98,8 @@ class DeclareBlockersDedupeTest {
             harness.passPriority()
         }
 
-        // Count ALL DeclareBlockersReq since snap — should be exactly 1
-        val allMsgs = harness.messagesSince(snap)
+        // Count ALL DeclareBlockersReq since before the loop — should be exactly 1
+        val allMsgs = harness.messagesSince(preLoopSnap)
         val totalBlockerReqs = allMsgs.count { it.hasDeclareBlockersReq() }
 
         assertTrue(

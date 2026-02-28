@@ -225,6 +225,17 @@ class MatchFlowHarness(
     }
 
     /**
+     * Send only the iterative DeclareAttackersResp (no Submit) — simulates a single
+     * creature toggle click. Returns messages produced by the echo-back.
+     */
+    fun toggleAttackers(attackerInstanceIds: List<Int>): List<GREToClientMessage> {
+        val snap = messageSnapshot()
+        session.onDeclareAttackers(declareAttackersResp(attackers = attackerInstanceIds))
+        drainSink()
+        return messagesSince(snap)
+    }
+
+    /**
      * Send SubmitAttackersReq (type=31, no payload) — the real client's "Done" button.
      *
      * In Arena's two-phase combat protocol, iterative creature toggles send
@@ -263,11 +274,8 @@ class MatchFlowHarness(
         drainSink()
     }
 
-    /** Declare no blockers (let all attackers through). Two-phase: empty update + submit. */
+    /** Declare no blockers (let all attackers through). Sends SubmitBlockersReq directly. */
     fun declareNoBlockers() {
-        session.onDeclareBlockers(declareBlockersResp())
-        drainSink()
-
         session.onDeclareBlockers(submitBlockersReq(seatId))
         drainSink()
     }

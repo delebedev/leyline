@@ -502,7 +502,8 @@ class TargetingFlowTest {
 
         // Verify game-over messages were sent
         val gameOverMsgs = h.allMessages.filter {
-            it.hasGameStateMessage() && it.gameStateMessage.hasGameInfo() &&
+            it.hasGameStateMessage() &&
+                it.gameStateMessage.hasGameInfo() &&
                 it.gameStateMessage.gameInfo.stage == GameStage.GameOver
         }
         assertTrue(gameOverMsgs.isNotEmpty(), "Should have game-over GSMs")

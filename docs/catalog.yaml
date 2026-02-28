@@ -236,23 +236,31 @@ spells:
 
 combat:
   declare-attackers:
-    status: wired
+    status: partial
     notes: >
-      DeclareAttackersReq sent to active player. Interactive per-creature
-      toggles. SubmitAttackersResp confirms. defenderPlayerId fix (2026-02-21).
+      DeclareAttackersReq sent to active player. Iterative per-creature
+      toggles with echo-back GSM (provisional attackState + tap). Cancel
+      button works (CancelActionReq → empty attackers → pass combat).
+      Creatures are NOT pre-selected (removed selectedDamageRecipient).
+      Commit 850c846. Known issues: no "attack all" shortcut, no attack
+      restrictions/requirements enforcement on client side.
 
   declare-blockers:
     status: partial
     notes: >
-      DeclareBlockersReq sent to defending player. Toggle mechanism same as
-      attackers. Double-send stall fixed (2026-02-21). Blocker targeting
-      itself may still be clunky — needs client QA.
+      DeclareBlockersReq sent to defending player. Iterative toggle with
+      echo-back GSM (provisional blockState). Double-send stall fixed
+      (2026-02-21). Commit 850c846. Known issues: blocker ordering
+      (OrderBlockersReq) not implemented, humanBlocksAiAttacker test
+      flaky (disabled — needs puzzle-based setup).
 
   combat-damage:
-    status: wired
+    status: partial
     notes: >
-      Auto-distributed for unblocked attackers. DamageDealt annotation fires.
-      Manual damage assignment (AssignDamageReq) not implemented.
+      Auto-distributed for unblocked attackers. DamageDealt annotation fires
+      (confirmed in recordings) but client animation doesn't play — annotation
+      shape mismatch, not absence. Manual damage assignment (AssignDamageReq)
+      not implemented.
 
   first-strike:
     status: wired
