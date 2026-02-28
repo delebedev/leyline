@@ -17,13 +17,14 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
 
 /**
- * Decodes client binary recordings into structured JSON summaries.
+ * Decodes binary recordings into structured JSON summaries.
  *
- * Reads S-C_MATCH_DATA_*.bin files (MatchServiceToClientMessage protos),
- * extracts every GREToClientMessage, and produces a structured summary
- * for each one — zones, objects, annotations, actions, turnInfo, etc.
+ * Reads both directions:
+ * - **S→C** (`MD_S-C_*.bin`): MatchServiceToClientMessage → GREToClientMessage summaries
+ * - **C→S** (`MD_C-S_*.bin`): ClientToMatchServiceMessage → ClientToGREMessage summaries
  *
- * Output: JSONL (one JSON object per GREToClientMessage, ordered by file + position).
+ * Output: JSONL (one JSON object per message, ordered by file sequence number).
+ * Each line has `dir: "S-C"` or `dir: "C-S"` to distinguish direction.
  */
 object RecordingDecoder {
 

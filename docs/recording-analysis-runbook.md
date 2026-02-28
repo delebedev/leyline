@@ -17,7 +17,7 @@ rm -rf /tmp/arena-capture/payloads && mkdir -p /tmp/arena-capture/payloads
 cd forge-nexus && just serve-proxy
 ```
 
-Launch MTGA, play a Sparky game. Nexus captures every Match Door payload to `$NEXUS_PAYLOADS` (default `/tmp/arena-capture/payloads/`). Files are `S-C_MATCH_*.bin` (server→client) and `C-S_MATCH_*.bin` (client→server). We only use S→C for conformance.
+Launch MTGA, play a Sparky game. Nexus captures every Match Door payload to `$NEXUS_PAYLOADS` (default `/tmp/arena-capture/payloads/`). Files are `S-C_MATCH_*.bin` (server→client) and `C-S_MATCH_*.bin` (client→server). `RecordingDecoder` decodes both directions — C→S messages include client responses (DeclareAttackersResp, SubmitBlockersReq, PerformActionResp, etc.).
 
 End the game normally (concede or win). Stop the proxy.
 
