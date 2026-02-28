@@ -8,6 +8,7 @@ import forge.nexus.protocol.HandshakeMessages
 import forge.web.dto.PromptCandidateRefDto
 import forge.web.game.InteractivePromptBridge.PendingPrompt
 import forge.web.game.PromptRequest
+import org.testng.Assert.assertEquals
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -41,6 +42,38 @@ class GoldenFieldCoverageTest : ConformanceTestBase() {
         return payload.greToClientEvent.greToClientMessagesList
             .firstOrNull { it.type == type }
             ?: error("No $type in golden/$resource")
+    }
+
+    /** Load a golden payload, extract the GSM by gameStateId. */
+    private fun loadGoldenGSM(resource: String, gsId: Int): GameStateMessage {
+        val bytes = javaClass.classLoader.getResourceAsStream("golden/$resource")?.readBytes()
+            ?: error("Golden not found: golden/$resource")
+        val payload = MatchServiceToClientMessage.parseFrom(bytes)
+        return payload.greToClientEvent.greToClientMessagesList
+            .filter { it.type == GREMessageType.GameStateMessage_695e }
+            .map { it.gameStateMessage }
+            .firstOrNull { it.gameStateId == gsId }
+            ?: error("No GSM with gsId=$gsId in golden/$resource")
+    }
+
+    /**
+     * Extract annotation detail keys grouped by annotation type from a GSM.
+     * Returns map of short type name (suffix stripped) → set of detail key names present.
+     * E.g. `ZoneTransfer_af5a` → `ZoneTransfer`.
+     */
+    private fun annotationDetailKeys(gsm: GameStateMessage): Map<String, Set<String>> {
+        val result = mutableMapOf<String, MutableSet<String>>()
+        for (ann in gsm.annotationsList) {
+            for (type in ann.typeList) {
+                // Strip proto enum suffix for readability
+                val shortName = type.name.replace(Regex("_[a-f0-9]{4}$"), "")
+                val keys = result.getOrPut(shortName) { mutableSetOf() }
+                for (detail in ann.detailsList) {
+                    keys.add(detail.key)
+                }
+            }
+        }
+        return result
     }
 
     /**
@@ -458,5 +491,111 @@ class GoldenFieldCoverageTest : ConformanceTestBase() {
         val expectedMissing = emptySet<String>()
         val expectedExtra = emptySet<String>()
         assertFieldCoverage("IntermissionReq", goldenFields, ourFields, expectedMissing, expectedExtra)
+    }
+
+    // =======================================================================
+    // Annotation shape reference tests
+    //
+    // These don't compare builder output — they document the exact detail keys
+    // the real Arena server sends for each annotation type. If a golden changes,
+    // the test fails and forces triage of the annotation parsers.
+    // =======================================================================
+
+    @Test(description = "Stack resolution: ResolutionStart/Complete + Resolve ZoneTransfer detail keys")
+    fun stackResolutionAnnotationShape() {
+        // gsId=68: creature resolves from Stack → Battlefield
+        val gsm = loadGoldenGSM("stack-resolve.bin", 68)
+        val keys = annotationDetailKeys(gsm)
+
+        // ResolutionStart: grpid (card identity)
+        assertEquals(
+            keys["ResolutionStart"],
+            setOf("grpid"),
+            "ResolutionStart detail keys",
+        )
+        // ResolutionComplete: grpid
+        assertEquals(
+            keys["ResolutionComplete"],
+            setOf("grpid"),
+            "ResolutionComplete detail keys",
+        )
+        // ZoneTransfer: zone_src, zone_dest, category ("Resolve")
+        assertEquals(
+            keys["ZoneTransfer"],
+            setOf("zone_src", "zone_dest", "category"),
+            "ZoneTransfer detail keys",
+        )
+    }
+
+    @Test(description = "Combat damage: DamageDealt + SBA_Damage detail keys")
+    fun combatDamageAnnotationShape() {
+        // gsId=126: combat damage — creatures deal damage, one dies to SBA
+        val gsm = loadGoldenGSM("combat-damage.bin", 126)
+        val keys = annotationDetailKeys(gsm)
+
+        // DamageDealt: damage (amount), type (combat=1), markDamage
+        assertEquals(
+            keys["DamageDealt"],
+            setOf("damage", "type", "markDamage"),
+            "DamageDealt detail keys — client needs all three for damage animation",
+        )
+        // ZoneTransfer with SBA_Damage category: zone_src, zone_dest, category
+        val sbaTransfer = gsm.annotationsList
+            .filter { AnnotationType.ZoneTransfer_af5a in it.typeList }
+            .flatMap { ann -> ann.detailsList.filter { it.key == "category" }.map { it.getValueString(0) } }
+        assertTrue(
+            "SBA_Damage" in sbaTransfer,
+            "Should have ZoneTransfer with SBA_Damage category (creature died from damage)",
+        )
+        // ObjectIdChanged: orig_id, new_id (dying creature gets new ID in graveyard)
+        assertEquals(
+            keys["ObjectIdChanged"],
+            setOf("orig_id", "new_id"),
+            "ObjectIdChanged detail keys",
+        )
+        // PhaseOrStepModified: phase, step
+        assertEquals(
+            keys["PhaseOrStepModified"],
+            setOf("phase", "step"),
+            "PhaseOrStepModified detail keys",
+        )
+    }
+
+    @Test(description = "Cast spell: CastSpell ZoneTransfer + ManaPaid + TappedUntapped detail keys")
+    fun castSpellAnnotationShape() {
+        // gsId=66: creature cast from Hand → Stack with mana payment
+        val gsm = loadGoldenGSM("stack-resolve.bin", 66)
+        val keys = annotationDetailKeys(gsm)
+
+        // ZoneTransfer with CastSpell category
+        val castTransfer = gsm.annotationsList
+            .filter { AnnotationType.ZoneTransfer_af5a in it.typeList }
+            .flatMap { ann -> ann.detailsList.filter { it.key == "category" }.map { it.getValueString(0) } }
+        assertTrue("CastSpell" in castTransfer, "Should have ZoneTransfer with CastSpell category")
+
+        // ManaPaid: id (mana payment ID), color
+        assertEquals(
+            keys["ManaPaid"],
+            setOf("id", "color"),
+            "ManaPaid detail keys",
+        )
+        // TappedUntappedPermanent: tapped (1=tapped)
+        assertEquals(
+            keys["TappedUntappedPermanent"],
+            setOf("tapped"),
+            "TappedUntappedPermanent detail keys",
+        )
+        // UserActionTaken: actionType, abilityGrpId
+        assertEquals(
+            keys["UserActionTaken"],
+            setOf("actionType", "abilityGrpId"),
+            "UserActionTaken detail keys",
+        )
+        // AbilityInstanceCreated: source_zone
+        assertEquals(
+            keys["AbilityInstanceCreated"],
+            setOf("source_zone"),
+            "AbilityInstanceCreated detail keys",
+        )
     }
 }
