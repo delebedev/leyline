@@ -21,7 +21,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  * Limbo is monotonically growing -- retired IDs are never removed. Each subsequent
  * buildFromGame must include the full retirement history.
  */
-@Test(groups = ["integration", "conformance"])
+@Test(groups = ["conformance"])
 class InstanceIdReallocTest : ConformanceTestBase() {
 
     // ===== PlayLand realloc =====

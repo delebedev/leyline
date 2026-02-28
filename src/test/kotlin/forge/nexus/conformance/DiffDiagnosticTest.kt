@@ -15,7 +15,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * is now automatic via [ValidatingMessageSink]. What remains here are structural
  * assertions about diff contents — which zones appear, annotation types, field values.
  */
-@Test(groups = ["integration", "conformance"])
+@Test(groups = ["conformance"])
 class DiffDiagnosticTest : ConformanceTestBase() {
 
     @Test(description = "Diff after land play has correct GSM type, zones, and annotations")

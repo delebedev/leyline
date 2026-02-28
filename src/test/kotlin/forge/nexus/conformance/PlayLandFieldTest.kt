@@ -16,7 +16,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  * Starts a deterministic game, plays a land, then asserts every field
  * on the resulting GameStateMessage matches real client recordings.
  */
-@Test(groups = ["integration", "conformance"])
+@Test(groups = ["conformance"])
 class PlayLandFieldTest : ConformanceTestBase() {
 
     @Test(description = "Play land: annotation IDs are sequential, non-zero, monotonically increasing")

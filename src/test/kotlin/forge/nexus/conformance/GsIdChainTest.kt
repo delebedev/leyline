@@ -15,7 +15,7 @@ import org.testng.annotations.Test
  * What remains here: scenario-specific contracts about pendingMessageCount values,
  * phase transition bundle structure, and cross-bundle chain continuity.
  */
-@Test(groups = ["integration", "conformance"])
+@Test(groups = ["conformance"])
 class GsIdChainTest : ConformanceTestBase() {
 
     @Test(description = "aiActionDiff produces single GSM with no pendingMessageCount")

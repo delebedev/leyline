@@ -18,7 +18,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  * Bug found during triage: SpellResolved fires with hasFizzled=true but
  * categoryFromEvents returns Resolve before checking zone-pair fallback.
  */
-@Test(groups = ["integration", "conformance"])
+@Test(groups = ["conformance"])
 class CounteredSpellTest : ConformanceTestBase() {
 
     /**
