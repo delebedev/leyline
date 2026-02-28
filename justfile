@@ -505,10 +505,11 @@ remote-install server:
     certs_dir="$HOME/.local/share/forge-nexus/certs"
     echo "==> Fetching mitmproxy CA from $server..."
     scp "$server:~/.mitmproxy/mitmproxy-ca-cert.pem" /tmp/nexus-ca.pem
+    remote_certs=".local/share/forge-nexus/certs"
     echo "==> Fetching cert hostnames from $server..."
-    fd_host=$(ssh "$server" "openssl x509 -in $certs_dir/frontdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
-    md_host=$(ssh "$server" "openssl x509 -in $certs_dir/matchdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
-    server_ip=$(ssh "$server" "tailscale ip -4")
+    fd_host=$(ssh "$server" "openssl x509 -in ~/$remote_certs/frontdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
+    md_host=$(ssh "$server" "openssl x509 -in ~/$remote_certs/matchdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
+    server_ip=$(ssh "$server" "/usr/local/bin/tailscale ip -4")
     if [ -z "$fd_host" ] || [ -z "$md_host" ]; then
         echo "Cannot read certs on $server. Run 'just remote-certs' there first." >&2; exit 1
     fi
@@ -535,10 +536,10 @@ remote-status server:
     #!/usr/bin/env bash
     set -euo pipefail
     server="{{server}}"
-    certs_dir="$HOME/.local/share/forge-nexus/certs"
-    fd_host=$(ssh "$server" "openssl x509 -in $certs_dir/frontdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
-    md_host=$(ssh "$server" "openssl x509 -in $certs_dir/matchdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
-    server_ip=$(ssh "$server" "tailscale ip -4")
+    remote_certs=".local/share/forge-nexus/certs"
+    fd_host=$(ssh "$server" "openssl x509 -in ~/$remote_certs/frontdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
+    md_host=$(ssh "$server" "openssl x509 -in ~/$remote_certs/matchdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
+    server_ip=$(ssh "$server" "/usr/local/bin/tailscale ip -4")
     echo "Server:     $server ($server_ip)"
     echo "FD host:    $fd_host"
     echo "MD host:    $md_host"
