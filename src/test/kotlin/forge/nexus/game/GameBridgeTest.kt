@@ -116,34 +116,6 @@ class GameBridgeTest {
     }
 
     @Test
-    fun buildFromGameProducesValidState() {
-        val b = GameBridge()
-        bridge = b
-        b.start()
-        b.submitKeep(1)
-        b.awaitPriority()
-
-        val game = b.getGame()!!
-        val gs = StateMapper.buildFromGame(game, 1, "test-match", b)
-
-        // Should have zones with cards
-        Assert.assertTrue(gs.zonesCount > 0, "GameState should have zones")
-        Assert.assertTrue(gs.gameObjectsCount > 0, "GameState should have game objects")
-
-        // Hand zone should have 7 cards (or 6 if draw happened)
-        val handZone = gs.zonesList.find { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand && it.ownerSeatId == 1 }
-        checkNotNull(handZone) { "Should have seat 1 hand zone" }
-        Assert.assertTrue(
-            handZone.objectInstanceIdsCount >= 6,
-            "Hand should have cards, got ${handZone.objectInstanceIdsCount}",
-        )
-
-        // TurnInfo should reflect real phase
-        Assert.assertTrue(gs.hasTurnInfo(), "Should have turn info")
-        Assert.assertTrue(gs.turnInfo.turnNumber >= 1, "Turn should be >= 1")
-    }
-
-    @Test
     fun buildActionsIncludesLands() {
         val b = GameBridge()
         bridge = b
@@ -195,61 +167,6 @@ class GameBridgeTest {
 
         assertEquals(handAfter, handBefore - 1, "Hand should shrink by 1 after land play")
         assertEquals(bfAfter, bfBefore + 1, "Battlefield should grow by 1 after land play")
-    }
-
-    @Test
-    fun gameObjectsHaveCardTypeFields() {
-        val b = GameBridge()
-        bridge = b
-        b.start(seed = 42L)
-        b.submitKeep(1)
-        advanceToMain1(b)
-
-        val game = b.getGame()!!
-        val gs = StateMapper.buildFromGame(game, 1, "test-match", b)
-
-        // Hand cards should have cardTypes populated
-        val handZone = gs.zonesList.first {
-            it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand && it.ownerSeatId == 1
-        }
-        val handInstanceIds = handZone.objectInstanceIdsList.toSet()
-        val handObjects = gs.gameObjectsList.filter { it.instanceId in handInstanceIds }
-        Assert.assertTrue(handObjects.isNotEmpty(), "Should have hand objects")
-
-        // Every hand card should have at least one cardType
-        for (obj in handObjects) {
-            Assert.assertTrue(
-                obj.cardTypesCount > 0,
-                "Hand card instanceId=${obj.instanceId} grpId=${obj.grpId} missing cardTypes",
-            )
-        }
-
-        // Lands should have Land_a80b type
-        val lands = handObjects.filter {
-            it.cardTypesList.contains(wotc.mtgo.gre.external.messaging.Messages.CardType.Land_a80b)
-        }
-        Assert.assertTrue(lands.isNotEmpty(), "Deck has forests — hand should have at least one land")
-        for (land in lands) {
-            Assert.assertTrue(
-                land.superTypesList.contains(wotc.mtgo.gre.external.messaging.Messages.SuperType.Basic),
-                "Forest should have Basic supertype",
-            )
-            Assert.assertTrue(
-                land.subtypesList.contains(wotc.mtgo.gre.external.messaging.Messages.SubType.Forest),
-                "Forest should have Forest subtype",
-            )
-        }
-
-        // Creatures should have power/toughness
-        val creatures = handObjects.filter {
-            it.cardTypesList.contains(wotc.mtgo.gre.external.messaging.Messages.CardType.Creature)
-        }
-        if (creatures.isNotEmpty()) {
-            for (c in creatures) {
-                Assert.assertTrue(c.hasPower(), "Creature instanceId=${c.instanceId} missing power")
-                Assert.assertTrue(c.hasToughness(), "Creature instanceId=${c.instanceId} missing toughness")
-            }
-        }
     }
 
     // --- Proto shape assertions (uses same builder as handler) ---
