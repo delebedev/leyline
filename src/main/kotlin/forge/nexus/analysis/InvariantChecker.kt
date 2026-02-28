@@ -269,6 +269,10 @@ class InvariantChecker {
      * Valid targets: accumulated object instanceIds, player seats (1/2),
      * zone IDs (affector can be a zone, e.g. EnteredZoneThisTurn).
      * Runs after accumulator.process() so current GSM's objects are included.
+     *
+     * ObjectIdChanged annotations are exempt: they reference old instanceIds
+     * (origId) that may have been deleted in this or a prior GSM, or may
+     * reference objects from hidden zones (library) that were never visible.
      */
     private fun checkAnnotationReferentialIntegrity(gsm: GameStateMessage) {
         val gsId = gsm.gameStateId
@@ -276,6 +280,10 @@ class InvariantChecker {
         if (annotations.isEmpty()) return
 
         for (ann in annotations) {
+            // ObjectIdChanged references old (replaced) instanceIds — skip entirely
+            val isObjectIdChanged = ann.typeList.any { it == AnnotationType.ObjectIdChanged }
+            if (isObjectIdChanged) continue
+
             if (ann.affectorId != 0 && !accumulator.isKnownEntity(ann.affectorId)) {
                 record(
                     gsId,
