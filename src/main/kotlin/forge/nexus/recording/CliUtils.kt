@@ -1,4 +1,4 @@
-package forge.nexus.conformance
+package forge.nexus.recording
 
 fun parseSeatFilter(args: List<String>, default: Int = 1): Int? {
     val seatIdx = args.indexOf("--seat")

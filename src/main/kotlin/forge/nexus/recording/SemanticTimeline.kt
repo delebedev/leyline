@@ -1,6 +1,6 @@
-package forge.nexus.conformance
+package forge.nexus.recording
 
-import forge.nexus.conformance.RecordingDecoder.DecodedMessage
+import forge.nexus.recording.RecordingDecoder.DecodedMessage
 
 /**
  * Extracts a timeline of semantic game events from a [DecodedMessage] stream.

@@ -1,7 +1,7 @@
 package forge.nexus.debug
 
-import forge.nexus.conformance.RecordingDecoder
 import forge.nexus.game.CardDb
+import forge.nexus.recording.RecordingDecoder
 import kotlinx.serialization.Serializable
 import java.io.File
 import java.util.Base64

@@ -1,5 +1,6 @@
 package forge.nexus.conformance
 
+import forge.nexus.recording.RecordingDecoder
 import org.testng.Assert.assertEquals
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType

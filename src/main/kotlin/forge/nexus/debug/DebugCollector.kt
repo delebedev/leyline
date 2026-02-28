@@ -5,8 +5,8 @@ import ch.qos.logback.core.AppenderBase
 import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
 import forge.nexus.game.CardDb
+import forge.nexus.game.GameBridge
 import forge.nexus.game.mapper.ZoneIds
-import forge.nexus.server.MatchHandler
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -20,6 +20,12 @@ import kotlin.collections.iterator
  */
 object NexusDebugCollector {
     private val log = LoggerFactory.getLogger(NexusDebugCollector::class.java)
+
+    /**
+     * Provider for active bridges. Set during server startup to avoid
+     * a direct dependency on the server package.
+     */
+    var bridgeProvider: (() -> Map<String, GameBridge>)? = null
 
     private const val MAX_ENTRIES = 500
     private val buffer = ArrayDeque<Entry>(MAX_ENTRIES)
@@ -94,7 +100,7 @@ object NexusDebugCollector {
 
     /** Current match state summary. */
     fun matchState(): MatchStateSnapshot {
-        val bridges = MatchHandler.defaultRegistry.activeBridges()
+        val bridges = bridgeProvider?.invoke() ?: emptyMap()
         if (bridges.isEmpty()) return MatchStateSnapshot()
 
         val first = bridges.entries.first()
@@ -118,7 +124,7 @@ object NexusDebugCollector {
      * vs Forge zone (where the engine thinks the card is now). Active = current
      * instanceId for a forgeCardId; retired = old instanceId now in Limbo.
      */
-    fun idMap(): List<IdMapEntry> = MatchHandler.defaultRegistry.activeBridges()
+    fun idMap(): List<IdMapEntry> = (bridgeProvider?.invoke() ?: emptyMap())
         .flatMap { (_, bridge) ->
             val game = bridge.getGame() ?: return@flatMap emptyList()
             val allIds = bridge.getInstanceIdMap() // instanceId → forgeCardId (all)
