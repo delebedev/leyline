@@ -494,7 +494,7 @@ remote-certs:
     ts_ip="{{_ts_ip}}"
     if [ -z "$ts_ip" ]; then echo "Tailscale not running." >&2; exit 1; fi
     echo "==> Regenerating certs with Tailscale IP ($ts_ip) in SAN..."
-    just -f "{{nexus_dir}}/justfile" gen-certs extra_san="$ts_ip"
+    just -f "{{nexus_dir}}/justfile" gen-certs "" "" "$ts_ip"
 
 # client-side: fetch CA + hostnames from server, install locally (run on laptop)
 # server: Tailscale hostname or IP of the Mac mini running nexus
