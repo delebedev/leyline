@@ -7,6 +7,7 @@ import org.testng.Assert.assertEquals
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages
+import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
 /**
  * Shape tests for [StateMapper] output — zone visibility, timers, player info.
@@ -69,6 +70,77 @@ class StateMapperShapeTest : ConformanceTestBase() {
         }
         for (obj in handObjects) {
             assertEquals(obj.visibility, Messages.Visibility.Private, "Hand GameObjectInfo should be Private (zoneId=${obj.zoneId})")
+        }
+    }
+
+    /** buildFromGame produces zones, game objects, and turnInfo. */
+    @Test
+    fun buildFromGameProducesValidState() {
+        val (b, game) = startWithBoard { _, human, _ ->
+            addCard("Forest", human, ZoneType.Hand)
+            addCard("Forest", human, ZoneType.Hand)
+            addCard("Llanowar Elves", human, ZoneType.Hand)
+        }
+
+        val gs = StateMapper.buildFromGame(game, 1, TEST_MATCH_ID, b)
+
+        assertTrue(gs.zonesCount > 0, "GameState should have zones")
+        assertTrue(gs.gameObjectsCount > 0, "GameState should have game objects")
+
+        val handZone = gs.zonesList.find { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
+        checkNotNull(handZone) { "Should have seat 1 hand zone" }
+        assertEquals(handZone.objectInstanceIdsCount, 3, "Hand should have 3 cards")
+
+        assertTrue(gs.hasTurnInfo(), "Should have turn info")
+    }
+
+    /** Hand cards have cardTypes, supertypes, subtypes, power/toughness. */
+    @Test
+    fun gameObjectsHaveCardTypeFields() {
+        val (b, game) = startWithBoard { _, human, _ ->
+            addCard("Forest", human, ZoneType.Hand)
+            addCard("Llanowar Elves", human, ZoneType.Hand)
+        }
+
+        val gs = StateMapper.buildFromGame(game, 1, TEST_MATCH_ID, b)
+
+        val handZone = gs.zonesList.first { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
+        val handInstanceIds = handZone.objectInstanceIdsList.toSet()
+        val handObjects = gs.gameObjectsList.filter { it.instanceId in handInstanceIds }
+        assertTrue(handObjects.isNotEmpty(), "Should have hand objects")
+
+        // Every hand card should have at least one cardType
+        for (obj in handObjects) {
+            assertTrue(
+                obj.cardTypesCount > 0,
+                "Hand card instanceId=${obj.instanceId} grpId=${obj.grpId} missing cardTypes",
+            )
+        }
+
+        // Forest: Land + Basic + Forest subtype
+        val lands = handObjects.filter {
+            it.cardTypesList.contains(Messages.CardType.Land_a80b)
+        }
+        assertTrue(lands.isNotEmpty(), "Should have land in hand")
+        for (land in lands) {
+            assertTrue(
+                land.superTypesList.contains(Messages.SuperType.Basic),
+                "Forest should have Basic supertype",
+            )
+            assertTrue(
+                land.subtypesList.contains(Messages.SubType.Forest),
+                "Forest should have Forest subtype",
+            )
+        }
+
+        // Llanowar Elves: Creature with power/toughness
+        val creatures = handObjects.filter {
+            it.cardTypesList.contains(Messages.CardType.Creature)
+        }
+        assertTrue(creatures.isNotEmpty(), "Should have creature in hand")
+        for (c in creatures) {
+            assertTrue(c.hasPower(), "Creature instanceId=${c.instanceId} missing power")
+            assertTrue(c.hasToughness(), "Creature instanceId=${c.instanceId} missing toughness")
         }
     }
 
