@@ -12,13 +12,17 @@ import wotc.mtgo.gre.external.messaging.Messages.CardType
 /**
  * Verifies [TestCardInjector] + [CardDataDeriver] produce cards that are
  * fully visible in proto output with correct metadata.
+ *
+ * Most tests use startWithBoard{} for speed (~0.01s). The deck-list
+ * auto-registration test keeps startGameAtMain1 since it specifically
+ * tests the deck registration path.
  */
-@Test(groups = ["integration"])
+@Test(groups = ["conformance"])
 class CardInjectionTest : ConformanceTestBase() {
 
-    @Test(groups = ["integration"])
+    @Test
     fun `injected Serra Angel appears in GSM with correct metadata`() {
-        val (b, game, counter) = startGameAtMain1()
+        val (b, game, counter) = startWithBoard { _, _, _ -> }
         val injected = TestCardInjector.inject(b, 1, "Serra Angel", ZoneType.Battlefield, sick = false)
 
         val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1)
@@ -31,25 +35,20 @@ class CardInjectionTest : ConformanceTestBase() {
         assertEquals(obj.power.value, 4, "Serra Angel power should be 4")
         assertTrue(obj.hasToughness(), "Serra Angel should have toughness")
         assertEquals(obj.toughness.value, 4, "Serra Angel toughness should be 4")
-        // Flying + Vigilance → at least 2 abilities
         assertTrue(obj.uniqueAbilitiesCount >= 2, "Serra Angel should have at least 2 abilities (Flying + Vigilance)")
 
-        // InstanceIdRegistry consistency
         assertEquals(b.getForgeCardId(injected.instanceId), injected.forgeCardId, "reverse lookup should match")
-
-        // CardDb consistency
         assertNotNull(CardDb.lookup(injected.grpId), "CardDb should have entry for grpId")
         assertEquals(CardDb.getCardName(injected.grpId), "Serra Angel", "CardDb name should match")
 
-        // Accumulator consistency
         val acc = ClientAccumulator()
         acc.seedFull(gsm)
         acc.assertConsistent("after Serra Angel injection")
     }
 
-    @Test(groups = ["integration"])
+    @Test
     fun `injected creature to hand is visible in hand zone`() {
-        val (b, game, counter) = startGameAtMain1()
+        val (b, game, counter) = startWithBoard { _, _, _ -> }
         val injected = TestCardInjector.inject(b, 1, "Lightning Bolt", ZoneType.Hand)
 
         val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1)
@@ -58,7 +57,6 @@ class CardInjectionTest : ConformanceTestBase() {
         assertNotNull(obj, "Injected card should appear in gameObjectsList")
         assertTrue(obj!!.cardTypesList.contains(CardType.Instant), "Lightning Bolt should be an Instant")
 
-        // Should be in hand zone
         val handZone = gsm.zonesList.firstOrNull { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand && it.ownerSeatId == 1 }
         assertNotNull(handZone, "Hand zone should exist for seat 1")
         assertTrue(
@@ -67,16 +65,14 @@ class CardInjectionTest : ConformanceTestBase() {
         )
     }
 
-    @Test(groups = ["integration"])
+    @Test
     fun `CardDataDeriver produces consistent grpIds for same card name`() {
-        val (b, _, _) = startGameAtMain1()
+        val (b, _, _) = startWithBoard { _, _, _ -> }
 
         val first = TestCardInjector.inject(b, 1, "Grizzly Bears", ZoneType.Battlefield)
         val second = TestCardInjector.inject(b, 1, "Grizzly Bears", ZoneType.Battlefield)
 
-        // Same card name → same grpId
         assertEquals(first.grpId, second.grpId, "Same card name should produce same grpId")
-        // Different Forge Card objects → different instanceIds
         assertTrue(first.instanceId != second.instanceId, "Different card objects should get different instanceIds")
         assertTrue(first.forgeCardId != second.forgeCardId, "Different card objects should have different forge IDs")
     }
@@ -86,15 +82,14 @@ class CardInjectionTest : ConformanceTestBase() {
         val deckList = "30 Plains\n20 Serra Angel\n10 Lightning Bolt"
         val (_, _, _) = startGameAtMain1(deckList = deckList)
 
-        // All deck cards should be registered in CardDb
         assertNotNull(CardDb.getGrpId("Plains"), "Plains should be registered")
         assertNotNull(CardDb.getGrpId("Serra Angel"), "Serra Angel should be registered")
         assertNotNull(CardDb.getGrpId("Lightning Bolt"), "Lightning Bolt should be registered")
     }
 
-    @Test(groups = ["integration"])
+    @Test
     fun `injected land enters tapped when requested`() {
-        val (b, game, counter) = startGameAtMain1()
+        val (b, game, counter) = startWithBoard { _, _, _ -> }
         val injected = TestCardInjector.inject(b, 1, "Plains", ZoneType.Battlefield, tapped = true)
 
         val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1)
