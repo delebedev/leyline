@@ -90,8 +90,28 @@ class MatchFlowHarness(
         drainSink()
     }
 
-    /** Start puzzle game, advance to first action phase via MatchSession. */
-    fun connectAndKeepPuzzle(resourcePath: String) {
+    /** Start puzzle game from classpath resource, advance to first action phase. */
+    fun connectAndKeepPuzzle(resourcePath: String, aiScript: List<ScriptedAction>? = null) {
+        startPuzzleBridge(PuzzleSource.loadFromResource(resourcePath), aiScript)
+    }
+
+    /**
+     * Start puzzle game from inline `.pzl` text, advance to first action phase.
+     *
+     * Faster than [connectAndKeep]: skips mulligan + turn advancement.
+     * Board state is defined declaratively — no multi-turn setup loops.
+     *
+     * @param aiScript optional scripted actions for the AI — installed before
+     *                 auto-pass runs so the AI follows the script on its first turn.
+     */
+    fun connectAndKeepPuzzleText(puzzleText: String, aiScript: List<ScriptedAction>? = null) {
+        // Card DB must init before PuzzleSource.loadFromText — the Puzzle
+        // constructor triggers GameState.<clinit> which requires localization.
+        GameBootstrap.initializeCardDatabase(quiet = true)
+        startPuzzleBridge(PuzzleSource.loadFromText(puzzleText), aiScript)
+    }
+
+    private fun startPuzzleBridge(puzzle: forge.gamemodes.puzzle.Puzzle, aiScript: List<ScriptedAction>?) {
         GameBootstrap.initializeCardDatabase(quiet = true)
         TestCardRegistry.ensureRegistered()
 
@@ -105,8 +125,13 @@ class MatchFlowHarness(
 
         bridge = GameBridge(bridgeTimeoutMs = 5_000L, messageCounter = session.counter)
         bridge.priorityWaitMs = 2_000L
-        val puzzle = PuzzleSource.loadFromResource(resourcePath)
         bridge.startPuzzle(puzzle)
+
+        // Install scripted AI BEFORE onPuzzleStart — auto-pass will advance
+        // through the human turn into the AI turn, where the script takes over.
+        if (aiScript != null) {
+            installScriptedAi(aiScript)
+        }
 
         session.connectBridge(bridge)
         registry.registerSession(matchId, seatId, session)

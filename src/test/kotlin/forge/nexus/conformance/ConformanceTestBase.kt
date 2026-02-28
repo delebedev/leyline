@@ -1,6 +1,3 @@
-// TODO: share a single GameBridge per class via @BeforeClass instead of creating one per
-//  @BeforeMethod. Engine bootstrap (deck parse + match setup + mulligan + advance-to-main1)
-//  costs ~1.5s per test — sharing would cut ~90s from the integration suite.
 package forge.nexus.conformance
 
 import forge.game.Game
@@ -9,6 +6,7 @@ import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
 import forge.nexus.game.MessageCounter
+import forge.nexus.game.PuzzleSource
 import forge.nexus.game.StateMapper
 import forge.nexus.game.advanceToMain1
 import forge.nexus.game.awaitFreshPending
@@ -81,6 +79,40 @@ abstract class ConformanceTestBase {
         // Seed lastSentTurnInfo so postAction() doesn't inject a spurious
         // PhaseOrStepModified on the first call. ConformanceTestBase bypasses
         // MatchSession (which normally updates this via sendBundledGRE).
+        b.updateLastSentTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
+        return Triple(b, game, counter)
+    }
+
+    /**
+     * Start a game from an inline puzzle definition — no mulligan, no turn advancement.
+     *
+     * Much faster than [startGameAtMain1] (~0.3s vs ~1.5s) because it skips:
+     * deck shuffle, mulligan keep, and priority-passing through upkeep/draw.
+     *
+     * Use when the test needs a specific board state (creatures on BF, cards in hand, etc.)
+     * rather than the default mono-green deck.
+     *
+     * @param puzzleText inline `.pzl` content (see `src/test/resources/puzzles/` for format)
+     * @return (bridge, game, counter)
+     */
+    protected fun startPuzzleAtMain1(
+        puzzleText: String,
+    ): Triple<GameBridge, Game, MessageCounter> {
+        val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
+        testCounter = counter
+        val b = GameBridge(messageCounter = counter)
+        bridge = b
+
+        val puzzle = PuzzleSource.loadFromText(puzzleText)
+        b.startPuzzle(puzzle)
+
+        val game = b.getGame()!!
+        Assert.assertEquals(
+            game.phaseHandler.phase,
+            PhaseType.MAIN1,
+            "Puzzle game should be at Main1 (actual: ${game.phaseHandler.phase})",
+        )
+        b.snapshotFromGame(game, counter.currentGsId())
         b.updateLastSentTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
         return Triple(b, game, counter)
     }
