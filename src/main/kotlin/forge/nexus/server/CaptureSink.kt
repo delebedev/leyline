@@ -1,9 +1,11 @@
 package forge.nexus.server
 
+import forge.nexus.conformance.RecordingDecoder
 import forge.nexus.debug.FdDebugCollector
 import forge.nexus.debug.NexusPaths
 import forge.nexus.protocol.ClientFrameDecoder
 import forge.nexus.protocol.FdEnvelope
+import org.slf4j.LoggerFactory
 import io.netty.buffer.ByteBuf
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
@@ -24,9 +26,16 @@ import java.util.concurrent.atomic.AtomicLong
  * - FD decoded JSONL: `<capture>/fd-frames.jsonl` (CmdType + JSON per frame)
  */
 internal object CaptureSink : AutoCloseable {
+    private val log = LoggerFactory.getLogger(CaptureSink::class.java)
     private val lock = Any()
     private val seq = AtomicLong(0)
     private val pending = mutableMapOf<String, ByteArray>()
+
+    init {
+        Runtime.getRuntime().addShutdownHook(
+            Thread({ close() }, "capture-sink-shutdown"),
+        )
+    }
 
     private val payloadDir = NexusPaths.CAPTURE_PAYLOADS
     private val frameDir = NexusPaths.CAPTURE_FRAMES
@@ -133,6 +142,24 @@ internal object CaptureSink : AutoCloseable {
         synchronized(lock) {
             fdJsonlWriter?.close()
             fdJsonlWriter = null
+        }
+        decodeMdFrames()
+    }
+
+    /** Auto-decode MD payloads → md-frames.jsonl on shutdown. */
+    private fun decodeMdFrames() {
+        try {
+            val captureRoot = NexusPaths.CAPTURE_ROOT
+            if (!captureRoot.isDirectory) return
+            val messages = RecordingDecoder.decodeDirectory(captureRoot)
+            if (messages.isEmpty()) return
+            val outFile = File(captureRoot, "md-frames.jsonl")
+            outFile.printWriter().use { pw ->
+                for (msg in messages) pw.println(RecordingDecoder.toJsonLine(msg))
+            }
+            log.info("Wrote {} MD messages to {}", messages.size, outFile.name)
+        } catch (e: Exception) {
+            log.warn("MD auto-decode failed: {}", e.message)
         }
     }
 
