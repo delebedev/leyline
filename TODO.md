@@ -26,7 +26,7 @@ JaCoCo plugin removed from pom.xml — `prepare-agent` at `initialize` phase + `
 
 ## Coverage: include integration tests
 
-`just coverage` currently runs unit+conformance only. Integration tests should be included for fuller coverage but they dump ~7min of noisy engine stderr (bridge timeouts, stack traces). `just test-integration` has the same noise problem. Fix: suppress engine log noise in test runs (test-specific logback config with WARN→ERROR for bridge/timeout loggers), then add integration back to coverage.
+`just coverage` currently runs unit+conformance only. Integration tests should be included for fuller coverage. ~~Bridge timeout log noise~~ fixed (see `docs/logging.md`). Remaining: wire integration group into the coverage recipe.
 
 ## Client error watcher is too narrow
 
