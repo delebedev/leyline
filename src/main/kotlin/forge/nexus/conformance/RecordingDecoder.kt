@@ -378,6 +378,9 @@ object RecordingDecoder {
      */
     private fun decodeClientMessage(bytes: ByteArray, index: Int, fileName: String): DecodedMessage? {
         val wrapper = parseClientWrapper(bytes) ?: return null
+        // Only decode payload as ClientToGREMessage for actual GRE wrappers.
+        // Other types (auth, echo, connect) have different payload shapes.
+        if (wrapper.clientToMatchServiceMessageType != ClientToMatchServiceMessageType.ClientToGremessage) return null
         if (wrapper.payload.isEmpty) return null
         val gre = try {
             ClientToGREMessage.parseFrom(wrapper.payload)
