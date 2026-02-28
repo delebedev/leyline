@@ -1,6 +1,4 @@
-package forge.nexus.protocol
-
-import forge.nexus.debug.NexusPaths
+package forge.nexus.debug
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.io.File
 
