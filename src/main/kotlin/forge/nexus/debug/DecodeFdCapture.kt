@@ -1,5 +1,7 @@
-package forge.nexus.protocol
+package forge.nexus.debug
 
+import forge.nexus.protocol.ClientFrameDecoder
+import forge.nexus.protocol.FdEnvelope
 import forge.nexus.server.CaptureSink
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json

@@ -1,15 +1,15 @@
-package forge.nexus.conformance
+package forge.nexus.recording
 
-import forge.nexus.conformance.RecordingDecoder.AnnotationSummary
-import forge.nexus.conformance.RecordingDecoder.DecodedMessage
-import forge.nexus.conformance.RecordingDecoder.TurnInfoSummary
-import forge.nexus.conformance.RecordingDecoder.ZoneSummary
-import forge.nexus.conformance.SemanticTimeline.ActionPrompt
-import forge.nexus.conformance.SemanticTimeline.GameOver
-import forge.nexus.conformance.SemanticTimeline.GsIdStep
-import forge.nexus.conformance.SemanticTimeline.PhaseChange
-import forge.nexus.conformance.SemanticTimeline.TurnStart
-import forge.nexus.conformance.SemanticTimeline.ZoneTransfer
+import forge.nexus.recording.RecordingDecoder.AnnotationSummary
+import forge.nexus.recording.RecordingDecoder.DecodedMessage
+import forge.nexus.recording.RecordingDecoder.TurnInfoSummary
+import forge.nexus.recording.RecordingDecoder.ZoneSummary
+import forge.nexus.recording.SemanticTimeline.ActionPrompt
+import forge.nexus.recording.SemanticTimeline.GameOver
+import forge.nexus.recording.SemanticTimeline.GsIdStep
+import forge.nexus.recording.SemanticTimeline.PhaseChange
+import forge.nexus.recording.SemanticTimeline.TurnStart
+import forge.nexus.recording.SemanticTimeline.ZoneTransfer
 import org.testng.Assert.*
 import org.testng.annotations.Test
 

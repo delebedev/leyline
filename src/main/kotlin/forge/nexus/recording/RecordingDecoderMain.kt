@@ -1,4 +1,4 @@
-package forge.nexus.conformance
+package forge.nexus.recording
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json

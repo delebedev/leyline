@@ -46,6 +46,11 @@ class MatchHandler(
 
     companion object {
         val defaultRegistry = MatchRegistry()
+
+        init {
+            // Wire debug collector's bridge provider to avoid debug→server import cycle.
+            NexusDebugCollector.bridgeProvider = { defaultRegistry.activeBridges() }
+        }
     }
 
     override fun channelActive(ctx: ChannelHandlerContext) {

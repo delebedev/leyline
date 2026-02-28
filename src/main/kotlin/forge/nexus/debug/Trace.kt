@@ -2,7 +2,7 @@ package forge.nexus.debug
 
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
-import forge.nexus.conformance.RecordingDecoder
+import forge.nexus.recording.RecordingDecoder
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.io.File

@@ -1,10 +1,10 @@
 package forge.nexus.server
 
-import forge.nexus.conformance.RecordingDecoder
 import forge.nexus.debug.FdDebugCollector
 import forge.nexus.debug.NexusPaths
 import forge.nexus.protocol.ClientFrameDecoder
 import forge.nexus.protocol.FdEnvelope
+import forge.nexus.recording.RecordingDecoder
 import io.netty.buffer.ByteBuf
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString

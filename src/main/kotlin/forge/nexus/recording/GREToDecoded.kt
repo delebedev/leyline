@@ -1,4 +1,4 @@
-package forge.nexus.conformance
+package forge.nexus.recording
 
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 

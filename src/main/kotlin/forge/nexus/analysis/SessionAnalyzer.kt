@@ -1,7 +1,7 @@
 package forge.nexus.analysis
 
-import forge.nexus.conformance.RecordingDecoder
 import forge.nexus.debug.NexusPaths
+import forge.nexus.recording.RecordingDecoder
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
