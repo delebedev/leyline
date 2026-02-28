@@ -1,6 +1,6 @@
 package forge.nexus.conformance
 
-import forge.nexus.debug.NexusPaths
+import forge.nexus.NexusPaths
 import forge.nexus.recording.RecordingDecoder
 import forge.nexus.recording.parseSeatFilter
 import forge.nexus.recording.printSeatIdentification

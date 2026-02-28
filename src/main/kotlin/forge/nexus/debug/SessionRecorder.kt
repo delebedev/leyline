@@ -1,5 +1,6 @@
 package forge.nexus.debug
 
+import forge.nexus.NexusPaths
 import forge.nexus.analysis.MechanicClassifier
 import forge.nexus.analysis.SessionAnalyzer
 import forge.nexus.game.NexusGameEvent

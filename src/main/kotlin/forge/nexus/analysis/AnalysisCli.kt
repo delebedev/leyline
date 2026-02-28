@@ -1,7 +1,7 @@
 package forge.nexus.analysis
 
-import forge.nexus.debug.NexusPaths
-import forge.nexus.debug.RecordingInspector
+import forge.nexus.NexusPaths
+import forge.nexus.recording.RecordingInspector
 import java.io.File
 import kotlin.system.exitProcess
 

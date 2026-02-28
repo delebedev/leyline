@@ -2,7 +2,7 @@ package forge.nexus.debug
 
 import forge.nexus.protocol.ClientFrameDecoder
 import forge.nexus.protocol.FdEnvelope
-import forge.nexus.server.CaptureSink
+import forge.nexus.recording.FdFrameRecord
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -62,7 +62,7 @@ fun main(args: Array<String>) {
 
             try {
                 val msg = FdEnvelope.decode(payload)
-                val record = CaptureSink.FdFrameRecord(
+                val record = FdFrameRecord(
                     seq = seq,
                     dir = direction,
                     cmdType = msg.cmdType,

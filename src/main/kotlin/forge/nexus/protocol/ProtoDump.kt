@@ -1,7 +1,7 @@
 package forge.nexus.protocol
 
 import com.google.protobuf.TextFormat
-import forge.nexus.debug.NexusPaths
+import forge.nexus.NexusPaths
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File

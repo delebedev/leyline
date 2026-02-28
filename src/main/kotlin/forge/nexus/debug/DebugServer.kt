@@ -3,6 +3,7 @@ package forge.nexus.debug
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import forge.nexus.analysis.SessionAnalyzer
+import forge.nexus.recording.RecordingInspector
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.io.File

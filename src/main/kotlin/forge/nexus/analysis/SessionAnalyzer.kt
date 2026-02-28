@@ -1,6 +1,6 @@
 package forge.nexus.analysis
 
-import forge.nexus.debug.NexusPaths
+import forge.nexus.NexusPaths
 import forge.nexus.recording.RecordingDecoder
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString

@@ -1,5 +1,6 @@
 package forge.nexus.debug
 
+import forge.nexus.recording.RecordingInspector
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 

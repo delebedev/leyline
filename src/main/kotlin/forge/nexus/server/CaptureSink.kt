@@ -1,12 +1,12 @@
 package forge.nexus.server
 
+import forge.nexus.NexusPaths
 import forge.nexus.debug.FdDebugCollector
-import forge.nexus.debug.NexusPaths
 import forge.nexus.protocol.ClientFrameDecoder
 import forge.nexus.protocol.FdEnvelope
+import forge.nexus.recording.FdFrameRecord
 import forge.nexus.recording.RecordingDecoder
 import io.netty.buffer.ByteBuf
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
@@ -43,17 +43,6 @@ internal object CaptureSink : AutoCloseable {
     private var fdJsonlWriter: PrintWriter? = null
 
     private val jsonFmt = Json { encodeDefaults = true }
-
-    @Serializable
-    data class FdFrameRecord(
-        val seq: Long,
-        val dir: String,
-        val cmdType: Int? = null,
-        val cmdTypeName: String? = null,
-        val transactionId: String? = null,
-        val envelopeType: String? = null,
-        val jsonPayload: String? = null,
-    )
 
     fun ingestChunk(dir: String, buf: ByteBuf) {
         val bytes = ByteArray(buf.readableBytes())
