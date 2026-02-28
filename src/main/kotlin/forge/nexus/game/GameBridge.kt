@@ -222,6 +222,27 @@ class GameBridge(
     var priorityWaitMs: Long = DEFAULT_PRIORITY_WAIT_MS
 
     /**
+     * Wrap an existing [Game] without starting the engine loop thread.
+     *
+     * The game should already be at the desired phase (via `devModeSet`).
+     * Cards should already be in zones (via `Zone.add`). This method wires
+     * only the components needed for proto output: [GameEventCollector] for
+     * annotations, [InstanceIdRegistry] for card IDs.
+     *
+     * No bridges, no threads, no CompletableFuture — fully synchronous.
+     * Forge events fire inline when you call `game.action.*` methods.
+     *
+     * Use in conformance tests where you need [StateMapper] + [BundleBuilder]
+     * but don't need the game loop or player interaction.
+     */
+    fun wrapGame(g: Game) {
+        game = g
+        val collector = GameEventCollector(this)
+        eventCollector = collector
+        g.subscribeToEvents(collector)
+    }
+
+    /**
      * Initialize card DB, create game, start engine loop, wait for mulligan.
      * Blocks caller until engine has dealt hands and is waiting for keep/mull.
      *

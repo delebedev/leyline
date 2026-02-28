@@ -1,7 +1,9 @@
 package forge.nexus.conformance
 
 import forge.game.Game
+import forge.game.card.Card
 import forge.game.phase.PhaseType
+import forge.game.player.Player
 import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
@@ -115,6 +117,67 @@ abstract class ConformanceTestBase {
         b.snapshotFromGame(game, counter.currentGsId())
         b.updateLastSentTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
         return Triple(b, game, counter)
+    }
+
+    /**
+     * Start a game with cards placed directly into zones — no threads, no loop.
+     *
+     * Uses the upstream `AITest` pattern: empty-deck game, `devModeSet(MAIN1)`,
+     * cards added via `Zone.add()`. Fully synchronous — Forge events fire inline
+     * when you call `game.action.*`. ~0.01s per test (vs 0.5s for startGameAtMain1).
+     *
+     * @param board lambda that receives (game, human, ai) to set up zones
+     * @return (bridge, game, counter)
+     */
+    protected fun startWithBoard(
+        board: (game: Game, human: Player, ai: Player) -> Unit,
+    ): Triple<GameBridge, Game, MessageCounter> {
+        val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
+        testCounter = counter
+        val b = GameBridge(messageCounter = counter)
+        bridge = b
+
+        val game = GameBootstrap.createGame()
+        b.wrapGame(game)
+
+        val human = game.players.first { it.lobbyPlayer !is forge.ai.LobbyPlayerAi }
+        val ai = game.players.first { it.lobbyPlayer is forge.ai.LobbyPlayerAi }
+
+        board(game, human, ai)
+
+        // Register all cards on the board in CardDb + InstanceIdRegistry
+        for (player in game.players) {
+            for (zone in listOf(ZoneType.Battlefield, ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Library)) {
+                for (card in player.getZone(zone).cards) {
+                    TestCardRegistry.ensureCardRegistered(card.name)
+                    b.getOrAllocInstanceId(card.id)
+                }
+            }
+        }
+
+        b.snapshotFromGame(game, counter.currentGsId())
+        b.updateLastSentTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
+        return Triple(b, game, counter)
+    }
+
+    /**
+     * Add a card to a player's zone. Convenience for [startWithBoard] lambdas.
+     * Mirrors upstream `AITest.addCardToZone()`.
+     */
+    protected fun addCard(name: String, player: Player, zone: ZoneType = ZoneType.Battlefield): Card {
+        val paperCard = forge.model.FModel.getMagicDb().commonCards.getCard(name)
+            ?: run {
+                forge.StaticData.instance().attemptToLoadCard(name)
+                forge.model.FModel.getMagicDb().commonCards.getCard(name)
+            }
+            ?: error("Card not found: $name")
+        val card = Card.fromPaperCard(paperCard, player)
+        card.setGameTimestamp(player.game.nextTimestamp)
+        player.getZone(zone).add(card)
+        if (zone == ZoneType.Battlefield) {
+            card.setSickness(false)
+        }
+        return card
     }
 
     protected fun fingerprint(messages: List<GREToClientMessage>): List<StructuralFingerprint> =
