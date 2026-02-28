@@ -1,14 +1,11 @@
 package forge.nexus.conformance
 
 import forge.game.zone.ZoneType
-import forge.nexus.game.BundleBuilder
 import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotNull
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 
 /**
  * Countered spell conformance: cast creature → counter it (fizzle) → assert
@@ -51,24 +48,15 @@ class CounteredSpellTest : ConformanceTestBase() {
         val stackCard = game.stackZone.cards.firstOrNull { it.id == forgeCardId }
             ?: error("Creature not found on stack (forgeCardId=$forgeCardId)")
 
-        b.snapshotFromGame(game, counter.currentGsId())
-
         // Counter the spell via game action (fires SpellResolved with fizzled + zone change)
-        game.action.moveToGraveyard(stackCard, null)
-
-        val result = BundleBuilder.stateOnlyDiff(
-            game,
-            b,
-            TEST_MATCH_ID,
-            SEAT_ID,
-            counter,
-        )
-        val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+        val gsm = captureAfterAction(b, game, counter) {
+            game.action.moveToGraveyard(stackCard, null)
+        }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
         // Assert: ZoneTransfer annotation with "Countered" category
-        val zt = findZoneTransfer(gsm, newId)
-            ?: findZoneTransfer(gsm, stackId) // try old id too
+        val zt = gsm.findZoneTransfer(newId)
+            ?: gsm.findZoneTransfer(stackId) // try old id too
         assertNotNull(zt, "Should have ZoneTransfer annotation for countered spell")
         assertEquals(
             zt!!.category,
@@ -111,24 +99,15 @@ class CounteredSpellTest : ConformanceTestBase() {
         val stackCard = game.stackZone.cards.firstOrNull { it.id == forgeCardId }
             ?: error("Creature not found on stack")
 
-        b.snapshotFromGame(game, counter.currentGsId())
-
         // Manually fire SpellResolved with fizzled=true (simulates counter)
         // then move to GY — this is what Forge does when a spell is countered.
-        game.fireEvent(forge.game.event.GameEventSpellResolved(stackCard.firstSpellAbility, true))
-        game.action.moveToGraveyard(stackCard, null)
-
-        val result = BundleBuilder.stateOnlyDiff(
-            game,
-            b,
-            TEST_MATCH_ID,
-            SEAT_ID,
-            counter,
-        )
-        val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+        val gsm = captureAfterAction(b, game, counter) {
+            game.fireEvent(forge.game.event.GameEventSpellResolved(stackCard.firstSpellAbility, true))
+            game.action.moveToGraveyard(stackCard, null)
+        }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer annotation")
         assertEquals(
             zt!!.category,
@@ -137,19 +116,4 @@ class CounteredSpellTest : ConformanceTestBase() {
         )
     }
 
-    // -----------------------------------------------------------------------
-    // Helpers (same pattern as ZoneTransitionConformanceTest)
-    // -----------------------------------------------------------------------
-
-    private fun findZoneTransfer(gsm: GameStateMessage, instanceId: Int): ZoneTransferInfo? {
-        val ann = gsm.annotationsList.firstOrNull {
-            AnnotationType.ZoneTransfer_af5a in it.typeList &&
-                instanceId in it.affectedIdsList
-        } ?: return null
-        return ZoneTransferInfo(
-            category = ann.detailsList.firstOrNull { it.key == "category" }?.getValueString(0) ?: "",
-        )
-    }
-
-    data class ZoneTransferInfo(val category: String)
 }

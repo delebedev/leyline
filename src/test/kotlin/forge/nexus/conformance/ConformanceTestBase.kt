@@ -177,6 +177,48 @@ abstract class ConformanceTestBase {
         return card
     }
 
+    // ----- Board helpers -----
+
+    /** First creature on [player]'s battlefield. */
+    protected fun Player.firstCreature(): Card =
+        getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+
+    /** First card in [player]'s zone. */
+    protected fun Player.firstCardIn(zone: ZoneType): Card =
+        getZone(zone).cards.first()
+
+    /** First card matching [predicate] in [player]'s zone. */
+    protected fun Player.firstCardIn(zone: ZoneType, predicate: (Card) -> Boolean): Card =
+        getZone(zone).cards.first(predicate)
+
+    // ----- Capture helpers -----
+
+    /** Build a stateOnlyDiff and return the GSM. Fails if no GSM produced. */
+    protected fun stateOnlyDiff(
+        game: Game,
+        b: GameBridge,
+        counter: MessageCounter,
+    ): GameStateMessage =
+        BundleBuilder.stateOnlyDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
+            .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
+
+    /**
+     * Snapshot, run [action], build stateOnlyDiff, return GSM.
+     * If [checkSba] is true, triggers state-based actions after the action.
+     */
+    protected fun captureAfterAction(
+        b: GameBridge,
+        game: Game,
+        counter: MessageCounter,
+        checkSba: Boolean = false,
+        action: () -> Unit,
+    ): GameStateMessage {
+        b.snapshotFromGame(game, counter.currentGsId())
+        action()
+        if (checkSba) game.action.checkStateEffects(true)
+        return stateOnlyDiff(game, b, counter)
+    }
+
     protected fun fingerprint(messages: List<GREToClientMessage>): List<StructuralFingerprint> =
         messages.map { StructuralFingerprint.fromGRE(it) }
 

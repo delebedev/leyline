@@ -1,14 +1,10 @@
 package forge.nexus.conformance
 
-import forge.game.Game
 import forge.game.ability.AbilityKey
-import forge.game.card.Card
 import forge.game.card.CounterEnumType
 import forge.game.player.Player
 import forge.game.zone.ZoneType
-import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
-import forge.nexus.game.MessageCounter
 import forge.nexus.game.snapshotFromGame
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertFalse
@@ -39,41 +35,6 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
 
     /** Legacy helper for bridge-based tests. */
     private fun human(b: GameBridge): Player = b.getPlayer(1)!!
-
-    /**
-     * Capture a diff after a forced zone transition.
-     * Takes a snapshot, runs [action], then builds a stateOnlyDiff.
-     */
-    private fun captureAfterAction(
-        b: GameBridge,
-        game: Game,
-        counter: MessageCounter,
-        action: () -> Unit,
-    ): GameStateMessage {
-        b.snapshotFromGame(game, counter.currentGsId())
-        action()
-        val result = BundleBuilder.stateOnlyDiff(
-            game,
-            b,
-            TEST_MATCH_ID,
-            SEAT_ID,
-            counter,
-        )
-        return result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
-    }
-
-    /** Find the ZoneTransfer annotation for a given instanceId. */
-    private fun findZoneTransfer(gsm: GameStateMessage, instanceId: Int): ZoneTransferInfo? {
-        val ann = gsm.annotationsList.firstOrNull {
-            AnnotationType.ZoneTransfer_af5a in it.typeList &&
-                instanceId in it.affectedIdsList
-        } ?: return null
-        return ZoneTransferInfo(
-            category = ann.detailsList.firstOrNull { it.key == "category" }?.getValueString(0) ?: "",
-            zoneSrc = ann.detailsList.firstOrNull { it.key == "zone_src" }?.getValueInt32(0) ?: -1,
-            zoneDest = ann.detailsList.firstOrNull { it.key == "zone_dest" }?.getValueInt32(0) ?: -1,
-        )
-    }
 
     /** Find ObjectIdChanged annotation with orig_id matching. */
     private fun findObjectIdChanged(gsm: GameStateMessage, origId: Int): Pair<Int, Int>? {
@@ -107,8 +68,6 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
                 instanceId in it.affectedIdsList
         }
 
-    data class ZoneTransferInfo(val category: String, val zoneSrc: Int, val zoneDest: Int)
-
     // =======================================================================
     // Group A: Pipeline tests (need bridge — startGameAtMain1)
     // =======================================================================
@@ -130,7 +89,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val gsm = postAction(game, b, counter).gsmOrNull ?: error("No GSM after play land")
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer annotation")
         assertEquals(zt!!.category, "PlayLand")
 
@@ -164,7 +123,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val gsm = postAction(game, b, counter).gsmOrNull ?: error("No GSM after cast")
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for cast")
         assertEquals(zt!!.category, "CastSpell")
 
@@ -199,7 +158,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         val gsm = postAction(game, b, counter).gsmOrNull ?: error("No GSM after resolve")
         val resolvedId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, resolvedId)
+        val zt = gsm.findZoneTransfer(resolvedId)
         assertNotNull(zt, "Should have ZoneTransfer for resolve")
         assertEquals(zt!!.category, "Resolve")
 
@@ -228,7 +187,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for destroy")
         assertEquals(zt!!.category, "Destroy", "BF→GY via destroy should be Destroy category")
 
@@ -257,7 +216,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for sacrifice")
         assertEquals(zt!!.category, "Sacrifice", "BF→GY via sacrifice should be Sacrifice category")
 
@@ -283,7 +242,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for exile")
         assertEquals(zt!!.category, "Exile", "BF→Exile should be Exile category")
 
@@ -309,7 +268,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for bounce")
         assertEquals(zt!!.category, "Bounce", "BF→Hand should be Bounce category")
 
@@ -336,7 +295,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for draw")
         assertEquals(zt!!.category, "Draw", "Library→Hand should be Draw category")
     }
@@ -360,7 +319,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for discard")
         assertEquals(zt!!.category, "Discard", "Hand→GY should be Discard category")
     }
@@ -384,7 +343,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for mill")
         assertEquals(zt!!.category, "Mill", "Library→GY should be Mill category")
     }
@@ -407,7 +366,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for library exile")
         assertEquals(zt!!.category, "Exile", "Library→Exile should be Exile category")
     }
@@ -430,7 +389,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(exiled.id)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for exile→BF")
 
         assertTrue(hasEnteredZoneThisTurn(gsm, newId), "BF destination should have EnteredZoneThisTurn")
@@ -454,7 +413,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(inGY.id)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for reanimate")
         assertTrue(hasEnteredZoneThisTurn(gsm, newId), "BF destination should have EnteredZoneThisTurn")
     }
@@ -476,7 +435,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(inGY.id)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for GY→Hand")
     }
 
@@ -499,7 +458,7 @@ class ZoneTransitionConformanceTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
+        val zt = gsm.findZoneTransfer(newId)
         assertNotNull(zt, "Should have ZoneTransfer for Hand→Exile")
         assertEquals(zt!!.category, "Exile", "Hand→Exile should be Exile category")
     }
