@@ -16,6 +16,8 @@
     <kotlin.version>2.2.20</kotlin.version>
     <kotlinx.serialization.version>1.9.0</kotlinx.serialization.version>
     <protobuf.version>3.25.5</protobuf.version>
+    <!-- Default empty so surefire doesn't choke when JaCoCo agent hasn't run -->
+    <argLine/>
   </properties>
 
   <dependencies>
