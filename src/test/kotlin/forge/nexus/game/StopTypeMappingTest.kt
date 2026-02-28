@@ -17,10 +17,10 @@ import wotc.mtgo.gre.external.messaging.Messages.StopType
  * Tests for [StopTypeMapping] — pure mapping between Arena proto
  * [StopType] enums and Forge [PhaseType] enums.
  *
- * In `integration` group because [PhaseType] needs forge-game class init
- * (static initializer requires card database).
+ * Needs conformance group: PhaseType.<clinit> requires Localizer
+ * (loaded by initializeCardDatabase).
  */
-@Test(groups = ["integration"])
+@Test(groups = ["conformance"])
 class StopTypeMappingTest {
 
     @BeforeClass(alwaysRun = true)

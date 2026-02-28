@@ -11,15 +11,14 @@ import org.testng.annotations.Test
 /**
  * Tests for [PhaseStopProfile] — stop set per player.
  *
- * In `integration` group because [PhaseStopProfile] imports forge-web DTO classes
- * that require the kotlinx.serialization plugin at class-init time.
+ * Conformance group: PhaseType.<clinit> requires Localizer
+ * (loaded by initializeCardDatabase).
  */
-@Test(groups = ["integration"])
+@Test(groups = ["conformance"])
 class PhaseStopProfileTest {
 
     @BeforeClass(alwaysRun = true)
     fun init() {
-        // Force classloader to resolve forge-web dependencies
         forge.web.game.GameBootstrap.initializeCardDatabase(quiet = true)
     }
 
