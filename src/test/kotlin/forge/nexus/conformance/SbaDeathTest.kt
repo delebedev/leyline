@@ -1,7 +1,6 @@
 package forge.nexus.conformance
 
 import forge.game.Game
-import forge.game.card.Card
 import forge.game.zone.ZoneType
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
@@ -22,21 +21,21 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  * Source: recording sessions game1 (proxy) — SBA_Damage, SBA_Deathtouch;
  *         recording session 22-31-58 — general SBA deaths observed.
  *
- * Note: zero-toughness SBA bypasses Forge's destroy() method entirely
- * (uses sacrificeDestroy directly), but GameEventCardChangeZone still
- * fires BF→GY which the collector maps to CardDestroyed.
+ * Uses startWithBoard{} — synchronous, no threads (~0.01s per test).
+ * checkStateEffects(true) triggers SBAs inline on the test thread.
  */
-@Test(groups = ["integration", "conformance"])
+@Test(groups = ["conformance"])
 class SbaDeathTest : ConformanceTestBase() {
 
-    /**
-     * Creature with toughness set to 0 dies to SBA.
-     * BF→GY transition should have Destroy category.
-     */
+    /** Creature with toughness set to 0 dies to SBA. */
     @Test
     fun zeroToughnessCreatureDiesToSba() {
-        val (b, game, counter) = startGameAtMain1()
-        val creature = ensureCreatureOnBattlefield(b, game)
+        val (b, game, counter) = startWithBoard { g, human, _ ->
+            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            addCard("Forest", human, ZoneType.Battlefield)
+        }
+        val human = game.players.first { it.lobbyPlayer !is forge.ai.LobbyPlayerAi }
+        val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val forgeCardId = creature.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
@@ -45,140 +44,45 @@ class SbaDeathTest : ConformanceTestBase() {
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
-            ?: findZoneTransfer(gsm, origId)
+        val zt = findZoneTransfer(gsm, newId) ?: findZoneTransfer(gsm, origId)
         assertNotNull(zt, "Should have ZoneTransfer for SBA zero-toughness death")
-        assertEquals(
-            zt!!.category,
-            "Destroy",
-            "SBA zero-toughness BF→GY should produce Destroy category",
-        )
+        assertEquals(zt!!.category, "Destroy", "SBA zero-toughness BF→GY should produce Destroy category")
 
-        // Creature should be in graveyard
-        val player = b.getPlayer(1)!!
         assertTrue(
-            player.getZone(ZoneType.Graveyard).cards.any { it.id == forgeCardId },
+            human.getZone(ZoneType.Graveyard).cards.any { it.id == forgeCardId },
             "Creature should be in graveyard after SBA",
         )
     }
 
-    /**
-     * Creature with lethal damage dies to SBA.
-     * BF→GY transition should have Destroy category.
-     */
+    /** Creature with lethal damage dies to SBA. */
     @Test
     fun lethalDamageCreatureDiesToSba() {
-        val (b, game, counter) = startGameAtMain1()
-        val creature = ensureCreatureOnBattlefield(b, game)
+        val (b, game, counter) = startWithBoard { g, human, _ ->
+            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+        }
+        val human = game.players.first { it.lobbyPlayer !is forge.ai.LobbyPlayerAi }
+        val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val forgeCardId = creature.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
         val gsm = captureAfterSba(b, game, counter) {
-            // Mark damage equal to toughness — lethal
             creature.damage = creature.netToughness
         }
         val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val zt = findZoneTransfer(gsm, newId)
-            ?: findZoneTransfer(gsm, origId)
+        val zt = findZoneTransfer(gsm, newId) ?: findZoneTransfer(gsm, origId)
         assertNotNull(zt, "Should have ZoneTransfer for SBA lethal damage death")
-        assertEquals(
-            zt!!.category,
-            "Destroy",
-            "SBA lethal-damage BF→GY should produce Destroy category",
-        )
+        assertEquals(zt!!.category, "Destroy", "SBA lethal-damage BF→GY should produce Destroy category")
     }
 
-    /**
-     * Creature with deathtouch damage dies to SBA.
-     * BF→GY transition should have Destroy category.
-     */
+    /** Creature with deathtouch damage dies to SBA. */
     @Test
     fun deathtouchDamageCreatureDiesToSba() {
-        val (b, game, counter) = startGameAtMain1()
-        val creature = ensureCreatureOnBattlefield(b, game)
-        val forgeCardId = creature.id
-        val origId = b.getOrAllocInstanceId(forgeCardId)
-
-        val gsm = captureAfterSba(b, game, counter) {
-            // Any amount of damage + deathtouch flag = lethal
-            creature.damage = 1
-            creature.setHasBeenDealtDeathtouchDamage(true)
+        val (b, game, counter) = startWithBoard { g, human, _ ->
+            addCard("Grizzly Bears", human, ZoneType.Battlefield)
         }
-        val newId = b.getOrAllocInstanceId(forgeCardId)
-
-        val zt = findZoneTransfer(gsm, newId)
-            ?: findZoneTransfer(gsm, origId)
-        assertNotNull(zt, "Should have ZoneTransfer for SBA deathtouch death")
-        assertEquals(
-            zt!!.category,
-            "Destroy",
-            "SBA deathtouch BF→GY should produce Destroy category",
-        )
-    }
-
-    // -----------------------------------------------------------------------
-    // Puzzle-based variants — same assertions, faster setup
-    // -----------------------------------------------------------------------
-
-    companion object {
-        /** Board with a 2/2 creature ready to die. */
-        private val SBA_PUZZLE = """
-            [metadata]
-            Name:SBA Death Test
-            Goal:Test
-            Turns:5
-            Difficulty:easy
-            
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-            removesummoningsickness=true
-            
-            humanbattlefield=Grizzly Bears;Forest;Forest
-            humanhand=Giant Growth
-            humanlibrary=Forest;Forest;Forest;Forest;Forest
-            aibattlefield=Mountain
-            ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-        """.trimIndent()
-    }
-
-    @Test
-    fun zeroToughnessCreatureDiesToSba_puzzle() {
-        val (b, game, counter) = startPuzzleAtMain1(SBA_PUZZLE)
-        val creature = game.players.first().getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-        val forgeCardId = creature.id
-        val origId = b.getOrAllocInstanceId(forgeCardId)
-
-        val gsm = captureAfterSba(b, game, counter) { creature.baseToughness = 0 }
-        val newId = b.getOrAllocInstanceId(forgeCardId)
-
-        val zt = findZoneTransfer(gsm, newId) ?: findZoneTransfer(gsm, origId)
-        assertNotNull(zt, "Should have ZoneTransfer for SBA zero-toughness death")
-        assertEquals(zt!!.category, "Destroy")
-    }
-
-    @Test
-    fun lethalDamageCreatureDiesToSba_puzzle() {
-        val (b, game, counter) = startPuzzleAtMain1(SBA_PUZZLE)
-        val creature = game.players.first().getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-        val forgeCardId = creature.id
-        val origId = b.getOrAllocInstanceId(forgeCardId)
-
-        val gsm = captureAfterSba(b, game, counter) { creature.damage = creature.netToughness }
-        val newId = b.getOrAllocInstanceId(forgeCardId)
-
-        val zt = findZoneTransfer(gsm, newId) ?: findZoneTransfer(gsm, origId)
-        assertNotNull(zt, "Should have ZoneTransfer for SBA lethal damage death")
-        assertEquals(zt!!.category, "Destroy")
-    }
-
-    @Test
-    fun deathtouchDamageCreatureDiesToSba_puzzle() {
-        val (b, game, counter) = startPuzzleAtMain1(SBA_PUZZLE)
-        val creature = game.players.first().getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+        val human = game.players.first { it.lobbyPlayer !is forge.ai.LobbyPlayerAi }
+        val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
         val forgeCardId = creature.id
         val origId = b.getOrAllocInstanceId(forgeCardId)
 
@@ -190,29 +94,12 @@ class SbaDeathTest : ConformanceTestBase() {
 
         val zt = findZoneTransfer(gsm, newId) ?: findZoneTransfer(gsm, origId)
         assertNotNull(zt, "Should have ZoneTransfer for SBA deathtouch death")
-        assertEquals(zt!!.category, "Destroy")
+        assertEquals(zt!!.category, "Destroy", "SBA deathtouch BF→GY should produce Destroy category")
     }
 
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
-
-    /** Get a creature onto the battlefield (play land + cast + resolve). */
-    private fun ensureCreatureOnBattlefield(b: GameBridge, game: Game): Card {
-        val player = b.getPlayer(1)!!
-        val bf = player.getZone(ZoneType.Battlefield)
-        bf.cards.firstOrNull { it.isCreature }?.let { return it }
-
-        playLand(b)
-        b.snapshotFromGame(game)
-        castCreature(b)
-        b.snapshotFromGame(game)
-        passPriority(b)
-        b.snapshotFromGame(game)
-
-        return bf.cards.firstOrNull { it.isCreature }
-            ?: error("Failed to get creature on battlefield")
-    }
 
     /**
      * Set up board state via [setup], run SBA check, capture diff.
