@@ -10,7 +10,7 @@ decode-golden dir="": (_require classpath) check-java
         d=$(ls -td recordings/*/capture 2>/dev/null | head -1)
         if [ -z "$d" ]; then echo "No captures found." >&2; exit 1; fi
     fi
-    {{_nexus_cli}} forge.nexus.protocol.DecodeFdCaptureKt "$d"
+    {{_nexus_cli}} forge.nexus.debug.DecodeFdCaptureKt "$d"
 
 # inspect a .bin template (no port kill — safe while server runs)
 proto-inspect file=(templates / "mulligan-req-seat1.bin"): (_require classpath) check-java
@@ -18,7 +18,7 @@ proto-inspect file=(templates / "mulligan-req-seat1.bin"): (_require classpath) 
 
 # decode Match Door payloads
 proto-decode: (_require classpath) check-java
-    @{{_nexus_cli}} forge.nexus.protocol.DecodeCaptureKt {{payloads}}
+    @{{_nexus_cli}} forge.nexus.debug.DecodeCaptureKt {{payloads}}
 
 # save last S→C payload as template
 proto-extract name="extracted": (_require classpath) check-java
@@ -85,8 +85,8 @@ proto-trace id dir="": (_require classpath) check-java
 
 # decode a recording directory to structured JSONL (no port kill)
 proto-decode-recording dir output="": (_require classpath) check-java
-    @{{_nexus_cli}} forge.nexus.conformance.RecordingDecoderMainKt "{{dir}}" {{output}}
+    @{{_nexus_cli}} forge.nexus.recording.RecordingDecoderMainKt "{{dir}}" {{output}}
 
 # decode + accumulate state snapshots from a recording (no port kill)
 proto-accumulate dir output="": (_require classpath) check-java
-    @{{_nexus_cli}} forge.nexus.conformance.RecordingDecoderMainKt "{{dir}}" --accumulate {{output}}
+    @{{_nexus_cli}} forge.nexus.recording.RecordingDecoderMainKt "{{dir}}" --accumulate {{output}}

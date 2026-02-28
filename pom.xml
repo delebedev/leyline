@@ -186,6 +186,10 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.1.2</version>
+        <configuration>
+          <!-- Conformance tests boot full game engines (32k cards); default heap is too tight on CI -->
+          <argLine>-Xmx768m</argLine>
+        </configuration>
       </plugin>
       <!-- TODO: restore JaCoCo once spotless 2.43 / JDK 17 "No value present" conflict is resolved.
            See TODO.md. Plugin + argLine property removed to unblock CI. -->
