@@ -120,10 +120,11 @@ object RecordingDecoder {
         val actions: List<ActionSummary> = emptyList(),
         val hasActionsAvailableReq: Boolean = false,
         val hasMulliganReq: Boolean = false,
-        val hasDeclareAttackersReq: Boolean = false,
+        val declareAttackers: DeclareAttackersSummary? = null,
         val hasDeclareBlockersReq: Boolean = false,
         val hasSelectTargetsReq: Boolean = false,
         val hasIntermissionReq: Boolean = false,
+        val castingTimeOptions: List<CastingTimeOptionSummary> = emptyList(),
         val players: List<PlayerSummary> = emptyList(),
         val turnInfo: TurnInfoSummary? = null,
         val promptId: Int? = null,
@@ -193,6 +194,55 @@ object RecordingDecoder {
         val activePlayer: Int,
         val priorityPlayer: Int,
         val decisionPlayer: Int,
+    )
+
+    @Serializable
+    data class DeclareAttackersSummary(
+        val attackers: List<AttackerSummary>,
+        val qualifiedAttackers: List<AttackerSummary> = emptyList(),
+        val canSubmitAttackers: Boolean = true,
+        val hasRequirements: Boolean = false,
+        val hasRestrictions: Boolean = false,
+    )
+
+    @Serializable
+    data class AttackerSummary(
+        val instanceId: Int,
+        val mustAttack: Boolean = false,
+    )
+
+    @Serializable
+    data class CastingTimeOptionSummary(
+        val ctoId: Int,
+        val type: String,
+        val affectedId: Int = 0,
+        val affectorId: Int = 0,
+        val grpId: Int = 0,
+        val isRequired: Boolean = false,
+        val modal: ModalSummary? = null,
+        val selectN: SelectNSummary? = null,
+    )
+
+    @Serializable
+    data class ModalSummary(
+        val abilityGrpId: Int = 0,
+        val minSel: Int = 0,
+        val maxSel: Int = 0,
+        val options: List<ModalOptionSummary>,
+    )
+
+    @Serializable
+    data class ModalOptionSummary(
+        val grpId: Int,
+    )
+
+    @Serializable
+    data class SelectNSummary(
+        val minSel: Int = 0,
+        val maxSel: Int = 0,
+        val context: String = "",
+        val ids: List<Int> = emptyList(),
+        val idType: String = "",
     )
 
     /**
@@ -316,10 +366,14 @@ object RecordingDecoder {
             actions = extractActions(gre),
             hasActionsAvailableReq = gre.hasActionsAvailableReq(),
             hasMulliganReq = gre.hasMulliganReq(),
-            hasDeclareAttackersReq = gre.hasDeclareAttackersReq(),
+            declareAttackers = gre.takeIf { it.hasDeclareAttackersReq() }
+                ?.declareAttackersReq?.let { summarizeDeclareAttackers(it) },
             hasDeclareBlockersReq = gre.hasDeclareBlockersReq(),
             hasSelectTargetsReq = gre.hasSelectTargetsReq(),
             hasIntermissionReq = gre.hasIntermissionReq(),
+            castingTimeOptions = gre.takeIf { it.hasCastingTimeOptionsReq() }
+                ?.castingTimeOptionsReq?.castingTimeOptionReqList
+                ?.map { summarizeCastingTimeOption(it) } ?: emptyList(),
             players = gsm?.playersList?.map { summarizePlayer(it) } ?: emptyList(),
             turnInfo = gsm?.takeIf { it.hasTurnInfo() }?.turnInfo?.let { summarizeTurn(it) },
             promptId = gre.takeIf { it.hasPrompt() && it.prompt.promptId != 0 }?.prompt?.promptId,
@@ -425,6 +479,46 @@ object RecordingDecoder {
         priorityPlayer = t.priorityPlayer,
         decisionPlayer = t.decisionPlayer,
     )
+
+    private fun summarizeDeclareAttackers(req: DeclareAttackersReq): DeclareAttackersSummary =
+        DeclareAttackersSummary(
+            attackers = req.attackersList.map {
+                AttackerSummary(instanceId = it.attackerInstanceId.toInt(), mustAttack = it.mustAttack)
+            },
+            qualifiedAttackers = req.qualifiedAttackersList.map {
+                AttackerSummary(instanceId = it.attackerInstanceId.toInt(), mustAttack = it.mustAttack)
+            },
+            canSubmitAttackers = req.canSubmitAttackers,
+            hasRequirements = req.hasRequirements,
+            hasRestrictions = req.hasRestrictions,
+        )
+
+    private fun summarizeCastingTimeOption(cto: CastingTimeOptionReq): CastingTimeOptionSummary =
+        CastingTimeOptionSummary(
+            ctoId = cto.ctoId.toInt(),
+            type = cto.castingTimeOptionType.name.strip(),
+            affectedId = cto.affectedId.toInt(),
+            affectorId = cto.affectorId.toInt(),
+            grpId = cto.grpId.toInt(),
+            isRequired = cto.isRequired,
+            modal = cto.takeIf { it.hasModalReq() }?.modalReq?.let { m ->
+                ModalSummary(
+                    abilityGrpId = m.abilityGrpId.toInt(),
+                    minSel = m.minSel.toInt(),
+                    maxSel = m.maxSel.toInt(),
+                    options = m.modalOptionsList.map { ModalOptionSummary(grpId = it.grpId.toInt()) },
+                )
+            },
+            selectN = cto.takeIf { it.hasSelectNReq() }?.selectNReq?.let { s ->
+                SelectNSummary(
+                    minSel = s.minSel,
+                    maxSel = s.maxSel.toInt(),
+                    context = s.context.name.strip(),
+                    ids = s.idsList.map { it.toInt() },
+                    idType = s.idType.name.strip(),
+                )
+            },
+        )
 
     private val json = Json {
         encodeDefaults = false
