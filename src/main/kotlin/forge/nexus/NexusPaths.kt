@@ -1,4 +1,4 @@
-package forge.nexus.debug
+package forge.nexus
 
 import java.io.File
 import java.time.LocalDateTime
