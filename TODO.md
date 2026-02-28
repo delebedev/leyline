@@ -17,6 +17,13 @@ Root cause is shared: reaching combat with creatures on both sides requires mult
 - Scripted AI controller to skip AI think time
 - Dedicated "combat-ready" seed/fixture that starts at a board state closer to combat
 
+## Restore JaCoCo coverage plugin
+
+JaCoCo plugin removed from pom.xml — `prepare-agent` at `initialize` phase + `${argLine}` in surefire causes spotless 2.43.0 "No value present" crash on JDK 17 CI runners. Justfile recipes (`just coverage`, `just coverage-summary`) are still there but won't produce reports until the plugin is re-added. Options:
+- Bump spotless to a version that doesn't choke on unresolved `${argLine}`
+- Move JaCoCo to a Maven profile (`-Pcoverage`) so it's opt-in and doesn't pollute default lifecycle
+- Switch CI to JDK 21+ where the conflict may not reproduce
+
 ## Coverage: include integration tests
 
 `just coverage` currently runs unit+conformance only. Integration tests should be included for fuller coverage but they dump ~7min of noisy engine stderr (bridge timeouts, stack traces). `just test-integration` has the same noise problem. Fix: suppress engine log noise in test runs (test-specific logback config with WARN→ERROR for bridge/timeout loggers), then add integration back to coverage.
