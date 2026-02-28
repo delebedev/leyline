@@ -94,20 +94,8 @@ test-gate: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=unit,
 # full gate: unit + conformance, then integration in parallel forks
 test-full: test-gate test-integration
 
-# JaCoCo coverage report (runs all test groups + generates report)
-coverage: check-java _check-upstream _clean-surefire (_mvn-verify "-Dgroups=unit,conformance,integration")
-
-# print coverage summary
-coverage-summary: coverage
-    #!/usr/bin/env bash
-    csv="{{nexus_dir}}/target/site/jacoco/jacoco.csv"
-    [ -f "$csv" ] || { echo "Missing $csv" >&2; exit 1; }
-    echo "Overall line coverage (forge-nexus):"
-    awk -F, 'NR>1 {miss+=$8; cov+=$9} END {tot=miss+cov; pct=(tot?100*cov/tot:0); printf "  %.1f%% (%d/%d lines)\n", pct, cov, tot }' "$csv"
-    echo "Lowest-covered classes:"
-    awk -F, 'NR>1 {miss=$8; cov=$9; tot=miss+cov; pct=(tot?100*cov/tot:0); printf "%.4f,%s.%s,%d,%d\n", pct, $2, $3, cov, tot }' "$csv" | \
-        sort -t, -k1 -n | head -15 | \
-        awk -F, '{printf "  %5.1f%%  %s.%s  (%d/%d)\n", $1, $2, $3, $4, $5}'
+# JaCoCo coverage report (unit+conformance only; see TODO.md for integration)
+coverage: check-java _check-upstream _clean-surefire (_mvn-verify "-Dgroups=unit,conformance -Dmaven.test.failure.ignore=true")
 
 # --- Dev ---
 
@@ -497,7 +485,7 @@ _mvn-test extra_flags:
         || echo "⚠ Could not parse test results"
     exit $rc
 
-# Run mvn verify (test + JaCoCo report), emit summary + report paths.
+# Run mvn verify (test + JaCoCo report), emit test summary + coverage summary.
 [private]
 _mvn-verify extra_flags:
     #!/usr/bin/env bash
@@ -505,8 +493,19 @@ _mvn-verify extra_flags:
     cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} {{extra_flags}} verify; rc=$?
     python3 "{{root_dir}}/build/test-summary.py" "{{nexus_dir}}/target" 2>/dev/null \
         || echo "⚠ Could not parse test results"
-    echo "HTML: forge-nexus/target/site/jacoco/index.html"
-    echo "CSV:  forge-nexus/target/site/jacoco/jacoco.csv"
+    csv="{{nexus_dir}}/target/site/jacoco/jacoco.csv"
+    if [ -f "$csv" ]; then
+        echo ""
+        echo "Coverage:"
+        awk -F, 'NR>1 {miss+=$8; cov+=$9} END {tot=miss+cov; pct=(tot?100*cov/tot:0); printf "  %.1f%% (%d/%d lines)\n", pct, cov, tot }' "$csv"
+        echo "Lowest-covered:"
+        awk -F, 'NR>1 {miss=$8; cov=$9; tot=miss+cov; pct=(tot?100*cov/tot:0); printf "%.4f,%s.%s,%d,%d\n", pct, $2, $3, cov, tot }' "$csv" | \
+            sort -t, -k1 -n | head -10 | \
+            awk -F, '{printf "  %5.1f%%  %s.%s  (%d/%d)\n", $1, $2, $3, $4, $5}'
+        echo "HTML: forge-nexus/target/site/jacoco/index.html"
+    else
+        echo "⚠ No coverage report (tests may have failed before verify phase)"
+    fi
     exit $rc
 
 # --- Remote (Tailscale) ---

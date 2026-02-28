@@ -17,6 +17,10 @@ Root cause is shared: reaching combat with creatures on both sides requires mult
 - Scripted AI controller to skip AI think time
 - Dedicated "combat-ready" seed/fixture that starts at a board state closer to combat
 
+## Coverage: include integration tests
+
+`just coverage` currently runs unit+conformance only. Integration tests should be included for fuller coverage but they dump ~7min of noisy engine stderr (bridge timeouts, stack traces). `just test-integration` has the same noise problem. Fix: suppress engine log noise in test runs (test-specific logback config with WARN→ERROR for bridge/timeout loggers), then add integration back to coverage.
+
 ## Split justfile into delegated groups
 
 The root justfile delegates `fmt`/`fmt-check` to per-module justfiles — extend this pattern to more target groups. The nexus justfile is 360+ LOC with serve/proto/recording/cert targets all in one file.
