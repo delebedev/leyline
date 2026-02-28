@@ -14,13 +14,15 @@ TestNG groups control what runs. Use `just --list` for all targets.
 
 | Target | Group | What | Speed |
 |--------|-------|------|-------|
-| `just test-unit` | `unit` | Pure logic, no engine | ~1s |
-| `just test-conformance` | `conformance` | Wire shape vs client patterns | ~5s |
-| `just test-integration` | `integration` | Full engine boot, 4 parallel forks | ~90s |
-| `just test-gate` | unit+conformance | Pre-commit gate (skips integration + recording) | ~5s |
-| `just test-full` | all three | Gate then integration (chained) | ~95s |
+| `just test-unit` | `unit` | Pure logic, no engine | ~4s (test) / ~25s (wall) |
+| `just test-conformance` | `conformance` | Wire shape vs client patterns (boots engine) | ~60s |
+| `just test-integration` | `integration` | Full engine boot, 4 parallel forks | ~6min |
+| `just test-gate` | unit+conformance | Pre-commit gate (skips integration + recording) | ~60s |
+| `just test-full` | all three | Gate then integration (chained) | ~7min |
 | `just test-one Foo` | — | Single class by name | varies |
 | `just test` | ungrouped | Everything (may hit pre-existing init issues) | slow |
+
+Note: ~20s of every run is Maven startup overhead. "Conformance" tests all boot the engine — they're tagged `["conformance", "integration"]` and run in both gate and integration.
 
 **Before committing:** run `just test-gate`.
 **After big/risky changes** (StateMapper, GameBridge, annotation pipeline, zone transitions, combat/targeting): run `just test-integration` or `just test-full`.
