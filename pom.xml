@@ -188,11 +188,47 @@
         <version>3.1.2</version>
         <configuration>
           <!-- Conformance tests boot full game engines (32k cards); default heap is too tight on CI -->
-          <argLine>-Xmx768m</argLine>
+          <argLine>@{argLine} -Xmx768m</argLine>
         </configuration>
       </plugin>
-      <!-- TODO: restore JaCoCo once spotless 2.43 / JDK 17 "No value present" conflict is resolved.
-           See TODO.md. Plugin + argLine property removed to unblock CI. -->
+      <!-- JaCoCo: agent + report with excludes for non-testable packages -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>0.8.12</version>
+        <executions>
+          <execution>
+            <id>jacoco-prepare-agent</id>
+            <phase>initialize</phase>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>jacoco-report</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+            <configuration>
+              <excludes>
+                <!-- CLI/analysis/debug/server — not unit-testable, inflates denominator -->
+                <exclude>forge/nexus/NexusMain*</exclude>
+                <exclude>forge/nexus/NexusPaths*</exclude>
+                <exclude>forge/nexus/analysis/**</exclude>
+                <exclude>forge/nexus/debug/**</exclude>
+                <exclude>forge/nexus/server/**</exclude>
+                <exclude>forge/nexus/protocol/**</exclude>
+                <exclude>forge/nexus/conformance/CompareMain*</exclude>
+                <exclude>forge/nexus/conformance/GameFlowAnalyzer*</exclude>
+                <exclude>forge/nexus/recording/**</exclude>
+                <!-- Generated protobuf code -->
+                <exclude>wotc/**</exclude>
+              </excludes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>com.diffplug.spotless</groupId>
         <artifactId>spotless-maven-plugin</artifactId>
