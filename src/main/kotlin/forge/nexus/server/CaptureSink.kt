@@ -132,13 +132,12 @@ internal object CaptureSink : AutoCloseable {
             fdJsonlWriter?.close()
             fdJsonlWriter = null
         }
-        decodeMdFrames()
+        flushMdFrames()
     }
 
-    /** Auto-decode MD payloads → md-frames.jsonl on shutdown. */
-    private fun decodeMdFrames() {
+    /** Decode MD payloads → md-frames.jsonl. Safe to call multiple times (idempotent overwrite). */
+    fun flushMdFrames() {
         try {
-            // decodeDirectory expects session root — auto-discovers capture/payloads/ inside
             val sessionDir = NexusPaths.SESSION_DIR
             if (!sessionDir.isDirectory) return
             val messages = RecordingDecoder.decodeDirectory(sessionDir)
@@ -147,7 +146,7 @@ internal object CaptureSink : AutoCloseable {
             outFile.printWriter().use { pw ->
                 for (msg in messages) pw.println(RecordingDecoder.toJsonLine(msg))
             }
-            log.info("Wrote {} MD messages to {}", messages.size, outFile.name)
+            log.info("Wrote {} MD messages to {}", messages.size, outFile)
         } catch (e: Exception) {
             log.warn("MD auto-decode failed: {}", e.message)
         }
