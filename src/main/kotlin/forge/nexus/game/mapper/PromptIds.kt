@@ -9,6 +9,7 @@ object PromptIds {
     const val MULLIGAN = 34
     const val STARTING_PLAYER = 37
     const val MATCH_RESULT_WIN_LOSS = 27
+    const val GROUP_LONDON_MULLIGAN = 92
     const val SELECT_N = 1243
     const val PAY_COSTS = 1244
 }

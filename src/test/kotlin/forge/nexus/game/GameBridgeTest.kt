@@ -98,8 +98,12 @@ class GameBridgeTest {
         )
     }
 
+    /**
+     * London mulligan: mull → engine draws 7 → auto-tucks 1 → hand has 6.
+     * After submitMull, engine is back at WaitingKeep with post-tuck hand.
+     */
     @Test
-    fun submitMullProducesNewHand() {
+    fun submitMullAutoTucksAndProducesNewHand() {
         val b = GameBridge()
         bridge = b
         b.start()
@@ -110,8 +114,43 @@ class GameBridgeTest {
         b.submitMull(1)
 
         val handAfter = b.getHandGrpIds(1)
-        // After London mulligan, still draw 7 (tuck happens after keep)
-        Assert.assertEquals(handAfter.size, 7, "After mull should still have 7 cards (London)")
+        // London: drew 7, auto-tucked 1 → 6 cards remain
+        Assert.assertEquals(handAfter.size, 6, "After first mull+auto-tuck hand should have 6 cards")
+    }
+
+    /** Two mulligans: mull → auto-tuck 1 → mull → auto-tuck 2 → hand has 5. */
+    @Test
+    fun submitMullTwiceReducesHandByTwo() {
+        val b = GameBridge()
+        bridge = b
+        b.start()
+
+        b.submitMull(1)
+        Assert.assertEquals(b.getHandGrpIds(1).size, 6, "After 1st mull: 6 cards")
+
+        b.submitMull(1)
+        Assert.assertEquals(b.getHandGrpIds(1).size, 5, "After 2nd mull: 5 cards")
+    }
+
+    /** Mull once, then keep → game reaches priority. */
+    @Test
+    fun mullThenKeepReachesPriority() {
+        val b = GameBridge()
+        bridge = b
+        b.start()
+
+        b.submitMull(1)
+        Assert.assertEquals(b.getHandGrpIds(1).size, 6)
+
+        b.submitKeep(1)
+        b.awaitPriority()
+
+        val game = b.getGame()!!
+        val phase = game.phaseHandler.phase
+        Assert.assertTrue(
+            phase == PhaseType.MAIN1 || phase == PhaseType.UPKEEP || phase == PhaseType.DRAW,
+            "Should reach gameplay after mull+keep, got $phase",
+        )
     }
 
     @Test

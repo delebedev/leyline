@@ -202,6 +202,7 @@ object HandshakeMessages {
         msgIdStart: Int,
         gameStateId: Int,
         bridge: GameBridge,
+        mulliganCount: Int = 0,
     ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
 
@@ -250,9 +251,83 @@ object HandshakeMessages {
             .build()
 
         // 3) MulliganReq for seat 1
-        val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 1)
+        val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 1, mulliganCount = mulliganCount)
 
         return wrapGre(greGsm, grePrompt, greMull) to msgId
+    }
+
+    /**
+     * GroupReq bundle for London mulligan tuck: GSM Diff + PromptReq + GroupReq.
+     *
+     * Real server sends a thin GSM (player with mulliganCount, actions, pendingMessageCount=2),
+     * a PromptReq (who goes first notification), and the GroupReq.
+     */
+    fun groupReqBundle(
+        msgIdStart: Int,
+        gameStateId: Int,
+        seatId: Int,
+        mulliganCount: Int,
+        handInstanceIds: List<Int>,
+        cardsToTuck: Int,
+        bridge: GameBridge,
+    ): Pair<MatchServiceToClientMessage, Int> {
+        var msgId = msgIdStart
+
+        // 1) Thin GSM Diff: player with mulliganCount + hand actions
+        val game = bridge.getGame()!!
+        val actions = ActionMapper.buildActions(game, seatId, bridge)
+        val gsm = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(gameStateId)
+            .addPlayers(
+                PlayerMapper.buildPlayerInfo(bridge.getPlayer(1), 1).toBuilder()
+                    .setMulliganCount(mulliganCount)
+                    .build(),
+            )
+            .setPendingMessageCount(2)
+            .setPrevGameStateId(gameStateId - 1)
+            .setUpdate(GameStateUpdate.SendAndRecord)
+        for (action in actions.actionsList) {
+            gsm.addActions(
+                ActionInfo.newBuilder()
+                    .setSeatId(seatId)
+                    .setAction(ActionMapper.stripActionForGsm(action)),
+            )
+        }
+        val greGsm = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.GameStateMessage_695e)
+            .addSystemSeatIds(seatId)
+            .setMsgId(msgId++)
+            .setGameStateId(gameStateId)
+            .setGameStateMessage(gsm)
+            .build()
+
+        // 2) PromptReq: who's going first (same as mulliganReqSeat1)
+        val dieRollWinner = bridge.playtestConfig.game.dieRollWinner
+        val grePrompt = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.PromptReq)
+            .addSystemSeatIds(seatId).addSystemSeatIds(if (dieRollWinner == seatId) seatId else 3 - seatId)
+            .setMsgId(msgId++)
+            .setGameStateId(gameStateId)
+            .setPrompt(
+                Prompt.newBuilder().setPromptId(PromptIds.STARTING_PLAYER)
+                    .addParameters(
+                        PromptParameter.newBuilder()
+                            .setParameterName("PlayerId")
+                            .setType(ParameterType.Reference_a14a)
+                            .setReference(
+                                Reference.newBuilder()
+                                    .setType(ReferenceType.PlayerSeatId)
+                                    .setId(dieRollWinner),
+                            ),
+                    ),
+            )
+            .build()
+
+        // 3) GroupReq
+        val greGroup = GsmBuilder.buildGroupReq(msgId++, gameStateId, seatId, handInstanceIds, cardsToTuck)
+
+        return wrapGre(greGsm, grePrompt, greGroup) to msgId
     }
 
     /**
@@ -344,11 +419,18 @@ object HandshakeMessages {
 
     // --- private helpers ---
 
-    /** DieRollResults — [winner] seat rolls higher. */
+    /** DieRollResults — [winner] seat rolls higher, random d20 values. */
     private fun buildDieRollResults(msgId: Int, winner: Int = 2): GREToClientMessage {
-        // Winner gets the high roll (18), loser gets the low roll (2)
-        val seat1Roll = if (winner == 1) 18 else 2
-        val seat2Roll = if (winner == 2) 18 else 2
+        // Generate random d20 values; ensure winner > loser (re-roll on tie)
+        val rng = java.util.concurrent.ThreadLocalRandom.current()
+        var high: Int
+        var low: Int
+        do {
+            high = rng.nextInt(1, 21)
+            low = rng.nextInt(1, 21)
+        } while (high <= low)
+        val seat1Roll = if (winner == 1) high else low
+        val seat2Roll = if (winner == 2) high else low
         return GREToClientMessage.newBuilder()
             .setType(GREMessageType.DieRollResultsResp_695e)
             .addSystemSeatIds(winner).addSystemSeatIds(if (winner == 1) 2 else 1)

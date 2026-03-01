@@ -203,13 +203,37 @@ class MatchHandler(
                         // Familiar responded — ignored
                     } else if (decision == MulliganOption.AcceptHand) {
                         bridge?.submitKeep(seatId)
+                        // Forge London: tuck already happened during mull (auto-tuck in submitMull).
+                        // After keep, engine proceeds to game start.
+                        bridge?.awaitPriority()
                         s?.onMulliganKeep()
                     } else {
                         mulliganCount++
                         bridge?.submitMull(seatId)
                         seat1Hand = bridge?.getHandGrpIds(1) ?: emptyList()
-                        sendDealHandAndMulligan(ctx)
+                        // Send proper seat-1 DealHand + MulliganReq with updated count
+                        sendDealHand(ctx)
+                        sendMulliganReq()
                     }
+                }
+            }
+
+            ClientMessageType.GroupResp_097b -> {
+                if (seatId == 1) {
+                    val bridge = s?.gameBridge ?: return
+                    // Two groups: [0]=keep (Hand/Top), [1]=tuck (Library/Bottom)
+                    val groups = greMsg.groupResp.groupsList
+                    val tuckIds = if (groups.size >= 2) groups[1].idsList else groups.firstOrNull()?.idsList ?: emptyList()
+                    log.info("Match Door GRE: seat {} GroupResp tuck {} cards", seatId, tuckIds.size)
+                    // Map instanceIds → Forge Card objects
+                    val handCards = bridge.getHandCards(seatId)
+                    val tuckCards = tuckIds.mapNotNull { iid ->
+                        val forgeId = bridge.getForgeCardId(iid)
+                        handCards.firstOrNull { it.id == forgeId }
+                    }
+                    bridge.submitTuck(seatId, tuckCards)
+                    bridge.awaitPriority()
+                    s?.onMulliganKeep()
                 }
             }
 
@@ -337,10 +361,41 @@ class MatchHandler(
         val s = session ?: return
         val bridge = s.gameBridge ?: return
         val gsId = s.counter.nextGsId()
-        val (msg, nextMsgId) = HandshakeMessages.mulliganReqSeat1(s.counter.currentMsgId(), gsId, bridge)
+        val (msg, nextMsgId) = HandshakeMessages.mulliganReqSeat1(
+            s.counter.currentMsgId(),
+            gsId,
+            bridge,
+            mulliganCount,
+        )
         s.counter.setMsgId(nextMsgId)
-        NexusTap.outboundTemplate("MulliganReq seat=$seatId")
+        NexusTap.outboundTemplate("MulliganReq seat=$seatId mulliganCount=$mulliganCount")
         ProtoDump.dump(msg, "MulliganReq-seat$seatId")
+        ctx.writeAndFlush(msg)
+    }
+
+    /**
+     * GroupReq bundle for London mulligan tuck: GSM Diff + PromptReq + GroupReq.
+     * Matches real server's 3-message bundle shape.
+     */
+    private fun sendGroupReq(ctx: ChannelHandlerContext) {
+        val s = session ?: return
+        val bridge = s.gameBridge ?: return
+        val gsId = s.counter.nextGsId()
+        val handCards = bridge.getHandCards(seatId)
+        val handInstanceIds = handCards.map { bridge.getOrAllocInstanceId(it.id) }
+        val tuckCount = bridge.getTuckCount()
+        val (msg, nextMsgId) = HandshakeMessages.groupReqBundle(
+            s.counter.currentMsgId(),
+            gsId,
+            seatId,
+            mulliganCount,
+            handInstanceIds,
+            tuckCount,
+            bridge,
+        )
+        s.counter.setMsgId(nextMsgId)
+        NexusTap.outboundTemplate("GroupReq seat=$seatId tuck=$tuckCount")
+        ProtoDump.dump(msg, "GroupReq-seat$seatId")
         ctx.writeAndFlush(msg)
     }
 
