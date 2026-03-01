@@ -440,6 +440,69 @@ we just need to wire it to produce the MiscContinuousEffect annotation.
 
 ---
 
+## LayeredEffectDestroyed (type 19)
+
+**Source:** 4 sessions, 15 instances total. Key sessions: `09-33-05` (Prowess), `00-11-05` (Twinblade Paladin), `00-18-46` (game-start noise).
+
+### What the variance report shows
+
+```
+LayeredEffectDestroyed (15 instances, 4 sessions)
+  Always:    (no detail keys)
+  affectedIds always 7000+ range (synthetic layered effect IDs)
+```
+
+### Lifecycle: creation → persistence → destruction
+
+LayeredEffectDestroyed is the **teardown event** for transient layered effects. Full lifecycle:
+
+1. **LayeredEffectCreated** — transient annotation, `affectedIds=[7xxx]` (synthetic effect ID)
+2. **LayeredEffect** (persistent) — state annotation on the affected card:
+   - `affectedIds` = actual card instanceId(s)
+   - `effect_id` = the 7xxx synthetic ID
+   - May carry: `sourceAbilityGRPID`, `grpid`, types like `ModifiedPower`/`ModifiedToughness`/`AddAbility`
+3. **LayeredEffectDestroyed** — transient annotation when the effect expires, `affectedIds=[7xxx]`
+
+The persistent `LayeredEffect` annotation is deleted via `diffDeletedPersistentAnnotationIds` in the same GSM as the `LayeredEffectDestroyed` event.
+
+### Observed patterns
+
+**Pattern 1: Prowess (turn-scoped P/T buff)**
+Session `09-33-05`: Otter token (grp:91865, iid=335) with Prowess (abilityGrpId=137).
+- gsId=163: `LayeredEffectCreated` → effect 7007. Persistent `LayeredEffect` with `sourceAbilityGRPID: 137, effect_id: 7007` on iid=335, types=[ModifiedToughness, ModifiedPower].
+- gsId=180 (T8 Beginning): `LayeredEffectDestroyed` → effect 7007. Prowess buff expires at turn boundary.
+
+**Pattern 2: Twinblade Paladin conditional buff**
+Session `00-11-05`: Twinblade Paladin (grp:93652, iid=310).
+- gsId=138: `LayeredEffectCreated` → effect 7002 (AddAbility, grpid=3, UniqueAbilityId=183). Paladin gains an ability via layered effect.
+- gsId=196: `LayeredEffectCreated` → effect 7003 (ModifiedPower+Toughness on iid=310). P/T modifier from the gained ability.
+- gsId=213 (T10 Beginning): `LayeredEffectDestroyed` → effect 7003. P/T buff expires at turn boundary. The AddAbility effect (7002) persists — it's permanent.
+
+**Pattern 3: Game-start noise**
+Session `00-18-46`, gsId=1: three effects (7002, 7003, 7004) created AND destroyed in the same GSM. No objects present. No persistent annotations. This appears to be game-initialization bookkeeping — likely default effects that are immediately superseded or cancelled.
+
+### What the client does with this
+
+LayeredEffectDestroyed tells the client to:
+1. Remove any VFX associated with the effect (P/T buff glow, ability badge)
+2. Stop rendering the layered effect in the card's stat overlay
+3. Clean up internal effect tracking for the synthetic ID
+
+### Forge model gap
+
+Forge has layered effects via its static/continuous ability layer but doesn't track synthetic effect IDs. Effects are computed from scratch each time the game state is evaluated — there's no "effect 7007 was created / destroyed" lifecycle.
+
+**Wiring assessment: Hard.** Would require:
+1. Synthetic effect ID allocation (a counter starting at 7000+, matching Arena's convention)
+2. Tracking which effects exist across GSMs to detect creation/destruction
+3. Associating Forge's continuous effects with the synthetic IDs
+
+This is the same fundamental challenge as wiring LayeredEffectCreated — the two are a matched pair. They depend on the same synthetic effect ID infrastructure.
+
+Currently, we emit `powerToughnessModCreated` (which covers the Prowess-like P/T change visible to the player) but NOT the full layered effect lifecycle. The missing piece is cosmetic: VFX teardown when a temporary buff expires.
+
+---
+
 ## Cross-references
 
 | Annotation | Cards seen | Sessions | Instances |
@@ -450,9 +513,11 @@ we just need to wire it to produce the MiscContinuousEffect annotation.
 | AbilityWordActive | Accumulate Wisdom | `09-33-05` | 6 |
 | Qualification | Warden of Evos Isle, Silent Hallcreeper | `11-50-40`, `14-15-29` | 6 |
 | MiscContinuousEffect | Proft's Eidetic Memory, Aurelia the Warleader | `14-15-29`, `00-18-46` | 6 |
+| LayeredEffectDestroyed | Otter token (Prowess), Twinblade Paladin | `09-33-05`, `00-11-05`, `00-18-46` | 15 |
 
 ### Related annotation types not yet investigated
 
 | Type | Likely related mechanic | Cards to check |
 |---|---|---|
 | LoseDesignation (type 103) | Room door de-unlock? Monarch lost? | Not in recordings yet |
+| LayeredEffectCreated | Matched pair with Destroyed — same synthetic ID infra | Same sessions |
