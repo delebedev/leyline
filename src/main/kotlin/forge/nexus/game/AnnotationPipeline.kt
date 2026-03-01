@@ -319,10 +319,10 @@ object AnnotationPipeline {
                 is NexusGameEvent.PowerToughnessChanged -> {
                     val instanceId = idResolver(ev.forgeCardId)
                     if (ev.oldPower != ev.newPower) {
-                        annotations.add(AnnotationBuilder.modifiedPower(instanceId, ev.newPower))
+                        annotations.add(AnnotationBuilder.modifiedPower(instanceId))
                     }
                     if (ev.oldToughness != ev.newToughness) {
-                        annotations.add(AnnotationBuilder.modifiedToughness(instanceId, ev.newToughness))
+                        annotations.add(AnnotationBuilder.modifiedToughness(instanceId))
                     }
                     log.debug("mechanic: P/T changed iid={} {}/{}→{}/{}", instanceId, ev.oldPower, ev.oldToughness, ev.newPower, ev.newToughness)
                 }

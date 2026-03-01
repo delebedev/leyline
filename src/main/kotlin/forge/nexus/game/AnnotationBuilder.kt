@@ -265,20 +265,21 @@ object AnnotationBuilder {
             .addDetails(int32Detail("life", lifeDelta))
             .build()
 
-    /** Card's power changed. Client uses this for buff/debuff overlay. Arena type 5. */
-    fun modifiedPower(instanceId: Int, value: Int): AnnotationInfo =
+    /** Card's power changed. State parser — P/T values from gameObject fields, not annotation.
+     *  Optional details (context needed): effect_id, counter_type, count, sourceAbilityGRPID
+     *  (seen in session 09-33-05, grp:93848 with aura/counter effects). */
+    fun modifiedPower(instanceId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ModifiedPower)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail("value", value))
             .build()
 
-    /** Card's toughness changed. Client uses this for buff/debuff overlay. Arena type 6. */
-    fun modifiedToughness(instanceId: Int, value: Int): AnnotationInfo =
+    /** Card's toughness changed. State parser — P/T values from gameObject fields, not annotation.
+     *  Optional details (context needed): effect_id, counter_type, count, sourceAbilityGRPID. */
+    fun modifiedToughness(instanceId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ModifiedToughness)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail("value", value))
             .build()
 
     /**

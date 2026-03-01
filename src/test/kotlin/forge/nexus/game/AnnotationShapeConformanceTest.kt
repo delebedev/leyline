@@ -108,16 +108,16 @@ class AnnotationShapeConformanceTest {
         assertEquals(detailKeys(ann), setOf("life"))
     }
 
-    @Test(description = "ModifiedPower shape: {value}")
+    @Test(description = "ModifiedPower shape: no required keys")
     fun modifiedPowerDetailKeyShape() {
-        val ann = AnnotationBuilder.modifiedPower(1, 5)
-        assertEquals(detailKeys(ann), setOf("value"))
+        val ann = AnnotationBuilder.modifiedPower(1)
+        assertEquals(detailKeys(ann), emptySet<String>())
     }
 
-    @Test(description = "ModifiedToughness shape: {value}")
+    @Test(description = "ModifiedToughness shape: no required keys")
     fun modifiedToughnessDetailKeyShape() {
-        val ann = AnnotationBuilder.modifiedToughness(1, 3)
-        assertEquals(detailKeys(ann), setOf("value"))
+        val ann = AnnotationBuilder.modifiedToughness(1)
+        assertEquals(detailKeys(ann), emptySet<String>())
     }
 
     @Test(description = "LossOfGame shape: {reason}")
@@ -230,8 +230,8 @@ class AnnotationShapeConformanceTest {
         "ResolutionStart" to detailKeys(AnnotationBuilder.resolutionStart(1, 1)),
         "NewTurnStarted" to detailKeys(AnnotationBuilder.newTurnStarted(1)),
         "DamageDealt" to detailKeys(AnnotationBuilder.damageDealt(1, 3)),
-        "ModifiedToughness" to detailKeys(AnnotationBuilder.modifiedToughness(1, 3)),
-        "ModifiedPower" to detailKeys(AnnotationBuilder.modifiedPower(1, 5)),
+        "ModifiedToughness" to detailKeys(AnnotationBuilder.modifiedToughness(1)),
+        "ModifiedPower" to detailKeys(AnnotationBuilder.modifiedPower(1)),
         "ModifiedLife" to detailKeys(AnnotationBuilder.modifiedLife(1, -3)),
         "SyntheticEvent" to detailKeys(AnnotationBuilder.syntheticEvent()),
         "TokenCreated" to detailKeys(AnnotationBuilder.tokenCreated(1)),
@@ -249,11 +249,6 @@ class AnnotationShapeConformanceTest {
      * the fix by passing without it.
      */
     private val expectedMismatch: Map<String, String> = mapOf(
-        // Server sends no always-present keys (effect_id/counter_type are optional),
-        // we always send {value}. Client gets P/T from gameObject fields, not annotation.
-        // Fix: drop {value} detail entirely, optionally add effect_id/counter_type.
-        "ModifiedPower" to "sends {value} — server sends no required keys, drop it",
-        "ModifiedToughness" to "sends {value} — server sends no required keys, drop it",
 
         // Server always sends {type} (value=1), we send no details.
         // Fix: add uint32 detail "type" with value 1 to syntheticEvent().

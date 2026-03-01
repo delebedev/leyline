@@ -394,27 +394,21 @@ class AnnotationBuilderTest {
 
     @Test
     fun modifiedPowerFields() {
-        val ann = AnnotationBuilder.modifiedPower(instanceId = 1200, value = 5)
+        val ann = AnnotationBuilder.modifiedPower(instanceId = 1200)
         assertTrue(ann.typeList.contains(AnnotationType.ModifiedPower))
         assertTrue(ann.affectedIdsList.contains(1200))
         assertEquals(ann.affectorId, 0, "ModifiedPower has no affectorId")
-
-        val value = ann.detailsList.first { it.key == "value" }
-        assertEquals(value.type, KeyValuePairValueType.Int32)
-        assertEquals(value.getValueInt32(0), 5)
+        assertEquals(ann.detailsCount, 0, "ModifiedPower has no required detail keys")
     }
 
     // --- ModifiedToughness (Group B) ---
 
     @Test
     fun modifiedToughnessFields() {
-        val ann = AnnotationBuilder.modifiedToughness(instanceId = 1300, value = 3)
+        val ann = AnnotationBuilder.modifiedToughness(instanceId = 1300)
         assertTrue(ann.typeList.contains(AnnotationType.ModifiedToughness))
         assertTrue(ann.affectedIdsList.contains(1300))
-
-        val value = ann.detailsList.first { it.key == "value" }
-        assertEquals(value.type, KeyValuePairValueType.Int32)
-        assertEquals(value.getValueInt32(0), 3)
+        assertEquals(ann.detailsCount, 0, "ModifiedToughness has no required detail keys")
     }
 
     // --- RemoveAttachment (Group A+) ---
