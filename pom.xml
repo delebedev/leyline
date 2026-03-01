@@ -1,45 +1,44 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <parent>
-    <artifactId>forge</artifactId>
-    <groupId>forge</groupId>
-    <version>${revision}</version>
-  </parent>
-
-  <artifactId>forge-nexus</artifactId>
+  <groupId>leyline</groupId>
+  <artifactId>leyline</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
   <packaging>jar</packaging>
-  <name>Forge Nexus</name>
-  <description>MTGA client compatibility layer — Arena protocol bridge to Forge engine</description>
+  <name>Leyline</name>
+  <description>Open-source MTG Arena-compatible game server</description>
 
   <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
     <kotlin.version>2.2.20</kotlin.version>
     <kotlinx.serialization.version>1.9.0</kotlinx.serialization.version>
     <protobuf.version>3.25.5</protobuf.version>
     <kotlinx.coroutines.version>1.10.2</kotlinx.coroutines.version>
+    <forge.version>2.0.10-SNAPSHOT</forge.version>
   </properties>
 
   <dependencies>
-    <!-- Forge engine modules (formerly transitive via forge-web) -->
+    <!-- Forge engine modules (from submodule, installed to local repo) -->
     <dependency>
       <groupId>forge</groupId>
       <artifactId>forge-core</artifactId>
-      <version>${project.version}</version>
+      <version>${forge.version}</version>
     </dependency>
     <dependency>
       <groupId>forge</groupId>
       <artifactId>forge-game</artifactId>
-      <version>${project.version}</version>
+      <version>${forge.version}</version>
     </dependency>
     <dependency>
       <groupId>forge</groupId>
       <artifactId>forge-ai</artifactId>
-      <version>${project.version}</version>
+      <version>${forge.version}</version>
     </dependency>
     <dependency>
       <groupId>forge</groupId>
       <artifactId>forge-gui</artifactId>
-      <version>${project.version}</version>
+      <version>${forge.version}</version>
     </dependency>
     <dependency>
       <groupId>org.jetbrains.kotlin</groupId>
@@ -94,6 +93,7 @@
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
+      <version>1.5.13</version>
     </dependency>
     <dependency>
       <groupId>io.sentry</groupId>

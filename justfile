@@ -52,6 +52,11 @@ _cert_flags := '--fd-cert "' + _fd_cert + '" --fd-key "' + _fd_key + '" --md-cer
 
 flatten := "org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten"
 
+# install forge engine jars from submodule (run after git submodule update)
+install-forge:
+    cd "{{nexus_dir}}/forge" && mvn flatten:flatten install -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
+    @echo "Forge engine installed to forge/.m2-local/"
+
 # auto-format Kotlin sources (spotless/ktlint)
 fmt: check-java
     cd "{{root_dir}}" && mvn -pl forge-nexus com.diffplug.spotless:spotless-maven-plugin:apply -q
