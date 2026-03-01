@@ -1,6 +1,5 @@
 [versions]
 kotlin = "2.2.20"
-coroutines = "1.10.2"
 serialization = "1.9.0"
 protobuf = "3.25.5"
 netty = "4.1.101.Final"
@@ -20,7 +19,6 @@ versions = "0.53.0"
 
 [libraries]
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
 protobuf-java-util = { module = "com.google.protobuf:protobuf-java-util", version.ref = "protobuf" }
