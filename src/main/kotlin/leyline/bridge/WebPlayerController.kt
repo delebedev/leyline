@@ -51,7 +51,7 @@ class WebPlayerController(
     private val actionBridge: GameActionBridge? = null,
     private val mulliganBridge: MulliganBridge? = null,
     private val phaseStopProfile: PhaseStopProfile? = null,
-    private val onStateChanged: (suspend () -> Unit)? = null,
+    private val onStateChanged: (() -> Unit)? = null,
     val smartPhaseSkip: Boolean = true,
 ) : PlayerControllerHuman(game, player, lobbyPlayer) {
 
@@ -1212,7 +1212,7 @@ class WebPlayerController(
     private fun notifyStateChanged() {
         if (onStateChanged != null) {
             try {
-                kotlinx.coroutines.runBlocking { onStateChanged.invoke() }
+                onStateChanged.invoke()
             } catch (ex: Exception) {
                 log.debug("State notification failed: ${ex.message}")
             }
