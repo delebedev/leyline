@@ -27,6 +27,9 @@ object NexusDebugCollector {
      */
     var bridgeProvider: (() -> Map<String, GameBridge>)? = null
 
+    /** Provider for the active seat-1 session (for debug injection). */
+    var sessionProvider: (() -> Any?)? = null
+
     private const val MAX_ENTRIES = 500
     private val buffer = ArrayDeque<Entry>(MAX_ENTRIES)
     private var seq = 0
