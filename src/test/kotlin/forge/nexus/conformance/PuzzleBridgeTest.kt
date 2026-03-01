@@ -4,6 +4,8 @@ import forge.game.GameStage
 import forge.game.GameType
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
+import forge.nexus.bridge.GameBootstrap
+import forge.nexus.bridge.PlayerAction
 import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
 import forge.nexus.game.PuzzleSource
@@ -12,8 +14,6 @@ import forge.nexus.game.mapper.ActionMapper
 import forge.nexus.server.ListMessageSink
 import forge.nexus.server.MatchRegistry
 import forge.nexus.server.MatchSession
-import forge.web.game.GameBootstrap
-import forge.web.game.PlayerAction
 import org.testng.Assert.*
 import org.testng.annotations.AfterMethod
 import org.testng.annotations.BeforeClass

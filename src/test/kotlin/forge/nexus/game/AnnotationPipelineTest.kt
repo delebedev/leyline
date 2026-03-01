@@ -1,7 +1,7 @@
 package forge.nexus.game
 
+import forge.nexus.bridge.GameBootstrap
 import forge.nexus.game.mapper.ZoneIds
-import forge.web.game.GameBootstrap
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertTrue
 import org.testng.annotations.BeforeClass

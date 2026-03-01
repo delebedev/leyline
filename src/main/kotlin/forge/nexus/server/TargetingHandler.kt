@@ -199,7 +199,7 @@ class TargetingHandler(private val ops: SessionOps) {
     private fun resolvePlayerTarget(
         instanceId: Int,
         bridge: GameBridge,
-        pendingPrompt: forge.web.game.InteractivePromptBridge.PendingPrompt,
+        pendingPrompt: forge.nexus.bridge.InteractivePromptBridge.PendingPrompt,
     ): Int? {
         // Arena uses seatId as instanceId for player targets (1 or 2)
         val player = bridge.getPlayer(instanceId) ?: return null
@@ -211,7 +211,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
     private fun sendSelectTargetsReq(
         bridge: GameBridge,
-        pendingPrompt: forge.web.game.InteractivePromptBridge.PendingPrompt,
+        pendingPrompt: forge.nexus.bridge.InteractivePromptBridge.PendingPrompt,
     ) {
         val game = bridge.getGame() ?: return
         val result = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, pendingPrompt)

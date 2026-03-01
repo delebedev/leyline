@@ -1,8 +1,8 @@
 package forge.nexus.game
 
 import forge.game.Game
-import forge.web.game.GameActionBridge
-import forge.web.game.PlayerAction
+import forge.nexus.bridge.GameActionBridge
+import forge.nexus.bridge.PlayerAction
 
 /**
  * Shared test helpers for GameBridge-based tests.

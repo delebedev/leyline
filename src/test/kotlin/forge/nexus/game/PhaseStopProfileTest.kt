@@ -1,7 +1,7 @@
 package forge.nexus.game
 
 import forge.game.phase.PhaseType
-import forge.web.game.PhaseStopProfile
+import forge.nexus.bridge.PhaseStopProfile
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertFalse
 import org.testng.Assert.assertTrue
@@ -19,7 +19,7 @@ class PhaseStopProfileTest {
 
     @BeforeClass(alwaysRun = true)
     fun init() {
-        forge.web.game.GameBootstrap.initializeCardDatabase(quiet = true)
+        forge.nexus.bridge.GameBootstrap.initializeCardDatabase(quiet = true)
     }
 
     @Test

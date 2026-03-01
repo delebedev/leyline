@@ -1,0 +1,1221 @@
+package forge.nexus.bridge
+
+import forge.LobbyPlayer
+import forge.ai.AiCostDecision
+import forge.ai.ComputerUtilMana
+import forge.card.mana.ManaCost
+import forge.card.mana.ManaCostShard
+import forge.game.Game
+import forge.game.GameEntity
+import forge.game.GameObject
+import forge.game.card.Card
+import forge.game.card.CardCollection
+import forge.game.card.CardCollectionView
+import forge.game.combat.Combat
+import forge.game.combat.CombatUtil
+import forge.game.cost.Cost
+import forge.game.cost.CostPart
+import forge.game.cost.CostPayment
+import forge.game.keyword.KeywordInterface
+import forge.game.mana.ManaConversionMatrix
+import forge.game.player.DelayedReveal
+import forge.game.player.Player
+import forge.game.player.PlayerActionConfirmMode
+import forge.game.player.PlayerController.BinaryChoiceType
+import forge.game.replacement.ReplacementEffect
+import forge.game.spellability.LandAbility
+import forge.game.spellability.SpellAbility
+import forge.game.trigger.WrappedAbility
+import forge.game.zone.ZoneType
+import forge.player.PlayerControllerHuman
+import forge.util.collect.FCollectionView
+import org.apache.commons.lang3.tuple.ImmutablePair
+import org.slf4j.LoggerFactory
+
+/**
+ * Web player controller: extends [PlayerControllerHuman] with a [WebGuiGame]
+ * adapter so all 157 interactive methods route through [InteractivePromptBridge].
+ *
+ * Methods that PCHuman implements via desktop-only classes (InputConfirm,
+ * InputSelectCardsFromList, FModel, GuiBase) are overridden here with
+ * bridge-based implementations. The ~130 methods that use pure getGui() calls
+ * work automatically through [WebGuiGame].
+ *
+ * See ADR-007 for architecture details.
+ */
+class WebPlayerController(
+    game: Game,
+    player: Player,
+    lobbyPlayer: LobbyPlayer,
+    private val bridge: InteractivePromptBridge,
+    private val actionBridge: GameActionBridge? = null,
+    private val mulliganBridge: MulliganBridge? = null,
+    private val phaseStopProfile: PhaseStopProfile? = null,
+    private val onStateChanged: (suspend () -> Unit)? = null,
+    val smartPhaseSkip: Boolean = true,
+) : PlayerControllerHuman(game, player, lobbyPlayer) {
+
+    init {
+        setGui(WebGuiGame(bridge))
+    }
+
+    companion object {
+        private val log = LoggerFactory.getLogger(WebPlayerController::class.java)
+    }
+
+    override fun isAI(): Boolean = false
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Overrides for PCHuman methods that use desktop-only classes.
+    // Methods using only getGui() calls are inherited and work via WebGuiGame.
+    // ═══════════════════════════════════════════════════════════════════
+
+    // -- Scry / Surveil ------------------------------------------------
+    // PCHuman uses FModel.getPreferences + GuiBase + InputConfirm
+
+    override fun arrangeForScry(topN: CardCollection): ImmutablePair<CardCollection, CardCollection> =
+        arrangeTopNCards(
+            topN,
+            label = "Scry",
+            awayZone = "Bottom of library",
+            singleAwayPrompt = { name -> "Scry: Put $name on top or bottom?" },
+            multiAwayPrompt = "Scry: Select cards to put on bottom of library",
+        )
+
+    override fun arrangeForSurveil(topN: CardCollection): ImmutablePair<CardCollection, CardCollection> =
+        arrangeTopNCards(
+            topN,
+            label = "Surveil",
+            awayZone = "Graveyard",
+            singleAwayPrompt = { name -> "Surveil: Put $name on top or into graveyard?" },
+            multiAwayPrompt = "Surveil: Select cards to put into graveyard",
+        )
+
+    private fun arrangeTopNCards(
+        topN: CardCollection,
+        label: String,
+        awayZone: String,
+        singleAwayPrompt: (String) -> String,
+        multiAwayPrompt: String,
+    ): ImmutablePair<CardCollection, CardCollection> {
+        if (topN.isEmpty()) return ImmutablePair.of(null, null)
+        if (topN.size == 1) {
+            val request = PromptRequest(
+                promptType = "confirm",
+                message = singleAwayPrompt(topN[0].name),
+                options = listOf("Top of library", awayZone),
+                min = 1,
+                max = 1,
+                defaultIndex = 0,
+            )
+            val result = bridge.requestChoice(request)
+            return if (result.firstOrNull() == 1) {
+                ImmutablePair.of(null, topN)
+            } else {
+                ImmutablePair.of(topN, null)
+            }
+        }
+        val labels = topN.map { it.name }
+        val request = PromptRequest(
+            promptType = "choose_cards",
+            message = multiAwayPrompt,
+            options = labels,
+            min = 0,
+            max = topN.size,
+            defaultIndex = 0,
+        )
+        val awayIndices = bridge.requestChoice(request)
+        val toAway = CardCollection()
+        val toTop = CardCollection()
+        for ((i, card) in topN.withIndex()) {
+            if (i in awayIndices) toAway.add(card) else toTop.add(card)
+        }
+        if (toTop.size > 1) {
+            val topLabels = toTop.map { it.name }
+            val orderReq = PromptRequest(
+                promptType = "order",
+                message = "Order cards for top of library (first = top)",
+                options = topLabels,
+                min = toTop.size,
+                max = toTop.size,
+                defaultIndex = 0,
+            )
+            val ordering = bridge.requestChoice(orderReq)
+            val ordered = CardCollection()
+            for (idx in ordering) {
+                if (idx in 0 until toTop.size) ordered.add(toTop[idx])
+            }
+            for (card in toTop) {
+                if (card !in ordered) ordered.add(card)
+            }
+            return ImmutablePair.of(ordered, if (toAway.isEmpty()) null else toAway)
+        }
+        return ImmutablePair.of(
+            if (toTop.isEmpty()) null else toTop,
+            if (toAway.isEmpty()) null else toAway,
+        )
+    }
+
+    // -- Reveal ---------------------------------------------------------------
+    // PCHuman delegates to getGui().reveal() (desktop popup). We intercept
+    // at controller level to capture forge card IDs for annotation pipeline.
+
+    override fun reveal(
+        cards: CardCollectionView,
+        zone: ZoneType,
+        owner: Player,
+        messagePrefix: String?,
+        addMsgSuffix: Boolean,
+    ) {
+        // Capture card IDs for forge-nexus annotation pipeline
+        if (!cards.isEmpty()) {
+            val forgeCardIds = cards.mapNotNull { card ->
+                // CardCollectionView items are Card objects (not CardView)
+                (card as? Card)?.id
+            }
+            val ownerSeat = if (owner.lobbyPlayer is forge.ai.LobbyPlayerAi) 2 else 1
+            bridge.recordReveal(forgeCardIds, ownerSeat)
+        }
+        // Delegate to parent for GUI display (WebGuiGame no-op log)
+        super.reveal(cards, zone, owner, messagePrefix, addMsgSuffix)
+    }
+
+    // -- Sacrifice / Destroy ----------------------------------------------
+    // PCHuman uses InputSelectCardsFromList
+
+    override fun choosePermanentsToSacrifice(
+        sa: SpellAbility?,
+        min: Int,
+        max: Int,
+        validTargets: CardCollectionView,
+        message: String?,
+    ): CardCollectionView = chooseCardsViaBridge(
+        validTargets,
+        min,
+        max,
+        message ?: "Choose permanents to sacrifice",
+    )
+
+    override fun choosePermanentsToDestroy(
+        sa: SpellAbility?,
+        min: Int,
+        max: Int,
+        validTargets: CardCollectionView,
+        message: String?,
+    ): CardCollectionView = chooseCardsViaBridge(
+        validTargets,
+        min,
+        max,
+        message ?: "Choose permanents to destroy",
+    )
+
+    // -- Discard -----------------------------------------------------------
+    // PCHuman uses InputSelectCardsFromList
+
+    override fun chooseCardsToDiscardFrom(
+        p: Player,
+        sa: SpellAbility?,
+        validCards: CardCollection,
+        min: Int,
+        max: Int,
+    ): CardCollection = chooseCardsViaBridge(validCards, min, max, "Choose cards to discard")
+
+    override fun chooseCardsToDiscardToMaximumHandSize(nDiscard: Int): CardCollection {
+        // PCHuman uses GuiBase + InputSelectCardsFromList
+        val hand = player.getZone(ZoneType.Hand).cards
+        return chooseCardsViaBridge(
+            CardCollection(hand),
+            nDiscard,
+            nDiscard,
+            "Discard to hand size (select $nDiscard)",
+        )
+    }
+
+    override fun chooseCardsToRevealFromHand(min: Int, max: Int, valid: CardCollectionView): CardCollectionView {
+        // PCHuman uses InputSelectCardsFromList
+        return chooseCardsViaBridge(valid, min, max.coerceAtMost(valid.size), "Choose cards to reveal")
+    }
+
+    // -- Generic choose cards for effect -----------------------------------
+    // PCHuman uses useSelectCardsInput → InputSelectCardsFromList
+
+    override fun chooseCardsForEffect(
+        sourceList: CardCollectionView,
+        sa: SpellAbility?,
+        title: String?,
+        min: Int,
+        max: Int,
+        isOptional: Boolean,
+        params: MutableMap<String, Any>?,
+    ): CardCollectionView {
+        if (sourceList.isEmpty()) return CardCollection()
+        if (!isOptional && sourceList.size <= min) return sourceList
+        val effectiveMin = if (isOptional) 0 else min
+        return chooseCardsViaBridge(sourceList, effectiveMin, max, title ?: "Choose cards")
+    }
+
+    // -- Choose single entity ----------------------------------------------
+    // PCHuman uses useSelectCardsInput → InputSelectEntitiesFromList
+
+    override fun <T : GameEntity> chooseSingleEntityForEffect(
+        optionList: FCollectionView<T>,
+        delayedReveal: DelayedReveal?,
+        sa: SpellAbility?,
+        title: String?,
+        isOptional: Boolean,
+        targetedPlayer: Player?,
+        params: MutableMap<String, Any>?,
+    ): T? {
+        if (delayedReveal != null) reveal(delayedReveal)
+        if (optionList.isEmpty()) return null
+        if (optionList.size == 1 && !isOptional) return optionList.getFirst()
+        val labels = optionList.map { it.entityLabel() }
+        val request = PromptRequest(
+            promptType = "choose_cards",
+            message = title ?: "Choose one",
+            options = labels,
+            min = if (isOptional) 0 else 1,
+            max = 1,
+            defaultIndex = 0,
+            candidateRefs = buildCandidateRefs(optionList),
+        )
+        val indices = bridge.requestChoice(request)
+        val idx = indices.firstOrNull()
+        if (idx != null && idx in 0 until optionList.size) {
+            return optionList.get(idx)
+        }
+        return if (isOptional) null else optionList.getFirst()
+    }
+
+    // chooseSingleCardForZoneChange — inherited from PCHuman, which delegates
+    // to our overridden chooseSingleEntityForEffect. No override needed.
+
+    // -- Choose multiple entities ------------------------------------------
+    // PCHuman uses useSelectCardsInput → InputSelectEntitiesFromList
+
+    override fun <T : GameEntity> chooseEntitiesForEffect(
+        optionList: FCollectionView<T>,
+        min: Int,
+        max: Int,
+        delayedReveal: DelayedReveal?,
+        sa: SpellAbility?,
+        title: String?,
+        targetedPlayer: Player?,
+        params: MutableMap<String, Any>?,
+    ): List<T> {
+        if (delayedReveal != null) reveal(delayedReveal)
+        if (optionList.isEmpty()) return emptyList()
+        val effectiveMax = max.coerceAtMost(optionList.size)
+        val effectiveMin = min.coerceAtLeast(0).coerceAtMost(effectiveMax)
+        if (optionList.size <= effectiveMin) return optionList.toList()
+        val labels = optionList.map { it.entityLabel() }
+        val request = PromptRequest(
+            promptType = "choose_cards",
+            message = title ?: "Choose cards",
+            options = labels,
+            min = effectiveMin,
+            max = effectiveMax,
+            defaultIndex = 0,
+            candidateRefs = buildCandidateRefs(optionList),
+        )
+        val indices = bridge.requestChoice(request)
+        return indices.filter { it in optionList.indices }.map { optionList.get(it) }
+    }
+
+    // -- Targeting ---------------------------------------------------------
+    // Seam 2: chooseTargetsFor is inherited from PCHuman, which uses
+    // TargetSelection → selectTargetsInteractively() (overridden below
+    // in the ADR-010 Seam overrides section). This gives us MustTarget
+    // filtering, divided-as-you-choose, multi-part targeting recursion,
+    // random targets, and auto-target for single-candidate triggers.
+
+    // -- Confirm -----------------------------------------------------------
+    // PCHuman uses InputConfirm (desktop-only)
+
+    override fun confirmAction(
+        sa: SpellAbility?,
+        mode: PlayerActionConfirmMode?,
+        message: String?,
+        options: MutableList<String>?,
+        cardToShow: Card?,
+        params: MutableMap<String, Any>?,
+    ): Boolean {
+        val displayMessage = message ?: "Confirm action?"
+        val displayOptions = if (options.isNullOrEmpty()) {
+            listOf("Yes", "No")
+        } else {
+            options.toList()
+        }
+        val request = PromptRequest(
+            promptType = "confirm",
+            message = displayMessage,
+            options = displayOptions,
+            min = 1,
+            max = 1,
+            defaultIndex = 0,
+        )
+        val result = bridge.requestChoice(request)
+        return result.firstOrNull() == 0
+    }
+
+    override fun confirmTrigger(wrapper: WrappedAbility): Boolean {
+        // PCHuman uses FModel + GuiBase + InputConfirm
+        if (wrapper.isMandatory) return true
+        val source = wrapper.hostCard?.name ?: "Unknown"
+        val description = wrapper.stackDescription?.takeIf { it.isNotBlank() }
+            ?: "Triggered ability"
+        val request = PromptRequest(
+            promptType = "confirm",
+            message = "$source: $description — Use this ability?",
+            options = listOf("Yes", "No"),
+            min = 1,
+            max = 1,
+            defaultIndex = 0,
+        )
+        val result = bridge.requestChoice(request)
+        return result.firstOrNull() == 0
+    }
+
+    override fun confirmPayment(costPart: CostPart?, question: String, sa: SpellAbility): Boolean {
+        // PCHuman's version uses InputConfirm (desktop-only). Route through bridge.
+        val request = PromptRequest(
+            promptType = "confirm",
+            message = question,
+            options = listOf("Yes", "No"),
+            min = 1,
+            max = 1,
+            defaultIndex = 0,
+        )
+        val result = bridge.requestChoice(request)
+        return result.firstOrNull() == 0
+    }
+
+    override fun confirmReplacementEffect(
+        replacementEffect: ReplacementEffect,
+        sa: SpellAbility?,
+        affected: GameEntity?,
+        prompt: String?,
+    ): Boolean {
+        // PCHuman uses GuiBase + InputConfirm
+        val message = prompt ?: replacementEffect.toString()
+        val request = PromptRequest(
+            promptType = "confirm",
+            message = message,
+            options = listOf("Yes", "No"),
+            min = 1,
+            max = 1,
+            defaultIndex = 0,
+        )
+        val result = bridge.requestChoice(request)
+        return result.firstOrNull() == 0
+    }
+
+    override fun chooseBinary(
+        sa: SpellAbility?,
+        question: String?,
+        kindOfChoice: BinaryChoiceType?,
+        defaultVal: Boolean?,
+    ): Boolean {
+        // PCHuman uses InputConfirm
+        val labels = when (kindOfChoice) {
+            BinaryChoiceType.HeadsOrTails -> listOf("Heads", "Tails")
+            BinaryChoiceType.TapOrUntap -> listOf("Tap", "Untap")
+            BinaryChoiceType.OddsOrEvens -> listOf("Odds", "Evens")
+            BinaryChoiceType.UntapOrLeaveTapped -> listOf("Untap", "Leave Tapped")
+            BinaryChoiceType.PlayOrDraw -> listOf("Play", "Draw")
+            BinaryChoiceType.LeftOrRight -> listOf("Left", "Right")
+            BinaryChoiceType.AddOrRemove -> listOf("Add Counter", "Remove Counter")
+            BinaryChoiceType.IncreaseOrDecrease -> listOf("Increase", "Decrease")
+            else -> listOf("Yes", "No")
+        }
+        val request = PromptRequest(
+            promptType = "confirm",
+            message = question ?: "Choose one",
+            options = labels,
+            min = 1,
+            max = 1,
+            defaultIndex = if (defaultVal != false) 0 else 1,
+        )
+        val result = bridge.requestChoice(request)
+        return result.firstOrNull() == 0
+    }
+
+    override fun chooseColor(message: String, sa: SpellAbility?, colors: forge.card.ColorSet): Byte {
+        val cntColors = colors.countColors()
+        if (cntColors == 0) return 0
+        if (cntColors == 1) return colors.color
+        // PCHuman uses InputConfirm.confirm → showAndWait (desktop-only).
+        // Route through our prompt bridge instead.
+        val colorOptions = colors.orderedColors.map { it.translatedName }
+        val request = PromptRequest(
+            promptType = "choose_one",
+            message = message,
+            options = colorOptions,
+            min = 1,
+            max = 1,
+            defaultIndex = 0,
+        )
+        log.debug("chooseColor: options={}", colorOptions)
+        val indices = bridge.requestChoice(request)
+        val idx = indices.firstOrNull() ?: return 0
+        if (idx >= colorOptions.size) return 0
+        return colors.orderedColors.toList()[idx].colorMask
+    }
+
+    override fun willPutCardOnTop(c: Card): Boolean {
+        // PCHuman uses InputConfirm
+        val request = PromptRequest(
+            promptType = "confirm",
+            message = "Put ${c.name} on top or bottom of library?",
+            options = listOf("Top", "Bottom"),
+            min = 1,
+            max = 1,
+            defaultIndex = 0,
+        )
+        val result = bridge.requestChoice(request)
+        return result.firstOrNull() == 0
+    }
+
+    // -- Zone ordering ----------------------------------------------------
+    // PCHuman uses FModel.getPreferences + ForgeConstants
+
+    override fun orderMoveToZoneList(
+        cards: CardCollectionView,
+        zone: ZoneType,
+        sa: SpellAbility?,
+    ): CardCollectionView {
+        if (cards.size <= 1) return cards
+        // Always prompt for ordering (skip FModel preference check)
+        val labels = cards.map { it.name }
+        val request = PromptRequest(
+            promptType = "choose_cards",
+            message = "Order cards being put into ${zone.name.lowercase()}",
+            options = labels,
+            min = cards.size,
+            max = cards.size,
+            defaultIndex = 0,
+        )
+        val indices = bridge.requestChoice(request)
+        val result = CardCollection()
+        for (idx in indices) {
+            if (idx in 0 until cards.size) result.add(cards.get(idx))
+        }
+        // Add any cards not in the response
+        for (card in cards) {
+            if (card !in result) result.add(card)
+        }
+        return result
+    }
+
+    // -- Mana payment ------------------------------------------------------
+    // Seam 3: payManaCost is inherited from PCHuman, which calls
+    // HumanPlay.payManaCost() for the full ceremony (X cost tracking,
+    // CostAdjustment.adjust, offering/emerge sacrifice setup, mana
+    // color conversion, handleOfferingConvokeAndDelve). The actual
+    // "tap lands" step calls payManaInteractively() which is overridden
+    // below in the ADR-010 Seam overrides section (AI auto-pay for now).
+
+    // -- Convoke / Improvise -----------------------------------------------
+    // PCHuman uses InputSelectCardsForConvokeOrImprovise (desktop-only, hangs).
+    // Delegate to AI tap-selection for now.  Refs meeting 2026-02-08 Tier 1.
+
+    override fun chooseCardsForConvokeOrImprovise(
+        sa: SpellAbility,
+        manaCost: ManaCost,
+        untappedCards: CardCollectionView,
+        artifacts: Boolean,
+        creatures: Boolean,
+        maxReduction: Int?,
+    ): Map<Card, ManaCostShard> {
+        val options = untappedCards.map { it.name }
+        if (options.isEmpty()) return emptyMap()
+
+        val keyword = if (artifacts) "improvise" else "convoke"
+        val request = PromptRequest(
+            promptType = "choose_cards",
+            message = "Choose cards to tap for $keyword",
+            options = options,
+            min = 0,
+            max = options.size.coerceAtMost(maxReduction ?: options.size),
+            defaultIndex = 0,
+        )
+        val indices = bridge.requestChoice(request)
+        if (indices.isEmpty()) return emptyMap()
+
+        // Map selected cards to mana cost shards.
+        // TODO: greedy WUBRG-order assignment can be suboptimal for multi-color
+        // creatures vs costs with mixed colored/generic — consider AI's approach
+        // or a min-cost matching algorithm.
+        // Track remaining colored/generic counts to avoid over-assigning.
+        val colorShardCounts = mutableMapOf<ManaCostShard, Int>()
+        for (shard in listOf(ManaCostShard.WHITE, ManaCostShard.BLUE, ManaCostShard.BLACK, ManaCostShard.RED, ManaCostShard.GREEN)) {
+            val count = manaCost.getShardCount(shard)
+            if (count > 0) colorShardCounts[shard] = count
+        }
+        var genericRemaining = manaCost.genericCost
+
+        val cardList = untappedCards.toList()
+        val result = mutableMapOf<Card, ManaCostShard>()
+        for (idx in indices) {
+            val card = cardList.getOrNull(idx) ?: continue
+            val shard = pickShardForConvoke(card, colorShardCounts, genericRemaining)
+            if (shard != null) {
+                result[card] = shard
+                if (shard == ManaCostShard.GENERIC) {
+                    genericRemaining--
+                } else {
+                    val remaining = (colorShardCounts[shard] ?: 1) - 1
+                    if (remaining <= 0) colorShardCounts.remove(shard) else colorShardCounts[shard] = remaining
+                }
+            }
+        }
+        return result
+    }
+
+    private fun pickShardForConvoke(
+        card: Card,
+        colorCounts: Map<ManaCostShard, Int>,
+        genericRemaining: Int,
+    ): ManaCostShard? {
+        val colors = card.color
+        // Try colored shards first
+        if (colors.hasWhite() && (colorCounts[ManaCostShard.WHITE] ?: 0) > 0) return ManaCostShard.WHITE
+        if (colors.hasBlue() && (colorCounts[ManaCostShard.BLUE] ?: 0) > 0) return ManaCostShard.BLUE
+        if (colors.hasBlack() && (colorCounts[ManaCostShard.BLACK] ?: 0) > 0) return ManaCostShard.BLACK
+        if (colors.hasRed() && (colorCounts[ManaCostShard.RED] ?: 0) > 0) return ManaCostShard.RED
+        if (colors.hasGreen() && (colorCounts[ManaCostShard.GREEN] ?: 0) > 0) return ManaCostShard.GREEN
+        // Fall back to generic
+        if (genericRemaining > 0) return ManaCostShard.GENERIC
+        return null
+    }
+
+    // -- Pay cost to prevent effect ----------------------------------------
+    // Seam 4: payCostToPreventEffect is inherited from PCHuman, which calls
+    // HumanPlay.payCostDuringAbilityResolve(). That method now routes through
+    // seamed callbacks: selectCardForCostDuringResolve (overridden below),
+    // selectCardsForCostPart (overridden below), WebCostDecision (Seam 1),
+    // and payManaInteractively (Seam 3). Unlocks Propaganda, Rhystic Study,
+    // Echo, Cumulative Upkeep, Ghostly Prison, etc.
+
+    // -- Discard unless type -----------------------------------------------
+    // PCHuman uses InputSelectEntitiesFromList (desktop-only, hangs).
+    // Bridge as a card selection prompt.  Refs meeting 2026-02-08 Tier 1.
+
+    override fun chooseCardsToDiscardUnlessType(
+        min: Int,
+        hand: CardCollectionView,
+        param: String,
+        sa: SpellAbility,
+    ): CardCollectionView {
+        val splitTypes = param.split(",")
+        val labels = hand.map { card ->
+            val isMatchingType = card.isValid(
+                splitTypes.toTypedArray(),
+                sa.activatingPlayer,
+                sa.hostCard,
+                sa,
+            )
+            if (isMatchingType) "${card.name} (${splitTypes.joinToString("/")})" else card.name
+        }
+        val request = PromptRequest(
+            promptType = "choose_cards",
+            message = "Choose $min card(s) to discard (or pick a ${splitTypes.joinToString("/")} to reveal)",
+            options = labels,
+            min = 1,
+            max = min,
+            defaultIndex = 0,
+        )
+        val indices = bridge.requestChoice(request)
+        val handList = hand.toList()
+        val result = CardCollection()
+        for (idx in indices) {
+            val card = handList.getOrNull(idx) ?: continue
+            result.add(card)
+        }
+        return result
+    }
+
+    // -- Simultaneous triggered abilities ----------------------------------
+    // Parent's HumanPlay.playSpellAbility routes targeting through the
+    // player controller (→ bridge) and works for triggers without costs.
+    // A full headless override needs prepareSingleSa-style targeting
+    // (like the AI does) to avoid silently dropping triggers.
+    // Defer to parent for now — only triggers with explicit costs would
+    // need a web-safe override.  Refs meeting 2026-02-08 Tier 1.
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ADR-010 Seam overrides
+    // Factory methods from PlayerControllerHuman, overridden for web.
+    // ═══════════════════════════════════════════════════════════════════
+
+    // -- Seam 1: Cost Decision --------------------------------------------
+    // WebCostDecision routes interactive cost choices through the bridge.
+
+    override fun createCostDecision(
+        p: Player,
+        sa: SpellAbility,
+        effect: Boolean,
+    ): forge.game.cost.CostDecisionMakerBase = WebCostDecision(this, p, sa, effect, bridge)
+
+    override fun createCostDecision(
+        p: Player,
+        sa: SpellAbility,
+        effect: Boolean,
+        source: Card,
+        orString: String?,
+    ): forge.game.cost.CostDecisionMakerBase = WebCostDecision(this, p, sa, effect, bridge, source, orString)
+
+    // -- Seam 2: Target Selection -----------------------------------------
+    // Bridge-based interactive target selection.
+    // TargetSelection validates candidates and zones; this method handles
+    // the user interaction portion.
+
+    override fun selectTargetsInteractively(
+        validTargets: List<Card>,
+        sa: SpellAbility,
+        mandatory: Boolean,
+        numTargets: Int?,
+        divisionValues: Collection<Int>?,
+        filter: java.util.function.Predicate<forge.game.GameObject>?,
+        mustTargetFiltered: Boolean,
+    ): forge.player.TargetSelectionResult {
+        val tgt = sa.targetRestrictions ?: return forge.player.TargetSelectionResult(false, true)
+        val minTargets = numTargets ?: sa.minTargets
+        val maxTargets = numTargets ?: sa.maxTargets
+
+        // Build the full candidate list: players + cards (engine's getAllCandidates
+        // returns List<GameEntity> with players first, then cards).
+        // validTargets is List<Card> only — we merge in player targets here.
+        val allCandidates: List<forge.game.GameEntity> = buildList {
+            // Add player targets from the engine (getAllCandidates checks canTarget)
+            for (player in sa.activatingPlayer.game.players) {
+                if (sa.canTarget(player)) add(player)
+            }
+            // Add card targets (already filtered by the engine's CardUtil.getValidCardsToTarget)
+            addAll(validTargets)
+        }
+
+        log.info(
+            "selectTargetsInteractively: spell={} candidates={} ({}p+{}c) mandatory={} min={} max={}",
+            sa.hostCard?.name,
+            allCandidates.map { it.name },
+            allCandidates.count { it is forge.game.player.Player },
+            validTargets.size,
+            mandatory,
+            minTargets,
+            maxTargets,
+        )
+
+        if (allCandidates.isEmpty()) {
+            return forge.player.TargetSelectionResult(false, true)
+        }
+
+        // Auto-resolve: single valid target + mandatory → pick it without prompting.
+        if (allCandidates.size == 1 && mandatory && minTargets >= 1) {
+            sa.targets.add(allCandidates[0])
+            return forge.player.TargetSelectionResult(true, true)
+        }
+
+        val labels = allCandidates.map { entity ->
+            when (entity) {
+                is forge.game.card.Card -> {
+                    val zone = entity.zone?.zoneType?.name ?: ""
+                    val ctrl = entity.controller?.name ?: ""
+                    "${entity.name} ($zone, $ctrl)"
+                }
+                is forge.game.player.Player -> entity.name
+                else -> entity.toString()
+            }
+        }
+        val candidateRefs = buildCandidateRefs(allCandidates)
+
+        val prompt = tgt.vtSelection?.takeIf { it.isNotBlank() }
+            ?: "Choose target for ${sa.hostCard?.name ?: sa}"
+
+        val numAlreadyTargeted = sa.targets.size
+        val stillNeeded = maxTargets - numAlreadyTargeted
+        val minNeeded = (minTargets - numAlreadyTargeted).coerceAtLeast(if (mandatory) 1 else 0)
+
+        val request = PromptRequest(
+            promptType = "choose_cards",
+            message = prompt,
+            options = labels,
+            min = minNeeded.coerceAtMost(allCandidates.size),
+            max = stillNeeded.coerceAtMost(allCandidates.size),
+            defaultIndex = 0,
+            candidateRefs = candidateRefs,
+            sourceEntityId = sa.hostCard?.id,
+        )
+        val indices = bridge.requestChoice(request)
+
+        if (indices.isEmpty() && mandatory && minTargets > 0) {
+            return forge.player.TargetSelectionResult(false, false)
+        }
+
+        for (idx in indices) {
+            val entity = allCandidates.getOrNull(idx) ?: continue
+            if (entity is forge.game.card.Card && sa.isDividedAsYouChoose && divisionValues != null) {
+                sa.addDividedAllocation(entity, sa.stillToDivide / (stillNeeded - indices.indexOf(idx)).coerceAtLeast(1))
+            }
+            sa.targets.add(entity)
+        }
+
+        val totalTargeted = sa.targets.size
+        val done = totalTargeted >= maxTargets || indices.isEmpty()
+        val chosen = indices.isNotEmpty() || minTargets == 0
+        return forge.player.TargetSelectionResult(chosen, done)
+    }
+
+    // -- Seam 3: Mana Payment ---------------------------------------------
+    // Use AI auto-payment for now (matches existing behavior).
+    // Later: interactive "tap these lands" via bridge.
+
+    override fun payManaInteractively(
+        toPay: forge.game.mana.ManaCostBeingPaid,
+        sa: SpellAbility,
+        activator: Player,
+        matrix: forge.game.mana.ManaConversionMatrix,
+        effect: Boolean,
+        prompt: String?,
+    ): Boolean {
+        log.debug("payManaInteractively [AI]: {} for {}", toPay, sa.hostCard?.name)
+        return ComputerUtilMana.payManaCost(toPay, sa, activator, effect)
+    }
+
+    // -- Seam 4a: Select card during cost resolution ----------------------
+
+    override fun selectCardForCostDuringResolve(
+        message: String,
+        options: List<Card>,
+        mandatory: Boolean,
+    ): Card? {
+        if (options.isEmpty()) return null
+        if (options.size == 1 && mandatory) return options[0]
+
+        val labels = options.map { it.name }
+        val candidateRefs = options.mapIndexed { idx, card ->
+            PromptCandidateRefDto(idx, "card", card.id, card.zone?.zoneType?.name)
+        }
+        val request = PromptRequest(
+            promptType = "choose_cards",
+            message = message,
+            options = labels,
+            min = if (mandatory) 1 else 0,
+            max = 1,
+            defaultIndex = 0,
+            candidateRefs = candidateRefs,
+        )
+        val indices = bridge.requestChoice(request)
+        val idx = indices.firstOrNull() ?: return null
+        return options.getOrNull(idx)
+    }
+
+    // -- Seam 4b: Select cards for cost part ------------------------------
+
+    override fun selectCardsForCostPart(
+        message: String,
+        available: forge.game.card.CardCollectionView,
+        amount: Int,
+        sa: SpellAbility,
+    ): CardCollection? {
+        if (available.size < amount) return null
+        val result = chooseCardsViaBridge(available, amount, amount, message)
+        return if (result.size == amount) result else null
+    }
+
+    // -- Seam 5: chooseNumberForKeywordCost ----------------------------------
+    // PCHuman uses InputConfirm.confirm() when max==1 (desktop-only, hangs on
+    // web) and getGui().getInteger() for max>1 (bridged, works fine).
+    // Override only the max==1 path to route through the bridge confirm prompt.
+
+    override fun chooseNumberForKeywordCost(
+        sa: SpellAbility,
+        cost: Cost,
+        keyword: KeywordInterface,
+        prompt: String,
+        max: Int,
+    ): Int {
+        if (max <= 0) return 0
+        if (max == 1) {
+            val request = PromptRequest(
+                promptType = "confirm",
+                message = prompt,
+                options = listOf("Yes", "No"),
+                min = 1,
+                max = 1,
+                defaultIndex = 0,
+            )
+            val indices = bridge.requestChoice(request)
+            return if (indices.firstOrNull() == 0) 1 else 0
+        }
+        // max > 1: getGui().getInteger() is bridged through WebGuiGame, safe to inherit
+        return super.chooseNumberForKeywordCost(sa, cost, keyword, prompt, max)
+    }
+
+    // -- Play spell --------------------------------------------------------
+    // PCHuman uses HumanPlay + HumanPlaySpellAbility (desktop Input classes)
+
+    override fun playChosenSpellAbility(chosenSa: SpellAbility): Boolean {
+        // Seam 1: Use HumanPlaySpellAbility to get proper cost decisions via
+        // WebCostDecision (factory), rollback, splice, extra keyword costs, and
+        // mana conversion.
+        //
+        // Targets may be pre-set by chooseSpellAbilityToPlay() when the client
+        // supplies them upfront (web UI path). When targets are NOT pre-set and
+        // the spell uses targeting, we pass mayChooseTargets=true so the engine
+        // invokes selectTargetsInteractively() → InteractivePromptBridge, which
+        // lets the Arena/nexus path collect targets via SelectTargetsReq/Resp.
+        chosenSa.setActivatingPlayer(player)
+
+        if (chosenSa.isLandAbility) {
+            if (chosenSa.canPlay()) chosenSa.resolve()
+            return true
+        }
+
+        chosenSa.hostCard?.setSplitStateToPlayAbility(chosenSa)
+
+        val needsTargeting = chosenSa.usesTargeting() && chosenSa.targets.isEmpty()
+        val req = forge.player.HumanPlaySpellAbility(this, chosenSa)
+        return req.playAbility(needsTargeting, false, false)
+    }
+
+    override fun playSpellAbilityNoStack(effectSA: SpellAbility, mayChoseNewTargets: Boolean) {
+        // Direct resolve — this is called by the engine for triggered abilities,
+        // replacement effects, and other no-stack effects.  Full HumanPlay flow
+        // (with interactive targeting + cost payment) is Seam 4 territory.
+        effectSA.activatingPlayer = player
+        effectSA.resolve()
+    }
+
+    // -- Mulligan / starting player ----------------------------------------
+    // The engine's MulliganService calls these on the game thread.
+    // When a MulliganBridge is wired, they block until the WS client
+    // submits a decision. Without a bridge (tests, AI), they auto-decide.
+
+    override fun mulliganKeepHand(mulliganingPlayer: Player, cardsToReturn: Int): Boolean {
+        val mb = mulliganBridge ?: run {
+            log.debug("mulliganKeepHand: no bridge, auto-keep for {}", player.name)
+            return true
+        }
+        return mb.awaitKeepDecision(player.id, cardsToReturn)
+    }
+
+    override fun tuckCardsViaMulligan(mulliganingPlayer: Player, cardsToReturn: Int): CardCollectionView {
+        if (cardsToReturn <= 0) return CardCollection()
+        val mb = mulliganBridge ?: run {
+            log.debug("tuckCardsViaMulligan: no bridge, auto-tuck {} for {}", cardsToReturn, player.name)
+            val hand = player.getZone(ZoneType.Hand).cards
+            val toReturn = CardCollection()
+            for (i in 0 until cardsToReturn.coerceAtMost(hand.size)) {
+                toReturn.add(hand[i])
+            }
+            return toReturn
+        }
+        val hand = player.getCardsIn(ZoneType.Hand)
+        val cards = mb.awaitTuckDecision(player.id, cardsToReturn, hand)
+        return CardCollection(cards)
+    }
+
+    override fun chooseStartingPlayer(isFirstGame: Boolean): Player {
+        // Engine determines starting player via coin flip in GameAction.startGame().
+        // This is only called in specific variants; auto-choose self.
+        log.debug("chooseStartingPlayer: auto-choose self ({})", player.name)
+        return player
+    }
+
+    // -- Seam 5: confirmMulliganScry ------------------------------------------
+    // PCHuman uses InputConfirm (desktop-only, hangs on web).
+    // Scry is always beneficial after a mulligan, so auto-accept.
+    override fun confirmMulliganScry(p: Player): Boolean = true
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Game-loop overrides (active only when actionBridge is set)
+    // These are web-specific, not present in desktop PlayerControllerHuman.
+    // ═══════════════════════════════════════════════════════════════════
+
+    private var lastSeenTurn: Int = -1
+
+    override fun chooseSpellAbilityToPlay(): List<SpellAbility>? {
+        val ab = actionBridge ?: return super.chooseSpellAbilityToPlay()
+
+        val handler = game.phaseHandler
+
+        val currentTurn = handler.turn
+        if (currentTurn != lastSeenTurn) {
+            lastSeenTurn = currentTurn
+            ab.setAutoPassUntilEndOfTurn(false)
+        }
+
+        if (ab.autoPassUntilEndOfTurn) return null
+
+        // Smart phase skip (ADR-008): auto-pass when player has no meaningful actions.
+        // Only on own turn — on opponent's turn the player needs priority at their
+        // phase stops to cast instants (e.g. Kill Shot during combat).
+        // Never skip when stack has items — player should see stack state.
+        // Never skip right after a prompt resolved — player needs to see the result.
+        if (smartPhaseSkip &&
+            !bridge.consumePromptResolved() &&
+            handler.playerTurn?.id == player.id &&
+            game.stack.isEmpty &&
+            !PlayableActionQuery.hasPlayableNonManaAction(game, player)
+        ) {
+            return null
+        }
+
+        val profile = phaseStopProfile
+        if (profile != null && !profile.isEnabled(player.id, handler.phase)) {
+            return null
+        }
+
+        // Loop so that mana abilities (which don't use the stack) keep priority
+        // with the player instead of immediately passing.  Refs #11
+        while (true) {
+            notifyStateChanged()
+
+            val state = PendingActionState(
+                phase = handler.phase?.name ?: "UNKNOWN",
+                activePlayerId = handler.playerTurn?.id ?: -1,
+                priorityPlayerId = player.id,
+            )
+            when (val action = ab.awaitAction(state)) {
+                is PlayerAction.PassPriority -> return null
+                is PlayerAction.EndTurn -> {
+                    ab.setAutoPassUntilEndOfTurn(true)
+                    return null
+                }
+                is PlayerAction.CastSpell -> return executeCastSpell(action.cardId, action.abilityId, action.targets)
+                is PlayerAction.ActivateAbility -> return executeActivateAbility(action.cardId, action.abilityId, action.targets)
+                is PlayerAction.ActivateMana -> {
+                    // Mana abilities don't use the stack — player retains priority.
+                    // Activate and loop back to await the next action.
+                    if (!executeActivateMana(action.cardId)) {
+                        log.debug("Mana activation failed for card {}", action.cardId)
+                    }
+                    continue
+                }
+                is PlayerAction.PlayLand -> return executePlayLand(action.cardId)
+                else -> return null
+            }
+        }
+    }
+
+    override fun declareAttackers(attacker: Player, combat: Combat) {
+        val ab = actionBridge ?: return super.declareAttackers(attacker, combat)
+        log.info("declareAttackers: waiting for {}", attacker.name)
+
+        notifyStateChanged()
+
+        val state = PendingActionState(
+            phase = "COMBAT_DECLARE_ATTACKERS",
+            activePlayerId = attacker.id,
+            priorityPlayerId = attacker.id,
+        )
+        when (val action = ab.awaitAction(state)) {
+            is PlayerAction.DeclareAttackers -> {
+                for (cardId in action.attackerIds) {
+                    val card = findCard(cardId) ?: continue
+                    if (!CombatUtil.canAttack(card)) continue
+                    val defender = when {
+                        action.defenderCardId != null -> {
+                            val pw = findCard(action.defenderCardId)
+                            if (pw != null && pw.isPlaneswalker) pw as GameEntity else combat.defenders.firstOrNull()
+                        }
+                        action.defenderPlayerId != null ->
+                            game.players.firstOrNull { it.id == action.defenderPlayerId } as? GameEntity
+                        else -> combat.defenders.firstOrNull()
+                    } ?: continue
+                    combat.addAttacker(card, defender)
+                }
+            }
+            is PlayerAction.PassPriority -> {}
+            else -> {}
+        }
+    }
+
+    override fun declareBlockers(defender: Player, combat: Combat) {
+        val ab = actionBridge ?: return super.declareBlockers(defender, combat)
+        log.info("declareBlockers: waiting for {}", defender.name)
+
+        notifyStateChanged()
+
+        val state = PendingActionState(
+            phase = "COMBAT_DECLARE_BLOCKERS",
+            activePlayerId = defender.id,
+            priorityPlayerId = defender.id,
+        )
+        when (val action = ab.awaitAction(state)) {
+            is PlayerAction.DeclareBlockers -> {
+                for ((blockerId, attackerId) in action.blockAssignments) {
+                    val blocker = findCard(blockerId) ?: continue
+                    val attackerCard = findCard(attackerId) ?: continue
+                    if (combat.isAttacking(attackerCard)) {
+                        combat.addBlocker(attackerCard, blocker)
+                    }
+                }
+            }
+            is PlayerAction.PassPriority -> {}
+            else -> {}
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Helpers
+    // ═══════════════════════════════════════════════════════════════════
+
+    private fun GameEntity.entityLabel(): String = when (this) {
+        is Card -> name
+        is Player -> name
+        else -> toString()
+    }
+
+    private fun buildCandidateRefs(entities: Iterable<GameEntity>): List<PromptCandidateRefDto> =
+        entities.mapIndexedNotNull { idx, entity ->
+            when (entity) {
+                is Card -> PromptCandidateRefDto(idx, "card", entity.id, entity.zone?.zoneType?.name)
+                is Player -> PromptCandidateRefDto(idx, "player", entity.id)
+                else -> null
+            }
+        }
+
+    /** Common bridge-based card selection for sacrifice/discard/choose/reveal. */
+    private fun chooseCardsViaBridge(
+        cards: CardCollectionView,
+        min: Int,
+        max: Int,
+        message: String,
+    ): CardCollection {
+        if (cards.isEmpty()) return CardCollection()
+        val effectiveMax = max.coerceAtMost(cards.size)
+        val effectiveMin = min.coerceAtLeast(0).coerceAtMost(effectiveMax)
+        if (cards.size <= effectiveMin) return CardCollection(cards)
+        val labels = cards.map { it.name }
+        val request = PromptRequest(
+            promptType = "choose_cards",
+            message = message,
+            options = labels,
+            min = effectiveMin,
+            max = effectiveMax,
+            defaultIndex = 0,
+        )
+        val indices = bridge.requestChoice(request)
+        val result = CardCollection()
+        for (idx in indices) {
+            if (idx in 0 until cards.size) result.add(cards.get(idx))
+        }
+        return result
+    }
+
+    private fun executeCastSpell(cardId: Int, abilityId: Int?, targets: List<TargetDto>): List<SpellAbility>? {
+        val card = findCard(cardId) ?: return null
+        val candidates = getAllCastableAbilities(card)
+        if (candidates.isEmpty()) return null
+        val sa = if (abilityId != null && abilityId < candidates.size) {
+            candidates[abilityId]
+        } else {
+            candidates.first()
+        }
+        applyTargets(sa, targets)
+        return listOf(sa)
+    }
+
+    private fun executeActivateAbility(cardId: Int, abilityId: Int, targets: List<TargetDto>): List<SpellAbility>? {
+        val card = findCard(cardId) ?: return null
+        val abilities = getNonManaActivatedAbilities(card)
+        val sa = abilities.getOrNull(abilityId) ?: return null
+        applyTargets(sa, targets)
+        return listOf(sa)
+    }
+
+    private fun applyTargets(sa: SpellAbility, targets: List<TargetDto>) {
+        if (targets.isEmpty() || !sa.usesTargeting()) return
+        sa.resetTargets()
+        for (t in targets) {
+            val obj: GameObject? = when (t.kind) {
+                "player" -> game.getPlayer(t.id)
+                "card" -> game.findById(t.id)
+                "stack_item" -> game.getStack().firstOrNull { it.id == t.id }?.getSpellAbility()
+                else -> null
+            }
+            if (obj != null) sa.targets.add(obj)
+        }
+    }
+
+    /**
+     * Activate a mana ability: tap the permanent, choose color if needed, produce mana.
+     * Returns true on success.  Refs #11 (color choice), fixes infinite-mana bug.
+     */
+    private fun executeActivateMana(cardId: Int): Boolean {
+        val card = findCard(cardId) ?: return false
+        val playableAbilities = card.manaAbilities.filter { it.canPlay() }
+        if (playableAbilities.isEmpty()) return false
+        log.debug("executeActivateMana: {} ({} abilities)", card.name, playableAbilities.size)
+
+        val manaAbility = if (playableAbilities.size == 1) {
+            playableAbilities.first()
+        } else {
+            // Multiple distinct mana abilities — prompt to pick which one
+            val labels = playableAbilities.map { ability ->
+                ability.manaPart?.origProduced ?: "?"
+            }
+            val optionsWithCancel = labels + "Cancel"
+            val request = PromptRequest(
+                promptType = "choose_one",
+                message = "Choose mana ability for ${card.name}",
+                options = optionsWithCancel,
+                min = 1,
+                max = 1,
+                defaultIndex = 0,
+            )
+            val indices = bridge.requestChoice(request)
+            val idx = indices.firstOrNull() ?: return false
+            if (idx >= labels.size) return false // Cancel
+            playableAbilities[idx]
+        }
+
+        manaAbility.setActivatingPlayer(player)
+
+        // Pay costs via CostPayment (handles tap, sac, exile, etc.) then resolve.
+        // For Combo mana (e.g. "W B"), resolve() triggers engine's chooseColor()
+        // callback through WebGuiBase → InteractivePromptBridge — one prompt, no duplication.
+        val costs = manaAbility.payCosts
+        if (costs != null) {
+            val payment = CostPayment(costs, manaAbility)
+            if (!payment.payComputerCosts(AiCostDecision(player, manaAbility, false))) return false
+        }
+        try {
+            manaAbility.resolve()
+        } catch (ex: Exception) {
+            log.error("executeActivateMana: resolve() failed for {}: {}", card.name, ex.message, ex)
+            return false
+        }
+        log.debug("executeActivateMana: {} resolved, pool={}", card.name, player.manaPool)
+        return true
+    }
+
+    private fun executePlayLand(cardId: Int): List<SpellAbility>? {
+        val card = findCard(cardId) ?: return null
+        if (!card.isLand) return null
+        val landAbility = LandAbility(card, card.currentState)
+        landAbility.activatingPlayer = player
+        return listOf(landAbility)
+    }
+
+    /** All playable spell abilities including alternative costs (Overload, Flashback, etc.). */
+    private fun getAllCastableAbilities(card: Card): List<SpellAbility> =
+        getAllCastableAbilities(card, player)
+
+    private fun getNonManaActivatedAbilities(card: Card): List<SpellAbility> =
+        getNonManaActivatedAbilities(card, player)
+
+    private fun findCard(cardId: Int): Card? = findCard(game, cardId)
+
+    private fun notifyStateChanged() {
+        if (onStateChanged != null) {
+            try {
+                kotlinx.coroutines.runBlocking { onStateChanged.invoke() }
+            } catch (ex: Exception) {
+                log.debug("State notification failed: ${ex.message}")
+            }
+        }
+    }
+}

@@ -9,7 +9,6 @@ import 'just/certs.just'
 
 root_dir     := justfile_directory() / ".."
 nexus_dir    := justfile_directory()
-web_dir      := root_dir / "forge-web"
 classpath    := nexus_dir / "target/classpath.txt"
 logback      := nexus_dir / "src/main/resources/logback.xml"
 logback_cli  := nexus_dir / "src/main/resources/logback-cli.xml"
@@ -29,7 +28,7 @@ jvm_opts_cli := _jvm_base + " -Dlogback.configurationFile=" + logback_cli + " -D
 # --- Java launch helpers ---
 
 # Full classpath expression (shared by _nexus_java and _nexus_cli)
-_cp := '"$classpath:' + nexus_dir + '/target/classes:' + web_dir + '/target/classes"'
+_cp := '"$classpath:' + nexus_dir + '/target/classes"'
 
 # Kill ports + launch (for server targets)
 _nexus_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill -9 $pid 2>/dev/null || true; done; done; sleep 0.3; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp ' + _cp
@@ -62,18 +61,17 @@ fmt: check-java
 fmt-check: check-java
     cd "{{root_dir}}" && mvn -pl forge-nexus com.diffplug.spotless:spotless-maven-plugin:check -q
 
-# compile proto + Kotlin, install forge-web JAR to .m2-local
+# compile proto + Kotlin (nexus is self-contained, no forge-web install needed)
 build: check-java _check-upstream
     #!/usr/bin/env bash
     set -euo pipefail
     rm -rf "{{root_dir}}/.m2-local/forge/forge/\${revision}" 2>/dev/null || true
     rm -rf "{{nexus_dir}}/target/classes"  # purge stale classes from package moves
-    cd "{{root_dir}}" && mvn -pl forge-web {{flatten}} {{mvn_skip}} install -q
     cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_skip}} compile
     just -f "{{nexus_dir}}/justfile" _refresh-classpath
     echo "Build complete. Classpath: {{classpath}}"
 
-# fast Kotlin-only compile (~3-5s, skip forge-web install)
+# fast Kotlin-only compile (~3-5s, nexus only)
 dev-build: check-java
     #!/usr/bin/env bash
     set -euo pipefail
@@ -114,7 +112,7 @@ dev: check-java
     set -euo pipefail
     echo "Starting hybrid with file watcher (dev-build, nexus-only compile)..."
     echo "Ctrl-C to stop. Changes to *.kt trigger recompile + restart."
-    echo "Tip: if you changed forge-web code, run 'just build' first."
+    echo "Tip: if you changed bridge code, run 'just build' first."
     trap 'kill %% 2>/dev/null; exit 0' INT TERM
     while true; do
         just dev-build

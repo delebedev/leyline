@@ -202,11 +202,11 @@ class BundleBuilderTest : ConformanceTestBase() {
         val (b, game, counter) = startWithBoard { _, _, _ -> }
 
         val candidateRefs = listOf(
-            forge.web.dto.PromptCandidateRefDto(0, "card", 999, "Battlefield"),
+            forge.nexus.bridge.PromptCandidateRefDto(0, "card", 999, "Battlefield"),
         )
-        val prompt = forge.web.game.InteractivePromptBridge.PendingPrompt(
+        val prompt = forge.nexus.bridge.InteractivePromptBridge.PendingPrompt(
             promptId = "test-prompt",
-            request = forge.web.game.PromptRequest(
+            request = forge.nexus.bridge.PromptRequest(
                 promptType = "choose_cards",
                 message = "Choose target",
                 options = listOf("Target A"),

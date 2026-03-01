@@ -2,11 +2,11 @@ package forge.nexus.server
 
 import forge.game.Game
 import forge.game.phase.PhaseType
+import forge.nexus.bridge.PlayerAction
 import forge.nexus.debug.GameStateCollector
 import forge.nexus.debug.NexusTap
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
-import forge.web.game.PlayerAction
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 

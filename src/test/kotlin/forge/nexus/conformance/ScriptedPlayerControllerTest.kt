@@ -1,7 +1,7 @@
 package forge.nexus.conformance
 
 import forge.game.zone.ZoneType
-import forge.web.game.GameBootstrap
+import forge.nexus.bridge.GameBootstrap
 import org.testng.Assert.assertFalse
 import org.testng.Assert.assertTrue
 import org.testng.annotations.AfterMethod

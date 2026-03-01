@@ -1,9 +1,9 @@
 package forge.nexus.conformance
 
 import forge.game.zone.ZoneType
+import forge.nexus.bridge.PlayerAction
 import forge.nexus.game.GameBridge
 import forge.nexus.game.snapshotFromGame
-import forge.web.game.PlayerAction
 import org.testng.Assert.assertNotNull
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test

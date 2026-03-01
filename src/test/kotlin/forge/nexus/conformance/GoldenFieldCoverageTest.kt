@@ -1,13 +1,13 @@
 package forge.nexus.conformance
 
 import forge.game.zone.ZoneType
+import forge.nexus.bridge.InteractivePromptBridge.PendingPrompt
+import forge.nexus.bridge.PromptCandidateRefDto
+import forge.nexus.bridge.PromptRequest
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GsmBuilder
 import forge.nexus.game.RequestBuilder
 import forge.nexus.protocol.HandshakeMessages
-import forge.web.dto.PromptCandidateRefDto
-import forge.web.game.InteractivePromptBridge.PendingPrompt
-import forge.web.game.PromptRequest
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertTrue
 import org.testng.annotations.Test

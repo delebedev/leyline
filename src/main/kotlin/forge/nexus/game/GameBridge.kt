@@ -6,19 +6,19 @@ import forge.game.GameType
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import forge.gamemodes.puzzle.Puzzle
+import forge.nexus.bridge.DeckLoader
+import forge.nexus.bridge.GameActionBridge
+import forge.nexus.bridge.GameBootstrap
+import forge.nexus.bridge.GameLoopController
+import forge.nexus.bridge.InteractivePromptBridge
+import forge.nexus.bridge.MulliganBridge
+import forge.nexus.bridge.MulliganPhase
+import forge.nexus.bridge.PhaseStopProfile
+import forge.nexus.bridge.PrioritySignal
+import forge.nexus.bridge.WebPlayerController
 import forge.nexus.config.PlaytestConfig
 import forge.player.PlayerControllerHuman
 import forge.util.MyRandom
-import forge.web.game.DeckLoader
-import forge.web.game.GameActionBridge
-import forge.web.game.GameBootstrap
-import forge.web.game.GameLoopController
-import forge.web.game.InteractivePromptBridge
-import forge.web.game.MulliganBridge
-import forge.web.game.MulliganPhase
-import forge.web.game.PhaseStopProfile
-import forge.web.game.PrioritySignal
-import forge.web.game.WebPlayerController
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
@@ -38,7 +38,7 @@ import java.util.Random
  * - [DiffSnapshotter] — zone tracking + state snapshots for diff computation
  *
  * Threading: [start] blocks the caller (~2-3s first call for card DB, <100ms after).
- * The engine thread blocks at mulligan via [forge.web.game.MulliganBridge].
+ * The engine thread blocks at mulligan via [forge.nexus.bridge.MulliganBridge].
  */
 class GameBridge(
     /** Timeout for action bridge / prompt bridge / mulligan bridge.

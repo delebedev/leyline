@@ -2,6 +2,7 @@ package forge.nexus.conformance
 
 import forge.game.Game
 import forge.game.zone.ZoneType
+import forge.nexus.bridge.GameBootstrap
 import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
 import forge.nexus.game.PuzzleSource
@@ -9,7 +10,6 @@ import forge.nexus.game.StateMapper
 import forge.nexus.server.ListMessageSink
 import forge.nexus.server.MatchRegistry
 import forge.nexus.server.MatchSession
-import forge.web.game.GameBootstrap
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

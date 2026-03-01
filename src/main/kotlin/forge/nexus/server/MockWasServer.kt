@@ -117,7 +117,9 @@ class MockWasServer(
             try {
                 respond(ex, 500, "{\"error\":\"internal\"}")
             } catch (_: Throwable) {
-                try { ex.close() } catch (_: Throwable) {}
+                try {
+                    ex.close()
+                } catch (_: Throwable) {}
             }
         }
     }
