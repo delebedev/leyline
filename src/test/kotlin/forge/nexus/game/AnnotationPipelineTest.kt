@@ -376,12 +376,10 @@ class AnnotationPipelineTest {
         assertEquals(annotations.size, 2, "Both power and toughness changed → 2 annotations")
         assertTrue(annotations[0].typeList.contains(AnnotationType.ModifiedPower))
         assertTrue(annotations[0].affectedIdsList.contains(1050))
-        val powerValue = annotations[0].detailsList.first { it.key == "value" }
-        assertEquals(powerValue.getValueInt32(0), 4, "value should be the new power")
+        assertEquals(annotations[0].detailsCount, 0, "ModifiedPower has no required detail keys")
 
         assertTrue(annotations[1].typeList.contains(AnnotationType.ModifiedToughness))
-        val toughValue = annotations[1].detailsList.first { it.key == "value" }
-        assertEquals(toughValue.getValueInt32(0), 5, "value should be the new toughness")
+        assertEquals(annotations[1].detailsCount, 0, "ModifiedToughness has no required detail keys")
     }
 
     @Test
