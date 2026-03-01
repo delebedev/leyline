@@ -10,7 +10,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 /**
  * Wire conformance: AI-first turn message shape.
  *
- * Runs a game with [MatchFlowHarnessTest.AI_FIRST_SEED] so Sparky goes first.
+ * Runs a game with [AI_FIRST_SEED] so Sparky goes first.
  * Captures messages through MatchSession/MatchFlowHarness (production code path)
  * and asserts properties matching the real server:
  *
@@ -30,7 +30,7 @@ class AiFirstTurnShapeTest :
         }
 
         fun runAiFirstGame(): MatchFlowHarness {
-            val h = MatchFlowHarness(seed = MatchFlowHarnessTest.AI_FIRST_SEED)
+            val h = MatchFlowHarness(seed = AI_FIRST_SEED)
             harness = h
             h.connectAndKeep()
             h.isGameOver().shouldBeFalse()

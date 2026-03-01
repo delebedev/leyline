@@ -1,9 +1,10 @@
 package leyline.conformance
 
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import leyline.game.mapper.PromptIds
-import org.testng.Assert.*
-import org.testng.annotations.AfterMethod
-import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -13,202 +14,173 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * the result screen. Without it, the client stays on the game board after the
  * server sends the game-over GRE sequence.
  */
-@Test(groups = ["integration"])
-class GameEndTest {
+class GameEndTest :
+    FunSpec({
 
-    private lateinit var harness: MatchFlowHarness
+        var harness: MatchFlowHarness? = null
 
-    @AfterMethod(alwaysRun = true)
-    fun tearDown() {
-        if (::harness.isInitialized) harness.shutdown()
-    }
-
-    /**
-     * Concede triggers sendGameOver which must send:
-     * 1. 3x GameStateMessage (Diff, SendAndRecord) with GameInfo.stage=GameOver
-     * 2. IntermissionReq with match result
-     * 3. MatchGameRoomStateChangedEvent with stateType=MatchCompleted
-     */
-    @Test(description = "Concede sends IntermissionReq + MatchCompleted room state")
-    fun concedeProducesMatchCompleted() {
-        harness = MatchFlowHarness(seed = 42L, validating = false)
-        harness.connectAndKeep()
-
-        // Concede triggers sendGameOver()
-        val snap = harness.messageSnapshot()
-        harness.session.onConcede()
-        harness.drainSink()
-
-        // Verify GRE messages: 3x GSM + IntermissionReq
-        val msgs = harness.messagesSince(snap)
-        val gsmCount = msgs.count { it.hasGameStateMessage() }
-        val intermission = msgs.firstOrNull { it.hasIntermissionReq() }
-
-        assertTrue(gsmCount >= 3, "Should have 3+ GameStateMessage diffs, got $gsmCount")
-        assertNotNull(intermission, "Should have IntermissionReq")
-
-        // First GSM should have GameInfo with stage=GameOver
-        val firstGsm = msgs.first { it.hasGameStateMessage() }.gameStateMessage
-        assertTrue(firstGsm.hasGameInfo(), "First GSM should have gameInfo")
-        assertEquals(firstGsm.gameInfo.stage, GameStage.GameOver, "Stage should be GameOver")
-        assertEquals(firstGsm.gameInfo.matchState, MatchState.GameComplete, "First GSM matchState should be GameComplete")
-
-        // IntermissionReq should have result with winning team + reason
-        val req = intermission!!.intermissionReq
-        assertTrue(req.hasResult(), "IntermissionReq should have result")
-        assertEquals(req.result.result, ResultType.WinLoss, "Result type should be WinLoss")
-        assertTrue(req.result.winningTeamId > 0, "Should have a winning team")
-        assertEquals(req.result.reason, ResultReason.Concede, "ResultSpec reason should be Concede")
-
-        // IntermissionReq should have options + intermissionPrompt
-        assertTrue(req.optionsCount > 0, "IntermissionReq should have options")
-        assertTrue(req.optionsCount >= 2, "IntermissionReq should have 2+ options")
-        assertTrue(req.hasIntermissionPrompt(), "IntermissionReq should have intermissionPrompt")
-        assertEquals(req.intermissionPrompt.promptId, PromptIds.MATCH_RESULT_WIN_LOSS, "intermissionPrompt promptId should be 27 (MatchResultWinLoss)")
-        assertTrue(req.intermissionPrompt.parametersCount > 0, "intermissionPrompt should have WinningTeamId parameter")
-
-        // prevGameStateId chain: gs1.prev = last-known, gs2.prev = gs1, gs3.prev = gs2
-        val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
-        assertTrue(gsms.size >= 3, "Should have 3+ GSMs, got ${gsms.size}")
-        assertEquals(gsms[1].prevGameStateId, gsms[0].gameStateId, "gs2.prev should be gs1")
-        assertEquals(gsms[2].prevGameStateId, gsms[1].gameStateId, "gs3.prev should be gs2")
-
-        // MatchCompleted room state should be in allRawMessages
-        val rawMsgs = harness.allRawMessages
-        val matchCompleted = rawMsgs.firstOrNull {
-            it.hasMatchGameRoomStateChangedEvent() &&
-                it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
-                MatchGameRoomStateType.MatchCompleted
+        afterEach {
+            harness?.shutdown()
+            harness = null
         }
-        assertNotNull(
-            matchCompleted,
-            "Should send MatchGameRoomStateChangedEvent with MatchCompleted, " +
-                "got ${rawMsgs.size} raw messages: ${rawMsgs.map { it.matchGameRoomStateChangedEvent?.gameRoomInfo?.stateType }}",
-        )
 
-        // Verify FinalMatchResult
-        val finalResult = matchCompleted!!.matchGameRoomStateChangedEvent.gameRoomInfo.finalMatchResult
-        assertEquals(
-            finalResult.matchCompletedReason,
-            MatchCompletedReasonType.Success_a26d,
-            "Completion reason should be Success",
-        )
-        assertTrue(finalResult.resultListCount > 0, "Should have result list")
-        assertEquals(
-            finalResult.getResultList(0).result,
-            ResultType.WinLoss,
-            "Result should be WinLoss",
-        )
-    }
+        test("concede produces MatchCompleted") {
+            val h = MatchFlowHarness(seed = 42L, validating = false)
+            harness = h
+            h.connectAndKeep()
 
-    /**
-     * Natural game-over via lethal damage should also produce MatchCompleted.
-     *
-     * DISABLED: multi-turn loop to reach lethal is slow and flaky — times out
-     * at 120s. Needs puzzle-based rewrite: start AI at 1 life with a Lightning
-     * Bolt in hand, or use a combat puzzle with lethal on board.
-     * concedeProducesMatchCompleted already covers the MatchCompleted protocol;
-     * this test's value is specifically the lethal-damage ResultReason path.
-     */
-    @Test(description = "Lethal damage produces MatchCompleted room state", enabled = false)
-    fun lethalDamageProducesMatchCompleted() {
-        harness = MatchFlowHarness(
-            seed = 42L,
-            deckList = CombatFlowTest.COMBAT_DECK,
-            validating = false,
-        )
-        harness.connectAndKeep()
+            // Concede triggers sendGameOver()
+            val snap = h.messageSnapshot()
+            h.session.onConcede()
+            h.drainSink()
 
-        // AI: passive — play lands, never attack, always pass
-        harness.installScriptedAi(
-            List(60) { i ->
-                when (i % 3) {
-                    0 -> ScriptedAction.PlayLand("Mountain")
-                    1 -> ScriptedAction.DeclareNoAttackers
-                    else -> ScriptedAction.PassPriority
+            // Verify GRE messages: 3x GSM + IntermissionReq
+            val msgs = h.messagesSince(snap)
+            val gsmCount = msgs.count { it.hasGameStateMessage() }
+            val intermission = msgs.firstOrNull { it.hasIntermissionReq() }
+
+            (gsmCount >= 3).shouldBeTrue()
+            intermission.shouldNotBeNull()
+
+            // First GSM should have GameInfo with stage=GameOver
+            val firstGsm = msgs.first { it.hasGameStateMessage() }.gameStateMessage
+            firstGsm.hasGameInfo().shouldBeTrue()
+            firstGsm.gameInfo.stage shouldBe GameStage.GameOver
+            firstGsm.gameInfo.matchState shouldBe MatchState.GameComplete
+
+            // IntermissionReq should have result with winning team + reason
+            val req = intermission.intermissionReq
+            req.hasResult().shouldBeTrue()
+            req.result.result shouldBe ResultType.WinLoss
+            (req.result.winningTeamId > 0).shouldBeTrue()
+            req.result.reason shouldBe ResultReason.Concede
+
+            // IntermissionReq should have options + intermissionPrompt
+            (req.optionsCount > 0).shouldBeTrue()
+            (req.optionsCount >= 2).shouldBeTrue()
+            req.hasIntermissionPrompt().shouldBeTrue()
+            req.intermissionPrompt.promptId shouldBe PromptIds.MATCH_RESULT_WIN_LOSS
+            (req.intermissionPrompt.parametersCount > 0).shouldBeTrue()
+
+            // prevGameStateId chain: gs1.prev = last-known, gs2.prev = gs1, gs3.prev = gs2
+            val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+            (gsms.size >= 3).shouldBeTrue()
+            gsms[1].prevGameStateId shouldBe gsms[0].gameStateId
+            gsms[2].prevGameStateId shouldBe gsms[1].gameStateId
+
+            // MatchCompleted room state should be in allRawMessages
+            val rawMsgs = h.allRawMessages
+            val matchCompleted = rawMsgs.firstOrNull {
+                it.hasMatchGameRoomStateChangedEvent() &&
+                    it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
+                    MatchGameRoomStateType.MatchCompleted
+            }
+            matchCompleted.shouldNotBeNull()
+
+            // Verify FinalMatchResult
+            val finalResult = matchCompleted.matchGameRoomStateChangedEvent.gameRoomInfo.finalMatchResult
+            finalResult.matchCompletedReason shouldBe MatchCompletedReasonType.Success_a26d
+            (finalResult.resultListCount > 0).shouldBeTrue()
+            finalResult.getResultList(0).result shouldBe ResultType.WinLoss
+        }
+
+        // DISABLED: multi-turn loop to reach lethal is slow and flaky — times out
+        // at 120s. Needs puzzle-based rewrite.
+        xtest("lethal damage produces MatchCompleted room state") {
+            val h = MatchFlowHarness(
+                seed = 42L,
+                deckList = COMBAT_DECK,
+                validating = false,
+            )
+            harness = h
+            h.connectAndKeep()
+
+            // AI: passive — play lands, never attack, always pass
+            h.installScriptedAi(
+                List(60) { i ->
+                    when (i % 3) {
+                        0 -> ScriptedAction.PlayLand("Mountain")
+                        1 -> ScriptedAction.DeclareNoAttackers
+                        else -> ScriptedAction.PassPriority
+                    }
+                },
+            )
+
+            // Turn 1: play Mountain + cast Raging Goblin
+            h.playLand().shouldBeTrue()
+            h.castSpellByName("Raging Goblin").shouldBeTrue()
+            h.passPriority() // resolve
+
+            // Game loop: each human turn, play a land + cast another Raging Goblin + attack all
+            var lastDaReqSnap = 0
+            repeat(500) {
+                if (h.isGameOver()) return@repeat
+
+                h.passPriority()
+                if (h.isGameOver()) return@repeat
+
+                // On human turns, try to play land + cast another goblin
+                if (!h.isAiTurn() && !h.isGameOver()) {
+                    h.playLand()
+                    if (h.castSpellByName("Raging Goblin")) {
+                        h.passPriority() // resolve
+                    }
                 }
-            },
-        )
 
-        // Turn 1: play Mountain + cast Raging Goblin
-        assertTrue(harness.playLand(), "Should play Mountain")
-        assertTrue(harness.castSpellByName("Raging Goblin"), "Should cast Raging Goblin")
-        harness.passPriority() // resolve
+                if (h.isGameOver()) return@repeat
 
-        // Game loop: each human turn, play a land + cast another Raging Goblin + attack all
-        var lastDaReqSnap = 0
-        repeat(500) {
-            if (harness.isGameOver()) return@repeat
-
-            harness.passPriority()
-            if (harness.isGameOver()) return@repeat
-
-            // On human turns, try to play land + cast another goblin
-            if (!harness.isAiTurn() && !harness.isGameOver()) {
-                harness.playLand()
-                if (harness.castSpellByName("Raging Goblin")) {
-                    harness.passPriority() // resolve
+                // Check for new DeclareAttackersReq
+                val newMsgs = h.messagesSince(lastDaReqSnap)
+                val daReq = newMsgs.lastOrNull { it.hasDeclareAttackersReq() }
+                if (daReq != null) {
+                    lastDaReqSnap = h.messageSnapshot()
+                    val eligible = daReq.declareAttackersReq.attackersList.map { it.attackerInstanceId }
+                    if (eligible.isNotEmpty()) {
+                        h.declareAttackers(eligible)
+                    }
                 }
             }
 
-            if (harness.isGameOver()) return@repeat
+            h.isGameOver().shouldBeTrue()
 
-            // Check for new DeclareAttackersReq
-            val newMsgs = harness.messagesSince(lastDaReqSnap)
-            val daReq = newMsgs.lastOrNull { it.hasDeclareAttackersReq() }
-            if (daReq != null) {
-                lastDaReqSnap = harness.messageSnapshot()
-                val eligible = daReq.declareAttackersReq.attackersList.map { it.attackerInstanceId }
-                if (eligible.isNotEmpty()) {
-                    harness.declareAttackers(eligible)
-                }
+            // Verify MatchCompleted was sent
+            val rawMsgs = h.allRawMessages
+            val matchCompleted = rawMsgs.firstOrNull {
+                it.hasMatchGameRoomStateChangedEvent() &&
+                    it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
+                    MatchGameRoomStateType.MatchCompleted
             }
+            matchCompleted.shouldNotBeNull()
+
+            // Verify IntermissionReq was sent with correct fields
+            val intermission = checkNotNull(h.allMessages.firstOrNull { it.hasIntermissionReq() }) {
+                "Should have IntermissionReq after lethal damage"
+            }
+            val req = intermission.intermissionReq
+            req.result.reason shouldBe ResultReason.Game_ae0a
+
+            // IntermissionReq should have options + intermissionPrompt
+            (req.optionsCount >= 2).shouldBeTrue()
+            req.hasIntermissionPrompt().shouldBeTrue()
+            req.intermissionPrompt.promptId shouldBe PromptIds.MATCH_RESULT_WIN_LOSS
+            (req.intermissionPrompt.parametersCount > 0).shouldBeTrue()
+
+            // Game-over GSMs: the 3 GSMs immediately before IntermissionReq
+            val allMsgs = h.allMessages
+            val intermissionIdx = allMsgs.indexOfFirst { it.hasIntermissionReq() }
+            (intermissionIdx >= 3).shouldBeTrue()
+            val gameOverGsms = allMsgs.subList(intermissionIdx - 3, intermissionIdx)
+                .filter { it.hasGameStateMessage() }
+                .map { it.gameStateMessage }
+            gameOverGsms.size shouldBe 3
+
+            // First game-over GSM should have LossOfGame annotation
+            val lossAnnotation = gameOverGsms[0].annotationsList
+                .firstOrNull { it.typeList.contains(AnnotationType.LossOfGame_af5a) }
+            lossAnnotation.shouldNotBeNull()
+
+            // prevGameStateId chain
+            gameOverGsms[1].prevGameStateId shouldBe gameOverGsms[0].gameStateId
+            gameOverGsms[2].prevGameStateId shouldBe gameOverGsms[1].gameStateId
         }
-
-        assertTrue(harness.isGameOver(), "Game should be over after repeated attacks")
-
-        // Verify MatchCompleted was sent
-        val rawMsgs = harness.allRawMessages
-        val matchCompleted = rawMsgs.firstOrNull {
-            it.hasMatchGameRoomStateChangedEvent() &&
-                it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
-                MatchGameRoomStateType.MatchCompleted
-        }
-        assertNotNull(
-            matchCompleted,
-            "Lethal damage should produce MatchCompleted room state",
-        )
-
-        // Verify IntermissionReq was sent with correct fields
-        val intermission = checkNotNull(harness.allMessages.firstOrNull { it.hasIntermissionReq() }) {
-            "Should have IntermissionReq after lethal damage"
-        }
-        val req = intermission.intermissionReq
-        assertEquals(req.result.reason, ResultReason.Game_ae0a, "ResultSpec reason should be Game_ae0a for lethal damage")
-
-        // IntermissionReq should have options + intermissionPrompt
-        assertTrue(req.optionsCount >= 2, "IntermissionReq should have 2+ options")
-        assertTrue(req.hasIntermissionPrompt(), "IntermissionReq should have intermissionPrompt")
-        assertEquals(req.intermissionPrompt.promptId, PromptIds.MATCH_RESULT_WIN_LOSS, "intermissionPrompt promptId should be 27")
-        assertTrue(req.intermissionPrompt.parametersCount > 0, "intermissionPrompt should have WinningTeamId parameter")
-
-        // Game-over GSMs: the 3 GSMs immediately before IntermissionReq
-        // (gs3 has no gameInfo, so we can't filter by stage=GameOver)
-        val allMsgs = harness.allMessages
-        val intermissionIdx = allMsgs.indexOfFirst { it.hasIntermissionReq() }
-        assertTrue(intermissionIdx >= 3, "Should have 3+ GSMs before IntermissionReq")
-        val gameOverGsms = allMsgs.subList(intermissionIdx - 3, intermissionIdx)
-            .filter { it.hasGameStateMessage() }
-            .map { it.gameStateMessage }
-        assertEquals(gameOverGsms.size, 3, "Should have exactly 3 game-over GSMs")
-
-        // First game-over GSM should have LossOfGame annotation
-        val lossAnnotation = gameOverGsms[0].annotationsList
-            .firstOrNull { it.typeList.contains(AnnotationType.LossOfGame_af5a) }
-        assertNotNull(lossAnnotation, "First game-over GSM should have LossOfGame annotation")
-
-        // prevGameStateId chain
-        assertEquals(gameOverGsms[1].prevGameStateId, gameOverGsms[0].gameStateId, "gs2.prev should be gs1")
-        assertEquals(gameOverGsms[2].prevGameStateId, gameOverGsms[1].gameStateId, "gs3.prev should be gs2")
-    }
-}
+    })

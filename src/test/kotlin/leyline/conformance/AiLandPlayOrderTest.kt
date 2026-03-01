@@ -1,8 +1,12 @@
 package leyline.conformance
 
-import org.testng.Assert.*
-import org.testng.annotations.AfterMethod
-import org.testng.annotations.Test
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldNotBe
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -15,190 +19,161 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *
  * Uses [ScriptedPlayerController] to control AI actions deterministically.
  */
-@Test(groups = ["integration"])
-class AiLandPlayOrderTest {
+class AiLandPlayOrderTest :
+    FunSpec({
 
-    private lateinit var harness: MatchFlowHarness
+        var harness: MatchFlowHarness? = null
 
-    @AfterMethod(alwaysRun = true)
-    fun tearDown() {
-        if (::harness.isInitialized) harness.shutdown()
-    }
-
-    @Test(description = "AI land play produces dedicated diff with PlayLand annotation before CastSpell")
-    fun aiLandPlayHasDedicatedDiffWithPlayLandAnnotation() {
-        harness = MatchFlowHarness(seed = 42L, deckList = CombatFlowTest.COMBAT_DECK, validating = false)
-        harness.connectAndKeep()
-
-        // Script AI: play land, then cast creature (separate actions)
-        harness.installScriptedAi(
-            listOf(
-                ScriptedAction.PlayLand("Mountain"),
-                ScriptedAction.CastSpell("Raging Goblin"),
-                ScriptedAction.PassPriority,
-                ScriptedAction.DeclareNoAttackers,
-                ScriptedAction.PassPriority,
-            ),
-        )
-
-        harness.passUntilTurn(3)
-
-        val gsMessages = harness.allMessages.filter { it.hasGameStateMessage() }
-
-        // Find the PlayLand diff: a GSM with ZoneTransfer annotation category="PlayLand"
-        val playLandMsg = gsMessages.firstOrNull { gre ->
-            gre.gameStateMessage.annotationsList.any { ann ->
-                ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
-                    ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("PlayLand") }
-            }
+        afterEach {
+            harness?.shutdown()
+            harness = null
         }
 
-        // Find the CastSpell diff: a GSM with ZoneTransfer annotation category="CastSpell"
-        val castSpellMsg = gsMessages.firstOrNull { gre ->
-            gre.gameStateMessage.annotationsList.any { ann ->
-                ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
-                    ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("CastSpell") }
-            }
-        }
+        test("AI land play has dedicated diff with PlayLand annotation") {
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            harness = h
+            h.connectAndKeep()
 
-        assertNotNull(playLandMsg, "Should find a diff with ZoneTransfer category='PlayLand'")
-        assertNotNull(castSpellMsg, "Should find a diff with ZoneTransfer category='CastSpell'")
+            // Script AI: play land, then cast creature (separate actions)
+            h.installScriptedAi(
+                listOf(
+                    ScriptedAction.PlayLand("Mountain"),
+                    ScriptedAction.CastSpell("Raging Goblin"),
+                    ScriptedAction.PassPriority,
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.PassPriority,
+                ),
+            )
 
-        val playLandGsId = playLandMsg!!.gameStateMessage.gameStateId
-        val castSpellGsId = castSpellMsg!!.gameStateMessage.gameStateId
+            h.passUntilTurn(3)
 
-        // PlayLand must have its own gsId, separate from CastSpell
-        assertNotEquals(
-            playLandGsId,
-            castSpellGsId,
-            "PlayLand and CastSpell must have different gsIds (dedicated diffs)",
-        )
+            val gsMessages = h.allMessages.filter { it.hasGameStateMessage() }
 
-        // PlayLand gsId must precede CastSpell gsId
-        assertTrue(
-            playLandGsId < castSpellGsId,
-            "PlayLand gsId ($playLandGsId) should precede CastSpell gsId ($castSpellGsId)",
-        )
-
-        // Verify PlayLand annotation structure matches Arena golden pattern:
-        // ObjectIdChanged + ZoneTransfer("PlayLand") + UserActionTaken(actionType=3)
-        val playLandGsm = playLandMsg.gameStateMessage
-        val annTypes = playLandGsm.annotationsList.map { ann ->
-            ann.typeList.firstOrNull()
-        }
-
-        assertTrue(
-            annTypes.contains(AnnotationType.ObjectIdChanged),
-            "PlayLand diff should contain ObjectIdChanged annotation",
-        )
-        assertTrue(
-            annTypes.contains(AnnotationType.ZoneTransfer_af5a),
-            "PlayLand diff should contain ZoneTransfer annotation",
-        )
-        assertTrue(
-            annTypes.contains(AnnotationType.UserActionTaken),
-            "PlayLand diff should contain UserActionTaken annotation",
-        )
-
-        // UserActionTaken should have actionType=3 (Play)
-        val userAction = playLandGsm.annotationsList.first {
-            it.typeList.contains(AnnotationType.UserActionTaken)
-        }
-        val actionTypeDetail = checkNotNull(userAction.detailsList.firstOrNull { it.key == "actionType" }) { "UserActionTaken should have actionType detail" }
-        assertTrue(actionTypeDetail.valueInt32List.contains(3), "actionType should be 3 (Play)")
-
-        // PlayLand diff should contain a land object on the battlefield
-        val landObj = playLandGsm.gameObjectsList.firstOrNull { obj ->
-            obj.cardTypesList.contains(CardType.Land_a80b) && obj.zoneId == 28
-        }
-        assertNotNull(landObj, "PlayLand diff should contain a land object on battlefield (zone 28)")
-
-        // PlayLand diff should NOT contain a creature on the stack or battlefield
-        val creatureOnStack = playLandGsm.gameObjectsList.firstOrNull { obj ->
-            obj.cardTypesList.contains(CardType.Creature) && obj.zoneId == 27
-        }
-        assertNull(creatureOnStack, "PlayLand diff should NOT contain a creature on the stack")
-    }
-
-    @Test(description = "Default AI (seed=2, AI goes first): turn 1 PlayLand must not be discarded")
-    fun aiGoesFirstLandPlayNotDiscarded() {
-        // seed=2: AI goes first (active=2 on turn 1). The bug: onMulliganKeep
-        // calls drainQueue() which discards AI action diffs queued during
-        // awaitPriority. Turn 1 PlayLand + CastSpell are lost — only Resolve
-        // survives because it happens after the snapshot is established.
-        harness = MatchFlowHarness(seed = 2L, deckList = CombatFlowTest.COMBAT_DECK, validating = false)
-        harness.connectAndKeep()
-
-        // Let the default AI play — don't install scripted controller
-        harness.passUntilTurn(2)
-
-        val gsMessages = harness.allMessages.filter { it.hasGameStateMessage() }
-
-        // Summarize turn 1 diffs for diagnosis
-        val turn1Diffs = gsMessages
-            .filter { it.gameStateMessage.turnInfo.turnNumber == 1 }
-            .map { gre ->
-                val gsm = gre.gameStateMessage
-                val cats = gsm.annotationsList
-                    .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) }
-                    .flatMap { ann -> ann.detailsList.filter { it.key == "category" }.flatMap { it.valueStringList } }
-                "gsId=${gsm.gameStateId} objs=${gsm.gameObjectsCount} cats=$cats"
-            }
-
-        // Turn 1 must have a PlayLand diff — the AI plays a land on its first turn
-        val turn1PlayLand = gsMessages.filter { gre ->
-            val gsm = gre.gameStateMessage
-            gsm.turnInfo.turnNumber == 1 &&
-                gsm.annotationsList.any { ann ->
+            // Find the PlayLand diff: a GSM with ZoneTransfer annotation category="PlayLand"
+            val playLandMsg = gsMessages.firstOrNull { gre ->
+                gre.gameStateMessage.annotationsList.any { ann ->
                     ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
                         ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("PlayLand") }
                 }
-        }
-
-        assertFalse(
-            turn1PlayLand.isEmpty(),
-            "AI turn 1 must have a PlayLand diff (currently discarded by drainQueue). Turn 1 diffs:\n${turn1Diffs.joinToString("\n")}",
-        )
-    }
-
-    @Test(description = "CastSpell diff must NOT contain PlayLand ZoneTransfer annotation")
-    fun castSpellDiffDoesNotContainPlayLandAnnotation() {
-        harness = MatchFlowHarness(seed = 42L, deckList = CombatFlowTest.COMBAT_DECK, validating = false)
-        harness.connectAndKeep()
-
-        harness.installScriptedAi(
-            listOf(
-                ScriptedAction.PlayLand("Mountain"),
-                ScriptedAction.CastSpell("Raging Goblin"),
-                ScriptedAction.PassPriority,
-                ScriptedAction.DeclareNoAttackers,
-                ScriptedAction.PassPriority,
-            ),
-        )
-
-        harness.passUntilTurn(3)
-
-        val gsMessages = harness.allMessages.filter { it.hasGameStateMessage() }
-
-        val castSpellMsg = gsMessages.firstOrNull { gre ->
-            gre.gameStateMessage.annotationsList.any { ann ->
-                ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
-                    ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("CastSpell") }
             }
+
+            // Find the CastSpell diff: a GSM with ZoneTransfer annotation category="CastSpell"
+            val castSpellMsg = gsMessages.firstOrNull { gre ->
+                gre.gameStateMessage.annotationsList.any { ann ->
+                    ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
+                        ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("CastSpell") }
+                }
+            }
+
+            playLandMsg.shouldNotBeNull()
+            castSpellMsg.shouldNotBeNull()
+
+            val playLandGsId = playLandMsg.gameStateMessage.gameStateId
+            val castSpellGsId = castSpellMsg.gameStateMessage.gameStateId
+
+            // PlayLand must have its own gsId, separate from CastSpell
+            playLandGsId shouldNotBe castSpellGsId
+
+            // PlayLand gsId must precede CastSpell gsId
+            (playLandGsId < castSpellGsId).shouldBeTrue()
+
+            // Verify PlayLand annotation structure matches Arena golden pattern
+            val playLandGsm = playLandMsg.gameStateMessage
+            val annTypes = playLandGsm.annotationsList.map { ann ->
+                ann.typeList.firstOrNull()
+            }
+
+            annTypes shouldContain AnnotationType.ObjectIdChanged
+            annTypes shouldContain AnnotationType.ZoneTransfer_af5a
+            annTypes shouldContain AnnotationType.UserActionTaken
+
+            // UserActionTaken should have actionType=3 (Play)
+            val userAction = playLandGsm.annotationsList.first {
+                it.typeList.contains(AnnotationType.UserActionTaken)
+            }
+            val actionTypeDetail = checkNotNull(userAction.detailsList.firstOrNull { it.key == "actionType" }) { "UserActionTaken should have actionType detail" }
+            actionTypeDetail.valueInt32List shouldContain 3
+
+            // PlayLand diff should contain a land object on the battlefield
+            val landObj = playLandGsm.gameObjectsList.firstOrNull { obj ->
+                obj.cardTypesList.contains(CardType.Land_a80b) && obj.zoneId == 28
+            }
+            landObj.shouldNotBeNull()
+
+            // PlayLand diff should NOT contain a creature on the stack or battlefield
+            val creatureOnStack = playLandGsm.gameObjectsList.firstOrNull { obj ->
+                obj.cardTypesList.contains(CardType.Creature) && obj.zoneId == 27
+            }
+            creatureOnStack.shouldBeNull()
         }
 
-        assertNotNull(castSpellMsg, "Should find CastSpell diff")
+        test("AI goes first land play not discarded") {
+            val h = MatchFlowHarness(seed = 2L, deckList = COMBAT_DECK, validating = false)
+            harness = h
+            h.connectAndKeep()
 
-        // CastSpell diff must NOT also contain a PlayLand ZoneTransfer annotation.
-        // In the Arena golden pattern, PlayLand has already been sent as a separate
-        // gsId. If both categories appear in the same diff, the land play was merged.
-        val hasPlayLandAnnotation = castSpellMsg!!.gameStateMessage.annotationsList.any { ann ->
-            ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
-                ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("PlayLand") }
+            // Let the default AI play — don't install scripted controller
+            h.passUntilTurn(2)
+
+            val gsMessages = h.allMessages.filter { it.hasGameStateMessage() }
+
+            // Summarize turn 1 diffs for diagnosis
+            val turn1Diffs = gsMessages
+                .filter { it.gameStateMessage.turnInfo.turnNumber == 1 }
+                .map { gre ->
+                    val gsm = gre.gameStateMessage
+                    val cats = gsm.annotationsList
+                        .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) }
+                        .flatMap { ann -> ann.detailsList.filter { it.key == "category" }.flatMap { it.valueStringList } }
+                    "gsId=${gsm.gameStateId} objs=${gsm.gameObjectsCount} cats=$cats"
+                }
+
+            // Turn 1 must have a PlayLand diff
+            val turn1PlayLand = gsMessages.filter { gre ->
+                val gsm = gre.gameStateMessage
+                gsm.turnInfo.turnNumber == 1 &&
+                    gsm.annotationsList.any { ann ->
+                        ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
+                            ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("PlayLand") }
+                    }
+            }
+
+            turn1PlayLand.isEmpty().shouldBeFalse()
         }
-        assertFalse(
-            hasPlayLandAnnotation,
-            "CastSpell diff should NOT contain PlayLand ZoneTransfer annotation (land was already sent in its own diff)",
-        )
-    }
-}
+
+        test("CastSpell diff does not contain PlayLand annotation") {
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            harness = h
+            h.connectAndKeep()
+
+            h.installScriptedAi(
+                listOf(
+                    ScriptedAction.PlayLand("Mountain"),
+                    ScriptedAction.CastSpell("Raging Goblin"),
+                    ScriptedAction.PassPriority,
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.PassPriority,
+                ),
+            )
+
+            h.passUntilTurn(3)
+
+            val gsMessages = h.allMessages.filter { it.hasGameStateMessage() }
+
+            val castSpellMsg = gsMessages.firstOrNull { gre ->
+                gre.gameStateMessage.annotationsList.any { ann ->
+                    ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
+                        ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("CastSpell") }
+                }
+            }
+
+            castSpellMsg.shouldNotBeNull()
+
+            // CastSpell diff must NOT also contain a PlayLand ZoneTransfer annotation
+            val hasPlayLandAnnotation = castSpellMsg.gameStateMessage.annotationsList.any { ann ->
+                ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
+                    ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("PlayLand") }
+            }
+            hasPlayLandAnnotation.shouldBeFalse()
+        }
+    })
