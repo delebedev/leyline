@@ -166,6 +166,16 @@ object StateMapper {
             bridge.addPersistentAnnotation(numbered)
         }
         for (ann in mechanicResult.persistent) {
+            // Replace prior Counter annotation for the same instanceId + counter_type
+            if (ann.typeList.any { it == AnnotationType.Counter_803b }) {
+                val iid = ann.affectedIdsList.firstOrNull()
+                val ctype = ann.detailsList.firstOrNull { it.key == "counter_type" }
+                    ?.let { if (it.valueInt32Count > 0) it.getValueInt32(0) else null }
+                if (iid != null && ctype != null) {
+                    val oldId = bridge.findPersistentCounter(iid, ctype)
+                    if (oldId != null) bridge.removePersistentAnnotation(oldId)
+                }
+            }
             val numbered = ann.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
             bridge.addPersistentAnnotation(numbered)
         }

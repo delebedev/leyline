@@ -136,6 +136,14 @@ class GameBridge(
                 ann.affectedIdsList.contains(auraIid)
         }?.key
 
+    /** Find persistent Counter annotation for the same instanceId and counter_type. */
+    fun findPersistentCounter(instanceId: Int, counterType: Int): Int? =
+        activePersistentAnnotations.entries.firstOrNull { (_, ann) ->
+            ann.typeList.any { it == wotc.mtgo.gre.external.messaging.Messages.AnnotationType.Counter_803b } &&
+                ann.affectedIdsList.contains(instanceId) &&
+                ann.detailsList.any { it.key == "counter_type" && it.valueInt32Count > 0 && it.getValueInt32(0) == counterType }
+        }?.key
+
     // --- Interface implementations (IdMapping, PlayerLookup, ZoneTracking, etc.) ---
 
     override fun getOrAllocInstanceId(forgeCardId: Int): Int = ids.getOrAlloc(forgeCardId)
