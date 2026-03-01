@@ -156,6 +156,42 @@ class AnnotationShapeConformanceTest {
         assertEquals(detailKeys(ann), setOf("count", "counter_type"))
     }
 
+    @Test(description = "AddAbility shape: {grpid, effect_id, UniqueAbilityId, originalAbilityObjectZcid}")
+    fun addAbilityDetailKeyShape() {
+        assertEquals(
+            detailKeys(AnnotationBuilder.addAbility(1, 1, 1, 1, 1)),
+            setOf("grpid", "effect_id", "UniqueAbilityId", "originalAbilityObjectZcid"),
+        )
+    }
+
+    @Test(description = "RemoveAbility shape: {effect_id}")
+    fun removeAbilityDetailKeyShape() {
+        assertEquals(detailKeys(AnnotationBuilder.removeAbility(1, 1)), setOf("effect_id"))
+    }
+
+    @Test(description = "AbilityExhausted shape: {AbilityGrpId, UsesRemaining, UniqueAbilityId}")
+    fun abilityExhaustedDetailKeyShape() {
+        assertEquals(
+            detailKeys(AnnotationBuilder.abilityExhausted(1, 1, 0, 1)),
+            setOf("AbilityGrpId", "UsesRemaining", "UniqueAbilityId"),
+        )
+    }
+
+    @Test(description = "GainDesignation shape: {DesignationType}")
+    fun gainDesignationDetailKeyShape() {
+        assertEquals(detailKeys(AnnotationBuilder.gainDesignation(1, 19)), setOf("DesignationType"))
+    }
+
+    @Test(description = "Designation shape: {DesignationType}")
+    fun designationDetailKeyShape() {
+        assertEquals(detailKeys(AnnotationBuilder.designation(1, 19)), setOf("DesignationType"))
+    }
+
+    @Test(description = "LayeredEffect shape: {effect_id}")
+    fun layeredEffectDetailKeyShape() {
+        assertEquals(detailKeys(AnnotationBuilder.layeredEffect(1, 7004)), setOf("effect_id"))
+    }
+
     @Test(description = "No-detail annotations: NewTurnStarted, EnteredZoneThisTurn, etc.")
     fun noDetailAnnotationShapes() {
         assertEquals(detailKeys(AnnotationBuilder.newTurnStarted(1)), emptySet<String>(), "NewTurnStarted")
@@ -227,6 +263,12 @@ class AnnotationShapeConformanceTest {
         "CounterAdded" to setOf("counter_type", "transaction_amount"), // 3 instances
         "TokenDeleted" to emptySet(), // 1 instance
         "Counter" to setOf("count", "counter_type"),
+        "AddAbility" to setOf("grpid", "effect_id", "UniqueAbilityId", "originalAbilityObjectZcid"),
+        "RemoveAbility" to setOf("effect_id"),
+        "AbilityExhausted" to setOf("AbilityGrpId", "UsesRemaining", "UniqueAbilityId"),
+        "GainDesignation" to setOf("DesignationType"),
+        "Designation" to setOf("DesignationType"),
+        "LayeredEffect" to setOf("effect_id"),
         "LayeredEffectDestroyed" to emptySet(),
         "PlayerSelectingTargets" to emptySet(),
         "PlayerSubmittedTargets" to emptySet(),
@@ -262,6 +304,12 @@ class AnnotationShapeConformanceTest {
         "CounterAdded" to detailKeys(AnnotationBuilder.counterAdded(1, "P1P1", 2)),
         "TokenDeleted" to detailKeys(AnnotationBuilder.tokenDeleted(1)),
         "Counter" to detailKeys(AnnotationBuilder.counter(1, 1, 1)),
+        "AddAbility" to detailKeys(AnnotationBuilder.addAbility(1, 1, 1, 1, 1)),
+        "RemoveAbility" to detailKeys(AnnotationBuilder.removeAbility(1, 1)),
+        "AbilityExhausted" to detailKeys(AnnotationBuilder.abilityExhausted(1, 1, 0, 1)),
+        "GainDesignation" to detailKeys(AnnotationBuilder.gainDesignation(1, 19)),
+        "Designation" to detailKeys(AnnotationBuilder.designation(1, 19)),
+        "LayeredEffect" to detailKeys(AnnotationBuilder.layeredEffect(1, 7004)),
         "LayeredEffectDestroyed" to detailKeys(AnnotationBuilder.layeredEffectDestroyed(1)),
         "PlayerSelectingTargets" to detailKeys(AnnotationBuilder.playerSelectingTargets(1)),
         "PlayerSubmittedTargets" to detailKeys(AnnotationBuilder.playerSubmittedTargets(1)),

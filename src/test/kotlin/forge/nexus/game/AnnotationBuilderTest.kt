@@ -473,6 +473,83 @@ class AnnotationBuilderTest {
         assertEquals(type.getValueInt32(0), 1, "counter_type=1 for +1/+1")
     }
 
+    // --- AddAbility (Tier 1) ---
+
+    @Test
+    fun addAbilityFields() {
+        val ann = AnnotationBuilder.addAbility(
+            instanceId = 100,
+            grpId = 6,
+            effectId = 7005,
+            uniqueAbilityId = 217,
+            originalAbilityObjectZcid = 372,
+        )
+        assertTrue(ann.typeList.contains(AnnotationType.AddAbility_af5a))
+        assertTrue(ann.affectedIdsList.contains(100))
+        assertEquals(ann.detailsList.first { it.key == "grpid" }.getValueInt32(0), 6)
+        assertEquals(ann.detailsList.first { it.key == "effect_id" }.getValueInt32(0), 7005)
+        assertEquals(ann.detailsList.first { it.key == "UniqueAbilityId" }.getValueInt32(0), 217)
+        assertEquals(ann.detailsList.first { it.key == "originalAbilityObjectZcid" }.getValueInt32(0), 372)
+    }
+
+    // --- RemoveAbility (Tier 1) ---
+
+    @Test
+    fun removeAbilityFields() {
+        val ann = AnnotationBuilder.removeAbility(instanceId = 200, effectId = 7003)
+        assertTrue(ann.typeList.contains(AnnotationType.RemoveAbility))
+        assertTrue(ann.affectedIdsList.contains(200))
+        assertEquals(ann.detailsList.first { it.key == "effect_id" }.getValueInt32(0), 7003)
+        assertEquals(ann.detailsCount, 1)
+    }
+
+    // --- AbilityExhausted (Tier 1) ---
+
+    @Test
+    fun abilityExhaustedFields() {
+        val ann = AnnotationBuilder.abilityExhausted(
+            instanceId = 294,
+            abilityGrpId = 137955,
+            usesRemaining = 0,
+            uniqueAbilityId = 205,
+        )
+        assertTrue(ann.typeList.contains(AnnotationType.AbilityExhausted))
+        assertTrue(ann.affectedIdsList.contains(294))
+        assertEquals(ann.detailsList.first { it.key == "AbilityGrpId" }.getValueInt32(0), 137955)
+        assertEquals(ann.detailsList.first { it.key == "UsesRemaining" }.getValueInt32(0), 0)
+        assertEquals(ann.detailsList.first { it.key == "UniqueAbilityId" }.getValueInt32(0), 205)
+    }
+
+    // --- GainDesignation (Tier 1) ---
+
+    @Test
+    fun gainDesignationFields() {
+        val ann = AnnotationBuilder.gainDesignation(seatId = 1, designationType = 19)
+        assertTrue(ann.typeList.contains(AnnotationType.GainDesignation))
+        assertTrue(ann.affectedIdsList.contains(1))
+        assertEquals(ann.detailsList.first { it.key == "DesignationType" }.getValueInt32(0), 19)
+    }
+
+    // --- Designation (Tier 1 stub) ---
+
+    @Test
+    fun designationFields() {
+        val ann = AnnotationBuilder.designation(seatId = 1, designationType = 19)
+        assertTrue(ann.typeList.contains(AnnotationType.Designation))
+        assertTrue(ann.affectedIdsList.contains(1))
+        assertEquals(ann.detailsList.first { it.key == "DesignationType" }.getValueInt32(0), 19)
+    }
+
+    // --- LayeredEffect (Tier 1 stub) ---
+
+    @Test
+    fun layeredEffectFields() {
+        val ann = AnnotationBuilder.layeredEffect(instanceId = 289, effectId = 7004)
+        assertTrue(ann.typeList.contains(AnnotationType.LayeredEffect))
+        assertTrue(ann.affectedIdsList.contains(289))
+        assertEquals(ann.detailsList.first { it.key == "effect_id" }.getValueInt32(0), 7004)
+    }
+
     // --- Detail-less Tier 2 ---
 
     @Test

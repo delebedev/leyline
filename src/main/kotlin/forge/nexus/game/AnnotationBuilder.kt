@@ -425,6 +425,84 @@ object AnnotationBuilder {
             .addDetails(int32Detail("counter_type", counterType))
             .build()
 
+    // -- Tier 1 state annotations (abilities, effects, designations) --
+
+    /** Granted ability state. Arena type 9 (AddAbility_af5a).
+     *  Real card: grp:92081 via effect 7005 (session 14-15-29). */
+    fun addAbility(
+        instanceId: Int,
+        grpId: Int,
+        effectId: Int,
+        uniqueAbilityId: Int,
+        originalAbilityObjectZcid: Int,
+    ): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.AddAbility_af5a)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("grpid", grpId))
+            .addDetails(int32Detail("effect_id", effectId))
+            .addDetails(int32Detail("UniqueAbilityId", uniqueAbilityId))
+            .addDetails(int32Detail("originalAbilityObjectZcid", originalAbilityObjectZcid))
+            .build()
+
+    /** Ability removed by effect. Arena type 23 (RemoveAbility).
+     *  Real card: effect cleanup (session 2026-03-01, grp:92196). */
+    fun removeAbility(instanceId: Int, effectId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.RemoveAbility)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("effect_id", effectId))
+            .build()
+
+    /** Per-ability use tracking. Arena type 82 (AbilityExhausted).
+     *  Real card: grp:95039 activated ability exhausted (session 09-33-05). */
+    fun abilityExhausted(
+        instanceId: Int,
+        abilityGrpId: Int,
+        usesRemaining: Int,
+        uniqueAbilityId: Int,
+    ): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.AbilityExhausted)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("AbilityGrpId", abilityGrpId))
+            .addDetails(int32Detail("UsesRemaining", usesRemaining))
+            .addDetails(int32Detail("UniqueAbilityId", uniqueAbilityId))
+            .build()
+
+    /** Designation gained (Monarch, City's Blessing, Initiative). Arena type 46 (GainDesignation).
+     *  Event parser — emits DesignationCreatedEvent.
+     *  Real card: grp:92196, DesignationType=19 (session 2026-03-01). */
+    fun gainDesignation(seatId: Int, designationType: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.GainDesignation)
+            .addAffectedIds(seatId)
+            .addDetails(int32Detail("DesignationType", designationType))
+            .build()
+
+    /** Designation state (persistent). Arena type 45 (Designation).
+     *  Stub — always-present key only. Full version needs PromptMessage, CostIncrease,
+     *  grpid, ActivePlayerSpellCount, value, ColorIdentity (context needed).
+     *  Real card: grp:92196 (session 2026-03-01). */
+    fun designation(seatId: Int, designationType: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.Designation)
+            .addAffectedIds(seatId)
+            .addDetails(int32Detail("DesignationType", designationType))
+            .build()
+
+    /** Layered effect state (continuous effects). Arena type 51 (LayeredEffect).
+     *  Stub — emits always-present key only.
+     *  Optional details (context needed): grpid, UniqueAbilityId, sourceAbilityGRPID,
+     *  originalAbilityObjectZcid, MaxHandSize (seen in sessions 09-33-05, 14-15-29).
+     *  Real card: grp:93848, effect_id=7004 (session 09-33-05). */
+    fun layeredEffect(instanceId: Int, effectId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.LayeredEffect)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("effect_id", effectId))
+            .build()
+
     // -- Tier 2 detail-less annotations --
 
     /** Layered effect ended (continuous effect removed). Arena type 19. */
