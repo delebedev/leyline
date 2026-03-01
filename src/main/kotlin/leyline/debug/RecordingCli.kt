@@ -1,8 +1,8 @@
 package leyline.debug
 
-import leyline.recording.RecordingInspector
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import leyline.recording.RecordingInspector
 
 /**
  * Recording inspector CLI.

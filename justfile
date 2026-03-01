@@ -1,6 +1,6 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-import 'build/java.just'
+import 'buildscripts/java.just'
 import 'just/lookup.just'
 import 'just/proto.just'
 import 'just/recording.just'
@@ -27,7 +27,7 @@ jvm_opts_cli := _jvm_base + " -Dlogback.configurationFile=" + logback_cli + " -D
 # --- Java launch helpers ---
 
 # Full classpath expression (shared by _java and _cli launch helpers)
-_cp := '"$classpath:' + project_dir + '/target/classes"'
+_cp := '"$classpath:' + project_dir + '/build/classes/kotlin/main:' + project_dir + '/build/classes/java/main"'
 
 # Kill ports + launch (for server targets)
 _java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill -9 $pid 2>/dev/null || true; done; done; sleep 0.3; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp ' + _cp
@@ -56,59 +56,75 @@ install-forge:
 
 # generate messages.proto from upstream submodule + rename map
 sync-proto:
-    sed -f "{{project_dir}}/proto/rename-map.sed" "{{project_dir}}/proto/upstream/messages.proto" > "{{project_dir}}/src/main/proto/messages.proto"
-    @echo "Proto synced from upstream + renames applied"
+    cd "{{project_dir}}" && ./gradlew syncProto -q
 
 # auto-format Kotlin sources (spotless/ktlint)
 fmt: check-java
-    cd "{{project_dir}}" && mvn com.diffplug.spotless:spotless-maven-plugin:apply -q
+    cd "{{project_dir}}" && ./gradlew spotlessApply -q
     @echo "fmt done."
 
 # check formatting without modifying (CI)
 fmt-check: check-java
-    cd "{{project_dir}}" && mvn com.diffplug.spotless:spotless-maven-plugin:check -q
+    cd "{{project_dir}}" && ./gradlew spotlessCheck -q
 
-# compile proto + Kotlin
-build: check-java _check-upstream sync-proto
+# compile proto + Kotlin (includes sync-proto + upstream check)
+build: check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    rm -rf "{{project_dir}}/target/classes"  # purge stale classes from package moves
-    cd "{{project_dir}}" && mvn {{mvn_skip}} compile
-    just _refresh-classpath
+    cd "{{project_dir}}" && ./gradlew classes
     echo "Build complete. Classpath: {{classpath}}"
 
-# fast Kotlin-only compile (~3-5s)
+# fast Kotlin-only compile
 dev-build: check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{project_dir}}" && mvn {{mvn_skip}} compile -q && echo "dev-build OK"
-    just _refresh-classpath
+    cd "{{project_dir}}" && ./gradlew compileKotlin -q && echo "dev-build OK"
 
 # --- Test ---
+# Gradle prints compact summary via afterSuite listener; no python post-processing needed.
 
-# run tests (assumes `just build` has been run)
-test: check-java _check-upstream _clean-surefire (_mvn-test "")
+# run all tests
+test: check-java
+    cd "{{project_dir}}" && ./gradlew test
 
 # single test class (e.g. `just test-one StructuralFingerprintTest`)
-test-one class: check-java _check-upstream _clean-surefire (_mvn-test ("-Dtest=" + class + " -Dsurefire.failIfNoSpecifiedTests=false"))
+test-one class: check-java
+    cd "{{project_dir}}" && ./gradlew test --tests "*{{class}}"
 
 # unit tests only (no engine bootstrap, fastest)
-test-unit: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=unit")
+test-unit: check-java
+    cd "{{project_dir}}" && ./gradlew testUnit
 
 # all conformance tests (~5s, wire-shape checks against Arena patterns)
-test-conformance: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=conformance")
+test-conformance: check-java
+    cd "{{project_dir}}" && ./gradlew testConformance
 
 # integration tests (parallel forks — boots engine per fork, runs classes concurrently)
-test-integration: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=integration -DforkCount=4 -DreuseForks=true")
+test-integration: check-java
+    cd "{{project_dir}}" && ./gradlew testIntegration
 
 # pre-commit gate: unit + conformance (fast, single fork)
-test-gate: check-java _check-upstream _clean-surefire (_mvn-test "-Dgroups=unit,conformance")
+test-gate: check-java
+    cd "{{project_dir}}" && ./gradlew testGate
 
 # full gate: unit + conformance, then integration in parallel forks
 test-full: test-gate test-integration
 
-# JaCoCo coverage report (unit+conformance only; see TODO.md for integration)
-coverage: check-java _check-upstream _clean-surefire (_mvn-verify "-Dgroups=unit,conformance -Dmaven.test.failure.ignore=true")
+# JaCoCo coverage report (unit+conformance only)
+coverage: check-java
+    #!/usr/bin/env bash
+    set +e
+    cd "{{project_dir}}" && ./gradlew testGate jacocoTestReport; rc=$?
+    xml="{{project_dir}}/build/reports/jacoco/test/jacocoTestReport.xml"
+    if [ -f "$xml" ]; then
+        echo ""
+        python3 "{{project_dir}}/buildscripts/coverage-summary.py" "$xml"
+        echo ""
+        echo "HTML: build/reports/jacoco/test/html/index.html"
+    else
+        echo "⚠ No coverage report (tests may have failed before report phase)"
+    fi
+    exit $rc
 
 # --- Dev ---
 
@@ -243,53 +259,3 @@ smoke-client timeout="60": (_require classpath) check-java
 [private]
 _require file:
     @test -f "{{file}}" || { echo "Missing {{file}}. Run: just build" >&2; exit 1; }
-
-[private]
-_check-upstream:
-    @"{{project_dir}}/build/check-upstream.sh" "{{project_dir}}"
-
-[private]
-_clean-surefire:
-    @rm -rf "{{project_dir}}/target/surefire-reports"
-
-# Run mvn test with extra flags, emit summary, preserve exit code.
-[private]
-_mvn-test extra_flags:
-    #!/usr/bin/env bash
-    set +e
-    cd "{{project_dir}}" && mvn {{mvn_quiet}} {{extra_flags}} test; rc=$?
-    python3 "{{project_dir}}/build/test-summary.py" "{{project_dir}}/target" 2>/dev/null \
-        || echo "⚠ Could not parse test results"
-    exit $rc
-
-# Run mvn verify (test + JaCoCo report), emit test summary + coverage summary.
-[private]
-_mvn-verify extra_flags:
-    #!/usr/bin/env bash
-    set +e
-    cd "{{project_dir}}" && mvn {{mvn_quiet}} {{extra_flags}} verify; rc=$?
-    python3 "{{project_dir}}/build/test-summary.py" "{{project_dir}}/target" 2>/dev/null \
-        || echo "⚠ Could not parse test results"
-    xml="{{project_dir}}/target/site/jacoco/jacoco.xml"
-    if [ -f "$xml" ]; then
-        echo ""
-        python3 "{{project_dir}}/build/coverage-summary.py" "$xml"
-        echo ""
-        echo "HTML: target/site/jacoco/index.html"
-    else
-        echo "⚠ No coverage report (tests may have failed before verify phase)"
-    fi
-    exit $rc
-
-# --- Internal helpers ---
-
-# Refresh classpath file if pom changed (used by build + dev-build).
-[private]
-_refresh-classpath:
-    #!/usr/bin/env bash
-    if [ ! -f "{{classpath}}" ] || [ "{{project_dir}}/pom.xml" -nt "{{classpath}}" ]; then
-        cd "{{project_dir}}" && mvn \
-            {{mvn_skip}} \
-            -DincludeScope=runtime dependency:build-classpath \
-            -Dmdep.outputFile="{{classpath}}"
-    fi

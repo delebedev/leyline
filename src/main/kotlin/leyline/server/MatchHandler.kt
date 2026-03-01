@@ -1,17 +1,17 @@
 package leyline.server
 
+import io.netty.channel.ChannelHandlerContext
+import io.netty.channel.SimpleChannelInboundHandler
 import leyline.config.PlaytestConfig
-import leyline.debug.GameStateCollector
 import leyline.debug.DebugCollector
-import leyline.debug.Tap
+import leyline.debug.GameStateCollector
 import leyline.debug.SessionRecorder
+import leyline.debug.Tap
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
 import leyline.game.PuzzleSource
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
-import io.netty.channel.ChannelHandlerContext
-import io.netty.channel.SimpleChannelInboundHandler
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 

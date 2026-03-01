@@ -1,0 +1,44 @@
+[versions]
+kotlin = "2.2.20"
+coroutines = "1.10.2"
+serialization = "1.9.0"
+protobuf = "3.25.5"
+netty = "4.1.101.Final"
+logback = "1.5.13"
+sentry = "8.21.1"
+tomlkt = "0.4.0"
+sqlite = "3.45.1.0"
+kotest = "5.9.1"
+testng = "7.10.2"
+archunit = "1.4.1"
+forge = "2.0.10-SNAPSHOT"
+spotless = "7.0.2"
+protobuf-plugin = "0.9.4"
+
+[libraries]
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
+protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+protobuf-java-util = { module = "com.google.protobuf:protobuf-java-util", version.ref = "protobuf" }
+tomlkt = { module = "net.peanuuutz.tomlkt:tomlkt-jvm", version.ref = "tomlkt" }
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
+netty-handler = { module = "io.netty:netty-handler", version.ref = "netty" }
+netty-codec = { module = "io.netty:netty-codec", version.ref = "netty" }
+logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
+sentry-logback = { module = "io.sentry:sentry-logback", version.ref = "sentry" }
+forge-core = { module = "forge:forge-core", version.ref = "forge" }
+forge-game = { module = "forge:forge-game", version.ref = "forge" }
+forge-ai = { module = "forge:forge-ai", version.ref = "forge" }
+forge-gui = { module = "forge:forge-gui", version.ref = "forge" }
+kotest-runner = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
+kotest-assertions = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
+kotest-datatest = { module = "io.kotest:kotest-framework-datatest", version.ref = "kotest" }
+testng = { module = "org.testng:testng", version.ref = "testng" }
+archunit = { module = "com.tngtech.archunit:archunit", version.ref = "archunit" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

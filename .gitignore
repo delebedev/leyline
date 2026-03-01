@@ -13,12 +13,10 @@
 .factorypath
 nbactions.xml
 
-# Maven
-.flattened-pom.xml
+# Gradle
+.gradle/
+build/
 target
-test-output
-bin
-gen
 
 # Logs
 *.log

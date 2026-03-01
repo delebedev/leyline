@@ -1,8 +1,5 @@
 package leyline.server
 
-import leyline.protocol.ClientFrameDecoder
-import leyline.protocol.ClientHeaderPrepender
-import leyline.protocol.ClientHeaderStripper
 import io.netty.bootstrap.Bootstrap
 import io.netty.bootstrap.ServerBootstrap
 import io.netty.buffer.ByteBuf
@@ -17,6 +14,9 @@ import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory
 import io.netty.handler.ssl.util.SelfSignedCertificate
+import leyline.protocol.ClientFrameDecoder
+import leyline.protocol.ClientHeaderPrepender
+import leyline.protocol.ClientHeaderStripper
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
