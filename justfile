@@ -52,6 +52,7 @@ _cert_flags := '--fd-cert "' + _fd_cert + '" --fd-key "' + _fd_key + '" --md-cer
 # install forge engine jars from submodule (run after git submodule update)
 install-forge:
     cd "{{project_dir}}/forge" && mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
+    cd "{{project_dir}}/forge" && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml > "{{project_dir}}/.upstream-installed"
     @echo "Forge engine installed to forge/.m2-local/"
 
 # generate messages.proto from upstream submodule + rename map
