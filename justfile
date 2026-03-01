@@ -71,6 +71,14 @@ fmt-check:
 lint:
     cd "{{project_dir}}" && ./gradlew detekt
 
+# report outdated dependencies
+deps-outdated:
+    cd "{{project_dir}}" && ./gradlew dependencyUpdates -q
+
+# build performance profile (opens HTML report)
+build-profile:
+    cd "{{project_dir}}" && ./gradlew classes --profile && open build/reports/profile/*.html
+
 # compile proto + Kotlin (includes sync-proto + upstream check)
 build:
     #!/usr/bin/env bash
@@ -150,6 +158,62 @@ dev: check-java
 # headless smoke test (validates auth → mulligan flow without MTGA)
 smoke: (_require classpath) check-java
     @{{_java}} leyline.debug.SmokeTestKt
+
+# --- Client Setup ---
+
+# MTGA.app location (standard Epic Games install on macOS)
+_mtga_path := "/Users/Shared/Epic Games/MagicTheGathering/MTGA.app"
+_streaming := _mtga_path / "Contents/Resources/Data/StreamingAssets"
+_audio_dir := _streaming / "Audio/GeneratedSoundBanks/Mac"
+
+# one-time local dev setup: generate certs, patch Arena client for localhost
+dev-setup:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    # 1. Generate TLS certs if missing
+    if [ ! -f "{{_fd_cert}}" ]; then
+        echo "==> Generating TLS certs..."
+        just gen-certs
+    else
+        echo "==> Certs exist: {{certs}}"
+    fi
+    # 2. Copy localhost services.conf into Arena
+    streaming="{{_streaming}}"
+    if [ ! -d "$streaming" ]; then
+        echo "Error: MTGA not found at {{_mtga_path}}"
+        echo "Install Arena via Epic Games first."
+        exit 1
+    fi
+    cp "{{project_dir}}/src/main/resources/services.conf" "$streaming/services.conf"
+    echo "==> Copied localhost services.conf"
+    # 3. Ensure NPE_VO.bnk exists
+    audio="{{_audio_dir}}"
+    if [ ! -f "$audio/NPE_VO.bnk" ]; then
+        mkdir -p "$audio"
+        echo "QktIRDAAAACWAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" \
+            | base64 -d > "$audio/NPE_VO.bnk"
+        echo "==> Created NPE_VO.bnk stub"
+    fi
+    # 4. macOS defaults — skip cert check + hash verification
+    defaults write com.Wizards.MtGA CheckSC -integer 0
+    defaults write com.Wizards.MtGA HashFilesOnStartup -integer 0
+    echo "==> macOS defaults set (CheckSC=0, HashFilesOnStartup=0)"
+    echo ""
+    echo "Dev setup complete. Run: just serve"
+
+# undo dev-setup: remove services.conf, clear macOS defaults
+dev-teardown:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    streaming="{{_streaming}}"
+    if [ -f "$streaming/services.conf" ]; then
+        rm "$streaming/services.conf"
+        echo "==> Removed services.conf"
+    fi
+    defaults delete com.Wizards.MtGA CheckSC 2>/dev/null || true
+    defaults delete com.Wizards.MtGA HashFilesOnStartup 2>/dev/null || true
+    echo "==> macOS defaults cleared"
+    echo "Dev teardown complete. Arena restored to stock."
 
 # --- Serve ---
 
@@ -244,6 +308,22 @@ smoke-client timeout="60": (_require classpath) check-java
         echo "Check: curl http://localhost:8090/api/client-errors"
         exit 1
     fi
+
+# --- Docker ---
+
+# build Docker image locally
+docker-build tag="ghcr.io/delebedev/leyline:latest":
+    docker build -t "{{tag}}" .
+
+# push Docker image to GHCR
+docker-push tag="ghcr.io/delebedev/leyline:latest":
+    docker push "{{tag}}"
+
+# deploy: build, push, restart on VPS
+deploy:
+    just docker-build
+    just docker-push
+    ssh denis@vps "cd /opt/leyline && docker compose pull && docker compose up -d"
 
 # --- Private helpers ---
 
