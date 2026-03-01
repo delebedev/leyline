@@ -221,6 +221,7 @@ object AnnotationPipeline {
                 annotations.add(AnnotationBuilder.damagedThisTurn(iid))
             }
             // Mark blockers that took damage from this attacker
+            // TODO: a blocker blocking multiple attackers may get duplicate annotations here
             for (blocker in combat.getBlockers(attacker)) {
                 if (blocker.getDamage() > 0) {
                     val blockerIid = bridge.getOrAllocInstanceId(blocker.id)

@@ -12,7 +12,7 @@
 #   suppressed — deliberately disabled (cosmetic, causes client errors)
 #   n/a       — not applicable to Arena Standard/Pioneer
 #
-# Updated: 2026-02-26
+# Updated: 2026-03-01
 # Authoritative source for protocol-level detail: rosetta.md
 
 # ─── Client Infrastructure ───────────────────────────────────────────
@@ -342,8 +342,9 @@ permanents:
     status: wired
     notes: >
       +1/+1, -1/-1, loyalty, poison, stun. CounterAdded/CounterRemoved
-      annotations fire with type and amount. Counter annihilation works
-      (engine handles +1/+1 canceling -1/-1).
+      annotations fire with type and amount. Persistent Counter state
+      annotation (type 14) tracks authoritative count per permanent.
+      Counter annihilation works (engine handles +1/+1 canceling -1/-1).
 
   power-toughness-changes:
     status: wired
@@ -680,8 +681,9 @@ visual-fidelity:
   buff-debuff-overlay:
     status: wired
     notes: >
-      ModifiedPower/ModifiedToughness annotations now fire on P/T deltas.
-      Client can show +X/+X and -X/-X overlays.
+      ModifiedPower/ModifiedToughness annotations fire on P/T deltas.
+      PowerToughnessModCreated (type 71) fires with power/toughness delta
+      for buff animation. Client can show +X/+X and -X/-X overlays.
 
   attachment-visual:
     status: wired
@@ -709,7 +711,10 @@ visual-fidelity:
 
   damage-numbers:
     status: wired
-    notes: "DamageDealt annotation fires with amount, type, markDamage."
+    notes: >
+      DamageDealt annotation fires with amount, type, markDamage.
+      DamagedThisTurn (type 90) persistent badge marks creatures that
+      took damage in combat.
 
   life-total:
     status: wired
@@ -730,7 +735,7 @@ protocol-summary:
 
   annotation-tiers:
     # ── Core: needed for most games, absence breaks UX ──────────────
-    # 28 types. We have 22 working, 6 missing.
+    # 28 types. We have 26 working, 6 missing.
     core:
       have:
         - ZoneTransfer (1)          # every card move
@@ -755,30 +760,34 @@ protocol-summary:
         - RemoveAttachment (12)     # unequip/disenchant
         - Attachment (20)           # persistent attachment state
         - TokenCreated (35)         # token creation annotation
+        - RevealedCardCreated (59)  # card revealed to all players
+        - RevealedCardDeleted (60)  # card un-revealed
+        - PowerToughnessModCreated (71)  # buff animation trigger
+        - DamagedThisTurn (90)      # persistent badge on damaged creatures
       missing:
         - AddAbility (9)            # "gains flying/haste/etc" — no keyword badge update
         - ControllerChanged (15)    # steal effects (Claim, Agent) — permanent doesn't move
-        - CardRevealed (47)         # tutors, impulse draw — no reveal animation
         - ManaPaid (34)             # stub only, no detail keys — mana payment visual
+        - CardRevealed (47)         # tutors, impulse draw — no reveal animation
         - PlayerSelectingTargets (92)  # targeting arrows during cast
         - PlayerSubmittedTargets (93)  # targeting arrows confirmed
 
     # ── Nice-to-have: better UX, common-ish mechanics ──────────────
-    # 20 types. We have 2 working, 17 missing.
+    # 20 types. We have 4 working, 15 missing.
     nice-to-have:
       have:
-        - UserActionTaken (73)      # action feedback
+        - Counter (14)              # persistent counter state badge
+        - TokenDeleted (41)         # token leaves battlefield animation
         - SyntheticEvent (72)       # internal sequencing
+        - UserActionTaken (73)      # action feedback
       missing:
         - ModifiedColor (7)         # Painter's Servant etc
-        - Counter (14)              # running tally for badge display (vs Added/Removed events)
         - LayeredEffectCreated (18) # buff source tracking
         - RemoveAbility (23)        # "loses all abilities"
         - ModifiedType (25)         # type-changing effects
         - TargetSpec (26)           # targeting UI hints
         - FaceDown (28)             # morph/manifest/disguise
         - DynamicAbility (30)       # activated ability cost display
-        - TokenDeleted (41)         # token leaves battlefield animation
         - CoinFlip (57)             # coin flip results
         - ReplacementEffect (62)    # replacement effect indicators
         - DieRoll (85)              # D20 cards, growing in Standard
@@ -799,7 +808,7 @@ protocol-summary:
         - SaddledThisTurn (104)     # saddle mechanic
         - LoopCount (106)           # loop detection
         - SuppressedPowerAndToughness (108) # edge case display
-        - Designation (45)          # monarch, initiative
+        - Designation (45)          # monarch, initiative, Room door unlocks
         - SuspendLike (61)          # suspend/foretell/hideaway
         - CastingTimeOption (64)    # alt cast timing
         - MultistepEffectStarted (83) # multi-step resolution UI
