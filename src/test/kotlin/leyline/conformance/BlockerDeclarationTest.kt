@@ -1,9 +1,11 @@
 package leyline.conformance
 
 import forge.game.zone.ZoneType
-import org.testng.Assert.*
-import org.testng.annotations.AfterMethod
-import org.testng.annotations.Test
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.shouldBe
 
 /**
  * End-to-end blocker declaration tests: AI attacks, human blocks.
@@ -24,182 +26,171 @@ import org.testng.annotations.Test
  * Uses non-validating harness: combat zone transfers can produce transient
  * instanceId gaps (known StateMapper issue tracked separately).
  */
-@Test(groups = ["integration"], enabled = false)
-class BlockerDeclarationTest {
+class BlockerDeclarationTest :
+    FunSpec({
 
-    private lateinit var harness: MatchFlowHarness
+        var harness: MatchFlowHarness? = null
 
-    @AfterMethod(alwaysRun = true)
-    fun tearDown() {
-        if (::harness.isInitialized) harness.shutdown()
-    }
-
-    /**
-     * Setup: human casts Raging Goblin turn 1 (potential blocker).
-     * AI scripted to cast Raging Goblin and attack with it on its turn.
-     * Advances to the point where DeclareBlockersReq should be sent.
-     *
-     * Returns pair of (humanBlockerInstanceId, aiAttackerInstanceId).
-     */
-    private fun setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
-        harness = MatchFlowHarness(seed = 42L, deckList = CombatFlowTest.COMBAT_DECK, validating = false)
-        harness.connectAndKeep()
-
-        // AI: play Mountain, cast Raging Goblin, attack with it
-        harness.installScriptedAi(
-            listOf(
-                ScriptedAction.PlayLand("Mountain"),
-                ScriptedAction.CastSpell("Raging Goblin"),
-                ScriptedAction.Attack(listOf("Raging Goblin")),
-                ScriptedAction.PassPriority,
-                ScriptedAction.PlayLand("Mountain"),
-                ScriptedAction.DeclareNoAttackers,
-                ScriptedAction.PassPriority,
-            ),
-        )
-
-        // Human turn 1: play Mountain, cast Raging Goblin (haste → potential blocker)
-        assertTrue(harness.playLand(), "Should play Mountain")
-        assertTrue(harness.castSpellByName("Raging Goblin"), "Should cast Raging Goblin")
-        harness.passPriority() // resolve
-
-        // Skip human's own combat if prompted
-        if (harness.allMessages.any { it.hasDeclareAttackersReq() }) {
-            harness.declareNoAttackers()
+        afterEach {
+            harness?.shutdown()
+            harness = null
         }
 
-        // Get human blocker instanceId before combat
-        val humanCreatures = harness.humanBattlefieldCreatures()
-        assertTrue(humanCreatures.isNotEmpty(), "Human should have Raging Goblin on BF")
-        val blockerIid = humanCreatures.first().first
+        /**
+         * Setup: human casts Raging Goblin turn 1 (potential blocker).
+         * AI scripted to cast Raging Goblin and attack with it on its turn.
+         * Advances to the point where DeclareBlockersReq should be sent.
+         *
+         * Returns pair of (humanBlockerInstanceId, aiAttackerInstanceId).
+         */
+        fun setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            harness = h
+            h.connectAndKeep()
 
-        // Advance to AI's turn — AI script runs: land, cast, attack.
-        // Use a fresh snap per iteration to avoid re-detecting handled messages
-        // (echo-back from declareNoAttackers produces DeclareAttackersReq).
-        var sawBlockerReq = false
-        for (i in 0 until 50) {
-            if (harness.isGameOver()) break
-            val snap = harness.messageSnapshot()
-            harness.passPriority()
-            val recent = harness.messagesSince(snap)
-            if (recent.any { it.hasDeclareBlockersReq() }) {
-                sawBlockerReq = true
-                break
+            // AI: play Mountain, cast Raging Goblin, attack with it
+            h.installScriptedAi(
+                listOf(
+                    ScriptedAction.PlayLand("Mountain"),
+                    ScriptedAction.CastSpell("Raging Goblin"),
+                    ScriptedAction.Attack(listOf("Raging Goblin")),
+                    ScriptedAction.PassPriority,
+                    ScriptedAction.PlayLand("Mountain"),
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.PassPriority,
+                ),
+            )
+
+            // Human turn 1: play Mountain, cast Raging Goblin (haste → potential blocker)
+            h.playLand().shouldBeTrue()
+            h.castSpellByName("Raging Goblin").shouldBeTrue()
+            h.passPriority() // resolve
+
+            // Skip human's own combat if prompted
+            if (h.allMessages.any { it.hasDeclareAttackersReq() }) {
+                h.declareNoAttackers()
             }
-            if (recent.any { it.hasDeclareAttackersReq() }) {
-                harness.declareNoAttackers()
+
+            // Get human blocker instanceId before combat
+            val humanCreatures = h.humanBattlefieldCreatures()
+            humanCreatures.shouldNotBeEmpty()
+            val blockerIid = humanCreatures.first().first
+
+            // Advance to AI's turn — AI script runs: land, cast, attack.
+            var sawBlockerReq = false
+            for (i in 0 until 50) {
+                if (h.isGameOver()) break
+                val snap = h.messageSnapshot()
+                h.passPriority()
+                val recent = h.messagesSince(snap)
+                if (recent.any { it.hasDeclareBlockersReq() }) {
+                    sawBlockerReq = true
+                    break
+                }
+                if (recent.any { it.hasDeclareAttackersReq() }) {
+                    h.declareNoAttackers()
+                }
             }
+
+            sawBlockerReq.shouldBeTrue()
+
+            // Find the AI attacker instanceId from the DeclareBlockersReq
+            val blockReq = h.allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq
+            (blockReq.blockersCount > 0).shouldBeTrue()
+
+            // The blocker should reference attacker instanceIds
+            val blocker = blockReq.blockersList.first { it.blockerInstanceId == blockerIid }
+            (blocker.attackerInstanceIdsCount > 0).shouldBeTrue()
+            val attackerIid = blocker.attackerInstanceIdsList.first()
+
+            return blockerIid to attackerIid
         }
 
-        assertTrue(sawBlockerReq, "Should receive DeclareBlockersReq when AI attacks")
+        // TODO: flaky — setupAiAttacksHumanCanBlock loop doesn't reliably reach
+        //  DeclareBlockersReq within iteration budget. AI script timing is seed-sensitive.
+        //  Pre-existing issue (fails 1/3 on old code too). Needs deterministic puzzle-based setup.
+        xtest("human blocks AI attacker") {
+            val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
 
-        // Find the AI attacker instanceId from the DeclareBlockersReq
-        val blockReq = harness.allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq
-        assertTrue(blockReq.blockersCount > 0, "DeclareBlockersReq should list eligible blockers")
+            val h = harness!!
+            // Human life before blocking
+            val humanPlayer = h.bridge.getPlayer(1)!!
+            val lifeBefore = humanPlayer.life
 
-        // The blocker should reference attacker instanceIds
-        val blocker = blockReq.blockersList.first { it.blockerInstanceId == blockerIid }
-        assertTrue(blocker.attackerInstanceIdsCount > 0, "Blocker should have legal attacker targets")
-        val attackerIid = blocker.attackerInstanceIdsList.first()
+            // Declare block: human's Raging Goblin blocks AI's Raging Goblin
+            h.declareBlockers(mapOf(blockerIid to attackerIid))
 
-        return blockerIid to attackerIid
-    }
+            // Pass through remaining combat
+            repeat(15) {
+                if (h.isGameOver()) return@repeat
+                h.passPriority()
+            }
 
-    // --- Test 1: humanBlocksAiAttacker ---
+            // Human life should NOT decrease (blocked damage)
+            val lifeAfter = humanPlayer.life
+            lifeAfter shouldBe lifeBefore
 
-    // TODO: flaky — setupAiAttacksHumanCanBlock loop doesn't reliably reach
-    //  DeclareBlockersReq within iteration budget. AI script timing is seed-sensitive.
-    //  Pre-existing issue (fails 1/3 on old code too). Needs deterministic puzzle-based setup.
-    @Test(description = "Human blocks AI's 1/1 attacker with 1/1 blocker; both trade", enabled = false)
-    fun humanBlocksAiAttacker() {
-        val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
+            // Both 1/1s should have traded — human's creature should be in graveyard
+            val humanGy = humanPlayer.getZone(ZoneType.Graveyard).cards
+            val blockerInGy = humanGy.any { it.name == "Raging Goblin" }
+            blockerInGy.shouldBeTrue()
 
-        // Human life before blocking
-        val humanPlayer = harness.bridge.getPlayer(1)!!
-        val lifeBefore = humanPlayer.life
-
-        // Declare block: human's Raging Goblin blocks AI's Raging Goblin
-        harness.declareBlockers(mapOf(blockerIid to attackerIid))
-
-        // Pass through remaining combat
-        repeat(15) {
-            if (harness.isGameOver()) return@repeat
-            harness.passPriority()
+            h.isGameOver().shouldBeFalse()
         }
 
-        // Human life should NOT decrease (blocked damage)
-        val lifeAfter = humanPlayer.life
-        assertEquals(lifeAfter, lifeBefore, "Human life should not change when 1/1 is fully blocked")
+        xtest("human declines blocking takes damage") {
+            setupAiAttacksHumanCanBlock() // advances to DeclareBlockersReq
 
-        // Both 1/1s should have traded — human's creature should be in graveyard
-        val humanGy = humanPlayer.getZone(ZoneType.Graveyard).cards
-        val blockerInGy = humanGy.any { it.name == "Raging Goblin" }
-        assertTrue(blockerInGy, "Human's Raging Goblin should be in graveyard after trade")
+            val h = harness!!
+            val humanPlayer = h.bridge.getPlayer(1)!!
+            val lifeBefore = humanPlayer.life
 
-        assertFalse(harness.isGameOver(), "Game should not be over")
-    }
+            // Human declines to block
+            h.declareNoBlockers()
 
-    // --- Test 2: humanDeclinesBlockingTakesDamage ---
+            // Pass through remaining combat
+            repeat(15) {
+                if (h.isGameOver()) return@repeat
+                h.passPriority()
+            }
 
-    @Test(description = "Human declines to block AI's 1/1 attacker; human takes 1 damage")
-    fun humanDeclinesBlockingTakesDamage() {
-        setupAiAttacksHumanCanBlock() // advances to DeclareBlockersReq
+            // Human should have taken exactly 1 damage (Raging Goblin is 1/1)
+            val lifeAfter = humanPlayer.life
+            lifeAfter shouldBe lifeBefore - 1
 
-        val humanPlayer = harness.bridge.getPlayer(1)!!
-        val lifeBefore = humanPlayer.life
+            // Human's creature should still be alive
+            val humanBf = h.humanBattlefieldCreatures()
+            humanBf.shouldNotBeEmpty()
 
-        // Human declines to block
-        harness.declareNoBlockers()
-
-        // Pass through remaining combat
-        repeat(15) {
-            if (harness.isGameOver()) return@repeat
-            harness.passPriority()
+            h.isGameOver().shouldBeFalse()
         }
 
-        // Human should have taken exactly 1 damage (Raging Goblin is 1/1)
-        val lifeAfter = humanPlayer.life
-        assertEquals(
-            lifeAfter,
-            lifeBefore - 1,
-            "Human should take exactly 1 damage from unblocked Raging Goblin",
-        )
+        xtest("trade produces creature deaths") {
+            val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
 
-        // Human's creature should still be alive
-        val humanBf = harness.humanBattlefieldCreatures()
-        assertTrue(humanBf.isNotEmpty(), "Human's creature should survive (was not involved in combat)")
+            val h = harness!!
+            // Declare block
+            h.declareBlockers(mapOf(blockerIid to attackerIid))
 
-        assertFalse(harness.isGameOver(), "Game should not be over")
-    }
+            // Pass through remaining combat
+            repeat(15) {
+                if (h.isGameOver()) return@repeat
+                h.passPriority()
+            }
 
-    // --- Test 3: tradeProducesCreatureDeaths ---
+            // Both creatures should be dead
+            val humanPlayer = h.bridge.getPlayer(1)!!
+            val aiPlayer = h.bridge.getPlayer(2)!!
 
-    @Test(description = "1/1 blocks 1/1: both creatures end up in graveyard")
-    fun tradeProducesCreatureDeaths() {
-        val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
+            val humanGy = humanPlayer.getZone(ZoneType.Graveyard).cards
+            val aiGy = aiPlayer.getZone(ZoneType.Graveyard).cards
 
-        // Declare block
-        harness.declareBlockers(mapOf(blockerIid to attackerIid))
+            val humanGoblinDead = humanGy.any { it.name == "Raging Goblin" }
+            val aiGoblinDead = aiGy.any { it.name == "Raging Goblin" }
 
-        // Pass through remaining combat
-        repeat(15) {
-            if (harness.isGameOver()) return@repeat
-            harness.passPriority()
+            humanGoblinDead.shouldBeTrue()
+            aiGoblinDead.shouldBeTrue()
+
+            h.isGameOver().shouldBeFalse()
         }
-
-        // Both creatures should be dead
-        val humanPlayer = harness.bridge.getPlayer(1)!!
-        val aiPlayer = harness.bridge.getPlayer(2)!!
-
-        val humanGy = humanPlayer.getZone(ZoneType.Graveyard).cards
-        val aiGy = aiPlayer.getZone(ZoneType.Graveyard).cards
-
-        val humanGoblinDead = humanGy.any { it.name == "Raging Goblin" }
-        val aiGoblinDead = aiGy.any { it.name == "Raging Goblin" }
-
-        assertTrue(humanGoblinDead, "Human's Raging Goblin should be in graveyard after trade")
-        assertTrue(aiGoblinDead, "AI's Raging Goblin should be in graveyard after trade")
-
-        assertFalse(harness.isGameOver(), "Game should not be over after 1/1 trade")
-    }
-}
+    })

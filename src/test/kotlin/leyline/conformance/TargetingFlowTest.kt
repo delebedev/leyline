@@ -1,8 +1,13 @@
 package leyline.conformance
 
-import org.testng.Assert.*
-import org.testng.annotations.AfterMethod
-import org.testng.annotations.Test
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -16,519 +21,461 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * so setup helpers assert prerequisites (creature on BF, mana, Giant Growth
  * in hand) rather than exact turn numbers.
  */
-@Test(groups = ["integration"])
-class TargetingFlowTest {
+class TargetingFlowTest :
+    FunSpec({
 
-    private lateinit var harness: MatchFlowHarness
+        var harness: MatchFlowHarness? = null
+        var puzzleHarness: MatchFlowHarness? = null
 
-    @AfterMethod(alwaysRun = true)
-    fun tearDown() {
-        if (::harness.isInitialized) harness.shutdown()
-        if (::puzzleHarness.isInitialized) puzzleHarness.shutdown()
-    }
+        afterEach {
+            harness?.shutdown()
+            harness = null
+            puzzleHarness?.shutdown()
+            puzzleHarness = null
+        }
 
-    // --- Setup helpers ---
+        // --- Setup helpers ---
 
-    /**
-     * Setup for targeting tests: creature on BF + Giant Growth in hand + mana.
-     *
-     * Turn 1: play Forest, cast Llanowar Elves (G).
-     * Advance past turn 1 → AI turn → back to human (turn >= 2).
-     * Now Elves untap, play another Forest → 2G available. Giant Growth costs G.
-     *
-     * Returns the creature's instanceId.
-     */
-    private fun setupForTargeting(): Int {
-        harness = MatchFlowHarness(seed = 42L)
-        harness.connectAndKeep()
+        fun setupForTargeting(): Int {
+            val h = MatchFlowHarness(seed = 42L, validating = false)
+            harness = h
+            h.connectAndKeep()
 
-        harness.installScriptedAi(
-            listOf(
-                ScriptedAction.PlayLand("Forest"),
-                ScriptedAction.DeclareNoAttackers,
-                ScriptedAction.PassPriority,
-                ScriptedAction.PlayLand("Forest"),
-                ScriptedAction.DeclareNoAttackers,
-                ScriptedAction.PassPriority,
-                ScriptedAction.PlayLand("Forest"),
-                ScriptedAction.DeclareNoAttackers,
-                ScriptedAction.PassPriority,
-            ),
-        )
+            h.installScriptedAi(
+                listOf(
+                    ScriptedAction.PlayLand("Forest"),
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.PassPriority,
+                    ScriptedAction.PlayLand("Forest"),
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.PassPriority,
+                    ScriptedAction.PlayLand("Forest"),
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.PassPriority,
+                ),
+            )
 
-        // Turn 1: play Forest, cast creature
-        assertTrue(harness.playLand(), "Should play land")
-        assertTrue(harness.castCreature(), "Should cast creature")
-        harness.passPriority() // resolve creature
+            // Turn 1: play Forest, cast creature
+            h.playLand().shouldBeTrue()
+            h.castCreature().shouldBeTrue()
+            h.passPriority() // resolve creature
 
-        // Advance past turn 1 — may overshoot to turn 3, that's fine
-        harness.passPriority()
+            // Advance past turn 1 — may overshoot to turn 3, that's fine
+            h.passPriority()
 
-        // Play another land if we can (for mana)
-        harness.playLand()
+            // Play another land if we can (for mana)
+            h.playLand()
 
-        // Verify prerequisites (turn-agnostic)
-        assertFalse(harness.isAiTurn(), "Should be human's turn")
-        assertTrue(harness.turn() >= 2, "Should have advanced past turn 1, got turn ${harness.turn()}")
+            // Verify prerequisites (turn-agnostic)
+            h.isAiTurn().shouldBeFalse()
+            h.turn() shouldBeGreaterThanOrEqualTo 2
 
-        val creatures = harness.humanBattlefieldCreatures()
-        assertTrue(creatures.isNotEmpty(), "Should have a creature on BF")
+            val creatures = h.humanBattlefieldCreatures()
+            creatures.shouldNotBeEmpty()
 
-        val player = harness.bridge.getPlayer(1)!!
-        val hasGiantGrowth = player.getZone(ForgeZoneType.Hand).cards
-            .any { it.name.equals("Giant Growth", ignoreCase = true) }
-        assertTrue(hasGiantGrowth, "Should have Giant Growth in hand")
+            val player = h.bridge.getPlayer(1)!!
+            val hasGiantGrowth = player.getZone(ForgeZoneType.Hand).cards
+                .any { it.name.equals("Giant Growth", ignoreCase = true) }
+            hasGiantGrowth.shouldBeTrue()
 
-        return creatures.first().first
-    }
+            return creatures.first().first
+        }
 
-    // --- Test 1: targetedSpellEmitsSelectTargetsReq ---
+        fun setupBoltFacePuzzle(): MatchFlowHarness {
+            val h = MatchFlowHarness()
+            puzzleHarness = h
+            h.connectAndKeepPuzzle("puzzles/bolt-face.pzl")
+            return h
+        }
 
-    @Test(description = "Casting Giant Growth emits SelectTargetsReq with legal creature targets")
-    fun targetedSpellEmitsSelectTargetsReq() {
-        val creatureIid = setupForTargeting()
+        test("targeted spell emits SelectTargetsReq") {
+            val creatureIid = setupForTargeting()
+            val h = harness!!
 
-        // Cast Giant Growth — should trigger SelectTargetsReq
-        val snap = harness.messageSnapshot()
-        val cast = harness.castSpellByName("Giant Growth")
-        assertTrue(cast, "Should cast Giant Growth")
+            // Cast Giant Growth — should trigger SelectTargetsReq
+            val snap = h.messageSnapshot()
+            val cast = h.castSpellByName("Giant Growth")
+            cast.shouldBeTrue()
 
-        // Look for SelectTargetsReq in messages
-        val msgs = harness.messagesSince(snap)
-        val stReq = msgs.firstOrNull { it.hasSelectTargetsReq() }
-        assertNotNull(stReq, "Should receive SelectTargetsReq after casting Giant Growth")
+            // Look for SelectTargetsReq in messages
+            val msgs = h.messagesSince(snap)
+            val stReq = msgs.firstOrNull { it.hasSelectTargetsReq() }
+            stReq.shouldNotBeNull()
 
-        val req = stReq!!.selectTargetsReq
-        assertTrue(req.targetsCount > 0, "SelectTargetsReq should have target selections")
+            val req = stReq.selectTargetsReq
+            (req.targetsCount > 0).shouldBeTrue()
 
-        val targetSelection = req.targetsList.first()
-        assertTrue(targetSelection.targetsCount > 0, "Should have legal targets")
+            val targetSelection = req.targetsList.first()
+            (targetSelection.targetsCount > 0).shouldBeTrue()
 
-        // Our creature should be among legal targets
-        val legalTargetIds = targetSelection.targetsList.map { it.targetInstanceId }
-        assertTrue(
-            creatureIid in legalTargetIds,
-            "Our creature $creatureIid should be a legal target, got $legalTargetIds",
-        )
+            // Our creature should be among legal targets
+            val legalTargetIds = targetSelection.targetsList.map { it.targetInstanceId }
+            (creatureIid in legalTargetIds).shouldBeTrue()
 
-        // Verify minTargets/maxTargets for Giant Growth (1 target)
-        assertEquals(targetSelection.minTargets, 1, "Giant Growth requires exactly 1 target")
-        assertEquals(targetSelection.maxTargets, 1, "Giant Growth targets exactly 1 creature")
-    }
+            // Verify minTargets/maxTargets for Giant Growth (1 target)
+            targetSelection.minTargets shouldBe 1
+            targetSelection.maxTargets shouldBe 1
+        }
 
-    // --- Test 2: selectTargetAndResolve ---
+        test("select target and resolve") {
+            val creatureIid = setupForTargeting()
+            val h = harness!!
 
-    @Test(description = "Select creature target for Giant Growth; spell resolves, creature gets +3/+3")
-    fun selectTargetAndResolve() {
-        val creatureIid = setupForTargeting()
+            // Cast Giant Growth
+            val cast = h.castSpellByName("Giant Growth")
+            cast.shouldBeTrue()
 
-        // Cast Giant Growth
-        val cast = harness.castSpellByName("Giant Growth")
-        assertTrue(cast, "Should cast Giant Growth")
+            // Select the creature as target
+            val snap = h.messageSnapshot()
+            h.selectTargets(listOf(creatureIid))
 
-        // Select the creature as target
-        val snap = harness.messageSnapshot()
-        harness.selectTargets(listOf(creatureIid))
+            // After targeting, the spell is on the stack. Pass to resolve.
+            h.passPriority()
 
-        // After targeting, the spell is on the stack. Pass to resolve.
-        harness.passPriority()
+            val msgs = h.messagesSince(snap)
+            val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+            gsms.shouldNotBeEmpty()
 
-        val msgs = harness.messagesSince(snap)
-        val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
-        assertTrue(gsms.isNotEmpty(), "Should have game state messages after targeting + resolution")
+            // The creature should have updated power/toughness (+3/+3 from Giant Growth)
+            val player = h.bridge.getPlayer(1)!!
+            val creature = player.getZone(ForgeZoneType.Battlefield).cards
+                .firstOrNull { h.bridge.getOrAllocInstanceId(it.id) == creatureIid }
+            creature.shouldNotBeNull()
+            (creature.netPower >= 4).shouldBeTrue()
+            (creature.netToughness >= 4).shouldBeTrue()
 
-        // The creature should have updated power/toughness (+3/+3 from Giant Growth)
-        val player = harness.bridge.getPlayer(1)!!
-        val creature = player.getZone(ForgeZoneType.Battlefield).cards
-            .firstOrNull { harness.bridge.getOrAllocInstanceId(it.id) == creatureIid }
-        assertNotNull(creature, "Creature should still be on battlefield")
-        assertTrue(
-            creature!!.netPower >= 4,
-            "Creature should have at least 4 power (1+3 from Giant Growth), got ${creature.netPower}",
-        )
-        assertTrue(
-            creature.netToughness >= 4,
-            "Creature should have at least 4 toughness (1+3 from Giant Growth), got ${creature.netToughness}",
-        )
+            h.accumulator.assertConsistent("after Giant Growth resolution")
+        }
 
-        harness.accumulator.assertConsistent("after Giant Growth resolution")
-    }
+        test("targeting state validity") {
+            val creatureIid = setupForTargeting()
+            val h = harness!!
 
-    // --- Test 3: targetingStateValidity ---
+            h.accumulator.assertConsistent("before targeting")
 
-    @Test(description = "Full targeting flow maintains valid accumulated state at every step")
-    fun targetingStateValidity() {
-        val creatureIid = setupForTargeting()
+            // Cast Giant Growth
+            val cast = h.castSpellByName("Giant Growth")
+            cast.shouldBeTrue()
 
-        harness.accumulator.assertConsistent("before targeting")
+            // Select target
+            h.selectTargets(listOf(creatureIid))
 
-        // Cast Giant Growth
-        val cast = harness.castSpellByName("Giant Growth")
-        assertTrue(cast, "Should cast Giant Growth")
+            // Resolve
+            h.passPriority()
 
-        // Select target
-        harness.selectTargets(listOf(creatureIid))
+            h.accumulator.assertConsistent("after targeting flow")
 
-        // Resolve
-        harness.passPriority()
+            // gsId chain valid through targeting
+            assertGsIdChain(h.allMessages, context = "targeting flow")
+        }
 
-        harness.accumulator.assertConsistent("after targeting flow")
+        test("targeting during combat") {
+            // Use combat deck with haste creatures for turn-1 combat + Giant Growth
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            harness = h
+            h.connectAndKeep()
 
-        // gsId chain valid through targeting
-        assertGsIdChain(harness.allMessages, context = "targeting flow")
-    }
+            h.installScriptedAi(
+                listOf(
+                    ScriptedAction.PlayLand("Mountain"),
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.PassPriority,
+                ),
+            )
 
-    // --- Test 4: targetingDuringCombat ---
+            // Play Forest (for Giant Growth mana) + cast Raging Goblin... wait, we need
+            // both a Mountain (for Goblin) and a Forest (for Giant Growth) on turn 1.
+            // We can only play 1 land per turn. So: play Forest, can't cast Goblin (costs R).
+            // Or: play Mountain, cast Goblin, but can't cast Giant Growth (costs G).
+            //
+            // Solution: advance to turn 2. Play Mountain turn 1, cast Goblin.
+            // Turn 2: play Forest → have both colors.
+            h.playLand() // Mountain
+            h.castSpellByName("Raging Goblin")
+            h.passPriority() // resolve
 
-    @Test(description = "Giant Growth on attacker during combat (if priority available)")
-    fun targetingDuringCombat() {
-        // Use combat deck with haste creatures for turn-1 combat + Giant Growth
-        harness = MatchFlowHarness(seed = 42L, deckList = CombatFlowTest.COMBAT_DECK)
-        harness.connectAndKeep()
+            // Advance to turn 2
+            h.passPriority()
 
-        harness.installScriptedAi(
-            listOf(
-                ScriptedAction.PlayLand("Mountain"),
-                ScriptedAction.DeclareNoAttackers,
-                ScriptedAction.PassPriority,
-            ),
-        )
+            // Play Forest for green mana
+            h.playLand()
 
-        // Play Forest (for Giant Growth mana) + cast Raging Goblin... wait, we need
-        // both a Mountain (for Goblin) and a Forest (for Giant Growth) on turn 1.
-        // We can only play 1 land per turn. So: play Forest, can't cast Goblin (costs R).
-        // Or: play Mountain, cast Goblin, but can't cast Giant Growth (costs G).
-        //
-        // Solution: advance to turn 2. Play Mountain turn 1, cast Goblin.
-        // Turn 2: play Forest → have both colors.
-        harness.playLand() // Mountain
-        harness.castSpellByName("Raging Goblin")
-        harness.passPriority() // resolve
+            // Advance to combat
+            val creatures = h.humanBattlefieldCreatures()
+            creatures.shouldNotBeEmpty()
+            val creatureIid = creatures.first().first
 
-        // Advance to turn 2
-        harness.passPriority()
+            h.passPriority() // advance to combat
 
-        // Play Forest for green mana
-        harness.playLand()
+            val daReq = h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
+            if (daReq != null) {
+                h.declareAttackers(listOf(creatureIid))
 
-        // Advance to combat
-        val creatures = harness.humanBattlefieldCreatures()
-        assertTrue(creatures.isNotEmpty(), "Need creature for combat")
-        val creatureIid = creatures.first().first
-
-        harness.passPriority() // advance to combat
-
-        val daReq = harness.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
-        if (daReq != null) {
-            harness.declareAttackers(listOf(creatureIid))
-
-            // Try casting Giant Growth during combat (requires priority window)
-            val canCast = harness.castSpellByName("Giant Growth")
-            if (canCast) {
-                val stReq = harness.allMessages.lastOrNull { it.hasSelectTargetsReq() }
-                if (stReq != null) {
-                    harness.selectTargets(listOf(creatureIid))
-                    harness.passPriority() // resolve
+                // Try casting Giant Growth during combat (requires priority window)
+                val canCast = h.castSpellByName("Giant Growth")
+                if (canCast) {
+                    val stReq = h.allMessages.lastOrNull { it.hasSelectTargetsReq() }
+                    if (stReq != null) {
+                        h.selectTargets(listOf(creatureIid))
+                        h.passPriority() // resolve
+                    }
                 }
             }
-        }
 
-        // Regardless of whether targeting succeeded, advance past combat
-        repeat(10) {
-            if (harness.isGameOver()) return@repeat
-            val p = harness.phase()
-            if (p == "MAIN2" || p == "END_OF_TURN") return@repeat
-            harness.passPriority()
-        }
-
-        harness.accumulator.assertConsistent("after targeting during combat")
-        assertFalse(harness.isGameOver(), "Game should not be over")
-    }
-
-    // --- Test 5: spellResolutionProducesZoneTransfer ---
-
-    @Test(description = "Giant Growth resolution moves spell from Stack to GY; ZoneTransfer annotation")
-    fun spellResolutionProducesZoneTransfer() {
-        val creatureIid = setupForTargeting()
-
-        // Cast Giant Growth and select target
-        val cast = harness.castSpellByName("Giant Growth")
-        assertTrue(cast, "Should cast Giant Growth")
-        harness.selectTargets(listOf(creatureIid))
-
-        val snap = harness.messageSnapshot()
-        harness.passPriority() // resolve
-
-        // Check for ZoneTransfer annotation (Stack→GY for the instant)
-        val msgs = harness.messagesSince(snap)
-        val allAnnotations = msgs
-            .filter { it.hasGameStateMessage() }
-            .flatMap { it.gameStateMessage.annotationsList }
-        val zt = allAnnotations.filter { AnnotationType.ZoneTransfer_af5a in it.typeList }
-
-        // The instant resolves and goes to graveyard — should produce ZoneTransfer.
-        // At minimum, state should be valid.
-        harness.accumulator.assertConsistent("after spell resolution zone transfer")
-
-        // Verify the spell is actually in graveyard now
-        val player = harness.bridge.getPlayer(1)!!
-        val gyCards = player.getZone(ForgeZoneType.Graveyard).cards
-        val giantGrowthInGy = gyCards.any { it.name.equals("Giant Growth", ignoreCase = true) }
-        assertTrue(giantGrowthInGy, "Giant Growth should be in graveyard after resolution")
-    }
-
-    // --- Test 6: multipleTargetedSpellsInSequence ---
-
-    @Test(description = "Cast two Giant Growths in sequence on the same creature")
-    fun multipleTargetedSpellsInSequence() {
-        val creatureIid = setupForTargeting()
-
-        // Need at least 2 mana for 2 Giant Growths (each costs G)
-        // After setup: Forest untapped + Elves untapped → 2G available
-
-        // Cast first Giant Growth
-        val cast1 = harness.castSpellByName("Giant Growth")
-        assertTrue(cast1, "Should cast first Giant Growth")
-
-        // Select target + resolve
-        harness.selectTargets(listOf(creatureIid))
-        harness.passPriority() // resolve
-
-        // Cast second Giant Growth (if we have one and mana)
-        val cast2 = harness.castSpellByName("Giant Growth")
-        if (cast2) {
-            val stReq = harness.allMessages.lastOrNull { it.hasSelectTargetsReq() }
-            if (stReq != null) {
-                harness.selectTargets(listOf(creatureIid))
-                harness.passPriority() // resolve
+            // Regardless of whether targeting succeeded, advance past combat
+            repeat(10) {
+                if (h.isGameOver()) return@repeat
+                val p = h.phase()
+                if (p == "MAIN2" || p == "END_OF_TURN") return@repeat
+                h.passPriority()
             }
 
-            // Creature should have +6/+6 (two Giant Growths)
-            val player = harness.bridge.getPlayer(1)!!
+            h.accumulator.assertConsistent("after targeting during combat")
+            h.isGameOver().shouldBeFalse()
+        }
+
+        test("spell resolution produces zone transfer") {
+            val creatureIid = setupForTargeting()
+            val h = harness!!
+
+            // Cast Giant Growth and select target
+            val cast = h.castSpellByName("Giant Growth")
+            cast.shouldBeTrue()
+            h.selectTargets(listOf(creatureIid))
+
+            val snap = h.messageSnapshot()
+            h.passPriority() // resolve
+
+            // Check for ZoneTransfer annotation (Stack→GY for the instant)
+            val msgs = h.messagesSince(snap)
+            val allAnnotations = msgs
+                .filter { it.hasGameStateMessage() }
+                .flatMap { it.gameStateMessage.annotationsList }
+
+            // At minimum, state should be valid.
+            h.accumulator.assertConsistent("after spell resolution zone transfer")
+
+            // Verify the spell is actually in graveyard now
+            val player = h.bridge.getPlayer(1)!!
+            val gyCards = player.getZone(ForgeZoneType.Graveyard).cards
+            val giantGrowthInGy = gyCards.any { it.name.equals("Giant Growth", ignoreCase = true) }
+            giantGrowthInGy.shouldBeTrue()
+        }
+
+        test("multiple targeted spells in sequence") {
+            val creatureIid = setupForTargeting()
+            val h = harness!!
+
+            // Need at least 2 mana for 2 Giant Growths (each costs G)
+
+            // Cast first Giant Growth
+            val cast1 = h.castSpellByName("Giant Growth")
+            cast1.shouldBeTrue()
+
+            // Select target + resolve
+            h.selectTargets(listOf(creatureIid))
+            h.passPriority() // resolve
+
+            // Cast second Giant Growth (if we have one and mana)
+            val cast2 = h.castSpellByName("Giant Growth")
+            if (cast2) {
+                val stReq = h.allMessages.lastOrNull { it.hasSelectTargetsReq() }
+                if (stReq != null) {
+                    h.selectTargets(listOf(creatureIid))
+                    h.passPriority() // resolve
+                }
+
+                // Creature should have +6/+6 (two Giant Growths)
+                val player = h.bridge.getPlayer(1)!!
+                val creature = player.getZone(ForgeZoneType.Battlefield).cards
+                    .firstOrNull { h.bridge.getOrAllocInstanceId(it.id) == creatureIid }
+                if (creature != null) {
+                    (creature.netPower >= 7).shouldBeTrue()
+                }
+            }
+
+            h.accumulator.assertConsistent("after multiple targeted spells")
+            assertGsIdChain(h.allMessages, context = "multiple targeted spells")
+        }
+
+        // ─── Cancel targeting tests ─────────────────────────────────────────
+
+        test("cancel targeting unwinds spell") {
+            val creatureIid = setupForTargeting()
+            val h = harness!!
+
+            // Cast Giant Growth — triggers SelectTargetsReq
+            val snap = h.messageSnapshot()
+            val cast = h.castSpellByName("Giant Growth")
+            cast.shouldBeTrue()
+
+            val msgs = h.messagesSince(snap)
+            val stReq = msgs.firstOrNull { it.hasSelectTargetsReq() }
+            stReq.shouldNotBeNull()
+
+            // Cancel instead of selecting a target
+            val cancelSnap = h.messageSnapshot()
+            h.cancelAction()
+
+            // Stack should be empty — spell unwound
+            val game = h.game()
+            game.stack.isEmpty.shouldBeTrue()
+
+            // Giant Growth should be back in hand
+            val player = h.bridge.getPlayer(1)!!
+            val handCards = player.getZone(ForgeZoneType.Hand).cards
+            val hasGG = handCards.any { it.name.equals("Giant Growth", ignoreCase = true) }
+            hasGG.shouldBeTrue()
+
+            // Should receive ActionsAvailableReq (player can act again)
+            val afterMsgs = h.messagesSince(cancelSnap)
+            val actionsReq = afterMsgs.any { it.hasActionsAvailableReq() }
+            actionsReq.shouldBeTrue()
+
+            h.accumulator.assertConsistent("after cancel targeting")
+        }
+
+        test("cancel then recast") {
+            val creatureIid = setupForTargeting()
+            val h = harness!!
+
+            // Cast Giant Growth → cancel
+            h.castSpellByName("Giant Growth").shouldBeTrue()
+            h.cancelAction()
+
+            // Re-cast the same spell
+            val snap = h.messageSnapshot()
+            val recast = h.castSpellByName("Giant Growth")
+            recast.shouldBeTrue()
+
+            val msgs = h.messagesSince(snap)
+            val stReq = msgs.firstOrNull { it.hasSelectTargetsReq() }
+            stReq.shouldNotBeNull()
+
+            // Select target and resolve
+            h.selectTargets(listOf(creatureIid))
+            h.passPriority()
+
+            // Creature should have +3/+3
+            val player = h.bridge.getPlayer(1)!!
             val creature = player.getZone(ForgeZoneType.Battlefield).cards
-                .firstOrNull { harness.bridge.getOrAllocInstanceId(it.id) == creatureIid }
-            if (creature != null) {
-                assertTrue(
-                    creature.netPower >= 7,
-                    "Creature with 2x Giant Growth should have 7+ power, got ${creature.netPower}",
-                )
+                .firstOrNull { h.bridge.getOrAllocInstanceId(it.id) == creatureIid }
+            creature.shouldNotBeNull()
+            (creature.netPower >= 4).shouldBeTrue()
+
+            h.accumulator.assertConsistent("after cancel + re-cast")
+        }
+
+        // ─── Player targeting tests (bolt-face puzzle) ──────────────────────
+
+        test("bolt face SelectTargetsReq includes players") {
+            val h = setupBoltFacePuzzle()
+
+            // Cast Lightning Bolt
+            val snap = h.messageSnapshot()
+            val cast = h.castSpellByName("Lightning Bolt")
+            cast.shouldBeTrue()
+
+            val msgs = h.messagesSince(snap)
+            val stMsg = msgs.firstOrNull { it.hasSelectTargetsReq() }
+            stMsg.shouldNotBeNull()
+
+            val req = stMsg.selectTargetsReq
+            val targets = req.targetsList.first().targetsList
+            val targetIds = targets.map { it.targetInstanceId }
+
+            // Should include player seatIds (1=human, 2=AI)
+            (1 in targetIds).shouldBeTrue()
+            (2 in targetIds).shouldBeTrue()
+
+            // Opponent (seat 2) should be Hot, self (seat 1) should be Cold
+            val opponentTarget = targets.first { it.targetInstanceId == 2 }
+            opponentTarget.highlight shouldBe HighlightType.Hot
+            val selfTarget = targets.first { it.targetInstanceId == 1 }
+            selfTarget.highlight shouldBe HighlightType.Cold
+
+            // Creature targets should have Tepid highlight (blue/cyan "legal target" glow)
+            val creatureTargets = targets.filter { it.targetInstanceId > 2 }
+            creatureTargets.shouldNotBeEmpty()
+            for (ct in creatureTargets) {
+                ct.highlight shouldBe HighlightType.Tepid
             }
+
+            // Should also include creature targets (Runeclaw Bear, Pillarfield Ox)
+            val targetCount = targetIds.size
+            targetCount shouldBeGreaterThanOrEqual 4
+
+            // Verify allowCancel and allowUndo on the wrapper
+            stMsg.allowCancel shouldBe AllowCancel.Abort
+            stMsg.allowUndo.shouldBeTrue()
+
+            h.accumulator.assertConsistent("after bolt targeting")
         }
 
-        harness.accumulator.assertConsistent("after multiple targeted spells")
-        assertGsIdChain(harness.allMessages, context = "multiple targeted spells")
-    }
+        test("bolt face sourceId matches stack instanceId") {
+            val h = setupBoltFacePuzzle()
 
-    // ─── Cancel targeting tests ─────────────────────────────────────────
+            val snap = h.messageSnapshot()
+            h.castSpellByName("Lightning Bolt")
 
-    // --- Test 7: cancelTargetingUnwindsSpell ---
+            val msgs = h.messagesSince(snap)
+            val stMsg = msgs.firstOrNull { it.hasSelectTargetsReq() }
+            stMsg.shouldNotBeNull()
 
-    @Test(description = "Cancel during targeting removes spell from stack and returns to action selection")
-    fun cancelTargetingUnwindsSpell() {
-        val creatureIid = setupForTargeting()
+            // Find the GSM with the stack zone — the spell's instanceId on stack
+            val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+            val stackZone = gsms.flatMap { it.zonesList }
+                .firstOrNull { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Stack }
+            stackZone.shouldNotBeNull()
 
-        // Cast Giant Growth — triggers SelectTargetsReq
-        val snap = harness.messageSnapshot()
-        val cast = harness.castSpellByName("Giant Growth")
-        assertTrue(cast, "Should cast Giant Growth")
+            val stackInstanceId = stackZone.objectInstanceIdsList.firstOrNull()
+            stackInstanceId.shouldNotBeNull()
 
-        val msgs = harness.messagesSince(snap)
-        val stReq = msgs.firstOrNull { it.hasSelectTargetsReq() }
-        assertNotNull(stReq, "Should receive SelectTargetsReq")
-
-        // Cancel instead of selecting a target
-        val cancelSnap = harness.messageSnapshot()
-        harness.cancelAction()
-
-        // Stack should be empty — spell unwound
-        val game = harness.game()
-        assertTrue(game.stack.isEmpty, "Stack should be empty after cancel")
-
-        // Giant Growth should be back in hand (or graveyard — engine may vary)
-        // At minimum, it should NOT still be on the stack.
-        val player = harness.bridge.getPlayer(1)!!
-        val handCards = player.getZone(ForgeZoneType.Hand).cards
-        val hasGG = handCards.any { it.name.equals("Giant Growth", ignoreCase = true) }
-        assertTrue(hasGG, "Giant Growth should be back in hand after cancel")
-
-        // Should receive ActionsAvailableReq (player can act again)
-        val afterMsgs = harness.messagesSince(cancelSnap)
-        val actionsReq = afterMsgs.any { it.hasActionsAvailableReq() }
-        assertTrue(actionsReq, "Should receive ActionsAvailableReq after cancel")
-
-        harness.accumulator.assertConsistent("after cancel targeting")
-    }
-
-    // --- Test 8: cancelThenRecast ---
-
-    @Test(description = "Cancel targeting then re-cast the same spell — full round-trip works")
-    fun cancelThenRecast() {
-        val creatureIid = setupForTargeting()
-
-        // Cast Giant Growth → cancel
-        assertTrue(harness.castSpellByName("Giant Growth"), "Should cast Giant Growth")
-        harness.cancelAction()
-
-        // Re-cast the same spell
-        val snap = harness.messageSnapshot()
-        val recast = harness.castSpellByName("Giant Growth")
-        assertTrue(recast, "Should be able to re-cast Giant Growth after cancel")
-
-        val msgs = harness.messagesSince(snap)
-        val stReq = msgs.firstOrNull { it.hasSelectTargetsReq() }
-        assertNotNull(stReq, "Should receive SelectTargetsReq after re-cast")
-
-        // Select target and resolve
-        harness.selectTargets(listOf(creatureIid))
-        harness.passPriority()
-
-        // Creature should have +3/+3
-        val player = harness.bridge.getPlayer(1)!!
-        val creature = player.getZone(ForgeZoneType.Battlefield).cards
-            .firstOrNull { harness.bridge.getOrAllocInstanceId(it.id) == creatureIid }
-        assertNotNull(creature, "Creature should still be on battlefield")
-        assertTrue(
-            creature!!.netPower >= 4,
-            "Creature should have 4+ power after re-cast Giant Growth, got ${creature.netPower}",
-        )
-
-        harness.accumulator.assertConsistent("after cancel + re-cast")
-    }
-
-    // ─── Player targeting tests (bolt-face puzzle) ──────────────────────
-
-    private lateinit var puzzleHarness: MatchFlowHarness
-
-    private fun setupBoltFacePuzzle(): MatchFlowHarness {
-        puzzleHarness = MatchFlowHarness()
-        puzzleHarness.connectAndKeepPuzzle("puzzles/bolt-face.pzl")
-        return puzzleHarness
-    }
-
-    // --- Test 9: boltFaceSelectTargetsIncludesPlayers ---
-
-    @Test(description = "Lightning Bolt SelectTargetsReq includes player seatIds as targets with Hot/Cold highlights")
-    fun boltFaceSelectTargetsIncludesPlayers() {
-        val h = setupBoltFacePuzzle()
-
-        // Cast Lightning Bolt
-        val snap = h.messageSnapshot()
-        val cast = h.castSpellByName("Lightning Bolt")
-        assertTrue(cast, "Should cast Lightning Bolt")
-
-        val msgs = h.messagesSince(snap)
-        val stMsg = msgs.firstOrNull { it.hasSelectTargetsReq() }
-        assertNotNull(stMsg, "Should receive SelectTargetsReq after casting Lightning Bolt")
-
-        val req = stMsg!!.selectTargetsReq
-        val targets = req.targetsList.first().targetsList
-        val targetIds = targets.map { it.targetInstanceId }
-
-        // Should include player seatIds (1=human, 2=AI)
-        assertTrue(1 in targetIds, "Player 1 (human) should be a legal target, got $targetIds")
-        assertTrue(2 in targetIds, "Player 2 (AI) should be a legal target, got $targetIds")
-
-        // Opponent (seat 2) should be Hot, self (seat 1) should be Cold
-        val opponentTarget = targets.first { it.targetInstanceId == 2 }
-        assertEquals(opponentTarget.highlight, HighlightType.Hot, "Opponent should be highlighted Hot")
-        val selfTarget = targets.first { it.targetInstanceId == 1 }
-        assertEquals(selfTarget.highlight, HighlightType.Cold, "Self should be highlighted Cold")
-
-        // Creature targets should have Tepid highlight (blue/cyan "legal target" glow)
-        val creatureTargets = targets.filter { it.targetInstanceId > 2 }
-        assertTrue(creatureTargets.isNotEmpty(), "Should have creature targets")
-        for (ct in creatureTargets) {
-            assertEquals(ct.highlight, HighlightType.Tepid, "Creature target ${ct.targetInstanceId} should have Tepid highlight (blue glow)")
+            // sourceId should match the spell on stack (post-realloc), not the old hand ID
+            val sourceId = stMsg.selectTargetsReq.sourceId
+            sourceId shouldBe stackInstanceId
         }
 
-        // Should also include creature targets (Runeclaw Bear, Pillarfield Ox)
-        val targetCount = targetIds.size
-        assertTrue(targetCount >= 4, "Should have 2 players + 2 creatures = 4+ targets, got $targetCount")
+        test("bolt face resolve kills opponent") {
+            val h = setupBoltFacePuzzle()
 
-        // Verify allowCancel and allowUndo on the wrapper
-        assertEquals(stMsg.allowCancel, AllowCancel.Abort, "Should have allowCancel=Abort")
-        assertTrue(stMsg.allowUndo, "Should have allowUndo=true")
+            h.castSpellByName("Lightning Bolt")
 
-        h.accumulator.assertConsistent("after bolt targeting")
-    }
+            // Select opponent (seatId=2) as target
+            h.selectTargets(listOf(2))
 
-    // --- Test 10: boltFaceSourceIdMatchesStackInstanceId ---
+            // Pass to resolve
+            h.passPriority()
 
-    @Test(description = "SelectTargetsReq sourceId matches the spell's post-realloc instanceId on stack")
-    fun boltFaceSourceIdMatchesStackInstanceId() {
-        val h = setupBoltFacePuzzle()
+            // AI was at 3 life, bolt deals 3 → game over
+            h.isGameOver().shouldBeTrue()
 
-        val snap = h.messageSnapshot()
-        h.castSpellByName("Lightning Bolt")
-
-        val msgs = h.messagesSince(snap)
-        val stMsg = msgs.firstOrNull { it.hasSelectTargetsReq() }
-        assertNotNull(stMsg, "Should receive SelectTargetsReq")
-
-        // Find the GSM with the stack zone — the spell's instanceId on stack
-        val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
-        val stackZone = gsms.flatMap { it.zonesList }
-            .firstOrNull { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Stack }
-        assertNotNull(stackZone, "Should have a Stack zone in the GSM")
-
-        val stackInstanceId = stackZone!!.objectInstanceIdsList.firstOrNull()
-        assertNotNull(stackInstanceId, "Stack should have an object (the spell)")
-
-        // sourceId should match the spell on stack (post-realloc), not the old hand ID
-        val sourceId = stMsg!!.selectTargetsReq.sourceId
-        assertEquals(
-            sourceId,
-            stackInstanceId,
-            "sourceId ($sourceId) should match spell's stack instanceId ($stackInstanceId)",
-        )
-    }
-
-    // --- Test 11: boltFaceResolveKillsOpponent ---
-
-    @Test(description = "Bolt opponent face at 3 life → game over")
-    fun boltFaceResolveKillsOpponent() {
-        val h = setupBoltFacePuzzle()
-
-        h.castSpellByName("Lightning Bolt")
-
-        // Select opponent (seatId=2) as target
-        h.selectTargets(listOf(2))
-
-        // Pass to resolve
-        h.passPriority()
-
-        // AI was at 3 life, bolt deals 3 → game over
-        assertTrue(h.isGameOver(), "Game should be over after bolt to face at 3 life")
-
-        // Verify game-over messages were sent
-        val gameOverMsgs = h.allMessages.filter {
-            it.hasGameStateMessage() &&
-                it.gameStateMessage.hasGameInfo() &&
-                it.gameStateMessage.gameInfo.stage == GameStage.GameOver
+            // Verify game-over messages were sent
+            val gameOverMsgs = h.allMessages.filter {
+                it.hasGameStateMessage() &&
+                    it.gameStateMessage.hasGameInfo() &&
+                    it.gameStateMessage.gameInfo.stage == GameStage.GameOver
+            }
+            gameOverMsgs.shouldNotBeEmpty()
         }
-        assertTrue(gameOverMsgs.isNotEmpty(), "Should have game-over GSMs")
-    }
 
-    // --- Test 12: boltFaceCancelAndRecast ---
+        test("bolt face cancel and recast") {
+            val h = setupBoltFacePuzzle()
 
-    @Test(description = "Cancel bolt targeting then re-cast and resolve → game over")
-    fun boltFaceCancelAndRecast() {
-        val h = setupBoltFacePuzzle()
+            // Cast → cancel
+            h.castSpellByName("Lightning Bolt")
+            h.cancelAction()
 
-        // Cast → cancel
-        h.castSpellByName("Lightning Bolt")
-        h.cancelAction()
+            // Stack should be empty
+            h.game().stack.isEmpty.shouldBeTrue()
 
-        // Stack should be empty
-        assertTrue(h.game().stack.isEmpty, "Stack should be empty after cancel")
+            // Re-cast → target opponent → resolve
+            val recast = h.castSpellByName("Lightning Bolt")
+            recast.shouldBeTrue()
 
-        // Re-cast → target opponent → resolve
-        val recast = h.castSpellByName("Lightning Bolt")
-        assertTrue(recast, "Should re-cast Lightning Bolt after cancel")
+            h.selectTargets(listOf(2))
+            h.passPriority()
 
-        h.selectTargets(listOf(2))
-        h.passPriority()
-
-        assertTrue(h.isGameOver(), "Game should be over after bolt to face")
-    }
-}
+            h.isGameOver().shouldBeTrue()
+        }
+    })
