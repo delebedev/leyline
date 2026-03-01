@@ -1,12 +1,13 @@
 package leyline.conformance
 
 import forge.game.zone.ZoneType
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
 import leyline.bridge.PlayerAction
-import leyline.game.GameBridge
+import leyline.game.awaitFreshPending
 import leyline.game.snapshotFromGame
-import org.testng.Assert.assertNotNull
-import org.testng.Assert.assertTrue
-import org.testng.annotations.Test
 
 /**
  * Activated ability handling: verifies that Activate_add3 actions
@@ -22,102 +23,72 @@ import org.testng.annotations.Test
  * Simpler: use the ConformanceTestBase helpers directly. Start game,
  * get Jade Mage on battlefield with enough mana, activate via bridge.
  */
-@Test(groups = ["integration"])
-class ActivateAbilityTest : ConformanceTestBase() {
+class ActivateAbilityTest :
+    FunSpec({
 
-    companion object {
-        const val JADE_MAGE_DECK = "20 Jade Mage\n40 Forest"
-    }
+        val base = ConformanceTestBase()
 
-    /**
-     * Activated ability is accepted by the bridge (not silently passed).
-     *
-     * Uses the default mono-green deck (Llanowar Elves has mana abilities only,
-     * so this test verifies at the bridge API level). We submit ActivateAbility
-     * and verify the engine doesn't reject it.
-     *
-     * Full end-to-end token creation blocked by a pre-existing AI mana solver
-     * quirk with generic mana on non-default decks.
-     */
-    @Test
-    fun activateAbilityAcceptedByBridge() {
-        // Use default deck — Llanowar Elves + Giant Growth + Forest
-        val (b, game, _) = startGameAtMain1()
-        val player = b.getPlayer(1)!!
+        beforeSpec { base.initCardDatabase() }
+        afterEach { base.tearDown() }
 
-        // Play Forest, cast Llanowar Elves, resolve
-        playLand(b)
-        b.snapshotFromGame(game)
-        castCreature(b)
-        b.snapshotFromGame(game)
-        passPriority(b)
-        b.snapshotFromGame(game)
+        val jadeMageDeck = "20 Jade Mage\n40 Forest"
 
-        val elf = player.getZone(ZoneType.Battlefield).cards
-            .firstOrNull { it.name == "Llanowar Elves" }
-        assertNotNull(elf, "Llanowar Elves should be on battlefield")
+        test("activate ability accepted by bridge") {
+            // Use default deck — Llanowar Elves + Giant Growth + Forest
+            val (b, game, _) = base.startGameAtMain1()
+            val player = b.getPlayer(1)!!
 
-        // Llanowar Elves only has mana abilities — ActivateAbility(0) should be
-        // submitted without crashing. The engine may reject it (no non-mana ability
-        // at index 0), but the bridge layer should not convert it to PassPriority.
-        val pending = leyline.game.awaitFreshPending(b, null)
-        assertNotNull(pending, "Should have a pending action at priority")
-
-        // Submit ActivateAbility — verifies MatchSession handler accepts it
-        val submitted = b.actionBridge.submitAction(
-            pending!!.actionId,
-            PlayerAction.ActivateAbility(elf!!.id, 0),
-        )
-        // Bridge should accept the action (true = submitted to engine)
-        assertTrue(submitted, "ActivateAbility should be accepted by the bridge")
-    }
-
-    /** Advance through phases until human's Main1 on the target turn. */
-    private fun advanceToHumanMain1(b: GameBridge, game: forge.game.Game, targetTurn: Int) {
-        repeat(30) {
-            val turn = game.phaseHandler.turn
-            val phase = game.phaseHandler.phase.name
-            if (turn >= targetTurn && phase == "MAIN1") return
-            passPriority(b)
+            // Play Forest, cast Llanowar Elves, resolve
+            base.playLand(b)
             b.snapshotFromGame(game)
-        }
-        assertTrue(
-            game.phaseHandler.turn >= targetTurn,
-            "Should have reached turn $targetTurn, at turn ${game.phaseHandler.turn}",
-        )
-    }
+            base.castCreature(b)
+            b.snapshotFromGame(game)
+            base.passPriority(b)
+            b.snapshotFromGame(game)
 
-    /**
-     * Verify ActivateAbility doesn't silently pass priority.
-     * Before the fix, Activate_add3 fell through to PassPriority in
-     * MatchSession.onPerformAction().
-     */
-    @Test
-    fun activateAbilityDoesNotPassPriority() {
-        val (b, game, _) = startGameAtMain1(deckList = JADE_MAGE_DECK)
-        val player = b.getPlayer(1)!!
+            val elf = player.getZone(ZoneType.Battlefield).cards
+                .firstOrNull { it.name == "Llanowar Elves" }
+            elf.shouldNotBeNull()
 
-        // Quick setup: cast Jade Mage on turn 1 (need 2 mana).
-        // With seed=42 and this deck, we should have Jade Mage + Forests.
-        playLand(b)
-        b.snapshotFromGame(game)
-        castCreature(b)
-        b.snapshotFromGame(game)
-        passPriority(b)
-        b.snapshotFromGame(game)
+            // Llanowar Elves only has mana abilities — ActivateAbility(0) should be
+            // submitted without crashing. The engine may reject it (no non-mana ability
+            // at index 0), but the bridge layer should not convert it to PassPriority.
+            val pending = awaitFreshPending(b, null)
+            pending.shouldNotBeNull()
 
-        // Verify Jade Mage on BF
-        val mage = player.getZone(ZoneType.Battlefield).cards
-            .firstOrNull { it.name == "Jade Mage" }
-        if (mage == null) {
-            // If we couldn't get Jade Mage on BF with this seed, skip gracefully
-            return
+            // Submit ActivateAbility — verifies MatchSession handler accepts it
+            val submitted = b.actionBridge.submitAction(
+                pending.actionId,
+                PlayerAction.ActivateAbility(elf.id, 0),
+            )
+            // Bridge should accept the action (true = submitted to engine)
+            submitted.shouldBeTrue()
         }
 
-        // Check that the ability exists as a non-mana activated ability
-        val abilities = mage.spellAbilities.filter {
-            it.isActivatedAbility && !it.isManaAbility()
+        test("activate ability does not pass priority") {
+            val (b, game, _) = base.startGameAtMain1(deckList = jadeMageDeck)
+            val player = b.getPlayer(1)!!
+
+            // Quick setup: cast Jade Mage on turn 1 (need 2 mana).
+            base.playLand(b)
+            b.snapshotFromGame(game)
+            base.castCreature(b)
+            b.snapshotFromGame(game)
+            base.passPriority(b)
+            b.snapshotFromGame(game)
+
+            // Verify Jade Mage on BF
+            val mage = player.getZone(ZoneType.Battlefield).cards
+                .firstOrNull { it.name == "Jade Mage" }
+            if (mage == null) {
+                // If we couldn't get Jade Mage on BF with this seed, skip gracefully
+                return@test
+            }
+
+            // Check that the ability exists as a non-mana activated ability
+            val abilities = mage.spellAbilities.filter {
+                it.isActivatedAbility && !it.isManaAbility()
+            }
+            abilities.shouldNotBeEmpty()
         }
-        assertTrue(abilities.isNotEmpty(), "Jade Mage should have non-mana activated abilities")
-    }
-}
+    })
