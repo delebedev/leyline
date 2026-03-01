@@ -26,7 +26,7 @@ class GameLoopController(
     private val actionBridges: Collection<GameActionBridge> = emptyList(),
     private val promptBridges: Collection<InteractivePromptBridge> = emptyList(),
     private val mulliganBridges: Collection<MulliganBridge> = emptyList(),
-    private val onStateChanged: (suspend () -> Unit)? = null,
+    private val onStateChanged: (() -> Unit)? = null,
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(GameLoopController::class.java)
