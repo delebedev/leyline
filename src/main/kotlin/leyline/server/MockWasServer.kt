@@ -164,8 +164,8 @@ class MockWasServer(
                 put("wotc-flgs", 3)
             }.toString()
             val enc = Base64.getUrlEncoder().withoutPadding()
-            return enc.encodeToString(header.toByteArray()) +
-                "." + enc.encodeToString(payload.toByteArray()) + "."
+            return enc.encodeToString(header.toByteArray(Charsets.UTF_8)) +
+                "." + enc.encodeToString(payload.toByteArray(Charsets.UTF_8)) + "."
         }
 
         private fun buildSslContext(certFile: File?, keyFile: File?): SSLContext {
