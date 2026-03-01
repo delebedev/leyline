@@ -10,6 +10,8 @@ plugins {
     alias(libs.plugins.protobuf)
     alias(libs.plugins.spotless)
     alias(libs.plugins.detekt)
+    id("org.gradle.test-retry")
+    alias(libs.plugins.versions)
     jacoco
     application
 }
@@ -29,6 +31,9 @@ repositories {
 
 kotlin {
     jvmToolchain(17)
+    compilerOptions {
+        freeCompilerArgs.add("-Xjsr305=strict")
+    }
 }
 
 dependencies {
@@ -185,6 +190,11 @@ tasks.jacocoTestReport {
 
 application {
     mainClass.set("leyline.LeylineMainKt")
+    applicationDefaultJvmArgs = listOf(
+        "-Dio.netty.tryReflectionSetAccessible=true",
+        "--add-opens", "java.base/jdk.internal.misc=ALL-UNNAMED",
+        "--add-opens", "java.base/java.nio=ALL-UNNAMED",
+    )
 }
 
 // --- Classpath file (for justfile launch helpers) ---
