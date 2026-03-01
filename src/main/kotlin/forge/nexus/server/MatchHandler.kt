@@ -50,6 +50,7 @@ class MatchHandler(
         init {
             // Wire debug collector's bridge provider to avoid debug→server import cycle.
             NexusDebugCollector.bridgeProvider = { defaultRegistry.activeBridges() }
+            NexusDebugCollector.sessionProvider = { defaultRegistry.activeSession() }
         }
     }
 

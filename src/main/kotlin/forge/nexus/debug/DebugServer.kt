@@ -3,9 +3,13 @@ package forge.nexus.debug
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import forge.nexus.analysis.SessionAnalyzer
+import forge.nexus.game.StateMapper
+import forge.nexus.game.mapper.ActionMapper
 import forge.nexus.recording.RecordingInspector
+import forge.nexus.server.MatchSession
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
+import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
 import java.net.InetSocketAddress
 import java.net.URLDecoder
@@ -67,6 +71,26 @@ class DebugServer(private val port: Int = 8090) {
             "/api/fd-messages" to ::serveFdMessages,
         ).forEach { (path, handler) ->
             srv.createContext(path) { ex -> safe(ex) { handler(ex) } }
+        }
+
+        srv.createContext("/api/inject-full") { ex ->
+            try {
+                if (ex.requestMethod != "POST") {
+                    ex.sendResponseHeaders(405, -1)
+                    ex.close()
+                    return@createContext
+                }
+                serveInjectFull(ex)
+            } catch (t: Throwable) {
+                log.error("inject-full error: {}", t.message, t)
+                try {
+                    respond(ex, 500, "text/plain", "Error: ${t.message}")
+                } catch (_: Throwable) {
+                    try {
+                        ex.close()
+                    } catch (_: Throwable) {}
+                }
+            }
         }
 
         srv.createContext("/api/events") { ex ->
@@ -412,6 +436,74 @@ class DebugServer(private val port: Int = 8090) {
         val entries = FdDebugCollector.snapshot(since)
         val cursor = entries.maxOfOrNull { it.seq }
         respondJsonList(ex, json.encodeToString(entries), cursor)
+    }
+
+    // --- Inject Full GSM (feasibility experiment) ---
+
+    /**
+     * POST `/api/inject-full` — rebuild current engine state as a Full GSM and
+     * send it to the connected client. Tests whether the client accepts a
+     * mid-game Full state replacement without glitching.
+     *
+     * No request body needed — reads state from the live Forge engine.
+     */
+    private fun serveInjectFull(ex: HttpExchange) {
+        val session = NexusDebugCollector.sessionProvider?.invoke() as? MatchSession
+        if (session == null) {
+            respond(ex, 404, "text/plain", "No active session")
+            return
+        }
+        val bridge = session.gameBridge
+        if (bridge == null) {
+            respond(ex, 404, "text/plain", "No game bridge")
+            return
+        }
+        val game = bridge.getGame()
+        if (game == null) {
+            respond(ex, 404, "text/plain", "No game")
+            return
+        }
+
+        val counter = session.counter
+        val gsId = counter.nextGsId()
+        val msgId = counter.nextMsgId()
+
+        // Build a Full GSM from current engine state (viewingSeatId=1 for hand visibility)
+        val fullGsm = StateMapper.buildFromGame(
+            game,
+            gsId,
+            session.matchId,
+            bridge,
+            updateType = GameStateUpdate.SendAndRecord,
+            viewingSeatId = session.seatId,
+        )
+
+        val greGsm = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.GameStateMessage_695e)
+            .setMsgId(msgId)
+            .setGameStateId(gsId)
+            .addSystemSeatIds(session.seatId)
+            .setGameStateMessage(fullGsm)
+            .build()
+
+        // Build fresh actions so the client has valid actions at the new gsId
+        val actions = ActionMapper.buildActions(game, session.seatId, bridge)
+        val greActions = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.ActionsAvailableReq_695e)
+            .setMsgId(counter.nextMsgId())
+            .setGameStateId(gsId)
+            .addSystemSeatIds(session.seatId)
+            .setActionsAvailableReq(actions)
+            .build()
+
+        session.sendBundledGRE(listOf(greGsm, greActions))
+
+        // Update bridge snapshot so subsequent Diffs are computed against this Full
+        bridge.snapshotState(fullGsm)
+
+        val info = "Injected Full GSM gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
+        log.info(info)
+        respond(ex, 200, "text/plain", info)
     }
 
     // --- Helpers ---
