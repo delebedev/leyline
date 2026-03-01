@@ -25,7 +25,7 @@ class StopTypeMappingTest {
 
     @BeforeClass(alwaysRun = true)
     fun init() {
-        forge.web.game.GameBootstrap.initializeCardDatabase(quiet = true)
+        forge.nexus.bridge.GameBootstrap.initializeCardDatabase(quiet = true)
     }
 
     @DataProvider(name = "allMappings")

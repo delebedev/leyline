@@ -1,9 +1,9 @@
 package forge.nexus.conformance
 
+import forge.nexus.bridge.PlayerAction
 import forge.nexus.game.awaitFreshPending
 import forge.nexus.game.mapper.ZoneIds
 import forge.nexus.game.snapshotFromGame
-import forge.web.game.PlayerAction
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertNotEquals
 import org.testng.Assert.assertTrue

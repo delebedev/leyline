@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  *
  * Subscribes to the engine's Guava EventBus. Events fire synchronously on
  * the game thread -- sleeping here freezes engine progress and state, making
- * it safe to snapshot and diff. Mirrors [forge.web.game.WebGamePlayback].
+ * it safe to snapshot and diff. Mirrors [forge.nexus.bridge.WebGamePlayback].
  *
  * Uses the shared [MessageCounter] for protocol sequencing. Both the session
  * thread and this (engine thread) call `counter.nextMsgId()`/`counter.nextGsId()`

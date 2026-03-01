@@ -5,6 +5,8 @@ import forge.game.card.Card
 import forge.game.phase.PhaseType
 import forge.game.player.Player
 import forge.game.zone.ZoneType
+import forge.nexus.bridge.GameBootstrap
+import forge.nexus.bridge.PlayerAction
 import forge.nexus.game.BundleBuilder
 import forge.nexus.game.GameBridge
 import forge.nexus.game.MessageCounter
@@ -13,8 +15,6 @@ import forge.nexus.game.StateMapper
 import forge.nexus.game.advanceToMain1
 import forge.nexus.game.awaitFreshPending
 import forge.nexus.game.snapshotFromGame
-import forge.web.game.GameBootstrap
-import forge.web.game.PlayerAction
 import org.testng.Assert
 import org.testng.annotations.AfterMethod
 import org.testng.annotations.BeforeClass

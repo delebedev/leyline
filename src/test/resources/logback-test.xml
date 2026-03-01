@@ -9,10 +9,10 @@
 
   <!-- Bridge timeouts are expected in tests (auto-pass on unhandled phases).
        Suppress the 15-line stack-trace diagnostic that fires per timeout. -->
-  <logger name="forge.web.game.GameActionBridge" level="ERROR"/>
-  <logger name="forge.web.game.InteractivePromptBridge" level="ERROR"/>
-  <logger name="forge.web.game.MulliganBridge" level="ERROR"/>
-  <logger name="forge.web.game.BridgeTimeoutDiagnostic" level="ERROR"/>
+  <logger name="forge.nexus.bridge.GameActionBridge" level="ERROR"/>
+  <logger name="forge.nexus.bridge.InteractivePromptBridge" level="ERROR"/>
+  <logger name="forge.nexus.bridge.MulliganBridge" level="ERROR"/>
+  <logger name="forge.nexus.bridge.BridgeTimeoutDiagnostic" level="ERROR"/>
 
   <!-- Only WARN+ during tests — keeps gate output clean -->
   <root level="WARN">

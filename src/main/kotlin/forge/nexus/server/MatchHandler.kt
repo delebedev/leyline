@@ -493,7 +493,7 @@ class MatchHandler(
     /** Load puzzle: prefer --puzzle CLI file, fall back to matchId convention. */
     private fun loadPuzzleForMatch(matchId: String): forge.gamemodes.puzzle.Puzzle {
         // Puzzle constructor triggers GameState.<clinit> which needs localization
-        forge.web.game.GameBootstrap.initializeLocalization()
+        forge.nexus.bridge.GameBootstrap.initializeLocalization()
 
         // CLI override takes precedence
         if (puzzleFile != null) {

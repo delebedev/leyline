@@ -2,12 +2,12 @@ package forge.nexus.game
 
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
+import forge.nexus.bridge.GameBootstrap
+import forge.nexus.bridge.PlayerAction
 import forge.nexus.config.GameConfig
 import forge.nexus.config.PlaytestConfig
 import forge.nexus.game.mapper.ActionMapper
 import forge.nexus.game.mapper.ZoneIds
-import forge.web.game.GameBootstrap
-import forge.web.game.PlayerAction
 import org.testng.Assert
 import org.testng.Assert.assertEquals
 import org.testng.annotations.AfterMethod

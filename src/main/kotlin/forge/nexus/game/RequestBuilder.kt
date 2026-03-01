@@ -2,8 +2,8 @@ package forge.nexus.game
 
 import forge.game.Game
 import forge.game.combat.CombatUtil
+import forge.nexus.bridge.InteractivePromptBridge
 import forge.nexus.game.mapper.PromptIds
-import forge.web.game.InteractivePromptBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType

@@ -1,7 +1,7 @@
 package forge.nexus.conformance
 
 import forge.game.zone.ZoneType
-import forge.web.game.InteractivePromptBridge
+import forge.nexus.bridge.InteractivePromptBridge
 import org.testng.Assert.*
 import org.testng.annotations.AfterMethod
 import org.testng.annotations.Test

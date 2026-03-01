@@ -7,9 +7,9 @@ import forge.game.card.CardLists
 import forge.game.card.CardPredicates
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
+import forge.nexus.bridge.chooseCastAbility
 import forge.nexus.game.CardDb
 import forge.nexus.game.GameBridge
-import forge.web.game.chooseCastAbility
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType

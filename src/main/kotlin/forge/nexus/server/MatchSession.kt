@@ -1,6 +1,7 @@
 package forge.nexus.server
 
 import forge.game.Game
+import forge.nexus.bridge.PlayerAction
 import forge.nexus.debug.GameStateCollector
 import forge.nexus.debug.NexusDebugCollector
 import forge.nexus.debug.NexusTap
@@ -13,7 +14,6 @@ import forge.nexus.game.StateMapper
 import forge.nexus.game.mapper.StopTypeMapping
 import forge.nexus.protocol.HandshakeMessages
 import forge.nexus.protocol.ProtoDump
-import forge.web.game.PlayerAction
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.Visibility

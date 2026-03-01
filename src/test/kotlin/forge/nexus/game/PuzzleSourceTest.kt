@@ -1,6 +1,6 @@
 package forge.nexus.game
 
-import forge.web.game.GameBootstrap
+import forge.nexus.bridge.GameBootstrap
 import org.testng.Assert.*
 import org.testng.annotations.BeforeClass
 import org.testng.annotations.Test

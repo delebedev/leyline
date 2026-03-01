@@ -218,7 +218,7 @@ object BundleBuilder {
 
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
     fun buildSelectNReq(
-        prompt: forge.web.game.InteractivePromptBridge.PendingPrompt,
+        prompt: forge.nexus.bridge.InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
     ): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge)
 
@@ -545,7 +545,7 @@ object BundleBuilder {
         matchId: String,
         seatId: Int,
         counter: MessageCounter,
-        prompt: forge.web.game.InteractivePromptBridge.PendingPrompt,
+        prompt: forge.nexus.bridge.InteractivePromptBridge.PendingPrompt,
     ): BundleResult {
         val nextGs = counter.nextGsId()
 
