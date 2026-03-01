@@ -63,6 +63,10 @@ See `docs/architecture.md` for diagrams. This is the fast orientation.
 4. Wire handler in `MatchHandler` message dispatch (match on `ClientMessageType`)
 5. Test: `MatchFlowHarness` test exercising the full production path (zero reimplemented logic)
 
+### Card & ability lookups
+
+`just card 75515 93848` — grpId → name. `just ability 169561` — ability → owning card + text. `just card-grp "Ajani's Pridemate"` — name → grpId. `just card-script "Unholy Annex"` — name → Forge script path. `just cards-in-session latest` — all cards in a recording session. Full reference: `docs/card-lookup-playbook.md`.
+
 ### Debugging a test timeout
 
 1. Read the timeout log — `BridgeTimeoutDiagnostic` auto-captures phase, stack, priority holder, and engine thread trace on every timeout
