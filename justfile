@@ -59,59 +59,60 @@ sync-proto:
     cd "{{project_dir}}" && ./gradlew syncProto -q
 
 # auto-format Kotlin sources (spotless/ktlint)
-fmt: check-java
+fmt:
     cd "{{project_dir}}" && ./gradlew spotlessApply -q
     @echo "fmt done."
 
 # check formatting without modifying (CI)
-fmt-check: check-java
+fmt-check:
     cd "{{project_dir}}" && ./gradlew spotlessCheck -q
 
+# static analysis (detekt)
+lint:
+    cd "{{project_dir}}" && ./gradlew detekt
+
 # compile proto + Kotlin (includes sync-proto + upstream check)
-build: check-java
+build:
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{project_dir}}" && ./gradlew classes
     echo "Build complete. Classpath: {{classpath}}"
 
 # fast Kotlin-only compile
-dev-build: check-java
-    #!/usr/bin/env bash
-    set -euo pipefail
+dev-build:
     cd "{{project_dir}}" && ./gradlew compileKotlin -q && echo "dev-build OK"
 
 # --- Test ---
-# Gradle prints compact summary via afterSuite listener; no python post-processing needed.
 
 # run all tests
-test: check-java
+test:
     cd "{{project_dir}}" && ./gradlew test
 
 # single test class (e.g. `just test-one StructuralFingerprintTest`)
-test-one class: check-java
+test-one class:
     cd "{{project_dir}}" && ./gradlew test --tests "*{{class}}"
 
 # unit tests only (no engine bootstrap, fastest)
-test-unit: check-java
+test-unit:
     cd "{{project_dir}}" && ./gradlew testUnit
 
 # all conformance tests (~5s, wire-shape checks against Arena patterns)
-test-conformance: check-java
+test-conformance:
     cd "{{project_dir}}" && ./gradlew testConformance
 
 # integration tests (parallel forks — boots engine per fork, runs classes concurrently)
-test-integration: check-java
+test-integration:
     cd "{{project_dir}}" && ./gradlew testIntegration
 
 # pre-commit gate: unit + conformance (fast, single fork)
-test-gate: check-java
+test-gate:
     cd "{{project_dir}}" && ./gradlew testGate
 
 # full gate: unit + conformance, then integration in parallel forks
 test-full: test-gate test-integration
 
 # JaCoCo coverage report (unit+conformance only)
-coverage: check-java
+coverage:
     #!/usr/bin/env bash
     set +e
     cd "{{project_dir}}" && ./gradlew testGate jacocoTestReport; rc=$?
@@ -128,32 +129,22 @@ coverage: check-java
 
 # --- Dev ---
 
-# watch *.kt, recompile + restart on change
+# continuous compile — watches *.kt, recompiles on change (no server restart)
+dev-watch:
+    cd "{{project_dir}}" && ./gradlew -t compileKotlin
+
+# compile + serve + auto-restart on *.kt change
 dev: check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "Starting hybrid with file watcher (dev-build)..."
-    echo "Ctrl-C to stop. Changes to *.kt trigger recompile + restart."
-    echo "Tip: if you changed bridge code, run 'just build' first."
-    trap 'kill %% 2>/dev/null; exit 0' INT TERM
+    echo "Dev: compile → serve → watch *.kt → restart. Ctrl-C to stop."
+    trap 'kill $(jobs -p) 2>/dev/null; exit 0' INT TERM
     while true; do
-        just dev-build
-        echo "--- hybrid running (pid below) ---"
+        ./gradlew compileKotlin -q
         just serve &
-        SERVER_PID=$!
-        if command -v fswatch >/dev/null 2>&1; then
-            fswatch -1 -r -e '.*' -i '\.kt$' "{{project_dir}}/src/main/kotlin"
-        else
-            echo "(fswatch not found — poll fallback, 3s)"
-            STAMP=$(stat -f%m "{{project_dir}}/src/main/kotlin" 2>/dev/null || echo 0)
-            while true; do
-                sleep 3
-                NEW=$(stat -f%m "{{project_dir}}/src/main/kotlin" 2>/dev/null || echo 0)
-                [ "$STAMP" != "$NEW" ] && break
-            done
-        fi
+        fswatch -1 -r -e '.*' -i '\.kt$' "{{project_dir}}/src/main/kotlin"
         echo "--- change detected, rebuilding ---"
-        kill $SERVER_PID 2>/dev/null; wait $SERVER_PID 2>/dev/null || true
+        kill $(jobs -p) 2>/dev/null; wait 2>/dev/null || true
     done
 
 # headless smoke test (validates auth → mulligan flow without MTGA)

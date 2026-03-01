@@ -1,4 +1,6 @@
-# Shared Java/Maven helpers — imported by root and module justfiles
+# Shared Java helpers — imported by root justfile
+# JAVA_HOME is needed for serve/CLI targets that launch JVM directly.
+# Gradle-based targets (build, test, fmt) auto-provision via toolchain.
 
 export JAVA_HOME := env("JAVA_HOME", `
     sdkman="$HOME/.sdkman/candidates/java/current"; \
@@ -6,10 +8,6 @@ export JAVA_HOME := env("JAVA_HOME", `
     else /usr/libexec/java_home -v 17 2>/dev/null || echo ""; fi
 `)
 
-# Common mvn flags
-mvn_skip  := "-DskipTests -Dcheckstyle.skip=true -Denforcer.skip=true"  # compile-only
-mvn_quiet := "-Dcheckstyle.skip=true -Denforcer.skip=true"              # test runs
-
 [private]
 check-java:
-    @test -x "{{JAVA_HOME}}/bin/java" || { echo "JAVA_HOME not set. Install JDK 17." >&2; exit 1; }
+    @test -x "{{JAVA_HOME}}/bin/java" || { echo "JAVA_HOME not set. Install JDK 17 or let Gradle auto-provision: ./gradlew build" >&2; exit 1; }

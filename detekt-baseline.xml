@@ -1,0 +1,127 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ComplexCondition:WebPlayerController.kt$WebPlayerController$smartPhaseSkip &amp;&amp; !bridge.consumePromptResolved() &amp;&amp; handler.playerTurn?.id == player.id &amp;&amp; game.stack.isEmpty &amp;&amp; !PlayableActionQuery.hasPlayableNonManaAction(game, player)</ID>
+    <ID>CyclomaticComplexMethod:ActionMapper.kt$ActionMapper$internal fun buildActionList( seatId: Int, bridge: GameBridge, checkLegality: Boolean, ): ActionsAvailableReq</ID>
+    <ID>CyclomaticComplexMethod:ActionMapper.kt$ActionMapper$private fun buildAutoTapSolution( manaCost: List&lt;Pair&lt;ManaColor, Int&gt;&gt;, player: Player, bridge: GameBridge, ): AutoTapSolution?</ID>
+    <ID>CyclomaticComplexMethod:AnnotationBuilder.kt$AnnotationBuilder$fun categoryFromEvents(forgeCardId: Int, events: List&lt;GameEvent&gt;): TransferCategory?</ID>
+    <ID>CyclomaticComplexMethod:AnnotationBuilder.kt$AnnotationBuilder$private fun zoneChangedCategory(ev: GameEvent.ZoneChanged): TransferCategory</ID>
+    <ID>CyclomaticComplexMethod:AnnotationPipeline.kt$AnnotationPipeline$internal fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): TransferCategory</ID>
+    <ID>CyclomaticComplexMethod:AnnotationVariance.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <ID>CyclomaticComplexMethod:DeckValidator.kt$DeckValidator$fun validate(file: File): List&lt;String&gt;</ID>
+    <ID>CyclomaticComplexMethod:DecodeFdCapture.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <ID>CyclomaticComplexMethod:FrontDoorService.kt$FrontDoorService$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
+    <ID>CyclomaticComplexMethod:GameFlowAnalyzer.kt$GameFlowAnalyzer$private fun groupIntoTimeline(segments: List&lt;Segment&gt;): Analysis</ID>
+    <ID>CyclomaticComplexMethod:LeylineMain.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <ID>CyclomaticComplexMethod:MatchHandler.kt$MatchHandler$private fun processGREMessage(ctx: ChannelHandlerContext, greMsg: ClientToGREMessage)</ID>
+    <ID>CyclomaticComplexMethod:MatchSession.kt$MatchSession$fun onPerformAction(greMsg: ClientToGREMessage)</ID>
+    <ID>CyclomaticComplexMethod:MechanicClassifier.kt$MechanicClassifier$fun classify(event: GameEvent): String</ID>
+    <ID>CyclomaticComplexMethod:RecordingCli.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <ID>CyclomaticComplexMethod:StateMapper.kt$StateMapper$fun buildFromGame( game: Game, gameStateId: Int, matchId: String, bridge: GameBridge, actions: ActionsAvailableReq? = null, updateType: GameStateUpdate = GameStateUpdate.SendAndRecord, viewingSeatId: Int = 0, ): GameStateMessage</ID>
+    <ID>CyclomaticComplexMethod:Trace.kt$private fun checkRenames( greMessages: List&lt;com.google.protobuf.Message&gt;, targets: MutableSet&lt;Int&gt;, ): List&lt;Pair&lt;Int, Int&gt;&gt;</ID>
+    <ID>CyclomaticComplexMethod:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
+    <ID>CyclomaticComplexMethod:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostRemoveCounter): PaymentDecision?</ID>
+    <ID>CyclomaticComplexMethod:WebPlayerController.kt$WebPlayerController$override fun selectTargetsInteractively( validTargets: List&lt;Card&gt;, sa: SpellAbility, mandatory: Boolean, numTargets: Int?, divisionValues: Collection&lt;Int&gt;?, filter: java.util.function.Predicate&lt;forge.game.GameObject&gt;?, mustTargetFiltered: Boolean, ): forge.player.TargetSelectionResult</ID>
+    <ID>DestructuringDeclarationWithTooManyEntries:AnnotationPipeline.kt$AnnotationPipeline$val (origId, newId, category, srcZone, destZone, grpId, _) = transfer</ID>
+    <ID>ImplicitDefaultLocale:CaptureSink.kt$String.format("%02x", ft)</ID>
+    <ID>ImplicitDefaultLocale:FrontDoorService.kt$FrontDoorService$String.format("%02x", frameType)</ID>
+    <ID>LargeClass:WebCostDecision.kt$WebCostDecision : CostDecisionMakerBase</ID>
+    <ID>LargeClass:WebPlayerController.kt$WebPlayerController : PlayerControllerHuman</ID>
+    <ID>LongMethod:ActionMapper.kt$ActionMapper$internal fun buildActionList( seatId: Int, bridge: GameBridge, checkLegality: Boolean, ): ActionsAvailableReq</ID>
+    <ID>LongMethod:FrontDoorService.kt$FrontDoorService$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
+    <ID>LongMethod:GREToDecodedTest.kt$GREToDecodedTest$@Test(description = "Full GSM: zones, objects, annotations, turnInfo, players, actions") fun fullGameStateMessage()</ID>
+    <ID>LongMethod:MatchHandler.kt$MatchHandler$private fun processGREMessage(ctx: ChannelHandlerContext, greMsg: ClientToGREMessage)</ID>
+    <ID>LongMethod:StateMapper.kt$StateMapper$fun buildFromGame( game: Game, gameStateId: Int, matchId: String, bridge: GameBridge, actions: ActionsAvailableReq? = null, updateType: GameStateUpdate = GameStateUpdate.SendAndRecord, viewingSeatId: Int = 0, ): GameStateMessage</ID>
+    <ID>LongMethod:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
+    <ID>LongParameterList:GsmBuilder.kt$GsmBuilder$( game: Game, gameStateId: Int, prevGameStateId: Int, matchId: String, bridge: GameBridge, phase: Phase, step: Step, isStageTransition: Boolean = false, actions: ActionsAvailableReq? = null, actionSeatId: Int = 0, )</ID>
+    <ID>LongParameterList:LeylineServer.kt$LeylineServer$( private val frontDoorPort: Int = 30010, private val matchDoorPort: Int = 30003, /** Front Door cert+key (PEM). Falls back to self-signed if null. */ private val frontDoorCert: File? = null, private val frontDoorKey: File? = null, /** Match Door cert+key. Falls back to Front Door cert, then self-signed. */ private val matchDoorCert: File? = null, private val matchDoorKey: File? = null, /** Proxy mode: if set, relay to these upstream IPs instead of stubbing. */ private val upstreamFrontDoor: String? = null, private val upstreamMatchDoor: String? = null, /** Replay mode: if set, replay recorded payloads from this directory. */ private val replayDir: File? = null, /** FD golden file: if set, use replay-based FD stub instead of hand-crafted. */ val fdGoldenFile: File? = null, /** Playtest configuration (decks, seed, die roll, AI speed). */ val playtestConfig: leyline.config.PlaytestConfig = leyline.config.PlaytestConfig(), /** Puzzle mode: if set, load this .pzl file for all client connections. */ val puzzleFile: File? = null, )</ID>
+    <ID>LongParameterList:SemanticTimelineTest.kt$SemanticTimelineTest$( index: Int = 0, greType: String = "GameStateMessage", gsId: Int = 0, prevGsId: Int? = null, updateType: String? = null, annotations: List&lt;AnnotationSummary&gt; = emptyList(), zones: List&lt;ZoneSummary&gt; = emptyList(), turnInfo: TurnInfoSummary? = null, hasActionsAvailableReq: Boolean = false, hasIntermissionReq: Boolean = false, promptId: Int? = null, actions: List&lt;RecordingDecoder.ActionSummary&gt; = emptyList(), )</ID>
+    <ID>LongParameterList:ZoneMapper.kt$ZoneMapper$( game: Game, player: Player?, seatId: Int, bridge: GameBridge, zones: MutableList&lt;ZoneInfo&gt;, gameObjects: MutableList&lt;GameObjectInfo&gt;, handZoneId: Int, libZoneId: Int, gyZoneId: Int, viewingSeatId: Int = 0, )</ID>
+    <ID>MaxLineLength:ActionMapper.kt$ActionMapper$log.info("buildActions: seat={} mana={} activate={} lands={} casts={} total={}", seatId, manaCount, activateCount, landCount, castCount, builder.actionsCount)</ID>
+    <ID>MaxLineLength:AnnotationOrderingTest.kt$AnnotationOrderingTest$@Test(description = "CastSpell: annotation order is ObjectIdChanged -&gt; ZoneTransfer -&gt; AbilityInstanceCreated -&gt; ManaPaid -&gt; AbilityInstanceDeleted -&gt; UserActionTaken (tap annotations come via Stage 4)")</ID>
+    <ID>MaxLineLength:CardDb.kt$CardDb$"SELECT GrpId, TitleId, Power, Toughness, Colors, Types, Subtypes, Supertypes, AbilityIds, OldSchoolManaText, AbilityIdToLinkedTokenGrpId FROM Cards WHERE GrpId = ?"</ID>
+    <ID>MaxLineLength:CardInjectionTest.kt$CardInjectionTest$val handZone = checkNotNull(gsm.zonesList.firstOrNull { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand &amp;&amp; it.ownerSeatId == 1 }) { "Hand zone should exist for seat 1" }</ID>
+    <ID>MaxLineLength:DecodeCapture.kt$println(" reservedPlayers=${info.gameRoomConfig.reservedPlayersList.map { "${it.playerName}(seat=${it.systemSeatId},bot=${it.isBotPlayer})" }}")</ID>
+    <ID>MaxLineLength:DecodeCapture.kt$println(" turnInfo: phase=${gs.turnInfo.phase} step=${gs.turnInfo.step} turn=${gs.turnInfo.turnNumber} active=${gs.turnInfo.activePlayer}")</ID>
+    <ID>MaxLineLength:FrontDoorService.kt$FrontDoorService.Companion$private const val RANK_DEFAULT = """{"playerId":null,"constructedSeasonOrdinal":0,"constructedClass":"Bronze","constructedLevel":0,"constructedStep":0,"constructedMatchesWon":0,"constructedMatchesLost":0,"constructedMatchesDrawn":0,"limitedSeasonOrdinal":0,"limitedClass":"Bronze","limitedLevel":0,"limitedStep":0,"limitedMatchesWon":0,"limitedMatchesLost":0,"limitedMatchesDrawn":0}"""</ID>
+    <ID>MaxLineLength:PlayLandFieldTest.kt$PlayLandFieldTest$assertEquals(zoneDest.getValueInt32(0), ZoneIds.BATTLEFIELD, "zone_dest should be battlefield (${ZoneIds.BATTLEFIELD}), got: ${zoneDest.getValueInt32(0)}")</ID>
+    <ID>MaxLineLength:PlayLandFieldTest.kt$PlayLandFieldTest$assertTrue(zt.affectedIdsList.contains(newInstanceId), "ZoneTransfer affectedIds should contain land instanceId $newInstanceId, got: ${zt.affectedIdsList}")</ID>
+    <ID>MaxLineLength:WebCostDecision.kt$WebCostDecision$confirmAction(cost, Localizer.getInstance().getMessage("lblPayEnergyConfirm", cost.toString(), player.getCounters(CounterEnumType.ENERGY).toString(), "{E}"))</ID>
+    <ID>MaxLineLength:WebCostDecision.kt$WebCostDecision$confirmAction(cost, Localizer.getInstance().getMessage("lblPayShardsConfirm", cost.toString(), player.numManaShards.toString(), "{M} (Mana Shards)"))</ID>
+    <ID>MaxLineLength:WebCostDecision.kt$WebCostDecision$confirmAction(cost, Localizer.getInstance().getMessage("lblReturnCardToHandConfirm", CardTranslation.getTranslatedName(CardView.get(card).name)))</ID>
+    <ID>MaxLineLength:WebCostDecision.kt$WebCostDecision$if</ID>
+    <ID>MaxLineLength:WebGuiBase.kt$WebGuiBase$override fun chooseCard(title: String, message: String, list: MutableList&lt;PaperCard&gt;): PaperCard</ID>
+    <ID>MaxLineLength:WebGuiBase.kt$WebGuiBase$override fun showBoxedProduct(title: String, message: String, list: MutableList&lt;PaperCard&gt;): Boolean</ID>
+    <ID>MaxLineLength:WebGuiBase.kt$WebGuiBase$override fun showCardList(title: String, message: String, list: MutableList&lt;PaperCard&gt;): Unit</ID>
+    <ID>MaxLineLength:WebGuiBase.kt$WebGuiBase$override fun showImageDialog(image: ISkinImage, message: String, title: String): Unit</ID>
+    <ID>MaxLineLength:WebGuiGame.kt$WebGuiGame$override fun openZones(controller: PlayerView, zones: Collection&lt;ZoneType&gt;, players: Map&lt;PlayerView, Any&gt;, backupLastZones: Boolean): PlayerZoneUpdates</ID>
+    <ID>MaxLineLength:WebGuiGame.kt$WebGuiGame$override fun showConfirmDialog(message: String, title: String, yesText: String, noText: String): Boolean</ID>
+    <ID>MaxLineLength:WebGuiGame.kt$WebGuiGame$override fun showInputDialog(message: String, title: String, icon: FSkinProp?, initialInput: String?): String</ID>
+    <ID>NestedBlockDepth:DecodeCapture.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <ID>ReturnCount:GameFlowAnalyzer.kt$GameFlowAnalyzer$private fun isGameStartAt(i: Int): Boolean</ID>
+    <ID>ReturnCount:RecordingCli.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <ID>ReturnCount:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostDiscard): PaymentDecision?</ID>
+    <ID>ReturnCount:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
+    <ID>ReturnCount:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostPutCardToLib): PaymentDecision?</ID>
+    <ID>ReturnCount:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostRemoveCounter): PaymentDecision?</ID>
+    <ID>ReturnCount:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostReveal): PaymentDecision?</ID>
+    <ID>ReturnCount:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostSacrifice): PaymentDecision?</ID>
+    <ID>ReturnCount:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostTapType): PaymentDecision?</ID>
+    <ID>ReturnCount:WebPlayerController.kt$WebPlayerController$override fun chooseSpellAbilityToPlay(): List&lt;SpellAbility&gt;?</ID>
+    <ID>SwallowedException:GameBridge.kt$GameBridge$e: InvocationTargetException</ID>
+    <ID>SwallowedException:InteractivePromptBridge.kt$InteractivePromptBridge$ex: Exception</ID>
+    <ID>TooGenericExceptionThrown:GameBridge.kt$GameBridge$throw RuntimeException("Puzzle application failed", e.targetException)</ID>
+    <ID>UnusedParameter:ActionMapper.kt$ActionMapper$game: Game</ID>
+    <ID>UnusedParameter:AnnotationPipeline.kt$AnnotationPipeline$obj: GameObjectInfo</ID>
+    <ID>UnusedParameter:GsmBuilder.kt$GsmBuilder$seatId: Int</ID>
+    <ID>UnusedParameter:LeylineServer.kt$LeylineServer$name: String</ID>
+    <ID>UnusedParameter:MatchSession.kt$MatchSession$greMsg: ClientToGREMessage</ID>
+    <ID>UnusedParameter:RequestBuilder.kt$RequestBuilder$game: Game</ID>
+    <ID>UnusedParameter:SessionAnalyzer.kt$SessionAnalyzer$mechanics: List&lt;MechanicClassifier.MechanicCount&gt;</ID>
+    <ID>UnusedParameter:SessionAnalyzer.kt$SessionAnalyzer$sessionDir: File</ID>
+    <ID>UnusedParameter:Tap.kt$Tap$requestId: Int</ID>
+    <ID>UnusedParameter:Trace.kt$field: FieldDescriptor</ID>
+    <ID>UnusedParameter:WebCostDecision.kt$WebCostDecision$cost: CostPart</ID>
+    <ID>UnusedParameter:WebPlayerController.kt$WebPlayerController$label: String</ID>
+    <ID>UnusedParameter:ZoneMapper.kt$ZoneMapper$ai: Player?</ID>
+    <ID>UnusedParameter:ZoneMapper.kt$ZoneMapper$game: Game</ID>
+    <ID>UnusedPrivateMember:ActivateAbilityTest.kt$ActivateAbilityTest$private fun advanceToHumanMain1(b: GameBridge, game: forge.game.Game, targetTurn: Int)</ID>
+    <ID>UnusedPrivateMember:GameBootstrap.kt$GameBootstrap$private fun addCardToZone(name: String, player: Player, zone: ZoneType): Card</ID>
+    <ID>UnusedPrivateMember:LeylinePaths.kt$private fun File.walkUpFind(pred: (File) -&gt; Boolean): File?</ID>
+    <ID>UnusedPrivateMember:MatchHandler.kt$MatchHandler$private fun sendGroupReq(ctx: ChannelHandlerContext)</ID>
+    <ID>UnusedPrivateProperty:AiTurnConformanceTest.kt$AiTurnConformanceTest$i</ID>
+    <ID>UnusedPrivateProperty:BlockerDeclarationTest.kt$BlockerDeclarationTest$i</ID>
+    <ID>UnusedPrivateProperty:CardDataDeriver.kt$CardDataDeriver$private val log = LoggerFactory.getLogger(CardDataDeriver::class.java)</ID>
+    <ID>UnusedPrivateProperty:CombatFlowTest.kt$CombatFlowTest$i</ID>
+    <ID>UnusedPrivateProperty:CounteredSpellTest.kt$CounteredSpellTest$val bfObjects = gsm.gameObjectsList.filter { it.zoneId &gt; 0 }</ID>
+    <ID>UnusedPrivateProperty:DeckProvider.kt$DeckProvider.Companion$// Known client grpIds for precon lands (FDN set) private const val GRPID_FOREST = 95189</ID>
+    <ID>UnusedPrivateProperty:DeckProvider.kt$DeckProvider.Companion$private const val GRPID_PLAINS = 95181</ID>
+    <ID>UnusedPrivateProperty:DeclareBlockersDedupeTest.kt$DeclareBlockersDedupeTest$i</ID>
+    <ID>UnusedPrivateProperty:DiffSnapshotter.kt$DiffSnapshotter$private val idRegistry: InstanceIdRegistry</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$// --- Request field numbers --- private const val REQ_TYPE = 1 // varint (RequestType)</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val ANY_VALUE = 2 // bytes field in google.protobuf.Any</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val REQ_JSON_PAYLOAD = 5 // bytes (JSON)</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val REQ_KEY = 3 // string</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val REQ_TRANS_ID = 2 // string</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val TYPE_PREFIX = "type.googleapis.com/"</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$val field4 = fields.firstOrNull { it.fieldNumber == 4 }</ID>
+    <ID>UnusedPrivateProperty:GameBridgeTest.kt$GameBridgeTest$val stack = game.getStack()</ID>
+    <ID>UnusedPrivateProperty:GameEventCollector.kt$GameEventCollector$private val bridge: GameBridge</ID>
+    <ID>UnusedPrivateProperty:GameLoopController.kt$GameLoopController$private val onStateChanged: (suspend () -&gt; Unit)? = null</ID>
+    <ID>UnusedPrivateProperty:GamePlaybackTest.kt$GamePlaybackTest$val pb = createMinimalPlayback(counter)</ID>
+    <ID>UnusedPrivateProperty:GsmBuilder.kt$GsmBuilder$private val log = LoggerFactory.getLogger(GsmBuilder::class.java)</ID>
+    <ID>UnusedPrivateProperty:InvariantChecker.kt$InvariantChecker$val isSendAndRecord = gsm.update == GameStateUpdate.SendAndRecord</ID>
+    <ID>UnusedPrivateProperty:PlayerLogWatcher.kt$PlayerLogWatcher$val lineBuf = StringBuilder()</ID>
+    <ID>UnusedPrivateProperty:RecordingInspector.kt$RecordingInspector$private val recordingsRoot = LeylinePaths.RECORDINGS</ID>
+    <ID>UnusedPrivateProperty:TargetingFlowTest.kt$TargetingFlowTest$val zt = allAnnotations.filter { AnnotationType.ZoneTransfer_af5a in it.typeList }</ID>
+    <ID>UnusedPrivateProperty:WebCostDecision.kt$WebCostDecision.Companion$private val log = LoggerFactory.getLogger(WebCostDecision::class.java)</ID>
+    <ID>UnusedPrivateProperty:ZoneTransitionConformanceTest.kt$ZoneTransitionConformanceTest$val exileId = b.getOrAllocInstanceId(exiled.id)</ID>
+    <ID>UnusedPrivateProperty:ZoneTransitionConformanceTest.kt$ZoneTransitionConformanceTest$val gyId = b.getOrAllocInstanceId(inGY.id)</ID>
+    <ID>UnusedPrivateProperty:ZoneTransitionConformanceTest.kt$ZoneTransitionConformanceTest$val stackId = b.getOrAllocInstanceId(forgeCardId)</ID>
+    <ID>UseCheckOrError:InteractivePromptBridge.kt$InteractivePromptBridge$throw IllegalStateException("No prompt within ${timeoutMs}ms")</ID>
+    <ID>UseRequire:DeckLoader.kt$DeckLoader$throw IllegalArgumentException("No valid cards found in decklist")</ID>
+    <ID>UseRequire:DeckValidator.kt$DeckValidator$throw IllegalArgumentException( "Invalid deck '${file.name}':\n ${errors.joinToString("\n ")}", )</ID>
+    <ID>UseRequire:WebGuiGame.kt$WebGuiGame$throw IllegalArgumentException("one() called with empty list")</ID>
+  </CurrentIssues>
+</SmellBaseline>
