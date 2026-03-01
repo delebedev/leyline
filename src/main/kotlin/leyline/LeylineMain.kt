@@ -4,6 +4,7 @@ import leyline.config.DeckValidator
 import leyline.config.PlaytestConfig
 import leyline.debug.DebugServer
 import leyline.debug.PlayerLogWatcher
+import leyline.game.CardDb
 import leyline.server.LeylineServer
 import leyline.server.MockWasServer
 import java.io.File
@@ -13,9 +14,28 @@ import java.io.File
  *
  * Run via justfile targets: `just serve`, `just serve-stub`, etc.
  * See CLAUDE.md for mode descriptions.
+ *
+ * Environment variable fallbacks (CLI args take precedence):
+ *   LEYLINE_CERT_PATH  — TLS cert file (used for FD, MD, WAS when specific args missing)
+ *   LEYLINE_KEY_PATH   — TLS key file (used for FD, MD, WAS when specific args missing)
+ *   LEYLINE_CARD_DB    — path to Arena card database SQLite file
+ *   LEYLINE_FD_HOST    — FrontDoor host:port for doorbell response (default: localhost:30010)
  */
 fun main(args: Array<String>) {
     val a = parseArgs(args)
+
+    // Env var fallbacks for TLS cert/key (single cert for all servers)
+    val envCert = System.getenv("LEYLINE_CERT_PATH")?.let { File(it) }?.takeIf { it.exists() }
+    val envKey = System.getenv("LEYLINE_KEY_PATH")?.let { File(it) }?.takeIf { it.exists() }
+
+    fun certFile(arg: String) = a[arg]?.let { File(it) } ?: envCert
+    fun keyFile(arg: String) = a[arg]?.let { File(it) } ?: envKey
+
+    // Card database: explicit path (LEYLINE_CARD_DB) or auto-detect from macOS Arena install
+    val cardDbPath = System.getenv("LEYLINE_CARD_DB")
+    if (cardDbPath != null) {
+        CardDb.init(File(cardDbPath))
+    }
 
     // Load playtest config (TOML)
     val projectDir = findProjectDir()
@@ -40,13 +60,15 @@ fun main(args: Array<String>) {
         require(fdGoldenFile.exists()) { "FD golden file not found: ${fdGoldenFile.absolutePath}" }
     }
 
+    val fdPort = a["--fd-port"]?.toIntOrNull() ?: 30010
+
     val server = LeylineServer(
-        frontDoorPort = a["--fd-port"]?.toIntOrNull() ?: 30010,
+        frontDoorPort = fdPort,
         matchDoorPort = a["--md-port"]?.toIntOrNull() ?: 30003,
-        frontDoorCert = a["--fd-cert"]?.let { File(it) },
-        frontDoorKey = a["--fd-key"]?.let { File(it) },
-        matchDoorCert = a["--md-cert"]?.let { File(it) },
-        matchDoorKey = a["--md-key"]?.let { File(it) },
+        frontDoorCert = certFile("--fd-cert"),
+        frontDoorKey = keyFile("--fd-key"),
+        matchDoorCert = certFile("--md-cert"),
+        matchDoorKey = keyFile("--md-key"),
         upstreamFrontDoor = a["--proxy-fd"],
         upstreamMatchDoor = a["--proxy-md"],
         replayDir = a["--replay"]?.let { File(it) },
@@ -57,12 +79,18 @@ fun main(args: Array<String>) {
 
     val logWatcher = PlayerLogWatcher()
 
+    // FD host for doorbell response: CLI arg > env var > default
+    val fdHost = a["--fd-host"]
+        ?: System.getenv("LEYLINE_FD_HOST")
+        ?: "localhost:$fdPort"
+
     // Mock WAS — serves crafted JWTs with debug roles
     val wasPort = a["--was-port"]?.toIntOrNull() ?: 9443
     val wasServer = MockWasServer(
         port = wasPort,
-        certFile = a["--was-cert"]?.let { File(it) },
-        keyFile = a["--was-key"]?.let { File(it) },
+        certFile = certFile("--was-cert"),
+        keyFile = keyFile("--was-key"),
+        fdHost = fdHost,
     )
 
     Runtime.getRuntime().addShutdownHook(
@@ -91,6 +119,7 @@ fun main(args: Array<String>) {
     println("Leyline server running. Press Ctrl+C to stop.")
     println("Debug panel: http://localhost:$debugPort")
     println("Mock WAS:    https://localhost:$wasPort")
+    println("Doorbell:    FdURI=$fdHost")
     if (puzzleFile != null) {
         println("Puzzle: ${puzzleFile.name}")
     } else {
