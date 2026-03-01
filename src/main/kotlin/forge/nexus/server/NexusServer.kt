@@ -289,6 +289,7 @@ class ProxyFrontHandler(
     override fun channelInactive(ctx: ChannelHandlerContext) {
         log.info("Proxy [{}]: client disconnected", door)
         outboundChannel?.close()
+        if (door == "MD") CaptureSink.flushMdFrames()
     }
 
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
