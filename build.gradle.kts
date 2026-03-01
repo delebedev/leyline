@@ -112,8 +112,8 @@ powerAssert {
 
 detekt {
     buildUponDefaultConfig = true
-    config.setFrom(files("detekt.yml"))
-    baseline = file("detekt-baseline.xml")
+    config.setFrom(files("gradle/detekt.yml"))
+    baseline = file("gradle/detekt-baseline.xml")
     parallel = true
     source.setFrom(files("src/main/kotlin", "src/test/kotlin"))
 }
