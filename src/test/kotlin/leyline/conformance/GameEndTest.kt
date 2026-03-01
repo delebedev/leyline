@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.IntegrationTag
 import leyline.game.mapper.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -16,6 +17,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  */
 class GameEndTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         var harness: MatchFlowHarness? = null
 

@@ -3,12 +3,15 @@ package leyline.game
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
 class AnnotationBuilderTest :
     FunSpec({
+
+        tags(UnitTag)
 
         test("zoneTransferAnnotation") {
             val ann = AnnotationBuilder.zoneTransfer(

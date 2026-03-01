@@ -5,9 +5,12 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.string.shouldContain
+import leyline.UnitTag
 
 class StructuralDiffTest :
     FunSpec({
+
+        tags(UnitTag)
 
         val gsFingerprint = StructuralFingerprint(
             greMessageType = "GameStateMessage",

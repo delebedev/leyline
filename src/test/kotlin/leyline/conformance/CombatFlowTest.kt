@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.IntegrationTag
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -30,6 +31,8 @@ const val COMBAT_DECK = """
 
 class CombatFlowTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         var harness: MatchFlowHarness? = null
 

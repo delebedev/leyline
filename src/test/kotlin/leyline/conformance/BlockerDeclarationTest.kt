@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import leyline.IntegrationTag
 
 /**
  * End-to-end blocker declaration tests: AI attacks, human blocks.
@@ -28,6 +29,8 @@ import io.kotest.matchers.shouldBe
  */
 class BlockerDeclarationTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         var harness: MatchFlowHarness? = null
 

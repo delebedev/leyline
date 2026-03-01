@@ -4,7 +4,7 @@ import org.gradle.api.tasks.testing.Test
 import org.gradle.testretry.TestRetryTaskExtension
 
 fun Test.configureTestDefaults() {
-    useTestNG()
+    useJUnitPlatform()
     maxHeapSize = "768m"
     testLogging {
         events("failed")

@@ -4,10 +4,13 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 class ClientAccumulatorTest :
     FunSpec({
+
+        tags(UnitTag)
 
         test("fullStateReplacesAllObjects") {
             val acc = ClientAccumulator()

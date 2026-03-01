@@ -5,6 +5,7 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.game.BundleBuilder
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
@@ -20,6 +21,9 @@ import forge.game.zone.ZoneType as ForgeZoneType
  */
 class DiffDiagnosticTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

@@ -10,7 +10,7 @@ Client compat layer — stubs/proxies the client's Front Door + Match Door so th
 
 ## Testing
 
-See `.claude/rules/nexus-tests.md` for groups, setup tiers, and conventions. Key commands: `just test-gate` (pre-commit), `just test-one Foo` (single class).
+All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/nexus-tests.md` for tags, setup tiers, and conventions. Key commands: `just test-gate` (pre-commit), `just test-one Foo` (single class).
 
 ## Debug Panel & API
 

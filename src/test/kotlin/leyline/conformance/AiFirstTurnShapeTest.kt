@@ -5,6 +5,7 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -23,6 +24,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  */
 class AiFirstTurnShapeTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         var harness: MatchFlowHarness? = null
         afterEach {
             harness?.shutdown()

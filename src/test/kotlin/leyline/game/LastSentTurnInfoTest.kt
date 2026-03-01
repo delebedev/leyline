@@ -3,6 +3,7 @@ package leyline.game
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.Step
@@ -18,6 +19,8 @@ import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
  */
 class LastSentTurnInfoTest :
     FunSpec({
+
+        tags(UnitTag)
 
         fun turnInfo(phase: Phase, step: Step, turn: Int = 1): TurnInfo =
             TurnInfo.newBuilder()

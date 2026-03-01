@@ -4,6 +4,7 @@ import forge.game.ability.AbilityKey
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 
 /**
  * Removal spell flow conformance: simulates removal effects resolving
@@ -13,6 +14,9 @@ import io.kotest.matchers.shouldBe
  */
 class RemovalSpellFlowTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

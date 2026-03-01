@@ -2,18 +2,23 @@
 
 Migrate all tests from TestNG to Kotest FunSpec + kotest-assertions-core.
 
-## Status
+## Status — COMPLETE
 
 - [x] Deps added: `kotest-runner-junit5`, `kotest-assertions-core`, `kotest-framework-datatest` (5.9.1)
-- [x] `testKotest` Gradle task (JUnit Platform) — coexists with TestNG tasks
-- [x] `InstanceIdRegistryTest` — migrated, passing
-- [x] `PackageArchitectureTest` — migrated, passing (cycle test xtest'd, needs arch fix)
-- [x] All unit-group tests migrated (19 files)
-- [ ] Remaining conformance + integration test files
+- [x] All unit-group tests migrated (21 files)
+- [x] All conformance-group tests migrated (25 files)
+- [x] All integration-group tests migrated (14 files)
+- [x] TestNG dependency removed
+- [x] `useTestNG()` → `useJUnitPlatform()` in `configureTestDefaults()`
+- [x] Standalone `testKotest` task removed — `test` task handles everything
+- [x] Kotest tags (`UnitTag`, `ConformanceTag`, `IntegrationTag`) defined and applied to all specs
+- [x] `testUnit`/`testConformance`/`testIntegration`/`testGate` use `kotest.tags` system property
+- [x] `PackageArchitectureTest` fixed — scans `build/classes` instead of `target/classes`
+- [x] CLAUDE.md and `.claude/rules/nexus-tests.md` updated
 
 ## Approach
 
-Migrate file-by-file. TestNG and Kotest coexist — no big bang. After all files converted, do cleanup (below).
+Migrated file-by-file in three waves (unit → conformance → integration). Post-migration cleanup removed TestNG and consolidated all tasks on JUnit Platform with Kotest tag filtering.
 
 ## Test shape mapping
 

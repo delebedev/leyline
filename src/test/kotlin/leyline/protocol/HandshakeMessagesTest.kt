@@ -4,6 +4,7 @@ import forge.util.MyRandom
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.ints.shouldBeInRange
 import io.kotest.matchers.shouldBe
+import leyline.IntegrationTag
 import leyline.bridge.GameBootstrap
 import leyline.game.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.DeckMessage
@@ -13,6 +14,8 @@ import java.util.Random
 /** Integration tests for [HandshakeMessages] — die roll determinism and range. */
 class HandshakeMessagesTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         var bridge: GameBridge? = null
 

@@ -3,6 +3,7 @@ package leyline.conformance
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.game.BundleBuilder
 import leyline.game.snapshotFromGame
 
@@ -18,6 +19,9 @@ import leyline.game.snapshotFromGame
  */
 class GsIdChainTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
