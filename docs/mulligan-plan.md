@@ -19,6 +19,19 @@ C→S: GroupResp (groups=[{ids: cards to put on bottom}])
 S→C: GSM Diff (hand updated — tuck cards removed)
 ```
 
+## Recording observations
+
+**Session `2026-03-01_11-33-28` — 4 mulligan rounds (gsId 2–7):**
+
+- Hands delivered as zone objects (cards visible to the seat owner)
+- Zone `objectInstanceIds` arrays **stay empty** throughout mulligan — cards have no zone membership until the game starts
+- gsId 2: AI opponent's 7-card hand (zone 35)
+- gsId 5: Player's 7-card hand after first mull
+- gsId 6: Player's next 11-object hand (Rooms contribute face objects)
+- gsId 8: First game action (draw step) — zone membership populated from here on
+
+Implication: during mulligan, the client renders hand objects purely from the object list, not from zone contents. The re-deal GSM diff should deliver new objects but doesn't need to update zone `objectInstanceIds` until the game proper starts.
+
 ## Changes
 
 ### 1. `GameBridge.kt` — Add tuck support
