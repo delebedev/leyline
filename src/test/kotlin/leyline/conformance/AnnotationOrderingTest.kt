@@ -1,9 +1,13 @@
 package leyline.conformance
 
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.game.mapper.ZoneIds
-import org.testng.Assert.assertEquals
-import org.testng.Assert.assertTrue
-import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
@@ -19,343 +23,284 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  * These tests exercise the full StateMapper.buildFromGame / BundleBuilder.postAction
  * pipeline with a live Forge engine and assert on the emitted annotation sequence.
  */
-@Test(groups = ["conformance"])
-class AnnotationOrderingTest : ConformanceTestBase() {
+class AnnotationOrderingTest :
+    FunSpec({
+        val base = ConformanceTestBase()
+        beforeSpec { base.initCardDatabase() }
+        afterEach { base.tearDown() }
 
-    // ===== PlayLand ordering =====
-
-    @Test(description = "PlayLand: annotation order is ObjectIdChanged -> ZoneTransfer -> UserActionTaken")
-    fun playLandAnnotationOrder() {
-        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
-
-        val types = gsm.annotationsList.map { it.typeList.first() }
-        val oicIdx = types.indexOf(AnnotationType.ObjectIdChanged)
-        val ztIdx = types.indexOf(AnnotationType.ZoneTransfer_af5a)
-        val uatIdx = types.indexOf(AnnotationType.UserActionTaken)
-
-        assertTrue(oicIdx >= 0, "Should have ObjectIdChanged annotation")
-        assertTrue(ztIdx >= 0, "Should have ZoneTransfer annotation")
-        assertTrue(uatIdx >= 0, "Should have UserActionTaken annotation")
-
-        assertTrue(
-            oicIdx < ztIdx,
-            "ObjectIdChanged (idx=$oicIdx) must come before ZoneTransfer (idx=$ztIdx)",
-        )
-        assertTrue(
-            ztIdx < uatIdx,
-            "ZoneTransfer (idx=$ztIdx) must come before UserActionTaken (idx=$uatIdx)",
-        )
-    }
-
-    @Test(description = "PlayLand: exactly 3 annotations (ObjectIdChanged + ZoneTransfer + UserActionTaken)")
-    fun playLandAnnotationCount() {
-        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
-
-        val types = gsm.annotationsList.map { it.typeList.first() }
-        val expected = listOf(
-            AnnotationType.ObjectIdChanged,
-            AnnotationType.ZoneTransfer_af5a,
-            AnnotationType.UserActionTaken,
-        )
-        assertEquals(types, expected, "PlayLand should have exactly 3 annotations in order: $expected, got: $types")
-    }
-
-    @Test(description = "PlayLand: ZoneTransfer affectorId is 0 (no acting seat for land play)")
-    fun playLandZoneTransferAffectorIdIsZero() {
-        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
-
-        val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
-        assertEquals(zt.affectorId, 0, "PlayLand ZoneTransfer affectorId should be 0 (default), got: ${zt.affectorId}")
-    }
-
-    @Test(description = "PlayLand: UserActionTaken affectorId equals acting seat (1=human)")
-    fun playLandUserActionTakenAffectorId() {
-        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
-
-        val uat = gsm.annotation(AnnotationType.UserActionTaken)
-        assertEquals(uat.affectorId, 1, "PlayLand UserActionTaken affectorId should be seat 1 (human)")
-    }
-
-    @Test(description = "PlayLand: UserActionTaken actionType=3 (Play)")
-    fun playLandUserActionTakenActionType() {
-        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
-
-        val uat = gsm.annotation(AnnotationType.UserActionTaken)
-        assertEquals(uat.detailInt("actionType"), 3, "PlayLand UserActionTaken actionType should be 3 (Play)")
-    }
-
-    @Test(description = "PlayLand: ObjectIdChanged has no affectorId set (default 0)")
-    fun playLandObjectIdChangedNoAffector() {
-        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
-
-        val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
-        assertEquals(oic.affectorId, 0, "ObjectIdChanged should not have affectorId set")
-    }
-
-    // ===== CastSpell ordering =====
-
-    @Test(description = "CastSpell: annotation order is ObjectIdChanged -> ZoneTransfer -> AbilityInstanceCreated -> ManaPaid -> AbilityInstanceDeleted -> UserActionTaken (tap annotations come via Stage 4)")
-    fun castSpellAnnotationOrder() {
-        val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
-
-        val types = gsm.annotationsList.map { it.typeList.first() }
-
-        val oicIdx = types.indexOf(AnnotationType.ObjectIdChanged)
-        val ztIdx = types.indexOf(AnnotationType.ZoneTransfer_af5a)
-        val aicIdx = types.indexOf(AnnotationType.AbilityInstanceCreated)
-        val mpIdx = types.indexOf(AnnotationType.ManaPaid)
-        val aidIdx = types.indexOf(AnnotationType.AbilityInstanceDeleted)
-        val uatIdx = types.indexOf(AnnotationType.UserActionTaken)
-
-        assertTrue(oicIdx >= 0, "Should have ObjectIdChanged")
-        assertTrue(ztIdx >= 0, "Should have ZoneTransfer")
-        assertTrue(aicIdx >= 0, "Should have AbilityInstanceCreated")
-        assertTrue(mpIdx >= 0, "Should have ManaPaid")
-        assertTrue(aidIdx >= 0, "Should have AbilityInstanceDeleted")
-        assertTrue(uatIdx >= 0, "Should have UserActionTaken")
-
-        assertTrue(oicIdx < ztIdx, "ObjectIdChanged ($oicIdx) before ZoneTransfer ($ztIdx)")
-        assertTrue(ztIdx < aicIdx, "ZoneTransfer ($ztIdx) before AbilityInstanceCreated ($aicIdx)")
-        assertTrue(aicIdx < mpIdx, "AbilityInstanceCreated ($aicIdx) before ManaPaid ($mpIdx)")
-        assertTrue(mpIdx < aidIdx, "ManaPaid ($mpIdx) before AbilityInstanceDeleted ($aidIdx)")
-        assertTrue(aidIdx < uatIdx, "AbilityInstanceDeleted ($aidIdx) before UserActionTaken ($uatIdx)")
-
-        // TappedUntappedPermanent annotations come via Stage 4 (per-land, after CastSpell sequence)
-        val tupIndices = types.indices.filter { types[it] == AnnotationType.TappedUntappedPermanent }
-        for (tupIdx in tupIndices) {
-            assertTrue(tupIdx > uatIdx, "TappedUntappedPermanent ($tupIdx) should come after CastSpell sequence (UserActionTaken=$uatIdx)")
+        fun assertAnnotationIdsSequential(gsm: GameStateMessage) {
+            val ids = gsm.annotationsList.map { it.id }
+            if (ids.isEmpty()) return
+            ids.all { it > 0 }.shouldBeTrue()
+            ids shouldBe ids.sorted()
+            ids.toSet().size shouldBe ids.size
         }
-    }
 
-    @Test(description = "CastSpell: CastSpell sequence has 6 annotations + per-land TappedUntappedPermanent from Stage 4")
-    fun castSpellAnnotationCount() {
-        val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
+        // ===== PlayLand ordering =====
 
-        val types = gsm.annotationsList.map { it.typeList.first() }
-        // First 6 are the CastSpell sequence (Stage 2), followed by per-land tap annotations (Stage 4)
-        val castSequence = listOf(
-            AnnotationType.ObjectIdChanged,
-            AnnotationType.ZoneTransfer_af5a,
-            AnnotationType.AbilityInstanceCreated,
-            AnnotationType.ManaPaid,
-            AnnotationType.AbilityInstanceDeleted,
-            AnnotationType.UserActionTaken,
-        )
-        assertEquals(types.take(6), castSequence, "First 6 annotations should be the CastSpell sequence")
-        // Remaining annotations should be TappedUntappedPermanent (one per tapped land)
-        val tapAnnotations = types.drop(6)
-        assertTrue(tapAnnotations.isNotEmpty(), "Should have at least one TappedUntappedPermanent from Stage 4")
-        assertTrue(
-            tapAnnotations.all { it == AnnotationType.TappedUntappedPermanent },
-            "All annotations after CastSpell sequence should be TappedUntappedPermanent, got: $tapAnnotations",
-        )
-    }
+        test("PlayLand annotation order: ObjectIdChanged -> ZoneTransfer -> UserActionTaken") {
+            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
 
-    @Test(description = "CastSpell: ZoneTransfer category is CastSpell, zones are Hand->Stack")
-    fun castSpellZoneTransferFields() {
-        val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
+            val types = gsm.annotationsList.map { it.typeList.first() }
+            val oicIdx = types.indexOf(AnnotationType.ObjectIdChanged)
+            val ztIdx = types.indexOf(AnnotationType.ZoneTransfer_af5a)
+            val uatIdx = types.indexOf(AnnotationType.UserActionTaken)
 
-        val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
-        assertEquals(zt.detailString("category"), "CastSpell")
-        assertEquals(zt.detailInt("zone_src"), ZoneIds.P1_HAND, "zone_src should be Hand (${ZoneIds.P1_HAND})")
-        assertEquals(zt.detailInt("zone_dest"), ZoneIds.STACK, "zone_dest should be Stack (${ZoneIds.STACK})")
-    }
+            oicIdx shouldBeGreaterThanOrEqual 0
+            ztIdx shouldBeGreaterThanOrEqual 0
+            uatIdx shouldBeGreaterThanOrEqual 0
 
-    @Test(description = "CastSpell: UserActionTaken has actionType=1 (Cast)")
-    fun castSpellUserActionTakenActionType() {
-        val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
-
-        val uat = gsm.annotation(AnnotationType.UserActionTaken)
-        assertEquals(uat.detailInt("actionType"), 1, "CastSpell UserActionTaken actionType should be 1 (Cast)")
-    }
-
-    @Test(description = "CastSpell: TappedUntappedPermanent annotations have tapped=1 detail (from Stage 4 per-land events)")
-    fun castSpellTappedUntappedDetail() {
-        val gsm = castSpellAndCapture() ?: error("Could not cast spell at seed 42")
-
-        val tups = gsm.annotationsList.filter { AnnotationType.TappedUntappedPermanent in it.typeList }
-        assertTrue(tups.isNotEmpty(), "Should have at least one TappedUntappedPermanent annotation")
-        for (tup in tups) {
-            assertEquals(tup.detailUint("tapped"), 1, "TappedUntappedPermanent tapped should be 1")
+            (oicIdx < ztIdx).shouldBeTrue()
+            (ztIdx < uatIdx).shouldBeTrue()
         }
-    }
 
-    @Test(description = "CastSpell: all annotations reference the new (post-realloc) instanceId")
-    fun castSpellAnnotationsReferenceNewInstanceId() {
-        val (gsm, _, newInstanceId) = castSpellAndCaptureWithIds() ?: error("Could not cast spell at seed 42")
+        test("PlayLand: exactly 3 annotations") {
+            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
 
-        val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
-        assertTrue(zt.affectedIdsList.contains(newInstanceId), "ZoneTransfer affectedIds should contain new instanceId $newInstanceId")
+            val types = gsm.annotationsList.map { it.typeList.first() }
+            val expected = listOf(
+                AnnotationType.ObjectIdChanged,
+                AnnotationType.ZoneTransfer_af5a,
+                AnnotationType.UserActionTaken,
+            )
+            types shouldBe expected
+        }
 
-        val uat = gsm.annotation(AnnotationType.UserActionTaken)
-        assertTrue(uat.affectedIdsList.contains(newInstanceId), "UserActionTaken affectedIds should contain new instanceId $newInstanceId")
+        test("PlayLand: ZoneTransfer affectorId is zero") {
+            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
 
-        val mp = gsm.annotation(AnnotationType.ManaPaid)
-        assertTrue(mp.affectedIdsList.contains(newInstanceId), "ManaPaid affectedIds should contain new instanceId $newInstanceId")
+            val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
+            zt.affectorId shouldBe 0
+        }
 
-        val aic = gsm.annotation(AnnotationType.AbilityInstanceCreated)
-        assertTrue(aic.affectedIdsList.contains(newInstanceId), "AbilityInstanceCreated affectedIds should contain new instanceId $newInstanceId")
-    }
+        test("PlayLand: UserActionTaken affectorId equals acting seat") {
+            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
 
-    // ===== Resolve ordering =====
+            val uat = gsm.annotation(AnnotationType.UserActionTaken)
+            uat.affectorId shouldBe 1
+        }
 
-    @Test(description = "Resolve: annotation order is ResolutionStart -> ResolutionComplete -> ZoneTransfer")
-    fun resolveAnnotationOrder() {
-        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+        test("PlayLand: UserActionTaken actionType=3 (Play)") {
+            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
 
-        val types = gsm.annotationsList.map { it.typeList.first() }
-        val rsIdx = types.indexOf(AnnotationType.ResolutionStart)
-        val rcIdx = types.indexOf(AnnotationType.ResolutionComplete)
-        val ztIdx = types.indexOf(AnnotationType.ZoneTransfer_af5a)
+            val uat = gsm.annotation(AnnotationType.UserActionTaken)
+            uat.detailInt("actionType") shouldBe 3
+        }
 
-        assertTrue(rsIdx >= 0, "Should have ResolutionStart")
-        assertTrue(rcIdx >= 0, "Should have ResolutionComplete")
-        assertTrue(ztIdx >= 0, "Should have ZoneTransfer")
+        test("PlayLand: ObjectIdChanged has no affectorId set") {
+            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
 
-        assertTrue(rsIdx < rcIdx, "ResolutionStart ($rsIdx) before ResolutionComplete ($rcIdx)")
-        assertTrue(rcIdx < ztIdx, "ResolutionComplete ($rcIdx) before ZoneTransfer ($ztIdx)")
-    }
+            val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
+            oic.affectorId shouldBe 0
+        }
 
-    @Test(description = "Resolve: exactly 3 annotations (ResolutionStart + ResolutionComplete + ZoneTransfer)")
-    fun resolveAnnotationCount() {
-        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+        // ===== CastSpell ordering =====
 
-        val types = gsm.annotationsList.map { it.typeList.first() }
-        val expected = listOf(
-            AnnotationType.ResolutionStart,
-            AnnotationType.ResolutionComplete,
-            AnnotationType.ZoneTransfer_af5a,
-        )
-        assertEquals(types, expected, "Resolve should have exactly 3 annotations in order")
-    }
+        test("CastSpell annotation order") {
+            val gsm = base.castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
-    @Test(description = "Resolve: ZoneTransfer category is Resolve, affectorId is acting seat")
-    fun resolveZoneTransferAffectorId() {
-        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+            val types = gsm.annotationsList.map { it.typeList.first() }
 
-        val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
-        assertEquals(zt.detailString("category"), "Resolve")
-        assertTrue(zt.affectorId > 0, "Resolve ZoneTransfer should have non-zero affectorId (acting seat)")
-    }
+            val oicIdx = types.indexOf(AnnotationType.ObjectIdChanged)
+            val ztIdx = types.indexOf(AnnotationType.ZoneTransfer_af5a)
+            val aicIdx = types.indexOf(AnnotationType.AbilityInstanceCreated)
+            val mpIdx = types.indexOf(AnnotationType.ManaPaid)
+            val aidIdx = types.indexOf(AnnotationType.AbilityInstanceDeleted)
+            val uatIdx = types.indexOf(AnnotationType.UserActionTaken)
 
-    @Test(description = "Resolve: ZoneTransfer zones are Stack->Battlefield")
-    fun resolveZoneTransferZones() {
-        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+            oicIdx shouldBeGreaterThanOrEqual 0
+            ztIdx shouldBeGreaterThanOrEqual 0
+            aicIdx shouldBeGreaterThanOrEqual 0
+            mpIdx shouldBeGreaterThanOrEqual 0
+            aidIdx shouldBeGreaterThanOrEqual 0
+            uatIdx shouldBeGreaterThanOrEqual 0
 
-        val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
-        assertEquals(zt.detailInt("zone_src"), ZoneIds.STACK, "Resolve zone_src should be Stack (${ZoneIds.STACK})")
-        assertEquals(zt.detailInt("zone_dest"), ZoneIds.BATTLEFIELD, "Resolve zone_dest should be Battlefield (${ZoneIds.BATTLEFIELD})")
-    }
+            (oicIdx < ztIdx).shouldBeTrue()
+            (ztIdx < aicIdx).shouldBeTrue()
+            (aicIdx < mpIdx).shouldBeTrue()
+            (mpIdx < aidIdx).shouldBeTrue()
+            (aidIdx < uatIdx).shouldBeTrue()
 
-    @Test(description = "Resolve: ResolutionStart has affectorId=instanceId and grpid detail")
-    fun resolveResolutionStartFields() {
-        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
-
-        val rs = gsm.annotation(AnnotationType.ResolutionStart)
-        assertTrue(rs.affectorId > 0, "ResolutionStart affectorId should be the spell instanceId")
-        assertTrue(rs.affectedIdsCount > 0, "ResolutionStart should have affectedIds")
-        assertEquals(
-            rs.affectorId,
-            rs.getAffectedIds(0),
-            "ResolutionStart affectorId should equal affectedIds[0] (both = spell instanceId)",
-        )
-
-        val grpid = rs.detail("grpid")
-        assertTrue(grpid != null, "ResolutionStart should have grpid detail")
-        assertTrue(grpid!!.getValueUint32(0) >= 0, "grpid should be present (0 is OK without client card DB)")
-    }
-
-    @Test(description = "Resolve: ResolutionComplete has same affectorId and grpid as ResolutionStart")
-    fun resolveResolutionCompleteMatchesStart() {
-        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
-
-        val rs = gsm.annotation(AnnotationType.ResolutionStart)
-        val rc = gsm.annotation(AnnotationType.ResolutionComplete)
-
-        assertEquals(rc.affectorId, rs.affectorId, "ResolutionComplete affectorId should match ResolutionStart")
-        assertEquals(
-            rc.getAffectedIds(0),
-            rs.getAffectedIds(0),
-            "ResolutionComplete affectedIds[0] should match ResolutionStart",
-        )
-
-        assertEquals(
-            rc.detailUint("grpid"),
-            rs.detailUint("grpid"),
-            "ResolutionComplete grpid should match ResolutionStart grpid",
-        )
-    }
-
-    @Test(description = "Resolve: instanceId NOT reallocated (Stack->Battlefield keeps same ID)")
-    fun resolveKeepsSameInstanceId() {
-        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
-
-        val oicAnns = gsm.annotationsList.filter { AnnotationType.ObjectIdChanged in it.typeList }
-        assertTrue(
-            oicAnns.isEmpty(),
-            "Resolve should NOT have ObjectIdChanged (Stack->Battlefield keeps same instanceId), " +
-                "got: ${oicAnns.map { it.typeList }}",
-        )
-    }
-
-    @Test(description = "Resolve: no Limbo retirement (no old instanceId to retire)")
-    fun resolveNoLimboRetirement() {
-        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
-
-        val bfObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.BATTLEFIELD }
-        val limboZone = gsm.zonesList.firstOrNull { it.type == ZoneType.Limbo }
-        for (obj in bfObjects) {
-            if (limboZone != null) {
-                assertTrue(
-                    !limboZone.objectInstanceIdsList.contains(obj.instanceId),
-                    "Resolved creature instanceId ${obj.instanceId} should NOT be in Limbo",
-                )
+            // TappedUntappedPermanent annotations come via Stage 4
+            val tupIndices = types.indices.filter { types[it] == AnnotationType.TappedUntappedPermanent }
+            for (tupIdx in tupIndices) {
+                (tupIdx > uatIdx).shouldBeTrue()
             }
         }
-    }
 
-    // ===== Cross-category: annotation IDs =====
+        test("CastSpell: 6 annotations + per-land TappedUntappedPermanent") {
+            val gsm = base.castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
-    @Test(description = "All annotation IDs are sequential and monotonically increasing within a GSM")
-    fun annotationIdsSequentialAcrossCategories() {
-        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
-        assertAnnotationIdsSequential(gsm)
-
-        val castGsm = castSpellAndCapture()
-        if (castGsm != null) assertAnnotationIdsSequential(castGsm)
-
-        val resolveGsm = resolveAndCapture()
-        if (resolveGsm != null) assertAnnotationIdsSequential(resolveGsm)
-    }
-
-    // ===== Persistent annotation =====
-
-    @Test(description = "Resolve: EnteredZoneThisTurn persistent annotation for creature landing on battlefield")
-    fun resolveCreatureGetsPersistentAnnotation() {
-        val gsm = resolveAndCapture() ?: error("Nothing to resolve at seed 42")
-
-        assertTrue(
-            gsm.persistentAnnotationsCount > 0,
-            "Resolve GSM should have persistent annotations (EnteredZoneThisTurn for creature on BF)",
-        )
-        val entered = gsm.persistentAnnotationsList.firstOrNull {
-            AnnotationType.EnteredZoneThisTurn in it.typeList
+            val types = gsm.annotationsList.map { it.typeList.first() }
+            val castSequence = listOf(
+                AnnotationType.ObjectIdChanged,
+                AnnotationType.ZoneTransfer_af5a,
+                AnnotationType.AbilityInstanceCreated,
+                AnnotationType.ManaPaid,
+                AnnotationType.AbilityInstanceDeleted,
+                AnnotationType.UserActionTaken,
+            )
+            types.take(6) shouldBe castSequence
+            val tapAnnotations = types.drop(6)
+            tapAnnotations.isNotEmpty().shouldBeTrue()
+            tapAnnotations.all { it == AnnotationType.TappedUntappedPermanent }.shouldBeTrue()
         }
-        assertTrue(entered != null, "Should have EnteredZoneThisTurn persistent annotation")
-        assertEquals(
-            entered!!.affectorId,
-            ZoneIds.BATTLEFIELD,
-            "EnteredZoneThisTurn affectorId should be battlefield zone (${ZoneIds.BATTLEFIELD})",
-        )
-    }
 
-    // ===== Helpers =====
+        test("CastSpell: ZoneTransfer category is CastSpell, zones are Hand->Stack") {
+            val gsm = base.castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
-    private fun assertAnnotationIdsSequential(gsm: GameStateMessage) {
-        val ids = gsm.annotationsList.map { it.id }
-        if (ids.isEmpty()) return
-        assertTrue(ids.all { it > 0 }, "All annotation IDs should be > 0, got: $ids")
-        assertEquals(ids, ids.sorted(), "Annotation IDs should be monotonically increasing, got: $ids")
-        assertEquals(ids.toSet().size, ids.size, "Annotation IDs should be unique, got: $ids")
-    }
-}
+            val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
+            zt.detailString("category") shouldBe "CastSpell"
+            zt.detailInt("zone_src") shouldBe ZoneIds.P1_HAND
+            zt.detailInt("zone_dest") shouldBe ZoneIds.STACK
+        }
+
+        test("CastSpell: UserActionTaken has actionType=1 (Cast)") {
+            val gsm = base.castSpellAndCapture() ?: error("Could not cast spell at seed 42")
+
+            val uat = gsm.annotation(AnnotationType.UserActionTaken)
+            uat.detailInt("actionType") shouldBe 1
+        }
+
+        test("CastSpell: TappedUntappedPermanent has tapped=1 detail") {
+            val gsm = base.castSpellAndCapture() ?: error("Could not cast spell at seed 42")
+
+            val tups = gsm.annotationsList.filter { AnnotationType.TappedUntappedPermanent in it.typeList }
+            tups.isNotEmpty().shouldBeTrue()
+            for (tup in tups) {
+                tup.detailUint("tapped") shouldBe 1
+            }
+        }
+
+        test("CastSpell: all annotations reference the new instanceId") {
+            val (gsm, _, newInstanceId) = base.castSpellAndCaptureWithIds() ?: error("Could not cast spell at seed 42")
+
+            val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
+            zt.affectedIdsList.contains(newInstanceId).shouldBeTrue()
+
+            val uat = gsm.annotation(AnnotationType.UserActionTaken)
+            uat.affectedIdsList.contains(newInstanceId).shouldBeTrue()
+
+            val mp = gsm.annotation(AnnotationType.ManaPaid)
+            mp.affectedIdsList.contains(newInstanceId).shouldBeTrue()
+
+            val aic = gsm.annotation(AnnotationType.AbilityInstanceCreated)
+            aic.affectedIdsList.contains(newInstanceId).shouldBeTrue()
+        }
+
+        // ===== Resolve ordering =====
+
+        test("Resolve annotation order: ResolutionStart -> ResolutionComplete -> ZoneTransfer") {
+            val gsm = base.resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+
+            val types = gsm.annotationsList.map { it.typeList.first() }
+            val rsIdx = types.indexOf(AnnotationType.ResolutionStart)
+            val rcIdx = types.indexOf(AnnotationType.ResolutionComplete)
+            val ztIdx = types.indexOf(AnnotationType.ZoneTransfer_af5a)
+
+            rsIdx shouldBeGreaterThanOrEqual 0
+            rcIdx shouldBeGreaterThanOrEqual 0
+            ztIdx shouldBeGreaterThanOrEqual 0
+
+            (rsIdx < rcIdx).shouldBeTrue()
+            (rcIdx < ztIdx).shouldBeTrue()
+        }
+
+        test("Resolve: exactly 3 annotations") {
+            val gsm = base.resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+
+            val types = gsm.annotationsList.map { it.typeList.first() }
+            val expected = listOf(
+                AnnotationType.ResolutionStart,
+                AnnotationType.ResolutionComplete,
+                AnnotationType.ZoneTransfer_af5a,
+            )
+            types shouldBe expected
+        }
+
+        test("Resolve: ZoneTransfer category is Resolve, affectorId is acting seat") {
+            val gsm = base.resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+
+            val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
+            zt.detailString("category") shouldBe "Resolve"
+            zt.affectorId shouldBeGreaterThan 0
+        }
+
+        test("Resolve: ZoneTransfer zones are Stack->Battlefield") {
+            val gsm = base.resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+
+            val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
+            zt.detailInt("zone_src") shouldBe ZoneIds.STACK
+            zt.detailInt("zone_dest") shouldBe ZoneIds.BATTLEFIELD
+        }
+
+        test("Resolve: ResolutionStart fields") {
+            val gsm = base.resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+
+            val rs = gsm.annotation(AnnotationType.ResolutionStart)
+            rs.affectorId shouldBeGreaterThan 0
+            (rs.affectedIdsCount > 0).shouldBeTrue()
+            rs.affectorId shouldBe rs.getAffectedIds(0)
+
+            val grpid = rs.detail("grpid")
+            grpid shouldNotBe null
+            (grpid!!.getValueUint32(0) >= 0).shouldBeTrue()
+        }
+
+        test("Resolve: ResolutionComplete matches ResolutionStart") {
+            val gsm = base.resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+
+            val rs = gsm.annotation(AnnotationType.ResolutionStart)
+            val rc = gsm.annotation(AnnotationType.ResolutionComplete)
+
+            rc.affectorId shouldBe rs.affectorId
+            rc.getAffectedIds(0) shouldBe rs.getAffectedIds(0)
+            rc.detailUint("grpid") shouldBe rs.detailUint("grpid")
+        }
+
+        test("Resolve: instanceId NOT reallocated") {
+            val gsm = base.resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+
+            val oicAnns = gsm.annotationsList.filter { AnnotationType.ObjectIdChanged in it.typeList }
+            oicAnns.shouldBeEmpty()
+        }
+
+        test("Resolve: no Limbo retirement") {
+            val gsm = base.resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+
+            val bfObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.BATTLEFIELD }
+            val limboZone = gsm.zonesList.firstOrNull { it.type == ZoneType.Limbo }
+            for (obj in bfObjects) {
+                if (limboZone != null) {
+                    limboZone.objectInstanceIdsList.contains(obj.instanceId) shouldBe false
+                }
+            }
+        }
+
+        // ===== Cross-category: annotation IDs =====
+
+        test("annotation IDs sequential across categories") {
+            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
+            assertAnnotationIdsSequential(gsm)
+
+            val castGsm = base.castSpellAndCapture()
+            if (castGsm != null) assertAnnotationIdsSequential(castGsm)
+
+            val resolveGsm = base.resolveAndCapture()
+            if (resolveGsm != null) assertAnnotationIdsSequential(resolveGsm)
+        }
+
+        // ===== Persistent annotation =====
+
+        test("Resolve: EnteredZoneThisTurn persistent annotation") {
+            val gsm = base.resolveAndCapture() ?: error("Nothing to resolve at seed 42")
+
+            (gsm.persistentAnnotationsCount > 0).shouldBeTrue()
+            val entered = gsm.persistentAnnotationsList.firstOrNull {
+                AnnotationType.EnteredZoneThisTurn in it.typeList
+            }
+            entered shouldNotBe null
+            entered!!.affectorId shouldBe ZoneIds.BATTLEFIELD
+        }
+    })

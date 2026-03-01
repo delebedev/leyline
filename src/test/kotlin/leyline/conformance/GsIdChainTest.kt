@@ -1,9 +1,10 @@
 package leyline.conformance
 
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.shouldBe
 import leyline.game.BundleBuilder
 import leyline.game.snapshotFromGame
-import org.testng.Assert.*
-import org.testng.annotations.Test
 
 /**
  * Validates gsId chain **semantics** that go beyond structural invariants.
@@ -15,71 +16,51 @@ import org.testng.annotations.Test
  * What remains here: scenario-specific contracts about pendingMessageCount values,
  * phase transition bundle structure, and cross-bundle chain continuity.
  */
-@Test(groups = ["conformance"])
-class GsIdChainTest : ConformanceTestBase() {
+class GsIdChainTest :
+    FunSpec({
+        val base = ConformanceTestBase()
+        beforeSpec { base.initCardDatabase() }
+        afterEach { base.tearDown() }
 
-    @Test(description = "aiActionDiff produces single GSM with no pendingMessageCount")
-    fun aiDiffNoPendingMessageCount() {
-        val (b, game, counter) = startGameAtMain1()
-        b.snapshotFromGame(game, counter.currentGsId())
+        test("aiActionDiff produces single GSM with no pendingMessageCount") {
+            val (b, game, counter) = base.startGameAtMain1()
+            b.snapshotFromGame(game, counter.currentGsId())
 
-        val result = BundleBuilder.aiActionDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
-        assertEquals(result.messages.size, 1, "aiActionDiff should produce 1 GSM")
+            val result = BundleBuilder.aiActionDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
+            result.messages.size shouldBe 1
 
-        val gsm = result.messages[0].gameStateMessage
-        assertEquals(
-            gsm.pendingMessageCount,
-            0,
-            "AI action diff must NOT have pendingMessageCount (no follow-up expected)",
-        )
-    }
+            val gsm = result.messages[0].gameStateMessage
+            gsm.pendingMessageCount shouldBe 0
+        }
 
-    @Test(description = "postAction GSM has pendingMessageCount=1 (AAR follows)")
-    fun postActionHasPendingForAar() {
-        val (b, game, counter) = startGameAtMain1()
+        test("postAction GSM has pendingMessageCount=1 (AAR follows)") {
+            val (b, game, counter) = base.startGameAtMain1()
 
-        playLand(b) ?: error("playLand failed at seed 42")
-        val result = postAction(game, b, counter)
-        val gsm = result.gsmOrNull ?: error("No GSM in bundle result")
+            base.playLand(b) ?: error("playLand failed at seed 42")
+            val result = base.postAction(game, b, counter)
+            val gsm = result.gsmOrNull ?: error("No GSM in bundle result")
 
-        assertEquals(
-            gsm.pendingMessageCount,
-            1,
-            "postAction GSM should have pendingMessageCount=1 (AAR follows)",
-        )
-    }
+            gsm.pendingMessageCount shouldBe 1
+        }
 
-    @Test(description = "phaseTransitionDiff produces 5 messages with correct echo chain")
-    fun phaseTransitionEchoFields() {
-        val (b, game, counter) = startGameAtMain1()
+        test("phaseTransitionDiff produces 5 messages with correct echo chain") {
+            val (b, game, counter) = base.startGameAtMain1()
 
-        val result = BundleBuilder.phaseTransitionDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
-        assertEquals(result.messages.size, 5, "phaseTransitionDiff should produce 5 messages")
+            val result = BundleBuilder.phaseTransitionDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
+            result.messages.size shouldBe 5
 
-        val gsms = result.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
-        assertTrue(gsms.size >= 3, "Should have at least 3 GSMs in phase transition")
+            val gsms = result.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+            gsms.size shouldBeGreaterThanOrEqual 3
 
-        // msg2 (echo) should chain from msg1 and have no pendingMessageCount
-        val msg1 = gsms[0]
-        val echo = gsms[1]
+            // msg2 (echo) should chain from msg1 and have no pendingMessageCount
+            val msg1 = gsms[0]
+            val echo = gsms[1]
 
-        assertEquals(
-            echo.prevGameStateId,
-            msg1.gameStateId,
-            "Phase transition echo prevGameStateId should chain from msg1",
-        )
-        assertEquals(
-            echo.pendingMessageCount,
-            0,
-            "Phase transition echo must NOT have pendingMessageCount",
-        )
+            echo.prevGameStateId shouldBe msg1.gameStateId
+            echo.pendingMessageCount shouldBe 0
 
-        // msg3 (commit) should chain from echo
-        val commit = gsms[2]
-        assertEquals(
-            commit.prevGameStateId,
-            echo.gameStateId,
-            "Phase transition commit prevGameStateId should chain from echo",
-        )
-    }
-}
+            // msg3 (commit) should chain from echo
+            val commit = gsms[2]
+            commit.prevGameStateId shouldBe echo.gameStateId
+        }
+    })

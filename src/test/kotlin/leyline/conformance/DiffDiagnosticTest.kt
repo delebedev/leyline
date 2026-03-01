@@ -1,10 +1,13 @@
 package leyline.conformance
 
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.shouldBe
 import leyline.game.BundleBuilder
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
-import org.testng.Assert.*
-import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -15,142 +18,132 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * is now automatic via [ValidatingMessageSink]. What remains here are structural
  * assertions about diff contents — which zones appear, annotation types, field values.
  */
-@Test(groups = ["conformance"])
-class DiffDiagnosticTest : ConformanceTestBase() {
+class DiffDiagnosticTest :
+    FunSpec({
+        val base = ConformanceTestBase()
+        beforeSpec { base.initCardDatabase() }
+        afterEach { base.tearDown() }
 
-    @Test(description = "Diff after land play has correct GSM type, zones, and annotations")
-    fun landPlayDiffStructure() {
-        val (b, game, counter) = startGameAtMain1()
+        test("diff after land play has correct GSM type, zones, and annotations") {
+            val (b, game, counter) = base.startGameAtMain1()
 
-        gameStart(game, b, counter)
-        b.snapshotFromGame(game)
-        postAction(game, b, counter)
+            base.gameStart(game, b, counter)
+            b.snapshotFromGame(game)
+            base.postAction(game, b, counter)
 
-        playLand(b) ?: error("playLand failed at seed 42")
+            base.playLand(b) ?: error("playLand failed at seed 42")
 
-        val result = postAction(game, b, counter)
-        val gsm = result.gsm
+            val result = base.postAction(game, b, counter)
+            val gsm = result.gsm
 
-        assertEquals(gsm.type, GameStateType.Diff, "Post-action GSM should be Diff type")
+            gsm.type shouldBe GameStateType.Diff
 
-        val zoneTypes = gsm.zonesList.map { it.type }.toSet()
-        assertTrue(ZoneType.Hand in zoneTypes, "Diff should include Hand zone (card left hand)")
-        assertTrue(ZoneType.Battlefield in zoneTypes, "Diff should include BF zone (card entered BF)")
-        assertTrue(ZoneType.Limbo in zoneTypes, "Diff should include Limbo zone (retirement)")
+            val zoneTypes = gsm.zonesList.map { it.type }.toSet()
+            (ZoneType.Hand in zoneTypes).shouldBeTrue()
+            (ZoneType.Battlefield in zoneTypes).shouldBeTrue()
+            (ZoneType.Limbo in zoneTypes).shouldBeTrue()
 
-        assertTrue(
-            gsm.annotationsList.any { AnnotationType.ObjectIdChanged in it.typeList },
-            "Diff should have ObjectIdChanged annotation",
-        )
+            gsm.annotationsList.any { AnnotationType.ObjectIdChanged in it.typeList }.shouldBeTrue()
 
-        val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
-        val origId = oic.detailInt("orig_id")
-        assertFalse(
-            gsm.diffDeletedInstanceIdsList.contains(origId),
-            "Diff should NOT immediately delete retired instanceId $origId",
-        )
-    }
-
-    @Test(description = "Cast creature -> pass -> resolve tracks zone placement correctly")
-    fun castCreatureResolveFlow() {
-        val (b, game, counter) = startGameAtMain1()
-        val acc = ClientAccumulator()
-        acc.seedFull(handshakeFull(game, b, counter.currentGsId()))
-
-        val startResult = gameStart(game, b, counter)
-        acc.processAll(startResult.messages)
-        b.snapshotFromGame(game)
-
-        playLand(b) ?: error("playLand failed at seed 42")
-        val afterLand = postAction(game, b, counter)
-        acc.processAll(afterLand.messages)
-
-        val player = b.getPlayer(1)!!
-        val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature }
-            ?: error("No creature in hand at seed 42")
-        val creatureForgeId = creature.id
-
-        castCreature(b) ?: error("castCreature failed at seed 42")
-        val afterCast = postAction(game, b, counter)
-        acc.processAll(afterCast.messages)
-
-        val creatureNewId = b.getOrAllocInstanceId(creatureForgeId)
-        val creatureObj = checkNotNull(acc.objects[creatureNewId]) {
-            "Creature should exist in accumulated objects with instanceId $creatureNewId"
+            val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
+            val origId = oic.detailInt("orig_id")
+            gsm.diffDeletedInstanceIdsList.contains(origId).shouldBeFalse()
         }
 
-        if (game.stack.isEmpty) {
-            assertEquals(creatureObj.zoneId, ZoneIds.BATTLEFIELD, "Creature should be on BF after resolution")
-        } else {
-            assertEquals(creatureObj.zoneId, ZoneIds.STACK, "Creature should be on Stack while on stack")
+        test("cast creature -> pass -> resolve tracks zone placement correctly") {
+            val (b, game, counter) = base.startGameAtMain1()
+            val acc = ClientAccumulator()
+            acc.seedFull(base.handshakeFull(game, b, counter.currentGsId()))
 
-            passPriority(b)
-            val afterPass = postAction(game, b, counter)
-            acc.processAll(afterPass.messages)
+            val startResult = base.gameStart(game, b, counter)
+            acc.processAll(startResult.messages)
+            b.snapshotFromGame(game)
 
-            val resolved = checkNotNull(acc.objects[creatureNewId]) { "Creature should still exist after resolve" }
-            assertEquals(resolved.zoneId, ZoneIds.BATTLEFIELD, "Creature should be on BF after resolution")
+            base.playLand(b) ?: error("playLand failed at seed 42")
+            val afterLand = base.postAction(game, b, counter)
+            acc.processAll(afterLand.messages)
 
-            val bfAfter = acc.zones[ZoneIds.BATTLEFIELD]!!
-            assertTrue(
-                bfAfter.objectInstanceIdsList.contains(creatureNewId),
-                "BF should contain creature $creatureNewId after resolution",
+            val player = b.getPlayer(1)!!
+            val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature }
+                ?: error("No creature in hand at seed 42")
+            val creatureForgeId = creature.id
+
+            base.castCreature(b) ?: error("castCreature failed at seed 42")
+            val afterCast = base.postAction(game, b, counter)
+            acc.processAll(afterCast.messages)
+
+            val creatureNewId = b.getOrAllocInstanceId(creatureForgeId)
+            val creatureObj = checkNotNull(acc.objects[creatureNewId]) {
+                "Creature should exist in accumulated objects with instanceId $creatureNewId"
+            }
+
+            if (game.stack.isEmpty) {
+                creatureObj.zoneId shouldBe ZoneIds.BATTLEFIELD
+            } else {
+                creatureObj.zoneId shouldBe ZoneIds.STACK
+
+                base.passPriority(b)
+                val afterPass = base.postAction(game, b, counter)
+                acc.processAll(afterPass.messages)
+
+                val resolved = checkNotNull(acc.objects[creatureNewId]) { "Creature should still exist after resolve" }
+                resolved.zoneId shouldBe ZoneIds.BATTLEFIELD
+
+                val bfAfter = acc.zones[ZoneIds.BATTLEFIELD]!!
+                bfAfter.objectInstanceIdsList.shouldContain(creatureNewId)
+            }
+        }
+
+        test("resolve keeps instanceId") {
+            val (b, game, counter) = base.startGameAtMain1()
+
+            base.playLand(b) ?: error("playLand failed at seed 42")
+            base.postAction(game, b, counter)
+
+            val player = b.getPlayer(1)!!
+            val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature }
+                ?: error("No creature in hand at seed 42")
+            val creatureForgeId = creature.id
+
+            base.castCreature(b) ?: error("castCreature failed at seed 42")
+            base.postAction(game, b, counter)
+            val castId = b.getOrAllocInstanceId(creatureForgeId)
+
+            if (!game.stack.isEmpty) {
+                base.passPriority(b)
+                base.postAction(game, b, counter)
+            }
+
+            val resolvedId = b.getOrAllocInstanceId(creatureForgeId)
+            castId shouldBe resolvedId
+        }
+
+        test("aiActionDiff contains BF objects for AI land play") {
+            val (b, game, counter) = base.startGameAtMain1()
+
+            base.gameStart(game, b, counter)
+            b.snapshotFromGame(game)
+
+            base.playLand(b) ?: error("playLand failed at seed 42")
+
+            val aiResult = BundleBuilder.aiActionDiff(
+                game,
+                b,
+                ConformanceTestBase.TEST_MATCH_ID,
+                ConformanceTestBase.SEAT_ID,
+                counter,
             )
+
+            val gsm = aiResult.gsm
+            gsm.type shouldBe GameStateType.Diff
+
+            val bfZone = gsm.zonesList.firstOrNull { it.type == ZoneType.Battlefield }
+            if (bfZone != null) {
+                (bfZone.objectInstanceIdsCount > 0).shouldBeTrue()
+            }
+
+            for (obj in gsm.gameObjectsList) {
+                (obj.zoneId > 0).shouldBeTrue()
+            }
         }
-    }
-
-    @Test(description = "Resolve (Stack->BF) does NOT realloc instanceId")
-    fun resolveKeepsInstanceId() {
-        val (b, game, counter) = startGameAtMain1()
-
-        playLand(b) ?: error("playLand failed at seed 42")
-        postAction(game, b, counter)
-
-        val player = b.getPlayer(1)!!
-        val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature }
-            ?: error("No creature in hand at seed 42")
-        val creatureForgeId = creature.id
-
-        castCreature(b) ?: error("castCreature failed at seed 42")
-        postAction(game, b, counter)
-        val castId = b.getOrAllocInstanceId(creatureForgeId)
-
-        if (!game.stack.isEmpty) {
-            passPriority(b)
-            postAction(game, b, counter)
-        }
-
-        val resolvedId = b.getOrAllocInstanceId(creatureForgeId)
-        assertEquals(castId, resolvedId, "Resolve should NOT change instanceId (Stack->BF keeps same ID)")
-    }
-
-    @Test(description = "aiActionDiff produces BF objects for AI land play")
-    fun aiActionDiffContainsBattlefieldObjects() {
-        val (b, game, counter) = startGameAtMain1()
-
-        gameStart(game, b, counter)
-        b.snapshotFromGame(game)
-
-        playLand(b) ?: error("playLand failed at seed 42")
-
-        val aiResult = BundleBuilder.aiActionDiff(
-            game,
-            b,
-            TEST_MATCH_ID,
-            SEAT_ID,
-            counter,
-        )
-
-        val gsm = aiResult.gsm
-        assertEquals(gsm.type, GameStateType.Diff, "AI action diff should be Diff type")
-
-        val bfZone = gsm.zonesList.firstOrNull { it.type == ZoneType.Battlefield }
-        if (bfZone != null) {
-            assertTrue(bfZone.objectInstanceIdsCount > 0, "BF zone in AI diff should have objects")
-        }
-
-        for (obj in gsm.gameObjectsList) {
-            assertTrue(obj.zoneId > 0, "Object ${obj.instanceId} should have valid zoneId, got ${obj.zoneId}")
-        }
-    }
-}
+    })

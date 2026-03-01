@@ -1,9 +1,11 @@
 package leyline.conformance
 
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.game.BundleBuilder
-import org.testng.Assert.assertEquals
-import org.testng.Assert.assertNotEquals
-import org.testng.Assert.assertTrue
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 // ----- Tier 1: BundleResult extraction -----
@@ -64,9 +66,13 @@ fun GameStateMessage.annotationOrNull(type: AnnotationType): AnnotationInfo? =
 fun ClientAccumulator.assertConsistent(context: String = "") {
     val suffix = if (context.isNotEmpty()) " ($context)" else ""
     val missingActions = actionInstanceIdsMissingFromObjects()
-    assertTrue(missingActions.isEmpty(), "Action instanceIds missing from objects$suffix: $missingActions")
+    missingActions.shouldBeEmpty().let {
+        if (missingActions.isNotEmpty()) error("Action instanceIds missing from objects$suffix: $missingActions")
+    }
     val missingZoneObjs = zoneObjectsMissingFromObjects()
-    assertTrue(missingZoneObjs.isEmpty(), "Zone objects missing from objects$suffix: $missingZoneObjs")
+    missingZoneObjs.shouldBeEmpty().let {
+        if (missingZoneObjs.isNotEmpty()) error("Zone objects missing from objects$suffix: $missingZoneObjs")
+    }
 }
 
 // ----- Tier 2: Zone consistency -----
@@ -76,11 +82,7 @@ fun ClientAccumulator.assertZoneCountMatchesObjects(zoneId: Int) {
     val zone = zones[zoneId] ?: return
     val zoneCount = zone.objectInstanceIdsCount
     val objCount = objects.values.count { it.zoneId == zoneId }
-    assertEquals(
-        zoneCount,
-        objCount,
-        "Zone $zoneId objectIds count ($zoneCount) should match objects with that zoneId ($objCount)",
-    )
+    zoneCount shouldBe objCount
 }
 
 // ----- Tier 2: gsId chain validation -----
@@ -102,55 +104,35 @@ fun assertGsIdChain(
 
     // gsIds strictly monotonic
     for (i in 1 until gsms.size) {
-        assertTrue(
-            gsms[i].gameStateId > gsms[i - 1].gameStateId,
-            "gsIds not monotonic$suffix: ${gsms[i - 1].gameStateId} -> ${gsms[i].gameStateId}",
-        )
+        gsms[i].gameStateId shouldBeGreaterThan gsms[i - 1].gameStateId
     }
     // No self-referential prevGameStateId
     for (gsm in gsms) {
         if (gsm.prevGameStateId != 0) {
-            assertNotEquals(
-                gsm.prevGameStateId,
-                gsm.gameStateId,
-                "Self-referential prevGsId$suffix: gsId=${gsm.gameStateId}",
-            )
+            gsm.prevGameStateId shouldNotBe gsm.gameStateId
         }
     }
     // prevGameStateId references a known gsId
     for (gsm in gsms) {
         if (gsm.prevGameStateId != 0) {
-            assertTrue(
-                knownGsIds.contains(gsm.prevGameStateId),
-                "prevGsId ${gsm.prevGameStateId} not in known set $knownGsIds$suffix (gsId=${gsm.gameStateId})",
-            )
+            knownGsIds shouldContain gsm.prevGameStateId
         }
         knownGsIds.add(gsm.gameStateId)
     }
     // gsIds globally unique (no collisions from counter re-seeding)
     val allGsIds = gsms.map { it.gameStateId }
     val duplicates = allGsIds.groupBy { it }.filter { it.value.size > 1 }.keys
-    assertTrue(
-        duplicates.isEmpty(),
-        "Duplicate gsIds$suffix: $duplicates (total ${allGsIds.size} GSMs)",
-    )
+    duplicates.shouldBeEmpty()
 
     // msgIds strictly monotonic
     val msgIds = messages.map { it.msgId }
     for (i in 1 until msgIds.size) {
-        assertTrue(
-            msgIds[i] > msgIds[i - 1],
-            "msgIds not monotonic$suffix: ${msgIds[i - 1]} -> ${msgIds[i]}",
-        )
+        msgIds[i] shouldBeGreaterThan msgIds[i - 1]
     }
 
     // msgIds globally unique
-    val allMsgIds = msgIds
-    val dupMsgIds = allMsgIds.groupBy { it }.filter { it.value.size > 1 }.keys
-    assertTrue(
-        dupMsgIds.isEmpty(),
-        "Duplicate msgIds$suffix: $dupMsgIds",
-    )
+    val dupMsgIds = msgIds.groupBy { it }.filter { it.value.size > 1 }.keys
+    dupMsgIds.shouldBeEmpty()
 }
 
 // ----- Tier 1: Annotation lookup by type + affected instanceId -----
@@ -188,8 +170,5 @@ fun assertLimboContains(gsm: GameStateMessage, instanceId: Int) {
     val limbo = checkNotNull(gsm.zonesList.firstOrNull { it.type == ZoneType.Limbo }) {
         "GSM should have Limbo zone"
     }
-    assertTrue(
-        instanceId in limbo.objectInstanceIdsList,
-        "Limbo zone should contain instanceId $instanceId, got: ${limbo.objectInstanceIdsList}",
-    )
+    limbo.objectInstanceIdsList shouldContain instanceId
 }
