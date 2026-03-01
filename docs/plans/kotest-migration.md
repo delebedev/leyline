@@ -8,7 +8,8 @@ Migrate all tests from TestNG to Kotest FunSpec + kotest-assertions-core.
 - [x] `testKotest` Gradle task (JUnit Platform) — coexists with TestNG tasks
 - [x] `InstanceIdRegistryTest` — migrated, passing
 - [x] `PackageArchitectureTest` — migrated, passing (cycle test xtest'd, needs arch fix)
-- [ ] Remaining ~78 test files
+- [x] All unit-group tests migrated (19 files)
+- [ ] Remaining conformance + integration test files
 
 ## Approach
 
