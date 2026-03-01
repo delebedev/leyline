@@ -5,6 +5,7 @@ Quick links for debugging, reverse-engineering, and conformance workflows.
 ## Recording / Protocol Debug
 
 - `recording-cli.md` — day-to-day CLI (`rec-*`, `proto-*`), practical queries
+- `card-lookup-playbook.md` — grpId/abilityId → card name, investigation workflows
 - `recording-analysis-runbook.md` — end-to-end capture/analyze/golden workflow
 - `recording-triage-runbook.md` — new recordings → catalogue what's new → scope implementation
 - `annotation-variance.md` — annotation type variance profiler across all recordings
