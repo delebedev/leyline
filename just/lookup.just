@@ -2,7 +2,7 @@
 # Imported by forge-nexus/justfile — all variables available from parent.
 
 arena_db := env("HOME", "/tmp") / "Library/Application Support/com.wizards.mtga/Downloads/Raw"
-cardsfolder := root_dir / "forge-gui/res/cardsfolder"
+cardsfolder := nexus_dir / "forge/forge-gui/res/cardsfolder"
 
 # grpId → card name (accepts multiple IDs)
 card +ids:

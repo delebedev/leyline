@@ -7,7 +7,7 @@ import 'just/recording.just'
 import 'just/client.just'
 import 'just/certs.just'
 
-root_dir     := justfile_directory() / ".."
+root_dir     := justfile_directory()
 nexus_dir    := justfile_directory()
 classpath    := nexus_dir / "target/classpath.txt"
 logback      := nexus_dir / "src/main/resources/logback.xml"
@@ -50,11 +50,9 @@ _cert_flags := '--fd-cert "' + _fd_cert + '" --fd-key "' + _fd_key + '" --md-cer
 
 # --- Build ---
 
-flatten := "org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten"
-
 # install forge engine jars from submodule (run after git submodule update)
 install-forge:
-    cd "{{nexus_dir}}/forge" && mvn flatten:flatten install -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
+    cd "{{nexus_dir}}/forge" && mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
     @echo "Forge engine installed to forge/.m2-local/"
 
 # generate messages.proto from upstream submodule + rename map
@@ -64,29 +62,28 @@ sync-proto:
 
 # auto-format Kotlin sources (spotless/ktlint)
 fmt: check-java
-    cd "{{root_dir}}" && mvn -pl forge-nexus com.diffplug.spotless:spotless-maven-plugin:apply -q
+    cd "{{nexus_dir}}" && mvn com.diffplug.spotless:spotless-maven-plugin:apply -q
     @echo "fmt done."
 
 # check formatting without modifying (CI)
 fmt-check: check-java
-    cd "{{root_dir}}" && mvn -pl forge-nexus com.diffplug.spotless:spotless-maven-plugin:check -q
+    cd "{{nexus_dir}}" && mvn com.diffplug.spotless:spotless-maven-plugin:check -q
 
 # compile proto + Kotlin (nexus is self-contained, no forge-web install needed)
 build: check-java _check-upstream sync-proto
     #!/usr/bin/env bash
     set -euo pipefail
-    rm -rf "{{root_dir}}/.m2-local/forge/forge/\${revision}" 2>/dev/null || true
     rm -rf "{{nexus_dir}}/target/classes"  # purge stale classes from package moves
-    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_skip}} compile
-    just -f "{{nexus_dir}}/justfile" _refresh-classpath
+    cd "{{nexus_dir}}" && mvn {{mvn_skip}} compile
+    just _refresh-classpath
     echo "Build complete. Classpath: {{classpath}}"
 
 # fast Kotlin-only compile (~3-5s, nexus only)
 dev-build: check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_skip}} compile -q && echo "dev-build OK"
-    just -f "{{nexus_dir}}/justfile" _refresh-classpath
+    cd "{{nexus_dir}}" && mvn {{mvn_skip}} compile -q && echo "dev-build OK"
+    just _refresh-classpath
 
 # --- Test ---
 
@@ -250,7 +247,7 @@ _require file:
 
 [private]
 _check-upstream:
-    @"{{root_dir}}/build/check-upstream.sh" "{{root_dir}}"
+    @"{{nexus_dir}}/build/check-upstream.sh" "{{nexus_dir}}"
 
 [private]
 _clean-surefire:
@@ -261,8 +258,8 @@ _clean-surefire:
 _mvn-test extra_flags:
     #!/usr/bin/env bash
     set +e
-    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} {{extra_flags}} test; rc=$?
-    python3 "{{root_dir}}/build/test-summary.py" "{{nexus_dir}}/target" 2>/dev/null \
+    cd "{{nexus_dir}}" && mvn {{mvn_quiet}} {{extra_flags}} test; rc=$?
+    python3 "{{nexus_dir}}/build/test-summary.py" "{{nexus_dir}}/target" 2>/dev/null \
         || echo "⚠ Could not parse test results"
     exit $rc
 
@@ -271,15 +268,15 @@ _mvn-test extra_flags:
 _mvn-verify extra_flags:
     #!/usr/bin/env bash
     set +e
-    cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_quiet}} {{extra_flags}} verify; rc=$?
-    python3 "{{root_dir}}/build/test-summary.py" "{{nexus_dir}}/target" 2>/dev/null \
+    cd "{{nexus_dir}}" && mvn {{mvn_quiet}} {{extra_flags}} verify; rc=$?
+    python3 "{{nexus_dir}}/build/test-summary.py" "{{nexus_dir}}/target" 2>/dev/null \
         || echo "⚠ Could not parse test results"
     xml="{{nexus_dir}}/target/site/jacoco/jacoco.xml"
     if [ -f "$xml" ]; then
         echo ""
-        python3 "{{root_dir}}/build/coverage-summary.py" "$xml"
+        python3 "{{nexus_dir}}/build/coverage-summary.py" "$xml"
         echo ""
-        echo "HTML: forge-nexus/target/site/jacoco/index.html"
+        echo "HTML: target/site/jacoco/index.html"
     else
         echo "⚠ No coverage report (tests may have failed before verify phase)"
     fi
@@ -291,8 +288,8 @@ _mvn-verify extra_flags:
 [private]
 _refresh-classpath:
     #!/usr/bin/env bash
-    if [ ! -f "{{classpath}}" ] || [ "{{nexus_dir}}/pom.xml" -nt "{{classpath}}" ] || [ "{{root_dir}}/pom.xml" -nt "{{classpath}}" ]; then
-        cd "{{root_dir}}" && mvn -pl forge-nexus \
+    if [ ! -f "{{classpath}}" ] || [ "{{nexus_dir}}/pom.xml" -nt "{{classpath}}" ]; then
+        cd "{{nexus_dir}}" && mvn \
             {{mvn_skip}} \
             -DincludeScope=runtime dependency:build-classpath \
             -Dmdep.outputFile="{{classpath}}"
