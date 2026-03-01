@@ -1,8 +1,8 @@
 package leyline.game
 
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
 import leyline.game.mapper.ZoneIds
-import org.testng.Assert.assertEquals
-import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 
 /**
@@ -14,52 +14,44 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
  *   CastSpell → ObjectIdChanged + ZoneTransfer + mana cycle + UserActionTaken
  *   Resolve → ResolutionStart + ResolutionComplete + ZoneTransfer
  */
-@Test(groups = ["unit"])
-class InferCategoryTest {
+class InferCategoryTest :
+    FunSpec({
 
-    private fun dummyObj(): GameObjectInfo = GameObjectInfo.getDefaultInstance()
+        fun dummyObj(): GameObjectInfo = GameObjectInfo.getDefaultInstance()
 
-    @Test
-    fun handToBattlefieldIsPlayLand() {
-        assertEquals(AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.P1_HAND, ZoneIds.BATTLEFIELD), TransferCategory.PlayLand)
-        assertEquals(AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.P2_HAND, ZoneIds.BATTLEFIELD), TransferCategory.PlayLand)
-    }
+        test("handToBattlefieldIsPlayLand") {
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.P1_HAND, ZoneIds.BATTLEFIELD) shouldBe TransferCategory.PlayLand
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.P2_HAND, ZoneIds.BATTLEFIELD) shouldBe TransferCategory.PlayLand
+        }
 
-    @Test
-    fun handToStackIsCastSpell() {
-        assertEquals(AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.P1_HAND, ZoneIds.STACK), TransferCategory.CastSpell)
-        assertEquals(AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.P2_HAND, ZoneIds.STACK), TransferCategory.CastSpell)
-    }
+        test("handToStackIsCastSpell") {
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.P1_HAND, ZoneIds.STACK) shouldBe TransferCategory.CastSpell
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.P2_HAND, ZoneIds.STACK) shouldBe TransferCategory.CastSpell
+        }
 
-    @Test
-    fun stackToBattlefieldIsResolve() {
-        assertEquals(AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.STACK, ZoneIds.BATTLEFIELD), TransferCategory.Resolve)
-    }
+        test("stackToBattlefieldIsResolve") {
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.STACK, ZoneIds.BATTLEFIELD) shouldBe TransferCategory.Resolve
+        }
 
-    @Test
-    fun battlefieldToGraveyardIsDestroy() {
-        assertEquals(AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.BATTLEFIELD, ZoneIds.P1_GRAVEYARD), TransferCategory.Destroy)
-        assertEquals(AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.BATTLEFIELD, ZoneIds.P2_GRAVEYARD), TransferCategory.Destroy)
-    }
+        test("battlefieldToGraveyardIsDestroy") {
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.BATTLEFIELD, ZoneIds.P1_GRAVEYARD) shouldBe TransferCategory.Destroy
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.BATTLEFIELD, ZoneIds.P2_GRAVEYARD) shouldBe TransferCategory.Destroy
+        }
 
-    @Test
-    fun battlefieldToExileIsExile() {
-        assertEquals(AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.BATTLEFIELD, ZoneIds.EXILE), TransferCategory.Exile)
-    }
+        test("battlefieldToExileIsExile") {
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.BATTLEFIELD, ZoneIds.EXILE) shouldBe TransferCategory.Exile
+        }
 
-    @Test
-    fun handToUnknownZoneIsZoneTransfer() {
-        assertEquals(AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.P1_HAND, ZoneIds.EXILE), TransferCategory.ZoneTransfer)
-    }
+        test("handToUnknownZoneIsZoneTransfer") {
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.P1_HAND, ZoneIds.EXILE) shouldBe TransferCategory.ZoneTransfer
+        }
 
-    @Test
-    fun battlefieldToStackIsZoneTransfer() {
-        assertEquals(AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.BATTLEFIELD, ZoneIds.STACK), TransferCategory.ZoneTransfer)
-    }
+        test("battlefieldToStackIsZoneTransfer") {
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.BATTLEFIELD, ZoneIds.STACK) shouldBe TransferCategory.ZoneTransfer
+        }
 
-    @Test
-    fun unknownZonePairIsZoneTransfer() {
-        assertEquals(AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.EXILE, ZoneIds.P1_GRAVEYARD), TransferCategory.ZoneTransfer)
-        assertEquals(AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.STACK, ZoneIds.P1_GRAVEYARD), TransferCategory.ZoneTransfer)
-    }
-}
+        test("unknownZonePairIsZoneTransfer") {
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.EXILE, ZoneIds.P1_GRAVEYARD) shouldBe TransferCategory.ZoneTransfer
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.STACK, ZoneIds.P1_GRAVEYARD) shouldBe TransferCategory.ZoneTransfer
+        }
+    })
