@@ -189,10 +189,11 @@ sqlite3 ~/Library/Application\ Support/com.wizards.mtga/Downloads/Raw/Raw_CardDa
 
 | Question | Command |
 |---|---|
-| Card name from grpId | `sqlite3 ...mtga "SELECT l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId=l.LocId WHERE c.GrpId=X"` |
-| Card from abilityId | `sqlite3 ...mtga "SELECT l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId=l.LocId WHERE c.AbilityIds LIKE '%X%'"` |
-| Ability text | `sqlite3 ...mtga "SELECT l.Loc FROM Abilities a JOIN Localizations_enUS l ON a.TextId=l.LocId WHERE a.Id=X"` |
-| All cards in a recording | `just rec-actions <session>` |
+| Card name from grpId | `just card <grpId...>` (multi-id) |
+| Card from abilityId | `just ability <abilityId>` (owner + text) |
+| Card name → grpId | `just card-grp "<name>"` (all printings) |
+| Card name → Forge script | `just card-script "<name>"` (fuzzy match) |
+| All cards in a recording | `just cards-in-session <session>` |
 | Who played a card | `just rec-who-played <session> --card <name>` |
 | Trace instanceId | `just proto-trace <id> recordings/<session>/capture/payloads` |
 | Raw proto dump | `just proto-inspect recordings/<session>/capture/payloads/<file>.bin` |
