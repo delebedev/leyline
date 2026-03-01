@@ -19,9 +19,18 @@ jobs:
     name: Gate (fmt + unit + conformance)
     runs-on: [self-hosted, Linux, ARM64]
     steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: leyline,forge
+
       - uses: actions/checkout@v4
         with:
           submodules: true
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -65,9 +74,18 @@ jobs:
     runs-on: [self-hosted, Linux, ARM64]
     continue-on-error: true
     steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: leyline,forge
+
       - uses: actions/checkout@v4
         with:
           submodules: true
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup Java
         uses: actions/setup-java@v4
