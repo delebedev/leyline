@@ -32,12 +32,17 @@ jobs:
           submodules: true
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Setup Java
+      - name: Setup Java + Maven
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
+
+      - name: Setup Maven
+        uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
 
       - name: Cache upstream JARs
         uses: actions/cache@v4
@@ -87,12 +92,17 @@ jobs:
           submodules: true
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Setup Java
+      - name: Setup Java + Maven
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
+
+      - name: Setup Maven
+        uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
 
       - name: Cache upstream JARs
         uses: actions/cache@v4
