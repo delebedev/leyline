@@ -351,6 +351,95 @@ Low priority — purely visual (cost/evasion badges). The mechanics already work
 
 ---
 
+## MiscContinuousEffect (type 52)
+
+**Source:** sessions `14-15-29` (1 instance), `2026-03-01_00-18-46` (1 instance).
+
+### What the variance report shows
+
+```
+MiscContinuousEffect (6 instances, 3 sessions)
+  Always:    (no detail keys)
+  Sometimes: extra_phases (66%), grpid (66%), MaxHandSize (33%), effect_id (33%)
+  Samples:   MaxHandSize=[2147483647], effect_id=[7002], extra_phases=[3], grpid=[100287]
+```
+
+### Card 1: Proft's Eidetic Memory (grp:88986) — MaxHandSize
+
+Legendary Enchantment: "You have no maximum hand size."
+
+Forge DSL: `S:Mode$ Continuous | Affected$ You | SetMaxHandSize$ Unlimited`
+
+### Card 2: Aurelia, the Warleader (grp:94079) — extra_phases
+
+Already investigated in AbilityExhausted section.
+Ability 100287: "untap all creatures, additional combat phase."
+
+### Arena annotation structure
+
+**Two distinct uses of MiscContinuousEffect:**
+
+**MaxHandSize (Proft's Eidetic Memory):**
+```proto
+id: 115
+affectorId: 347      # Proft's Eidetic Memory
+affectedIds: 1       # player seat 1
+type: MiscContinuousEffect
+type: LayeredEffect   # dual-type annotation!
+details:
+  MaxHandSize: 2147483647   # int32 max = "unlimited"
+  effect_id: 7002           # layered effect ID (synthetic, starts at 7000+)
+```
+
+Notable: this is a **dual-type annotation** — both `MiscContinuousEffect` and
+`LayeredEffect` on the same proto message. The client dispatches to both parsers.
+`MaxHandSize: 2147483647` (INT32_MAX) = "no maximum hand size."
+
+**Extra combat phase (Aurelia):**
+```proto
+id: 794
+affectorId: 383      # Aurelia's triggered ability (on stack, grp:100287)
+affectedIds: 1       # player seat 1
+type: MiscContinuousEffect
+details:
+  extra_phases: 3    # Phase enum: 3 = Combat
+  grpid: 100287      # the triggering ability
+```
+
+`extra_phases: 3` uses the Phase proto enum (`Combat_a549 = 3`).
+This tells the client an additional combat phase is pending.
+
+### Lifecycle
+
+**MaxHandSize:** persistent, created when enchantment enters battlefield (gsId=46, T3).
+Persists for the rest of the game (never deleted in this session — enchantment stayed
+on battlefield). Would be deleted if the enchantment left.
+
+**Extra phases:** persistent, created when Aurelia's trigger resolves (gsId=320, T13 Combat).
+Session ends during the extra combat (opponent conceded/disconnected at gsId=330),
+so we don't observe cleanup. Expected to be deleted when the extra phase completes
+or at turn boundary.
+
+### Forge model gap
+
+**MaxHandSize:** Forge tracks this via `SetMaxHandSize$ Unlimited` on the static ability.
+The value is computed dynamically. No event fires — it's a continuous effect.
+Would need to detect "unlimited hand size" permanents on BF and emit the annotation
+with `effect_id` (synthetic layered effect ID, same as used by LayeredEffect annotations).
+
+**Extra phases:** Forge handles extra combat phases through `GameEventAddPhase` or
+similar phase-manipulation events. This is more tractable — the event exists,
+we just need to wire it to produce the MiscContinuousEffect annotation.
+
+**Wiring assessment:**
+- Extra phases: **Medium** — if Forge fires an event for added phases, wire it.
+  The annotation is simple (phase enum + grpid). Main gap: capturing which ability
+  caused the extra phase.
+- MaxHandSize: **Hard** — dual-type annotation coupling with LayeredEffect system.
+  Requires synthetic effect IDs. Same challenge as LayeredEffect wiring.
+
+---
+
 ## Cross-references
 
 | Annotation | Cards seen | Sessions | Instances |
@@ -360,10 +449,10 @@ Low priority — purely visual (cost/evasion badges). The mechanics already work
 | AbilityExhausted | Monument to Endurance, Aurelia the Warleader | `09-33-05`, `00-18-46` | 7 |
 | AbilityWordActive | Accumulate Wisdom | `09-33-05` | 6 |
 | Qualification | Warden of Evos Isle, Silent Hallcreeper | `11-50-40`, `14-15-29` | 6 |
+| MiscContinuousEffect | Proft's Eidetic Memory, Aurelia the Warleader | `14-15-29`, `00-18-46` | 6 |
 
 ### Related annotation types not yet investigated
 
 | Type | Likely related mechanic | Cards to check |
 |---|---|---|
 | LoseDesignation (type 103) | Room door de-unlock? Monarch lost? | Not in recordings yet |
-| MiscContinuousEffect (type 52) | Extra phases/turns, max hand size | grp:100287 (Aurelia) in `14-15-29` |
