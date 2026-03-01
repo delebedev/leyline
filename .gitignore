@@ -1,0 +1,56 @@
+# IDE
+*.idea
+*.iml
+*.tmp
+.metadata
+.recommenders
+.settings
+.classpath
+.project
+.checkstyle
+.vscode/settings.json
+.vscode/launch.json
+.factorypath
+nbactions.xml
+
+# Maven
+.flattened-pom.xml
+target
+test-output
+bin
+gen
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# Vim
+*.swp
+
+# Python
+__pycache__
+*.pyc
+
+# Local automation/browser artifacts
+/output/
+kls_database.db
+.playwright-mcp/
+.playwright-screenshots/
+
+# Per-worktree Maven local repo
+.m2-local/
+
+# Claude Code local settings
+**/settings.local.json
+
+# Persistent game recordings — keep manifest tracked
+recordings/*
+!recordings/manifest.json
+
+# Forge submodule build artifacts handled by its own .gitignore
+# Local-only dev notes
+.local/
+
+!.claude/
