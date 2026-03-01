@@ -4,6 +4,51 @@
 
 **Goal:** Fix 4 annotation mismatches + add 18 new builder methods to reach 39/50 annotation types OK.
 
+## Pipeline Wiring Status (follow-up reference)
+
+All 18 builders exist. This table tracks what's needed to actually emit them during gameplay.
+
+### Near-free (existing event, add 2-5 lines) — DONE in batch 1
+
+| Builder | Existing Event | Wiring |
+|---|---|---|
+| `damagedThisTurn` | `DamageDealtToCard` | Persistent annotation alongside `damageDealt` in `combatAnnotations` |
+| `powerToughnessModCreated` | `PowerToughnessChanged` | Alongside `modifiedPower`/`modifiedToughness` in same handler |
+| `counter` (state) | `CountersChanged` | State annotation alongside `counterAdded`/`counterRemoved` |
+| `playerSelectingTargets` | Targeting flow in `MatchSession` | Emit at target prompt start |
+| `playerSubmittedTargets` | Targeting flow in `MatchSession` | Emit at target submit |
+
+### Medium (state tracking, ~20-50 lines each)
+
+| Builder | State to track | Where in Forge |
+|---|---|---|
+| `colorProduction` | Colors each land produces | `Card.getManaAbilities()` → derive color bitmask. Scan BF lands per GSM. |
+| `abilityExhausted` | Activated ability use counts | `Card.getAbilityActivatedThisTurn()` or similar |
+| `instanceRevealedToOpponent` | Cards in hidden zones seen by opponent | `Card.isRevealed()` — scan revealed state per GSM |
+
+### Hard (layered effect system mapping)
+
+| Builder | Challenge |
+|---|---|
+| `layeredEffect` | Forge's `StaticAbilityLayer` ≠ Arena's `effect_id` model. Need synthetic effect IDs. |
+| `layeredEffectDestroyed` | Diff previous vs current layered effects (same challenge). |
+| `addAbility` / `removeAbility` | Track effect IDs that grant/remove abilities. |
+
+### New NexusGameEvent needed
+
+| Builder | Trigger | Missing |
+|---|---|---|
+| `gainDesignation` / `designation` | Monarch/City's Blessing/Initiative | No `NexusGameEvent` for designation changes. Subscribe to `GameEventPlayerDesignation`. |
+| `triggeringObject` | Triggered ability on stack | Need to capture which permanent triggered an ability at `AbilityInstanceCreated` time. |
+
+### Skip (deep integration needed)
+
+| Builder | Why |
+|---|---|
+| `targetSpec` | Complex targeting data (distributions, multi-target). Needs deep Forge targeting system integration. |
+| `displayCardUnderCard` | Exiled-under relationship tracking. Visual only. |
+| `predictedDirectDamage` | Damage prediction system. CDC preview. |
+
 **Architecture:** All changes are in `AnnotationBuilder.kt` (builder methods) + test files. No pipeline wiring in this batch. Each builder method creates an `AnnotationInfo` proto with the correct `AnnotationType` enum and detail keys matching the real Arena server.
 
 **Tech Stack:** Kotlin, protobuf (`Messages.AnnotationInfo`), TestNG
