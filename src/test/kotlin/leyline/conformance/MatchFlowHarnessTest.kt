@@ -7,6 +7,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.IntegrationTag
 import leyline.game.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
@@ -17,6 +18,8 @@ const val AI_FIRST_SEED = 2L
 
 class MatchFlowHarnessTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         var harness: MatchFlowHarness? = null
 

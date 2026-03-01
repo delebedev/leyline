@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import leyline.bridge.GameBootstrap
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -18,6 +19,8 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  */
 class AnnotationPipelineTest :
     FunSpec({
+
+        tags(UnitTag)
 
         // StateMapper's Kotlin WhenMappings clinit references PhaseType, which
         // requires the card DB to be loaded. Bootstrap once for the whole class.

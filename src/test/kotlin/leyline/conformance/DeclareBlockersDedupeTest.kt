@@ -3,6 +3,7 @@ package leyline.conformance
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
+import leyline.IntegrationTag
 
 /**
  * Regression test: DeclareBlockersReq must be sent at most once per
@@ -18,6 +19,8 @@ import io.kotest.matchers.ints.shouldBeLessThanOrEqual
  */
 class DeclareBlockersDedupeTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         var harness: MatchFlowHarness? = null
 

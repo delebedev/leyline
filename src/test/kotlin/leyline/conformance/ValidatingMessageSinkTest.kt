@@ -6,6 +6,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldExist
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import leyline.UnitTag
 import leyline.server.ListMessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -17,6 +18,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  */
 class ValidatingMessageSinkTest :
     FunSpec({
+
+        tags(UnitTag)
 
         // --- Helpers ---
 

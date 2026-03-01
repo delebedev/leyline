@@ -5,10 +5,13 @@ import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldNotBe
+import leyline.UnitTag
 
 /** Unit tests for [InstanceIdRegistry]. */
 class InstanceIdRegistryTest :
     FunSpec({
+
+        tags(UnitTag)
 
         test("resetAll returns old IDs and clears state") {
             val reg = InstanceIdRegistry(startId = 100)

@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 
 /**
  * Counter invariants for [MessageCounter].
@@ -17,6 +18,8 @@ import io.kotest.matchers.shouldBe
  */
 class GamePlaybackCounterTest :
     FunSpec({
+
+        tags(UnitTag)
 
         test("MessageCounter nextGsId increments atomically") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 1)

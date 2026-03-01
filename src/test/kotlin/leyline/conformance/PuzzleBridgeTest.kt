@@ -11,6 +11,7 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.IntegrationTag
 import leyline.bridge.GameBootstrap
 import leyline.bridge.PlayerAction
 import leyline.game.CardDb
@@ -35,6 +36,8 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStage as ProtoGameStage
  */
 class PuzzleBridgeTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         var bridge: GameBridge? = null
 

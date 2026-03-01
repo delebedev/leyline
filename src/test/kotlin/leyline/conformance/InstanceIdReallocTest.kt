@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.ConformanceTag
 import leyline.bridge.PlayerAction
 import leyline.game.awaitFreshPending
 import leyline.game.mapper.ZoneIds
@@ -25,6 +26,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  */
 class InstanceIdReallocTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

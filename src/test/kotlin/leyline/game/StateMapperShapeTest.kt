@@ -8,6 +8,7 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.conformance.ConformanceTestBase
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages
@@ -19,6 +20,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
  */
 class StateMapperShapeTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

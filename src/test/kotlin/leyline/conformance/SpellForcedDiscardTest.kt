@@ -5,6 +5,7 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 
 /**
  * Spell-forced discard conformance: simulates a spell effect causing
@@ -15,6 +16,9 @@ import io.kotest.matchers.shouldBe
  */
 class SpellForcedDiscardTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

@@ -7,6 +7,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.ConformanceTag
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
@@ -25,6 +26,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  */
 class AnnotationOrderingTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

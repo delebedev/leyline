@@ -5,6 +5,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldExist
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import leyline.recording.RecordingDecoder.AnnotationSummary
 import leyline.recording.RecordingDecoder.DecodedMessage
 import leyline.recording.RecordingDecoder.TurnInfoSummary
@@ -18,6 +19,8 @@ import leyline.recording.SemanticTimeline.ZoneTransfer
 
 class SemanticTimelineTest :
     FunSpec({
+
+        tags(UnitTag)
 
         // --- helpers ---
 

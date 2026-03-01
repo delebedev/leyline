@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
+import leyline.UnitTag
 import leyline.game.GameBridge
 import leyline.server.ListMessageSink
 import leyline.server.MatchRegistry
@@ -11,6 +12,8 @@ import leyline.server.MatchSession
 
 class MatchRegistryTest :
     FunSpec({
+
+        tags(UnitTag)
 
         test("getOrCreateBridge creates on first call, reuses on second") {
             val registry = MatchRegistry()

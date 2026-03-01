@@ -3,6 +3,7 @@ package leyline.conformance
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.game.BundleBuilder
 import leyline.game.MessageCounter
 
@@ -16,6 +17,9 @@ import leyline.game.MessageCounter
  */
 class ShapeIntegrationTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

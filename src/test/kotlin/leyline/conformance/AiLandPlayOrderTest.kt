@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldNotBe
+import leyline.IntegrationTag
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -21,6 +22,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  */
 class AiLandPlayOrderTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         var harness: MatchFlowHarness? = null
 

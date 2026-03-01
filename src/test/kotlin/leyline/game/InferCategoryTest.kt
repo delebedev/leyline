@@ -2,6 +2,7 @@ package leyline.game
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 
@@ -16,6 +17,8 @@ import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
  */
 class InferCategoryTest :
     FunSpec({
+
+        tags(UnitTag)
 
         fun dummyObj(): GameObjectInfo = GameObjectInfo.getDefaultInstance()
 

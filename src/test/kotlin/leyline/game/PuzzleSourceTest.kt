@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.bridge.GameBootstrap
 
 /**
@@ -14,6 +15,9 @@ import leyline.bridge.GameBootstrap
  */
 class PuzzleSourceTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         beforeSpec {
             GameBootstrap.initializeLocalization()
         }

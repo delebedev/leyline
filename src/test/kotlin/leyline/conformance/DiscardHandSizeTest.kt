@@ -8,6 +8,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
+import leyline.IntegrationTag
 import leyline.bridge.InteractivePromptBridge
 
 /**
@@ -24,6 +25,8 @@ import leyline.bridge.InteractivePromptBridge
  */
 class DiscardHandSizeTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         var harness: MatchFlowHarness? = null
 

@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
+import leyline.ConformanceTag
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -15,6 +16,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  */
 class RevealAnnotationTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

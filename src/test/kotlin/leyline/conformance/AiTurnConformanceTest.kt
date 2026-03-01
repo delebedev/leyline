@@ -3,6 +3,7 @@ package leyline.conformance
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -21,6 +22,9 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateUpdate
  */
 class AiTurnConformanceTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
