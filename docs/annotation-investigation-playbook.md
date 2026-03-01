@@ -53,17 +53,18 @@ Starting from a variance report entry:
 Bulk-resolve all grpIds in the section:
 
 ```bash
-sqlite3 ~/Library/Application\ Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga \
-  "SELECT c.GrpId, l.Loc FROM Cards c
-   JOIN Localizations_enUS l ON c.TitleId = l.LocId
-   WHERE c.GrpId IN (92196);"
+just card 92196
 # → 92196|Unholy Annex // Ritual Chamber
+
+# Multiple at once:
+just card 92196 93652 75479
 ```
 
 ### 2. Read the Forge card script
 
 ```bash
-find forge-gui/res/cardsfolder -iname "*unholy*annex*"
+just card-script "Unholy Annex"
+# → forge-gui/res/cardsfolder/u/unholy_annex_ritual_chamber.txt
 ```
 
 Then read the file. Key things to note:
@@ -112,7 +113,7 @@ Fields only visible in raw proto:
 - **`persistentAnnotations`** with full detail keys
 - **`diffDeletedPersistentAnnotationIds`** — which persistent annotations were removed (lifecycle tracking)
 
-### 5. Cross-GSM trace
+### 5. Cross-GSM trace (single session)
 
 Find later occurrences of the same annotation type to understand lifecycle:
 
@@ -127,28 +128,41 @@ for line in open('recordings/2026-03-01_00-18-46/md-frames.jsonl'):
 "
 ```
 
-Patterns to look for:
-- **Accumulation** — same annotation growing across GSMs (e.g. AbilityExhausted adding abilityGrpIds)
-- **Replacement** — new persistent annotation + old one in `diffDeletedPersistentAnnotationIds`
-- **One-shot vs persistent** — event annotation (GainDesignation) vs state annotation (Designation)
+**Cross-session trace** — for rare annotation types, check all sessions:
+
+```bash
+for dir in recordings/*/; do
+  session=$(basename "$dir")
+  python3 -c "
+import json, sys
+for line in open('${dir}md-frames.jsonl'):
+    d = json.loads(line)
+    for a in d.get('annotations', []) + d.get('persistentAnnotations', []):
+        if 'LayeredEffectDestroyed' in a.get('types', []):
+            print(f'$session gsId={d[\"gsId\"]} {a[\"types\"]} affected={a.get(\"affectedIds\")}')
+" 2>/dev/null
+done
+```
+
+### Lifecycle patterns to look for
+
+| Pattern | Example | Signature |
+|---|---|---|
+| **Accumulation** | AbilityExhausted adding abilityGrpIds | Same annotation ID, repeated field grows across GSMs |
+| **Replacement** | Designation door 19→20 | Old ID in `diffDeletedPersistentAnnotationIds`, new one created |
+| **In-place update** | AbilityWordActive value changing | Same annotation ID, detail value changes, no deletion |
+| **Event + state pair** | GainDesignation + Designation | Transient event annotation + matching persistent state |
+| **Create → destroy** | LayeredEffectCreated/Destroyed | Synthetic ID allocated, persists, then torn down |
+| **Game-start noise** | Effects created+destroyed at gsId=1 | Ignore — initialization bookkeeping, no objects present |
 
 ### 6. Ability lookup for non-card grpIds
 
 If an `affectorId` or detail value doesn't resolve as a card, it's likely an ability:
 
 ```bash
-# Ability text
-sqlite3 ~/Library/Application\ Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga \
-  "SELECT a.Id, l.Loc FROM Abilities a
-   JOIN Localizations_enUS l ON a.TextId = l.LocId
-   WHERE a.Id = 174405;"
+just ability 174405
 # → 174405|When you unlock this door, create a 6/6 black Demon creature token with flying.
-
-# Owning card
-sqlite3 ~/Library/Application\ Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga \
-  "SELECT c.GrpId, l.Loc FROM Cards c
-   JOIN Localizations_enUS l ON c.TitleId = l.LocId
-   WHERE c.AbilityIds LIKE '%174405%';"
+# → Card: 92196|Unholy Annex // Ritual Chamber
 ```
 
 ### 7. Synthesize
@@ -202,8 +216,11 @@ designations (per-player: Monarch, Initiative, City's Blessing — Forge uses
 | Signal | What it means |
 |---|---|
 | `affectedIds` is a card, not a player seat | Per-card state, not player-wide (Rooms, auras) |
-| Detail values are comma-separated (`137955,138314`) | Accumulating state snapshot, not single event |
+| Detail values are comma-separated (`137955,138314`) | Accumulating repeated int32 field, not CSV string |
 | `diffDeletedPersistentAnnotationIds` present | Annotation replaced, not added — lifecycle transition |
 | grpId doesn't resolve as card or ability | Synthetic ID (layered effect IDs start at 7000+) |
 | Same annotation type in both transient and persistent | Event + state pair (GainDesignation + Designation) |
 | `affectorId` differs from `affectedIds` | Source ≠ target (ability on stack → permanent on battlefield) |
+| Annotation has multiple `type` values | Dual-type (e.g. MiscContinuousEffect + LayeredEffect) — dispatches to both client parsers |
+| Created and destroyed in same GSM at gsId=1 | Game-start noise — skip, no gameplay meaning |
+| `affectedIds` in 7000+ range | Synthetic layered effect ID, not a real card instanceId |
