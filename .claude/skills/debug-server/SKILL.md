@@ -1,11 +1,11 @@
 ---
 name: debug-server
-description: Check forge-nexus debug server logs, game state, protocol messages, and running match status via the :8090 debug API
+description: Check leyline debug server logs, game state, protocol messages, and running match status via the :8090 debug API
 ---
 
 ## What I do
 
-Inspect a running forge-nexus server through the debug API on `:8090`. Covers live game state, protocol message history, logs, priority events, state diffs, instance tracking, and recording introspection.
+Inspect a running leyline server through the debug API on `:8090`. Covers live game state, protocol message history, logs, priority events, state diffs, instance tracking, and recording introspection.
 
 ## When to use me
 
@@ -16,11 +16,11 @@ Inspect a running forge-nexus server through the debug API on `:8090`. Covers li
 - "show me the last few messages"
 - "what zone is card X in"
 - "trace instanceId N"
-- Any time you need to inspect a live or recent forge-nexus session
+- Any time you need to inspect a live or recent leyline session
 
 ## Before you start
 
-1. Server must be running (`just serve` from `forge-nexus/`). Debug server auto-starts on `:8090`.
+1. Server must be running (`just serve` from `leyline/`). Debug server auto-starts on `:8090`.
 2. **Read `docs/debug-api.md`** for the full endpoint catalog (paths, query params, response shapes, recording endpoints).
 
 ## Triage workflow

@@ -41,7 +41,7 @@ Push notifications: MatchCreated=600 (sent as `Cmd` with type=600).
 
 **Why:** Everything downstream needs CmdType. Currently FrontDoorService does regex JSON extraction and ignores the envelope entirely.
 
-**Where:** `forge.nexus.protocol.FdEnvelope.kt`
+**Where:** `leyline.protocol.FdEnvelope.kt`
 
 **Shape:**
 ```kotlin
@@ -66,7 +66,7 @@ object FdEnvelope {
 
 **Why:** Real-time visibility into FD conversation while iterating. Today we had to `curl /api/logs` and grep — slow, truncated, no structure.
 
-**Where:** `forge.nexus.debug.FdDebugCollector.kt`, new endpoint in `DebugServer.kt`
+**Where:** `leyline.debug.FdDebugCollector.kt`, new endpoint in `DebugServer.kt`
 
 ### Tool 3: FD Frame Recorder
 
@@ -82,7 +82,7 @@ object FdEnvelope {
 
 **Why:** Stub mode "just works" offline. Re-capture after each Arena patch. No more hand-crafted JSON.
 
-**Where:** `forge.nexus.server.FrontDoorReplayStub.kt`
+**Where:** `leyline.server.FrontDoorReplayStub.kt`
 
 **Flow:**
 1. Load `fd-frames.jsonl` (or raw `.bin` payloads) from `resources/fd-golden/` or config path

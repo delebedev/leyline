@@ -1,5 +1,5 @@
 # TLS cert management + Tailscale remote setup
-# Imported by forge-nexus/justfile — all variables available from parent.
+# Imported by leyline/justfile — all variables available from parent.
 
 # auto-detect Tailscale IPv4
 _ts_ip := `tailscale ip -4 2>/dev/null || echo ""`
@@ -62,18 +62,18 @@ remote-certs:
     ts_ip="{{_ts_ip}}"
     if [ -z "$ts_ip" ]; then echo "Tailscale not running." >&2; exit 1; fi
     echo "==> Regenerating certs with Tailscale IP ($ts_ip) in SAN..."
-    just -f "{{nexus_dir}}/justfile" gen-certs "" "" "$ts_ip"
+    just -f "{{project_dir}}/justfile" gen-certs "" "" "$ts_ip"
 
 # client-side: fetch CA + hostnames from server, install locally (run on laptop)
-# server: Tailscale hostname or IP of the Mac mini running nexus
+# server: Tailscale hostname or IP of the Mac mini running leyline
 remote-install server:
     #!/usr/bin/env bash
     set -euo pipefail
     server="{{server}}"
-    certs_dir="$HOME/.local/share/forge-nexus/certs"
+    certs_dir="$HOME/.local/share/leyline/certs"
     echo "==> Fetching mitmproxy CA from $server..."
-    scp "$server:~/.mitmproxy/mitmproxy-ca-cert.pem" /tmp/nexus-ca.pem
-    remote_certs=".local/share/forge-nexus/certs"
+    scp "$server:~/.mitmproxy/mitmproxy-ca-cert.pem" /tmp/leyline-ca.pem
+    remote_certs=".local/share/leyline/certs"
     echo "==> Fetching cert hostnames from $server..."
     fd_host=$(ssh "$server" "openssl x509 -in ~/$remote_certs/frontdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
     md_host=$(ssh "$server" "openssl x509 -in ~/$remote_certs/matchdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
@@ -83,20 +83,20 @@ remote-install server:
     fi
     # trust CA
     echo "==> Trusting CA in Keychain (will prompt for sudo)..."
-    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/nexus-ca.pem
+    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain /tmp/leyline-ca.pem
     echo "  ✓ CA trusted"
     # update /etc/hosts
-    marker="# forge-nexus remote"
+    marker="# leyline remote"
     hosts_block="$marker ($server)\n$server_ip  $fd_host\n$server_ip  $md_host"
     if grep -q "$marker" /etc/hosts; then
-        echo "==> Updating existing forge-nexus entries in /etc/hosts..."
+        echo "==> Updating existing leyline entries in /etc/hosts..."
         sudo sed -i '' "/$marker/,+2d" /etc/hosts
     fi
     echo "==> Adding to /etc/hosts..."
     echo -e "$hosts_block" | sudo tee -a /etc/hosts >/dev/null
     echo "  ✓ /etc/hosts updated"
     echo ""
-    echo "Done! Launch Arena — it will connect to nexus at $server_ip"
+    echo "Done! Launch Arena — it will connect to leyline at $server_ip"
     echo "Debug panel: http://$server_ip:8090"
 
 # show what remote-install would do (dry run, no sudo)
@@ -104,7 +104,7 @@ remote-status server:
     #!/usr/bin/env bash
     set -euo pipefail
     server="{{server}}"
-    remote_certs=".local/share/forge-nexus/certs"
+    remote_certs=".local/share/leyline/certs"
     fd_host=$(ssh "$server" "openssl x509 -in ~/$remote_certs/frontdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
     md_host=$(ssh "$server" "openssl x509 -in ~/$remote_certs/matchdoor.crt -noout -subject" 2>/dev/null | sed 's/.*CN *= *//')
     server_ip=$(ssh "$server" "/usr/local/bin/tailscale ip -4")
@@ -113,7 +113,7 @@ remote-status server:
     echo "MD host:    $md_host"
     echo ""
     echo "/etc/hosts entries:"
-    grep "forge-nexus" /etc/hosts 2>/dev/null || echo "  (none)"
+    grep "leyline" /etc/hosts 2>/dev/null || echo "  (none)"
     echo ""
     echo "CA trusted:"
     security find-certificate -c mitmproxy /Library/Keychains/System.keychain >/dev/null 2>&1 \

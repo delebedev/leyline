@@ -33,7 +33,7 @@ Most game server projects have *one* of these. Having all four means conformance
 
 ### 3. Event-driven annotation pipeline is composable
 
-The `GameEventCollector → NexusGameEvent → AnnotationBuilder` chain is a clean FP pipeline. Adding a new annotation type is a mechanical 5-step cookbook. The `categoryFromEvents()` priority system (specific events beat generic `ZoneChanged`) is elegant.
+The `GameEventCollector → GameEvent → AnnotationBuilder` chain is a clean FP pipeline. Adding a new annotation type is a mechanical 5-step cookbook. The `categoryFromEvents()` priority system (specific events beat generic `ZoneChanged`) is elegant.
 
 ### 4. Observability is production-grade
 
@@ -100,7 +100,7 @@ interface GameStateProvider {
     fun getGame(): Game
     fun getForgeCardId(instanceId: Int): Int
     fun getInstanceId(forgeCardId: Int): Int
-    fun drainEvents(): List<NexusGameEvent>
+    fun drainEvents(): List<GameEvent>
     fun drainReveals(): List<RevealRecord>
     fun getPhaseStopProfile(): PhaseStopProfile
     // ... the read-only surface that StateMapper/BundleBuilder/AnnotationBuilder consume

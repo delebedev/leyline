@@ -1,8 +1,8 @@
 # Card & ability lookups against Arena's local SQLite DB.
-# Imported by forge-nexus/justfile — all variables available from parent.
+# Imported by justfile — all variables available from parent.
 
 arena_db := env("HOME", "/tmp") / "Library/Application Support/com.wizards.mtga/Downloads/Raw"
-cardsfolder := nexus_dir / "forge/forge-gui/res/cardsfolder"
+cardsfolder := project_dir / "forge/forge-gui/res/cardsfolder"
 
 # grpId → card name (accepts multiple IDs)
 card +ids:

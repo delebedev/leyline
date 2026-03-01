@@ -1,5 +1,5 @@
 # macOS client automation (MTGA interaction, screenshots)
-# Imported by forge-nexus/justfile — all variables available from parent.
+# Imported by justfile — all variables available from parent.
 
 # (re)launch MTGA client — kills existing instance first
 mtga:
@@ -12,7 +12,7 @@ client-auto mode="--proxy" timeout="120":
 # synthetic mouse click (works on macOS 15+ / Unity via timestamp fix)
 # NOTE: must activate MTGA window first — Unity ignores clicks on background windows
 click x y action="click":
-    @osascript -e 'tell application "MTGA" to activate' 2>/dev/null; sleep 0.3; {{nexus_dir}}/tools/click {{x}} {{y}} {{action}}
+    @osascript -e 'tell application "MTGA" to activate' 2>/dev/null; sleep 0.3; {{project_dir}}/tools/click {{x}} {{y}} {{action}}
 
 # screenshot game client window (by window ID, JPEG q60, max 1280px)
 capture-screenshot out="/tmp/mtga.jpg":
@@ -48,4 +48,4 @@ client-state:
 
 # tail Player.log for client-side exceptions (standalone, no server)
 watch-client: (_require classpath) check-java
-    @{{_nexus_cli}} forge.nexus.debug.WatchClientLogKt
+    @{{_cli}} leyline.debug.WatchClientLogKt

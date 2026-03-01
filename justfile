@@ -7,16 +7,15 @@ import 'just/recording.just'
 import 'just/client.just'
 import 'just/certs.just'
 
-root_dir     := justfile_directory()
-nexus_dir    := justfile_directory()
-classpath    := nexus_dir / "target/classpath.txt"
-logback      := nexus_dir / "src/main/resources/logback.xml"
-logback_cli  := nexus_dir / "src/main/resources/logback-cli.xml"
-templates    := nexus_dir / "src/main/resources/arena-templates"
-certs        := env("NEXUS_CERTS", env("HOME", "/tmp") / ".local/share/forge-nexus/certs")
-fd_ip        := env("NEXUS_FD_IP", "35.160.172.88")
-md_ip        := env("NEXUS_MD_IP", "44.245.90.131")
-payloads     := env("NEXUS_PAYLOADS", nexus_dir / "recordings/latest/capture/payloads")
+project_dir  := justfile_directory()
+classpath    := project_dir / "target/classpath.txt"
+logback      := project_dir / "src/main/resources/logback.xml"
+logback_cli  := project_dir / "src/main/resources/logback-cli.xml"
+templates    := project_dir / "src/main/resources/arena-templates"
+certs        := env("LEYLINE_CERTS", env("HOME", "/tmp") / ".local/share/leyline/certs")
+fd_ip        := env("LEYLINE_FD_IP", "35.160.172.88")
+md_ip        := env("LEYLINE_MD_IP", "44.245.90.131")
+payloads     := env("LEYLINE_PAYLOADS", project_dir / "recordings/latest/capture/payloads")
 ports        := "30010 30003 8090"
 
 # --- JVM flags (shared base + per-mode overrides) ---
@@ -27,13 +26,13 @@ jvm_opts_cli := _jvm_base + " -Dlogback.configurationFile=" + logback_cli + " -D
 
 # --- Java launch helpers ---
 
-# Full classpath expression (shared by _nexus_java and _nexus_cli)
-_cp := '"$classpath:' + nexus_dir + '/target/classes"'
+# Full classpath expression (shared by _java and _cli launch helpers)
+_cp := '"$classpath:' + project_dir + '/target/classes"'
 
 # Kill ports + launch (for server targets)
-_nexus_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill -9 $pid 2>/dev/null || true; done; done; sleep 0.3; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp ' + _cp
+_java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill -9 $pid 2>/dev/null || true; done; done; sleep 0.3; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp ' + _cp
 # Read-only CLI (no port kill)
-_nexus_cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts_cli + ' -cp ' + _cp
+_cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts_cli + ' -cp ' + _cp
 
 # --- Cert flags (shared by all serve-* targets) ---
 # Only passed when all four files exist; otherwise server uses self-signed.
@@ -52,37 +51,37 @@ _cert_flags := '--fd-cert "' + _fd_cert + '" --fd-key "' + _fd_key + '" --md-cer
 
 # install forge engine jars from submodule (run after git submodule update)
 install-forge:
-    cd "{{nexus_dir}}/forge" && mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
+    cd "{{project_dir}}/forge" && mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
     @echo "Forge engine installed to forge/.m2-local/"
 
 # generate messages.proto from upstream submodule + rename map
 sync-proto:
-    sed -f "{{nexus_dir}}/proto/rename-map.sed" "{{nexus_dir}}/proto/upstream/messages.proto" > "{{nexus_dir}}/src/main/proto/messages.proto"
+    sed -f "{{project_dir}}/proto/rename-map.sed" "{{project_dir}}/proto/upstream/messages.proto" > "{{project_dir}}/src/main/proto/messages.proto"
     @echo "Proto synced from upstream + renames applied"
 
 # auto-format Kotlin sources (spotless/ktlint)
 fmt: check-java
-    cd "{{nexus_dir}}" && mvn com.diffplug.spotless:spotless-maven-plugin:apply -q
+    cd "{{project_dir}}" && mvn com.diffplug.spotless:spotless-maven-plugin:apply -q
     @echo "fmt done."
 
 # check formatting without modifying (CI)
 fmt-check: check-java
-    cd "{{nexus_dir}}" && mvn com.diffplug.spotless:spotless-maven-plugin:check -q
+    cd "{{project_dir}}" && mvn com.diffplug.spotless:spotless-maven-plugin:check -q
 
-# compile proto + Kotlin (nexus is self-contained, no forge-web install needed)
+# compile proto + Kotlin
 build: check-java _check-upstream sync-proto
     #!/usr/bin/env bash
     set -euo pipefail
-    rm -rf "{{nexus_dir}}/target/classes"  # purge stale classes from package moves
-    cd "{{nexus_dir}}" && mvn {{mvn_skip}} compile
+    rm -rf "{{project_dir}}/target/classes"  # purge stale classes from package moves
+    cd "{{project_dir}}" && mvn {{mvn_skip}} compile
     just _refresh-classpath
     echo "Build complete. Classpath: {{classpath}}"
 
-# fast Kotlin-only compile (~3-5s, nexus only)
+# fast Kotlin-only compile (~3-5s)
 dev-build: check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{nexus_dir}}" && mvn {{mvn_skip}} compile -q && echo "dev-build OK"
+    cd "{{project_dir}}" && mvn {{mvn_skip}} compile -q && echo "dev-build OK"
     just _refresh-classpath
 
 # --- Test ---
@@ -113,11 +112,11 @@ coverage: check-java _check-upstream _clean-surefire (_mvn-verify "-Dgroups=unit
 
 # --- Dev ---
 
-# watch *.kt, recompile + restart hybrid on change (fast: nexus-only compile)
+# watch *.kt, recompile + restart on change
 dev: check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "Starting hybrid with file watcher (dev-build, nexus-only compile)..."
+    echo "Starting hybrid with file watcher (dev-build)..."
     echo "Ctrl-C to stop. Changes to *.kt trigger recompile + restart."
     echo "Tip: if you changed bridge code, run 'just build' first."
     trap 'kill %% 2>/dev/null; exit 0' INT TERM
@@ -125,25 +124,25 @@ dev: check-java
         just dev-build
         echo "--- hybrid running (pid below) ---"
         just serve &
-        NEXUS_PID=$!
+        SERVER_PID=$!
         if command -v fswatch >/dev/null 2>&1; then
-            fswatch -1 -r -e '.*' -i '\.kt$' "{{nexus_dir}}/src/main/kotlin"
+            fswatch -1 -r -e '.*' -i '\.kt$' "{{project_dir}}/src/main/kotlin"
         else
             echo "(fswatch not found — poll fallback, 3s)"
-            STAMP=$(stat -f%m "{{nexus_dir}}/src/main/kotlin" 2>/dev/null || echo 0)
+            STAMP=$(stat -f%m "{{project_dir}}/src/main/kotlin" 2>/dev/null || echo 0)
             while true; do
                 sleep 3
-                NEW=$(stat -f%m "{{nexus_dir}}/src/main/kotlin" 2>/dev/null || echo 0)
+                NEW=$(stat -f%m "{{project_dir}}/src/main/kotlin" 2>/dev/null || echo 0)
                 [ "$STAMP" != "$NEW" ] && break
             done
         fi
         echo "--- change detected, rebuilding ---"
-        kill $NEXUS_PID 2>/dev/null; wait $NEXUS_PID 2>/dev/null || true
+        kill $SERVER_PID 2>/dev/null; wait $SERVER_PID 2>/dev/null || true
     done
 
 # headless smoke test (validates auth → mulligan flow without MTGA)
 smoke: (_require classpath) check-java
-    @{{_nexus_java}} forge.nexus.debug.SmokeTestKt
+    @{{_java}} leyline.debug.SmokeTestKt
 
 # --- Serve ---
 
@@ -153,7 +152,7 @@ serve: (_require classpath) check-java
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
     was_flags=$({{_was_cert_flags}})
-    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags $was_flags --proxy-fd {{fd_ip}}
+    {{_java}} leyline.LeylineMainKt $cert_flags $was_flags --proxy-fd {{fd_ip}}
 
 # stub mode (fake both doors, fully offline)
 serve-stub: (_require classpath) check-java
@@ -161,7 +160,7 @@ serve-stub: (_require classpath) check-java
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
     was_flags=$({{_was_cert_flags}})
-    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags $was_flags
+    {{_java}} leyline.LeylineMainKt $cert_flags $was_flags
 
 # replay-stub mode: replay captured FD session (fd-frames.jsonl), stub MD
 serve-replay-stub golden="": (_require classpath) check-java
@@ -178,28 +177,28 @@ serve-replay-stub golden="": (_require classpath) check-java
         fi
         echo "Using golden: $golden"
     fi
-    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags --fd-golden "$golden"
+    {{_java}} leyline.LeylineMainKt $cert_flags --fd-golden "$golden"
 
 # proxy mode (both doors, capture traffic)
 serve-proxy: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
-    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
+    {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
 
 # replay mode (proxy FD, replay recorded bytes on MD)
 serve-replay: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
-    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags --proxy-fd {{fd_ip}} --replay {{payloads}}
+    {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --replay {{payloads}}
 
 # puzzle mode: serve with a specific .pzl file
 serve-puzzle filename: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
-    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags --proxy-fd {{fd_ip}} --puzzle "{{filename}}"
+    {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --puzzle "{{filename}}"
 
 # smoke test: start stub, launch MTGA, check for FD errors via debug API
 smoke-client timeout="60": (_require classpath) check-java
@@ -207,7 +206,7 @@ smoke-client timeout="60": (_require classpath) check-java
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
     echo "Starting stub server..."
-    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags &
+    {{_java}} leyline.LeylineMainKt $cert_flags &
     SERVER_PID=$!
     trap "kill $SERVER_PID 2>/dev/null" EXIT
     sleep 5
@@ -247,19 +246,19 @@ _require file:
 
 [private]
 _check-upstream:
-    @"{{nexus_dir}}/build/check-upstream.sh" "{{nexus_dir}}"
+    @"{{project_dir}}/build/check-upstream.sh" "{{project_dir}}"
 
 [private]
 _clean-surefire:
-    @rm -rf "{{nexus_dir}}/target/surefire-reports"
+    @rm -rf "{{project_dir}}/target/surefire-reports"
 
 # Run mvn test with extra flags, emit summary, preserve exit code.
 [private]
 _mvn-test extra_flags:
     #!/usr/bin/env bash
     set +e
-    cd "{{nexus_dir}}" && mvn {{mvn_quiet}} {{extra_flags}} test; rc=$?
-    python3 "{{nexus_dir}}/build/test-summary.py" "{{nexus_dir}}/target" 2>/dev/null \
+    cd "{{project_dir}}" && mvn {{mvn_quiet}} {{extra_flags}} test; rc=$?
+    python3 "{{project_dir}}/build/test-summary.py" "{{project_dir}}/target" 2>/dev/null \
         || echo "⚠ Could not parse test results"
     exit $rc
 
@@ -268,13 +267,13 @@ _mvn-test extra_flags:
 _mvn-verify extra_flags:
     #!/usr/bin/env bash
     set +e
-    cd "{{nexus_dir}}" && mvn {{mvn_quiet}} {{extra_flags}} verify; rc=$?
-    python3 "{{nexus_dir}}/build/test-summary.py" "{{nexus_dir}}/target" 2>/dev/null \
+    cd "{{project_dir}}" && mvn {{mvn_quiet}} {{extra_flags}} verify; rc=$?
+    python3 "{{project_dir}}/build/test-summary.py" "{{project_dir}}/target" 2>/dev/null \
         || echo "⚠ Could not parse test results"
-    xml="{{nexus_dir}}/target/site/jacoco/jacoco.xml"
+    xml="{{project_dir}}/target/site/jacoco/jacoco.xml"
     if [ -f "$xml" ]; then
         echo ""
-        python3 "{{nexus_dir}}/build/coverage-summary.py" "$xml"
+        python3 "{{project_dir}}/build/coverage-summary.py" "$xml"
         echo ""
         echo "HTML: target/site/jacoco/index.html"
     else
@@ -288,8 +287,8 @@ _mvn-verify extra_flags:
 [private]
 _refresh-classpath:
     #!/usr/bin/env bash
-    if [ ! -f "{{classpath}}" ] || [ "{{nexus_dir}}/pom.xml" -nt "{{classpath}}" ]; then
-        cd "{{nexus_dir}}" && mvn \
+    if [ ! -f "{{classpath}}" ] || [ "{{project_dir}}/pom.xml" -nt "{{classpath}}" ]; then
+        cd "{{project_dir}}" && mvn \
             {{mvn_skip}} \
             -DincludeScope=runtime dependency:build-classpath \
             -Dmdep.outputFile="{{classpath}}"

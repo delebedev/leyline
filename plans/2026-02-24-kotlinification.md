@@ -28,7 +28,7 @@ val greMsg = ClientToGREMessage.newBuilder()
 
 **Plan:**
 
-- Create `forge.nexus.protocol.ProtoDsl.kt` (or similar) with builder functions:
+- Create `leyline.protocol.ProtoDsl.kt` (or similar) with builder functions:
   ```kotlin
   fun performAction(block: Action.Builder.() -> Unit): ClientToGREMessage
   fun declareAttackersResp(block: DeclareAttackersResp.Builder.() -> Unit): ClientToGREMessage

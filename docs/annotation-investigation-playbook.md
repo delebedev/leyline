@@ -173,7 +173,7 @@ Combine all findings into a conclusion:
 - **What the detail values mean** (enum values, counters, effect IDs)
 - **How Arena models it** (event vs state, persistent vs transient, which parser handles it)
 - **How Forge models the same thing** (DSL keywords, game events, engine APIs)
-- **Gap between them** (does Forge have the right events? do we need new NexusGameEvents?)
+- **Gap between them** (does Forge have the right events? do we need new GameEvents?)
 
 ## Worked example: Unholy Annex // Ritual Chamber
 

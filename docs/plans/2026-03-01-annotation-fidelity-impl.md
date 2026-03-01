@@ -34,11 +34,11 @@ All 18 builders exist. This table tracks what's needed to actually emit them dur
 | `layeredEffectDestroyed` | Diff previous vs current layered effects (same challenge). |
 | `addAbility` / `removeAbility` | Track effect IDs that grant/remove abilities. |
 
-### New NexusGameEvent needed
+### New GameEvent needed
 
 | Builder | Trigger | Missing |
 |---|---|---|
-| `gainDesignation` / `designation` | Monarch/City's Blessing/Initiative | No `NexusGameEvent` for designation changes. Subscribe to `GameEventPlayerDesignation`. |
+| `gainDesignation` / `designation` | Monarch/City's Blessing/Initiative | No `GameEvent` for designation changes. Subscribe to `GameEventPlayerDesignation`. |
 | `triggeringObject` | Triggered ability on stack | Need to capture which permanent triggered an ability at `AbilityInstanceCreated` time. |
 
 ### Skip (deep integration needed)

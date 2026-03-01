@@ -109,7 +109,7 @@ just proto-annotation-variance > /tmp/variance-report.md
 In `forge-nexus/just/proto.just`:
 ```just
 proto-annotation-variance *args: (_require classpath) check-java
-    @{{_nexus_cli}} forge.nexus.debug.AnnotationVarianceKt {{args}}
+    @{{_nexus_cli}} leyline.debug.AnnotationVarianceKt {{args}}
 ```
 
 ## Known Findings (from quick scan)

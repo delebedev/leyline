@@ -66,7 +66,7 @@ Two categories:
 | Level | Types | Status |
 |---|---|---|
 | **Builder only** | Counter, LayeredEffect, AddAbility, RemoveAbility, AbilityExhausted, Designation, ColorProduction, TriggeringObject, TargetSpec, DisplayCardUnderCard, PredictedDirectDamage, InstanceRevealedToOpponent, DamagedThisTurn | State annotations — builder method exists, no pipeline hook yet. Server attaches these as persistent state on game objects. Pipeline wiring is a separate effort when those subsystems are built. |
-| **Pipeline-ready** | GainDesignation, PowerToughnessModCreated, PlayerSelectingTargets, PlayerSubmittedTargets, LayeredEffectDestroyed | Event annotations — fire on game moments. May need new NexusGameEvent variants. Wire case-by-case. |
+| **Pipeline-ready** | GainDesignation, PowerToughnessModCreated, PlayerSelectingTargets, PlayerSubmittedTargets, LayeredEffectDestroyed | Event annotations — fire on game moments. May need new GameEvent variants. Wire case-by-case. |
 
 ### Stubbing Strategy
 
@@ -82,7 +82,7 @@ For complex types (LayeredEffect, Designation, AbilityExhausted): builder accept
 ### Layer 2 — Pipeline (pipeline-ready types only)
 
 - `startWithBoard{}` tier (~10ms) for event-driven annotations
-- Verify NexusGameEvent → annotation output chain
+- Verify GameEvent → annotation output chain
 
 ### Layer 3 — Variance Regression
 

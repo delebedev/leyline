@@ -8,7 +8,7 @@ Post-fix notes: what could we have figured out faster?
 
 **Fix:** Check `ev.hasFizzled` before returning `Resolve`; set `zoneCategory = Countered` for fizzled spells so the deferred-priority logic picks it up.
 
-**How to find faster:** The `SpellCountered` NexusGameEvent variant exists but is never emitted — dead code smell. A unit test asserting `categoryFromEvents` returns `Countered` when given a `SpellResolved(fizzled=true)` event would have caught this immediately. The existing `CategoryFromEventsTest` only covered the happy path.
+**How to find faster:** The `SpellCountered` GameEvent variant exists but is never emitted — dead code smell. A unit test asserting `categoryFromEvents` returns `Countered` when given a `SpellResolved(fizzled=true)` event would have caught this immediately. The existing `CategoryFromEventsTest` only covered the happy path.
 
 **Rule:** When adding a new event variant, always add both positive and negative category tests (especially for boolean flags like `hasFizzled`).
 
@@ -74,7 +74,7 @@ Current behavior: the auto-pass engine still auto-resolves "choose_cards" prompt
 
 **Key insight:** `GameEventCardAttachment.newTarget()` is null for detach, non-null for attach. Cast `newTarget` to `Card` to extract forge ID. Detach events are captured (CardDetached) but not yet wired to annotation deletion — would need a `RemoveAttachment` annotation or persistent annotation removal pipeline. Deferred.
 
-**Files touched:** NexusGameEvent.kt, GameEventCollector.kt, AnnotationBuilder.kt, AnnotationPipeline.kt, StateMapper.kt, MechanicClassifier.kt, AnnotationPipelineTest.kt (adapted for new return type), AttachmentAnnotationTest.kt (new).
+**Files touched:** GameEvent.kt, GameEventCollector.kt, AnnotationBuilder.kt, AnnotationPipeline.kt, StateMapper.kt, MechanicClassifier.kt, AnnotationPipelineTest.kt (adapted for new return type), AttachmentAnnotationTest.kt (new).
 
 ## Item 6 — Reveal Pipeline
 
@@ -82,7 +82,7 @@ Current behavior: the auto-pass engine still auto-resolves "choose_cards" prompt
 
 1. **forge-web**: `WebPlayerController.reveal()` override intercepts the `PlayerController.reveal(CardCollectionView, ZoneType, Player, String, boolean)` call. Captures forge card IDs and pushes them to `InteractivePromptBridge.revealQueue` (new `ConcurrentLinkedQueue<RevealRecord>`).
 
-2. **forge-nexus**: `StateMapper.buildFromGame()` drains `bridge.promptBridge.drainReveals()` alongside `bridge.drainEvents()`, converts to `NexusGameEvent.CardsRevealed`. `AnnotationPipeline.mechanicAnnotations()` produces `RevealedCardCreated` transient annotations.
+2. **forge-nexus**: `StateMapper.buildFromGame()` drains `bridge.promptBridge.drainReveals()` alongside `bridge.drainEvents()`, converts to `GameEvent.CardsRevealed`. `AnnotationPipeline.mechanicAnnotations()` produces `RevealedCardCreated` transient annotations.
 
 **Key insight:** Forge has NO `GameEvent` for reveals — the engine communicates reveals through `PlayerController.reveal()` → `IGuiGame.reveal()` (a GUI callback chain, not EventBus). The 36+ call sites in `GameAction.reveal()` all route through this chain. Overriding at the controller level is the natural injection point without touching forge-game.
 
@@ -90,7 +90,7 @@ Current behavior: the auto-pass engine still auto-resolves "choose_cards" prompt
 
 **Design decision:** Capture mechanism uses `InteractivePromptBridge` as the conduit (already accessible from both forge-web controller and forge-nexus StateMapper). Alternative was adding a callback interface — simpler to use the existing bridge object.
 
-**Files touched:** InteractivePromptBridge.kt (revealQueue + RevealRecord), WebPlayerController.kt (reveal override), NexusGameEvent.kt (CardsRevealed variant), AnnotationBuilder.kt (revealedCardCreated/Deleted factories), AnnotationPipeline.kt (wiring), StateMapper.kt (drain), MechanicClassifier.kt (reveal tag), RevealAnnotationTest.kt (new, 3 tests).
+**Files touched:** InteractivePromptBridge.kt (revealQueue + RevealRecord), WebPlayerController.kt (reveal override), GameEvent.kt (CardsRevealed variant), AnnotationBuilder.kt (revealedCardCreated/Deleted factories), AnnotationPipeline.kt (wiring), StateMapper.kt (drain), MechanicClassifier.kt (reveal tag), RevealAnnotationTest.kt (new, 3 tests).
 
 ---
 
