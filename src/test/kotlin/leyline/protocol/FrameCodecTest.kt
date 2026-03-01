@@ -7,6 +7,7 @@ import io.kotest.matchers.shouldBe
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
 import io.netty.channel.embedded.EmbeddedChannel
+import leyline.UnitTag
 import leyline.protocol.ClientFrameDecoder.Companion.HEADER_SIZE
 import leyline.protocol.ClientFrameDecoder.Companion.TYPE_CTRL_ACK
 import leyline.protocol.ClientFrameDecoder.Companion.TYPE_CTRL_INIT
@@ -23,6 +24,8 @@ import leyline.protocol.ClientFrameDecoder.Companion.VERSION
  */
 class FrameCodecTest :
     FunSpec({
+
+        tags(UnitTag)
 
         val channels = mutableListOf<EmbeddedChannel>()
 

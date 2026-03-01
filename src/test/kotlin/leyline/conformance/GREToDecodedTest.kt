@@ -5,11 +5,14 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import leyline.recording.GREToDecoded
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 class GREToDecodedTest :
     FunSpec({
+
+        tags(UnitTag)
 
         // ── helpers ──────────────────────────────────────────────────────
 

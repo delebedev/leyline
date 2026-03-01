@@ -6,10 +6,13 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 class StructuralFingerprintTest :
     FunSpec({
+
+        tags(UnitTag)
 
         test("extractFromGameStateMessage") {
             // Build a ZoneTransfer annotation with PlayLand category

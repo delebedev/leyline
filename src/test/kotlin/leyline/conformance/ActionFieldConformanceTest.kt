@@ -7,6 +7,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.ConformanceTag
 import leyline.game.mapper.ActionMapper
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
@@ -24,6 +25,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
  */
 class ActionFieldConformanceTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

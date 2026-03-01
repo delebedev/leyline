@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 
 /**
  * SBA (state-based action) death conformance: creatures dying to zero
@@ -15,6 +16,9 @@ import io.kotest.matchers.shouldBe
  */
 class SbaDeathTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

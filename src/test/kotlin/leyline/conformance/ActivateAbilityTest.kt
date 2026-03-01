@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
+import leyline.IntegrationTag
 import leyline.bridge.PlayerAction
 import leyline.game.awaitFreshPending
 import leyline.game.snapshotFromGame
@@ -25,6 +26,8 @@ import leyline.game.snapshotFromGame
  */
 class ActivateAbilityTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         val base = ConformanceTestBase()
 

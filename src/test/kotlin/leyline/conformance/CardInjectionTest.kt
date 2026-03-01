@@ -8,6 +8,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.ConformanceTag
 import leyline.game.CardDb
 import leyline.game.StateMapper
 import wotc.mtgo.gre.external.messaging.Messages.CardType
@@ -22,6 +23,9 @@ import wotc.mtgo.gre.external.messaging.Messages.CardType
  */
 class CardInjectionTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import leyline.IntegrationTag
 import leyline.bridge.GameBootstrap
 
 /**
@@ -12,6 +13,8 @@ import leyline.bridge.GameBootstrap
  */
 class ScriptedPlayerControllerTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         var harness: MatchFlowHarness? = null
 

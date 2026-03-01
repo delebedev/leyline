@@ -9,6 +9,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.IntegrationTag
 import leyline.bridge.GameBootstrap
 import leyline.bridge.PlayerAction
 import leyline.config.GameConfig
@@ -26,6 +27,8 @@ import wotc.mtgo.gre.external.messaging.Messages
  */
 class GameBridgeTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         var bridge: GameBridge? = null
 

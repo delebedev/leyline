@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.bridge.PhaseStopProfile
 
 /**
@@ -15,6 +16,8 @@ import leyline.bridge.PhaseStopProfile
  */
 class PhaseStopProfileTest :
     FunSpec({
+
+        tags(ConformanceTag)
 
         beforeSpec {
             leyline.bridge.GameBootstrap.initializeCardDatabase(quiet = true)

@@ -8,6 +8,7 @@ import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.game.BundleBuilder
 import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -19,6 +20,9 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  */
 class AttachmentAnnotationTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

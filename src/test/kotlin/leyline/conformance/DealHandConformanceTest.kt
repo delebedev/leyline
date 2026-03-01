@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.game.GsmBuilder
 import leyline.game.mapper.PromptIds
 import leyline.protocol.HandshakeMessages
@@ -20,6 +21,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  */
 class DealHandConformanceTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

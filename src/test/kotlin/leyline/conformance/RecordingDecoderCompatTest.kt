@@ -2,6 +2,7 @@ package leyline.conformance
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import leyline.recording.RecordingDecoder
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -14,6 +15,8 @@ import java.nio.file.Files
 
 class RecordingDecoderCompatTest :
     FunSpec({
+
+        tags(UnitTag)
 
         fun buildMessage(gsId: Int): MatchServiceToClientMessage {
             val gre = GREToClientMessage.newBuilder()

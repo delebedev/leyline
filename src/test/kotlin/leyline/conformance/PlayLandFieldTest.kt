@@ -9,6 +9,7 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.ConformanceTag
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -23,6 +24,9 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  */
 class PlayLandFieldTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

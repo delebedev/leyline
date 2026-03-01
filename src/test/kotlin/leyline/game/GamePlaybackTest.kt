@@ -5,11 +5,14 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.ConcurrentLinkedQueue
 
 class GamePlaybackTest :
     FunSpec({
+
+        tags(UnitTag)
 
         fun createMinimalPlayback(counter: MessageCounter = MessageCounter()): GamePlayback {
             val bridge = GameBridge(messageCounter = counter)

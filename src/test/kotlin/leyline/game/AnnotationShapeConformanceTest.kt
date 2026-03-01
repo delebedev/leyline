@@ -3,6 +3,7 @@ package leyline.game
 import io.kotest.assertions.fail
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 
 /**
@@ -19,6 +20,8 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
  */
 class AnnotationShapeConformanceTest :
     FunSpec({
+
+        tags(UnitTag)
 
         fun detailKeys(ann: AnnotationInfo): Set<String> =
             ann.detailsList.map { it.key }.toSet()

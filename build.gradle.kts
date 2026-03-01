@@ -52,7 +52,6 @@ implementation(libs.serialization.json)
     implementation(libs.forge.ai)
     implementation(libs.forge.gui)
 
-    testImplementation(libs.testng)
     testImplementation(libs.archunit)
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
@@ -127,31 +126,23 @@ tasks.test {
 
 val testUnit by tasks.registering(Test::class) {
     configureTestDefaults()
-    useTestNG { includeGroups("unit") }
+    systemProperty("kotest.tags", "UnitTag")
 }
 
 val testConformance by tasks.registering(Test::class) {
     configureTestDefaults()
-    useTestNG { includeGroups("conformance") }
+    systemProperty("kotest.tags", "ConformanceTag")
 }
 
 val testIntegration by tasks.registering(Test::class) {
     configureTestDefaults()
-    useTestNG { includeGroups("integration") }
+    systemProperty("kotest.tags", "IntegrationTag")
     maxParallelForks = 4
 }
 
 val testGate by tasks.registering(Test::class) {
     configureTestDefaults()
-    useTestNG { includeGroups("unit", "conformance") }
-}
-
-// Kotest specs (JUnit Platform runner — coexists with TestNG tasks above)
-val testKotest by tasks.registering(Test::class) {
-    useJUnitPlatform()
-    maxHeapSize = "768m"
-    testLogging { events("failed") }
-    include("**/*Test.class", "**/*Spec.class")
+    systemProperty("kotest.tags", "UnitTag | ConformanceTag")
 }
 
 // --- JaCoCo ---

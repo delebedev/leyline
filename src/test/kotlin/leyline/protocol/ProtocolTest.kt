@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import leyline.game.CardDb
 import leyline.game.DeckProvider
 import leyline.game.GsmBuilder
@@ -21,6 +22,12 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  */
 class ProtocolTest :
     FunSpec({
+
+        tags(UnitTag)
+
+        beforeEach {
+            CardDb.clear()
+        }
 
         afterEach {
             CardDb.clear()

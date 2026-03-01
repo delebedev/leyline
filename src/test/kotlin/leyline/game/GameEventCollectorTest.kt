@@ -10,6 +10,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.aiPlayer
 import leyline.conformance.humanPlayer
@@ -23,6 +24,9 @@ import leyline.conformance.humanPlayer
  */
 class GameEventCollectorTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

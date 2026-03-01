@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import leyline.IntegrationTag
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -16,6 +17,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  */
 class ClientSettingsTest :
     FunSpec({
+
+        tags(IntegrationTag)
 
         var harness: MatchFlowHarness? = null
 

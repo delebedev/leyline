@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
 import leyline.game.mapper.PromptIds
@@ -22,6 +23,9 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
  */
 class BundleBuilderTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

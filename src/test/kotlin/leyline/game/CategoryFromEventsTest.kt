@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 
 /**
  * Unit tests for [AnnotationBuilder.categoryFromEvents] — verifies that
@@ -13,6 +14,8 @@ import io.kotest.matchers.shouldBe
  */
 class CategoryFromEventsTest :
     FunSpec({
+
+        tags(UnitTag)
 
         test("landPlayedReturnPlayLand") {
             val events = listOf(

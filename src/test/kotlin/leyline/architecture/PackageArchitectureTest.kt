@@ -5,6 +5,7 @@ import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices
 import io.kotest.core.spec.style.FunSpec
+import leyline.UnitTag
 import java.nio.file.Path
 
 /**
@@ -51,15 +52,25 @@ import java.nio.file.Path
 class PackageArchitectureTest :
     FunSpec({
 
+        tags(UnitTag)
+
         /**
-         * Import only leyline production classes from this module's target dir.
-         * Using importPath() instead of importPackages() avoids scanning the full
+         * Import only leyline production classes from this module's build dir.
+         * Using importPaths() instead of importPackages() avoids scanning the full
          * classpath — importPackages resolves transitive deps from forge-game
          * which blows the heap on CI runners with limited memory.
+         *
+         * Gradle compiles Kotlin sources to build/classes/kotlin/main and protobuf
+         * generated Java to build/classes/java/main — import both so ArchUnit sees
+         * the full picture.
          */
+        val buildDir = Path.of("").toAbsolutePath().resolve("build/classes")
         val classes = ClassFileImporter()
             .withImportOption(ImportOption.DoNotIncludeTests())
-            .importPath(Path.of("").toAbsolutePath().resolve("target/classes"))
+            .importPaths(
+                buildDir.resolve("kotlin/main"),
+                buildDir.resolve("java/main"),
+            )
 
         // TODO: fix debug↔server cycle (DebugServer imports MatchSession, MatchSession imports SessionRecorder)
         xtest("no package cycles") {

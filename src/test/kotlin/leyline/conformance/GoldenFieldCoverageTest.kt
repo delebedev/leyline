@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.bridge.InteractivePromptBridge.PendingPrompt
 import leyline.bridge.PromptCandidateRefDto
 import leyline.bridge.PromptRequest
@@ -30,6 +31,9 @@ import java.util.concurrent.CompletableFuture
  */
 class GoldenFieldCoverageTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
