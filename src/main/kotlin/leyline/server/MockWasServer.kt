@@ -142,11 +142,12 @@ class MockWasServer(
     }
 
     companion object {
-        val DEFAULT_ROLES = listOf(
-            "MTGA_DEBUG",
+        val PROD_ROLES = listOf(
             "WotC_ACCESS",
             "MTGA_FeatureToggle",
         )
+        val DEBUG_ROLES = PROD_ROLES + "MTGA_DEBUG"
+        val DEFAULT_ROLES = PROD_ROLES
 
         fun buildJwt(accountId: String, personaId: String, roles: List<String>): String {
             val header = buildJsonObject {

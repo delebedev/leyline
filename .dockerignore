@@ -28,7 +28,8 @@ scripts/
 buildscripts/
 just/
 justfile
-deploy/
+deploy/*.yml
+deploy/.env*
 *.md
 
 # Proto upstream submodule (we only need the processed output)

@@ -54,6 +54,8 @@ class LeylineServer(
     val playtestConfig: leyline.config.PlaytestConfig = leyline.config.PlaytestConfig(),
     /** Puzzle mode: if set, load this .pzl file for all client connections. */
     val puzzleFile: File? = null,
+    /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
+    private val externalHost: String = "localhost",
 ) {
     private val log = LoggerFactory.getLogger(LeylineServer::class.java)
 
@@ -101,13 +103,13 @@ class LeylineServer(
         if (goldenFile != null) {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Replay") { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast("handler", FrontDoorReplayStub(goldenFile))
+                ch.pipeline().addLast("handler", FrontDoorReplayStub(goldenFile, matchDoorHost = externalHost, matchDoorPort = matchDoorPort))
             }
             log.info("Client Front Door (replay from {}) listening on :{}", goldenFile.name, frontDoorPort)
         } else {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast("handler", FrontDoorService())
+                ch.pipeline().addLast("handler", FrontDoorService(matchDoorHost = externalHost, matchDoorPort = matchDoorPort))
             }
             log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
         }
@@ -137,7 +139,7 @@ class LeylineServer(
         } else {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast("handler", FrontDoorService())
+                ch.pipeline().addLast("handler", FrontDoorService(matchDoorHost = externalHost, matchDoorPort = matchDoorPort))
             }
             log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
         }

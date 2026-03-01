@@ -61,10 +61,18 @@ fun main(args: Array<String>) {
     }
 
     val fdPort = a["--fd-port"]?.toIntOrNull() ?: 30010
+    val mdPort = a["--md-port"]?.toIntOrNull() ?: 30003
+
+    // FD host for doorbell + MatchCreated: CLI arg > env var > default
+    val fdHost = a["--fd-host"]
+        ?: System.getenv("LEYLINE_FD_HOST")
+        ?: "localhost:$fdPort"
+    // Extract hostname (without port) for MatchCreated push
+    val externalHost = fdHost.substringBefore(":")
 
     val server = LeylineServer(
         frontDoorPort = fdPort,
-        matchDoorPort = a["--md-port"]?.toIntOrNull() ?: 30003,
+        matchDoorPort = mdPort,
         frontDoorCert = certFile("--fd-cert"),
         frontDoorKey = keyFile("--fd-key"),
         matchDoorCert = certFile("--md-cert"),
@@ -75,19 +83,17 @@ fun main(args: Array<String>) {
         fdGoldenFile = fdGoldenFile,
         playtestConfig = config,
         puzzleFile = puzzleFile,
+        externalHost = externalHost,
     )
 
     val logWatcher = PlayerLogWatcher()
 
-    // FD host for doorbell response: CLI arg > env var > default
-    val fdHost = a["--fd-host"]
-        ?: System.getenv("LEYLINE_FD_HOST")
-        ?: "localhost:$fdPort"
-
-    // Mock WAS — serves crafted JWTs with debug roles
+    // Mock WAS — serves crafted JWTs
     val wasPort = a["--was-port"]?.toIntOrNull() ?: 9443
+    val debugRoles = System.getenv("LEYLINE_DEBUG").let { it == "true" || it == "1" }
     val wasServer = MockWasServer(
         port = wasPort,
+        roles = if (debugRoles) MockWasServer.DEBUG_ROLES else MockWasServer.DEFAULT_ROLES,
         certFile = certFile("--was-cert"),
         keyFile = keyFile("--was-key"),
         fdHost = fdHost,

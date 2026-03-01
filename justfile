@@ -325,7 +325,7 @@ docker-build tag=(_registry + ":latest"):
 # deploy: build + push, then pull + restart on VPS
 deploy:
     just docker-build
-    ssh denis@46.224.78.102 "cd /opt/leyline && docker compose pull && docker compose up -d"
+    ssh {{env("LEYLINE_VPS", "vps")}} "cd /opt/leyline && docker compose pull && docker compose up -d"
 
 # --- Private helpers ---
 
