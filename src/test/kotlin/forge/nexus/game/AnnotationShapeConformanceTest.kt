@@ -105,7 +105,7 @@ class AnnotationShapeConformanceTest {
     @Test(description = "ModifiedLife shape: {delta}")
     fun modifiedLifeDetailKeyShape() {
         val ann = AnnotationBuilder.modifiedLife(1, -3)
-        assertEquals(detailKeys(ann), setOf("delta"))
+        assertEquals(detailKeys(ann), setOf("life"))
     }
 
     @Test(description = "ModifiedPower shape: {value}")
@@ -249,10 +249,6 @@ class AnnotationShapeConformanceTest {
      * the fix by passing without it.
      */
     private val expectedMismatch: Map<String, String> = mapOf(
-        // Server sends {life} (absolute life total change), we send {delta} (relative).
-        // Fix: rename detail key from "delta" to "life" in modifiedLife().
-        "ModifiedLife" to "sends {delta} instead of {life} — rename key",
-
         // Server sends no always-present keys (effect_id/counter_type are optional),
         // we always send {value}. Client gets P/T from gameObject fields, not annotation.
         // Fix: drop {value} detail entirely, optionally add effect_id/counter_type.

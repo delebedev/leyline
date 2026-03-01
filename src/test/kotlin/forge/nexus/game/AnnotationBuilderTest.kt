@@ -304,16 +304,16 @@ class AnnotationBuilderTest {
         assertTrue(ann.typeList.contains(AnnotationType.ModifiedLife))
         assertTrue(ann.affectedIdsList.contains(1))
 
-        val delta = ann.detailsList.first { it.key == "delta" }
-        assertEquals(delta.type, KeyValuePairValueType.Int32, "delta uses Int32 (signed)")
-        assertEquals(delta.getValueInt32(0), 3)
+        val life = ann.detailsList.first { it.key == "life" }
+        assertEquals(life.type, KeyValuePairValueType.Int32, "life uses Int32 (signed)")
+        assertEquals(life.getValueInt32(0), 3)
     }
 
     @Test
     fun modifiedLifeNegativeDelta() {
         val ann = AnnotationBuilder.modifiedLife(playerSeatId = 2, lifeDelta = -5)
-        val delta = ann.detailsList.first { it.key == "delta" }
-        assertEquals(delta.getValueInt32(0), -5, "Negative life delta should be preserved")
+        val life = ann.detailsList.first { it.key == "life" }
+        assertEquals(life.getValueInt32(0), -5, "Negative life delta should be preserved")
     }
 
     // --- SyntheticEvent ---
