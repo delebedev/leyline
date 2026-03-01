@@ -3,8 +3,8 @@
 Findings from investigating real Arena server annotations against Forge's engine.
 Each section traces one annotation type from variance report → raw proto → Forge mechanics.
 
-These are research notes, not implementation specs. They capture *how Arena models things*
-and *where Forge's model differs* — the gap analysis needed before wiring.
+Research notes with wiring assessments. They capture *how Arena models things*,
+*where Forge's model differs*, and how hard each annotation would be to wire.
 
 ---
 
