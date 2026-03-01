@@ -172,6 +172,185 @@ also the largest investment.
 
 ---
 
+## AbilityWordActive (type unknown — not in our proto enum)
+
+**Source:** session `09-33-05`, gsId=85/144/151/159/168 (6 instances, 1 session).
+
+### What the variance report shows
+
+```
+AbilityWordActive (6 instances, 1 sessions)
+  Always:    {AbilityGrpId, AbilityWordName, threshold, value}
+  Samples:   AbilityGrpId=[192590]
+             AbilityWordName=[NumberOfLessonCardsInYourGraveyard]
+             threshold=[3], value=[1, 2, 3]
+```
+
+### Card: Accumulate Wisdom (grp:97318)
+
+Foundations instant (Lesson subtype): "Look at the top three cards of your library.
+Put one into your hand… Put each of those cards into your hand instead if there are
+three or more Lesson cards in your graveyard."
+
+Forge DSL: `SVar:X:Count$Compare Y GE3.3.1` / `SVar:Y:Count$ValidGraveyard Lesson.YouOwn`
+— conditional dig count based on graveyard Lesson count.
+
+Ability 192590 = the card's main spell ability.
+
+### Arena annotation lifecycle
+
+**Persistent annotation tracking a conditional threshold.**
+
+All instances have `affectorId` = `affectedIds` = the card's instanceId.
+The annotation **persists across GSMs** and updates as the underlying value changes:
+
+| gsId | instanceId | value | threshold | Notes |
+|---|---|---|---|---|
+| 85 | 299 | 1 | 3 | 1 Lesson in graveyard. Threshold not met. |
+| 144 | 299 | 2 | 3 | 2 Lessons. Still not met. |
+| 151 | 299 | 3 | 3 | 3 Lessons — **threshold met**. Enhanced mode unlocked. |
+| 159 | 336 | 3 | 3 | Same card, new instanceId (zone transfer). Still met. |
+| 168 | 299 | 4 | 3 | Back to original instanceId. Value exceeds threshold. |
+| 168 | 345 | 4 | 3 | Second copy in hand also gets the annotation. |
+
+**Key detail:** the annotation ID (297) stays constant for the same instanceId —
+it's updated in place, not replaced. When the card moves zones and gets a new
+instanceId (336), a new annotation (id changes) is created.
+
+### Proto structure
+
+```proto
+id: 297
+affectorId: 299
+affectedIds: 299
+type: AbilityWordActive
+details:
+  threshold: 3                                      # int32 — the number to meet
+  value: 1                                          # int32 — current count (updates)
+  AbilityGrpId: 192590                              # the ability being tracked
+  AbilityWordName: "NumberOfLessonCardsInYourGraveyard"  # string — condition name
+```
+
+### What the client does with this
+
+The `AbilityWordName` string is a **named condition** the client resolves into a UI badge.
+When `value >= threshold`, the client highlights the card to indicate its enhanced mode
+is active — the "ability word" glow effect (similar to how Delirium or Revolt cards
+glow when their condition is met).
+
+### Forge model gap
+
+Forge evaluates the condition at resolution time (`Count$Compare Y GE3.3.1`), not as
+persistent state. The `SVar` system computes it dynamically — there's no tracked
+"current Lesson count" that updates across GSMs.
+
+**Wiring options:**
+1. Per-GSM scan of cards in hand/zones with conditional abilities, evaluate their SVars,
+   emit AbilityWordActive when conditions change
+2. New NexusGameEvent when graveyard/battlefield state changes affect ability word conditions
+3. Skip — purely cosmetic (glow effect), no gameplay impact
+
+Low priority. The complexity is in identifying which cards have ability word conditions
+and mapping their SVars to the `AbilityWordName` + `threshold` + `value` triple.
+
+---
+
+## Qualification (type 42)
+
+**Source:** sessions `11-50-40` (2 instances), `14-15-29` (1 instance).
+
+### What the variance report shows
+
+```
+Qualification (6 instances, 2 sessions)
+  Always:    {QualificationSubtype, QualificationType, SourceParent, grpid}
+  Samples:   QualificationSubtype=[0]
+             QualificationType=[1, 32]
+             SourceParent=[293, 331, 360]
+             grpid=[20230, 62969]
+```
+
+### Card 1: Warden of Evos Isle (grp:75479) — QualificationType=1
+
+2/2 Flying Bird Wizard: "Creature spells with flying you cast cost {1} less to cast."
+
+Forge DSL: `S:Mode$ ReduceCost | ValidCard$ Creature.withFlying | Type$ Spell | Amount$ 1`
+
+`grpid=20230` = abilityId for the cost reduction ability.
+
+### Card 2: Silent Hallcreeper (grp:92142) — QualificationType=32
+
+1/1 Enchantment Creature Horror: "Silent Hallcreeper can't be blocked."
+Also has a `ChoiceRestriction$ ThisGame` charm on combat damage.
+
+Forge DSL: `S:Mode$ CantBlockBy | ValidAttacker$ Creature.Self`
+
+`grpid=62969` = abilityId for "can't be blocked."
+
+### Arena annotation structure
+
+**Two different QualificationTypes with different semantics:**
+
+**QualificationType=1 (cost reduction):**
+```proto
+id: 197
+affectorId: 293      # Warden of Evos Isle (the source)
+affectedIds: 2       # player seat 2 (the beneficiary)
+type: Qualification
+details:
+  SourceParent: 293   # same as affectorId
+  grpid: 20230        # the cost reduction ability
+  QualificationSubtype: 0
+  QualificationType: 1
+```
+The `affectedIds` is **player seat**, not a card. The client uses this to show
+which player benefits from cost reduction and from which source.
+
+**QualificationType=32 (evasion — can't be blocked):**
+```proto
+id: 199
+affectorId: 360      # Silent Hallcreeper (the source)
+affectedIds: 360     # same card (self-referencing)
+type: Qualification
+details:
+  SourceParent: 360
+  grpid: 62969        # the "can't be blocked" ability
+  QualificationSubtype: 0
+  QualificationType: 32
+```
+Here `affectedIds` = `affectorId` = **the creature itself**. Self-referencing — the
+card qualifies itself as having the evasion property.
+
+### Lifecycle
+
+Persistent annotation. Appears when the source permanent is on the battlefield.
+Second Warden (iid=331, T10) gets the same annotation — it persists as long as
+the permanent exists.
+
+### What the client does with this
+
+Qualifications are the client's way of tracking **which static abilities apply to whom**.
+The client parses `QualificationType` to determine the category:
+- Type 1 = cost modification (show discount indicator)
+- Type 32 = combat evasion (show unblockable indicator)
+
+The `grpid` links back to the specific ability granting the qualification.
+
+### Forge model gap
+
+Forge handles cost reduction (`ReduceCost`) and evasion (`CantBlockBy`) through its
+static ability layer. These are computed dynamically during gameplay — no explicit
+"qualification" data structure.
+
+**Wiring assessment:** Hard. Would require scanning all permanents with static abilities
+each GSM, determining which qualifications they produce, and emitting the right
+QualificationType enum values. The QualificationType values (1, 32, etc.) are Arena-specific
+and not documented in our proto — would need more recordings to build a complete mapping.
+
+Low priority — purely visual (cost/evasion badges). The mechanics already work correctly.
+
+---
+
 ## Cross-references
 
 | Annotation | Cards seen | Sessions | Instances |
@@ -179,11 +358,12 @@ also the largest investment.
 | GainDesignation | Unholy Annex // Ritual Chamber | `00-18-46` | 8 |
 | Designation | Unholy Annex // Ritual Chamber | `00-18-46` | 8 |
 | AbilityExhausted | Monument to Endurance, Aurelia the Warleader | `09-33-05`, `00-18-46` | 7 |
+| AbilityWordActive | Accumulate Wisdom | `09-33-05` | 6 |
+| Qualification | Warden of Evos Isle, Silent Hallcreeper | `11-50-40`, `14-15-29` | 6 |
 
 ### Related annotation types not yet investigated
 
 | Type | Likely related mechanic | Cards to check |
 |---|---|---|
 | LoseDesignation (type 103) | Room door de-unlock? Monarch lost? | Not in recordings yet |
-| AbilityWordActive (type ?) | Threshold/conditional ability highlight | grp:97318 in `09-33-05` |
-| Qualification (type 42) | Party/condition tracking | grp:75479 in `11-50-40` |
+| MiscContinuousEffect (type 52) | Extra phases/turns, max hand size | grp:100287 (Aurelia) in `14-15-29` |
