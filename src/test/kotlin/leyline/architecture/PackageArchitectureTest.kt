@@ -48,84 +48,85 @@ import java.nio.file.Path
  * - **Regressions**: if someone adds an import that violates layering, CI fails
  *   with a clear message naming the offending class and dependency.
  */
-class PackageArchitectureTest : FunSpec({
+class PackageArchitectureTest :
+    FunSpec({
 
-    /**
-     * Import only leyline production classes from this module's target dir.
-     * Using importPath() instead of importPackages() avoids scanning the full
-     * classpath — importPackages resolves transitive deps from forge-game
-     * which blows the heap on CI runners with limited memory.
-     */
-    val classes = ClassFileImporter()
-        .withImportOption(ImportOption.DoNotIncludeTests())
-        .importPath(Path.of("").toAbsolutePath().resolve("target/classes"))
+        /**
+         * Import only leyline production classes from this module's target dir.
+         * Using importPath() instead of importPackages() avoids scanning the full
+         * classpath — importPackages resolves transitive deps from forge-game
+         * which blows the heap on CI runners with limited memory.
+         */
+        val classes = ClassFileImporter()
+            .withImportOption(ImportOption.DoNotIncludeTests())
+            .importPath(Path.of("").toAbsolutePath().resolve("target/classes"))
 
-    // TODO: fix debug↔server cycle (DebugServer imports MatchSession, MatchSession imports SessionRecorder)
-    xtest("no package cycles") {
-        slices().matching("leyline.(*)..")
-            .should().beFreeOfCycles()
-            .check(classes)
-    }
+        // TODO: fix debug↔server cycle (DebugServer imports MatchSession, MatchSession imports SessionRecorder)
+        xtest("no package cycles") {
+            slices().matching("leyline.(*)..")
+                .should().beFreeOfCycles()
+                .check(classes)
+        }
 
-    test("config is leaf — no deps on any other leyline package") {
-        noClasses().that().resideInAPackage("leyline.config..")
-            .should().dependOnClassesThat()
-            .resideInAnyPackage(
-                "leyline.game..",
-                "leyline.protocol..",
-                "leyline.recording..",
-                "leyline.debug..",
-                "leyline.server..",
-                "leyline.conformance..",
-                "leyline.analysis..",
-            ).check(classes)
-    }
+        test("config is leaf — no deps on any other leyline package") {
+            noClasses().that().resideInAPackage("leyline.config..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.game..",
+                    "leyline.protocol..",
+                    "leyline.recording..",
+                    "leyline.debug..",
+                    "leyline.server..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                ).check(classes)
+        }
 
-    test("recording does not import upward") {
-        noClasses().that().resideInAPackage("leyline.recording..")
-            .should().dependOnClassesThat()
-            .resideInAnyPackage(
-                "leyline.server..",
-                "leyline.debug..",
-                "leyline.conformance..",
-                "leyline.analysis..",
-            ).check(classes)
-    }
+        test("recording does not import upward") {
+            noClasses().that().resideInAPackage("leyline.recording..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.server..",
+                    "leyline.debug..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                ).check(classes)
+        }
 
-    test("game does not import upward") {
-        noClasses().that().resideInAPackage("leyline.game..")
-            .should().dependOnClassesThat()
-            .resideInAnyPackage(
-                "leyline.server..",
-                "leyline.debug..",
-                "leyline.protocol..",
-                "leyline.recording..",
-                "leyline.conformance..",
-                "leyline.analysis..",
-            ).check(classes)
-    }
+        test("game does not import upward") {
+            noClasses().that().resideInAPackage("leyline.game..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.server..",
+                    "leyline.debug..",
+                    "leyline.protocol..",
+                    "leyline.recording..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                ).check(classes)
+        }
 
-    test("protocol does not import upward") {
-        noClasses().that().resideInAPackage("leyline.protocol..")
-            .should().dependOnClassesThat()
-            .resideInAnyPackage(
-                "leyline.server..",
-                "leyline.debug..",
-                "leyline.conformance..",
-                "leyline.analysis..",
-            ).check(classes)
-    }
+        test("protocol does not import upward") {
+            noClasses().that().resideInAPackage("leyline.protocol..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.server..",
+                    "leyline.debug..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                ).check(classes)
+        }
 
-    test("mapper does not import outside game") {
-        noClasses().that().resideInAPackage("leyline.game.mapper..")
-            .should().dependOnClassesThat()
-            .resideInAnyPackage(
-                "leyline.server..",
-                "leyline.debug..",
-                "leyline.conformance..",
-                "leyline.analysis..",
-                "leyline.recording..",
-                "leyline.protocol..",
-            ).check(classes)
-    }
-})
+        test("mapper does not import outside game") {
+            noClasses().that().resideInAPackage("leyline.game.mapper..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.server..",
+                    "leyline.debug..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                    "leyline.recording..",
+                    "leyline.protocol..",
+                ).check(classes)
+        }
+    })
