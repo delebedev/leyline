@@ -17,8 +17,8 @@
   <!-- Silence all Ktor internals (routing traces, WS frame dumps, content negotiation) -->
   <logger name="io.ktor" level="INFO"/>
 
-  <!-- Debug panel: streams log events to nexus-debug.html -->
-  <appender name="DebugPanel" class="forge.nexus.debug.NexusDebugLogAppender"/>
+  <!-- Debug panel: streams log events to leyline-debug.html -->
+  <appender name="DebugPanel" class="leyline.debug.DebugLogAppender"/>
 
   <!-- Our code -->
   <logger name="forge.web" level="DEBUG"/>

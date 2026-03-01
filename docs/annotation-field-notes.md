@@ -164,7 +164,7 @@ doesn't map to Arena's `abilityGrpId` numbering. Monument's three Charm modes ar
 SVars (`DBDraw`, `DBToken`, `DBLoseLife`) — they don't have stable numeric IDs.
 Wiring AbilityExhausted requires either:
 1. A per-GSM scan of cards with once-per-turn restrictions, deriving exhausted abilities
-2. A new NexusGameEvent emitted when `ChoiceRestriction$ ThisTurn` narrows available modes
+2. A new GameEvent emitted when `ChoiceRestriction$ ThisTurn` narrows available modes
 3. An ability identity mapping layer (Forge SVar → grpId) — useful beyond just this annotation
 
 Option 2 is most aligned with existing patterns. Option 3 is the most reusable but
@@ -247,7 +247,7 @@ persistent state. The `SVar` system computes it dynamically — there's no track
 **Wiring options:**
 1. Per-GSM scan of cards in hand/zones with conditional abilities, evaluate their SVars,
    emit AbilityWordActive when conditions change
-2. New NexusGameEvent when graveyard/battlefield state changes affect ability word conditions
+2. New GameEvent when graveyard/battlefield state changes affect ability word conditions
 3. Skip — purely cosmetic (glow effect), no gameplay impact
 
 Low priority. The complexity is in identifying which cards have ability word conditions

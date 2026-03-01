@@ -11,7 +11,7 @@ just serve-puzzle path/to/puzzle.pzl
 Or with explicit CLI flag:
 
 ```bash
-java ... forge.nexus.NexusMainKt --proxy-fd <ip> --puzzle path/to/puzzle.pzl
+java ... leyline.LeylineMainKt --proxy-fd <ip> --puzzle path/to/puzzle.pzl
 ```
 
 The `--puzzle` flag forces puzzle mode for **all** client connections regardless of their matchId. Deck validation is skipped.

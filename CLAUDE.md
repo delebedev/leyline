@@ -33,7 +33,7 @@ See `docs/architecture.md` for diagrams. This is the fast orientation.
 
 **Threading:** Engine runs on a dedicated daemon thread, blocks on `CompletableFuture.get()` at every priority stop / prompt. `MatchSession` receives client messages on Netty I/O thread, completes the future. All session entry points synchronized on `sessionLock`. Timeout = engine blocked waiting for a response MatchSession never submitted.
 
-**Event-driven annotations:** Forge fires `GameEvent` on its Guava EventBus → `GameEventCollector` (subscribes synchronously on engine thread) translates to `NexusGameEvent` sealed variants → queued in `ConcurrentLinkedQueue` → `StateMapper` drains at diff-build time → `AnnotationBuilder.categoryFromEvents()` picks most-specific category (LandPlayed > ZoneChanged) → builder methods construct proto `AnnotationInfo` with correct Arena type numbers and detail keys.
+**Event-driven annotations:** Forge fires `GameEvent` on its Guava EventBus → `GameEventCollector` (subscribes synchronously on engine thread) translates to `GameEvent` sealed variants → queued in `ConcurrentLinkedQueue` → `StateMapper` drains at diff-build time → `AnnotationBuilder.categoryFromEvents()` picks most-specific category (LandPlayed > ZoneChanged) → builder methods construct proto `AnnotationInfo` with correct Arena type numbers and detail keys.
 
 **Three-stage diff pipeline:** (1) `detectZoneTransfers` → `TransferResult` — realloc instanceIds, return patched objects/zones + deferred retirements/zone recordings. (2) `annotationsForTransfer` — pure function, proto annotations per transfer. (3) `combatAnnotations` — damage/life/phase annotations. All numbered after assembly.
 
@@ -41,8 +41,8 @@ See `docs/architecture.md` for diagrams. This is the fast orientation.
 
 ### Adding a new annotation type
 
-1. `GameEventCollector` — subscribe to Forge `GameEvent`, emit `NexusGameEvent`
-2. `NexusGameEvent.kt` — add sealed variant with forge card IDs (not instanceIds)
+1. `GameEventCollector` — subscribe to Forge `GameEvent`, emit `GameEvent`
+2. `GameEvent.kt` — add sealed variant with forge card IDs (not instanceIds)
 3. `AnnotationBuilder` — add builder method matching Arena annotation type number + detail keys (reference `mtga-internals/docs/13-annotation-system.md`)
 4. `StateMapper` annotation pipeline — wire event into annotation generation (either transfer-based or standalone in `buildFromGame`)
 5. Test: unit test in `AnnotationBuilderTest`, category test in `CategoryFromEventsTest`

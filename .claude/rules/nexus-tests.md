@@ -1,9 +1,9 @@
 ---
 paths:
-  - "forge-nexus/src/test/**"
+  - "src/test/**"
 ---
 
-# Nexus Tests
+# Leyline Tests
 
 One test per behavior, at the fastest level that covers it.
 

@@ -2,7 +2,7 @@
 """Parse Surefire JUnit XML reports and emit a compact test summary.
 
 Usage: python3 test-summary.py <module-target-dir>
-  e.g. python3 test-summary.py forge-nexus/target
+  e.g. python3 test-summary.py target
 
 Reads junitreports/TEST-*.xml, writes <target>/test-summary.txt,
 prints same summary to stdout.

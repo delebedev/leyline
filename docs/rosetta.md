@@ -6,7 +6,7 @@ Translation reference: Arena protocol ↔ Forge engine ↔ forge-nexus code.
 
 Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `MISSING` = not yet implemented.
 
-| Type# | Arena Name | Forge GameEvent | NexusGameEvent | AnnotationBuilder Method | Key Detail Keys | Status |
+| Type# | Arena Name | Forge GameEvent | GameEvent | AnnotationBuilder Method | Key Detail Keys | Status |
 |------:|------------|-----------------|----------------|--------------------------|-----------------|--------|
 | 1 | ZoneTransfer | `GameEventCardChangeZone` | `ZoneChanged` | `zoneTransfer()` | `zone_src`, `zone_dest`, `category` | Implemented |
 | 3 | DamageDealt | `GameEventCardDamaged`, `GameEventPlayerDamaged` | `DamageDealtToCard`, `DamageDealtToPlayer` | `damageDealt()` | `damage`, `type`, `markDamage` | Implemented |
@@ -113,7 +113,7 @@ Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `
 
 ## Table 2: Zone Transfer Categories
 
-| Code | Arena Name | Typical Zone Pair | TransferCategory Variant | NexusGameEvent Driver | Status |
+| Code | Arena Name | Typical Zone Pair | TransferCategory Variant | GameEvent Driver | Status |
 |-----:|------------|-------------------|--------------------------|----------------------|--------|
 | 6 | CastSpell | Hand → Stack | `CastSpell` | `SpellCast` | Implemented |
 | 7 | PlayLand | Hand → Battlefield | `PlayLand` | `LandPlayed` | Implemented |
@@ -294,7 +294,7 @@ Forge uses a single `PhaseType` enum covering both phases and steps. Arena uses 
 
 All 57 concrete `GameEvent` classes in `forge.game.event`:
 
-| GameEvent Class | Payload | Wired to NexusGameEvent? |
+| GameEvent Class | Payload | Wired to GameEvent? |
 |-----------------|---------|--------------------------|
 | `GameEventAnteCardsSelected` | cards multimap | No |
 | `GameEventAttackersDeclared` | player, attackersMap | Yes → `AttackersDeclared` |

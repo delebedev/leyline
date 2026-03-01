@@ -347,7 +347,7 @@ forge-nexus/src/test/kotlin/                  63 files, ~13.4K LOC
 
 **Three-stage diff pipeline.** `detectZoneTransfers → annotationsForTransfer → combatAnnotations` is a pure, composable pipeline. Each stage's output is deterministic from its inputs. Easy to test in isolation, easy to extend.
 
-**Event-driven annotations.** The `GameEventCollector → NexusGameEvent → AnnotationBuilder.categoryFromEvents()` chain decouples Forge's Guava EventBus from proto construction. Adding a new annotation type is a 5-step cookbook recipe touching known files.
+**Event-driven annotations.** The `GameEventCollector → GameEvent → AnnotationBuilder.categoryFromEvents()` chain decouples Forge's Guava EventBus from proto construction. Adding a new annotation type is a 5-step cookbook recipe touching known files.
 
 **Conformance infrastructure.** `StructuralFingerprint` / `StructuralDiff` / golden files / `ValidatingMessageSink` / `MatchFlowHarness` — the testing infra is more sophisticated than most game servers. The `recording` group tests against real Arena traffic are the gold standard.
 

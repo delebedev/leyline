@@ -233,15 +233,15 @@
             <configuration>
               <excludes>
                 <!-- CLI/analysis/debug/server — not unit-testable, inflates denominator -->
-                <exclude>forge/nexus/NexusMain*</exclude>
-                <exclude>forge/nexus/NexusPaths*</exclude>
-                <exclude>forge/nexus/analysis/**</exclude>
-                <exclude>forge/nexus/debug/**</exclude>
-                <exclude>forge/nexus/server/**</exclude>
-                <exclude>forge/nexus/protocol/**</exclude>
-                <exclude>forge/nexus/conformance/CompareMain*</exclude>
-                <exclude>forge/nexus/conformance/GameFlowAnalyzer*</exclude>
-                <exclude>forge/nexus/recording/**</exclude>
+                <exclude>leyline/LeylineMain*</exclude>
+                <exclude>leyline/LeylinePaths*</exclude>
+                <exclude>leyline/analysis/**</exclude>
+                <exclude>leyline/debug/**</exclude>
+                <exclude>leyline/server/**</exclude>
+                <exclude>leyline/protocol/**</exclude>
+                <exclude>leyline/conformance/CompareMain*</exclude>
+                <exclude>leyline/conformance/GameFlowAnalyzer*</exclude>
+                <exclude>leyline/recording/**</exclude>
                 <!-- Generated protobuf code -->
                 <exclude>wotc/**</exclude>
               </excludes>

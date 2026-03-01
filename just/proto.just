@@ -1,5 +1,5 @@
 # Proto inspection & diffing tools
-# Imported by forge-nexus/justfile — all variables available from parent.
+# Imported by justfile — all variables available from parent.
 
 # re-decode FD raw frames → fd-frames.jsonl (fixes compressed payloads)
 decode-golden dir="": (_require classpath) check-java
@@ -10,15 +10,15 @@ decode-golden dir="": (_require classpath) check-java
         d=$(ls -td recordings/*/capture 2>/dev/null | head -1)
         if [ -z "$d" ]; then echo "No captures found." >&2; exit 1; fi
     fi
-    {{_nexus_cli}} forge.nexus.debug.DecodeFdCaptureKt "$d"
+    {{_cli}} leyline.debug.DecodeFdCaptureKt "$d"
 
 # inspect a .bin template (no port kill — safe while server runs)
 proto-inspect file=(templates / "mulligan-req-seat1.bin"): (_require classpath) check-java
-    @{{_nexus_cli}} forge.nexus.debug.InspectKt "{{file}}"
+    @{{_cli}} leyline.debug.InspectKt "{{file}}"
 
 # decode Match Door payloads
 proto-decode: (_require classpath) check-java
-    @{{_nexus_cli}} forge.nexus.debug.DecodeCaptureKt {{payloads}}
+    @{{_cli}} leyline.debug.DecodeCaptureKt {{payloads}}
 
 # save last S→C payload as template
 proto-extract name="extracted": (_require classpath) check-java
@@ -44,7 +44,7 @@ proto-diff-prep: (_require classpath) check-java
     for f in {{payloads}}/S-C_*.bin; do
         [ -f "$f" ] || continue
         base=$(basename "$f" .bin)
-        {{_nexus_cli}} forge.nexus.debug.InspectKt "$f" > "$real_dir/$base.txt" 2>/dev/null
+        {{_cli}} leyline.debug.InspectKt "$f" > "$real_dir/$base.txt" 2>/dev/null
         echo "  $base.txt"
     done
     echo "Real payloads dumped to $real_dir/"
@@ -68,7 +68,7 @@ proto-diff:
 
 # compare our output vs real Arena captures structurally (no port kill)
 proto-compare *args: (_require classpath) check-java
-    @{{_nexus_cli}} forge.nexus.conformance.CompareMainKt {{args}}
+    @{{_cli}} leyline.conformance.CompareMainKt {{args}}
 
 # trace an ID across all recorded payloads (no port kill — safe while server runs)
 # dir: payloads dir (default: capture), or "engine" / "latest-engine" shortcuts
@@ -78,19 +78,19 @@ proto-trace id dir="": (_require classpath) check-java
     d="{{dir}}"
     if [[ -z "$d" ]]; then d="{{payloads}}"; fi
     if [[ "$d" == "engine" || "$d" == "latest-engine" ]]; then
-        d="$(ls -dt "{{nexus_dir}}"/recordings/*/engine 2>/dev/null | head -1)"
+        d="$(ls -dt "{{project_dir}}"/recordings/*/engine 2>/dev/null | head -1)"
         [[ -z "$d" ]] && { echo "No engine recording found"; exit 1; }
     fi
-    {{_nexus_cli}} forge.nexus.debug.TraceKt "{{id}}" "$d"
+    {{_cli}} leyline.debug.TraceKt "{{id}}" "$d"
 
 # decode a recording directory to structured JSONL (no port kill)
 proto-decode-recording dir output="": (_require classpath) check-java
-    @{{_nexus_cli}} forge.nexus.recording.RecordingDecoderMainKt "{{dir}}" {{output}}
+    @{{_cli}} leyline.recording.RecordingDecoderMainKt "{{dir}}" {{output}}
 
 # decode + accumulate state snapshots from a recording (no port kill)
 proto-accumulate dir output="": (_require classpath) check-java
-    @{{_nexus_cli}} forge.nexus.recording.RecordingDecoderMainKt "{{dir}}" --accumulate {{output}}
+    @{{_cli}} leyline.recording.RecordingDecoderMainKt "{{dir}}" --accumulate {{output}}
 
 # annotation type variance profile across all proxy recordings (no port kill)
 proto-annotation-variance *args: (_require classpath) check-java
-    @{{_nexus_cli}} forge.nexus.debug.AnnotationVarianceKt {{args}}
+    @{{_cli}} leyline.debug.AnnotationVarianceKt {{args}}

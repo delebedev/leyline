@@ -154,7 +154,7 @@ Read these **before** coding. They compress thousands of LOC into patterns and t
 | Role | File | When to read |
 |------|------|-------------|
 | Annotation factories | `AnnotationBuilder.kt` | Adding/modifying annotation output |
-| Event → annotation wiring | `GameEventCollector.kt`, `NexusGameEvent.kt` | New Forge event subscription |
+| Event → annotation wiring | `GameEventCollector.kt`, `GameEvent.kt` | New Forge event subscription |
 | Diff assembly pipeline | `StateMapper.kt` | Any annotation/zone/category change |
 | GRE message construction | `BundleBuilder.kt` | New message type or bundle shape |
 | Client message dispatch | `MatchHandler.kt` | New inbound message type |
@@ -309,7 +309,7 @@ Engine produces correct game state; need conformance tests verifying the proto w
 
 - **Source:** Recording #4 (`22-31-58`): action #49 SBA_ZeroToughness on grp:75485 at T10 (gsId=223). Recording #6 (`18-45-57-game1`): action #15 SBA_Damage grp:79618 at T3, #16 SBA_Deathtouch grp:75458 at T3 (combat trade — lethal damage + deathtouch simultaneous).
 - **Classification:** conformance test
-- **What exists:** Engine fires `GameEventCardDestroyed` → `CardDestroyed` NexusGameEvent → `Destroy` category. `ZoneTransitionConformanceTest` covers BF→GY. `CombatFlowTest` covers combat damage deaths.
+- **What exists:** Engine fires `GameEventCardDestroyed` → `CardDestroyed` GameEvent → `Destroy` category. `ZoneTransitionConformanceTest` covers BF→GY. `CombatFlowTest` covers combat damage deaths.
 - **What's missing:** No test for SBA-triggered death specifically (creature at 0 toughness after -X/-X effect; deathtouch-marked damage). Unknown if SBA death produces different annotations than spell-caused destroy.
 - **Read first:** `docs/rosetta.md` (Destroy category, DamageDealt annotation type 3), `docs/combat-protocol.md`
 - **Touch:** Add cases to `ZoneTransitionConformanceTest` or new `SBADeathTest.kt`. Inject creature + -X/-X spell for ZeroToughness. Inject deathtouch creature for Deathtouch. Assert BF→GY with correct category.
@@ -380,9 +380,9 @@ Engine produces correct game state; need conformance tests verifying the proto w
 - **Source:** Documented in `recording-analysis-runbook.md` §4 "Discard + reveal spell" pattern. Types 59/60 in proto. Appear during Thoughtseize-style spells that reveal opponent's hand.
 - **Classification:** annotation gap
 - **What exists:** `QueuedGameStateMessage` built. Targeting flow implemented. `AnnotationBuilder` has factory pattern for new annotation types.
-- **What's missing:** `AnnotationBuilder.revealedCardCreated()` / `.revealedCardDeleted()` factories. `GameEventCollector` subscription for Forge reveal events. `NexusGameEvent` sealed variant for reveal. `StateMapper` wiring.
+- **What's missing:** `AnnotationBuilder.revealedCardCreated()` / `.revealedCardDeleted()` factories. `GameEventCollector` subscription for Forge reveal events. `GameEvent` sealed variant for reveal. `StateMapper` wiring.
 - **Read first:** `CLAUDE.md` cookbook "Adding a new annotation type", `docs/rosetta.md` (annotation types 59/60), `recording-analysis-runbook.md` §4 (reveal pattern — shows the full message sequence)
-- **Touch:** `AnnotationBuilder.kt` → `GameEventCollector.kt` → `NexusGameEvent.kt` → `StateMapper.kt`.
+- **Touch:** `AnnotationBuilder.kt` → `GameEventCollector.kt` → `GameEvent.kt` → `StateMapper.kt`.
 - **Test:** Integration test: cast reveal spell → assert RevealedCardCreated annotations with correct card count → choose discard → assert RevealedCardDeleted.
 - **Effort:** M
 - **Dependencies:** 2.1 (SelectNReq) for the full discard-after-reveal flow.
@@ -418,9 +418,9 @@ Engine produces correct game state; need conformance tests verifying the proto w
 - **Source:** `RecordingDecoderTest` (on-draw recording: Aura grp:75473 resolve at gsId 53 — AttachmentCreated + LayeredEffect annotations). Action trace: `src/test/resources/recordings/20260217-234330-on-draw-sparky-two-creatures-player-attacked/action-trace.md` line 66.
 - **Classification:** annotation gap
 - **What exists:** `ObjectMapper.applyCardFields()` sets parentId for visual attachment. No protocol annotations.
-- **What's missing:** `AttachmentCreated` (type 70), `CreateAttachment`/`RemoveAttachment` (types 11/12), `LayeredEffectCreated`/`Destroyed` (types 18/19). `GameEventCardAttachment` exists in Forge but not wired to `NexusGameEvent`.
+- **What's missing:** `AttachmentCreated` (type 70), `CreateAttachment`/`RemoveAttachment` (types 11/12), `LayeredEffectCreated`/`Destroyed` (types 18/19). `GameEventCardAttachment` exists in Forge but not wired to `GameEvent`.
 - **Read first:** `CLAUDE.md` cookbook "Adding a new annotation type", `docs/rosetta.md` (annotation types 11/12/18/19/70), on-draw action trace for reference shape
-- **Touch:** `AnnotationBuilder.kt` (4+ new factories), `GameEventCollector.kt` (subscribe to `GameEventCardAttachment`), `NexusGameEvent.kt`, `StateMapper.kt`.
+- **Touch:** `AnnotationBuilder.kt` (4+ new factories), `GameEventCollector.kt` (subscribe to `GameEventCardAttachment`), `GameEvent.kt`, `StateMapper.kt`.
 - **Test:** Integration test: inject creature + Aura → cast Aura targeting creature → assert AttachmentCreated annotation, parentId set on proto object.
 - **Effort:** L — multiple annotation types, cross-reference with proxy recording for exact shape.
 - **Dependencies:** Targeting flow (already working).
