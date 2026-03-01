@@ -503,6 +503,146 @@ Currently, we emit `powerToughnessModCreated` (which covers the Prowess-like P/T
 
 ---
 
+## LoyaltyActivationsRemaining (type 97)
+
+**Source:** session `2026-03-01_11-33-28`, gsId=143/161/186 (Liliana of the Veil).
+
+### What the variance report shows
+
+```
+LoyaltyActivationsRemaining (8 instances, 2 sessions)
+  Always:    {ActivationsRemaining}
+  Samples:   ActivationsRemaining=[1]
+```
+
+### Card: Liliana of the Veil (grp:82149)
+
+Planeswalker with three loyalty abilities: +1 (each player discards), -2 (target player sacrifices creature), -6 (ultimate).
+
+### Arena annotation lifecycle
+
+**Persistent annotation, refreshes each turn.**
+
+gsId=143 — Liliana resolves, enters battlefield with 3 loyalty:
+```proto
+id: 458
+affectorId: 499      # Liliana instanceId
+affectedIds: 499
+type: LoyaltyActivationsRemaining
+details:
+  ActivationsRemaining: 1    # always 1 — one PW activation per turn
+```
+
+Appears in the same GSM as CounterAdded (loyalty, amount=3), persistent Counter (count=3, type=7).
+
+gsId=144 — Liliana's -2 ability activated → annotation deleted (via `diffDeletedPersistentAnnotationIds`). The PW has used its activation for the turn.
+
+gsId=161 — New turn starts → annotation recreated with `ActivationsRemaining: 1`. Fresh activation available.
+
+gsId=186 — Liliana's +1 ability activated → annotation deleted again.
+
+### What the client does with this
+
+Enables/disables the loyalty ability buttons on the planeswalker card. When `ActivationsRemaining=0` (annotation deleted), all ability buttons grey out. When refreshed at turn start, they re-enable.
+
+### Forge model gap
+
+Forge tracks PW activation count internally (`numActivationsThisTurn`) but doesn't expose it as an event. The annotation is straightforward to wire:
+
+**Wiring assessment: Easy.**
+1. On PW entering battlefield → emit LoyaltyActivationsRemaining(1)
+2. On PW ability activation → delete the annotation
+3. On new turn → re-emit for each PW on battlefield
+
+No complex mapping needed — just lifecycle tracking of PW permanents.
+
+---
+
+## ChoiceResult (type 58)
+
+**Source:** session `2026-03-01_11-33-28`, gsId=70 (Sheoldred's Edict) and gsId=149 (Liliana -2).
+
+### What the variance report shows
+
+```
+ChoiceResult (8 instances, 2 sessions)
+  Always:    {Choice_Value, Choice_Sentiment}
+  Sometimes: Choice_Options (50%), Choice_Domain (50%)
+  Samples:   Choice_Value=[477, 492]
+             Choice_Sentiment=[1]
+```
+
+### Observed instances
+
+**gsId=70 — Sheoldred's Edict (grp:83808):**
+Opponent must sacrifice a creature or planeswalker. Opponent chose creature 477.
+```proto
+type: ChoiceResult
+details:
+  Choice_Value: 477       # instanceId of the chosen permanent
+  Choice_Sentiment: 1     # positive sentiment (choice was made, not forced)
+```
+
+**gsId=149 — Liliana of the Veil -2 ability:**
+"Target player sacrifices a creature." Opponent chose creature 492.
+```proto
+type: ChoiceResult
+details:
+  Choice_Value: 492       # instanceId of the chosen permanent
+  Choice_Sentiment: 1
+```
+
+### What the client does with this
+
+ChoiceResult fires as a **transient annotation** when a player completes a forced choice (sacrifice, discard selection). The client uses it for:
+1. Brief highlight on the chosen object
+2. Log entry ("Opponent chose [card name]")
+
+`Choice_Sentiment=1` appears constant — may indicate "voluntary choice" vs "forced/random." Need more recordings with random effects to confirm.
+
+### Forge model gap
+
+Forge resolves sacrifice/discard choices through its input system (AI picks, or human prompted). The chosen card goes through the normal zone transfer. There's no dedicated "choice result" event — the choice is implicit in the subsequent action.
+
+**Wiring assessment: Medium.** Would need to intercept the moment a sacrifice/discard choice is finalized and emit a transient annotation before the zone transfer happens. The `InteractivePromptBridge` response path would be the hook point.
+
+---
+
+## ObjectsSelected (type 31)
+
+**Source:** session `2026-03-01_11-33-28`, gsId=189 (Liliana +1 discard).
+
+### What the variance report shows
+
+```
+ObjectsSelected (4 instances, 2 sessions)
+  Always:    (no detail keys)
+  Samples:   affectedIds=[0], playerId present
+```
+
+### Observed instance
+
+**gsId=189 — Liliana's +1 ("Each player discards a card"):**
+```proto
+type: ObjectsSelected
+affectorId: 0
+affectedIds: [0]
+```
+
+This is a **persistent annotation** that appears when a player's selection is locked in during a multi-player simultaneous choice. At gsId=190, both players' discards resolve (ZoneTransfer for each).
+
+### What the client does with this
+
+Marks that a player has made their selection during a simultaneous-choice effect. The client shows a "waiting for opponent" state or a checkmark on the selecting player.
+
+### Forge model gap
+
+Forge handles simultaneous discard through sequential prompts (not true simultaneous selection). The engine resolves each player's choice in turn order.
+
+**Wiring assessment: Low priority.** Purely cosmetic — the discard works correctly, just without the "selection confirmed" visual state.
+
+---
+
 ## Cross-references
 
 | Annotation | Cards seen | Sessions | Instances |
@@ -514,6 +654,9 @@ Currently, we emit `powerToughnessModCreated` (which covers the Prowess-like P/T
 | Qualification | Warden of Evos Isle, Silent Hallcreeper | `11-50-40`, `14-15-29` | 6 |
 | MiscContinuousEffect | Proft's Eidetic Memory, Aurelia the Warleader | `14-15-29`, `00-18-46` | 6 |
 | LayeredEffectDestroyed | Otter token (Prowess), Twinblade Paladin | `09-33-05`, `00-11-05`, `00-18-46` | 15 |
+| LoyaltyActivationsRemaining | Liliana of the Veil | `11-33-28` | 8 |
+| ChoiceResult | Sheoldred's Edict, Liliana of the Veil | `11-33-28` | 8 |
+| ObjectsSelected | Liliana of the Veil (+1 discard) | `11-33-28` | 4 |
 
 ### Related annotation types not yet investigated
 
