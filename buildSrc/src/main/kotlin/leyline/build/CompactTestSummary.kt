@@ -37,11 +37,13 @@ class CompactTestSummary : TestListener {
         val passed = total - failed - skipped
         val secs = (result.endTime - result.startTime) / 1000.0
         println()
+        val ran = passed + failed
         if (failed == 0L) {
             println("PASS $passed/$passed in ${"%.1f".format(secs)}s")
             if (skipped > 0) println("  ($skipped skipped)")
         } else {
-            println("FAIL $passed/$total ($failed failure${if (failed != 1L) "s" else ""}) in ${"%.1f".format(secs)}s")
+            println("FAIL $passed/$ran ($failed failure${if (failed != 1L) "s" else ""}) in ${"%.1f".format(secs)}s")
+            if (skipped > 0) println("  ($skipped skipped)")
             println()
             println("FAILED:")
             for ((cls, name, msg) in failedTests) {
