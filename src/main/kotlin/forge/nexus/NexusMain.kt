@@ -4,6 +4,7 @@ import forge.nexus.config.DeckValidator
 import forge.nexus.config.PlaytestConfig
 import forge.nexus.debug.DebugServer
 import forge.nexus.debug.PlayerLogWatcher
+import forge.nexus.server.MockWasServer
 import forge.nexus.server.NexusServer
 import java.io.File
 
@@ -56,9 +57,18 @@ fun main(args: Array<String>) {
 
     val logWatcher = PlayerLogWatcher()
 
+    // Mock WAS — serves crafted JWTs with debug roles
+    val wasPort = a["--was-port"]?.toIntOrNull() ?: 9443
+    val wasServer = MockWasServer(
+        port = wasPort,
+        certFile = a["--was-cert"]?.let { File(it) },
+        keyFile = a["--was-key"]?.let { File(it) },
+    )
+
     Runtime.getRuntime().addShutdownHook(
         Thread {
             logWatcher.stop()
+            wasServer.stop()
             server.stop()
         },
     )
@@ -76,9 +86,11 @@ fun main(args: Array<String>) {
     println("Starting Nexus server ($mode$puzzleSuffix mode)...")
     server.start()
     debugServer.start()
+    wasServer.start()
     logWatcher.start()
     println("Nexus server running. Press Ctrl+C to stop.")
     println("Debug panel: http://localhost:$debugPort")
+    println("Mock WAS:    https://localhost:$wasPort")
     if (puzzleFile != null) {
         println("Puzzle: ${puzzleFile.name}")
     } else {

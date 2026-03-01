@@ -1,5 +1,11 @@
 package forge.nexus.protocol
 
+import forge.nexus.protocol.ClientFrameDecoder.Companion.HEADER_SIZE
+import forge.nexus.protocol.ClientFrameDecoder.Companion.TYPE_CTRL_ACK
+import forge.nexus.protocol.ClientFrameDecoder.Companion.TYPE_CTRL_INIT
+import forge.nexus.protocol.ClientFrameDecoder.Companion.TYPE_DATA_FD
+import forge.nexus.protocol.ClientFrameDecoder.Companion.TYPE_DATA_MATCH
+import forge.nexus.protocol.ClientFrameDecoder.Companion.VERSION
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
 import io.netty.channel.embedded.EmbeddedChannel
@@ -8,12 +14,6 @@ import org.testng.Assert.assertNull
 import org.testng.Assert.assertTrue
 import org.testng.annotations.AfterMethod
 import org.testng.annotations.Test
-import forge.nexus.protocol.ClientFrameDecoder.Companion.HEADER_SIZE
-import forge.nexus.protocol.ClientFrameDecoder.Companion.TYPE_CTRL_ACK
-import forge.nexus.protocol.ClientFrameDecoder.Companion.TYPE_CTRL_INIT
-import forge.nexus.protocol.ClientFrameDecoder.Companion.TYPE_DATA_FD
-import forge.nexus.protocol.ClientFrameDecoder.Companion.TYPE_DATA_MATCH
-import forge.nexus.protocol.ClientFrameDecoder.Companion.VERSION
 
 /**
  * Frame codec roundtrip tests — encode via [ClientHeaderPrepender], decode via

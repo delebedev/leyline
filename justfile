@@ -39,11 +39,14 @@ _nexus_cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + 
 # --- Cert flags (shared by all serve-* targets) ---
 # Only passed when all four files exist; otherwise server uses self-signed.
 
-_fd_cert := certs / "frontdoor-combined.pem"
-_fd_key  := certs / "frontdoor.key"
-_md_cert := certs / "matchdoor-combined.pem"
-_md_key  := certs / "matchdoor.key"
+_fd_cert  := certs / "frontdoor-combined.pem"
+_fd_key   := certs / "frontdoor.key"
+_md_cert  := certs / "matchdoor-combined.pem"
+_md_key   := certs / "matchdoor.key"
+_was_cert := certs / "was-combined.pem"
+_was_key  := certs / "was.key"
 _cert_check := '[ -f "' + _fd_cert + '" ] && [ -f "' + _fd_key + '" ] && [ -f "' + _md_cert + '" ] && [ -f "' + _md_key + '" ]'
+_was_cert_flags := 'if [ -f "' + _was_cert + '" ] && [ -f "' + _was_key + '" ]; then echo "--was-cert ' + _was_cert + ' --was-key ' + _was_key + '"; fi'
 _cert_flags := '--fd-cert "' + _fd_cert + '" --fd-key "' + _fd_key + '" --md-cert "' + _md_cert + '" --md-key "' + _md_key + '"'
 
 # --- Build ---
@@ -144,14 +147,16 @@ serve: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
-    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags --proxy-fd {{fd_ip}}
+    was_flags=$({{_was_cert_flags}})
+    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags $was_flags --proxy-fd {{fd_ip}}
 
 # stub mode (fake both doors, fully offline)
 serve-stub: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
-    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags
+    was_flags=$({{_was_cert_flags}})
+    {{_nexus_java}} forge.nexus.NexusMainKt $cert_flags $was_flags
 
 # replay-stub mode: replay captured FD session (fd-frames.jsonl), stub MD
 serve-replay-stub golden="": (_require classpath) check-java
