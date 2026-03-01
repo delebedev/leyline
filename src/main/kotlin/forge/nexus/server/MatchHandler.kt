@@ -274,6 +274,10 @@ class MatchHandler(
                 log.info("Match Door GRE: CheckpointReq (post-game acknowledgement)")
             }
 
+            // Cosmetic UI relay (emotes, card hover, pet animations) — no game state impact.
+            // In single-player-vs-AI context there's nobody to relay to; silently ignore.
+            ClientMessageType.Uimessage_a39e -> { }
+
             else -> log.warn("Match Door GRE: unhandled type: {}", greMsg.type)
         }
     }
