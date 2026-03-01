@@ -210,10 +210,15 @@ class MatchHandler(
                     } else {
                         mulliganCount++
                         bridge?.submitMull(seatId)
+                        // Nuke-and-repave: delete all old instanceIds, allocate fresh.
+                        // Real server does this on every mull — client forgets old face-up data.
+                        val deletedIds = bridge?.ids?.resetAll() ?: emptyList()
                         seat1Hand = bridge?.getHandGrpIds(1) ?: emptyList()
-                        // Send proper seat-1 DealHand + MulliganReq with updated count
-                        sendDealHand(ctx)
-                        sendMulliganReq()
+                        // Auto-tuck already happened inside submitMull (Forge's London model).
+                        // Send DealHand with deletedIds + MulliganReq with mulliganCount=0
+                        // so the client doesn't double-count the tuck when labeling "Keep X".
+                        sendDealHand(ctx, deletedIds)
+                        sendMulliganReq(reportedMulliganCount = 0, numCards = seat1Hand.size)
                     }
                 }
             }
@@ -344,19 +349,26 @@ class MatchHandler(
     }
 
     /** DealHand only (no MulliganReq) for this handler's seat, on the given channel. */
-    private fun sendDealHand(ctx: ChannelHandlerContext) {
+    private fun sendDealHand(ctx: ChannelHandlerContext, diffDeletedInstanceIds: List<Int> = emptyList()) {
         val s = session ?: return
         val bridge = s.gameBridge ?: return
         val gsId = s.counter.nextGsId()
-        val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId)
+        val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId, diffDeletedInstanceIds)
         s.counter.setMsgId(nextMsgId)
-        NexusTap.outboundTemplate("DealHand seat=$seatId")
+        NexusTap.outboundTemplate("DealHand seat=$seatId deletedIds=${diffDeletedInstanceIds.size}")
         ProtoDump.dump(msg, "DealHand-seat$seatId")
         ctx.writeAndFlush(msg)
     }
 
-    /** MulliganReq sequence for seat 1. */
-    fun sendMulliganReq() {
+    /**
+     * MulliganReq sequence for seat 1.
+     *
+     * @param reportedMulliganCount mulliganCount for the proto (default: internal counter).
+     *   After auto-tuck, pass 0 so the client doesn't double-count the tuck.
+     * @param numCards NumberOfCards prompt value (default: 7 for London).
+     *   After auto-tuck, pass actual hand size so "Keep X" label is correct.
+     */
+    fun sendMulliganReq(reportedMulliganCount: Int = mulliganCount, numCards: Int = 7) {
         val ctx = nettyCtx ?: return
         val s = session ?: return
         val bridge = s.gameBridge ?: return
@@ -365,10 +377,11 @@ class MatchHandler(
             s.counter.currentMsgId(),
             gsId,
             bridge,
-            mulliganCount,
+            mulliganCount = reportedMulliganCount,
+            numCards = numCards,
         )
         s.counter.setMsgId(nextMsgId)
-        NexusTap.outboundTemplate("MulliganReq seat=$seatId mulliganCount=$mulliganCount")
+        NexusTap.outboundTemplate("MulliganReq seat=$seatId mulliganCount=$reportedMulliganCount numCards=$numCards")
         ProtoDump.dump(msg, "MulliganReq-seat$seatId")
         ctx.writeAndFlush(msg)
     }

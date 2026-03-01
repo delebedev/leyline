@@ -37,6 +37,7 @@ object GsmBuilder {
         bridge: GameBridge,
         gameStateId: Int,
         seatId: Int,
+        diffDeletedInstanceIds: List<Int> = emptyList(),
     ): GameStateMessage {
         val game = bridge.getGame()!!
         val human = bridge.getPlayer(1)
@@ -71,6 +72,7 @@ object GsmBuilder {
             .setTurnInfo(turnInfo)
             .addAllZones(zones.sortedBy { it.zoneId })
             .addAllGameObjects(gameObjects)
+            .addAllDiffDeletedInstanceIds(diffDeletedInstanceIds)
             .addAnnotations(
                 AnnotationInfo.newBuilder().setId(49)
                     .setAffectorId(2).addAffectedIds(2)

@@ -163,8 +163,9 @@ object HandshakeMessages {
         gameStateId: Int,
         bridge: GameBridge,
         seatId: Int,
+        diffDeletedInstanceIds: List<Int> = emptyList(),
     ): Pair<MatchServiceToClientMessage, Int> {
-        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, seatId)
+        val gsm = GsmBuilder.buildDealHand(bridge, gameStateId, seatId, diffDeletedInstanceIds)
         val gre = GREToClientMessage.newBuilder()
             .setType(GREMessageType.GameStateMessage_695e)
             .addSystemSeatIds(seatId)
@@ -203,6 +204,7 @@ object HandshakeMessages {
         gameStateId: Int,
         bridge: GameBridge,
         mulliganCount: Int = 0,
+        numCards: Int = 7,
     ): Pair<MatchServiceToClientMessage, Int> {
         var msgId = msgIdStart
 
@@ -251,7 +253,7 @@ object HandshakeMessages {
             .build()
 
         // 3) MulliganReq for seat 1
-        val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 1, mulliganCount = mulliganCount)
+        val greMull = GsmBuilder.buildMulliganReq(msgId++, gameStateId, 1, numCards = numCards, mulliganCount = mulliganCount)
 
         return wrapGre(greGsm, grePrompt, greMull) to msgId
     }
