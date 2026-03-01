@@ -361,7 +361,7 @@ object GameBootstrap {
     }
 
     private fun resolveAssetsDir(): Path =
-        resolveForgeResource("forge-gui") { Files.isDirectory(it) }
+        resolveForgeResource("forge-gui") { Files.isDirectory(it.resolve("res")) }
 
     private fun headlessGuiGame(): IGuiGame {
         ensureGuiBase()

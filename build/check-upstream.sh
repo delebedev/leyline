@@ -4,7 +4,7 @@
 set -euo pipefail
 root="$1"
 stamp="$root/.upstream-installed"
-upstream_hash=$(cd "$root" && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml)
+upstream_hash=$(cd "$root/forge" && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml)
 if [ ! -f "$stamp" ]; then
     echo "Upstream JARs not installed. Run: just install-upstream" >&2; exit 1
 fi

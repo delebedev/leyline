@@ -5,8 +5,8 @@ import java.nio.file.Path
 import java.nio.file.Paths
 
 /**
- * Resolve a resource path relative to the project root, trying
- * `base/<subPath>`, `../base/<subPath>`, and `../../base/<subPath>`.
+ * Resolve a resource path relative to the project root.
+ * Tries direct, forge-submodule-prefixed, and parent-relative candidates.
  */
 fun resolveForgeResource(
     subPath: String,
@@ -15,7 +15,9 @@ fun resolveForgeResource(
     val base = Paths.get("").toAbsolutePath()
     val candidates = listOf(
         base.resolve(subPath),
+        base.resolve("forge/$subPath"),
         base.resolve("../$subPath"),
+        base.resolve("../forge/$subPath"),
         base.resolve("../../$subPath"),
     )
     return candidates.firstOrNull(check) ?: candidates.first()
