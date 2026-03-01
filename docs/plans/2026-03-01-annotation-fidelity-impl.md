@@ -8,15 +8,15 @@
 
 All 18 builders exist. This table tracks what's needed to actually emit them during gameplay.
 
-### Near-free (existing event, add 2-5 lines) — DONE in batch 1
+### Near-free (existing event, add 2-5 lines)
 
-| Builder | Existing Event | Wiring |
+| Builder | Status | Wiring |
 |---|---|---|
-| `damagedThisTurn` | `DamageDealtToCard` | Persistent annotation alongside `damageDealt` in `combatAnnotations` |
-| `powerToughnessModCreated` | `PowerToughnessChanged` | Alongside `modifiedPower`/`modifiedToughness` in same handler |
-| `counter` (state) | `CountersChanged` | State annotation alongside `counterAdded`/`counterRemoved` |
-| `playerSelectingTargets` | Targeting flow in `MatchSession` | Emit at target prompt start |
-| `playerSubmittedTargets` | Targeting flow in `MatchSession` | Emit at target submit |
+| `damagedThisTurn` | **WIRED** | Transient in `combatAnnotations` — marks attackers/blockers with `getDamage() > 0` |
+| `powerToughnessModCreated` | **WIRED** | Transient in `mechanicAnnotations` alongside `modifiedPower`/`modifiedToughness` |
+| `counter` (state) | **WIRED** | Persistent in `mechanicAnnotations` alongside `counterAdded`/`counterRemoved` |
+| `playerSelectingTargets` | deferred | Needs `BundleBuilder.selectTargetsBundle()` integration, not simple pipeline branch |
+| `playerSubmittedTargets` | deferred | Same — targeting flow in `MatchSession`, not event-driven |
 
 ### Medium (state tracking, ~20-50 lines each)
 

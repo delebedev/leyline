@@ -216,6 +216,17 @@ object AnnotationPipeline {
             if (dmg > 0) {
                 annotations.add(AnnotationBuilder.damageDealt(iid, dmg))
             }
+            // Mark attacker as damaged if it took damage from blockers
+            if (attacker.getDamage() > 0) {
+                annotations.add(AnnotationBuilder.damagedThisTurn(iid))
+            }
+            // Mark blockers that took damage from this attacker
+            for (blocker in combat.getBlockers(attacker)) {
+                if (blocker.getDamage() > 0) {
+                    val blockerIid = bridge.getOrAllocInstanceId(blocker.id)
+                    annotations.add(AnnotationBuilder.damagedThisTurn(blockerIid))
+                }
+            }
         }
 
         val prev = bridge.getPreviousState()
@@ -282,6 +293,8 @@ object AnnotationPipeline {
                     } else {
                         annotations.add(AnnotationBuilder.counterRemoved(instanceId, ev.counterType, -delta))
                     }
+                    // Persistent: Counter state annotation with current count
+                    persistent.add(AnnotationBuilder.counter(instanceId, AnnotationBuilder.counterTypeId(ev.counterType), ev.newCount))
                     log.debug("mechanic: counter {} {} on iid={}", if (delta > 0) "added" else "removed", ev.counterType, instanceId)
                 }
                 is NexusGameEvent.LibraryShuffled -> {
@@ -323,6 +336,12 @@ object AnnotationPipeline {
                     }
                     if (ev.oldToughness != ev.newToughness) {
                         annotations.add(AnnotationBuilder.modifiedToughness(instanceId))
+                    }
+                    // P/T modification event for buff animation
+                    val powerDelta = ev.newPower - ev.oldPower
+                    val toughnessDelta = ev.newToughness - ev.oldToughness
+                    if (powerDelta != 0 || toughnessDelta != 0) {
+                        annotations.add(AnnotationBuilder.powerToughnessModCreated(instanceId, powerDelta, toughnessDelta))
                     }
                     log.debug("mechanic: P/T changed iid={} {}/{}→{}/{}", instanceId, ev.oldPower, ev.oldToughness, ev.newPower, ev.newToughness)
                 }
