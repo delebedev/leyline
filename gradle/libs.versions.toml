@@ -12,6 +12,7 @@ kotest = "5.9.1"
 testng = "7.10.2"
 archunit = "1.4.1"
 forge = "2.0.10-SNAPSHOT"
+detekt = "1.23.7"
 spotless = "7.0.2"
 protobuf-plugin = "0.9.4"
 
@@ -40,5 +41,7 @@ archunit = { module = "com.tngtech.archunit:archunit", version.ref = "archunit" 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+kotlin-power-assert = { id = "org.jetbrains.kotlin.plugin.power-assert", version.ref = "kotlin" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }

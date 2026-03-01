@@ -1,8 +1,10 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kotlin.power.assert)
     alias(libs.plugins.protobuf)
     alias(libs.plugins.spotless)
+    alias(libs.plugins.detekt)
     jacoco
     application
 }
@@ -139,6 +141,28 @@ spotless {
             mapOf("ktlint_standard_no-wildcard-imports" to "disabled"),
         )
     }
+}
+
+// --- Power Assert (better test failure messages, zero runtime cost) ---
+
+powerAssert {
+    functions = listOf(
+        "kotlin.assert",
+        "kotlin.test.assertTrue",
+        "kotlin.test.assertFalse",
+        "kotlin.test.assertNull",
+        "kotlin.test.assertEquals",
+    )
+}
+
+// --- Detekt (static analysis) ---
+
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(files("detekt.yml"))
+    baseline = file("detekt-baseline.xml")
+    parallel = true
+    source.setFrom(files("src/main/kotlin", "src/test/kotlin"))
 }
 
 // --- Testing ---
