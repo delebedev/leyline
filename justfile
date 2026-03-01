@@ -312,19 +312,20 @@ smoke-client timeout="60": (_require classpath) check-java
 
 # --- Docker ---
 
-# build Docker image locally
-docker-build tag="ghcr.io/delebedev/leyline:latest":
-    docker build -t "{{tag}}" .
+_registry := "ghcr.io/delebedev/leyline"
 
-# push Docker image to GHCR
-docker-push tag="ghcr.io/delebedev/leyline:latest":
-    docker push "{{tag}}"
+# build + push Docker image with registry cache (fast rebuilds after first build)
+docker-build tag=(_registry + ":latest"):
+    docker buildx build \
+        --cache-from type=registry,ref={{_registry}}:buildcache \
+        --cache-to type=registry,ref={{_registry}}:buildcache,mode=max \
+        -t "{{tag}}" \
+        --push .
 
-# deploy: build, push, restart on VPS
+# deploy: build + push, then pull + restart on VPS
 deploy:
     just docker-build
-    just docker-push
-    ssh denis@vps "cd /opt/leyline && docker compose pull && docker compose up -d"
+    ssh {{env("LEYLINE_VPS", "vps")}} "cd /opt/leyline && docker compose pull && docker compose up -d"
 
 # --- Private helpers ---
 
