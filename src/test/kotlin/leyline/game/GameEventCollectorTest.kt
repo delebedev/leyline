@@ -3,11 +3,16 @@ package leyline.game
 import forge.game.card.CounterEnumType
 import forge.game.event.*
 import forge.game.zone.ZoneType
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import leyline.conformance.ConformanceTestBase
-import org.testng.Assert.assertEquals
-import org.testng.Assert.assertFalse
-import org.testng.Assert.assertTrue
-import org.testng.annotations.Test
+import leyline.conformance.aiPlayer
+import leyline.conformance.humanPlayer
 
 /**
  * Tests for [GameEventCollector] — verifies that Forge engine events are
@@ -16,548 +21,519 @@ import org.testng.annotations.Test
  * Uses startWithBoard{} — fires events directly via game.fireEvent(),
  * then asserts on collector.drainEvents(). ~0.01s per test.
  */
-@Test(groups = ["conformance"])
-class GameEventCollectorTest : ConformanceTestBase() {
+class GameEventCollectorTest :
+    FunSpec({
+        val base = ConformanceTestBase()
+        beforeSpec { base.initCardDatabase() }
+        afterEach { base.tearDown() }
 
-    // -- infrastructure --
+        // -- infrastructure --
 
-    @Test
-    fun collectorIsWiredAfterWrapGame() {
-        val (b, _, _) = startWithBoard { _, _, _ -> }
-        assertTrue(b.eventCollector != null, "EventCollector should be wired after wrapGame()")
-    }
-
-    @Test
-    fun drainEventsReturnsAndClears() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Forest", human, ZoneType.Hand)
+        test("collector is wired after wrapGame") {
+            val (b, _, _) = base.startWithBoard { _, _, _ -> }
+            b.eventCollector.shouldNotBeNull()
         }
-        val collector = b.eventCollector!!
 
-        // startWithBoard fires some events during setup
-        collector.drainEvents()
+        test("drain events returns and clears") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Forest", human, ZoneType.Hand)
+            }
+            val collector = b.eventCollector!!
 
-        // Fire a simple event
-        game.fireEvent(GameEventShuffle(game.humanPlayer))
-        val events1 = collector.drainEvents()
-        assertTrue(events1.isNotEmpty(), "First drain should return events")
+            // startWithBoard fires some events during setup
+            collector.drainEvents()
 
-        val events2 = collector.drainEvents()
-        assertTrue(events2.isEmpty(), "Second drain should be empty")
-    }
+            // Fire a simple event
+            game.fireEvent(GameEventShuffle(game.humanPlayer))
+            val events1 = collector.drainEvents()
+            events1.shouldNotBeEmpty()
 
-    // -- LandPlayed --
-
-    @Test
-    fun landPlayedEvent() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Forest", human, ZoneType.Hand)
+            val events2 = collector.drainEvents()
+            events2.shouldBeEmpty()
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val land = game.humanPlayer.getZone(ZoneType.Hand).cards.first { it.isLand }
-        game.fireEvent(GameEventLandPlayed(game.humanPlayer, land))
+        // -- LandPlayed --
 
-        val events = collector.drainEvents()
-        val lp = events.filterIsInstance<GameEvent.LandPlayed>()
-        assertEquals(lp.size, 1)
-        assertEquals(lp[0].forgeCardId, land.id)
-        assertEquals(lp[0].seatId, 1)
-    }
+        test("land played event") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Forest", human, ZoneType.Hand)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-    // -- SpellCast --
+            val land = game.humanPlayer.getZone(ZoneType.Hand).cards.first { it.isLand }
+            game.fireEvent(GameEventLandPlayed(game.humanPlayer, land))
 
-    @Test
-    fun spellCastEvent() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Lightning Bolt", human, ZoneType.Hand)
+            val events = collector.drainEvents()
+            val lp = events.filterIsInstance<GameEvent.LandPlayed>()
+            lp.size shouldBe 1
+            lp[0].forgeCardId shouldBe land.id
+            lp[0].seatId shouldBe 1
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val spell = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
-        game.fireEvent(GameEventSpellAbilityCast(spell.firstSpellAbility, null, 0))
+        // -- SpellCast --
 
-        val events = collector.drainEvents()
-        val sc = events.filterIsInstance<GameEvent.SpellCast>()
-        assertEquals(sc.size, 1)
-        assertEquals(sc[0].forgeCardId, spell.id)
-        assertEquals(sc[0].seatId, 1)
-    }
+        test("spell cast event") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Lightning Bolt", human, ZoneType.Hand)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-    // -- SpellResolved --
+            val spell = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
+            game.fireEvent(GameEventSpellAbilityCast(spell.firstSpellAbility, null, 0))
 
-    @Test
-    fun spellResolvedEvent() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Lightning Bolt", human, ZoneType.Hand)
+            val events = collector.drainEvents()
+            val sc = events.filterIsInstance<GameEvent.SpellCast>()
+            sc.size shouldBe 1
+            sc[0].forgeCardId shouldBe spell.id
+            sc[0].seatId shouldBe 1
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val spell = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
-        game.fireEvent(GameEventSpellResolved(spell.firstSpellAbility, false))
+        // -- SpellResolved --
 
-        val events = collector.drainEvents()
-        val sr = events.filterIsInstance<GameEvent.SpellResolved>()
-        assertEquals(sr.size, 1)
-        assertEquals(sr[0].forgeCardId, spell.id)
-        assertFalse(sr[0].hasFizzled)
-    }
+        test("spell resolved event") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Lightning Bolt", human, ZoneType.Hand)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-    @Test
-    fun spellResolvedFizzled() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Lightning Bolt", human, ZoneType.Hand)
+            val spell = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
+            game.fireEvent(GameEventSpellResolved(spell.firstSpellAbility, false))
+
+            val events = collector.drainEvents()
+            val sr = events.filterIsInstance<GameEvent.SpellResolved>()
+            sr.size shouldBe 1
+            sr[0].forgeCardId shouldBe spell.id
+            sr[0].hasFizzled.shouldBeFalse()
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val spell = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
-        game.fireEvent(GameEventSpellResolved(spell.firstSpellAbility, true))
+        test("spell resolved fizzled") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Lightning Bolt", human, ZoneType.Hand)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-        val sr = collector.drainEvents().filterIsInstance<GameEvent.SpellResolved>()
-        assertEquals(sr.size, 1)
-        assertTrue(sr[0].hasFizzled)
-    }
+            val spell = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
+            game.fireEvent(GameEventSpellResolved(spell.firstSpellAbility, true))
 
-    // -- CardChangeZone: specific variants --
-
-    @Test
-    fun cardChangeZone_battlefieldToGraveyard_emitsCardDestroyed() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            val sr = collector.drainEvents().filterIsInstance<GameEvent.SpellResolved>()
+            sr.size shouldBe 1
+            sr[0].hasFizzled.shouldBeTrue()
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-        val bf = game.humanPlayer.getZone(ZoneType.Battlefield)
-        val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
-        game.fireEvent(GameEventCardChangeZone(creature, bf, gy))
+        // -- CardChangeZone: specific variants --
 
-        val events = collector.drainEvents()
-        val destroyed = events.filterIsInstance<GameEvent.CardDestroyed>()
-        assertEquals(destroyed.size, 1, "BF→GY should emit CardDestroyed, got: $events")
-        assertEquals(destroyed[0].forgeCardId, creature.id)
-        assertEquals(destroyed[0].seatId, 1)
-    }
+        test("BF to GY emits CardDestroyed") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-    @Test
-    fun cardChangeZone_battlefieldToHand_emitsCardBounced() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+            val bf = game.humanPlayer.getZone(ZoneType.Battlefield)
+            val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
+            game.fireEvent(GameEventCardChangeZone(creature, bf, gy))
+
+            val events = collector.drainEvents()
+            val destroyed = events.filterIsInstance<GameEvent.CardDestroyed>()
+            destroyed.size shouldBe 1
+            destroyed[0].forgeCardId shouldBe creature.id
+            destroyed[0].seatId shouldBe 1
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-        val bf = game.humanPlayer.getZone(ZoneType.Battlefield)
-        val hand = game.humanPlayer.getZone(ZoneType.Hand)
-        game.fireEvent(GameEventCardChangeZone(creature, bf, hand))
+        test("BF to Hand emits CardBounced") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-        val bounced = collector.drainEvents().filterIsInstance<GameEvent.CardBounced>()
-        assertEquals(bounced.size, 1, "BF→Hand should emit CardBounced")
-        assertEquals(bounced[0].forgeCardId, creature.id)
-    }
+            val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+            val bf = game.humanPlayer.getZone(ZoneType.Battlefield)
+            val hand = game.humanPlayer.getZone(ZoneType.Hand)
+            game.fireEvent(GameEventCardChangeZone(creature, bf, hand))
 
-    @Test
-    fun cardChangeZone_anyToExile_emitsCardExiled() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            val bounced = collector.drainEvents().filterIsInstance<GameEvent.CardBounced>()
+            bounced.size shouldBe 1
+            bounced[0].forgeCardId shouldBe creature.id
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-        val bf = game.humanPlayer.getZone(ZoneType.Battlefield)
-        val exile = game.humanPlayer.getZone(ZoneType.Exile)
-        game.fireEvent(GameEventCardChangeZone(creature, bf, exile))
+        test("any to Exile emits CardExiled") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-        val exiled = collector.drainEvents().filterIsInstance<GameEvent.CardExiled>()
-        assertEquals(exiled.size, 1, "→Exile should emit CardExiled")
-    }
+            val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+            val bf = game.humanPlayer.getZone(ZoneType.Battlefield)
+            val exile = game.humanPlayer.getZone(ZoneType.Exile)
+            game.fireEvent(GameEventCardChangeZone(creature, bf, exile))
 
-    @Test
-    fun cardChangeZone_handToGraveyard_emitsCardDiscarded() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Lightning Bolt", human, ZoneType.Hand)
+            val exiled = collector.drainEvents().filterIsInstance<GameEvent.CardExiled>()
+            exiled.size shouldBe 1
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val card = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
-        val hand = game.humanPlayer.getZone(ZoneType.Hand)
-        val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
-        game.fireEvent(GameEventCardChangeZone(card, hand, gy))
+        test("Hand to GY emits CardDiscarded") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Lightning Bolt", human, ZoneType.Hand)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-        val discarded = collector.drainEvents().filterIsInstance<GameEvent.CardDiscarded>()
-        assertEquals(discarded.size, 1, "Hand→GY should emit CardDiscarded")
-    }
+            val card = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
+            val hand = game.humanPlayer.getZone(ZoneType.Hand)
+            val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
+            game.fireEvent(GameEventCardChangeZone(card, hand, gy))
 
-    @Test
-    fun cardChangeZone_libraryToGraveyard_emitsCardMilled() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Forest", human, ZoneType.Library)
+            val discarded = collector.drainEvents().filterIsInstance<GameEvent.CardDiscarded>()
+            discarded.size shouldBe 1
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val card = game.humanPlayer.getZone(ZoneType.Library).cards.first()
-        val lib = game.humanPlayer.getZone(ZoneType.Library)
-        val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
-        game.fireEvent(GameEventCardChangeZone(card, lib, gy))
+        test("Library to GY emits CardMilled") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Forest", human, ZoneType.Library)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-        val milled = collector.drainEvents().filterIsInstance<GameEvent.CardMilled>()
-        assertEquals(milled.size, 1, "Library→GY should emit CardMilled")
-    }
+            val card = game.humanPlayer.getZone(ZoneType.Library).cards.first()
+            val lib = game.humanPlayer.getZone(ZoneType.Library)
+            val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
+            game.fireEvent(GameEventCardChangeZone(card, lib, gy))
 
-    @Test
-    fun cardChangeZone_genericFallback_emitsZoneChanged() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Forest", human, ZoneType.Graveyard)
+            val milled = collector.drainEvents().filterIsInstance<GameEvent.CardMilled>()
+            milled.size shouldBe 1
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        // GY→Library is not a specific variant — should fall back to ZoneChanged
-        val card = game.humanPlayer.getZone(ZoneType.Graveyard).cards.first()
-        val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
-        val lib = game.humanPlayer.getZone(ZoneType.Library)
-        game.fireEvent(GameEventCardChangeZone(card, gy, lib))
+        test("generic fallback emits ZoneChanged") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Forest", human, ZoneType.Graveyard)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-        val zc = collector.drainEvents().filterIsInstance<GameEvent.ZoneChanged>()
-        assertEquals(zc.size, 1, "GY→Library should emit generic ZoneChanged")
-        assertEquals(zc[0].from, ZoneType.Graveyard)
-        assertEquals(zc[0].to, ZoneType.Library)
-    }
+            val card = game.humanPlayer.getZone(ZoneType.Graveyard).cards.first()
+            val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
+            val lib = game.humanPlayer.getZone(ZoneType.Library)
+            game.fireEvent(GameEventCardChangeZone(card, gy, lib))
 
-    // -- CardTapped --
-
-    @Test
-    fun cardTappedEvent() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Forest", human, ZoneType.Battlefield)
+            val zc = collector.drainEvents().filterIsInstance<GameEvent.ZoneChanged>()
+            zc.size shouldBe 1
+            zc[0].from shouldBe ZoneType.Graveyard
+            zc[0].to shouldBe ZoneType.Library
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val land = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first()
-        game.fireEvent(GameEventCardTapped(land, true))
+        // -- CardTapped --
 
-        val tapped = collector.drainEvents().filterIsInstance<GameEvent.CardTapped>()
-        assertEquals(tapped.size, 1)
-        assertEquals(tapped[0].forgeCardId, land.id)
-        assertTrue(tapped[0].tapped)
-    }
+        test("card tapped event") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Forest", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-    @Test
-    fun cardUntappedEvent() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Forest", human, ZoneType.Battlefield)
+            val land = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first()
+            game.fireEvent(GameEventCardTapped(land, true))
+
+            val tapped = collector.drainEvents().filterIsInstance<GameEvent.CardTapped>()
+            tapped.size shouldBe 1
+            tapped[0].forgeCardId shouldBe land.id
+            tapped[0].tapped.shouldBeTrue()
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val land = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first()
-        game.fireEvent(GameEventCardTapped(land, false))
+        test("card untapped event") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Forest", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-        val tapped = collector.drainEvents().filterIsInstance<GameEvent.CardTapped>()
-        assertEquals(tapped.size, 1)
-        assertFalse(tapped[0].tapped)
-    }
+            val land = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first()
+            game.fireEvent(GameEventCardTapped(land, false))
 
-    // -- Damage --
-
-    @Test
-    fun damageDealtToCardEvent() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Grizzly Bears", human, ZoneType.Battlefield)
-            addCard("Serra Angel", human, ZoneType.Battlefield)
+            val tapped = collector.drainEvents().filterIsInstance<GameEvent.CardTapped>()
+            tapped.size shouldBe 1
+            tapped[0].tapped.shouldBeFalse()
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val cards = game.humanPlayer.getZone(ZoneType.Battlefield).cards.filter { it.isCreature }
-        val source = cards[0]
-        val target = cards[1]
-        game.fireEvent(GameEventCardDamaged(target, source, 2, GameEventCardDamaged.DamageType.Normal))
+        // -- Damage --
 
-        val dmg = collector.drainEvents().filterIsInstance<GameEvent.DamageDealtToCard>()
-        assertEquals(dmg.size, 1)
-        assertEquals(dmg[0].sourceForgeId, source.id)
-        assertEquals(dmg[0].targetForgeId, target.id)
-        assertEquals(dmg[0].amount, 2)
-    }
+        test("damage dealt to card event") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                base.addCard("Serra Angel", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-    @Test
-    fun damageDealtToPlayerEvent() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            val cards = game.humanPlayer.getZone(ZoneType.Battlefield).cards.filter { it.isCreature }
+            val source = cards[0]
+            val target = cards[1]
+            game.fireEvent(GameEventCardDamaged(target, source, 2, GameEventCardDamaged.DamageType.Normal))
+
+            val dmg = collector.drainEvents().filterIsInstance<GameEvent.DamageDealtToCard>()
+            dmg.size shouldBe 1
+            dmg[0].sourceForgeId shouldBe source.id
+            dmg[0].targetForgeId shouldBe target.id
+            dmg[0].amount shouldBe 2
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-        game.fireEvent(GameEventPlayerDamaged(game.humanPlayer, creature, 3, true, false))
+        test("damage dealt to player event") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-        val dmg = collector.drainEvents().filterIsInstance<GameEvent.DamageDealtToPlayer>()
-        assertEquals(dmg.size, 1)
-        assertEquals(dmg[0].sourceForgeId, creature.id)
-        assertEquals(dmg[0].targetSeatId, 1)
-        assertEquals(dmg[0].amount, 3)
-        assertTrue(dmg[0].combat)
-    }
+            val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+            game.fireEvent(GameEventPlayerDamaged(game.humanPlayer, creature, 3, true, false))
 
-    // -- LifeChanged --
-
-    @Test
-    fun lifeChangedEvent() {
-        val (b, game, _) = startWithBoard { _, _, _ -> }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
-
-        game.fireEvent(GameEventPlayerLivesChanged(game.humanPlayer, 20, 17))
-
-        val lc = collector.drainEvents().filterIsInstance<GameEvent.LifeChanged>()
-        assertEquals(lc.size, 1)
-        assertEquals(lc[0].seatId, 1)
-        assertEquals(lc[0].oldLife, 20)
-        assertEquals(lc[0].newLife, 17)
-    }
-
-    // -- CardSacrificed --
-
-    @Test
-    fun cardSacrificedEvent() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            val dmg = collector.drainEvents().filterIsInstance<GameEvent.DamageDealtToPlayer>()
+            dmg.size shouldBe 1
+            dmg[0].sourceForgeId shouldBe creature.id
+            dmg[0].targetSeatId shouldBe 1
+            dmg[0].amount shouldBe 3
+            dmg[0].combat.shouldBeTrue()
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-        game.fireEvent(GameEventCardSacrificed(creature))
+        // -- LifeChanged --
 
-        val sac = collector.drainEvents().filterIsInstance<GameEvent.CardSacrificed>()
-        assertEquals(sac.size, 1)
-        assertEquals(sac[0].forgeCardId, creature.id)
-        assertEquals(sac[0].seatId, 1)
-    }
+        test("life changed event") {
+            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-    // -- Attachment --
+            game.fireEvent(GameEventPlayerLivesChanged(game.humanPlayer, 20, 17))
 
-    @Test
-    fun cardAttachedEvent() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Grizzly Bears", human, ZoneType.Battlefield)
-            addCard("Holy Strength", human, ZoneType.Battlefield)
+            val lc = collector.drainEvents().filterIsInstance<GameEvent.LifeChanged>()
+            lc.size shouldBe 1
+            lc[0].seatId shouldBe 1
+            lc[0].oldLife shouldBe 20
+            lc[0].newLife shouldBe 17
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val cards = game.humanPlayer.getZone(ZoneType.Battlefield).cards.toList()
-        val aura = cards.first { !it.isCreature }
-        val creature = cards.first { it.isCreature }
-        game.fireEvent(GameEventCardAttachment(aura, null, creature))
+        // -- CardSacrificed --
 
-        val attached = collector.drainEvents().filterIsInstance<GameEvent.CardAttached>()
-        assertEquals(attached.size, 1)
-        assertEquals(attached[0].forgeCardId, aura.id)
-        assertEquals(attached[0].targetForgeId, creature.id)
-    }
+        test("card sacrificed event") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-    @Test
-    fun cardDetachedEvent() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Holy Strength", human, ZoneType.Battlefield)
-            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+            game.fireEvent(GameEventCardSacrificed(creature))
+
+            val sac = collector.drainEvents().filterIsInstance<GameEvent.CardSacrificed>()
+            sac.size shouldBe 1
+            sac[0].forgeCardId shouldBe creature.id
+            sac[0].seatId shouldBe 1
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val aura = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { !it.isCreature }
-        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-        game.fireEvent(GameEventCardAttachment(aura, creature, null))
+        // -- Attachment --
 
-        val detached = collector.drainEvents().filterIsInstance<GameEvent.CardDetached>()
-        assertEquals(detached.size, 1)
-        assertEquals(detached[0].forgeCardId, aura.id)
-    }
+        test("card attached event") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                base.addCard("Holy Strength", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-    // -- Counters --
+            val cards = game.humanPlayer.getZone(ZoneType.Battlefield).cards.toList()
+            val aura = cards.first { !it.isCreature }
+            val creature = cards.first { it.isCreature }
+            game.fireEvent(GameEventCardAttachment(aura, null, creature))
 
-    @Test
-    fun countersChangedEvent() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            val attached = collector.drainEvents().filterIsInstance<GameEvent.CardAttached>()
+            attached.size shouldBe 1
+            attached[0].forgeCardId shouldBe aura.id
+            attached[0].targetForgeId shouldBe creature.id
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-        game.fireEvent(GameEventCardCounters(creature, CounterEnumType.P1P1, 0, 2))
+        test("card detached event") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Holy Strength", human, ZoneType.Battlefield)
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-        val cc = collector.drainEvents().filterIsInstance<GameEvent.CountersChanged>()
-        assertEquals(cc.size, 1)
-        assertEquals(cc[0].forgeCardId, creature.id)
-        assertEquals(cc[0].counterType, "+1/+1")
-        assertEquals(cc[0].oldCount, 0)
-        assertEquals(cc[0].newCount, 2)
-    }
+            val aura = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { !it.isCreature }
+            val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+            game.fireEvent(GameEventCardAttachment(aura, creature, null))
 
-    // -- P/T changed --
-
-    @Test
-    fun powerToughnessChangedEvent() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            val detached = collector.drainEvents().filterIsInstance<GameEvent.CardDetached>()
+            detached.size shouldBe 1
+            detached[0].forgeCardId shouldBe aura.id
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+        // -- Counters --
 
-        // First event establishes baseline (no prior cached P/T → no delta)
-        game.fireEvent(GameEventCardStatsChanged(creature))
-        collector.drainEvents() // baseline, may or may not emit
+        test("counters changed event") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-        // Pump the creature, fire again
-        creature.setBasePower(creature.getNetPower() + 2)
-        game.fireEvent(GameEventCardStatsChanged(creature))
+            val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+            game.fireEvent(GameEventCardCounters(creature, CounterEnumType.P1P1, 0, 2))
 
-        val pt = collector.drainEvents().filterIsInstance<GameEvent.PowerToughnessChanged>()
-        assertEquals(pt.size, 1, "Should detect P/T delta")
-        assertEquals(pt[0].forgeCardId, creature.id)
-        assertEquals(pt[0].newPower, creature.getNetPower())
-    }
-
-    @Test
-    fun powerToughnessUnchanged_noDuplicate() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            val cc = collector.drainEvents().filterIsInstance<GameEvent.CountersChanged>()
+            cc.size shouldBe 1
+            cc[0].forgeCardId shouldBe creature.id
+            cc[0].counterType shouldBe "+1/+1"
+            cc[0].oldCount shouldBe 0
+            cc[0].newCount shouldBe 2
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+        // -- P/T changed --
 
-        // Fire twice with same stats — second should not emit
-        game.fireEvent(GameEventCardStatsChanged(creature))
-        collector.drainEvents()
-        game.fireEvent(GameEventCardStatsChanged(creature))
+        test("power toughness changed event") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-        val pt = collector.drainEvents().filterIsInstance<GameEvent.PowerToughnessChanged>()
-        assertTrue(pt.isEmpty(), "Same P/T should not re-emit")
-    }
+            val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
 
-    // -- Shuffle --
+            // First event establishes baseline (no prior cached P/T -> no delta)
+            game.fireEvent(GameEventCardStatsChanged(creature))
+            collector.drainEvents()
 
-    @Test
-    fun libraryShuffledEvent() {
-        val (b, game, _) = startWithBoard { _, _, _ -> }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
+            // Pump the creature, fire again
+            creature.setBasePower(creature.getNetPower() + 2)
+            game.fireEvent(GameEventCardStatsChanged(creature))
 
-        game.fireEvent(GameEventShuffle(game.humanPlayer))
-
-        val sh = collector.drainEvents().filterIsInstance<GameEvent.LibraryShuffled>()
-        assertEquals(sh.size, 1)
-        assertEquals(sh[0].seatId, 1)
-    }
-
-    // -- Scry --
-
-    @Test
-    fun scryEvent() {
-        val (b, game, _) = startWithBoard { _, _, _ -> }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
-
-        game.fireEvent(GameEventScry(game.humanPlayer, 1, 2))
-
-        val scry = collector.drainEvents().filterIsInstance<GameEvent.Scry>()
-        assertEquals(scry.size, 1)
-        assertEquals(scry[0].seatId, 1)
-        assertEquals(scry[0].topCount, 1)
-        assertEquals(scry[0].bottomCount, 2)
-    }
-
-    // -- Surveil --
-
-    @Test
-    fun surveilEvent() {
-        val (b, game, _) = startWithBoard { _, _, _ -> }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
-
-        game.fireEvent(GameEventSurveil(game.humanPlayer, 1, 3))
-
-        val sv = collector.drainEvents().filterIsInstance<GameEvent.Surveil>()
-        assertEquals(sv.size, 1)
-        assertEquals(sv[0].seatId, 1)
-        assertEquals(sv[0].toLibrary, 1)
-        assertEquals(sv[0].toGraveyard, 3)
-    }
-
-    // -- CombatEnded --
-
-    @Test
-    fun combatEndedEvent() {
-        val (b, game, _) = startWithBoard { _, _, _ -> }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
-
-        game.fireEvent(GameEventCombatEnded(listOf(), listOf()))
-
-        val ce = collector.drainEvents().filterIsInstance<GameEvent.CombatEnded>()
-        assertEquals(ce.size, 1)
-    }
-
-    // -- AI player events get seatId=2 --
-
-    @Test
-    fun aiPlayerGetsSeatId2() {
-        val (b, game, _) = startWithBoard { _, _, _ -> }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
-
-        game.fireEvent(GameEventShuffle(game.aiPlayer))
-
-        val sh = collector.drainEvents().filterIsInstance<GameEvent.LibraryShuffled>()
-        assertEquals(sh.size, 1)
-        assertEquals(sh[0].seatId, 2)
-    }
-
-    // -- P/T cache cleared on zone leave --
-
-    @Test
-    fun ptCacheClearedOnLeaveBattlefield() {
-        val (b, game, _) = startWithBoard { _, human, _ ->
-            addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            val pt = collector.drainEvents().filterIsInstance<GameEvent.PowerToughnessChanged>()
+            pt.size shouldBe 1
+            pt[0].forgeCardId shouldBe creature.id
+            pt[0].newPower shouldBe creature.getNetPower()
         }
-        val collector = b.eventCollector!!
-        collector.drainEvents()
 
-        val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+        test("power toughness unchanged - no duplicate") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
 
-        // Establish baseline P/T
-        game.fireEvent(GameEventCardStatsChanged(creature))
-        collector.drainEvents()
+            val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
 
-        // Creature leaves battlefield — should clear P/T cache
-        val bf = game.humanPlayer.getZone(ZoneType.Battlefield)
-        val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
-        game.fireEvent(GameEventCardChangeZone(creature, bf, gy))
-        collector.drainEvents()
+            // Fire twice with same stats -- second should not emit
+            game.fireEvent(GameEventCardStatsChanged(creature))
+            collector.drainEvents()
+            game.fireEvent(GameEventCardStatsChanged(creature))
 
-        // Re-enter: P/T event should not compare against old cached value
-        val hand = game.humanPlayer.getZone(ZoneType.Hand)
-        game.fireEvent(GameEventCardChangeZone(creature, gy, bf))
-        game.fireEvent(GameEventCardStatsChanged(creature))
-        val pt = collector.drainEvents().filterIsInstance<GameEvent.PowerToughnessChanged>()
-        // No prior cache → no delta → no event (same stats as baseline creature)
-        assertTrue(pt.isEmpty(), "Re-entered creature with same P/T should not emit delta")
-    }
-}
+            val pt = collector.drainEvents().filterIsInstance<GameEvent.PowerToughnessChanged>()
+            pt.shouldBeEmpty()
+        }
+
+        // -- Shuffle --
+
+        test("library shuffled event") {
+            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
+
+            game.fireEvent(GameEventShuffle(game.humanPlayer))
+
+            val sh = collector.drainEvents().filterIsInstance<GameEvent.LibraryShuffled>()
+            sh.size shouldBe 1
+            sh[0].seatId shouldBe 1
+        }
+
+        // -- Scry --
+
+        test("scry event") {
+            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
+
+            game.fireEvent(GameEventScry(game.humanPlayer, 1, 2))
+
+            val scry = collector.drainEvents().filterIsInstance<GameEvent.Scry>()
+            scry.size shouldBe 1
+            scry[0].seatId shouldBe 1
+            scry[0].topCount shouldBe 1
+            scry[0].bottomCount shouldBe 2
+        }
+
+        // -- Surveil --
+
+        test("surveil event") {
+            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
+
+            game.fireEvent(GameEventSurveil(game.humanPlayer, 1, 3))
+
+            val sv = collector.drainEvents().filterIsInstance<GameEvent.Surveil>()
+            sv.size shouldBe 1
+            sv[0].seatId shouldBe 1
+            sv[0].toLibrary shouldBe 1
+            sv[0].toGraveyard shouldBe 3
+        }
+
+        // -- CombatEnded --
+
+        test("combat ended event") {
+            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
+
+            game.fireEvent(GameEventCombatEnded(listOf(), listOf()))
+
+            val ce = collector.drainEvents().filterIsInstance<GameEvent.CombatEnded>()
+            ce.size shouldBe 1
+        }
+
+        // -- AI player events get seatId=2 --
+
+        test("AI player gets seatId 2") {
+            val (b, game, _) = base.startWithBoard { _, _, _ -> }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
+
+            game.fireEvent(GameEventShuffle(game.aiPlayer))
+
+            val sh = collector.drainEvents().filterIsInstance<GameEvent.LibraryShuffled>()
+            sh.size shouldBe 1
+            sh[0].seatId shouldBe 2
+        }
+
+        // -- P/T cache cleared on zone leave --
+
+        test("P/T cache cleared on leave battlefield") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
+
+            val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+
+            // Establish baseline P/T
+            game.fireEvent(GameEventCardStatsChanged(creature))
+            collector.drainEvents()
+
+            // Creature leaves battlefield -- should clear P/T cache
+            val bf = game.humanPlayer.getZone(ZoneType.Battlefield)
+            val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
+            game.fireEvent(GameEventCardChangeZone(creature, bf, gy))
+            collector.drainEvents()
+
+            // Re-enter: P/T event should not compare against old cached value
+            game.fireEvent(GameEventCardChangeZone(creature, gy, bf))
+            game.fireEvent(GameEventCardStatsChanged(creature))
+            val pt = collector.drainEvents().filterIsInstance<GameEvent.PowerToughnessChanged>()
+            pt.shouldBeEmpty()
+        }
+    })

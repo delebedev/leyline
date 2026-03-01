@@ -1,11 +1,16 @@
 package leyline.conformance
 
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
-import org.testng.Assert.assertEquals
-import org.testng.Assert.assertNotEquals
-import org.testng.Assert.assertTrue
-import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
@@ -16,206 +21,173 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType
  * Starts a deterministic game, plays a land, then asserts every field
  * on the resulting GameStateMessage matches real client recordings.
  */
-@Test(groups = ["conformance"])
-class PlayLandFieldTest : ConformanceTestBase() {
+class PlayLandFieldTest :
+    FunSpec({
+        val base = ConformanceTestBase()
+        beforeSpec { base.initCardDatabase() }
+        afterEach { base.tearDown() }
 
-    @Test(description = "Play land: annotation IDs are sequential, non-zero, monotonically increasing")
-    fun annotationIdsAreSequential() {
-        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
+        test("annotation IDs are sequential") {
+            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
 
-        val ids = gsm.annotationsList.map { it.id }
-        assertTrue(ids.isNotEmpty(), "Should have annotations")
-        assertTrue(ids.all { it > 0u.toInt() }, "All annotation IDs should be > 0, got: $ids")
-        assertEquals(ids, ids.sorted(), "Annotation IDs should be monotonically increasing, got: $ids")
-        assertEquals(ids.toSet().size, ids.size, "Annotation IDs should be unique, got: $ids")
-    }
-
-    @Test(description = "Play land: ZoneTransfer has affectedIds=[land], typed zone details, category=PlayLand")
-    fun zoneTransferAnnotationFields() {
-        val (gsm, _, newInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
-
-        val zt = gsm.annotationOrNull(AnnotationType.ZoneTransfer_af5a)
-        assertTrue(zt != null, "Should have ZoneTransfer annotation")
-        zt!!
-
-        assertTrue(zt.affectedIdsList.contains(newInstanceId), "ZoneTransfer affectedIds should contain land instanceId $newInstanceId, got: ${zt.affectedIdsList}")
-
-        val zoneSrc = zt.detail("zone_src")
-        assertTrue(zoneSrc != null, "ZoneTransfer should have zone_src detail")
-        assertEquals(zoneSrc!!.type, KeyValuePairValueType.Int32, "zone_src should use Int32 type, got: ${zoneSrc.type}")
-        assertEquals(zoneSrc.getValueInt32(0), ZoneIds.P1_HAND, "zone_src should be hand zone (${ZoneIds.P1_HAND}), got: ${zoneSrc.getValueInt32(0)}")
-
-        val zoneDest = zt.detail("zone_dest")
-        assertTrue(zoneDest != null, "ZoneTransfer should have zone_dest detail")
-        assertEquals(zoneDest!!.type, KeyValuePairValueType.Int32, "zone_dest should use Int32 type, got: ${zoneDest.type}")
-        assertEquals(zoneDest.getValueInt32(0), ZoneIds.BATTLEFIELD, "zone_dest should be battlefield (${ZoneIds.BATTLEFIELD}), got: ${zoneDest.getValueInt32(0)}")
-
-        val category = zt.detail("category")
-        assertTrue(category != null, "ZoneTransfer should have category detail")
-        @Suppress("EnumValuesSoftDeprecate")
-        assertEquals(category!!.type, KeyValuePairValueType.String, "category should use String type")
-        assertEquals(category.getValueString(0), "PlayLand", "category should be PlayLand")
-    }
-
-    @Test(description = "Play land: ObjectIdChanged has orig_id/new_id details with typed int32 values")
-    fun objectIdChangedDetails() {
-        val (gsm, origInstanceId, newInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
-
-        val oic = gsm.annotationOrNull(AnnotationType.ObjectIdChanged)
-        assertTrue(oic != null, "Should have ObjectIdChanged annotation")
-        oic!!
-
-        assertTrue(oic.affectedIdsList.contains(origInstanceId), "ObjectIdChanged affectedIds should contain orig instanceId $origInstanceId")
-
-        val origIdDetail = oic.detail("orig_id")
-        assertTrue(origIdDetail != null, "ObjectIdChanged should have orig_id detail")
-        assertEquals(origIdDetail!!.type, KeyValuePairValueType.Int32, "orig_id should use Int32 type")
-        assertEquals(origIdDetail.getValueInt32(0), origInstanceId, "orig_id should equal pre-move instanceId")
-
-        val newIdDetail = oic.detail("new_id")
-        assertTrue(newIdDetail != null, "ObjectIdChanged should have new_id detail")
-        assertEquals(newIdDetail!!.type, KeyValuePairValueType.Int32, "new_id should use Int32 type")
-        assertEquals(newIdDetail.getValueInt32(0), newInstanceId, "new_id should equal post-move instanceId")
-
-        assertNotEquals(origInstanceId, newInstanceId, "orig_id and new_id should differ after zone transfer")
-    }
-
-    @Test(description = "Play land: UserActionTaken has affectorId=seatId, actionType + abilityGrpId details")
-    fun userActionTakenFields() {
-        val (gsm, _, landInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
-
-        val uat = gsm.annotationOrNull(AnnotationType.UserActionTaken)
-        assertTrue(uat != null, "Should have UserActionTaken annotation")
-        uat!!
-
-        assertEquals(uat.affectorId.toInt(), 1, "UserActionTaken affectorId should be seat 1 (human player), got: ${uat.affectorId}")
-        assertTrue(uat.affectedIdsList.contains(landInstanceId), "UserActionTaken affectedIds should contain land instanceId $landInstanceId")
-
-        val actionType = uat.detail("actionType")
-        assertTrue(actionType != null, "UserActionTaken should have actionType detail")
-        assertEquals(actionType!!.type, KeyValuePairValueType.Int32, "actionType should use Int32 type")
-        assertTrue(actionType.valueInt32Count > 0, "actionType should have a value")
-
-        val abilityGrpId = uat.detail("abilityGrpId")
-        assertTrue(abilityGrpId != null, "UserActionTaken should have abilityGrpId detail")
-        assertEquals(abilityGrpId!!.type, KeyValuePairValueType.Int32, "abilityGrpId should use Int32 type")
-    }
-
-    @Test(description = "Play land: GSM has prevGameStateId referencing prior state")
-    fun prevGameStateIdPresent() {
-        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
-
-        assertNotEquals(gsm.prevGameStateId.toInt(), 0, "GSM should have prevGameStateId set (non-zero)")
-        assertTrue(gsm.prevGameStateId < gsm.gameStateId, "prevGameStateId (${gsm.prevGameStateId}) should be less than gameStateId (${gsm.gameStateId})")
-    }
-
-    @Test(description = "Play land: persistentAnnotations includes EnteredZoneThisTurn for the land")
-    fun persistentAnnotationsPresent() {
-        val (gsm, _, landInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
-
-        assertTrue(gsm.persistentAnnotationsCount > 0, "GSM should have persistentAnnotations after playing a land")
-
-        val enteredZone = gsm.persistentAnnotationsList.firstOrNull {
-            AnnotationType.EnteredZoneThisTurn in it.typeList
+            val ids = gsm.annotationsList.map { it.id }
+            ids.isNotEmpty().shouldBeTrue()
+            ids.all { it > 0u.toInt() }.shouldBeTrue()
+            ids shouldBe ids.sorted()
+            ids.toSet().size shouldBe ids.size
         }
-        assertTrue(enteredZone != null, "Should have EnteredZoneThisTurn persistent annotation")
-        assertTrue(
-            enteredZone!!.affectedIdsList.contains(landInstanceId),
-            "EnteredZoneThisTurn should reference the land instanceId $landInstanceId, got: ${enteredZone.affectedIdsList}",
-        )
-    }
 
-    @Test(description = "Play land: land gameObject on battlefield has uniqueAbilities (mana ability)")
-    fun landHasUniqueAbilities() {
-        val (gsm, _, landInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
+        test("ZoneTransfer annotation fields") {
+            val (gsm, _, newInstanceId) = base.playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
 
-        val landObj = gsm.gameObjectsList.firstOrNull { it.instanceId == landInstanceId }
-        assertTrue(landObj != null, "GSM should have gameObject for the played land")
-        landObj!!
+            val zt = gsm.annotationOrNull(AnnotationType.ZoneTransfer_af5a)
+            zt.shouldNotBeNull()
 
-        assertEquals(landObj.zoneId, ZoneIds.BATTLEFIELD, "Land should be on battlefield")
-        assertTrue(landObj.uniqueAbilitiesCount > 0, "Land gameObject should have uniqueAbilities (mana ability), got 0")
-    }
+            zt.affectedIdsList.shouldContain(newInstanceId)
 
-    @Test(description = "PlayLand diff should not contain GameObjectInfo for Limbo objects")
-    fun noLimboGameObjectInDiff() {
-        val gsm = playLandAndCapture() ?: error("No land in hand at seed 42")
-        val limboObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.LIMBO }
-        assertTrue(limboObjects.isEmpty(), "Diff should not contain GameObjectInfo for Limbo objects, got: ${limboObjects.map { "iid=${it.instanceId}" }}")
-    }
+            val zoneSrc = zt.detail("zone_src")
+            zoneSrc.shouldNotBeNull()
+            zoneSrc.type shouldBe KeyValuePairValueType.Int32
+            zoneSrc.getValueInt32(0) shouldBe ZoneIds.P1_HAND
 
-    @Test(description = "Play land: old instanceId retired to Limbo zone")
-    fun oldInstanceRetiredToLimbo() {
-        val (gsm, origInstanceId, newInstanceId) = playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
+            val zoneDest = zt.detail("zone_dest")
+            zoneDest.shouldNotBeNull()
+            zoneDest.type shouldBe KeyValuePairValueType.Int32
+            zoneDest.getValueInt32(0) shouldBe ZoneIds.BATTLEFIELD
 
-        assertNotEquals(origInstanceId, newInstanceId, "Zone transfer must allocate a new instanceId")
+            val category = zt.detail("category")
+            category.shouldNotBeNull()
+            @Suppress("EnumValuesSoftDeprecate")
+            category.type shouldBe KeyValuePairValueType.String
+            category.getValueString(0) shouldBe "PlayLand"
+        }
 
-        // Limbo zone + gameObject for old instanceId
-        assertLimboContains(gsm, origInstanceId)
+        test("ObjectIdChanged details") {
+            val (gsm, origInstanceId, newInstanceId) = base.playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
 
-        // New instanceId should be on battlefield (not in Limbo)
-        val newObj = gsm.gameObjectsList.firstOrNull { it.instanceId == newInstanceId }
-        assertTrue(newObj != null, "GSM should have gameObject for new instanceId $newInstanceId")
-        assertEquals(newObj!!.zoneId, ZoneIds.BATTLEFIELD, "New object should be on battlefield")
+            val oic = gsm.annotationOrNull(AnnotationType.ObjectIdChanged)
+            oic.shouldNotBeNull()
 
-        // diffDeletedInstanceIds should NOT contain the old ID immediately
-        assertTrue(
-            !gsm.diffDeletedInstanceIdsList.contains(origInstanceId),
-            "diffDeletedInstanceIds should NOT contain origId immediately, got: ${gsm.diffDeletedInstanceIdsList}",
-        )
-    }
+            oic.affectedIdsList.shouldContain(origInstanceId)
 
-    @Test(description = "Play land: accumulated client state has new object on BF, old removed")
-    fun accumulatedStateAfterPlayLand() {
-        val (b, game, counter) = startGameAtMain1()
+            val origIdDetail = oic.detail("orig_id")
+            origIdDetail.shouldNotBeNull()
+            origIdDetail.type shouldBe KeyValuePairValueType.Int32
+            origIdDetail.getValueInt32(0) shouldBe origInstanceId
 
-        val startResult = gameStart(game, b, counter)
-        val acc = ClientAccumulator()
-        acc.seedFull(handshakeFull(game, b, counter.currentGsId()))
-        acc.processAll(startResult.messages)
-        b.snapshotFromGame(game)
+            val newIdDetail = oic.detail("new_id")
+            newIdDetail.shouldNotBeNull()
+            newIdDetail.type shouldBe KeyValuePairValueType.Int32
+            newIdDetail.getValueInt32(0) shouldBe newInstanceId
 
-        val player = b.getPlayer(1) ?: error("Player 1 not found")
-        val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
-        val origInstanceId = b.getOrAllocInstanceId(land.id)
-        val forgeCardId = land.id
+            origInstanceId shouldNotBe newInstanceId
+        }
 
-        playLand(b) ?: error("No land in hand at seed 42")
-        val postResult = postAction(game, b, counter)
-        acc.processAll(postResult.messages)
-        val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
+        test("UserActionTaken fields") {
+            val (gsm, _, landInstanceId) = base.playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
 
-        // New instanceId on BF
-        val newObj = acc.objects[newInstanceId]
-        assertTrue(newObj != null, "Accumulated objects should have new instanceId $newInstanceId")
-        assertEquals(newObj!!.zoneId, ZoneIds.BATTLEFIELD, "New object should be on battlefield")
+            val uat = gsm.annotationOrNull(AnnotationType.UserActionTaken)
+            uat.shouldNotBeNull()
 
-        // Old instanceId: no Limbo GameObjectInfo in diff (real server omits it).
-        // The accumulator may still hold the stale hand object until
-        // diffDeletedInstanceIds is implemented.
+            uat.affectorId.toInt() shouldBe 1
+            uat.affectedIdsList.shouldContain(landInstanceId)
 
-        val handZone = acc.zones.values.firstOrNull { it.type == ZoneType.Hand && it.ownerSeatId == 1 }
-        assertTrue(handZone != null, "Should have P1 hand zone")
-        assertTrue(
-            !handZone!!.objectInstanceIdsList.contains(origInstanceId),
-            "Old instanceId $origInstanceId should NOT be in hand zone after play, got: ${handZone.objectInstanceIdsList}",
-        )
+            val actionType = uat.detail("actionType")
+            actionType.shouldNotBeNull()
+            actionType.type shouldBe KeyValuePairValueType.Int32
+            (actionType.valueInt32Count > 0).shouldBeTrue()
 
-        // BF + Limbo zone checks
-        val bfZone = acc.zones[ZoneIds.BATTLEFIELD]
-        assertTrue(bfZone != null, "Should have battlefield zone")
-        assertTrue(
-            bfZone!!.objectInstanceIdsList.contains(newInstanceId),
-            "Battlefield should contain new instanceId $newInstanceId, got: ${bfZone.objectInstanceIdsList}",
-        )
+            val abilityGrpId = uat.detail("abilityGrpId")
+            abilityGrpId.shouldNotBeNull()
+            abilityGrpId.type shouldBe KeyValuePairValueType.Int32
+        }
 
-        val limboZone = acc.zones[ZoneIds.LIMBO]
-        assertTrue(limboZone != null, "Should have Limbo zone")
-        assertTrue(
-            limboZone!!.objectInstanceIdsList.contains(origInstanceId),
-            "Limbo should contain old instanceId $origInstanceId, got: ${limboZone.objectInstanceIdsList}",
-        )
+        test("prevGameStateId present") {
+            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
 
-        acc.assertConsistent("after play land")
-    }
-}
+            gsm.prevGameStateId.toInt() shouldNotBe 0
+            (gsm.prevGameStateId < gsm.gameStateId).shouldBeTrue()
+        }
+
+        test("persistentAnnotations present") {
+            val (gsm, _, landInstanceId) = base.playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
+
+            (gsm.persistentAnnotationsCount > 0).shouldBeTrue()
+
+            val enteredZone = gsm.persistentAnnotationsList.firstOrNull {
+                AnnotationType.EnteredZoneThisTurn in it.typeList
+            }
+            enteredZone.shouldNotBeNull()
+            enteredZone.affectedIdsList.shouldContain(landInstanceId)
+        }
+
+        test("land has uniqueAbilities") {
+            val (gsm, _, landInstanceId) = base.playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
+
+            val landObj = gsm.gameObjectsList.firstOrNull { it.instanceId == landInstanceId }
+            landObj.shouldNotBeNull()
+
+            landObj.zoneId shouldBe ZoneIds.BATTLEFIELD
+            landObj.uniqueAbilitiesCount shouldBeGreaterThan 0
+        }
+
+        test("no Limbo gameObject in diff") {
+            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
+            val limboObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.LIMBO }
+            limboObjects.shouldBeEmpty()
+        }
+
+        test("old instance retired to Limbo") {
+            val (gsm, origInstanceId, newInstanceId) = base.playLandAndCaptureWithIds() ?: error("No land in hand at seed 42")
+
+            origInstanceId shouldNotBe newInstanceId
+
+            assertLimboContains(gsm, origInstanceId)
+
+            val newObj = gsm.gameObjectsList.firstOrNull { it.instanceId == newInstanceId }
+            newObj.shouldNotBeNull()
+            newObj.zoneId shouldBe ZoneIds.BATTLEFIELD
+
+            gsm.diffDeletedInstanceIdsList.contains(origInstanceId).shouldBeFalse()
+        }
+
+        test("accumulated state after play land") {
+            val (b, game, counter) = base.startGameAtMain1()
+
+            val startResult = base.gameStart(game, b, counter)
+            val acc = ClientAccumulator()
+            acc.seedFull(base.handshakeFull(game, b, counter.currentGsId()))
+            acc.processAll(startResult.messages)
+            b.snapshotFromGame(game)
+
+            val player = b.getPlayer(1) ?: error("Player 1 not found")
+            val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
+            val origInstanceId = b.getOrAllocInstanceId(land.id)
+            val forgeCardId = land.id
+
+            base.playLand(b) ?: error("No land in hand at seed 42")
+            val postResult = base.postAction(game, b, counter)
+            acc.processAll(postResult.messages)
+            val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
+
+            // New instanceId on BF
+            val newObj = acc.objects[newInstanceId]
+            newObj.shouldNotBeNull()
+            newObj.zoneId shouldBe ZoneIds.BATTLEFIELD
+
+            val handZone = acc.zones.values.firstOrNull { it.type == ZoneType.Hand && it.ownerSeatId == 1 }
+            handZone.shouldNotBeNull()
+            handZone.objectInstanceIdsList.contains(origInstanceId).shouldBeFalse()
+
+            // BF + Limbo zone checks
+            val bfZone = acc.zones[ZoneIds.BATTLEFIELD]
+            bfZone.shouldNotBeNull()
+            bfZone.objectInstanceIdsList.shouldContain(newInstanceId)
+
+            val limboZone = acc.zones[ZoneIds.LIMBO]
+            limboZone.shouldNotBeNull()
+            limboZone.objectInstanceIdsList.shouldContain(origInstanceId)
+
+            acc.assertConsistent("after play land")
+        }
+    })
