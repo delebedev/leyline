@@ -262,7 +262,7 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ModifiedLife)
             .addAffectedIds(playerSeatId)
-            .addDetails(int32Detail("delta", lifeDelta))
+            .addDetails(int32Detail("life", lifeDelta))
             .build()
 
     /** Card's power changed. Client uses this for buff/debuff overlay. Arena type 5. */
