@@ -34,6 +34,7 @@ class MockWasServer(
     private val roles: List<String> = DEFAULT_ROLES,
     private val certFile: File? = null,
     private val keyFile: File? = null,
+    private val fdHost: String = "localhost:30010",
 ) {
     private val log = LoggerFactory.getLogger(MockWasServer::class.java)
     private var server: HttpsServer? = null
@@ -102,10 +103,10 @@ class MockWasServer(
     private fun handleDoorbell(ex: HttpExchange) {
         if (ex.requestMethod == "POST") ex.requestBody.readBytes()
         val json = buildJsonObject {
-            put("FdURI", "localhost:30010")
+            put("FdURI", fdHost)
             putJsonArray("BundleManifests") {}
         }.toString()
-        log.info("Mock WAS: doorbell -> FdURI=localhost:30010")
+        log.info("Mock WAS: doorbell -> FdURI={}", fdHost)
         respond(ex, 200, json)
     }
 
@@ -141,11 +142,12 @@ class MockWasServer(
     }
 
     companion object {
-        val DEFAULT_ROLES = listOf(
-            "MTGA_DEBUG",
+        val PROD_ROLES = listOf(
             "WotC_ACCESS",
             "MTGA_FeatureToggle",
         )
+        val DEBUG_ROLES = PROD_ROLES + "MTGA_DEBUG"
+        val DEFAULT_ROLES = PROD_ROLES
 
         fun buildJwt(accountId: String, personaId: String, roles: List<String>): String {
             val header = buildJsonObject {

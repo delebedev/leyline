@@ -80,7 +80,18 @@ object CardDb {
         testMode = false
     }
 
-    /** Find the client card database on disk. */
+    /** Initialize from an explicit database file (e.g. Docker volume mount via LEYLINE_CARD_DB). */
+    fun init(dbFile: File): Boolean {
+        if (!dbFile.exists()) {
+            log.warn("Card database not found at {}", dbFile.absolutePath)
+            return false
+        }
+        dbPath = dbFile.absolutePath
+        log.info("Card database: {} ({} MB)", dbFile.name, dbFile.length() / 1024 / 1024)
+        return true
+    }
+
+    /** Auto-detect the client card database from the macOS Arena install. */
     fun init(): Boolean {
         val raw = File(System.getProperty("user.home"))
             .resolve("Library/Application Support/com.wizards.mtga/Downloads/Raw")
@@ -90,7 +101,7 @@ object CardDb {
             return false
         }
         dbPath = db.absolutePath
-        log.info("Client card database found: {} ({} MB)", db.name, db.length() / 1024 / 1024)
+        log.info("Card database: {} ({} MB)", db.name, db.length() / 1024 / 1024)
         return true
     }
 
