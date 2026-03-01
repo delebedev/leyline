@@ -59,11 +59,11 @@ fmt: check-java
 fmt-check: check-java
     cd "{{root_dir}}" && mvn -pl forge-nexus com.diffplug.spotless:spotless-maven-plugin:check -q
 
-# compile proto + Kotlin, install forge-web JAR to ~/.m2
+# compile proto + Kotlin, install forge-web JAR to .m2-local
 build: check-java _check-upstream
     #!/usr/bin/env bash
     set -euo pipefail
-    rm -rf "$HOME/.m2/repository/forge/forge/\${revision}" 2>/dev/null || true
+    rm -rf "{{root_dir}}/.m2-local/forge/forge/\${revision}" 2>/dev/null || true
     rm -rf "{{nexus_dir}}/target/classes"  # purge stale classes from package moves
     cd "{{root_dir}}" && mvn -pl forge-web {{flatten}} {{mvn_skip}} install -q
     cd "{{root_dir}}" && mvn -pl forge-nexus {{mvn_skip}} compile
