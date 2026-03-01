@@ -38,7 +38,7 @@ card-grp name:
 card-script name:
     #!/usr/bin/env bash
     set -euo pipefail
-    slug=$(echo "{{name}}" | tr '[:upper:]' '[:lower:]' | sed "s/[^a-z0-9]/_/g" | sed "s/__*/_/g" | sed "s/^_//;s/_$//")
+    slug=$(echo "{{name}}" | tr '[:upper:]' '[:lower:]' | sed "s/'//g" | sed "s/[^a-z0-9]/_/g" | sed "s/__*/_/g" | sed "s/^_//;s/_$//")
     first=${slug:0:1}
     path="{{cardsfolder}}/$first/$slug.txt"
     if [ -f "$path" ]; then
