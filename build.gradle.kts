@@ -1,3 +1,8 @@
+import leyline.build.CheckUpstreamTask
+import leyline.build.SyncProtoTask
+import leyline.build.WriteClasspathTask
+import leyline.build.configureTestDefaults
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
@@ -52,28 +57,6 @@ dependencies {
 
 // --- Proto sync + generation ---
 
-abstract class SyncProtoTask : DefaultTask() {
-    @get:org.gradle.api.tasks.InputFile
-    abstract val sedFile: RegularFileProperty
-
-    @get:org.gradle.api.tasks.InputFile
-    abstract val upstream: RegularFileProperty
-
-    @get:org.gradle.api.tasks.OutputFile
-    abstract val outputFile: RegularFileProperty
-
-    @org.gradle.api.tasks.TaskAction
-    fun sync() {
-        val proc = ProcessBuilder("sed", "-f", sedFile.get().asFile.absolutePath, upstream.get().asFile.absolutePath)
-            .redirectErrorStream(true)
-            .start()
-        val result = proc.inputStream.readBytes()
-        proc.waitFor()
-        if (proc.exitValue() != 0) throw GradleException("sed failed: ${String(result)}")
-        outputFile.get().asFile.writeBytes(result)
-    }
-}
-
 val syncProto by tasks.registering(SyncProtoTask::class) {
     description = "Generate messages.proto from upstream submodule + rename map"
     sedFile.set(layout.projectDirectory.file("proto/rename-map.sed"))
@@ -93,37 +76,6 @@ protobuf {
 
 // --- Upstream JAR freshness check ---
 
-abstract class CheckUpstreamTask : DefaultTask() {
-    @get:org.gradle.api.tasks.InputFile
-    @get:org.gradle.api.tasks.Optional
-    abstract val stampFile: RegularFileProperty
-
-    @get:org.gradle.api.tasks.Input
-    abstract val forgeDir: Property<String>
-
-    init {
-        outputs.upToDateWhen { false }
-    }
-
-    @org.gradle.api.tasks.TaskAction
-    fun check() {
-        val stamp = stampFile.orNull?.asFile
-        if (stamp == null || !stamp.exists()) {
-            throw GradleException("Upstream JARs not installed. Run: just install-forge")
-        }
-        val stampHash = stamp.readText().trim()
-        val proc = ProcessBuilder("git", "log", "-1", "--format=%H", "--",
-            "forge-core/src", "forge-game/src", "forge-ai/src", "forge-gui/src", "pom.xml")
-            .directory(File(forgeDir.get()))
-            .start()
-        val upstreamHash = proc.inputStream.bufferedReader().readText().trim()
-        proc.waitFor()
-        if (stampHash != upstreamHash) {
-            throw GradleException("Upstream sources changed. Run: just install-forge")
-        }
-    }
-}
-
 val checkUpstream by tasks.registering(CheckUpstreamTask::class) {
     description = "Verify forge submodule JARs are installed and current"
     stampFile.set(layout.projectDirectory.file(".upstream-installed"))
@@ -134,6 +86,8 @@ tasks.named("compileKotlin") {
     dependsOn(checkUpstream)
 }
 
+// --- Code quality ---
+
 spotless {
     kotlin {
         target("src/**/*.kt")
@@ -142,8 +96,6 @@ spotless {
         )
     }
 }
-
-// --- Power Assert (better test failure messages, zero runtime cost) ---
 
 powerAssert {
     functions = listOf(
@@ -155,8 +107,6 @@ powerAssert {
     )
 }
 
-// --- Detekt (static analysis) ---
-
 detekt {
     buildUponDefaultConfig = true
     config.setFrom(files("detekt.yml"))
@@ -166,72 +116,6 @@ detekt {
 }
 
 // --- Testing ---
-
-// Compact test summary listener — collects failures + slow tests, prints summary at end
-class CompactTestSummary : TestListener {
-    private val slowThreshold = 3.0
-    private val failedTests = mutableListOf<Triple<String, String, String>>()
-    private val slowTests = mutableListOf<Triple<String, String, Double>>()
-
-    override fun beforeSuite(suite: TestDescriptor) {}
-    override fun beforeTest(testDescriptor: TestDescriptor) {}
-
-    override fun afterTest(desc: TestDescriptor, result: TestResult) {
-        val secs = (result.endTime - result.startTime) / 1000.0
-        val cls = desc.className?.substringAfterLast('.') ?: ""
-        when {
-            result.resultType == TestResult.ResultType.FAILURE -> {
-                val msg = result.exception?.message?.lines()
-                    ?.filter { it.isNotBlank() && !it.trimStart().startsWith("at ") && !it.trimStart().startsWith("...") }
-                    ?.take(3)?.joinToString("\n    ")
-                    ?.take(200) ?: ""
-                failedTests.add(Triple(cls, desc.name, msg))
-            }
-            result.resultType == TestResult.ResultType.SUCCESS && secs >= slowThreshold -> {
-                slowTests.add(Triple(cls, desc.name, secs))
-            }
-        }
-    }
-
-    override fun afterSuite(desc: TestDescriptor, result: TestResult) {
-        if (desc.parent != null) return
-        val total = result.testCount
-        val failed = result.failedTestCount
-        val skipped = result.skippedTestCount
-        val passed = total - failed - skipped
-        val secs = (result.endTime - result.startTime) / 1000.0
-        println()
-        if (failed == 0L) {
-            println("PASS $passed/$passed in ${"%.1f".format(secs)}s")
-            if (skipped > 0) println("  ($skipped skipped)")
-        } else {
-            println("FAIL $passed/$total ($failed failure${if (failed != 1L) "s" else ""}) in ${"%.1f".format(secs)}s")
-            println()
-            println("FAILED:")
-            for ((cls, name, msg) in failedTests) {
-                println("  $cls.$name")
-                if (msg.isNotEmpty()) println("    $msg")
-            }
-        }
-        if (slowTests.isNotEmpty()) {
-            println()
-            println("SLOW (>${"%.0f".format(slowThreshold)}s):")
-            for ((cls, name, t) in slowTests.sortedByDescending { it.third }) {
-                println("  $cls.$name (${"%.1f".format(t)}s)")
-            }
-        }
-    }
-}
-
-// Shared test configuration: TestNG, heap, compact summary
-fun Test.configureTestDefaults() {
-    useTestNG()
-    maxHeapSize = "768m"
-    testLogging {
-        events("failed")
-    }
-    addTestListener(CompactTestSummary())
-}
 
 tasks.test {
     configureTestDefaults()
@@ -263,7 +147,6 @@ val testKotest by tasks.registering(Test::class) {
     useJUnitPlatform()
     maxHeapSize = "768m"
     testLogging { events("failed") }
-    // Only discover Kotest specs — exclude TestNG classes
     include("**/*Test.class", "**/*Spec.class")
 }
 
@@ -305,21 +188,6 @@ application {
 }
 
 // --- Classpath file (for justfile launch helpers) ---
-
-abstract class WriteClasspathTask : DefaultTask() {
-    @get:org.gradle.api.tasks.Input
-    abstract val classpath: Property<String>
-
-    @get:org.gradle.api.tasks.OutputFile
-    abstract val outputFile: RegularFileProperty
-
-    @org.gradle.api.tasks.TaskAction
-    fun write() {
-        val out = outputFile.get().asFile
-        out.parentFile.mkdirs()
-        out.writeText(classpath.get())
-    }
-}
 
 val writeClasspath by tasks.registering(WriteClasspathTask::class) {
     classpath.set(configurations.runtimeClasspath.map { it.asPath })
