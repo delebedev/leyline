@@ -421,15 +421,17 @@ object HandshakeMessages {
 
     // --- private helpers ---
 
-    /** DieRollResults — [winner] seat rolls higher, random d20 values. */
+    /** DieRollResults — [winner] seat rolls higher, random d20 values.
+     *  Uses [forge.util.MyRandom] so a seeded game produces deterministic rolls. */
     private fun buildDieRollResults(msgId: Int, winner: Int = 2): GREToClientMessage {
-        // Generate random d20 values; ensure winner > loser (re-roll on tie)
-        val rng = java.util.concurrent.ThreadLocalRandom.current()
+        // Generate random d20 values; ensure winner > loser (re-roll on tie).
+        // MyRandom.getRandom() respects the seed set in GameBridge.start().
+        val rng = forge.util.MyRandom.getRandom()
         var high: Int
         var low: Int
         do {
-            high = rng.nextInt(1, 21)
-            low = rng.nextInt(1, 21)
+            high = rng.nextInt(20) + 1
+            low = rng.nextInt(20) + 1
         } while (high <= low)
         val seat1Roll = if (winner == 1) high else low
         val seat2Roll = if (winner == 2) high else low
