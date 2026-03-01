@@ -3,6 +3,11 @@ package leyline.server
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpsConfigurator
 import com.sun.net.httpserver.HttpsServer
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.net.InetSocketAddress
@@ -62,41 +67,44 @@ class MockWasServer(
         val personaId = UUID.randomUUID().toString()
         val accessToken = buildJwt(accountId, personaId, roles)
         val refreshToken = UUID.randomUUID().toString()
-        val json = "{" +
-            "\"access_token\":\"$accessToken\"," +
-            "\"refresh_token\":\"$refreshToken\"," +
-            "\"expires_in\":86400," +
-            "\"token_type\":\"Bearer\"," +
-            "\"client_id\":\"leyline\"," +
-            "\"game_id\":\"MTGA\"," +
-            "\"domain_id\":\"mtga\"," +
-            "\"persona_id\":\"$personaId\"," +
-            "\"account_id\":\"$accountId\"," +
-            "\"display_name\":\"ForgePlayer\"" +
-            "}"
+        val json = buildJsonObject {
+            put("access_token", accessToken)
+            put("refresh_token", refreshToken)
+            put("expires_in", 86400)
+            put("token_type", "Bearer")
+            put("client_id", "leyline")
+            put("game_id", "MTGA")
+            put("domain_id", "mtga")
+            put("persona_id", personaId)
+            put("account_id", accountId)
+            put("display_name", "ForgePlayer")
+        }.toString()
         log.info("Mock WAS: login -> account={} roles={}", accountId.take(8), roles)
         respond(ex, 200, json)
     }
 
     private fun handleProfile(ex: HttpExchange) {
-        val json = "{" +
-            "\"accountID\":\"forge-account-1\"," +
-            "\"personaID\":\"forge-persona-1\"," +
-            "\"displayName\":\"ForgePlayer\"," +
-            "\"gameID\":\"MTGA\"," +
-            "\"externalID\":\"\"," +
-            "\"email\":\"forge@localhost\"," +
-            "\"dataOptIn\":false," +
-            "\"presenceSettings\":{\"socialMode\":\"PUBLIC\"}," +
-            "\"countryCode\":\"US\"" +
-            "}"
+        val json = buildJsonObject {
+            put("accountID", "forge-account-1")
+            put("personaID", "forge-persona-1")
+            put("displayName", "ForgePlayer")
+            put("gameID", "MTGA")
+            put("externalID", "")
+            put("email", "forge@localhost")
+            put("dataOptIn", false)
+            putJsonObject("presenceSettings") { put("socialMode", "PUBLIC") }
+            put("countryCode", "US")
+        }.toString()
         log.debug("Mock WAS: profile request")
         respond(ex, 200, json)
     }
 
     private fun handleDoorbell(ex: HttpExchange) {
         if (ex.requestMethod == "POST") ex.requestBody.readBytes()
-        val json = "{\"FdURI\":\"localhost:30010\",\"BundleManifests\":[]}"
+        val json = buildJsonObject {
+            put("FdURI", "localhost:30010")
+            putJsonArray("BundleManifests") {}
+        }.toString()
         log.info("Mock WAS: doorbell -> FdURI=localhost:30010")
         respond(ex, 200, json)
     }
@@ -140,20 +148,21 @@ class MockWasServer(
         )
 
         fun buildJwt(accountId: String, personaId: String, roles: List<String>): String {
-            val header = "{\"alg\":\"none\",\"typ\":\"JWT\"}"
-            val rolesJson = roles.joinToString(",") { "\"$it\"" }
+            val header = buildJsonObject {
+                put("alg", "none")
+                put("typ", "JWT")
+            }.toString()
             val now = System.currentTimeMillis() / 1000
-            val exp = now + 86400
-            val payload = "{" +
-                "\"sub\":\"$accountId\"," +
-                "\"persona_id\":\"$personaId\"," +
-                "\"game_id\":\"MTGA\"," +
-                "\"iss\":\"leyline\"," +
-                "\"iat\":$now," +
-                "\"exp\":$exp," +
-                "\"wotc-rols\":[$rolesJson]," +
-                "\"wotc-flgs\":3" +
-                "}"
+            val payload = buildJsonObject {
+                put("sub", accountId)
+                put("persona_id", personaId)
+                put("game_id", "MTGA")
+                put("iss", "leyline")
+                put("iat", now)
+                put("exp", now + 86400)
+                putJsonArray("wotc-rols") { roles.forEach { add(JsonPrimitive(it)) } }
+                put("wotc-flgs", 3)
+            }.toString()
             val enc = Base64.getUrlEncoder().withoutPadding()
             return enc.encodeToString(header.toByteArray()) +
                 "." + enc.encodeToString(payload.toByteArray()) + "."

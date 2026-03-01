@@ -2,6 +2,10 @@ package leyline.debug
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import leyline.LeylinePaths
 import org.slf4j.LoggerFactory
 import java.io.BufferedWriter
@@ -112,31 +116,6 @@ class PlayerLogWatcher(
             """\[TaskLogger\]Deserialization function failed for\s+(\S+)""",
         )
 
-        /** Extract ExceptionType from JSON payload. */
-        private val JSON_EXCEPTION_TYPE = Regex(
-            """"ExceptionType"\s*:\s*"([^"]+)"""",
-        )
-
-        /** Extract exception Message from JSON payload. */
-        private val JSON_MESSAGE = Regex(
-            """"Message"\s*:\s*"([^"]+)"""",
-        )
-
-        /** Extract StackTraceString from JSON payload. */
-        private val JSON_STACK = Regex(
-            """"StackTraceString"\s*:\s*"([^"]+)"""",
-        )
-
-        /** Extract annotation Id from JSON payload. */
-        private val JSON_ANNOTATION_ID = Regex(
-            """"Id"\s*:\s*(\d+)""",
-        )
-
-        /** Extract annotation Type array from JSON payload. */
-        private val JSON_ANNOTATION_TYPE = Regex(
-            """"Type"\s*:\s*\[([^\]]*)]""",
-        )
-
         /** Exception types to suppress — too noisy, not actionable. */
         private val SUPPRESSED_TYPES = setOf(
             "ArgumentNullException",
@@ -242,9 +221,14 @@ class PlayerLogWatcher(
         if (annotMatch != null) {
             val jsonPayload = annotMatch.groupValues[1]
             if (jsonPayload.isNotBlank()) {
-                val exType = JSON_EXCEPTION_TYPE.find(jsonPayload)?.groupValues?.get(1)
+                val parsed = try {
+                    Json.parseToJsonElement(jsonPayload).jsonObject
+                } catch (_: Exception) {
+                    null
+                }
+                val exType = parsed?.get("ExceptionType")?.jsonPrimitive?.content
                 if (exType != null && exType in SUPPRESSED_TYPES) return
-                recordAnnotationError(jsonPayload, line)
+                recordAnnotationError(parsed, line)
             } else {
                 // Bare "Exception while parsing annotation." without JSON
                 record(
@@ -290,16 +274,18 @@ class PlayerLogWatcher(
         }
     }
 
-    private fun recordAnnotationError(jsonPayload: String, rawLine: String) {
-        val exType = JSON_EXCEPTION_TYPE.find(jsonPayload)?.groupValues?.get(1) ?: "UnknownException"
-        val msg = JSON_MESSAGE.find(jsonPayload)?.groupValues?.get(1) ?: "Unknown error"
-        val stack = JSON_STACK.find(jsonPayload)?.groupValues?.get(1)
+    private fun recordAnnotationError(parsed: kotlinx.serialization.json.JsonObject?, rawLine: String) {
+        val exType = parsed?.get("ExceptionType")?.jsonPrimitive?.content ?: "UnknownException"
+        val msg = parsed?.get("Message")?.jsonPrimitive?.content ?: "Unknown error"
+        val stack = parsed?.get("StackTraceString")?.jsonPrimitive?.content
             ?.replace("\\n", "\n")
             ?: ""
-        val annotId = JSON_ANNOTATION_ID.find(jsonPayload)?.groupValues?.get(1)?.toIntOrNull()
-        val annotType = JSON_ANNOTATION_TYPE.find(jsonPayload)?.groupValues?.get(1)
-            ?.split(",")
-            ?.mapNotNull { it.trim().toIntOrNull() }
+        val annotId = parsed?.get("Id")?.jsonPrimitive?.intOrNull
+        val annotType = try {
+            parsed?.get("Type")?.jsonArray?.mapNotNull { it.jsonPrimitive.intOrNull }
+        } catch (_: Exception) {
+            null
+        }
 
         record(
             exceptionType = exType,
