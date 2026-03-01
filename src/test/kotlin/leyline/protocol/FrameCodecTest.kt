@@ -1,5 +1,9 @@
 package leyline.protocol
 
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
 import io.netty.channel.embedded.EmbeddedChannel
@@ -9,11 +13,6 @@ import leyline.protocol.ClientFrameDecoder.Companion.TYPE_CTRL_INIT
 import leyline.protocol.ClientFrameDecoder.Companion.TYPE_DATA_FD
 import leyline.protocol.ClientFrameDecoder.Companion.TYPE_DATA_MATCH
 import leyline.protocol.ClientFrameDecoder.Companion.VERSION
-import org.testng.Assert.assertEquals
-import org.testng.Assert.assertNull
-import org.testng.Assert.assertTrue
-import org.testng.annotations.AfterMethod
-import org.testng.annotations.Test
 
 /**
  * Frame codec roundtrip tests — encode via [ClientHeaderPrepender], decode via
@@ -22,159 +21,157 @@ import org.testng.annotations.Test
  * Also exercises CTRL_INIT/ACK echo and boundary conditions. Pure Netty
  * EmbeddedChannel, no engine or TLS.
  */
-@Test(groups = ["unit"])
-class FrameCodecTest {
+class FrameCodecTest :
+    FunSpec({
 
-    private lateinit var encoderChannel: EmbeddedChannel
-    private lateinit var decoderChannel: EmbeddedChannel
+        val channels = mutableListOf<EmbeddedChannel>()
 
-    @AfterMethod
-    fun tearDown() {
-        if (::encoderChannel.isInitialized) encoderChannel.finishAndReleaseAll()
-        if (::decoderChannel.isInitialized) decoderChannel.finishAndReleaseAll()
-    }
+        afterEach {
+            channels.forEach { it.finishAndReleaseAll() }
+            channels.clear()
+        }
 
-    /** Roundtrip: payload → prepender → decoder+stripper → same payload bytes. */
-    @Test
-    fun roundtripDataFrame() {
-        val payload = byteArrayOf(0x0A, 0x0B, 0x0C, 0x0D)
+        fun encoder(type: Byte): EmbeddedChannel =
+            EmbeddedChannel(ClientHeaderPrepender(type)).also { channels += it }
 
-        encoderChannel = EmbeddedChannel(ClientHeaderPrepender(TYPE_DATA_MATCH))
-        encoderChannel.writeOutbound(Unpooled.wrappedBuffer(payload))
-        val framed = encoderChannel.readOutbound<ByteBuf>()
-            ?: error("Encoder produced no output")
+        fun decoder(): EmbeddedChannel =
+            EmbeddedChannel(ClientFrameDecoder(), ClientHeaderStripper()).also { channels += it }
 
-        assertEquals(framed.readableBytes(), HEADER_SIZE + payload.size)
+        /** Roundtrip: payload → prepender → decoder+stripper → same payload bytes. */
+        test("roundtrip data frame") {
+            val payload = byteArrayOf(0x0A, 0x0B, 0x0C, 0x0D)
 
-        decoderChannel = EmbeddedChannel(ClientFrameDecoder(), ClientHeaderStripper())
-        decoderChannel.writeInbound(framed)
-        val decoded = decoderChannel.readInbound<ByteBuf>()
-            ?: error("Decoder produced no output")
+            val enc = encoder(TYPE_DATA_MATCH)
+            enc.writeOutbound(Unpooled.wrappedBuffer(payload))
+            val framed = enc.readOutbound<ByteBuf>()
+                ?: error("Encoder produced no output")
 
-        val result = ByteArray(decoded.readableBytes())
-        decoded.readBytes(result)
-        decoded.release()
+            framed.readableBytes() shouldBe HEADER_SIZE + payload.size
 
-        assertEquals(result, payload)
-    }
+            val dec = decoder()
+            dec.writeInbound(framed)
+            val decoded = dec.readInbound<ByteBuf>()
+                ?: error("Decoder produced no output")
 
-    /** Empty payload roundtrips cleanly (e.g. heartbeat). */
-    @Test
-    fun roundtripEmptyPayload() {
-        encoderChannel = EmbeddedChannel(ClientHeaderPrepender(TYPE_DATA_MATCH))
-        encoderChannel.writeOutbound(Unpooled.EMPTY_BUFFER.retainedDuplicate())
-        val framed = encoderChannel.readOutbound<ByteBuf>()
-            ?: error("Encoder produced no output")
+            val result = ByteArray(decoded.readableBytes())
+            decoded.readBytes(result)
+            decoded.release()
 
-        assertEquals(framed.readableBytes(), HEADER_SIZE)
+            result shouldBe payload
+        }
 
-        decoderChannel = EmbeddedChannel(ClientFrameDecoder(), ClientHeaderStripper())
-        decoderChannel.writeInbound(framed)
-        // Empty payload after header strip → ClientHeaderStripper drops it (readableBytes <= HEADER_SIZE)
-        val decoded = decoderChannel.readInbound<ByteBuf>()
-        assertNull(decoded, "Empty payload should be dropped by stripper")
-    }
+        /** Empty payload roundtrips cleanly (e.g. heartbeat). */
+        test("roundtrip empty payload") {
+            val enc = encoder(TYPE_DATA_MATCH)
+            enc.writeOutbound(Unpooled.EMPTY_BUFFER.retainedDuplicate())
+            val framed = enc.readOutbound<ByteBuf>()
+                ?: error("Encoder produced no output")
 
-    /** Header bytes: version=0x04, correct frame type, LE payload length. */
-    @Test
-    fun headerLayoutMatchesSpec() {
-        val payload = ByteArray(300) { (it % 256).toByte() }
+            framed.readableBytes() shouldBe HEADER_SIZE
 
-        encoderChannel = EmbeddedChannel(ClientHeaderPrepender(TYPE_DATA_FD))
-        encoderChannel.writeOutbound(Unpooled.wrappedBuffer(payload))
-        val framed = encoderChannel.readOutbound<ByteBuf>()
-            ?: error("Encoder produced no output")
+            val dec = decoder()
+            dec.writeInbound(framed)
+            // Empty payload after header strip → ClientHeaderStripper drops it (readableBytes <= HEADER_SIZE)
+            val decoded = dec.readInbound<ByteBuf>()
+            decoded.shouldBeNull()
+        }
 
-        assertEquals(framed.getByte(0), VERSION, "byte 0 = version")
-        assertEquals(framed.getByte(1), TYPE_DATA_FD, "byte 1 = frame type")
-        assertEquals(framed.getIntLE(2), payload.size, "bytes 2-5 = LE payload length")
+        /** Header bytes: version=0x04, correct frame type, LE payload length. */
+        test("header layout matches spec") {
+            val payload = ByteArray(300) { (it % 256).toByte() }
 
-        framed.release()
-    }
+            val enc = encoder(TYPE_DATA_FD)
+            enc.writeOutbound(Unpooled.wrappedBuffer(payload))
+            val framed = enc.readOutbound<ByteBuf>()
+                ?: error("Encoder produced no output")
 
-    /** CTRL_INIT frame is echoed back as CTRL_ACK (not passed downstream). */
-    @Test
-    fun ctrlInitEchoedAsAck() {
-        val nonce = byteArrayOf(0x01, 0x02, 0x03, 0x04)
-        val initFrame = Unpooled.buffer(HEADER_SIZE + nonce.size)
-        initFrame.writeByte(VERSION.toInt())
-        initFrame.writeByte(TYPE_CTRL_INIT.toInt())
-        initFrame.writeIntLE(nonce.size)
-        initFrame.writeBytes(nonce)
+            framed.getByte(0) shouldBe VERSION
+            framed.getByte(1) shouldBe TYPE_DATA_FD
+            framed.getIntLE(2) shouldBe payload.size
 
-        decoderChannel = EmbeddedChannel(ClientFrameDecoder(), ClientHeaderStripper())
-        decoderChannel.writeInbound(initFrame)
+            framed.release()
+        }
 
-        // Should NOT produce inbound (consumed by stripper)
-        assertNull(decoderChannel.readInbound(), "CTRL_INIT must not pass downstream")
+        /** CTRL_INIT frame is echoed back as CTRL_ACK (not passed downstream). */
+        test("ctrl init echoed as ack") {
+            val nonce = byteArrayOf(0x01, 0x02, 0x03, 0x04)
+            val initFrame = Unpooled.buffer(HEADER_SIZE + nonce.size)
+            initFrame.writeByte(VERSION.toInt())
+            initFrame.writeByte(TYPE_CTRL_INIT.toInt())
+            initFrame.writeIntLE(nonce.size)
+            initFrame.writeBytes(nonce)
 
-        // Should produce outbound ACK
-        val ack = decoderChannel.readOutbound<ByteBuf>()
-            ?: error("CTRL_INIT should produce an ACK response")
+            val dec = decoder()
+            dec.writeInbound(initFrame)
 
-        assertEquals(ack.getByte(0), VERSION, "ACK version")
-        assertEquals(ack.getByte(1), TYPE_CTRL_ACK, "ACK frame type")
-        assertEquals(ack.getIntLE(2), nonce.size, "ACK payload length")
+            // Should NOT produce inbound (consumed by stripper)
+            dec.readInbound<Any>().shouldBeNull()
 
-        // Nonce echoed
-        val echoedNonce = ByteArray(nonce.size)
-        ack.getBytes(HEADER_SIZE, echoedNonce)
-        assertEquals(echoedNonce, nonce, "Nonce echoed in ACK")
+            // Should produce outbound ACK
+            val ack = dec.readOutbound<ByteBuf>()
+                ?: error("CTRL_INIT should produce an ACK response")
 
-        ack.release()
-    }
+            ack.getByte(0) shouldBe VERSION
+            ack.getByte(1) shouldBe TYPE_CTRL_ACK
+            ack.getIntLE(2) shouldBe nonce.size
 
-    /** Decoder buffers partial frames until complete. */
-    @Test
-    fun partialFrameBuffered() {
-        val payload = byteArrayOf(0xAA.toByte(), 0xBB.toByte())
+            // Nonce echoed
+            val echoedNonce = ByteArray(nonce.size)
+            ack.getBytes(HEADER_SIZE, echoedNonce)
+            echoedNonce shouldBe nonce
 
-        encoderChannel = EmbeddedChannel(ClientHeaderPrepender(TYPE_DATA_MATCH))
-        encoderChannel.writeOutbound(Unpooled.wrappedBuffer(payload))
-        val framed = encoderChannel.readOutbound<ByteBuf>()
-            ?: error("Encoder produced no output")
+            ack.release()
+        }
 
-        val allBytes = ByteArray(framed.readableBytes())
-        framed.readBytes(allBytes)
-        framed.release()
+        /** Decoder buffers partial frames until complete. */
+        test("partial frame buffered") {
+            val payload = byteArrayOf(0xAA.toByte(), 0xBB.toByte())
 
-        decoderChannel = EmbeddedChannel(ClientFrameDecoder(), ClientHeaderStripper())
+            val enc = encoder(TYPE_DATA_MATCH)
+            enc.writeOutbound(Unpooled.wrappedBuffer(payload))
+            val framed = enc.readOutbound<ByteBuf>()
+                ?: error("Encoder produced no output")
 
-        // Feed first 4 bytes (incomplete header+payload)
-        decoderChannel.writeInbound(Unpooled.wrappedBuffer(allBytes, 0, 4))
-        assertNull(decoderChannel.readInbound(), "Incomplete frame should not decode")
+            val allBytes = ByteArray(framed.readableBytes())
+            framed.readBytes(allBytes)
+            framed.release()
 
-        // Feed remaining bytes
-        decoderChannel.writeInbound(Unpooled.wrappedBuffer(allBytes, 4, allBytes.size - 4))
-        val decoded = decoderChannel.readInbound<ByteBuf>()
-            ?: error("Complete frame should decode")
+            val dec = decoder()
 
-        val result = ByteArray(decoded.readableBytes())
-        decoded.readBytes(result)
-        decoded.release()
-        assertEquals(result, payload)
-    }
+            // Feed first 4 bytes (incomplete header+payload)
+            dec.writeInbound(Unpooled.wrappedBuffer(allBytes, 0, 4))
+            dec.readInbound<Any>().shouldBeNull()
 
-    /** Large payload (near typical GSM size) roundtrips correctly. */
-    @Test
-    fun largePayloadRoundtrip() {
-        val payload = ByteArray(65_536) { (it % 251).toByte() } // prime mod avoids repeats
+            // Feed remaining bytes
+            dec.writeInbound(Unpooled.wrappedBuffer(allBytes, 4, allBytes.size - 4))
+            val decoded = dec.readInbound<ByteBuf>()
+                ?: error("Complete frame should decode")
 
-        encoderChannel = EmbeddedChannel(ClientHeaderPrepender(TYPE_DATA_MATCH))
-        encoderChannel.writeOutbound(Unpooled.wrappedBuffer(payload))
-        val framed = encoderChannel.readOutbound<ByteBuf>()
-            ?: error("Encoder produced no output")
+            val result = ByteArray(decoded.readableBytes())
+            decoded.readBytes(result)
+            decoded.release()
+            result shouldBe payload
+        }
 
-        decoderChannel = EmbeddedChannel(ClientFrameDecoder(), ClientHeaderStripper())
-        decoderChannel.writeInbound(framed)
-        val decoded = decoderChannel.readInbound<ByteBuf>()
-            ?: error("Decoder produced no output")
+        /** Large payload (near typical GSM size) roundtrips correctly. */
+        test("large payload roundtrip") {
+            val payload = ByteArray(65_536) { (it % 251).toByte() } // prime mod avoids repeats
 
-        val result = ByteArray(decoded.readableBytes())
-        decoded.readBytes(result)
-        decoded.release()
+            val enc = encoder(TYPE_DATA_MATCH)
+            enc.writeOutbound(Unpooled.wrappedBuffer(payload))
+            val framed = enc.readOutbound<ByteBuf>()
+                ?: error("Encoder produced no output")
 
-        assertEquals(result.size, payload.size)
-        assertTrue(result.contentEquals(payload), "64KB payload must survive roundtrip")
-    }
-}
+            val dec = decoder()
+            dec.writeInbound(framed)
+            val decoded = dec.readInbound<ByteBuf>()
+                ?: error("Decoder produced no output")
+
+            val result = ByteArray(decoded.readableBytes())
+            decoded.readBytes(result)
+            decoded.release()
+
+            result.size shouldBe payload.size
+            result.contentEquals(payload).shouldBeTrue()
+        }
+    })
