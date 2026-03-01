@@ -319,11 +319,13 @@ class AnnotationBuilderTest {
     // --- SyntheticEvent ---
 
     @Test
-    fun syntheticEventMinimal() {
-        val ann = AnnotationBuilder.syntheticEvent()
+    fun syntheticEventFields() {
+        val ann = AnnotationBuilder.syntheticEvent(seatId = 1)
         assertTrue(ann.typeList.contains(AnnotationType.SyntheticEvent))
-        assertEquals(ann.affectorId, 0)
-        assertEquals(ann.affectedIdsCount, 0)
+        assertTrue(ann.affectedIdsList.contains(1))
+        val type = ann.detailsList.first { it.key == "type" }
+        assertEquals(type.type, KeyValuePairValueType.Uint32)
+        assertEquals(type.getValueUint32(0), 1)
     }
 
     // --- TokenCreated (Group B) ---
