@@ -1,6 +1,6 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-import '../build/java.just'
+import 'build/java.just'
 import 'just/lookup.just'
 import 'just/proto.just'
 import 'just/recording.just'
@@ -57,6 +57,11 @@ install-forge:
     cd "{{nexus_dir}}/forge" && mvn flatten:flatten install -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
     @echo "Forge engine installed to forge/.m2-local/"
 
+# generate messages.proto from upstream submodule + rename map
+sync-proto:
+    sed -f "{{nexus_dir}}/proto/rename-map.sed" "{{nexus_dir}}/proto/upstream/messages.proto" > "{{nexus_dir}}/src/main/proto/messages.proto"
+    @echo "Proto synced from upstream + renames applied"
+
 # auto-format Kotlin sources (spotless/ktlint)
 fmt: check-java
     cd "{{root_dir}}" && mvn -pl forge-nexus com.diffplug.spotless:spotless-maven-plugin:apply -q
@@ -67,7 +72,7 @@ fmt-check: check-java
     cd "{{root_dir}}" && mvn -pl forge-nexus com.diffplug.spotless:spotless-maven-plugin:check -q
 
 # compile proto + Kotlin (nexus is self-contained, no forge-web install needed)
-build: check-java _check-upstream
+build: check-java _check-upstream sync-proto
     #!/usr/bin/env bash
     set -euo pipefail
     rm -rf "{{root_dir}}/.m2-local/forge/forge/\${revision}" 2>/dev/null || true
