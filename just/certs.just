@@ -32,8 +32,10 @@ gen-certs fd_host="" md_host="" extra_san="":
     echo "Generating certs in $out"
     echo "  FD: $fd"
     echo "  MD: $md"
-    for door in frontdoor matchdoor; do
-        host="$fd"; [ "$door" = "matchdoor" ] && host="$md"
+    for door in frontdoor matchdoor was; do
+        if [ "$door" = "matchdoor" ]; then host="$md"
+        elif [ "$door" = "was" ]; then host="localhost"
+        else host="$fd"; fi
         openssl req -new -newkey rsa:2048 -nodes \
             -keyout "$out/$door.key" -out "$out/$door.csr" \
             -subj "/CN=$host" 2>/dev/null
