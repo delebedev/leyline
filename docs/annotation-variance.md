@@ -155,6 +155,27 @@ just proto-annotation-variance path/to/other/recordings
 Output is always sorted by severity: MISMATCH first, then NOT IMPLEMENTED, then OK.
 The header line shows counts: `Status: 4 MISMATCH, 17 NOT IMPLEMENTED, 18 OK`.
 
+## Fixing a builder — workflow
+
+1. **Fix** the builder in `AnnotationBuilder.kt` (e.g. rename `delta` → `life`)
+2. **Run `just test-gate`** — `goldenReferenceConformance` test fails:
+   `"ModifiedLife: marked as expectedMismatch but now matches! Remove from expectedMismatch."`
+3. **Remove** the entry from `expectedMismatch` in `AnnotationBuilderTest.kt`
+4. **Run `just test-gate`** again — all pass
+5. **Run `just proto-annotation-variance --summary`** — confirm type shows OK
+
+The `expectedMismatch` map in `AnnotationBuilderTest.kt` is the backlog.
+Each entry has a one-line fix instruction. When the map is empty, all
+builders match the real server.
+
+Current mismatches (fix instructions inline):
+```
+"ModifiedLife"      → sends {delta} instead of {life} — rename key
+"ModifiedPower"     → sends {value} — server sends no required keys, drop it
+"ModifiedToughness" → sends {value} — server sends no required keys, drop it
+"SyntheticEvent"    → missing {type} detail — add it
+```
+
 ## When to run
 
 - **After capturing new proxy recordings** — new games may reveal new annotation types or variant keys

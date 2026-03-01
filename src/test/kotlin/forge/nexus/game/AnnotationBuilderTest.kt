@@ -3,6 +3,7 @@ package forge.nexus.game
 import forge.nexus.game.mapper.ZoneIds
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertTrue
+import org.testng.Assert.fail
 import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -605,5 +606,155 @@ class AnnotationBuilderTest {
         assertEquals(detailKeys(AnnotationBuilder.shuffle(1)), emptySet<String>(), "Shuffle")
         assertEquals(detailKeys(AnnotationBuilder.revealedCardCreated(1)), emptySet<String>(), "RevealedCardCreated")
         assertEquals(detailKeys(AnnotationBuilder.revealedCardDeleted(1)), emptySet<String>(), "RevealedCardDeleted")
+    }
+
+    // =======================================================================
+    // Golden reference conformance
+    //
+    // Always-present detail keys from real Arena server, extracted by
+    // `just proto-annotation-variance` across 14 proxy sessions / 1898
+    // annotation instances. This test fails on ANY change to our builder
+    // output vs the golden reference, forcing triage.
+    //
+    // Workflow after fixing a builder:
+    //   1. Fix the builder method in AnnotationBuilder.kt
+    //   2. Run `just test-gate` — this test fails
+    //   3. Remove the type from expectedMismatch (or update goldenAlwaysKeys)
+    //   4. Run `just proto-annotation-variance --summary` to confirm OK
+    // =======================================================================
+
+    /**
+     * Golden reference: always-present detail keys per annotation type,
+     * observed in 100% of instances across all proxy recordings.
+     *
+     * Source: `just proto-annotation-variance --summary` (2026-02-28,
+     * 14 sessions, 1898 instances, 39 types).
+     */
+    private val goldenAlwaysKeys: Map<String, Set<String>> = mapOf(
+        // --- High-frequency types (>50 instances) ---
+        "PhaseOrStepModified" to setOf("phase", "step"), // 449 instances, 3 sessions
+        "ZoneTransfer" to setOf("category", "zone_dest", "zone_src"), // 181 instances
+        "EnteredZoneThisTurn" to emptySet(), // 177 instances — persistent, no details
+        "UserActionTaken" to setOf("abilityGrpId", "actionType"), // 153 instances
+        "ObjectIdChanged" to setOf("new_id", "orig_id"), // 152 instances
+        "TappedUntappedPermanent" to setOf("tapped"), // 148 instances
+        "AbilityInstanceCreated" to setOf("source_zone"), // 102 instances
+        "AbilityInstanceDeleted" to emptySet(), // 97 instances
+        "ManaPaid" to setOf("color", "id"), // 77 instances
+        "ResolutionComplete" to setOf("grpid"), // 54 instances
+        "ResolutionStart" to setOf("grpid"), // 53 instances
+
+        // --- Medium-frequency types (5-50 instances) ---
+        "NewTurnStarted" to emptySet(), // 44 instances
+        "DamageDealt" to setOf("damage", "markDamage", "type"), // 12 instances
+        "ModifiedToughness" to emptySet(), // 10 instances — all detail keys are optional
+        "ModifiedPower" to emptySet(), // 10 instances — all detail keys are optional
+        "ModifiedLife" to setOf("life"), // 8 instances
+        "SyntheticEvent" to setOf("type"), // 7 instances
+
+        // --- Low-frequency types (1-5 instances) ---
+        "TokenCreated" to emptySet(), // 4 instances
+        "AttachmentCreated" to emptySet(), // 4 instances
+        "Attachment" to emptySet(), // 4 instances
+        "CounterAdded" to setOf("counter_type", "transaction_amount"), // 3 instances
+        "TokenDeleted" to emptySet(), // 1 instance
+    )
+
+    /**
+     * Our builder output per type — calls each builder with dummy args,
+     * extracts detail keys.
+     */
+    private val ourBuilderKeys: Map<String, Set<String>> = mapOf(
+        "PhaseOrStepModified" to detailKeys(AnnotationBuilder.phaseOrStepModified(1, 1, 2)),
+        "ZoneTransfer" to detailKeys(AnnotationBuilder.zoneTransfer(1, 31, 28, "PlayLand")),
+        "EnteredZoneThisTurn" to detailKeys(AnnotationBuilder.enteredZoneThisTurn(28, 1)),
+        "UserActionTaken" to detailKeys(AnnotationBuilder.userActionTaken(1, 1, 1, 0)),
+        "ObjectIdChanged" to detailKeys(AnnotationBuilder.objectIdChanged(1, 2)),
+        "TappedUntappedPermanent" to detailKeys(AnnotationBuilder.tappedUntappedPermanent(1, 2)),
+        "AbilityInstanceCreated" to detailKeys(AnnotationBuilder.abilityInstanceCreated(1, 31)),
+        "AbilityInstanceDeleted" to detailKeys(AnnotationBuilder.abilityInstanceDeleted(1)),
+        "ManaPaid" to detailKeys(AnnotationBuilder.manaPaid(1, 1, "Green")),
+        "ResolutionComplete" to detailKeys(AnnotationBuilder.resolutionComplete(1, 1)),
+        "ResolutionStart" to detailKeys(AnnotationBuilder.resolutionStart(1, 1)),
+        "NewTurnStarted" to detailKeys(AnnotationBuilder.newTurnStarted(1)),
+        "DamageDealt" to detailKeys(AnnotationBuilder.damageDealt(1, 3)),
+        "ModifiedToughness" to detailKeys(AnnotationBuilder.modifiedToughness(1, 3)),
+        "ModifiedPower" to detailKeys(AnnotationBuilder.modifiedPower(1, 5)),
+        "ModifiedLife" to detailKeys(AnnotationBuilder.modifiedLife(1, -3)),
+        "SyntheticEvent" to detailKeys(AnnotationBuilder.syntheticEvent()),
+        "TokenCreated" to detailKeys(AnnotationBuilder.tokenCreated(1)),
+        "AttachmentCreated" to detailKeys(AnnotationBuilder.attachmentCreated(1, 2)),
+        "Attachment" to detailKeys(AnnotationBuilder.attachment(1, 2)),
+        "CounterAdded" to detailKeys(AnnotationBuilder.counterAdded(1, "P1P1", 2)),
+        "TokenDeleted" to detailKeys(AnnotationBuilder.tokenDeleted(1)),
+    )
+
+    /**
+     * Known mismatches: types where our builder intentionally differs from
+     * the golden reference. Each entry documents WHY and what the fix looks like.
+     *
+     * When you fix a builder, REMOVE the entry here — the test will confirm
+     * the fix by passing without it.
+     */
+    private val expectedMismatch: Map<String, String> = mapOf(
+        // Server sends {life} (absolute life total change), we send {delta} (relative).
+        // Fix: rename detail key from "delta" to "life" in modifiedLife().
+        "ModifiedLife" to "sends {delta} instead of {life} — rename key",
+
+        // Server sends no always-present keys (effect_id/counter_type are optional),
+        // we always send {value}. Client gets P/T from gameObject fields, not annotation.
+        // Fix: drop {value} detail entirely, optionally add effect_id/counter_type.
+        "ModifiedPower" to "sends {value} — server sends no required keys, drop it",
+        "ModifiedToughness" to "sends {value} — server sends no required keys, drop it",
+
+        // Server always sends {type} (value=1), we send no details.
+        // Fix: add uint32 detail "type" with value 1 to syntheticEvent().
+        "SyntheticEvent" to "missing {type} detail — add it",
+    )
+
+    @Test(description = "Golden reference: our builder detail keys match real Arena server always-present keys")
+    fun goldenReferenceConformance() {
+        val failures = mutableListOf<String>()
+
+        for ((typeName, goldenKeys) in goldenAlwaysKeys) {
+            val ourKeys = ourBuilderKeys[typeName]
+            if (ourKeys == null) {
+                failures += "$typeName: no builder registered in ourBuilderKeys"
+                continue
+            }
+
+            val missing = goldenKeys - ourKeys // server sends, we don't
+            val extra = ourKeys - goldenKeys // we send, server doesn't
+
+            if (missing.isEmpty() && extra.isEmpty()) {
+                // OK — check it's NOT in expectedMismatch (stale entry)
+                if (typeName in expectedMismatch) {
+                    failures += "$typeName: marked as expectedMismatch but now matches! " +
+                        "Remove from expectedMismatch."
+                }
+                continue
+            }
+
+            // Mismatch — must be in expectedMismatch
+            if (typeName !in expectedMismatch) {
+                failures += buildString {
+                    append("$typeName: MISMATCH not in expectedMismatch.")
+                    if (missing.isNotEmpty()) append(" missing=$missing")
+                    if (extra.isNotEmpty()) append(" extra=$extra")
+                    append(" Either fix the builder or add to expectedMismatch with a comment.")
+                }
+            }
+        }
+
+        if (failures.isNotEmpty()) {
+            val msg = buildString {
+                appendLine("Golden reference conformance failures:")
+                appendLine()
+                for (f in failures) appendLine("  - $f")
+                appendLine()
+                appendLine("Run `just proto-annotation-variance --summary` for current state.")
+            }
+            fail(msg)
+        }
     }
 }
