@@ -256,16 +256,22 @@ class AnnotationPipelineTest {
         val events = listOf(
             NexusGameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 0, newCount = 2),
         )
-        val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+        val result = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
 
-        assertEquals(annotations.size, 1, "Should produce one CounterAdded annotation")
-        assertTrue(annotations[0].typeList.contains(AnnotationType.CounterAdded))
-        assertTrue(annotations[0].affectedIdsList.contains(1042), "instanceId should be resolved via idResolver")
+        assertEquals(result.transient.size, 1, "Should produce one CounterAdded annotation")
+        assertTrue(result.transient[0].typeList.contains(AnnotationType.CounterAdded))
+        assertTrue(result.transient[0].affectedIdsList.contains(1042), "instanceId should be resolved via idResolver")
 
-        val counterType = annotations[0].detailsList.first { it.key == "counter_type" }
+        val counterType = result.transient[0].detailsList.first { it.key == "counter_type" }
         assertEquals(counterType.getValueString(0), "P1P1")
-        val txnAmount = annotations[0].detailsList.first { it.key == "transaction_amount" }
+        val txnAmount = result.transient[0].detailsList.first { it.key == "transaction_amount" }
         assertEquals(txnAmount.getValueInt32(0), 2)
+
+        // Persistent: Counter state annotation with current count
+        assertEquals(result.persistent.size, 1, "Should produce one persistent Counter state annotation")
+        assertTrue(result.persistent[0].typeList.contains(AnnotationType.Counter_803b))
+        val count = result.persistent[0].detailsList.first { it.key == "count" }
+        assertEquals(count.getValueInt32(0), 2)
     }
 
     @Test
@@ -373,13 +379,15 @@ class AnnotationPipelineTest {
         )
         val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
 
-        assertEquals(annotations.size, 2, "Both power and toughness changed → 2 annotations")
+        assertEquals(annotations.size, 3, "Both P/T changed → ModifiedPower + ModifiedToughness + PowerToughnessModCreated")
         assertTrue(annotations[0].typeList.contains(AnnotationType.ModifiedPower))
         assertTrue(annotations[0].affectedIdsList.contains(1050))
         assertEquals(annotations[0].detailsCount, 0, "ModifiedPower has no required detail keys")
 
         assertTrue(annotations[1].typeList.contains(AnnotationType.ModifiedToughness))
         assertEquals(annotations[1].detailsCount, 0, "ModifiedToughness has no required detail keys")
+
+        assertTrue(annotations[2].typeList.contains(AnnotationType.PowerToughnessModCreated))
     }
 
     @Test
@@ -389,8 +397,9 @@ class AnnotationPipelineTest {
         )
         val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
 
-        assertEquals(annotations.size, 1, "Only power changed → 1 annotation")
+        assertEquals(annotations.size, 2, "Only power changed → ModifiedPower + PowerToughnessModCreated")
         assertTrue(annotations[0].typeList.contains(AnnotationType.ModifiedPower))
+        assertTrue(annotations[1].typeList.contains(AnnotationType.PowerToughnessModCreated))
     }
 
     @Test
@@ -400,8 +409,9 @@ class AnnotationPipelineTest {
         )
         val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
 
-        assertEquals(annotations.size, 1, "Only toughness changed → 1 annotation")
+        assertEquals(annotations.size, 2, "Only toughness changed → ModifiedToughness + PowerToughnessModCreated")
         assertTrue(annotations[0].typeList.contains(AnnotationType.ModifiedToughness))
+        assertTrue(annotations[1].typeList.contains(AnnotationType.PowerToughnessModCreated))
     }
 
     // -- CardAttached --

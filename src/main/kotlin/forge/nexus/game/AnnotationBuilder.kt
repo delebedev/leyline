@@ -2,6 +2,7 @@ package forge.nexus.game
 
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.CounterType
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairInfo
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
@@ -424,6 +425,18 @@ object AnnotationBuilder {
             .addDetails(int32Detail("count", count))
             .addDetails(int32Detail("counter_type", counterType))
             .build()
+
+    /** Map Forge counter type name (e.g. "P1P1", "LOYALTY") to proto CounterType numeric value. */
+    private val counterTypeSuffixMap = mapOf("LOYALTY" to "Loyalty_a40e", "BLOOD" to "Blood_a40e", "CONTROL" to "Control_a40e")
+
+    fun counterTypeId(forgeName: String): Int {
+        val protoName = counterTypeSuffixMap[forgeName] ?: forgeName
+        return try {
+            CounterType.valueOf(protoName).number
+        } catch (_: IllegalArgumentException) {
+            0 // None_a40e
+        }
+    }
 
     // -- Tier 1 state annotations (abilities, effects, designations) --
 
