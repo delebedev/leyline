@@ -503,6 +503,74 @@ object AnnotationBuilder {
             .addDetails(int32Detail("effect_id", effectId))
             .build()
 
+    // -- Tier 2 detail-carrying annotations --
+
+    /** Land color production for card frame rendering. Arena type 110 (ColorProduction).
+     *  [colors] = bitmask (1=W, 2=U, 4=B, 8=R, 16=G).
+     *  Real card: grp:96188, colors=4 (session 09-33-05). */
+    fun colorProduction(instanceId: Int, colors: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.ColorProduction)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("colors", colors))
+            .build()
+
+    /** Which object triggered an ability + source zone. Arena type 32 (TriggeringObject).
+     *  Real card: grp:95039, zone=27 (session 09-33-05). */
+    fun triggeringObject(instanceId: Int, sourceZone: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.TriggeringObject)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("source_zone", sourceZone))
+            .build()
+
+    /** Target specification for spells/abilities. Arena type 26 (TargetSpec).
+     *  Real card: grp:75479, promptId=1330 (session 11-50-40). */
+    fun targetSpec(
+        instanceId: Int,
+        abilityGrpId: Int,
+        index: Int,
+        promptId: Int,
+        promptParameters: Int,
+    ): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.TargetSpec)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("abilityGrpId", abilityGrpId))
+            .addDetails(int32Detail("index", index))
+            .addDetails(int32Detail("promptId", promptId))
+            .addDetails(int32Detail("promptParameters", promptParameters))
+            .build()
+
+    /** P/T modification event (buff animation). Arena type 71 (PowerToughnessModCreated).
+     *  Real card: grp:91865, +1/+1 (session 09-33-05). */
+    fun powerToughnessModCreated(instanceId: Int, power: Int, toughness: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.PowerToughnessModCreated)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("power", power))
+            .addDetails(int32Detail("toughness", toughness))
+            .build()
+
+    /** Card displayed under another card (imprint, adventure exile). Arena type 38 (DisplayCardUnderCard).
+     *  Real card: grp:75479 (session 11-50-40). */
+    fun displayCardUnderCard(instanceId: Int, disable: Int = 0, temporaryZoneTransfer: Int = 1): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.DisplayCardUnderCard)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("Disable", disable))
+            .addDetails(int32Detail("TemporaryZoneTransfer", temporaryZoneTransfer))
+            .build()
+
+    /** Predicted direct damage preview text. Arena type 66 (PredictedDirectDamage).
+     *  Real card: grp:58445, value=2 (session 2026-03-01). */
+    fun predictedDirectDamage(instanceId: Int, value: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.PredictedDirectDamage)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("value", value))
+            .build()
+
     // -- Tier 2 detail-less annotations --
 
     /** Layered effect ended (continuous effect removed). Arena type 19. */
