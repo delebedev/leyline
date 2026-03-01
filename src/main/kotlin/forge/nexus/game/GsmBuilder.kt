@@ -99,6 +99,7 @@ object GsmBuilder {
         gameStateId: Int,
         seatId: Int,
         numCards: Int = 7,
+        mulliganCount: Int = 0,
     ): GREToClientMessage =
         GREToClientMessage.newBuilder()
             .setType(GREMessageType.MulliganReq_aa0d)
@@ -114,8 +115,67 @@ object GsmBuilder {
                             .setNumberValue(numCards),
                     ),
             )
-            .setMulliganReq(MulliganReq.newBuilder().setMulliganType(MulliganType.London))
+            .setMulliganReq(
+                MulliganReq.newBuilder()
+                    .setMulliganType(MulliganType.London)
+                    .setFreeMulliganCount(0)
+                    .setMulliganCount(mulliganCount),
+            )
             .build()
+
+    /**
+     * Build a GroupReq GRE message for London mulligan tuck.
+     *
+     * Real server sends TWO groupSpecs:
+     *   1. Keep group: (handSize - cardsToTuck) cards stay in Hand/Top
+     *   2. Tuck group: cardsToTuck cards go to Library/Bottom
+     * groupType=Ordered because the player must order cards going to bottom.
+     */
+    fun buildGroupReq(
+        msgId: Int,
+        gameStateId: Int,
+        seatId: Int,
+        handInstanceIds: List<Int>,
+        cardsToTuck: Int,
+    ): GREToClientMessage {
+        val keepCount = handInstanceIds.size - cardsToTuck
+        return GREToClientMessage.newBuilder()
+            .setType(GREMessageType.GroupReq_695e)
+            .addSystemSeatIds(seatId)
+            .setMsgId(msgId)
+            .setGameStateId(gameStateId)
+            .setPrompt(
+                Prompt.newBuilder().setPromptId(PromptIds.GROUP_LONDON_MULLIGAN)
+                    .addParameters(
+                        PromptParameter.newBuilder()
+                            .setParameterName("CardId")
+                            .setType(ParameterType.Number),
+                    ),
+            )
+            .setGroupReq(
+                GroupReq.newBuilder()
+                    .addAllInstanceIds(handInstanceIds)
+                    .addGroupSpecs(
+                        GroupSpecification.newBuilder()
+                            .setLowerBound(keepCount)
+                            .setUpperBound(keepCount)
+                            .setZoneType(ZoneType.Hand)
+                            .setSubZoneType(SubZoneType.Top),
+                    )
+                    .addGroupSpecs(
+                        GroupSpecification.newBuilder()
+                            .setLowerBound(cardsToTuck)
+                            .setUpperBound(cardsToTuck)
+                            .setZoneType(ZoneType.Library)
+                            .setSubZoneType(SubZoneType.Bottom),
+                    )
+                    .setGroupType(GroupType.Ordered)
+                    .setContext(GroupingContext.LondonMulligan)
+                    .setSourceId(seatId),
+            )
+            .setAllowCancel(AllowCancel.No_a526)
+            .build()
+    }
 
     /**
      * Build the initial Full [GameStateMessage] for the connection bundle.

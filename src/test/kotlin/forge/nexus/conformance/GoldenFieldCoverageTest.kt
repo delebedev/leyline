@@ -445,6 +445,31 @@ class GoldenFieldCoverageTest : ConformanceTestBase() {
     }
 
     // -----------------------------------------------------------------------
+    // GroupReq (London Mulligan tuck)
+    // -----------------------------------------------------------------------
+
+    @Test(description = "GroupReq field coverage vs real server (London mulligan tuck)")
+    fun groupReqLondonMulliganCoverage() {
+        val goldenGRE = loadGoldenGRE("group-req-london-mulligan.bin", GREMessageType.GroupReq_695e)
+        val goldenFields = FieldPathExtractor.extract(goldenGRE)
+
+        // Build via GsmBuilder with 7 hand cards, tuck 3 (4 mulls → bottom 3)
+        val handInstanceIds = listOf(407, 408, 409, 410, 411, 412, 413)
+        val ours = GsmBuilder.buildGroupReq(
+            msgId = 24,
+            gameStateId = 7,
+            seatId = 1,
+            handInstanceIds = handInstanceIds,
+            cardsToTuck = 3,
+        )
+        val ourFields = FieldPathExtractor.extract(ours)
+
+        val expectedMissing = emptySet<String>()
+        val expectedExtra = emptySet<String>()
+        assertFieldCoverage("GroupReq", goldenFields, ourFields, expectedMissing, expectedExtra)
+    }
+
+    // -----------------------------------------------------------------------
     // SetSettingsResp
     // -----------------------------------------------------------------------
 
