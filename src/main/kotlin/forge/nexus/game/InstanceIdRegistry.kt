@@ -45,6 +45,20 @@ class InstanceIdRegistry(startId: Int = 100) {
         return IdReallocation(oldId, newId)
     }
 
+    /**
+     * Nuke-and-repave: clear all active mappings and return the old instanceIds.
+     *
+     * Used for mulligan DealHand where the real server deletes every previous
+     * instanceId via `diffDeletedInstanceIds` and issues entirely fresh IDs.
+     * The reverse map is also cleared so old IDs don't resolve.
+     */
+    fun resetAll(): List<Int> {
+        val oldIds = forgeIdToInstanceId.values.toList()
+        forgeIdToInstanceId.clear()
+        instanceIdToForgeId.clear()
+        return oldIds
+    }
+
     /** Reverse lookup: client instanceId → Forge card ID. */
     fun getForgeCardId(instanceId: Int): Int? = instanceIdToForgeId[instanceId]
 
