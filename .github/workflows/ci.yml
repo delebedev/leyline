@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  gate:
+    name: Gate (fmt + unit + conformance)
+    runs-on: [self-hosted, Linux, ARM64]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Maven
+        uses: ./.github/actions/setup-maven
+
+      - name: Cache upstream JARs
+        uses: actions/cache@v4
+        with:
+          path: forge/.m2-local/forge/
+          key: upstream-m2-${{ hashFiles('forge/forge-core/src/**', 'forge/forge-game/src/**', 'forge/forge-ai/src/**', 'forge/forge-gui/src/**', 'forge/pom.xml') }}
+
+      - name: Setup just
+        uses: extractions/setup-just@v2
+
+      - name: Install forge JARs
+        run: just install-forge
+
+      - name: Check formatting
+        run: just fmt-check
+
+      - name: Build
+        run: just build
+
+      - name: Test (unit + conformance)
+        run: just test-gate
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-gate
+          path: target/surefire-reports/*.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  integration:
+    name: Integration
+    runs-on: [self-hosted, Linux, ARM64]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Maven
+        uses: ./.github/actions/setup-maven
+
+      - name: Cache upstream JARs
+        uses: actions/cache@v4
+        with:
+          path: forge/.m2-local/forge/
+          key: upstream-m2-${{ hashFiles('forge/forge-core/src/**', 'forge/forge-game/src/**', 'forge/forge-ai/src/**', 'forge/forge-gui/src/**', 'forge/pom.xml') }}
+
+      - name: Setup just
+        uses: extractions/setup-just@v2
+
+      - name: Install forge JARs
+        run: just install-forge
+
+      - name: Build
+        run: just build
+
+      - name: Test (integration)
+        run: just test-integration
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-integration
+          path: target/surefire-reports/*.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  report:
+    name: Test report
+    needs: [gate, integration]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          merge-multiple: true
+
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: |
+            **/TEST-*.xml
+          check_name: 'Test Results'
+          comment_title: 'Test Results'
+          deduplicate_classes_by_file_name: true
