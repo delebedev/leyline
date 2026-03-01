@@ -1,11 +1,15 @@
 package leyline.game
 
 import forge.game.zone.ZoneType
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.comparables.shouldBeGreaterThan
+import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import leyline.conformance.ConformanceTestBase
 import leyline.game.mapper.ZoneIds
-import org.testng.Assert.assertEquals
-import org.testng.Assert.assertTrue
-import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
@@ -13,156 +17,117 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
  * Shape tests for [StateMapper] output — zone visibility, timers, player info.
  * Board-based (no game loop needed).
  */
-@Test(groups = ["conformance"])
-class StateMapperShapeTest : ConformanceTestBase() {
+class StateMapperShapeTest :
+    FunSpec({
+        val base = ConformanceTestBase()
+        beforeSpec { base.initCardDatabase() }
+        afterEach { base.tearDown() }
 
-    /**
-     * Full state must have timers (real client: 2 inactivity timers).
-     * Client may lock out or hide turn timer without them.
-     */
-    @Test
-    fun fullStateHasTimers() {
-        val (b, game) = startWithBoard { _, _, _ -> }
+        test("full state has timers") {
+            val (b, game) = base.startWithBoard { _, _, _ -> }
 
-        val gs = StateMapper.buildFromGame(game, 1, TEST_MATCH_ID, b)
+            val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b)
 
-        assertTrue(gs.timersCount >= 2, "Full state should have at least 2 timers")
-        val timer1 = gs.timersList.first { it.timerId == 1 }
-        val timer2 = gs.timersList.first { it.timerId == 2 }
-        assertEquals(timer1.type, Messages.TimerType.Inactivity_a5e2)
-        assertEquals(timer2.type, Messages.TimerType.Inactivity_a5e2)
-        assertTrue(timer1.durationSec > 0, "Timer duration must be positive")
-    }
-
-    /**
-     * Zone visibility must match real client:
-     * Suppressed/Pending = Public, Sideboard = Private.
-     */
-    @Test
-    fun zoneVisibilityMatchesRealClient() {
-        val (b, game) = startWithBoard { g, human, _ ->
-            // Add cards to hand and graveyard so we can check object visibility
-            addCard("Forest", human, ZoneType.Hand)
-            addCard("Forest", human, ZoneType.Graveyard)
+            gs.timersCount shouldBeGreaterThanOrEqual 2
+            val timer1 = gs.timersList.first { it.timerId == 1 }
+            val timer2 = gs.timersList.first { it.timerId == 2 }
+            timer1.type shouldBe Messages.TimerType.Inactivity_a5e2
+            timer2.type shouldBe Messages.TimerType.Inactivity_a5e2
+            timer1.durationSec shouldBeGreaterThan 0
         }
 
-        val gs = StateMapper.buildFromGame(game, 1, TEST_MATCH_ID, b)
+        test("zone visibility matches real client") {
+            val (b, game) = base.startWithBoard { g, human, _ ->
+                base.addCard("Forest", human, ZoneType.Hand)
+                base.addCard("Forest", human, ZoneType.Graveyard)
+            }
 
-        val byId = gs.zonesList.associateBy { it.zoneId }
-        // Real client: Suppressed + Pending are Public
-        assertEquals(byId[ZoneIds.SUPPRESSED]!!.visibility, Messages.Visibility.Public, "Suppressed should be Public")
-        assertEquals(byId[ZoneIds.PENDING]!!.visibility, Messages.Visibility.Public, "Pending should be Public")
-        // Real client: Sideboard is Private
-        assertEquals(byId[ZoneIds.P1_SIDEBOARD]!!.visibility, Messages.Visibility.Private, "P1 Sideboard should be Private")
-        assertEquals(byId[ZoneIds.P2_SIDEBOARD]!!.visibility, Messages.Visibility.Private, "P2 Sideboard should be Private")
+            val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b)
 
-        // Graveyard objects must be Public (rosetta.md Table 3)
-        val gyObjects = gs.gameObjectsList.filter { obj ->
-            obj.zoneId == ZoneIds.P1_GRAVEYARD || obj.zoneId == ZoneIds.P2_GRAVEYARD
-        }
-        for (obj in gyObjects) {
-            assertEquals(obj.visibility, Messages.Visibility.Public, "Graveyard GameObjectInfo should be Public (zoneId=${obj.zoneId})")
-        }
+            val byId = gs.zonesList.associateBy { it.zoneId }
+            byId[ZoneIds.SUPPRESSED]!!.visibility shouldBe Messages.Visibility.Public
+            byId[ZoneIds.PENDING]!!.visibility shouldBe Messages.Visibility.Public
+            byId[ZoneIds.P1_SIDEBOARD]!!.visibility shouldBe Messages.Visibility.Private
+            byId[ZoneIds.P2_SIDEBOARD]!!.visibility shouldBe Messages.Visibility.Private
 
-        // Hand objects must be Private
-        val handObjects = gs.gameObjectsList.filter { obj ->
-            obj.zoneId == ZoneIds.P1_HAND || obj.zoneId == ZoneIds.P2_HAND
-        }
-        for (obj in handObjects) {
-            assertEquals(obj.visibility, Messages.Visibility.Private, "Hand GameObjectInfo should be Private (zoneId=${obj.zoneId})")
-        }
-    }
+            val gyObjects = gs.gameObjectsList.filter { obj ->
+                obj.zoneId == ZoneIds.P1_GRAVEYARD || obj.zoneId == ZoneIds.P2_GRAVEYARD
+            }
+            for (obj in gyObjects) {
+                obj.visibility shouldBe Messages.Visibility.Public
+            }
 
-    /** buildFromGame produces zones, game objects, and turnInfo. */
-    @Test
-    fun buildFromGameProducesValidState() {
-        val (b, game) = startWithBoard { _, human, _ ->
-            addCard("Forest", human, ZoneType.Hand)
-            addCard("Forest", human, ZoneType.Hand)
-            addCard("Llanowar Elves", human, ZoneType.Hand)
+            val handObjects = gs.gameObjectsList.filter { obj ->
+                obj.zoneId == ZoneIds.P1_HAND || obj.zoneId == ZoneIds.P2_HAND
+            }
+            for (obj in handObjects) {
+                obj.visibility shouldBe Messages.Visibility.Private
+            }
         }
 
-        val gs = StateMapper.buildFromGame(game, 1, TEST_MATCH_ID, b)
+        test("buildFromGame produces valid state") {
+            val (b, game) = base.startWithBoard { _, human, _ ->
+                base.addCard("Forest", human, ZoneType.Hand)
+                base.addCard("Forest", human, ZoneType.Hand)
+                base.addCard("Llanowar Elves", human, ZoneType.Hand)
+            }
 
-        assertTrue(gs.zonesCount > 0, "GameState should have zones")
-        assertTrue(gs.gameObjectsCount > 0, "GameState should have game objects")
+            val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b)
 
-        val handZone = gs.zonesList.find { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
-        checkNotNull(handZone) { "Should have seat 1 hand zone" }
-        assertEquals(handZone.objectInstanceIdsCount, 3, "Hand should have 3 cards")
+            gs.zonesCount shouldBeGreaterThan 0
+            gs.gameObjectsCount shouldBeGreaterThan 0
 
-        assertTrue(gs.hasTurnInfo(), "Should have turn info")
-    }
+            val handZone = gs.zonesList.find { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
+            handZone.shouldNotBeNull()
+            handZone.objectInstanceIdsCount shouldBe 3
 
-    /** Hand cards have cardTypes, supertypes, subtypes, power/toughness. */
-    @Test
-    fun gameObjectsHaveCardTypeFields() {
-        val (b, game) = startWithBoard { _, human, _ ->
-            addCard("Forest", human, ZoneType.Hand)
-            addCard("Llanowar Elves", human, ZoneType.Hand)
+            gs.hasTurnInfo().shouldBeTrue()
         }
 
-        val gs = StateMapper.buildFromGame(game, 1, TEST_MATCH_ID, b)
+        test("game objects have card type fields") {
+            val (b, game) = base.startWithBoard { _, human, _ ->
+                base.addCard("Forest", human, ZoneType.Hand)
+                base.addCard("Llanowar Elves", human, ZoneType.Hand)
+            }
 
-        val handZone = gs.zonesList.first { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
-        val handInstanceIds = handZone.objectInstanceIdsList.toSet()
-        val handObjects = gs.gameObjectsList.filter { it.instanceId in handInstanceIds }
-        assertTrue(handObjects.isNotEmpty(), "Should have hand objects")
+            val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b)
 
-        // Every hand card should have at least one cardType
-        for (obj in handObjects) {
-            assertTrue(
-                obj.cardTypesCount > 0,
-                "Hand card instanceId=${obj.instanceId} grpId=${obj.grpId} missing cardTypes",
-            )
+            val handZone = gs.zonesList.first { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
+            val handInstanceIds = handZone.objectInstanceIdsList.toSet()
+            val handObjects = gs.gameObjectsList.filter { it.instanceId in handInstanceIds }
+            handObjects.shouldNotBeEmpty()
+
+            for (obj in handObjects) {
+                obj.cardTypesCount shouldBeGreaterThan 0
+            }
+
+            val lands = handObjects.filter {
+                it.cardTypesList.contains(Messages.CardType.Land_a80b)
+            }
+            lands.shouldNotBeEmpty()
+            for (land in lands) {
+                land.superTypesList.contains(Messages.SuperType.Basic).shouldBeTrue()
+                land.subtypesList.contains(Messages.SubType.Forest).shouldBeTrue()
+            }
+
+            val creatures = handObjects.filter {
+                it.cardTypesList.contains(Messages.CardType.Creature)
+            }
+            creatures.shouldNotBeEmpty()
+            for (c in creatures) {
+                c.hasPower().shouldBeTrue()
+                c.hasToughness().shouldBeTrue()
+            }
         }
 
-        // Forest: Land + Basic + Forest subtype
-        val lands = handObjects.filter {
-            it.cardTypesList.contains(Messages.CardType.Land_a80b)
-        }
-        assertTrue(lands.isNotEmpty(), "Should have land in hand")
-        for (land in lands) {
-            assertTrue(
-                land.superTypesList.contains(Messages.SuperType.Basic),
-                "Forest should have Basic supertype",
-            )
-            assertTrue(
-                land.subtypesList.contains(Messages.SubType.Forest),
-                "Forest should have Forest subtype",
-            )
-        }
+        test("player info has timer ids") {
+            val (b, game) = base.startWithBoard { _, _, _ -> }
 
-        // Llanowar Elves: Creature with power/toughness
-        val creatures = handObjects.filter {
-            it.cardTypesList.contains(Messages.CardType.Creature)
-        }
-        assertTrue(creatures.isNotEmpty(), "Should have creature in hand")
-        for (c in creatures) {
-            assertTrue(c.hasPower(), "Creature instanceId=${c.instanceId} missing power")
-            assertTrue(c.hasToughness(), "Creature instanceId=${c.instanceId} missing toughness")
-        }
-    }
+            val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b)
 
-    /**
-     * PlayerInfo must include timerIds (real client: timerIds=[seatId]).
-     */
-    @Test
-    fun playerInfoHasTimerIds() {
-        val (b, game) = startWithBoard { _, _, _ -> }
-
-        val gs = StateMapper.buildFromGame(game, 1, TEST_MATCH_ID, b)
-
-        for (player in gs.playersList) {
-            assertTrue(
-                player.timerIdsCount > 0,
-                "Player seat ${player.systemSeatNumber} must have timerIds",
-            )
-            assertEquals(
-                player.timerIdsList[0],
-                player.systemSeatNumber,
-                "timerIds[0] should equal seat number",
-            )
+            for (player in gs.playersList) {
+                player.timerIdsCount shouldBeGreaterThan 0
+                player.timerIdsList[0] shouldBe player.systemSeatNumber
+            }
         }
-    }
-}
+    })

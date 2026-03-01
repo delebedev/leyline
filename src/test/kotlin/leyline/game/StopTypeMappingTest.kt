@@ -1,13 +1,13 @@
 package leyline.game
 
 import forge.game.phase.PhaseType
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.datatest.withData
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import leyline.game.mapper.StopTypeMapping
-import org.testng.Assert.assertEquals
-import org.testng.Assert.assertNull
-import org.testng.Assert.assertTrue
-import org.testng.annotations.BeforeClass
-import org.testng.annotations.DataProvider
-import org.testng.annotations.Test
 import wotc.mtgo.gre.external.messaging.Messages.SettingScope
 import wotc.mtgo.gre.external.messaging.Messages.SettingStatus
 import wotc.mtgo.gre.external.messaging.Messages.Stop
@@ -20,106 +20,108 @@ import wotc.mtgo.gre.external.messaging.Messages.StopType
  * Needs conformance group: PhaseType.<clinit> requires Localizer
  * (loaded by initializeCardDatabase).
  */
-@Test(groups = ["conformance"])
-class StopTypeMappingTest {
+class StopTypeMappingTest :
+    FunSpec({
 
-    @BeforeClass(alwaysRun = true)
-    fun init() {
-        leyline.bridge.GameBootstrap.initializeCardDatabase(quiet = true)
-    }
+        beforeSpec {
+            leyline.bridge.GameBootstrap.initializeCardDatabase(quiet = true)
+        }
 
-    @DataProvider(name = "allMappings")
-    fun allMappings(): Array<Array<Any>> = arrayOf(
-        arrayOf(StopType.UpkeepStep, PhaseType.UPKEEP),
-        arrayOf(StopType.DrawStep, PhaseType.DRAW),
-        arrayOf(StopType.PrecombatMainPhase, PhaseType.MAIN1),
-        arrayOf(StopType.BeginCombatStep, PhaseType.COMBAT_BEGIN),
-        arrayOf(StopType.DeclareAttackersStep, PhaseType.COMBAT_DECLARE_ATTACKERS),
-        arrayOf(StopType.DeclareBlockersStep, PhaseType.COMBAT_DECLARE_BLOCKERS),
-        arrayOf(StopType.CombatDamageStep, PhaseType.COMBAT_DAMAGE),
-        arrayOf(StopType.EndCombatStep, PhaseType.COMBAT_END),
-        arrayOf(StopType.PostcombatMainPhase, PhaseType.MAIN2),
-        arrayOf(StopType.EndStep_ad1f, PhaseType.END_OF_TURN),
-        arrayOf(StopType.FirstStrikeDamageStep, PhaseType.COMBAT_FIRST_STRIKE_DAMAGE),
-    )
+        context("StopType -> PhaseType for all 11 types") {
+            withData(
+                StopType.UpkeepStep to PhaseType.UPKEEP,
+                StopType.DrawStep to PhaseType.DRAW,
+                StopType.PrecombatMainPhase to PhaseType.MAIN1,
+                StopType.BeginCombatStep to PhaseType.COMBAT_BEGIN,
+                StopType.DeclareAttackersStep to PhaseType.COMBAT_DECLARE_ATTACKERS,
+                StopType.DeclareBlockersStep to PhaseType.COMBAT_DECLARE_BLOCKERS,
+                StopType.CombatDamageStep to PhaseType.COMBAT_DAMAGE,
+                StopType.EndCombatStep to PhaseType.COMBAT_END,
+                StopType.PostcombatMainPhase to PhaseType.MAIN2,
+                StopType.EndStep_ad1f to PhaseType.END_OF_TURN,
+                StopType.FirstStrikeDamageStep to PhaseType.COMBAT_FIRST_STRIKE_DAMAGE,
+            ) { (stopType, expected) ->
+                StopTypeMapping.toPhaseType(stopType) shouldBe expected
+            }
+        }
 
-    @Test(dataProvider = "allMappings", description = "StopType -> PhaseType for all 11 types")
-    fun stopTypeToPhaseType(stopType: StopType, expected: PhaseType) {
-        assertEquals(StopTypeMapping.toPhaseType(stopType), expected)
-    }
+        context("PhaseType -> StopType round-trip for all 11 types") {
+            withData(
+                StopType.UpkeepStep to PhaseType.UPKEEP,
+                StopType.DrawStep to PhaseType.DRAW,
+                StopType.PrecombatMainPhase to PhaseType.MAIN1,
+                StopType.BeginCombatStep to PhaseType.COMBAT_BEGIN,
+                StopType.DeclareAttackersStep to PhaseType.COMBAT_DECLARE_ATTACKERS,
+                StopType.DeclareBlockersStep to PhaseType.COMBAT_DECLARE_BLOCKERS,
+                StopType.CombatDamageStep to PhaseType.COMBAT_DAMAGE,
+                StopType.EndCombatStep to PhaseType.COMBAT_END,
+                StopType.PostcombatMainPhase to PhaseType.MAIN2,
+                StopType.EndStep_ad1f to PhaseType.END_OF_TURN,
+                StopType.FirstStrikeDamageStep to PhaseType.COMBAT_FIRST_STRIKE_DAMAGE,
+            ) { (expected, phaseType) ->
+                StopTypeMapping.toStopType(phaseType) shouldBe expected
+            }
+        }
 
-    @Test(dataProvider = "allMappings", description = "PhaseType -> StopType round-trip for all 11 types")
-    fun phaseTypeToStopType(expected: StopType, phaseType: PhaseType) {
-        assertEquals(StopTypeMapping.toStopType(phaseType), expected)
-    }
+        test("None_ad1f maps to null (no corresponding phase)") {
+            StopTypeMapping.toPhaseType(StopType.None_ad1f).shouldBeNull()
+        }
 
-    @Test(description = "None_ad1f maps to null (no corresponding phase)")
-    fun noneStopTypeReturnsNull() {
-        assertNull(StopTypeMapping.toPhaseType(StopType.None_ad1f))
-    }
+        test("phases without a StopType return null (UNTAP, CLEANUP)") {
+            StopTypeMapping.toStopType(PhaseType.UNTAP).shouldBeNull()
+            StopTypeMapping.toStopType(PhaseType.CLEANUP).shouldBeNull()
+        }
 
-    @Test(description = "Phases without a StopType return null (UNTAP, CLEANUP)")
-    fun unmappedPhasesReturnNull() {
-        assertNull(StopTypeMapping.toStopType(PhaseType.UNTAP))
-        assertNull(StopTypeMapping.toStopType(PhaseType.CLEANUP))
-    }
+        test("all 11 StopType values (excluding None) have a mapping") {
+            val mapped = StopType.values()
+                .filter { it != StopType.None_ad1f && it != StopType.UNRECOGNIZED }
+                .mapNotNull { StopTypeMapping.toPhaseType(it) }
+            mapped.size shouldBe 11
+        }
 
-    @Test(description = "All 11 StopType values (excluding None) have a mapping")
-    fun allStopTypesCovered() {
-        val mapped = StopType.values()
-            .filter { it != StopType.None_ad1f && it != StopType.UNRECOGNIZED }
-            .mapNotNull { StopTypeMapping.toPhaseType(it) }
-        assertEquals(mapped.size, 11, "Expected all 11 non-None StopTypes to map")
-    }
+        // --- Stop list parsing ---
 
-    // --- Stop list parsing ---
+        test("parse a list of Stop protos into enabled PhaseType set") {
+            val stops = listOf(
+                stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set),
+                stop(StopType.PostcombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set),
+                stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Clear_a3fe),
+            )
+            val enabled = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
+            enabled shouldContain PhaseType.MAIN1
+            enabled shouldContain PhaseType.MAIN2
+            enabled shouldNotContain PhaseType.UPKEEP
+        }
 
-    @Test(description = "Parse a list of Stop protos into enabled PhaseType set")
-    fun parseStopList() {
-        val stops = listOf(
-            stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set),
-            stop(StopType.PostcombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set),
-            stop(StopType.UpkeepStep, SettingScope.Team_ac6e, SettingStatus.Clear_a3fe),
-        )
-        val enabled = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
-        assertTrue(PhaseType.MAIN1 in enabled, "MAIN1 should be enabled")
-        assertTrue(PhaseType.MAIN2 in enabled, "MAIN2 should be enabled")
-        assertTrue(PhaseType.UPKEEP !in enabled, "UPKEEP should not be enabled (Clear)")
-    }
+        test("only stops matching the requested scope are included") {
+            val stops = listOf(
+                stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set),
+                stop(StopType.DeclareAttackersStep, SettingScope.Opponents, SettingStatus.Set),
+            )
+            val teamStops = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
+            teamStops shouldContain PhaseType.MAIN1
+            teamStops shouldNotContain PhaseType.COMBAT_DECLARE_ATTACKERS
 
-    @Test(description = "Only stops matching the requested scope are included")
-    fun scopeFiltering() {
-        val stops = listOf(
-            stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set),
-            stop(StopType.DeclareAttackersStep, SettingScope.Opponents, SettingStatus.Set),
-        )
-        val teamStops = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
-        assertTrue(PhaseType.MAIN1 in teamStops)
-        assertTrue(PhaseType.COMBAT_DECLARE_ATTACKERS !in teamStops, "Opponents stop should not appear in Team scope")
+            val opponentStops = StopTypeMapping.parseStops(stops, SettingScope.Opponents)
+            opponentStops shouldContain PhaseType.COMBAT_DECLARE_ATTACKERS
+            opponentStops shouldNotContain PhaseType.MAIN1
+        }
 
-        val opponentStops = StopTypeMapping.parseStops(stops, SettingScope.Opponents)
-        assertTrue(PhaseType.COMBAT_DECLARE_ATTACKERS in opponentStops)
-        assertTrue(PhaseType.MAIN1 !in opponentStops, "Team stop should not appear in Opponents scope")
-    }
+        test("AnyPlayer scope matches both Team and Opponents queries") {
+            val stops = listOf(
+                stop(StopType.DrawStep, SettingScope.AnyPlayer, SettingStatus.Set),
+            )
+            val teamStops = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
+            teamStops shouldContain PhaseType.DRAW
 
-    @Test(description = "AnyPlayer scope matches both Team and Opponents queries")
-    fun anyPlayerScopeMatchesBoth() {
-        val stops = listOf(
-            stop(StopType.DrawStep, SettingScope.AnyPlayer, SettingStatus.Set),
-        )
-        val teamStops = StopTypeMapping.parseStops(stops, SettingScope.Team_ac6e)
-        assertTrue(PhaseType.DRAW in teamStops, "AnyPlayer should match Team query")
+            val opponentStops = StopTypeMapping.parseStops(stops, SettingScope.Opponents)
+            opponentStops shouldContain PhaseType.DRAW
+        }
+    })
 
-        val opponentStops = StopTypeMapping.parseStops(stops, SettingScope.Opponents)
-        assertTrue(PhaseType.DRAW in opponentStops, "AnyPlayer should match Opponents query")
-    }
-
-    // --- Helper ---
-
-    private fun stop(type: StopType, scope: SettingScope, status: SettingStatus): Stop =
-        Stop.newBuilder()
-            .setStopType(type)
-            .setAppliesTo(scope)
-            .setStatus(status)
-            .build()
-}
+private fun stop(type: StopType, scope: SettingScope, status: SettingStatus): Stop =
+    Stop.newBuilder()
+        .setStopType(type)
+        .setAppliesTo(scope)
+        .setStatus(status)
+        .build()

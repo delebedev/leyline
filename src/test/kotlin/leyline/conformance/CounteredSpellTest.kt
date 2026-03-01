@@ -1,11 +1,10 @@
 package leyline.conformance
 
 import forge.game.zone.ZoneType
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import leyline.game.snapshotFromGame
-import org.testng.Assert.assertEquals
-import org.testng.Assert.assertNotNull
-import org.testng.Assert.assertTrue
-import org.testng.annotations.Test
 
 /**
  * Countered spell conformance: cast creature → counter it (fizzle) → assert
@@ -15,104 +14,75 @@ import org.testng.annotations.Test
  * Bug found during triage: SpellResolved fires with hasFizzled=true but
  * categoryFromEvents returns Resolve before checking zone-pair fallback.
  */
-@Test(groups = ["conformance"])
-class CounteredSpellTest : ConformanceTestBase() {
+class CounteredSpellTest :
+    FunSpec({
+        val base = ConformanceTestBase()
+        beforeSpec { base.initCardDatabase() }
+        afterEach { base.tearDown() }
 
-    /**
-     * Cast a creature, then force-counter it by moving from Stack to GY
-     * (simulating a counter spell resolution). The zone transition should
-     * produce a ZoneTransfer annotation with category "Countered".
-     */
-    @Test
-    fun counteredCreatureGoesToGraveyardWithCounteredCategory() {
-        val (b, game, counter) = startGameAtMain1()
+        test("countered creature goes to graveyard with Countered category") {
+            val (b, game, counter) = base.startGameAtMain1()
 
-        // Play land for mana
-        playLand(b)
-        b.snapshotFromGame(game, counter.nextGsId())
+            // Play land for mana
+            base.playLand(b)
+            b.snapshotFromGame(game, counter.nextGsId())
 
-        // Cast creature (goes to Stack)
-        val player = b.getPlayer(1)!!
-        val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
-            ?: error("No creature in hand")
-        val forgeCardId = creature.id
+            // Cast creature (goes to Stack)
+            val player = b.getPlayer(1)!!
+            val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
+                ?: error("No creature in hand")
+            val forgeCardId = creature.id
 
-        castCreature(b)
-        b.snapshotFromGame(game, counter.nextGsId())
-        val stackId = b.getOrAllocInstanceId(forgeCardId)
+            base.castCreature(b)
+            b.snapshotFromGame(game, counter.nextGsId())
+            val stackId = b.getOrAllocInstanceId(forgeCardId)
 
-        // Now counter it: move from Stack to Graveyard directly.
-        // This simulates what happens when a counterspell resolves — the
-        // countered spell moves Stack→GY. Forge fires GameEventCardChangeZone.
-        // Stack is a game-level zone in Forge, not per-player.
-        val stackCard = game.stackZone.cards.firstOrNull { it.id == forgeCardId }
-            ?: error("Creature not found on stack (forgeCardId=$forgeCardId)")
+            // Now counter it: move from Stack to Graveyard directly.
+            val stackCard = game.stackZone.cards.firstOrNull { it.id == forgeCardId }
+                ?: error("Creature not found on stack (forgeCardId=$forgeCardId)")
 
-        // Counter the spell via game action (fires SpellResolved with fizzled + zone change)
-        val gsm = captureAfterAction(b, game, counter) {
-            game.action.moveToGraveyard(stackCard, null)
+            // Counter the spell via game action
+            val gsm = base.captureAfterAction(b, game, counter) {
+                game.action.moveToGraveyard(stackCard, null)
+            }
+            val newId = b.getOrAllocInstanceId(forgeCardId)
+
+            // Assert: ZoneTransfer annotation with "Countered" category
+            val zt = gsm.findZoneTransfer(newId) ?: gsm.findZoneTransfer(stackId)
+            zt.shouldNotBeNull()
+            zt.category shouldBe "Countered"
+
+            // Creature should be in graveyard
+            val gyCards = player.getZone(ZoneType.Graveyard).cards
+            (gyCards.any { it.id == forgeCardId }) shouldBe true
         }
-        val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        // Assert: ZoneTransfer annotation with "Countered" category
-        val zt = gsm.findZoneTransfer(newId)
-            ?: gsm.findZoneTransfer(stackId) // try old id too
-        assertNotNull(zt, "Should have ZoneTransfer annotation for countered spell")
-        assertEquals(
-            zt!!.category,
-            "Countered",
-            "Stack→GY should produce Countered category, not Resolve",
-        )
+        test("fizzled SpellResolved event produces Countered not Resolve") {
+            val (b, game, counter) = base.startGameAtMain1()
 
-        // Creature should be in graveyard, not battlefield
-        val bfObjects = gsm.gameObjectsList.filter { it.zoneId > 0 }
-        val gyCards = player.getZone(ZoneType.Graveyard).cards
-        assertTrue(
-            gyCards.any { it.id == forgeCardId },
-            "Countered creature should be in graveyard",
-        )
-    }
+            base.playLand(b)
+            b.snapshotFromGame(game, counter.nextGsId())
 
-    /**
-     * When SpellResolved(fizzled=true) fires alongside a Stack→GY zone change,
-     * categoryFromEvents should return Countered, not Resolve.
-     *
-     * SpellResolved match in categoryFromEvents fires first (line 31) and
-     * returns Resolve immediately — unless we special-case hasFizzled.
-     * This test documents the expected behavior.
-     */
-    @Test
-    fun fizzledSpellResolvedEventProducesCounteredNotResolve() {
-        val (b, game, counter) = startGameAtMain1()
+            val player = b.getPlayer(1)!!
+            val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
+                ?: error("No creature in hand")
+            val forgeCardId = creature.id
 
-        playLand(b)
-        b.snapshotFromGame(game, counter.nextGsId())
+            base.castCreature(b)
+            b.snapshotFromGame(game, counter.nextGsId())
 
-        val player = b.getPlayer(1)!!
-        val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
-            ?: error("No creature in hand")
-        val forgeCardId = creature.id
+            val stackCard = game.stackZone.cards.firstOrNull { it.id == forgeCardId }
+                ?: error("Creature not found on stack")
 
-        castCreature(b)
-        b.snapshotFromGame(game, counter.nextGsId())
+            // Manually fire SpellResolved with fizzled=true then move to GY
+            val gsm = base.captureAfterAction(b, game, counter) {
+                game.fireEvent(forge.game.event.GameEventSpellResolved(stackCard.firstSpellAbility, true))
+                game.action.moveToGraveyard(stackCard, null)
+            }
+            val newId = b.getOrAllocInstanceId(forgeCardId)
 
-        val stackCard = game.stackZone.cards.firstOrNull { it.id == forgeCardId }
-            ?: error("Creature not found on stack")
-
-        // Manually fire SpellResolved with fizzled=true (simulates counter)
-        // then move to GY — this is what Forge does when a spell is countered.
-        val gsm = captureAfterAction(b, game, counter) {
-            game.fireEvent(forge.game.event.GameEventSpellResolved(stackCard.firstSpellAbility, true))
-            game.action.moveToGraveyard(stackCard, null)
+            val zt = gsm.findZoneTransfer(newId)
+            zt.shouldNotBeNull()
+            zt.category shouldBe "Countered"
         }
-        val newId = b.getOrAllocInstanceId(forgeCardId)
-
-        val zt = gsm.findZoneTransfer(newId)
-        assertNotNull(zt, "Should have ZoneTransfer annotation")
-        assertEquals(
-            zt!!.category,
-            "Countered",
-            "Fizzled SpellResolved + Stack→GY must produce Countered, not Resolve",
-        )
-    }
-}
+    })
