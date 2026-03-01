@@ -1,5 +1,9 @@
 package leyline.protocol
 
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPInputStream
@@ -398,21 +402,40 @@ object FdEnvelope {
      * Build a MatchCreated push notification JSON payload.
      * Shared by FrontDoorService and FrontDoorReplayStub.
      */
-    fun buildMatchCreatedJson(matchId: String, matchDoorHost: String, matchDoorPort: Int): String = """{"Type":"MatchCreated","MatchInfoV3":{""" +
-        """"ControllerFabricUri":"wzmc://forge/$matchId",""" +
-        """"MatchEndpointHost":"$matchDoorHost",""" +
-        """"MatchEndpointPort":$matchDoorPort,""" +
-        """"MatchId":"$matchId",""" +
-        """"McFabricId":"wzmc://forge/$matchId",""" +
-        """"EventId":"AIBotMatch",""" +
-        """"MatchType":"Familiar",""" +
-        """"MatchTypeInternal":1,""" +
-        """"Battlefield":"FDN",""" +
-        """"YourSeat":1,""" +
-        """"PlayerInfos":[""" +
-        """{"SeatId":1,"TeamId":1,"ScreenName":"ForgePlayer","CosmeticsSelection":{"Avatar":{"Type":"Avatar","Id":"Avatar_Basic_Adventurer"},"Emotes":[]}},""" +
-        """{"SeatId":2,"TeamId":2,"ScreenName":"Sparky","CosmeticsSelection":{"Avatar":{"Type":"Avatar","Id":"Avatar_Basic_Sparky"},"Emotes":[]}}""" +
-        """]}}"""
+    fun buildMatchCreatedJson(matchId: String, matchDoorHost: String, matchDoorPort: Int): String =
+        buildJsonObject {
+            put("Type", "MatchCreated")
+            putJsonObject("MatchInfoV3") {
+                put("ControllerFabricUri", "wzmc://forge/$matchId")
+                put("MatchEndpointHost", matchDoorHost)
+                put("MatchEndpointPort", matchDoorPort)
+                put("MatchId", matchId)
+                put("McFabricId", "wzmc://forge/$matchId")
+                put("EventId", "AIBotMatch")
+                put("MatchType", "Familiar")
+                put("MatchTypeInternal", 1)
+                put("Battlefield", "FDN")
+                put("YourSeat", 1)
+                putJsonArray("PlayerInfos") {
+                    add(playerInfoJson(1, 1, "ForgePlayer", "Avatar_Basic_Adventurer"))
+                    add(playerInfoJson(2, 2, "Sparky", "Avatar_Basic_Sparky"))
+                }
+            }
+        }.toString()
+
+    private fun playerInfoJson(seatId: Int, teamId: Int, name: String, avatarId: String) =
+        buildJsonObject {
+            put("SeatId", seatId)
+            put("TeamId", teamId)
+            put("ScreenName", name)
+            putJsonObject("CosmeticsSelection") {
+                putJsonObject("Avatar") {
+                    put("Type", "Avatar")
+                    put("Id", avatarId)
+                }
+                putJsonArray("Emotes") {}
+            }
+        }
 
     /** CmdType enum values → names (from mtga-internals/docs/fd-envelope-proto.md). */
     private val CMD_TYPE_NAMES = mapOf(
