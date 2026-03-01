@@ -473,6 +473,22 @@ class AnnotationBuilderTest {
         assertEquals(type.getValueInt32(0), 1, "counter_type=1 for +1/+1")
     }
 
+    @Test
+    fun counterTypeIdMapsForgeNames() {
+        // Exact matches (P1P1, M1M1 already uppercase in both)
+        assertEquals(AnnotationBuilder.counterTypeId("P1P1"), 1)
+        assertEquals(AnnotationBuilder.counterTypeId("M1M1"), 2)
+        // Forge UPPERCASE → proto PascalCase
+        assertEquals(AnnotationBuilder.counterTypeId("LOYALTY"), 7, "LOYALTY → Loyalty_a40e")
+        assertEquals(AnnotationBuilder.counterTypeId("CHARGE"), 19, "CHARGE → Charge")
+        assertEquals(AnnotationBuilder.counterTypeId("AGE"), 9, "AGE → Age")
+        assertEquals(AnnotationBuilder.counterTypeId("BLOOD"), 15, "BLOOD → Blood_a40e")
+        assertEquals(AnnotationBuilder.counterTypeId("STUN"), 172, "STUN → Stun")
+        assertEquals(AnnotationBuilder.counterTypeId("POISON"), 3, "POISON → Poison")
+        // Unknown falls back to 0
+        assertEquals(AnnotationBuilder.counterTypeId("NONEXISTENT"), 0)
+    }
+
     // --- AddAbility (Tier 1) ---
 
     @Test
