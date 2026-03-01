@@ -223,6 +223,9 @@ class MatchHandler(
                 }
             }
 
+            // Future: proper London tuck UI via GroupReq/GroupResp.
+            // Currently unreachable — auto-tuck in submitMull() handles tuck during mull.
+            // Will be wired when we send GroupReq to client instead of auto-tucking.
             ClientMessageType.GroupResp_097b -> {
                 if (seatId == 1) {
                     val bridge = s?.gameBridge ?: return

@@ -118,13 +118,14 @@ game-flow:
       Player and AI phase indicators update in sync (should be separate).
 
   mulligan:
-    status: partial
-    plan: docs/mulligan-plan.md
+    status: wired
     notes: >
-      MulliganReq sent, player can see hand and choose to keep.
-      Cannot request re-deal (new hand) or scry after mulligan to 6 or fewer.
-      Missing: GroupReq (promptId=92, context=LondonMulligan) for bottom-card
-      selection, re-dealt hand GSM diff after mull, GroupResp handler.
+      London mulligan end-to-end: MulliganReq with mulliganCount/numCards,
+      mull re-deals hand (nuke-and-repave instanceIds via diffDeletedInstanceIds),
+      auto-tuck (first N cards put on bottom, matching forge-web). "Keep X" label
+      correct post-mull. Die roll randomized (seeded via MyRandom).
+      Deferred: proper tuck UI via GroupReq/GroupResp — code written + golden-tested
+      but not wired (auto-tuck handles it). GroupResp handler ready for future use.
 
   upkeep-triggers:
     status: wired
@@ -837,7 +838,7 @@ protocol-summary:
   gre-message-types:
     server-to-client: 13  # implemented
     client-to-server: 7   # handled (added CheckpointReq)
-    missing: 5             # ChooseStartingPlayer, OrderReq, AssignDamageReq, TimerState, GroupReq/GroupResp
+    missing: 4             # ChooseStartingPlayer, OrderReq, AssignDamageReq, TimerState (GroupReq/GroupResp coded, deferred)
 
   game-events-wired:
     wired: 20
