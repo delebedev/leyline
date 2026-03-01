@@ -118,6 +118,16 @@ object Integration : io.kotest.core.Tag()
 
 Apply per-spec: `tags(Unit)` in the FunSpec body. Gradle filters via system property or Kotest config.
 
+## Known failing tests
+
+Some combat/blocker integration tests are currently failing (pre-existing, not migration-related). During migration:
+
+1. Attempt a clean rewrite to kotest
+2. Run the test — if it fails consistently with the same error as under TestNG, `xtest` it and add a `// TODO: fix <description of failure>` comment
+3. Do not spend time debugging game mechanics issues — the goal is migration, not fixing combat logic
+
+These tests are in the `integration` group — expect them in `CombatFlowTest`, `BlockerDeclarationTest`, and similar harness-based files.
+
 ## Migration order
 
 1. **Custom assertion helpers** — `TestExtensions.kt`, `GameAssertions.kt` (swap internals to kotest assertions)
