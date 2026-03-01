@@ -150,6 +150,12 @@ class AnnotationShapeConformanceTest {
         assertEquals(detailKeys(ann), setOf("type"))
     }
 
+    @Test(description = "Counter shape: {count, counter_type}")
+    fun counterDetailKeyShape() {
+        val ann = AnnotationBuilder.counter(1, 1, 1)
+        assertEquals(detailKeys(ann), setOf("count", "counter_type"))
+    }
+
     @Test(description = "No-detail annotations: NewTurnStarted, EnteredZoneThisTurn, etc.")
     fun noDetailAnnotationShapes() {
         assertEquals(detailKeys(AnnotationBuilder.newTurnStarted(1)), emptySet<String>(), "NewTurnStarted")
@@ -163,6 +169,11 @@ class AnnotationShapeConformanceTest {
         assertEquals(detailKeys(AnnotationBuilder.shuffle(1)), emptySet<String>(), "Shuffle")
         assertEquals(detailKeys(AnnotationBuilder.revealedCardCreated(1)), emptySet<String>(), "RevealedCardCreated")
         assertEquals(detailKeys(AnnotationBuilder.revealedCardDeleted(1)), emptySet<String>(), "RevealedCardDeleted")
+        assertEquals(detailKeys(AnnotationBuilder.layeredEffectDestroyed(1)), emptySet<String>(), "LayeredEffectDestroyed")
+        assertEquals(detailKeys(AnnotationBuilder.playerSelectingTargets(1)), emptySet<String>(), "PlayerSelectingTargets")
+        assertEquals(detailKeys(AnnotationBuilder.playerSubmittedTargets(1)), emptySet<String>(), "PlayerSubmittedTargets")
+        assertEquals(detailKeys(AnnotationBuilder.damagedThisTurn(1)), emptySet<String>(), "DamagedThisTurn")
+        assertEquals(detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1)), emptySet<String>(), "InstanceRevealedToOpponent")
     }
 
     // =======================================================================
@@ -215,6 +226,12 @@ class AnnotationShapeConformanceTest {
         "Attachment" to emptySet(), // 4 instances
         "CounterAdded" to setOf("counter_type", "transaction_amount"), // 3 instances
         "TokenDeleted" to emptySet(), // 1 instance
+        "Counter" to setOf("count", "counter_type"),
+        "LayeredEffectDestroyed" to emptySet(),
+        "PlayerSelectingTargets" to emptySet(),
+        "PlayerSubmittedTargets" to emptySet(),
+        "DamagedThisTurn" to emptySet(),
+        "InstanceRevealedToOpponent" to emptySet(),
     )
 
     /**
@@ -244,6 +261,12 @@ class AnnotationShapeConformanceTest {
         "Attachment" to detailKeys(AnnotationBuilder.attachment(1, 2)),
         "CounterAdded" to detailKeys(AnnotationBuilder.counterAdded(1, "P1P1", 2)),
         "TokenDeleted" to detailKeys(AnnotationBuilder.tokenDeleted(1)),
+        "Counter" to detailKeys(AnnotationBuilder.counter(1, 1, 1)),
+        "LayeredEffectDestroyed" to detailKeys(AnnotationBuilder.layeredEffectDestroyed(1)),
+        "PlayerSelectingTargets" to detailKeys(AnnotationBuilder.playerSelectingTargets(1)),
+        "PlayerSubmittedTargets" to detailKeys(AnnotationBuilder.playerSubmittedTargets(1)),
+        "DamagedThisTurn" to detailKeys(AnnotationBuilder.damagedThisTurn(1)),
+        "InstanceRevealedToOpponent" to detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1)),
     )
 
     /**

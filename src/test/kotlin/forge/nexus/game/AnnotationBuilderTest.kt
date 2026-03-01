@@ -458,4 +458,60 @@ class AnnotationBuilderTest {
         val bottom = ann.detailsList.first { it.key == "bottomCount" }
         assertEquals(bottom.getValueInt32(0), 1)
     }
+
+    // --- Counter State (Tier 1) ---
+
+    @Test
+    fun counterStateFields() {
+        val ann = AnnotationBuilder.counter(instanceId = 100, counterType = 1, count = 1)
+        assertTrue(ann.typeList.contains(AnnotationType.Counter_803b))
+        assertTrue(ann.affectedIdsList.contains(100))
+        val count = ann.detailsList.first { it.key == "count" }
+        assertEquals(count.type, KeyValuePairValueType.Int32)
+        assertEquals(count.getValueInt32(0), 1)
+        val type = ann.detailsList.first { it.key == "counter_type" }
+        assertEquals(type.getValueInt32(0), 1, "counter_type=1 for +1/+1")
+    }
+
+    // --- Detail-less Tier 2 ---
+
+    @Test
+    fun layeredEffectDestroyedFields() {
+        val ann = AnnotationBuilder.layeredEffectDestroyed(effectId = 7007)
+        assertTrue(ann.typeList.contains(AnnotationType.LayeredEffectDestroyed))
+        assertTrue(ann.affectedIdsList.contains(7007))
+        assertEquals(ann.detailsCount, 0)
+    }
+
+    @Test
+    fun playerSelectingTargetsFields() {
+        val ann = AnnotationBuilder.playerSelectingTargets(instanceId = 303)
+        assertTrue(ann.typeList.contains(AnnotationType.PlayerSelectingTargets))
+        assertTrue(ann.affectedIdsList.contains(303))
+        assertEquals(ann.detailsCount, 0)
+    }
+
+    @Test
+    fun playerSubmittedTargetsFields() {
+        val ann = AnnotationBuilder.playerSubmittedTargets(instanceId = 303)
+        assertTrue(ann.typeList.contains(AnnotationType.PlayerSubmittedTargets))
+        assertTrue(ann.affectedIdsList.contains(303))
+        assertEquals(ann.detailsCount, 0)
+    }
+
+    @Test
+    fun damagedThisTurnFields() {
+        val ann = AnnotationBuilder.damagedThisTurn(instanceId = 355)
+        assertTrue(ann.typeList.contains(AnnotationType.DamagedThisTurn))
+        assertTrue(ann.affectedIdsList.contains(355))
+        assertEquals(ann.detailsCount, 0)
+    }
+
+    @Test
+    fun instanceRevealedToOpponentFields() {
+        val ann = AnnotationBuilder.instanceRevealedToOpponent(instanceId = 232)
+        assertTrue(ann.typeList.contains(AnnotationType.InstanceRevealedToOpponent))
+        assertTrue(ann.affectedIdsList.contains(232))
+        assertEquals(ann.detailsCount, 0)
+    }
 }

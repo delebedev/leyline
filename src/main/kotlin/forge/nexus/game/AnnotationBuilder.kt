@@ -411,6 +411,57 @@ object AnnotationBuilder {
             .addDetails(int32Detail("bottomCount", bottomCount))
             .build()
 
+    // -- Tier 1 state annotations --
+
+    /** Counter state: authoritative counter count on a permanent. Arena type 14 (Counter_803b).
+     *  Three-parser pattern: type 14 (this, state) + 16 (CounterAdded, event) + 17 (CounterRemoved, event).
+     *  [counterType] = numeric counter type (1 = +1/+1).
+     *  Real card: grp:93848 with +1/+1 counter (session 09-33-05). */
+    fun counter(instanceId: Int, counterType: Int, count: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.Counter_803b)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail("count", count))
+            .addDetails(int32Detail("counter_type", counterType))
+            .build()
+
+    // -- Tier 2 detail-less annotations --
+
+    /** Layered effect ended (continuous effect removed). Arena type 19. */
+    fun layeredEffectDestroyed(effectId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.LayeredEffectDestroyed)
+            .addAffectedIds(effectId)
+            .build()
+
+    /** Player is selecting targets for a spell/ability. Arena type 92. */
+    fun playerSelectingTargets(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.PlayerSelectingTargets)
+            .addAffectedIds(instanceId)
+            .build()
+
+    /** Player submitted target selections. Arena type 93. */
+    fun playerSubmittedTargets(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.PlayerSubmittedTargets)
+            .addAffectedIds(instanceId)
+            .build()
+
+    /** Creature was dealt damage this turn. Persistent state badge. Arena type 90. */
+    fun damagedThisTurn(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.DamagedThisTurn)
+            .addAffectedIds(instanceId)
+            .build()
+
+    /** Card in hidden zone revealed to opponent. Persistent badge. Arena type 75. */
+    fun instanceRevealedToOpponent(instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.InstanceRevealedToOpponent)
+            .addAffectedIds(instanceId)
+            .build()
+
     private fun typedStringDetail(key: String, value: String): KeyValuePairInfo =
         KeyValuePairInfo.newBuilder()
             .setKey(key)
