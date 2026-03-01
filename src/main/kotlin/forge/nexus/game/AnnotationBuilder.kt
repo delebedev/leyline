@@ -294,10 +294,12 @@ object AnnotationBuilder {
             .addDetails(int32Detail("reason", reason))
             .build()
 
-    /** Generic combat result marker. Client uses this to finalize combat animations. */
-    fun syntheticEvent(): AnnotationInfo =
+    /** Generic combat result marker. Client dispatches synthetic GameRulesEvent based on type. */
+    fun syntheticEvent(seatId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.SyntheticEvent)
+            .addAffectedIds(seatId)
+            .addDetails(uint32Detail("type", 1))
             .build()
 
     /** Persistent annotation: card entered a zone this turn. Client uses for summoning sickness, ETB display. */

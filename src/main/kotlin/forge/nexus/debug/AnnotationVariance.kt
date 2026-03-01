@@ -258,7 +258,7 @@ private val OUR_BUILDERS: Map<String, Set<String>> by lazy {
         "ModifiedToughness" to keysOf(AnnotationBuilder.modifiedToughness(1)),
         "PhaseOrStepModified" to keysOf(AnnotationBuilder.phaseOrStepModified(1, 1, 2)),
         "NewTurnStarted" to keysOf(AnnotationBuilder.newTurnStarted(1)),
-        "SyntheticEvent" to keysOf(AnnotationBuilder.syntheticEvent()),
+        "SyntheticEvent" to keysOf(AnnotationBuilder.syntheticEvent(1)),
         "EnteredZoneThisTurn" to keysOf(AnnotationBuilder.enteredZoneThisTurn(28, 1)),
         "LossOfGame" to keysOf(AnnotationBuilder.lossOfGame(1, 0)),
         "TokenCreated" to keysOf(AnnotationBuilder.tokenCreated(1)),

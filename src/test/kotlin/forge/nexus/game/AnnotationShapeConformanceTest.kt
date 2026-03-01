@@ -144,10 +144,15 @@ class AnnotationShapeConformanceTest {
         assertEquals(detailKeys(ann), setOf("topCount", "bottomCount"))
     }
 
-    @Test(description = "No-detail annotations: NewTurnStarted, SyntheticEvent, EnteredZoneThisTurn, etc.")
+    @Test(description = "SyntheticEvent shape: {type}")
+    fun syntheticEventDetailKeyShape() {
+        val ann = AnnotationBuilder.syntheticEvent(1)
+        assertEquals(detailKeys(ann), setOf("type"))
+    }
+
+    @Test(description = "No-detail annotations: NewTurnStarted, EnteredZoneThisTurn, etc.")
     fun noDetailAnnotationShapes() {
         assertEquals(detailKeys(AnnotationBuilder.newTurnStarted(1)), emptySet<String>(), "NewTurnStarted")
-        assertEquals(detailKeys(AnnotationBuilder.syntheticEvent()), emptySet<String>(), "SyntheticEvent")
         assertEquals(detailKeys(AnnotationBuilder.enteredZoneThisTurn(28, 1)), emptySet<String>(), "EnteredZoneThisTurn")
         assertEquals(detailKeys(AnnotationBuilder.abilityInstanceDeleted(1)), emptySet<String>(), "AbilityInstanceDeleted")
         assertEquals(detailKeys(AnnotationBuilder.tokenCreated(1)), emptySet<String>(), "TokenCreated")
@@ -233,7 +238,7 @@ class AnnotationShapeConformanceTest {
         "ModifiedToughness" to detailKeys(AnnotationBuilder.modifiedToughness(1)),
         "ModifiedPower" to detailKeys(AnnotationBuilder.modifiedPower(1)),
         "ModifiedLife" to detailKeys(AnnotationBuilder.modifiedLife(1, -3)),
-        "SyntheticEvent" to detailKeys(AnnotationBuilder.syntheticEvent()),
+        "SyntheticEvent" to detailKeys(AnnotationBuilder.syntheticEvent(1)),
         "TokenCreated" to detailKeys(AnnotationBuilder.tokenCreated(1)),
         "AttachmentCreated" to detailKeys(AnnotationBuilder.attachmentCreated(1, 2)),
         "Attachment" to detailKeys(AnnotationBuilder.attachment(1, 2)),
@@ -248,12 +253,7 @@ class AnnotationShapeConformanceTest {
      * When you fix a builder, REMOVE the entry here — the test will confirm
      * the fix by passing without it.
      */
-    private val expectedMismatch: Map<String, String> = mapOf(
-
-        // Server always sends {type} (value=1), we send no details.
-        // Fix: add uint32 detail "type" with value 1 to syntheticEvent().
-        "SyntheticEvent" to "missing {type} detail — add it",
-    )
+    private val expectedMismatch: Map<String, String> = emptyMap()
 
     @Test(description = "Golden reference: our builder detail keys match real Arena server always-present keys")
     fun goldenReferenceConformance() {
