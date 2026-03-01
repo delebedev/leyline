@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Parse Surefire JUnit XML reports and emit a compact test summary.
+"""Parse TestNG/JUnit XML reports and emit a compact test summary.
 
-Usage: python3 test-summary.py <module-target-dir>
-  e.g. python3 test-summary.py target
+Usage: python3 test-summary.py <test-results-dir>
+  e.g. python3 test-summary.py build/test-results/testGate
 
-Reads junitreports/TEST-*.xml, writes <target>/test-summary.txt,
+Reads TEST-*.xml, writes <dir>/test-summary.txt,
 prints same summary to stdout.
 """
 
@@ -20,14 +20,19 @@ SLOW_THRESHOLD = 3.0
 
 def find_reports(target_dir: Path) -> list[Path]:
     """Find TEST-*.xml files modified within the staleness window."""
-    junit_dir = target_dir / "surefire-reports" / "junitreports"
-    if not junit_dir.is_dir():
-        return []
+    # Gradle: build/test-results/<taskName>/TEST-*.xml (dir passed directly)
+    # Maven fallback: target/surefire-reports/junitreports/TEST-*.xml
+    search_dirs = [target_dir, target_dir / "surefire-reports" / "junitreports"]
     cutoff = time.time() - STALENESS_SECONDS
     reports = []
-    for f in sorted(junit_dir.glob("TEST-*.xml")):
-        if f.stat().st_mtime >= cutoff:
-            reports.append(f)
+    for d in search_dirs:
+        if not d.is_dir():
+            continue
+        for f in sorted(d.glob("TEST-*.xml")):
+            if f.stat().st_mtime >= cutoff:
+                reports.append(f)
+        if reports:
+            break
     return reports
 
 
@@ -135,14 +140,14 @@ def format_summary(
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: test-summary.py <module-target-dir>", file=sys.stderr)
+        print("Usage: test-summary.py <test-results-dir>", file=sys.stderr)
         sys.exit(1)
 
     target_dir = Path(sys.argv[1])
 
     reports = find_reports(target_dir)
     if not reports:
-        msg = "COMPILE_ERROR: no test results found. Check Maven output.\n"
+        msg = "COMPILE_ERROR: no test results found. Check build output.\n"
         out_file = target_dir / "test-summary.txt"
         out_file.parent.mkdir(parents=True, exist_ok=True)
         out_file.write_text(msg)

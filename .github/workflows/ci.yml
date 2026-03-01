@@ -28,9 +28,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-
-      - name: Setup Maven
-        uses: ./.github/actions/setup-maven
+          cache: 'gradle'
 
       - name: Cache upstream JARs
         uses: actions/cache@v4
@@ -58,7 +56,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-gate
-          path: target/surefire-reports/*.xml
+          path: build/test-results/**/*.xml
           if-no-files-found: ignore
           retention-days: 7
 
@@ -76,9 +74,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-
-      - name: Setup Maven
-        uses: ./.github/actions/setup-maven
+          cache: 'gradle'
 
       - name: Cache upstream JARs
         uses: actions/cache@v4
@@ -103,7 +99,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-integration
-          path: target/surefire-reports/*.xml
+          path: build/test-results/**/*.xml
           if-no-files-found: ignore
           retention-days: 7
 

@@ -6,6 +6,8 @@ import forge.game.GameType
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import forge.gamemodes.puzzle.Puzzle
+import forge.player.PlayerControllerHuman
+import forge.util.MyRandom
 import leyline.bridge.DeckLoader
 import leyline.bridge.GameActionBridge
 import leyline.bridge.GameBootstrap
@@ -17,8 +19,6 @@ import leyline.bridge.PhaseStopProfile
 import leyline.bridge.PrioritySignal
 import leyline.bridge.WebPlayerController
 import leyline.config.PlaytestConfig
-import forge.player.PlayerControllerHuman
-import forge.util.MyRandom
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.TurnInfo

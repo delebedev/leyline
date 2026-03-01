@@ -1,7 +1,7 @@
 package leyline.server
 
-import leyline.protocol.ProtoDump
 import io.netty.channel.ChannelHandlerContext
+import leyline.protocol.ProtoDump
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

@@ -1,7 +1,7 @@
 package leyline.analysis
 
-import leyline.game.GameEvent
 import kotlinx.serialization.Serializable
+import leyline.game.GameEvent
 
 /**
  * Classifies [GameEvent] streams into mechanic tags for analysis.

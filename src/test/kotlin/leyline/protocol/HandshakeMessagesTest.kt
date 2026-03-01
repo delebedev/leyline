@@ -1,8 +1,8 @@
 package leyline.protocol
 
+import forge.util.MyRandom
 import leyline.bridge.GameBootstrap
 import leyline.game.GameBridge
-import forge.util.MyRandom
 import org.testng.Assert.assertEquals
 import org.testng.Assert.assertTrue
 import org.testng.annotations.AfterMethod
