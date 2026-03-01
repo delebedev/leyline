@@ -591,4 +591,77 @@ class AnnotationBuilderTest {
         assertTrue(ann.affectedIdsList.contains(232))
         assertEquals(ann.detailsCount, 0)
     }
+
+    // --- ColorProduction (Tier 2) ---
+
+    @Test
+    fun colorProductionFields() {
+        val ann = AnnotationBuilder.colorProduction(instanceId = 279, colors = 4)
+        assertTrue(ann.typeList.contains(AnnotationType.ColorProduction))
+        assertTrue(ann.affectedIdsList.contains(279))
+        val colors = ann.detailsList.first { it.key == "colors" }
+        assertEquals(colors.type, KeyValuePairValueType.Int32)
+        assertEquals(colors.getValueInt32(0), 4)
+    }
+
+    // --- TriggeringObject (Tier 2) ---
+
+    @Test
+    fun triggeringObjectFields() {
+        val ann = AnnotationBuilder.triggeringObject(instanceId = 294, sourceZone = 27)
+        assertTrue(ann.typeList.contains(AnnotationType.TriggeringObject))
+        assertTrue(ann.affectedIdsList.contains(294))
+        assertEquals(ann.detailsList.first { it.key == "source_zone" }.getValueInt32(0), 27)
+    }
+
+    // --- TargetSpec (Tier 2) ---
+
+    @Test
+    fun targetSpecFields() {
+        val ann = AnnotationBuilder.targetSpec(
+            instanceId = 293,
+            abilityGrpId = 176387,
+            index = 1,
+            promptId = 1330,
+            promptParameters = 303,
+        )
+        assertTrue(ann.typeList.contains(AnnotationType.TargetSpec))
+        assertTrue(ann.affectedIdsList.contains(293))
+        assertEquals(ann.detailsList.first { it.key == "abilityGrpId" }.getValueInt32(0), 176387)
+        assertEquals(ann.detailsList.first { it.key == "index" }.getValueInt32(0), 1)
+        assertEquals(ann.detailsList.first { it.key == "promptId" }.getValueInt32(0), 1330)
+        assertEquals(ann.detailsList.first { it.key == "promptParameters" }.getValueInt32(0), 303)
+    }
+
+    // --- PowerToughnessModCreated (Tier 2) ---
+
+    @Test
+    fun powerToughnessModCreatedFields() {
+        val ann = AnnotationBuilder.powerToughnessModCreated(instanceId = 335, power = 1, toughness = 1)
+        assertTrue(ann.typeList.contains(AnnotationType.PowerToughnessModCreated))
+        assertTrue(ann.affectedIdsList.contains(335))
+        assertEquals(ann.detailsList.first { it.key == "power" }.getValueInt32(0), 1)
+        assertEquals(ann.detailsList.first { it.key == "toughness" }.getValueInt32(0), 1)
+    }
+
+    // --- DisplayCardUnderCard (Tier 2) ---
+
+    @Test
+    fun displayCardUnderCardFields() {
+        val ann = AnnotationBuilder.displayCardUnderCard(instanceId = 304)
+        assertTrue(ann.typeList.contains(AnnotationType.DisplayCardUnderCard))
+        assertTrue(ann.affectedIdsList.contains(304))
+        assertEquals(ann.detailsList.first { it.key == "Disable" }.getValueInt32(0), 0)
+        assertEquals(ann.detailsList.first { it.key == "TemporaryZoneTransfer" }.getValueInt32(0), 1)
+    }
+
+    // --- PredictedDirectDamage (Tier 2) ---
+
+    @Test
+    fun predictedDirectDamageFields() {
+        val ann = AnnotationBuilder.predictedDirectDamage(instanceId = 336, value = 2)
+        assertTrue(ann.typeList.contains(AnnotationType.PredictedDirectDamage))
+        assertTrue(ann.affectedIdsList.contains(336))
+        assertEquals(ann.detailsList.first { it.key == "value" }.getValueInt32(0), 2)
+    }
 }

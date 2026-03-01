@@ -192,6 +192,39 @@ class AnnotationShapeConformanceTest {
         assertEquals(detailKeys(AnnotationBuilder.layeredEffect(1, 7004)), setOf("effect_id"))
     }
 
+    @Test(description = "ColorProduction shape: {colors}")
+    fun colorProductionDetailKeyShape() {
+        assertEquals(detailKeys(AnnotationBuilder.colorProduction(1, 1)), setOf("colors"))
+    }
+
+    @Test(description = "TriggeringObject shape: {source_zone}")
+    fun triggeringObjectDetailKeyShape() {
+        assertEquals(detailKeys(AnnotationBuilder.triggeringObject(1, 27)), setOf("source_zone"))
+    }
+
+    @Test(description = "TargetSpec shape: {abilityGrpId, index, promptId, promptParameters}")
+    fun targetSpecDetailKeyShape() {
+        assertEquals(
+            detailKeys(AnnotationBuilder.targetSpec(1, 1, 1, 1, 1)),
+            setOf("abilityGrpId", "index", "promptId", "promptParameters"),
+        )
+    }
+
+    @Test(description = "PowerToughnessModCreated shape: {power, toughness}")
+    fun powerToughnessModCreatedDetailKeyShape() {
+        assertEquals(detailKeys(AnnotationBuilder.powerToughnessModCreated(1, 1, 1)), setOf("power", "toughness"))
+    }
+
+    @Test(description = "DisplayCardUnderCard shape: {Disable, TemporaryZoneTransfer}")
+    fun displayCardUnderCardDetailKeyShape() {
+        assertEquals(detailKeys(AnnotationBuilder.displayCardUnderCard(1)), setOf("Disable", "TemporaryZoneTransfer"))
+    }
+
+    @Test(description = "PredictedDirectDamage shape: {value}")
+    fun predictedDirectDamageDetailKeyShape() {
+        assertEquals(detailKeys(AnnotationBuilder.predictedDirectDamage(1, 1)), setOf("value"))
+    }
+
     @Test(description = "No-detail annotations: NewTurnStarted, EnteredZoneThisTurn, etc.")
     fun noDetailAnnotationShapes() {
         assertEquals(detailKeys(AnnotationBuilder.newTurnStarted(1)), emptySet<String>(), "NewTurnStarted")
@@ -274,6 +307,12 @@ class AnnotationShapeConformanceTest {
         "PlayerSubmittedTargets" to emptySet(),
         "DamagedThisTurn" to emptySet(),
         "InstanceRevealedToOpponent" to emptySet(),
+        "ColorProduction" to setOf("colors"),
+        "TriggeringObject" to setOf("source_zone"),
+        "TargetSpec" to setOf("abilityGrpId", "index", "promptId", "promptParameters"),
+        "PowerToughnessModCreated" to setOf("power", "toughness"),
+        "DisplayCardUnderCard" to setOf("Disable", "TemporaryZoneTransfer"),
+        "PredictedDirectDamage" to setOf("value"),
     )
 
     /**
@@ -315,6 +354,12 @@ class AnnotationShapeConformanceTest {
         "PlayerSubmittedTargets" to detailKeys(AnnotationBuilder.playerSubmittedTargets(1)),
         "DamagedThisTurn" to detailKeys(AnnotationBuilder.damagedThisTurn(1)),
         "InstanceRevealedToOpponent" to detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1)),
+        "ColorProduction" to detailKeys(AnnotationBuilder.colorProduction(1, 1)),
+        "TriggeringObject" to detailKeys(AnnotationBuilder.triggeringObject(1, 27)),
+        "TargetSpec" to detailKeys(AnnotationBuilder.targetSpec(1, 1, 1, 1, 1)),
+        "PowerToughnessModCreated" to detailKeys(AnnotationBuilder.powerToughnessModCreated(1, 1, 1)),
+        "DisplayCardUnderCard" to detailKeys(AnnotationBuilder.displayCardUnderCard(1)),
+        "PredictedDirectDamage" to detailKeys(AnnotationBuilder.predictedDirectDamage(1, 1)),
     )
 
     /**
