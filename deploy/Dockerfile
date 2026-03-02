@@ -69,8 +69,6 @@ COPY src/main/resources/ src/main/resources/
 # --- Stage 3: Runtime ---
 FROM eclipse-temurin:17-jre-jammy
 
-RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
 
 # Application distribution (launch script + all JARs)
@@ -83,14 +81,9 @@ COPY forge/forge-gui/res/ forge-gui/res/
 COPY playtest.toml .
 COPY decks/ decks/
 
-# Entrypoint: convert PKCS#1 keys to PKCS#8 (Netty JDK SSL needs PKCS#8)
-COPY deploy/entrypoint.sh .
-RUN chmod +x entrypoint.sh
-
 EXPOSE 30010 30003 9443 8090
 
 # Memory limit (Netty access flags baked into launch script via applicationDefaultJvmArgs)
 ENV JAVA_OPTS="-Xmx384m"
 
-ENTRYPOINT ["./entrypoint.sh"]
 CMD ["bin/leyline"]
