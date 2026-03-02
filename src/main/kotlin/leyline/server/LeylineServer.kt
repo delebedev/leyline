@@ -91,7 +91,8 @@ class LeylineServer(
 
     private fun buildSslContext(cert: File?, key: File?, name: String): SslContext = if (cert != null && key != null) {
         log.info("{}: loading TLS cert={} key={}", name, cert, key)
-        SslContextBuilder.forServer(cert, key).build()
+        val effectiveKey = TlsHelper.normalizePkcs1KeyFile(key)
+        SslContextBuilder.forServer(cert, effectiveKey).build()
     } else {
         log.info("{}: using self-signed TLS certificate", name)
         val ssc = SelfSignedCertificate()
