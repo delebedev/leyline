@@ -11,11 +11,9 @@ import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.net.InetSocketAddress
-import java.security.KeyStore
 import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.Executors
-import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
 
 /**
@@ -170,55 +168,7 @@ class MockWasServer(
                 "." + enc.encodeToString(payload.toByteArray(Charsets.UTF_8)) + "."
         }
 
-        private fun buildSslContext(certFile: File?, keyFile: File?): SSLContext {
-            val password = "changeit"
-            if (certFile != null && keyFile != null && certFile.exists() && keyFile.exists()) {
-                val tmpKs = File.createTempFile("mock-was-", ".p12")
-                tmpKs.deleteOnExit()
-                val pb = ProcessBuilder(
-                    "openssl", "pkcs12", "-export",
-                    "-in", certFile.absolutePath,
-                    "-inkey", keyFile.absolutePath,
-                    "-out", tmpKs.absolutePath,
-                    "-name", "mock-was",
-                    "-passout", "pass:$password",
-                )
-                pb.redirectErrorStream(true)
-                val proc = pb.start()
-                proc.inputStream.readBytes()
-                require(proc.waitFor() == 0) { "openssl pkcs12 export failed" }
-                val ks = KeyStore.getInstance("PKCS12")
-                tmpKs.inputStream().use { ks.load(it, password.toCharArray()) }
-                val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
-                kmf.init(ks, password.toCharArray())
-                val ctx = SSLContext.getInstance("TLS")
-                ctx.init(kmf.keyManagers, null, null)
-                return ctx
-            }
-            // Self-signed fallback
-            val jksFile = File.createTempFile("mock-was-", ".jks")
-            jksFile.deleteOnExit()
-            val pb = ProcessBuilder(
-                "keytool", "-genkeypair",
-                "-alias", "mock-was",
-                "-keyalg", "RSA", "-keysize", "2048",
-                "-validity", "365",
-                "-dname", "CN=localhost,O=Forge,C=US",
-                "-keystore", jksFile.absolutePath,
-                "-storepass", password, "-keypass", password,
-                "-storetype", "JKS",
-            )
-            pb.redirectErrorStream(true)
-            val proc = pb.start()
-            proc.inputStream.readBytes()
-            require(proc.waitFor() == 0) { "keytool genkeypair failed" }
-            val ks = KeyStore.getInstance("JKS")
-            jksFile.inputStream().use { ks.load(it, password.toCharArray()) }
-            val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
-            kmf.init(ks, password.toCharArray())
-            val ctx = SSLContext.getInstance("TLS")
-            ctx.init(kmf.keyManagers, null, null)
-            return ctx
-        }
+        internal fun buildSslContext(certFile: File?, keyFile: File?): SSLContext =
+            TlsHelper.buildJdkSslContext(certFile, keyFile)
     }
 }
