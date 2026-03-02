@@ -317,6 +317,7 @@ _registry := "ghcr.io/delebedev/leyline"
 # build + push Docker image with registry cache (fast rebuilds after first build)
 docker-build tag=(_registry + ":latest"):
     docker buildx build \
+        -f deploy/Dockerfile \
         --cache-from type=registry,ref={{_registry}}:buildcache \
         --cache-to type=registry,ref={{_registry}}:buildcache,mode=max \
         -t "{{tag}}" \
