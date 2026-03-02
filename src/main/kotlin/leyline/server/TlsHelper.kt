@@ -35,8 +35,9 @@ object TlsHelper {
      */
     fun buildJdkSslContext(certFile: File?, keyFile: File?): SSLContext {
         if (certFile != null && keyFile != null && certFile.exists() && keyFile.exists()) {
-            val cert = CertificateFactory.getInstance("X.509")
-                .generateCertificate(certFile.inputStream())
+            val cert = certFile.inputStream().use {
+                CertificateFactory.getInstance("X.509").generateCertificate(it)
+            }
             val privateKey = loadPrivateKey(keyFile.readText())
             return buildContext(privateKey, cert)
         }
@@ -127,7 +128,12 @@ object TlsHelper {
 
     // -- Self-signed X.509v1 cert builder ------------------------------------
 
-    /** Build a minimal self-signed X.509v1 cert. Returns DER bytes. RSA + SHA256 only. */
+    /**
+     * Build a minimal self-signed X.509v1 cert. Returns DER bytes. RSA + SHA256 only.
+     *
+     * Hand-rolled because Netty's SelfSignedCertificate fails on JDK 17 toolchain
+     * (OpenJdkSelfSignedCertGenerator not supported). UTCTime encoding valid through 2049.
+     */
     private fun buildSelfSignedCert(keyPair: KeyPair, dn: String, validityDays: Int): ByteArray {
         val notBefore = Date()
         val notAfter = Calendar.getInstance().apply {
