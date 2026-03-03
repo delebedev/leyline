@@ -42,9 +42,9 @@ object TlsHelper {
      */
     fun buildJdkSslContext(certFile: File?, keyFile: File?): SSLContext {
         if (certFile != null && keyFile != null && certFile.exists() && keyFile.exists()) {
-            val cert = loadCertificate(certFile)
+            val chain = loadCertificateChain(certFile)
             val key = loadPrivateKey(keyFile.readText())
-            return buildContext(key, cert)
+            return buildContext(key, chain)
         }
         return buildSelfSignedContext()
     }
@@ -59,6 +59,9 @@ object TlsHelper {
         val converted = convertPkcs1ToPkcs8(pem)
         val tmp = File.createTempFile("leyline-pkcs8-", ".pem")
         tmp.deleteOnExit()
+        // Restrict permissions — private key material
+        tmp.setReadable(false, false)
+        tmp.setReadable(true, true)
         tmp.writeText(converted)
         return tmp
     }
@@ -86,19 +89,21 @@ object TlsHelper {
         }
     }
 
-    private fun loadCertificate(certFile: File): X509Certificate {
-        val obj = PEMParser(certFile.reader()).use { it.readObject() }
-        return when (obj) {
-            is org.bouncycastle.cert.X509CertificateHolder ->
-                JcaX509CertificateConverter().getCertificate(obj)
-            else -> {
-                // Fall back to JDK CertificateFactory for DER or standard PEM
-                certFile.inputStream().use {
-                    java.security.cert.CertificateFactory.getInstance("X.509")
-                        .generateCertificate(it) as X509Certificate
+    /** Load full certificate chain (leaf + intermediates) from a PEM file. */
+    private fun loadCertificateChain(certFile: File): Array<X509Certificate> {
+        val certs = mutableListOf<X509Certificate>()
+        val conv = JcaX509CertificateConverter()
+        PEMParser(certFile.reader()).use { parser ->
+            var obj = parser.readObject()
+            while (obj != null) {
+                if (obj is org.bouncycastle.cert.X509CertificateHolder) {
+                    certs.add(conv.getCertificate(obj))
                 }
+                obj = parser.readObject()
             }
         }
+        require(certs.isNotEmpty()) { "No certificates found in ${certFile.name}" }
+        return certs.toTypedArray()
     }
 
     private fun buildSelfSignedContext(): SSLContext {
@@ -121,13 +126,13 @@ object TlsHelper {
         ).build(signer)
 
         val cert = JcaX509CertificateConverter().getCertificate(certHolder)
-        return buildContext(kp.private, cert)
+        return buildContext(kp.private, arrayOf(cert))
     }
 
-    private fun buildContext(privateKey: PrivateKey, cert: X509Certificate): SSLContext {
+    private fun buildContext(privateKey: PrivateKey, chain: Array<X509Certificate>): SSLContext {
         val ks = KeyStore.getInstance("PKCS12")
         ks.load(null, null)
-        ks.setKeyEntry("leyline", privateKey, charArrayOf(), arrayOf(cert))
+        ks.setKeyEntry("leyline", privateKey, charArrayOf(), chain)
         val kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm())
         kmf.init(ks, charArrayOf())
         return SSLContext.getInstance("TLS").apply { init(kmf.keyManagers, null, null) }

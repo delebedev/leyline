@@ -168,7 +168,7 @@ class MockWasServer(
                 "." + enc.encodeToString(payload.toByteArray(Charsets.UTF_8)) + "."
         }
 
-        internal fun buildSslContext(certFile: File?, keyFile: File?): SSLContext =
+        private fun buildSslContext(certFile: File?, keyFile: File?): SSLContext =
             TlsHelper.buildJdkSslContext(certFile, keyFile)
     }
 }
