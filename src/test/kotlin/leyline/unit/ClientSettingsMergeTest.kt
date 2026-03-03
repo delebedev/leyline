@@ -87,4 +87,44 @@ class ClientSettingsMergeTest :
             val merged = MatchSession.mergeSettings(s1, s2)
             merged.autoPassOption shouldBe AutoPassOption.FullControl
         }
+
+        test("merge accumulates stops across Team and Opponents scopes") {
+            val s1 = SettingsMessage.newBuilder()
+                .addStops(stop(StopType.PrecombatMainPhase, SettingScope.Team_ac6e, SettingStatus.Set))
+                .build()
+            val s2 = SettingsMessage.newBuilder()
+                .addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
+                .build()
+
+            val merged = MatchSession.mergeSettings(s1, s2)
+            merged.stopsCount shouldBe 2
+            // Different scopes — both preserved
+            merged.stopsList.any {
+                it.stopType == StopType.PrecombatMainPhase && it.appliesTo == SettingScope.Team_ac6e
+            } shouldBe true
+            merged.stopsList.any {
+                it.stopType == StopType.EndStep_ad1f && it.appliesTo == SettingScope.Opponents
+            } shouldBe true
+        }
+
+        test("merge replaces same stop type but different scope independently") {
+            val s1 = SettingsMessage.newBuilder()
+                .addStops(stop(StopType.EndStep_ad1f, SettingScope.Team_ac6e, SettingStatus.Set))
+                .addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Set))
+                .build()
+            val s2 = SettingsMessage.newBuilder()
+                .addStops(stop(StopType.EndStep_ad1f, SettingScope.Opponents, SettingStatus.Clear_a3fe))
+                .build()
+
+            val merged = MatchSession.mergeSettings(s1, s2)
+            merged.stopsCount shouldBe 2
+            // Team scope still Set
+            merged.stopsList.first {
+                it.appliesTo == SettingScope.Team_ac6e
+            }.status shouldBe SettingStatus.Set
+            // Opponents scope now Clear
+            merged.stopsList.first {
+                it.appliesTo == SettingScope.Opponents
+            }.status shouldBe SettingStatus.Clear_a3fe
+        }
     })
