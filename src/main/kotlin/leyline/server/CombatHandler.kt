@@ -285,9 +285,11 @@ class CombatHandler(private val ops: SessionOps) {
                 }
             }
             PhaseType.COMBAT_DAMAGE -> {
-                ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat damage")
-                ops.paceDelay(2)
-                return Signal.SEND_STATE
+                if (combat != null && combat.attackers.isNotEmpty()) {
+                    ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat damage")
+                    ops.paceDelay(2)
+                    return Signal.SEND_STATE
+                }
             }
             PhaseType.COMBAT_END -> {
                 if (combat != null && combat.attackers.isNotEmpty()) {
