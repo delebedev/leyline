@@ -97,9 +97,9 @@ dev-build:
 test:
     cd "{{project_dir}}" && ./gradlew test
 
-# single test class (e.g. `just test-one StructuralFingerprintTest`)
+# single test class (e.g. `just test-one ShouldStopEvaluatorTest`)
 test-one class:
-    cd "{{project_dir}}" && ./gradlew test --tests "*{{class}}"
+    cd "{{project_dir}}" && ./gradlew test -Pkotest.filter.specs=".*{{class}}"
 
 # unit tests only (no engine bootstrap, fastest)
 test-unit:

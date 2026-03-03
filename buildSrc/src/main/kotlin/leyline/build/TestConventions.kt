@@ -6,6 +6,10 @@ import org.gradle.testretry.TestRetryTaskExtension
 fun Test.configureTestDefaults() {
     useJUnitPlatform()
     maxHeapSize = "768m"
+    // Forward kotest.filter.specs from Gradle CLI (-P) to the test JVM
+    project.findProperty("kotest.filter.specs")?.let {
+        systemProperty("kotest.filter.specs", it)
+    }
     testLogging {
         events("failed")
     }
