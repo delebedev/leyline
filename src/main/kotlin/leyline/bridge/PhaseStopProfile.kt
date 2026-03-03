@@ -46,6 +46,17 @@ class PhaseStopProfile private constructor(
             PhaseType.CLEANUP,
         )
 
+        fun forPhaseKey(key: String): PhaseType? = try {
+            val pt = PhaseType.valueOf(key)
+            if (pt in CANONICAL_PHASES) pt else null
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+
+        /**
+         * Own-turn defaults for the human player — matches Arena's initial stop set.
+         * Client SetSettingsReq with Team scope overrides these.
+         */
         private val HUMAN_DEFAULTS = setOf(
             PhaseType.MAIN1,
             PhaseType.COMBAT_DECLARE_ATTACKERS,
@@ -53,19 +64,20 @@ class PhaseStopProfile private constructor(
             PhaseType.MAIN2,
         )
 
+        /**
+         * AI player needs combat stops so the engine's combat declaration
+         * logic runs properly. These are NOT opponent-turn stops for the human —
+         * they're the AI's own-turn stops. Opponent-turn stops (what the human
+         * sees during AI's turn) are driven by client SetSettingsReq with
+         * Opponents scope and stored under the AI player's ID separately
+         * in the session-layer check (advanceOrWait).
+         */
         private val AI_DEFAULTS = setOf(
             PhaseType.COMBAT_BEGIN,
             PhaseType.COMBAT_DECLARE_ATTACKERS,
             PhaseType.COMBAT_DECLARE_BLOCKERS,
             PhaseType.END_OF_TURN,
         )
-
-        fun forPhaseKey(key: String): PhaseType? = try {
-            val pt = PhaseType.valueOf(key)
-            if (pt in CANONICAL_PHASES) pt else null
-        } catch (_: IllegalArgumentException) {
-            null
-        }
 
         fun createDefaults(humanPlayerId: Int, aiPlayerId: Int): PhaseStopProfile =
             PhaseStopProfile(
@@ -77,7 +89,7 @@ class PhaseStopProfile private constructor(
                 ),
             )
 
-        /** Both players get human-style defaults (both are interactive). */
+        /** Both players get human-style defaults (both interactive). */
         fun createTwoPlayerDefaults(player1Id: Int, player2Id: Int): PhaseStopProfile =
             PhaseStopProfile(
                 ConcurrentHashMap(

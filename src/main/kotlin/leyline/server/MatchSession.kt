@@ -382,6 +382,17 @@ class MatchSession(
         applyStopsForPlayer(allStops, SettingScope.Team_ac6e, humanPlayer.id, profile)
         applyStopsForPlayer(allStops, SettingScope.Opponents, aiPlayer.id, profile)
 
+        // Mirror Opponents-scope stops into ClientAutoPassState for session-layer
+        // opponent-turn check (separate from engine-internal AI_DEFAULTS).
+        val opponentEnabled = StopTypeMapping.parseStops(allStops, SettingScope.Opponents)
+        val opponentDisabled = allStops
+            .filter { it.status == SettingStatus.Clear_a3fe }
+            .filter { it.appliesTo == SettingScope.Opponents || it.appliesTo == SettingScope.AnyPlayer }
+            .mapNotNull { StopTypeMapping.toPhaseType(it.stopType) }
+            .toSet()
+        for (phase in opponentEnabled) autoPassState.setOpponentStop(phase, true)
+        for (phase in opponentDisabled) autoPassState.setOpponentStop(phase, false)
+
         log.debug(
             "MatchSession: applied stops — human={} ai={}",
             profile.getEnabled(humanPlayer.id).map { it.name },

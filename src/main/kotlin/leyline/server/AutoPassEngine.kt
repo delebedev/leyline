@@ -196,19 +196,14 @@ class AutoPassEngine(
         log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
 
         if (pending != null) {
-            // Opponent-turn phase stops: human has priority on engine thread,
-            // check if this phase is stopped before auto-passing.
-            if (isAiTurn) {
-                val profile = bridge.phaseStopProfile
-                val aiSeatId = if (ops.seatId == 1) 2 else 1
-                val aiPlayer = bridge.getPlayer(aiSeatId)
-                if (profile != null && aiPlayer != null && phase != null &&
-                    profile.isEnabled(aiPlayer.id, phase)
-                ) {
-                    ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "opponentStop: ${phase.name}")
-                    ops.sendRealGameState(bridge)
-                    return null // exit loop — client will respond via onPerformAction
-                }
+            // Opponent-turn phase stops: only stop if the client explicitly
+            // toggled this phase via SetSettingsReq with Opponents scope.
+            // Engine-internal AI_DEFAULTS in PhaseStopProfile are NOT checked
+            // here — they're for the AI's own combat logic.
+            if (isAiTurn && phase != null && autoPassState.hasOpponentStop(phase)) {
+                ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "opponentStop: ${phase.name}")
+                ops.sendRealGameState(bridge)
+                return null // exit loop — client will respond via onPerformAction
             }
 
             ops.traceEvent(GameStateCollector.EventType.AUTO_PASS, game, "human priority, pass-only")
