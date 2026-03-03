@@ -91,6 +91,10 @@ proto-decode-recording dir output="": (_require classpath) check-java
 proto-accumulate dir output="": (_require classpath) check-java
     @{{_cli}} leyline.recording.RecordingDecoderMainKt "{{dir}}" --accumulate {{output}}
 
+# priority analysis report for a recording (no port kill)
+proto-priority dir: (_require classpath) check-java
+    @{{_cli}} leyline.recording.RecordingDecoderMainKt "{{dir}}" --priority --seat 0
+
 # annotation type variance profile across all proxy recordings (no port kill)
 proto-annotation-variance *args: (_require classpath) check-java
     @{{_cli}} leyline.debug.AnnotationVarianceKt {{args}}
