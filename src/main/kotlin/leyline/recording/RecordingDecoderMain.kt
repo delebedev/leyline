@@ -20,6 +20,7 @@ fun main(args: Array<String>) {
         System.err.println("Modes:")
         System.err.println("  <dir>                       Decode to JSONL")
         System.err.println("  <dir> --accumulate          Decode + accumulate state snapshots")
+        System.err.println("  <dir> --priority            Priority analysis report")
         System.err.println("  <dir> output.jsonl          Decode to file")
         System.err.println("  <dir> --accumulate out.jsonl Accumulate to file")
         System.err.println()
@@ -39,6 +40,7 @@ fun main(args: Array<String>) {
     }
 
     val accumulate = args.any { it == "--accumulate" }
+    val priority = args.any { it == "--priority" }
     val outputPath = args.drop(1).firstOrNull { !it.startsWith("--") && it != args.getOrNull(args.indexOf("--seat") + 1) }
 
     // Parse --seat flag (default: 1 = player perspective)
@@ -58,10 +60,10 @@ fun main(args: Array<String>) {
     val filterDesc = if (seatFilter != null) " (seat $seatFilter)" else " (all seats)"
     System.err.println("Decoded ${messages.size} GRE messages from ${dir.name}$filterDesc")
 
-    if (accumulate) {
-        writeAccumulated(messages, outputPath)
-    } else {
-        writeDecode(messages, outputPath)
+    when {
+        priority -> writePriorityAnalysis(messages)
+        accumulate -> writeAccumulated(messages, outputPath)
+        else -> writeDecode(messages, outputPath)
     }
 }
 
@@ -75,6 +77,11 @@ private fun writeDecode(messages: List<RecordingDecoder.DecodedMessage>, outputP
         writer.close()
         System.err.println("Wrote ${messages.size} lines to $outputPath")
     }
+}
+
+private fun writePriorityAnalysis(messages: List<RecordingDecoder.DecodedMessage>) {
+    val analysis = PriorityTimeline.analyze(messages)
+    print(PriorityTimeline.formatReport(analysis))
 }
 
 private fun writeAccumulated(messages: List<RecordingDecoder.DecodedMessage>, outputPath: String?) {
