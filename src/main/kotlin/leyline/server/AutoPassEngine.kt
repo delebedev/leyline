@@ -149,6 +149,17 @@ class AutoPassEngine(
         }
         val actions = BundleBuilder.buildActions(game, ops.seatId, bridge)
 
+        // Full control: always grant priority (never auto-pass on session side)
+        if (autoPassState.isFullControl) {
+            val decision = PriorityDecision.Grant(
+                phase = game.phaseHandler.phase?.name ?: "UNKNOWN",
+                actionCount = actions.actionsCount,
+            )
+            recordDecision(game, decision)
+            ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "fullControl: grant")
+            return decision
+        }
+
         // Client autoPassOption active + no stop-worthy actions → skip
         if (autoPassState.shouldAutoPass() && BundleBuilder.shouldAutoPass(actions)) {
             val decision = PriorityDecision.Skip(AutoPassReason.ClientAutoPass)
@@ -185,6 +196,21 @@ class AutoPassEngine(
         log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
 
         if (pending != null) {
+            // Opponent-turn phase stops: human has priority on engine thread,
+            // check if this phase is stopped before auto-passing.
+            if (isAiTurn) {
+                val profile = bridge.phaseStopProfile
+                val aiSeatId = if (ops.seatId == 1) 2 else 1
+                val aiPlayer = bridge.getPlayer(aiSeatId)
+                if (profile != null && aiPlayer != null && phase != null &&
+                    profile.isEnabled(aiPlayer.id, phase)
+                ) {
+                    ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "opponentStop: ${phase.name}")
+                    ops.sendRealGameState(bridge)
+                    return null // exit loop — client will respond via onPerformAction
+                }
+            }
+
             ops.traceEvent(GameStateCollector.EventType.AUTO_PASS, game, "human priority, pass-only")
             // During AI turn, skip sending EdictalMessage — real server never
             // sends edictal passes during AI turn. Sending them interrupts the

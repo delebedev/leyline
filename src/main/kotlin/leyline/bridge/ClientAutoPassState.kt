@@ -1,18 +1,30 @@
 package leyline.bridge
 
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
+import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 
 /**
- * Tracks client auto-pass settings from [SettingsMessage].
+ * Tracks client auto-pass settings from [SettingsMessage] and [PerformActionResp].
  *
- * Updated on each `SetSettingsReq`. Thread-safe: accessed from session thread
- * (MatchSession.onSettings) and read from AutoPassEngine on the same thread.
+ * Updated on each `SetSettingsReq` and `PerformActionResp`. Thread-safe: accessed
+ * from session thread (MatchSession) and read from AutoPassEngine on the same thread.
  */
 class ClientAutoPassState {
     var autoPassOption: AutoPassOption = AutoPassOption.None_a465
         private set
     var stackAutoPassOption: AutoPassOption = AutoPassOption.None_a465
+        private set
+
+    /**
+     * Full control flag from last PerformActionResp.autoPassPriority.
+     * - [AutoPassPriority.No_a099] = full control ON (always return priority)
+     * - [AutoPassPriority.Yes_a099] = auto-pass OK
+     * - [AutoPassPriority.None_a099] = normal (no override)
+     *
+     * Persists until client sends a different value.
+     */
+    var autoPassPriority: AutoPassPriority = AutoPassPriority.None_a099
         private set
 
     fun update(settings: SettingsMessage) {
@@ -24,11 +36,26 @@ class ClientAutoPassState {
         }
     }
 
+    /** Update autoPassPriority from PerformActionResp. */
+    fun updateAutoPassPriority(priority: AutoPassPriority) {
+        if (priority != AutoPassPriority.None_a099) {
+            autoPassPriority = priority
+        }
+    }
+
+    /** True when client has full control enabled (No_a099 = always return priority). */
+    val isFullControl: Boolean
+        get() = autoPassPriority == AutoPassPriority.No_a099
+
     /** Should we auto-pass based on the client's current autoPassOption? */
-    fun shouldAutoPass(): Boolean = when (autoPassOption) {
-        AutoPassOption.ResolveAll,
-        AutoPassOption.ResolveMyStackEffects,
-        -> true
-        else -> false
+    fun shouldAutoPass(): Boolean {
+        // Full control overrides everything — never auto-pass
+        if (isFullControl) return false
+        return when (autoPassOption) {
+            AutoPassOption.ResolveAll,
+            AutoPassOption.ResolveMyStackEffects,
+            -> true
+            else -> false
+        }
     }
 }
