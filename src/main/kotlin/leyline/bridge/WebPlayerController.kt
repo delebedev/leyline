@@ -998,7 +998,8 @@ class WebPlayerController(
         // Never skip when stack has items — player should see stack state.
         // Never skip right after a prompt resolved — player needs to see the result.
         // Never skip when full control is on.
-        if (!fullControl && smartPhaseSkip &&
+        if (!fullControl &&
+            smartPhaseSkip &&
             !bridge.consumePromptResolved() &&
             handler.playerTurn?.id == player.id &&
             game.stack.isEmpty &&
@@ -1009,7 +1010,16 @@ class WebPlayerController(
         }
 
         val profile = phaseStopProfile
-        if (!fullControl && profile != null && !profile.isEnabled(player.id, handler.phase)) {
+        val isOwnTurn = handler.playerTurn?.id == player.id
+        // Phase stop check only applies on human's own turn.
+        // During opponent's turn, the session layer (advanceOrWait) handles
+        // opponent-turn stops separately — engine-side AI_DEFAULTS are for
+        // the AI's own combat logic, not for gating human priority.
+        if (!fullControl &&
+            isOwnTurn &&
+            profile != null &&
+            !profile.isEnabled(player.id, handler.phase)
+        ) {
             recordDecision(PriorityDecision.Skip(AutoPassReason.PhaseNotStopped(handler.phase?.name ?: "UNKNOWN")))
             return null
         }

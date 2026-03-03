@@ -1,5 +1,6 @@
 package leyline.bridge
 
+import forge.game.phase.PhaseType
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
@@ -46,6 +47,22 @@ class ClientAutoPassState {
     /** True when client has full control enabled (No_a099 = always return priority). */
     val isFullControl: Boolean
         get() = autoPassPriority == AutoPassPriority.No_a099
+
+    /**
+     * Opponent-turn stops explicitly set by the client via SetSettingsReq
+     * with Opponents scope. Defaults empty — no opponent-turn stops unless
+     * the client toggles them. Separate from PhaseStopProfile's AI_DEFAULTS
+     * which are engine-internal.
+     */
+    private val opponentStops = mutableSetOf<PhaseType>()
+
+    /** Update opponent-turn stops from parsed client settings. */
+    fun setOpponentStop(phase: PhaseType, enabled: Boolean) {
+        if (enabled) opponentStops.add(phase) else opponentStops.remove(phase)
+    }
+
+    /** Check if the client has set an opponent-turn stop for this phase. */
+    fun hasOpponentStop(phase: PhaseType): Boolean = phase in opponentStops
 
     /** Should we auto-pass based on the client's current autoPassOption? */
     fun shouldAutoPass(): Boolean {
