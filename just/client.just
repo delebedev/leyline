@@ -46,6 +46,10 @@ client-state:
     echo "$state ($lines lines)"
     tail -5 "$log"
 
+# composable MTGA automation CLI (tools/arena is the standalone entry point)
+arena *args: (_require classpath) check-java
+    @{{project_dir}}/tools/arena {{args}}
+
 # tail Player.log for client-side exceptions (standalone, no server)
 watch-client: (_require classpath) check-java
     @{{_cli}} leyline.debug.WatchClientLogKt
