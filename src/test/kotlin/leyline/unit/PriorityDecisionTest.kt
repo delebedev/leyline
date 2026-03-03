@@ -138,4 +138,37 @@ class PriorityDecisionTest :
             state.updateAutoPassPriority(AutoPassPriority.Yes_a099)
             state.isFullControl shouldBe false
         }
+
+        // --- opponentStops ---
+
+        test("opponent stops default empty") {
+            val state = ClientAutoPassState()
+            state.hasOpponentStop(forge.game.phase.PhaseType.COMBAT_BEGIN) shouldBe false
+            state.hasOpponentStop(forge.game.phase.PhaseType.MAIN1) shouldBe false
+            state.hasOpponentStop(forge.game.phase.PhaseType.END_OF_TURN) shouldBe false
+        }
+
+        test("setOpponentStop enables and disables") {
+            val state = ClientAutoPassState()
+            state.setOpponentStop(forge.game.phase.PhaseType.COMBAT_BEGIN, true)
+            state.hasOpponentStop(forge.game.phase.PhaseType.COMBAT_BEGIN) shouldBe true
+
+            state.setOpponentStop(forge.game.phase.PhaseType.COMBAT_BEGIN, false)
+            state.hasOpponentStop(forge.game.phase.PhaseType.COMBAT_BEGIN) shouldBe false
+        }
+
+        test("multiple opponent stops tracked independently") {
+            val state = ClientAutoPassState()
+            state.setOpponentStop(forge.game.phase.PhaseType.MAIN1, true)
+            state.setOpponentStop(forge.game.phase.PhaseType.END_OF_TURN, true)
+
+            state.hasOpponentStop(forge.game.phase.PhaseType.MAIN1) shouldBe true
+            state.hasOpponentStop(forge.game.phase.PhaseType.END_OF_TURN) shouldBe true
+            state.hasOpponentStop(forge.game.phase.PhaseType.COMBAT_BEGIN) shouldBe false
+
+            // Clear one, other remains
+            state.setOpponentStop(forge.game.phase.PhaseType.MAIN1, false)
+            state.hasOpponentStop(forge.game.phase.PhaseType.MAIN1) shouldBe false
+            state.hasOpponentStop(forge.game.phase.PhaseType.END_OF_TURN) shouldBe true
+        }
     })
