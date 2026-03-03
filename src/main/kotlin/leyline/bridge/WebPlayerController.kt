@@ -61,6 +61,35 @@ class WebPlayerController(
 
     companion object {
         private val log = LoggerFactory.getLogger(WebPlayerController::class.java)
+        private const val MAX_DECISIONS = 200
+    }
+
+    /** Recent priority decisions for debug observability. */
+    private val recentDecisions = ArrayDeque<PriorityDecisionEntry>()
+
+    data class PriorityDecisionEntry(
+        val ts: Long,
+        val phase: String?,
+        val turn: Int,
+        val decision: PriorityDecision,
+    )
+
+    /** Snapshot of recent decisions for the debug API. */
+    fun decisionLog(): List<PriorityDecisionEntry> = synchronized(recentDecisions) {
+        recentDecisions.toList()
+    }
+
+    private fun recordDecision(decision: PriorityDecision) {
+        val entry = PriorityDecisionEntry(
+            ts = System.currentTimeMillis(),
+            phase = game.phaseHandler.phase?.name,
+            turn = game.phaseHandler.turn,
+            decision = decision,
+        )
+        synchronized(recentDecisions) {
+            recentDecisions.addLast(entry)
+            while (recentDecisions.size > MAX_DECISIONS) recentDecisions.removeFirst()
+        }
     }
 
     override fun isAI(): Boolean = false
@@ -946,7 +975,10 @@ class WebPlayerController(
             ab.setAutoPassUntilEndOfTurn(false)
         }
 
-        if (ab.autoPassUntilEndOfTurn) return null
+        if (ab.autoPassUntilEndOfTurn) {
+            recordDecision(PriorityDecision.Skip(AutoPassReason.EndTurnFlag))
+            return null
+        }
 
         // Smart phase skip (ADR-008): auto-pass when player has no meaningful actions.
         // Only on own turn — on opponent's turn the player needs priority at their
@@ -959,11 +991,13 @@ class WebPlayerController(
             game.stack.isEmpty &&
             !PlayableActionQuery.hasPlayableNonManaAction(game, player)
         ) {
+            recordDecision(PriorityDecision.Skip(AutoPassReason.SmartPhaseSkip))
             return null
         }
 
         val profile = phaseStopProfile
         if (profile != null && !profile.isEnabled(player.id, handler.phase)) {
+            recordDecision(PriorityDecision.Skip(AutoPassReason.PhaseNotStopped(handler.phase?.name ?: "UNKNOWN")))
             return null
         }
 

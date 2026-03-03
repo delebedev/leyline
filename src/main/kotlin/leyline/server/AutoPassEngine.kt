@@ -2,7 +2,10 @@ package leyline.server
 
 import forge.game.Game
 import forge.game.phase.PhaseType
+import leyline.bridge.AutoPassReason
+import leyline.bridge.ClientAutoPassState
 import leyline.bridge.PlayerAction
+import leyline.bridge.PriorityDecision
 import leyline.debug.GameStateCollector
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
@@ -22,11 +25,41 @@ class AutoPassEngine(
     private val ops: SessionOps,
     private val combatHandler: CombatHandler,
     private val targetingHandler: TargetingHandler,
+    private val autoPassState: ClientAutoPassState = ClientAutoPassState(),
 ) {
     private val log = LoggerFactory.getLogger(AutoPassEngine::class.java)
 
     companion object {
         private const val MAX_ITERATIONS = 50
+        private const val MAX_DECISIONS = 200
+    }
+
+    /** Recent priority decisions for debug API. */
+    private val recentDecisions = ArrayDeque<PriorityDecisionEntry>()
+
+    data class PriorityDecisionEntry(
+        val ts: Long,
+        val phase: String?,
+        val turn: Int,
+        val decision: PriorityDecision,
+    )
+
+    /** Snapshot of recent decisions for the debug API. */
+    fun decisionLog(): List<PriorityDecisionEntry> = synchronized(recentDecisions) {
+        recentDecisions.toList()
+    }
+
+    private fun recordDecision(game: Game, decision: PriorityDecision) {
+        val entry = PriorityDecisionEntry(
+            ts = System.currentTimeMillis(),
+            phase = game.phaseHandler.phase?.name,
+            turn = game.phaseHandler.turn,
+            decision = decision,
+        )
+        synchronized(recentDecisions) {
+            recentDecisions.addLast(entry)
+            while (recentDecisions.size > MAX_DECISIONS) recentDecisions.removeFirst()
+        }
     }
 
     /**
@@ -68,7 +101,8 @@ class AutoPassEngine(
             }
 
             // Action check — prompt human if meaningful actions exist
-            if (checkHumanActions(bridge, game, isAiTurn)) {
+            val decision = checkHumanActions(bridge, game, isAiTurn)
+            if (decision is PriorityDecision.Grant) {
                 ops.sendRealGameState(bridge)
                 return
             }
@@ -105,17 +139,41 @@ class AutoPassEngine(
         return true
     }
 
-    /** Check if human has meaningful actions. Returns true if state should be sent. */
-    private fun checkHumanActions(bridge: GameBridge, game: Game, isAiTurn: Boolean): Boolean {
-        if (isAiTurn) return false
+    /**
+     * Check if human has meaningful actions. Returns [PriorityDecision.Grant]
+     * if state should be sent, [PriorityDecision.Skip] otherwise.
+     */
+    private fun checkHumanActions(bridge: GameBridge, game: Game, isAiTurn: Boolean): PriorityDecision {
+        if (isAiTurn) {
+            return PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
+        }
         val actions = BundleBuilder.buildActions(game, ops.seatId, bridge)
-        if (BundleBuilder.shouldAutoPass(actions)) return false
+
+        // Client autoPassOption active + no stop-worthy actions → skip
+        if (autoPassState.shouldAutoPass() && BundleBuilder.shouldAutoPass(actions)) {
+            val decision = PriorityDecision.Skip(AutoPassReason.ClientAutoPass)
+            recordDecision(game, decision)
+            ops.traceEvent(GameStateCollector.EventType.AUTO_PASS, game, "clientAutoPass: ${autoPassState.autoPassOption}")
+            return decision
+        }
+
+        if (BundleBuilder.shouldAutoPass(actions)) {
+            val decision = PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
+            recordDecision(game, decision)
+            return decision
+        }
+
         val actionSummary = actions.actionsList
             .groupBy { it.actionType.name.removeSuffix("_add3") }
             .map { (t, v) -> "$t=${v.size}" }
             .joinToString(" ")
+        val decision = PriorityDecision.Grant(
+            phase = game.phaseHandler.phase?.name ?: "UNKNOWN",
+            actionCount = actions.actionsCount,
+        )
+        recordDecision(game, decision)
         ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "actions: $actionSummary")
-        return true
+        return decision
     }
 
     /**
