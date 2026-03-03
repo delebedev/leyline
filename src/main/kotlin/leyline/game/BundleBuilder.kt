@@ -5,6 +5,7 @@ import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.PromptIds
+import leyline.game.mapper.ShouldStopEvaluator
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -202,11 +203,7 @@ object BundleBuilder {
      *    skip didn't fire. No redundant Game queries needed.
      */
     fun shouldAutoPass(actions: ActionsAvailableReq): Boolean =
-        actions.actionsList.all {
-            it.actionType == ActionType.Pass ||
-                it.actionType == ActionType.FloatMana ||
-                it.actionType == ActionType.ActivateMana
-        }
+        actions.actionsList.all { !ShouldStopEvaluator.shouldStop(it.actionType) }
 
     // --- Request builders (delegate to RequestBuilder) ---
     // MatchSession uses these instead of calling RequestBuilder directly,

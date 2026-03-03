@@ -55,10 +55,13 @@ class MatchSession(
     /** Saved client settings for echoing in SetSettingsResp. */
     var clientSettings: SettingsMessage? = null
 
+    /** Client auto-pass settings (autoPassOption / stackAutoPassOption). */
+    val autoPassState = leyline.bridge.ClientAutoPassState()
+
     /** Sub-handlers for combat, targeting, and auto-pass flows. */
     val combatHandler = CombatHandler(this)
     val targetingHandler = TargetingHandler(this)
-    val autoPassEngine = AutoPassEngine(this, combatHandler, targetingHandler)
+    val autoPassEngine = AutoPassEngine(this, combatHandler, targetingHandler, autoPassState)
 
     /**
      * Wire the game bridge (called by [MatchHandler] after bridge creation).
@@ -322,6 +325,10 @@ class MatchSession(
         // Apply stop changes to the live PhaseStopProfile so the engine
         // respects client's phase ladder toggles.
         applyStopsToProfile(reqSettings.settings)
+
+        // Track autoPassOption / stackAutoPassOption for priority decisions.
+        autoPassState.update(reqSettings.settings)
+        log.debug("MatchSession: autoPassOption={} stackAutoPassOption={}", autoPassState.autoPassOption, autoPassState.stackAutoPassOption)
 
         val (msg, nextMsgId) = HandshakeMessages.settingsResp(seatId, counter.currentMsgId(), counter.currentGsId(), clientSettings)
         counter.setMsgId(nextMsgId)

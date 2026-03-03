@@ -72,6 +72,10 @@ class GameBridge(
     /** Action bridge for seat 1 — blocks engine at priority stops. */
     val actionBridge = GameActionBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
 
+    /** Human player's controller — set during [start]/[startFromPuzzle] for debug observability. */
+    var humanController: WebPlayerController? = null
+        private set
+
     /** Prompt bridge for seat 1 — blocks engine on targeting/choice prompts. */
     val promptBridge = InteractivePromptBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
 
@@ -301,6 +305,7 @@ class GameBridge(
             mulliganBridge = seat1MulliganBridge,
             phaseStopProfile = phaseStopProfile,
         )
+        humanController = controller
         human.addController(Long.MAX_VALUE - 1, human, controller, false)
 
         // AI keeps its default controller — handles priority, combat, etc. natively
@@ -547,6 +552,7 @@ class GameBridge(
             mulliganBridge = seat1MulliganBridge,
             phaseStopProfile = phaseStopProfile,
         )
+        humanController = controller
         human.addController(Long.MAX_VALUE - 1, human, controller, false)
 
         // Start game loop from current state (skip Match.startGame/mulligan)
