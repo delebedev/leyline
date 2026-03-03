@@ -78,7 +78,7 @@ object ActionMapper {
                         .setInstanceId(instanceId)
                         .setGrpId(grpId)
                         .setFacetId(instanceId)
-                        .setShouldStop(true)
+                        .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
                     if (cardData != null) {
                         // TODO: correlate loop index with abilityIds entries for multi-ability cards
                         val abilityEntry = cardData.abilityIds.firstOrNull()
@@ -110,7 +110,7 @@ object ActionMapper {
                         .setInstanceId(instanceId)
                         .setGrpId(grpId)
                         .setFacetId(instanceId)
-                        .setShouldStop(true),
+                        .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Play_add3)),
                 )
             } else {
                 // Greyed-out: land can't be played (already played one this turn)
@@ -142,7 +142,7 @@ object ActionMapper {
                 .setInstanceId(instanceId)
                 .setGrpId(grpId)
                 .setFacetId(instanceId)
-                .setShouldStop(true)
+                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
             val cardData = CardDb.lookup(grpId)
             if (cardData != null) {
                 for ((color, count) in cardData.manaCost) {

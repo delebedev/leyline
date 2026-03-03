@@ -5,6 +5,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ClientAutoPassState
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
+import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 
 class PriorityDecisionTest :
@@ -83,5 +84,58 @@ class PriorityDecisionTest :
             state.update(settings)
             state.autoPassOption shouldBe AutoPassOption.Clear_a465
             state.shouldAutoPass() shouldBe false
+        }
+
+        // --- autoPassPriority (full control) ---
+
+        test("default autoPassPriority is None") {
+            val state = ClientAutoPassState()
+            state.autoPassPriority shouldBe AutoPassPriority.None_a099
+            state.isFullControl shouldBe false
+        }
+
+        test("No_a099 = full control ON → shouldAutoPass=false even with ResolveAll") {
+            val state = ClientAutoPassState()
+            val settings = SettingsMessage.newBuilder()
+                .setAutoPassOption(AutoPassOption.ResolveAll)
+                .build()
+            state.update(settings)
+            state.shouldAutoPass() shouldBe true
+
+            // Client sends full control
+            state.updateAutoPassPriority(AutoPassPriority.No_a099)
+            state.isFullControl shouldBe true
+            state.shouldAutoPass() shouldBe false
+        }
+
+        test("Yes_a099 = auto-pass OK → shouldAutoPass follows autoPassOption") {
+            val state = ClientAutoPassState()
+            val settings = SettingsMessage.newBuilder()
+                .setAutoPassOption(AutoPassOption.ResolveAll)
+                .build()
+            state.update(settings)
+
+            state.updateAutoPassPriority(AutoPassPriority.Yes_a099)
+            state.isFullControl shouldBe false
+            state.shouldAutoPass() shouldBe true
+        }
+
+        test("None_a099 in updateAutoPassPriority does not overwrite") {
+            val state = ClientAutoPassState()
+            state.updateAutoPassPriority(AutoPassPriority.No_a099)
+            state.isFullControl shouldBe true
+
+            // None should not clear the value
+            state.updateAutoPassPriority(AutoPassPriority.None_a099)
+            state.isFullControl shouldBe true
+        }
+
+        test("full control cleared by sending Yes_a099") {
+            val state = ClientAutoPassState()
+            state.updateAutoPassPriority(AutoPassPriority.No_a099)
+            state.isFullControl shouldBe true
+
+            state.updateAutoPassPriority(AutoPassPriority.Yes_a099)
+            state.isFullControl shouldBe false
         }
     })

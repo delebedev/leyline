@@ -797,6 +797,52 @@ object BundleBuilder {
         return BundleResult(messages)
     }
 
+    /**
+     * Timer start: sends [TimerStateMessage] (GRE type 56) with Decision timer running.
+     * Real Arena sends this on priority grant — client shows rope countdown.
+     */
+    fun timerStart(seatId: Int, counter: MessageCounter, durationSec: Int = 30): BundleResult {
+        val timer = TimerStateMessage.newBuilder()
+            .setSeatId(seatId)
+            .addTimers(
+                TimerInfo.newBuilder()
+                    .setTimerId(1)
+                    .setType(TimerType.Decision)
+                    .setDurationSec(durationSec)
+                    .setElapsedSec(0)
+                    .setRunning(true)
+                    .setBehavior(TimerBehavior.Timeout_a3cd),
+            )
+            .build()
+        val msg = makeGRE(GREMessageType.TimerStateMessage_695e, counter.currentGsId(), seatId, counter.nextMsgId()) {
+            it.timerStateMessage = timer
+        }
+        return BundleResult(listOf(msg))
+    }
+
+    /**
+     * Timer stop: sends [TimerStateMessage] with running=false.
+     * Sent when client responds to an action (pass/cast/play).
+     */
+    fun timerStop(seatId: Int, counter: MessageCounter): BundleResult {
+        val timer = TimerStateMessage.newBuilder()
+            .setSeatId(seatId)
+            .addTimers(
+                TimerInfo.newBuilder()
+                    .setTimerId(1)
+                    .setType(TimerType.Decision)
+                    .setDurationSec(30)
+                    .setElapsedSec(0)
+                    .setRunning(false)
+                    .setBehavior(TimerBehavior.Timeout_a3cd),
+            )
+            .build()
+        val msg = makeGRE(GREMessageType.TimerStateMessage_695e, counter.currentGsId(), seatId, counter.nextMsgId()) {
+            it.timerStateMessage = timer
+        }
+        return BundleResult(listOf(msg))
+    }
+
     /** Build a single GRE message. */
     private fun makeGRE(
         type: GREMessageType,

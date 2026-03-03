@@ -53,10 +53,19 @@ class WebPlayerController(
     private val phaseStopProfile: PhaseStopProfile? = null,
     private val onStateChanged: (() -> Unit)? = null,
     val smartPhaseSkip: Boolean = true,
+    autoPassState: ClientAutoPassState? = null,
 ) : PlayerControllerHuman(game, player, lobbyPlayer) {
 
+    @Volatile
+    private var autoPassState: ClientAutoPassState? = autoPassState
+
+    /** Set client auto-pass state (called by MatchSession after bridge connection). */
+    fun setAutoPassState(state: ClientAutoPassState) {
+        autoPassState = state
+    }
+
     init {
-        setGui(WebGuiGame(bridge))
+        setGui(WebGuiGame(bridge, actionBridge))
     }
 
     companion object {
@@ -980,12 +989,16 @@ class WebPlayerController(
             return null
         }
 
+        // Full control: skip all engine-side auto-pass, always return priority to session layer
+        val fullControl = autoPassState?.isFullControl ?: false
+
         // Smart phase skip (ADR-008): auto-pass when player has no meaningful actions.
         // Only on own turn — on opponent's turn the player needs priority at their
         // phase stops to cast instants (e.g. Kill Shot during combat).
         // Never skip when stack has items — player should see stack state.
         // Never skip right after a prompt resolved — player needs to see the result.
-        if (smartPhaseSkip &&
+        // Never skip when full control is on.
+        if (!fullControl && smartPhaseSkip &&
             !bridge.consumePromptResolved() &&
             handler.playerTurn?.id == player.id &&
             game.stack.isEmpty &&
@@ -996,7 +1009,7 @@ class WebPlayerController(
         }
 
         val profile = phaseStopProfile
-        if (profile != null && !profile.isEnabled(player.id, handler.phase)) {
+        if (!fullControl && profile != null && !profile.isEnabled(player.id, handler.phase)) {
             recordDecision(PriorityDecision.Skip(AutoPassReason.PhaseNotStopped(handler.phase?.name ?: "UNKNOWN")))
             return null
         }

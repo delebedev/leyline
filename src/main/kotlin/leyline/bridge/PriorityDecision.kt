@@ -15,6 +15,10 @@ sealed class AutoPassReason {
         override fun toString() = "ClientAutoPass"
     }
 
+    data object AutoPassCancelled : AutoPassReason() {
+        override fun toString() = "AutoPassCancelled"
+    }
+
     class PhaseNotStopped(val phase: String) : AutoPassReason() {
         override fun toString() = "PhaseNotStopped($phase)"
     }
