@@ -196,8 +196,10 @@ class MatchSession(
         }
 
         // Stop decision timer — client responded
-        val timerStop = BundleBuilder.timerStop(seatId, counter)
-        sendBundledGRE(timerStop.messages)
+        if (bridge.playtestConfig.game.timer) {
+            val timerStop = BundleBuilder.timerStop(seatId, counter)
+            sendBundledGRE(timerStop.messages)
+        }
 
         Tap.inboundAction(action)
         recorder?.recordClientAction(greMsg)
@@ -461,8 +463,10 @@ class MatchSession(
         sendBundle(result)
 
         // Decision timer — client shows rope countdown while waiting for action
-        val timer = BundleBuilder.timerStart(seatId, counter)
-        sendBundledGRE(timer.messages)
+        if (bridge.playtestConfig.game.timer) {
+            val timer = BundleBuilder.timerStart(seatId, counter)
+            sendBundledGRE(timer.messages)
+        }
     }
 
     /** Apply a [BundleBuilder.BundleResult]: tap-log and send. */

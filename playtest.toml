@@ -13,6 +13,9 @@
 # Skip mulligan phase — auto-keep opening hand to speed up playtesting.
 #skip_mulligan = true
 
+# Send decision timer (rope) on priority grant. Disable to suppress countdown.
+timer = false
+
 [decks]
 # Deck file names (resolved from decks/ directory, .txt optional).
 seat1 = "simple-test"      # human player
