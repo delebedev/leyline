@@ -111,6 +111,12 @@ data class GameConfig(
      */
     @SerialName("skip_mulligan")
     val skipMulligan: Boolean = false,
+
+    /**
+     * Send TimerStateMessage (rope/countdown) on priority grant.
+     * Disable to suppress the decision timer in the client UI.
+     */
+    val timer: Boolean = true,
 )
 
 @Serializable
