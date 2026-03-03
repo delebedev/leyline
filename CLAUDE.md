@@ -80,6 +80,8 @@ See `docs/conformance-debugging.md` — covers annotation ordering, category cod
 
 ## Client UI Automation
 
+**Arena CLI** (`tools/arena`) — high-level MTGA automation: `click`, `ocr`, `wait`, `capture`, `state`, `issues`. Full reference: `docs/arena-cli.md`, navigation guide: `docs/arena-nav.md`. Session logs: `/tmp/arena/sessions/`.
+
 Synthetic mouse clicks work on macOS 15+ with Unity. Two requirements:
 
 1. **Window must be foreground** — Unity ignores input on background windows
