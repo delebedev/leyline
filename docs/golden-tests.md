@@ -56,7 +56,7 @@ Tests will fail with `NEW GAPS` or `REMOVED EXTRAS` — triage each change.
 
 ## Not yet covered
 
-- **GroupReq** (London mulligan card selection) — builder not implemented yet. See `docs/mulligan-plan.md`.
+- **GroupReq** (London mulligan card selection) — builder not implemented yet.
 - **DeclareBlockersReq** — needs puzzle-based combat setup; `startWithBoard` + `devModeSet` doesn't fully initialize blocker state.
 - **Diff GSM with annotations** — would cover the stateful diff pipeline (`StateMapper.buildDiffFromGame`). Needs a board that produces zone transfers.
 - **PromptReq** (starting player notification) — simple message, low priority.

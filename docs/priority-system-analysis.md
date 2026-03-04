@@ -8,7 +8,7 @@ the three layers. Focus on behavioral gaps that affect the client connection.
 ## 1. Forge Engine Priority (PhaseHandler)
 
 Source: `forge/forge-game/src/main/java/forge/game/phase/PhaseHandler.java`
-Companion: `docs/priority-loop.md` (state machine diagram)
+Companion: `docs/priority-loop.md` (engine state machine diagram)
 
 ### Core Variables
 
