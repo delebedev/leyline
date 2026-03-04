@@ -13,10 +13,12 @@ import kotlinx.serialization.json.put
 import leyline.debug.FdDebugCollector
 import leyline.frontdoor.domain.Deck
 import leyline.frontdoor.domain.DeckCard
+import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.domain.Preferences
 import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.LobbyStubs
+import leyline.frontdoor.service.MatchInfo
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.DeckWireBuilder
@@ -44,8 +46,6 @@ class FrontDoorHandler(
     private val matchmaking: MatchmakingService,
     private val writer: FdResponseWriter,
     private val golden: GoldenData,
-    private val matchDoorHost: String = "localhost",
-    private val matchDoorPort: Int = 30003,
     /** Called when client sends 612 with a deckId — writes to shared holder. */
     private val onDeckSelected: ((String) -> Unit)? = null,
 ) : ChannelInboundHandlerAdapter() {
@@ -179,9 +179,11 @@ class FrontDoorHandler(
             612 -> { // Event_AiBotMatch
                 val deckId = json?.let { DECK_ID_PATTERN.find(it)?.groupValues?.get(1) }
                 if (deckId != null) onDeckSelected?.invoke(deckId)
+                val pid = playerId ?: PlayerId("anonymous")
+                val match = matchmaking.startAiMatch(pid, DeckId(deckId ?: ""))
                 log.info("Front Door: Event_AiBotMatch deckId={} → ack + pushing MatchCreated", deckId)
                 writer.sendEmpty(ctx, txId)
-                sendMatchCreated(ctx)
+                sendMatchCreated(ctx, match)
             }
 
             // --- Play blade data ---
@@ -291,7 +293,11 @@ class FrontDoorHandler(
                         writer.sendJson(ctx, txId, """{"SessionId":"$sessionId","Attached":true}""")
                     }
                     "GraphId" in json -> handleGraphRequest(ctx, txId, json)
-                    "AIBotMatch" in json || "PlayQueue" in json -> sendMatchCreated(ctx)
+                    "AIBotMatch" in json || "PlayQueue" in json -> {
+                        val pid = playerId ?: PlayerId("anonymous")
+                        val match = matchmaking.startAiMatch(pid, DeckId(""))
+                        sendMatchCreated(ctx, match)
+                    }
                     else -> {
                         log.debug("Front Door: unrecognized (no CmdType): {}", json.take(80))
                         writer.sendEmpty(ctx, txId)
@@ -363,10 +369,9 @@ class FrontDoorHandler(
         }
     }
 
-    private fun sendMatchCreated(ctx: ChannelHandlerContext) {
-        val matchId = UUID.randomUUID().toString()
-        val json = FdEnvelope.buildMatchCreatedJson(matchId, matchDoorHost, matchDoorPort)
-        log.info("Front Door: pushing MatchCreated matchId={}", matchId)
+    private fun sendMatchCreated(ctx: ChannelHandlerContext, match: MatchInfo) {
+        val json = FdEnvelope.buildMatchCreatedJson(match.matchId, match.host, match.port)
+        log.info("Front Door: pushing MatchCreated matchId={}", match.matchId)
         val pushTxId = UUID.randomUUID().toString()
         writer.sendJson(ctx, pushTxId, json)
     }

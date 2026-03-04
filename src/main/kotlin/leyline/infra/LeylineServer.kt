@@ -16,7 +16,6 @@ import io.netty.handler.ssl.util.InsecureTrustManagerFactory
 import io.netty.handler.ssl.util.SelfSignedCertificate
 import leyline.frontdoor.FrontDoorHandler
 import leyline.frontdoor.FrontDoorReplayStub
-import leyline.frontdoor.FrontDoorService
 import leyline.frontdoor.GoldenData
 import leyline.frontdoor.PlayerDb
 import leyline.frontdoor.domain.PlayerId
@@ -164,8 +163,6 @@ class LeylineServer(
                         matchmaking = matchmakingService,
                         writer = writer,
                         golden = golden,
-                        matchDoorHost = externalHost,
-                        matchDoorPort = matchDoorPort,
                         onDeckSelected = { selectedDeckId = it },
                     ),
                 )
@@ -203,11 +200,25 @@ class LeylineServer(
             }
             log.info("Client Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
         } else {
+            // No-player FD stub for replay — in-memory SQLite, no deck/player data
+            val golden = GoldenData.loadFromClasspath()
+            val memDb = org.jetbrains.exposed.v1.jdbc.Database.connect("jdbc:sqlite::memory:", "org.sqlite.JDBC")
+            val memStore = SqlitePlayerStore(memDb)
+            memStore.createTables()
+            val memWriter = FdResponseWriter()
+
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
                 ch.pipeline().addLast(
                     "handler",
-                    FrontDoorService(matchDoorHost = externalHost, matchDoorPort = matchDoorPort),
+                    FrontDoorHandler(
+                        playerId = null,
+                        deckService = DeckService(memStore),
+                        playerService = PlayerService(memStore),
+                        matchmaking = MatchmakingService(memStore, externalHost, matchDoorPort),
+                        writer = memWriter,
+                        golden = golden,
+                    ),
                 )
             }
             log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
