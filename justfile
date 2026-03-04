@@ -216,6 +216,12 @@ dev-teardown:
     echo "==> macOS defaults cleared"
     echo "Dev teardown complete. Arena restored to stock."
 
+# --- Data ---
+
+# one-time: seed player.db from golden captures + txt decks
+seed-db: (_require classpath) check-java
+    @{{_cli}} leyline.server.SeedDb
+
 # --- Serve ---
 
 # hybrid mode: proxy FD to real Arena, stub MD (default dev mode)
