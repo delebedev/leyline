@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Resolve project root (where this script lives is tools/, go up one)
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CP_FILE="$DIR/target/classpath.txt"
+
+if [ ! -f "$CP_FILE" ]; then
+    echo "classpath not found — run 'just build' first" >&2
+    exit 1
+fi
+
+classpath="$(< "$CP_FILE")"
+CP="$classpath:$DIR/build/classes/kotlin/main:$DIR/build/classes/java/main"
+
+JVM_OPTS="-Dio.netty.tryReflectionSetAccessible=true"
+JVM_OPTS="$JVM_OPTS --add-opens java.base/jdk.internal.misc=ALL-UNNAMED"
+JVM_OPTS="$JVM_OPTS --add-opens java.base/java.nio=ALL-UNNAMED"
+JVM_OPTS="$JVM_OPTS -Dlogback.configurationFile=$DIR/src/main/resources/logback-cli.xml"
+JVM_OPTS="$JVM_OPTS -Dlogback.statusListenerClass=ch.qos.logback.core.status.NopStatusListener"
+
+exec "$JAVA_HOME/bin/java" $JVM_OPTS -cp "$CP" leyline.arena.ArenaCliKt "$@"
