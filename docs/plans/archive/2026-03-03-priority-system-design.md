@@ -1,7 +1,7 @@
 # Priority System Design — Aligned Abstractions + Observability
 
 > Date: 2026-03-03
-> Status: **Active**
+> Status: **Executed** (PR #16)
 > Ref: `priority-system-analysis.md`, `autopass-and-priority-findings.md`, `autopass-implementation-plan.md`
 
 ---

@@ -8,8 +8,15 @@ import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 /**
  * Tracks client auto-pass settings from [SettingsMessage] and [PerformActionResp].
  *
- * Updated on each `SetSettingsReq` and `PerformActionResp`. Thread-safe: accessed
- * from session thread (MatchSession) and read from AutoPassEngine on the same thread.
+ * Updated on each `SetSettingsReq` and `PerformActionResp`. Accessed from session
+ * thread (MatchSession) and read from AutoPassEngine on the same thread.
+ *
+ * **Why separate from [PhaseStopProfile]?** AI_DEFAULTS in PhaseStopProfile exist so
+ * the Forge engine's combat system works. If `advanceOrWait` checked the profile
+ * directly, it would stop the human at every AI combat phase — even with no creatures,
+ * no instants, nothing to do. [opponentStops] starts empty and only fills when the
+ * client explicitly toggles opponent-turn stops in the phase ladder UI via
+ * `SetSettingsReq` with `Opponents` scope.
  */
 class ClientAutoPassState {
     var autoPassOption: AutoPassOption = AutoPassOption.None_a465

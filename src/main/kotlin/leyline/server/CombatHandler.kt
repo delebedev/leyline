@@ -42,7 +42,17 @@ class CombatHandler(private val ops: SessionOps) {
     var pendingBlockersSent: Boolean = false
         private set
 
-    /** Loop signal from combat phase checks. */
+    /**
+     * Loop signal from combat phase checks.
+     *
+     * - [STOP] — sent interactive prompt (DeclareAttackersReq/DeclareBlockersReq), waiting for client response.
+     * - [SEND_STATE] — informational: show the board, client has priority. Bypasses checkHumanActions.
+     * - [CONTINUE] — nothing to do, fall through to action check.
+     *
+     * **Bug pattern:** SEND_STATE bypasses checkHumanActions. If the human has only Pass actions
+     * when SEND_STATE fires, the client gets stuck showing "My Turn" with nothing meaningful to click.
+     * Use CONTINUE for phases where the human might not need to act and let checkHumanActions decide.
+     */
     enum class Signal { STOP, SEND_STATE, CONTINUE }
 
     /**

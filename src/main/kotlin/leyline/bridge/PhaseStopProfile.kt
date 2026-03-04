@@ -7,6 +7,13 @@ import java.util.concurrent.ConcurrentHashMap
  * Server-owned phase-stop state per player.
  * Tracks which phases a player should stop at for priority.
  * Reset on new game/puzzle load; no persistence in v1.
+ *
+ * Used by engine-side [WebPlayerController] for own-turn phase gating.
+ * Separate from [ClientAutoPassState.opponentStops] which drives session-layer
+ * opponent-turn stops — see that class for why the split exists.
+ *
+ * Thread safety: mutations happen on the session thread under `sessionLock`.
+ * Engine thread reads via [isEnabled] — callers must ensure happens-before.
  */
 class PhaseStopProfile private constructor(
     private val stops: MutableMap<Int, MutableSet<PhaseType>>,

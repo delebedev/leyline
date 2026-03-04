@@ -61,27 +61,12 @@ Client:  submits DeclareBlockersResp
 Session: continues through damage/end
 ```
 
-## PhaseStopProfile vs ClientAutoPassState
+## Reference: Stop Stores & Combat Signals
 
-Two separate stores for stops — this separation is critical:
-
-| Store | Contains | Used By | Purpose |
-|---|---|---|---|
-| `PhaseStopProfile` (human entry) | HUMAN_DEFAULTS + Team-scope overrides | Engine-side (`WebPlayerController`) | Own-turn phase gating |
-| `PhaseStopProfile` (AI entry) | AI_DEFAULTS + Opponents-scope overrides | Engine-side only (AI combat logic) | AI's own turn mechanics |
-| `ClientAutoPassState.opponentStops` | Opponents-scope from `SetSettingsReq` only | Session-side (`advanceOrWait`) | Human's opponent-turn stops |
-
-**Why separate?** AI_DEFAULTS (COMBAT_BEGIN, COMBAT_DECLARE_ATTACKERS, etc.) exist so the Forge engine's combat system works. If `advanceOrWait` checked the profile directly, it would stop the human at every AI combat phase — even with no creatures, no instants, nothing to do. The `opponentStops` set starts empty and only fills when the client explicitly clicks opponent-turn stops in the phase ladder UI.
-
-## CombatHandler Signal Contract
-
-| Signal | Meaning | When to Use |
-|---|---|---|
-| `STOP` | Sent interactive prompt, waiting for client response | `DeclareAttackersReq`, `DeclareBlockersReq` |
-| `SEND_STATE` | Informational — show the board, client has priority | AI attacking (show attackers before blockers prompt) |
-| `CONTINUE` | Nothing to do, fall through to action check | No combat, empty combat, phases without interaction |
-
-**Bug pattern:** `SEND_STATE` bypasses `checkHumanActions`. If the human has only Pass actions when `SEND_STATE` fires, the client gets stuck showing "My Turn" with nothing meaningful to click. Fix: use `CONTINUE` for phases where the human might not need to act, and let `checkHumanActions` decide.
+See KDoc on `PhaseStopProfile`, `ClientAutoPassState`, and `CombatHandler.Signal` for the
+phase-stop split rationale and combat signal contract. Short version: PhaseStopProfile is
+engine-side own-turn gating, opponentStops is session-side opponent-turn gating, and
+CombatHandler.Signal.SEND_STATE bypasses checkHumanActions (known bug pattern).
 
 ## Diagnosing Stuck States
 
@@ -169,17 +154,8 @@ curl -s localhost:8090/api/messages | jq '.data[-5:]'
 
 ## Priority Decision Types
 
-From `/api/priority-log`, the `decision` field:
-
-| Decision | Source | Meaning |
-|---|---|---|
-| `Grant(MAIN1, 5)` | session | Sent state, 5 actions available |
-| `Skip(SmartPhaseSkip)` | engine | No playable actions (engine checked) |
-| `Skip(PhaseNotStopped(DRAW))` | engine | Phase not in stop profile |
-| `Skip(OnlyPassActions)` | session | Actions exist but all are Pass/mana |
-| `Skip(ClientAutoPass)` | session | `autoPassOption=ResolveAll` + only pass actions |
-| `Skip(EndTurnFlag)` | engine | Player clicked End Turn |
-| `Skip(AutoPassCancelled)` | engine | Engine called `autoPassCancel()` (opponent cast) |
+See `PriorityDecision` and `AutoPassReason` sealed classes for the full set.
+Format in `/api/priority-log`: `Grant(phase, actionCount)` or `Skip(reason)`.
 
 ## Settings Flow
 

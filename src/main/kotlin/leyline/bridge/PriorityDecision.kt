@@ -1,6 +1,10 @@
 package leyline.bridge
 
-/** Why priority was skipped without client input. */
+/**
+ * Why priority was skipped without client input.
+ *
+ * Visible in `/api/priority-log` as the `decision` field (e.g. `Skip(SmartPhaseSkip)`).
+ */
 sealed class AutoPassReason {
     data object EndTurnFlag : AutoPassReason() {
         override fun toString() = "EndTurnFlag"
