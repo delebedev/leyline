@@ -59,6 +59,9 @@ class LeylineServer(
 ) {
     private val log = LoggerFactory.getLogger(LeylineServer::class.java)
 
+    /** Hardcoded player ID — matches seed-db. */
+    private val playerId = "9da3ee9f-0d6a-4b18-a3e0-c9e315d2475b"
+
     /** Shared deck selection: FD writes (on 612), MH reads (on ConnectReq). */
     @Volatile
     var selectedDeckId: String? = null
@@ -104,15 +107,16 @@ class LeylineServer(
     }
 
     private fun startStub(fdSsl: SslContext, mdSsl: SslContext) {
-        val decksDir = findDecksDir()
-        // Eagerly scan decks so StartHook is patched on first connection
-        if (decksDir != null) {
-            if (leyline.game.CardDb.init()) {
-                DeckCatalog.scan(decksDir)
-            } else {
-                log.warn("CardDb not available — deck catalog disabled, using golden StartHook decks")
-            }
+        // Initialize player DB if available (run `just seed-db` first)
+        val playerDbFile = java.io.File(System.getProperty("user.dir"), "data/player.db")
+        val playerId = if (playerDbFile.exists()) {
+            PlayerDb.init(playerDbFile)
+            playerId
+        } else {
+            log.warn("No player.db found — run `just seed-db` first. Using golden fallback.")
+            null
         }
+
         val goldenFile = fdGoldenFile
         if (goldenFile != null) {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Replay") { ch ->
@@ -128,7 +132,7 @@ class LeylineServer(
                     FrontDoorService(
                         matchDoorHost = externalHost,
                         matchDoorPort = matchDoorPort,
-                        decksDir = decksDir,
+                        playerId = playerId,
                         onDeckSelected = { selectedDeckId = it },
                     ),
                 )
@@ -217,12 +221,6 @@ class LeylineServer(
             ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, mdHost, matchDoorPort, "MD"))
         }
         log.info("Client Match Door (proxy → {}:{}) listening on :{}", mdHost, matchDoorPort, matchDoorPort)
-    }
-
-    private fun findDecksDir(): File? {
-        val cwd = File(System.getProperty("user.dir"))
-        val dir = File(cwd, "decks")
-        return if (dir.isDirectory) dir else null
     }
 
     fun stop() {

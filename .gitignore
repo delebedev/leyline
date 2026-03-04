@@ -22,6 +22,9 @@ target
 # Logs
 *.log
 
+# Player data (created by `just seed-db`)
+/data/
+
 # macOS
 .DS_Store
 

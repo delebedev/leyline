@@ -47,6 +47,21 @@ object CardDb {
     fun getGrpId(cardName: String): Int? = nameToGrpId[cardName]
 
     /**
+     * Look up card name by grpId. Checks in-memory cache first, then queries SQLite.
+     * In [testMode], returns null immediately if grpId is not pre-registered.
+     */
+    fun lookupNameByGrpId(grpId: Int): String? {
+        grpIdToName[grpId]?.let { return it }
+        if (testMode) return null
+        val path = dbPath ?: if (init()) dbPath else return null
+        path ?: return null
+        return queryNameByGrpId(path, grpId)?.also { name ->
+            grpIdToName[grpId] = name
+            nameToGrpId[name] = grpId
+        }
+    }
+
+    /**
      * Look up grpId by card name. Checks in-memory cache first, then queries SQLite.
      * In [testMode], returns null immediately if name is not pre-registered.
      */
@@ -299,6 +314,26 @@ object CardDb {
             }
         }
         return result
+    }
+
+    private fun queryNameByGrpId(dbPath: String, grpId: Int): String? = try {
+        DriverManager.getConnection("jdbc:sqlite:$dbPath").use { conn ->
+            conn.prepareStatement(
+                """
+                    SELECT l.Loc FROM Cards c
+                    JOIN Localizations_enUS l ON c.TitleId = l.LocId
+                    WHERE c.GrpId = ? AND l.Formatted = 1
+                    LIMIT 1
+                """.trimIndent(),
+            ).use { stmt ->
+                stmt.setInt(1, grpId)
+                val rs = stmt.executeQuery()
+                if (rs.next()) rs.getString("Loc") else null
+            }
+        }
+    } catch (e: Exception) {
+        log.warn("Failed to query client card DB for grpId={}: {}", grpId, e.message)
+        null
     }
 
     private fun queryByName(dbPath: String, cardName: String): Int? = try {

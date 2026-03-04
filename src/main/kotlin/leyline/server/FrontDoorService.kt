@@ -4,19 +4,29 @@ import io.netty.buffer.ByteBuf
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.util.ReferenceCountUtil
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import leyline.debug.FdDebugCollector
 import leyline.protocol.ClientFrameDecoder
 import leyline.protocol.FdEnvelope
 import org.slf4j.LoggerFactory
-import java.io.File
 import java.util.UUID
 
 /**
  * Front Door service (port 30010) — fully offline, no proxy.
  *
- * Loads golden capture data from classpath resources (`fd-golden/`) for:
- * - Protobuf responses (GetFormats, GetSets) — raw field 2 bytes
- * - Rich JSON responses (StartHook, GraphDefinitions, GraphState, DesignerMetadata)
+ * Loads golden capture data from classpath resources (`fd-golden/`) for static
+ * protocol data (formats, sets, graph definitions, etc.).
+ *
+ * Player-specific data (decks, preferences, inventory) is served from [PlayerDb]
+ * when available, falling back to golden data otherwise.
  *
  * CmdType-based dispatch with no rigid state machine — the client sends requests
  * in varying order depending on version/cache state.
@@ -27,7 +37,7 @@ import java.util.UUID
 class FrontDoorService(
     private val matchDoorHost: String = "localhost",
     private val matchDoorPort: Int = 30003,
-    decksDir: File? = null,
+    private val playerId: String? = null,
     /** Called when client sends 612 with a deckId — writes to shared holder. */
     private val onDeckSelected: ((String) -> Unit)? = null,
 ) : ChannelInboundHandlerAdapter() {
@@ -37,12 +47,13 @@ class FrontDoorService(
     // --- Golden data loaded from classpath resources ---
     private val getFormatsProto: ByteArray = loadResource("fd-golden/get-formats-response.bin")
     private val getSetsProto: ByteArray = loadResource("fd-golden/get-sets-response.bin")
-    private val startHookJson: String = patchStartHook(loadTextResource("fd-golden/start-hook.json"), decksDir)
+    private val goldenStartHookJson: String = loadTextResource("fd-golden/start-hook.json")
+    private val startHookJson: String = buildStartHook()
     private val graphDefinitionsJson: String = loadTextResource("fd-golden/graph-definitions.json")
     private val designerMetadataJson: String = loadTextResource("fd-golden/designer-metadata.json")
     private val playBladeQueueConfigJson: String = loadTextResource("fd-golden/play-blade-queue-config.json")
     private val activeEventsJson: String = loadTextResource("fd-golden/active-events.json")
-    private val playerPreferencesJson: String = loadTextResource("fd-golden/player-preferences.json")
+    private val goldenPlayerPreferencesJson: String = loadTextResource("fd-golden/player-preferences.json")
     private val graphStateResponses: Map<String, String> = mapOf(
         "NPE_Tutorial" to loadTextResource("fd-golden/graph-state-npe-tutorial.json"),
         "NewPlayerExperience" to loadTextResource("fd-golden/graph-state-npe.json"),
@@ -131,7 +142,7 @@ class FrontDoorService(
 
             // --- Startup essentials (golden data) ---
             1 -> { // StartHook
-                log.info("Front Door: StartHook (golden, {}B)", startHookJson.length)
+                log.info("Front Door: StartHook ({}B)", startHookJson.length)
                 sendJsonResponse(ctx, txId, startHookJson)
             }
 
@@ -186,9 +197,25 @@ class FrontDoorService(
                 sendJsonResponse(ctx, txId, """{"Courses":[]}""")
             }
 
-            1911 -> { // GetPlayerPreferences — last selected queue/deck
-                log.info("Front Door: PlayerPreferences (golden)")
-                sendJsonResponse(ctx, txId, playerPreferencesJson)
+            // --- Player data (from PlayerDb when available) ---
+
+            1911 -> { // GetPlayerPreferences
+                val prefs = if (playerId != null && PlayerDb.isInitialized()) {
+                    PlayerDb.getPreferences(playerId)
+                } else {
+                    null
+                }
+                val source = if (prefs != null) "db" else "golden"
+                log.info("Front Door: PlayerPreferences ($source)")
+                sendJsonResponse(ctx, txId, prefs ?: goldenPlayerPreferencesJson)
+            }
+
+            406 -> { // Deck_UpdateDeckV3 — client sends full deck
+                handleDeckUpdate(ctx, txId, json)
+            }
+
+            410 -> { // Deck_GetDeckSummariesV3
+                handleGetDeckSummaries(ctx, txId)
             }
 
             // --- Lobby requests: minimal valid responses ---
@@ -253,10 +280,6 @@ class FrontDoorService(
                 sendJsonResponse(ctx, txId, """{}""")
             }
 
-            410 -> { // Deck_GetDeckSummariesV3? (unknown)
-                sendJsonResponse(ctx, txId, """{}""")
-            }
-
             708, 712 -> { // StoreStatusV2 — expects JSON object, not array
                 sendJsonResponse(ctx, txId, """{"CatalogStatus":[]}""")
             }
@@ -269,8 +292,8 @@ class FrontDoorService(
                 sendJsonResponse(ctx, txId, """{}""")
             }
 
-            1912 -> { // PlayerPreferences variant
-                sendJsonResponse(ctx, txId, """{}""")
+            1912 -> { // SetPlayerPreferences
+                handleSetPreferences(ctx, txId, json)
             }
 
             3006 -> { // ChallengeReconnectAll — protobuf response
@@ -307,6 +330,67 @@ class FrontDoorService(
                 sendEmptyResponse(ctx, txId)
             }
         }
+    }
+
+    // --- Player data handlers ---
+
+    private fun buildStartHook(): String {
+        if (playerId == null || !PlayerDb.isInitialized()) return goldenStartHookJson
+
+        val player = PlayerDb.getPlayer(playerId) ?: return goldenStartHookJson
+        val decks = PlayerDb.getDecksForPlayer(playerId)
+        if (decks.isEmpty()) return goldenStartHookJson
+
+        val root = lenientJson.parseToJsonElement(goldenStartHookJson).jsonObject
+        val summaries = buildJsonArray { decks.forEach { add(buildDeckSummaryObj(it)) } }
+        val decksMap = buildJsonObject {
+            for (d in decks) put(d.deckId, lenientJson.parseToJsonElement(d.cards))
+        }
+
+        val patched = JsonObject(root + ("DeckSummariesV2" to summaries) + ("Decks" to decksMap))
+        log.info("StartHook assembled from PlayerDb: {} deck(s)", decks.size)
+        return lenientJson.encodeToString(JsonObject.serializer(), patched)
+    }
+
+    private fun handleDeckUpdate(ctx: ChannelHandlerContext, txId: String?, json: String?) {
+        if (json != null && playerId != null && PlayerDb.isInitialized()) {
+            try {
+                val obj = lenientJson.parseToJsonElement(json).jsonObject
+                val deckId = obj["DeckId"]?.jsonPrimitive?.content
+                val name = obj["Name"]?.jsonPrimitive?.content
+                val tileId = obj["DeckTileId"]?.jsonPrimitive?.int ?: 0
+                val cards = obj["Deck"]?.let { lenientJson.encodeToString(JsonObject.serializer(), it.jsonObject) }
+
+                if (deckId != null && name != null && cards != null) {
+                    PlayerDb.upsertDeck(deckId, playerId, name, tileId, "Standard", cards)
+                    log.info("Front Door: Deck_UpdateDeckV3 saved '{}'", name)
+                } else {
+                    log.warn("Front Door: Deck_UpdateDeckV3 missing fields deckId={} name={}", deckId, name)
+                }
+            } catch (e: Exception) {
+                log.warn("Front Door: Deck_UpdateDeckV3 parse error: {}", e.message)
+            }
+        }
+        sendEmptyResponse(ctx, txId)
+    }
+
+    private fun handleGetDeckSummaries(ctx: ChannelHandlerContext, txId: String?) {
+        if (playerId != null && PlayerDb.isInitialized()) {
+            val decks = PlayerDb.getDecksForPlayer(playerId)
+            val summaries = decks.joinToString(",") { buildDeckSummaryJson(it) }
+            log.info("Front Door: DeckSummariesV3 ({} decks from db)", decks.size)
+            sendJsonResponse(ctx, txId, """{"DeckSummariesV3":[$summaries]}""")
+        } else {
+            sendEmptyResponse(ctx, txId)
+        }
+    }
+
+    private fun handleSetPreferences(ctx: ChannelHandlerContext, txId: String?, json: String?) {
+        if (json != null && playerId != null && PlayerDb.isInitialized()) {
+            PlayerDb.updatePreferences(playerId, json)
+            log.info("Front Door: SetPlayerPreferences saved")
+        }
+        sendJsonResponse(ctx, txId, """{}""")
     }
 
     // --- outgoing message construction ---
@@ -400,7 +484,10 @@ class FrontDoorService(
         private const val GRAPH_DEFAULT = """{"NodeStates":{},"MilestoneStates":{}}"""
         private const val RANK_DEFAULT = """{"playerId":null,"constructedSeasonOrdinal":0,"constructedClass":"Bronze","constructedLevel":0,"constructedStep":0,"constructedMatchesWon":0,"constructedMatchesLost":0,"constructedMatchesDrawn":0,"limitedSeasonOrdinal":0,"limitedClass":"Bronze","limitedLevel":0,"limitedStep":0,"limitedMatchesWon":0,"limitedMatchesLost":0,"limitedMatchesDrawn":0}"""
 
-        private val log = LoggerFactory.getLogger(FrontDoorService::class.java)
+        val lenientJson = Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
 
         private fun loadResource(path: String): ByteArray = FrontDoorService::class.java.classLoader.getResourceAsStream(path)
             ?.readBytes()
@@ -408,53 +495,82 @@ class FrontDoorService(
 
         private fun loadTextResource(path: String): String = loadResource(path).toString(Charsets.UTF_8)
 
-        /**
-         * If DeckCatalog has entries (scanned at server startup), replace
-         * DeckSummariesV2 + Decks in the golden StartHook JSON with catalog entries.
-         */
-        private fun patchStartHook(golden: String, decksDir: File?): String {
-            if (decksDir == null) return golden
-
-            val catalogDecks = DeckCatalog.all()
-            if (catalogDecks.isEmpty()) return golden
-
-            // Build DeckSummariesV2 JSON array
-            val summaries = catalogDecks.joinToString(",") { d ->
-                val cardCount = d.mainDeck.sumOf { it.quantity }
-                val legal = cardCount >= 60
-                val legalities = """{"Standard":$legal,"Alchemy":$legal,"Historic":$legal,"Explorer":$legal,"Timeless":$legal,"Brawl":false}"""
-                """{"DeckId":"${d.deckId}","Name":"${d.name}","Attributes":[{"name":"Version","value":"1"},{"name":"Format","value":"Standard"},{"name":"TileID","value":"${d.tileId}"}],"DeckTileId":${d.tileId},"DeckArtId":0,"FormatLegalities":$legalities,"PreferredCosmetics":{"Avatar":"","Sleeve":"","Pet":"","Title":"","Emotes":[]},"DeckValidationSummaries":[],"UnownedCards":{}}"""
+        /** Build deck summary as JsonObject from DB columns. */
+        fun buildDeckSummaryObj(d: PlayerDb.DeckRow): JsonObject {
+            val cardCount = countCards(d.cards)
+            val legal = cardCount >= 60
+            return buildJsonObject {
+                put("DeckId", d.deckId)
+                put("Name", d.name)
+                put(
+                    "Attributes",
+                    buildJsonArray {
+                        add(
+                            buildJsonObject {
+                                put("name", "Version")
+                                put("value", "1")
+                            },
+                        )
+                        add(
+                            buildJsonObject {
+                                put("name", "Format")
+                                put("value", d.format)
+                            },
+                        )
+                        add(
+                            buildJsonObject {
+                                put("name", "TileID")
+                                put("value", d.tileId.toString())
+                            },
+                        )
+                    },
+                )
+                put("DeckTileId", d.tileId)
+                put("DeckArtId", 0)
+                put(
+                    "FormatLegalities",
+                    buildJsonObject {
+                        put("Standard", legal)
+                        put("Historic", legal)
+                        put("Explorer", legal)
+                        put("Timeless", legal)
+                        put("Alchemy", legal)
+                        put("Brawl", false)
+                    },
+                )
+                put(
+                    "PreferredCosmetics",
+                    buildJsonObject {
+                        put("Avatar", "")
+                        put("Sleeve", "")
+                        put("Pet", "")
+                        put("Title", "")
+                        put("Emotes", buildJsonArray {})
+                    },
+                )
+                put("DeckValidationSummaries", buildJsonArray {})
+                put("UnownedCards", buildJsonObject {})
             }
-
-            // Build Decks JSON object
-            val decksMap = catalogDecks.joinToString(",") { deck ->
-                val mainCards = buildCardArray(deck.mainDeck)
-                val sideCards = buildCardArray(deck.sideboard)
-                "\"${deck.deckId}\":{\"MainDeck\":[$mainCards],\"ReducedSideboard\":[],\"Sideboard\":[$sideCards],\"CommandZone\":[],\"Companions\":[],\"CardSkins\":[]}"
-            }
-
-            // Regex-replace DeckSummariesV2 array and Decks object in the JSON
-            var patched = golden
-            patched = patched.replace(
-                DECK_SUMMARIES_PATTERN,
-                """"DeckSummariesV2":[$summaries]""",
-            )
-            patched = patched.replace(
-                DECKS_OBJECT_PATTERN,
-                """"Decks":{$decksMap}""",
-            )
-
-            log.info("StartHook patched with {} catalog deck(s)", catalogDecks.size)
-            return patched
         }
 
-        private fun buildCardArray(cards: List<DeckCatalog.DeckCard>): String =
-            cards.joinToString(",") { "{\"cardId\":${it.cardId},\"quantity\":${it.quantity}}" }
+        /** Build deck summary as JSON string. */
+        fun buildDeckSummaryJson(d: PlayerDb.DeckRow): String =
+            lenientJson.encodeToString(JsonObject.serializer(), buildDeckSummaryObj(d))
 
-        // Match "DeckSummariesV2":[...] — greedy bracket matching
-        private val DECK_SUMMARIES_PATTERN = Regex(""""DeckSummariesV2"\s*:\s*\[(?:[^\[\]]|\[(?:[^\[\]]|\[[^\[\]]*\])*\])*\]""")
-
-        // Match "Decks":{...} — greedy brace matching (nested one level)
-        private val DECKS_OBJECT_PATTERN = Regex(""""Decks"\s*:\s*\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}""")
+        /** Count total cards from a cards JSON blob. */
+        fun countCards(cardsJson: String): Int = try {
+            val obj = lenientJson.parseToJsonElement(cardsJson).jsonObject
+            obj.values.sumOf { section ->
+                if (section is JsonArray) {
+                    section.sumOf { entry ->
+                        entry.jsonObject["quantity"]?.jsonPrimitive?.int ?: 0
+                    }
+                } else {
+                    0
+                }
+            }
+        } catch (_: Exception) {
+            0
+        }
     }
 }

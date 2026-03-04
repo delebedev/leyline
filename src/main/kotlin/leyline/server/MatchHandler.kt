@@ -2,6 +2,10 @@ package leyline.server
 
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.SimpleChannelInboundHandler
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import leyline.config.PlaytestConfig
 import leyline.debug.DebugCollector
 import leyline.debug.GameStateCollector
@@ -48,6 +52,10 @@ class MatchHandler(
 
     companion object {
         val defaultRegistry = MatchRegistry()
+        private val lenientJson = kotlinx.serialization.json.Json {
+            ignoreUnknownKeys = true
+            isLenient = true
+        }
 
         init {
             // Wire debug collector's bridge provider to avoid debug→server import cycle.
@@ -518,26 +526,42 @@ class MatchHandler(
     }
 
     /**
-     * Resolve seat 1 deck: if FD captured a deckId from 612, look it up in DeckCatalog
-     * and load the corresponding txt file. Otherwise fall back to playtestConfig.
+     * Resolve seat 1 deck: if FD captured a deckId from 612, look it up in PlayerDb
+     * and convert grpIds → card names for Forge. Otherwise fall back to playtestConfig.
      */
     private fun resolveSeat1Deck(): String {
         val deckId = selectedDeckOverride?.invoke()
-        if (deckId != null) {
-            val catalogDeck: DeckCatalog.CatalogDeck? = DeckCatalog.findById(deckId)
-            if (catalogDeck != null) {
-                val deckName = catalogDeck.name
-                val deckFile = catalogDeck.fileName
-                log.info("Match Door: using catalog deck '{}' ({})", deckName, deckFile)
-                val projectDir = findLeylineDir()
-                val file = java.io.File(java.io.File(projectDir, "decks"), deckFile)
-                if (file.exists()) return file.readText()
-                log.warn("Match Door: catalog deck file missing: {}", file)
-            } else {
-                log.warn("Match Door: deckId {} not in catalog, falling back to config", deckId)
+        if (deckId != null && PlayerDb.isInitialized()) {
+            val deckRow = PlayerDb.getDeck(deckId)
+            if (deckRow != null) {
+                log.info("Match Door: using deck '{}' from PlayerDb", deckRow.name)
+                return convertArenaCardsToDeckText(deckRow.cards)
             }
+            log.warn("Match Door: deckId {} not in PlayerDb, falling back to config", deckId)
         }
         return loadDeckFromConfig(playtestConfig.decks.seat1)
+    }
+
+    /** Parse Arena cards JSON → Forge deck text (qty + name per line). */
+    private fun convertArenaCardsToDeckText(cardsJson: String): String {
+        val obj = lenientJson.parseToJsonElement(cardsJson).jsonObject
+        val sb = StringBuilder()
+        for (section in listOf("MainDeck", "Sideboard")) {
+            val arr = obj[section]?.jsonArray ?: continue
+            if (section == "Sideboard" && arr.isNotEmpty()) sb.appendLine("Sideboard")
+            for (entry in arr) {
+                val cardObj = entry.jsonObject
+                val grpId = cardObj["cardId"]?.jsonPrimitive?.int ?: continue
+                val qty = cardObj["quantity"]?.jsonPrimitive?.int ?: continue
+                val name = leyline.game.CardDb.lookupNameByGrpId(grpId)
+                if (name != null) {
+                    sb.appendLine("$qty $name")
+                } else {
+                    log.warn("Match Door: unknown grpId {} in deck", grpId)
+                }
+            }
+        }
+        return sb.toString()
     }
 
     /** Load deck text from a config deck name (resolved from decks/ dir). */
