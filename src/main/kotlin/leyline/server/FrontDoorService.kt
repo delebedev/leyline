@@ -200,11 +200,12 @@ class FrontDoorService(
             // --- Player data (from PlayerDb when available) ---
 
             1911 -> { // GetPlayerPreferences
-                val prefs = if (playerId != null && PlayerDb.isInitialized()) {
+                val raw = if (playerId != null && PlayerDb.isInitialized()) {
                     PlayerDb.getPreferences(playerId)
                 } else {
                     null
                 }
+                val prefs = raw?.takeIf { it != "{}" }
                 val source = if (prefs != null) "db" else "golden"
                 log.info("Front Door: PlayerPreferences ($source)")
                 sendJsonResponse(ctx, txId, prefs ?: goldenPlayerPreferencesJson)
@@ -377,9 +378,13 @@ class FrontDoorService(
     private fun handleGetDeckSummaries(ctx: ChannelHandlerContext, txId: String?) {
         if (playerId != null && PlayerDb.isInitialized()) {
             val decks = PlayerDb.getDecksForPlayer(playerId)
-            val summaries = decks.joinToString(",") { buildDeckSummaryJson(it) }
+            // V3 uses flat Attributes dict (not V2's [{name,value}] array)
+            val summaries = buildJsonArray {
+                for (d in decks) add(buildDeckSummaryV3Obj(d))
+            }
             log.info("Front Door: DeckSummariesV3 ({} decks from db)", decks.size)
-            sendJsonResponse(ctx, txId, """{"DeckSummariesV3":[$summaries]}""")
+            val resp = buildJsonObject { put("DeckSummariesV3", summaries) }
+            sendJsonResponse(ctx, txId, lenientJson.encodeToString(JsonObject.serializer(), resp))
         } else {
             sendEmptyResponse(ctx, txId)
         }
@@ -387,7 +392,22 @@ class FrontDoorService(
 
     private fun handleSetPreferences(ctx: ChannelHandlerContext, txId: String?, json: String?) {
         if (json != null && playerId != null && PlayerDb.isInitialized()) {
-            PlayerDb.updatePreferences(playerId, json)
+            // Client sends {"Preferences":{...}} — store as-is so 1911 can return it directly.
+            // Guard: if client double-wraps (sends {"Preferences":{"Preferences":{...}}}), unwrap once.
+            val toStore = try {
+                val obj = lenientJson.parseToJsonElement(json).jsonObject
+                val inner = obj["Preferences"]?.jsonObject
+                if (inner != null && inner.containsKey("Preferences")) {
+                    // Double-wrapped — store the inner layer
+                    log.warn("Front Door: SetPlayerPreferences double-wrapped, unwrapping")
+                    lenientJson.encodeToString(JsonObject.serializer(), inner)
+                } else {
+                    json
+                }
+            } catch (_: Exception) {
+                json
+            }
+            PlayerDb.updatePreferences(playerId, toStore)
             log.info("Front Door: SetPlayerPreferences saved")
         }
         sendJsonResponse(ctx, txId, """{}""")
@@ -553,9 +573,52 @@ class FrontDoorService(
             }
         }
 
-        /** Build deck summary as JSON string. */
+        /** Build deck summary as JSON string (V2 format). */
         fun buildDeckSummaryJson(d: PlayerDb.DeckRow): String =
             lenientJson.encodeToString(JsonObject.serializer(), buildDeckSummaryObj(d))
+
+        /** Build V3 deck summary — Attributes is flat dict, not [{name,value}] array. */
+        fun buildDeckSummaryV3Obj(d: PlayerDb.DeckRow): JsonObject {
+            val cardCount = countCards(d.cards)
+            val legal = cardCount >= 60
+            return buildJsonObject {
+                put("DeckId", d.deckId)
+                put("Name", d.name)
+                put(
+                    "Attributes",
+                    buildJsonObject {
+                        put("Version", "1")
+                        put("Format", d.format)
+                        put("TileID", d.tileId.toString())
+                    },
+                )
+                put("DeckTileId", d.tileId)
+                put("DeckArtId", 0)
+                put(
+                    "FormatLegalities",
+                    buildJsonObject {
+                        put("Standard", legal)
+                        put("Historic", legal)
+                        put("Explorer", legal)
+                        put("Timeless", legal)
+                        put("Alchemy", legal)
+                        put("Brawl", false)
+                    },
+                )
+                put(
+                    "PreferredCosmetics",
+                    buildJsonObject {
+                        put("Avatar", "")
+                        put("Sleeve", "")
+                        put("Pet", "")
+                        put("Title", "")
+                        put("Emotes", buildJsonArray {})
+                    },
+                )
+                put("DeckValidationSummaries", buildJsonArray {})
+                put("UnownedCards", buildJsonObject {})
+            }
+        }
 
         /** Count total cards from a cards JSON blob. */
         fun countCards(cardsJson: String): Int = try {
