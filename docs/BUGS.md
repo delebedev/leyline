@@ -36,6 +36,12 @@
 
 - **Tapping land passes priority instead of floating mana**: Client sends `PerformActionResp` with `ActivateMana` action type but no inbound handler exists in `MatchHandler` — falls through to generic handler which submits a priority pass. Real Arena flow: player taps lands manually (ActivateMana → float mana → stay at priority), then casts. Forge's flow: auto-taps lands during `SpellAbility.payCosts()` as part of cast. Two approaches: (A) intercept ActivateMana, manually activate mana ability on the Forge card, float mana, stay at priority — needs Forge mana pool integration; (B) keep auto-tap for CastSpell, make ActivateMana a no-op that returns updated state without passing priority. Option A matches real Arena but is non-trivial (Forge mana pool tightly coupled to spell payment). Option B is simpler but breaks manual mana floating.
 
+## Front Door / Lobby
+
+- **Card_GetCardSet (551) empty response crashes TitleCountManager**: Our 551 handler returns `{}`. Client's `InventoryManager.RefreshCards` calls `TitleCountManager.BuildTitleCountCache()` which does `.GroupBy()` on a null card collection → `ArgumentNullException`. Non-fatal (client continues to home page) but may break card ownership checks downstream (deck validation, wildcards). Fix: return a response with the right shape containing empty lists so `.GroupBy()` gets an empty enumerable instead of null. Need to capture a real 551 response to see the expected structure.
+
+- **Deck_GetDeckSummariesV3 (410) deserialization logged as failure**: Client logs "Failed deserialization on response" for our 410 response but the JSON looks structurally correct. The actual crash is `TitleCountManager` on the same frame tick (see above) — likely coincidental timing, not a 410 shape issue. Monitor: if decks don't appear in UI, revisit 410 response structure.
+
 ## Debug Panel
 
 - **Server shutdown kills browser tab**: When the Nexus server is killed (Ctrl+C / `kill`), the debug panel's SSE connection drops. Some browsers (Safari) close the tab entirely on abrupt connection loss. Fix: add `onclose`/`onerror` handler in the SSE client JS that shows a "disconnected" banner instead of letting the browser decide. Or switch from SSE to polling with graceful reconnect.
