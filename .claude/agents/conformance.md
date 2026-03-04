@@ -22,6 +22,6 @@ Workflow:
 4. Update catalog.yaml when mechanic status changes
 
 Read `docs/rosetta.md` for protocol type mappings.
-Read `docs/diff-semantics.md` for how diffs work.
+Diff semantics: see `StateMapper.kt` KDoc and `mtga-internals/docs/diff-processing.md`.
 
 Do not modify source code — flag issues for the engine-bridge agent.

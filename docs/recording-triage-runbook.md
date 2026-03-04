@@ -141,10 +141,9 @@ Read these **before** coding. They compress thousands of LOC into patterns and t
 | New client action handler | `CLAUDE.md` cookbook "Adding a new client action handler" |
 | New annotation builder | `CLAUDE.md` cookbook "Adding a new annotation type" |
 | New zone transition category | `CLAUDE.md` cookbook "Adding a new zone transition category" |
-| Wire format / message shape | `docs/wire-format.md`, `docs/match-sequence.md` |
+| Wire format / message shape | `docs/wire-format.md` |
 | Combat protocol | `docs/combat-protocol.md` |
-| Priority/prompt flow | `docs/priority-loop.md` |
-| Diff semantics | `docs/diff-semantics.md` |
+| Priority/prompt flow | `docs/priority-system-analysis.md` |
 | Proto field meanings | `recording-analysis-runbook.md` §4 Pattern Catalog, §5 updateType Semantics |
 | Debugging test timeout | `CLAUDE.md` cookbook "Debugging a test timeout" |
 | Debugging conformance failure | `docs/conformance-debugging.md` |
@@ -357,7 +356,7 @@ Engine produces correct game state; need conformance tests verifying the proto w
 - **Classification:** handler gap
 - **What exists:** Proto defined (type 22). `QueuedGameStateMessage` already built by `BundleBuilder.queuedGameState()`. `InteractivePromptBridge` handles existing prompt types.
 - **What's missing:** No `SelectNReq` bundle method. No `MatchHandler` dispatch for `SelectNResp`. No `MatchSession.onSelectN()`. No prompt bridge for engine's "choose N" prompts.
-- **Read first:** `CLAUDE.md` cookbook "Adding a new client action handler", `docs/priority-loop.md` (prompt bridge pattern), `recording-analysis-runbook.md` §4 "Discard + reveal spell" pattern
+- **Read first:** `CLAUDE.md` cookbook "Adding a new client action handler", `docs/priority-system-analysis.md` (prompt bridge pattern), `recording-analysis-runbook.md` §4 "Discard + reveal spell" pattern
 - **Touch:** `BundleBuilder.kt` (selectNBundle), `MatchHandler.kt` (dispatch SelectNResp), `MatchSession.kt` (onSelectN), `InteractivePromptBridge` or new bridge for "choose N" prompts.
 - **Test:** Integration test: inject hand + discard spell → assert SelectNReq emitted with correct N and legal choices → submit response → assert discard zone transfer.
 - **Effort:** M — follows `SelectTargetsReq` pattern closely.
@@ -431,7 +430,7 @@ Engine produces correct game state; need conformance tests verifying the proto w
 - **Classification:** handler gap
 - **What exists:** `AbilityInstanceCreated`/`Deleted` annotations. `EnteredZoneThisTurn` persistent. Stack abilities rendered via `ZoneMapper.addStackAbilities()`.
 - **What's missing:** `GroupReq` message generation in `BundleBuilder`. `GroupResp` dispatch in `MatchHandler`. Engine trigger-choice bridge.
-- **Read first:** `CLAUDE.md` cookbook "Adding a new client action handler", `docs/priority-loop.md`, proto GroupReq definition
+- **Read first:** `CLAUDE.md` cookbook "Adding a new client action handler", `docs/priority-system-analysis.md`, proto GroupReq definition
 - **Touch:** `BundleBuilder.kt` (groupReqBundle), `MatchHandler.kt` (dispatch GroupResp), new bridge for trigger choices.
 - **Test:** Integration test with ETB-trigger creature (e.g., Scry 1 on ETB).
 - **Effort:** L — Forge's trigger choice model differs from Arena's GroupReq model.

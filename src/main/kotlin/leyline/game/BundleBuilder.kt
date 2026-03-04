@@ -15,6 +15,26 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *
  * No side effects, no Netty, no mutable handler state — takes everything as params,
  * returns messages. The shared [MessageCounter] advances atomically on each call.
+ *
+ * **Ordering invariant:** every method that includes actions calls
+ * [StateMapper.buildDiffFromGame] *first*. Diff-building triggers instanceId
+ * reallocation for zone transfers — if actions were built before the diff,
+ * they'd reference pre-realloc instanceIds and the client couldn't match them.
+ *
+ * **Update types** (what the client does with each GSM):
+ * - [GameStateUpdate.SendAndRecord] — checkpoint; client persists state.
+ *   Always precedes [ActionsAvailableReq] at human decision points.
+ * - [GameStateUpdate.SendHiFi] — animation-quality intermediate. AI actions,
+ *   phase echoes, combat toggles. Client animates but doesn't save.
+ * - [GameStateUpdate.Send] — speculative/transient. Targeting, selection
+ *   prompts. Client may discard on undo/cancel.
+ *
+ * **pendingMessageCount:** when 1, tells the client another message follows
+ * in the same logical batch (GSM + request pair). Client defers processing
+ * until both arrive. Omit for standalone GSMs (AI actions, echoes).
+ *
+ * Naming: `xxxBundle` → [BundleResult] (multi-message). Standalone helpers
+ * ([queuedGameState], [edictalPass]) return single [GREToClientMessage].
  */
 object BundleBuilder {
 

@@ -6,7 +6,45 @@ import wotc.mtgo.gre.external.messaging.Messages.CounterType
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairInfo
 import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
-/** Builds client-format annotations for GameStateMessage. */
+/**
+ * Builds client-format [AnnotationInfo] protos for [GameStateMessage] bundles.
+ *
+ * Arena annotations are the **semantic layer** on top of raw game state diffs.
+ * The client has two independent parser families that consume them:
+ * - **State parsers** (~58 classes): mutate card/game state fields directly
+ *   (P/T, counters, abilities, designations, attachments)
+ * - **Event parsers** (~46 classes): produce [GameRulesEvent] objects that drive
+ *   the animation/sound pipeline (zone transfers, damage flash, life counter)
+ *
+ * Some annotation types fire **both** parsers (e.g. ResolutionStart, Shuffle,
+ * DieRoll). Each builder method here maps to one [AnnotationType] enum value
+ * and matches the real server's detail key names, value types, and shape.
+ * Detail keys are case-sensitive; the client throws on missing required fields.
+ *
+ * **Ordering contract:** [objectIdChanged] must appear before [zoneTransfer]
+ * for the same card. The client's ZoneTransfer event parser expects the new
+ * instanceId to be resolvable — the ObjectIdChanged state parser stores the
+ * old→new mapping in `newIdToOldIdMap` which must run first.
+ *
+ * **Organization by tier** (matching annotation-variance-analysis priority):
+ * - Transfer/lifecycle: [zoneTransfer], [objectIdChanged], [resolutionStart],
+ *   [abilityInstanceCreated] — core zone movement and stack lifecycle
+ * - Combat: [damageDealt], [modifiedLife], [syntheticEvent] — damage chain
+ * - Tier 1 (game state): [counter], [addAbility], [layeredEffect],
+ *   [designation] — affect correctness if missing
+ * - Tier 2 (visual fidelity): [colorProduction], [targetSpec],
+ *   [powerToughnessModCreated], [attachmentCreated] — affect client UX
+ *
+ * [categoryFromEvents] bridges Forge's event model to Arena's annotation
+ * categories — resolves which [TransferCategory] label to stamp on each
+ * zone transfer annotation based on captured [GameEvent]s.
+ *
+ * Authoritative client parser reference: `mtga-internals/docs/annotation-registry.md`
+ *
+ * @see AnnotationPipeline for the pipeline that calls these builders
+ * @see GameEvent for the Forge→protocol event translation layer
+ * @see TransferCategory for the category label enum
+ */
 object AnnotationBuilder {
 
     /**
