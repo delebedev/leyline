@@ -7,7 +7,7 @@ import io.kotest.matchers.collections.shouldExist
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import leyline.UnitTag
-import leyline.server.ListMessageSink
+import leyline.infra.ListMessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

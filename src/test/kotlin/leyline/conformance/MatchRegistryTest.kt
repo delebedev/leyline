@@ -6,9 +6,9 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.UnitTag
 import leyline.game.GameBridge
-import leyline.server.ListMessageSink
-import leyline.server.MatchRegistry
-import leyline.server.MatchSession
+import leyline.infra.ListMessageSink
+import leyline.match.MatchRegistry
+import leyline.match.MatchSession
 
 class MatchRegistryTest :
     FunSpec({

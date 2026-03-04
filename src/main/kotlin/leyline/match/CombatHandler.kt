@@ -1,4 +1,4 @@
-package leyline.server
+package leyline.match
 
 import forge.game.Game
 import forge.game.phase.PhaseType
@@ -9,6 +9,7 @@ import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
+import kotlin.collections.iterator
 
 /**
  * Handles combat-related client messages and auto-pass combat phase detection.

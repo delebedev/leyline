@@ -15,13 +15,15 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.UnitTag
+import leyline.frontdoor.FrontDoorService
+import leyline.frontdoor.PlayerDb
 import leyline.protocol.ClientFrameDecoder
 import leyline.protocol.FdEnvelope
 import java.io.File
 import java.util.UUID
 
 /**
- * Wire-level integration tests for [FrontDoorService].
+ * Wire-level integration tests for [leyline.frontdoor.FrontDoorService].
  *
  * Boots FD in an [EmbeddedChannel] (no TLS, no sockets), sends framed
  * protobuf envelopes, decodes responses, and validates JSON shapes.

@@ -1,8 +1,10 @@
-package leyline.server
+package leyline.frontdoor
 
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.sql.Connection
 import java.sql.DriverManager
+import java.sql.ResultSet
 
 object PlayerDb {
     private val log = LoggerFactory.getLogger(PlayerDb::class.java)
@@ -197,7 +199,7 @@ object PlayerDb {
         dbPath = null
     }
 
-    private fun readDeckRow(rs: java.sql.ResultSet) = DeckRow(
+    private fun readDeckRow(rs: ResultSet) = DeckRow(
         deckId = rs.getString("deck_id"),
         playerId = rs.getString("player_id"),
         name = rs.getString("name"),
@@ -206,7 +208,7 @@ object PlayerDb {
         cards = rs.getString("cards"),
     )
 
-    private fun <T> conn(block: (java.sql.Connection) -> T): T {
+    private fun <T> conn(block: (Connection) -> T): T {
         val path = dbPath ?: error("PlayerDb not initialized")
         return DriverManager.getConnection("jdbc:sqlite:$path").use(block)
     }

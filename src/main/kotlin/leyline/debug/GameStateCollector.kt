@@ -11,7 +11,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *
  * Extracts structured snapshots from outbound [GameStateMessage] protobufs,
  * stores them keyed by gsId, and computes diffs between any two snapshots.
- * Also collects priority trace events from [leyline.server.MatchHandler]
+ * Also collects priority trace events from [leyline.match.MatchHandler]
  * decision points.
  *
  * Lives alongside [DebugCollector] — that stores raw JSON, this stores

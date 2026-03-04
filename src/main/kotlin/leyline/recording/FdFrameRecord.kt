@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 /**
  * Serializable summary of a single Front Door data frame.
  *
- * Written by [leyline.server.CaptureSink] during proxy capture,
+ * Written by [leyline.infra.CaptureSink] during proxy capture,
  * read by [leyline.debug.DecodeFdCapture] for offline re-decode.
  */
 @Serializable

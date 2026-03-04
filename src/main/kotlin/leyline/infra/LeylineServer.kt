@@ -1,4 +1,4 @@
-package leyline.server
+package leyline.infra
 
 import io.netty.bootstrap.Bootstrap
 import io.netty.bootstrap.ServerBootstrap
@@ -14,9 +14,14 @@ import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory
 import io.netty.handler.ssl.util.SelfSignedCertificate
+import leyline.match.MatchHandler
+import leyline.match.ReplayHandler
 import leyline.protocol.ClientFrameDecoder
 import leyline.protocol.ClientHeaderPrepender
 import leyline.protocol.ClientHeaderStripper
+import leyline.frontdoor.FrontDoorReplayStub
+import leyline.frontdoor.FrontDoorService
+import leyline.frontdoor.PlayerDb
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
@@ -51,7 +56,7 @@ class LeylineServer(
     /** FD golden file: if set, use replay-based FD stub instead of hand-crafted. */
     val fdGoldenFile: File? = null,
     /** Playtest configuration (decks, seed, die roll, AI speed). */
-    val playtestConfig: leyline.config.PlaytestConfig = leyline.config.PlaytestConfig(),
+    val playtestConfig: PlaytestConfig = PlaytestConfig(),
     /** Puzzle mode: if set, load this .pzl file for all client connections. */
     val puzzleFile: File? = null,
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
@@ -108,7 +113,7 @@ class LeylineServer(
 
     private fun startStub(fdSsl: SslContext, mdSsl: SslContext) {
         // Initialize player DB if available (run `just seed-db` first)
-        val playerDbFile = java.io.File(System.getProperty("user.dir"), "data/player.db")
+        val playerDbFile = File(System.getProperty("user.dir"), "data/player.db")
         val playerId = if (playerDbFile.exists()) {
             PlayerDb.init(playerDbFile)
             playerId
@@ -121,7 +126,9 @@ class LeylineServer(
         if (goldenFile != null) {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Replay") { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast("handler", FrontDoorReplayStub(goldenFile, matchDoorHost = externalHost, matchDoorPort = matchDoorPort))
+                ch.pipeline().addLast("handler",
+                    FrontDoorReplayStub(goldenFile, matchDoorHost = externalHost, matchDoorPort = matchDoorPort)
+                )
             }
             log.info("Client Front Door (replay from {}) listening on :{}", goldenFile.name, frontDoorPort)
         } else {
@@ -172,7 +179,9 @@ class LeylineServer(
         } else {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast("handler", FrontDoorService(matchDoorHost = externalHost, matchDoorPort = matchDoorPort))
+                ch.pipeline().addLast("handler",
+                    FrontDoorService(matchDoorHost = externalHost, matchDoorPort = matchDoorPort)
+                )
             }
             log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
         }

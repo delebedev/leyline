@@ -1,4 +1,4 @@
-package leyline.server
+package leyline.match
 
 import io.netty.buffer.Unpooled
 import io.netty.channel.ChannelHandlerContext
@@ -6,15 +6,20 @@ import io.netty.channel.SimpleChannelInboundHandler
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
-import kotlin.collections.get
 
 /**
- * Match Door handler that replays recorded binary payloads.
+ * Match Door handler that replays a recorded session instead of running Forge.
  *
- * Patches matchId and clientId in replayed messages to match the current
- * session (the Front Door assigns new IDs each time).
+ * Loads captured S→C payloads from a proxy session, categorizes them
+ * (auth, room state, GRE), and serves them back in order as the client
+ * sends requests. Patches matchId/clientId/seatId so the current
+ * session's identifiers match the recording.
  *
- * Usage: `--replay <payloads-dir>` (default: LeylinePaths.CAPTURE_PAYLOADS)
+ * Why: lets you iterate on client-facing protocol work (framing, field
+ * shapes, annotation ordering) without waiting for Forge engine startup
+ * or needing a specific board state. Swap with MatchHandler at bootstrap.
+ *
+ * Usage: `just serve-replay` or `--replay <payloads-dir>`
  */
 class ReplayHandler(
     private val payloadDir: File,

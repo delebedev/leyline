@@ -1,4 +1,4 @@
-package leyline.server
+package leyline.infra
 
 import io.netty.buffer.ByteBuf
 import kotlinx.serialization.json.Json

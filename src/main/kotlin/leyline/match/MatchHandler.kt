@@ -1,23 +1,30 @@
-package leyline.server
+package leyline.match
 
+import forge.gamemodes.puzzle.Puzzle
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.SimpleChannelInboundHandler
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import leyline.config.PlaytestConfig
+import leyline.bridge.GameBootstrap
+import leyline.infra.PlaytestConfig
 import leyline.debug.DebugCollector
 import leyline.debug.GameStateCollector
 import leyline.debug.SessionRecorder
 import leyline.debug.Tap
+import leyline.game.CardDb
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
 import leyline.game.PuzzleSource
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
+import leyline.infra.NettyMessageSink
+import leyline.frontdoor.PlayerDb
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
+import java.io.File
 
 /**
  * Match Door handler (port 30003) — thin Netty adapter.
@@ -30,7 +37,7 @@ class MatchHandler(
     private val registry: MatchRegistry = defaultRegistry,
     private val playtestConfig: PlaytestConfig = PlaytestConfig(),
     /** CLI --puzzle override: forces puzzle mode for all connections. */
-    private val puzzleFile: java.io.File? = null,
+    private val puzzleFile: File? = null,
     /** Returns the deckId selected in FD's 612 handler, if any. */
     private val selectedDeckOverride: (() -> String?)? = null,
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
@@ -52,7 +59,7 @@ class MatchHandler(
 
     companion object {
         val defaultRegistry = MatchRegistry()
-        private val lenientJson = kotlinx.serialization.json.Json {
+        private val lenientJson = Json {
             ignoreUnknownKeys = true
             isLenient = true
         }
@@ -501,9 +508,9 @@ class MatchHandler(
         puzzleFile != null || matchId.startsWith("puzzle-")
 
     /** Load puzzle: prefer --puzzle CLI file, fall back to matchId convention. */
-    private fun loadPuzzleForMatch(matchId: String): forge.gamemodes.puzzle.Puzzle {
+    private fun loadPuzzleForMatch(matchId: String): Puzzle {
         // Puzzle constructor triggers GameState.<clinit> which needs localization
-        leyline.bridge.GameBootstrap.initializeLocalization()
+        GameBootstrap.initializeLocalization()
 
         // CLI override takes precedence
         if (puzzleFile != null) {
@@ -513,12 +520,12 @@ class MatchHandler(
         // Fall back to matchId convention
         val puzzleName = matchId.removePrefix("puzzle-")
         val leylineDir = findLeylineDir()
-        val puzzlesDir = java.io.File(leylineDir, "puzzles")
-        val pzlFile = java.io.File(puzzlesDir, "$puzzleName.pzl")
+        val puzzlesDir = File(leylineDir, "puzzles")
+        val pzlFile = File(puzzlesDir, "$puzzleName.pzl")
         if (pzlFile.exists()) {
             return PuzzleSource.loadFromFile(pzlFile.absolutePath)
         }
-        val pzlFile2 = java.io.File(puzzlesDir, puzzleName)
+        val pzlFile2 = File(puzzlesDir, puzzleName)
         if (pzlFile2.exists()) {
             return PuzzleSource.loadFromFile(pzlFile2.absolutePath)
         }
@@ -553,7 +560,7 @@ class MatchHandler(
                 val cardObj = entry.jsonObject
                 val grpId = cardObj["cardId"]?.jsonPrimitive?.int ?: continue
                 val qty = cardObj["quantity"]?.jsonPrimitive?.int ?: continue
-                val name = leyline.game.CardDb.lookupNameByGrpId(grpId)
+                val name = CardDb.lookupNameByGrpId(grpId)
                 if (name != null) {
                     sb.appendLine("$qty $name")
                 } else {
@@ -571,9 +578,9 @@ class MatchHandler(
         return file.readText()
     }
 
-    private fun findLeylineDir(): java.io.File {
-        val cwd = java.io.File(System.getProperty("user.dir"))
-        if (java.io.File(cwd, "decks").isDirectory) return cwd
+    private fun findLeylineDir(): File {
+        val cwd = File(System.getProperty("user.dir"))
+        if (File(cwd, "decks").isDirectory) return cwd
         // standalone repo — CWD is project root
         return cwd
     }

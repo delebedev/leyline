@@ -12,8 +12,8 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.GameBootstrap
 import leyline.bridge.PlayerAction
-import leyline.config.GameConfig
-import leyline.config.PlaytestConfig
+import leyline.infra.GameConfig
+import leyline.infra.PlaytestConfig
 import leyline.conformance.TestCardRegistry
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ZoneIds

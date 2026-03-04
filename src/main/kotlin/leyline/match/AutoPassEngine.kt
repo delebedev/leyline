@@ -1,4 +1,4 @@
-package leyline.server
+package leyline.match
 
 import forge.game.Game
 import forge.game.phase.PhaseType

@@ -1,7 +1,8 @@
-package leyline.config
+package leyline.frontdoor
 
 import org.slf4j.LoggerFactory
 import java.io.File
+import kotlin.collections.iterator
 
 /**
  * Validates deck files before they reach the engine.

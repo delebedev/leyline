@@ -1,4 +1,4 @@
-package leyline.server
+package leyline.cli
 
 import leyline.game.CardDb
 import org.slf4j.LoggerFactory
@@ -6,7 +6,7 @@ import java.io.File
 import java.util.UUID
 
 /**
- * Scans deck txt files at boot, resolves card names to grpIds via [CardDb],
+ * Scans deck txt files at boot, resolves card names to grpIds via [leyline.game.CardDb],
  * and provides deck data for FrontDoor StartHook injection + match-time lookup.
  */
 object DeckCatalog {

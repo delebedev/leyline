@@ -1,6 +1,8 @@
-package leyline.server
+package leyline.match
 
 import forge.game.Game
+import leyline.bridge.ClientAutoPassState
+import leyline.bridge.PhaseStopProfile
 import leyline.bridge.PlayerAction
 import leyline.debug.DebugCollector
 import leyline.debug.GameStateCollector
@@ -14,6 +16,7 @@ import leyline.game.StateMapper
 import leyline.game.mapper.StopTypeMapping
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
+import leyline.infra.MessageSink
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
@@ -56,7 +59,7 @@ class MatchSession(
     var clientSettings: SettingsMessage? = null
 
     /** Client auto-pass settings (autoPassOption / stackAutoPassOption). */
-    val autoPassState = leyline.bridge.ClientAutoPassState()
+    val autoPassState = ClientAutoPassState()
 
     /** Sub-handlers for combat, targeting, and auto-pass flows. */
     val combatHandler = CombatHandler(this)
@@ -184,7 +187,7 @@ class MatchSession(
 
         // Track autoPassPriority from PerformActionResp (full control / auto-pass OK)
         val autoPassPriority = greMsg.performActionResp.autoPassPriority
-        if (autoPassPriority != wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority.None_a099) {
+        if (autoPassPriority != AutoPassPriority.None_a099) {
             autoPassState.updateAutoPassPriority(autoPassPriority)
             log.debug("MatchSession: autoPassPriority={}", autoPassPriority)
         }
@@ -410,10 +413,10 @@ class MatchSession(
 
     /** Apply Set/Clear stops matching [scope] to the given player in [profile]. */
     private fun applyStopsForPlayer(
-        stops: List<wotc.mtgo.gre.external.messaging.Messages.Stop>,
+        stops: List<Stop>,
         scope: SettingScope,
         playerId: Int,
-        profile: leyline.bridge.PhaseStopProfile,
+        profile: PhaseStopProfile,
     ) {
         val enabled = StopTypeMapping.parseStops(stops, scope)
         val disabled = stops
@@ -437,7 +440,7 @@ class MatchSession(
             val merged = existing.toBuilder()
 
             // Merge stops: build a map keyed by (stopType, appliesTo), incoming overrides existing
-            val stopMap = linkedMapOf<Pair<Int, Int>, wotc.mtgo.gre.external.messaging.Messages.Stop>()
+            val stopMap = linkedMapOf<Pair<Int, Int>, Stop>()
             for (stop in existing.stopsList) {
                 stopMap[stop.stopType.number to stop.appliesTo.number] = stop
             }
@@ -447,7 +450,7 @@ class MatchSession(
             merged.clearStops().addAllStops(stopMap.values)
 
             // Merge transientStops the same way
-            val transMap = linkedMapOf<Pair<Int, Int>, wotc.mtgo.gre.external.messaging.Messages.Stop>()
+            val transMap = linkedMapOf<Pair<Int, Int>, Stop>()
             for (stop in existing.transientStopsList) {
                 transMap[stop.stopType.number to stop.appliesTo.number] = stop
             }

@@ -1,12 +1,12 @@
 package leyline
 
-import leyline.config.DeckValidator
-import leyline.config.PlaytestConfig
+import leyline.frontdoor.DeckValidator
+import leyline.infra.PlaytestConfig
 import leyline.debug.DebugServer
 import leyline.debug.PlayerLogWatcher
 import leyline.game.CardDb
-import leyline.server.LeylineServer
-import leyline.server.MockWasServer
+import leyline.infra.LeylineServer
+import leyline.infra.MockWasServer
 import java.io.File
 
 /**
