@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.UnitTag
+import leyline.frontdoor.PlayerDb
 import java.io.File
 
 class PlayerDbTest :

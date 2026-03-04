@@ -1,6 +1,7 @@
-package leyline.server
+package leyline.match
 
 import forge.game.Game
+import leyline.bridge.InteractivePromptBridge
 import leyline.debug.GameStateCollector
 import leyline.debug.Tap
 import leyline.game.BundleBuilder
@@ -199,7 +200,7 @@ class TargetingHandler(private val ops: SessionOps) {
     private fun resolvePlayerTarget(
         instanceId: Int,
         bridge: GameBridge,
-        pendingPrompt: leyline.bridge.InteractivePromptBridge.PendingPrompt,
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ): Int? {
         // Arena uses seatId as instanceId for player targets (1 or 2)
         val player = bridge.getPlayer(instanceId) ?: return null
@@ -211,7 +212,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
     private fun sendSelectTargetsReq(
         bridge: GameBridge,
-        pendingPrompt: leyline.bridge.InteractivePromptBridge.PendingPrompt,
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ) {
         val game = bridge.getGame() ?: return
         val result = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, pendingPrompt)

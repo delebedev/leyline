@@ -7,9 +7,9 @@ import leyline.game.CardDb
 import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
-import leyline.server.ListMessageSink
-import leyline.server.MatchRegistry
-import leyline.server.MatchSession
+import leyline.infra.ListMessageSink
+import leyline.match.MatchRegistry
+import leyline.match.MatchSession
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**

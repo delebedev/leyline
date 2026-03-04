@@ -5,7 +5,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.conformance.settingsMessage
 import leyline.conformance.stop
-import leyline.server.MatchSession
+import leyline.match.MatchSession
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.SettingScope
 import wotc.mtgo.gre.external.messaging.Messages.SettingStatus

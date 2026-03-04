@@ -1,4 +1,4 @@
-package leyline.server
+package leyline.infra
 
 import io.netty.channel.ChannelHandlerContext
 import leyline.protocol.ProtoDump

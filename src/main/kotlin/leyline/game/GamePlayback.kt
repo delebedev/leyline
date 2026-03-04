@@ -20,7 +20,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * thread and this (engine thread) call `counter.nextMsgId()`/`counter.nextGsId()`
  * on the same atomic — no seeding or syncing needed.
  *
- * The [MatchHandler][leyline.server.MatchHandler] drains the queue
+ * The [MatchHandler][leyline.match.MatchHandler] drains the queue
  * via [drainQueue] and sends messages to the TCP socket.
  *
  * @param bridge the GameBridge for state mapping and zone tracking

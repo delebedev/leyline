@@ -1,10 +1,12 @@
-package leyline.server
+package leyline.cli
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import leyline.game.CardDb
+import leyline.frontdoor.PlayerDb
 import java.io.File
 
 /**
@@ -68,7 +70,7 @@ object SeedDb {
                 name = deck.name,
                 tileId = deck.tileId,
                 format = "Standard",
-                cards = Json.encodeToString(kotlinx.serialization.json.JsonObject.serializer(), cards),
+                cards = Json.Default.encodeToString(JsonObject.serializer(), cards),
             )
             println("Imported: ${deck.name} (${deck.mainDeck.sumOf { it.quantity }} cards)")
         }

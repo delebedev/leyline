@@ -1,4 +1,4 @@
-package leyline.config
+package leyline.infra
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable

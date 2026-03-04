@@ -12,7 +12,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Builds outbound interactive request protos (targeting, selectN, combat).
  *
  * Pure proto construction from game state — no session state, no sending.
- * [leyline.server.CombatHandler] and [leyline.server.TargetingHandler]
+ * [leyline.match.CombatHandler] and [leyline.match.TargetingHandler]
  * handle the inbound responses.
  */
 object RequestBuilder {

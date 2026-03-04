@@ -18,7 +18,7 @@ import leyline.bridge.MulliganPhase
 import leyline.bridge.PhaseStopProfile
 import leyline.bridge.PrioritySignal
 import leyline.bridge.WebPlayerController
-import leyline.config.PlaytestConfig
+import leyline.infra.PlaytestConfig
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.TurnInfo

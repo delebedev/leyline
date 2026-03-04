@@ -1,4 +1,4 @@
-package leyline.server
+package leyline.match
 
 import leyline.game.GameBridge
 import java.util.concurrent.ConcurrentHashMap

@@ -50,6 +50,10 @@ Done: `/api/id-map` now includes `ownerSeatId`, `status` (active/limbo/stale), `
 
 Not urgent — current setup works. Revisit if the naming causes real confusion.
 
+## Review ReplayHandler usefulness
+
+`ReplayHandler` replays captured match sessions from disk instead of running Forge. Unclear if it still works end-to-end after recent MatchHandler/MatchSession refactors (seat wiring, MatchRegistry, combat handlers). Worth a quick smoke test with a fresh capture to verify it's still wired correctly, or archive it if replay mode has been superseded by other debugging workflows.
+
 ## Pre-validate test decks somehow
 
 Cards that resolved to grpId=0 (no client card data):

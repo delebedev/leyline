@@ -1,14 +1,5 @@
-package leyline.server
+package leyline.infra
 
-import org.bouncycastle.asn1.pkcs.PrivateKeyInfo
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
-import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
-import org.bouncycastle.openssl.PEMKeyPair
-import org.bouncycastle.openssl.PEMParser
-import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter
-import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
-import org.bouncycastle.util.io.pem.PemObject
-import org.bouncycastle.util.io.pem.PemWriter
 import java.io.File
 import java.io.StringReader
 import java.io.StringWriter
@@ -28,7 +19,7 @@ import javax.security.auth.x500.X500Principal
  *
  * Handles:
  * - PKCS#1 → PKCS#8 key conversion (traefik-certs-dumper outputs PKCS#1)
- * - PEM cert+key → [SSLContext] for JDK HttpsServer
+ * - PEM cert+key → [javax.net.ssl.SSLContext] for JDK HttpsServer
  * - Self-signed cert generation for dev/test
  * - PKCS#1-aware key file normalization for Netty
  */
@@ -37,7 +28,7 @@ object TlsHelper {
     private val converter = JcaPEMKeyConverter()
 
     /**
-     * Build a JDK [SSLContext] from PEM cert+key files, or self-signed if null.
+     * Build a JDK [javax.net.ssl.SSLContext] from PEM cert+key files, or self-signed if null.
      * Accepts both PKCS#1 and PKCS#8 key files.
      */
     fun buildJdkSslContext(certFile: File?, keyFile: File?): SSLContext {
