@@ -46,6 +46,19 @@ client-state:
     echo "$state ($lines lines)"
     tail -5 "$log"
 
+# kill server (all ports) + MTGA client — clean slate for next run
+stop:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for p in {{ports}}; do
+        for pid in $(lsof -ti :$p 2>/dev/null); do
+            echo "Killing pid $pid on port $p"
+            kill -9 $pid 2>/dev/null || true
+        done
+    done
+    pkill -9 -f MTGA 2>/dev/null && echo "Killed MTGA" || echo "MTGA not running"
+    echo "Stopped."
+
 # composable MTGA automation CLI (tools/arena is the standalone entry point)
 arena *args: (_require classpath) check-java
     @{{project_dir}}/tools/arena {{args}}

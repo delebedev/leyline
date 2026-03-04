@@ -8,6 +8,7 @@ import leyline.debug.FdDebugCollector
 import leyline.protocol.ClientFrameDecoder
 import leyline.protocol.FdEnvelope
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.util.UUID
 
 /**
@@ -26,6 +27,9 @@ import java.util.UUID
 class FrontDoorService(
     private val matchDoorHost: String = "localhost",
     private val matchDoorPort: Int = 30003,
+    decksDir: File? = null,
+    /** Called when client sends 612 with a deckId — writes to shared holder. */
+    private val onDeckSelected: ((String) -> Unit)? = null,
 ) : ChannelInboundHandlerAdapter() {
 
     private val log = LoggerFactory.getLogger(FrontDoorService::class.java)
@@ -33,7 +37,7 @@ class FrontDoorService(
     // --- Golden data loaded from classpath resources ---
     private val getFormatsProto: ByteArray = loadResource("fd-golden/get-formats-response.bin")
     private val getSetsProto: ByteArray = loadResource("fd-golden/get-sets-response.bin")
-    private val startHookJson: String = loadTextResource("fd-golden/start-hook.json")
+    private val startHookJson: String = patchStartHook(loadTextResource("fd-golden/start-hook.json"), decksDir)
     private val graphDefinitionsJson: String = loadTextResource("fd-golden/graph-definitions.json")
     private val designerMetadataJson: String = loadTextResource("fd-golden/designer-metadata.json")
     private val playBladeQueueConfigJson: String = loadTextResource("fd-golden/play-blade-queue-config.json")
@@ -158,7 +162,9 @@ class FrontDoorService(
 
             // --- Match trigger ---
             612 -> { // Event_AiBotMatch
-                log.info("Front Door: Event_AiBotMatch → ack + pushing MatchCreated")
+                val deckId = json?.let { DECK_ID_PATTERN.find(it)?.groupValues?.get(1) }
+                if (deckId != null) onDeckSelected?.invoke(deckId)
+                log.info("Front Door: Event_AiBotMatch deckId={} → ack + pushing MatchCreated", deckId)
                 // Must respond to 612 txId first, then push MatchCreated (600)
                 sendEmptyResponse(ctx, txId)
                 sendMatchCreated(ctx)
@@ -390,13 +396,65 @@ class FrontDoorService(
 
     companion object {
         private val GRAPH_ID_PATTERN = Regex(""""GraphId"\s*:\s*"([^"]+)"""")
+        private val DECK_ID_PATTERN = Regex(""""deckId"\s*:\s*"([^"]+)"""")
         private const val GRAPH_DEFAULT = """{"NodeStates":{},"MilestoneStates":{}}"""
         private const val RANK_DEFAULT = """{"playerId":null,"constructedSeasonOrdinal":0,"constructedClass":"Bronze","constructedLevel":0,"constructedStep":0,"constructedMatchesWon":0,"constructedMatchesLost":0,"constructedMatchesDrawn":0,"limitedSeasonOrdinal":0,"limitedClass":"Bronze","limitedLevel":0,"limitedStep":0,"limitedMatchesWon":0,"limitedMatchesLost":0,"limitedMatchesDrawn":0}"""
+
+        private val log = LoggerFactory.getLogger(FrontDoorService::class.java)
 
         private fun loadResource(path: String): ByteArray = FrontDoorService::class.java.classLoader.getResourceAsStream(path)
             ?.readBytes()
             ?: error("Missing classpath resource: $path")
 
         private fun loadTextResource(path: String): String = loadResource(path).toString(Charsets.UTF_8)
+
+        /**
+         * If DeckCatalog has entries (scanned at server startup), replace
+         * DeckSummariesV2 + Decks in the golden StartHook JSON with catalog entries.
+         */
+        private fun patchStartHook(golden: String, decksDir: File?): String {
+            if (decksDir == null) return golden
+
+            val catalogDecks = DeckCatalog.all()
+            if (catalogDecks.isEmpty()) return golden
+
+            // Build DeckSummariesV2 JSON array
+            val summaries = catalogDecks.joinToString(",") { d ->
+                val cardCount = d.mainDeck.sumOf { it.quantity }
+                val legal = cardCount >= 60
+                val legalities = """{"Standard":$legal,"Alchemy":$legal,"Historic":$legal,"Explorer":$legal,"Timeless":$legal,"Brawl":false}"""
+                """{"DeckId":"${d.deckId}","Name":"${d.name}","Attributes":[{"name":"Version","value":"1"},{"name":"Format","value":"Standard"},{"name":"TileID","value":"${d.tileId}"}],"DeckTileId":${d.tileId},"DeckArtId":0,"FormatLegalities":$legalities,"PreferredCosmetics":{"Avatar":"","Sleeve":"","Pet":"","Title":"","Emotes":[]},"DeckValidationSummaries":[],"UnownedCards":{}}"""
+            }
+
+            // Build Decks JSON object
+            val decksMap = catalogDecks.joinToString(",") { deck ->
+                val mainCards = buildCardArray(deck.mainDeck)
+                val sideCards = buildCardArray(deck.sideboard)
+                "\"${deck.deckId}\":{\"MainDeck\":[$mainCards],\"ReducedSideboard\":[],\"Sideboard\":[$sideCards],\"CommandZone\":[],\"Companions\":[],\"CardSkins\":[]}"
+            }
+
+            // Regex-replace DeckSummariesV2 array and Decks object in the JSON
+            var patched = golden
+            patched = patched.replace(
+                DECK_SUMMARIES_PATTERN,
+                """"DeckSummariesV2":[$summaries]""",
+            )
+            patched = patched.replace(
+                DECKS_OBJECT_PATTERN,
+                """"Decks":{$decksMap}""",
+            )
+
+            log.info("StartHook patched with {} catalog deck(s)", catalogDecks.size)
+            return patched
+        }
+
+        private fun buildCardArray(cards: List<DeckCatalog.DeckCard>): String =
+            cards.joinToString(",") { "{\"cardId\":${it.cardId},\"quantity\":${it.quantity}}" }
+
+        // Match "DeckSummariesV2":[...] — greedy bracket matching
+        private val DECK_SUMMARIES_PATTERN = Regex(""""DeckSummariesV2"\s*:\s*\[(?:[^\[\]]|\[(?:[^\[\]]|\[[^\[\]]*\])*\])*\]""")
+
+        // Match "Decks":{...} — greedy brace matching (nested one level)
+        private val DECKS_OBJECT_PATTERN = Regex(""""Decks"\s*:\s*\{(?:[^{}]|\{(?:[^{}]|\{[^{}]*\})*\})*\}""")
     }
 }

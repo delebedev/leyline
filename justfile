@@ -27,7 +27,7 @@ jvm_opts_cli := _jvm_base + " -Dlogback.configurationFile=" + logback_cli + " -D
 # --- Java launch helpers ---
 
 # Full classpath expression (shared by _java and _cli launch helpers)
-_cp := '"$classpath:' + project_dir + '/build/classes/kotlin/main:' + project_dir + '/build/classes/java/main"'
+_cp := '"$classpath:' + project_dir + '/build/classes/kotlin/main:' + project_dir + '/build/classes/java/main:' + project_dir + '/build/resources/main"'
 
 # Kill ports + launch (for server targets)
 _java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do echo "Killing pid $pid on port $p"; kill -9 $pid 2>/dev/null || true; done; done; sleep 0.3; classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts + ' -cp ' + _cp
