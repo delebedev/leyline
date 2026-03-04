@@ -98,8 +98,6 @@ class FrontDoorServiceTest :
                     matchmaking = matchmakingService,
                     writer = writer,
                     golden = golden,
-                    matchDoorHost = "localhost",
-                    matchDoorPort = 30003,
                 ),
             )
             channel = ch
