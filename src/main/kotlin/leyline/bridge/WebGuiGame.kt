@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory
  */
 class WebGuiGame(
     private val bridge: InteractivePromptBridge,
+    private val actionBridge: GameActionBridge? = null,
 ) : IGuiGame {
 
     companion object {
@@ -548,9 +549,17 @@ class WebGuiGame(
     override fun awaitNextInput() {}
     override fun cancelAwaitNextInput() {}
     override fun isUiSetToSkipPhase(playerTurn: PlayerView, phase: PhaseType): Boolean = false
-    override fun autoPassUntilEndOfTurn(player: PlayerView) {}
-    override fun mayAutoPass(player: PlayerView): Boolean = false
-    override fun autoPassCancel(player: PlayerView) {}
+    override fun autoPassUntilEndOfTurn(player: PlayerView) {
+        actionBridge?.setAutoPassUntilEndOfTurn(true)
+    }
+    override fun mayAutoPass(player: PlayerView): Boolean =
+        actionBridge?.autoPassUntilEndOfTurn ?: false
+    override fun autoPassCancel(player: PlayerView) {
+        if (actionBridge != null && actionBridge.autoPassUntilEndOfTurn) {
+            actionBridge.setAutoPassUntilEndOfTurn(false)
+            log.info("autoPassCancel: cleared autoPassUntilEndOfTurn")
+        }
+    }
     override fun updateAutoPassPrompt() {}
     override fun shouldAutoYield(key: String): Boolean = false
     override fun setShouldAutoYield(key: String, autoYield: Boolean) {}

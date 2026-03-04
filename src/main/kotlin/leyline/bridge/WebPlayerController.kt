@@ -53,14 +53,52 @@ class WebPlayerController(
     private val phaseStopProfile: PhaseStopProfile? = null,
     private val onStateChanged: (() -> Unit)? = null,
     val smartPhaseSkip: Boolean = true,
+    autoPassState: ClientAutoPassState? = null,
 ) : PlayerControllerHuman(game, player, lobbyPlayer) {
 
+    @Volatile
+    private var autoPassState: ClientAutoPassState? = autoPassState
+
+    /** Set client auto-pass state (called by MatchSession after bridge connection). */
+    fun setAutoPassState(state: ClientAutoPassState) {
+        autoPassState = state
+    }
+
     init {
-        setGui(WebGuiGame(bridge))
+        setGui(WebGuiGame(bridge, actionBridge))
     }
 
     companion object {
         private val log = LoggerFactory.getLogger(WebPlayerController::class.java)
+        private const val MAX_DECISIONS = 200
+    }
+
+    /** Recent priority decisions for debug observability. */
+    private val recentDecisions = ArrayDeque<PriorityDecisionEntry>()
+
+    data class PriorityDecisionEntry(
+        val ts: Long,
+        val phase: String?,
+        val turn: Int,
+        val decision: PriorityDecision,
+    )
+
+    /** Snapshot of recent decisions for the debug API. */
+    fun decisionLog(): List<PriorityDecisionEntry> = synchronized(recentDecisions) {
+        recentDecisions.toList()
+    }
+
+    private fun recordDecision(decision: PriorityDecision) {
+        val entry = PriorityDecisionEntry(
+            ts = System.currentTimeMillis(),
+            phase = game.phaseHandler.phase?.name,
+            turn = game.phaseHandler.turn,
+            decision = decision,
+        )
+        synchronized(recentDecisions) {
+            recentDecisions.addLast(entry)
+            while (recentDecisions.size > MAX_DECISIONS) recentDecisions.removeFirst()
+        }
     }
 
     override fun isAI(): Boolean = false
@@ -946,24 +984,43 @@ class WebPlayerController(
             ab.setAutoPassUntilEndOfTurn(false)
         }
 
-        if (ab.autoPassUntilEndOfTurn) return null
+        if (ab.autoPassUntilEndOfTurn) {
+            recordDecision(PriorityDecision.Skip(AutoPassReason.EndTurnFlag))
+            return null
+        }
+
+        // Full control: skip all engine-side auto-pass, always return priority to session layer
+        val fullControl = autoPassState?.isFullControl ?: false
 
         // Smart phase skip (ADR-008): auto-pass when player has no meaningful actions.
         // Only on own turn — on opponent's turn the player needs priority at their
         // phase stops to cast instants (e.g. Kill Shot during combat).
         // Never skip when stack has items — player should see stack state.
         // Never skip right after a prompt resolved — player needs to see the result.
-        if (smartPhaseSkip &&
+        // Never skip when full control is on.
+        if (!fullControl &&
+            smartPhaseSkip &&
             !bridge.consumePromptResolved() &&
             handler.playerTurn?.id == player.id &&
             game.stack.isEmpty &&
             !PlayableActionQuery.hasPlayableNonManaAction(game, player)
         ) {
+            recordDecision(PriorityDecision.Skip(AutoPassReason.SmartPhaseSkip))
             return null
         }
 
         val profile = phaseStopProfile
-        if (profile != null && !profile.isEnabled(player.id, handler.phase)) {
+        val isOwnTurn = handler.playerTurn?.id == player.id
+        // Phase stop check only applies on human's own turn.
+        // During opponent's turn, the session layer (advanceOrWait) handles
+        // opponent-turn stops separately — engine-side AI_DEFAULTS are for
+        // the AI's own combat logic, not for gating human priority.
+        if (!fullControl &&
+            isOwnTurn &&
+            profile != null &&
+            !profile.isEnabled(player.id, handler.phase)
+        ) {
+            recordDecision(PriorityDecision.Skip(AutoPassReason.PhaseNotStopped(handler.phase?.name ?: "UNKNOWN")))
             return null
         }
 

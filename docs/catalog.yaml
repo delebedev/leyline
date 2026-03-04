@@ -12,7 +12,7 @@
 #   suppressed — deliberately disabled (cosmetic, causes client errors)
 #   n/a       — not applicable to Arena Standard/Pioneer
 #
-# Updated: 2026-03-01
+# Updated: 2026-03-04
 # Authoritative source for protocol-level detail: rosetta.md
 
 # ─── Client Infrastructure ───────────────────────────────────────────
@@ -65,8 +65,12 @@ client-infrastructure:
       produce the result screen. LossOfGame annotation on lethal. Fixed 2026-02-26.
 
   timers:
-    status: missing
-    notes: "TimerStateMessage (type 56) not implemented."
+    status: wired
+    notes: >
+      TimerStateMessage (GRE type 56) implemented. Decision timer sent on
+      priority grant (timerStart) and cleared on client response (timerStop).
+      Duration configurable via game.timer in playtest.toml. Client shows
+      rope countdown.
 
   starting-player:
     status: missing
@@ -74,10 +78,14 @@ client-infrastructure:
       ChooseStartingPlayerReq (type 6) not sent. Server always picks.
 
   settings:
-    status: wired
+    status: works
     notes: >
-      SetSettingsReq/Resp handled. Client can send settings, server acks.
-      No actual behavior changes from settings yet.
+      SetSettingsReq/Resp with full delta-merge semantics. Stops accumulated
+      by (stopType, appliesTo) key — client sends one toggle per message,
+      server merges and echoes back. Team scope → own-turn phase stops,
+      Opponents scope → opponent-turn stops. autoPassOption, stackAutoPassOption,
+      autoPassPriority (full control) all wired. clearAllStops/clearAllYields
+      honored. Transient stops merged same as regular stops.
 
   emotes:
     status: missing
@@ -98,19 +106,26 @@ game-flow:
       Works but every phase grants priority (see phase-stops).
 
   priority:
-    status: wired
+    status: works
     notes: >
-      Double-pass mechanism works. Player gets ActionsAvailableReq,
-      can pass or act. But no smart auto-pass — client prompted at
-      every phase even when nothing can be done.
+      Two-layer priority system: engine-side (WebPlayerController) handles
+      own-turn phase skipping (SmartPhaseSkip, PhaseNotStopped, EndTurnFlag),
+      session-side (AutoPassEngine) handles opponent-turn auto-pass and
+      action-based decisions (OnlyPassActions, ClientAutoPass). Full control
+      mode (autoPassPriority=No) disables all auto-passing. PriorityDecision
+      typed sealed class tracks decisions. Debug: /api/priority-log shows
+      both layers. ShouldStopEvaluator determines which action types are
+      stop-worthy (Cast/Play/Activate = stop, Pass/FloatMana/ActivateMana = pass).
 
   phase-stops:
-    status: broken
+    status: works
     notes: >
-      PhaseStopProfile not wired. Every phase grants priority including
-      CombatDamage/CombatEnd/EndOfTurn where Arena auto-passes. Client
-      times out (120s) at unimportant phases, engine auto-passes silently.
-      Blocked on PhaseOrStepModified annotation regression.
+      PhaseStopProfile tracks per-player stops. Human defaults: Main1,
+      Attackers, Blockers, Main2. AI defaults: CombatBegin, Attackers,
+      Blockers, EndOfTurn (engine combat logic). Client SetSettingsReq
+      with Team scope overrides human stops, Opponents scope drives
+      session-layer opponent-turn stops (separate from AI engine defaults).
+      clearAllStops/clearAllYields supported.
 
   phase-indicator:
     status: broken
@@ -836,9 +851,9 @@ protocol-summary:
       Cards always move correctly; category only affects animation.
 
   gre-message-types:
-    server-to-client: 13  # implemented
+    server-to-client: 14  # implemented (added TimerStateMessage)
     client-to-server: 7   # handled (added CheckpointReq)
-    missing: 4             # ChooseStartingPlayer, OrderReq, AssignDamageReq, TimerState (GroupReq/GroupResp coded, deferred)
+    missing: 3             # ChooseStartingPlayer, OrderReq, AssignDamageReq (GroupReq/GroupResp coded, deferred)
 
   game-events-wired:
     wired: 20
