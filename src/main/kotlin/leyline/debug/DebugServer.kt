@@ -2,6 +2,7 @@ package leyline.debug
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import leyline.analysis.SessionAnalyzer
 import leyline.game.StateMapper
@@ -69,6 +70,7 @@ class DebugServer(private val port: Int = 8090) {
             "/api/recording-mechanics" to ::serveRecordingMechanics,
             "/api/client-errors" to ::serveClientErrors,
             "/api/fd-messages" to ::serveFdMessages,
+            "/api/priority-log" to ::servePriorityLog,
         ).forEach { (path, handler) ->
             srv.createContext(path) { ex -> safe(ex) { handler(ex) } }
         }
@@ -426,6 +428,43 @@ class DebugServer(private val port: Int = 8090) {
 
         val cursor = errors.maxOfOrNull { it.seq }
         respondJsonList(ex, json.encodeToString(errors), cursor)
+    }
+
+    // --- Priority decision log ---
+
+    /**
+     * `/api/priority-log` — combined priority decision log from
+     * [AutoPassEngine] (session thread) and [WebPlayerController] (engine thread).
+     */
+    private fun servePriorityLog(ex: HttpExchange) {
+        val session = DebugCollector.sessionProvider?.invoke() as? MatchSession
+        if (session == null) {
+            respondJsonList(ex, "[]", null)
+            return
+        }
+
+        @Serializable
+        data class Entry(val ts: Long, val source: String, val phase: String?, val turn: Int, val decision: String)
+
+        val entries = mutableListOf<Entry>()
+
+        // AutoPassEngine decisions (session thread)
+        for (e in session.autoPassEngine.decisionLog()) {
+            entries.add(Entry(e.ts, "session", e.phase, e.turn, e.decision.toString()))
+        }
+
+        // WebPlayerController decisions (engine thread)
+        val bridge = session.gameBridge
+        val controller = bridge?.humanController
+        if (controller != null) {
+            for (e in controller.decisionLog()) {
+                entries.add(Entry(e.ts, "engine", e.phase, e.turn, e.decision.toString()))
+            }
+        }
+
+        entries.sortBy { it.ts }
+
+        respondJsonList(ex, json.encodeToString(entries), null)
     }
 
     // --- Front Door messages ---

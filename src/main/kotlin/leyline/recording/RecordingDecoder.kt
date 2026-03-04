@@ -131,12 +131,14 @@ object RecordingDecoder {
         val turnInfo: TurnInfoSummary? = null,
         val promptId: Int? = null,
         val systemSeatIds: List<Int> = emptyList(),
+        val edictal: EdictalSummary? = null,
         // Client→Server fields (only set when dir="C-S")
         val clientType: String? = null,
         val clientAttackers: ClientAttackersSummary? = null,
         val clientBlockers: ClientBlockersSummary? = null,
         val clientAction: ClientActionSummary? = null,
         val clientTargets: ClientTargetsSummary? = null,
+        val clientSettings: SettingsSummary? = null,
     )
 
     @Serializable
@@ -185,6 +187,9 @@ object RecordingDecoder {
         val instanceId: Int = 0,
         val grpId: Int = 0,
         val seatId: Int? = null,
+        val shouldStop: Boolean? = null,
+        val highlight: String? = null,
+        val abilityGrpId: Int? = null,
     )
 
     @Serializable
@@ -253,12 +258,49 @@ object RecordingDecoder {
     @Serializable
     data class ClientActionSummary(
         val actions: List<ActionSummary>,
+        val autoPassPriority: String? = null,
+        val setYield: String? = null,
+        val yieldScope: String? = null,
+        val yieldKey: String? = null,
     )
 
     @Serializable
     data class ClientTargetsSummary(
         val targetIdx: Int = 0,
         val targetInstanceIds: List<Int> = emptyList(),
+    )
+
+    @Serializable
+    data class SettingsSummary(
+        val stops: List<StopSummary> = emptyList(),
+        val transientStops: List<StopSummary> = emptyList(),
+        val yields: List<YieldSummary> = emptyList(),
+        val autoPassOption: String? = null,
+        val stackAutoPassOption: String? = null,
+        val smartStops: String? = null,
+        val clearAllStops: Boolean = false,
+        val clearAllYields: Boolean = false,
+    )
+
+    @Serializable
+    data class StopSummary(
+        val stopType: String,
+        val scope: String,
+        val status: String,
+    )
+
+    @Serializable
+    data class YieldSummary(
+        val abilityGrpId: Int = 0,
+        val cardTitleId: Int = 0,
+        val scope: String,
+        val status: String,
+    )
+
+    @Serializable
+    data class EdictalSummary(
+        val actions: List<ActionSummary> = emptyList(),
+        val autoPassPriority: String? = null,
     )
 
     @Serializable
@@ -416,13 +458,11 @@ object RecordingDecoder {
             clientAction = gre.takeIf { it.hasPerformActionResp() }?.let { msg ->
                 val resp = msg.performActionResp
                 ClientActionSummary(
-                    actions = resp.actionsList.map { a ->
-                        ActionSummary(
-                            type = a.actionType.name.strip(),
-                            instanceId = a.instanceId.toInt(),
-                            grpId = a.grpId.toInt(),
-                        )
-                    },
+                    actions = resp.actionsList.map { summarizeAction(it, seatId = null) },
+                    autoPassPriority = resp.autoPassPriority.name.strip().takeIf { it != "None" },
+                    setYield = resp.setYield.name.strip().takeIf { it != "None" },
+                    yieldScope = resp.appliesTo.name.strip().takeIf { it != "None" },
+                    yieldKey = resp.mapTo.name.strip().takeIf { it != "None" },
                 )
             },
             clientTargets = gre.takeIf { it.hasSelectTargetsResp() }?.let { msg ->
@@ -431,6 +471,9 @@ object RecordingDecoder {
                     targetIdx = resp.target.targetIdx,
                     targetInstanceIds = resp.target.targetsList.map { it.targetInstanceId },
                 )
+            },
+            clientSettings = gre.takeIf { it.hasSetSettingsReq() }?.let { msg ->
+                summarizeSettings(msg.setSettingsReq.settings)
             },
         )
     }
@@ -511,6 +554,7 @@ object RecordingDecoder {
             castingTimeOptions = gre.takeIf { it.hasCastingTimeOptionsReq() }
                 ?.castingTimeOptionsReq?.castingTimeOptionReqList
                 ?.map { summarizeCastingTimeOption(it) } ?: emptyList(),
+            edictal = summarizeEdictal(gre),
             players = gsm?.playersList?.map { summarizePlayer(it) } ?: emptyList(),
             turnInfo = gsm?.takeIf { it.hasTurnInfo() }?.turnInfo?.let { summarizeTurn(it) },
             promptId = gre.takeIf { it.hasPrompt() && it.prompt.promptId != 0 }?.prompt?.promptId,
@@ -577,29 +621,28 @@ object RecordingDecoder {
         // Actions from GameStateMessage
         if (gre.hasGameStateMessage()) {
             for (ai in gre.gameStateMessage.actionsList) {
-                add(
-                    ActionSummary(
-                        type = ai.action.actionType.name.strip(),
-                        instanceId = ai.action.instanceId.toInt(),
-                        grpId = ai.action.grpId.toInt(),
-                        seatId = ai.seatId.toInt(),
-                    ),
-                )
+                add(summarizeAction(ai.action, seatId = ai.seatId.toInt()))
             }
         }
         // Actions from ActionsAvailableReq
         if (gre.hasActionsAvailableReq()) {
             for (a in gre.actionsAvailableReq.actionsList) {
-                add(
-                    ActionSummary(
-                        type = a.actionType.name.strip(),
-                        instanceId = a.instanceId.toInt(),
-                        grpId = a.grpId.toInt(),
-                        seatId = null,
-                    ),
-                )
+                add(summarizeAction(a, seatId = null))
             }
         }
+    }
+
+    private fun summarizeAction(a: Action, seatId: Int?): ActionSummary {
+        val highlightName = a.highlight.name.strip().takeIf { it != "None" }
+        return ActionSummary(
+            type = a.actionType.name.strip(),
+            instanceId = a.instanceId.toInt(),
+            grpId = a.grpId.toInt(),
+            seatId = seatId,
+            shouldStop = a.shouldStop.takeIf { it },
+            highlight = highlightName,
+            abilityGrpId = a.abilityGrpId.toInt().takeIf { it != 0 },
+        )
     }
 
     private fun summarizePlayer(p: PlayerInfo): PlayerSummary = PlayerSummary(
@@ -667,6 +710,37 @@ object RecordingDecoder {
                 )
             },
         )
+
+    private fun summarizeSettings(s: SettingsMessage): SettingsSummary = SettingsSummary(
+        stops = s.stopsList.map { StopSummary(it.stopType.name.strip(), it.appliesTo.name.strip(), it.status.name.strip()) },
+        transientStops = s.transientStopsList.map { StopSummary(it.stopType.name.strip(), it.appliesTo.name.strip(), it.status.name.strip()) },
+        yields = s.yieldsList.map {
+            YieldSummary(
+                abilityGrpId = it.abilityGrpId.toInt(),
+                cardTitleId = it.cardTitleId.toInt(),
+                scope = it.appliesTo.name.strip(),
+                status = it.status.name.strip(),
+            )
+        },
+        autoPassOption = s.autoPassOption.name.strip().takeIf { it != "None" },
+        stackAutoPassOption = s.stackAutoPassOption.name.strip().takeIf { it != "None" },
+        smartStops = s.smartStopsSetting.name.strip().takeIf { it != "None" && it.isNotEmpty() },
+        clearAllStops = s.clearAllStops.name.strip() == "Set",
+        clearAllYields = s.clearAllYields.name.strip() == "Set",
+    )
+
+    private fun summarizeEdictal(gre: GREToClientMessage): EdictalSummary? {
+        if (!gre.hasEdictalMessage()) return null
+        val edictal = gre.edictalMessage
+        if (!edictal.hasEdictMessage()) return null
+        val inner = edictal.edictMessage
+        if (!inner.hasPerformActionResp()) return null
+        val resp = inner.performActionResp
+        return EdictalSummary(
+            actions = resp.actionsList.map { summarizeAction(it, seatId = null) },
+            autoPassPriority = resp.autoPassPriority.name.strip().takeIf { it != "None" },
+        )
+    }
 
     private val json = Json {
         encodeDefaults = false

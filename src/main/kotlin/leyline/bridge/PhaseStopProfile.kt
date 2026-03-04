@@ -7,6 +7,13 @@ import java.util.concurrent.ConcurrentHashMap
  * Server-owned phase-stop state per player.
  * Tracks which phases a player should stop at for priority.
  * Reset on new game/puzzle load; no persistence in v1.
+ *
+ * Used by engine-side [WebPlayerController] for own-turn phase gating.
+ * Separate from [ClientAutoPassState.opponentStops] which drives session-layer
+ * opponent-turn stops — see that class for why the split exists.
+ *
+ * Thread safety: mutations happen on the session thread under `sessionLock`.
+ * Engine thread reads via [isEnabled] — callers must ensure happens-before.
  */
 class PhaseStopProfile private constructor(
     private val stops: MutableMap<Int, MutableSet<PhaseType>>,
@@ -17,6 +24,10 @@ class PhaseStopProfile private constructor(
     fun setEnabled(playerId: Int, phase: PhaseType, enabled: Boolean) {
         val playerStops = stops.getOrPut(playerId) { mutableSetOf() }
         if (enabled) playerStops.add(phase) else playerStops.remove(phase)
+    }
+
+    fun clearAll(playerId: Int) {
+        stops[playerId]?.clear()
     }
 
     fun getEnabled(playerId: Int): Set<PhaseType> =
@@ -46,6 +57,22 @@ class PhaseStopProfile private constructor(
             PhaseType.CLEANUP,
         )
 
+        /**
+         * Resolve a phase key string to a [PhaseType], returning null for unknown
+         * or non-canonical phases. Returns null (not throw) because callers include
+         * forge-web GameSessionManager which expects nullable.
+         */
+        fun forPhaseKey(key: String): PhaseType? = try {
+            val pt = PhaseType.valueOf(key)
+            if (pt in CANONICAL_PHASES) pt else null
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+
+        /**
+         * Own-turn defaults for the human player — matches Arena's initial stop set.
+         * Client SetSettingsReq with Team scope overrides these.
+         */
         private val HUMAN_DEFAULTS = setOf(
             PhaseType.MAIN1,
             PhaseType.COMBAT_DECLARE_ATTACKERS,
@@ -53,19 +80,20 @@ class PhaseStopProfile private constructor(
             PhaseType.MAIN2,
         )
 
+        /**
+         * AI player needs combat stops so the engine's combat declaration
+         * logic runs properly. These are NOT opponent-turn stops for the human —
+         * they're the AI's own-turn stops. Opponent-turn stops (what the human
+         * sees during AI's turn) are driven by client SetSettingsReq with
+         * Opponents scope and stored under the AI player's ID separately
+         * in the session-layer check (advanceOrWait).
+         */
         private val AI_DEFAULTS = setOf(
             PhaseType.COMBAT_BEGIN,
             PhaseType.COMBAT_DECLARE_ATTACKERS,
             PhaseType.COMBAT_DECLARE_BLOCKERS,
             PhaseType.END_OF_TURN,
         )
-
-        fun forPhaseKey(key: String): PhaseType? = try {
-            val pt = PhaseType.valueOf(key)
-            if (pt in CANONICAL_PHASES) pt else null
-        } catch (_: IllegalArgumentException) {
-            null
-        }
 
         fun createDefaults(humanPlayerId: Int, aiPlayerId: Int): PhaseStopProfile =
             PhaseStopProfile(
@@ -77,7 +105,7 @@ class PhaseStopProfile private constructor(
                 ),
             )
 
-        /** Both players get human-style defaults (both are interactive). */
+        /** Both players get human-style defaults (both interactive). */
         fun createTwoPlayerDefaults(player1Id: Int, player2Id: Int): PhaseStopProfile =
             PhaseStopProfile(
                 ConcurrentHashMap(

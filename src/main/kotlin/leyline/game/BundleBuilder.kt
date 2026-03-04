@@ -5,6 +5,7 @@ import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.PromptIds
+import leyline.game.mapper.ShouldStopEvaluator
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -202,11 +203,7 @@ object BundleBuilder {
      *    skip didn't fire. No redundant Game queries needed.
      */
     fun shouldAutoPass(actions: ActionsAvailableReq): Boolean =
-        actions.actionsList.all {
-            it.actionType == ActionType.Pass ||
-                it.actionType == ActionType.FloatMana ||
-                it.actionType == ActionType.ActivateMana
-        }
+        actions.actionsList.all { !ShouldStopEvaluator.shouldStop(it.actionType) }
 
     // --- Request builders (delegate to RequestBuilder) ---
     // MatchSession uses these instead of calling RequestBuilder directly,
@@ -798,6 +795,39 @@ object BundleBuilder {
         )
 
         return BundleResult(messages)
+    }
+
+    /**
+     * Timer start: sends [TimerStateMessage] (GRE type 56) with Decision timer running.
+     * Real Arena sends this on priority grant — client shows rope countdown.
+     */
+    fun timerStart(seatId: Int, counter: MessageCounter, durationSec: Int = 30): BundleResult =
+        buildTimerBundle(seatId, counter, running = true, durationSec = durationSec)
+
+    /**
+     * Timer stop: sends [TimerStateMessage] with running=false.
+     * Sent when client responds to an action (pass/cast/play).
+     */
+    fun timerStop(seatId: Int, counter: MessageCounter, durationSec: Int = 30): BundleResult =
+        buildTimerBundle(seatId, counter, running = false, durationSec = durationSec)
+
+    private fun buildTimerBundle(seatId: Int, counter: MessageCounter, running: Boolean, durationSec: Int): BundleResult {
+        val timer = TimerStateMessage.newBuilder()
+            .setSeatId(seatId)
+            .addTimers(
+                TimerInfo.newBuilder()
+                    .setTimerId(1)
+                    .setType(TimerType.Decision)
+                    .setDurationSec(durationSec)
+                    .setElapsedSec(0)
+                    .setRunning(running)
+                    .setBehavior(TimerBehavior.Timeout_a3cd),
+            )
+            .build()
+        val msg = makeGRE(GREMessageType.TimerStateMessage_695e, counter.currentGsId(), seatId, counter.nextMsgId()) {
+            it.timerStateMessage = timer
+        }
+        return BundleResult(listOf(msg))
     }
 
     /** Build a single GRE message. */
