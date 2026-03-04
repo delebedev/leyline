@@ -38,9 +38,9 @@
 
 ## Front Door / Lobby
 
-- **Card_GetCardSet (551) empty response crashes TitleCountManager**: Our 551 handler returns `{}`. Client's `InventoryManager.RefreshCards` calls `TitleCountManager.BuildTitleCountCache()` which does `.GroupBy()` on a null card collection → `ArgumentNullException`. Non-fatal (client continues to home page) but may break card ownership checks downstream (deck validation, wildcards). Fix: return a response with the right shape containing empty lists so `.GroupBy()` gets an empty enumerable instead of null. Need to capture a real 551 response to see the expected structure.
+- **Card_GetCardSet (551) empty response crashes TitleCountManager + deck editor**: Our 551 handler returns `{}`. Two downstream failures: (1) `TitleCountManager.BuildTitleCountCache()` does `.GroupBy()` on null card collection → `ArgumentNullException` (non-fatal, client reaches home page). (2) Deck editor: `CardPoolToDeckBuilderModelUtilities.AddAllCardsFromInventoryToPool` NPEs on null `userInventory` → infinite loading when opening deck builder. Fix: return a response with the right shape containing empty lists so card collection is an empty enumerable, not null. Need to capture a real 551 response to see the expected structure.
 
-- **Deck_GetDeckSummariesV3 (410) deserialization logged as failure**: Client logs "Failed deserialization on response" for our 410 response but the JSON looks structurally correct. The actual crash is `TitleCountManager` on the same frame tick (see above) — likely coincidental timing, not a 410 shape issue. Monitor: if decks don't appear in UI, revisit 410 response structure.
+- **~~Deck_GetDeckSummariesV3 (410) deserialization logged as failure~~** *(fixed 2026-03-04)*: V3 `Attributes` field uses a flat dict (`{"Version":"1","Format":"Standard"}`) not the V2 `[{name,value}]` array format. Fixed: `buildDeckSummaryV3Obj` with flat Attributes for 410 handler; V2 array format kept for StartHook.
 
 ## Debug Panel
 
