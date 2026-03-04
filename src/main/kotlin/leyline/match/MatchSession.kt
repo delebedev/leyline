@@ -14,9 +14,9 @@ import leyline.game.GameBridge
 import leyline.game.MessageCounter
 import leyline.game.StateMapper
 import leyline.game.mapper.StopTypeMapping
+import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
-import leyline.infra.MessageSink
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import wotc.mtgo.gre.external.messaging.Messages.Visibility
