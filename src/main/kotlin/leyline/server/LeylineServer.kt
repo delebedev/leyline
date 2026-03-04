@@ -59,6 +59,10 @@ class LeylineServer(
 ) {
     private val log = LoggerFactory.getLogger(LeylineServer::class.java)
 
+    /** Shared deck selection: FD writes (on 612), MH reads (on ConnectReq). */
+    @Volatile
+    var selectedDeckId: String? = null
+
     private val bossGroup = NioEventLoopGroup(1)
     private val workerGroup = NioEventLoopGroup()
 
@@ -100,6 +104,15 @@ class LeylineServer(
     }
 
     private fun startStub(fdSsl: SslContext, mdSsl: SslContext) {
+        val decksDir = findDecksDir()
+        // Eagerly scan decks so StartHook is patched on first connection
+        if (decksDir != null) {
+            if (leyline.game.CardDb.init()) {
+                DeckCatalog.scan(decksDir)
+            } else {
+                log.warn("CardDb not available — deck catalog disabled, using golden StartHook decks")
+            }
+        }
         val goldenFile = fdGoldenFile
         if (goldenFile != null) {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Replay") { ch ->
@@ -110,7 +123,15 @@ class LeylineServer(
         } else {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast("handler", FrontDoorService(matchDoorHost = externalHost, matchDoorPort = matchDoorPort))
+                ch.pipeline().addLast(
+                    "handler",
+                    FrontDoorService(
+                        matchDoorHost = externalHost,
+                        matchDoorPort = matchDoorPort,
+                        decksDir = decksDir,
+                        onDeckSelected = { selectedDeckId = it },
+                    ),
+                )
             }
             log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
         }
@@ -121,7 +142,14 @@ class LeylineServer(
             ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
             ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
             ch.pipeline().addLast("protobufEncoder", ProtobufEncoder())
-            ch.pipeline().addLast("handler", MatchHandler(playtestConfig = playtestConfig, puzzleFile = puzzleFile))
+            ch.pipeline().addLast(
+                "handler",
+                MatchHandler(
+                    playtestConfig = playtestConfig,
+                    puzzleFile = puzzleFile,
+                    selectedDeckOverride = { selectedDeckId },
+                ),
+            )
         }
         log.info("Client Match Door (stub) listening on :{}", matchDoorPort)
     }
@@ -189,6 +217,12 @@ class LeylineServer(
             ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, mdHost, matchDoorPort, "MD"))
         }
         log.info("Client Match Door (proxy → {}:{}) listening on :{}", mdHost, matchDoorPort, matchDoorPort)
+    }
+
+    private fun findDecksDir(): File? {
+        val cwd = File(System.getProperty("user.dir"))
+        val dir = File(cwd, "decks")
+        return if (dir.isDirectory) dir else null
     }
 
     fun stop() {

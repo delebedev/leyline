@@ -307,7 +307,10 @@ object CardDb {
                 """
                     SELECT c.GrpId FROM Cards c
                     JOIN Localizations_enUS l ON c.TitleId = l.LocId
-                    WHERE l.Formatted = 1 AND l.Loc = ? LIMIT 1
+                    WHERE l.Formatted = 1 AND l.Loc = ?
+                      AND c.IsToken = 0 AND c.IsPrimaryCard = 1
+                    ORDER BY c.IsDigitalOnly ASC, c.IsRebalanced ASC, c.GrpId DESC
+                    LIMIT 1
                 """.trimIndent(),
             ).use { stmt ->
                 stmt.setString(1, cardName)

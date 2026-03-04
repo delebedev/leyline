@@ -27,6 +27,8 @@ class MatchHandler(
     private val playtestConfig: PlaytestConfig = PlaytestConfig(),
     /** CLI --puzzle override: forces puzzle mode for all connections. */
     private val puzzleFile: java.io.File? = null,
+    /** Returns the deckId selected in FD's 612 handler, if any. */
+    private val selectedDeckOverride: (() -> String?)? = null,
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
@@ -153,7 +155,7 @@ class MatchHandler(
                         GameBridge(playtestConfig = playtestConfig, messageCounter = s!!.counter).also {
                             it.start(
                                 seed = playtestConfig.game.seed,
-                                deckList1 = loadDeckFromConfig(playtestConfig.decks.seat1),
+                                deckList1 = resolveSeat1Deck(),
                                 deckList2 = loadDeckFromConfig(playtestConfig.decks.seat2),
                             )
                         }
@@ -513,6 +515,29 @@ class MatchHandler(
             return PuzzleSource.loadFromFile(pzlFile2.absolutePath)
         }
         error("Puzzle not found: $puzzleName (looked in ${puzzlesDir.absolutePath})")
+    }
+
+    /**
+     * Resolve seat 1 deck: if FD captured a deckId from 612, look it up in DeckCatalog
+     * and load the corresponding txt file. Otherwise fall back to playtestConfig.
+     */
+    private fun resolveSeat1Deck(): String {
+        val deckId = selectedDeckOverride?.invoke()
+        if (deckId != null) {
+            val catalogDeck: DeckCatalog.CatalogDeck? = DeckCatalog.findById(deckId)
+            if (catalogDeck != null) {
+                val deckName = catalogDeck.name
+                val deckFile = catalogDeck.fileName
+                log.info("Match Door: using catalog deck '{}' ({})", deckName, deckFile)
+                val projectDir = findLeylineDir()
+                val file = java.io.File(java.io.File(projectDir, "decks"), deckFile)
+                if (file.exists()) return file.readText()
+                log.warn("Match Door: catalog deck file missing: {}", file)
+            } else {
+                log.warn("Match Door: deckId {} not in catalog, falling back to config", deckId)
+            }
+        }
+        return loadDeckFromConfig(playtestConfig.decks.seat1)
     }
 
     /** Load deck text from a config deck name (resolved from decks/ dir). */
