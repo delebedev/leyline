@@ -801,7 +801,17 @@ object BundleBuilder {
      * Timer start: sends [TimerStateMessage] (GRE type 56) with Decision timer running.
      * Real Arena sends this on priority grant — client shows rope countdown.
      */
-    fun timerStart(seatId: Int, counter: MessageCounter, durationSec: Int = 30): BundleResult {
+    fun timerStart(seatId: Int, counter: MessageCounter, durationSec: Int = 30): BundleResult =
+        buildTimerBundle(seatId, counter, running = true, durationSec = durationSec)
+
+    /**
+     * Timer stop: sends [TimerStateMessage] with running=false.
+     * Sent when client responds to an action (pass/cast/play).
+     */
+    fun timerStop(seatId: Int, counter: MessageCounter, durationSec: Int = 30): BundleResult =
+        buildTimerBundle(seatId, counter, running = false, durationSec = durationSec)
+
+    private fun buildTimerBundle(seatId: Int, counter: MessageCounter, running: Boolean, durationSec: Int): BundleResult {
         val timer = TimerStateMessage.newBuilder()
             .setSeatId(seatId)
             .addTimers(
@@ -810,30 +820,7 @@ object BundleBuilder {
                     .setType(TimerType.Decision)
                     .setDurationSec(durationSec)
                     .setElapsedSec(0)
-                    .setRunning(true)
-                    .setBehavior(TimerBehavior.Timeout_a3cd),
-            )
-            .build()
-        val msg = makeGRE(GREMessageType.TimerStateMessage_695e, counter.currentGsId(), seatId, counter.nextMsgId()) {
-            it.timerStateMessage = timer
-        }
-        return BundleResult(listOf(msg))
-    }
-
-    /**
-     * Timer stop: sends [TimerStateMessage] with running=false.
-     * Sent when client responds to an action (pass/cast/play).
-     */
-    fun timerStop(seatId: Int, counter: MessageCounter): BundleResult {
-        val timer = TimerStateMessage.newBuilder()
-            .setSeatId(seatId)
-            .addTimers(
-                TimerInfo.newBuilder()
-                    .setTimerId(1)
-                    .setType(TimerType.Decision)
-                    .setDurationSec(30)
-                    .setElapsedSec(0)
-                    .setRunning(false)
+                    .setRunning(running)
                     .setBehavior(TimerBehavior.Timeout_a3cd),
             )
             .build()
