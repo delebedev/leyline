@@ -8,3 +8,5 @@ object UnitTag : Tag()
 object ConformanceTag : Tag()
 
 object IntegrationTag : Tag()
+
+object FdTag : Tag()

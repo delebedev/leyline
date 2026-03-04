@@ -141,9 +141,14 @@ val testIntegration by tasks.registering(Test::class) {
     maxParallelForks = 4
 }
 
+val testFd by tasks.registering(Test::class) {
+    configureTestDefaults()
+    systemProperty("kotest.tags", "FdTag")
+}
+
 val testGate by tasks.registering(Test::class) {
     configureTestDefaults()
-    systemProperty("kotest.tags", "UnitTag | ConformanceTag")
+    systemProperty("kotest.tags", "UnitTag | ConformanceTag | FdTag")
 }
 
 // --- JaCoCo ---
