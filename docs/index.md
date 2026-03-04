@@ -1,11 +1,16 @@
-# Forge Nexus Docs Index
+# Leyline Docs Index
 
 Quick links for debugging, reverse-engineering, and conformance workflows.
+
+## Core Reference
+
+- `catalog.yaml` — mechanic catalog: what works, what's wired, what's missing
+- `rosetta.md` — Arena protocol ↔ Forge engine ↔ leyline code translation table
+- `architecture.md` — package wiring, server layout, wire protocol, bridge threading, match lifecycle
 
 ## Recording / Protocol Debug
 
 - `recording-cli.md` — day-to-day CLI (`rec-*`, `proto-*`), practical queries
-- `card-lookup-playbook.md` — grpId/abilityId → card name, investigation workflows
 - `recording-analysis-runbook.md` — end-to-end capture/analyze/golden workflow
 - `recording-triage-runbook.md` — new recordings → catalogue what's new → scope implementation
 - `annotation-variance.md` — annotation type variance profiler across all recordings
@@ -13,26 +18,33 @@ Quick links for debugging, reverse-engineering, and conformance workflows.
 - `reading-player-logs.md` — read client/player logs for transport/protocol context
 - `wire-format.md` — client frame + protobuf wire format details
 - `debug-api.md` — debug panel REST/SSE endpoint reference
-- `match-sequence.md` — expected match lifecycle and key message order
 
-## Game Modes
+## Playbooks
 
-- `puzzles.md` — puzzle mode: `.pzl` loading, protocol differences, card registration, architecture
+- `playbooks/annotation-investigation-playbook.md` — trace unknown annotation type end-to-end
+- `playbooks/card-lookup-playbook.md` — grpId/abilityId → card name, investigation workflows
+- `playbooks/priority-debugging-playbook.md` — two-layer priority model, stuck states, frozen games
 
 ## Gameplay Semantics
 
 - `action-format.md` — normalized action payload format
 - `action-types.md` — action type catalog
-- `priority-loop.md` — priority/prompt behavior and turn flow
+- `priority-loop.md` — Forge engine priority state machine (ASCII diagram + PhaseHandler internals)
+- `priority-system-analysis.md` — two-layer priority system analysis (engine + session)
 - `combat-protocol.md` — combat request/response sequence
-- `diff-semantics.md` — game-state diff interpretation
+- `annotation-field-notes.md` — per-type annotation investigation notes
 
 ## Architecture / Design
 
-- `architecture.md` — package wiring, server layout, wire protocol, bridge threading, match lifecycle
-- `bridge-architecture.md` — original bridge design doc
+- `bridge-architecture.md` — GameActionBridge / InteractivePromptBridge design
 - `bridge-vision.md` — target architecture and direction
+- `decisions/` — architectural decision records
+
+## Game Modes
+
+- `puzzles.md` — puzzle mode: `.pzl` loading, protocol differences, card registration, architecture
 
 ## Bugs / Tracking
 
 - `BUGS.md` — known issues and investigations
+- `TODO.md` — remaining work items
