@@ -15,15 +15,26 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.FdTag
-import leyline.frontdoor.FrontDoorService
-import leyline.frontdoor.PlayerDb
+import leyline.frontdoor.FrontDoorHandler
+import leyline.frontdoor.GoldenData
+import leyline.frontdoor.domain.Deck
+import leyline.frontdoor.domain.DeckCard
+import leyline.frontdoor.domain.DeckId
+import leyline.frontdoor.domain.Format
+import leyline.frontdoor.domain.PlayerId
+import leyline.frontdoor.repo.SqlitePlayerStore
+import leyline.frontdoor.service.DeckService
+import leyline.frontdoor.service.MatchmakingService
+import leyline.frontdoor.service.PlayerService
+import leyline.frontdoor.wire.FdResponseWriter
 import leyline.protocol.ClientFrameDecoder
 import leyline.protocol.FdEnvelope
+import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 import java.util.UUID
 
 /**
- * Wire-level integration tests for [leyline.frontdoor.FrontDoorService].
+ * Wire-level integration tests for [FrontDoorHandler].
  *
  * Boots FD in an [EmbeddedChannel] (no TLS, no sockets), sends framed
  * protobuf envelopes, decodes responses, and validates JSON shapes.
@@ -37,27 +48,38 @@ class FrontDoorServiceTest :
         val testPlayerId = "test-player-00000000-0000-0000-0000-000000000001"
         val testDeckId = "test-deck-00000000-0000-0000-0000-000000000001"
 
-        // Minimal deck cards JSON matching real Arena shape
-        val sampleCardsJson = """
-        {
-            "MainDeck":[{"cardId":75515,"quantity":4},{"cardId":75516,"quantity":56}],
-            "ReducedSideboard":[],
-            "Sideboard":[],
-            "CommandZone":[],
-            "Companions":[],
-            "CardSkins":[]
-        }
-        """.trimIndent()
+        // Minimal deck cards matching real Arena shape
+        val sampleMainDeck = listOf(DeckCard(75515, 4), DeckCard(75516, 56))
 
         val json = Json { ignoreUnknownKeys = true }
         val tempDb = File.createTempFile("fd-test", ".db").also { it.deleteOnExit() }
         var channel: EmbeddedChannel? = null
 
+        // Shared services wired to test SQLite
+        val db = Database.connect("jdbc:sqlite:${tempDb.absolutePath}", "org.sqlite.JDBC")
+        val store = SqlitePlayerStore(db)
+        val golden = GoldenData.loadFromClasspath()
+        val deckService = DeckService(store)
+        val playerService = PlayerService(store)
+        val matchmakingService = MatchmakingService(store, "localhost", 30003)
+        val writer = FdResponseWriter()
+
         beforeSpec {
-            PlayerDb.reset()
-            PlayerDb.init(tempDb)
-            PlayerDb.upsertPlayer(testPlayerId, "Tester")
-            PlayerDb.upsertDeck(testDeckId, testPlayerId, "Test Deck", 12345, "Standard", sampleCardsJson)
+            store.createTables()
+            store.ensurePlayer(PlayerId(testPlayerId), "Tester")
+            store.save(
+                Deck(
+                    id = DeckId(testDeckId),
+                    playerId = PlayerId(testPlayerId),
+                    name = "Test Deck",
+                    format = Format.Standard,
+                    tileId = 12345,
+                    mainDeck = sampleMainDeck,
+                    sideboard = emptyList(),
+                    commandZone = emptyList(),
+                    companions = emptyList(),
+                ),
+            )
         }
 
         afterEach {
@@ -69,10 +91,15 @@ class FrontDoorServiceTest :
         fun fdChannel(): EmbeddedChannel {
             val ch = EmbeddedChannel(
                 ClientFrameDecoder(),
-                FrontDoorService(
+                FrontDoorHandler(
+                    playerId = PlayerId(testPlayerId),
+                    deckService = deckService,
+                    playerService = playerService,
+                    matchmaking = matchmakingService,
+                    writer = writer,
+                    golden = golden,
                     matchDoorHost = "localhost",
                     matchDoorPort = 30003,
-                    playerId = testPlayerId,
                 ),
             )
             channel = ch

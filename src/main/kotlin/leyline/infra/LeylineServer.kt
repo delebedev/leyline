@@ -14,14 +14,22 @@ import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory
 import io.netty.handler.ssl.util.SelfSignedCertificate
+import leyline.frontdoor.FrontDoorHandler
+import leyline.frontdoor.FrontDoorReplayStub
+import leyline.frontdoor.FrontDoorService
+import leyline.frontdoor.GoldenData
+import leyline.frontdoor.PlayerDb
+import leyline.frontdoor.domain.PlayerId
+import leyline.frontdoor.repo.SqlitePlayerStore
+import leyline.frontdoor.service.DeckService
+import leyline.frontdoor.service.MatchmakingService
+import leyline.frontdoor.service.PlayerService
+import leyline.frontdoor.wire.FdResponseWriter
 import leyline.match.MatchHandler
 import leyline.match.ReplayHandler
 import leyline.protocol.ClientFrameDecoder
 import leyline.protocol.ClientHeaderPrepender
 import leyline.protocol.ClientHeaderStripper
-import leyline.frontdoor.FrontDoorReplayStub
-import leyline.frontdoor.FrontDoorService
-import leyline.frontdoor.PlayerDb
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
@@ -114,7 +122,7 @@ class LeylineServer(
     private fun startStub(fdSsl: SslContext, mdSsl: SslContext) {
         // Initialize player DB if available (run `just seed-db` first)
         val playerDbFile = File(System.getProperty("user.dir"), "data/player.db")
-        val playerId = if (playerDbFile.exists()) {
+        val resolvedPlayerId = if (playerDbFile.exists()) {
             PlayerDb.init(playerDbFile)
             playerId
         } else {
@@ -126,20 +134,38 @@ class LeylineServer(
         if (goldenFile != null) {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Replay") { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast("handler",
-                    FrontDoorReplayStub(goldenFile, matchDoorHost = externalHost, matchDoorPort = matchDoorPort)
+                ch.pipeline().addLast(
+                    "handler",
+                    FrontDoorReplayStub(goldenFile, matchDoorHost = externalHost, matchDoorPort = matchDoorPort),
                 )
             }
             log.info("Client Front Door (replay from {}) listening on :{}", goldenFile.name, frontDoorPort)
         } else {
+            val golden = GoldenData.loadFromClasspath()
+            val db = org.jetbrains.exposed.v1.jdbc.Database.connect(
+                "jdbc:sqlite:${playerDbFile.absolutePath}",
+                "org.sqlite.JDBC",
+            )
+            val store = SqlitePlayerStore(db)
+            store.createTables()
+            val deckService = DeckService(store)
+            val playerService = PlayerService(store)
+            val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort)
+            val writer = FdResponseWriter()
+
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
                 ch.pipeline().addLast(
                     "handler",
-                    FrontDoorService(
+                    FrontDoorHandler(
+                        playerId = resolvedPlayerId?.let { PlayerId(it) },
+                        deckService = deckService,
+                        playerService = playerService,
+                        matchmaking = matchmakingService,
+                        writer = writer,
+                        golden = golden,
                         matchDoorHost = externalHost,
                         matchDoorPort = matchDoorPort,
-                        playerId = playerId,
                         onDeckSelected = { selectedDeckId = it },
                     ),
                 )
@@ -179,8 +205,9 @@ class LeylineServer(
         } else {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast("handler",
-                    FrontDoorService(matchDoorHost = externalHost, matchDoorPort = matchDoorPort)
+                ch.pipeline().addLast(
+                    "handler",
+                    FrontDoorService(matchDoorHost = externalHost, matchDoorPort = matchDoorPort),
                 )
             }
             log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
