@@ -191,6 +191,36 @@ fun cancelActionReq(): ClientToGREMessage =
         setCancelActionReq(CancelActionReq.newBuilder())
     }
 
+// ---------------------------------------------------------------------------
+// Settings — for unit tests building SettingsMessage / stops
+// ---------------------------------------------------------------------------
+
+/** Build a [SettingsMessage] with DSL block. */
+fun settingsMessage(
+    block: SettingsMessage.Builder.() -> Unit,
+): SettingsMessage = SettingsMessage.newBuilder().apply(block).build()
+
+/** Build a [Stop] entry. */
+fun stop(
+    type: StopType,
+    scope: SettingScope,
+    status: SettingStatus,
+): Stop = Stop.newBuilder()
+    .setStopType(type)
+    .setAppliesTo(scope)
+    .setStatus(status)
+    .build()
+
+// ---------------------------------------------------------------------------
+// Actions — for unit tests building ActionsAvailableReq
+// ---------------------------------------------------------------------------
+
+/** Build an [ActionsAvailableReq] from a list of action types. */
+fun actionsReq(vararg types: ActionType): ActionsAvailableReq =
+    ActionsAvailableReq.newBuilder().apply {
+        for (type in types) addActions(Action.newBuilder().setActionType(type))
+    }.build()
+
 // ===========================================================================
 // Outbound GRE fixtures — for unit tests that hand-build server messages
 // ===========================================================================

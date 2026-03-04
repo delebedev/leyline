@@ -4,9 +4,9 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ClientAutoPassState
+import leyline.conformance.settingsMessage
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
-import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
 
 class PriorityDecisionTest :
     FunSpec({
@@ -22,55 +22,37 @@ class PriorityDecisionTest :
 
         test("update from settings — ResolveAll → shouldAutoPass=true") {
             val state = ClientAutoPassState()
-            val settings = SettingsMessage.newBuilder()
-                .setAutoPassOption(AutoPassOption.ResolveAll)
-                .build()
-            state.update(settings)
+            state.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
             state.autoPassOption shouldBe AutoPassOption.ResolveAll
             state.shouldAutoPass() shouldBe true
         }
 
         test("update from settings — ResolveMyStackEffects → shouldAutoPass=true") {
             val state = ClientAutoPassState()
-            val settings = SettingsMessage.newBuilder()
-                .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
-                .build()
-            state.update(settings)
+            state.update(settingsMessage { autoPassOption = AutoPassOption.ResolveMyStackEffects })
             state.autoPassOption shouldBe AutoPassOption.ResolveMyStackEffects
             state.shouldAutoPass() shouldBe true
         }
 
         test("update from settings — FullControl → shouldAutoPass=false") {
             val state = ClientAutoPassState()
-            val settings = SettingsMessage.newBuilder()
-                .setAutoPassOption(AutoPassOption.FullControl)
-                .build()
-            state.update(settings)
+            state.update(settingsMessage { autoPassOption = AutoPassOption.FullControl })
             state.autoPassOption shouldBe AutoPassOption.FullControl
             state.shouldAutoPass() shouldBe false
         }
 
         test("None in settings does not overwrite existing option") {
             val state = ClientAutoPassState()
-            val settings1 = SettingsMessage.newBuilder()
-                .setAutoPassOption(AutoPassOption.ResolveAll)
-                .build()
-            state.update(settings1)
+            state.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
 
             // A settings update with None should not clear the previous value
-            val settings2 = SettingsMessage.newBuilder()
-                .setAutoPassOption(AutoPassOption.None_a465)
-                .build()
-            state.update(settings2)
+            state.update(settingsMessage { autoPassOption = AutoPassOption.None_a465 })
             state.autoPassOption shouldBe AutoPassOption.ResolveAll
         }
 
         test("stackAutoPassOption updated independently") {
             val state = ClientAutoPassState()
-            val settings = SettingsMessage.newBuilder()
-                .setStackAutoPassOption(AutoPassOption.ResolveAll)
-                .build()
-            state.update(settings)
+            state.update(settingsMessage { stackAutoPassOption = AutoPassOption.ResolveAll })
             state.stackAutoPassOption shouldBe AutoPassOption.ResolveAll
             // autoPassOption unchanged
             state.autoPassOption shouldBe AutoPassOption.None_a465
@@ -78,10 +60,7 @@ class PriorityDecisionTest :
 
         test("Clear option → shouldAutoPass=false") {
             val state = ClientAutoPassState()
-            val settings = SettingsMessage.newBuilder()
-                .setAutoPassOption(AutoPassOption.Clear_a465)
-                .build()
-            state.update(settings)
+            state.update(settingsMessage { autoPassOption = AutoPassOption.Clear_a465 })
             state.autoPassOption shouldBe AutoPassOption.Clear_a465
             state.shouldAutoPass() shouldBe false
         }
@@ -96,10 +75,7 @@ class PriorityDecisionTest :
 
         test("No_a099 = full control ON → shouldAutoPass=false even with ResolveAll") {
             val state = ClientAutoPassState()
-            val settings = SettingsMessage.newBuilder()
-                .setAutoPassOption(AutoPassOption.ResolveAll)
-                .build()
-            state.update(settings)
+            state.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
             state.shouldAutoPass() shouldBe true
 
             // Client sends full control
@@ -110,10 +86,7 @@ class PriorityDecisionTest :
 
         test("Yes_a099 = auto-pass OK → shouldAutoPass follows autoPassOption") {
             val state = ClientAutoPassState()
-            val settings = SettingsMessage.newBuilder()
-                .setAutoPassOption(AutoPassOption.ResolveAll)
-                .build()
-            state.update(settings)
+            state.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
 
             state.updateAutoPassPriority(AutoPassPriority.Yes_a099)
             state.isFullControl shouldBe false
