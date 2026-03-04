@@ -15,42 +15,23 @@ class PriorityDecisionIntegrationTest :
         tags(ConformanceTag)
 
         test("shouldAutoPass=true when only Pass+ActivateMana") {
-            val actions = ActionsAvailableReq.newBuilder()
-                .addActions(Action.newBuilder().setActionType(ActionType.Pass))
-                .addActions(Action.newBuilder().setActionType(ActionType.ActivateMana))
-                .build()
-            BundleBuilder.shouldAutoPass(actions) shouldBe true
+            BundleBuilder.shouldAutoPass(actionsReq(ActionType.Pass, ActionType.ActivateMana)) shouldBe true
         }
 
         test("shouldAutoPass=false when Cast present") {
-            val actions = ActionsAvailableReq.newBuilder()
-                .addActions(Action.newBuilder().setActionType(ActionType.Cast))
-                .addActions(Action.newBuilder().setActionType(ActionType.Pass))
-                .build()
-            BundleBuilder.shouldAutoPass(actions) shouldBe false
+            BundleBuilder.shouldAutoPass(actionsReq(ActionType.Cast, ActionType.Pass)) shouldBe false
         }
 
         test("shouldAutoPass=true with only Pass") {
-            val actions = ActionsAvailableReq.newBuilder()
-                .addActions(Action.newBuilder().setActionType(ActionType.Pass))
-                .build()
-            BundleBuilder.shouldAutoPass(actions) shouldBe true
+            BundleBuilder.shouldAutoPass(actionsReq(ActionType.Pass)) shouldBe true
         }
 
         test("shouldAutoPass=false with Play_add3") {
-            val actions = ActionsAvailableReq.newBuilder()
-                .addActions(Action.newBuilder().setActionType(ActionType.Play_add3))
-                .addActions(Action.newBuilder().setActionType(ActionType.Pass))
-                .build()
-            BundleBuilder.shouldAutoPass(actions) shouldBe false
+            BundleBuilder.shouldAutoPass(actionsReq(ActionType.Play_add3, ActionType.Pass)) shouldBe false
         }
 
         test("shouldAutoPass=false with Activate_add3") {
-            val actions = ActionsAvailableReq.newBuilder()
-                .addActions(Action.newBuilder().setActionType(ActionType.Activate_add3))
-                .addActions(Action.newBuilder().setActionType(ActionType.Pass))
-                .build()
-            BundleBuilder.shouldAutoPass(actions) shouldBe false
+            BundleBuilder.shouldAutoPass(actionsReq(ActionType.Activate_add3, ActionType.Pass)) shouldBe false
         }
 
         test("shouldAutoPass aligns with ShouldStopEvaluator for all action types") {
@@ -68,11 +49,8 @@ class PriorityDecisionIntegrationTest :
         }
 
         test("shouldAutoPass=true with FloatMana+Pass mix") {
-            val actions = ActionsAvailableReq.newBuilder()
-                .addActions(Action.newBuilder().setActionType(ActionType.Pass))
-                .addActions(Action.newBuilder().setActionType(ActionType.FloatMana))
-                .addActions(Action.newBuilder().setActionType(ActionType.ActivateMana))
-                .build()
-            BundleBuilder.shouldAutoPass(actions) shouldBe true
+            BundleBuilder.shouldAutoPass(
+                actionsReq(ActionType.Pass, ActionType.FloatMana, ActionType.ActivateMana),
+            ) shouldBe true
         }
     })
