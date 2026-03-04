@@ -3,13 +3,13 @@ package leyline.server
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import leyline.UnitTag
+import leyline.FdTag
 import leyline.frontdoor.PlayerDb
 import java.io.File
 
 class PlayerDbTest :
     FunSpec({
-        tags(UnitTag)
+        tags(FdTag)
 
         val testDb = File.createTempFile("player-test", ".db").also { it.deleteOnExit() }
 

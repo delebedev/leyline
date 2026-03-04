@@ -14,7 +14,7 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import leyline.UnitTag
+import leyline.FdTag
 import leyline.frontdoor.FrontDoorService
 import leyline.frontdoor.PlayerDb
 import leyline.protocol.ClientFrameDecoder
@@ -32,7 +32,7 @@ import java.util.UUID
 class FrontDoorServiceTest :
     FunSpec({
 
-        tags(UnitTag)
+        tags(FdTag)
 
         val testPlayerId = "test-player-00000000-0000-0000-0000-000000000001"
         val testDeckId = "test-deck-00000000-0000-0000-0000-000000000001"

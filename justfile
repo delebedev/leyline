@@ -113,7 +113,11 @@ test-conformance:
 test-integration:
     cd "{{project_dir}}" && ./gradlew testIntegration
 
-# pre-commit gate: unit + conformance (fast, single fork)
+# front door tests only (fast FD iteration)
+test-fd:
+    cd "{{project_dir}}" && ./gradlew testFd
+
+# pre-commit gate: unit + conformance + fd (fast, single fork)
 test-gate:
     cd "{{project_dir}}" && ./gradlew testGate
 
