@@ -73,7 +73,7 @@ class MatchSession(
      * it as our own — ensuring the engine thread (GamePlayback) and this
      * session share a single counter.
      */
-    fun connectBridge(bridge: GameBridge) {
+    fun connectBridge(bridge: GameBridge) = synchronized(sessionLock) {
         gameBridge = bridge
         val bridgeCounter = bridge.messageCounter
         if (bridgeCounter !== counter) {
@@ -374,6 +374,14 @@ class MatchSession(
         val aiSeatId = if (seatId == 1) 2 else 1
         val aiPlayer = bridge.getPlayer(aiSeatId) ?: return
 
+        // Honor clear-all flags even when no explicit stops present
+        if (settings.clearAllStops == SettingStatus.Set || settings.clearAllYields == SettingStatus.Set) {
+            profile.clearAll(humanPlayer.id)
+            profile.clearAll(aiPlayer.id)
+            autoPassState.clearOpponentStops()
+            log.debug("MatchSession: clearAll — clearAllStops={} clearAllYields={}", settings.clearAllStops, settings.clearAllYields)
+        }
+
         // Combine stops + transientStops (same proto shape)
         val allStops = settings.stopsList + settings.transientStopsList
         if (allStops.isEmpty()) return
@@ -420,7 +428,8 @@ class MatchSession(
 
     /**
      * Merge incoming settings delta into accumulated settings.
-     * Stops are accumulated: Set adds, Clear removes from the merged set.
+     * Stops keyed by (stopType, appliesTo) — incoming overrides existing.
+     * Clear status marks a stop as disabled but does not remove it from the set.
      */
     companion object {
         fun mergeSettings(existing: SettingsMessage?, incoming: SettingsMessage): SettingsMessage {

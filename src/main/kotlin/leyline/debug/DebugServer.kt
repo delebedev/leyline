@@ -2,6 +2,7 @@ package leyline.debug
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import leyline.analysis.SessionAnalyzer
 import leyline.game.StateMapper
@@ -442,6 +443,7 @@ class DebugServer(private val port: Int = 8090) {
             return
         }
 
+        @Serializable
         data class Entry(val ts: Long, val source: String, val phase: String?, val turn: Int, val decision: String)
 
         val entries = mutableListOf<Entry>()
@@ -462,10 +464,7 @@ class DebugServer(private val port: Int = 8090) {
 
         entries.sortBy { it.ts }
 
-        val jsonEntries = entries.joinToString(",") { e ->
-            """{"ts":${e.ts},"source":"${e.source}","phase":${e.phase?.let { "\"$it\"" } ?: "null"},"turn":${e.turn},"decision":"${e.decision.replace("\"", "\\\"")}"}"""
-        }
-        respondJsonList(ex, "[$jsonEntries]", null)
+        respondJsonList(ex, json.encodeToString(entries), null)
     }
 
     // --- Front Door messages ---

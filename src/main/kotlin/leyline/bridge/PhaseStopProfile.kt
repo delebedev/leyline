@@ -26,6 +26,10 @@ class PhaseStopProfile private constructor(
         if (enabled) playerStops.add(phase) else playerStops.remove(phase)
     }
 
+    fun clearAll(playerId: Int) {
+        stops[playerId]?.clear()
+    }
+
     fun getEnabled(playerId: Int): Set<PhaseType> =
         stops[playerId]?.toSet() ?: emptySet()
 
@@ -53,6 +57,11 @@ class PhaseStopProfile private constructor(
             PhaseType.CLEANUP,
         )
 
+        /**
+         * Resolve a phase key string to a [PhaseType], returning null for unknown
+         * or non-canonical phases. Returns null (not throw) because callers include
+         * forge-web GameSessionManager which expects nullable.
+         */
         fun forPhaseKey(key: String): PhaseType? = try {
             val pt = PhaseType.valueOf(key)
             if (pt in CANONICAL_PHASES) pt else null

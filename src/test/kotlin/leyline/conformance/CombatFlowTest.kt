@@ -148,9 +148,7 @@ class CombatFlowTest :
 
         // --- Tests ---
 
-        // TODO: safety net SEND_STATE downgrade causes passPriority() to overshoot
-        // past combat. setupSingleAttacker's resolve-pass auto-advances through the
-        // entire turn because combat phases now fall through when only pass actions exist.
+        // TODO(#18): SEND_STATE overshoot — passPriority() falls through combat phases
         xtest("human declares single attacker") {
             val attackerIid = setupSingleAttacker()
             val h = harness!!
@@ -188,7 +186,7 @@ class CombatFlowTest :
             h.isGameOver().shouldBeFalse()
         }
 
-        // TODO: same overshoot issue as "human declares single attacker"
+        // TODO(#18): SEND_STATE overshoot — same as single attacker
         xtest("human declares multiple attackers") {
             val attackerIids = setupMultipleAttackers()
             val h = harness!!

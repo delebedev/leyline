@@ -4,6 +4,7 @@ import forge.game.phase.PhaseType
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
 import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Tracks client auto-pass settings from [SettingsMessage] and [PerformActionResp].
@@ -19,9 +20,10 @@ import wotc.mtgo.gre.external.messaging.Messages.SettingsMessage
  * `SetSettingsReq` with `Opponents` scope.
  */
 class ClientAutoPassState {
-    var autoPassOption: AutoPassOption = AutoPassOption.None_a465
+    @Volatile var autoPassOption: AutoPassOption = AutoPassOption.None_a465
         private set
-    var stackAutoPassOption: AutoPassOption = AutoPassOption.None_a465
+
+    @Volatile var stackAutoPassOption: AutoPassOption = AutoPassOption.None_a465
         private set
 
     /**
@@ -32,7 +34,7 @@ class ClientAutoPassState {
      *
      * Persists until client sends a different value.
      */
-    var autoPassPriority: AutoPassPriority = AutoPassPriority.None_a099
+    @Volatile var autoPassPriority: AutoPassPriority = AutoPassPriority.None_a099
         private set
 
     fun update(settings: SettingsMessage) {
@@ -61,7 +63,7 @@ class ClientAutoPassState {
      * the client toggles them. Separate from PhaseStopProfile's AI_DEFAULTS
      * which are engine-internal.
      */
-    private val opponentStops = mutableSetOf<PhaseType>()
+    private val opponentStops: MutableSet<PhaseType> = ConcurrentHashMap.newKeySet()
 
     /** Update opponent-turn stops from parsed client settings. */
     fun setOpponentStop(phase: PhaseType, enabled: Boolean) {
@@ -70,6 +72,9 @@ class ClientAutoPassState {
 
     /** Check if the client has set an opponent-turn stop for this phase. */
     fun hasOpponentStop(phase: PhaseType): Boolean = phase in opponentStops
+
+    /** Clear all opponent-turn stops (used by clearAllStops). */
+    fun clearOpponentStops() = opponentStops.clear()
 
     /** Should we auto-pass based on the client's current autoPassOption? */
     fun shouldAutoPass(): Boolean {
