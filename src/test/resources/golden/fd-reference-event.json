@@ -12,8 +12,7 @@
   "EventUXInfo": {
     "PublicEventName": "Standard Ranked",
     "DisplayPriority": 100,
-    "EventBladeBehavior": "Queue",
-    "DeckSelectFormat": "Standard",
+"DeckSelectFormat": "Standard",
     "Parameters": {},
     "DynamicFilterTagIds": [],
     "Group": "",
