@@ -31,6 +31,9 @@ target
 # Vim
 *.swp
 
+# Kotlin compiler daemon
+.kotlin/
+
 # Python
 __pycache__
 *.pyc
