@@ -82,6 +82,11 @@ COPY leyline.toml .
 
 EXPOSE 30010 30003 9443 8090 8091
 
+# Log directory (volume-mount for persistence across restarts)
+RUN mkdir -p /app/logs
+ENV LEYLINE_LOG_DIR="/app/logs"
+VOLUME /app/logs
+
 # Memory limit (Netty access flags baked into launch script via applicationDefaultJvmArgs)
 ENV JAVA_OPTS="-Xmx384m"
 
