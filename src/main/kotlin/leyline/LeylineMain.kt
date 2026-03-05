@@ -23,6 +23,7 @@ import java.io.File
  */
 fun main(args: Array<String>) {
     val a = parseArgs(args)
+    val isProxy = a["--proxy-fd"] != null && a["--proxy-md"] != null
 
     // Env var fallbacks for TLS cert/key (single cert for all servers)
     val envCert = System.getenv("LEYLINE_CERT_PATH")?.let { File(it) }?.takeIf { it.exists() }
@@ -31,17 +32,23 @@ fun main(args: Array<String>) {
     fun certFile(arg: String) = a[arg]?.let { File(it) } ?: envCert
     fun keyFile(arg: String) = a[arg]?.let { File(it) } ?: envKey
 
-    // Card database: explicit path (LEYLINE_CARD_DB) or auto-detect from macOS Arena install
-    val cardDbPath = System.getenv("LEYLINE_CARD_DB")
-    if (cardDbPath != null) {
-        CardDb.init(File(cardDbPath))
+    // Card database: skip in proxy mode (pure passthrough, no card lookups)
+    if (!isProxy) {
+        val cardDbPath = System.getenv("LEYLINE_CARD_DB")
+        if (cardDbPath != null) {
+            CardDb.init(File(cardDbPath))
+        }
     }
 
-    // Load playtest config (TOML)
+    // Load playtest config (TOML) — skip in proxy mode
     val projectDir = findProjectDir()
-    val configFile = a["--config"]?.let { File(it) }
-        ?: File(projectDir, MatchConfig.DEFAULT_FILENAME)
-    val config = MatchConfig.load(configFile)
+    val config = if (isProxy) {
+        MatchConfig()
+    } else {
+        val configFile = a["--config"]?.let { File(it) }
+            ?: File(projectDir, MatchConfig.DEFAULT_FILENAME)
+        MatchConfig.load(configFile)
+    }
 
     // Puzzle mode: --puzzle <file> overrides normal constructed flow
     val puzzleFile = a["--puzzle"]?.let { File(it) }
@@ -49,8 +56,8 @@ fun main(args: Array<String>) {
         require(puzzleFile.exists()) { "Puzzle file not found: ${puzzleFile.absolutePath}" }
     }
 
-    // Validate deck files at startup (skip in puzzle mode — no decks needed)
-    if (puzzleFile == null) {
+    // Validate deck files at startup (skip in puzzle and proxy modes)
+    if (puzzleFile == null && !isProxy) {
         validateDecks(config, projectDir)
     }
 
@@ -87,22 +94,28 @@ fun main(args: Array<String>) {
     )
 
     val logWatcher = PlayerLogWatcher()
+    val debugPort = a["--debug-port"]?.toIntOrNull() ?: 8090
+    val debugServer = DebugServer(debugPort)
 
-    // Mock WAS — serves crafted JWTs
-    val wasPort = a["--was-port"]?.toIntOrNull() ?: 9443
-    val debugRoles = System.getenv("LEYLINE_DEBUG").let { it == "true" || it == "1" }
-    val wasServer = MockWasServer(
-        port = wasPort,
-        roles = if (debugRoles) MockWasServer.DEBUG_ROLES else MockWasServer.DEFAULT_ROLES,
-        certFile = certFile("--was-cert"),
-        keyFile = keyFile("--was-key"),
-        fdHost = fdHost,
-    )
+    // Mock WAS — skip in proxy mode (client uses real WAS for auth)
+    val wasServer = if (!isProxy) {
+        val wasPort = a["--was-port"]?.toIntOrNull() ?: 9443
+        val debugRoles = System.getenv("LEYLINE_DEBUG").let { it == "true" || it == "1" }
+        MockWasServer(
+            port = wasPort,
+            roles = if (debugRoles) MockWasServer.DEBUG_ROLES else MockWasServer.DEFAULT_ROLES,
+            certFile = certFile("--was-cert"),
+            keyFile = keyFile("--was-key"),
+            fdHost = fdHost,
+        )
+    } else {
+        null
+    }
 
     Runtime.getRuntime().addShutdownHook(
         Thread {
             logWatcher.stop()
-            wasServer.stop()
+            wasServer?.stop()
             server.stop()
         },
     )
@@ -113,21 +126,22 @@ fun main(args: Array<String>) {
         else -> "stub"
     }
     val puzzleSuffix = if (puzzleFile != null) " + puzzle" else ""
-    val debugPort = a["--debug-port"]?.toIntOrNull() ?: 8090
-    val debugServer = DebugServer(debugPort)
 
     println("Starting Leyline server ($mode$puzzleSuffix mode)...")
     server.start()
     debugServer.start()
-    wasServer.start()
+    wasServer?.start()
     logWatcher.start()
     println("Leyline server running. Press Ctrl+C to stop.")
     println("Debug panel: http://localhost:$debugPort")
-    println("Mock WAS:    https://localhost:$wasPort")
-    println("Doorbell:    FdURI=$fdHost")
+    if (wasServer != null) {
+        val wasPort = a["--was-port"]?.toIntOrNull() ?: 9443
+        println("Mock WAS:    https://localhost:$wasPort")
+        println("Doorbell:    FdURI=$fdHost")
+    }
     if (puzzleFile != null) {
         println("Puzzle: ${puzzleFile.name}")
-    } else {
+    } else if (!isProxy) {
         println("Config: ${config.summary()}")
     }
 
