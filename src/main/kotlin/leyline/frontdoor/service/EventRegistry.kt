@@ -267,48 +267,60 @@ object EventRegistry {
     fun findEvent(internalName: String): EventDef? =
         events.firstOrNull { it.internalName == internalName }
 
+    /**
+     * Default courses — events the player has "participated in".
+     * Real server returns only events the player entered; we seed a few common ones.
+     * module=CreateMatch means active (shows "Resume"), module=Complete means finished.
+     */
+    private val defaultCourses = listOf(
+        "Ladder" to "Complete",
+        "Play" to "CreateMatch",
+        "Alchemy_Ladder" to "Complete",
+        "Explorer_Ladder" to "CreateMatch",
+    )
+
     fun toCoursesJson(): String = buildJsonObject {
         putJsonArray("Courses") {
-            for (e in events) {
-                add(
-                    buildJsonObject {
-                        put("CourseId", "00000000-0000-0000-0000-000000000000")
-                        put("InternalEventName", e.internalName)
-                        put("CurrentModule", "Complete")
-                        put("ModulePayload", "")
-                        putJsonObject("CourseDeckSummary") {
-                            put("DeckId", "00000000-0000-0000-0000-000000000000")
-                            put("Name", "")
-                            putJsonArray("Attributes") {}
-                            put("DeckTileId", 0)
-                            put("DeckArtId", 0)
-                            putJsonObject("FormatLegalities") {}
-                            putJsonObject("PreferredCosmetics") {
-                                put("Avatar", "")
-                                put("Sleeve", "")
-                                put("Pet", "")
-                                put("Title", "")
-                                putJsonArray("Emotes") {}
-                            }
-                            putJsonArray("DeckValidationSummaries") {}
-                            putJsonObject("UnownedCards") {}
-                        }
-                        putJsonObject("CourseDeck") {
-                            putJsonArray("MainDeck") {}
-                            putJsonArray("ReducedSideboard") {}
-                            putJsonArray("Sideboard") {}
-                            putJsonArray("CommandZone") {}
-                            putJsonArray("Companions") {}
-                            putJsonArray("CardSkins") {}
-                        }
-                        putJsonArray("CardPool") {}
-                        putJsonArray("CardPoolByCollation") {}
-                        putJsonArray("CardStyles") {}
-                    },
-                )
+            for ((eventName, module) in defaultCourses) {
+                add(buildCourseJson(eventName, module))
             }
         }
     }.toString()
+
+    private fun buildCourseJson(eventName: String, module: String) = buildJsonObject {
+        put("CourseId", "00000000-0000-0000-0000-000000000000")
+        put("InternalEventName", eventName)
+        put("CurrentModule", module)
+        put("ModulePayload", "")
+        putJsonObject("CourseDeckSummary") {
+            put("DeckId", "00000000-0000-0000-0000-000000000000")
+            put("Name", "")
+            putJsonArray("Attributes") {}
+            put("DeckTileId", 0)
+            put("DeckArtId", 0)
+            putJsonObject("FormatLegalities") {}
+            putJsonObject("PreferredCosmetics") {
+                put("Avatar", "")
+                put("Sleeve", "")
+                put("Pet", "")
+                put("Title", "")
+                putJsonArray("Emotes") {}
+            }
+            putJsonArray("DeckValidationSummaries") {}
+            putJsonObject("UnownedCards") {}
+        }
+        putJsonObject("CourseDeck") {
+            putJsonArray("MainDeck") {}
+            putJsonArray("ReducedSideboard") {}
+            putJsonArray("Sideboard") {}
+            putJsonArray("CommandZone") {}
+            putJsonArray("Companions") {}
+            putJsonArray("CardSkins") {}
+        }
+        putJsonArray("CardPool") {}
+        putJsonArray("CardPoolByCollation") {}
+        putJsonArray("CardStyles") {}
+    }
 
     fun toQueueConfigJson(): String = buildJsonArray {
         for (q in queues) {

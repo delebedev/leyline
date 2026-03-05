@@ -278,7 +278,7 @@ class FrontDoorHandlerTest :
             }
         }
 
-        test("CmdType 623 - EventGetCoursesV2 returns courses for every event") {
+        test("CmdType 623 - EventGetCoursesV2 returns default courses") {
             val ch = fdChannel()
             val msg = ch.sendCmd(623)
             val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
@@ -287,7 +287,6 @@ class FrontDoorHandlerTest :
             courses.shouldNotBeEmpty()
             val names = courses.map { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content }
             names shouldContain "Ladder"
-            names shouldContain "AIBotMatch"
         }
 
         test("CmdType 623 - every course matches reference shape from real server") {
