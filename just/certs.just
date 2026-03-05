@@ -3,6 +3,7 @@
 # Imported by leyline/justfile — all variables available from parent.
 
 # generate TLS certs signed by mitmproxy CA (run after Arena patch)
+[group('setup')]
 gen-certs fd_host="" md_host="":
     #!/usr/bin/env bash
     set -euo pipefail

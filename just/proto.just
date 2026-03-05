@@ -2,6 +2,7 @@
 # Imported by justfile — all variables available from parent.
 
 # re-decode FD raw frames → fd-frames.jsonl (fixes compressed payloads)
+[group('proto')]
 decode-golden dir="": (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
@@ -13,14 +14,17 @@ decode-golden dir="": (_require classpath) check-java
     {{_cli}} leyline.debug.DecodeFdCaptureKt "$d"
 
 # inspect a .bin template (no port kill — safe while server runs)
+[group('proto')]
 proto-inspect file=(templates / "mulligan-req-seat1.bin"): (_require classpath) check-java
     @{{_cli}} leyline.debug.InspectKt "{{file}}"
 
 # decode Match Door payloads
+[group('proto')]
 proto-decode: (_require classpath) check-java
     @{{_cli}} leyline.debug.DecodeCaptureKt {{payloads}}
 
 # save last S→C payload as template
+[group('proto')]
 proto-extract name="extracted": (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
@@ -33,6 +37,7 @@ proto-extract name="extracted": (_require classpath) check-java
     echo "Saved $latest → $dest ($(wc -c < "$dest") bytes)"
 
 # dump all payloads as text for diffing
+[group('proto')]
 proto-diff-prep: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
@@ -50,6 +55,7 @@ proto-diff-prep: (_require classpath) check-java
     echo "Real payloads dumped to $real_dir/"
 
 # diff stub output vs real captures
+[group('proto')]
 proto-diff:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -67,11 +73,13 @@ proto-diff:
     echo "  diff $real/<name>.txt $stub/<name>.txt"
 
 # compare our output vs real Arena captures structurally (no port kill)
+[group('proto')]
 proto-compare *args: (_require classpath) check-java
     @{{_cli}} leyline.conformance.CompareMainKt {{args}}
 
 # trace an ID across all recorded payloads (no port kill — safe while server runs)
 # dir: payloads dir (default: capture), or "engine" / "latest-engine" shortcuts
+[group('proto')]
 proto-trace id dir="": (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
@@ -84,17 +92,21 @@ proto-trace id dir="": (_require classpath) check-java
     {{_cli}} leyline.debug.TraceKt "{{id}}" "$d"
 
 # decode a recording directory to structured JSONL (no port kill)
+[group('proto')]
 proto-decode-recording dir output="": (_require classpath) check-java
     @{{_cli}} leyline.recording.RecordingDecoderMainKt "{{dir}}" {{output}}
 
 # decode + accumulate state snapshots from a recording (no port kill)
+[group('proto')]
 proto-accumulate dir output="": (_require classpath) check-java
     @{{_cli}} leyline.recording.RecordingDecoderMainKt "{{dir}}" --accumulate {{output}}
 
 # priority analysis report for a recording (no port kill)
+[group('proto')]
 proto-priority dir: (_require classpath) check-java
     @{{_cli}} leyline.recording.RecordingDecoderMainKt "{{dir}}" --priority --seat 0
 
 # annotation type variance profile across all proxy recordings (no port kill)
+[group('proto')]
 proto-annotation-variance *args: (_require classpath) check-java
     @{{_cli}} leyline.debug.AnnotationVarianceKt {{args}}

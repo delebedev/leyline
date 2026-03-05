@@ -6,6 +6,8 @@ import 'just/proto.just'
 import 'just/recording.just'
 import 'just/client.just'
 import 'just/certs.just'
+import 'just/fd.just'
+import 'just/test.just'
 
 project_dir  := justfile_directory()
 classpath    := project_dir / "target/classpath.txt"
@@ -46,37 +48,45 @@ _cert_flags := 'cert_flags=""; if [ -f "' + _cert + '" ] && [ -f "' + _key + '" 
 # --- Build ---
 
 # install forge engine jars from submodule (run after git submodule update)
+[group('build')]
 install-forge:
     cd "{{project_dir}}/forge" && mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
     cd "{{project_dir}}/forge" && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml > "{{project_dir}}/.upstream-installed"
     @echo "Forge engine installed to forge/.m2-local/"
 
 # generate messages.proto from upstream submodule + rename map
+[group('build')]
 sync-proto:
     cd "{{project_dir}}" && ./gradlew syncProto -q
 
 # auto-format Kotlin sources (spotless/ktlint)
+[group('build')]
 fmt:
     cd "{{project_dir}}" && ./gradlew spotlessApply -q
     @echo "fmt done."
 
 # check formatting without modifying (CI)
+[group('build')]
 fmt-check:
     cd "{{project_dir}}" && ./gradlew spotlessCheck -q
 
 # static analysis (detekt)
+[group('build')]
 lint:
     cd "{{project_dir}}" && ./gradlew detekt
 
 # report outdated dependencies
+[group('build')]
 deps-outdated:
     cd "{{project_dir}}" && ./gradlew dependencyUpdates -q
 
 # build performance profile (opens HTML report)
+[group('build')]
 build-profile:
     cd "{{project_dir}}" && ./gradlew classes --profile && open build/reports/profile/*.html
 
 # compile proto + Kotlin (includes sync-proto + upstream check)
+[group('build')]
 build:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -84,65 +94,20 @@ build:
     echo "Build complete. Classpath: {{classpath}}"
 
 # fast Kotlin-only compile
+[group('build')]
 dev-build:
     cd "{{project_dir}}" && ./gradlew compileKotlin -q && echo "dev-build OK"
 
-# --- Test ---
-
-# run all tests
-test:
-    cd "{{project_dir}}" && ./gradlew test
-
-# single test class (e.g. `just test-one ShouldStopEvaluatorTest`)
-test-one class:
-    cd "{{project_dir}}" && ./gradlew test -Pkotest.filter.specs=".*{{class}}"
-
-# unit tests only (no engine bootstrap, fastest)
-test-unit:
-    cd "{{project_dir}}" && ./gradlew testUnit
-
-# all conformance tests (~5s, wire-shape checks against Arena patterns)
-test-conformance:
-    cd "{{project_dir}}" && ./gradlew testConformance
-
-# integration tests (parallel forks — boots engine per fork, runs classes concurrently)
-test-integration:
-    cd "{{project_dir}}" && ./gradlew testIntegration
-
-# front door tests only (fast FD iteration)
-test-fd:
-    cd "{{project_dir}}" && ./gradlew testFd
-
-# pre-commit gate: unit + conformance + fd (fast, single fork)
-test-gate:
-    cd "{{project_dir}}" && ./gradlew testGate
-
-# full gate: unit + conformance, then integration in parallel forks
-test-full: test-gate test-integration
-
-# JaCoCo coverage report (unit+conformance only)
-coverage:
-    #!/usr/bin/env bash
-    set +e
-    cd "{{project_dir}}" && ./gradlew testGate jacocoTestReport; rc=$?
-    xml="{{project_dir}}/build/reports/jacoco/test/jacocoTestReport.xml"
-    if [ -f "$xml" ]; then
-        echo ""
-        python3 "{{project_dir}}/buildscripts/coverage-summary.py" "$xml"
-        echo ""
-        echo "HTML: build/reports/jacoco/test/html/index.html"
-    else
-        echo "⚠ No coverage report (tests may have failed before report phase)"
-    fi
-    exit $rc
 
 # --- Dev ---
 
 # continuous compile — watches *.kt, recompiles on change (no server restart)
+[group('dev')]
 dev-watch:
     cd "{{project_dir}}" && ./gradlew -t compileKotlin
 
 # compile + serve + auto-restart on *.kt change
+[group('dev')]
 dev: check-java
     #!/usr/bin/env bash
     set -euo pipefail
@@ -156,9 +121,6 @@ dev: check-java
         kill $(jobs -p) 2>/dev/null; wait 2>/dev/null || true
     done
 
-# headless smoke test (validates auth → mulligan flow without MTGA)
-smoke: (_require classpath) check-java
-    @{{_java}} leyline.debug.SmokeTestKt
 
 # --- Client Setup ---
 
@@ -168,6 +130,7 @@ _streaming := _mtga_path / "Contents/Resources/Data/StreamingAssets"
 _audio_dir := _streaming / "Audio/GeneratedSoundBanks/Mac"
 
 # one-time local dev setup: gen certs, patch Arena client for localhost
+[group('setup')]
 dev-setup:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -203,6 +166,7 @@ dev-setup:
     echo "Dev setup complete. Run: just serve"
 
 # undo dev-setup: remove services.conf, clear macOS defaults
+[group('setup')]
 dev-teardown:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -219,12 +183,14 @@ dev-teardown:
 # --- Data ---
 
 # one-time: seed player.db from golden captures + starter decks
+[group('setup')]
 seed-db: (_require classpath) check-java
     @{{_cli}} leyline.cli.SeedDb
 
 # --- Serve ---
 
 # default dev mode: stub FD + stub MD (fully offline, no real Arena needed)
+[group('serve')]
 serve: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
@@ -232,6 +198,7 @@ serve: (_require classpath) check-java
     {{_java}} leyline.LeylineMainKt $cert_flags
 
 # replay-stub mode: replay captured FD session (fd-frames.jsonl), stub MD
+[group('serve')]
 serve-replay-stub golden="": (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
@@ -249,6 +216,7 @@ serve-replay-stub golden="": (_require classpath) check-java
     {{_java}} leyline.LeylineMainKt $cert_flags --fd-golden "$golden"
 
 # proxy mode (both doors, capture traffic for recording/analysis)
+[group('serve')]
 serve-proxy: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
@@ -256,6 +224,7 @@ serve-proxy: (_require classpath) check-java
     {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
 
 # replay mode (stub FD, replay recorded bytes on MD)
+[group('serve')]
 serve-replay: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
@@ -263,55 +232,20 @@ serve-replay: (_require classpath) check-java
     {{_java}} leyline.LeylineMainKt $cert_flags --replay {{payloads}}
 
 # puzzle mode: serve with a specific .pzl file
+[group('serve')]
 serve-puzzle filename: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
     {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags --puzzle "{{filename}}"
 
-# smoke test: start stub, launch MTGA, check for FD errors via debug API
-smoke-client timeout="60": (_require classpath) check-java
-    #!/usr/bin/env bash
-    set -euo pipefail
-    {{_cert_flags}}
-    echo "Starting stub server..."
-    {{_java}} leyline.LeylineMainKt $cert_flags &
-    SERVER_PID=$!
-    trap "kill $SERVER_PID 2>/dev/null" EXIT
-    sleep 5
-    if ! kill -0 $SERVER_PID 2>/dev/null; then echo "FAIL: server didn't start"; exit 1; fi
-    echo "Launching MTGA..."
-    open -a "MTGA"
-    sleep 3
-    echo "Monitoring for {{timeout}}s..."
-    deadline=$((SECONDS + {{timeout}}))
-    match_door_connected=false
-    while [ $SECONDS -lt $deadline ]; do
-        # Check for MatchCreated in FD messages
-        if curl -sf "http://localhost:8090/api/fd-messages" | grep -q '"cmdType":600'; then
-            echo "  MatchCreated pushed!"
-        fi
-        # Check for client errors
-        err_count=$(curl -sf "http://localhost:8090/api/client-errors" | grep -co '"exceptionType"' 2>/dev/null | tail -1)
-        if [ "${err_count:-0}" -gt 0 ] 2>/dev/null; then echo "  Client errors: $err_count"; fi
-        # Check if Match Door got a connection
-        if curl -sf "http://localhost:8090/api/logs?level=INFO" | grep -q 'Match Door: client connected'; then
-            echo ""; echo "PASS: Client connected to Match Door!"; match_door_connected=true; break
-        fi
-        sleep 3
-    done
-    if [ "$match_door_connected" = "false" ]; then
-        echo ""; echo "FAIL: Client did not connect to Match Door within {{timeout}}s"
-        echo "Check: curl http://localhost:8090/api/fd-messages"
-        echo "Check: curl http://localhost:8090/api/client-errors"
-        exit 1
-    fi
 
 # --- Docker ---
 
 _registry := "ghcr.io/delebedev/leyline"
 
 # build + push Docker image with registry cache (fast rebuilds after first build)
+[group('deploy')]
 docker-build tag=(_registry + ":latest"):
     docker buildx build \
         -f deploy/Dockerfile \
@@ -321,6 +255,7 @@ docker-build tag=(_registry + ":latest"):
         --push .
 
 # deploy: build + push, then pull + restart on VPS
+[group('deploy')]
 deploy:
     just docker-build
     ssh {{env("LEYLINE_VPS", "vps")}} "cd /opt/leyline && docker compose pull && docker compose up -d"
