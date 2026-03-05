@@ -11,12 +11,13 @@ class MatchmakingService(
     private val matchDoorHost: String,
     private val matchDoorPort: Int,
 ) {
-    fun startAiMatch(playerId: PlayerId, deckId: DeckId): MatchInfo {
+    fun startAiMatch(playerId: PlayerId, deckId: DeckId, eventName: String = "AIBotMatch"): MatchInfo {
         decks.findById(deckId) // validate exists (future: validate legality)
         return MatchInfo(
             matchId = UUID.randomUUID().toString(),
             host = matchDoorHost,
             port = matchDoorPort,
+            eventName = eventName,
         )
     }
 }

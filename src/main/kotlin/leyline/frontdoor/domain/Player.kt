@@ -7,4 +7,4 @@ data class Player(
     val screenName: String,
 )
 
-data class MatchInfo(val matchId: String, val host: String, val port: Int)
+data class MatchInfo(val matchId: String, val host: String, val port: Int, val eventName: String = "AIBotMatch")
