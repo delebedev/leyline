@@ -125,11 +125,13 @@ class RelayHandler(
 
 /** Log client frame header fields for proxy debugging. */
 internal fun logClientFrame(log: Logger, dir: String, buf: ByteBuf, captureSink: CaptureSink) {
-    if (buf.readableBytes() < 6) return
-    val idx = buf.readerIndex()
-    val ft = buf.getByte(idx + 1)
-    val pl = buf.getIntLE(idx + 2)
-    val tn = frameTypeName(ft)
-    log.trace("  {} type={} payload={} total={}", dir, tn, pl, buf.readableBytes())
+    // Always feed bytes to CaptureSink — even tiny chunks may complete a pending frame.
     captureSink.ingestChunk(dir, buf)
+    if (buf.readableBytes() >= 6) {
+        val idx = buf.readerIndex()
+        val ft = buf.getByte(idx + 1)
+        val pl = buf.getIntLE(idx + 2)
+        val tn = frameTypeName(ft)
+        log.trace("  {} type={} payload={} total={}", dir, tn, pl, buf.readableBytes())
+    }
 }

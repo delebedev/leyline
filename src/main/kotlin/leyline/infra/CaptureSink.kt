@@ -32,6 +32,11 @@ class CaptureSink(
     private val seq = AtomicLong(0)
     private val pending = mutableMapOf<String, ByteArray>()
 
+    /** Capture accepts larger payloads than the stub decoder — real Arena sends 1.7MB+ StartHook. */
+    private companion object {
+        const val CAPTURE_MAX_PAYLOAD = 8_388_608 // 8 MB
+    }
+
     private val payloadDir = LeylinePaths.CAPTURE_PAYLOADS
     private val frameDir = LeylinePaths.CAPTURE_FRAMES
     private val fdJsonlFile = File(LeylinePaths.CAPTURE_ROOT, "fd-frames.jsonl")
@@ -54,7 +59,7 @@ class CaptureSink(
             while (merged.size - offset >= ClientFrameDecoder.HEADER_SIZE) {
                 val payloadLen = readIntLE(merged, offset + ClientFrameDecoder.LENGTH_OFFSET)
 
-                if (payloadLen < 0 || payloadLen > ClientFrameDecoder.MAX_PAYLOAD) {
+                if (payloadLen < 0 || payloadLen > CAPTURE_MAX_PAYLOAD) {
                     // Desync guard: shift by one byte until a plausible header appears.
                     offset += 1
                     continue
@@ -93,9 +98,9 @@ class CaptureSink(
 
         // Decode FD envelope and write to JSONL + debug collector
         if (dir.startsWith("FD")) {
+            val direction = if ("C→S" in dir || "C-S" in dir) "C2S" else "S2C"
             try {
                 val decoded = FdEnvelope.decode(payload)
-                val direction = if ("C→S" in dir || "C-S" in dir) "C2S" else "S2C"
                 fdCollector.record(direction, decoded)
 
                 val record = FdFrameRecord(
@@ -108,8 +113,18 @@ class CaptureSink(
                     jsonPayload = decoded.jsonPayload,
                 )
                 writeFdJsonl(record)
-            } catch (_: Exception) {
-                // Best-effort — don't break capture on decode failure
+            } catch (e: Exception) {
+                log.warn("FD decode failed seq={} dir={}: {}", fileSeq, direction, e.message)
+                val record = FdFrameRecord(
+                    seq = fileSeq,
+                    dir = direction,
+                    cmdType = null,
+                    cmdTypeName = null,
+                    transactionId = null,
+                    envelopeType = "DECODE_FAILED",
+                    jsonPayload = null,
+                )
+                writeFdJsonl(record)
             }
         }
     }
