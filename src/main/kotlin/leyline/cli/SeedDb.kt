@@ -1,12 +1,14 @@
 package leyline.cli
 
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import leyline.frontdoor.PlayerDb
+import leyline.frontdoor.domain.Deck
+import leyline.frontdoor.domain.DeckCard
+import leyline.frontdoor.domain.DeckId
+import leyline.frontdoor.domain.Format
+import leyline.frontdoor.domain.PlayerId
+import leyline.frontdoor.domain.Preferences
+import leyline.frontdoor.repo.SqlitePlayerStore
 import leyline.game.CardDb
+import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 
 /**
@@ -23,67 +25,54 @@ object SeedDb {
         val dbFile = File(projectDir, "data/player.db")
         println("Seeding ${dbFile.absolutePath}")
 
-        PlayerDb.init(dbFile)
-        PlayerDb.upsertPlayer(PLAYER_ID, PLAYER_NAME)
+        val db = Database.connect("jdbc:sqlite:${dbFile.absolutePath}", "org.sqlite.JDBC")
+        val store = SqlitePlayerStore(db)
+        store.createTables()
+
+        store.ensurePlayer(PlayerId(PLAYER_ID), PLAYER_NAME)
         println("Player: $PLAYER_NAME ($PLAYER_ID)")
 
         // Player blobs from golden captures
         val prefs = loadResource("fd-golden/player-preferences.json")
-        PlayerDb.updatePreferences(PLAYER_ID, prefs)
+        store.savePreferences(PlayerId(PLAYER_ID), Preferences(prefs))
         println("Seeded preferences")
 
         // Decks from txt files via DeckCatalog
         val cardDbPath = System.getenv("LEYLINE_CARD_DB")
         val cardDbOk = if (cardDbPath != null) CardDb.init(File(cardDbPath)) else CardDb.init()
         if (cardDbOk) {
-            seedDecks(File(projectDir, "decks"))
+            seedDecks(store, File(projectDir, "decks"))
         } else {
             println("CardDb not available — skipping deck import")
         }
 
         // Summary
-        val decks = PlayerDb.getDecksForPlayer(PLAYER_ID)
+        val decks = store.findAllForPlayer(PlayerId(PLAYER_ID))
         println("\nDone. Player has ${decks.size} deck(s):")
         for (d in decks) {
-            println("  - ${d.name} (${d.deckId})")
+            println("  - ${d.name} (${d.id.value})")
         }
     }
 
-    private fun seedDecks(decksDir: File) {
+    private fun seedDecks(store: SqlitePlayerStore, decksDir: File) {
         if (!decksDir.isDirectory) return
         val loaded = DeckCatalog.scan(decksDir)
         if (loaded == 0) return
 
-        for (deck in DeckCatalog.all()) {
-            val cards = buildJsonObject {
-                put("MainDeck", buildCardArray(deck.mainDeck))
-                put("ReducedSideboard", buildCardArray(deck.sideboard))
-                put("Sideboard", buildCardArray(deck.sideboard))
-                put("CommandZone", buildJsonArray {})
-                put("Companions", buildJsonArray {})
-                put("CardSkins", buildJsonArray {})
-            }
-
-            PlayerDb.upsertDeck(
-                deckId = deck.deckId,
-                playerId = PLAYER_ID,
-                name = deck.name,
-                tileId = deck.tileId,
-                format = "Standard",
-                cards = Json.Default.encodeToString(JsonObject.serializer(), cards),
+        for (catalog in DeckCatalog.all()) {
+            val deck = Deck(
+                id = DeckId(catalog.deckId),
+                playerId = PlayerId(PLAYER_ID),
+                name = catalog.name,
+                format = Format.Standard,
+                tileId = catalog.tileId,
+                mainDeck = catalog.mainDeck.map { DeckCard(it.cardId, it.quantity) },
+                sideboard = catalog.sideboard.map { DeckCard(it.cardId, it.quantity) },
+                commandZone = emptyList(),
+                companions = emptyList(),
             )
-            println("Imported: ${deck.name} (${deck.mainDeck.sumOf { it.quantity }} cards)")
-        }
-    }
-
-    private fun buildCardArray(cards: List<DeckCatalog.DeckCard>) = buildJsonArray {
-        for (c in cards) {
-            add(
-                buildJsonObject {
-                    put("cardId", c.cardId)
-                    put("quantity", c.quantity)
-                },
-            )
+            store.save(deck)
+            println("Imported: ${catalog.name} (${catalog.mainDeck.sumOf { it.quantity }} cards)")
         }
     }
 

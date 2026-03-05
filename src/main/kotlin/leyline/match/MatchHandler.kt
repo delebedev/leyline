@@ -13,7 +13,6 @@ import leyline.debug.DebugCollector
 import leyline.debug.GameStateCollector
 import leyline.debug.SessionRecorder
 import leyline.debug.Tap
-import leyline.frontdoor.PlayerDb
 import leyline.game.CardDb
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
@@ -40,6 +39,8 @@ class MatchHandler(
     private val puzzleFile: File? = null,
     /** Returns the deckId selected in FD's 612 handler, if any. */
     private val selectedDeckOverride: (() -> String?)? = null,
+    /** Look up a deck's cards JSON by deckId. Injected from LeylineServer. */
+    private val deckLookup: ((String) -> String?)? = null,
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
@@ -533,18 +534,18 @@ class MatchHandler(
     }
 
     /**
-     * Resolve seat 1 deck: if FD captured a deckId from 612, look it up in PlayerDb
+     * Resolve seat 1 deck: if FD captured a deckId from 612, look it up via [deckLookup]
      * and convert grpIds → card names for Forge. Otherwise fall back to playtestConfig.
      */
     private fun resolveSeat1Deck(): String {
         val deckId = selectedDeckOverride?.invoke()
-        if (deckId != null && PlayerDb.isInitialized()) {
-            val deckRow = PlayerDb.getDeck(deckId)
-            if (deckRow != null) {
-                log.info("Match Door: using deck '{}' from PlayerDb", deckRow.name)
-                return convertArenaCardsToDeckText(deckRow.cards)
+        if (deckId != null && deckLookup != null) {
+            val cardsJson = deckLookup.invoke(deckId)
+            if (cardsJson != null) {
+                log.info("Match Door: using deck from DB for deckId={}", deckId)
+                return convertArenaCardsToDeckText(cardsJson)
             }
-            log.warn("Match Door: deckId {} not in PlayerDb, falling back to config", deckId)
+            log.warn("Match Door: deckId {} not in DB, falling back to config", deckId)
         }
         return loadDeckFromConfig(playtestConfig.decks.seat1)
     }

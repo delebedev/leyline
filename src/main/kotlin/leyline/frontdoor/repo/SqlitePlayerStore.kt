@@ -22,7 +22,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 
 /**
- * Exposed DSL implementation over the existing PlayerDb SQLite schema.
+ * Exposed DSL implementation over the player SQLite schema.
  * Implements both [DeckRepository] and [PlayerRepository].
  */
 class SqlitePlayerStore(private val database: Database) :

@@ -127,7 +127,7 @@ class FrontDoorReplayStub(
 
                 if (golden.jsonPayload == null) {
                     // Protobuf-only response (e.g. GetFormats/GetSets) — JSONL doesn't
-                    // capture raw proto bytes, so send empty ack. Use FrontDoorService
+                    // capture raw proto bytes, so send empty ack. Use FrontDoorHandler
                     // (not replay) for full offline support of protobuf CmdTypes.
                     log.warn("FD Replay: S→C proto-only for {} ({}) — sending empty ack", cmdName, cmdType)
                     sendResponse(ctx, txId, "{}")
