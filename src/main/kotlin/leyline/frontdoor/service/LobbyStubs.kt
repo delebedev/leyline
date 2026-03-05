@@ -12,7 +12,7 @@ object LobbyStubs {
     fun netDeckFolders() = """[]"""
     fun playerInbox() = """{"Messages":[]}"""
     fun staticContent() = """{}"""
-    fun cardSet() = """{}"""
+    fun cardSet() = """{"cacheVersion":-1,"cards":{}}"""
     fun storeStatus() = """{"CatalogStatus":[]}"""
     fun rankSeasonDetails() = """{}"""
     fun carousel() = """[]"""

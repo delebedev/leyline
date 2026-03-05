@@ -270,7 +270,7 @@ class FrontDoorHandler(
             2300 -> writer.sendJson(ctx, txId, LobbyStubs.playerInbox())
             2500 -> writer.sendJson(ctx, txId, LobbyStubs.staticContent())
             551 -> writer.sendJson(ctx, txId, LobbyStubs.cardSet())
-            708, 712 -> writer.sendJson(ctx, txId, LobbyStubs.storeStatus())
+            708, 712, 715 -> writer.sendJson(ctx, txId, LobbyStubs.storeStatus())
             1102 -> writer.sendJson(ctx, txId, LobbyStubs.rankSeasonDetails())
             1105 -> writer.sendJson(ctx, txId, LobbyStubs.rankSeasonDetails())
             3006 -> writer.sendProto(ctx, txId, "Wizards.Arena.Models.Network.ChallengeReconnectAllResp")
