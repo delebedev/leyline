@@ -2,6 +2,7 @@ package leyline.frontdoor.service
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveAtLeastSize
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import kotlinx.serialization.json.Json
@@ -90,5 +91,23 @@ class EventRegistryTest :
 
         test("findEvent returns null for unknown") {
             EventRegistry.findEvent("NonExistent") shouldBe null
+        }
+
+        test("forgeFormatFor returns mapped format for ranked event") {
+            EventRegistry.forgeFormatFor("Ladder") shouldBe "Standard"
+            EventRegistry.forgeFormatFor("Explorer_Ladder") shouldBe "Explorer"
+            EventRegistry.forgeFormatFor("Historic_Play") shouldBe "Historic"
+        }
+
+        test("forgeFormatFor returns null for AIBotMatch (SkipDeckValidation)") {
+            EventRegistry.forgeFormatFor("AIBotMatch").shouldBeNull()
+        }
+
+        test("forgeFormatFor returns null for unknown event") {
+            EventRegistry.forgeFormatFor("NonexistentEvent").shouldBeNull()
+        }
+
+        test("forgeFormatFor strips Traditional prefix") {
+            EventRegistry.forgeFormatFor("Traditional_Ladder") shouldBe "Standard"
         }
     })

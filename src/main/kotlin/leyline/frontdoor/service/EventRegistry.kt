@@ -283,6 +283,13 @@ object EventRegistry {
     fun findEvent(internalName: String): EventDef? =
         events.firstOrNull { it.internalName == internalName }
 
+    /** Look up Forge format name for an Arena event. Null = no restriction (e.g. AIBotMatch with SkipDeckValidation). */
+    fun forgeFormatFor(eventName: String): String? {
+        val event = findEvent(eventName) ?: return null
+        if (event.flags.contains("SkipDeckValidation")) return null
+        return FormatService.mapArenaFormat(event.deckSelectFormat)
+    }
+
     /**
      * Default courses — events the player has "participated in".
      * Real server returns only events the player entered; we seed a few common ones.

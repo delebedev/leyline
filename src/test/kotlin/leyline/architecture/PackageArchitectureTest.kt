@@ -214,7 +214,7 @@ class PackageArchitectureTest :
                 ).check(classes)
         }
 
-        test("frontdoor.service depends only on frontdoor.domain and repo") {
+        test("frontdoor.service depends only on frontdoor.domain, repo, and bridge") {
             noClasses().that().resideInAPackage("leyline.frontdoor.service..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
@@ -229,7 +229,6 @@ class PackageArchitectureTest :
                     "leyline.match..",
                     "leyline.infra..",
                     "leyline.cli..",
-                    "leyline.bridge..",
                 ).check(classes)
         }
 
