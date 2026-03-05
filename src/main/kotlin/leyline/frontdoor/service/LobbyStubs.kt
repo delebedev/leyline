@@ -3,7 +3,7 @@ package leyline.frontdoor.service
 /** Stub responses for unimplemented lobby endpoints. Each graduates to a real service when implemented. */
 object LobbyStubs {
     fun activeMatches() = """{"MatchesV3":[]}"""
-    fun courses() = """{"Courses":[]}"""
+
     fun currencies() = """{"Currencies":[]}"""
     fun boosters() = """{"Boosters":[]}"""
     fun quests() = """{"Quests":[]}"""

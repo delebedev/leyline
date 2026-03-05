@@ -278,6 +278,33 @@ class FrontDoorHandlerTest :
             }
         }
 
+        test("CmdType 623 - EventGetCoursesV2 returns courses for every event") {
+            val ch = fdChannel()
+            val msg = ch.sendCmd(623)
+            val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            val courses = obj["Courses"]?.jsonArray
+            courses.shouldNotBeNull()
+            courses.shouldNotBeEmpty()
+            val names = courses.map { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content }
+            names shouldContain "Ladder"
+            names shouldContain "AIBotMatch"
+        }
+
+        test("CmdType 623 - every course matches reference shape from real server") {
+            val refJson = this::class.java.classLoader
+                .getResourceAsStream("golden/fd-reference-course.json")!!
+                .readBytes().toString(Charsets.UTF_8)
+            val refKeys = json.parseToJsonElement(refJson).jsonObject
+            val ch = fdChannel()
+            val msg = ch.sendCmd(623)
+            val courses = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull())
+                .jsonObject["Courses"]!!.jsonArray
+            for (course in courses) {
+                val name = course.jsonObject["InternalEventName"]!!.jsonPrimitive.content
+                assertKeysMatch(refKeys, course.jsonObject, name)
+            }
+        }
+
         test("CmdType 1910 - every queue matches reference shape from real server") {
             val refJson = this::class.java.classLoader
                 .getResourceAsStream("golden/fd-reference-queue.json")!!
