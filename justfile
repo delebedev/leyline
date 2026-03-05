@@ -228,16 +228,8 @@ seed-db: (_require classpath) check-java
 
 # --- Serve ---
 
-# hybrid mode: proxy FD to real Arena, stub MD (default dev mode)
+# default dev mode: stub FD + stub MD (fully offline, no real Arena needed)
 serve: (_require classpath) check-java
-    #!/usr/bin/env bash
-    set -euo pipefail
-    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
-    was_flags=$({{_was_cert_flags}})
-    {{_java}} leyline.LeylineMainKt $cert_flags $was_flags --proxy-fd {{fd_ip}}
-
-# stub mode (fake both doors, fully offline)
-serve-stub: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
@@ -261,26 +253,26 @@ serve-replay-stub golden="": (_require classpath) check-java
     fi
     {{_java}} leyline.LeylineMainKt $cert_flags --fd-golden "$golden"
 
-# proxy mode (both doors, capture traffic)
+# proxy mode (both doors, capture traffic for recording/analysis)
 serve-proxy: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
     {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
 
-# replay mode (proxy FD, replay recorded bytes on MD)
+# replay mode (stub FD, replay recorded bytes on MD)
 serve-replay: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
-    {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --replay {{payloads}}
+    {{_java}} leyline.LeylineMainKt $cert_flags --replay {{payloads}}
 
 # puzzle mode: serve with a specific .pzl file
 serve-puzzle filename: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
     cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
-    {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --puzzle "{{filename}}"
+    {{_java}} leyline.LeylineMainKt $cert_flags --puzzle "{{filename}}"
 
 # smoke test: start stub, launch MTGA, check for FD errors via debug API
 smoke-client timeout="60": (_require classpath) check-java
