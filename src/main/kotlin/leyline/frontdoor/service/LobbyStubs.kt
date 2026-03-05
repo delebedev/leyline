@@ -13,14 +13,6 @@ object LobbyStubs {
     fun playerInbox() = """{"Messages":[]}"""
     fun staticContent() = """{}"""
 
-    /** Starter card collection: 4x each of 10 real cards. Enough for deck editor to load. */
-    fun cardCollection(): String {
-        // Real grpIds: Plains, Forest, Serra Angel, Llanowar Elves, Elvish Mystic,
-        // Giant Growth, Lightning Bolt, Pacifism, Banishing Light, Ajani's Pridemate
-        val grpIds = listOf(75515, 95189, 93860, 93940, 93941, 93942, 93848, 93715, 75516, 93943)
-        val cards = grpIds.joinToString(",") { "\"$it\":4" }
-        return """{"cacheVersion":-1,"cards":{$cards}}"""
-    }
     fun storeStatus() = """{"CatalogStatus":[]}"""
     fun rankSeasonDetails() = """{}"""
     fun carousel() = """[]"""

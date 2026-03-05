@@ -22,6 +22,7 @@ import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.Format
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.SqlitePlayerStore
+import leyline.frontdoor.service.CollectionService
 import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
@@ -95,6 +96,7 @@ class FrontDoorHandlerTest :
                     deckService = deckService,
                     playerService = playerService,
                     matchmaking = matchmakingService,
+                    collectionService = CollectionService { emptyList() },
                     writer = writer,
                     golden = golden,
                 ),
