@@ -3,7 +3,6 @@ package leyline.conformance
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import forge.model.FModel
-import leyline.game.CardDb
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
 
@@ -11,7 +10,7 @@ import org.slf4j.LoggerFactory
  * Injects cards into a running game and registers them in both Forge and Leyline layers.
  *
  * Wraps `Player.getZone().add()` and additionally:
- * - Registers in [CardDb] via [TestCardRegistry.ensureCardRegistered] (derives from CardRules)
+ * - Registers in the shared [InMemoryCardRepository] via [TestCardRegistry.ensureCardRegistered]
  * - Registers in [leyline.game.InstanceIdRegistry] (forgeCardId → instanceId)
  *
  * Result: injected card is indistinguishable from a "real" deck card in proto output.
@@ -70,7 +69,7 @@ object TestCardInjector {
             if (!sick) card.setSickness(false)
         }
 
-        // 2. Register in CardDb (idempotent — delegates to CardDataDeriver)
+        // 2. Register in card repository (idempotent — delegates to CardDataDeriver)
         val grpId = TestCardRegistry.ensureCardRegistered(cardName)
 
         // 3. Allocate instanceId in InstanceIdRegistry

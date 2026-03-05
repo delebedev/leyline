@@ -2,19 +2,22 @@ package leyline.conformance
 
 import forge.game.card.Card
 import forge.model.FModel
-import leyline.game.CardDb
+import leyline.game.InMemoryCardRepository
 import org.slf4j.LoggerFactory
 
 /**
- * Registers test deck cards in [CardDb] using [CardDataDeriver] — no SQLite.
+ * Registers test deck cards in the shared [InMemoryCardRepository] using [CardDataDeriver].
  *
- * Enables [CardDb.testMode] so `lookupByName`/`lookup` never touch SQLite.
  * All card metadata is derived from Forge's in-memory CardRules at test startup.
+ * No SQLite needed.
  *
- * Synthetic grpIds start at 80000 (allocated by [CardDataDeriver]).
+ * Synthetic grpIds start at 200000 (allocated by [CardDataDeriver]).
  */
 object TestCardRegistry {
     private val log = LoggerFactory.getLogger(TestCardRegistry::class.java)
+
+    /** Shared repository for all tests. */
+    val repo = InMemoryCardRepository()
 
     /** Default deck card names (GameBridge.DEFAULT_DECK). */
     private val DEFAULT_DECK_CARDS = listOf(
@@ -27,12 +30,12 @@ object TestCardRegistry {
     )
 
     /**
-     * Auto-register a card by name. If already in CardDb, returns existing grpId.
+     * Auto-register a card by name. If already in repo, returns existing grpId.
      * Otherwise derives CardData from Forge's in-memory CardRules and registers it.
      * Returns the grpId (synthetic, 0 on failure).
      */
     fun ensureCardRegistered(cardName: String): Int {
-        CardDb.getGrpId(cardName)?.let { return it }
+        repo.findGrpIdByName(cardName)?.let { return it }
 
         val db = FModel.getMagicDb()?.commonCards ?: run {
             log.warn("Card DB not initialized, cannot auto-register '{}'", cardName)
@@ -48,7 +51,7 @@ object TestCardRegistry {
 
         val tempCard = Card.fromPaperCard(paperCard, null)
         val cardData = CardDataDeriver.fromForgeCard(tempCard)
-        CardDb.registerData(cardData, cardName)
+        repo.registerData(cardData, cardName)
         log.debug("Auto-registered '{}' with grpId={}", cardName, cardData.grpId)
         return cardData.grpId
     }
@@ -68,12 +71,11 @@ object TestCardRegistry {
     }
 
     /**
-     * Register all default deck cards and enable [CardDb.testMode].
+     * Register all default deck cards.
      * Idempotent — safe to call from multiple test setup methods.
      */
     fun ensureRegistered() {
-        CardDb.testMode = true
-        if (CardDb.registeredCount > 0) return
+        if (repo.registeredCount > 0) return
         for (name in DEFAULT_DECK_CARDS) {
             ensureCardRegistered(name)
         }

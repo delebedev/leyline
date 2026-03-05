@@ -9,7 +9,6 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
-import leyline.game.CardDb
 import leyline.game.StateMapper
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 
@@ -45,8 +44,8 @@ class CardInjectionTest :
             obj.uniqueAbilitiesCount shouldBeGreaterThanOrEqual 2
 
             b.getForgeCardId(injected.instanceId) shouldBe injected.forgeCardId
-            CardDb.lookup(injected.grpId).shouldNotBeNull()
-            CardDb.getCardName(injected.grpId) shouldBe "Serra Angel"
+            b.cards.findByGrpId(injected.grpId).shouldNotBeNull()
+            b.cards.findNameByGrpId(injected.grpId) shouldBe "Serra Angel"
 
             val acc = ClientAccumulator()
             acc.seedFull(gsm)
@@ -77,13 +76,13 @@ class CardInjectionTest :
         }
 
         // This test is integration group — kept separate from conformance
-        test("auto-register deck list populates CardDb for all cards").config(tags = setOf(IntegrationTag)) {
+        test("auto-register deck list populates repository for all cards").config(tags = setOf(IntegrationTag)) {
             val deckList = "30 Plains\n20 Serra Angel\n10 Lightning Bolt"
-            val (_, _, _) = base.startGameAtMain1(deckList = deckList)
+            val (b, _, _) = base.startGameAtMain1(deckList = deckList)
 
-            CardDb.getGrpId("Plains").shouldNotBeNull()
-            CardDb.getGrpId("Serra Angel").shouldNotBeNull()
-            CardDb.getGrpId("Lightning Bolt").shouldNotBeNull()
+            b.cards.findGrpIdByName("Plains").shouldNotBeNull()
+            b.cards.findGrpIdByName("Serra Angel").shouldNotBeNull()
+            b.cards.findGrpIdByName("Lightning Bolt").shouldNotBeNull()
         }
 
         test("injected land enters tapped when requested") {

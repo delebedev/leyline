@@ -5,9 +5,9 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.game.CardDb
 import leyline.game.DeckProvider
 import leyline.game.GsmBuilder
+import leyline.game.InMemoryCardRepository
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -15,7 +15,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  *
  * These tests verify that:
  * 1. StateMapper produces valid, serializable protobuf
- * 2. CardDb bidirectional lookup works
+ * 2. InMemoryCardRepository bidirectional lookup works
  * 3. The generated proto enums referenced in handlers actually exist
  *
  * No network or TLS required — pure protobuf logic.
@@ -25,36 +25,34 @@ class ProtocolTest :
 
         tags(UnitTag)
 
+        lateinit var cards: InMemoryCardRepository
+
         beforeEach {
-            CardDb.clear()
+            cards = InMemoryCardRepository()
         }
 
-        afterEach {
-            CardDb.clear()
+        test("card repository register and lookup") {
+            cards.register(12345, "Lightning Bolt")
+            cards.register(67890, "Counterspell")
+
+            cards.findNameByGrpId(12345) shouldBe "Lightning Bolt"
+            cards.findNameByGrpId(67890) shouldBe "Counterspell"
+            cards.findGrpIdByName("Lightning Bolt") shouldBe 12345
+            cards.findGrpIdByName("Counterspell") shouldBe 67890
+
+            cards.findNameByGrpId(99999).shouldBeNull()
+            cards.findGrpIdByName("Nonexistent Card").shouldBeNull()
+
+            cards.registeredCount shouldBe 2
         }
 
-        test("card db register and lookup") {
-            CardDb.register(12345, "Lightning Bolt")
-            CardDb.register(67890, "Counterspell")
+        test("card repository clear") {
+            cards.register(1, "Test Card")
+            cards.registeredCount shouldBe 1
 
-            CardDb.getCardName(12345) shouldBe "Lightning Bolt"
-            CardDb.getCardName(67890) shouldBe "Counterspell"
-            CardDb.getGrpId("Lightning Bolt") shouldBe 12345
-            CardDb.getGrpId("Counterspell") shouldBe 67890
-
-            CardDb.getCardName(99999).shouldBeNull()
-            CardDb.getGrpId("Nonexistent Card").shouldBeNull()
-
-            CardDb.registeredCount shouldBe 2
-        }
-
-        test("card db clear") {
-            CardDb.register(1, "Test Card")
-            CardDb.registeredCount shouldBe 1
-
-            CardDb.clear()
-            CardDb.registeredCount shouldBe 0
-            CardDb.getCardName(1).shouldBeNull()
+            cards.clear()
+            cards.registeredCount shouldBe 0
+            cards.findNameByGrpId(1).shouldBeNull()
         }
 
         test("gre envelope wraps game state") {
@@ -117,22 +115,22 @@ class ProtocolTest :
         }
 
         test("lookup by name uses in memory cache") {
-            CardDb.register(93940, "Llanowar Elves")
-            CardDb.register(93860, "Serra Angel")
+            cards.register(93940, "Llanowar Elves")
+            cards.register(93860, "Serra Angel")
 
-            CardDb.lookupByName("Llanowar Elves") shouldBe 93940
-            CardDb.lookupByName("Serra Angel") shouldBe 93860
-            CardDb.lookupByName("Nonexistent Card").shouldBeNull()
+            cards.findGrpIdByName("Llanowar Elves") shouldBe 93940
+            cards.findGrpIdByName("Serra Angel") shouldBe 93860
+            cards.findGrpIdByName("Nonexistent Card").shouldBeNull()
         }
 
         test("deck provider deals seven cards") {
-            // Register all precon cards so lookupByName works (in-memory path)
-            CardDb.register(93940, "Llanowar Elves")
-            CardDb.register(93941, "Elvish Mystic")
-            CardDb.register(93942, "Giant Growth")
-            CardDb.register(95189, "Forest")
+            // Register all precon cards so findGrpIdByName works (in-memory path)
+            cards.register(93940, "Llanowar Elves")
+            cards.register(93941, "Elvish Mystic")
+            cards.register(93942, "Giant Growth")
+            cards.register(95189, "Forest")
 
-            val provider = DeckProvider()
+            val provider = DeckProvider(cards)
             val hand = provider.dealHand(1)
 
             hand.size shouldBe 7
@@ -142,12 +140,12 @@ class ProtocolTest :
         }
 
         test("deck provider full deck has 60 cards") {
-            CardDb.register(93940, "Llanowar Elves")
-            CardDb.register(93941, "Elvish Mystic")
-            CardDb.register(93942, "Giant Growth")
-            CardDb.register(95189, "Forest")
+            cards.register(93940, "Llanowar Elves")
+            cards.register(93941, "Elvish Mystic")
+            cards.register(93942, "Giant Growth")
+            cards.register(95189, "Forest")
 
-            val provider = DeckProvider()
+            val provider = DeckProvider(cards)
             val deck = provider.getDeckGrpIds(1)
 
             deck.size shouldBe 60

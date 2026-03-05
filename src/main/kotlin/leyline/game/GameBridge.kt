@@ -49,6 +49,10 @@ class GameBridge(
     /** Shared protocol counter for GRE message sequencing.
      *  Production: shared with MatchSession. Tests: local default. */
     val messageCounter: MessageCounter = MessageCounter(),
+    /** Card data repository — lookups for grpId ↔ name, card metadata. */
+    val cards: CardRepository = InMemoryCardRepository(),
+    /** Proto builder for GameObjectInfo — uses [cards] for static card data. */
+    val cardProto: CardProtoBuilder = CardProtoBuilder(cards),
 ) : IdMapping,
     PlayerLookup,
     ZoneTracking,
@@ -348,7 +352,7 @@ class GameBridge(
     fun getHandGrpIds(seatId: Int): List<Int> {
         val player = getPlayer(seatId) ?: return emptyList()
         return player.getZone(ZoneType.Hand).cards.map { card ->
-            CardDb.lookupByName(card.name) ?: FALLBACK_GRPID
+            cards.findGrpIdByName(card.name) ?: FALLBACK_GRPID
         }
     }
 
@@ -360,7 +364,7 @@ class GameBridge(
         for (zone in listOf(ZoneType.Library, ZoneType.Hand)) {
             player.getZone(zone).cards.forEach { allCards.add(it.name) }
         }
-        return allCards.map { CardDb.lookupByName(it) ?: FALLBACK_GRPID }
+        return allCards.map { cards.findGrpIdByName(it) ?: FALLBACK_GRPID }
     }
 
     override fun getGame(): Game? = game
@@ -533,7 +537,7 @@ class GameBridge(
         GameBootstrap.finalizeForPuzzle(g)
         log.info("GameBridge: puzzle applied, game at {} turn {}", g.phaseHandler.phase, g.phaseHandler.turn)
 
-        // Register all puzzle cards in CardDb and InstanceIdRegistry.
+        // Register all puzzle cards in CardRepository and InstanceIdRegistry.
         // Puzzle.applyGameOnThread creates cards via Card.fromPaperCard — they
         // need synthetic grpIds and instanceId mappings for proto output.
         registerPuzzleCards(g)
@@ -636,13 +640,18 @@ class GameBridge(
 
     /**
      * After puzzle application: iterate all cards in all zones, register them
-     * in [CardDb] (via PuzzleCardRegistrar) and [InstanceIdRegistry].
+     * in [CardRepository] (via PuzzleCardRegistrar) and [InstanceIdRegistry].
      *
      * Uses `ensureCardRegisteredByName` because puzzle-applied cards may have
      * null `rules` — the by-name path creates a fresh temp Card from the paper DB
      * where rules are guaranteed loaded.
      */
     private fun registerPuzzleCards(game: Game) {
+        val repo = cards as? InMemoryCardRepository ?: run {
+            log.warn("GameBridge: puzzle card registration requires InMemoryCardRepository")
+            return
+        }
+        val registrar = PuzzleCardRegistrar(repo)
         val allZones = listOf(
             ZoneType.Hand,
             ZoneType.Battlefield,
@@ -655,15 +664,13 @@ class GameBridge(
         for (player in game.players) {
             for (zone in allZones) {
                 for (card in player.getZone(zone).cards) {
-                    // Register in CardDb by name (derives from paper DB)
-                    PuzzleCardRegistrar.ensureCardRegisteredByName(card.name)
-                    // Pre-seed instanceId mapping
+                    registrar.ensureCardRegisteredByName(card.name)
                     ids.getOrAlloc(card.id)
                     registered++
                 }
             }
         }
-        log.info("GameBridge: registered {} puzzle cards in CardDb + InstanceIdRegistry", registered)
+        log.info("GameBridge: registered {} puzzle cards in CardRepository + InstanceIdRegistry", registered)
     }
 
     // --- Internal ---

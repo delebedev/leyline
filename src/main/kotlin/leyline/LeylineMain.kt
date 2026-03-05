@@ -4,7 +4,7 @@ import leyline.config.MatchConfig
 import leyline.debug.DebugServer
 import leyline.debug.PlayerLogWatcher
 import leyline.frontdoor.DeckValidator
-import leyline.game.CardDb
+import leyline.game.ExposedCardRepository
 import leyline.infra.LeylineServer
 import leyline.infra.MockWasServer
 import java.io.File
@@ -15,9 +15,12 @@ import java.io.File
  * Run via justfile targets: `just serve`, `just serve-proxy`, etc.
  * See CLAUDE.md for mode descriptions.
  *
+ * TLS: self-signed certs by default (needs mitmproxy CA certs for UnityTls validation).
+ * MockWAS always self-signs (CheckSC=0 covers HTTP).
+ *
  * Environment variable fallbacks (CLI args take precedence):
- *   LEYLINE_CERT_PATH  — TLS cert file (used for FD, MD, WAS when specific args missing)
- *   LEYLINE_KEY_PATH   — TLS key file (used for FD, MD, WAS when specific args missing)
+ *   LEYLINE_CERT_PATH  — TLS cert file for FD/MD (self-signed if missing)
+ *   LEYLINE_KEY_PATH   — TLS key file for FD/MD (self-signed if missing)
  *   LEYLINE_CARD_DB    — path to Arena card database SQLite file
  *   LEYLINE_FD_HOST    — FrontDoor host:port for doorbell response (default: localhost:30010)
  */
@@ -25,19 +28,26 @@ fun main(args: Array<String>) {
     val a = parseArgs(args)
     val isProxy = a["--proxy-fd"] != null && a["--proxy-md"] != null
 
-    // Env var fallbacks for TLS cert/key (single cert for all servers)
+    // TLS cert/key for FD+MD (UnityTls validates these; self-signed needs mitmproxy CA)
     val envCert = System.getenv("LEYLINE_CERT_PATH")?.let { File(it) }?.takeIf { it.exists() }
     val envKey = System.getenv("LEYLINE_KEY_PATH")?.let { File(it) }?.takeIf { it.exists() }
-
-    fun certFile(arg: String) = a[arg]?.let { File(it) } ?: envCert
-    fun keyFile(arg: String) = a[arg]?.let { File(it) } ?: envKey
+    val certFile = a["--cert"]?.let { File(it) } ?: envCert
+    val keyFile = a["--key"]?.let { File(it) } ?: envKey
 
     // Card database: skip in proxy mode (pure passthrough, no card lookups)
-    if (!isProxy) {
+    val cardRepo = if (!isProxy) {
         val cardDbPath = System.getenv("LEYLINE_CARD_DB")
-        if (cardDbPath != null) {
-            CardDb.init(File(cardDbPath))
+        if (cardDbPath != null && File(cardDbPath).exists()) {
+            val cardDb = org.jetbrains.exposed.v1.jdbc.Database.connect(
+                "jdbc:sqlite:${File(cardDbPath).absolutePath}",
+                "org.sqlite.JDBC",
+            )
+            ExposedCardRepository(cardDb)
+        } else {
+            null
         }
+    } else {
+        null
     }
 
     // Load playtest config (TOML) — skip in proxy mode
@@ -80,10 +90,8 @@ fun main(args: Array<String>) {
     val server = LeylineServer(
         frontDoorPort = fdPort,
         matchDoorPort = mdPort,
-        frontDoorCert = certFile("--fd-cert"),
-        frontDoorKey = keyFile("--fd-key"),
-        matchDoorCert = certFile("--md-cert"),
-        matchDoorKey = keyFile("--md-key"),
+        certFile = certFile,
+        keyFile = keyFile,
         upstreamFrontDoor = a["--proxy-fd"],
         upstreamMatchDoor = a["--proxy-md"],
         replayDir = a["--replay"]?.let { File(it) },
@@ -91,6 +99,7 @@ fun main(args: Array<String>) {
         matchConfig = config,
         puzzleFile = puzzleFile,
         externalHost = externalHost,
+        cardRepo = cardRepo,
     )
 
     val logWatcher = PlayerLogWatcher()
@@ -101,11 +110,13 @@ fun main(args: Array<String>) {
     val wasServer = if (!isProxy) {
         val wasPort = a["--was-port"]?.toIntOrNull() ?: 9443
         val debugRoles = System.getenv("LEYLINE_DEBUG").let { it == "true" || it == "1" }
+        val wasCert = a["--was-cert"]?.let { File(it) } ?: envCert
+        val wasKey = a["--was-key"]?.let { File(it) } ?: envKey
         MockWasServer(
             port = wasPort,
             roles = if (debugRoles) MockWasServer.DEBUG_ROLES else MockWasServer.DEFAULT_ROLES,
-            certFile = certFile("--was-cert"),
-            keyFile = keyFile("--was-key"),
+            certFile = wasCert,
+            keyFile = wasKey,
             fdHost = fdHost,
         )
     } else {

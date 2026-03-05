@@ -4,13 +4,13 @@ import forge.card.CardType.CoreType
 import forge.card.CardType.Supertype
 import forge.card.mana.ManaCostShard
 import forge.game.card.Card
-import leyline.game.CardDb
+import leyline.game.CardData
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Derives [CardDb.CardData] from Forge's in-memory [forge.card.CardRules].
+ * Derives [CardData] from Forge's in-memory [forge.card.CardRules].
  *
  * Eliminates the need for the client SQLite DB in tests — all card metadata
  * is derived from Forge's own card database (already loaded at test startup).
@@ -28,7 +28,7 @@ object CardDataDeriver {
     private val nameToGrpId = mutableMapOf<String, Int>()
 
     /** Derive CardData from a live Forge [Card] object. */
-    fun fromForgeCard(card: Card): CardDb.CardData {
+    fun fromForgeCard(card: Card): CardData {
         val name = card.name
         val grpId = nameToGrpId.getOrPut(name) { nextGrpId.getAndIncrement() }
         val titleId = nextTitleId.getAndIncrement()
@@ -64,7 +64,7 @@ object CardDataDeriver {
         // Abilities — assign synthetic sequential IDs per ability on the card
         val abilityIds = deriveAbilityIds(card)
 
-        return CardDb.CardData(
+        return CardData(
             grpId = grpId,
             titleId = titleId,
             power = power,

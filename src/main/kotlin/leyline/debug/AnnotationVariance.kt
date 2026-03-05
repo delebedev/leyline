@@ -1,7 +1,6 @@
 package leyline.debug
 
 import leyline.game.AnnotationBuilder
-import leyline.game.CardDb
 import leyline.recording.RecordingDecoder
 import leyline.recording.RecordingDecoder.AnnotationSummary
 import leyline.recording.RecordingDecoder.DecodedMessage
@@ -64,8 +63,7 @@ fun main(args: Array<String>) {
         for (msg in messages) {
             for (obj in msg.objects) {
                 if (obj.grpId != 0) {
-                    instanceToCard[obj.instanceId] =
-                        CardDb.getCardName(obj.grpId) ?: "grp:${obj.grpId}"
+                    instanceToCard[obj.instanceId] = "grp:${obj.grpId}"
                 }
             }
         }

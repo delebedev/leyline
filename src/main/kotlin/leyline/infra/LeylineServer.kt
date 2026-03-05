@@ -54,12 +54,9 @@ import java.io.File
 class LeylineServer(
     private val frontDoorPort: Int = 30010,
     private val matchDoorPort: Int = 30003,
-    /** Front Door cert+key (PEM). Falls back to self-signed if null. */
-    private val frontDoorCert: File? = null,
-    private val frontDoorKey: File? = null,
-    /** Match Door cert+key. Falls back to Front Door cert, then self-signed. */
-    private val matchDoorCert: File? = null,
-    private val matchDoorKey: File? = null,
+    /** TLS cert+key (PEM). Falls back to self-signed if null. Needed when client validates certs (UnityTls). */
+    private val certFile: java.io.File? = null,
+    private val keyFile: java.io.File? = null,
     /** Proxy mode: if set, relay to these upstream IPs instead of stubbing. */
     private val upstreamFrontDoor: String? = null,
     private val upstreamMatchDoor: String? = null,
@@ -73,6 +70,8 @@ class LeylineServer(
     val puzzleFile: File? = null,
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
     private val externalHost: String = "localhost",
+    /** Card data repository — passed to MatchHandler for grpId↔name lookups. */
+    private val cardRepo: leyline.game.CardRepository? = null,
 ) {
     private val log = LoggerFactory.getLogger(LeylineServer::class.java)
 
@@ -96,26 +95,25 @@ class LeylineServer(
     val isReplay get() = replayDir != null
 
     fun start() {
-        val fdSsl = buildSslContext(frontDoorCert, frontDoorKey, "FrontDoor")
-        val mdSsl = buildSslContext(
-            matchDoorCert ?: frontDoorCert,
-            matchDoorKey ?: frontDoorKey,
-            "MatchDoor",
-        )
+        // Wire card name lookup providers for debug/recording singletons
+        if (cardRepo != null) {
+            leyline.debug.GameStateCollector.cardNameLookup = { grpId -> cardRepo.findNameByGrpId(grpId) }
+            leyline.recording.RecordingInspector.cardNameLookup = { grpId -> cardRepo.findNameByGrpId(grpId) }
+        }
 
+        val ssl = buildSslContext()
         when {
-            isReplay -> startReplay(fdSsl, mdSsl)
-            isProxy -> startProxy(fdSsl, mdSsl)
-            else -> startStub(fdSsl, mdSsl)
+            isReplay -> startReplay(ssl, ssl)
+            isProxy -> startProxy(ssl, ssl)
+            else -> startStub(ssl, ssl)
         }
     }
 
-    private fun buildSslContext(cert: File?, key: File?, name: String): SslContext = if (cert != null && key != null) {
-        log.info("{}: loading TLS cert={} key={}", name, cert, key)
-        val effectiveKey = TlsHelper.normalizePkcs1KeyFile(key)
-        SslContextBuilder.forServer(cert, effectiveKey).build()
+    private fun buildSslContext(): SslContext = if (certFile != null && keyFile != null) {
+        log.info("Loading TLS cert={} key={}", certFile, keyFile)
+        SslContextBuilder.forServer(certFile, keyFile).build()
     } else {
-        log.info("{}: using self-signed TLS certificate", name)
+        log.info("Using self-signed TLS certificate")
         val ssc = SelfSignedCertificate()
         SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()).build()
     }
@@ -194,6 +192,7 @@ class LeylineServer(
                     puzzleFile = puzzleFile,
                     selectedDeckOverride = { selectedDeckId },
                     deckLookup = deckLookup,
+                    cards = cardRepo,
                 ),
             )
         }

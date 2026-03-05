@@ -2,7 +2,6 @@ package leyline.debug
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import leyline.game.CardDb
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -24,6 +23,9 @@ object GameStateCollector {
     private const val MAX_SNAPSHOTS = 200
     private const val MAX_EVENTS = 500
     private val sseJson = Json { encodeDefaults = true }
+
+    /** Provider for card name lookups. Set during match startup. */
+    var cardNameLookup: ((Int) -> String?)? = null
 
     // --- Snapshots ---
 
@@ -183,7 +185,7 @@ object GameStateCollector {
                 instanceId = obj.instanceId,
                 grpId = obj.grpId,
                 type = obj.type.name.removeProtobufSuffix(),
-                name = CardDb.getCardName(obj.grpId),
+                name = cardNameLookup?.invoke(obj.grpId),
                 zoneId = obj.zoneId,
                 zoneName = zones[obj.zoneId]?.type,
                 ownerSeatId = obj.ownerSeatId,
@@ -207,7 +209,7 @@ object GameStateCollector {
             val action = a.action
             val name = if (action.instanceId != 0) {
                 objects[action.instanceId]?.name
-                    ?: CardDb.getCardName(action.grpId)
+                    ?: cardNameLookup?.invoke(action.grpId)
             } else {
                 null
             }

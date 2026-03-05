@@ -2,7 +2,8 @@ package leyline.game.mapper
 
 import forge.game.Game
 import forge.game.card.Card
-import leyline.game.CardDb
+import leyline.game.CardProtoBuilder
+import leyline.game.CardRepository
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -11,7 +12,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
 /**
  * Builds [GameObjectInfo] protobuf messages from Forge [Card] instances.
  *
- * Static card data (types, colors, abilities, base P/T) comes from [CardDb].
+ * Static card data (types, colors, abilities, base P/T) comes from [CardProtoBuilder].
  * This mapper adds live game state: current P/T, tapped, sickness, damage,
  * loyalty, combat state, and attachment info.
  *
@@ -36,10 +37,11 @@ object ObjectMapper {
         instanceId: Int,
         zoneId: Int,
         ownerSeatId: Int,
+        bridge: GameBridge,
         visibility: Visibility = Visibility.Private,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card)
-        return CardDb.buildObjectInfo(grpId)
+        val grpId = resolveGrpId(card, bridge.cards)
+        return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Card)
             .setZoneId(zoneId)
@@ -63,8 +65,8 @@ object ObjectMapper {
         bridge: GameBridge,
         game: Game,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card)
-        return CardDb.buildObjectInfo(grpId)
+        val grpId = resolveGrpId(card, bridge.cards)
+        return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Card)
             .setZoneId(zoneId)
@@ -82,8 +84,9 @@ object ObjectMapper {
         grpId: Int,
         instanceId: Int,
         ownerSeatId: Int,
+        cardProto: CardProtoBuilder,
     ): GameObjectInfo =
-        CardDb.buildObjectInfo(grpId)
+        cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Ability)
             .setZoneId(ZoneIds.STACK)
@@ -95,7 +98,7 @@ object ObjectMapper {
 
     /**
      * Apply dynamic Forge game state onto a [GameObjectInfo.Builder] already enriched
-     * with static card data from [CardDb.buildObjectInfo].
+     * with static card data from [CardProtoBuilder.buildObjectInfo].
      *
      * Static fields (types, colors, abilities, base P/T) come from the client DB.
      * This method adds: live P/T, tapped, sickness, damage, loyalty, combat, attachment.
@@ -160,8 +163,8 @@ object ObjectMapper {
         attacking: Boolean = false,
         blocking: Boolean = false,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card)
-        val builder = CardDb.buildObjectInfo(grpId)
+        val grpId = resolveGrpId(card, bridge.cards)
+        val builder = bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Card)
             .setZoneId(zoneId)
@@ -188,23 +191,23 @@ object ObjectMapper {
     }
 
     /** Resolve grpId for a card, using token-specific lookup for tokens. */
-    private fun resolveGrpId(card: Card): Int {
+    internal fun resolveGrpId(card: Card, cards: CardRepository): Int {
         if (card.isToken) {
-            return resolveTokenGrpId(card) ?: run {
+            return resolveTokenGrpId(card, cards) ?: run {
                 log.error("token grpId=0 for '{}' (forgeId={})", card.name, card.id)
                 GameBridge.FALLBACK_GRPID
             }
         }
-        return CardDb.lookupByName(card.name) ?: run {
+        return cards.findGrpIdByName(card.name) ?: run {
             log.error("grpId=0 for card '{}' (forgeId={}): not in client card DB", card.name, card.id)
             GameBridge.FALLBACK_GRPID
         }
     }
 
     /** Resolve token grpId via source card's AbilityIdToLinkedTokenGrpId mapping. */
-    private fun resolveTokenGrpId(card: Card): Int? {
+    private fun resolveTokenGrpId(card: Card, cards: CardRepository): Int? {
         val sourceCard = card.tokenSpawningAbility?.hostCard ?: return null
-        val sourceGrpId = CardDb.lookupByName(sourceCard.name) ?: return null
-        return CardDb.tokenGrpIdForCard(sourceGrpId, card.name)
+        val sourceGrpId = cards.findGrpIdByName(sourceCard.name) ?: return null
+        return cards.tokenGrpIdForCard(sourceGrpId, card.name)
     }
 }

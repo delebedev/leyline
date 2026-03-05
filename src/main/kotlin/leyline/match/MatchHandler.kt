@@ -14,7 +14,7 @@ import leyline.debug.DebugCollector
 import leyline.debug.GameStateCollector
 import leyline.debug.SessionRecorder
 import leyline.debug.Tap
-import leyline.game.CardDb
+import leyline.game.CardRepository
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
 import leyline.game.PuzzleSource
@@ -41,6 +41,8 @@ class MatchHandler(
     private val selectedDeckOverride: (() -> String?)? = null,
     /** Look up a deck's cards JSON by deckId. Injected from LeylineServer. */
     private val deckLookup: ((String) -> String?)? = null,
+    /** Card data repository — used for grpId→name in deck conversion. */
+    private val cards: CardRepository? = null,
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
@@ -156,7 +158,7 @@ class MatchHandler(
                 if (isPuzzleMatch(matchId)) {
                     // Puzzle mode: create bridge with puzzle game, skip mulligan
                     val bridge = registry.getOrCreateBridge(matchId) {
-                        GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter).also {
+                        GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter, cards = cards ?: leyline.game.InMemoryCardRepository()).also {
                             val puzzle = loadPuzzleForMatch(matchId)
                             it.startPuzzle(puzzle)
                         }
@@ -168,7 +170,7 @@ class MatchHandler(
                 } else {
                     // Constructed mode: normal flow
                     val bridge = registry.getOrCreateBridge(matchId) {
-                        GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter).also {
+                        GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter, cards = cards ?: leyline.game.InMemoryCardRepository()).also {
                             it.start(
                                 seed = matchConfig.game.seed,
                                 deckList1 = resolveSeat1Deck(),
@@ -561,7 +563,7 @@ class MatchHandler(
                 val cardObj = entry.jsonObject
                 val grpId = cardObj["cardId"]?.jsonPrimitive?.int ?: continue
                 val qty = cardObj["quantity"]?.jsonPrimitive?.int ?: continue
-                val name = CardDb.lookupNameByGrpId(grpId)
+                val name = cards?.findNameByGrpId(grpId)
                 if (name != null) {
                     sb.appendLine("$qty $name")
                 } else {

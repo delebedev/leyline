@@ -9,7 +9,6 @@ import leyline.debug.GameStateCollector
 import leyline.debug.SessionRecorder
 import leyline.debug.Tap
 import leyline.game.BundleBuilder
-import leyline.game.CardDb
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
 import leyline.game.StateMapper
@@ -214,7 +213,7 @@ class MatchSession(
         if (game != null) {
             val actionName = action.actionType.name.removeSuffix("_add3")
             val cardName = if (action.instanceId != 0) {
-                CardDb.getCardName(action.grpId)?.let { " ($it)" } ?: ""
+                bridge.cards.findNameByGrpId(action.grpId)?.let { " ($it)" } ?: ""
             } else {
                 ""
             }
@@ -247,7 +246,7 @@ class MatchSession(
                 val forgeCardId = bridge.getForgeCardId(action.instanceId)
                 // Map abilityGrpId → index in card's non-mana activated abilities.
                 // For single-ability cards (most common), index 0 is correct.
-                // TODO: correlate abilityGrpId with CardDb.abilityIds for multi-ability cards
+                // TODO: correlate abilityGrpId with CardRepository abilityIds for multi-ability cards
                 val abilityIndex = 0
                 val submitted = if (forgeCardId != null) {
                     bridge.actionBridge.submitAction(

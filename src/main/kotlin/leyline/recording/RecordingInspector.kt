@@ -2,7 +2,6 @@ package leyline.recording
 
 import kotlinx.serialization.Serializable
 import leyline.LeylinePaths
-import leyline.game.CardDb
 import java.io.File
 import java.util.Base64
 
@@ -14,6 +13,9 @@ import java.util.Base64
  * captures, and the always-on events.jsonl paired stream.
  */
 object RecordingInspector {
+
+    /** Optional card name resolver — set during server startup when CardRepository is available. */
+    var cardNameLookup: ((Int) -> String?)? = null
 
     private val recordingsRoot = LeylinePaths.RECORDINGS
 
@@ -304,7 +306,7 @@ object RecordingInspector {
 
                 val grpFromDetails = detailAsInt(ann.details["grpId"])
                 val grpId = grpFromDetails ?: instanceId?.let { instanceToGrp[it] }
-                val card = grpId?.let { CardDb.getCardName(it) ?: "grp:$it" }
+                val card = grpId?.let { cardNameLookup?.invoke(it) ?: "grp:$it" }
 
                 val key = listOf(
                     msg.msgId,

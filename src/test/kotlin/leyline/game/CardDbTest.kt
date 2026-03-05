@@ -10,39 +10,40 @@ class CardDbTest :
 
         tags(UnitTag)
 
-        afterEach {
-            CardDb.clear()
+        lateinit var repo: InMemoryCardRepository
+
+        beforeEach {
+            repo = InMemoryCardRepository()
         }
 
         // --- parseTokenGrpIds ---
 
         test("parse token grp ids single entry") {
-            val result = CardDb.parseTokenGrpIds("99866:94161")
+            val result = parseTokenGrpIds("99866:94161")
             result shouldBe mapOf(99866 to 94161)
         }
 
         test("parse token grp ids multiple entries") {
-            val result = CardDb.parseTokenGrpIds("99866:94161,175756:94156")
+            val result = parseTokenGrpIds("99866:94161,175756:94156")
             result shouldBe mapOf(99866 to 94161, 175756 to 94156)
         }
 
         test("parse token grp ids empty") {
-            CardDb.parseTokenGrpIds(null) shouldBe emptyMap<Int, Int>()
-            CardDb.parseTokenGrpIds("") shouldBe emptyMap<Int, Int>()
-            CardDb.parseTokenGrpIds("  ") shouldBe emptyMap<Int, Int>()
+            parseTokenGrpIds(null) shouldBe emptyMap<Int, Int>()
+            parseTokenGrpIds("") shouldBe emptyMap<Int, Int>()
+            parseTokenGrpIds("  ") shouldBe emptyMap<Int, Int>()
         }
 
         test("parse token grp ids malformed") {
-            val result = CardDb.parseTokenGrpIds("abc:def,99866:94161")
+            val result = parseTokenGrpIds("abc:def,99866:94161")
             result shouldBe mapOf(99866 to 94161)
         }
 
         // --- tokenGrpIdForCard ---
 
         test("token grp id for card single token") {
-            CardDb.testMode = true
-            CardDb.registerData(
-                CardDb.CardData(
+            repo.registerData(
+                CardData(
                     grpId = 1000, titleId = 1, power = "", toughness = "",
                     colors = emptyList(), types = emptyList(), subtypes = emptyList(),
                     supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
@@ -50,14 +51,13 @@ class CardDbTest :
                 ),
                 "Resolute Reinforcements",
             )
-            val result = CardDb.tokenGrpIdForCard(1000)
+            val result = repo.tokenGrpIdForCard(1000)
             result shouldBe 94161
         }
 
         test("token grp id for card multiple tokens match by name") {
-            CardDb.testMode = true
-            CardDb.registerData(
-                CardDb.CardData(
+            repo.registerData(
+                CardData(
                     grpId = 2000, titleId = 1, power = "", toughness = "",
                     colors = emptyList(), types = emptyList(), subtypes = emptyList(),
                     supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
@@ -66,22 +66,20 @@ class CardDbTest :
                 "Some Card",
             )
             // Register token names so lookup works
-            CardDb.register(94161, "Soldier")
-            CardDb.register(94156, "Cat")
+            repo.register(94161, "Soldier")
+            repo.register(94156, "Cat")
 
-            CardDb.tokenGrpIdForCard(2000, "Soldier") shouldBe 94161
-            CardDb.tokenGrpIdForCard(2000, "Cat") shouldBe 94156
+            repo.tokenGrpIdForCard(2000, "Soldier") shouldBe 94161
+            repo.tokenGrpIdForCard(2000, "Cat") shouldBe 94156
         }
 
         test("token grp id for card unknown source") {
-            CardDb.testMode = true
-            CardDb.tokenGrpIdForCard(9999).shouldBeNull()
+            repo.tokenGrpIdForCard(9999).shouldBeNull()
         }
 
         test("token grp id for card no tokens") {
-            CardDb.testMode = true
-            CardDb.registerData(
-                CardDb.CardData(
+            repo.registerData(
+                CardData(
                     grpId = 3000, titleId = 1, power = "", toughness = "",
                     colors = emptyList(), types = emptyList(), subtypes = emptyList(),
                     supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
@@ -89,6 +87,6 @@ class CardDbTest :
                 ),
                 "Plain Card",
             )
-            CardDb.tokenGrpIdForCard(3000).shouldBeNull()
+            repo.tokenGrpIdForCard(3000).shouldBeNull()
         }
     })

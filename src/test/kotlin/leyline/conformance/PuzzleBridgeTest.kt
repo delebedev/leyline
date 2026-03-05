@@ -14,7 +14,6 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.GameBootstrap
 import leyline.bridge.PlayerAction
-import leyline.game.CardDb
 import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
@@ -29,7 +28,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStage as ProtoGameStage
  *
  * Verifies:
  * - Puzzle game creation (GameType.Puzzle, age=Play)
- * - Card registration in CardDb + InstanceIdRegistry
+ * - Card registration in CardRepository + InstanceIdRegistry
  * - Engine reaches priority without mulligan
  * - Life totals and zone contents match puzzle spec
  * - Actions available after puzzle start
@@ -43,7 +42,7 @@ class PuzzleBridgeTest :
 
         beforeSpec {
             GameBootstrap.initializeCardDatabase(quiet = true)
-            CardDb.testMode = true
+            TestCardRegistry.ensureRegistered()
         }
 
         afterEach {
@@ -53,7 +52,7 @@ class PuzzleBridgeTest :
 
         fun startPuzzle(resourcePath: String): GameBridge {
             val puzzle = PuzzleSource.loadFromResource(resourcePath)
-            val b = GameBridge(bridgeTimeoutMs = 5_000)
+            val b = GameBridge(bridgeTimeoutMs = 5_000, cards = TestCardRegistry.repo)
             bridge = b
             b.priorityWaitMs = 5_000
             b.startPuzzle(puzzle)
@@ -85,10 +84,10 @@ class PuzzleBridgeTest :
             pending.shouldNotBeNull()
         }
 
-        test("puzzle cards registered in CardDb") {
-            startPuzzle("puzzles/simple-attack.pzl")
+        test("puzzle cards registered in repository") {
+            val b = startPuzzle("puzzles/simple-attack.pzl")
             // Grizzly Bears should be registered
-            val grpId = CardDb.lookupByName("Grizzly Bears")
+            val grpId = b.cards.findGrpIdByName("Grizzly Bears")
             grpId.shouldNotBeNull()
             grpId shouldBeGreaterThan 0
         }
@@ -215,7 +214,7 @@ class PuzzleBridgeTest :
             val matchId = "test-puzzle-race"
 
             // Create shared bridge — startPuzzle blocks until Main1 priority
-            val b = GameBridge(bridgeTimeoutMs = 5_000)
+            val b = GameBridge(bridgeTimeoutMs = 5_000, cards = TestCardRegistry.repo)
             bridge = b
             b.priorityWaitMs = 5_000
             b.startPuzzle(puzzle)

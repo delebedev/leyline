@@ -7,7 +7,7 @@ import leyline.frontdoor.domain.Format
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.domain.Preferences
 import leyline.frontdoor.repo.SqlitePlayerStore
-import leyline.game.CardDb
+import leyline.game.ExposedCardRepository
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 
@@ -39,9 +39,18 @@ object SeedDb {
 
         // Decks from txt files via DeckCatalog
         val cardDbPath = System.getenv("LEYLINE_CARD_DB")
-        val cardDbOk = if (cardDbPath != null) CardDb.init(File(cardDbPath)) else CardDb.init()
-        if (cardDbOk) {
-            seedDecks(store, File(projectDir, "decks"))
+        val cardDbFile = if (cardDbPath != null) {
+            File(cardDbPath).takeIf { it.exists() }
+        } else {
+            // Auto-detect from macOS Arena install
+            val raw = File(System.getProperty("user.home"))
+                .resolve("Library/Application Support/com.wizards.mtga/Downloads/Raw")
+            raw.listFiles()?.firstOrNull { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
+        }
+        if (cardDbFile != null) {
+            val cardDb = Database.connect("jdbc:sqlite:${cardDbFile.absolutePath}", "org.sqlite.JDBC")
+            val cardRepo = ExposedCardRepository(cardDb)
+            seedDecks(store, File(projectDir, "decks"), cardRepo)
         } else {
             println("CardDb not available — skipping deck import")
         }
@@ -54,9 +63,9 @@ object SeedDb {
         }
     }
 
-    private fun seedDecks(store: SqlitePlayerStore, decksDir: File) {
+    private fun seedDecks(store: SqlitePlayerStore, decksDir: File, cardRepo: ExposedCardRepository) {
         if (!decksDir.isDirectory) return
-        val loaded = DeckCatalog.scan(decksDir)
+        val loaded = DeckCatalog.scan(decksDir, cardRepo)
         if (loaded == 0) return
 
         for (catalog in DeckCatalog.all()) {

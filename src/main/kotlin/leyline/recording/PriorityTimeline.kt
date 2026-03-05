@@ -1,6 +1,6 @@
 package leyline.recording
 
-import leyline.game.CardDb
+import leyline.game.CardRepository
 import leyline.recording.RecordingDecoder.DecodedMessage
 
 /**
@@ -67,7 +67,7 @@ object PriorityTimeline {
         val phaseDistribution: Map<String, Int>,
     )
 
-    fun analyze(messages: List<DecodedMessage>): Analysis {
+    fun analyze(messages: List<DecodedMessage>, cards: CardRepository? = null): Analysis {
         val grants = mutableListOf<PriorityGrant>()
         val responses = mutableListOf<PriorityResponse>()
         val settingsChanges = mutableListOf<SettingsChange>()
@@ -133,7 +133,7 @@ object PriorityTimeline {
                         gsId = msg.gsId,
                         actionType = firstAction?.type ?: "?",
                         grpId = firstAction?.grpId ?: 0,
-                        cardName = firstAction?.grpId?.takeIf { it != 0 }?.let { CardDb.getCardName(it) },
+                        cardName = firstAction?.grpId?.takeIf { it != 0 }?.let { cards?.findNameByGrpId(it) },
                         autoPassPriority = ca.autoPassPriority,
                     ),
                 )
