@@ -10,7 +10,7 @@ import java.util.UUID
  * Netty write utilities for Front Door responses.
  *
  * Handles framing, channel writes, and [FdDebugCollector] recording.
- * Extracted from `FrontDoorService` so handlers stay protocol-agnostic.
+ * Extracted from handler code so handlers stay protocol-agnostic.
  */
 class FdResponseWriter {
 

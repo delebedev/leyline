@@ -385,7 +385,7 @@ object FdEnvelope {
 
     /**
      * Build a 6-byte outgoing FD frame header (version + type + LE payload length).
-     * Shared by FrontDoorService and FrontDoorReplayStub.
+     * Shared by FrontDoorHandler and FrontDoorReplayStub.
      */
     fun buildOutgoingHeader(payloadLength: Int): ByteArray {
         val h = ByteArray(ClientFrameDecoder.HEADER_SIZE)
@@ -400,7 +400,7 @@ object FdEnvelope {
 
     /**
      * Build a MatchCreated push notification JSON payload.
-     * Shared by FrontDoorService and FrontDoorReplayStub.
+     * Shared by FrontDoorHandler and FrontDoorReplayStub.
      */
     fun buildMatchCreatedJson(matchId: String, matchDoorHost: String, matchDoorPort: Int): String =
         buildJsonObject {

@@ -14,10 +14,13 @@ import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory
 import io.netty.handler.ssl.util.SelfSignedCertificate
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import leyline.frontdoor.FrontDoorHandler
 import leyline.frontdoor.FrontDoorReplayStub
 import leyline.frontdoor.GoldenData
-import leyline.frontdoor.PlayerDb
+import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.SqlitePlayerStore
 import leyline.frontdoor.service.DeckService
@@ -119,15 +122,26 @@ class LeylineServer(
     }
 
     private fun startStub(fdSsl: SslContext, mdSsl: SslContext) {
-        // Initialize player DB if available (run `just seed-db` first)
         val playerDbFile = File(System.getProperty("user.dir"), "data/player.db")
-        val resolvedPlayerId = if (playerDbFile.exists()) {
-            PlayerDb.init(playerDbFile)
+        val hasDb = playerDbFile.exists()
+        val resolvedPlayerId = if (hasDb) {
             playerId
         } else {
             log.warn("No player.db found — run `just seed-db` first. Using golden fallback.")
             null
         }
+
+        val db = org.jetbrains.exposed.v1.jdbc.Database.connect(
+            if (hasDb) "jdbc:sqlite:${playerDbFile.absolutePath}" else "jdbc:sqlite::memory:",
+            "org.sqlite.JDBC",
+        )
+        val store = SqlitePlayerStore(db)
+        store.createTables()
+        val deckService = DeckService(store)
+        val playerService = PlayerService(store)
+        val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort)
+        val writer = FdResponseWriter()
+        val golden = GoldenData.loadFromClasspath()
 
         val goldenFile = fdGoldenFile
         if (goldenFile != null) {
@@ -140,18 +154,6 @@ class LeylineServer(
             }
             log.info("Client Front Door (replay from {}) listening on :{}", goldenFile.name, frontDoorPort)
         } else {
-            val golden = GoldenData.loadFromClasspath()
-            val db = org.jetbrains.exposed.v1.jdbc.Database.connect(
-                "jdbc:sqlite:${playerDbFile.absolutePath}",
-                "org.sqlite.JDBC",
-            )
-            val store = SqlitePlayerStore(db)
-            store.createTables()
-            val deckService = DeckService(store)
-            val playerService = PlayerService(store)
-            val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort)
-            val writer = FdResponseWriter()
-
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
                 ch.pipeline().addLast(
@@ -170,6 +172,40 @@ class LeylineServer(
             log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
         }
 
+        // Deck lookup for match handler — crosses BC boundary via function, not import
+        val deckLookup: (String) -> String? = { deckId ->
+            store.findById(DeckId(deckId))?.let { deck ->
+                buildJsonObject {
+                    put(
+                        "MainDeck",
+                        buildJsonArray {
+                            deck.mainDeck.forEach { c ->
+                                add(
+                                    buildJsonObject {
+                                        put("cardId", c.grpId)
+                                        put("quantity", c.quantity)
+                                    },
+                                )
+                            }
+                        },
+                    )
+                    put(
+                        "Sideboard",
+                        buildJsonArray {
+                            deck.sideboard.forEach { c ->
+                                add(
+                                    buildJsonObject {
+                                        put("cardId", c.grpId)
+                                        put("quantity", c.quantity)
+                                    },
+                                )
+                            }
+                        },
+                    )
+                }.toString()
+            }
+        }
+
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor") { ch ->
             ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
             ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
@@ -182,6 +218,7 @@ class LeylineServer(
                     playtestConfig = playtestConfig,
                     puzzleFile = puzzleFile,
                     selectedDeckOverride = { selectedDeckId },
+                    deckLookup = deckLookup,
                 ),
             )
         }
