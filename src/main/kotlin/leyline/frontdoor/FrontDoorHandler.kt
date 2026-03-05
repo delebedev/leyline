@@ -57,6 +57,9 @@ class FrontDoorHandler(
 
     private val log = LoggerFactory.getLogger(FrontDoorHandler::class.java)
 
+    /** Deck selected via 622 (Event_SetDeckV2), keyed by eventName. Consumed by 603. */
+    private val selectedDeckByEvent = mutableMapOf<String, String>()
+
     private val lenientJson = Json {
         ignoreUnknownKeys = true
         isLenient = true
@@ -338,10 +341,21 @@ class FrontDoorHandler(
 
             603 -> { // Event_EnterPairing
                 val eventName = extractEventName(json)
-                log.info("Front Door: Event_EnterPairing event={}", eventName)
-                writer.sendJson(ctx, txId, """{"CurrentModule":"CreateMatch","Payload":"Success"}""")
-                // TODO: real server pushes MatchCreated notification after this
-                log.info("Front Door: Event_EnterPairing — need to push MatchCreated here")
+                val deckId = eventName?.let { selectedDeckByEvent[it] }
+                    ?: json?.let { DECK_ID_PATTERN.find(it)?.groupValues?.get(1) }
+                log.info("Front Door: Event_EnterPairing event={} deck={}", eventName, deckId)
+
+                val pid = playerId ?: PlayerId("anonymous")
+                try {
+                    if (eventName != null) onEventSelected?.invoke(eventName)
+                    if (deckId != null) onDeckSelected?.invoke(deckId)
+                    val match = matchmaking.startMatch(pid, DeckId(deckId ?: ""), eventName ?: "")
+                    writer.sendJson(ctx, txId, """{"CurrentModule":"CreateMatch","Payload":"Success"}""")
+                    sendMatchCreated(ctx, match)
+                } catch (e: IllegalArgumentException) {
+                    log.warn("Front Door: Event_EnterPairing rejected — {}", e.message)
+                    writer.sendEmpty(ctx, txId)
+                }
             }
 
             606 -> { // Event_LeavePairing
@@ -358,7 +372,11 @@ class FrontDoorHandler(
 
             622 -> { // Event_SetDeckV2
                 val eventName = extractEventName(json)
-                log.info("Front Door: Event_SetDeckV2 event={} (golden)", eventName)
+                val deckId = json?.let { DECK_ID_PATTERN.find(it)?.groupValues?.get(1) }
+                if (eventName != null && deckId != null) {
+                    selectedDeckByEvent[eventName] = deckId
+                }
+                log.info("Front Door: Event_SetDeckV2 event={} deck={}", eventName, deckId)
                 writer.sendJson(ctx, txId, golden.eventSetDeckJson)
             }
 
