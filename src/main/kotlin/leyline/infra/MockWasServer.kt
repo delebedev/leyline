@@ -9,12 +9,10 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
-import java.io.File
 import java.net.InetSocketAddress
 import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.Executors
-import javax.net.ssl.SSLContext
 
 /**
  * Mock Wizards Account System (WAS) -- HTTPS server that returns crafted JWTs
@@ -30,15 +28,15 @@ import javax.net.ssl.SSLContext
 class MockWasServer(
     private val port: Int = 9443,
     private val roles: List<String> = DEFAULT_ROLES,
-    private val certFile: File? = null,
-    private val keyFile: File? = null,
+    private val certFile: java.io.File? = null,
+    private val keyFile: java.io.File? = null,
     private val fdHost: String = "localhost:30010",
 ) {
     private val log = LoggerFactory.getLogger(MockWasServer::class.java)
     private var server: HttpsServer? = null
 
     fun start() {
-        val ssl = buildSslContext(certFile, keyFile)
+        val ssl = TlsHelper.buildJdkSslContext(certFile, keyFile)
         val srv = HttpsServer.create(InetSocketAddress(port), 0)
         srv.httpsConfigurator = HttpsConfigurator(ssl)
         srv.createContext("/auth/oauth/token") { ex -> safeHandle(ex) { handleLogin(ex) } }
@@ -167,8 +165,5 @@ class MockWasServer(
             return enc.encodeToString(header.toByteArray(Charsets.UTF_8)) +
                 "." + enc.encodeToString(payload.toByteArray(Charsets.UTF_8)) + "."
         }
-
-        private fun buildSslContext(certFile: File?, keyFile: File?): SSLContext =
-            TlsHelper.buildJdkSslContext(certFile, keyFile)
     }
 }

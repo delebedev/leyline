@@ -7,11 +7,8 @@ import org.bouncycastle.openssl.PEMKeyPair
 import org.bouncycastle.openssl.PEMParser
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
-import org.bouncycastle.util.io.pem.PemObject
-import org.bouncycastle.util.io.pem.PemWriter
 import java.io.File
 import java.io.StringReader
-import java.io.StringWriter
 import java.math.BigInteger
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -24,20 +21,17 @@ import javax.net.ssl.SSLContext
 import javax.security.auth.x500.X500Principal
 
 /**
- * TLS helpers using BouncyCastle — no openssl, keytool, or hand-rolled ASN.1.
+ * TLS helpers — PEM cert loading + self-signed generation.
  *
- * Handles:
- * - PKCS#1 → PKCS#8 key conversion (traefik-certs-dumper outputs PKCS#1)
- * - PEM cert+key → [javax.net.ssl.SSLContext] for JDK HttpsServer
- * - Self-signed cert generation for dev/test
- * - PKCS#1-aware key file normalization for Netty
+ * Used by MockWAS (JDK HttpsServer needs [SSLContext]).
+ * FD/MD use Netty's [SslContextBuilder] which reads PEM directly.
  */
 object TlsHelper {
 
     private val converter = JcaPEMKeyConverter()
 
     /**
-     * Build a JDK [javax.net.ssl.SSLContext] from PEM cert+key files, or self-signed if null.
+     * Build a JDK [SSLContext] from PEM cert+key files, or self-signed if null.
      * Accepts both PKCS#1 and PKCS#8 key files.
      */
     fun buildJdkSslContext(certFile: File?, keyFile: File?): SSLContext {
@@ -47,35 +41,6 @@ object TlsHelper {
             return buildContext(key, chain)
         }
         return buildSelfSignedContext()
-    }
-
-    /**
-     * If [keyFile] contains a PKCS#1 key, write a PKCS#8 temp file and return it.
-     * Otherwise return the original file unchanged. For Netty's SslContextBuilder.
-     */
-    fun normalizePkcs1KeyFile(keyFile: File): File {
-        val pem = keyFile.readText()
-        if (!pem.contains("BEGIN RSA PRIVATE KEY")) return keyFile
-        val converted = convertPkcs1ToPkcs8(pem)
-        val tmp = File.createTempFile("leyline-pkcs8-", ".pem")
-        tmp.deleteOnExit()
-        // Restrict permissions — private key material
-        tmp.setReadable(false, false)
-        tmp.setReadable(true, true)
-        tmp.writeText(converted)
-        return tmp
-    }
-
-    /**
-     * Convert PKCS#1 PEM string to PKCS#8 PEM string. Pass-through if already PKCS#8.
-     */
-    fun convertPkcs1ToPkcs8(pem: String): String {
-        if (!pem.contains("BEGIN RSA PRIVATE KEY")) return pem
-        val key = loadPrivateKey(pem)
-        // key.encoded is PKCS#8 (JCA standard). Write as PRIVATE KEY PEM.
-        val sw = StringWriter()
-        PemWriter(sw).use { it.writeObject(PemObject("PRIVATE KEY", key.encoded)) }
-        return sw.toString()
     }
 
     // -- Internals -----------------------------------------------------------
@@ -89,7 +54,6 @@ object TlsHelper {
         }
     }
 
-    /** Load full certificate chain (leaf + intermediates) from a PEM file. */
     private fun loadCertificateChain(certFile: File): Array<X509Certificate> {
         val certs = mutableListOf<X509Certificate>()
         val conv = JcaX509CertificateConverter()
@@ -108,7 +72,7 @@ object TlsHelper {
 
     private fun buildSelfSignedContext(): SSLContext {
         val kp = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
-        val dn = X500Principal("CN=localhost,O=Forge,C=US")
+        val dn = X500Principal("CN=localhost,O=Leyline,C=US")
         val now = Date()
         val expiry = Calendar.getInstance().apply {
             time = now
