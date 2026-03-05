@@ -27,26 +27,21 @@ just deploy         # docker-build + pull + restart on VPS
 - Application JARs + launch script (`installDist`)
 - Card scripts (`forge-gui/res/`, minus images/sounds)
 - `playtest.toml` + deck files
-- `entrypoint.sh` (PKCS#1 → PKCS#8 key conversion for Netty)
+- `entrypoint.sh`
 
 ### NOT in the image
 
 - **Card database** (222MB SQLite) — volume mount
-- **TLS certificates** — volume mount
 - Images, sounds, skins, adventure data
 
 ## Environment Variables
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `LEYLINE_CERT_PATH` | TLS cert (PEM) for FD/MD/WAS | Self-signed |
-| `LEYLINE_KEY_PATH` | TLS key (PEM) for FD/MD/WAS | Self-signed |
 | `LEYLINE_CARD_DB` | Card database SQLite path | Auto-detect macOS |
 | `LEYLINE_FD_HOST` | FrontDoor `host:port` for doorbell + MatchCreated | `localhost:30010` |
 | `LEYLINE_DEBUG` | Enable `MTGA_DEBUG` role (debug menu) | Off |
 | `JAVA_OPTS` | JVM flags | `-Xmx384m` |
-
-CLI args (`--fd-cert`, `--fd-key`, etc.) take precedence.
 
 ## Ports
 

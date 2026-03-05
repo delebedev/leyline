@@ -34,18 +34,14 @@ _java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do 
 # Read-only CLI (no port kill)
 _cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts_cli + ' -cp ' + _cp
 
-# --- Cert flags (shared by all serve-* targets) ---
-# Only passed when all four files exist; otherwise server uses self-signed.
-
-_fd_cert  := certs / "frontdoor-combined.pem"
-_fd_key   := certs / "frontdoor.key"
-_md_cert  := certs / "matchdoor-combined.pem"
-_md_key   := certs / "matchdoor.key"
+# --- TLS certs (optional — self-signed if missing) ---
+# UnityTls validates ALL certs (FD, MD, WAS). Needs mitmproxy CA certs.
+# CheckSC=0 does NOT bypass Unity's Mono TLS stack.
+_cert     := certs / "frontdoor-combined.pem"
+_key      := certs / "frontdoor.key"
 _was_cert := certs / "was-combined.pem"
 _was_key  := certs / "was.key"
-_cert_check := '[ -f "' + _fd_cert + '" ] && [ -f "' + _fd_key + '" ] && [ -f "' + _md_cert + '" ] && [ -f "' + _md_key + '" ]'
-_was_cert_flags := 'if [ -f "' + _was_cert + '" ] && [ -f "' + _was_key + '" ]; then echo "--was-cert ' + _was_cert + ' --was-key ' + _was_key + '"; fi'
-_cert_flags := '--fd-cert "' + _fd_cert + '" --fd-key "' + _fd_key + '" --md-cert "' + _md_cert + '" --md-key "' + _md_key + '"'
+_cert_flags := 'cert_flags=""; if [ -f "' + _cert + '" ] && [ -f "' + _key + '" ]; then cert_flags="--cert ' + _cert + ' --key ' + _key + '"; fi; was_flags=""; if [ -f "' + _was_cert + '" ] && [ -f "' + _was_key + '" ]; then was_flags="--was-cert ' + _was_cert + ' --was-key ' + _was_key + '"; fi; cert_flags="$cert_flags $was_flags"'
 
 # --- Build ---
 
@@ -171,12 +167,12 @@ _mtga_path := "/Users/Shared/Epic Games/MagicTheGathering/MTGA.app"
 _streaming := _mtga_path / "Contents/Resources/Data/StreamingAssets"
 _audio_dir := _streaming / "Audio/GeneratedSoundBanks/Mac"
 
-# one-time local dev setup: generate certs, patch Arena client for localhost
+# one-time local dev setup: gen certs, patch Arena client for localhost
 dev-setup:
     #!/usr/bin/env bash
     set -euo pipefail
-    # 1. Generate TLS certs if missing
-    if [ ! -f "{{_fd_cert}}" ]; then
+    # 1. Generate TLS certs if missing (UnityTls validates FD/MD certs)
+    if [ ! -f "{{_cert}}" ]; then
         echo "==> Generating TLS certs..."
         just gen-certs
     else
@@ -191,7 +187,7 @@ dev-setup:
     fi
     cp "{{project_dir}}/src/main/resources/services.conf" "$streaming/services.conf"
     echo "==> Copied localhost services.conf"
-    # 3. Ensure NPE_VO.bnk exists
+    # 2. Ensure NPE_VO.bnk exists
     audio="{{_audio_dir}}"
     if [ ! -f "$audio/NPE_VO.bnk" ]; then
         mkdir -p "$audio"
@@ -199,7 +195,7 @@ dev-setup:
             | base64 -d > "$audio/NPE_VO.bnk"
         echo "==> Created NPE_VO.bnk stub"
     fi
-    # 4. macOS defaults — skip cert check + hash verification
+    # 3. macOS defaults — skip cert check + hash verification
     defaults write com.Wizards.MtGA CheckSC -integer 0
     defaults write com.Wizards.MtGA HashFilesOnStartup -integer 0
     echo "==> macOS defaults set (CheckSC=0, HashFilesOnStartup=0)"
@@ -232,15 +228,13 @@ seed-db: (_require classpath) check-java
 serve: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
-    was_flags=$({{_was_cert_flags}})
-    {{_java}} leyline.LeylineMainKt $cert_flags $was_flags
+    {{_cert_flags}}
+    {{_java}} leyline.LeylineMainKt $cert_flags
 
 # replay-stub mode: replay captured FD session (fd-frames.jsonl), stub MD
 serve-replay-stub golden="": (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
     golden="{{golden}}"
     if [ -z "$golden" ]; then
         # Auto-detect: latest capture with fd-frames.jsonl
@@ -251,34 +245,35 @@ serve-replay-stub golden="": (_require classpath) check-java
         fi
         echo "Using golden: $golden"
     fi
+    {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags --fd-golden "$golden"
 
 # proxy mode (both doors, capture traffic for recording/analysis)
 serve-proxy: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
+    {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
 
 # replay mode (stub FD, replay recorded bytes on MD)
 serve-replay: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
+    {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags --replay {{payloads}}
 
 # puzzle mode: serve with a specific .pzl file
 serve-puzzle filename: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
+    {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags --puzzle "{{filename}}"
 
 # smoke test: start stub, launch MTGA, check for FD errors via debug API
 smoke-client timeout="60": (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
-    cert_flags=""; if {{_cert_check}}; then cert_flags="{{_cert_flags}}"; fi
+    {{_cert_flags}}
     echo "Starting stub server..."
     {{_java}} leyline.LeylineMainKt $cert_flags &
     SERVER_PID=$!

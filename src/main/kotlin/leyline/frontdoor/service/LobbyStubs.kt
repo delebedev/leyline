@@ -12,6 +12,7 @@ object LobbyStubs {
     fun netDeckFolders() = """[]"""
     fun playerInbox() = """{"Messages":[]}"""
     fun staticContent() = """{}"""
+
     /** Starter card collection: 4x each of 10 real cards. Enough for deck editor to load. */
     fun cardCollection(): String {
         // Real grpIds: Plains, Forest, Serra Angel, Llanowar Elves, Elvish Mystic,

@@ -5,7 +5,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 
-class CardDbTest :
+class CardRepositoryTest :
     FunSpec({
 
         tags(UnitTag)
