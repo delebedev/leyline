@@ -29,6 +29,9 @@ data class EventDef(
     val displayPriority: Int = 50,
     val titleLocKey: String = "Events/Event_Title_$internalName",
     val descLocKey: String = "Events/Event_Desc_$internalName",
+    /** "Queue" for Find Match events, null for Events-tab events (drafts, sealed, etc.) */
+    val bladeBehavior: String? = "Queue",
+    val eventTags: List<String> = emptyList(),
 )
 
 /**
@@ -262,6 +265,19 @@ object EventRegistry {
             displayPriority = 40,
             flags = listOf("IsArenaPlayModeEvent", "IsAiBotMatch", "SkipDeckValidation"),
         ),
+        // Non-queue events (Events tab)
+        EventDef(
+            "Jump_In_2024",
+            "Jump_In",
+            "Draft_Rebalanced",
+            formatType = "Draft",
+            displayPriority = 80,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "IsPreconEvent"),
+            bladeBehavior = null,
+            eventTags = listOf("JumpIn", "Limited"),
+            titleLocKey = "Events/Event_Title_Jump_In",
+            descLocKey = "Events/Event_Desc_Jump_In",
+        ),
     )
 
     fun findEvent(internalName: String): EventDef? =
@@ -275,8 +291,7 @@ object EventRegistry {
     private val defaultCourses = listOf(
         "Ladder" to "Complete",
         "Play" to "CreateMatch",
-        "Alchemy_Ladder" to "Complete",
-        "Explorer_Ladder" to "CreateMatch",
+        "Jump_In_2024" to "CreateMatch",
     )
 
     fun toCoursesJson(): String = buildJsonObject {
@@ -354,13 +369,13 @@ object EventRegistry {
                         put("LockedTime", "2099-01-01T00:00:00Z")
                         put("ClosedTime", "2099-01-01T00:00:00Z")
                         putJsonArray("Flags") { e.flags.forEach { add(JsonPrimitive(it)) } }
-                        putJsonArray("EventTags") {}
+                        putJsonArray("EventTags") { e.eventTags.forEach { add(JsonPrimitive(it)) } }
                         putJsonObject("PastEntries") {}
                         putJsonArray("EntryFees") {}
                         putJsonObject("EventUXInfo") {
                             put("PublicEventName", e.publicName)
                             put("DisplayPriority", e.displayPriority)
-                            put("EventBladeBehavior", "Queue")
+                            if (e.bladeBehavior != null) put("EventBladeBehavior", e.bladeBehavior)
                             put("DeckSelectFormat", e.deckSelectFormat)
                             putJsonObject("Parameters") {}
                             putJsonArray("DynamicFilterTagIds") {}
