@@ -8,6 +8,7 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * [CardRepository] backed by the client's local card database (SQLite via Exposed).
@@ -51,9 +52,9 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
 
     // --- In-memory caches ---
 
-    private val dataCache = mutableMapOf<Int, CardData?>()
-    private val grpIdToName = mutableMapOf<Int, String>()
-    private val nameToGrpId = mutableMapOf<String, Int>()
+    private val dataCache = ConcurrentHashMap<Int, CardData?>()
+    private val grpIdToName = ConcurrentHashMap<Int, String>()
+    private val nameToGrpId = ConcurrentHashMap<String, Int>()
 
     // --- CardRepository ---
 
@@ -82,22 +83,6 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
             nameToGrpId[name] = grpId
             grpIdToName[grpId] = name
         }
-    }
-
-    override fun tokenGrpIdForCard(sourceGrpId: Int, tokenName: String?): Int? {
-        val data = findByGrpId(sourceGrpId) ?: return null
-        val tokens = data.tokenGrpIds
-        if (tokens.isEmpty()) return null
-        if (tokens.size == 1) return tokens.values.first()
-        if (tokenName == null) return null
-        for ((_, tokenGrpId) in tokens) {
-            val name = findNameByGrpId(tokenGrpId) ?: run {
-                findByGrpId(tokenGrpId)
-                findNameByGrpId(tokenGrpId)
-            }
-            if (name == tokenName) return tokenGrpId
-        }
-        return null
     }
 
     // --- Queries ---

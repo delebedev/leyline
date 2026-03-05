@@ -35,20 +35,4 @@ class InMemoryCardRepository : CardRepository {
     override fun findNameByGrpId(grpId: Int): String? = grpIdToName[grpId]
 
     override fun findGrpIdByName(name: String): Int? = nameToGrpId[name]
-
-    override fun tokenGrpIdForCard(sourceGrpId: Int, tokenName: String?): Int? {
-        val data = findByGrpId(sourceGrpId) ?: return null
-        val tokens = data.tokenGrpIds
-        if (tokens.isEmpty()) return null
-        if (tokens.size == 1) return tokens.values.first()
-        if (tokenName == null) return null
-        for ((_, tokenGrpId) in tokens) {
-            val name = findNameByGrpId(tokenGrpId) ?: run {
-                findByGrpId(tokenGrpId)
-                findNameByGrpId(tokenGrpId)
-            }
-            if (name == tokenName) return tokenGrpId
-        }
-        return null
-    }
 }
