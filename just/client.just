@@ -2,19 +2,23 @@
 # Imported by justfile — all variables available from parent.
 
 # (re)launch MTGA client — kills existing instance first
+[group('client')]
 mtga:
     @pkill -9 -f MTGA 2>/dev/null || true; sleep 1; open -a "MTGA"
 
 # launch client with log-driven automation (screenshots + cliclick)
+[group('client')]
 client-auto mode="--proxy" timeout="120":
     @bash scripts/client-auto.sh {{mode}} {{timeout}}
 
 # synthetic mouse click (works on macOS 15+ / Unity via timestamp fix)
 # NOTE: must activate MTGA window first — Unity ignores clicks on background windows
+[group('client')]
 click x y action="click":
     @osascript -e 'tell application "MTGA" to activate' 2>/dev/null; sleep 0.3; {{project_dir}}/tools/click {{x}} {{y}} {{action}}
 
 # screenshot game client window (by window ID, JPEG q60, max 1280px)
+[group('client')]
 capture-screenshot out="/tmp/mtga.jpg":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -27,6 +31,7 @@ capture-screenshot out="/tmp/mtga.jpg":
     echo "{{out}} ($(du -h {{out}} | cut -f1))"
 
 # one-shot client state from Player.log (no server needed)
+[group('client')]
 client-state:
     #!/usr/bin/env bash
     log="$HOME/Library/Logs/Wizards Of The Coast/MTGA/Player.log"
@@ -47,6 +52,7 @@ client-state:
     tail -5 "$log"
 
 # kill server (all ports) + MTGA client — clean slate for next run
+[group('client')]
 stop:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -60,9 +66,11 @@ stop:
     echo "Stopped."
 
 # composable MTGA automation CLI (tools/arena is the standalone entry point)
+[group('client')]
 arena *args: (_require classpath) check-java
     @{{project_dir}}/tools/arena {{args}}
 
 # tail Player.log for client-side exceptions (standalone, no server)
+[group('client')]
 watch-client: (_require classpath) check-java
     @{{_cli}} leyline.debug.WatchClientLogKt

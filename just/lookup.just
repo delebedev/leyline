@@ -5,6 +5,7 @@ arena_db := env("HOME", "/tmp") / "Library/Application Support/com.wizards.mtga/
 cardsfolder := project_dir / "forge/forge-gui/res/cardsfolder"
 
 # grpId → card name (accepts multiple IDs)
+[group('lookup')]
 card +ids:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -15,6 +16,7 @@ card +ids:
     sqlite3 "$db" "SELECT c.GrpId, l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE c.GrpId IN ($in_clause);"
 
 # abilityId → owning card + ability text
+[group('lookup')]
 ability id:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -26,6 +28,7 @@ ability id:
     sqlite3 "$db" "SELECT l.Loc FROM Abilities a JOIN Localizations_enUS l ON a.TextId = l.LocId WHERE a.Id = {{id}};"
 
 # card name → grpId (exact match)
+[group('lookup')]
 card-grp name:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -35,6 +38,7 @@ card-grp name:
     sqlite3 "$db" "SELECT c.GrpId, l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE l.Formatted = 1 AND l.Loc = '$escaped';"
 
 # card name → Forge script path (fuzzy: lowercased, spaces/punctuation → underscore)
+[group('lookup')]
 card-script name:
     #!/usr/bin/env bash
     set -euo pipefail
