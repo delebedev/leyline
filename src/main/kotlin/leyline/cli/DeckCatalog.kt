@@ -1,12 +1,12 @@
 package leyline.cli
 
-import leyline.game.CardDb
+import leyline.game.CardRepository
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.UUID
 
 /**
- * Scans deck txt files at boot, resolves card names to grpIds via [leyline.game.CardDb],
+ * Scans deck txt files at boot, resolves card names to grpIds via [CardRepository],
  * and provides deck data for FrontDoor StartHook injection + match-time lookup.
  */
 object DeckCatalog {
@@ -29,13 +29,17 @@ object DeckCatalog {
     fun all(): List<CatalogDeck> = decks.toList()
     fun findById(deckId: String): CatalogDeck? = byId[deckId]
 
+    /** The [CardRepository] used for the last [scan] — stored for [parseFile] calls. */
+    private var cardRepo: CardRepository? = null
+
     /**
-     * Scan [decksDir] for `*.txt` files, parse each, resolve card names via CardDb.
+     * Scan [decksDir] for `*.txt` files, parse each, resolve card names via [cards].
      * Returns number of decks loaded. Skips files with unresolvable cards (with warnings).
      */
-    fun scan(decksDir: File): Int {
+    fun scan(decksDir: File, cards: CardRepository): Int {
         decks.clear()
         byId.clear()
+        cardRepo = cards
 
         if (!decksDir.isDirectory) {
             log.warn("DeckCatalog: decks dir not found: {}", decksDir)
@@ -55,6 +59,7 @@ object DeckCatalog {
     }
 
     private fun parseFile(file: File): CatalogDeck? {
+        val cards = cardRepo ?: error("DeckCatalog: scan() must be called before parseFile()")
         val lines = file.readLines().map { it.trim() }.filter { it.isNotEmpty() }
         val mainDeck = mutableListOf<DeckCard>()
         val sideboard = mutableListOf<DeckCard>()
@@ -78,7 +83,7 @@ object DeckCatalog {
 
             val qty = match.groupValues[1].toInt()
             val cardName = match.groupValues[2].trim()
-            val grpId = CardDb.lookupByName(cardName)
+            val grpId = cards.findGrpIdByName(cardName)
             if (grpId == null) {
                 log.warn("DeckCatalog: unknown card '{}' in {}", cardName, file.name)
                 skipped++
@@ -103,8 +108,8 @@ object DeckCatalog {
         val name = fileName.removeSuffix(".txt").replace('-', ' ').replaceFirstChar { it.uppercase() }
         // tileId = grpId of first non-land card (heuristic: first card that isn't a basic land name)
         val tileId = mainDeck.firstOrNull { card ->
-            val cardName = CardDb.getCardName(card.cardId)
-            cardName != null && cardName !in BASIC_LAND_NAMES
+            val cn = cards.findNameByGrpId(card.cardId)
+            cn != null && cn !in BASIC_LAND_NAMES
         }?.cardId ?: mainDeck.first().cardId
 
         return CatalogDeck(

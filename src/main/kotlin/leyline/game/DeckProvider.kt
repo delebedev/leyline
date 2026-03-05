@@ -6,10 +6,10 @@ import org.slf4j.LoggerFactory
  * Provides precon decks and deals shuffled hands with per-card grpIds.
  *
  * Each seat gets a fixed 60-card deck. [dealHand] shuffles and draws 7,
- * resolving card names → client grpIds via [CardDb.lookupByName].
+ * resolving card names → client grpIds via [CardRepository.findGrpIdByName].
  * Cards not found in the client DB get a fallback grpId of 0 (face-down).
  */
-class DeckProvider {
+class DeckProvider(private val cards: CardRepository) {
     private val log = LoggerFactory.getLogger(DeckProvider::class.java)
 
     companion object {
@@ -45,7 +45,7 @@ class DeckProvider {
 
     /** Resolve a card name to its client grpId, with fallback. */
     private fun resolveGrpId(cardName: String): Int {
-        val grpId = CardDb.lookupByName(cardName)
+        val grpId = cards.findGrpIdByName(cardName)
         if (grpId == null) {
             log.warn("Card '{}' not found in client DB, using fallback grpId={}", cardName, FALLBACK_GRPID)
             return FALLBACK_GRPID

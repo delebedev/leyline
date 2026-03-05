@@ -3,7 +3,6 @@ package leyline.conformance
 import forge.game.Game
 import forge.game.zone.ZoneType
 import leyline.bridge.GameBootstrap
-import leyline.game.CardDb
 import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
@@ -65,7 +64,7 @@ class MatchFlowHarness(
             paceDelayMs = 0,
         )
 
-        bridge = GameBridge(bridgeTimeoutMs = 5_000L, messageCounter = session.counter)
+        bridge = GameBridge(bridgeTimeoutMs = 5_000L, messageCounter = session.counter, cards = TestCardRegistry.repo)
         bridge.priorityWaitMs = 2_000L
         bridge.start(seed = seed, deckList = deckList)
 
@@ -123,7 +122,7 @@ class MatchFlowHarness(
             paceDelayMs = 0,
         )
 
-        bridge = GameBridge(bridgeTimeoutMs = 5_000L, messageCounter = session.counter)
+        bridge = GameBridge(bridgeTimeoutMs = 5_000L, messageCounter = session.counter, cards = TestCardRegistry.repo)
         bridge.priorityWaitMs = 2_000L
         bridge.startPuzzle(puzzle)
 
@@ -156,7 +155,7 @@ class MatchFlowHarness(
         val msg = performAction {
             actionType = ActionType.Play_add3
             instanceId = bridge.getOrAllocInstanceId(land.id)
-            grpId = CardDb.lookupByName(land.name) ?: 0
+            grpId = bridge.cards.findGrpIdByName(land.name) ?: 0
         }
 
         session.onPerformAction(msg)
@@ -173,7 +172,7 @@ class MatchFlowHarness(
         val msg = performAction {
             actionType = ActionType.Cast
             instanceId = bridge.getOrAllocInstanceId(creature.id)
-            grpId = CardDb.lookupByName(creature.name) ?: 0
+            grpId = bridge.cards.findGrpIdByName(creature.name) ?: 0
         }
 
         session.onPerformAction(msg)
@@ -328,7 +327,7 @@ class MatchFlowHarness(
         val msg = performAction {
             actionType = ActionType.Cast
             instanceId = bridge.getOrAllocInstanceId(card.id)
-            grpId = CardDb.lookupByName(card.name) ?: 0
+            grpId = bridge.cards.findGrpIdByName(card.name) ?: 0
         }
 
         session.onPerformAction(msg)

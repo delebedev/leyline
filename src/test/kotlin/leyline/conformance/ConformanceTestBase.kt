@@ -69,7 +69,7 @@ open class ConformanceTestBase {
         }
         val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
         testCounter = counter
-        val b = GameBridge(messageCounter = counter)
+        val b = GameBridge(messageCounter = counter, cards = TestCardRegistry.repo)
         bridge = b
         b.start(seed = seed, deckList = deckList)
         b.submitKeep(1)
@@ -103,7 +103,7 @@ open class ConformanceTestBase {
     ): Triple<GameBridge, Game, MessageCounter> {
         val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
         testCounter = counter
-        val b = GameBridge(messageCounter = counter)
+        val b = GameBridge(messageCounter = counter, cards = TestCardRegistry.repo)
         bridge = b
 
         val puzzle = PuzzleSource.loadFromText(puzzleText)
@@ -133,7 +133,7 @@ open class ConformanceTestBase {
     ): Triple<GameBridge, Game, MessageCounter> {
         val counter = MessageCounter(initialGsId = 20, initialMsgId = 0)
         testCounter = counter
-        val b = GameBridge(messageCounter = counter)
+        val b = GameBridge(messageCounter = counter, cards = TestCardRegistry.repo)
         bridge = b
 
         val game = GameBootstrap.createGame()
@@ -141,7 +141,7 @@ open class ConformanceTestBase {
 
         board(game, game.humanPlayer, game.aiPlayer)
 
-        // Register all cards on the board in CardDb + InstanceIdRegistry
+        // Register all cards on the board in CardRepository + InstanceIdRegistry
         for (player in game.players) {
             for (zone in listOf(ZoneType.Battlefield, ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Library)) {
                 for (card in player.getZone(zone).cards) {

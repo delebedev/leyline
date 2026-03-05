@@ -6,7 +6,6 @@ import com.google.protobuf.MessageOrBuilder
 import com.google.protobuf.util.JsonFormat
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import leyline.game.CardDb
 import leyline.game.GameBridge
 import leyline.game.mapper.ZoneIds
 import org.slf4j.LoggerFactory
@@ -162,7 +161,7 @@ object DebugCollector {
                     forgeZone = card?.zone?.zoneType?.name ?: "?",
                     protoZone = protoZoneId?.let { protoZoneName(it) },
                     protoZoneId = protoZoneId,
-                    grpId = CardDb.lookupByName(card?.name ?: "") ?: 0,
+                    grpId = bridge.cards.findGrpIdByName(card?.name ?: "") ?: 0,
                 )
             }
         }

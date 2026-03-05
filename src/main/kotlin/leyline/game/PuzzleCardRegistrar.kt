@@ -10,15 +10,15 @@ import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Registers puzzle cards in [CardDb] at runtime.
+ * Registers puzzle cards in an [InMemoryCardRepository] at runtime.
  *
- * Derives [CardDb.CardData] from Forge's in-memory [forge.card.CardRules] —
+ * Derives [CardData] from Forge's in-memory [forge.card.CardRules] —
  * no client SQLite needed. Synthetic grpIds start at 300000 (above test range
  * at 200000 and real Arena grpIds which reach ~100000+).
  *
  * Production counterpart of the test-only `CardDataDeriver` / `TestCardRegistry`.
  */
-object PuzzleCardRegistrar {
+class PuzzleCardRegistrar(private val repo: InMemoryCardRepository) {
     private val log = LoggerFactory.getLogger(PuzzleCardRegistrar::class.java)
 
     private val nextGrpId = AtomicInteger(300000)
@@ -29,14 +29,14 @@ object PuzzleCardRegistrar {
     private val nameToGrpId = mutableMapOf<String, Int>()
 
     /**
-     * Ensure a card is registered in [CardDb]. Idempotent.
+     * Ensure a card is registered in the repository. Idempotent.
      * If already known, returns existing grpId.
      * Otherwise derives CardData from the live Forge [Card] and registers it.
      */
     fun ensureCardRegistered(card: Card): Int {
-        CardDb.lookupByName(card.name)?.let { return it }
+        repo.findGrpIdByName(card.name)?.let { return it }
         val data = fromForgeCard(card)
-        CardDb.registerData(data, card.name)
+        repo.registerData(data, card.name)
         log.debug("Registered puzzle card '{}' grpId={}", card.name, data.grpId)
         return data.grpId
     }
@@ -46,7 +46,7 @@ object PuzzleCardRegistrar {
      * from the paper card database if needed.
      */
     fun ensureCardRegisteredByName(cardName: String): Int {
-        CardDb.lookupByName(cardName)?.let { return it }
+        repo.findGrpIdByName(cardName)?.let { return it }
         val db = FModel.getMagicDb()?.commonCards ?: return 0
         val paperCard = db.getCard(cardName)
             ?: run {
@@ -61,8 +61,8 @@ object PuzzleCardRegistrar {
         return ensureCardRegistered(tempCard)
     }
 
-    /** Derive [CardDb.CardData] from a live Forge [Card]. */
-    private fun fromForgeCard(card: Card): CardDb.CardData {
+    /** Derive [CardData] from a live Forge [Card]. */
+    private fun fromForgeCard(card: Card): CardData {
         val name = card.name
         val grpId = nameToGrpId.getOrPut(name) { nextGrpId.getAndIncrement() }
         val titleId = nextTitleId.getAndIncrement()
@@ -88,7 +88,7 @@ object PuzzleCardRegistrar {
         val manaCost = deriveManaCost(rules.manaCost)
         val abilityIds = deriveAbilityIds(card)
 
-        return CardDb.CardData(
+        return CardData(
             grpId = grpId,
             titleId = titleId,
             power = power,
@@ -125,52 +125,52 @@ object PuzzleCardRegistrar {
         return (0 until totalCount).map { nextAbilityGrpId.getAndIncrement() to 0 }
     }
 
-    // ---- Static mapping tables ----
+    companion object {
+        private val CORE_TYPE_MAP = mapOf(
+            CoreType.Artifact to 1, CoreType.Creature to 2, CoreType.Enchantment to 3,
+            CoreType.Instant to 4, CoreType.Land to 5, CoreType.Phenomenon to 6,
+            CoreType.Plane to 7, CoreType.Planeswalker to 8, CoreType.Scheme to 9,
+            CoreType.Sorcery to 10, CoreType.Kindred to 11, CoreType.Vanguard to 12,
+            CoreType.Dungeon to 13, CoreType.Battle to 14,
+        )
 
-    private val CORE_TYPE_MAP = mapOf(
-        CoreType.Artifact to 1, CoreType.Creature to 2, CoreType.Enchantment to 3,
-        CoreType.Instant to 4, CoreType.Land to 5, CoreType.Phenomenon to 6,
-        CoreType.Plane to 7, CoreType.Planeswalker to 8, CoreType.Scheme to 9,
-        CoreType.Sorcery to 10, CoreType.Kindred to 11, CoreType.Vanguard to 12,
-        CoreType.Dungeon to 13, CoreType.Battle to 14,
-    )
+        private val SUPERTYPE_MAP = mapOf(
+            Supertype.Basic to 1,
+            Supertype.Legendary to 2,
+            Supertype.Ongoing to 3,
+            Supertype.Snow to 4,
+            Supertype.World to 5,
+        )
 
-    private val SUPERTYPE_MAP = mapOf(
-        Supertype.Basic to 1,
-        Supertype.Legendary to 2,
-        Supertype.Ongoing to 3,
-        Supertype.Snow to 4,
-        Supertype.World to 5,
-    )
+        private val SUBTYPE_MAP = mapOf(
+            "forest" to 29, "island" to 43, "mountain" to 49, "plains" to 54, "swamp" to 69,
+            "angel" to 1, "beast" to 10, "bird" to 12, "cat" to 14, "cleric" to 16,
+            "construct" to 17, "demon" to 19, "dragon" to 21, "druid" to 23,
+            "elemental" to 25, "elf" to 27, "equipment" to 28, "giant" to 32,
+            "goblin" to 34, "golem" to 35, "human" to 39, "insect" to 42,
+            "knight" to 45, "merfolk" to 46, "ogre" to 50, "phoenix" to 53,
+            "rogue" to 56, "shaman" to 61, "skeleton" to 63, "soldier" to 64,
+            "spirit" to 68, "vampire" to 74, "wall" to 76, "warrior" to 77,
+            "wizard" to 78, "wolf" to 79, "zombie" to 81,
+            "aura" to 6, "vehicle" to 331, "saga" to 347, "treasure" to 343,
+        )
 
-    private val SUBTYPE_MAP = mapOf(
-        "forest" to 29, "island" to 43, "mountain" to 49, "plains" to 54, "swamp" to 69,
-        "angel" to 1, "beast" to 10, "bird" to 12, "cat" to 14, "cleric" to 16,
-        "construct" to 17, "demon" to 19, "dragon" to 21, "druid" to 23,
-        "elemental" to 25, "elf" to 27, "equipment" to 28, "giant" to 32,
-        "goblin" to 34, "golem" to 35, "human" to 39, "insect" to 42,
-        "knight" to 45, "merfolk" to 46, "ogre" to 50, "phoenix" to 53,
-        "rogue" to 56, "shaman" to 61, "skeleton" to 63, "soldier" to 64,
-        "spirit" to 68, "vampire" to 74, "wall" to 76, "warrior" to 77,
-        "wizard" to 78, "wolf" to 79, "zombie" to 81,
-        "aura" to 6, "vehicle" to 331, "saga" to 347, "treasure" to 343,
-    )
+        private val SHARD_MAP = mapOf(
+            ManaCostShard.WHITE to ManaColor.White_afc9,
+            ManaCostShard.BLUE to ManaColor.Blue_afc9,
+            ManaCostShard.BLACK to ManaColor.Black_afc9,
+            ManaCostShard.RED to ManaColor.Red_afc9,
+            ManaCostShard.GREEN to ManaColor.Green_afc9,
+            ManaCostShard.COLORLESS to ManaColor.Colorless_afc9,
+            ManaCostShard.X to ManaColor.X,
+        )
 
-    private val SHARD_MAP = mapOf(
-        ManaCostShard.WHITE to ManaColor.White_afc9,
-        ManaCostShard.BLUE to ManaColor.Blue_afc9,
-        ManaCostShard.BLACK to ManaColor.Black_afc9,
-        ManaCostShard.RED to ManaColor.Red_afc9,
-        ManaCostShard.GREEN to ManaColor.Green_afc9,
-        ManaCostShard.COLORLESS to ManaColor.Colorless_afc9,
-        ManaCostShard.X to ManaColor.X,
-    )
-
-    private val BASIC_LAND_ABILITIES = listOf(
-        "plains" to 1001,
-        "island" to 1002,
-        "swamp" to 1003,
-        "mountain" to 1004,
-        "forest" to 1005,
-    )
+        private val BASIC_LAND_ABILITIES = listOf(
+            "plains" to 1001,
+            "island" to 1002,
+            "swamp" to 1003,
+            "mountain" to 1004,
+            "forest" to 1005,
+        )
+    }
 }

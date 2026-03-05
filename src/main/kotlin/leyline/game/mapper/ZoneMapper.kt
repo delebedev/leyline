@@ -2,7 +2,6 @@ package leyline.game.mapper
 
 import forge.game.Game
 import forge.game.player.Player
-import leyline.game.CardDb
 import leyline.game.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -53,7 +52,7 @@ object ZoneMapper {
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             handBuilder.addObjectInstanceIds(instanceId)
             if (canSeeHand) {
-                gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, handZoneId, seatId))
+                gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, handZoneId, seatId, bridge))
             }
         }
         zones.add(handBuilder.build())
@@ -76,7 +75,7 @@ object ZoneMapper {
         for (card in gy.cards) {
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             gyBuilder.addObjectInstanceIds(instanceId)
-            gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, gyZoneId, seatId, Visibility.Public))
+            gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, gyZoneId, seatId, bridge, Visibility.Public))
         }
         zones.add(gyBuilder.build())
     }
@@ -107,7 +106,7 @@ object ZoneMapper {
             val instanceId = bridge.getOrAllocInstanceId(card.id)
             handBuilder.addObjectInstanceIds(instanceId)
             if (canSeeHand) {
-                gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, handZoneId, seatId))
+                gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, handZoneId, seatId, bridge))
             }
         }
         handBuilder.addViewers(seatId)
@@ -188,10 +187,10 @@ object ZoneMapper {
             // Use a separate instance ID for the ability on the stack
             val abilityInstanceId = bridge.getOrAllocInstanceId(sourceCard.id + STACK_ABILITY_ID_OFFSET)
             val ownerSeatId = if (sourceCard.owner == human) 1 else 2
-            val grpId = CardDb.lookupByName(sourceCard.name) ?: GameBridge.FALLBACK_GRPID
+            val grpId = bridge.cards.findGrpIdByName(sourceCard.name) ?: GameBridge.FALLBACK_GRPID
 
             zoneBuilder.addObjectInstanceIds(abilityInstanceId)
-            gameObjects.add(ObjectMapper.buildAbilityObject(grpId, abilityInstanceId, ownerSeatId))
+            gameObjects.add(ObjectMapper.buildAbilityObject(grpId, abilityInstanceId, ownerSeatId, bridge.cardProto))
         }
         zones.add(zoneBuilder.build())
     }
