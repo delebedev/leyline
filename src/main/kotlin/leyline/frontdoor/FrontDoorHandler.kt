@@ -48,6 +48,8 @@ class FrontDoorHandler(
     private val fdCollector: FdDebugCollector? = null,
     /** Called when client sends 612 with a deckId — writes to shared holder. */
     private val onDeckSelected: ((String) -> Unit)? = null,
+    /** Called when client sends 612 with an eventName — writes to shared holder. */
+    private val onEventSelected: ((String) -> Unit)? = null,
 ) : ChannelInboundHandlerAdapter() {
 
     private val log = LoggerFactory.getLogger(FrontDoorHandler::class.java)
@@ -179,6 +181,7 @@ class FrontDoorHandler(
                 val deckId = json?.let { DECK_ID_PATTERN.find(it)?.groupValues?.get(1) }
                 val eventName = json?.let { EVENT_NAME_PATTERN.find(it)?.groupValues?.get(1) } ?: "AIBotMatch"
                 if (deckId != null) onDeckSelected?.invoke(deckId)
+                onEventSelected?.invoke(eventName)
                 val pid = playerId ?: PlayerId("anonymous")
                 val match = matchmaking.startAiMatch(pid, DeckId(deckId ?: ""), eventName)
                 log.info("Front Door: Event_AiBotMatch deckId={} event={} → ack + pushing MatchCreated", deckId, eventName)

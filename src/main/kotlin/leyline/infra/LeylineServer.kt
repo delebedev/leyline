@@ -81,6 +81,10 @@ class LeylineServer(
     @Volatile
     var selectedDeckId: String? = null
 
+    /** Shared event selection: FD writes (on 612), MH reads (on ConnectReq). */
+    @Volatile
+    var selectedEventName: String? = null
+
     private val bossGroup = NioEventLoopGroup(1)
     private val workerGroup = NioEventLoopGroup()
 
@@ -177,6 +181,7 @@ class LeylineServer(
                         golden = golden,
                         fdCollector = fdCollector,
                         onDeckSelected = { selectedDeckId = it },
+                        onEventSelected = { selectedEventName = it },
                     ),
                 )
             }
@@ -205,6 +210,7 @@ class LeylineServer(
                     matchConfig = matchConfig,
                     puzzleFile = puzzleFile,
                     selectedDeckOverride = { selectedDeckId },
+                    selectedEventOverride = { selectedEventName },
                     deckLookup = deckLookup,
                     cards = cardRepo,
                     debugCollector = debugCollector,
