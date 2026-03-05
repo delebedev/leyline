@@ -124,10 +124,4 @@ class PuzzleHandler(
         }
         error("Puzzle not found: $puzzleName (looked in ${puzzlesDir.absolutePath})")
     }
-
-    private fun findLeylineDir(): File {
-        val cwd = File(System.getProperty("user.dir"))
-        if (File(cwd, "decks").isDirectory) return cwd
-        return cwd
-    }
 }

@@ -372,11 +372,4 @@ class MatchHandler(
         val file = MatchConfig.resolveDeckFile(deckName, projectDir)
         return file.readText()
     }
-
-    private fun findLeylineDir(): File {
-        val cwd = File(System.getProperty("user.dir"))
-        if (File(cwd, "decks").isDirectory) return cwd
-        // standalone repo — CWD is project root
-        return cwd
-    }
 }
