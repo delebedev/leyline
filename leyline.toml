@@ -1,0 +1,38 @@
+# Leyline — Server Configuration
+#
+# Changes take effect on next server start.
+# Decks are managed through the Arena client UI (stored in player.db).
+
+[server]
+# Network ports. CLI args (--fd-port, etc.) override these.
+#fd_port = 30010
+#md_port = 30003
+#debug_port = 8090
+#was_port = 9443
+#management_port = 8091
+
+# Bridge timeout — how long the engine waits for a client response (ms).
+#bridge_timeout_ms = 120000
+
+# Player database path (relative to CWD or absolute).
+#player_db = "data/player.db"
+
+[game]
+# RNG seed for deterministic shuffles. Remove or comment out for random.
+#seed = 2
+
+# Which seat wins the die roll and goes first (1 = human, 2 = AI).
+#die_roll_winner = 1
+
+# Skip mulligan phase — auto-keep opening hand to speed up playtesting.
+#skip_mulligan = true
+
+# Send decision timer (rope) on priority grant. Disable to suppress countdown.
+timer = false
+
+# AI opponent deck (name from player.db). Omit for mirror match (same as seat 1).
+#ai_deck = "Green stompy"
+
+[ai]
+# AI animation speed. 2 = twice as fast, 1 = default, 0 = instant.
+speed = 1.0

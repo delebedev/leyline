@@ -127,7 +127,8 @@ class PuzzleHandler(
 
     private fun findLeylineDir(): File {
         val cwd = File(System.getProperty("user.dir"))
-        if (File(cwd, "decks").isDirectory) return cwd
+        // Heuristic: project root has puzzles/ or justfile
+        if (File(cwd, "puzzles").isDirectory || File(cwd, "justfile").exists()) return cwd
         return cwd
     }
 }

@@ -5,7 +5,6 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
-import leyline.game.DeckProvider
 import leyline.game.GsmBuilder
 import leyline.game.InMemoryCardRepository
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -121,34 +120,6 @@ class ProtocolTest :
             cards.findGrpIdByName("Llanowar Elves") shouldBe 93940
             cards.findGrpIdByName("Serra Angel") shouldBe 93860
             cards.findGrpIdByName("Nonexistent Card").shouldBeNull()
-        }
-
-        test("deck provider deals seven cards") {
-            // Register all precon cards so findGrpIdByName works (in-memory path)
-            cards.register(93940, "Llanowar Elves")
-            cards.register(93941, "Elvish Mystic")
-            cards.register(93942, "Giant Growth")
-            cards.register(95189, "Forest")
-
-            val provider = DeckProvider(cards)
-            val hand = provider.dealHand(1)
-
-            hand.size shouldBe 7
-            // With 4 different card types in the deck, shuffled hand should not all be the same
-            // (statistically near-impossible with 20+4+4+32 distribution)
-            hand.all { it > 0 }.shouldBeTrue()
-        }
-
-        test("deck provider full deck has 60 cards") {
-            cards.register(93940, "Llanowar Elves")
-            cards.register(93941, "Elvish Mystic")
-            cards.register(93942, "Giant Growth")
-            cards.register(95189, "Forest")
-
-            val provider = DeckProvider(cards)
-            val deck = provider.getDeckGrpIds(1)
-
-            deck.size shouldBe 60
         }
 
         test("build deck message from grp id list") {

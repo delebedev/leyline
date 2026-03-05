@@ -38,6 +38,8 @@ class MatchHandler(
     private val selectedDeckOverride: (() -> String?)? = null,
     /** Look up a deck's cards JSON by deckId. Injected from LeylineServer. */
     private val deckLookup: ((String) -> String?)? = null,
+    /** Look up a deck's cards JSON by name. Used for AI deck from config. */
+    private val deckLookupByName: ((String) -> String?)? = null,
     /** Card data repository — used for grpId→name in deck conversion. */
     private val cards: CardRepository? = null,
     /** Protocol message collector for debug panel. */
@@ -182,7 +184,7 @@ class MatchHandler(
                             it.start(
                                 seed = matchConfig.game.seed,
                                 deckList1 = resolveSeat1Deck(),
-                                deckList2 = loadDeckFromConfig(matchConfig.decks.seat2),
+                                deckList2 = resolveSeat2Deck(),
                             )
                         }
                     }
@@ -328,20 +330,39 @@ class MatchHandler(
     }
 
     /**
-     * Resolve seat 1 deck: if FD captured a deckId from 612, look it up via [deckLookup]
-     * and convert grpIds → card names for Forge. Otherwise fall back to matchConfig.
+     * Resolve seat 1 deck: FD captured a deckId from 612 → look it up in player.db
+     * and convert grpIds → card names for Forge engine.
      */
     private fun resolveSeat1Deck(): String {
         val deckId = selectedDeckOverride?.invoke()
         if (deckId != null && deckLookup != null) {
             val cardsJson = deckLookup.invoke(deckId)
             if (cardsJson != null) {
-                log.info("Match Door: using deck from DB for deckId={}", deckId)
+                log.info("Match Door: seat 1 deck from DB deckId={}", deckId)
                 return convertArenaCardsToDeckText(cardsJson)
             }
-            log.warn("Match Door: deckId {} not in DB, falling back to config", deckId)
+            log.warn("Match Door: deckId {} not in DB", deckId)
         }
-        return loadDeckFromConfig(matchConfig.decks.seat1)
+        error("No deck selected for seat 1 — select a deck in the Arena client before queuing")
+    }
+
+    /**
+     * Resolve seat 2 (AI) deck: look up by name from player.db.
+     * Falls back to seat 1's deck (mirror match) if AI deck not found.
+     */
+    private fun resolveSeat2Deck(): String {
+        // Try AI deck from config (name-based lookup)
+        val aiDeckName = matchConfig.game.aiDeck
+        if (aiDeckName != null && deckLookupByName != null) {
+            val cardsJson = deckLookupByName.invoke(aiDeckName)
+            if (cardsJson != null) {
+                log.info("Match Door: seat 2 deck from DB name={}", aiDeckName)
+                return convertArenaCardsToDeckText(cardsJson)
+            }
+            log.warn("Match Door: AI deck '{}' not in DB, mirroring seat 1", aiDeckName)
+        }
+        // Default: mirror seat 1
+        return resolveSeat1Deck()
     }
 
     /** Parse Arena cards JSON → Forge deck text (qty + name per line). */
@@ -364,19 +385,5 @@ class MatchHandler(
             }
         }
         return sb.toString()
-    }
-
-    /** Load deck text from a config deck name (resolved from decks/ dir). */
-    private fun loadDeckFromConfig(deckName: String): String {
-        val projectDir = findLeylineDir()
-        val file = MatchConfig.resolveDeckFile(deckName, projectDir)
-        return file.readText()
-    }
-
-    private fun findLeylineDir(): File {
-        val cwd = File(System.getProperty("user.dir"))
-        if (File(cwd, "decks").isDirectory) return cwd
-        // standalone repo — CWD is project root
-        return cwd
     }
 }
