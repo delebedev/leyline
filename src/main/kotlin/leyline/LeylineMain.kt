@@ -3,9 +3,9 @@ package leyline
 import leyline.config.MatchConfig
 import leyline.debug.DebugServer
 import leyline.debug.PlayerLogWatcher
-import leyline.frontdoor.DeckValidator
 import leyline.game.ExposedCardRepository
 import leyline.infra.LeylineServer
+import leyline.infra.ManagementServer
 import leyline.infra.MockWasServer
 import java.io.File
 
@@ -18,15 +18,22 @@ import java.io.File
  * TLS: self-signed certs by default (needs mitmproxy CA certs for UnityTls validation).
  * MockWAS always self-signs (CheckSC=0 covers HTTP).
  *
- * Environment variable fallbacks (CLI args take precedence):
- *   LEYLINE_CERT_PATH  — TLS cert file for FD/MD (self-signed if missing)
- *   LEYLINE_KEY_PATH   — TLS key file for FD/MD (self-signed if missing)
- *   LEYLINE_CARD_DB    — path to Arena card database SQLite file
- *   LEYLINE_FD_HOST    — FrontDoor host:port for doorbell response (default: localhost:30010)
+ * Configuration layering (highest priority wins):
+ *   CLI args > env vars > leyline.toml > code defaults
  */
 fun main(args: Array<String>) {
     val a = parseArgs(args)
     val isProxy = a["--proxy-fd"] != null && a["--proxy-md"] != null
+
+    // Load config (TOML) — skip in proxy mode
+    val config = if (isProxy) {
+        MatchConfig()
+    } else {
+        val configFile = a["--config"]?.let { File(it) }
+            ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME)
+        MatchConfig.load(configFile)
+    }
+    val sc = config.server
 
     // TLS cert/key for FD+MD (UnityTls validates these; self-signed needs mitmproxy CA)
     val envCert = System.getenv("LEYLINE_CERT_PATH")?.let { File(it) }?.takeIf { it.exists() }
@@ -50,25 +57,10 @@ fun main(args: Array<String>) {
         null
     }
 
-    // Load playtest config (TOML) — skip in proxy mode
-    val projectDir = findProjectDir()
-    val config = if (isProxy) {
-        MatchConfig()
-    } else {
-        val configFile = a["--config"]?.let { File(it) }
-            ?: File(projectDir, MatchConfig.DEFAULT_FILENAME)
-        MatchConfig.load(configFile)
-    }
-
     // Puzzle mode: --puzzle <file> overrides normal constructed flow
     val puzzleFile = a["--puzzle"]?.let { File(it) }
     if (puzzleFile != null) {
         require(puzzleFile.exists()) { "Puzzle file not found: ${puzzleFile.absolutePath}" }
-    }
-
-    // Validate deck files at startup (skip in puzzle and proxy modes)
-    if (puzzleFile == null && !isProxy) {
-        validateDecks(config, projectDir)
     }
 
     // FD golden file for replay stub (captured fd-frames.jsonl)
@@ -77,15 +69,18 @@ fun main(args: Array<String>) {
         require(fdGoldenFile.exists()) { "FD golden file not found: ${fdGoldenFile.absolutePath}" }
     }
 
-    val fdPort = a["--fd-port"]?.toIntOrNull() ?: 30010
-    val mdPort = a["--md-port"]?.toIntOrNull() ?: 30003
+    // Ports: CLI args override config
+    val fdPort = a["--fd-port"]?.toIntOrNull() ?: sc.fdPort
+    val mdPort = a["--md-port"]?.toIntOrNull() ?: sc.mdPort
 
-    // FD host for doorbell + MatchCreated: CLI arg > env var > default
+    // FD host for doorbell + MatchCreated: CLI arg > env var > config-derived default
     val fdHost = a["--fd-host"]
         ?: System.getenv("LEYLINE_FD_HOST")
         ?: "localhost:$fdPort"
-    // Extract hostname (without port) for MatchCreated push
     val externalHost = fdHost.substringBefore(":")
+
+    // Player DB path: env var > config
+    val playerDbPath = System.getenv("LEYLINE_PLAYER_DB") ?: sc.playerDb
 
     val server = LeylineServer(
         frontDoorPort = fdPort,
@@ -100,10 +95,11 @@ fun main(args: Array<String>) {
         puzzleFile = puzzleFile,
         externalHost = externalHost,
         cardRepo = cardRepo,
+        playerDbPath = playerDbPath,
     )
 
     val logWatcher = PlayerLogWatcher(eventBus = server.eventBus)
-    val debugPort = a["--debug-port"]?.toIntOrNull() ?: 8090
+    val debugPort = a["--debug-port"]?.toIntOrNull() ?: sc.debugPort
     val debugServer = DebugServer(
         port = debugPort,
         debugCollector = server.debugCollector,
@@ -112,9 +108,16 @@ fun main(args: Array<String>) {
         eventBus = server.eventBus,
     )
 
+    // Management server — always starts, owns /health
+    val mgmtPort = sc.managementPort
+    val mgmtServer = ManagementServer(
+        port = mgmtPort,
+        healthCheck = { server.isHealthy() },
+    )
+
     // Mock WAS — skip in proxy mode (client uses real WAS for auth)
+    val wasPort = a["--was-port"]?.toIntOrNull() ?: sc.wasPort
     val wasServer = if (!isProxy) {
-        val wasPort = a["--was-port"]?.toIntOrNull() ?: 9443
         val debugRoles = System.getenv("LEYLINE_DEBUG").let { it == "true" || it == "1" }
         val wasCert = a["--was-cert"]?.let { File(it) } ?: envCert
         val wasKey = a["--was-key"]?.let { File(it) } ?: envKey
@@ -133,6 +136,8 @@ fun main(args: Array<String>) {
         Thread {
             logWatcher.stop()
             wasServer?.stop()
+            debugServer.stop()
+            mgmtServer.stop()
             server.stop()
         },
     )
@@ -146,13 +151,14 @@ fun main(args: Array<String>) {
 
     println("Starting Leyline server ($mode$puzzleSuffix mode)...")
     server.start()
+    mgmtServer.start()
     debugServer.start()
     wasServer?.start()
     logWatcher.start()
     println("Leyline server running. Press Ctrl+C to stop.")
+    println("Management: http://localhost:$mgmtPort/health")
     println("Debug panel: http://localhost:$debugPort")
     if (wasServer != null) {
-        val wasPort = a["--was-port"]?.toIntOrNull() ?: 9443
         println("Mock WAS:    https://localhost:$wasPort")
         println("Doorbell:    FdURI=$fdHost")
     }
@@ -163,23 +169,6 @@ fun main(args: Array<String>) {
     }
 
     Thread.currentThread().join()
-}
-
-/** Locate project root (for resolving deck paths). */
-private fun findProjectDir(): File {
-    val cwd = File(System.getProperty("user.dir"))
-    if (File(cwd, "decks").isDirectory) return cwd
-    return cwd
-}
-
-/** Validate both deck files from config. Throws on invalid. */
-private fun validateDecks(config: MatchConfig, projectDir: File) {
-    val seat1File = MatchConfig.resolveDeckFile(config.decks.seat1, projectDir)
-    val seat2File = MatchConfig.resolveDeckFile(config.decks.seat2, projectDir)
-    DeckValidator.validateOrThrow(seat1File)
-    if (seat1File.absolutePath != seat2File.absolutePath) {
-        DeckValidator.validateOrThrow(seat2File)
-    }
 }
 
 private fun parseArgs(args: Array<String>): Map<String, String> {

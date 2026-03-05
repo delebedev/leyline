@@ -77,11 +77,10 @@ COPY --from=build /build/build/install/leyline/ .
 # Game resources (card scripts — large media dirs excluded via .dockerignore)
 COPY forge/forge-gui/res/ forge-gui/res/
 
-# Playtest config defaults (decks are embedded in forge-gui/res)
-COPY playtest.toml .
-COPY decks/ decks/
+# Server config defaults
+COPY leyline.toml .
 
-EXPOSE 30010 30003 9443 8090
+EXPOSE 30010 30003 9443 8090 8091
 
 # Memory limit (Netty access flags baked into launch script via applicationDefaultJvmArgs)
 ENV JAVA_OPTS="-Xmx384m"
