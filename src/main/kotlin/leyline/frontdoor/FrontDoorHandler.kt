@@ -44,7 +44,7 @@ class FrontDoorHandler(
     private val deckService: DeckService,
     private val playerService: PlayerService,
     private val matchmaking: MatchmakingService,
-    private val collectionService: CollectionService? = null,
+    private val collectionService: CollectionService,
     private val writer: FdResponseWriter,
     private val golden: GoldenData,
     private val fdCollector: FdDebugCollector? = null,
@@ -279,14 +279,9 @@ class FrontDoorHandler(
             2300 -> writer.sendJson(ctx, txId, LobbyStubs.playerInbox())
             2500 -> writer.sendJson(ctx, txId, LobbyStubs.staticContent())
             551 -> { // Card_GetAllCards
-                if (collectionService != null) {
-                    val collection = collectionService.getCollection(playerId)
-                    log.info("Front Door: CardGetAllCards ({} cards from DB)", collection.size)
-                    writer.sendJson(ctx, txId, collectionService.toJson(collection))
-                } else {
-                    log.info("Front Door: CardGetAllCards (starter collection fallback)")
-                    writer.sendJson(ctx, txId, LobbyStubs.cardCollection())
-                }
+                val collection = collectionService.getCollection(playerId)
+                log.info("Front Door: CardGetAllCards ({} cards)", collection.size)
+                writer.sendJson(ctx, txId, collectionService.toJson(collection))
             }
             708, 712, 715 -> writer.sendJson(ctx, txId, LobbyStubs.storeStatus())
             1102 -> writer.sendJson(ctx, txId, LobbyStubs.rankSeasonDetails())
