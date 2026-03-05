@@ -35,12 +35,42 @@ object DeckWireBuilder {
         put(
             "Attributes",
             buildJsonArray {
-                add(buildJsonObject { put("name", "Version"); put("value", "1") })
-                add(buildJsonObject { put("name", "TileID"); put("value", deck.tileId.toString()) })
-                add(buildJsonObject { put("name", "LastPlayed"); put("value", "\"0001-01-01T00:00:00\"") })
-                add(buildJsonObject { put("name", "LastUpdated"); put("value", "\"0001-01-01T00:00:00\"") })
-                add(buildJsonObject { put("name", "IsFavorite"); put("value", "false") })
-                add(buildJsonObject { put("name", "Format"); put("value", deck.format.name) })
+                add(
+                    buildJsonObject {
+                        put("name", "Version")
+                        put("value", "1")
+                    },
+                )
+                add(
+                    buildJsonObject {
+                        put("name", "TileID")
+                        put("value", deck.tileId.toString())
+                    },
+                )
+                add(
+                    buildJsonObject {
+                        put("name", "LastPlayed")
+                        put("value", "\"0001-01-01T00:00:00\"")
+                    },
+                )
+                add(
+                    buildJsonObject {
+                        put("name", "LastUpdated")
+                        put("value", "\"0001-01-01T00:00:00\"")
+                    },
+                )
+                add(
+                    buildJsonObject {
+                        put("name", "IsFavorite")
+                        put("value", "false")
+                    },
+                )
+                add(
+                    buildJsonObject {
+                        put("name", "Format")
+                        put("value", deck.format.name)
+                    },
+                )
             },
         )
         putTrailingFields(deck)
