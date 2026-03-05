@@ -62,7 +62,14 @@ class MatchHandler(
     internal var session: MatchSession? = null
 
     /** Mulligan flow delegate — owns mulligan state and DealHand/MulliganReq senders. */
-    internal val mulliganHandler = MulliganHandler(matchConfig, registry)
+    internal val mulliganHandler = MulliganHandler(
+        matchConfig,
+        registry,
+        sessionProvider = { session },
+        ctxProvider = { nettyCtx },
+        matchIdProvider = { matchId },
+        seatIdProvider = { seatId },
+    )
 
     /** Puzzle mode delegate — detection, loading, initial bundle. */
     private val puzzleHandler = PuzzleHandler(puzzleFile, matchConfig, cards, registry)
@@ -146,12 +153,6 @@ class MatchHandler(
             session = s
             registry.registerSession(matchId, seatId, s)
             registry.registerHandler(matchId, seatId, this)
-
-            // Wire mulligan delegate
-            mulliganHandler.sessionProvider = { session }
-            mulliganHandler.ctxProvider = { nettyCtx }
-            mulliganHandler.matchId = matchId
-            mulliganHandler.seatId = seatId
 
             processGREMessage(ctx, greMsg)
         }

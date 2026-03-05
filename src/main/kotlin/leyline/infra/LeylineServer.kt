@@ -101,6 +101,9 @@ class LeylineServer(
     val captureSink = CaptureSink(fdCollector)
     val debugCollector = DebugCollector(eventBus)
     val gameStateCollector = GameStateCollector(cardRepo, eventBus)
+    val recordingInspector = leyline.recording.RecordingInspector(
+        cardNameLookup = cardRepo?.let { repo -> { grpId: Int -> repo.findNameByGrpId(grpId) } },
+    )
 
     /** Proxy: relay both FD + MD to real Arena servers for traffic capture. */
     val isProxy get() = upstreamFrontDoor != null && upstreamMatchDoor != null && replayDir == null
@@ -118,11 +121,6 @@ class LeylineServer(
     fun start() {
         // Register global instance for logback appender (must happen before any logging)
         DebugCollector.instance = debugCollector
-
-        // Wire card name lookup for recording inspector (still a singleton — Phase 3)
-        if (cardRepo != null) {
-            leyline.recording.RecordingInspector.cardNameLookup = { grpId -> cardRepo.findNameByGrpId(grpId) }
-        }
 
         val ssl = buildSslContext()
         when {

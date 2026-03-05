@@ -9,6 +9,8 @@ import kotlin.system.exitProcess
  * CLI entry points for recording analysis commands.
  * Invoked via justfile targets (rec-analyze, rec-violations, etc.).
  */
+private val inspector = RecordingInspector()
+
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
         System.err.println("Usage: analyze <session> [--force] | analyze-all | violations [session] | mechanics | latest")
@@ -126,7 +128,7 @@ private fun cmdLatest() {
     if (sessionDir == null) return
 
     // Print summary
-    val summary = RecordingInspector.summary(sessionDir.absolutePath)
+    val summary = inspector.summary(sessionDir.absolutePath)
     if (summary != null) {
         println("Session: ${sessionDir.name}")
         println("  mode: ${summary.mode}")
@@ -173,8 +175,8 @@ private fun resolveSession(arg: String): File? {
     val underRoot = File(LeylinePaths.RECORDINGS, arg)
     if (underRoot.isDirectory) return underRoot
 
-    // Try via RecordingInspector (base64 id)
-    val resolved = RecordingInspector.resolveSessionDir(arg)
+    // Try via base64 session id
+    val resolved = inspector.resolveSessionDir(arg)
     if (resolved != null) return resolved
 
     System.err.println("Session not found: $arg")

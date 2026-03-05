@@ -43,6 +43,7 @@ class DebugServer(
     private val gameStateCollector: GameStateCollector? = null,
     private val fdCollector: FdDebugCollector? = null,
     private val eventBus: DebugEventBus? = null,
+    private val recordingInspector: RecordingInspector = RecordingInspector(),
 ) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null
@@ -254,7 +255,7 @@ class DebugServer(
     }
 
     private fun serveRecordings(ex: HttpExchange) {
-        val sessions = RecordingInspector.listSessions()
+        val sessions = recordingInspector.listSessions()
         respondJsonList(ex, json.encodeToString(sessions), null)
     }
 
@@ -265,7 +266,7 @@ class DebugServer(
             respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
             return
         }
-        val summary = RecordingInspector.summary(id)
+        val summary = recordingInspector.summary(id)
         if (summary == null) {
             respond(ex, 404, "text/plain", "Recording session not found or not parseable")
             return
@@ -283,7 +284,7 @@ class DebugServer(
         val card = params["card"]
         val actor = params["actor"]
         val limit = params["limit"]?.toIntOrNull() ?: 1000
-        val actions = RecordingInspector.actions(id, cardFilter = card, actorFilter = actor, limit = limit)
+        val actions = recordingInspector.actions(id, cardFilter = card, actorFilter = actor, limit = limit)
         respondJsonList(ex, json.encodeToString(actions), null)
     }
 
@@ -294,7 +295,7 @@ class DebugServer(
             respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
             return
         }
-        val messages = RecordingInspector.messages(id)
+        val messages = recordingInspector.messages(id)
         if (messages == null) {
             respond(ex, 404, "text/plain", "Recording session not found or not parseable")
             return
@@ -310,7 +311,7 @@ class DebugServer(
             respond(ex, 400, "text/plain", "Required: ?left=<sessionId>&right=<sessionId>")
             return
         }
-        val diff = RecordingInspector.compare(left, right)
+        val diff = recordingInspector.compare(left, right)
         if (diff == null) {
             respond(ex, 404, "text/plain", "Could not compare sessions (missing or unparsable)")
             return
@@ -327,14 +328,14 @@ class DebugServer(
             respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
             return
         }
-        val recordingDir = RecordingInspector.resolveSessionDir(id)
+        val recordingDir = recordingInspector.resolveSessionDir(id)
         if (recordingDir == null) {
             respond(ex, 404, "text/plain", "Session not found")
             return
         }
         // Resolve session root: recording dir may be a leaf (engine/, capture/payloads/)
         // but analysis.json lives at the session root (parent of engine/ or grandparent of capture/payloads/)
-        val sessionDir = RecordingInspector.resolveSessionRoot(recordingDir)
+        val sessionDir = recordingInspector.resolveSessionRoot(recordingDir)
         // Read existing analysis or run on demand
         val analysis = SessionAnalyzer.readAnalysis(sessionDir)
             ?: SessionAnalyzer.analyze(sessionDir)
@@ -352,12 +353,12 @@ class DebugServer(
             respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
             return
         }
-        val recordingDir = RecordingInspector.resolveSessionDir(id)
+        val recordingDir = recordingInspector.resolveSessionDir(id)
         if (recordingDir == null) {
             respond(ex, 404, "text/plain", "Session not found")
             return
         }
-        val sessionDir = RecordingInspector.resolveSessionRoot(recordingDir)
+        val sessionDir = recordingInspector.resolveSessionRoot(recordingDir)
         val eventsFile = File(sessionDir, "events.jsonl")
         if (!eventsFile.exists()) {
             respondJsonList(ex, "[]", null)
@@ -395,12 +396,12 @@ class DebugServer(
             respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
             return
         }
-        val recordingDir = RecordingInspector.resolveSessionDir(id)
+        val recordingDir = recordingInspector.resolveSessionDir(id)
         if (recordingDir == null) {
             respond(ex, 404, "text/plain", "Session not found")
             return
         }
-        val sessionDir = RecordingInspector.resolveSessionRoot(recordingDir)
+        val sessionDir = recordingInspector.resolveSessionRoot(recordingDir)
         val analysis = SessionAnalyzer.readAnalysis(sessionDir)
         if (analysis == null) {
             respondJsonList(ex, "[]", null)
