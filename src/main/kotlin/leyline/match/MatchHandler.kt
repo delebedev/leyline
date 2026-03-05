@@ -7,11 +7,13 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import leyline.bridge.DeckConverter
 import leyline.config.MatchConfig
 import leyline.debug.DebugCollector
 import leyline.debug.GameStateCollector
 import leyline.debug.SessionRecorder
 import leyline.debug.Tap
+import leyline.frontdoor.domain.DeckCard
 import leyline.game.CardRepository
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
@@ -371,25 +373,24 @@ class MatchHandler(
         return resolveSeat1Deck()
     }
 
-    /** Parse Arena cards JSON → Forge deck text (qty + name per line). */
+    /** Parse Arena cards JSON → Forge deck text (qty + name per line). Delegates to [DeckConverter]. */
     private fun convertArenaCardsToDeckText(cardsJson: String): String {
         val obj = lenientJson.parseToJsonElement(cardsJson).jsonObject
-        val sb = StringBuilder()
-        for (section in listOf("MainDeck", "Sideboard")) {
-            val arr = obj[section]?.jsonArray ?: continue
-            if (section == "Sideboard" && arr.isNotEmpty()) sb.appendLine("Sideboard")
-            for (entry in arr) {
-                val cardObj = entry.jsonObject
-                val grpId = cardObj["cardId"]?.jsonPrimitive?.int ?: continue
-                val qty = cardObj["quantity"]?.jsonPrimitive?.int ?: continue
-                val name = cards?.findNameByGrpId(grpId)
-                if (name != null) {
-                    sb.appendLine("$qty $name")
-                } else {
-                    log.warn("Match Door: unknown grpId {} in deck", grpId)
-                }
-            }
+        val mainDeck = parseDeckSection(obj, "MainDeck")
+        val sideboard = parseDeckSection(obj, "Sideboard")
+        return DeckConverter.toDeckText(mainDeck, sideboard, cards!!::findNameByGrpId)
+    }
+
+    private fun parseDeckSection(
+        obj: kotlinx.serialization.json.JsonObject,
+        section: String,
+    ): List<DeckCard> {
+        val arr = obj[section]?.jsonArray ?: return emptyList()
+        return arr.mapNotNull { entry ->
+            val cardObj = entry.jsonObject
+            val grpId = cardObj["cardId"]?.jsonPrimitive?.int ?: return@mapNotNull null
+            val qty = cardObj["quantity"]?.jsonPrimitive?.int ?: return@mapNotNull null
+            DeckCard(grpId, qty)
         }
-        return sb.toString()
     }
 }
