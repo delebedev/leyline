@@ -8,7 +8,10 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import leyline.LeylinePaths
 import org.slf4j.LoggerFactory
+import java.io.File
+import java.io.FileWriter
 import java.net.InetSocketAddress
 import java.net.URI
 import java.net.http.HttpClient
@@ -19,6 +22,7 @@ import java.security.cert.X509Certificate
 import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
@@ -48,6 +52,14 @@ class MockWasServer(
 ) {
     private val log = LoggerFactory.getLogger(MockWasServer::class.java)
     private var server: HttpsServer? = null
+    private val seq = AtomicInteger(0)
+    private val wasFramesWriter: FileWriter? by lazy {
+        try {
+            val f = File(LeylinePaths.SESSION_DIR, "was-frames.jsonl")
+            LeylinePaths.SESSION_DIR.mkdirs()
+            FileWriter(f, true)
+        } catch (_: Exception) { null }
+    }
 
     val isProxy: Boolean get() = upstreamWas != null
 
@@ -177,6 +189,7 @@ class MockWasServer(
         val resp = proxyClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofByteArray())
         log.info("WAS proxy: {} {} -> {} ({})", ex.requestMethod, ex.requestURI.path, targetUrl, resp.statusCode())
         val respBytes = resp.body()
+        logFrame(ex.requestMethod, ex.requestURI.path, body, resp.statusCode(), respBytes)
         ex.responseHeaders.add("Content-Type", resp.headers().firstValue("Content-Type").orElse("application/json"))
         ex.sendResponseHeaders(resp.statusCode(), respBytes.size.toLong())
         ex.responseBody.use { it.write(respBytes) }
@@ -196,6 +209,7 @@ class MockWasServer(
         }
         val resp = proxyClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofString())
         var json = resp.body()
+        logFrame(ex.requestMethod, ex.requestURI.path, body, resp.statusCode(), json.toByteArray(Charsets.UTF_8))
         // Rewrite FdURI to localhost so client connects to our proxy FD
         json = json.replace(Regex(""""FdURI"\s*:\s*"[^"]+""""), """"FdURI":"$fdHost"""")
         log.info("WAS proxy: doorbell -> {} (rewrote FdURI={})", targetUrl, fdHost)
@@ -228,6 +242,24 @@ class MockWasServer(
         ex.responseHeaders.add("Access-Control-Allow-Origin", "*")
         ex.sendResponseHeaders(code, bytes.size.toLong())
         ex.responseBody.use { it.write(bytes) }
+    }
+
+    private fun logFrame(method: String, path: String, reqBody: ByteArray?, status: Int, respBody: ByteArray) {
+        val w = wasFramesWriter ?: return
+        val s = seq.incrementAndGet()
+        val line = buildJsonObject {
+            put("seq", s)
+            put("method", method)
+            put("path", path)
+            put("reqBody", reqBody?.toString(Charsets.UTF_8) ?: "")
+            put("status", status)
+            put("respBody", respBody.toString(Charsets.UTF_8))
+        }.toString()
+        synchronized(w) {
+            w.write(line)
+            w.write("\n")
+            w.flush()
+        }
     }
 
     companion object {

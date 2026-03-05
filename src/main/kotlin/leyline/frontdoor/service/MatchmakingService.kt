@@ -1,6 +1,7 @@
 package leyline.frontdoor.service
 
 import leyline.bridge.DeckConverter
+import leyline.bridge.DeckLoader
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.MatchInfo
 import leyline.frontdoor.domain.PlayerId
@@ -25,17 +26,16 @@ class MatchmakingService(
 
         val forgeFormat = EventRegistry.forgeFormatFor(eventName)
         if (forgeFormat != null) {
-            try {
-                val forgeDeck = DeckConverter.toForgeDeck(deck.mainDeck, deck.sideboard, nameByGrpId)
+            val deckText = DeckConverter.toDeckText(deck.mainDeck, deck.sideboard, nameByGrpId)
+            if (deckText.isBlank()) {
+                log.warn("Cannot validate deck '{}' — card name resolver not wired", deck.name)
+            } else {
+                val forgeDeck = DeckLoader.parseDeckList(deckText)
                 val problem = FormatService.validateDeck(forgeDeck, forgeFormat)
                 if (problem != null) {
-                    log.warn("Deck '{}' not legal in {}: {}", deck.name, forgeFormat, problem)
-                } else {
-                    log.info("Deck '{}' validated for format {}", deck.name, forgeFormat)
+                    throw IllegalArgumentException("Deck '${deck.name}' not legal in $forgeFormat: $problem")
                 }
-            } catch (e: Exception) {
-                // Forge card DB not initialized or card names unresolvable — skip validation
-                log.warn("Skipping deck validation for format {}: {}", forgeFormat, e.message)
+                log.info("Deck '{}' validated for format {}", deck.name, forgeFormat)
             }
         }
 
