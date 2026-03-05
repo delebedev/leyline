@@ -269,7 +269,10 @@ class FrontDoorHandler(
             2200 -> writer.sendJson(ctx, txId, LobbyStubs.netDeckFolders())
             2300 -> writer.sendJson(ctx, txId, LobbyStubs.playerInbox())
             2500 -> writer.sendJson(ctx, txId, LobbyStubs.staticContent())
-            551 -> writer.sendJson(ctx, txId, LobbyStubs.cardSet())
+            551 -> { // Card_GetAllCards
+                log.info("Front Door: CardGetAllCards (starter collection)")
+                writer.sendJson(ctx, txId, LobbyStubs.cardCollection())
+            }
             708, 712, 715 -> writer.sendJson(ctx, txId, LobbyStubs.storeStatus())
             1102 -> writer.sendJson(ctx, txId, LobbyStubs.rankSeasonDetails())
             1105 -> writer.sendJson(ctx, txId, LobbyStubs.rankSeasonDetails())
