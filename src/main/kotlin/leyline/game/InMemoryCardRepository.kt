@@ -35,4 +35,6 @@ class InMemoryCardRepository : CardRepository {
     override fun findNameByGrpId(grpId: Int): String? = grpIdToName[grpId]
 
     override fun findGrpIdByName(name: String): Int? = nameToGrpId[name]
+
+    override fun findAllGrpIds(): List<Int> = grpIdToName.keys.toList()
 }
