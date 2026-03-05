@@ -206,8 +206,9 @@ class FrontDoorHandler(
             }
 
             623 -> { // EventGetCoursesV2
-                log.debug("Front Door: EventGetCoursesV2 → empty courses")
-                writer.sendJson(ctx, txId, LobbyStubs.courses())
+                val coursesJson = EventRegistry.toCoursesJson()
+                log.info("Front Door: EventGetCoursesV2 ({} courses)", EventRegistry.events.size)
+                writer.sendJson(ctx, txId, coursesJson)
             }
 
             // --- Player data (from services) ---
@@ -236,7 +237,9 @@ class FrontDoorHandler(
                 requireJson(ctx, txId, json) { body ->
                     val deckId = try {
                         lenientJson.parseToJsonElement(body).jsonObject["DeckId"]?.jsonPrimitive?.content
-                    } catch (_: Exception) { null }
+                    } catch (_: Exception) {
+                        null
+                    }
                     if (deckId != null) {
                         deckService.delete(DeckId(deckId))
                         log.info("Front Door: Deck_DeleteDeck '{}'", deckId)
@@ -261,7 +264,9 @@ class FrontDoorHandler(
                     val summary = try {
                         val obj = lenientJson.parseToJsonElement(body).jsonObject
                         obj["Summary"]?.let { lenientJson.encodeToString(JsonObject.serializer(), it.jsonObject) }
-                    } catch (_: Exception) { null }
+                    } catch (_: Exception) {
+                        null
+                    }
                     writer.sendJson(ctx, txId, summary ?: "{}")
                 }
             }

@@ -46,7 +46,10 @@ object EventRegistry {
         QueueEntry("StandardRanked", "Ranked", "PlayBlade/FindMatch/Blade_Standard_Ladder", "Ladder", "Traditional_Ladder"),
         QueueEntry("AlchemyRanked", "Ranked", "PlayBlade/FindMatch/Blade_Alchemy_Ladder", "Alchemy_Ladder", "Traditional_Alchemy_Ladder"),
         QueueEntry(
-            "SparkAlchemyRanked", "Ranked", "Events/Event_Title_Spark_Ladder", "Spark_Alchemy_Ladder",
+            "SparkAlchemyRanked",
+            "Ranked",
+            "Events/Event_Title_Spark_Ladder",
+            "Spark_Alchemy_Ladder",
             deckSizeBO3 = "MainNav/General/Empty_String",
             sideboardBO3 = "MainNav/General/Empty_String",
         ),
@@ -59,26 +62,38 @@ object EventRegistry {
         QueueEntry("HistoricUnranked", "Unranked", "PlayBlade/FindMatch/Blade_Traditional_Historic_Play", "Historic_Play", "Traditional_Historic_Play"),
         QueueEntry("ExplorerUnranked", "Unranked", "Events/Event_Title_Explorer_Play", "Explorer_Play", "Traditional_Explorer_Play"),
         QueueEntry(
-            "TimelessUnranked", "Unranked", "Events/Event_Title_Play_Timeless", "Timeless_Play",
+            "TimelessUnranked",
+            "Unranked",
+            "Events/Event_Title_Play_Timeless",
+            "Timeless_Play",
             deckSizeBO3 = "MainNav/General/Empty_String",
             sideboardBO3 = "MainNav/General/Empty_String",
         ),
         QueueEntry(
-            "AIBotMatch", "Unranked", "Events/Event_Title_AIBotMatch", "AIBotMatch",
+            "AIBotMatch",
+            "Unranked",
+            "Events/Event_Title_AIBotMatch",
+            "AIBotMatch",
             deckSizeBO3 = "MainNav/General/Empty_String",
             sideboardBO1 = "MainNav/General/Empty_String",
             sideboardBO3 = "MainNav/General/Empty_String",
         ),
         // Brawl
         QueueEntry(
-            "HistoricBrawl", "Brawl", "Events/Event_Title_Play_Brawl_Historic", "Play_Brawl_Historic",
+            "HistoricBrawl",
+            "Brawl",
+            "Events/Event_Title_Play_Brawl_Historic",
+            "Play_Brawl_Historic",
             deckSizeBO1 = "Events/Deck_100commander",
             deckSizeBO3 = "MainNav/General/Empty_String",
             sideboardBO1 = "MainNav/General/Empty_String",
             sideboardBO3 = "MainNav/General/Empty_String",
         ),
         QueueEntry(
-            "StandardBrawl", "Brawl", "Events/Event_Title_Play_Brawl_Bo1", "Play_Brawl",
+            "StandardBrawl",
+            "Brawl",
+            "Events/Event_Title_Play_Brawl_Bo1",
+            "Play_Brawl",
             deckSizeBO1 = "Events/Deck_60commander",
             deckSizeBO3 = "MainNav/General/Empty_String",
             sideboardBO1 = "MainNav/General/Empty_String",
@@ -251,6 +266,49 @@ object EventRegistry {
 
     fun findEvent(internalName: String): EventDef? =
         events.firstOrNull { it.internalName == internalName }
+
+    fun toCoursesJson(): String = buildJsonObject {
+        putJsonArray("Courses") {
+            for (e in events) {
+                add(
+                    buildJsonObject {
+                        put("CourseId", "00000000-0000-0000-0000-000000000000")
+                        put("InternalEventName", e.internalName)
+                        put("CurrentModule", "Complete")
+                        put("ModulePayload", "")
+                        putJsonObject("CourseDeckSummary") {
+                            put("DeckId", "00000000-0000-0000-0000-000000000000")
+                            put("Name", "")
+                            putJsonArray("Attributes") {}
+                            put("DeckTileId", 0)
+                            put("DeckArtId", 0)
+                            putJsonObject("FormatLegalities") {}
+                            putJsonObject("PreferredCosmetics") {
+                                put("Avatar", "")
+                                put("Sleeve", "")
+                                put("Pet", "")
+                                put("Title", "")
+                                putJsonArray("Emotes") {}
+                            }
+                            putJsonArray("DeckValidationSummaries") {}
+                            putJsonObject("UnownedCards") {}
+                        }
+                        putJsonObject("CourseDeck") {
+                            putJsonArray("MainDeck") {}
+                            putJsonArray("ReducedSideboard") {}
+                            putJsonArray("Sideboard") {}
+                            putJsonArray("CommandZone") {}
+                            putJsonArray("Companions") {}
+                            putJsonArray("CardSkins") {}
+                        }
+                        putJsonArray("CardPool") {}
+                        putJsonArray("CardPoolByCollation") {}
+                        putJsonArray("CardStyles") {}
+                    },
+                )
+            }
+        }
+    }.toString()
 
     fun toQueueConfigJson(): String = buildJsonArray {
         for (q in queues) {
