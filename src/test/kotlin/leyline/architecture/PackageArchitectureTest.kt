@@ -16,9 +16,11 @@ import java.nio.file.Path
  * ```
  * Tier 0 — leaves (no leyline deps):
  *   config              match configuration (TOML data classes)
- *   bridge              Forge adapter primitives (controllers, signals, bridges)
  *   frontdoor.domain    FD value types (Deck, Player, Format)
  *   arena               CLI automation tools
+ *
+ * Tier 0.5 — shared converters:
+ *   bridge              Forge adapter primitives + DeckConverter → frontdoor.domain
  *
  * Tier 1 — domain core:
  *   game                engine wrappers, state mapping  → bridge, config
@@ -84,7 +86,7 @@ class PackageArchitectureTest :
                 ).check(classes)
         }
 
-        test("bridge is leaf") {
+        test("bridge depends only on frontdoor.domain") {
             noClasses().that().resideInAPackage("leyline.bridge..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
@@ -95,7 +97,9 @@ class PackageArchitectureTest :
                     "leyline.debug..",
                     "leyline.conformance..",
                     "leyline.analysis..",
-                    "leyline.frontdoor..",
+                    "leyline.frontdoor.repo..",
+                    "leyline.frontdoor.wire..",
+                    "leyline.frontdoor.service..",
                     "leyline.match..",
                     "leyline.infra..",
                     "leyline.cli..",
@@ -277,11 +281,13 @@ class PackageArchitectureTest :
 
         // ── Tier 5: bounded-context boundaries ──────────────────────
 
-        test("match does not import frontdoor — BC boundary") {
+        test("match does not import frontdoor services — BC boundary") {
             noClasses().that().resideInAPackage("leyline.match..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
-                    "leyline.frontdoor..",
+                    "leyline.frontdoor.repo..",
+                    "leyline.frontdoor.wire..",
+                    "leyline.frontdoor.service..",
                     "leyline.cli..",
                     "leyline.conformance..",
                     "leyline.analysis..",
