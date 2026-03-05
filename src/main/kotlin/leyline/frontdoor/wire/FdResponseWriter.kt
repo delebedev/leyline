@@ -19,7 +19,7 @@ class FdResponseWriter(
     fun sendJson(ctx: ChannelHandlerContext, txId: String?, json: String) {
         val id = txId ?: UUID.randomUUID().toString()
         val envelope = FdEnvelope.encodeResponse(id, json)
-        sendRaw(ctx, id, json.take(80), envelope)
+        sendRaw(ctx, id, json, envelope)
     }
 
     /** Send a Response with only transactionId, no payload. */

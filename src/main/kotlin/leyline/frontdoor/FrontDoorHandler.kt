@@ -124,7 +124,7 @@ class FrontDoorHandler(
             val cmdName = cmdType?.let { FdEnvelope.cmdTypeName(it) } ?: "unknown"
 
             fdCollector?.record("C2S", decoded)
-            log.info("Front Door: cmd={} cmdType={} txId={}", cmdName, cmdType, transactionId)
+            log.debug("Front Door: cmd={} cmdType={} txId={}", cmdName, cmdType, transactionId)
 
             dispatch(ctx, cmdType, transactionId, json)
         } finally {
@@ -216,9 +216,8 @@ class FrontDoorHandler(
                 val pid = playerId
                 val prefs = pid?.let { playerService.getPreferences(it) }
                 val raw = prefs?.json?.takeIf { it != "{}" }
-                val source = if (raw != null) "db" else "golden"
-                log.info("Front Door: PlayerPreferences ($source)")
-                writer.sendJson(ctx, txId, raw ?: golden.goldenPlayerPreferencesJson)
+                log.info("Front Door: PlayerPreferences ({})", if (raw != null) "db" else "empty")
+                writer.sendJson(ctx, txId, raw ?: """{"Preferences":{}}""")
             }
 
             1912 -> { // SetPlayerPreferences
@@ -230,6 +229,19 @@ class FrontDoorHandler(
                         log.info("Front Door: SetPlayerPreferences saved")
                     }
                     writer.sendJson(ctx, txId, """{}""")
+                }
+            }
+
+            403 -> { // Deck_DeleteDeck
+                requireJson(ctx, txId, json) { body ->
+                    val deckId = try {
+                        lenientJson.parseToJsonElement(body).jsonObject["DeckId"]?.jsonPrimitive?.content
+                    } catch (_: Exception) { null }
+                    if (deckId != null) {
+                        deckService.delete(DeckId(deckId))
+                        log.info("Front Door: Deck_DeleteDeck '{}'", deckId)
+                    }
+                    writer.sendJson(ctx, txId, "{}")
                 }
             }
 
@@ -254,16 +266,16 @@ class FrontDoorHandler(
                 }
             }
 
-            407 -> { // Deck_GetDeckSummariesV2
+            407 -> { // Deck_GetDeckSummariesV2 — response key is "Summaries" (NOT DeckSummariesV2)
                 val pid = playerId
                 if (pid != null) {
                     val decks = deckService.listForPlayer(pid)
                     val summaries = buildJsonArray { decks.forEach { add(DeckWireBuilder.toV2Summary(it)) } }
                     log.info("Front Door: DeckSummariesV2 ({} decks)", decks.size)
-                    val resp = buildJsonObject { put("DeckSummariesV2", summaries) }
+                    val resp = buildJsonObject { put("Summaries", summaries) }
                     writer.sendJson(ctx, txId, lenientJson.encodeToString(JsonObject.serializer(), resp))
                 } else {
-                    writer.sendJson(ctx, txId, """{"DeckSummariesV2":[]}""")
+                    writer.sendJson(ctx, txId, """{"Summaries":[]}""")
                 }
             }
 

@@ -1,1 +1,55 @@
-{"NodeStates":{"UnlockPlayModes":{"Status":"Available"},"MigrateFromNPEv1":{"Status":"Completed"},"SparkyMatch":{"Status":"Available","ProgressNodeState":{},"ProgressionHistoryStateDataState":{}},"ColorChallengeAnyOneTrackComplete":{"Status":"Available","ProgressionHistoryStateDataState":{"availableDateTimeUTC":"2023-11-25T09:13:24.45Z"}},"CloseSparkyDeckDuel":{"Status":"Available","ProgressNodeState":{},"ProgressionHistoryStateDataState":{"availableDateTimeUTC":"2026-02-22T18:53:57.815Z"}},"DualColorPreconEventWonEnough":{"Status":"Completed","ProgressionHistoryStateDataState":{"progressedDateTimeUTC":"2023-12-17T15:06:42.355Z"}},"SparkRankTier3":{"Status":"Completed","ProgressionHistoryStateDataState":{"availableDateTimeUTC":"2023-12-17T15:06:42.355Z","progressedDateTimeUTC":"2022-11-24T01:23:36.284Z"}},"ColorChallengeComplete":{"Status":"Completed","ProgressionHistoryStateDataState":{}},"Played3QuickDraftEvents":{"Status":"Completed","ProgressionHistoryStateDataState":{"progressedDateTimeUTC":"2024-11-28T22:28:20.97Z"}}},"MilestoneStates":{"OpenSparkyDeckDuel":true,"CloseSparkyDeckDuel":false}}
+{
+  "NodeStates": {
+    "UnlockPlayModes": {
+      "Status": "Completed"
+    },
+    "MigrateFromNPEv1": {
+      "Status": "Completed"
+    },
+    "SparkyMatch": {
+      "Status": "Available",
+      "ProgressNodeState": {},
+      "ProgressionHistoryStateDataState": {}
+    },
+    "ColorChallengeAnyOneTrackComplete": {
+      "Status": "Available",
+      "ProgressionHistoryStateDataState": {
+        "availableDateTimeUTC": "2023-11-25T09:13:24.45Z"
+      }
+    },
+    "CloseSparkyDeckDuel": {
+      "Status": "Available",
+      "ProgressNodeState": {},
+      "ProgressionHistoryStateDataState": {
+        "availableDateTimeUTC": "2026-02-22T18:53:57.815Z"
+      }
+    },
+    "DualColorPreconEventWonEnough": {
+      "Status": "Completed",
+      "ProgressionHistoryStateDataState": {
+        "progressedDateTimeUTC": "2023-12-17T15:06:42.355Z"
+      }
+    },
+    "SparkRankTier3": {
+      "Status": "Completed",
+      "ProgressionHistoryStateDataState": {
+        "availableDateTimeUTC": "2023-12-17T15:06:42.355Z",
+        "progressedDateTimeUTC": "2022-11-24T01:23:36.284Z"
+      }
+    },
+    "ColorChallengeComplete": {
+      "Status": "Completed",
+      "ProgressionHistoryStateDataState": {}
+    },
+    "Played3QuickDraftEvents": {
+      "Status": "Completed",
+      "ProgressionHistoryStateDataState": {
+        "progressedDateTimeUTC": "2024-11-28T22:28:20.97Z"
+      }
+    }
+  },
+  "MilestoneStates": {
+    "OpenSparkyDeckDuel": true,
+    "CloseSparkyDeckDuel": false
+  }
+}

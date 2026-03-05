@@ -232,17 +232,20 @@ class FrontDoorHandlerTest :
             json.parseToJsonElement(msg.jsonPayload!!) // valid JSON
         }
 
-        test("CmdType 1910 - PlayBladeQueueConfig has all format queues") {
+        test("CmdType 1910 - PlayBladeQueueConfig has all 14 queues from real server") {
             val ch = fdChannel()
             val msg = ch.sendCmd(1910)
             val arr = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonArray
-            arr.shouldNotBeEmpty()
+            arr.size shouldBe 14
             val ids = arr.map { it.jsonObject["Id"]?.jsonPrimitive?.content }
             ids shouldContain "StandardRanked"
             ids shouldContain "HistoricRanked"
             ids shouldContain "ExplorerRanked"
             ids shouldContain "TimelessRanked"
+            ids shouldContain "StandardUnranked"
             ids shouldContain "AIBotMatch"
+            ids shouldContain "HistoricBrawl"
+            ids shouldContain "StandardBrawl"
         }
 
         test("CmdType 624 - ActiveEventsV2 has events for all formats") {
@@ -258,6 +261,35 @@ class FrontDoorHandlerTest :
             names shouldContain "Explorer_Ladder"
             names shouldContain "Timeless_Ladder"
             names shouldContain "AIBotMatch"
+        }
+
+        test("CmdType 624 - every event matches reference shape from real server") {
+            val refJson = this::class.java.classLoader
+                .getResourceAsStream("golden/fd-reference-event.json")!!
+                .readBytes().toString(Charsets.UTF_8)
+            val refKeys = json.parseToJsonElement(refJson).jsonObject
+            val ch = fdChannel()
+            val msg = ch.sendCmd(624)
+            val events = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull())
+                .jsonObject["Events"]!!.jsonArray
+            for (event in events) {
+                val name = event.jsonObject["InternalEventName"]!!.jsonPrimitive.content
+                assertKeysMatch(refKeys, event.jsonObject, name)
+            }
+        }
+
+        test("CmdType 1910 - every queue matches reference shape from real server") {
+            val refJson = this::class.java.classLoader
+                .getResourceAsStream("golden/fd-reference-queue.json")!!
+                .readBytes().toString(Charsets.UTF_8)
+            val refKeys = json.parseToJsonElement(refJson).jsonObject
+            val ch = fdChannel()
+            val msg = ch.sendCmd(1910)
+            val queues = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonArray
+            for (queue in queues) {
+                val id = queue.jsonObject["Id"]!!.jsonPrimitive.content
+                assertKeysMatch(refKeys, queue.jsonObject, id)
+            }
         }
 
         test("CmdType 410 - PreconDecksV3 returns precon decks from golden") {
@@ -300,6 +332,30 @@ class FrontDoorHandlerTest :
             // Empty response is fine — just shouldn't crash
         }
     })
+
+/**
+ * Recursively assert that [actual] has at least every key present in [reference].
+ * Nested JsonObjects are checked recursively. Extra keys in actual are allowed
+ * (server may add fields), but missing keys fail with a clear message.
+ */
+private fun assertKeysMatch(
+    reference: kotlinx.serialization.json.JsonObject,
+    actual: kotlinx.serialization.json.JsonObject,
+    context: String,
+    path: String = "",
+) {
+    val missing = reference.keys - actual.keys
+    check(missing.isEmpty()) {
+        "$context: missing keys at ${path.ifEmpty { "root" }}: $missing"
+    }
+    for (key in reference.keys) {
+        val refVal = reference[key]
+        val actVal = actual[key]
+        if (refVal is kotlinx.serialization.json.JsonObject && actVal is kotlinx.serialization.json.JsonObject) {
+            assertKeysMatch(refVal, actVal, context, "$path.$key")
+        }
+    }
+}
 
 /** Strip 6-byte frame header and decode FD envelope. */
 private fun decodeResponse(buf: ByteBuf): FdEnvelope.FdMessage {
