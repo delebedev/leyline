@@ -157,7 +157,7 @@ class LeylineServer(
         store.createTables()
         val deckService = DeckService(store)
         val playerService = PlayerService(store)
-        val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort)
+        val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort, nameByGrpId = cardRepo::findNameByGrpId)
         val writer = FdResponseWriter(fdCollector)
         val golden = GoldenData.loadFromClasspath()
 
@@ -255,7 +255,7 @@ class LeylineServer(
                     playerId = null,
                     deckService = DeckService(memStore),
                     playerService = PlayerService(memStore),
-                    matchmaking = MatchmakingService(memStore, externalHost, matchDoorPort),
+                    matchmaking = MatchmakingService(memStore, externalHost, matchDoorPort, nameByGrpId = cardRepo::findNameByGrpId),
                     collectionService = CollectionService { cardRepo.findAllGrpIds() },
                     writer = memWriter,
                     golden = golden,
