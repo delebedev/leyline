@@ -1,9 +1,26 @@
 <configuration>
   <statusListener class="ch.qos.logback.core.status.NopStatusListener"/>
 
+  <!-- Log directory: override via env LEYLINE_LOG_DIR (e.g. /app/logs in Docker) -->
+  <variable name="LOG_DIR" value="${LEYLINE_LOG_DIR:-logs}"/>
+
   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
     <encoder>
       <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Rolling file: daily rotation, 7-day retention, 50 MB cap per file -->
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${LOG_DIR}/leyline.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>${LOG_DIR}/leyline.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+      <maxFileSize>50MB</maxFileSize>
+      <maxHistory>7</maxHistory>
+      <totalSizeCap>200MB</totalSizeCap>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
     </encoder>
   </appender>
 
@@ -25,6 +42,7 @@
 
   <root level="INFO">
     <appender-ref ref="STDOUT"/>
+    <appender-ref ref="FILE"/>
     <appender-ref ref="Sentry"/>
     <appender-ref ref="DebugPanel"/>
   </root>

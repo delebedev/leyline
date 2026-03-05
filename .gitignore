@@ -21,6 +21,7 @@ target
 
 # Logs
 *.log
+/logs/
 
 # Player data (created by `just seed-db`)
 /data/
