@@ -65,21 +65,6 @@ class PackageArchitectureTest :
 
         // ── Tier 0: leaves ──────────────────────────────────────────
 
-        val allNonLeaf = arrayOf(
-            "leyline.game..",
-            "leyline.protocol..",
-            "leyline.recording..",
-            "leyline.debug..",
-            "leyline.conformance..",
-            "leyline.analysis..",
-            "leyline.frontdoor..",
-            "leyline.match..",
-            "leyline.infra..",
-            "leyline.cli..",
-            "leyline.bridge..",
-            "leyline.arena..",
-        )
-
         test("config is leaf") {
             noClasses().that().resideInAPackage("leyline.config..")
                 .should().dependOnClassesThat()
@@ -103,6 +88,7 @@ class PackageArchitectureTest :
             noClasses().that().resideInAPackage("leyline.bridge..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
+                    "leyline.config..",
                     "leyline.game..",
                     "leyline.protocol..",
                     "leyline.recording..",
@@ -121,6 +107,7 @@ class PackageArchitectureTest :
             noClasses().that().resideInAPackage("leyline.frontdoor.domain..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
+                    "leyline.config..",
                     "leyline.game..",
                     "leyline.protocol..",
                     "leyline.recording..",
@@ -160,6 +147,7 @@ class PackageArchitectureTest :
             noClasses().that().resideInAPackage("leyline.game.mapper..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
+                    "leyline.config..",
                     "leyline.infra..",
                     "leyline.match..",
                     "leyline.debug..",
@@ -206,9 +194,11 @@ class PackageArchitectureTest :
             noClasses().that().resideInAPackage("leyline.frontdoor.repo..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
+                    "leyline.config..",
                     "leyline.game..",
                     "leyline.protocol..",
                     "leyline.recording..",
+                    "leyline.debug..",
                     "leyline.conformance..",
                     "leyline.analysis..",
                     "leyline.frontdoor.wire..",
@@ -224,9 +214,11 @@ class PackageArchitectureTest :
             noClasses().that().resideInAPackage("leyline.frontdoor.service..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
+                    "leyline.config..",
                     "leyline.game..",
                     "leyline.protocol..",
                     "leyline.recording..",
+                    "leyline.debug..",
                     "leyline.conformance..",
                     "leyline.analysis..",
                     "leyline.frontdoor.wire..",
