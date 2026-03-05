@@ -72,6 +72,8 @@ class LeylineServer(
     private val externalHost: String = "localhost",
     /** Card data repository — passed to MatchHandler for grpId↔name lookups. */
     private val cardRepo: leyline.game.CardRepository? = null,
+    /** Player database path. */
+    private val playerDbPath: String = "data/player.db",
 ) {
     private val log = LoggerFactory.getLogger(LeylineServer::class.java)
 
@@ -89,8 +91,9 @@ class LeylineServer(
     private val bossGroup = NioEventLoopGroup(1)
     private val workerGroup = NioEventLoopGroup()
 
-    private var frontDoorChannel: Channel? = null
-    private var matchDoorChannel: Channel? = null
+    @Volatile private var frontDoorChannel: Channel? = null
+
+    @Volatile private var matchDoorChannel: Channel? = null
 
     // --- Debug infrastructure (wired in start()) ---
     val eventBus = DebugEventBus()
@@ -104,6 +107,13 @@ class LeylineServer(
 
     /** Replay: stub FD, replay recorded bytes on MD. */
     val isReplay get() = replayDir != null
+
+    /** Health probe: true when both server channels are bound and active. */
+    fun isHealthy(): Boolean {
+        val fd = frontDoorChannel
+        val md = matchDoorChannel
+        return fd != null && fd.isActive && md != null && md.isActive
+    }
 
     fun start() {
         // Register global instance for logback appender (must happen before any logging)
@@ -132,7 +142,7 @@ class LeylineServer(
     }
 
     private fun startStub(fdSsl: SslContext, mdSsl: SslContext) {
-        val playerDbFile = File(System.getProperty("user.dir"), "data/player.db")
+        val playerDbFile = File(playerDbPath).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), playerDbPath) }
         val hasDb = playerDbFile.exists()
         val resolvedPlayerId = if (hasDb) {
             playerId
@@ -190,14 +200,18 @@ class LeylineServer(
             log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
         }
 
-        // Deck lookup for match handler — crosses BC boundary via function, not import
+        // Deck lookups for match handler — crosses BC boundary via function, not import
+        val deckToJson: (leyline.frontdoor.domain.Deck) -> String = { deck ->
+            buildJsonObject {
+                put("MainDeck", DeckWireBuilder.cardsToJsonArray(deck.mainDeck))
+                put("Sideboard", DeckWireBuilder.cardsToJsonArray(deck.sideboard))
+            }.toString()
+        }
         val deckLookup: (String) -> String? = { deckId ->
-            deckService.getById(DeckId(deckId))?.let { deck ->
-                buildJsonObject {
-                    put("MainDeck", DeckWireBuilder.cardsToJsonArray(deck.mainDeck))
-                    put("Sideboard", DeckWireBuilder.cardsToJsonArray(deck.sideboard))
-                }.toString()
-            }
+            deckService.getById(DeckId(deckId))?.let(deckToJson)
+        }
+        val deckLookupByName: (String) -> String? = { name ->
+            deckService.getByName(name)?.let(deckToJson)
         }
 
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor") { ch ->
@@ -214,6 +228,7 @@ class LeylineServer(
                     selectedDeckOverride = { selectedDeckId },
                     selectedEventOverride = { selectedEventName },
                     deckLookup = deckLookup,
+                    deckLookupByName = deckLookupByName,
                     cards = cardRepo,
                     debugCollector = debugCollector,
                     gameStateCollector = gameStateCollector,

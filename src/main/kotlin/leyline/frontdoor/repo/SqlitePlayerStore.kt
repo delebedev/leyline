@@ -80,6 +80,10 @@ class SqlitePlayerStore(private val database: Database) :
         Decks.selectAll().where { Decks.deckId eq id.value }.firstOrNull()?.toDeck()
     }
 
+    override fun findByName(name: String): Deck? = transaction(database) {
+        Decks.selectAll().where { Decks.name eq name }.firstOrNull()?.toDeck()
+    }
+
     override fun findAllForPlayer(playerId: PlayerId): List<Deck> = transaction(database) {
         Decks.selectAll()
             .where { Decks.playerId eq playerId.value }

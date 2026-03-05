@@ -16,7 +16,7 @@ certs        := env("LEYLINE_CERTS", env("HOME", "/tmp") / ".local/share/leyline
 fd_ip        := env("LEYLINE_FD_IP", "35.160.172.88")
 md_ip        := env("LEYLINE_MD_IP", "44.245.90.131")
 payloads     := env("LEYLINE_PAYLOADS", project_dir / "recordings/latest/capture/payloads")
-ports        := "30010 30003 8090"
+ports        := "30010 30003 8090 8091"
 
 # --- JVM flags (shared base + per-mode overrides) ---
 
@@ -218,9 +218,9 @@ dev-teardown:
 
 # --- Data ---
 
-# one-time: seed player.db from golden captures + txt decks
+# one-time: seed player.db from golden captures + starter decks
 seed-db: (_require classpath) check-java
-    @{{_cli}} leyline.server.SeedDb
+    @{{_cli}} leyline.cli.SeedDb
 
 # --- Serve ---
 
