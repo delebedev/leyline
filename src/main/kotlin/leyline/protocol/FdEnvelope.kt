@@ -402,7 +402,7 @@ object FdEnvelope {
      * Build a MatchCreated push notification JSON payload.
      * Shared by FrontDoorHandler and FrontDoorReplayStub.
      */
-    fun buildMatchCreatedJson(matchId: String, matchDoorHost: String, matchDoorPort: Int): String =
+    fun buildMatchCreatedJson(matchId: String, matchDoorHost: String, matchDoorPort: Int, eventId: String = "AIBotMatch"): String =
         buildJsonObject {
             put("Type", "MatchCreated")
             putJsonObject("MatchInfoV3") {
@@ -411,7 +411,7 @@ object FdEnvelope {
                 put("MatchEndpointPort", matchDoorPort)
                 put("MatchId", matchId)
                 put("McFabricId", "wzmc://forge/$matchId")
-                put("EventId", "AIBotMatch")
+                put("EventId", eventId)
                 put("MatchType", "Familiar")
                 put("MatchTypeInternal", 1)
                 put("Battlefield", "FDN")

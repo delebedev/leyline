@@ -16,6 +16,7 @@ import leyline.frontdoor.domain.MatchInfo
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.domain.Preferences
 import leyline.frontdoor.service.DeckService
+import leyline.frontdoor.service.EventRegistry
 import leyline.frontdoor.service.LobbyStubs
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
@@ -58,11 +59,10 @@ class FrontDoorHandler(
 
     init {
         log.info(
-            "Front Door stub: loaded golden data — formats={}B sets={}B startHook={}B queueConfig={}B",
+            "Front Door stub: loaded golden data — formats={}B sets={}B startHook={}B",
             golden.getFormatsProto.size,
             golden.getSetsProto.size,
             golden.startHookJson.length,
-            golden.playBladeQueueConfigJson.length,
         )
     }
 
@@ -177,23 +177,26 @@ class FrontDoorHandler(
             // --- Match trigger ---
             612 -> { // Event_AiBotMatch
                 val deckId = json?.let { DECK_ID_PATTERN.find(it)?.groupValues?.get(1) }
+                val eventName = json?.let { EVENT_NAME_PATTERN.find(it)?.groupValues?.get(1) } ?: "AIBotMatch"
                 if (deckId != null) onDeckSelected?.invoke(deckId)
                 val pid = playerId ?: PlayerId("anonymous")
-                val match = matchmaking.startAiMatch(pid, DeckId(deckId ?: ""))
-                log.info("Front Door: Event_AiBotMatch deckId={} → ack + pushing MatchCreated", deckId)
+                val match = matchmaking.startAiMatch(pid, DeckId(deckId ?: ""), eventName)
+                log.info("Front Door: Event_AiBotMatch deckId={} event={} → ack + pushing MatchCreated", deckId, eventName)
                 writer.sendEmpty(ctx, txId)
                 sendMatchCreated(ctx, match)
             }
 
             // --- Play blade data ---
             1910 -> { // GetPlayBladeQueueConfig
-                log.info("Front Door: PlayBladeQueueConfig (golden)")
-                writer.sendJson(ctx, txId, golden.playBladeQueueConfigJson)
+                val configJson = EventRegistry.toQueueConfigJson()
+                log.info("Front Door: PlayBladeQueueConfig ({} queues)", EventRegistry.queues.size)
+                writer.sendJson(ctx, txId, configJson)
             }
 
             624 -> { // Event_GetActiveEventsV2
-                log.info("Front Door: ActiveEventsV2 (golden)")
-                writer.sendJson(ctx, txId, golden.activeEventsJson)
+                val eventsJson = EventRegistry.toActiveEventsJson()
+                log.info("Front Door: ActiveEventsV2 ({} events)", EventRegistry.events.size)
+                writer.sendJson(ctx, txId, eventsJson)
             }
 
             623 -> { // EventGetCoursesV2
@@ -347,8 +350,8 @@ class FrontDoorHandler(
     }
 
     private fun sendMatchCreated(ctx: ChannelHandlerContext, match: MatchInfo) {
-        val json = FdEnvelope.buildMatchCreatedJson(match.matchId, match.host, match.port)
-        log.info("Front Door: pushing MatchCreated matchId={}", match.matchId)
+        val json = FdEnvelope.buildMatchCreatedJson(match.matchId, match.host, match.port, match.eventName)
+        log.info("Front Door: pushing MatchCreated matchId={} event={}", match.matchId, match.eventName)
         val pushTxId = UUID.randomUUID().toString()
         writer.sendJson(ctx, pushTxId, json)
     }
@@ -368,6 +371,7 @@ class FrontDoorHandler(
     companion object {
         private val GRAPH_ID_PATTERN = Regex(""""GraphId"\s*:\s*"([^"]+)"""")
         private val DECK_ID_PATTERN = Regex(""""deckId"\s*:\s*"([^"]+)"""")
+        private val EVENT_NAME_PATTERN = Regex(""""eventName"\s*:\s*"([^"]+)"""")
         private const val GRAPH_DEFAULT = """{"NodeStates":{},"MilestoneStates":{}}"""
     }
 }

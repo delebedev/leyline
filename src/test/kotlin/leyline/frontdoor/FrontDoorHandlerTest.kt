@@ -1,6 +1,7 @@
 package leyline.frontdoor
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -193,15 +194,11 @@ class FrontDoorHandlerTest :
             // Proto response — jsonPayload may be null but response must exist
         }
 
-        test("CmdType 612 - AiBotMatch returns ack then MatchCreated push") {
+        test("CmdType 612 - AiBotMatch returns ack then MatchCreated with correct EventId") {
             val ch = fdChannel()
             val responses = ch.sendCmdAll(612, """{"deckId":"$testDeckId","eventName":"AIBotMatch"}""")
             responses.size shouldBe 2
-
-            // First: ack (empty or minimal)
             responses[0].transactionId.shouldNotBeNull()
-
-            // Second: MatchCreated push
             val push = responses[1]
             val pushJson = push.jsonPayload.shouldNotBeNull()
             pushJson shouldContain "MatchCreated"
@@ -212,6 +209,17 @@ class FrontDoorHandlerTest :
             matchInfo["MatchEndpointHost"].shouldNotBeNull()
             matchInfo["MatchEndpointPort"].shouldNotBeNull()
             matchInfo["MatchId"].shouldNotBeNull()
+            matchInfo["EventId"]?.jsonPrimitive?.content shouldBe "AIBotMatch"
+        }
+
+        test("CmdType 612 - eventName propagates to MatchCreated EventId") {
+            val ch = fdChannel()
+            val responses = ch.sendCmdAll(612, """{"deckId":"$testDeckId","eventName":"Historic_Ladder"}""")
+            responses.size shouldBe 2
+            val matchInfo = json.parseToJsonElement(responses[1].jsonPayload!!)
+                .jsonObject["MatchInfoV3"]?.jsonObject
+            matchInfo.shouldNotBeNull()
+            matchInfo["EventId"]?.jsonPrimitive?.content shouldBe "Historic_Ladder"
         }
 
         test("CmdType 1700 - GraphDefinitions returns JSON") {
@@ -222,18 +230,32 @@ class FrontDoorHandlerTest :
             json.parseToJsonElement(msg.jsonPayload!!) // valid JSON
         }
 
-        test("CmdType 1910 - PlayBladeQueueConfig returns JSON") {
+        test("CmdType 1910 - PlayBladeQueueConfig has all format queues") {
             val ch = fdChannel()
             val msg = ch.sendCmd(1910)
-            msg.jsonPayload.shouldNotBeNull()
-            json.parseToJsonElement(msg.jsonPayload!!)
+            val arr = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonArray
+            arr.shouldNotBeEmpty()
+            val ids = arr.map { it.jsonObject["Id"]?.jsonPrimitive?.content }
+            ids shouldContain "StandardRanked"
+            ids shouldContain "HistoricRanked"
+            ids shouldContain "ExplorerRanked"
+            ids shouldContain "TimelessRanked"
+            ids shouldContain "AIBotMatch"
         }
 
-        test("CmdType 624 - ActiveEventsV2 returns JSON") {
+        test("CmdType 624 - ActiveEventsV2 has events for all formats") {
             val ch = fdChannel()
             val msg = ch.sendCmd(624)
-            msg.jsonPayload.shouldNotBeNull()
-            json.parseToJsonElement(msg.jsonPayload!!)
+            val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            val events = obj["Events"]?.jsonArray
+            events.shouldNotBeNull()
+            events.shouldNotBeEmpty()
+            val names = events.map { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content }
+            names shouldContain "Ladder"
+            names shouldContain "Historic_Ladder"
+            names shouldContain "Explorer_Ladder"
+            names shouldContain "Timeless_Ladder"
+            names shouldContain "AIBotMatch"
         }
 
         test("CmdType 410 - DeckSummariesV3 returns deck list with flat Attributes") {

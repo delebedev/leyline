@@ -13,8 +13,6 @@ class GoldenData(
     val startHookJson: String,
     val graphDefinitionsJson: String,
     val designerMetadataJson: String,
-    val playBladeQueueConfigJson: String,
-    val activeEventsJson: String,
     val goldenPlayerPreferencesJson: String,
     val graphStateResponses: Map<String, String>,
 ) {
@@ -25,8 +23,6 @@ class GoldenData(
             startHookJson = loadTextResource("fd-golden/start-hook.json"),
             graphDefinitionsJson = loadTextResource("fd-golden/graph-definitions.json"),
             designerMetadataJson = loadTextResource("fd-golden/designer-metadata.json"),
-            playBladeQueueConfigJson = loadTextResource("fd-golden/play-blade-queue-config.json"),
-            activeEventsJson = loadTextResource("fd-golden/active-events.json"),
             goldenPlayerPreferencesJson = loadTextResource("fd-golden/player-preferences.json"),
             graphStateResponses = mapOf(
                 "NPE_Tutorial" to loadTextResource("fd-golden/graph-state-npe-tutorial.json"),
