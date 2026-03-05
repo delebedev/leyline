@@ -20,6 +20,7 @@ fun main(args: Array<String>) {
         return
     }
 
+    val inspector = RecordingInspector()
     val json = Json {
         prettyPrint = true
         encodeDefaults = true
@@ -27,7 +28,7 @@ fun main(args: Array<String>) {
 
     when (val cmd = args[0]) {
         "list" -> {
-            val sessions = RecordingInspector.listSessions()
+            val sessions = inspector.listSessions()
             if (sessions.isEmpty()) {
                 println("No recording sessions found.")
                 return
@@ -43,7 +44,7 @@ fun main(args: Array<String>) {
                 printUsage()
                 return
             }
-            val summary = RecordingInspector.summary(ref)
+            val summary = inspector.summary(ref)
             if (summary == null) {
                 println("Session not found or not parseable: $ref")
                 return
@@ -61,7 +62,7 @@ fun main(args: Array<String>) {
             val actor = flagValue(args, "--actor")
             val limit = flagValue(args, "--limit")?.toIntOrNull() ?: 500
 
-            val actions = RecordingInspector.actions(ref, cardFilter = card, actorFilter = actor, limit = limit)
+            val actions = inspector.actions(ref, cardFilter = card, actorFilter = actor, limit = limit)
             if (actions.isEmpty()) {
                 println("No actions found.")
                 return
@@ -80,7 +81,7 @@ fun main(args: Array<String>) {
                 printUsage()
                 return
             }
-            val actions = RecordingInspector.actions(ref, cardFilter = card, limit = 5_000)
+            val actions = inspector.actions(ref, cardFilter = card, limit = 5_000)
                 .filter { it.category == "PlayLand" || it.category == "CastSpell" }
             if (actions.isEmpty()) {
                 println("No matching plays for '$card'.")
@@ -100,7 +101,7 @@ fun main(args: Array<String>) {
                 printUsage()
                 return
             }
-            val diff = RecordingInspector.compare(left, right)
+            val diff = inspector.compare(left, right)
             if (diff == null) {
                 println("Unable to compare: no parseable actions in one or both sessions.")
                 return

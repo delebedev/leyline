@@ -20,6 +20,10 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class MulliganHandler(
     private val matchConfig: MatchConfig,
     private val registry: MatchRegistry,
+    private val sessionProvider: () -> MatchSession?,
+    private val ctxProvider: () -> ChannelHandlerContext?,
+    private val matchIdProvider: () -> String,
+    private val seatIdProvider: () -> Int,
 ) {
     private val log = LoggerFactory.getLogger(MulliganHandler::class.java)
 
@@ -29,14 +33,10 @@ class MulliganHandler(
     var seat1Hand: List<Int> = emptyList()
     var seat2Hand: List<Int> = emptyList()
 
-    // --- Accessors set by MatchHandler on connect ---
-    lateinit var sessionProvider: () -> MatchSession?
-    lateinit var ctxProvider: () -> ChannelHandlerContext?
-    var matchId: String = ""
-    var seatId: Int = 1
-
     private val session get() = sessionProvider()
     private val ctx get() = ctxProvider()
+    private val matchId get() = matchIdProvider()
+    private val seatId get() = seatIdProvider()
 
     /** Handle ChooseStartingPlayerResp — triggers mulligan flow or skip-mulligan. */
     fun onChooseStartingPlayer(matchHandlerRef: MatchHandler) {

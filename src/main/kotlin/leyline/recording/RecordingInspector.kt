@@ -12,10 +12,10 @@ import java.util.Base64
  * (or `/tmp/arena-recordings/` fallback). Supports engine dumps, proxy
  * captures, and the always-on events.jsonl paired stream.
  */
-object RecordingInspector {
-
-    /** Optional card name resolver — set during server startup when CardRepository is available. */
-    var cardNameLookup: ((Int) -> String?)? = null
+class RecordingInspector(
+    /** Card name resolver — null when CardRepository is not available (CLI tools). */
+    private val cardNameLookup: ((Int) -> String?)? = null,
+) {
 
     private val recordingsRoot = LeylinePaths.RECORDINGS
 

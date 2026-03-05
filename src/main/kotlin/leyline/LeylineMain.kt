@@ -106,6 +106,7 @@ fun main(args: Array<String>) {
         gameStateCollector = server.gameStateCollector,
         fdCollector = server.fdCollector,
         eventBus = server.eventBus,
+        recordingInspector = server.recordingInspector,
     )
 
     // Management server — always starts, owns /health
