@@ -102,9 +102,15 @@ fun main(args: Array<String>) {
         cardRepo = cardRepo,
     )
 
-    val logWatcher = PlayerLogWatcher()
+    val logWatcher = PlayerLogWatcher(eventBus = server.eventBus)
     val debugPort = a["--debug-port"]?.toIntOrNull() ?: 8090
-    val debugServer = DebugServer(debugPort)
+    val debugServer = DebugServer(
+        port = debugPort,
+        debugCollector = server.debugCollector,
+        gameStateCollector = server.gameStateCollector,
+        fdCollector = server.fdCollector,
+        eventBus = server.eventBus,
+    )
 
     // Mock WAS — skip in proxy mode (client uses real WAS for auth)
     val wasServer = if (!isProxy) {

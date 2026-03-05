@@ -42,6 +42,10 @@ class MatchSession(
     val paceDelayMs: Long = 200L,
     val recorder: SessionRecorder? = null,
     override var counter: MessageCounter = MessageCounter(),
+    /** Protocol message collector for debug panel. Null in tests. */
+    private val debugCollector: DebugCollector? = null,
+    /** Structured game state collector for debug panel. Null in tests. */
+    private val gameStateCollector: GameStateCollector? = null,
 ) : SessionOps {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
@@ -563,8 +567,8 @@ class MatchSession(
 
     /** Send multiple GRE messages bundled in one GreToClientEvent + mirror to peer. */
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
-        DebugCollector.recordOutbound(messages, seatId)
-        GameStateCollector.collectOutbound(messages, DebugCollector.currentSeq())
+        debugCollector?.recordOutbound(messages, seatId)
+        gameStateCollector?.collectOutbound(messages, debugCollector?.currentSeq() ?: 0)
         // Track last-sent TurnInfo so BundleBuilder.postAction() can detect phase
         // transitions even when PhaseStopProfile causes the engine to skip phases.
         val bridge = gameBridge
@@ -612,7 +616,7 @@ class MatchSession(
             else -> "ai"
         }
         val stackDepth = game.stack?.size() ?: 0
-        GameStateCollector.recordEvent(counter.currentGsId(), type, phase, turn, detail, priority, stackDepth, DebugCollector.currentSeq())
+        gameStateCollector?.recordEvent(counter.currentGsId(), type, phase, turn, detail, priority, stackDepth, debugCollector?.currentSeq() ?: 0)
     }
 
     /** Pacing delay — skipped when paceDelayMs == 0 (tests). */

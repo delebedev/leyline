@@ -43,6 +43,10 @@ class MatchHandler(
     private val deckLookup: ((String) -> String?)? = null,
     /** Card data repository — used for grpId→name in deck conversion. */
     private val cards: CardRepository? = null,
+    /** Protocol message collector for debug panel. */
+    private val debugCollector: DebugCollector? = null,
+    /** Structured game state collector for debug panel. */
+    private val gameStateCollector: GameStateCollector? = null,
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
@@ -66,12 +70,12 @@ class MatchHandler(
             ignoreUnknownKeys = true
             isLenient = true
         }
+    }
 
-        init {
-            // Wire debug collector's bridge provider to avoid debug→server import cycle.
-            DebugCollector.bridgeProvider = { defaultRegistry.activeBridges() }
-            DebugCollector.sessionProvider = { defaultRegistry.activeSession() }
-        }
+    init {
+        // Wire debug collector's bridge/session providers once per handler instance.
+        debugCollector?.bridgeProvider = { registry.activeBridges() }
+        debugCollector?.sessionProvider = { registry.activeSession() }
     }
 
     override fun channelActive(ctx: ChannelHandlerContext) {
@@ -80,7 +84,7 @@ class MatchHandler(
 
     override fun channelRead0(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
         Tap.inbound(msg.clientToMatchServiceMessageType, msg.requestId)
-        DebugCollector.recordInbound(msg)
+        debugCollector?.recordInbound(msg)
 
         when (msg.clientToMatchServiceMessageType) {
             ClientToMatchServiceMessageType.AuthenticateRequest_f487 -> handleMatchAuth(ctx, msg)
@@ -126,7 +130,15 @@ class MatchHandler(
             val sink = NettyMessageSink(ctx, dumpEnabled = seatId == 1)
             val rec = SessionRecorder(mode = "engine")
             SessionRecorder.register(rec)
-            val s = MatchSession(seatId, matchId, sink, registry, recorder = rec)
+            val s = MatchSession(
+                seatId,
+                matchId,
+                sink,
+                registry,
+                recorder = rec,
+                debugCollector = debugCollector,
+                gameStateCollector = gameStateCollector,
+            )
             s.playerId = clientId.removeSuffix("_Familiar")
             session = s
             registry.registerSession(matchId, seatId, s)
@@ -150,8 +162,8 @@ class MatchHandler(
                 val evicted = registry.evictStale(matchId)
                 if (evicted.isNotEmpty()) {
                     evicted.forEach { it.shutdown() }
-                    DebugCollector.clear()
-                    GameStateCollector.clear()
+                    debugCollector?.clear()
+                    gameStateCollector?.clear()
                     log.info("Match Door: evicted {} stale bridge(s)", evicted.size)
                 }
 
