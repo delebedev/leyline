@@ -43,20 +43,19 @@ class DeckWireBuilderTest :
             attrs["TileID"]?.jsonPrimitive?.content shouldBe "12345"
         }
 
-        test("V2 and V3 both have FormatLegalities") {
+        test("V2 has FormatLegalities, V3 does not (minimal model)") {
             DeckWireBuilder.toV2Summary(deck)["FormatLegalities"]?.jsonObject shouldNotBe null
-            DeckWireBuilder.toV3Summary(deck)["FormatLegalities"]?.jsonObject shouldNotBe null
+            DeckWireBuilder.toV3Summary(deck)["FormatLegalities"] shouldBe null
         }
 
-        test("60-card deck is Standard legal") {
+        test("V3 has only DeckId, Name, Attributes") {
             val obj = DeckWireBuilder.toV3Summary(deck)
-            obj["FormatLegalities"]!!.jsonObject["Standard"]?.jsonPrimitive?.boolean shouldBe true
+            obj.keys shouldBe setOf("DeckId", "Name", "Attributes")
         }
 
-        test("under 60 cards is not Standard legal") {
-            val small = deck.copy(mainDeck = listOf(DeckCard(100, 10)))
-            val obj = DeckWireBuilder.toV3Summary(small)
-            obj["FormatLegalities"]!!.jsonObject["Standard"]?.jsonPrimitive?.boolean shouldBe false
+        test("V2 60-card deck is Standard legal") {
+            val obj = DeckWireBuilder.toV2Summary(deck)
+            obj["FormatLegalities"]!!.jsonObject["Standard"]?.jsonPrimitive?.boolean shouldBe true
         }
 
         test("parseDeckUpdate returns Deck from 406 JSON") {

@@ -69,7 +69,6 @@ object DeckWireBuilder {
                 put("TileID", deck.tileId.toString())
             },
         )
-        putTrailingFields(deck)
     }
 
     /** Deck entry for StartHook's Decks map (card lists only — matches golden shape). */
