@@ -15,6 +15,10 @@ class GoldenData(
     val designerMetadataJson: String,
     val goldenPlayerPreferencesJson: String,
     val graphStateResponses: Map<String, String>,
+    val eventJoinJson: String,
+    val eventSetDeckJson: String,
+    val preconDecksJson: String,
+    val carouselJson: String,
 ) {
     companion object {
         fun loadFromClasspath(): GoldenData = GoldenData(
@@ -29,6 +33,10 @@ class GoldenData(
                 "NewPlayerExperience" to loadTextResource("fd-golden/graph-state-npe.json"),
                 "ColorChallenge" to loadTextResource("fd-golden/graph-state-color-challenge.json"),
             ),
+            eventJoinJson = loadTextResource("fd-golden/event-join.json"),
+            eventSetDeckJson = loadTextResource("fd-golden/event-set-deck.json"),
+            preconDecksJson = loadTextResource("fd-golden/precon-decks.json"),
+            carouselJson = loadTextResource("fd-golden/carousel.json"),
         )
 
         private fun loadResource(path: String): ByteArray =

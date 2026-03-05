@@ -260,17 +260,12 @@ class FrontDoorHandlerTest :
             names shouldContain "AIBotMatch"
         }
 
-        test("CmdType 410 - DeckSummariesV3 returns deck list with flat Attributes") {
+        test("CmdType 410 - PreconDecksV3 returns precon decks from golden") {
             val ch = fdChannel()
             val msg = ch.sendCmd(410)
-            val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
-            val summaries = obj["DeckSummariesV3"]?.jsonArray
-            summaries.shouldNotBeNull()
-            summaries.shouldNotBeEmpty()
-            // V3 Attributes must be a flat dict, not [{name,value}] array
-            val attrs = summaries[0].jsonObject["Attributes"]?.jsonObject
-            attrs.shouldNotBeNull()
-            attrs["Format"].shouldNotBeNull()
+            val payload = msg.jsonPayload.shouldNotBeNull()
+            val obj = json.parseToJsonElement(payload).jsonObject
+            obj["PreconDecks"]?.jsonArray.shouldNotBeNull()
         }
 
         test("CmdType 1911 - PlayerPreferences has single Preferences wrapper") {

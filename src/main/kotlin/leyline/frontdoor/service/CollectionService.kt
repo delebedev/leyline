@@ -41,6 +41,6 @@ class CollectionService(
     /** Serialize collection to the wire format expected by CmdType 551. */
     fun toJson(collection: Map<Int, Int>): String {
         val cards = collection.entries.joinToString(",") { (grpId, count) -> "\"$grpId\":$count" }
-        return """{"cacheVersion":-1,"cards":{$cards}}"""
+        return """{"cacheVersion":1,"cards":{$cards}}"""
     }
 }
