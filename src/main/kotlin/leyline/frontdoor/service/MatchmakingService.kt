@@ -1,11 +1,10 @@
 package leyline.frontdoor.service
 
 import leyline.frontdoor.domain.DeckId
+import leyline.frontdoor.domain.MatchInfo
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.DeckRepository
 import java.util.UUID
-
-data class MatchInfo(val matchId: String, val host: String, val port: Int)
 
 class MatchmakingService(
     private val decks: DeckRepository,

@@ -100,10 +100,23 @@ object DeckWireBuilder {
         )
         putTrailingFields(deck)
         put("MainDeck", cardsToJsonArray(deck.mainDeck))
+        put("ReducedSideboard", buildJsonArray {})
         put("Sideboard", cardsToJsonArray(deck.sideboard))
         put("CommandZone", cardsToJsonArray(deck.commandZone))
         put("Companions", cardsToJsonArray(deck.companions))
         put("CardSkins", buildJsonArray {})
+    }
+
+    /** Serialize card list to Arena JSON shape `[{cardId, quantity}]`. */
+    fun cardsToJsonArray(cards: List<DeckCard>) = buildJsonArray {
+        for (c in cards) {
+            add(
+                buildJsonObject {
+                    put("cardId", c.grpId)
+                    put("quantity", c.quantity)
+                },
+            )
+        }
     }
 
     /** Parse CmdType 406 inbound JSON into a [Deck]. */
@@ -162,17 +175,6 @@ object DeckWireBuilder {
         put("Pet", "")
         put("Title", "")
         put("Emotes", buildJsonArray {})
-    }
-
-    private fun cardsToJsonArray(cards: List<DeckCard>) = buildJsonArray {
-        for (c in cards) {
-            add(
-                buildJsonObject {
-                    put("cardId", c.grpId)
-                    put("quantity", c.quantity)
-                },
-            )
-        }
     }
 
     private fun parseCardList(element: kotlinx.serialization.json.JsonElement?): List<DeckCard> {

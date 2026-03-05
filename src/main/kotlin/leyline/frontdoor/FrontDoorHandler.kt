@@ -11,14 +11,12 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import leyline.debug.FdDebugCollector
-import leyline.frontdoor.domain.Deck
-import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
+import leyline.frontdoor.domain.MatchInfo
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.domain.Preferences
 import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.LobbyStubs
-import leyline.frontdoor.service.MatchInfo
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.DeckWireBuilder
@@ -336,37 +334,12 @@ class FrontDoorHandler(
         val root = lenientJson.parseToJsonElement(golden.startHookJson).jsonObject
         val summaries = buildJsonArray { decks.forEach { add(DeckWireBuilder.toV2Summary(it)) } }
         val decksMap = buildJsonObject {
-            for (d in decks) put(d.id.value, deckToStartHookCardsEntry(d))
+            for (d in decks) put(d.id.value, DeckWireBuilder.toStartHookEntry(d))
         }
 
         val patched = JsonObject(root + ("DeckSummariesV2" to summaries) + ("Decks" to decksMap))
         log.info("StartHook assembled from DB: {} deck(s)", decks.size)
         return lenientJson.encodeToString(JsonObject.serializer(), patched)
-    }
-
-    /**
-     * Build a deck's cards entry for the StartHook `Decks` map.
-     * Arena expects MainDeck, ReducedSideboard, Sideboard, CommandZone,
-     * Companions, and CardSkins at the top level.
-     */
-    private fun deckToStartHookCardsEntry(deck: Deck): JsonObject = buildJsonObject {
-        put("MainDeck", cardsToJsonArray(deck.mainDeck))
-        put("ReducedSideboard", buildJsonArray {})
-        put("Sideboard", cardsToJsonArray(deck.sideboard))
-        put("CommandZone", cardsToJsonArray(deck.commandZone))
-        put("Companions", cardsToJsonArray(deck.companions))
-        put("CardSkins", buildJsonArray {})
-    }
-
-    private fun cardsToJsonArray(cards: List<DeckCard>) = buildJsonArray {
-        for (c in cards) {
-            add(
-                buildJsonObject {
-                    put("cardId", c.grpId)
-                    put("quantity", c.quantity)
-                },
-            )
-        }
     }
 
     private fun sendMatchCreated(ctx: ChannelHandlerContext, match: MatchInfo) {

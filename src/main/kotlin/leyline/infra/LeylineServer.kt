@@ -14,7 +14,6 @@ import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory
 import io.netty.handler.ssl.util.SelfSignedCertificate
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import leyline.config.MatchConfig
@@ -27,6 +26,7 @@ import leyline.frontdoor.repo.SqlitePlayerStore
 import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
+import leyline.frontdoor.wire.DeckWireBuilder
 import leyline.frontdoor.wire.FdResponseWriter
 import leyline.match.MatchHandler
 import leyline.match.ReplayHandler
@@ -41,9 +41,10 @@ import java.io.File
 /**
  * Client-compatible TLS TCP server.
  *
- * Two modes:
- * - **Stub** (default): responds with fake auth/game state for smoke testing
- * - **Proxy**: relays to real client servers, decodes + logs frames, validates our codec
+ * Three modes:
+ * - **Stub** (default): FD + MD both stubbed locally, fully offline
+ * - **Proxy**: relays both FD + MD to real Arena servers for traffic capture
+ * - **Replay**: stub FD, replay recorded payloads on MD
  *
  * Both doors use the same 6-byte header framing (see [ClientFrameDecoder]).
  *
@@ -88,12 +89,10 @@ class LeylineServer(
     private var frontDoorChannel: Channel? = null
     private var matchDoorChannel: Channel? = null
 
-    val isProxy get() = upstreamFrontDoor != null && replayDir == null
+    /** Proxy: relay both FD + MD to real Arena servers for traffic capture. */
+    val isProxy get() = upstreamFrontDoor != null && upstreamMatchDoor != null && replayDir == null
 
-    /** Hybrid: proxy FD to real servers, stub MD with custom game state. */
-    val isHybrid get() = upstreamFrontDoor != null && upstreamMatchDoor == null && replayDir == null
-
-    /** Replay: proxy FD to real servers, replay recorded bytes on MD. */
+    /** Replay: stub FD, replay recorded bytes on MD. */
     val isReplay get() = replayDir != null
 
     fun start() {
@@ -106,7 +105,6 @@ class LeylineServer(
 
         when {
             isReplay -> startReplay(fdSsl, mdSsl)
-            isHybrid -> startHybrid(fdSsl, mdSsl)
             isProxy -> startProxy(fdSsl, mdSsl)
             else -> startStub(fdSsl, mdSsl)
         }
@@ -175,34 +173,10 @@ class LeylineServer(
 
         // Deck lookup for match handler — crosses BC boundary via function, not import
         val deckLookup: (String) -> String? = { deckId ->
-            store.findById(DeckId(deckId))?.let { deck ->
+            deckService.getById(DeckId(deckId))?.let { deck ->
                 buildJsonObject {
-                    put(
-                        "MainDeck",
-                        buildJsonArray {
-                            deck.mainDeck.forEach { c ->
-                                add(
-                                    buildJsonObject {
-                                        put("cardId", c.grpId)
-                                        put("quantity", c.quantity)
-                                    },
-                                )
-                            }
-                        },
-                    )
-                    put(
-                        "Sideboard",
-                        buildJsonArray {
-                            deck.sideboard.forEach { c ->
-                                add(
-                                    buildJsonObject {
-                                        put("cardId", c.grpId)
-                                        put("quantity", c.quantity)
-                                    },
-                                )
-                            }
-                        },
-                    )
+                    put("MainDeck", DeckWireBuilder.cardsToJsonArray(deck.mainDeck))
+                    put("Sideboard", DeckWireBuilder.cardsToJsonArray(deck.sideboard))
                 }.toString()
             }
         }
@@ -230,37 +204,28 @@ class LeylineServer(
         val dir = replayDir!!
         require(dir.isDirectory) { "Replay dir does not exist: $dir" }
 
-        // Front Door: proxy to real servers (need real lobby to trigger match)
-        val fdHost = upstreamFrontDoor
-        if (fdHost != null) {
-            frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Proxy") { ch ->
-                ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, fdHost, frontDoorPort))
-            }
-            log.info("Client Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
-        } else {
-            // No-player FD stub for replay — in-memory SQLite, no deck/player data
-            val golden = GoldenData.loadFromClasspath()
-            val memDb = org.jetbrains.exposed.v1.jdbc.Database.connect("jdbc:sqlite::memory:", "org.sqlite.JDBC")
-            val memStore = SqlitePlayerStore(memDb)
-            memStore.createTables()
-            val memWriter = FdResponseWriter()
+        // FD stub — in-memory SQLite, no deck/player data needed for replay
+        val golden = GoldenData.loadFromClasspath()
+        val memDb = org.jetbrains.exposed.v1.jdbc.Database.connect("jdbc:sqlite::memory:", "org.sqlite.JDBC")
+        val memStore = SqlitePlayerStore(memDb)
+        memStore.createTables()
+        val memWriter = FdResponseWriter()
 
-            frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
-                ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast(
-                    "handler",
-                    FrontDoorHandler(
-                        playerId = null,
-                        deckService = DeckService(memStore),
-                        playerService = PlayerService(memStore),
-                        matchmaking = MatchmakingService(memStore, externalHost, matchDoorPort),
-                        writer = memWriter,
-                        golden = golden,
-                    ),
-                )
-            }
-            log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
+        frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
+            ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
+            ch.pipeline().addLast(
+                "handler",
+                FrontDoorHandler(
+                    playerId = null,
+                    deckService = DeckService(memStore),
+                    playerService = PlayerService(memStore),
+                    matchmaking = MatchmakingService(memStore, externalHost, matchDoorPort),
+                    writer = memWriter,
+                    golden = golden,
+                ),
+            )
         }
+        log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
 
         // Match Door: replay recorded payloads
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor-Replay") { ch ->
@@ -268,29 +233,9 @@ class LeylineServer(
             ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
             ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
             ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
-            // No protobufEncoder — replay handler sends raw bytes that go through headerPrepender
             ch.pipeline().addLast("handler", ReplayHandler(dir))
         }
         log.info("Client Match Door (replay from {}) listening on :{}", dir, matchDoorPort)
-    }
-
-    private fun startHybrid(fdSsl: SslContext, mdSsl: SslContext) {
-        val fdHost = upstreamFrontDoor!!
-
-        frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Proxy") { ch ->
-            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, fdHost, frontDoorPort))
-        }
-        log.info("Client Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
-
-        matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor") { ch ->
-            ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-            ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
-            ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
-            ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
-            ch.pipeline().addLast("protobufEncoder", ProtobufEncoder())
-            ch.pipeline().addLast("handler", MatchHandler(matchConfig = matchConfig, puzzleFile = puzzleFile))
-        }
-        log.info("Client Match Door (stub) listening on :{}", matchDoorPort)
     }
 
     private fun startProxy(fdSsl: SslContext, mdSsl: SslContext) {
