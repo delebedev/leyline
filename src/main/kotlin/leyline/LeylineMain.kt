@@ -41,21 +41,20 @@ fun main(args: Array<String>) {
     val certFile = a["--cert"]?.let { File(it) } ?: envCert
     val keyFile = a["--key"]?.let { File(it) } ?: envKey
 
-    // Card database: skip in proxy mode (pure passthrough, no card lookups)
-    val cardRepo = if (!isProxy) {
-        val cardDbPath = System.getenv("LEYLINE_CARD_DB")
-        if (cardDbPath != null && File(cardDbPath).exists()) {
-            val cardDb = org.jetbrains.exposed.v1.jdbc.Database.connect(
-                "jdbc:sqlite:${File(cardDbPath).absolutePath}",
-                "org.sqlite.JDBC",
-            )
-            ExposedCardRepository(cardDb)
-        } else {
-            null
-        }
-    } else {
-        null
+    // Card database: always required (collection, debug panel, recordings)
+    val cardDbPath = System.getenv("LEYLINE_CARD_DB")
+        ?: detectArenaCardDb()
+    requireNotNull(cardDbPath) {
+        "Card database not found. Set LEYLINE_CARD_DB or install Arena client.\n" +
+            "  Expected: ~/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga"
     }
+    require(File(cardDbPath).exists()) { "Card database not found at: $cardDbPath" }
+    val cardRepo = ExposedCardRepository(
+        org.jetbrains.exposed.v1.jdbc.Database.connect(
+            "jdbc:sqlite:${File(cardDbPath).absolutePath}",
+            "org.sqlite.JDBC",
+        ),
+    )
 
     // Puzzle mode: --puzzle <file> overrides normal constructed flow
     val puzzleFile = a["--puzzle"]?.let { File(it) }
@@ -116,12 +115,21 @@ fun main(args: Array<String>) {
         healthCheck = { server.isHealthy() },
     )
 
-    // Mock WAS — skip in proxy mode (client uses real WAS for auth)
+    // WAS — mock in stub mode, reverse proxy in proxy mode
     val wasPort = a["--was-port"]?.toIntOrNull() ?: sc.wasPort
-    val wasServer = if (!isProxy) {
+    val wasCert = a["--was-cert"]?.let { File(it) } ?: envCert
+    val wasKey = a["--was-key"]?.let { File(it) } ?: envKey
+    val wasServer = if (isProxy) {
+        MockWasServer(
+            port = wasPort,
+            certFile = wasCert,
+            keyFile = wasKey,
+            fdHost = fdHost,
+            upstreamWas = a["--proxy-was"] ?: MockWasServer.DEFAULT_UPSTREAM_WAS,
+            upstreamDoorbell = a["--proxy-doorbell"] ?: MockWasServer.DEFAULT_UPSTREAM_DOORBELL,
+        )
+    } else {
         val debugRoles = System.getenv("LEYLINE_DEBUG").let { it == "true" || it == "1" }
-        val wasCert = a["--was-cert"]?.let { File(it) } ?: envCert
-        val wasKey = a["--was-key"]?.let { File(it) } ?: envKey
         MockWasServer(
             port = wasPort,
             roles = if (debugRoles) MockWasServer.DEBUG_ROLES else MockWasServer.DEFAULT_ROLES,
@@ -129,14 +137,12 @@ fun main(args: Array<String>) {
             keyFile = wasKey,
             fdHost = fdHost,
         )
-    } else {
-        null
     }
 
     Runtime.getRuntime().addShutdownHook(
         Thread {
             logWatcher.stop()
-            wasServer?.stop()
+            wasServer.stop()
             debugServer.stop()
             mgmtServer.stop()
             server.stop()
@@ -154,15 +160,17 @@ fun main(args: Array<String>) {
     server.start()
     mgmtServer.start()
     debugServer.start()
-    wasServer?.start()
+    wasServer.start()
     logWatcher.start()
     println("Leyline server running. Press Ctrl+C to stop.")
     println("Management: http://localhost:$mgmtPort/health")
     println("Debug panel: http://localhost:$debugPort")
-    if (wasServer != null) {
+    if (wasServer.isProxy) {
+        println("WAS proxy:   https://localhost:$wasPort -> ${MockWasServer.DEFAULT_UPSTREAM_WAS}")
+    } else {
         println("Mock WAS:    https://localhost:$wasPort")
-        println("Doorbell:    FdURI=$fdHost")
     }
+    println("Doorbell:    FdURI=$fdHost")
     if (puzzleFile != null) {
         println("Puzzle: ${puzzleFile.name}")
     } else if (!isProxy) {
@@ -170,6 +178,16 @@ fun main(args: Array<String>) {
     }
 
     Thread.currentThread().join()
+}
+
+/** Auto-detect Arena card DB on macOS. Returns path or null. */
+private fun detectArenaCardDb(): String? {
+    val rawDir = File(System.getProperty("user.home"), "Library/Application Support/com.wizards.mtga/Downloads/Raw")
+    if (!rawDir.isDirectory) return null
+    return rawDir.listFiles()
+        ?.filter { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
+        ?.maxByOrNull { it.lastModified() }
+        ?.absolutePath
 }
 
 private fun parseArgs(args: Array<String>): Map<String, String> {

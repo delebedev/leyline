@@ -71,7 +71,7 @@ class LeylineServer(
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
     private val externalHost: String = "localhost",
     /** Card data repository — passed to MatchHandler for grpId↔name lookups. */
-    private val cardRepo: leyline.game.CardRepository? = null,
+    private val cardRepo: leyline.game.CardRepository,
     /** Player database path. */
     private val playerDbPath: String = "data/player.db",
 ) {
@@ -102,7 +102,7 @@ class LeylineServer(
     val debugCollector = DebugCollector(eventBus)
     val gameStateCollector = GameStateCollector(cardRepo, eventBus)
     val recordingInspector = leyline.recording.RecordingInspector(
-        cardNameLookup = cardRepo?.let { repo -> { grpId: Int -> repo.findNameByGrpId(grpId) } },
+        cardNameLookup = { grpId: Int -> cardRepo.findNameByGrpId(grpId) },
     )
 
     /** Proxy: relay both FD + MD to real Arena servers for traffic capture. */
@@ -186,7 +186,7 @@ class LeylineServer(
                         deckService = deckService,
                         playerService = playerService,
                         matchmaking = matchmakingService,
-                        collectionService = CollectionService { cardRepo?.findAllGrpIds() ?: emptyList() },
+                        collectionService = CollectionService { cardRepo.findAllGrpIds() },
                         writer = writer,
                         golden = golden,
                         fdCollector = fdCollector,
@@ -256,7 +256,7 @@ class LeylineServer(
                     deckService = DeckService(memStore),
                     playerService = PlayerService(memStore),
                     matchmaking = MatchmakingService(memStore, externalHost, matchDoorPort),
-                    collectionService = CollectionService { cardRepo?.findAllGrpIds() ?: emptyList() },
+                    collectionService = CollectionService { cardRepo.findAllGrpIds() },
                     writer = memWriter,
                     golden = golden,
                     fdCollector = fdCollector,

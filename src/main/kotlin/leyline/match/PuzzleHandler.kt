@@ -124,5 +124,4 @@ class PuzzleHandler(
         }
         error("Puzzle not found: $puzzleName (looked in ${puzzlesDir.absolutePath})")
     }
-
 }
