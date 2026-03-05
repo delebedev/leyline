@@ -38,7 +38,7 @@
 
 ## Front Door / Lobby
 
-- **Card_GetCardSet (551) empty response crashes TitleCountManager + deck editor**: Our 551 handler returns `{}`. Two downstream failures: (1) `TitleCountManager.BuildTitleCountCache()` does `.GroupBy()` on null card collection → `ArgumentNullException` (non-fatal, client reaches home page). (2) Deck editor: `CardPoolToDeckBuilderModelUtilities.AddAllCardsFromInventoryToPool` NPEs on null `userInventory` → infinite loading when opening deck builder. Fix: return a response with the right shape containing empty lists so card collection is an empty enumerable, not null. Need to capture a real 551 response to see the expected structure.
+- **~~Card_GetCardSet (551) empty response crashes TitleCountManager + deck editor~~** *(fixed 2026-03-05)*: Was returning `{}` — null `cards` field caused `ArgumentNullException` in `TitleCountManager.BuildTitleCountCache()` and NPE in deck editor's `AddAllCardsFromInventoryToPool`. Fixed: return `{"cacheVersion":-1,"cards":{}}` — empty collection, not null. Deck editor loads (empty collection).
 
 - **~~Deck_GetDeckSummariesV3 (410) deserialization logged as failure~~** *(fixed 2026-03-04)*: V3 `Attributes` field uses a flat dict (`{"Version":"1","Format":"Standard"}`) not the V2 `[{name,value}]` array format. Fixed: `buildDeckSummaryV3Obj` with flat Attributes for 410 handler; V2 array format kept for StartHook.
 
