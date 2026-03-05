@@ -72,6 +72,17 @@ class EventRegistryTest :
             }
         }
 
+        test("courses JSON has default entries referencing valid events") {
+            val eventNames = EventRegistry.events.map { it.internalName }.toSet()
+            val result = EventRegistry.toCoursesJson()
+            val courses = json.parseToJsonElement(result).jsonObject["Courses"]!!.jsonArray
+            courses shouldHaveAtLeastSize 1
+            for (course in courses) {
+                val name = course.jsonObject["InternalEventName"]!!.jsonPrimitive.content
+                check(name in eventNames) { "Course references unknown event '$name'" }
+            }
+        }
+
         test("findEvent returns known event") {
             val event = EventRegistry.findEvent("Ladder")
             event shouldBe EventRegistry.events.first { it.internalName == "Ladder" }

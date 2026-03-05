@@ -207,7 +207,7 @@ class FrontDoorHandler(
 
             623 -> { // EventGetCoursesV2
                 val coursesJson = EventRegistry.toCoursesJson()
-                log.info("Front Door: EventGetCoursesV2 ({} courses)", EventRegistry.events.size)
+                log.debug("Front Door: EventGetCoursesV2")
                 writer.sendJson(ctx, txId, coursesJson)
             }
 
