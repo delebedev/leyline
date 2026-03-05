@@ -11,6 +11,9 @@ interface CardRepository {
     fun findNameByGrpId(grpId: Int): String?
     fun findGrpIdByName(name: String): Int?
 
+    /** All non-token, primary-card grpIds in the database. */
+    fun findAllGrpIds(): List<Int>
+
     /**
      * Token grpId produced by [sourceGrpId].
      * Single token -> returns directly. Multiple -> matches by [tokenName].

@@ -23,6 +23,7 @@ import leyline.frontdoor.GoldenData
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.SqlitePlayerStore
+import leyline.frontdoor.service.CollectionService
 import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
@@ -177,6 +178,7 @@ class LeylineServer(
                         deckService = deckService,
                         playerService = playerService,
                         matchmaking = matchmakingService,
+                        collectionService = cardRepo?.let { repo -> CollectionService { repo.findAllGrpIds() } },
                         writer = writer,
                         golden = golden,
                         fdCollector = fdCollector,
@@ -241,6 +243,7 @@ class LeylineServer(
                     deckService = DeckService(memStore),
                     playerService = PlayerService(memStore),
                     matchmaking = MatchmakingService(memStore, externalHost, matchDoorPort),
+                    collectionService = cardRepo?.let { repo -> CollectionService { repo.findAllGrpIds() } },
                     writer = memWriter,
                     golden = golden,
                     fdCollector = fdCollector,

@@ -85,6 +85,17 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
         }
     }
 
+    override fun findAllGrpIds(): List<Int> = try {
+        transaction(database) {
+            Cards.selectAll()
+                .where { (Cards.isToken eq 0) and (Cards.isPrimaryCard eq 1) }
+                .map { it[Cards.grpId] }
+        }
+    } catch (e: Exception) {
+        log.warn("Failed to query all grpIds: {}", e.message)
+        emptyList()
+    }
+
     // --- Queries ---
 
     private fun queryCardData(grpId: Int): CardData? = try {

@@ -15,6 +15,7 @@ import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.MatchInfo
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.domain.Preferences
+import leyline.frontdoor.service.CollectionService
 import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.EventRegistry
 import leyline.frontdoor.service.LobbyStubs
@@ -43,6 +44,7 @@ class FrontDoorHandler(
     private val deckService: DeckService,
     private val playerService: PlayerService,
     private val matchmaking: MatchmakingService,
+    private val collectionService: CollectionService? = null,
     private val writer: FdResponseWriter,
     private val golden: GoldenData,
     private val fdCollector: FdDebugCollector? = null,
@@ -277,8 +279,14 @@ class FrontDoorHandler(
             2300 -> writer.sendJson(ctx, txId, LobbyStubs.playerInbox())
             2500 -> writer.sendJson(ctx, txId, LobbyStubs.staticContent())
             551 -> { // Card_GetAllCards
-                log.info("Front Door: CardGetAllCards (starter collection)")
-                writer.sendJson(ctx, txId, LobbyStubs.cardCollection())
+                if (collectionService != null) {
+                    val collection = collectionService.getCollection(playerId)
+                    log.info("Front Door: CardGetAllCards ({} cards from DB)", collection.size)
+                    writer.sendJson(ctx, txId, collectionService.toJson(collection))
+                } else {
+                    log.info("Front Door: CardGetAllCards (starter collection fallback)")
+                    writer.sendJson(ctx, txId, LobbyStubs.cardCollection())
+                }
             }
             708, 712, 715 -> writer.sendJson(ctx, txId, LobbyStubs.storeStatus())
             1102 -> writer.sendJson(ctx, txId, LobbyStubs.rankSeasonDetails())
