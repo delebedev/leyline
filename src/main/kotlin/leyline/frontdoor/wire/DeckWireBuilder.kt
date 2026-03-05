@@ -72,33 +72,8 @@ object DeckWireBuilder {
         putTrailingFields(deck)
     }
 
-    /** Deck entry for StartHook's Decks map (full cards JSON). */
+    /** Deck entry for StartHook's Decks map (card lists only — matches golden shape). */
     fun toStartHookEntry(deck: Deck): JsonObject = buildJsonObject {
-        putCommonFields(deck)
-        put(
-            "Attributes",
-            buildJsonArray {
-                add(
-                    buildJsonObject {
-                        put("name", "Version")
-                        put("value", "1")
-                    },
-                )
-                add(
-                    buildJsonObject {
-                        put("name", "Format")
-                        put("value", deck.format.name)
-                    },
-                )
-                add(
-                    buildJsonObject {
-                        put("name", "TileID")
-                        put("value", deck.tileId.toString())
-                    },
-                )
-            },
-        )
-        putTrailingFields(deck)
         put("MainDeck", cardsToJsonArray(deck.mainDeck))
         put("ReducedSideboard", buildJsonArray {})
         put("Sideboard", cardsToJsonArray(deck.sideboard))

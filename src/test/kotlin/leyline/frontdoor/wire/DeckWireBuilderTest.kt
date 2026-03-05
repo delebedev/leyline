@@ -69,10 +69,15 @@ class DeckWireBuilderTest :
             parsed.mainDeck.size shouldBe 1
         }
 
-        test("toStartHookEntry includes card lists") {
+        test("toStartHookEntry has card lists only — no metadata (matches golden shape)") {
             val entry = DeckWireBuilder.toStartHookEntry(deck)
             entry["MainDeck"]?.jsonArray shouldNotBe null
             entry["MainDeck"]!!.jsonArray.size shouldBe 2
             entry["Sideboard"]?.jsonArray shouldNotBe null
+            entry["CardSkins"]?.jsonArray shouldNotBe null
+            // Must NOT contain summary/metadata fields — client LoadGuidObjectDictionary chokes on them
+            entry["DeckId"] shouldBe null
+            entry["Name"] shouldBe null
+            entry["Attributes"] shouldBe null
         }
     })
