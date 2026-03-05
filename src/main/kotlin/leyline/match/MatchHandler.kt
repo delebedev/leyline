@@ -9,6 +9,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.bridge.GameBootstrap
+import leyline.config.MatchConfig
 import leyline.debug.DebugCollector
 import leyline.debug.GameStateCollector
 import leyline.debug.SessionRecorder
@@ -18,7 +19,6 @@ import leyline.game.GameBridge
 import leyline.game.GsmBuilder
 import leyline.game.PuzzleSource
 import leyline.infra.NettyMessageSink
-import leyline.infra.PlaytestConfig
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
@@ -34,7 +34,7 @@ import java.io.File
  */
 class MatchHandler(
     private val registry: MatchRegistry = defaultRegistry,
-    private val playtestConfig: PlaytestConfig = PlaytestConfig(),
+    private val matchConfig: MatchConfig = MatchConfig(),
     /** CLI --puzzle override: forces puzzle mode for all connections. */
     private val puzzleFile: File? = null,
     /** Returns the deckId selected in FD's 612 handler, if any. */
@@ -156,7 +156,7 @@ class MatchHandler(
                 if (isPuzzleMatch(matchId)) {
                     // Puzzle mode: create bridge with puzzle game, skip mulligan
                     val bridge = registry.getOrCreateBridge(matchId) {
-                        GameBridge(playtestConfig = playtestConfig, messageCounter = s!!.counter).also {
+                        GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter).also {
                             val puzzle = loadPuzzleForMatch(matchId)
                             it.startPuzzle(puzzle)
                         }
@@ -168,11 +168,11 @@ class MatchHandler(
                 } else {
                     // Constructed mode: normal flow
                     val bridge = registry.getOrCreateBridge(matchId) {
-                        GameBridge(playtestConfig = playtestConfig, messageCounter = s!!.counter).also {
+                        GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter).also {
                             it.start(
-                                seed = playtestConfig.game.seed,
+                                seed = matchConfig.game.seed,
                                 deckList1 = resolveSeat1Deck(),
-                                deckList2 = loadDeckFromConfig(playtestConfig.decks.seat2),
+                                deckList2 = loadDeckFromConfig(matchConfig.decks.seat2),
                             )
                         }
                     }
@@ -188,7 +188,7 @@ class MatchHandler(
             ClientMessageType.ChooseStartingPlayerResp_097b -> {
                 if (s?.gameBridge?.isPuzzle == true) {
                     log.info("Match Door GRE: ignoring ChooseStartingPlayerResp for puzzle")
-                } else if (playtestConfig.game.skipMulligan) {
+                } else if (matchConfig.game.skipMulligan) {
                     // Skip mulligan: send DealHand (client needs the hand) but no MulliganReq.
                     // Engine auto-kept via MulliganBridge(autoKeep=true), go straight to game.
                     log.info("Match Door GRE: skipMulligan — bypassing mulligan phase")
@@ -356,7 +356,7 @@ class MatchHandler(
             gsId,
             deck,
             bridge,
-            dieRollWinner = playtestConfig.game.dieRollWinner,
+            dieRollWinner = matchConfig.game.dieRollWinner,
         )
         s.counter.setMsgId(nextMsgId)
         Tap.outboundTemplate("InitialBundle seat=$seatId")
@@ -535,7 +535,7 @@ class MatchHandler(
 
     /**
      * Resolve seat 1 deck: if FD captured a deckId from 612, look it up via [deckLookup]
-     * and convert grpIds → card names for Forge. Otherwise fall back to playtestConfig.
+     * and convert grpIds → card names for Forge. Otherwise fall back to matchConfig.
      */
     private fun resolveSeat1Deck(): String {
         val deckId = selectedDeckOverride?.invoke()
@@ -547,7 +547,7 @@ class MatchHandler(
             }
             log.warn("Match Door: deckId {} not in DB, falling back to config", deckId)
         }
-        return loadDeckFromConfig(playtestConfig.decks.seat1)
+        return loadDeckFromConfig(matchConfig.decks.seat1)
     }
 
     /** Parse Arena cards JSON → Forge deck text (qty + name per line). */
@@ -575,7 +575,7 @@ class MatchHandler(
     /** Load deck text from a config deck name (resolved from decks/ dir). */
     private fun loadDeckFromConfig(deckName: String): String {
         val projectDir = findLeylineDir()
-        val file = PlaytestConfig.resolveDeckFile(deckName, projectDir)
+        val file = MatchConfig.resolveDeckFile(deckName, projectDir)
         return file.readText()
     }
 

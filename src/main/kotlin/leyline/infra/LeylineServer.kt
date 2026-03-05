@@ -17,6 +17,7 @@ import io.netty.handler.ssl.util.SelfSignedCertificate
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import leyline.config.MatchConfig
 import leyline.frontdoor.FrontDoorHandler
 import leyline.frontdoor.FrontDoorReplayStub
 import leyline.frontdoor.GoldenData
@@ -66,7 +67,7 @@ class LeylineServer(
     /** FD golden file: if set, use replay-based FD stub instead of hand-crafted. */
     val fdGoldenFile: File? = null,
     /** Playtest configuration (decks, seed, die roll, AI speed). */
-    val playtestConfig: PlaytestConfig = PlaytestConfig(),
+    val matchConfig: MatchConfig = MatchConfig(),
     /** Puzzle mode: if set, load this .pzl file for all client connections. */
     val puzzleFile: File? = null,
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
@@ -215,7 +216,7 @@ class LeylineServer(
             ch.pipeline().addLast(
                 "handler",
                 MatchHandler(
-                    playtestConfig = playtestConfig,
+                    matchConfig = matchConfig,
                     puzzleFile = puzzleFile,
                     selectedDeckOverride = { selectedDeckId },
                     deckLookup = deckLookup,
@@ -287,7 +288,7 @@ class LeylineServer(
             ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
             ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
             ch.pipeline().addLast("protobufEncoder", ProtobufEncoder())
-            ch.pipeline().addLast("handler", MatchHandler(playtestConfig = playtestConfig, puzzleFile = puzzleFile))
+            ch.pipeline().addLast("handler", MatchHandler(matchConfig = matchConfig, puzzleFile = puzzleFile))
         }
         log.info("Client Match Door (stub) listening on :{}", matchDoorPort)
     }

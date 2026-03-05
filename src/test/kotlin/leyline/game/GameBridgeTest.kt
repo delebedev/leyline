@@ -12,11 +12,11 @@ import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import leyline.bridge.GameBootstrap
 import leyline.bridge.PlayerAction
+import leyline.config.GameConfig
+import leyline.config.MatchConfig
 import leyline.conformance.TestCardRegistry
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ZoneIds
-import leyline.infra.GameConfig
-import leyline.infra.PlaytestConfig
 import wotc.mtgo.gre.external.messaging.Messages
 
 /**
@@ -621,8 +621,8 @@ class GameBridgeTest :
         // --- skipMulligan tests ---
 
         test("skip mulligan advances to priority without keep") {
-            val config = PlaytestConfig(game = GameConfig(skipMulligan = true))
-            val b = GameBridge(playtestConfig = config)
+            val config = MatchConfig(game = GameConfig(skipMulligan = true))
+            val b = GameBridge(matchConfig = config)
             bridge = b
             b.start(seed = 42L)
 
@@ -642,8 +642,8 @@ class GameBridgeTest :
         }
 
         test("skip mulligan produces valid game state") {
-            val config = PlaytestConfig(game = GameConfig(skipMulligan = true))
-            val b = GameBridge(playtestConfig = config)
+            val config = MatchConfig(game = GameConfig(skipMulligan = true))
+            val b = GameBridge(matchConfig = config)
             bridge = b
             b.start(seed = 42L)
             b.awaitPriority()

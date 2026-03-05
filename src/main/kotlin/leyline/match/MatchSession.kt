@@ -199,7 +199,7 @@ class MatchSession(
         }
 
         // Stop decision timer — client responded
-        if (bridge.playtestConfig.game.timer) {
+        if (bridge.matchConfig.game.timer) {
             val timerStop = BundleBuilder.timerStop(seatId, counter)
             sendBundledGRE(timerStop.messages)
         }
@@ -486,7 +486,7 @@ class MatchSession(
         sendBundle(result)
 
         // Decision timer — client shows rope countdown while waiting for action
-        if (bridge.playtestConfig.game.timer) {
+        if (bridge.matchConfig.game.timer) {
             val timer = BundleBuilder.timerStart(seatId, counter)
             sendBundledGRE(timer.messages)
         }

@@ -18,7 +18,7 @@ import leyline.bridge.MulliganPhase
 import leyline.bridge.PhaseStopProfile
 import leyline.bridge.PrioritySignal
 import leyline.bridge.WebPlayerController
-import leyline.infra.PlaytestConfig
+import leyline.config.MatchConfig
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
@@ -45,7 +45,7 @@ class GameBridge(
      *  Production: 120s. Tests: ~2-5s (engine responds in <100ms). */
     private val bridgeTimeoutMs: Long = 120_000L,
     /** Playtest config — controls AI speed, die roll, etc. */
-    val playtestConfig: PlaytestConfig = PlaytestConfig(),
+    val matchConfig: MatchConfig = MatchConfig(),
     /** Shared protocol counter for GRE message sequencing.
      *  Production: shared with MatchSession. Tests: local default. */
     val messageCounter: MessageCounter = MessageCounter(),
@@ -65,7 +65,7 @@ class GameBridge(
 
     /** seat 1 = human. autoKeep driven by config skipMulligan. AI uses its default controller. */
     private val seat1MulliganBridge = MulliganBridge(
-        autoKeep = playtestConfig.game.skipMulligan,
+        autoKeep = matchConfig.game.skipMulligan,
         timeoutMs = bridgeTimeoutMs,
     )
 
@@ -328,12 +328,12 @@ class GameBridge(
         log.info("GameBridge: registered GameEventCollector for event-driven annotations")
 
         // Register AI action playback subscriber (after collector)
-        val pb = GamePlayback(this, "forge-match-1", 1, messageCounter, playtestConfig.aiDelayMultiplier)
+        val pb = GamePlayback(this, "forge-match-1", 1, messageCounter, matchConfig.aiDelayMultiplier)
         playback = pb
         g.subscribeToEvents(pb)
         log.info("GameBridge: registered GamePlayback for AI action streaming")
 
-        if (playtestConfig.game.skipMulligan) {
+        if (matchConfig.game.skipMulligan) {
             log.info("GameBridge: skipMulligan — engine auto-kept, waiting for priority")
             awaitPriority()
             log.info("GameBridge: engine reached priority after auto-keep")
@@ -571,7 +571,7 @@ class GameBridge(
         eventCollector = collector
         g.subscribeToEvents(collector)
 
-        val pb = GamePlayback(this, "forge-match-1", 1, messageCounter, playtestConfig.aiDelayMultiplier)
+        val pb = GamePlayback(this, "forge-match-1", 1, messageCounter, matchConfig.aiDelayMultiplier)
         playback = pb
         g.subscribeToEvents(pb)
 

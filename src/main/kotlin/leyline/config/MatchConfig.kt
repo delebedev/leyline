@@ -1,4 +1,4 @@
-package leyline.infra
+package leyline.config
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -7,19 +7,19 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Code-first playtest configuration loaded from TOML.
+ * Code-first match configuration loaded from TOML.
  *
  * Covers game setup (seed, die roll), deck selection, and AI pacing.
  * Loaded once at startup; immutable after that.
  */
 @Serializable
-data class PlaytestConfig(
+data class MatchConfig(
     val game: GameConfig = GameConfig(),
     val decks: DeckConfig = DeckConfig(),
     val ai: AiConfig = AiConfig(),
 ) {
     companion object {
-        private val log = LoggerFactory.getLogger(PlaytestConfig::class.java)
+        private val log = LoggerFactory.getLogger(MatchConfig::class.java)
 
         private val toml = Toml {
             ignoreUnknownKeys = true
@@ -32,13 +32,13 @@ data class PlaytestConfig(
          * Load config from [file]. Returns default config if file doesn't exist.
          * Throws on malformed TOML or invalid values.
          */
-        fun load(file: File): PlaytestConfig {
+        fun load(file: File): MatchConfig {
             if (!file.exists()) {
                 log.info("No config at {}, using defaults", file.absolutePath)
-                return PlaytestConfig()
+                return MatchConfig()
             }
 
-            log.info("Loading playtest config from {}", file.absolutePath)
+            log.info("Loading match config from {}", file.absolutePath)
             val text = file.readText()
             val config = toml.decodeFromString(serializer(), text)
             config.validate()
