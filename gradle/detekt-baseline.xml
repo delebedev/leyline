@@ -9,7 +9,7 @@
     <ID>CyclomaticComplexMethod:AnnotationBuilder.kt$AnnotationBuilder$private fun zoneChangedCategory(ev: GameEvent.ZoneChanged): TransferCategory</ID>
     <ID>CyclomaticComplexMethod:AnnotationPipeline.kt$AnnotationPipeline$internal fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): TransferCategory</ID>
     <ID>CyclomaticComplexMethod:AnnotationVariance.kt$fun main(args: Array&lt;String&gt;)</ID>
-    <ID>CyclomaticComplexMethod:DeckValidator.kt$DeckValidator$fun validate(file: File): List&lt;String&gt;</ID>
+
     <ID>CyclomaticComplexMethod:DecodeFdCapture.kt$fun main(args: Array&lt;String&gt;)</ID>
     <ID>CyclomaticComplexMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
     <ID>CyclomaticComplexMethod:GameFlowAnalyzer.kt$GameFlowAnalyzer$private fun groupIntoTimeline(segments: List&lt;Segment&gt;): Analysis</ID>
@@ -104,8 +104,7 @@
     <ID>UnusedPrivateProperty:CardDataDeriver.kt$CardDataDeriver$private val log = LoggerFactory.getLogger(CardDataDeriver::class.java)</ID>
     <ID>UnusedPrivateProperty:CombatFlowTest.kt$CombatFlowTest$i</ID>
     <ID>UnusedPrivateProperty:CounteredSpellTest.kt$CounteredSpellTest$val bfObjects = gsm.gameObjectsList.filter { it.zoneId &gt; 0 }</ID>
-    <ID>UnusedPrivateProperty:DeckProvider.kt$DeckProvider.Companion$// Known client grpIds for precon lands (FDN set) private const val GRPID_FOREST = 95189</ID>
-    <ID>UnusedPrivateProperty:DeckProvider.kt$DeckProvider.Companion$private const val GRPID_PLAINS = 95181</ID>
+
     <ID>UnusedPrivateProperty:DeclareBlockersDedupeTest.kt$DeclareBlockersDedupeTest$i</ID>
     <ID>UnusedPrivateProperty:DiffSnapshotter.kt$DiffSnapshotter$private val idRegistry: InstanceIdRegistry</ID>
     <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$// --- Request field numbers --- private const val REQ_TYPE = 1 // varint (RequestType)</ID>
@@ -130,7 +129,7 @@
     <ID>UnusedPrivateProperty:ZoneTransitionConformanceTest.kt$ZoneTransitionConformanceTest$val stackId = b.getOrAllocInstanceId(forgeCardId)</ID>
     <ID>UseCheckOrError:InteractivePromptBridge.kt$InteractivePromptBridge$throw IllegalStateException("No prompt within ${timeoutMs}ms")</ID>
     <ID>UseRequire:DeckLoader.kt$DeckLoader$throw IllegalArgumentException("No valid cards found in decklist")</ID>
-    <ID>UseRequire:DeckValidator.kt$DeckValidator$throw IllegalArgumentException( "Invalid deck '${file.name}':\n ${errors.joinToString("\n ")}", )</ID>
+
     <ID>UseRequire:WebGuiGame.kt$WebGuiGame$throw IllegalArgumentException("one() called with empty list")</ID>
   </CurrentIssues>
 </SmellBaseline>

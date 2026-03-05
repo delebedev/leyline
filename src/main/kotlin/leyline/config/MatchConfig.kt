@@ -7,15 +7,20 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Code-first match configuration loaded from TOML.
+ * Top-level configuration loaded from `leyline.toml`.
  *
- * Covers game setup (seed, die roll), deck selection, and AI pacing.
+ * Three sections:
+ * - [server] — ports, timeouts, paths (infra)
+ * - [game]   — seed, die roll, mulligan, timer (match setup)
+ * - [ai]     — animation speed
+ *
  * Loaded once at startup; immutable after that.
+ * CLI args and env vars override TOML values where noted.
  */
 @Serializable
 data class MatchConfig(
+    val server: ServerConfig = ServerConfig(),
     val game: GameConfig = GameConfig(),
-    val decks: DeckConfig = DeckConfig(),
     val ai: AiConfig = AiConfig(),
 ) {
     companion object {
@@ -25,8 +30,8 @@ data class MatchConfig(
             ignoreUnknownKeys = true
         }
 
-        /** Default config file path relative to project root. */
-        const val DEFAULT_FILENAME = "playtest.toml"
+        /** Default config file name. */
+        const val DEFAULT_FILENAME = "leyline.toml"
 
         /**
          * Load config from [file]. Returns default config if file doesn't exist.
@@ -38,24 +43,12 @@ data class MatchConfig(
                 return MatchConfig()
             }
 
-            log.info("Loading match config from {}", file.absolutePath)
+            log.info("Loading config from {}", file.absolutePath)
             val text = file.readText()
             val config = toml.decodeFromString(serializer(), text)
             config.validate()
             log.info("Config loaded: {}", config.summary())
             return config
-        }
-
-        /** Resolve deck file path relative to a base directory. */
-        fun resolveDeckFile(deckName: String, baseDir: File): File {
-            // If it already looks like a path, use as-is
-            if (deckName.contains('/') || deckName.contains('\\')) {
-                return File(deckName).let { if (it.isAbsolute) it else File(baseDir, deckName) }
-            }
-            // Otherwise look in decks/ subdir, with or without .txt
-            val decksDir = File(baseDir, "decks")
-            val withExt = if (deckName.endsWith(".txt")) deckName else "$deckName.txt"
-            return File(decksDir, withExt)
         }
     }
 
@@ -69,6 +62,9 @@ data class MatchConfig(
         }
         game.seed?.let {
             require(it >= 0) { "game.seed must be non-negative, got $it" }
+        }
+        require(server.bridgeTimeoutMs > 0) {
+            "server.bridge_timeout_ms must be positive, got ${server.bridgeTimeoutMs}"
         }
     }
 
@@ -85,10 +81,44 @@ data class MatchConfig(
         append(game.seed ?: "random")
         append(" first=seat${game.dieRollWinner}")
         append(" skipMulligan=${game.skipMulligan}")
-        append(" decks=[${decks.seat1}, ${decks.seat2}]")
         append(" aiSpeed=${ai.speed}x")
     }
 }
+
+/**
+ * Server infrastructure config — ports, timeouts, paths.
+ * CLI args override these values where applicable.
+ */
+@Serializable
+data class ServerConfig(
+    /** Front Door port (client auth + deck management). CLI: --fd-port */
+    @SerialName("fd_port")
+    val fdPort: Int = 30010,
+
+    /** Match Door port (game protocol). CLI: --md-port */
+    @SerialName("md_port")
+    val mdPort: Int = 30003,
+
+    /** Debug panel HTTP port. CLI: --debug-port */
+    @SerialName("debug_port")
+    val debugPort: Int = 8090,
+
+    /** Mock WAS (auth) HTTPS port. CLI: --was-port */
+    @SerialName("was_port")
+    val wasPort: Int = 9443,
+
+    /** Management HTTP port (health checks, always starts). */
+    @SerialName("management_port")
+    val managementPort: Int = 8091,
+
+    /** Bridge timeout — how long the engine waits for client responses (ms). */
+    @SerialName("bridge_timeout_ms")
+    val bridgeTimeoutMs: Long = 120_000L,
+
+    /** Player database path (relative to CWD or absolute). */
+    @SerialName("player_db")
+    val playerDb: String = "data/player.db",
+)
 
 @Serializable
 data class GameConfig(
@@ -117,20 +147,13 @@ data class GameConfig(
      * Disable to suppress the decision timer in the client UI.
      */
     val timer: Boolean = true,
-)
-
-@Serializable
-data class DeckConfig(
-    /**
-     * Deck file for seat 1 (human player). Name resolved in decks/ dir.
-     * Supports standard Arena/MTGO export format.
-     */
-    val seat1: String = "green-stompy",
 
     /**
-     * Deck file for seat 2 (AI / Sparky). Name resolved in decks/ dir.
+     * AI opponent deck name (looked up in player.db by name).
+     * Null = mirror match (AI uses the same deck as seat 1).
      */
-    val seat2: String = "green-stompy",
+    @SerialName("ai_deck")
+    val aiDeck: String? = null,
 )
 
 @Serializable
