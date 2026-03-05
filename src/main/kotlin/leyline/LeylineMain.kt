@@ -1,12 +1,12 @@
 package leyline
 
+import leyline.config.MatchConfig
 import leyline.debug.DebugServer
 import leyline.debug.PlayerLogWatcher
 import leyline.frontdoor.DeckValidator
 import leyline.game.CardDb
 import leyline.infra.LeylineServer
 import leyline.infra.MockWasServer
-import leyline.infra.PlaytestConfig
 import java.io.File
 
 /**
@@ -40,8 +40,8 @@ fun main(args: Array<String>) {
     // Load playtest config (TOML)
     val projectDir = findProjectDir()
     val configFile = a["--config"]?.let { File(it) }
-        ?: File(projectDir, PlaytestConfig.DEFAULT_FILENAME)
-    val config = PlaytestConfig.load(configFile)
+        ?: File(projectDir, MatchConfig.DEFAULT_FILENAME)
+    val config = MatchConfig.load(configFile)
 
     // Puzzle mode: --puzzle <file> overrides normal constructed flow
     val puzzleFile = a["--puzzle"]?.let { File(it) }
@@ -81,7 +81,7 @@ fun main(args: Array<String>) {
         upstreamMatchDoor = a["--proxy-md"],
         replayDir = a["--replay"]?.let { File(it) },
         fdGoldenFile = fdGoldenFile,
-        playtestConfig = config,
+        matchConfig = config,
         puzzleFile = puzzleFile,
         externalHost = externalHost,
     )
@@ -143,9 +143,9 @@ private fun findProjectDir(): File {
 }
 
 /** Validate both deck files from config. Throws on invalid. */
-private fun validateDecks(config: PlaytestConfig, projectDir: File) {
-    val seat1File = PlaytestConfig.resolveDeckFile(config.decks.seat1, projectDir)
-    val seat2File = PlaytestConfig.resolveDeckFile(config.decks.seat2, projectDir)
+private fun validateDecks(config: MatchConfig, projectDir: File) {
+    val seat1File = MatchConfig.resolveDeckFile(config.decks.seat1, projectDir)
+    val seat2File = MatchConfig.resolveDeckFile(config.decks.seat2, projectDir)
     DeckValidator.validateOrThrow(seat1File)
     if (seat1File.absolutePath != seat2File.absolutePath) {
         DeckValidator.validateOrThrow(seat2File)

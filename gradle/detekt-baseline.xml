@@ -11,7 +11,7 @@
     <ID>CyclomaticComplexMethod:AnnotationVariance.kt$fun main(args: Array&lt;String&gt;)</ID>
     <ID>CyclomaticComplexMethod:DeckValidator.kt$DeckValidator$fun validate(file: File): List&lt;String&gt;</ID>
     <ID>CyclomaticComplexMethod:DecodeFdCapture.kt$fun main(args: Array&lt;String&gt;)</ID>
-    <ID>CyclomaticComplexMethod:FrontDoorService.kt$FrontDoorService$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
+    <ID>CyclomaticComplexMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
     <ID>CyclomaticComplexMethod:GameFlowAnalyzer.kt$GameFlowAnalyzer$private fun groupIntoTimeline(segments: List&lt;Segment&gt;): Analysis</ID>
     <ID>CyclomaticComplexMethod:LeylineMain.kt$fun main(args: Array&lt;String&gt;)</ID>
     <ID>CyclomaticComplexMethod:MatchHandler.kt$MatchHandler$private fun processGREMessage(ctx: ChannelHandlerContext, greMsg: ClientToGREMessage)</ID>
@@ -25,11 +25,11 @@
     <ID>CyclomaticComplexMethod:WebPlayerController.kt$WebPlayerController$override fun selectTargetsInteractively( validTargets: List&lt;Card&gt;, sa: SpellAbility, mandatory: Boolean, numTargets: Int?, divisionValues: Collection&lt;Int&gt;?, filter: java.util.function.Predicate&lt;forge.game.GameObject&gt;?, mustTargetFiltered: Boolean, ): forge.player.TargetSelectionResult</ID>
     <ID>DestructuringDeclarationWithTooManyEntries:AnnotationPipeline.kt$AnnotationPipeline$val (origId, newId, category, srcZone, destZone, grpId, _) = transfer</ID>
     <ID>ImplicitDefaultLocale:CaptureSink.kt$String.format("%02x", ft)</ID>
-    <ID>ImplicitDefaultLocale:FrontDoorService.kt$FrontDoorService$String.format("%02x", frameType)</ID>
+    <ID>ImplicitDefaultLocale:FrontDoorHandler.kt$FrontDoorHandler$String.format("%02x", frameType)</ID>
     <ID>LargeClass:WebCostDecision.kt$WebCostDecision : CostDecisionMakerBase</ID>
     <ID>LargeClass:WebPlayerController.kt$WebPlayerController : PlayerControllerHuman</ID>
     <ID>LongMethod:ActionMapper.kt$ActionMapper$internal fun buildActionList( seatId: Int, bridge: GameBridge, checkLegality: Boolean, ): ActionsAvailableReq</ID>
-    <ID>LongMethod:FrontDoorService.kt$FrontDoorService$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
+    <ID>LongMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
     <ID>LongMethod:GREToDecodedTest.kt$GREToDecodedTest$@Test(description = "Full GSM: zones, objects, annotations, turnInfo, players, actions") fun fullGameStateMessage()</ID>
     <ID>LongMethod:MatchHandler.kt$MatchHandler$private fun processGREMessage(ctx: ChannelHandlerContext, greMsg: ClientToGREMessage)</ID>
     <ID>LongMethod:StateMapper.kt$StateMapper$fun buildFromGame( game: Game, gameStateId: Int, matchId: String, bridge: GameBridge, actions: ActionsAvailableReq? = null, updateType: GameStateUpdate = GameStateUpdate.SendAndRecord, viewingSeatId: Int = 0, ): GameStateMessage</ID>
@@ -43,7 +43,7 @@
         String? = null, private val upstreamMatchDoor: String? = null, /** Replay mode: if set, replay recorded payloads
         from this directory. */ private val replayDir: File? = null, /** FD golden file: if set, use replay-based FD
         stub instead of hand-crafted. */ val fdGoldenFile: File? = null, /** Playtest configuration (decks, seed, die
-        roll, AI speed). */ val playtestConfig: leyline.infra.PlaytestConfig = leyline.config.PlaytestConfig(), /**
+        roll, AI speed). */ val matchConfig: leyline.config.MatchConfig = leyline.config.MatchConfig(), /**
         Puzzle mode: if set, load this .pzl file for all client connections. */ val puzzleFile: File? = null, )</ID>
     <ID>LongParameterList:SemanticTimelineTest.kt$SemanticTimelineTest$( index: Int = 0, greType: String = "GameStateMessage", gsId: Int = 0, prevGsId: Int? = null, updateType: String? = null, annotations: List&lt;AnnotationSummary&gt; = emptyList(), zones: List&lt;ZoneSummary&gt; = emptyList(), turnInfo: TurnInfoSummary? = null, hasActionsAvailableReq: Boolean = false, hasIntermissionReq: Boolean = false, promptId: Int? = null, actions: List&lt;RecordingDecoder.ActionSummary&gt; = emptyList(), )</ID>
     <ID>LongParameterList:ZoneMapper.kt$ZoneMapper$( game: Game, player: Player?, seatId: Int, bridge: GameBridge, zones: MutableList&lt;ZoneInfo&gt;, gameObjects: MutableList&lt;GameObjectInfo&gt;, handZoneId: Int, libZoneId: Int, gyZoneId: Int, viewingSeatId: Int = 0, )</ID>
@@ -53,7 +53,7 @@
     <ID>MaxLineLength:CardInjectionTest.kt$CardInjectionTest$val handZone = checkNotNull(gsm.zonesList.firstOrNull { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand &amp;&amp; it.ownerSeatId == 1 }) { "Hand zone should exist for seat 1" }</ID>
     <ID>MaxLineLength:DecodeCapture.kt$println(" reservedPlayers=${info.gameRoomConfig.reservedPlayersList.map { "${it.playerName}(seat=${it.systemSeatId},bot=${it.isBotPlayer})" }}")</ID>
     <ID>MaxLineLength:DecodeCapture.kt$println(" turnInfo: phase=${gs.turnInfo.phase} step=${gs.turnInfo.step} turn=${gs.turnInfo.turnNumber} active=${gs.turnInfo.activePlayer}")</ID>
-    <ID>MaxLineLength:FrontDoorService.kt$FrontDoorService.Companion$private const val RANK_DEFAULT = """{"playerId":null,"constructedSeasonOrdinal":0,"constructedClass":"Bronze","constructedLevel":0,"constructedStep":0,"constructedMatchesWon":0,"constructedMatchesLost":0,"constructedMatchesDrawn":0,"limitedSeasonOrdinal":0,"limitedClass":"Bronze","limitedLevel":0,"limitedStep":0,"limitedMatchesWon":0,"limitedMatchesLost":0,"limitedMatchesDrawn":0}"""</ID>
+    <ID>MaxLineLength:FrontDoorHandler.kt$FrontDoorHandler.Companion$private const val RANK_DEFAULT = """{"playerId":null,"constructedSeasonOrdinal":0,"constructedClass":"Bronze","constructedLevel":0,"constructedStep":0,"constructedMatchesWon":0,"constructedMatchesLost":0,"constructedMatchesDrawn":0,"limitedSeasonOrdinal":0,"limitedClass":"Bronze","limitedLevel":0,"limitedStep":0,"limitedMatchesWon":0,"limitedMatchesLost":0,"limitedMatchesDrawn":0}"""</ID>
     <ID>MaxLineLength:PlayLandFieldTest.kt$PlayLandFieldTest$assertEquals(zoneDest.getValueInt32(0), ZoneIds.BATTLEFIELD, "zone_dest should be battlefield (${ZoneIds.BATTLEFIELD}), got: ${zoneDest.getValueInt32(0)}")</ID>
     <ID>MaxLineLength:PlayLandFieldTest.kt$PlayLandFieldTest$assertTrue(zt.affectedIdsList.contains(newInstanceId), "ZoneTransfer affectedIds should contain land instanceId $newInstanceId, got: ${zt.affectedIdsList}")</ID>
     <ID>MaxLineLength:WebCostDecision.kt$WebCostDecision$confirmAction(cost, Localizer.getInstance().getMessage("lblPayEnergyConfirm", cost.toString(), player.getCounters(CounterEnumType.ENERGY).toString(), "{E}"))</ID>

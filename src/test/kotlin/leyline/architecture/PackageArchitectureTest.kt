@@ -11,59 +11,50 @@ import java.nio.file.Path
 /**
  * Enforces the leyline package dependency graph (main sources only).
  *
- * ## Why these rules exist
- *
- * Dependencies should flow one direction: down. A lower-level package never
- * imports from a higher-level one. This keeps the codebase modular — you can
- * change or delete a package and only break its direct dependents, not cascade
- * through the whole system.
- *
- * Each package should be **cohesive** (everything changes for the same reason)
- * and expose a **minimal surface** (2-3 key types, rest is internal). Packages
- * are named by domain concept (`game`, `recording`, `protocol`) not by
- * technical role (`models`, `services`, `utils`).
- *
  * ## Intended layering (bottom → top)
  *
  * ```
- * config          (leaf — no leyline deps)
- * game            (domain core — depends only on config)
- * game.mapper     (pure projections — depends only on parent game)
- * protocol        (wire format — depends on game)
- * recording       (codecs — leaf, no leyline deps except game.CardDb)
- * analysis        (post-game — depends on recording, game)
- * debug           (diagnostics — depends on game, recording, protocol, analysis)
- * conformance     (comparison — depends on recording, debug, analysis)
- * server          (Netty orchestration — depends on everything above)
+ * Tier 0 — leaves (no leyline deps):
+ *   config              match configuration (TOML data classes)
+ *   bridge              Forge adapter primitives (controllers, signals, bridges)
+ *   frontdoor.domain    FD value types (Deck, Player, Format)
+ *   arena               CLI automation tools
+ *
+ * Tier 1 — domain core:
+ *   game                engine wrappers, state mapping  → bridge, config
+ *   game.mapper         pure projections                → game
+ *
+ * Tier 2 — format / persistence:
+ *   protocol            wire framing, protobuf codecs   → game
+ *   recording           session codecs                  → game
+ *   frontdoor.repo      FD persistence (Exposed)        → frontdoor.domain
+ *   frontdoor.wire      FD serialization                → frontdoor.domain, protocol
+ *   frontdoor.service   FD use cases                    → frontdoor.domain, frontdoor.repo
+ *
+ * Tier 3 — analysis:
+ *   analysis            post-game reports               → recording, game
+ *
+ * Tier 4 — diagnostics:
+ *   debug               live diagnostics                → game, protocol, recording, analysis
+ *
+ * Tier 5 — orchestration:
+ *   frontdoor           FD handler                      → frontdoor.*, protocol, debug
+ *   conformance         comparison                      → recording
+ *   match               match orchestration             → bridge, game, protocol, debug, infra
+ *   cli                 CLI tools                       → frontdoor.domain, frontdoor.repo, game
+ *
+ * Tier 6 — top:
+ *   infra               Netty server, bootstrap         → everything
  * ```
  *
- * Allowed dependency direction: any package may depend on packages below it in
- * this list and on the root `leyline` package (shared infra like LeylinePaths).
- * Upward or lateral dependencies indicate a missing abstraction or a misplaced file.
- *
- * ## What these tests catch
- *
- * - **Cycles**: `noPackageCycles` detects any circular dependency chain.
- * - **Upward leaks**: per-package tests catch a leaf reaching into a higher layer
- *   (e.g. `recording` importing `server`).
- * - **Regressions**: if someone adds an import that violates layering, CI fails
- *   with a clear message naming the offending class and dependency.
+ * Rules marked `xtest` represent intended design with known violations (flagged
+ * as TODOs). Enable them as the violations are fixed.
  */
 class PackageArchitectureTest :
     FunSpec({
 
         tags(UnitTag)
 
-        /**
-         * Import only leyline production classes from this module's build dir.
-         * Using importPaths() instead of importPackages() avoids scanning the full
-         * classpath — importPackages resolves transitive deps from forge-game
-         * which blows the heap on CI runners with limited memory.
-         *
-         * Gradle compiles Kotlin sources to build/classes/kotlin/main and protobuf
-         * generated Java to build/classes/java/main — import both so ArchUnit sees
-         * the full picture.
-         */
         val buildDir = Path.of("").toAbsolutePath().resolve("build/classes")
         val classes = ClassFileImporter()
             .withImportOption(ImportOption.DoNotIncludeTests())
@@ -72,14 +63,24 @@ class PackageArchitectureTest :
                 buildDir.resolve("java/main"),
             )
 
-        // TODO: fix debug↔server cycle (DebugServer imports MatchSession, MatchSession imports SessionRecorder)
-        xtest("no package cycles") {
-            slices().matching("leyline.(*)..")
-                .should().beFreeOfCycles()
-                .check(classes)
-        }
+        // ── Tier 0: leaves ──────────────────────────────────────────
 
-        test("config is leaf — no deps on any other leyline package") {
+        val allNonLeaf = arrayOf(
+            "leyline.game..",
+            "leyline.protocol..",
+            "leyline.recording..",
+            "leyline.debug..",
+            "leyline.conformance..",
+            "leyline.analysis..",
+            "leyline.frontdoor..",
+            "leyline.match..",
+            "leyline.infra..",
+            "leyline.cli..",
+            "leyline.bridge..",
+            "leyline.arena..",
+        )
+
+        test("config is leaf") {
             noClasses().that().resideInAPackage("leyline.config..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
@@ -87,9 +88,103 @@ class PackageArchitectureTest :
                     "leyline.protocol..",
                     "leyline.recording..",
                     "leyline.debug..",
-                    "leyline.server..",
                     "leyline.conformance..",
                     "leyline.analysis..",
+                    "leyline.frontdoor..",
+                    "leyline.match..",
+                    "leyline.infra..",
+                    "leyline.cli..",
+                    "leyline.bridge..",
+                    "leyline.arena..",
+                ).check(classes)
+        }
+
+        test("bridge is leaf") {
+            noClasses().that().resideInAPackage("leyline.bridge..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.game..",
+                    "leyline.protocol..",
+                    "leyline.recording..",
+                    "leyline.debug..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                    "leyline.frontdoor..",
+                    "leyline.match..",
+                    "leyline.infra..",
+                    "leyline.cli..",
+                    "leyline.arena..",
+                ).check(classes)
+        }
+
+        test("frontdoor.domain is leaf") {
+            noClasses().that().resideInAPackage("leyline.frontdoor.domain..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.game..",
+                    "leyline.protocol..",
+                    "leyline.recording..",
+                    "leyline.debug..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                    "leyline.frontdoor.repo..",
+                    "leyline.frontdoor.wire..",
+                    "leyline.frontdoor.service..",
+                    "leyline.match..",
+                    "leyline.infra..",
+                    "leyline.cli..",
+                    "leyline.bridge..",
+                    "leyline.arena..",
+                ).check(classes)
+        }
+
+        // ── Tier 1: domain core ─────────────────────────────────────
+
+        test("game does not import upward (infra, match, debug, frontdoor, cli)") {
+            noClasses().that().resideInAPackage("leyline.game..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.infra..",
+                    "leyline.match..",
+                    "leyline.debug..",
+                    "leyline.frontdoor..",
+                    "leyline.cli..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                    "leyline.recording..",
+                    "leyline.protocol..",
+                ).check(classes)
+        }
+
+        test("mapper does not import outside game+bridge") {
+            noClasses().that().resideInAPackage("leyline.game.mapper..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.infra..",
+                    "leyline.match..",
+                    "leyline.debug..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                    "leyline.recording..",
+                    "leyline.protocol..",
+                    "leyline.frontdoor..",
+                    "leyline.cli..",
+                ).check(classes)
+        }
+
+        // ── Tier 2: format / persistence ────────────────────────────
+
+        test("protocol does not import upward") {
+            noClasses().that().resideInAPackage("leyline.protocol..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.infra..",
+                    "leyline.match..",
+                    "leyline.debug..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                    "leyline.frontdoor..",
+                    "leyline.cli..",
                 ).check(classes)
         }
 
@@ -97,47 +192,127 @@ class PackageArchitectureTest :
             noClasses().that().resideInAPackage("leyline.recording..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
-                    "leyline.server..",
+                    "leyline.infra..",
+                    "leyline.match..",
                     "leyline.debug..",
                     "leyline.conformance..",
                     "leyline.analysis..",
+                    "leyline.frontdoor..",
+                    "leyline.cli..",
                 ).check(classes)
         }
 
-        test("game does not import upward") {
-            noClasses().that().resideInAPackage("leyline.game..")
+        test("frontdoor.repo depends only on frontdoor.domain") {
+            noClasses().that().resideInAPackage("leyline.frontdoor.repo..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
-                    "leyline.server..",
-                    "leyline.debug..",
+                    "leyline.game..",
                     "leyline.protocol..",
                     "leyline.recording..",
                     "leyline.conformance..",
                     "leyline.analysis..",
+                    "leyline.frontdoor.wire..",
+                    "leyline.frontdoor.service..",
+                    "leyline.match..",
+                    "leyline.infra..",
+                    "leyline.cli..",
+                    "leyline.bridge..",
                 ).check(classes)
         }
 
-        test("protocol does not import upward") {
-            noClasses().that().resideInAPackage("leyline.protocol..")
+        test("frontdoor.service depends only on frontdoor.domain and repo") {
+            noClasses().that().resideInAPackage("leyline.frontdoor.service..")
                 .should().dependOnClassesThat()
                 .resideInAnyPackage(
-                    "leyline.server..",
-                    "leyline.debug..",
-                    "leyline.conformance..",
-                    "leyline.analysis..",
-                ).check(classes)
-        }
-
-        test("mapper does not import outside game") {
-            noClasses().that().resideInAPackage("leyline.game.mapper..")
-                .should().dependOnClassesThat()
-                .resideInAnyPackage(
-                    "leyline.server..",
-                    "leyline.debug..",
-                    "leyline.conformance..",
-                    "leyline.analysis..",
-                    "leyline.recording..",
+                    "leyline.game..",
                     "leyline.protocol..",
+                    "leyline.recording..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                    "leyline.frontdoor.wire..",
+                    "leyline.match..",
+                    "leyline.infra..",
+                    "leyline.cli..",
+                    "leyline.bridge..",
                 ).check(classes)
+        }
+
+        // TODO: frontdoor.wire → debug.FdDebugCollector — wire layer shouldn't know about debug
+        xtest("frontdoor.wire depends only on frontdoor.domain and protocol") {
+            noClasses().that().resideInAPackage("leyline.frontdoor.wire..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.game..",
+                    "leyline.recording..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                    "leyline.debug..",
+                    "leyline.frontdoor.service..",
+                    "leyline.match..",
+                    "leyline.infra..",
+                    "leyline.cli..",
+                    "leyline.bridge..",
+                ).check(classes)
+        }
+
+        // ── Tier 3–4: analysis, debug ───────────────────────────────
+
+        test("analysis does not import upward") {
+            noClasses().that().resideInAPackage("leyline.analysis..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.infra..",
+                    "leyline.match..",
+                    "leyline.debug..",
+                    "leyline.conformance..",
+                    "leyline.frontdoor..",
+                    "leyline.cli..",
+                ).check(classes)
+        }
+
+        // TODO: debug → match.MatchSession — upward dep, debug should not know about match
+        xtest("debug does not import upward (match, frontdoor, infra, cli)") {
+            noClasses().that().resideInAPackage("leyline.debug..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.infra..",
+                    "leyline.match..",
+                    "leyline.frontdoor..",
+                    "leyline.cli..",
+                    "leyline.conformance..",
+                ).check(classes)
+        }
+
+        // ── Tier 5: bounded-context boundaries ──────────────────────
+
+        test("match does not import frontdoor — BC boundary") {
+            noClasses().that().resideInAPackage("leyline.match..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.frontdoor..",
+                    "leyline.cli..",
+                    "leyline.conformance..",
+                    "leyline.analysis..",
+                ).check(classes)
+        }
+
+        test("conformance does not import upward") {
+            noClasses().that().resideInAPackage("leyline.conformance..")
+                .should().dependOnClassesThat()
+                .resideInAnyPackage(
+                    "leyline.infra..",
+                    "leyline.match..",
+                    "leyline.frontdoor..",
+                    "leyline.cli..",
+                ).check(classes)
+        }
+
+        // ── Cycles ──────────────────────────────────────────────────
+
+        // TODO: debug↔match cycle (DebugServer imports MatchSession, MatchSession imports SessionRecorder)
+        xtest("no package cycles") {
+            slices().matching("leyline.(*)..")
+                .should().beFreeOfCycles()
+                .check(classes)
         }
     })
