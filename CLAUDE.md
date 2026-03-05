@@ -6,7 +6,7 @@ Client compat layer — stubs/proxies the client's Front Door + Match Door so th
 - **Depends on:** forge-web (game bridges, bootstrap) — never reverse the dependency
 - **Proto:** `src/main/proto/messages.proto` — client protobuf schema (from MtgaProto project)
 - **Card data:** `CardDb.kt` reads the client's local SQLite for grpId, types, mana cost
-- **Server modes:** `just serve` (hybrid, main dev), `just serve-stub` (offline), `just serve-proxy` (passthrough), `just serve-replay`
+- **Server modes:** `just serve` (stub, main dev — fully offline), `just serve-proxy` (passthrough for recording), `just serve-replay`
 
 ## Testing
 

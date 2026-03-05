@@ -23,7 +23,7 @@ private fun File.walkUpFind(pred: (File) -> Boolean): File? {
  * ```
  * recordings/
  *   2026-02-22_14-30-00/
- *     mode.txt          # "engine" or "proxy" or "hybrid"
+ *     mode.txt          # "engine" or "proxy"
  *     engine/           # GRE messages (both modes)
  *     capture/          # proxy mode only
  *       payloads/

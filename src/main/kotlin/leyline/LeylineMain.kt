@@ -12,7 +12,7 @@ import java.io.File
 /**
  * Standalone entry point for the Leyline server (client compat layer).
  *
- * Run via justfile targets: `just serve`, `just serve-stub`, etc.
+ * Run via justfile targets: `just serve`, `just serve-proxy`, etc.
  * See CLAUDE.md for mode descriptions.
  *
  * Environment variable fallbacks (CLI args take precedence):
@@ -108,8 +108,7 @@ fun main(args: Array<String>) {
     )
 
     val mode = when {
-        server.isReplay -> "replay (proxy FD, replay MD)"
-        server.isHybrid -> "hybrid (proxy FD, stub MD)"
+        server.isReplay -> "replay"
         server.isProxy -> "proxy"
         else -> "stub"
     }

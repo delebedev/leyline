@@ -62,7 +62,7 @@ CLI args (`--fd-cert`, `--fd-key`, etc.) take precedence.
 
 ```bash
 just dev-setup      # gen certs + patch Arena + macOS defaults
-just serve          # start server (hybrid mode)
+just serve          # start server (stub mode)
 just dev-teardown   # undo
 ```
 
