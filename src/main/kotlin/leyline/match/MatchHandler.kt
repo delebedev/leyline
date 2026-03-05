@@ -1,6 +1,5 @@
 package leyline.match
 
-import forge.gamemodes.puzzle.Puzzle
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.SimpleChannelInboundHandler
 import kotlinx.serialization.json.Json
@@ -8,7 +7,6 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import leyline.bridge.GameBootstrap
 import leyline.config.MatchConfig
 import leyline.debug.DebugCollector
 import leyline.debug.GameStateCollector
@@ -17,7 +15,6 @@ import leyline.debug.Tap
 import leyline.game.CardRepository
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
-import leyline.game.PuzzleSource
 import leyline.infra.NettyMessageSink
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
@@ -62,6 +59,9 @@ class MatchHandler(
 
     /** Mulligan flow delegate — owns mulligan state and DealHand/MulliganReq senders. */
     internal val mulliganHandler = MulliganHandler(matchConfig, registry)
+
+    /** Puzzle mode delegate — detection, loading, initial bundle. */
+    private val puzzleHandler = PuzzleHandler(puzzleFile, matchConfig, cards, registry)
 
     companion object {
         val defaultRegistry = MatchRegistry()
@@ -172,18 +172,9 @@ class MatchHandler(
                     log.info("Match Door: evicted {} stale bridge(s)", evicted.size)
                 }
 
-                if (isPuzzleMatch(matchId)) {
-                    // Puzzle mode: create bridge with puzzle game, skip mulligan
-                    val bridge = registry.getOrCreateBridge(matchId) {
-                        GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter, cards = cards ?: leyline.game.InMemoryCardRepository()).also {
-                            val puzzle = loadPuzzleForMatch(matchId)
-                            it.startPuzzle(puzzle)
-                        }
-                    }
-                    s?.connectBridge(bridge)
-                    log.info("Match Door: puzzle mode, seat {} connected", seatId)
+                if (puzzleHandler.isPuzzleMatch(matchId)) {
                     sendRoomState(ctx)
-                    sendPuzzleInitialBundle(ctx)
+                    puzzleHandler.onPuzzleConnect(ctx, s!!, matchId, seatId)
                 } else {
                     // Constructed mode: normal flow
                     val bridge = registry.getOrCreateBridge(matchId) {
@@ -334,73 +325,6 @@ class MatchHandler(
         }
         session?.gameBridge?.shutdown()
         ctx.close()
-    }
-
-    // --- Puzzle-mode senders ---
-
-    /** Send puzzle initial bundle: ConnectResp + Full GSM (stage=Play) + ActionsAvailableReq. */
-    private fun sendPuzzleInitialBundle(ctx: ChannelHandlerContext) {
-        val s = session ?: return
-        val bridge = s.gameBridge ?: return
-        val gsId = s.counter.nextGsId()
-
-        val (bundleMsg, nextMsgId) = HandshakeMessages.puzzleInitialBundle(
-            seatId,
-            matchId,
-            s.counter.currentMsgId(),
-            gsId,
-            bridge,
-        )
-        s.counter.setMsgId(nextMsgId)
-        Tap.outboundTemplate("PuzzleInitialBundle seat=$seatId")
-        ProtoDump.dump(bundleMsg, "PuzzleInitialBundle-seat$seatId")
-        ctx.writeAndFlush(bundleMsg)
-
-        // Send ActionsAvailableReq immediately after
-        val (actionsMsg, nextMsgId2) = HandshakeMessages.puzzleActionsReq(
-            s.counter.currentMsgId(),
-            gsId,
-            seatId,
-            bridge,
-        )
-        s.counter.setMsgId(nextMsgId2)
-        Tap.outboundTemplate("PuzzleActionsReq seat=$seatId")
-        ProtoDump.dump(actionsMsg, "PuzzleActionsReq-seat$seatId")
-        ctx.writeAndFlush(actionsMsg)
-
-        // Enter the game loop — same as onMulliganKeep but without mulligan
-        s.onPuzzleStart()
-    }
-
-    // --- Puzzle detection ---
-
-    /** Puzzle mode if --puzzle CLI flag is set, or matchId starts with "puzzle-". */
-    private fun isPuzzleMatch(matchId: String): Boolean =
-        puzzleFile != null || matchId.startsWith("puzzle-")
-
-    /** Load puzzle: prefer --puzzle CLI file, fall back to matchId convention. */
-    private fun loadPuzzleForMatch(matchId: String): Puzzle {
-        // Puzzle constructor triggers GameState.<clinit> which needs localization
-        GameBootstrap.initializeLocalization()
-
-        // CLI override takes precedence
-        if (puzzleFile != null) {
-            require(puzzleFile.exists()) { "Puzzle file not found: ${puzzleFile.absolutePath}" }
-            return PuzzleSource.loadFromFile(puzzleFile.absolutePath)
-        }
-        // Fall back to matchId convention
-        val puzzleName = matchId.removePrefix("puzzle-")
-        val leylineDir = findLeylineDir()
-        val puzzlesDir = File(leylineDir, "puzzles")
-        val pzlFile = File(puzzlesDir, "$puzzleName.pzl")
-        if (pzlFile.exists()) {
-            return PuzzleSource.loadFromFile(pzlFile.absolutePath)
-        }
-        val pzlFile2 = File(puzzlesDir, puzzleName)
-        if (pzlFile2.exists()) {
-            return PuzzleSource.loadFromFile(pzlFile2.absolutePath)
-        }
-        error("Puzzle not found: $puzzleName (looked in ${puzzlesDir.absolutePath})")
     }
 
     /**
