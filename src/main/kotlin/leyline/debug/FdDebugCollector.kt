@@ -13,10 +13,12 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * Queryable at `GET /api/fd-messages?since=N`.
  */
-object FdDebugCollector {
+class FdDebugCollector(
+    private val eventBus: DebugEventBus,
+) {
 
-    private const val MAX_ENTRIES = 200
-    private val entries = ArrayDeque<FdEntry>(MAX_ENTRIES)
+    private val maxEntries = 200
+    private val entries = ArrayDeque<FdEntry>(maxEntries)
     private val seqGen = AtomicInteger(0)
     private val lock = Any()
 
@@ -44,13 +46,13 @@ object FdDebugCollector {
             envelopeType = decoded.envelopeType.name,
         )
         synchronized(lock) {
-            if (entries.size >= MAX_ENTRIES) entries.removeFirst()
+            if (entries.size >= maxEntries) entries.removeFirst()
             entries.addLast(entry)
         }
         // Emit SSE event for real-time debug panel
         try {
             val json = Json.encodeToString(entry)
-            DebugEventBus.emit("fd-message", json)
+            eventBus.emit("fd-message", json)
         } catch (_: Exception) {}
     }
 

@@ -44,6 +44,7 @@ class FrontDoorHandler(
     private val matchmaking: MatchmakingService,
     private val writer: FdResponseWriter,
     private val golden: GoldenData,
+    private val fdCollector: FdDebugCollector? = null,
     /** Called when client sends 612 with a deckId — writes to shared holder. */
     private val onDeckSelected: ((String) -> Unit)? = null,
 ) : ChannelInboundHandlerAdapter() {
@@ -117,7 +118,7 @@ class FrontDoorHandler(
             val cmdType = decoded.cmdType
             val cmdName = cmdType?.let { FdEnvelope.cmdTypeName(it) } ?: "unknown"
 
-            FdDebugCollector.record("C2S", decoded)
+            fdCollector?.record("C2S", decoded)
             log.info("Front Door: cmd={} cmdType={} txId={}", cmdName, cmdType, transactionId)
 
             dispatch(ctx, cmdType, transactionId, json)

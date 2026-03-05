@@ -12,7 +12,9 @@ import java.util.UUID
  * Handles framing, channel writes, and [FdDebugCollector] recording.
  * Extracted from handler code so handlers stay protocol-agnostic.
  */
-class FdResponseWriter {
+class FdResponseWriter(
+    private val fdCollector: FdDebugCollector? = null,
+) {
 
     fun sendJson(ctx: ChannelHandlerContext, txId: String?, json: String) {
         val id = txId ?: UUID.randomUUID().toString()
@@ -58,7 +60,7 @@ class FdResponseWriter {
         envelope: ByteArray,
     ) {
         val header = FdEnvelope.buildOutgoingHeader(envelope.size)
-        FdDebugCollector.record(
+        fdCollector?.record(
             "S2C",
             FdEnvelope.FdMessage(
                 cmdType = null,

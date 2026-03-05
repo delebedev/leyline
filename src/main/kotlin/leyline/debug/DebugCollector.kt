@@ -10,13 +10,14 @@ import leyline.game.GameBridge
 import leyline.game.mapper.ZoneIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
-import java.util.concurrent.CopyOnWriteArrayList
 
 /**
- * Ring-buffer collector for client protocol messages. Thread-safe singleton.
+ * Ring-buffer collector for client protocol messages. Thread-safe.
  * Powers the debug panel at :8090.
  */
-object DebugCollector {
+class DebugCollector(
+    private val eventBus: DebugEventBus,
+) {
     private val log = LoggerFactory.getLogger(DebugCollector::class.java)
 
     /**
@@ -28,8 +29,8 @@ object DebugCollector {
     /** Provider for the active seat-1 session (for debug injection). */
     var sessionProvider: (() -> Any?)? = null
 
-    private const val MAX_ENTRIES = 500
-    private val buffer = ArrayDeque<Entry>(MAX_ENTRIES)
+    private val maxEntries = 500
+    private val buffer = ArrayDeque<Entry>(maxEntries)
     private var seq = 0
 
     private val jsonPrinter: JsonFormat.Printer = JsonFormat.printer()
@@ -156,7 +157,7 @@ object DebugCollector {
                     status = when {
                         isActive -> "active"
                         isLimbo -> "limbo"
-                        else -> "stale" // in reverse map but not active, not yet in limbo
+                        else -> "stale" // in reverse map but not active, not yet in limbo'd
                     },
                     forgeZone = card?.zone?.zoneType?.name ?: "?",
                     protoZone = protoZoneId?.let { protoZoneName(it) },
@@ -235,11 +236,11 @@ object DebugCollector {
         synchronized(buffer) {
             seq++
             numbered = entry.copy(seq = seq)
-            if (buffer.size >= MAX_ENTRIES) buffer.removeFirst()
+            if (buffer.size >= maxEntries) buffer.removeFirst()
             buffer.addLast(numbered)
         }
         try {
-            DebugEventBus.emit("message", sseJson.encodeToString(numbered))
+            eventBus.emit("message", sseJson.encodeToString(numbered))
         } catch (e: Exception) {
             log.debug("Failed to emit SSE message event", e)
         }
@@ -334,8 +335,8 @@ object DebugCollector {
 
     // --- Log streaming ---
 
-    private const val MAX_LOG_ENTRIES = 2000
-    private val logBuffer = ArrayDeque<LogEntry>(MAX_LOG_ENTRIES)
+    private val maxLogEntries = 2000
+    private val logBuffer = ArrayDeque<LogEntry>(maxLogEntries)
     private var logSeq = 0
 
     @Serializable
@@ -353,11 +354,11 @@ object DebugCollector {
         synchronized(logBuffer) {
             logSeq++
             entry = LogEntry(logSeq, ts, level, logger, message, thread)
-            if (logBuffer.size >= MAX_LOG_ENTRIES) logBuffer.removeFirst()
+            if (logBuffer.size >= maxLogEntries) logBuffer.removeFirst()
             logBuffer.addLast(entry)
         }
         try {
-            DebugEventBus.emit("log", sseJson.encodeToString(entry))
+            eventBus.emit("log", sseJson.encodeToString(entry))
         } catch (e: Exception) {
             log.debug("Failed to emit SSE log event", e)
         }
@@ -384,12 +385,30 @@ object DebugCollector {
         "DEBUG" -> 1
         else -> 0
     }
+
+    companion object {
+        /**
+         * Global instance — set once during server startup.
+         *
+         * Needed because [DebugLogAppender] is instantiated by logback before
+         * DI wiring runs. The appender uses this static reference. Also used
+         * as a no-op fallback in tests that don't wire debug infrastructure.
+         */
+        @Volatile
+        var instance: DebugCollector? = null
+    }
 }
 
-/** Logback appender that feeds log events into [DebugCollector]. */
+/**
+ * Logback appender that feeds log events into [DebugCollector].
+ *
+ * Uses [DebugCollector.instance] (static) because logback instantiates
+ * appenders from XML before our DI wiring runs. Events before wiring
+ * are silently dropped.
+ */
 class DebugLogAppender : AppenderBase<ILoggingEvent>() {
     override fun append(event: ILoggingEvent) {
-        DebugCollector.recordLog(
+        DebugCollector.instance?.recordLog(
             ts = event.timeStamp,
             level = event.level.toString(),
             logger = event.loggerName.substringAfterLast('.'),
@@ -403,9 +422,9 @@ class DebugLogAppender : AppenderBase<ILoggingEvent>() {
  * Pub/sub bus for real-time debug events (SSE).
  * Collectors emit typed events; [DebugServer] SSE endpoint subscribes.
  */
-object DebugEventBus {
+class DebugEventBus {
     private val log = LoggerFactory.getLogger(DebugEventBus::class.java)
-    private val listeners = CopyOnWriteArrayList<(String, String) -> Unit>()
+    private val listeners = java.util.concurrent.CopyOnWriteArrayList<(String, String) -> Unit>()
 
     fun addListener(listener: (String, String) -> Unit) {
         listeners.add(listener)

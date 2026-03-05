@@ -55,6 +55,7 @@ data class ClientError(
 class PlayerLogWatcher(
     private val sessionDir: File = LeylinePaths.SESSION_DIR,
     private val pollMs: Long = 500,
+    private val eventBus: DebugEventBus? = null,
 ) {
     private val log = LoggerFactory.getLogger(PlayerLogWatcher::class.java)
     private val running = AtomicBoolean(false)
@@ -335,7 +336,7 @@ class PlayerLogWatcher(
 
         // SSE
         try {
-            DebugEventBus.emit("client-error", sseJson.encodeToString(entry))
+            eventBus?.emit("client-error", sseJson.encodeToString(entry))
         } catch (_: Exception) {}
 
         // Console — distinctive prefix for visibility

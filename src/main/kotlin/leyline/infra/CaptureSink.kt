@@ -24,17 +24,13 @@ import java.util.concurrent.atomic.AtomicLong
  * - Data payloads:   `<capture>/payloads/<seq>_<dir>_<type>.bin`
  * - FD decoded JSONL: `<capture>/fd-frames.jsonl` (CmdType + JSON per frame)
  */
-internal object CaptureSink : AutoCloseable {
+class CaptureSink(
+    private val fdCollector: FdDebugCollector,
+) : AutoCloseable {
     private val log = LoggerFactory.getLogger(CaptureSink::class.java)
     private val lock = Any()
     private val seq = AtomicLong(0)
     private val pending = mutableMapOf<String, ByteArray>()
-
-    init {
-        Runtime.getRuntime().addShutdownHook(
-            Thread({ close() }, "capture-sink-shutdown"),
-        )
-    }
 
     private val payloadDir = LeylinePaths.CAPTURE_PAYLOADS
     private val frameDir = LeylinePaths.CAPTURE_FRAMES
@@ -100,7 +96,7 @@ internal object CaptureSink : AutoCloseable {
             try {
                 val decoded = FdEnvelope.decode(payload)
                 val direction = if ("C→S" in dir || "C-S" in dir) "C2S" else "S2C"
-                FdDebugCollector.record(direction, decoded)
+                fdCollector.record(direction, decoded)
 
                 val record = FdFrameRecord(
                     seq = fileSeq,

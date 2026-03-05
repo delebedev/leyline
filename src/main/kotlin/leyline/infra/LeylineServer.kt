@@ -17,6 +17,10 @@ import io.netty.handler.ssl.util.SelfSignedCertificate
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import leyline.config.MatchConfig
+import leyline.debug.DebugCollector
+import leyline.debug.DebugEventBus
+import leyline.debug.FdDebugCollector
+import leyline.debug.GameStateCollector
 import leyline.frontdoor.FrontDoorHandler
 import leyline.frontdoor.FrontDoorReplayStub
 import leyline.frontdoor.GoldenData
@@ -88,6 +92,13 @@ class LeylineServer(
     private var frontDoorChannel: Channel? = null
     private var matchDoorChannel: Channel? = null
 
+    // --- Debug infrastructure (wired in start()) ---
+    val eventBus = DebugEventBus()
+    val fdCollector = FdDebugCollector(eventBus)
+    val captureSink = CaptureSink(fdCollector)
+    val debugCollector = DebugCollector(eventBus)
+    val gameStateCollector = GameStateCollector(cardRepo, eventBus)
+
     /** Proxy: relay both FD + MD to real Arena servers for traffic capture. */
     val isProxy get() = upstreamFrontDoor != null && upstreamMatchDoor != null && replayDir == null
 
@@ -95,9 +106,11 @@ class LeylineServer(
     val isReplay get() = replayDir != null
 
     fun start() {
-        // Wire card name lookup providers for debug/recording singletons
+        // Register global instance for logback appender (must happen before any logging)
+        DebugCollector.instance = debugCollector
+
+        // Wire card name lookup for recording inspector (still a singleton — Phase 3)
         if (cardRepo != null) {
-            leyline.debug.GameStateCollector.cardNameLookup = { grpId -> cardRepo.findNameByGrpId(grpId) }
             leyline.recording.RecordingInspector.cardNameLookup = { grpId -> cardRepo.findNameByGrpId(grpId) }
         }
 
@@ -137,7 +150,7 @@ class LeylineServer(
         val deckService = DeckService(store)
         val playerService = PlayerService(store)
         val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort)
-        val writer = FdResponseWriter()
+        val writer = FdResponseWriter(fdCollector)
         val golden = GoldenData.loadFromClasspath()
 
         val goldenFile = fdGoldenFile
@@ -146,7 +159,12 @@ class LeylineServer(
                 ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
                 ch.pipeline().addLast(
                     "handler",
-                    FrontDoorReplayStub(goldenFile, matchDoorHost = externalHost, matchDoorPort = matchDoorPort),
+                    FrontDoorReplayStub(
+                        goldenFile,
+                        matchDoorHost = externalHost,
+                        matchDoorPort = matchDoorPort,
+                        fdCollector = fdCollector,
+                    ),
                 )
             }
             log.info("Client Front Door (replay from {}) listening on :{}", goldenFile.name, frontDoorPort)
@@ -162,6 +180,7 @@ class LeylineServer(
                         matchmaking = matchmakingService,
                         writer = writer,
                         golden = golden,
+                        fdCollector = fdCollector,
                         onDeckSelected = { selectedDeckId = it },
                     ),
                 )
@@ -193,6 +212,8 @@ class LeylineServer(
                     selectedDeckOverride = { selectedDeckId },
                     deckLookup = deckLookup,
                     cards = cardRepo,
+                    debugCollector = debugCollector,
+                    gameStateCollector = gameStateCollector,
                 ),
             )
         }
@@ -208,7 +229,7 @@ class LeylineServer(
         val memDb = org.jetbrains.exposed.v1.jdbc.Database.connect("jdbc:sqlite::memory:", "org.sqlite.JDBC")
         val memStore = SqlitePlayerStore(memDb)
         memStore.createTables()
-        val memWriter = FdResponseWriter()
+        val memWriter = FdResponseWriter(fdCollector)
 
         frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
             ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
@@ -221,6 +242,7 @@ class LeylineServer(
                     matchmaking = MatchmakingService(memStore, externalHost, matchDoorPort),
                     writer = memWriter,
                     golden = golden,
+                    fdCollector = fdCollector,
                 ),
             )
         }
@@ -242,12 +264,12 @@ class LeylineServer(
         val mdHost = upstreamMatchDoor ?: fdHost
 
         frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Proxy") { ch ->
-            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, fdHost, frontDoorPort, "FD"))
+            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, fdHost, frontDoorPort, "FD", captureSink))
         }
         log.info("Client Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
 
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor-Proxy") { ch ->
-            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, mdHost, matchDoorPort, "MD"))
+            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, mdHost, matchDoorPort, "MD", captureSink))
         }
         log.info("Client Match Door (proxy → {}:{}) listening on :{}", mdHost, matchDoorPort, matchDoorPort)
     }
@@ -258,6 +280,7 @@ class LeylineServer(
         matchDoorChannel?.close()?.sync()
         workerGroup.shutdownGracefully()
         bossGroup.shutdownGracefully()
+        captureSink.close()
     }
 
     private fun bindServer(
@@ -296,6 +319,7 @@ class ProxyFrontHandler(
     private val remoteHost: String,
     private val remotePort: Int,
     private val door: String = "FD",
+    private val captureSink: CaptureSink,
 ) : ChannelInboundHandlerAdapter() {
 
     private val log = LoggerFactory.getLogger(ProxyFrontHandler::class.java)
@@ -317,7 +341,7 @@ class ProxyFrontHandler(
             .handler(object : ChannelInitializer<SocketChannel>() {
                 override fun initChannel(ch: SocketChannel) {
                     ch.pipeline().addLast("ssl", upstreamSsl.newHandler(ch.alloc(), remoteHost, remotePort))
-                    ch.pipeline().addLast("relay", RelayHandler(inbound, "S→C", door))
+                    ch.pipeline().addLast("relay", RelayHandler(inbound, "S→C", door, captureSink))
                 }
             })
 
@@ -353,7 +377,7 @@ class ProxyFrontHandler(
     override fun channelInactive(ctx: ChannelHandlerContext) {
         log.info("Proxy [{}]: client disconnected", door)
         outboundChannel?.close()
-        if (door == "MD") CaptureSink.flushMdFrames()
+        if (door == "MD") captureSink.flushMdFrames()
     }
 
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
@@ -361,7 +385,7 @@ class ProxyFrontHandler(
         ctx.close()
     }
 
-    private fun logFrame(dir: String, buf: ByteBuf) = logClientFrame(log, "$door:$dir", buf)
+    private fun logFrame(dir: String, buf: ByteBuf) = logClientFrame(log, "$door:$dir", buf, captureSink)
 }
 
 /** Relays bytes from one channel to another, logging frame headers + payloads. */
@@ -369,12 +393,13 @@ class RelayHandler(
     private val relayTarget: Channel,
     private val direction: String,
     private val door: String = "FD",
+    private val captureSink: CaptureSink,
 ) : ChannelInboundHandlerAdapter() {
 
     private val log = LoggerFactory.getLogger(RelayHandler::class.java)
 
     override fun channelRead(ctx: ChannelHandlerContext, msg: Any) {
-        if (msg is ByteBuf) logClientFrame(log, "$door:$direction", msg)
+        if (msg is ByteBuf) logClientFrame(log, "$door:$direction", msg, captureSink)
         if (relayTarget.isActive) {
             relayTarget.writeAndFlush(msg)
         } else {
@@ -394,12 +419,12 @@ class RelayHandler(
 }
 
 /** Log client frame header fields for proxy debugging. */
-private fun logClientFrame(log: Logger, dir: String, buf: ByteBuf) {
+private fun logClientFrame(log: Logger, dir: String, buf: ByteBuf, captureSink: CaptureSink) {
     if (buf.readableBytes() < 6) return
     val idx = buf.readerIndex()
     val ft = buf.getByte(idx + 1)
     val pl = buf.getIntLE(idx + 2)
     val tn = frameTypeName(ft)
     log.trace("  {} type={} payload={} total={}", dir, tn, pl, buf.readableBytes())
-    CaptureSink.ingestChunk(dir, buf)
+    captureSink.ingestChunk(dir, buf)
 }

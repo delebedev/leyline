@@ -37,7 +37,13 @@ import java.util.concurrent.Executors
  * - `GET /api/recording-compare?left=...&right=...` → action-level comparison
  * - `GET /api/client-errors` → Player.log errors (supports `?since=N`, `?type=...`)
  */
-class DebugServer(private val port: Int = 8090) {
+class DebugServer(
+    private val port: Int = 8090,
+    private val debugCollector: DebugCollector? = null,
+    private val gameStateCollector: GameStateCollector? = null,
+    private val fdCollector: FdDebugCollector? = null,
+    private val eventBus: DebugEventBus? = null,
+) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null
 
@@ -136,13 +142,13 @@ class DebugServer(private val port: Int = 8090) {
     private fun serveMessages(ex: HttpExchange) {
         val params = parseQuery(ex.requestURI.rawQuery)
         val since = params["since"]?.toIntOrNull() ?: 0
-        val entries = DebugCollector.snapshot(since)
+        val entries = debugCollector?.snapshot(since) ?: emptyList()
         val cursor = entries.maxOfOrNull { it.seq }
         respondJsonList(ex, json.encodeToString(entries), cursor)
     }
 
     private fun serveState(ex: HttpExchange) {
-        val state = DebugCollector.matchState()
+        val state = debugCollector?.matchState() ?: DebugCollector.MatchStateSnapshot()
         respondJson(ex, json.encodeToString(state))
     }
 
@@ -157,7 +163,7 @@ class DebugServer(private val port: Int = 8090) {
      */
     private fun serveIdMap(ex: HttpExchange) {
         val params = parseQuery(ex.requestURI.rawQuery)
-        var entries = DebugCollector.idMap()
+        var entries = debugCollector?.idMap() ?: emptyList()
 
         if (params["active"]?.lowercase() == "true") {
             entries = entries.filter { it.status == "active" }
@@ -179,7 +185,7 @@ class DebugServer(private val port: Int = 8090) {
         val params = parseQuery(ex.requestURI.rawQuery)
         val since = params["since"]?.toIntOrNull() ?: 0
         val level = params["level"] ?: "DEBUG"
-        val logs = DebugCollector.logSnapshot(since, level)
+        val logs = debugCollector?.logSnapshot(since, level) ?: emptyList()
         val cursor = logs.maxOfOrNull { it.seq }
         respondJsonList(ex, json.encodeToString(logs), cursor)
     }
@@ -187,7 +193,7 @@ class DebugServer(private val port: Int = 8090) {
     // --- GameStateCollector endpoints ---
 
     private fun serveGameStates(ex: HttpExchange) {
-        val timeline = GameStateCollector.timeline()
+        val timeline = gameStateCollector?.timeline() ?: emptyList()
         val cursor = timeline.maxOfOrNull { it.gsId }
         respondJsonList(ex, json.encodeToString(timeline), cursor)
     }
@@ -198,14 +204,14 @@ class DebugServer(private val port: Int = 8090) {
         // Shortcut: ?last=N diffs from N snapshots back to the latest
         val last = params["last"]?.toIntOrNull()
         if (last != null) {
-            val timeline = GameStateCollector.timeline()
+            val timeline = gameStateCollector?.timeline() ?: emptyList()
             if (timeline.size < 2) {
                 respond(ex, 404, "text/plain", "Need at least 2 snapshots for ?last diff")
                 return
             }
             val toIdx = timeline.size - 1
             val fromIdx = (toIdx - last).coerceAtLeast(0)
-            val diff = GameStateCollector.diff(timeline[fromIdx].gsId, timeline[toIdx].gsId)
+            val diff = gameStateCollector?.diff(timeline[fromIdx].gsId, timeline[toIdx].gsId)
             if (diff == null) {
                 respond(ex, 404, "text/plain", "Snapshot not found")
                 return
@@ -220,7 +226,7 @@ class DebugServer(private val port: Int = 8090) {
             respond(ex, 400, "text/plain", "Required: ?from=<gsId>&to=<gsId> or ?last=<N>")
             return
         }
-        val diff = GameStateCollector.diff(from, to)
+        val diff = gameStateCollector?.diff(from, to)
         if (diff == null) {
             respond(ex, 404, "text/plain", "Snapshot not found for gsId=$from or gsId=$to")
             return
@@ -231,7 +237,7 @@ class DebugServer(private val port: Int = 8090) {
     private fun servePriorityEvents(ex: HttpExchange) {
         val params = parseQuery(ex.requestURI.rawQuery)
         val since = params["since"]?.toIntOrNull() ?: 0
-        val events = GameStateCollector.events(since)
+        val events = gameStateCollector?.events(since) ?: emptyList()
         val cursor = events.maxOfOrNull { it.seq }
         respondJsonList(ex, json.encodeToString(events), cursor)
     }
@@ -243,7 +249,7 @@ class DebugServer(private val port: Int = 8090) {
             respond(ex, 400, "text/plain", "Required: ?id=<instanceId>")
             return
         }
-        val history = GameStateCollector.instanceHistory(id)
+        val history = gameStateCollector?.instanceHistory(id) ?: emptyList()
         respondJsonList(ex, json.encodeToString(history), null)
     }
 
@@ -437,7 +443,7 @@ class DebugServer(private val port: Int = 8090) {
      * [AutoPassEngine] (session thread) and [WebPlayerController] (engine thread).
      */
     private fun servePriorityLog(ex: HttpExchange) {
-        val session = DebugCollector.sessionProvider?.invoke() as? MatchSession
+        val session = debugCollector?.sessionProvider?.invoke() as? MatchSession
         if (session == null) {
             respondJsonList(ex, "[]", null)
             return
@@ -472,7 +478,7 @@ class DebugServer(private val port: Int = 8090) {
     private fun serveFdMessages(ex: HttpExchange) {
         val params = parseQuery(ex.requestURI.rawQuery)
         val since = params["since"]?.toIntOrNull() ?: 0
-        val entries = FdDebugCollector.snapshot(since)
+        val entries = fdCollector?.snapshot(since) ?: emptyList()
         val cursor = entries.maxOfOrNull { it.seq }
         respondJsonList(ex, json.encodeToString(entries), cursor)
     }
@@ -487,7 +493,7 @@ class DebugServer(private val port: Int = 8090) {
      * No request body needed — reads state from the live Forge engine.
      */
     private fun serveInjectFull(ex: HttpExchange) {
-        val session = DebugCollector.sessionProvider?.invoke() as? MatchSession
+        val session = debugCollector?.sessionProvider?.invoke() as? MatchSession
         if (session == null) {
             respond(ex, 404, "text/plain", "No active session")
             return
@@ -605,7 +611,7 @@ class DebugServer(private val port: Int = 8090) {
             }
         }
 
-        DebugEventBus.addListener(listener)
+        eventBus?.addListener(listener)
         log.info("SSE client connected")
         try {
             while (true) {
@@ -618,7 +624,7 @@ class DebugServer(private val port: Int = 8090) {
         } catch (_: Exception) {
             // client disconnected
         } finally {
-            DebugEventBus.removeListener(listener)
+            eventBus?.removeListener(listener)
             log.info("SSE client disconnected")
             try {
                 ex.close()

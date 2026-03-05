@@ -2,6 +2,7 @@ package leyline.debug
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import leyline.game.CardRepository
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -17,15 +18,18 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * structured/queryable data. Same integration pattern: explicit calls at
  * MatchHandler send sites.
  */
-object GameStateCollector {
+class GameStateCollector(
+    private val cards: CardRepository?,
+    private val eventBus: DebugEventBus,
+) {
     private val log = LoggerFactory.getLogger(GameStateCollector::class.java)
 
-    private const val MAX_SNAPSHOTS = 200
-    private const val MAX_EVENTS = 500
+    private val maxSnapshots = 200
+    private val maxEvents = 500
     private val sseJson = Json { encodeDefaults = true }
 
-    /** Provider for card name lookups. Set during match startup. */
-    var cardNameLookup: ((Int) -> String?)? = null
+    /** Card name lookup via injected repository. */
+    private val cardNameLookup: ((Int) -> String?)? = cards?.let { repo -> { grpId -> repo.findNameByGrpId(grpId) } }
 
     // --- Snapshots ---
 
@@ -97,7 +101,7 @@ object GameStateCollector {
 
     // --- Priority events ---
 
-    private val eventBuffer = ArrayDeque<PriorityEvent>(MAX_EVENTS)
+    private val eventBuffer = ArrayDeque<PriorityEvent>(maxEvents)
     private var eventSeq = 0
 
     /** Record a priority/engine decision event. */
@@ -126,11 +130,11 @@ object GameStateCollector {
                 stackDepth = stackDepth,
                 msgSeq = msgSeq,
             )
-            if (eventBuffer.size >= MAX_EVENTS) eventBuffer.removeFirst()
+            if (eventBuffer.size >= maxEvents) eventBuffer.removeFirst()
             eventBuffer.addLast(event)
         }
         try {
-            DebugEventBus.emit("priority", sseJson.encodeToString(event))
+            eventBus.emit("priority", sseJson.encodeToString(event))
         } catch (e: Exception) {
             log.debug("Failed to emit SSE priority event", e)
         }
@@ -156,13 +160,13 @@ object GameStateCollector {
         synchronized(snapshots) {
             snapshots[snapshot.gsId] = snapshot
             // Evict oldest if over capacity
-            while (snapshots.size > MAX_SNAPSHOTS) {
+            while (snapshots.size > maxSnapshots) {
                 val oldest = snapshots.keys.first()
                 snapshots.remove(oldest)
             }
         }
         try {
-            DebugEventBus.emit("state", sseJson.encodeToString(snapshot))
+            eventBus.emit("state", sseJson.encodeToString(snapshot))
         } catch (e: Exception) {
             log.debug("Failed to emit SSE state snapshot", e)
         }

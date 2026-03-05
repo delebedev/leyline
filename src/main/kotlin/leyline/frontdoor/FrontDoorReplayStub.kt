@@ -33,6 +33,7 @@ class FrontDoorReplayStub(
     goldenFile: File,
     private val matchDoorHost: String = "localhost",
     private val matchDoorPort: Int = 30003,
+    private val fdCollector: FdDebugCollector? = null,
 ) : ChannelInboundHandlerAdapter() {
 
     private val log = LoggerFactory.getLogger(FrontDoorReplayStub::class.java)
@@ -98,7 +99,7 @@ class FrontDoorReplayStub(
             val decoded = FdEnvelope.decode(payload)
             val cmdType = decoded.cmdType
             val cmdName = cmdType?.let { FdEnvelope.cmdTypeName(it) }
-            FdDebugCollector.record("C2S", decoded)
+            fdCollector?.record("C2S", decoded)
 
             log.info("FD Replay: C→S cmd={} ({}) txId={}", cmdName, cmdType, decoded.transactionId)
 
@@ -161,7 +162,7 @@ class FrontDoorReplayStub(
         val envelope = FdEnvelope.encodeResponse(transactionId, json)
         val header = FdEnvelope.buildOutgoingHeader(envelope.size)
 
-        FdDebugCollector.record(
+        fdCollector?.record(
             "S2C",
             FdEnvelope.FdMessage(
                 cmdType = null,
