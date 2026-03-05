@@ -27,6 +27,8 @@ data class EventDef(
     val flags: List<String> = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
     val winCondition: String = "SingleElimination",
     val displayPriority: Int = 50,
+    val titleLocKey: String = "Events/Event_Title_$internalName",
+    val descLocKey: String = "Events/Event_Desc_$internalName",
 )
 
 /**
@@ -38,27 +40,46 @@ data class EventDef(
  */
 object EventRegistry {
 
+    /** Matches real server queue config (proxy capture 2026-03-03, 14 queues). */
     val queues: List<QueueEntry> = listOf(
+        // Ranked (no QueueType field emitted — client default)
         QueueEntry("StandardRanked", "Ranked", "PlayBlade/FindMatch/Blade_Standard_Ladder", "Ladder", "Traditional_Ladder"),
-        QueueEntry("StandardUnranked", "Unranked", "PlayBlade/FindMatch/Blade_Traditional_Standard_Play", "Play", "Constructed_BestOf3"),
-        QueueEntry("HistoricRanked", "Ranked", "PlayBlade/FindMatch/Blade_Historic_Ladder", "Historic_Ladder", "Traditional_Historic_Ladder"),
-        QueueEntry("HistoricUnranked", "Unranked", "PlayBlade/FindMatch/Blade_Historic_Play", "Historic_Play", "Traditional_Historic_Play"),
-        QueueEntry("ExplorerRanked", "Ranked", "PlayBlade/FindMatch/Blade_Explorer_Ladder", "Explorer_Ladder", "Traditional_Explorer_Ladder"),
-        QueueEntry("ExplorerUnranked", "Unranked", "PlayBlade/FindMatch/Blade_Explorer_Play", "Explorer_Play", "Traditional_Explorer_Play"),
-        QueueEntry("TimelessRanked", "Ranked", "PlayBlade/FindMatch/Blade_Timeless_Ladder", "Timeless_Ladder", "Traditional_Timeless_Ladder"),
+        QueueEntry("AlchemyRanked", "Ranked", "PlayBlade/FindMatch/Blade_Alchemy_Ladder", "Alchemy_Ladder", "Traditional_Alchemy_Ladder"),
         QueueEntry(
-            "TimelessUnranked",
-            "Unranked",
-            "PlayBlade/FindMatch/Blade_Timeless_Play",
-            "Timeless_Play",
+            "SparkAlchemyRanked", "Ranked", "Events/Event_Title_Spark_Ladder", "Spark_Alchemy_Ladder",
+            deckSizeBO3 = "MainNav/General/Empty_String",
+            sideboardBO3 = "MainNav/General/Empty_String",
+        ),
+        QueueEntry("HistoricRanked", "Ranked", "PlayBlade/FindMatch/Blade_Traditional_Historic_Ladder", "Historic_Ladder", "Traditional_Historic_Ladder"),
+        QueueEntry("ExplorerRanked", "Ranked", "Events/Event_Title_Explorer_Ladder", "Explorer_Ladder", "Traditional_Explorer_Ladder"),
+        QueueEntry("TimelessRanked", "Ranked", "Events/Event_Title_Timeless_Ladder", "Timeless_Ladder", "Traditional_Timeless_Ladder"),
+        // Unranked
+        QueueEntry("StandardUnranked", "Unranked", "PlayBlade/FindMatch/Blade_Traditional_Standard_Play", "Play", "Constructed_BestOf3"),
+        QueueEntry("AlchemyUnranked", "Unranked", "PlayBlade/FindMatch/Blade_Alchemy_Play", "Alchemy_Play", "Traditional_Alchemy_Play"),
+        QueueEntry("HistoricUnranked", "Unranked", "PlayBlade/FindMatch/Blade_Traditional_Historic_Play", "Historic_Play", "Traditional_Historic_Play"),
+        QueueEntry("ExplorerUnranked", "Unranked", "Events/Event_Title_Explorer_Play", "Explorer_Play", "Traditional_Explorer_Play"),
+        QueueEntry(
+            "TimelessUnranked", "Unranked", "Events/Event_Title_Play_Timeless", "Timeless_Play",
+            deckSizeBO3 = "MainNav/General/Empty_String",
+            sideboardBO3 = "MainNav/General/Empty_String",
+        ),
+        QueueEntry(
+            "AIBotMatch", "Unranked", "Events/Event_Title_AIBotMatch", "AIBotMatch",
+            deckSizeBO3 = "MainNav/General/Empty_String",
+            sideboardBO1 = "MainNav/General/Empty_String",
+            sideboardBO3 = "MainNav/General/Empty_String",
+        ),
+        // Brawl
+        QueueEntry(
+            "HistoricBrawl", "Brawl", "Events/Event_Title_Play_Brawl_Historic", "Play_Brawl_Historic",
+            deckSizeBO1 = "Events/Deck_100commander",
+            deckSizeBO3 = "MainNav/General/Empty_String",
             sideboardBO1 = "MainNav/General/Empty_String",
             sideboardBO3 = "MainNav/General/Empty_String",
         ),
         QueueEntry(
-            "AIBotMatch",
-            "Unranked",
-            "Events/Event_Title_AIBotMatch",
-            "AIBotMatch",
+            "StandardBrawl", "Brawl", "Events/Event_Title_Play_Brawl_Bo1", "Play_Brawl",
+            deckSizeBO1 = "Events/Deck_60commander",
             deckSizeBO3 = "MainNav/General/Empty_String",
             sideboardBO1 = "MainNav/General/Empty_String",
             sideboardBO3 = "MainNav/General/Empty_String",
@@ -89,6 +110,41 @@ object EventRegistry {
             "TraditionalStandard",
             displayPriority = 89,
             winCondition = "BestOf3",
+            titleLocKey = "Events/Event_Title_Play_Standard_Bo3",
+            descLocKey = "Events/Event_Desc_Traditional_Play",
+        ),
+        // Alchemy
+        EventDef(
+            "Alchemy_Ladder",
+            "Alchemy Ranked",
+            "Alchemy",
+            displayPriority = 85,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
+        ),
+        EventDef(
+            "Traditional_Alchemy_Ladder",
+            "Traditional Alchemy Ranked",
+            "TraditionalAlchemy",
+            displayPriority = 84,
+            flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
+            winCondition = "BestOf3",
+        ),
+        EventDef("Alchemy_Play", "Alchemy Play", "Alchemy", displayPriority = 83),
+        EventDef(
+            "Traditional_Alchemy_Play",
+            "Traditional Alchemy Play",
+            "TraditionalAlchemy",
+            displayPriority = 82,
+            winCondition = "BestOf3",
+        ),
+        EventDef(
+            "Spark_Alchemy_Ladder",
+            "Spark Alchemy Ranked",
+            "SparkAlchemy",
+            displayPriority = 81,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
+            titleLocKey = "Events/Event_Title_Spark_Ladder",
+            descLocKey = "Events/Event_Desc_Spark_Ladder",
         ),
         // Historic
         EventDef(
@@ -153,8 +209,36 @@ object EventRegistry {
             displayPriority = 59,
             flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
             winCondition = "BestOf3",
+            titleLocKey = "Events/Event_Title_Timeless_Traditional_Ladder",
+            descLocKey = "Events/Event_Desc_Timeless_Traditional_Ladder",
         ),
-        EventDef("Timeless_Play", "Timeless Play", "Timeless", displayPriority = 58),
+        EventDef(
+            "Timeless_Play",
+            "Timeless Play",
+            "Timeless",
+            displayPriority = 58,
+            titleLocKey = "Events/Event_Title_Play_Timeless",
+            descLocKey = "Events/Event_Desc_Play_Timeless",
+        ),
+        // Brawl
+        EventDef(
+            "Play_Brawl_Historic",
+            "Historic Brawl",
+            "HistoricBrawl",
+            displayPriority = 50,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
+            titleLocKey = "Events/Event_Title_Play_Brawl_Historic",
+            descLocKey = "Events/Event_Desc_Play_Brawl_Historic",
+        ),
+        EventDef(
+            "Play_Brawl",
+            "Standard Brawl",
+            "StandardBrawl",
+            displayPriority = 49,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
+            titleLocKey = "Events/Event_Title_Play_Brawl_Bo1",
+            descLocKey = "Events/Event_Desc_Play_Brawl_Bo1",
+        ),
         // AIBotMatch
         EventDef(
             "AIBotMatch",
@@ -188,7 +272,7 @@ object EventRegistry {
 
     fun toActiveEventsJson(): String = buildJsonObject {
         putJsonArray("DynamicFilterTags") {}
-        put("CacheVersion", 1)
+        put("CacheVersion", 2)
         putJsonArray("Events") {
             for (e in events) {
                 add(
@@ -211,10 +295,26 @@ object EventRegistry {
                             putJsonObject("Parameters") {}
                             putJsonArray("DynamicFilterTagIds") {}
                             put("Group", "")
-                            put("PrioritizeBannerIfPlayerHasToken", false)
                             putJsonArray("FactionSealedUXInfo") {}
                             putJsonObject("Prizes") {}
-                            putJsonObject("EventComponentData") {}
+                            putJsonObject("EventComponentData") {
+                                putJsonObject("DescriptionText") {
+                                    put("LocKey", e.descLocKey)
+                                }
+                                putJsonObject("TitleRankText") {
+                                    put("LocKey", e.titleLocKey)
+                                }
+                                putJsonObject("TimerDisplay") {}
+                                putJsonObject("ResignWidget") {}
+                                putJsonObject("MainButtonWidget") {}
+                                putJsonObject("LossDetailsDisplay") {
+                                    if (e.winCondition == "BestOf3") {
+                                        put("LossDetailsType", "PlayUntilEventEnds")
+                                    } else {
+                                        put("LossDetailsType", "PlayUntilEventEnds")
+                                    }
+                                }
+                            }
                         }
                         put("WinCondition", e.winCondition)
                         putJsonArray("AllowedCountryCodes") {}

@@ -58,9 +58,9 @@ class DeckWireBuilderTest :
             obj["FormatLegalities"]!!.jsonObject["Standard"]?.jsonPrimitive?.boolean shouldBe true
         }
 
-        test("parseDeckUpdate returns Deck from 406 JSON") {
+        test("parseDeckUpdate returns Deck from 406 JSON (wire format with Summary wrapper)") {
             val json =
-                """{"DeckId":"d1","Name":"My Deck","DeckTileId":99,"Deck":{"MainDeck":[{"cardId":100,"quantity":4}],"Sideboard":[],"CommandZone":[],"Companions":[],"CardSkins":[]}}"""
+                """{"Summary":{"DeckId":"d1","Name":"My Deck","DeckTileId":99},"Deck":{"MainDeck":[{"cardId":100,"quantity":4}],"Sideboard":[],"CommandZone":[],"Companions":[],"CardSkins":[]}}"""
             val parsed = DeckWireBuilder.parseDeckUpdate(json, PlayerId("p1"))
             parsed shouldNotBe null
             parsed!!.name shouldBe "My Deck"

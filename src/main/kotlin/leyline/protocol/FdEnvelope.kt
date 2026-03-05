@@ -447,6 +447,7 @@ object FdEnvelope {
         7 to "ForceDetach",
         400 to "Deck_GetDeck",
         401 to "Deck_GetDeckSummaries",
+        403 to "Deck_DeleteDeck",
         406 to "Deck_UpsertDeckV2",
         407 to "Deck_GetDeckSummariesV2",
         410 to "Deck_GetAllPreconDecksV3",

@@ -1,0 +1,27 @@
+{
+  "InternalEventName": "Ladder",
+  "EventState": "Active",
+  "FormatType": "Constructed",
+  "StartTime": "2025-01-01T00:00:00Z",
+  "LockedTime": "2099-01-01T00:00:00Z",
+  "ClosedTime": "2099-01-01T00:00:00Z",
+  "Flags": [],
+  "EventTags": [],
+  "PastEntries": {},
+  "EntryFees": [],
+  "EventUXInfo": {
+    "PublicEventName": "Standard Ranked",
+    "DisplayPriority": 100,
+    "EventBladeBehavior": "Queue",
+    "DeckSelectFormat": "Standard",
+    "Parameters": {},
+    "DynamicFilterTagIds": [],
+    "Group": "",
+    "FactionSealedUXInfo": [],
+    "Prizes": {},
+    "EventComponentData": {}
+  },
+  "WinCondition": "SingleElimination",
+  "AllowedCountryCodes": [],
+  "ExcludedCountryCodes": []
+}

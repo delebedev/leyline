@@ -35,24 +35,12 @@ object DeckWireBuilder {
         put(
             "Attributes",
             buildJsonArray {
-                add(
-                    buildJsonObject {
-                        put("name", "Version")
-                        put("value", "1")
-                    },
-                )
-                add(
-                    buildJsonObject {
-                        put("name", "Format")
-                        put("value", deck.format.name)
-                    },
-                )
-                add(
-                    buildJsonObject {
-                        put("name", "TileID")
-                        put("value", deck.tileId.toString())
-                    },
-                )
+                add(buildJsonObject { put("name", "Version"); put("value", "1") })
+                add(buildJsonObject { put("name", "TileID"); put("value", deck.tileId.toString()) })
+                add(buildJsonObject { put("name", "LastPlayed"); put("value", "\"0001-01-01T00:00:00\"") })
+                add(buildJsonObject { put("name", "LastUpdated"); put("value", "\"0001-01-01T00:00:00\"") })
+                add(buildJsonObject { put("name", "IsFavorite"); put("value", "false") })
+                add(buildJsonObject { put("name", "Format"); put("value", deck.format.name) })
             },
         )
         putTrailingFields(deck)
@@ -93,13 +81,18 @@ object DeckWireBuilder {
         }
     }
 
-    /** Parse CmdType 406 inbound JSON into a [Deck]. */
+    /**
+     * Parse CmdType 406 inbound JSON into a [Deck].
+     *
+     * Wire format: `{"Summary": {DeckId, Name, DeckTileId, ...}, "Deck": {MainDeck, ...}, "ActionType": ...}`
+     */
     fun parseDeckUpdate(json: String, playerId: PlayerId): Deck? = try {
-        val obj = lenientJson.parseToJsonElement(json).jsonObject
-        val deckId = obj["DeckId"]?.jsonPrimitive?.content ?: return null
-        val name = obj["Name"]?.jsonPrimitive?.content ?: "Unnamed"
-        val tileId = obj["DeckTileId"]?.jsonPrimitive?.int ?: 0
-        val deckObj = obj["Deck"]?.jsonObject ?: return null
+        val root = lenientJson.parseToJsonElement(json).jsonObject
+        val summary = root["Summary"]?.jsonObject ?: return null
+        val deckId = summary["DeckId"]?.jsonPrimitive?.content ?: return null
+        val name = summary["Name"]?.jsonPrimitive?.content ?: "Unnamed"
+        val tileId = summary["DeckTileId"]?.jsonPrimitive?.int ?: 0
+        val deckObj = root["Deck"]?.jsonObject ?: return null
         Deck(
             id = DeckId(deckId),
             playerId = playerId,

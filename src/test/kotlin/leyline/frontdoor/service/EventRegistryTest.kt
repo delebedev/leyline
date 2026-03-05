@@ -19,7 +19,7 @@ class EventRegistryTest :
         test("queue config JSON is a valid array with all queue entries") {
             val result = EventRegistry.toQueueConfigJson()
             val arr = json.parseToJsonElement(result).jsonArray
-            arr shouldHaveAtLeastSize 9
+            arr shouldHaveAtLeastSize 14
 
             val std = arr.first { it.jsonObject["Id"]?.jsonPrimitive?.content == "StandardRanked" }.jsonObject
             std["EventNameBO1"]?.jsonPrimitive?.content shouldBe "Ladder"
@@ -55,6 +55,20 @@ class EventRegistryTest :
                 val name = event.jsonObject["InternalEventName"]?.jsonPrimitive?.content
                 val group = event.jsonObject["EventUXInfo"]?.jsonObject?.get("Group")
                 check(group != null) { "Event $name has null Group — client will NRE" }
+            }
+        }
+
+        test("every queue EventNameBO1/BO3 has a matching active event") {
+            val eventNames = EventRegistry.events.map { it.internalName }.toSet()
+            for (q in EventRegistry.queues) {
+                check(q.eventNameBO1 in eventNames) {
+                    "Queue ${q.id} references EventNameBO1='${q.eventNameBO1}' but no matching event exists — client will lock the tab"
+                }
+                if (q.eventNameBO3 != null) {
+                    check(q.eventNameBO3 in eventNames) {
+                        "Queue ${q.id} references EventNameBO3='${q.eventNameBO3}' but no matching event exists — client will lock the tab"
+                    }
+                }
             }
         }
 
