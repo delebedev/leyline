@@ -36,6 +36,8 @@ class MatchHandler(
     private val puzzleFile: File? = null,
     /** Returns the deckId selected in FD's 612 handler, if any. */
     private val selectedDeckOverride: (() -> String?)? = null,
+    /** Returns the eventName selected in FD's 612 handler, if any. */
+    private val selectedEventOverride: (() -> String?)? = null,
     /** Look up a deck's cards JSON by deckId. Injected from LeylineServer. */
     private val deckLookup: ((String) -> String?)? = null,
     /** Card data repository — used for grpId→name in deck conversion. */
@@ -163,6 +165,9 @@ class MatchHandler(
 
         when (greMsg.type) {
             ClientMessageType.ConnectReq_097b -> {
+                val eventName = selectedEventOverride?.invoke()
+                if (eventName != null) log.info("Match Door: event={}", eventName)
+
                 // Evict stale bridges from previous matches and reset debug collectors
                 val evicted = registry.evictStale(matchId)
                 if (evicted.isNotEmpty()) {
