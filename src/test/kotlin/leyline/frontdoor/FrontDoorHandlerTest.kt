@@ -1,4 +1,4 @@
-package leyline.server
+package leyline.frontdoor
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -15,8 +15,6 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.FdTag
-import leyline.frontdoor.FrontDoorHandler
-import leyline.frontdoor.GoldenData
 import leyline.frontdoor.domain.Deck
 import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
@@ -40,7 +38,7 @@ import java.util.UUID
  * protobuf envelopes, decodes responses, and validates JSON shapes.
  * One test per CmdType dispatch branch.
  */
-class FrontDoorServiceTest :
+class FrontDoorHandlerTest :
     FunSpec({
 
         tags(FdTag)
