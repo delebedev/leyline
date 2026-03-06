@@ -42,7 +42,7 @@ object Shell {
     }
 
     fun ocr(imagePath: String, vararg extraArgs: String): ShellResult =
-        run("$projectDir/tools/ocr", imagePath, "--json", *extraArgs)
+        run("$projectDir/bin/ocr", imagePath, "--json", *extraArgs)
 
     /** Activate MTGA window, deduped within 2s. */
     private fun activateMtga() {
@@ -59,7 +59,7 @@ object Shell {
      */
     fun click(x: Int, y: Int, action: String = "click"): ShellResult {
         activateMtga()
-        return run("$projectDir/tools/click", x.toString(), y.toString(), action)
+        return run("$projectDir/bin/click", x.toString(), y.toString(), action)
     }
 
     fun peekaboo(vararg args: String): ShellResult =
@@ -75,7 +75,7 @@ object Shell {
             if (now - cachedBoundsMs < BOUNDS_TTL_MS) return cached
         }
 
-        val r = run("$projectDir/tools/window-bounds")
+        val r = run("$projectDir/bin/window-bounds")
         if (!r.ok || r.stdout.isBlank()) return null
         val parts = r.stdout.split(" ")
         if (parts.size != 4) return null

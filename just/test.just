@@ -4,17 +4,17 @@
 # run all tests (all modules)
 [group('test')]
 test:
-    cd "{{project_dir}}" && ./gradlew test :matchdoor:test :frontdoor:test :account:test
+    cd "{{project_dir}}" && ./gradlew test :matchdoor:test :tooling:test :frontdoor:test :account:test
 
 # single test class (e.g. `just test-one ShouldStopEvaluatorTest`)
 [group('test')]
 test-one class:
-    cd "{{project_dir}}" && ./gradlew test :matchdoor:test :frontdoor:test -Pkotest.filter.specs=".*{{class}}"
+    cd "{{project_dir}}" && ./gradlew test :matchdoor:test :tooling:test :frontdoor:test -Pkotest.filter.specs=".*{{class}}"
 
 # unit tests only (no engine bootstrap, fastest)
 [group('test')]
 test-unit:
-    cd "{{project_dir}}" && ./gradlew testUnit :matchdoor:testUnit
+    cd "{{project_dir}}" && ./gradlew testUnit :matchdoor:testUnit :tooling:testUnit
 
 # all conformance tests (~5s, wire-shape checks against Arena patterns)
 [group('test')]
@@ -36,10 +36,15 @@ test-fd:
 test-md:
     cd "{{project_dir}}" && ./gradlew :matchdoor:testGate
 
+# tooling tests only (debug/recording/analysis)
+[group('test')]
+test-tl:
+    cd "{{project_dir}}" && ./gradlew :tooling:testGate
+
 # pre-commit gate: unit + conformance (all modules) + frontdoor
 [group('test')]
 test-gate:
-    cd "{{project_dir}}" && ./gradlew testGate :matchdoor:testGate :frontdoor:test
+    cd "{{project_dir}}" && ./gradlew testGate :matchdoor:testGate :tooling:testGate :frontdoor:test
 
 # full gate: unit + conformance + frontdoor, then integration in parallel forks
 [group('test')]
@@ -54,7 +59,7 @@ coverage:
     xml="{{project_dir}}/build/reports/jacoco/test/jacocoTestReport.xml"
     if [ -f "$xml" ]; then
         echo ""
-        python3 "{{project_dir}}/buildscripts/coverage-summary.py" "$xml"
+        python3 "{{project_dir}}/gradle/scripts/coverage-summary.py" "$xml"
         echo ""
         echo "HTML: build/reports/jacoco/test/html/index.html"
     else

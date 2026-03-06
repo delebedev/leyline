@@ -42,6 +42,7 @@ dependencies {
     api(libs.forge.ai)
     api(libs.forge.gui)
 
+    testImplementation(libs.archunit)
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
     testImplementation(libs.kotest.datatest)

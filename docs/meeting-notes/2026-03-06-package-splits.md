@@ -48,29 +48,28 @@ Correct disposition:
 
 ```
 :app              thin composition root (~1,500 LOC, grows slowly)
-                  LeylineMain, LeylineServer, FrameCodec, LeylinePaths
-                  MatchConfig, ManagementServer, TlsHelper, MessageSink
-                  Debug wiring (DebugCollector, EventBus, collectors)
-                  Depends on: :account, :frontdoor, :matchdoor
+                  LeylineMain, LeylineServer, CaptureSink, ManagementServer,
+                  ProxyHandlers, TlsHelper, DebugSinkAdapter
+                  Depends on: :account, :frontdoor, :matchdoor, :tooling
 
-:account          done — Ktor HTTPS, WAS compat, JWT, registration
+:account          Ktor HTTPS, WAS compat, JWT, registration
                   ~870 LOC. Independent of everything.
 
 :frontdoor        FD protocol + lobby domain
                   FdEnvelope, CmdType, domain/repo/service/wire/handler
-                  ~2,200 LOC → grows with sealed/draft/social events, inventory, store
-                  Own persistence, own wire format, own domain model.
-                  Zero coupling to game engine.
+                  ~2,200 LOC. Zero coupling to game engine.
 
-:matchdoor        game engine adapter — the big one (future extraction)
-                  bridge/*, game/*, game/mapper/*, match/*, HandshakeMessages
-                  ~14,350 LOC → where 60%+ of new code lands
-                  Internal splits (bridge vs game vs match) stay as packages, ArchUnit enforced.
-                  Structural forge coupling lives here (WebPlayerController extends Forge class).
+:matchdoor        game engine adapter — the big one
+                  bridge/*, game/*, game/mapper/*, match/*, config/,
+                  protocol/ (FrameCodec, HandshakeMessages, ProtoDump),
+                  infra/MessageSink, conformance/StructuralFingerprint+Diff,
+                  game/InvariantChecker
+                  ~15,000 LOC. Where 60%+ of new code lands.
 
-:tooling          deferred — dev-only, not prod classpath
-                  debug/*, recording/*, analysis/*, conformance/*, arena/*, cli/*
-                  ~8,200 LOC. Blocked on debug↔match cycle fix.
+:tooling          dev diagnostics + recording + analysis + CLI
+                  debug/*, recording/*, analysis/*, conformance/CompareMain+etc,
+                  arena/*, cli/*, LeylinePaths
+                  ~8,200 LOC. Depends on: :matchdoor (api), :frontdoor
 ```
 
 ## Config
@@ -149,6 +148,12 @@ reports are fine.
      transitive from matchdoor `api()`, tomlkt removed (only used by MatchConfig).
    - ArchUnit rules trimmed: packages now in matchdoor enforced by Gradle boundary.
    - 4 functions made `public` (were `internal`) for cross-module test access.
-3. **`:tooling` extraction** — UNBLOCKED. `debug↔match` cycle is resolved.
-   debug/, recording/, analysis/, conformance/, arena/, cli/ can move.
-   Next extraction target.
+3. **`:tooling` extraction** — DONE. 28 prod files moved + LeylinePaths.
+   - `LeylinePaths` moved to tooling (8 files imported it, zero leyline deps).
+   - `FrameCodec` moved to matchdoor (unblocked DecodeFdCapture in tooling).
+   - `DebugSinkAdapter` stays in root (bridges tooling↔matchdoor).
+   - Tooling depends on matchdoor (`api`) + frontdoor (`implementation`).
+   - ArchUnit test simplified: root only has infra/ + debug/DebugSinkAdapter.
+   - 3 test files moved to tooling, 1 (FrameCodecTest) to matchdoor.
+
+**All 4 modules complete.** Root is 7 prod files (~1,500 LOC), 3 test files.
