@@ -16,7 +16,7 @@ private val log = LoggerFactory.getLogger("leyline.account.routes")
 private val json = Json { ignoreUnknownKeys = true }
 
 /**
- * Install all WAS-compatible routes into a Ktor [Route].
+ * Install all account server routes into a Ktor [Route].
  * Real handlers for auth/register/profile, stubs for age-gate/moderate/skus.
  */
 fun Route.accountRoutes(store: AccountStore, tokens: TokenService, fdHost: String) {
@@ -40,22 +40,12 @@ private fun Route.loginRoute(store: AccountStore, tokens: TokenService) {
 
         when (grantType) {
             "password" -> {
-                val email = params["username"] ?: return@post call.respondError(
-                    400,
-                    "3",
-                    "MISSING USERNAME",
-                )
-                val password = params["password"] ?: return@post call.respondError(
-                    400,
-                    "3",
-                    "MISSING PASSWORD",
-                )
+                val email = params["username"]
+                    ?: return@post call.respondError(AccountError.MISSING_FIELD)
+                val password = params["password"]
+                    ?: return@post call.respondError(AccountError.MISSING_PASSWORD)
                 val account = store.authenticate(email, password)
-                    ?: return@post call.respondError(
-                        401,
-                        "16",
-                        "INVALID ACCOUNT CREDENTIALS",
-                    )
+                    ?: return@post call.respondError(AccountError.INVALID_CREDENTIALS)
                 val pair = tokens.issueTokens(account)
                 log.info("Login: {} -> {}", email, account.accountId.take(8))
                 call.respondText(
@@ -66,23 +56,12 @@ private fun Route.loginRoute(store: AccountStore, tokens: TokenService) {
             }
 
             "refresh_token" -> {
-                val refreshToken = params["refresh_token"] ?: return@post call.respondError(
-                    400,
-                    "3",
-                    "MISSING REFRESH TOKEN",
-                )
+                val refreshToken = params["refresh_token"]
+                    ?: return@post call.respondError(AccountError.MISSING_REFRESH_TOKEN)
                 val personaId = tokens.validateRefreshToken(refreshToken)
-                    ?: return@post call.respondError(
-                        401,
-                        "16",
-                        "INVALID CLIENT CREDENTIALS",
-                    )
+                    ?: return@post call.respondError(AccountError.INVALID_CLIENT)
                 val account = store.findByPersonaId(personaId)
-                    ?: return@post call.respondError(
-                        401,
-                        "16",
-                        "INVALID CLIENT CREDENTIALS",
-                    )
+                    ?: return@post call.respondError(AccountError.INVALID_CLIENT)
                 val pair = tokens.issueTokens(account)
                 log.info("Token refresh: {}", account.accountId.take(8))
                 call.respondText(
@@ -92,7 +71,7 @@ private fun Route.loginRoute(store: AccountStore, tokens: TokenService) {
                 )
             }
 
-            else -> call.respondError(400, "3", "UNSUPPORTED GRANT TYPE")
+            else -> call.respondError(AccountError.UNSUPPORTED_GRANT_TYPE)
         }
     }
 }
@@ -103,12 +82,12 @@ private fun Route.registerRoute(store: AccountStore, tokens: TokenService) {
         val req = try {
             json.decodeFromString<RegisterRequest>(body)
         } catch (_: Exception) {
-            return@post call.respondError(400, "3", "INVALID REQUEST")
+            return@post call.respondError(AccountError.INVALID_REQUEST)
         }
 
         // Check duplicate email
         if (store.findByEmail(req.email) != null) {
-            return@post call.respondError(422, "6", "INVALID EMAIL")
+            return@post call.respondError(AccountError.INVALID_EMAIL)
         }
 
         val account = try {
@@ -121,7 +100,7 @@ private fun Route.registerRoute(store: AccountStore, tokens: TokenService) {
             )
         } catch (e: Exception) {
             log.error("Registration failed: {}", e.message)
-            return@post call.respondError(422, "6", "INVALID EMAIL")
+            return@post call.respondError(AccountError.INVALID_EMAIL)
         }
 
         val pair = tokens.issueTokens(account)
@@ -139,15 +118,15 @@ private fun Route.profileRoute(store: AccountStore, tokens: TokenService) {
     get("/profile") {
         val bearer = call.request.header("Authorization")?.removePrefix("Bearer ")?.trim()
         if (bearer == null) {
-            return@get call.respondError(401, "16", "MISSING AUTHORIZATION")
+            return@get call.respondError(AccountError.MISSING_AUTH)
         }
         val personaId = tokens.validateRefreshToken(bearer)
             ?: extractPersonaIdFromJwt(bearer)
         if (personaId == null) {
-            return@get call.respondError(401, "16", "INVALID TOKEN")
+            return@get call.respondError(AccountError.INVALID_TOKEN)
         }
         val account = store.findByPersonaId(personaId)
-            ?: return@get call.respondError(404, "5", "ACCOUNT NOT FOUND")
+            ?: return@get call.respondError(AccountError.NOT_FOUND)
         log.debug("Profile: {}", account.accountId.take(8))
         call.respondText(
             profileResponseJson(account),
