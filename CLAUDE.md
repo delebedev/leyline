@@ -61,14 +61,15 @@ All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/nexus-test
 - **Mechanic catalog:** `docs/catalog.yaml` — what works, what's wired, what's missing. Organized by gameplay mechanic (what players experience), not protocol internals. Read this first to understand current state. Update it when changing mechanic support.
 - **Rosetta table:** `docs/rosetta.md` — Arena protocol ↔ Forge engine ↔ leyline code. Annotation types, zone IDs, transfer categories, action types, GRE messages, phase mapping, GameEvent wiring status. Protocol-level reference for when you need type numbers and field details.
 
-## Architecture & Cookbook
+## Architecture
 
-See `docs/architecture.md` for diagrams. See `matchdoor/CLAUDE.md` for engine adapter architecture, mental model, cookbook (annotations, zone categories, action handlers), and debugging guides (timeouts, conformance).
+See `docs/architecture.md` for diagrams. See `matchdoor/CLAUDE.md` for engine adapter architecture, mental model, cookbook, and debugging guides.
 
-### Card & ability lookups
+## Proto
 
-`just card 75515 93848` — grpId → name. `just ability 169561` — ability → owning card + text. `just card-grp "Ajani's Pridemate"` — name → grpId. `just card-script "Unholy Annex"` — name → Forge script path. `just cards-in-session latest` — all cards in a recording session. Full reference: `docs/playbooks/card-lookup-playbook.md`.
+`proto/upstream/messages.proto` → `matchdoor/src/main/proto/messages.proto` via `just proto-sync`. The upstream submodule has the raw client schema; `proto/rename-map.sed` applies field/type renames for readability. `just proto-sync` runs the sed transform + triggers protobuf codegen. Don't edit `messages.proto` directly — edit the rename map and re-sync.
 
-## Client UI Automation
+## Quick Reference
 
-**Arena CLI** (`bin/arena`) — high-level MTGA automation: `click`, `ocr`, `wait`, `capture`, `state`, `issues`. Full reference: `docs/arena-cli.md`, navigation guide: `docs/arena-nav.md`.
+- **Card lookups:** `just card <grpId>`, `just card-grp <name>`, `just ability <id>`, `just card-script <name>`. Full reference: `docs/playbooks/card-lookup-playbook.md`.
+- **Arena CLI:** `bin/arena` — `click`, `ocr`, `wait`, `capture`, `state`, `issues`. Docs: `docs/arena-cli.md`, `docs/arena-nav.md`.
