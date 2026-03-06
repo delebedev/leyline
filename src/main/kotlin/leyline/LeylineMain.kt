@@ -25,23 +25,69 @@ fun main(args: Array<String>) {
     val a = parseArgs(args)
     val isProxy = a["--proxy-fd"] != null && a["--proxy-md"] != null
 
-    // Load config (TOML) — skip in proxy mode
-    val config = if (isProxy) {
-        MatchConfig()
-    } else {
-        val configFile = a["--config"]?.let { File(it) }
-            ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME)
-        MatchConfig.load(configFile)
-    }
+    val config = loadConfig(a, isProxy)
     val sc = config.server
+    val tls = resolveTls(a)
+    val cardRepo = openCardRepo(a)
+    val puzzleFile = resolveOptionalFile(a["--puzzle"], "Puzzle file")
+    val fdGoldenFile = resolveOptionalFile(a["--fd-golden"], "FD golden file")
 
-    // TLS cert/key for FD+MD (UnityTls validates these; self-signed needs mitmproxy CA)
+    val fdPort = a["--fd-port"]?.toIntOrNull() ?: sc.fdPort
+    val mdPort = a["--md-port"]?.toIntOrNull() ?: sc.mdPort
+    val fdHost = a["--fd-host"]
+        ?: System.getenv("LEYLINE_FD_HOST")
+        ?: "localhost:$fdPort"
+
+    val server = LeylineServer(
+        frontDoorPort = fdPort,
+        matchDoorPort = mdPort,
+        certFile = tls.first,
+        keyFile = tls.second,
+        upstreamFrontDoor = a["--proxy-fd"],
+        upstreamMatchDoor = a["--proxy-md"],
+        replayDir = a["--replay"]?.let { File(it) },
+        fdGoldenFile = fdGoldenFile,
+        matchConfig = config,
+        puzzleFile = puzzleFile,
+        externalHost = fdHost.substringBefore(":"),
+        cardRepo = cardRepo,
+        playerDbPath = System.getenv("LEYLINE_PLAYER_DB") ?: sc.playerDb,
+    )
+
+    val debugPort = a["--debug-port"]?.toIntOrNull() ?: sc.debugPort
+    val mgmtPort = sc.managementPort
+    val wasPort = a["--was-port"]?.toIntOrNull() ?: sc.wasPort
+
+    val logWatcher = PlayerLogWatcher(eventBus = server.eventBus)
+    val debugServer = buildDebugServer(debugPort, server)
+    val mgmtServer = ManagementServer(port = mgmtPort, healthCheck = { server.isHealthy() })
+    val wasServer = buildWasServer(a, isProxy, wasPort, tls, fdHost)
+
+    installShutdownHook(logWatcher, wasServer, debugServer, mgmtServer, server)
+    startAll(server, mgmtServer, debugServer, wasServer, logWatcher)
+    printBanner(server, puzzleFile, isProxy, config, mgmtPort, debugPort, wasPort, wasServer, fdHost)
+
+    Thread.currentThread().join()
+}
+
+// -- Config & resources -------------------------------------------------------
+
+private fun loadConfig(a: Map<String, String>, isProxy: Boolean): MatchConfig {
+    if (isProxy) return MatchConfig()
+    val configFile = a["--config"]?.let { File(it) }
+        ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME)
+    return MatchConfig.load(configFile)
+}
+
+private fun resolveTls(a: Map<String, String>): Pair<File?, File?> {
     val envCert = System.getenv("LEYLINE_CERT_PATH")?.let { File(it) }?.takeIf { it.exists() }
     val envKey = System.getenv("LEYLINE_KEY_PATH")?.let { File(it) }?.takeIf { it.exists() }
-    val certFile = a["--cert"]?.let { File(it) } ?: envCert
-    val keyFile = a["--key"]?.let { File(it) } ?: envKey
+    val cert = a["--cert"]?.let { File(it) } ?: envCert
+    val key = a["--key"]?.let { File(it) } ?: envKey
+    return cert to key
+}
 
-    // Card database: always required (collection, debug panel, recordings)
+private fun openCardRepo(a: Map<String, String>): ExposedCardRepository {
     val cardDbPath = System.getenv("LEYLINE_CARD_DB")
         ?: detectArenaCardDb()
     requireNotNull(cardDbPath) {
@@ -49,96 +95,67 @@ fun main(args: Array<String>) {
             "  Expected: ~/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga"
     }
     require(File(cardDbPath).exists()) { "Card database not found at: $cardDbPath" }
-    val cardRepo = ExposedCardRepository(
+    return ExposedCardRepository(
         org.jetbrains.exposed.v1.jdbc.Database.connect(
             "jdbc:sqlite:${File(cardDbPath).absolutePath}",
             "org.sqlite.JDBC",
         ),
     )
+}
 
-    // Puzzle mode: --puzzle <file> overrides normal constructed flow
-    val puzzleFile = a["--puzzle"]?.let { File(it) }
-    if (puzzleFile != null) {
-        require(puzzleFile.exists()) { "Puzzle file not found: ${puzzleFile.absolutePath}" }
-    }
+private fun resolveOptionalFile(path: String?, label: String): File? {
+    val file = path?.let { File(it) } ?: return null
+    require(file.exists()) { "$label not found: ${file.absolutePath}" }
+    return file
+}
 
-    // FD golden file for replay stub (captured fd-frames.jsonl)
-    val fdGoldenFile = a["--fd-golden"]?.let { File(it) }
-    if (fdGoldenFile != null) {
-        require(fdGoldenFile.exists()) { "FD golden file not found: ${fdGoldenFile.absolutePath}" }
-    }
+// -- Server builders ----------------------------------------------------------
 
-    // Ports: CLI args override config
-    val fdPort = a["--fd-port"]?.toIntOrNull() ?: sc.fdPort
-    val mdPort = a["--md-port"]?.toIntOrNull() ?: sc.mdPort
+private fun buildDebugServer(port: Int, server: LeylineServer) = DebugServer(
+    port = port,
+    debugCollector = server.debugCollector,
+    gameStateCollector = server.gameStateCollector,
+    fdCollector = server.fdCollector,
+    eventBus = server.eventBus,
+    recordingInspector = server.recordingInspector,
+)
 
-    // FD host for doorbell + MatchCreated: CLI arg > env var > config-derived default
-    val fdHost = a["--fd-host"]
-        ?: System.getenv("LEYLINE_FD_HOST")
-        ?: "localhost:$fdPort"
-    val externalHost = fdHost.substringBefore(":")
-
-    // Player DB path: env var > config
-    val playerDbPath = System.getenv("LEYLINE_PLAYER_DB") ?: sc.playerDb
-
-    val server = LeylineServer(
-        frontDoorPort = fdPort,
-        matchDoorPort = mdPort,
-        certFile = certFile,
-        keyFile = keyFile,
-        upstreamFrontDoor = a["--proxy-fd"],
-        upstreamMatchDoor = a["--proxy-md"],
-        replayDir = a["--replay"]?.let { File(it) },
-        fdGoldenFile = fdGoldenFile,
-        matchConfig = config,
-        puzzleFile = puzzleFile,
-        externalHost = externalHost,
-        cardRepo = cardRepo,
-        playerDbPath = playerDbPath,
-    )
-
-    val logWatcher = PlayerLogWatcher(eventBus = server.eventBus)
-    val debugPort = a["--debug-port"]?.toIntOrNull() ?: sc.debugPort
-    val debugServer = DebugServer(
-        port = debugPort,
-        debugCollector = server.debugCollector,
-        gameStateCollector = server.gameStateCollector,
-        fdCollector = server.fdCollector,
-        eventBus = server.eventBus,
-        recordingInspector = server.recordingInspector,
-    )
-
-    // Management server — always starts, owns /health
-    val mgmtPort = sc.managementPort
-    val mgmtServer = ManagementServer(
-        port = mgmtPort,
-        healthCheck = { server.isHealthy() },
-    )
-
-    // WAS — mock in stub mode, reverse proxy in proxy mode
-    val wasPort = a["--was-port"]?.toIntOrNull() ?: sc.wasPort
-    val wasCert = a["--was-cert"]?.let { File(it) } ?: envCert
-    val wasKey = a["--was-key"]?.let { File(it) } ?: envKey
-    val wasServer = if (isProxy) {
-        MockWasServer(
-            port = wasPort,
-            certFile = wasCert,
-            keyFile = wasKey,
+private fun buildWasServer(
+    a: Map<String, String>,
+    isProxy: Boolean,
+    port: Int,
+    tls: Pair<File?, File?>,
+    fdHost: String,
+): MockWasServer {
+    if (isProxy) {
+        return MockWasServer(
+            port = port,
+            certFile = a["--was-cert"]?.let { File(it) } ?: tls.first,
+            keyFile = a["--was-key"]?.let { File(it) } ?: tls.second,
             fdHost = fdHost,
             upstreamWas = a["--proxy-was"] ?: MockWasServer.DEFAULT_UPSTREAM_WAS,
             upstreamDoorbell = a["--proxy-doorbell"] ?: MockWasServer.DEFAULT_UPSTREAM_DOORBELL,
         )
-    } else {
-        val debugRoles = System.getenv("LEYLINE_DEBUG").let { it == "true" || it == "1" }
-        MockWasServer(
-            port = wasPort,
-            roles = if (debugRoles) MockWasServer.DEBUG_ROLES else MockWasServer.DEFAULT_ROLES,
-            certFile = wasCert,
-            keyFile = wasKey,
-            fdHost = fdHost,
-        )
     }
+    val debugRoles = System.getenv("LEYLINE_DEBUG").let { it == "true" || it == "1" }
+    return MockWasServer(
+        port = port,
+        roles = if (debugRoles) MockWasServer.DEBUG_ROLES else MockWasServer.DEFAULT_ROLES,
+        certFile = a["--was-cert"]?.let { File(it) } ?: tls.first,
+        keyFile = a["--was-key"]?.let { File(it) } ?: tls.second,
+        fdHost = fdHost,
+    )
+}
 
+// -- Lifecycle ----------------------------------------------------------------
+
+private fun installShutdownHook(
+    logWatcher: PlayerLogWatcher,
+    wasServer: MockWasServer,
+    debugServer: DebugServer,
+    mgmtServer: ManagementServer,
+    server: LeylineServer,
+) {
     Runtime.getRuntime().addShutdownHook(
         Thread {
             logWatcher.stop()
@@ -148,7 +165,33 @@ fun main(args: Array<String>) {
             server.stop()
         },
     )
+}
 
+private fun startAll(
+    server: LeylineServer,
+    mgmtServer: ManagementServer,
+    debugServer: DebugServer,
+    wasServer: MockWasServer,
+    logWatcher: PlayerLogWatcher,
+) {
+    server.start()
+    mgmtServer.start()
+    debugServer.start()
+    wasServer.start()
+    logWatcher.start()
+}
+
+private fun printBanner(
+    server: LeylineServer,
+    puzzleFile: File?,
+    isProxy: Boolean,
+    config: MatchConfig,
+    mgmtPort: Int,
+    debugPort: Int,
+    wasPort: Int,
+    wasServer: MockWasServer,
+    fdHost: String,
+) {
     val mode = when {
         server.isReplay -> "replay"
         server.isProxy -> "proxy"
@@ -157,11 +200,6 @@ fun main(args: Array<String>) {
     val puzzleSuffix = if (puzzleFile != null) " + puzzle" else ""
 
     println("Starting Leyline server ($mode$puzzleSuffix mode)...")
-    server.start()
-    mgmtServer.start()
-    debugServer.start()
-    wasServer.start()
-    logWatcher.start()
     println("Leyline server running. Press Ctrl+C to stop.")
     println("Management: http://localhost:$mgmtPort/health")
     println("Debug panel: http://localhost:$debugPort")
@@ -176,11 +214,10 @@ fun main(args: Array<String>) {
     } else if (!isProxy) {
         println("Config: ${config.summary()}")
     }
-
-    Thread.currentThread().join()
 }
 
-/** Auto-detect Arena card DB on macOS. Returns path or null. */
+// -- Utilities ----------------------------------------------------------------
+
 private fun detectArenaCardDb(): String? {
     val rawDir = File(System.getProperty("user.home"), "Library/Application Support/com.wizards.mtga/Downloads/Raw")
     if (!rawDir.isDirectory) return null
