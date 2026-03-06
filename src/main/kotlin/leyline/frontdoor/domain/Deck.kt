@@ -31,6 +31,7 @@ data class Deck(
     val sideboard: List<DeckCard>,
     val commandZone: List<DeckCard>,
     val companions: List<DeckCard>,
+    val isFavorite: Boolean = false,
 ) {
     val totalCards: Int get() = mainDeck.sumOf { it.quantity }
 }
