@@ -1,11 +1,13 @@
 package leyline.frontdoor
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotBeEmpty
 import io.netty.buffer.ByteBuf
 import io.netty.buffer.Unpooled
 import io.netty.channel.embedded.EmbeddedChannel
@@ -141,20 +143,23 @@ class FrontDoorHandlerTest :
             return readAllResponses()
         }
 
+        /** Send a cmd, parse first response as JsonObject. */
+        fun sendJson(cmdType: Int, payload: String? = "{}"): kotlinx.serialization.json.JsonObject {
+            val ch = fdChannel()
+            val msg = ch.sendCmd(cmdType, payload)
+            return json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+        }
+
         // --- Tests ---
 
         test("CmdType 0 - auth returns SessionId and Attached") {
-            val ch = fdChannel()
-            val msg = ch.sendCmd(0, """{"ClientVersion":"1.0","Token":"fake"}""")
-            val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            val obj = sendJson(0, """{"ClientVersion":"1.0","Token":"fake"}""")
             obj["SessionId"].shouldNotBeNull()
             obj["Attached"]?.jsonPrimitive?.boolean shouldBe true
         }
 
         test("CmdType 1 - StartHook contains DeckSummariesV2 and Decks") {
-            val ch = fdChannel()
-            val msg = ch.sendCmd(1)
-            val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            val obj = sendJson(1)
             obj["DeckSummariesV2"].shouldNotBeNull()
             (obj["DeckSummariesV2"] as JsonArray).shouldNotBeEmpty()
             obj["Decks"].shouldNotBeNull()
@@ -162,9 +167,7 @@ class FrontDoorHandlerTest :
         }
 
         test("CmdType 1 - StartHook deck summaries have required fields") {
-            val ch = fdChannel()
-            val msg = ch.sendCmd(1)
-            val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            val obj = sendJson(1)
             val summaries = obj["DeckSummariesV2"]!!.jsonArray
             summaries.shouldNotBeEmpty()
             val deck = summaries[0].jsonObject
@@ -176,9 +179,7 @@ class FrontDoorHandlerTest :
         }
 
         test("CmdType 1 - StartHook deck cards have CardSkins and ReducedSideboard") {
-            val ch = fdChannel()
-            val msg = ch.sendCmd(1)
-            val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            val obj = sendJson(1)
             val decks = obj["Decks"]!!.jsonObject
             decks.entries.shouldNotBeEmpty()
             for ((_, deckJson) in decks) {
@@ -227,8 +228,7 @@ class FrontDoorHandlerTest :
         test("CmdType 1700 - GraphDefinitions returns JSON") {
             val ch = fdChannel()
             val msg = ch.sendCmd(1700)
-            msg.jsonPayload.shouldNotBeNull()
-            msg.jsonPayload!!.length shouldBe msg.jsonPayload!!.length // non-empty
+            msg.jsonPayload.shouldNotBeNull().shouldNotBeEmpty()
             json.parseToJsonElement(msg.jsonPayload!!) // valid JSON
         }
 
@@ -249,9 +249,7 @@ class FrontDoorHandlerTest :
         }
 
         test("CmdType 624 - ActiveEventsV2 has events for all formats") {
-            val ch = fdChannel()
-            val msg = ch.sendCmd(624)
-            val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            val obj = sendJson(624)
             val events = obj["Events"]?.jsonArray
             events.shouldNotBeNull()
             events.shouldNotBeEmpty()
@@ -264,24 +262,16 @@ class FrontDoorHandlerTest :
         }
 
         test("CmdType 624 - every event matches reference shape from real server") {
-            val refJson = this::class.java.classLoader
-                .getResourceAsStream("golden/fd-reference-event.json")!!
-                .readBytes().toString(Charsets.UTF_8)
-            val refKeys = json.parseToJsonElement(refJson).jsonObject
-            val ch = fdChannel()
-            val msg = ch.sendCmd(624)
-            val events = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull())
-                .jsonObject["Events"]!!.jsonArray
-            for (event in events) {
+            val refKeys = loadGoldenRef("golden/fd-reference-event.json")
+            val obj = sendJson(624)
+            for (event in obj["Events"]!!.jsonArray) {
                 val name = event.jsonObject["InternalEventName"]!!.jsonPrimitive.content
                 assertKeysMatch(refKeys, event.jsonObject, name)
             }
         }
 
         test("CmdType 623 - EventGetCoursesV2 returns default courses") {
-            val ch = fdChannel()
-            val msg = ch.sendCmd(623)
-            val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            val obj = sendJson(623)
             val courses = obj["Courses"]?.jsonArray
             courses.shouldNotBeNull()
             courses.shouldNotBeEmpty()
@@ -290,25 +280,16 @@ class FrontDoorHandlerTest :
         }
 
         test("CmdType 623 - every course matches reference shape from real server") {
-            val refJson = this::class.java.classLoader
-                .getResourceAsStream("golden/fd-reference-course.json")!!
-                .readBytes().toString(Charsets.UTF_8)
-            val refKeys = json.parseToJsonElement(refJson).jsonObject
-            val ch = fdChannel()
-            val msg = ch.sendCmd(623)
-            val courses = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull())
-                .jsonObject["Courses"]!!.jsonArray
-            for (course in courses) {
+            val refKeys = loadGoldenRef("golden/fd-reference-course.json")
+            val obj = sendJson(623)
+            for (course in obj["Courses"]!!.jsonArray) {
                 val name = course.jsonObject["InternalEventName"]!!.jsonPrimitive.content
                 assertKeysMatch(refKeys, course.jsonObject, name)
             }
         }
 
         test("CmdType 1910 - every queue matches reference shape from real server") {
-            val refJson = this::class.java.classLoader
-                .getResourceAsStream("golden/fd-reference-queue.json")!!
-                .readBytes().toString(Charsets.UTF_8)
-            val refKeys = json.parseToJsonElement(refJson).jsonObject
+            val refKeys = loadGoldenRef("golden/fd-reference-queue.json")
             val ch = fdChannel()
             val msg = ch.sendCmd(1910)
             val queues = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonArray
@@ -319,17 +300,12 @@ class FrontDoorHandlerTest :
         }
 
         test("CmdType 410 - PreconDecksV3 returns precon decks from golden") {
-            val ch = fdChannel()
-            val msg = ch.sendCmd(410)
-            val payload = msg.jsonPayload.shouldNotBeNull()
-            val obj = json.parseToJsonElement(payload).jsonObject
+            val obj = sendJson(410)
             obj["PreconDecks"]?.jsonArray.shouldNotBeNull()
         }
 
         test("CmdType 1911 - PlayerPreferences has single Preferences wrapper") {
-            val ch = fdChannel()
-            val msg = ch.sendCmd(1911)
-            val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            val obj = sendJson(1911)
             val prefs = obj["Preferences"]?.jsonObject
             prefs.shouldNotBeNull()
             // Must NOT be double-wrapped: Preferences.Preferences
@@ -337,16 +313,12 @@ class FrontDoorHandlerTest :
         }
 
         test("CmdType 613 - ActiveMatches returns empty list") {
-            val ch = fdChannel()
-            val msg = ch.sendCmd(613)
-            val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            val obj = sendJson(613)
             obj["MatchesV3"]?.jsonArray.shouldNotBeNull()
         }
 
         test("CmdType 1100 - RankInfo returns required fields") {
-            val ch = fdChannel()
-            val msg = ch.sendCmd(1100)
-            val obj = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            val obj = sendJson(1100)
             obj["constructedClass"].shouldNotBeNull()
             obj["limitedClass"].shouldNotBeNull()
         }
@@ -359,6 +331,14 @@ class FrontDoorHandlerTest :
         }
     })
 
+/** Load a golden reference JSON from classpath. */
+private fun loadGoldenRef(resource: String): kotlinx.serialization.json.JsonObject {
+    val bytes = FrontDoorHandlerTest::class.java.classLoader
+        .getResourceAsStream(resource)!!
+        .readBytes()
+    return Json.parseToJsonElement(bytes.toString(Charsets.UTF_8)).jsonObject
+}
+
 /**
  * Recursively assert that [actual] has at least every key present in [reference].
  * Nested JsonObjects are checked recursively. Extra keys in actual are allowed
@@ -370,9 +350,9 @@ private fun assertKeysMatch(
     context: String,
     path: String = "",
 ) {
-    val missing = reference.keys - actual.keys
-    check(missing.isEmpty()) {
-        "$context: missing keys at ${path.ifEmpty { "root" }}: $missing"
+    val loc = path.ifEmpty { "root" }
+    io.kotest.assertions.withClue("$context: missing keys at $loc") {
+        (reference.keys - actual.keys).shouldBeEmpty()
     }
     for (key in reference.keys) {
         val refVal = reference[key]
