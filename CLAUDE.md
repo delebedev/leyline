@@ -52,6 +52,7 @@ All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/nexus-test
 
 ## Debugging
 
+- **Server logs:** `logs/leyline.log` (rotated daily, gzipped). Read this instead of piping server output.
 - **Client errors:** `recordings/<session>/client-errors.jsonl` (persisted per session). Arena log: `~/Library/Logs/Wizards of the Coast/MTGA/Player.log`. Auto-tailed during `just serve`; standalone: `just watch-client`.
 - **Debug server** on `:8090` (auto-starts with `just serve`) — browser UI for live game state, priority log, accumulator. Full endpoint reference: `docs/debug-api.md`. Prefer reading files/using CLI tools over HTTP API for non-live inspection.
 
