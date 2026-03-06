@@ -8,7 +8,7 @@ plugins {
     alias(libs.plugins.kotlin.power.assert)
     alias(libs.plugins.protobuf)
     alias(libs.plugins.spotless)
-    id("org.gradle.test-retry")
+    id("leyline.test-conventions")
 }
 
 repositories {
@@ -67,11 +67,7 @@ protobuf {
     }
 }
 
-// --- Testing ---
-
-tasks.test {
-    configureTestDefaults()
-}
+// --- Testing (base config from leyline.test-conventions) ---
 
 val testUnit by tasks.registering(Test::class) {
     configureTestDefaults()

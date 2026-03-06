@@ -1,61 +1,32 @@
 # Test recipes
 # Imported by justfile — all variables available from parent.
 
-# run all tests (all modules)
+# run all tests (all modules, all tiers)
 [group('test')]
 test:
-    cd "{{project_dir}}" && ./gradlew test :matchdoor:test :tooling:test :frontdoor:test :account:test
+    cd "{{project_dir}}" && ./gradlew :matchdoor:test :tooling:test :frontdoor:test :account:test
 
 # single test class (e.g. `just test-one ShouldStopEvaluatorTest`)
 [group('test')]
 test-one class:
-    cd "{{project_dir}}" && ./gradlew test :matchdoor:test :tooling:test :frontdoor:test -Pkotest.filter.specs=".*{{class}}"
+    cd "{{project_dir}}" && ./gradlew :matchdoor:test :tooling:test :frontdoor:test :account:test -Pkotest.filter.specs=".*{{class}}"
 
-# unit tests only (no engine bootstrap, fastest)
-[group('test')]
-test-unit:
-    cd "{{project_dir}}" && ./gradlew testUnit :matchdoor:testUnit :tooling:testUnit
-
-# all conformance tests (~5s, wire-shape checks against Arena patterns)
-[group('test')]
-test-conformance:
-    cd "{{project_dir}}" && ./gradlew testConformance :matchdoor:testConformance
-
-# integration tests (parallel forks — boots engine per fork, runs classes concurrently)
-[group('test')]
-test-integration:
-    cd "{{project_dir}}" && ./gradlew testIntegration :matchdoor:testIntegration
-
-# front door tests only (fast FD iteration — :frontdoor module)
-[group('test')]
-test-fd:
-    cd "{{project_dir}}" && ./gradlew :frontdoor:test
-
-# match door tests only (fast MD iteration — :matchdoor module)
-[group('test')]
-test-md:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:testGate
-
-# tooling tests only (debug/recording/analysis)
-[group('test')]
-test-tl:
-    cd "{{project_dir}}" && ./gradlew :tooling:testGate
-
-# pre-commit gate: unit + conformance (all modules) + frontdoor
+# pre-commit gate: unit + conformance + fmt check (all modules)
 [group('test')]
 test-gate:
-    cd "{{project_dir}}" && ./gradlew testGate :matchdoor:testGate :tooling:testGate :frontdoor:test
+    cd "{{project_dir}}" && ./gradlew spotlessCheck :matchdoor:testGate :tooling:testGate :frontdoor:test :account:test
 
-# full gate: unit + conformance + frontdoor, then integration in parallel forks
+# matchdoor integration tests (boots engine per fork — run after risky matchdoor changes)
 [group('test')]
-test-full: test-gate test-integration
+test-integration:
+    cd "{{project_dir}}" && ./gradlew :matchdoor:testIntegration
 
 # JaCoCo coverage report (unit+conformance only)
 [group('test')]
 coverage:
     #!/usr/bin/env bash
     set +e
-    cd "{{project_dir}}" && ./gradlew testGate jacocoTestReport; rc=$?
+    cd "{{project_dir}}" && ./gradlew :matchdoor:testGate jacocoTestReport; rc=$?
     xml="{{project_dir}}/build/reports/jacoco/test/jacocoTestReport.xml"
     if [ -f "$xml" ]; then
         echo ""

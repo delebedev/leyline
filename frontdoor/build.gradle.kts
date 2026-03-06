@@ -1,11 +1,9 @@
-import leyline.build.configureTestDefaults
-
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.power.assert)
     alias(libs.plugins.spotless)
-    id("org.gradle.test-retry")
+    id("leyline.test-conventions")
 }
 
 repositories {
@@ -27,10 +25,6 @@ dependencies {
 
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
-}
-
-tasks.test {
-    configureTestDefaults()
 }
 
 powerAssert {
