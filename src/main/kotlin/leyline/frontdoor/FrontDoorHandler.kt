@@ -9,7 +9,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import leyline.debug.FdDebugCollector
 import leyline.frontdoor.domain.DeckId
@@ -24,6 +23,7 @@ import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.DeckWireBuilder
 import leyline.frontdoor.wire.EventWireBuilder
+import leyline.frontdoor.wire.FdRequests
 import leyline.frontdoor.wire.FdResponseWriter
 import leyline.frontdoor.wire.PlayerWireBuilder
 import leyline.protocol.ClientFrameDecoder
@@ -185,13 +185,13 @@ class FrontDoorHandler(
 
             // --- Match trigger ---
             612 -> { // Event_AiBotMatch
-                val deckId = extractDeckId(json)
-                val eventName = extractEventName(json) ?: "AIBotMatch"
+                val req = FdRequests.parseAiBotMatch(json)
+                val deckId = req?.deckId
                 if (deckId != null) onDeckSelected?.invoke(deckId)
-                onEventSelected?.invoke(eventName)
+                onEventSelected?.invoke("AIBotMatch")
                 val pid = playerId ?: PlayerId("anonymous")
-                val match = matchmaking.startAiMatch(pid, DeckId(deckId ?: ""), eventName)
-                log.info("Front Door: Event_AiBotMatch deckId={} event={} → ack + pushing MatchCreated", deckId, eventName)
+                val match = matchmaking.startAiMatch(pid, DeckId(deckId ?: ""), "AIBotMatch")
+                log.info("Front Door: Event_AiBotMatch deckId={} botDeckId={} → ack + pushing MatchCreated", deckId, req?.botDeckId)
                 writer.sendEmpty(ctx, txId)
                 sendMatchCreated(ctx, match)
             }
@@ -238,18 +238,12 @@ class FrontDoorHandler(
             }
 
             403 -> { // Deck_DeleteDeck
-                requireJson(ctx, txId, json) { body ->
-                    val deckId = try {
-                        lenientJson.parseToJsonElement(body).jsonObject["DeckId"]?.jsonPrimitive?.content
-                    } catch (_: Exception) {
-                        null
-                    }
-                    if (deckId != null) {
-                        deckService.delete(DeckId(deckId))
-                        log.info("Front Door: Deck_DeleteDeck '{}'", deckId)
-                    }
-                    writer.sendJson(ctx, txId, "{}")
+                val req = FdRequests.parseDeleteDeck(json)
+                if (req != null) {
+                    deckService.delete(DeckId(req.deckId))
+                    log.info("Front Door: Deck_DeleteDeck '{}'", req.deckId)
                 }
+                writer.sendJson(ctx, txId, "{}")
             }
 
             406 -> { // Deck_UpsertDeckV2
@@ -329,21 +323,21 @@ class FrontDoorHandler(
 
             // --- Event flow ---
             600 -> { // Event_Join
-                val eventName = extractEventName(json)
-                log.info("Front Door: Event_Join event={} (golden)", eventName)
+                val req = FdRequests.parseEventJoin(json)
+                log.info("Front Door: Event_Join event={} (golden)", req?.eventName)
                 writer.sendJson(ctx, txId, golden.eventJoinJson)
             }
 
             601 -> { // Event_Drop
-                val eventName = extractEventName(json)
-                log.info("Front Door: Event_Drop event={}", eventName)
+                val req = FdRequests.parseEventName(json)
+                log.info("Front Door: Event_Drop event={}", req?.eventName)
                 writer.sendJson(ctx, txId, "{}")
             }
 
             603 -> { // Event_EnterPairing
-                val eventName = extractEventName(json)
+                val req = FdRequests.parseEnterPairing(json)
+                val eventName = req?.eventName
                 val deckId = eventName?.let { selectedDeckByEvent[it] }
-                    ?: extractDeckId(json)
                 log.info("Front Door: Event_EnterPairing event={} deck={}", eventName, deckId)
 
                 val pid = playerId ?: PlayerId("anonymous")
@@ -360,24 +354,23 @@ class FrontDoorHandler(
             }
 
             606 -> { // Event_LeavePairing
-                val eventName = extractEventName(json)
-                log.info("Front Door: Event_LeavePairing event={}", eventName)
+                val req = FdRequests.parseEventName(json)
+                log.info("Front Door: Event_LeavePairing event={}", req?.eventName)
                 writer.sendEmpty(ctx, txId)
             }
 
             608 -> { // Event_GetMatchResultReport
-                val eventName = extractEventName(json)
-                log.info("Front Door: Event_GetMatchResultReport event={}", eventName)
+                val req = FdRequests.parseMatchResult(json)
+                log.info("Front Door: Event_GetMatchResultReport event={}", req?.eventName)
                 writer.sendJson(ctx, txId, """{"CurrentModule":"Complete","questUpdates":[]}""")
             }
 
             622 -> { // Event_SetDeckV2
-                val eventName = extractEventName(json)
-                val deckId = extractDeckId(json)
-                if (eventName != null && deckId != null) {
-                    selectedDeckByEvent[eventName] = deckId
+                val req = FdRequests.parseSetDeck(json)
+                if (req != null && req.deckId != null) {
+                    selectedDeckByEvent[req.eventName] = req.deckId
                 }
-                log.info("Front Door: Event_SetDeckV2 event={} deck={}", eventName, deckId)
+                log.info("Front Door: Event_SetDeckV2 event={} deck={}", req?.eventName, req?.deckId)
                 writer.sendJson(ctx, txId, golden.eventSetDeckJson)
             }
 
@@ -448,30 +441,6 @@ class FrontDoorHandler(
         val pushTxId = UUID.randomUUID().toString()
         writer.sendJson(ctx, pushTxId, json)
     }
-
-    private fun extractEventName(json: String?): String? =
-        json?.let {
-            try {
-                val obj = lenientJson.parseToJsonElement(it).jsonObject
-                obj["EventName"]?.jsonPrimitive?.content
-                    ?: obj["eventName"]?.jsonPrimitive?.content
-            } catch (_: Exception) {
-                null
-            }
-        }
-
-    /** Extract DeckId from 622 body — lives in Summary.DeckId or top-level DeckId. */
-    private fun extractDeckId(json: String?): String? =
-        json?.let {
-            try {
-                val obj = lenientJson.parseToJsonElement(it).jsonObject
-                obj["Summary"]?.jsonObject?.get("DeckId")?.jsonPrimitive?.content
-                    ?: obj["DeckId"]?.jsonPrimitive?.content
-                    ?: obj["deckId"]?.jsonPrimitive?.content
-            } catch (_: Exception) {
-                null
-            }
-        }
 
     private fun handleGraphRequest(ctx: ChannelHandlerContext, transactionId: String?, json: String?) {
         val graphId = json?.let { GRAPH_ID_PATTERN.find(it)?.groupValues?.get(1) } ?: "unknown"

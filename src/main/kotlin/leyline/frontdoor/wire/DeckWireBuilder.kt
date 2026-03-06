@@ -1,6 +1,7 @@
 package leyline.frontdoor.wire
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -14,6 +15,7 @@ import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.Format
 import leyline.frontdoor.domain.PlayerId
+import org.slf4j.LoggerFactory
 
 /**
  * Translates [Deck] domain objects to Arena wire JSON shapes.
@@ -23,6 +25,8 @@ import leyline.frontdoor.domain.PlayerId
  * - **V3** (CmdType 410): Attributes = flat `{key: value}` dict
  */
 object DeckWireBuilder {
+
+    private val log = LoggerFactory.getLogger(DeckWireBuilder::class.java)
 
     private val lenientJson = Json {
         ignoreUnknownKeys = true
@@ -174,15 +178,19 @@ object DeckWireBuilder {
         put("Emotes", buildJsonArray {})
     }
 
-    private fun parseCardList(element: kotlinx.serialization.json.JsonElement?): List<DeckCard> {
+    /** Parse Arena `[{cardId, quantity}]` array to [DeckCard] list. Skips malformed entries with a warning. */
+    fun parseCardList(element: JsonElement?): List<DeckCard> {
         if (element == null) return emptyList()
         return try {
-            element.jsonArray.map { entry ->
+            element.jsonArray.mapNotNull { entry ->
                 val obj = entry.jsonObject
-                DeckCard(
-                    grpId = obj["cardId"]?.jsonPrimitive?.int ?: 0,
-                    quantity = obj["quantity"]?.jsonPrimitive?.int ?: 0,
-                )
+                val grpId = obj["cardId"]?.jsonPrimitive?.int
+                val qty = obj["quantity"]?.jsonPrimitive?.int
+                if (grpId == null || qty == null) {
+                    log.warn("DeckWireBuilder: skipping malformed card entry: {}", entry)
+                    return@mapNotNull null
+                }
+                DeckCard(grpId, qty)
             }
         } catch (_: Exception) {
             emptyList()
