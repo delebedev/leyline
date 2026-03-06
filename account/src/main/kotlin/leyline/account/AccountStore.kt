@@ -108,28 +108,21 @@ class AccountStore(private val database: Database) {
     }
 
     /** Look up account by email. */
-    fun findByEmail(email: String): Account? = transaction(database) {
-        Accounts.selectAll()
-            .where { Accounts.email eq email.lowercase() }
-            .firstOrNull()
-            ?.toAccount()
-    }
+    fun findByEmail(email: String): Account? = findOneBy(Accounts.email, email.lowercase())
 
     /** Look up account by persona ID (the JWT subject). */
-    fun findByPersonaId(personaId: String): Account? = transaction(database) {
-        Accounts.selectAll()
-            .where { Accounts.personaId eq personaId }
-            .firstOrNull()
-            ?.toAccount()
-    }
+    fun findByPersonaId(personaId: String): Account? = findOneBy(Accounts.personaId, personaId)
 
     /** Look up account by account ID. */
-    fun findByAccountId(accountId: String): Account? = transaction(database) {
-        Accounts.selectAll()
-            .where { Accounts.accountId eq accountId }
-            .firstOrNull()
-            ?.toAccount()
-    }
+    fun findByAccountId(accountId: String): Account? = findOneBy(Accounts.accountId, accountId)
+
+    private fun <T : Comparable<T>> findOneBy(column: org.jetbrains.exposed.v1.core.Column<T>, value: T): Account? =
+        transaction(database) {
+            Accounts.selectAll()
+                .where { column eq value }
+                .firstOrNull()
+                ?.toAccount()
+        }
 
     /** Check if any accounts exist (for dev seed logic). */
     fun isEmpty(): Boolean = transaction(database) {
