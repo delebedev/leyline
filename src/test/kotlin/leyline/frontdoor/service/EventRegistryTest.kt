@@ -10,6 +10,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.FdTag
+import leyline.frontdoor.wire.EventWireBuilder
 
 class EventRegistryTest :
     FunSpec({
@@ -18,7 +19,7 @@ class EventRegistryTest :
         val json = Json { ignoreUnknownKeys = true }
 
         test("queue config JSON is a valid array with all queue entries") {
-            val result = EventRegistry.toQueueConfigJson()
+            val result = EventWireBuilder.toQueueConfigJson(EventRegistry.queues)
             val arr = json.parseToJsonElement(result).jsonArray
             arr shouldHaveAtLeastSize 14
 
@@ -29,12 +30,12 @@ class EventRegistryTest :
         }
 
         test("queue config includes AIBotMatch") {
-            val result = EventRegistry.toQueueConfigJson()
+            val result = EventWireBuilder.toQueueConfigJson(EventRegistry.queues)
             result shouldContain "AIBotMatch"
         }
 
         test("active events JSON has Events array with all events") {
-            val result = EventRegistry.toActiveEventsJson()
+            val result = EventWireBuilder.toActiveEventsJson(EventRegistry.events)
             val obj = json.parseToJsonElement(result).jsonObject
             val events = obj["Events"]?.jsonArray ?: error("no Events")
             events shouldHaveAtLeastSize 13
@@ -50,7 +51,7 @@ class EventRegistryTest :
         }
 
         test("every event has non-null Group in EventUXInfo") {
-            val result = EventRegistry.toActiveEventsJson()
+            val result = EventWireBuilder.toActiveEventsJson(EventRegistry.events)
             val events = json.parseToJsonElement(result).jsonObject["Events"]!!.jsonArray
             for (event in events) {
                 val name = event.jsonObject["InternalEventName"]?.jsonPrimitive?.content
@@ -75,7 +76,7 @@ class EventRegistryTest :
 
         test("courses JSON has default entries referencing valid events") {
             val eventNames = EventRegistry.events.map { it.internalName }.toSet()
-            val result = EventRegistry.toCoursesJson()
+            val result = EventWireBuilder.toCoursesJson(EventRegistry.defaultCourses)
             val courses = json.parseToJsonElement(result).jsonObject["Courses"]!!.jsonArray
             courses shouldHaveAtLeastSize 1
             for (course in courses) {
