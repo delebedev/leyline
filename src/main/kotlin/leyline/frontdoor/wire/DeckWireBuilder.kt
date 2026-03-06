@@ -66,7 +66,7 @@ object DeckWireBuilder {
                 add(
                     buildJsonObject {
                         put("name", "IsFavorite")
-                        put("value", "false")
+                        put("value", deck.isFavorite.toString())
                     },
                 )
                 add(
@@ -127,19 +127,38 @@ object DeckWireBuilder {
         val name = summary["Name"]?.jsonPrimitive?.content ?: "Unnamed"
         val tileId = summary["DeckTileId"]?.jsonPrimitive?.int ?: 0
         val deckObj = root["Deck"]?.jsonObject ?: return null
+
+        val attrs = parseAttributes(summary)
+        val actionType = root["ActionType"]?.jsonPrimitive?.content
+        if (actionType != null) {
+            log.info("Deck upsert action={} deck={}", actionType, name)
+        }
+
         Deck(
             id = DeckId(deckId),
             playerId = playerId,
             name = name,
-            format = Format.Standard,
+            format = attrs["Format"]?.let { Format.fromString(it) } ?: Format.Standard,
             tileId = tileId,
             mainDeck = parseCardList(deckObj["MainDeck"]),
             sideboard = parseCardList(deckObj["Sideboard"]),
             commandZone = parseCardList(deckObj["CommandZone"]),
             companions = parseCardList(deckObj["Companions"]),
+            isFavorite = attrs["IsFavorite"]?.equals("true", ignoreCase = true) == true,
         )
     } catch (_: Exception) {
         null
+    }
+
+    /** Extract V2-style `[{name,value}]` attributes into a flat map. */
+    fun parseAttributes(summary: JsonObject): Map<String, String> {
+        val attrs = summary["Attributes"]?.jsonArray ?: return emptyMap()
+        return attrs.mapNotNull { el ->
+            val obj = el.jsonObject
+            val k = obj["name"]?.jsonPrimitive?.content ?: return@mapNotNull null
+            val v = obj["value"]?.jsonPrimitive?.content ?: return@mapNotNull null
+            k to v
+        }.toMap()
     }
 
     // -- private helpers --

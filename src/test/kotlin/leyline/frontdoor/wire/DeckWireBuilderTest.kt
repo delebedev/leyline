@@ -35,6 +35,14 @@ class DeckWireBuilderTest :
             first["name"]?.jsonPrimitive?.content shouldBe "Version"
         }
 
+        test("V2 summary emits IsFavorite=true when deck is favorited") {
+            val favDeck = deck.copy(isFavorite = true)
+            val obj = DeckWireBuilder.toV2Summary(favDeck)
+            val attrs = obj["Attributes"]!!.jsonArray
+            val fav = attrs.first { it.jsonObject["name"]?.jsonPrimitive?.content == "IsFavorite" }
+            fav.jsonObject["value"]?.jsonPrimitive?.content shouldBe "true"
+        }
+
         test("V3 summary has Attributes as flat dict") {
             val obj = DeckWireBuilder.toV3Summary(deck)
             val attrs = obj["Attributes"]?.jsonObject
@@ -60,12 +68,48 @@ class DeckWireBuilderTest :
 
         test("parseDeckUpdate returns Deck from 406 JSON (wire format with Summary wrapper)") {
             val json =
-                """{"Summary":{"DeckId":"d1","Name":"My Deck","DeckTileId":99},"Deck":{"MainDeck":[{"cardId":100,"quantity":4}],"Sideboard":[],"CommandZone":[],"Companions":[],"CardSkins":[]}}"""
+                """{"Summary":{"DeckId":"d1","Name":"My Deck","DeckTileId":99,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":100,"quantity":4}],"Sideboard":[],"CommandZone":[],"Companions":[],"CardSkins":[]},"ActionType":"CreatedNew"}"""
             val parsed = DeckWireBuilder.parseDeckUpdate(json, PlayerId("p1"))
             parsed shouldNotBe null
             parsed!!.name shouldBe "My Deck"
             parsed.tileId shouldBe 99
             parsed.mainDeck.size shouldBe 1
+            parsed.format shouldBe Format.Historic
+            parsed.isFavorite shouldBe false
+        }
+
+        test("parseDeckUpdate reads IsFavorite=true from Attributes") {
+            val json =
+                """{"Summary":{"DeckId":"d1","Name":"Fav","DeckTileId":0,"Attributes":[{"name":"IsFavorite","value":"true"},{"name":"Format","value":"Standard"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""
+            val parsed = DeckWireBuilder.parseDeckUpdate(json, PlayerId("p1"))
+            parsed shouldNotBe null
+            parsed!!.isFavorite shouldBe true
+        }
+
+        test("parseDeckUpdate reads Format from Attributes") {
+            val json =
+                """{"Summary":{"DeckId":"d1","Name":"Explorer Deck","DeckTileId":0,"Attributes":[{"name":"Format","value":"Explorer"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""
+            val parsed = DeckWireBuilder.parseDeckUpdate(json, PlayerId("p1"))
+            parsed shouldNotBe null
+            parsed!!.format shouldBe Format.Explorer
+        }
+
+        test("parseDeckUpdate handles Cloned ActionType like any other upsert") {
+            val json =
+                """{"Summary":{"DeckId":"clone-1","Name":"Imported Deck (4)","DeckTileId":55,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":200,"quantity":2}],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Cloned"}"""
+            val parsed = DeckWireBuilder.parseDeckUpdate(json, PlayerId("p1"))
+            parsed shouldNotBe null
+            parsed!!.id shouldBe DeckId("clone-1")
+            parsed.format shouldBe Format.Historic
+        }
+
+        test("parseDeckUpdate defaults to Standard when Attributes missing") {
+            val json =
+                """{"Summary":{"DeckId":"d1","Name":"No Attrs","DeckTileId":0},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]}}"""
+            val parsed = DeckWireBuilder.parseDeckUpdate(json, PlayerId("p1"))
+            parsed shouldNotBe null
+            parsed!!.format shouldBe Format.Standard
+            parsed.isFavorite shouldBe false
         }
 
         test("toStartHookEntry has card lists only — no metadata (matches golden shape)") {

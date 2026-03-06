@@ -48,6 +48,7 @@ class SqlitePlayerStore(private val database: Database) :
         val name = text("name")
         val tileId = integer("tile_id").default(0)
         val format = text("format").default("Standard")
+        val isFavorite = bool("is_favorite").default(false)
         val cards = text("cards").default("{}")
         val updatedAt = text("updated_at").default("datetime('now')")
         override val primaryKey = PrimaryKey(deckId)
@@ -100,6 +101,7 @@ class SqlitePlayerStore(private val database: Database) :
                     it[Decks.name] = deck.name
                     it[Decks.tileId] = deck.tileId
                     it[Decks.format] = deck.format.name
+                    it[Decks.isFavorite] = deck.isFavorite
                     it[Decks.cards] = encodeCards(deck)
                     it[Decks.playerId] = deck.playerId.value
                 }
@@ -110,6 +112,7 @@ class SqlitePlayerStore(private val database: Database) :
                     it[Decks.name] = deck.name
                     it[Decks.tileId] = deck.tileId
                     it[Decks.format] = deck.format.name
+                    it[Decks.isFavorite] = deck.isFavorite
                     it[Decks.cards] = encodeCards(deck)
                 }
             }
@@ -177,6 +180,7 @@ class SqlitePlayerStore(private val database: Database) :
             sideboard = blob.Sideboard.map { DeckCard(it.cardId, it.quantity) },
             commandZone = blob.CommandZone.map { DeckCard(it.cardId, it.quantity) },
             companions = blob.Companions.map { DeckCard(it.cardId, it.quantity) },
+            isFavorite = this[Decks.isFavorite],
         )
     }
 
