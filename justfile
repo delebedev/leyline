@@ -1,6 +1,6 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-import 'buildscripts/java.just'
+import 'just/java.just'
 import 'just/lookup.just'
 import 'just/proto.just'
 import 'just/recording.just'

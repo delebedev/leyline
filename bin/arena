@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Resolve project root (where this script lives is tools/, go up one)
+# Resolve project root (where this script lives is bin/, go up one)
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CP_FILE="$DIR/target/classpath.txt"
 
