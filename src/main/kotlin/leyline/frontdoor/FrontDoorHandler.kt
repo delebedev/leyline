@@ -184,8 +184,8 @@ class FrontDoorHandler(
 
             // --- Match trigger ---
             612 -> { // Event_AiBotMatch
-                val deckId = json?.let { DECK_ID_PATTERN.find(it)?.groupValues?.get(1) }
-                val eventName = json?.let { EVENT_NAME_PATTERN.find(it)?.groupValues?.get(1) } ?: "AIBotMatch"
+                val deckId = extractDeckId(json)
+                val eventName = extractEventName(json) ?: "AIBotMatch"
                 if (deckId != null) onDeckSelected?.invoke(deckId)
                 onEventSelected?.invoke(eventName)
                 val pid = playerId ?: PlayerId("anonymous")
@@ -342,7 +342,7 @@ class FrontDoorHandler(
             603 -> { // Event_EnterPairing
                 val eventName = extractEventName(json)
                 val deckId = eventName?.let { selectedDeckByEvent[it] }
-                    ?: json?.let { DECK_ID_PATTERN.find(it)?.groupValues?.get(1) }
+                    ?: extractDeckId(json)
                 log.info("Front Door: Event_EnterPairing event={} deck={}", eventName, deckId)
 
                 val pid = playerId ?: PlayerId("anonymous")
@@ -372,7 +372,7 @@ class FrontDoorHandler(
 
             622 -> { // Event_SetDeckV2
                 val eventName = extractEventName(json)
-                val deckId = json?.let { DECK_ID_PATTERN.find(it)?.groupValues?.get(1) }
+                val deckId = extractDeckId(json)
                 if (eventName != null && deckId != null) {
                     selectedDeckByEvent[eventName] = deckId
                 }
@@ -451,7 +451,22 @@ class FrontDoorHandler(
     private fun extractEventName(json: String?): String? =
         json?.let {
             try {
-                lenientJson.parseToJsonElement(it).jsonObject["EventName"]?.jsonPrimitive?.content
+                val obj = lenientJson.parseToJsonElement(it).jsonObject
+                obj["EventName"]?.jsonPrimitive?.content
+                    ?: obj["eventName"]?.jsonPrimitive?.content
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+    /** Extract DeckId from 622 body — lives in Summary.DeckId or top-level DeckId. */
+    private fun extractDeckId(json: String?): String? =
+        json?.let {
+            try {
+                val obj = lenientJson.parseToJsonElement(it).jsonObject
+                obj["Summary"]?.jsonObject?.get("DeckId")?.jsonPrimitive?.content
+                    ?: obj["DeckId"]?.jsonPrimitive?.content
+                    ?: obj["deckId"]?.jsonPrimitive?.content
             } catch (_: Exception) {
                 null
             }
@@ -471,8 +486,7 @@ class FrontDoorHandler(
 
     companion object {
         private val GRAPH_ID_PATTERN = Regex(""""GraphId"\s*:\s*"([^"]+)"""")
-        private val DECK_ID_PATTERN = Regex(""""deckId"\s*:\s*"([^"]+)"""")
-        private val EVENT_NAME_PATTERN = Regex(""""eventName"\s*:\s*"([^"]+)"""")
+
         private const val GRAPH_DEFAULT = """{"NodeStates":{},"MilestoneStates":{}}"""
     }
 }
