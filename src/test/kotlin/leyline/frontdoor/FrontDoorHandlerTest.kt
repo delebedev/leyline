@@ -1,5 +1,6 @@
 package leyline.frontdoor
 
+import io.kotest.assertions.withClue
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -13,6 +14,7 @@ import io.netty.buffer.Unpooled
 import io.netty.channel.embedded.EmbeddedChannel
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -107,18 +109,14 @@ class FrontDoorHandlerTest :
             return ch
         }
 
-        /** Send a framed Cmd envelope, read back first response as FdMessage. */
-        fun EmbeddedChannel.sendCmd(cmdType: Int, payload: String? = "{}"): FdEnvelope.FdMessage {
-            val txId = UUID.randomUUID().toString()
-            val envelope = FdEnvelope.encodeCmd(cmdType, txId, payload ?: "{}")
+        /** Write a framed Cmd envelope into the channel. */
+        fun EmbeddedChannel.writeCmd(cmdType: Int, payload: String? = "{}") {
+            val envelope = FdEnvelope.encodeCmd(cmdType, UUID.randomUUID().toString(), payload ?: "{}")
             val header = FdEnvelope.buildOutgoingHeader(envelope.size)
             val buf = Unpooled.buffer(header.size + envelope.size)
             buf.writeBytes(header)
             buf.writeBytes(envelope)
             writeInbound(buf)
-
-            val resp = readOutbound<ByteBuf>() ?: error("No response for CmdType $cmdType")
-            return decodeResponse(resp)
         }
 
         /** Read all pending outbound responses. */
@@ -131,20 +129,21 @@ class FrontDoorHandlerTest :
             return results
         }
 
+        /** Send a framed Cmd envelope, read back first response as FdMessage. */
+        fun EmbeddedChannel.sendCmd(cmdType: Int, payload: String? = "{}"): FdEnvelope.FdMessage {
+            writeCmd(cmdType, payload)
+            val resp = readOutbound<ByteBuf>() ?: error("No response for CmdType $cmdType")
+            return decodeResponse(resp)
+        }
+
         /** Send a cmd and return ALL responses (for 612 which sends ack + push). */
         fun EmbeddedChannel.sendCmdAll(cmdType: Int, payload: String? = "{}"): List<FdEnvelope.FdMessage> {
-            val txId = UUID.randomUUID().toString()
-            val envelope = FdEnvelope.encodeCmd(cmdType, txId, payload ?: "{}")
-            val header = FdEnvelope.buildOutgoingHeader(envelope.size)
-            val buf = Unpooled.buffer(header.size + envelope.size)
-            buf.writeBytes(header)
-            buf.writeBytes(envelope)
-            writeInbound(buf)
+            writeCmd(cmdType, payload)
             return readAllResponses()
         }
 
         /** Send a cmd, parse first response as JsonObject. */
-        fun sendJson(cmdType: Int, payload: String? = "{}"): kotlinx.serialization.json.JsonObject {
+        fun sendJson(cmdType: Int, payload: String? = "{}"): JsonObject {
             val ch = fdChannel()
             val msg = ch.sendCmd(cmdType, payload)
             return json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
@@ -397,7 +396,7 @@ class FrontDoorHandlerTest :
     })
 
 /** Load a golden reference JSON from classpath. */
-private fun loadGoldenRef(resource: String): kotlinx.serialization.json.JsonObject {
+private fun loadGoldenRef(resource: String): JsonObject {
     val bytes = FrontDoorHandlerTest::class.java.classLoader
         .getResourceAsStream(resource)!!
         .readBytes()
@@ -410,19 +409,19 @@ private fun loadGoldenRef(resource: String): kotlinx.serialization.json.JsonObje
  * (server may add fields), but missing keys fail with a clear message.
  */
 private fun assertKeysMatch(
-    reference: kotlinx.serialization.json.JsonObject,
-    actual: kotlinx.serialization.json.JsonObject,
+    reference: JsonObject,
+    actual: JsonObject,
     context: String,
     path: String = "",
 ) {
     val loc = path.ifEmpty { "root" }
-    io.kotest.assertions.withClue("$context: missing keys at $loc") {
+    withClue("$context: missing keys at $loc") {
         (reference.keys - actual.keys).shouldBeEmpty()
     }
     for (key in reference.keys) {
         val refVal = reference[key]
         val actVal = actual[key]
-        if (refVal is kotlinx.serialization.json.JsonObject && actVal is kotlinx.serialization.json.JsonObject) {
+        if (refVal is JsonObject && actVal is JsonObject) {
             assertKeysMatch(refVal, actVal, context, "$path.$key")
         }
     }
