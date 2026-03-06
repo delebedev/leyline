@@ -354,22 +354,29 @@ class FrontDoorHandler(
                 writer.send(ctx, txId, FdResponse.Json(golden.eventSetDeckJson))
             }
 
+            // Response-type envelope (field 1 is UUID, not varint) — no CmdType extracted.
+            // Legacy fallback: may be dead now that FdEnvelope handles CmdType=0 (Authenticate).
+            // Each branch duplicates a named CmdType handler above. Track hits to confirm removal.
             null -> {
                 if (json == null) return
                 when {
                     "ClientVersion" in json || "Token" in json -> {
-                        log.info("Front Door: auth (fallback)")
+                        log.info("Front Door: auth (fallback, no CmdType) — txId={}", txId)
                         val sessionId = UUID.randomUUID().toString()
                         writer.send(ctx, txId, FdResponse.Json("""{"SessionId":"$sessionId","Attached":true}"""))
                     }
-                    "GraphId" in json -> handleGraphRequest(ctx, txId, json)
+                    "GraphId" in json -> {
+                        log.info("Front Door: graph (fallback, no CmdType) — txId={}", txId)
+                        handleGraphRequest(ctx, txId, json)
+                    }
                     "AIBotMatch" in json || "PlayQueue" in json -> {
+                        log.info("Front Door: AI match (fallback, no CmdType) — txId={}", txId)
                         val pid = playerId ?: PlayerId("anonymous")
                         val match = matchmaking.startAiMatch(pid, DeckId(""))
                         sendMatchCreated(ctx, match)
                     }
                     else -> {
-                        log.debug("Front Door: unrecognized (no CmdType): {}", json.take(80))
+                        log.info("Front Door: unrecognized (no CmdType): {}", json.take(120))
                         writer.send(ctx, txId, FdResponse.Empty)
                     }
                 }
