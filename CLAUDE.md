@@ -1,14 +1,38 @@
 # leyline
 
-Client compat layer — stubs/proxies the client's Front Door + Match Door + WAS (account server) so the game client connects to Forge's engine. (Codebase historically called forge-nexus.)
+Client compat layer — stubs/proxies the client's Front Door + Match Door + Account Server so the game client connects to Forge's engine.
 
 - **Transport:** raw Netty TLS TCP (not HTTP — client uses 6-byte framing + protobuf)
 - **Depends on:** forge-web (game bridges, bootstrap) — never reverse the dependency
-- **Proto:** `src/main/proto/messages.proto` — client protobuf schema (from MtgaProto project)
-- **Card data:** `CardDb.kt` reads the client's local SQLite for grpId, types, mana cost
+- **Proto:** `matchdoor/src/main/proto/messages.proto` — client protobuf schema (from MtgaProto project)
+- **Card data:** `ExposedCardRepository` reads the client's local SQLite for grpId, types, mana cost
 - **Server modes:** `just serve` (local, main dev — fully offline), `just serve-proxy` (passthrough for recording), `just serve-replay`
 - **Roadmap:** [GitHub Project board](https://github.com/users/delebedev/projects/1) — epics for Multiplayer, Sealed, Draft, Direct Challenge, Match History, Social, Brawl/Commander
 - **Bugs & tasks:** GitHub Issues — no local TODO/BUGS files
+
+## Modules
+
+```
+app/            Composition root — LeylineMain, LeylineServer, Netty pipeline, debug wiring
+                Depends on all other modules. Thin — mostly startup + glue.
+
+account/        Account server (Ktor HTTPS) — auth, registration, JWT, doorbell.
+                Independent. Zero forge/netty/protobuf deps.
+
+frontdoor/      Front Door protocol — lobby, decks, events, matchmaking, collections.
+                Wire format (FdEnvelope, CmdType), domain model, persistence.
+                Zero coupling to game engine.
+
+matchdoor/      Game engine adapter — the big one.
+                bridge/ (Forge adapter), game/ (state mapping, annotations, proto builders),
+                match/ (orchestration, combat, targeting, mulligan handlers).
+                Owns proto generation. Structural Forge coupling lives here.
+
+tooling/        Dev-only — debug server, session recording, analysis, conformance,
+                arena CLI automation. Not on prod classpath.
+```
+
+Other dirs: `bin/` (CLI tools), `docs/`, `forge/` (engine submodule), `gradle/`, `just/` (task recipes), `proto/` (upstream proto submodule).
 
 ## Testing
 
@@ -41,28 +65,28 @@ See `docs/architecture.md` for diagrams. This is the fast orientation.
 
 ## Cookbook
 
-### Adding a new annotation type
+### Adding a new annotation type (matchdoor)
 
-1. `GameEventCollector` — subscribe to Forge `GameEvent`, emit `GameEvent`
-2. `GameEvent.kt` — add sealed variant with forge card IDs (not instanceIds)
-3. `AnnotationBuilder` — add builder method matching Arena annotation type number + detail keys (reference `mtga-internals/docs/13-annotation-system.md`)
-4. `StateMapper` annotation pipeline — wire event into annotation generation (either transfer-based or standalone in `buildFromGame`)
+1. `game/GameEventCollector` — subscribe to Forge `GameEvent`, emit `GameEvent`
+2. `game/GameEvent.kt` — add sealed variant with forge card IDs (not instanceIds)
+3. `game/AnnotationBuilder` — add builder method matching Arena annotation type number + detail keys (reference `mtga-internals/docs/13-annotation-system.md`)
+4. `game/StateMapper` annotation pipeline — wire event into annotation generation (either transfer-based or standalone in `buildFromGame`)
 5. Test: unit test in `AnnotationBuilderTest`, category test in `CategoryFromEventsTest`
 
-### Adding a new zone transition category
+### Adding a new zone transition category (matchdoor)
 
-1. `TransferCategory.kt` — add variant if needed (with `.label` matching Arena's reason string)
-2. `GameEventCollector` — ensure the right Forge event is captured (e.g. `GameEventCardDestroyed` → `CardDestroyed`)
-3. `AnnotationBuilder.categoryFromEvents()` — add match arm; specific events take priority over generic `ZoneChanged`
-4. `StateMapper.annotationsForTransfer()` — add `when` branch for the new category (ObjectIdChanged, ZoneTransfer, etc.)
+1. `game/TransferCategory.kt` — add variant if needed (with `.label` matching Arena's reason string)
+2. `game/GameEventCollector` — ensure the right Forge event is captured (e.g. `GameEventCardDestroyed` → `CardDestroyed`)
+3. `game/AnnotationBuilder.categoryFromEvents()` — add match arm; specific events take priority over generic `ZoneChanged`
+4. `game/StateMapper.annotationsForTransfer()` — add `when` branch for the new category (ObjectIdChanged, ZoneTransfer, etc.)
 5. Test: `CategoryFromEventsTest` for event→category mapping, conformance test for full proto output
 
-### Adding a new client action handler
+### Adding a new client action handler (matchdoor)
 
-1. `MatchSession` — add handler method (e.g. `onDeclareAttackers`)
+1. `match/MatchSession` — add handler method (e.g. `onDeclareAttackers`)
 2. Translate Arena proto fields to Forge `PlayerAction` or prompt response (instanceId → forgeCardId via `bridge.getForgeCardId()`)
 3. Submit through appropriate bridge: `GameActionBridge` for priority actions, `InteractivePromptBridge` for engine-initiated choices
-4. Wire handler in `MatchHandler` message dispatch (match on `ClientMessageType`)
+4. Wire handler in `match/MatchHandler` message dispatch (match on `ClientMessageType`)
 5. Test: `MatchFlowHarness` test exercising the full production path (zero reimplemented logic)
 
 ### Card & ability lookups
