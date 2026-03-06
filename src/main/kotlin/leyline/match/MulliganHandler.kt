@@ -9,13 +9,13 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Mulligan flow delegate — owns mulligan state and pre-game hand senders.
+ * Mulligan flow delegate — extracted from [MatchHandler] so mulligan state
+ * (hand grpIds, mull count, London tuck) is testable without a live Netty channel.
  *
- * Extracted from [MatchHandler] to keep it thin. Handles:
- * - DealHand / DealHand+MulliganReq sends
- * - MulliganResp dispatch (keep / mulligan)
- * - GroupResp (London tuck)
- * - ChooseStartingPlayerResp (triggers mulligan or skip-mulligan)
+ * Uses provider lambdas for session/ctx/matchId/seatId to avoid holding
+ * [MatchHandler] references directly. Cross-seat lookups (e.g. sending the
+ * opponent's DealHand) go through [MatchRegistry.getHandler] → peer's
+ * [MulliganHandler], which requires both seat handlers to be registered first.
  */
 class MulliganHandler(
     private val matchConfig: MatchConfig,

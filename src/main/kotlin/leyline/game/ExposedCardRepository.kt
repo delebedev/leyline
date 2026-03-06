@@ -11,12 +11,11 @@ import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * [CardRepository] backed by the client's local card database (SQLite via Exposed).
+ * Read-only [CardRepository] over the client's local SQLite card DB (Exposed).
  *
- * Read-only — does NOT call SchemaUtils.create. The DB schema is the client's
- * external Cards + Localizations_enUS tables.
- *
- * Results are cached in memory (card data is immutable, DB is read-only).
+ * Never creates or modifies the schema — tables (Cards, Localizations_enUS)
+ * are owned by the Arena client. Entries are cached lazily per-key on first
+ * access and never evicted; card data is immutable for a given client build.
  */
 class ExposedCardRepository(private val database: Database) : CardRepository {
 

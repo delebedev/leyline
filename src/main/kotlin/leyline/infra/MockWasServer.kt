@@ -28,18 +28,13 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
 /**
- * WAS (Wizards Account System) local server.
+ * Local WAS (Wizards Account System) — mock or proxy for the OAuth + doorbell flow.
  *
- * Two modes:
- * - **Mock** (default): returns crafted JWTs + fake doorbell for fully-offline dev
- * - **Proxy**: reverse-proxies to real WAS + doorbell, rewrites doorbell FdURI to localhost
+ * **Key invisible constraint:** in proxy mode the doorbell response's `FdURI` is regex-rewritten
+ * to [fdHost] so the client connects to our local FD instead of real Arena servers. Without this
+ * rewrite the entire proxy pipeline is bypassed. Mock mode synthesises the FdURI directly.
  *
- * Endpoints:
- *   POST /auth/oauth/token      -> LoginResponse JSON
- *   GET  /api/profile/me/game   -> Profile JSON
- *   POST /api/doorbell/...      -> DoorbellRingResponseV2 (FdURI + BundleManifests)
- *
- * Default port: 9443. Point client via services.conf accountSystemBaseUri + doorbellUri.
+ * JWTs are unsigned (`alg: none`) — the client accepts them because cert validation is off.
  */
 class MockWasServer(
     private val port: Int = 9443,

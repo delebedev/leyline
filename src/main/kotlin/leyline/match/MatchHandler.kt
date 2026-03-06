@@ -25,11 +25,14 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
 
 /**
- * Match Door handler (port 30003) — thin Netty adapter.
+ * Netty adapter for the Match Door (port 30003) — two-phase message flow.
  *
- * Pre-mulligan messages (auth, connect, room state, deal hand, mulligan) are handled
- * here using template-based senders. Post-mulligan game orchestration is delegated
- * to [MatchSession].
+ * **Pre-mulligan:** auth, connect, room state, deal hand, and mulligan use templated
+ * proto senders (fixed message shapes). **Post-mulligan:** all game actions delegate
+ * to [MatchSession], which drives the engine via bridge futures. The phase boundary
+ * is [MatchSession.onMulliganKeep] — after that call, this handler only dispatches.
+ * Mulligan and puzzle sub-flows are extracted into [MulliganHandler] / [PuzzleHandler]
+ * to keep this class a thin Netty routing layer.
  */
 class MatchHandler(
     private val registry: MatchRegistry = defaultRegistry,
