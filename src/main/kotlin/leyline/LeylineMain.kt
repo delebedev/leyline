@@ -38,6 +38,9 @@ fun main(args: Array<String>) {
         ?: System.getenv("LEYLINE_FD_HOST")
         ?: "localhost:$fdPort"
 
+    val playerDbPath = System.getenv("LEYLINE_PLAYER_DB") ?: sc.playerDb
+    val playerDbFile = File(playerDbPath).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), playerDbPath) }
+
     val server = LeylineServer(
         frontDoorPort = fdPort,
         matchDoorPort = mdPort,
@@ -51,7 +54,7 @@ fun main(args: Array<String>) {
         puzzleFile = puzzleFile,
         externalHost = fdHost.substringBefore(":"),
         cardRepo = cardRepo,
-        playerDbPath = System.getenv("LEYLINE_PLAYER_DB") ?: sc.playerDb,
+        playerDbFile = playerDbFile,
     )
 
     val debugPort = a["--debug-port"]?.toIntOrNull() ?: sc.debugPort
@@ -61,8 +64,6 @@ fun main(args: Array<String>) {
     val logWatcher = PlayerLogWatcher(eventBus = server.eventBus)
     val debugServer = buildDebugServer(debugPort, server)
     val mgmtServer = ManagementServer(port = mgmtPort, healthCheck = { server.isHealthy() })
-    val playerDbPath = System.getenv("LEYLINE_PLAYER_DB") ?: sc.playerDb
-    val playerDbFile = File(playerDbPath).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), playerDbPath) }
     val accountDb = org.jetbrains.exposed.v1.jdbc.Database.connect(
         "jdbc:sqlite:${playerDbFile.absolutePath}",
         "org.sqlite.JDBC",
