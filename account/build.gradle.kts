@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.spotless)
+    id("leyline.test-conventions")
 }
 
 repositories {
@@ -32,7 +33,6 @@ dependencies {
 }
 
 tasks.test {
-    useJUnitPlatform()
     jvmArgs("--add-opens", "java.base/java.lang=ALL-UNNAMED")
 }
 

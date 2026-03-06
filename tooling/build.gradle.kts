@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.power.assert)
     alias(libs.plugins.spotless)
-    id("org.gradle.test-retry")
+    id("leyline.test-conventions")
 }
 
 repositories {
@@ -37,11 +37,7 @@ dependencies {
     testImplementation(libs.kotest.assertions)
 }
 
-// --- Testing ---
-
-tasks.test {
-    configureTestDefaults()
-}
+// --- Testing (base config from leyline.test-conventions) ---
 
 val testUnit by tasks.registering(Test::class) {
     configureTestDefaults()

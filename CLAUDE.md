@@ -1,20 +1,19 @@
 # leyline
 
-Client compat layer — stubs/proxies the client's Front Door + Match Door + Account Server so the game client connects to Forge's engine.
+Full reimplementation of the client's Front Door, Match Door, and Account Server — makes the game client connect to Forge's engine instead of the official servers.
 
-- **Transport:** raw Netty TLS TCP (not HTTP — client uses 6-byte framing + protobuf)
+**Engineering stance:** correctness over speed. The protocol is opaque and the client is unforgiving — shortcuts compound. Build it right, test it right, tool it right.
+
 - **Depends on:** forge-web (game bridges, bootstrap) — never reverse the dependency
-- **Proto:** `matchdoor/src/main/proto/messages.proto` — client protobuf schema (from MtgaProto project)
-- **Card data:** `ExposedCardRepository` reads the client's local SQLite for grpId, types, mana cost
 - **Server modes:** `just serve` (local, main dev — fully offline), `just serve-proxy` (passthrough for recording), `just serve-replay`
-- **Roadmap:** [GitHub Project board](https://github.com/users/delebedev/projects/1) — epics for Multiplayer, Sealed, Draft, Direct Challenge, Match History, Social, Brawl/Commander
+- **Roadmap:** [GitHub Project board](https://github.com/users/delebedev/projects/1)
 - **Bugs & tasks:** GitHub Issues — no local TODO/BUGS files
 
 ## Modules
 
 ```
-app/            Composition root — LeylineMain, LeylineServer, Netty pipeline, debug wiring
-                Depends on all other modules. Thin — mostly startup + glue.
+app/            Composition root — LeylineMain, LeylineServer, Netty pipeline, debug wiring.
+                Raw TLS TCP (not HTTP — 6-byte framing + protobuf). Thin — mostly startup + glue.
 
 account/        Account server (Ktor HTTPS) — auth, registration, JWT, doorbell.
                 Independent. Zero forge/netty/protobuf deps.
@@ -36,7 +35,7 @@ Other dirs: `bin/` (CLI tools), `docs/`, `forge/` (engine submodule), `gradle/`,
 
 ## Testing
 
-All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/nexus-tests.md` for tags, setup tiers, and conventions. Key commands: `just test-gate` (pre-commit), `just test-one Foo` (single class).
+All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/nexus-tests.md` for tags, setup tiers, conventions, and per-module commands. Key rule: **scope tests to changed modules, don't run everything.**
 
 ## Debug Panel & API
 

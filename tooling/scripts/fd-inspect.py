@@ -182,7 +182,7 @@ def cmd_response_all(cmd_type_str):
 def _parse_handled_cmdtypes():
     """Extract CmdType numbers handled in FrontDoorHandler.kt dispatch."""
     import re
-    handler = "src/main/kotlin/leyline/frontdoor/FrontDoorHandler.kt"
+    handler = "frontdoor/src/main/kotlin/leyline/frontdoor/FrontDoorHandler.kt"
     if not os.path.exists(handler):
         return set()
     handled = set()
@@ -213,7 +213,7 @@ def _collect_observed_cmdtypes():
 def _cmdtype_names():
     """Load CmdType name map from FdEnvelope.kt."""
     import re
-    envelope = "src/main/kotlin/leyline/protocol/FdEnvelope.kt"
+    envelope = "frontdoor/src/main/kotlin/leyline/frontdoor/wire/FdEnvelope.kt"
     names = {}
     if not os.path.exists(envelope):
         return names

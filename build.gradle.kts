@@ -1,6 +1,5 @@
 import leyline.build.CheckUpstreamTask
 import leyline.build.WriteClasspathTask
-import leyline.build.configureTestDefaults
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -105,33 +104,6 @@ detekt {
     baseline = file("gradle/detekt-baseline.xml")
     parallel = true
     source.setFrom(files("app/main/kotlin", "app/test/kotlin"))
-}
-
-// --- Testing ---
-
-tasks.test {
-    configureTestDefaults()
-}
-
-val testUnit by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "UnitTag")
-}
-
-val testConformance by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "ConformanceTag")
-}
-
-val testIntegration by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "IntegrationTag")
-    maxParallelForks = 4
-}
-
-val testGate by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "UnitTag | ConformanceTag")
 }
 
 // --- JaCoCo ---
