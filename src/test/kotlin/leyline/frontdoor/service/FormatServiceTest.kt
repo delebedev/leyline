@@ -20,16 +20,22 @@ class FormatServiceTest :
 
         test("mapArenaFormat strips Traditional prefix") {
             FormatService.mapArenaFormat("TraditionalStandard") shouldBe "Standard"
-            FormatService.mapArenaFormat("TraditionalExplorer") shouldBe "Explorer"
+            FormatService.mapArenaFormat("TraditionalExplorer") shouldBe "Pioneer"
             FormatService.mapArenaFormat("TraditionalHistoric") shouldBe "Historic"
-            FormatService.mapArenaFormat("TraditionalTimeless") shouldBe "Timeless"
+        }
+
+        test("mapArenaFormat maps Explorer to Pioneer") {
+            FormatService.mapArenaFormat("Explorer") shouldBe "Pioneer"
+        }
+
+        test("mapArenaFormat returns null for unmapped formats") {
+            FormatService.mapArenaFormat("Timeless").shouldBeNull()
+            FormatService.mapArenaFormat("Alchemy").shouldBeNull()
+            FormatService.mapArenaFormat("TraditionalTimeless").shouldBeNull()
         }
 
         test("mapArenaFormat passes through base formats") {
             FormatService.mapArenaFormat("Standard") shouldBe "Standard"
-            FormatService.mapArenaFormat("Explorer") shouldBe "Explorer"
             FormatService.mapArenaFormat("Historic") shouldBe "Historic"
-            FormatService.mapArenaFormat("Timeless") shouldBe "Timeless"
-            FormatService.mapArenaFormat("Alchemy") shouldBe "Alchemy"
         }
     })
