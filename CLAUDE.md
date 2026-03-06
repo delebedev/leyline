@@ -31,7 +31,20 @@ tooling/        Dev-only — debug server, session recording, analysis, conforma
                 arena CLI automation. Not on prod classpath.
 ```
 
-Other dirs: `bin/` (CLI tools), `docs/`, `forge/` (engine submodule), `gradle/`, `just/` (task recipes), `proto/` (upstream proto submodule).
+Other dirs: `bin/` (CLI tools), `docs/`, `forge/` (engine submodule), `gradle/`, `just/` (task recipes), `proto/` (upstream proto submodule), `recordings/` (session captures — see below).
+
+## Recordings
+
+`just serve-proxy` captures full client↔server sessions to `recordings/<timestamp>/`. Each session contains:
+
+- `capture/fd-frames.jsonl` — Front Door request/response frames (decoded JSON payloads)
+- `md-frames.jsonl` — Match Door GRE messages (protobuf)
+- `events.jsonl` — game events timeline
+- `client-errors.jsonl` — client-side exceptions captured from `Player.log`
+- `capture/frames/` — raw binary frames
+- `analysis.json` — post-session analysis output
+
+`recordings/latest` points to the most recent session. `just serve` (non-proxy) only captures `client-errors.jsonl`. Recordings are the primary source of truth for understanding what the real server sends — use `just fd-*` and `just rec-*` commands to inspect them.
 
 ## Testing
 
