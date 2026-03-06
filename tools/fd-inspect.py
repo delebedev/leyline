@@ -179,6 +179,83 @@ def cmd_response_all(cmd_type_str):
             break  # one per session
     print(f"{found} sessions", file=sys.stderr)
 
+def _parse_handled_cmdtypes():
+    """Extract CmdType numbers handled in FrontDoorHandler.kt dispatch."""
+    import re
+    handler = "src/main/kotlin/leyline/frontdoor/FrontDoorHandler.kt"
+    if not os.path.exists(handler):
+        return set()
+    handled = set()
+    in_dispatch = False
+    with open(handler) as f:
+        for line in f:
+            if "when (cmdType)" in line:
+                in_dispatch = True
+            elif in_dispatch:
+                # match "  123 -> " or "  123, 456 -> "
+                m = re.match(r"\s+([\d,\s]+)\s*->", line)
+                if m:
+                    for num in re.findall(r"\d+", m.group(1)):
+                        handled.add(int(num))
+                elif line.strip().startswith("else"):
+                    break
+    return handled
+
+def _collect_observed_cmdtypes():
+    """Collect all C2S CmdTypes seen across all proxy recordings."""
+    observed = Counter()  # cmdType -> total count across sessions
+    for path in find_all_jsonl():
+        for d in load_frames(path):
+            if d.get("dir") == "C2S" and d.get("cmdType") is not None:
+                observed[d["cmdType"]] += 1
+    return observed
+
+def _cmdtype_names():
+    """Load CmdType name map from FdEnvelope.kt."""
+    import re
+    envelope = "src/main/kotlin/leyline/protocol/FdEnvelope.kt"
+    names = {}
+    if not os.path.exists(envelope):
+        return names
+    with open(envelope) as f:
+        for line in f:
+            m = re.match(r'\s+(\d+)\s+to\s+"([^"]+)"', line)
+            if m:
+                names[int(m.group(1))] = m.group(2)
+    return names
+
+def cmd_coverage():
+    """Show FD CmdType coverage: handled vs observed in recordings."""
+    handled = _parse_handled_cmdtypes()
+    observed = _collect_observed_cmdtypes()
+    names = _cmdtype_names()
+
+    all_types = sorted(handled | set(observed.keys()))
+    n_sessions = len(find_all_jsonl())
+
+    print(f"FD CmdType coverage ({len(handled)} handled, {len(observed)} observed, {n_sessions} sessions)")
+    print()
+    print(f"{'Cmd':>5s}  {'Name':<40s} {'Handled':>7s}  {'Seen':>5s}")
+    print("-" * 65)
+
+    missing = []
+    for ct in all_types:
+        name = names.get(ct, f"Unknown({ct})")
+        h = "  yes" if ct in handled else "   —"
+        count = observed.get(ct, 0)
+        seen = str(count) if count else "—"
+        marker = ""
+        if ct in observed and ct not in handled:
+            marker = "  ← UNHANDLED"
+            missing.append((ct, name, count))
+        print(f"{ct:5d}  {name:<40s} {h:>7s}  {seen:>5s}{marker}")
+
+    if missing:
+        print()
+        print(f"Unhandled but observed ({len(missing)}):")
+        for ct, name, count in sorted(missing, key=lambda x: -x[2]):
+            print(f"  {ct:5d}  {name:<40s}  seen {count}x")
+
 def cmd_response(cmd_type_str):
     """Print the S2C response payload for a given cmdType (by number or name)."""
     f = find_jsonl()
@@ -250,6 +327,8 @@ if __name__ == "__main__":
             print("Usage: fd-inspect.py response-all <cmdType|name>", file=sys.stderr)
             sys.exit(1)
         cmd_response_all(sys.argv[2])
+    elif cmd == "coverage":
+        cmd_coverage()
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)

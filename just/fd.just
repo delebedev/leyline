@@ -42,3 +42,8 @@ fd-response cmd:
 [group('fd')]
 fd-response-all cmd:
     @{{_fd}} response-all "{{cmd}}"
+
+# CmdType coverage: handled in code vs observed in recordings
+[group('fd')]
+fd-coverage:
+    @{{_fd}} coverage
