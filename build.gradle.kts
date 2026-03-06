@@ -38,6 +38,7 @@ dependencies {
     implementation(project(":account"))
     implementation(project(":frontdoor"))
     implementation(project(":matchdoor"))
+    implementation(project(":tooling"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
     implementation(libs.exposed.core)
@@ -49,10 +50,8 @@ dependencies {
     implementation(libs.logback.classic)
     implementation(libs.sentry.logback)
 
-    testImplementation(libs.archunit)
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
-    testImplementation(libs.kotest.datatest)
 }
 
 // --- Upstream JAR freshness check ---

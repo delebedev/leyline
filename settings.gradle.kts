@@ -6,3 +6,4 @@ rootProject.name = "leyline"
 include("account")
 include("frontdoor")
 include("matchdoor")
+include("tooling")
