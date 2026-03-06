@@ -12,15 +12,21 @@ import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.SelfSignedCertificate
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import leyline.bridge.DeckConverter
+import leyline.bridge.DeckLoader
+import leyline.bridge.FormatService
 import leyline.bridge.GameBootstrap
 import leyline.config.MatchConfig
 import leyline.debug.DebugCollector
 import leyline.debug.DebugEventBus
+import leyline.debug.DebugSinkAdapter
 import leyline.debug.FdDebugCollector
 import leyline.debug.GameStateCollector
+import leyline.debug.SessionRecorder
 import leyline.frontdoor.FrontDoorHandler
 import leyline.frontdoor.FrontDoorReplayStub
 import leyline.frontdoor.GoldenData
+import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.SqlitePlayerStore
@@ -71,8 +77,8 @@ class LeylineServer(
     private val externalHost: String = "localhost",
     /** Card data repository — passed to MatchHandler for grpId↔name lookups. */
     private val cardRepo: leyline.game.CardRepository,
-    /** Player database path. */
-    private val playerDbPath: String = "data/player.db",
+    /** Resolved player database file (may not exist yet — startLocal handles missing DB). */
+    private val playerDbFile: File,
 ) {
     private val log = LoggerFactory.getLogger(LeylineServer::class.java)
 
@@ -121,6 +127,9 @@ class LeylineServer(
         // Register global instance for logback appender (must happen before any logging)
         DebugCollector.instance = debugCollector
 
+        // Configure proto dump output directory
+        leyline.protocol.ProtoDump.engineDumpDir = leyline.LeylinePaths.ENGINE_DUMP
+
         // Eagerly initialize Forge card DB on main thread — avoids race when
         // multiple Netty threads hit GameBridge.start() concurrently.
         GameBootstrap.initializeCardDatabase()
@@ -143,7 +152,6 @@ class LeylineServer(
     }
 
     private fun startLocal(fdSsl: SslContext, mdSsl: SslContext) {
-        val playerDbFile = File(playerDbPath).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), playerDbPath) }
         val hasDb = playerDbFile.exists()
         val resolvedPlayerId = if (hasDb) {
             playerId
@@ -160,8 +168,9 @@ class LeylineServer(
         store.createTables()
         val deckService = DeckService(store)
         val playerService = PlayerService(store)
-        val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort, nameByGrpId = cardRepo::findNameByGrpId)
-        val writer = FdResponseWriter(fdCollector)
+        val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
+        val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort, validateDeck = validateDeck)
+        val writer = FdResponseWriter(onFdMessage = fdCollector::record)
         val golden = GoldenData.loadFromClasspath()
 
         val goldenFile = fdGoldenFile
@@ -174,7 +183,7 @@ class LeylineServer(
                         goldenFile,
                         matchDoorHost = externalHost,
                         matchDoorPort = matchDoorPort,
-                        fdCollector = fdCollector,
+                        onFdMessage = fdCollector::record,
                     ),
                 )
             }
@@ -192,7 +201,7 @@ class LeylineServer(
                         collectionService = CollectionService { cardRepo.findAllGrpIds() },
                         writer = writer,
                         golden = golden,
-                        fdCollector = fdCollector,
+                        onFdMessage = fdCollector::record,
                         onDeckSelected = { selectedDeckId = it },
                         onEventSelected = { selectedEventName = it },
                     ),
@@ -231,8 +240,10 @@ class LeylineServer(
                     deckLookup = deckLookup,
                     deckLookupByName = deckLookupByName,
                     cards = cardRepo,
-                    debugCollector = debugCollector,
-                    gameStateCollector = gameStateCollector,
+                    debugSink = DebugSinkAdapter(debugCollector, gameStateCollector),
+                    recorderFactory = {
+                        SessionRecorder(mode = "engine").also { SessionRecorder.register(it) }
+                    },
                 ),
             )
         }
@@ -248,7 +259,7 @@ class LeylineServer(
         val memDb = org.jetbrains.exposed.v1.jdbc.Database.connect("jdbc:sqlite::memory:", "org.sqlite.JDBC")
         val memStore = SqlitePlayerStore(memDb)
         memStore.createTables()
-        val memWriter = FdResponseWriter(fdCollector)
+        val memWriter = FdResponseWriter(onFdMessage = fdCollector::record)
 
         frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
             ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
@@ -258,11 +269,11 @@ class LeylineServer(
                     playerId = null,
                     deckService = DeckService(memStore),
                     playerService = PlayerService(memStore),
-                    matchmaking = MatchmakingService(memStore, externalHost, matchDoorPort, nameByGrpId = cardRepo::findNameByGrpId),
+                    matchmaking = MatchmakingService(memStore, externalHost, matchDoorPort),
                     collectionService = CollectionService { cardRepo.findAllGrpIds() },
                     writer = memWriter,
                     golden = golden,
-                    fdCollector = fdCollector,
+                    onFdMessage = fdCollector::record,
                 ),
             )
         }
@@ -301,6 +312,24 @@ class LeylineServer(
         workerGroup.shutdownGracefully()
         bossGroup.shutdownGracefully()
         captureSink.close()
+    }
+
+    /**
+     * Compose DeckConverter + DeckLoader + FormatService into a single validation lambda.
+     * Returns null if legal, error string if illegal. Keeps Forge deps out of :frontdoor.
+     */
+    private fun buildDeckValidator(
+        nameByGrpId: (Int) -> String?,
+    ): (List<DeckCard>, List<DeckCard>, String) -> String? = { mainDeck, sideboard, formatId ->
+        val mainEntries = mainDeck.map { leyline.bridge.CardEntry(it.grpId, it.quantity) }
+        val sideEntries = sideboard.map { leyline.bridge.CardEntry(it.grpId, it.quantity) }
+        val deckText = DeckConverter.toDeckText(mainEntries, sideEntries, nameByGrpId)
+        if (deckText.isBlank()) {
+            null
+        } else {
+            val forgeDeck = DeckLoader.parseDeckList(deckText)
+            FormatService.validateDeck(forgeDeck, formatId)
+        }
     }
 
     private fun bindServer(
