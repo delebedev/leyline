@@ -23,6 +23,7 @@ import leyline.frontdoor.service.LobbyStubs
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.DeckWireBuilder
+import leyline.frontdoor.wire.EventWireBuilder
 import leyline.frontdoor.wire.FdResponseWriter
 import leyline.frontdoor.wire.PlayerWireBuilder
 import leyline.protocol.ClientFrameDecoder
@@ -197,19 +198,19 @@ class FrontDoorHandler(
 
             // --- Play blade data ---
             1910 -> { // GetPlayBladeQueueConfig
-                val configJson = EventRegistry.toQueueConfigJson()
+                val configJson = EventWireBuilder.toQueueConfigJson(EventRegistry.queues)
                 log.info("Front Door: PlayBladeQueueConfig ({} queues)", EventRegistry.queues.size)
                 writer.sendJson(ctx, txId, configJson)
             }
 
             624 -> { // Event_GetActiveEventsV2
-                val eventsJson = EventRegistry.toActiveEventsJson()
+                val eventsJson = EventWireBuilder.toActiveEventsJson(EventRegistry.events)
                 log.info("Front Door: ActiveEventsV2 ({} events)", EventRegistry.events.size)
                 writer.sendJson(ctx, txId, eventsJson)
             }
 
             623 -> { // EventGetCoursesV2
-                val coursesJson = EventRegistry.toCoursesJson()
+                val coursesJson = EventWireBuilder.toCoursesJson(EventRegistry.defaultCourses)
                 log.debug("Front Door: EventGetCoursesV2")
                 writer.sendJson(ctx, txId, coursesJson)
             }
