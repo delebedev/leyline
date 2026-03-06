@@ -323,6 +323,29 @@ class FrontDoorHandlerTest :
             obj["limitedClass"].shouldNotBeNull()
         }
 
+        test("CmdType 403 - DeleteDeck removes deck from store") {
+            val deletableId = "test-deck-00000000-0000-0000-0000-deleteme0001"
+            store.save(
+                Deck(
+                    id = DeckId(deletableId),
+                    playerId = PlayerId(testPlayerId),
+                    name = "Doomed Deck",
+                    format = Format.Standard,
+                    tileId = 99999,
+                    mainDeck = sampleMainDeck,
+                    sideboard = emptyList(),
+                    commandZone = emptyList(),
+                    companions = emptyList(),
+                ),
+            )
+            deckService.getById(DeckId(deletableId)).shouldNotBeNull()
+
+            val ch = fdChannel()
+            ch.sendCmd(403, """{"DeckId":"$deletableId"}""")
+
+            deckService.getById(DeckId(deletableId)) shouldBe null
+        }
+
         test("CmdType 9999 - unknown returns response without error") {
             val ch = fdChannel()
             val msg = ch.sendCmd(9999)
