@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import leyline.LeylinePaths
 import leyline.debug.FdDebugCollector
 import leyline.protocol.ClientFrameDecoder
+import leyline.protocol.CmdType
 import leyline.protocol.FdEnvelope
 import leyline.recording.FdFrameRecord
 import leyline.recording.RecordingDecoder
@@ -107,7 +108,7 @@ class CaptureSink(
                     seq = fileSeq,
                     dir = direction,
                     cmdType = decoded.cmdType,
-                    cmdTypeName = decoded.cmdType?.let { FdEnvelope.cmdTypeName(it) },
+                    cmdTypeName = decoded.cmdType?.let { CmdType.nameOf(it) },
                     transactionId = decoded.transactionId,
                     envelopeType = decoded.envelopeType.name,
                     jsonPayload = decoded.jsonPayload,

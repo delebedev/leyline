@@ -2,6 +2,7 @@ package leyline.debug
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import leyline.protocol.CmdType
 import leyline.protocol.FdEnvelope
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -40,7 +41,7 @@ class FdDebugCollector(
             ts = System.currentTimeMillis(),
             dir = direction,
             cmdType = decoded.cmdType,
-            cmdTypeName = decoded.cmdType?.let { FdEnvelope.cmdTypeName(it) },
+            cmdTypeName = decoded.cmdType?.let { CmdType.nameOf(it) },
             transactionId = decoded.transactionId,
             jsonPayload = decoded.jsonPayload,
             envelopeType = decoded.envelopeType.name,

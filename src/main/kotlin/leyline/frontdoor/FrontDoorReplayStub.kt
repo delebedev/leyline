@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import leyline.debug.FdDebugCollector
 import leyline.protocol.ClientFrameDecoder
+import leyline.protocol.CmdType
 import leyline.protocol.FdEnvelope
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -98,7 +99,7 @@ class FrontDoorReplayStub(
 
             val decoded = FdEnvelope.decode(payload)
             val cmdType = decoded.cmdType
-            val cmdName = cmdType?.let { FdEnvelope.cmdTypeName(it) }
+            val cmdName = cmdType?.let { CmdType.nameOf(it) }
             fdCollector?.record("C2S", decoded)
 
             log.info("FD Replay: C→S cmd={} ({}) txId={}", cmdName, cmdType, decoded.transactionId)

@@ -261,11 +261,6 @@ object FdEnvelope {
         return buf.toByteArray()
     }
 
-    // --- CmdType name lookup ---
-
-    /** Human-readable name for a CmdType value, or "Unknown(N)". */
-    fun cmdTypeName(cmdType: Int): String = CMD_TYPE_NAMES[cmdType] ?: "Unknown($cmdType)"
-
     // --- Protobuf parsing primitives ---
 
     private data class ProtoField(
@@ -436,93 +431,4 @@ object FdEnvelope {
                 putJsonArray("Emotes") {}
             }
         }
-
-    /** CmdType enum values → names (from mtga-internals/docs/fd-envelope-proto.md). */
-    private val CMD_TYPE_NAMES = mapOf(
-        0 to "Authenticate",
-        1 to "StartHook",
-        2 to "Scaling_Passthrough",
-        5 to "Attach",
-        6 to "GetFormats",
-        7 to "ForceDetach",
-        400 to "Deck_GetDeck",
-        401 to "Deck_GetDeckSummaries",
-        403 to "Deck_DeleteDeck",
-        406 to "Deck_UpsertDeckV2",
-        407 to "Deck_GetDeckSummariesV2",
-        410 to "Deck_GetAllPreconDecksV3",
-        550 to "Card_GetCardSet",
-        551 to "Card_GetAllCards",
-        552 to "Card_RedeemWildCards",
-        600 to "Event_Join",
-        601 to "Event_Drop",
-        602 to "Event_SetDeck",
-        603 to "Event_EnterPairing",
-        604 to "Event_GetActiveEvents",
-        605 to "Event_GetCourses",
-        606 to "Event_LeavePairing",
-        607 to "Event_ClaimPrize",
-        608 to "Event_GetMatchResultReport",
-        609 to "Event_Resign",
-        610 to "Event_GetChoices",
-        611 to "Event_SetChoice",
-        612 to "Event_AiBotMatch",
-        613 to "Event_GetActiveMatches",
-        614 to "Event_SetJumpStartPacket",
-        615 to "Event_JoinDraftQueue",
-        616 to "Event_LeaveDraftQueue",
-        617 to "Event_PlayerDraftReadyPlayer",
-        618 to "Event_PlayerDraftGetTablePacks",
-        619 to "Event_JoinDraft",
-        620 to "Event_PlayerDraftMakePick",
-        621 to "Event_PlayerDraftConfirmCardPoolGrant",
-        622 to "Event_SetDeckV2",
-        623 to "Event_GetCoursesV2",
-        624 to "Event_GetActiveEventsV2",
-        625 to "Event_PlayerDraftReserveCard",
-        626 to "Event_PlayerDraftClearReservedCard",
-        703 to "Store_GetEntitlements",
-        704 to "Carousel_GetCarouselItems",
-        708 to "Merc_GetStoreStatusV2",
-        712 to "Store_GetEntitlementsV2",
-        715 to "Merc_GetSkusAndListings",
-        800 to "Currency_GetCurrencies",
-        901 to "Booster_GetOwnedBoosters",
-        1000 to "Quest_GetQuests",
-        1100 to "Rank_GetCombinedRankInfo",
-        1102 to "Rank_GetSeasonAndRankDetails",
-        1105 to "Rank_EvaluatePayoutsV2",
-        1200 to "PeriodicRewards_GetStatus",
-        1201 to "Renewal_GetCurrentRenewal",
-        1520 to "GetVoucherDefinitions",
-        1521 to "GetSets",
-        1700 to "Graph_GetGraphDefinitions",
-        1701 to "Graph_GetGraphState",
-        1702 to "Graph_Process",
-        1900 to "Cosmetics_GetPlayerOwnedCosmetics",
-        1910 to "GetPlayBladeQueueConfig",
-        1911 to "GetPlayerPreferences",
-        1912 to "SetPlayerPreferences",
-        1913 to "LogBusinessEvents",
-        1914 to "LogBusinessEventsV2",
-        2200 to "GetNetDeckFolders",
-        2300 to "GetPlayerInbox",
-        2400 to "GetDesignerMetadata",
-        2500 to "StaticContent",
-        2600 to "GetAllPreferredPrintings",
-        2700 to "GetAllPrizeWalls",
-        3000 to "ChallengeJoin",
-        3001 to "ChallengeCreate",
-        3002 to "ChallengeSendMessage",
-        3003 to "ChallengeExit",
-        3004 to "ChallengeInvite",
-        3005 to "ChallengeClose",
-        3006 to "ChallengeReconnectAll",
-        3007 to "ChallengeKick",
-        3008 to "ChallengeReady",
-        3009 to "ChallengeUnready",
-        3010 to "ChallengeSetSettings",
-        3011 to "ChallengeIssue",
-        3012 to "ChallengeStartLaunchCountdown",
-    )
 }
