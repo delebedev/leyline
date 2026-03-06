@@ -58,7 +58,9 @@ class MockWasServer(
             val f = File(LeylinePaths.SESSION_DIR, "was-frames.jsonl")
             LeylinePaths.SESSION_DIR.mkdirs()
             FileWriter(f, true)
-        } catch (_: Exception) { null }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     val isProxy: Boolean get() = upstreamWas != null
@@ -150,7 +152,7 @@ class MockWasServer(
         if (isProxy) {
             val doorbellBase = upstreamDoorbell ?: upstreamWas!!
             val subPath = ex.requestURI.path.removePrefix("/api/doorbell")
-            proxyDoorbell(ex, "$doorbellBase/api/doorbell$subPath")
+            proxyDoorbell(ex, "$doorbellBase$subPath")
             return
         }
         if (ex.requestMethod == "POST") ex.requestBody.readBytes()
@@ -189,7 +191,7 @@ class MockWasServer(
         val resp = proxyClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofByteArray())
         log.info("WAS proxy: {} {} -> {} ({})", ex.requestMethod, ex.requestURI.path, targetUrl, resp.statusCode())
         val respBytes = resp.body()
-        logFrame(ex.requestMethod, ex.requestURI.path, body, resp.statusCode(), respBytes)
+        logFrame(ex.requestMethod, ex.requestURI.path, ex.requestHeaders, body, resp.statusCode(), respBytes)
         ex.responseHeaders.add("Content-Type", resp.headers().firstValue("Content-Type").orElse("application/json"))
         ex.sendResponseHeaders(resp.statusCode(), respBytes.size.toLong())
         ex.responseBody.use { it.write(respBytes) }
@@ -209,7 +211,7 @@ class MockWasServer(
         }
         val resp = proxyClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofString())
         var json = resp.body()
-        logFrame(ex.requestMethod, ex.requestURI.path, body, resp.statusCode(), json.toByteArray(Charsets.UTF_8))
+        logFrame(ex.requestMethod, ex.requestURI.path, ex.requestHeaders, body, resp.statusCode(), json.toByteArray(Charsets.UTF_8))
         // Rewrite FdURI to localhost so client connects to our proxy FD
         json = json.replace(Regex(""""FdURI"\s*:\s*"[^"]+""""), """"FdURI":"$fdHost"""")
         log.info("WAS proxy: doorbell -> {} (rewrote FdURI={})", targetUrl, fdHost)
@@ -244,13 +246,22 @@ class MockWasServer(
         ex.responseBody.use { it.write(bytes) }
     }
 
-    private fun logFrame(method: String, path: String, reqBody: ByteArray?, status: Int, respBody: ByteArray) {
+    private fun logFrame(method: String, path: String, reqHeaders: Map<String, List<String>>?, reqBody: ByteArray?, status: Int, respBody: ByteArray) {
         val w = wasFramesWriter ?: return
         val s = seq.incrementAndGet()
         val line = buildJsonObject {
             put("seq", s)
             put("method", method)
             put("path", path)
+            if (reqHeaders != null) {
+                putJsonObject("reqHeaders") {
+                    reqHeaders.forEach { (k, vs) ->
+                        if (!k.equals("Host", ignoreCase = true)) {
+                            put(k, vs.joinToString(", "))
+                        }
+                    }
+                }
+            }
             put("reqBody", reqBody?.toString(Charsets.UTF_8) ?: "")
             put("status", status)
             put("respBody", respBody.toString(Charsets.UTF_8))

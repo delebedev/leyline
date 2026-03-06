@@ -32,3 +32,23 @@ fd-summary:
 [group('fd')]
 fd-pairs:
     @{{_fd}} pairs
+
+# S2C response payload for a cmdType (number or name substring, pipe to jq)
+[group('fd')]
+fd-response cmd:
+    @{{_fd}} response "{{cmd}}"
+
+# list all events from latest 624 response (optional filter substring)
+[group('fd')]
+fd-events filter="":
+    @{{_fd}} events "{{filter}}"
+
+# field values across all events in all proxy sessions (dot path, optional --by group)
+[group('fd')]
+fd-field path *args:
+    @{{_fd}} field "{{path}}" {{args}}
+
+# diff events between two sessions (partial session names ok)
+[group('fd')]
+fd-diff session1 session2 cmd="624":
+    @{{_fd}} diff "{{session1}}" "{{session2}}" "{{cmd}}"

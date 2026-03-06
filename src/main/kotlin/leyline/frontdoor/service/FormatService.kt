@@ -11,12 +11,23 @@ import org.slf4j.LoggerFactory
 object FormatService {
     private val log = LoggerFactory.getLogger(FormatService::class.java)
 
+    /** Arena format names that have no Forge equivalent — skip validation. */
+    private val UNMAPPED_FORMATS = setOf("Timeless", "Alchemy")
+
+    /** Arena → Forge renames (after stripping "Traditional" prefix). */
+    private val ARENA_TO_FORGE = mapOf(
+        "Explorer" to "Pioneer",
+    )
+
     /**
-     * Map Arena deckSelectFormat string to Forge format name.
-     * "TraditionalStandard" -> "Standard" (Traditional = Bo3, same card pool).
+     * Map Arena deckSelectFormat string to Forge format name, or null if unmapped.
+     * "TraditionalStandard" → "Standard", "Explorer" → "Pioneer".
      */
-    fun mapArenaFormat(arenaFormat: String): String =
-        arenaFormat.removePrefix("Traditional")
+    fun mapArenaFormat(arenaFormat: String): String? {
+        val base = arenaFormat.removePrefix("Traditional")
+        if (base in UNMAPPED_FORMATS) return null
+        return ARENA_TO_FORGE[base] ?: base
+    }
 
     /**
      * Resolve a format name to the engine [GameFormat].

@@ -95,7 +95,7 @@ class EventRegistryTest :
 
         test("forgeFormatFor returns mapped format for ranked event") {
             EventRegistry.forgeFormatFor("Ladder") shouldBe "Standard"
-            EventRegistry.forgeFormatFor("Explorer_Ladder") shouldBe "Explorer"
+            EventRegistry.forgeFormatFor("Explorer_Ladder") shouldBe "Pioneer"
             EventRegistry.forgeFormatFor("Historic_Play") shouldBe "Historic"
         }
 
