@@ -4,10 +4,6 @@ import forge.game.Game
 import leyline.bridge.ClientAutoPassState
 import leyline.bridge.PhaseStopProfile
 import leyline.bridge.PlayerAction
-import leyline.debug.DebugCollector
-import leyline.debug.GameStateCollector
-import leyline.debug.SessionRecorder
-import leyline.debug.Tap
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
@@ -40,12 +36,10 @@ class MatchSession(
     val sink: MessageSink,
     val registry: MatchRegistry,
     val paceDelayMs: Long = 200L,
-    val recorder: SessionRecorder? = null,
+    val recorder: MatchRecorder? = null,
     override var counter: MessageCounter = MessageCounter(),
-    /** Protocol message collector for debug panel. Null in tests. */
-    private val debugCollector: DebugCollector? = null,
-    /** Structured game state collector for debug panel. Null in tests. */
-    private val gameStateCollector: GameStateCollector? = null,
+    /** Debug diagnostics sink — protocol messages + game state collector. Null in tests. */
+    private val debugSink: MatchDebugSink? = null,
 ) : SessionOps {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
@@ -110,7 +104,7 @@ class MatchSession(
 
         val game = bridge.getGame() ?: return
 
-        traceEvent(GameStateCollector.EventType.GAME_START, game, "post-mulligan, entering Main1")
+        traceEvent(MatchEventType.GAME_START, game, "post-mulligan, entering Main1")
 
         // Drain AI action diffs queued during awaitPriority.
         // These have gsIds allocated by the engine thread via the shared counter
@@ -157,7 +151,7 @@ class MatchSession(
 
         val game = bridge.getGame() ?: return
 
-        traceEvent(GameStateCollector.EventType.GAME_START, game, "puzzle-start")
+        traceEvent(MatchEventType.GAME_START, game, "puzzle-start")
 
         // Seed state snapshot for subsequent diff computation.
         // The puzzle initial bundle already sent the Full GSM, so the bridge
@@ -221,7 +215,7 @@ class MatchSession(
             } else {
                 ""
             }
-            traceEvent(GameStateCollector.EventType.CLIENT_ACTION, game, "$actionName iid=${action.instanceId}$cardName")
+            traceEvent(MatchEventType.CLIENT_ACTION, game, "$actionName iid=${action.instanceId}$cardName")
         }
 
         when (action.actionType) {
@@ -545,8 +539,7 @@ class MatchSession(
         // Trigger post-game analysis
         recorder?.run {
             markGameOver()
-            close()
-            SessionRecorder.unregister(this)
+            shutdown()
         }
     }
 
@@ -567,8 +560,8 @@ class MatchSession(
 
     /** Send multiple GRE messages bundled in one GreToClientEvent + mirror to peer. */
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
-        debugCollector?.recordOutbound(messages, seatId)
-        gameStateCollector?.collectOutbound(messages, debugCollector?.currentSeq() ?: 0)
+        debugSink?.recordOutbound(messages, seatId)
+        debugSink?.collectOutbound(messages, debugSink?.currentSeq() ?: 0)
         // Track last-sent TurnInfo so BundleBuilder.postAction() can detect phase
         // transitions even when PhaseStopProfile causes the engine to skip phases.
         val bridge = gameBridge
@@ -607,7 +600,7 @@ class MatchSession(
     }
 
     /** Emit a priority trace event to [GameStateCollector]. */
-    override fun traceEvent(type: GameStateCollector.EventType, game: Game, detail: String) {
+    override fun traceEvent(type: MatchEventType, game: Game, detail: String) {
         val phase = game.phaseHandler.phase?.name
         val turn = game.phaseHandler.turn
         val human = gameBridge?.getPlayer(seatId)
@@ -616,7 +609,7 @@ class MatchSession(
             else -> "ai"
         }
         val stackDepth = game.stack?.size() ?: 0
-        gameStateCollector?.recordEvent(counter.currentGsId(), type, phase, turn, detail, priority, stackDepth, debugCollector?.currentSeq() ?: 0)
+        debugSink?.recordEvent(counter.currentGsId(), type, phase, turn, detail, priority, stackDepth, debugSink.currentSeq())
     }
 
     /** Pacing delay — skipped when paceDelayMs == 0 (tests). */

@@ -145,7 +145,7 @@ object AnnotationPipeline {
      *
      * Returns (transient annotations, persistent annotations).
      */
-    internal fun annotationsForTransfer(
+    fun annotationsForTransfer(
         transfer: AppliedTransfer,
         actingSeat: Int,
     ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
@@ -276,7 +276,7 @@ object AnnotationPipeline {
      * **Pure function** — uses [idResolver] to map forgeCardId → instanceId.
      * Returns [MechanicAnnotationResult] with both transient and persistent annotations.
      */
-    internal fun mechanicAnnotations(
+    fun mechanicAnnotations(
         events: List<GameEvent>,
         idResolver: (Int) -> Int,
     ): MechanicAnnotationResult {
@@ -373,7 +373,7 @@ object AnnotationPipeline {
     }
 
     /** Infer category for a zone transfer annotation from zone IDs. */
-    internal fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): TransferCategory =
+    fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): TransferCategory =
         when {
             srcZone == ZONE_P1_HAND || srcZone == ZONE_P2_HAND -> when (destZone) {
                 ZONE_STACK -> TransferCategory.CastSpell

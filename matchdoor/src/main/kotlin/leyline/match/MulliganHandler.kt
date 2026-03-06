@@ -2,7 +2,6 @@ package leyline.match
 
 import io.netty.channel.ChannelHandlerContext
 import leyline.config.MatchConfig
-import leyline.debug.Tap
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory

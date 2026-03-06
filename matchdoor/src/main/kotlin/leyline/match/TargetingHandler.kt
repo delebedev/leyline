@@ -2,8 +2,6 @@ package leyline.match
 
 import forge.game.Game
 import leyline.bridge.InteractivePromptBridge
-import leyline.debug.GameStateCollector
-import leyline.debug.Tap
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
@@ -102,7 +100,7 @@ class TargetingHandler(private val ops: SessionOps) {
         if (pendingPrompt != null && pendingPrompt.request.candidateRefs.isNotEmpty()) {
             val game = bridge.getGame() ?: return false
             ops.traceEvent(
-                GameStateCollector.EventType.TARGET_PROMPT,
+                MatchEventType.TARGET_PROMPT,
                 game,
                 "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
             )
@@ -140,7 +138,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: return PromptResult.NONE
         if (pendingPrompt.request.candidateRefs.isNotEmpty()) {
             // Targeting prompt → send SelectTargetsReq to client
-            ops.traceEvent(GameStateCollector.EventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
+            ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
             sendSelectTargetsReq(bridge, pendingPrompt)
             return PromptResult.SENT_TO_CLIENT
         }
@@ -154,7 +152,7 @@ class TargetingHandler(private val ops: SessionOps) {
             req.defaultIndex,
         )
         ops.traceEvent(
-            GameStateCollector.EventType.AUTO_PASS,
+            MatchEventType.AUTO_PASS,
             game,
             "auto-resolve prompt [${req.promptType}] default=${req.defaultIndex}",
         )

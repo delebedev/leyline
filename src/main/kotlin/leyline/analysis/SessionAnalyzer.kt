@@ -3,6 +3,7 @@ package leyline.analysis
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import leyline.LeylinePaths
+import leyline.game.InvariantChecker
 import leyline.recording.RecordingDecoder
 import org.slf4j.LoggerFactory
 import java.io.File

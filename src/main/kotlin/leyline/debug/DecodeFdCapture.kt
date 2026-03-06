@@ -2,9 +2,9 @@ package leyline.debug
 
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import leyline.frontdoor.wire.CmdType
+import leyline.frontdoor.wire.FdEnvelope
 import leyline.protocol.ClientFrameDecoder
-import leyline.protocol.CmdType
-import leyline.protocol.FdEnvelope
 import leyline.recording.FdFrameRecord
 import java.io.File
 import java.io.PrintWriter
@@ -74,7 +74,8 @@ fun main(args: Array<String>) {
                 )
                 writer.println(jsonFmt.encodeToString(record))
                 decoded++
-                if (msg.jsonPayload != null && msg.jsonPayload.length > 100) withPayload++
+                val payload = msg.jsonPayload
+                if (payload != null && payload.length > 100) withPayload++
             } catch (e: Exception) {
                 System.err.println("  WARN: ${file.name}: ${e.message}")
             }

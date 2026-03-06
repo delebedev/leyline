@@ -6,7 +6,6 @@ import leyline.bridge.AutoPassReason
 import leyline.bridge.ClientAutoPassState
 import leyline.bridge.PlayerAction
 import leyline.bridge.PriorityDecision
-import leyline.debug.GameStateCollector
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
@@ -70,7 +69,7 @@ class AutoPassEngine(
         repeat(MAX_ITERATIONS) {
             val game = bridge.getGame() ?: return
             if (game.isGameOver) {
-                ops.traceEvent(GameStateCollector.EventType.GAME_OVER, game, "game over detected")
+                ops.traceEvent(MatchEventType.GAME_OVER, game, "game over detected")
                 ops.sendGameOver()
                 return
             }
@@ -164,7 +163,7 @@ class AutoPassEngine(
                 actionCount = actions.actionsCount,
             )
             recordDecision(game, decision)
-            ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "fullControl: grant")
+            ops.traceEvent(MatchEventType.SEND_STATE, game, "fullControl: grant")
             return decision
         }
 
@@ -172,7 +171,7 @@ class AutoPassEngine(
         if (autoPassState.shouldAutoPass() && BundleBuilder.shouldAutoPass(actions)) {
             val decision = PriorityDecision.Skip(AutoPassReason.ClientAutoPass)
             recordDecision(game, decision)
-            ops.traceEvent(GameStateCollector.EventType.AUTO_PASS, game, "clientAutoPass: ${autoPassState.autoPassOption}")
+            ops.traceEvent(MatchEventType.AUTO_PASS, game, "clientAutoPass: ${autoPassState.autoPassOption}")
             return decision
         }
 
@@ -191,7 +190,7 @@ class AutoPassEngine(
             actionCount = actions.actionsCount,
         )
         recordDecision(game, decision)
-        ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "actions: $actionSummary")
+        ops.traceEvent(MatchEventType.SEND_STATE, game, "actions: $actionSummary")
         return decision
     }
 
@@ -209,12 +208,12 @@ class AutoPassEngine(
             // Engine-internal AI_DEFAULTS in PhaseStopProfile are NOT checked
             // here — they're for the AI's own combat logic.
             if (isAiTurn && phase != null && autoPassState.hasOpponentStop(phase)) {
-                ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "opponentStop: ${phase.name}")
+                ops.traceEvent(MatchEventType.SEND_STATE, game, "opponentStop: ${phase.name}")
                 ops.sendRealGameState(bridge)
                 return null // exit loop — client will respond via onPerformAction
             }
 
-            ops.traceEvent(GameStateCollector.EventType.AUTO_PASS, game, "human priority, pass-only")
+            ops.traceEvent(MatchEventType.AUTO_PASS, game, "human priority, pass-only")
             // During AI turn, skip sending EdictalMessage — real server never
             // sends edictal passes during AI turn. Sending them interrupts the
             // client's animation pipeline (enters post-pass "waiting" state).
@@ -225,22 +224,22 @@ class AutoPassEngine(
             bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
             bridge.awaitPriority()
         } else if (isAiTurn) {
-            ops.traceEvent(GameStateCollector.EventType.AI_TURN_WAIT, game, "waiting for AI")
+            ops.traceEvent(MatchEventType.AI_TURN_WAIT, game, "waiting for AI")
             val reachedPriority = bridge.awaitPriorityWithTimeout(GameBridge.AI_TURN_WAIT_MS)
             if (!reachedPriority) {
                 val g = bridge.getGame()
                 if (g != null && g.isGameOver) {
-                    ops.traceEvent(GameStateCollector.EventType.GAME_OVER, game, "game over during AI wait")
+                    ops.traceEvent(MatchEventType.GAME_OVER, game, "game over during AI wait")
                     ops.sendGameOver()
                     return null
                 }
-                ops.traceEvent(GameStateCollector.EventType.AI_TURN_TIMEOUT, game, "AI turn timed out")
+                ops.traceEvent(MatchEventType.AI_TURN_TIMEOUT, game, "AI turn timed out")
                 log.warn("autoPass: AI turn timed out, sending current state")
                 ops.sendRealGameState(bridge)
                 return null
             }
         } else {
-            ops.traceEvent(GameStateCollector.EventType.PRIORITY_GRANT, game, "waiting for engine")
+            ops.traceEvent(MatchEventType.PRIORITY_GRANT, game, "waiting for engine")
             log.warn("autoPass: no pending action, waiting for priority")
             bridge.awaitPriority()
         }

@@ -1,5 +1,4 @@
 import leyline.build.CheckUpstreamTask
-import leyline.build.SyncProtoTask
 import leyline.build.WriteClasspathTask
 import leyline.build.configureTestDefaults
 
@@ -7,7 +6,6 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.power.assert)
-    alias(libs.plugins.protobuf)
     alias(libs.plugins.spotless)
     alias(libs.plugins.detekt)
     id("org.gradle.test-retry")
@@ -38,11 +36,10 @@ kotlin {
 
 dependencies {
     implementation(project(":account"))
+    implementation(project(":frontdoor"))
+    implementation(project(":matchdoor"))
     implementation(libs.kotlin.stdlib)
- implementation(libs.serialization.json)
-    implementation(libs.protobuf.java)
-    implementation(libs.protobuf.java.util)
-    implementation(libs.tomlkt)
+    implementation(libs.serialization.json)
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite.jdbc)
@@ -51,34 +48,11 @@ dependencies {
     implementation(libs.bouncycastle.pkix)
     implementation(libs.logback.classic)
     implementation(libs.sentry.logback)
-    implementation(libs.forge.core)
-    implementation(libs.forge.game)
-    implementation(libs.forge.ai)
-    implementation(libs.forge.gui)
 
     testImplementation(libs.archunit)
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
     testImplementation(libs.kotest.datatest)
-}
-
-// --- Proto sync + generation ---
-
-val syncProto by tasks.registering(SyncProtoTask::class) {
-    description = "Generate messages.proto from upstream submodule + rename map"
-    sedFile.set(layout.projectDirectory.file("proto/rename-map.sed"))
-    upstream.set(layout.projectDirectory.file("proto/upstream/messages.proto"))
-    outputFile.set(layout.projectDirectory.file("src/main/proto/messages.proto"))
-}
-
-tasks.named("extractProto") {
-    dependsOn(syncProto)
-}
-
-protobuf {
-    protoc {
-        artifact = "com.google.protobuf:protoc:3.25.5"
-    }
 }
 
 // --- Upstream JAR freshness check ---
@@ -144,14 +118,9 @@ val testIntegration by tasks.registering(Test::class) {
     maxParallelForks = 4
 }
 
-val testFd by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "FdTag")
-}
-
 val testGate by tasks.registering(Test::class) {
     configureTestDefaults()
-    systemProperty("kotest.tags", "UnitTag | ConformanceTag | FdTag")
+    systemProperty("kotest.tags", "UnitTag | ConformanceTag")
 }
 
 // --- JaCoCo ---
@@ -172,8 +141,6 @@ tasks.jacocoTestReport {
                     "leyline/debug/**",
                     "leyline/infra/**",
                     "leyline/cli/**",
-                    "leyline/frontdoor/wire/**",
-                    "leyline/protocol/**",
                     "leyline/conformance/CompareMain*",
                     "leyline/conformance/GameFlowAnalyzer*",
                     "leyline/recording/**",

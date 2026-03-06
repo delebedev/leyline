@@ -2,8 +2,8 @@ package leyline.debug
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import leyline.protocol.CmdType
-import leyline.protocol.FdEnvelope
+import leyline.frontdoor.wire.CmdType
+import leyline.frontdoor.wire.FdEnvelope
 import java.util.concurrent.atomic.AtomicInteger
 
 /**

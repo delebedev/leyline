@@ -1,4 +1,4 @@
-package leyline.analysis
+package leyline.game
 
 import kotlinx.serialization.Serializable
 import wotc.mtgo.gre.external.messaging.Messages.*

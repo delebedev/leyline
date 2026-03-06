@@ -6,6 +6,7 @@ import leyline.LeylinePaths
 import leyline.analysis.MechanicClassifier
 import leyline.analysis.SessionAnalyzer
 import leyline.game.GameEvent
+import leyline.match.MatchRecorder
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.BufferedWriter
@@ -33,7 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger
 class SessionRecorder(
     private val sessionDir: File = LeylinePaths.SESSION_DIR,
     private val mode: String = "engine",
-) {
+) : MatchRecorder {
     private val log = LoggerFactory.getLogger(SessionRecorder::class.java)
     private val seq = AtomicInteger(0)
     private val closed = AtomicBoolean(false)
@@ -122,7 +123,7 @@ class SessionRecorder(
     // --- Recording methods ---
 
     /** Record outbound GRE messages (what we told the client). */
-    fun recordOutbound(messages: List<GREToClientMessage>) {
+    override fun recordOutbound(messages: List<GREToClientMessage>) {
         if (closed.get()) return
         val s = seq.incrementAndGet()
         val ts = Instant.now().toString()
@@ -179,7 +180,7 @@ class SessionRecorder(
     }
 
     /** Record inbound client action. */
-    fun recordClientAction(greMsg: ClientToGREMessage) {
+    override fun recordClientAction(greMsg: ClientToGREMessage) {
         if (closed.get()) return
         val s = seq.incrementAndGet()
         val ts = Instant.now().toString()
@@ -228,8 +229,14 @@ class SessionRecorder(
     }
 
     /** Mark game over received. */
-    fun markGameOver() {
+    override fun markGameOver() {
         gameOverReceived = true
+    }
+
+    /** Close the recorder and unregister from shutdown hook. Idempotent. */
+    override fun shutdown() {
+        close()
+        unregister(this)
     }
 
     /** Close the recorder and optionally trigger analysis. */

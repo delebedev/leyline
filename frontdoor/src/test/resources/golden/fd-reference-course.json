@@ -1,0 +1,34 @@
+{
+  "CourseId": "00000000-0000-0000-0000-000000000000",
+  "InternalEventName": "Ladder",
+  "CurrentModule": "Complete",
+  "ModulePayload": "",
+  "CourseDeckSummary": {
+    "DeckId": "00000000-0000-0000-0000-000000000000",
+    "Name": "",
+    "Attributes": [],
+    "DeckTileId": 0,
+    "DeckArtId": 0,
+    "FormatLegalities": {},
+    "PreferredCosmetics": {
+      "Avatar": "",
+      "Sleeve": "",
+      "Pet": "",
+      "Title": "",
+      "Emotes": []
+    },
+    "DeckValidationSummaries": [],
+    "UnownedCards": {}
+  },
+  "CourseDeck": {
+    "MainDeck": [],
+    "ReducedSideboard": [],
+    "Sideboard": [],
+    "CommandZone": [],
+    "Companions": [],
+    "CardSkins": []
+  },
+  "CardPool": [],
+  "CardPoolByCollation": [],
+  "CardStyles": []
+}
