@@ -12,6 +12,7 @@ import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.SelfSignedCertificate
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import leyline.bridge.GameBootstrap
 import leyline.config.MatchConfig
 import leyline.debug.DebugCollector
 import leyline.debug.DebugEventBus
@@ -121,6 +122,10 @@ class LeylineServer(
     fun start() {
         // Register global instance for logback appender (must happen before any logging)
         DebugCollector.instance = debugCollector
+
+        // Eagerly initialize Forge card DB on main thread — avoids race when
+        // multiple Netty threads hit GameBridge.start() concurrently.
+        GameBootstrap.initializeCardDatabase()
 
         val ssl = buildSslContext()
         when {
