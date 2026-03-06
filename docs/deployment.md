@@ -47,17 +47,17 @@ just deploy         # docker-build + pull + restart on VPS
 
 | Port | Protocol | Service |
 |------|----------|---------|
-| 443 | HTTPS | MockWAS (auth + doorbell), via reverse proxy |
+| 443 | HTTPS | AccountServer (auth + doorbell), via reverse proxy |
 | 30010 | TLS TCP | FrontDoor (direct) |
 | 30003 | TLS TCP | MatchDoor (direct) |
-| 9443 | HTTPS | MockWAS (internal) |
+| 9443 | HTTPS | AccountServer (internal) |
 | 8090 | HTTP | Debug panel (internal) |
 
 ## Local Dev
 
 ```bash
 just dev-setup      # gen certs + patch Arena + macOS defaults
-just serve          # start server (stub mode)
+just serve          # start server (local mode)
 just dev-teardown   # undo
 ```
 
@@ -71,4 +71,4 @@ Auto-detects card DB from `~/Library/Application Support/com.wizards.mtga/Downlo
 | `MTGA_FeatureToggle` | Feature toggle editor (always on) |
 | `MTGA_DEBUG` | Debug panel — `LEYLINE_DEBUG=true` to enable |
 
-No account verification — any credentials work.
+Dev mode auto-seeds account `forge@local` / `forge`. Registration and login with bcrypt password verification.

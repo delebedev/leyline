@@ -8,7 +8,7 @@
 #fd_port = 30010
 #md_port = 30003
 #debug_port = 8090
-#was_port = 9443
+#account_port = 9443
 #management_port = 8091
 
 # Bridge timeout — how long the engine waits for a client response (ms).

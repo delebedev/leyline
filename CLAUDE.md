@@ -1,12 +1,12 @@
 # leyline
 
-Client compat layer — stubs/proxies the client's Front Door + Match Door so the game client connects to Forge's engine. (Codebase historically called forge-nexus.)
+Client compat layer — stubs/proxies the client's Front Door + Match Door + WAS (account server) so the game client connects to Forge's engine. (Codebase historically called forge-nexus.)
 
 - **Transport:** raw Netty TLS TCP (not HTTP — client uses 6-byte framing + protobuf)
 - **Depends on:** forge-web (game bridges, bootstrap) — never reverse the dependency
 - **Proto:** `src/main/proto/messages.proto` — client protobuf schema (from MtgaProto project)
 - **Card data:** `CardDb.kt` reads the client's local SQLite for grpId, types, mana cost
-- **Server modes:** `just serve` (stub, main dev — fully offline), `just serve-proxy` (passthrough for recording), `just serve-replay`
+- **Server modes:** `just serve` (local, main dev — fully offline), `just serve-proxy` (passthrough for recording), `just serve-replay`
 - **Roadmap:** [GitHub Project board](https://github.com/users/delebedev/projects/1) — epics for Multiplayer, Sealed, Draft, Direct Challenge, Match History, Social, Brawl/Commander
 - **Bugs & tasks:** GitHub Issues — no local TODO/BUGS files
 
@@ -23,7 +23,7 @@ Debug server on `:8090` (auto-starts with `just serve`). Full endpoint reference
 ## Reference
 
 - **Mechanic catalog:** `docs/catalog.yaml` — what works, what's wired, what's missing. Organized by gameplay mechanic (what players experience), not protocol internals. Read this first to understand current state. Update it when changing mechanic support.
-- **Rosetta table:** `docs/rosetta.md` — Arena protocol ↔ Forge engine ↔ forge-nexus code. Annotation types, zone IDs, transfer categories, action types, GRE messages, phase mapping, GameEvent wiring status. Protocol-level reference for when you need type numbers and field details.
+- **Rosetta table:** `docs/rosetta.md` — Arena protocol ↔ Forge engine ↔ leyline code. Annotation types, zone IDs, transfer categories, action types, GRE messages, phase mapping, GameEvent wiring status. Protocol-level reference for when you need type numbers and field details.
 
 ## Mental Model
 

@@ -1,12 +1,12 @@
-# Rosetta: Arena Protocol / Forge Engine / forge-nexus
+# Rosetta: Arena Protocol / Forge Engine / Leyline
 
-Translation reference: Arena protocol ↔ Forge engine ↔ forge-nexus code.
+Translation reference: Arena protocol ↔ Forge engine ↔ leyline code.
 
 ## Table 1: Annotation Types
 
-Arena type numbers, Forge events, and forge-nexus handling. `--` = no mapping. `MISSING` = not yet implemented.
+Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISSING` = not yet implemented.
 
-| Type# | Arena Name | Forge GameEvent | GameEvent | AnnotationBuilder Method | Key Detail Keys | Status |
+| Type# | Arena Name | Forge GameEvent | Leyline GameEvent | AnnotationBuilder Method | Key Detail Keys | Status |
 |------:|------------|-----------------|----------------|--------------------------|-----------------|--------|
 | 1 | ZoneTransfer | `GameEventCardChangeZone` | `ZoneChanged` | `zoneTransfer()` | `zone_src`, `zone_dest`, `category` | Implemented |
 | 3 | DamageDealt | `GameEventCardDamaged`, `GameEventPlayerDamaged` | `DamageDealtToCard`, `DamageDealtToPlayer` | `damageDealt()` | `damage`, `type`, `markDamage` | Implemented |
@@ -356,4 +356,4 @@ All 57 concrete `GameEvent` classes in `forge.game.event`:
 
 **Wired: 20 of 57 events** (35%). `CardChangeZone` now dispatches 6 zone-specific variants in addition to generic `ZoneChanged`. Key unwired events for future work: `CardPhased`, `SpellRemovedFromStack`, `FlipCoin`, `RollDie`, `PlayerControl`.
 
-**Known limitation:** `GameEventCardDestroyed` is an empty Java record (`record Foo() implements GameEvent`) — no card field. Zone-pair inference from `GameEventCardChangeZone` covers destroy/exile/bounce/etc. `GameEventTokenCreated` was enriched with `List<Card> tokens` (4 of 5 callsites pass token refs; `InvestigateEffect` uses empty fallback due to per-player loop).
+**Known limitation:** `GameEventCardDestroyed` is an empty Java record (`record Foo() implements GameEvent`) — no card field. Zone-pair inference from `GameEventCardChangeZone` covers destroy/exile/bounce/etc. `GameEventTokenCreated` was enriched with `List<Card> tokens` (4 of 5 call sites pass token refs; `InvestigateEffect` uses empty fallback due to per-player loop).

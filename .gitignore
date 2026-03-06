@@ -15,8 +15,7 @@ nbactions.xml
 
 # Gradle
 .gradle/
-/build/
-buildSrc/build/
+**/build/
 target
 
 # Logs

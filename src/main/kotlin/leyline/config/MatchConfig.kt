@@ -103,9 +103,9 @@ data class ServerConfig(
     @SerialName("debug_port")
     val debugPort: Int = 8090,
 
-    /** Mock WAS (auth) HTTPS port. CLI: --was-port */
-    @SerialName("was_port")
-    val wasPort: Int = 9443,
+    /** AccountServer (auth) HTTPS port. CLI: --account-port */
+    @SerialName("account_port")
+    val accountPort: Int = 9443,
 
     /** Management HTTP port (health checks, always starts). */
     @SerialName("management_port")
