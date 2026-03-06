@@ -50,11 +50,10 @@ Other dirs: `bin/` (CLI tools), `docs/`, `forge/` (engine submodule), `gradle/`,
 
 All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/nexus-tests.md` for tags, setup tiers, conventions, and per-module commands. Key rule: **scope tests to changed modules, don't run everything.**
 
-## Debug Panel & API
+## Debugging
 
-Debug server on `:8090` (auto-starts with `just serve`). Full endpoint reference: `docs/debug-api.md`.
-
-**Client error watcher:** auto-tails `Player.log` during `just serve`. Client-side exceptions (annotation parse failures, missing fields) appear inline in server output and are queryable at `/api/client-errors`. Errors persisted to `recordings/<session>/client-errors.jsonl`. Standalone: `just watch-client`.
+- **Client errors:** `recordings/<session>/client-errors.jsonl` (persisted per session). Arena log: `~/Library/Logs/Wizards of the Coast/MTGA/Player.log`. Auto-tailed during `just serve`; standalone: `just watch-client`.
+- **Debug server** on `:8090` (auto-starts with `just serve`) — browser UI for live game state, priority log, accumulator. Full endpoint reference: `docs/debug-api.md`. Prefer reading files/using CLI tools over HTTP API for non-live inspection.
 
 ## Reference
 
