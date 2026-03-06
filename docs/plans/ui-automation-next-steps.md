@@ -4,7 +4,7 @@
 
 ## Context
 
-Synthetic mouse clicks work on macOS 15+ with Unity via `tools/click` (CGEvent +
+Synthetic mouse clicks work on macOS 15+ with Unity via `bin/click` (CGEvent +
 `mach_absolute_time()` + foreground window activation). Current coordinate mapping
 is manual: screenshot at 1280px → multiply by 1.5 → screen coords at 1920px.
 
@@ -83,7 +83,7 @@ origin). Option 2 is the right medium-term solution.
 
 ## Implementation Priority
 
-1. **Window-relative click** — update `just click` / `tools/click` to accept
+1. **Window-relative click** — update `just click` / `bin/click` to accept
    window-relative coords (query MTGA window bounds, add offset)
 2. **`just bot-match [deck-index]`** — recipe that runs the full cycle
 3. **`just repeat-bot-match N`** — run N matches back-to-back for soak testing

@@ -4,7 +4,7 @@
 # Usage: ./scripts/client-auto.sh [--proxy|--stub] [--timeout 120]
 #
 # Monitors Player.log for state transitions, takes screenshots when
-# state is ambiguous, and uses tools/click for input.
+# state is ambiguous, and uses bin/click for input.
 set -euo pipefail
 
 MODE="${1:---stub}"
@@ -51,7 +51,7 @@ screenshot_region() {
 click() {
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-    "$script_dir/tools/click" "$1" "$2"
+    "$script_dir/bin/click" "$1" "$2"
     log "clicked ($1,$2)"
 }
 

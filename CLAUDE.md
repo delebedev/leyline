@@ -82,4 +82,4 @@ See `docs/conformance-debugging.md` — covers annotation ordering, category cod
 
 ## Client UI Automation
 
-**Arena CLI** (`tools/arena`) — high-level MTGA automation: `click`, `ocr`, `wait`, `capture`, `state`, `issues`. Full reference: `docs/arena-cli.md`, navigation guide: `docs/arena-nav.md`.
+**Arena CLI** (`bin/arena`) — high-level MTGA automation: `click`, `ocr`, `wait`, `capture`, `state`, `issues`. Full reference: `docs/arena-cli.md`, navigation guide: `docs/arena-nav.md`.

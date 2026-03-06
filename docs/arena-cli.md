@@ -1,6 +1,6 @@
 # Arena CLI — Agent UI Automation Tool
 
-Binary: `tools/arena` (Kotlin, built with `./gradlew installDist`)
+Binary: `bin/arena` (Kotlin, built with `./gradlew installDist`)
 
 Automates MTGA client interaction via screen capture + OCR + synthetic clicks. Designed for agent use — all output is machine-readable (JSON/structured text).
 
@@ -79,16 +79,16 @@ arena click "Play"
   → Shell.activateMtga()          (deduped within 2s)
   → Shell.captureWindow()         (peekaboo screen + sips crop to window)
   → Shell.mtgaWindowBounds()      (compiled tool, cached 5s)
-  → tools/ocr --find "Play"      (compiled Swift, Vision framework)
-  → tools/click x y              (compiled Swift, CGEvent)
+  → bin/ocr --find "Play"      (compiled Swift, Vision framework)
+  → bin/click x y              (compiled Swift, CGEvent)
 ```
 
 ### Compiled Tools
 
 | Tool | Source | Purpose |
 |------|--------|---------|
-| `tools/ocr` | `tools/ocr.swift` | macOS Vision OCR, text detection + bounding boxes |
-| `tools/click` | `tools/click.swift` | CGEvent synthetic mouse clicks (Sequoia+ compatible) |
+| `bin/ocr` | `bin/ocr.swift` | macOS Vision OCR, text detection + bounding boxes |
+| `bin/click` | `bin/click.swift` | CGEvent synthetic mouse clicks (Sequoia+ compatible) |
 | `tools/window-bounds` | `tools/window-bounds.swift` | MTGA window bounds via CGWindowList |
 
 Rebuild: `swiftc -O -o tools/<name> tools/<name>.swift`

@@ -1,5 +1,5 @@
 // window-bounds.swift — Print MTGA window bounds as "x y w h" (logical points)
-// Compiled: swiftc -O -o tools/window-bounds tools/window-bounds.swift
+// Compiled: swiftc -O -o bin/window-bounds bin/window-bounds.swift
 
 import CoreGraphics
 

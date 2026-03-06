@@ -9,13 +9,13 @@ mtga:
 # launch client with log-driven automation (screenshots + cliclick)
 [group('client')]
 client-auto mode="--proxy" timeout="120":
-    @bash scripts/client-auto.sh {{mode}} {{timeout}}
+    @bash bin/client-auto.sh {{mode}} {{timeout}}
 
 # synthetic mouse click (works on macOS 15+ / Unity via timestamp fix)
 # NOTE: must activate MTGA window first — Unity ignores clicks on background windows
 [group('client')]
 click x y action="click":
-    @osascript -e 'tell application "MTGA" to activate' 2>/dev/null; sleep 0.3; {{project_dir}}/tools/click {{x}} {{y}} {{action}}
+    @osascript -e 'tell application "MTGA" to activate' 2>/dev/null; sleep 0.3; {{project_dir}}/bin/click {{x}} {{y}} {{action}}
 
 # screenshot game client window (by window ID, JPEG q60, max 1280px)
 [group('client')]
@@ -65,10 +65,10 @@ stop:
     pkill -9 -f MTGA 2>/dev/null && echo "Killed MTGA" || echo "MTGA not running"
     echo "Stopped."
 
-# composable MTGA automation CLI (tools/arena is the standalone entry point)
+# composable MTGA automation CLI (bin/arena is the standalone entry point)
 [group('client')]
 arena *args: (_require classpath) check-java
-    @{{project_dir}}/tools/arena {{args}}
+    @{{project_dir}}/bin/arena {{args}}
 
 # tail Player.log for client-side exceptions (standalone, no server)
 [group('client')]

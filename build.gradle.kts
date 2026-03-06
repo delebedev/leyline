@@ -34,6 +34,18 @@ kotlin {
     }
 }
 
+// Root module sources live in app/ (not default src/) so modules group visually in the tree.
+sourceSets {
+    main {
+        kotlin.setSrcDirs(listOf("app/main/kotlin"))
+        resources.setSrcDirs(listOf("app/main/resources"))
+    }
+    test {
+        kotlin.setSrcDirs(listOf("app/test/kotlin"))
+        resources.setSrcDirs(listOf("app/test/resources"))
+    }
+}
+
 dependencies {
     implementation(project(":account"))
     implementation(project(":frontdoor"))
@@ -70,7 +82,7 @@ tasks.named("compileKotlin") {
 
 spotless {
     kotlin {
-        target("src/**/*.kt")
+        target("app/**/*.kt")
         ktlint("1.3.1").editorConfigOverride(
             mapOf("ktlint_standard_no-wildcard-imports" to "disabled"),
         )
@@ -92,7 +104,7 @@ detekt {
     config.setFrom(files("gradle/detekt.yml"))
     baseline = file("gradle/detekt-baseline.xml")
     parallel = true
-    source.setFrom(files("src/main/kotlin", "src/test/kotlin"))
+    source.setFrom(files("app/main/kotlin", "app/test/kotlin"))
 }
 
 // --- Testing ---

@@ -78,27 +78,27 @@ These are window-relative logical coordinates (1920x1080).
 
 ```bash
 # From Lobby:
-tools/arena click 1446,871                     # Play button (bottom-right)
+bin/arena click 1446,871                     # Play button (bottom-right)
 sleep 2
-tools/arena click "Find Match" --retry 3       # opens deck list + queue picker
+bin/arena click "Find Match" --retry 3       # opens deck list + queue picker
 sleep 2
-tools/arena click "Bot Match" --retry 3        # select Bot Match queue
+bin/arena click "Bot Match" --retry 3        # select Bot Match queue
 sleep 1
-tools/arena click "My Decks" --retry 3         # expand if collapsed
+bin/arena click "My Decks" --retry 3         # expand if collapsed
 sleep 1
 # Click a deck thumbnail (coords depend on deck position)
-tools/arena click 250,825                      # first deck thumbnail
+bin/arena click 250,825                      # first deck thumbnail
 sleep 1
-tools/arena click 1446,871                     # Play button
-tools/arena wait text="Keep" --timeout 15
-tools/arena click "Keep"
-tools/arena wait phase=MAIN1 --timeout 15
-tools/arena click "Pass" --retry 3
-tools/arena click 1555,72                      # cog icon
-tools/arena click "Concede"
-tools/arena wait text="Defeat" --timeout 10
-tools/arena click 800,450 && sleep 2 && tools/arena click 800,450 && sleep 2 && tools/arena click 800,450
-tools/arena wait text="Play" --timeout 15      # back in lobby
+bin/arena click 1446,871                     # Play button
+bin/arena wait text="Keep" --timeout 15
+bin/arena click "Keep"
+bin/arena wait phase=MAIN1 --timeout 15
+bin/arena click "Pass" --retry 3
+bin/arena click 1555,72                      # cog icon
+bin/arena click "Concede"
+bin/arena wait text="Defeat" --timeout 10
+bin/arena click 800,450 && sleep 2 && bin/arena click 800,450 && sleep 2 && bin/arena click 800,450
+bin/arena wait text="Play" --timeout 15      # back in lobby
 ```
 
 ## Tips
