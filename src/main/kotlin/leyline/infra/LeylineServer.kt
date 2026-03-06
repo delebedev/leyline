@@ -40,17 +40,15 @@ import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import java.io.File
 
 /**
- * Client-compatible TLS TCP server.
+ * Client-compatible TLS TCP server — the single entry point for all three operating modes
+ * (stub/proxy/replay). Each mode assembles a different Netty pipeline per door.
  *
- * Three modes:
- * - **Stub** (default): FD + MD both stubbed locally, fully offline
- * - **Proxy**: relays both FD + MD to real Arena servers for traffic capture
- * - **Replay**: stub FD, replay recorded payloads on MD
+ * **Shared mutable state:** [selectedDeckId] and [selectedEventName] are written by the
+ * FD handler (CmdType 612) on the Netty IO thread and read by [MatchHandler] on connect.
+ * Marked `@Volatile`; no stronger sync needed because writes always precede reads in the
+ * client's connection sequence (FD handshake completes before MD connect).
  *
- * Both doors use the same 6-byte header framing (see [ClientFrameDecoder]).
- *
- * Architecture doc: docs/bridge-architecture.md
- * Wire format doc:  docs/wire-format.md
+ * Both doors share the same 6-byte header framing (see [ClientFrameDecoder]).
  */
 class LeylineServer(
     private val frontDoorPort: Int = 30010,

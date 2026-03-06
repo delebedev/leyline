@@ -3,11 +3,12 @@ package leyline.game
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Builds [GameObjectInfo] protobuf messages from [CardRepository] data.
+ * Builds static [GameObjectInfo] proto projections from [CardRepository] data.
  *
- * Extracted from the old CardDb singleton. Contains the static card data
- * projection (types, colors, abilities, base P/T) — dynamic game state
- * (live P/T, tapped, combat) is added by [leyline.game.mapper.ObjectMapper].
+ * Covers the immutable card identity (types, colors, abilities, base P/T).
+ * Dynamic game state — counters, damage, tapped, attached, combat — is layered
+ * on by [leyline.game.mapper.ObjectMapper]. The split keeps card-DB concerns
+ * out of the per-tick diff pipeline.
  */
 class CardProtoBuilder(private val cards: CardRepository) {
 

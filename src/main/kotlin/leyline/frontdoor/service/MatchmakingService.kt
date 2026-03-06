@@ -9,6 +9,14 @@ import leyline.frontdoor.repo.DeckRepository
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
+/**
+ * Creates matches from event + deck selection, returning a [MatchInfo] the FD handler
+ * pushes to the client as a MatchCreated message.
+ *
+ * Deck legality is validated against the event's Forge format (looked up via [EventRegistry]).
+ * Events flagged `SkipDeckValidation` in the registry bypass this check entirely — used for
+ * formats Forge doesn't model yet (e.g. Alchemy) so the client can still queue.
+ */
 class MatchmakingService(
     private val decks: DeckRepository,
     private val matchDoorHost: String,

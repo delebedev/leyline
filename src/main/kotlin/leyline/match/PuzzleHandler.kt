@@ -15,13 +15,13 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Puzzle mode delegate — detection, loading, and initial bundle sending.
+ * Puzzle mode delegate — detection from two sources: CLI `--puzzle <file>` flag
+ * (takes precedence) or matchId prefix convention (`puzzle-<name>`).
  *
- * Extracted from [MatchHandler] to keep it thin. Handles:
- * - Puzzle detection (CLI flag or matchId convention)
- * - Puzzle file loading (CLI override or puzzles/ directory)
- * - Bridge creation with puzzle game
- * - Puzzle initial bundle + ActionsAvailableReq sending
+ * **Ordering constraint:** [GameBootstrap.initializeLocalization] must be called
+ * before any [Puzzle] constructor — Forge's `GameState.<clinit>` reads localized
+ * card data. This is enforced inside [loadPuzzleForMatch], not at construction time,
+ * so the handler can be created eagerly without triggering Forge class loading.
  */
 class PuzzleHandler(
     private val puzzleFile: File?,

@@ -7,11 +7,11 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.slf4j.LoggerFactory
 
 /**
- * Inbound request models for Front Door CmdTypes.
+ * Typed request parsers for Front Door CmdTypes.
  *
- * Each model matches the wire shape the Arena client actually sends
- * (verified against proxy captures 2026-03-03). Field names match
- * the client's casing exactly — no guessing.
+ * Field names match the client's wire casing exactly (from proxy captures).
+ * Uses lenient JSON parsing (`ignoreUnknownKeys`) so new fields the client
+ * adds don't break existing handlers.
  */
 object FdRequests {
 
