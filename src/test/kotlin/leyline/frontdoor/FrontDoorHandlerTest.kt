@@ -215,14 +215,16 @@ class FrontDoorHandlerTest :
             matchInfo["EventId"]?.jsonPrimitive?.content shouldBe "AIBotMatch"
         }
 
-        test("CmdType 612 - eventName propagates to MatchCreated EventId") {
+        test("CmdType 612 - always creates AIBotMatch regardless of payload") {
+            // Real client never sends eventName on 612 — it's always an AI bot match.
+            // The eventName-based flow goes through 603 (EnterPairing).
             val ch = fdChannel()
-            val responses = ch.sendCmdAll(612, """{"deckId":"$testDeckId","eventName":"Historic_Ladder"}""")
+            val responses = ch.sendCmdAll(612, """{"deckId":"$testDeckId","botDeckId":"some-bot-deck","botMatchType":0}""")
             responses.size shouldBe 2
             val matchInfo = json.parseToJsonElement(responses[1].jsonPayload!!)
                 .jsonObject["MatchInfoV3"]?.jsonObject
             matchInfo.shouldNotBeNull()
-            matchInfo["EventId"]?.jsonPrimitive?.content shouldBe "Historic_Ladder"
+            matchInfo["EventId"]?.jsonPrimitive?.content shouldBe "AIBotMatch"
         }
 
         test("CmdType 1700 - GraphDefinitions returns JSON") {
@@ -344,6 +346,46 @@ class FrontDoorHandlerTest :
             ch.sendCmd(403, """{"DeckId":"$deletableId"}""")
 
             deckService.getById(DeckId(deletableId)) shouldBe null
+        }
+
+        test("CmdType 406 - UpsertDeckV2 creates deck and echoes Summary") {
+            val newDeckId = "test-deck-00000000-0000-0000-0000-upsert000001"
+            val payload = """
+                {
+                    "Summary": {"DeckId":"$newDeckId","Name":"New Deck","DeckTileId":11111},
+                    "Deck": {
+                        "MainDeck": [{"cardId":75515,"quantity":4}],
+                        "Sideboard": [],
+                        "CommandZone": [],
+                        "Companions": []
+                    },
+                    "ActionType": "Create"
+                }
+            """.trimIndent()
+            val ch = fdChannel()
+            val msg = ch.sendCmd(406, payload)
+            val resp = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+            resp["DeckId"]?.jsonPrimitive?.content shouldBe newDeckId
+
+            val saved = deckService.getById(DeckId(newDeckId))
+            saved.shouldNotBeNull()
+            saved.name shouldBe "New Deck"
+            saved.mainDeck.size shouldBe 1
+            saved.mainDeck[0].grpId shouldBe 75515
+        }
+
+        test("CmdType 1912 - SetPlayerPreferences round-trips through 1911") {
+            val prefsPayload = """{"Preferences":{"AutoTapEnabled":true,"AutoOrderTriggeredAbilities":false}}"""
+            val ch = fdChannel()
+            ch.sendCmd(1912, prefsPayload)
+
+            // Read back via 1911 on same channel
+            val readMsg = ch.sendCmd(1911)
+            val obj = json.parseToJsonElement(readMsg.jsonPayload.shouldNotBeNull()).jsonObject
+            val prefs = obj["Preferences"]?.jsonObject
+            prefs.shouldNotBeNull()
+            prefs["AutoTapEnabled"]?.jsonPrimitive?.boolean shouldBe true
+            prefs["AutoOrderTriggeredAbilities"]?.jsonPrimitive?.boolean shouldBe false
         }
 
         test("CmdType 9999 - unknown returns response without error") {
