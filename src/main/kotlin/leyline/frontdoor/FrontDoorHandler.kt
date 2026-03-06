@@ -24,9 +24,11 @@ import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.DeckWireBuilder
 import leyline.frontdoor.wire.EventWireBuilder
 import leyline.frontdoor.wire.FdRequests
+import leyline.frontdoor.wire.FdResponse
 import leyline.frontdoor.wire.FdResponseWriter
 import leyline.frontdoor.wire.PlayerWireBuilder
 import leyline.protocol.ClientFrameDecoder
+import leyline.protocol.CmdType
 import leyline.protocol.FdEnvelope
 import org.slf4j.LoggerFactory
 import java.util.UUID
@@ -125,7 +127,7 @@ class FrontDoorHandler(
             val json = decoded.jsonPayload
             val transactionId = decoded.transactionId
             val cmdType = decoded.cmdType
-            val cmdName = cmdType?.let { FdEnvelope.cmdTypeName(it) } ?: "unknown"
+            val cmdName = cmdType?.let { CmdType.nameOf(it) } ?: "unknown"
 
             fdCollector?.record("C2S", decoded)
             log.debug("Front Door: cmd={} cmdType={} txId={}", cmdName, cmdType, transactionId)
@@ -136,55 +138,72 @@ class FrontDoorHandler(
         }
     }
 
+    /** Table-driven stubs — CmdTypes that return static/golden data with no logic. */
+    private val stubs: Map<Int, () -> FdResponse> = mapOf(
+        // Golden data (proto)
+        CmdType.GET_FORMATS.value to { FdResponse.RawProto(golden.getFormatsProto) },
+        CmdType.GET_SETS.value to { FdResponse.RawProto(golden.getSetsProto) },
+        // Golden data (JSON)
+        CmdType.DECK_GET_PRECONS_V3.value to { FdResponse.Json(golden.preconDecksJson) },
+        CmdType.CAROUSEL_GET_ITEMS.value to { FdResponse.Json(golden.carouselJson) },
+        CmdType.GRAPH_GET_DEFINITIONS.value to { FdResponse.Json(golden.graphDefinitionsJson) },
+        CmdType.GET_DESIGNER_METADATA.value to { FdResponse.Json(golden.designerMetadataJson) },
+        // Lobby stubs
+        CmdType.EVENT_GET_ACTIVE_MATCHES.value to { FdResponse.Json(LobbyStubs.activeMatches()) },
+        CmdType.CURRENCY_GET_CURRENCIES.value to { FdResponse.Json(LobbyStubs.currencies()) },
+        CmdType.BOOSTER_GET_OWNED.value to { FdResponse.Json(LobbyStubs.boosters()) },
+        CmdType.QUEST_GET_QUESTS.value to { FdResponse.Json(LobbyStubs.quests()) },
+        CmdType.RANK_GET_COMBINED.value to { FdResponse.Json(LobbyStubs.rankInfo()) },
+        CmdType.RANK_GET_SEASON_DETAILS.value to { FdResponse.Json(LobbyStubs.rankSeasonDetails()) },
+        CmdType.RANK_EVALUATE_PAYOUTS_V2.value to { FdResponse.Json(LobbyStubs.rankSeasonDetails()) },
+        CmdType.PERIODIC_REWARDS_GET_STATUS.value to { FdResponse.Json(LobbyStubs.periodicRewards()) },
+        CmdType.RENEWAL_GET_CURRENT.value to { FdResponse.Json(LobbyStubs.periodicRewards()) },
+        CmdType.COSMETICS_GET_OWNED.value to { FdResponse.Json(LobbyStubs.cosmetics()) },
+        CmdType.GET_NET_DECK_FOLDERS.value to { FdResponse.Json(LobbyStubs.netDeckFolders()) },
+        CmdType.GET_PLAYER_INBOX.value to { FdResponse.Json(LobbyStubs.playerInbox()) },
+        CmdType.STATIC_CONTENT.value to { FdResponse.Json(LobbyStubs.staticContent()) },
+        CmdType.GET_ALL_PREFERRED_PRINTINGS.value to { FdResponse.Json(LobbyStubs.preferredPrintings()) },
+        CmdType.GET_ALL_PRIZE_WALLS.value to { FdResponse.Json(LobbyStubs.prizeWalls()) },
+        CmdType.MERC_GET_STORE_STATUS_V2.value to { FdResponse.Json(LobbyStubs.storeStatus()) },
+        CmdType.STORE_GET_ENTITLEMENTS_V2.value to { FdResponse.Json(LobbyStubs.storeStatus()) },
+        CmdType.MERC_GET_SKUS_AND_LISTINGS.value to { FdResponse.Json(LobbyStubs.storeStatus()) },
+        CmdType.LOG_BUSINESS_EVENTS.value to { FdResponse.Json(LobbyStubs.telemetryAck()) },
+        CmdType.LOG_BUSINESS_EVENTS_V2.value to { FdResponse.Json(LobbyStubs.telemetryAck()) },
+        // Typed proto stubs
+        CmdType.GET_VOUCHER_DEFINITIONS.value to { FdResponse.TypedProto("Wizards.Arena.Models.Network.GetVoucherDefinitionsResponse") },
+        CmdType.CHALLENGE_RECONNECT_ALL.value to { FdResponse.TypedProto("Wizards.Arena.Models.Network.ChallengeReconnectAllResp") },
+    )
+
     private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?) {
+        // Fast path: table-driven stubs (no logic, just data)
+        stubs[cmdType]?.let { supplier ->
+            writer.send(ctx, txId, supplier())
+            return
+        }
+
+        // Commands with real logic
         when (cmdType) {
-            // --- Auth ---
-            0 -> {
+            CmdType.AUTHENTICATE.value -> {
                 log.info("Front Door: auth → session")
                 val pid = playerId
                 if (pid != null) {
                     val session = playerService.authenticate(pid, "Player")
-                    writer.sendJson(ctx, txId, """{"SessionId":"${session.value}","Attached":true}""")
+                    writer.send(ctx, txId, FdResponse.Json("""{"SessionId":"${session.value}","Attached":true}"""))
                 } else {
                     val sessionId = UUID.randomUUID().toString()
-                    writer.sendJson(ctx, txId, """{"SessionId":"$sessionId","Attached":true}""")
+                    writer.send(ctx, txId, FdResponse.Json("""{"SessionId":"$sessionId","Attached":true}"""))
                 }
             }
 
-            // --- Startup essentials (golden data) ---
-            1 -> { // StartHook
+            CmdType.START_HOOK.value -> {
                 val hook = buildStartHook()
                 log.info("Front Door: StartHook ({}B)", hook.length)
-                writer.sendJson(ctx, txId, hook)
+                writer.send(ctx, txId, FdResponse.Json(hook))
             }
 
-            1700 -> { // Graph_GetGraphDefinitions
-                log.info("Front Door: GraphDefs (golden, {}B)", golden.graphDefinitionsJson.length)
-                writer.sendJson(ctx, txId, golden.graphDefinitionsJson)
-            }
+            CmdType.GRAPH_GET_STATE.value -> handleGraphRequest(ctx, txId, json)
 
-            1701 -> { // Graph_GetGraphState
-                handleGraphRequest(ctx, txId, json)
-            }
-
-            2400 -> { // GetDesignerMetadata
-                log.info("Front Door: DesignerMetadata (golden)")
-                writer.sendJson(ctx, txId, golden.designerMetadataJson)
-            }
-
-            // --- Protobuf responses (golden .bin files) ---
-            6 -> { // GetFormats
-                log.info("Front Door: GetFormats (golden proto, {}B)", golden.getFormatsProto.size)
-                writer.sendRawProto(ctx, txId, golden.getFormatsProto)
-            }
-
-            1521 -> { // GetSets
-                log.info("Front Door: GetSets (golden proto, {}B)", golden.getSetsProto.size)
-                writer.sendRawProto(ctx, txId, golden.getSetsProto)
-            }
-
-            // --- Match trigger ---
-            612 -> { // Event_AiBotMatch
+            CmdType.EVENT_AI_BOT_MATCH.value -> {
                 val req = FdRequests.parseAiBotMatch(json)
                 val deckId = req?.deckId
                 if (deckId != null) onDeckSelected?.invoke(deckId)
@@ -192,40 +211,37 @@ class FrontDoorHandler(
                 val pid = playerId ?: PlayerId("anonymous")
                 val match = matchmaking.startAiMatch(pid, DeckId(deckId ?: ""), "AIBotMatch")
                 log.info("Front Door: Event_AiBotMatch deckId={} botDeckId={} → ack + pushing MatchCreated", deckId, req?.botDeckId)
-                writer.sendEmpty(ctx, txId)
+                writer.send(ctx, txId, FdResponse.Empty)
                 sendMatchCreated(ctx, match)
             }
 
-            // --- Play blade data ---
-            1910 -> { // GetPlayBladeQueueConfig
+            CmdType.GET_PLAY_BLADE_QUEUE_CONFIG.value -> {
                 val configJson = EventWireBuilder.toQueueConfigJson(EventRegistry.queues)
                 log.info("Front Door: PlayBladeQueueConfig ({} queues)", EventRegistry.queues.size)
-                writer.sendJson(ctx, txId, configJson)
+                writer.send(ctx, txId, FdResponse.Json(configJson))
             }
 
-            624 -> { // Event_GetActiveEventsV2
+            CmdType.EVENT_GET_ACTIVE_EVENTS_V2.value -> {
                 val eventsJson = EventWireBuilder.toActiveEventsJson(EventRegistry.events)
                 log.info("Front Door: ActiveEventsV2 ({} events)", EventRegistry.events.size)
-                writer.sendJson(ctx, txId, eventsJson)
+                writer.send(ctx, txId, FdResponse.Json(eventsJson))
             }
 
-            623 -> { // EventGetCoursesV2
+            CmdType.EVENT_GET_COURSES_V2.value -> {
                 val coursesJson = EventWireBuilder.toCoursesJson(EventRegistry.defaultCourses)
                 log.debug("Front Door: EventGetCoursesV2")
-                writer.sendJson(ctx, txId, coursesJson)
+                writer.send(ctx, txId, FdResponse.Json(coursesJson))
             }
 
-            // --- Player data (from services) ---
-
-            1911 -> { // GetPlayerPreferences
+            CmdType.GET_PLAYER_PREFERENCES.value -> {
                 val pid = playerId
                 val prefs = pid?.let { playerService.getPreferences(it) }
                 val raw = prefs?.json?.takeIf { it != "{}" }
                 log.info("Front Door: PlayerPreferences ({})", if (raw != null) "db" else "empty")
-                writer.sendJson(ctx, txId, raw ?: """{"Preferences":{}}""")
+                writer.send(ctx, txId, FdResponse.Json(raw ?: """{"Preferences":{}}"""))
             }
 
-            1912 -> { // SetPlayerPreferences
+            CmdType.SET_PLAYER_PREFERENCES.value -> {
                 requireJson(ctx, txId, json) { body ->
                     val pid = playerId
                     if (pid != null) {
@@ -233,20 +249,20 @@ class FrontDoorHandler(
                         playerService.savePreferences(pid, Preferences(cleaned))
                         log.info("Front Door: SetPlayerPreferences saved")
                     }
-                    writer.sendJson(ctx, txId, """{}""")
+                    writer.send(ctx, txId, FdResponse.Json("{}"))
                 }
             }
 
-            403 -> { // Deck_DeleteDeck
+            CmdType.DECK_DELETE.value -> {
                 val req = FdRequests.parseDeleteDeck(json)
                 if (req != null) {
                     deckService.delete(DeckId(req.deckId))
                     log.info("Front Door: Deck_DeleteDeck '{}'", req.deckId)
                 }
-                writer.sendJson(ctx, txId, "{}")
+                writer.send(ctx, txId, FdResponse.Json("{}"))
             }
 
-            406 -> { // Deck_UpsertDeckV2
+            CmdType.DECK_UPSERT_V2.value -> {
                 requireJson(ctx, txId, json) { body ->
                     val pid = playerId
                     if (pid != null) {
@@ -258,83 +274,48 @@ class FrontDoorHandler(
                             log.warn("Front Door: Deck_UpsertDeckV2 parse failed")
                         }
                     }
-                    // Echo back the Summary from the request
                     val summary = try {
                         val obj = lenientJson.parseToJsonElement(body).jsonObject
                         obj["Summary"]?.let { lenientJson.encodeToString(JsonObject.serializer(), it.jsonObject) }
                     } catch (_: Exception) {
                         null
                     }
-                    writer.sendJson(ctx, txId, summary ?: "{}")
+                    writer.send(ctx, txId, FdResponse.Json(summary ?: "{}"))
                 }
             }
 
-            407 -> { // Deck_GetDeckSummariesV2 — response key is "Summaries" (NOT DeckSummariesV2)
+            CmdType.DECK_GET_SUMMARIES_V2.value -> {
                 val pid = playerId
                 if (pid != null) {
                     val decks = deckService.listForPlayer(pid)
                     val summaries = buildJsonArray { decks.forEach { add(DeckWireBuilder.toV2Summary(it)) } }
                     log.info("Front Door: DeckSummariesV2 ({} decks)", decks.size)
                     val resp = buildJsonObject { put("Summaries", summaries) }
-                    writer.sendJson(ctx, txId, lenientJson.encodeToString(JsonObject.serializer(), resp))
+                    writer.send(ctx, txId, FdResponse.Json(lenientJson.encodeToString(JsonObject.serializer(), resp)))
                 } else {
-                    writer.sendJson(ctx, txId, """{"Summaries":[]}""")
+                    writer.send(ctx, txId, FdResponse.Json("""{"Summaries":[]}"""))
                 }
             }
 
-            410 -> { // Deck_GetAllPreconDecksV3
-                log.info("Front Door: PreconDecksV3")
-                writer.sendJson(ctx, txId, golden.preconDecksJson)
-            }
-
-            // --- Lobby requests: minimal valid responses ---
-            613 -> writer.sendJson(ctx, txId, LobbyStubs.activeMatches())
-            1520 -> writer.sendProto(ctx, txId, "Wizards.Arena.Models.Network.GetVoucherDefinitionsResponse")
-            704 -> { // Carousel_GetCarouselItems
-                log.info("Front Door: CarouselItems")
-                writer.sendJson(ctx, txId, golden.carouselJson)
-            }
-            2600 -> writer.sendJson(ctx, txId, LobbyStubs.preferredPrintings())
-            2700 -> writer.sendJson(ctx, txId, LobbyStubs.prizeWalls())
-            1100 -> writer.sendJson(ctx, txId, LobbyStubs.rankInfo())
-            1000 -> writer.sendJson(ctx, txId, LobbyStubs.quests())
-            1200, 1201 -> writer.sendJson(ctx, txId, LobbyStubs.periodicRewards())
-            800 -> writer.sendJson(ctx, txId, LobbyStubs.currencies())
-            901 -> writer.sendJson(ctx, txId, LobbyStubs.boosters())
-            1900 -> writer.sendJson(ctx, txId, LobbyStubs.cosmetics())
-            2200 -> writer.sendJson(ctx, txId, LobbyStubs.netDeckFolders())
-            2300 -> writer.sendJson(ctx, txId, LobbyStubs.playerInbox())
-            2500 -> writer.sendJson(ctx, txId, LobbyStubs.staticContent())
-            551 -> { // Card_GetAllCards
+            CmdType.CARD_GET_ALL.value -> {
                 val collection = collectionService.getCollection(playerId)
                 log.info("Front Door: CardGetAllCards ({} cards)", collection.size)
-                writer.sendJson(ctx, txId, collectionService.toJson(collection))
-            }
-            708, 712, 715 -> writer.sendJson(ctx, txId, LobbyStubs.storeStatus())
-            1102 -> writer.sendJson(ctx, txId, LobbyStubs.rankSeasonDetails())
-            1105 -> writer.sendJson(ctx, txId, LobbyStubs.rankSeasonDetails())
-            3006 -> writer.sendProto(ctx, txId, "Wizards.Arena.Models.Network.ChallengeReconnectAllResp")
-
-            // --- Telemetry ack ---
-            1913, 1914 -> {
-                log.debug("Front Door: telemetry (CmdType {})", cmdType)
-                writer.sendJson(ctx, txId, LobbyStubs.telemetryAck())
+                writer.send(ctx, txId, FdResponse.Json(collectionService.toJson(collection)))
             }
 
-            // --- Event flow ---
-            600 -> { // Event_Join
+            CmdType.EVENT_JOIN.value -> {
                 val req = FdRequests.parseEventJoin(json)
                 log.info("Front Door: Event_Join event={} (golden)", req?.eventName)
-                writer.sendJson(ctx, txId, golden.eventJoinJson)
+                writer.send(ctx, txId, FdResponse.Json(golden.eventJoinJson))
             }
 
-            601 -> { // Event_Drop
+            CmdType.EVENT_DROP.value -> {
                 val req = FdRequests.parseEventName(json)
                 log.info("Front Door: Event_Drop event={}", req?.eventName)
-                writer.sendJson(ctx, txId, "{}")
+                writer.send(ctx, txId, FdResponse.Json("{}"))
             }
 
-            603 -> { // Event_EnterPairing
+            CmdType.EVENT_ENTER_PAIRING.value -> {
                 val req = FdRequests.parseEnterPairing(json)
                 val eventName = req?.eventName
                 val deckId = eventName?.let { selectedDeckByEvent[it] }
@@ -345,43 +326,42 @@ class FrontDoorHandler(
                     if (eventName != null) onEventSelected?.invoke(eventName)
                     if (deckId != null) onDeckSelected?.invoke(deckId)
                     val match = matchmaking.startMatch(pid, DeckId(deckId ?: ""), eventName ?: "")
-                    writer.sendJson(ctx, txId, """{"CurrentModule":"CreateMatch","Payload":"Success"}""")
+                    writer.send(ctx, txId, FdResponse.Json("""{"CurrentModule":"CreateMatch","Payload":"Success"}"""))
                     sendMatchCreated(ctx, match)
                 } catch (e: IllegalArgumentException) {
                     log.warn("Front Door: Event_EnterPairing rejected — {}", e.message)
-                    writer.sendEmpty(ctx, txId)
+                    writer.send(ctx, txId, FdResponse.Empty)
                 }
             }
 
-            606 -> { // Event_LeavePairing
+            CmdType.EVENT_LEAVE_PAIRING.value -> {
                 val req = FdRequests.parseEventName(json)
                 log.info("Front Door: Event_LeavePairing event={}", req?.eventName)
-                writer.sendEmpty(ctx, txId)
+                writer.send(ctx, txId, FdResponse.Empty)
             }
 
-            608 -> { // Event_GetMatchResultReport
+            CmdType.EVENT_GET_MATCH_RESULT.value -> {
                 val req = FdRequests.parseMatchResult(json)
                 log.info("Front Door: Event_GetMatchResultReport event={}", req?.eventName)
-                writer.sendJson(ctx, txId, """{"CurrentModule":"Complete","questUpdates":[]}""")
+                writer.send(ctx, txId, FdResponse.Json("""{"CurrentModule":"Complete","questUpdates":[]}"""))
             }
 
-            622 -> { // Event_SetDeckV2
+            CmdType.EVENT_SET_DECK_V2.value -> {
                 val req = FdRequests.parseSetDeck(json)
                 if (req != null && req.deckId != null) {
                     selectedDeckByEvent[req.eventName] = req.deckId
                 }
                 log.info("Front Door: Event_SetDeckV2 event={} deck={}", req?.eventName, req?.deckId)
-                writer.sendJson(ctx, txId, golden.eventSetDeckJson)
+                writer.send(ctx, txId, FdResponse.Json(golden.eventSetDeckJson))
             }
 
-            // --- Fallback ---
             null -> {
                 if (json == null) return
                 when {
                     "ClientVersion" in json || "Token" in json -> {
                         log.info("Front Door: auth (fallback)")
                         val sessionId = UUID.randomUUID().toString()
-                        writer.sendJson(ctx, txId, """{"SessionId":"$sessionId","Attached":true}""")
+                        writer.send(ctx, txId, FdResponse.Json("""{"SessionId":"$sessionId","Attached":true}"""))
                     }
                     "GraphId" in json -> handleGraphRequest(ctx, txId, json)
                     "AIBotMatch" in json || "PlayQueue" in json -> {
@@ -391,14 +371,14 @@ class FrontDoorHandler(
                     }
                     else -> {
                         log.debug("Front Door: unrecognized (no CmdType): {}", json.take(80))
-                        writer.sendEmpty(ctx, txId)
+                        writer.send(ctx, txId, FdResponse.Empty)
                     }
                 }
             }
 
             else -> {
-                log.warn("Front Door: UNHANDLED CmdType {} ({})", cmdType, FdEnvelope.cmdTypeName(cmdType))
-                writer.sendEmpty(ctx, txId)
+                log.warn("Front Door: UNHANDLED CmdType {} ({})", cmdType, CmdType.nameOf(cmdType))
+                writer.send(ctx, txId, FdResponse.Empty)
             }
         }
     }
@@ -413,7 +393,7 @@ class FrontDoorHandler(
     ) {
         if (json == null) {
             log.warn("Front Door: expected JSON payload, got null")
-            writer.sendEmpty(ctx, txId)
+            writer.send(ctx, txId, FdResponse.Empty)
             return
         }
         block(json)
@@ -438,15 +418,14 @@ class FrontDoorHandler(
     private fun sendMatchCreated(ctx: ChannelHandlerContext, match: MatchInfo) {
         val json = FdEnvelope.buildMatchCreatedJson(match.matchId, match.host, match.port, match.eventName)
         log.info("Front Door: pushing MatchCreated matchId={} event={}", match.matchId, match.eventName)
-        val pushTxId = UUID.randomUUID().toString()
-        writer.sendJson(ctx, pushTxId, json)
+        writer.send(ctx, null, FdResponse.Json(json))
     }
 
     private fun handleGraphRequest(ctx: ChannelHandlerContext, transactionId: String?, json: String?) {
         val graphId = json?.let { GRAPH_ID_PATTERN.find(it)?.groupValues?.get(1) } ?: "unknown"
         log.info("Front Door: GraphState graphId={}", graphId)
         val response = golden.graphStateResponses[graphId] ?: GRAPH_DEFAULT
-        writer.sendJson(ctx, transactionId, response)
+        writer.send(ctx, transactionId, FdResponse.Json(response))
     }
 
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {

@@ -3,6 +3,7 @@ package leyline.debug
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import leyline.protocol.ClientFrameDecoder
+import leyline.protocol.CmdType
 import leyline.protocol.FdEnvelope
 import leyline.recording.FdFrameRecord
 import java.io.File
@@ -66,7 +67,7 @@ fun main(args: Array<String>) {
                     seq = seq,
                     dir = direction,
                     cmdType = msg.cmdType,
-                    cmdTypeName = msg.cmdType?.let { FdEnvelope.cmdTypeName(it) },
+                    cmdTypeName = msg.cmdType?.let { CmdType.nameOf(it) },
                     transactionId = msg.transactionId,
                     envelopeType = msg.envelopeType.name,
                     jsonPayload = msg.jsonPayload,

@@ -3,6 +3,7 @@ package leyline.frontdoor.wire
 import io.netty.channel.ChannelHandlerContext
 import leyline.debug.FdDebugCollector
 import leyline.protocol.ClientFrameDecoder
+import leyline.protocol.CmdType
 import leyline.protocol.FdEnvelope
 import java.util.UUID
 
@@ -51,6 +52,28 @@ class FdResponseWriter(
         val buf = ctx.alloc().buffer(ack.size)
         buf.writeBytes(ack)
         ctx.writeAndFlush(buf)
+    }
+
+    /** Consolidated send for [FdResponse] — preferred over the individual methods. */
+    fun send(ctx: ChannelHandlerContext, txId: String?, response: FdResponse) {
+        val id = txId ?: UUID.randomUUID().toString()
+        val (envelope, logPayload) = when (response) {
+            is FdResponse.Json -> FdEnvelope.encodeResponse(id, response.payload) to response.payload
+            is FdResponse.RawProto -> FdEnvelope.encodeRawProtoResponse(id, response.bytes) to "(proto ${response.bytes.size}B)"
+            is FdResponse.TypedProto -> {
+                val typeUrl = "type.googleapis.com/${response.typeName}"
+                FdEnvelope.encodeProtoResponse(id, typeUrl) to "(proto empty ${response.typeName})"
+            }
+            is FdResponse.Empty -> FdEnvelope.encodeEmptyResponse(id) to null
+        }
+        sendRaw(ctx, id, logPayload, envelope)
+    }
+
+    /** Send a Cmd push notification (S→C, not a response to a request). */
+    fun sendPush(ctx: ChannelHandlerContext, cmdType: CmdType, json: String) {
+        val txId = UUID.randomUUID().toString()
+        val envelope = FdEnvelope.encodeCmd(cmdType.value, txId, json)
+        sendRaw(ctx, txId, json, envelope)
     }
 
     private fun sendRaw(
