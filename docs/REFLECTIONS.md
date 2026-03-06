@@ -82,13 +82,13 @@ Current behavior: the auto-pass engine still auto-resolves "choose_cards" prompt
 
 1. **forge-web**: `WebPlayerController.reveal()` override intercepts the `PlayerController.reveal(CardCollectionView, ZoneType, Player, String, boolean)` call. Captures forge card IDs and pushes them to `InteractivePromptBridge.revealQueue` (new `ConcurrentLinkedQueue<RevealRecord>`).
 
-2. **forge-nexus**: `StateMapper.buildFromGame()` drains `bridge.promptBridge.drainReveals()` alongside `bridge.drainEvents()`, converts to `GameEvent.CardsRevealed`. `AnnotationPipeline.mechanicAnnotations()` produces `RevealedCardCreated` transient annotations.
+2. **leyline**: `StateMapper.buildFromGame()` drains `bridge.promptBridge.drainReveals()` alongside `bridge.drainEvents()`, converts to `GameEvent.CardsRevealed`. `AnnotationPipeline.mechanicAnnotations()` produces `RevealedCardCreated` transient annotations.
 
 **Key insight:** Forge has NO `GameEvent` for reveals — the engine communicates reveals through `PlayerController.reveal()` → `IGuiGame.reveal()` (a GUI callback chain, not EventBus). The 36+ call sites in `GameAction.reveal()` all route through this chain. Overriding at the controller level is the natural injection point without touching forge-game.
 
 **Not yet implemented:** `RevealedCardDeleted` (type 60, when reveal display ends), populating Revealed zones (18/19) with temporary `GameObjectInfo` entries of `ObjectType.RevealedCard = 8`. These are cosmetic — the client handles missing deletions gracefully (card just stays visible until next GSM).
 
-**Design decision:** Capture mechanism uses `InteractivePromptBridge` as the conduit (already accessible from both forge-web controller and forge-nexus StateMapper). Alternative was adding a callback interface — simpler to use the existing bridge object.
+**Design decision:** Capture mechanism uses `InteractivePromptBridge` as the conduit (already accessible from both forge-web controller and leyline StateMapper). Alternative was adding a callback interface — simpler to use the existing bridge object.
 
 **Files touched:** InteractivePromptBridge.kt (revealQueue + RevealRecord), WebPlayerController.kt (reveal override), GameEvent.kt (CardsRevealed variant), AnnotationBuilder.kt (revealedCardCreated/Deleted factories), AnnotationPipeline.kt (wiring), StateMapper.kt (drain), MechanicClassifier.kt (reveal tag), RevealAnnotationTest.kt (new, 3 tests).
 
@@ -96,18 +96,18 @@ Current behavior: the auto-pass engine still auto-resolves "choose_cards" prompt
 
 ## Architecture Review — What Makes Strong Game Server Architecture
 
-Meta-knowledge distilled from the forge-nexus/forge-web review. Reference for future architectural discussions.
+Meta-knowledge distilled from the leyline/forge-web review. Reference for future architectural discussions.
 
 ### Principle 1: Separate Game Logic from Transport (the Transport-Head pattern)
 
-The single most impactful architectural decision in forge-nexus: the game engine's integration layer (bridges, player controller, game loop) is transport-agnostic. Both the web UI (WebSocket/JSON) and Arena client (TCP/protobuf) are "transport heads" on the same orchestration layer.
+The single most impactful architectural decision in leyline: the game engine's integration layer (bridges, player controller, game loop) is transport-agnostic. Both the web UI (WebSocket/JSON) and Arena client (TCP/protobuf) are "transport heads" on the same orchestration layer.
 
 **Why it works:** `CompletableFuture` doesn't know what completes it. The engine blocks and waits. The transport layer — whatever it is — provides the answer. This means:
 - New transports are additive, not duplicative
 - Engine features automatically work for all transports
 - The bridge contract is testable without any transport
 
-**Counter-pattern:** per-transport game logic, or game logic that assumes a specific serialization format. Once `Game → DTO → ProtoMessage` exists, you've baked in a round-trip. Go `Game → ProtoMessage` directly (which nexus does).
+**Counter-pattern:** per-transport game logic, or game logic that assumes a specific serialization format. Once `Game → DTO → ProtoMessage` exists, you've baked in a round-trip. Go `Game → ProtoMessage` directly (which leyline does).
 
 **Generalized rule:** The bridge layer should speak in domain types (`PlayerAction`, `PromptRequest`, `List<Int>`), never in wire types (`JsonObject`, `ByteBuf`, `GeneratedMessageV3`). Wire types belong exclusively to the transport head.
 
@@ -121,7 +121,7 @@ The engine owns authoritative state. The transport layer computes diffs by compa
 
 **The trap:** trying to stream fine-grained mutations from the engine ("card moved to zone X", "life changed by -3"). This creates ordering dependencies, missing-event bugs, and makes reconnection hard. Snapshot-then-diff eliminates all of these.
 
-**forge-nexus implementation:** `StateMapper.buildFromGame()` takes a full snapshot. `buildDiffFromGame()` computes delta against previous snapshot. Annotations are derived from events, but the *state* is always authoritative from the snapshot.
+**Leyline implementation:** `StateMapper.buildFromGame()` takes a full snapshot. `buildDiffFromGame()` computes delta against previous snapshot. Annotations are derived from events, but the *state* is always authoritative from the snapshot.
 
 ### Principle 3: Single-Owner Counters, Never Shared-Mutate
 
@@ -166,7 +166,7 @@ Event-driven is strictly better because:
 - Events can distinguish simultaneous state changes (two creatures dying in combat)
 - Events are the engine's own language — less room for inference errors
 
-**The hybrid approach (what forge-nexus does):** Events for annotation *categories* (the "why"), snapshots for annotation *content* (the "what"). `categoryFromEvents()` picks the reason; `annotationsForTransfer()` builds the proto from the snapshot. Best of both worlds.
+**The hybrid approach (what leyline does):** Events for annotation *categories* (the "why"), snapshots for annotation *content* (the "what"). `categoryFromEvents()` picks the reason; `annotationsForTransfer()` builds the proto from the snapshot. Best of both worlds.
 
 ### Principle 7: The Snapshot Timing Invariant
 
@@ -183,9 +183,9 @@ Violating this causes:
 
 When Module B reuses Module A's internals, the reuse boundary must be:
 1. **Documented** — which classes are the API surface, which are internal
-2. **Narrow** — minimal import count (forge-nexus: 10 classes from forge-web)
+2. **Narrow** — minimal import count (leyline: 10 classes from forge-web)
 3. **Domain-typed** — shared types are domain concepts, not wire formats
-4. **One-directional** — A never imports B (forge-web never imports forge-nexus)
+4. **One-directional** — A never imports B (forge-web never imports leyline)
 
 If the boundary starts leaking (more than ~15 imports, or wire types crossing), extract a shared module. Don't wait until it's painful — the extraction cost grows superlinearly with coupling depth.
 

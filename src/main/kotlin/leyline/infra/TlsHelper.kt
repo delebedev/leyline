@@ -23,7 +23,7 @@ import javax.security.auth.x500.X500Principal
 /**
  * TLS helpers — PEM cert loading + self-signed generation.
  *
- * Used by MockWAS (JDK HttpsServer needs [SSLContext]).
+ * Used by AccountServer (JDK HttpsServer needs [SSLContext]).
  * FD/MD use Netty's [SslContextBuilder] which reads PEM directly.
  */
 object TlsHelper {

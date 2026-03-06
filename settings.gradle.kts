@@ -3,3 +3,4 @@ plugins {
 }
 
 rootProject.name = "leyline"
+include("account")

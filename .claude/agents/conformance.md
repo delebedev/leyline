@@ -17,7 +17,7 @@ Key areas:
 
 Workflow:
 1. Use `just replay <session>` or read recording JSONs directly
-2. Compare Arena proto output vs forge-nexus output
+2. Compare Arena proto output vs leyline output
 3. Document variance in field notes or analysis docs
 4. Update catalog.yaml when mechanic status changes
 

@@ -1,12 +1,12 @@
 package leyline
 
+import leyline.account.AccountServer
 import leyline.config.MatchConfig
 import leyline.debug.DebugServer
 import leyline.debug.PlayerLogWatcher
 import leyline.game.ExposedCardRepository
 import leyline.infra.LeylineServer
 import leyline.infra.ManagementServer
-import leyline.infra.MockWasServer
 import java.io.File
 
 /**
@@ -16,7 +16,7 @@ import java.io.File
  * See CLAUDE.md for mode descriptions.
  *
  * TLS: self-signed certs by default (needs mitmproxy CA certs for UnityTls validation).
- * MockWAS always self-signs (CheckSC=0 covers HTTP).
+ * AccountServer always self-signs (CheckSC=0 covers HTTP).
  *
  * Configuration layering (highest priority wins):
  *   CLI args > env vars > leyline.toml > code defaults
@@ -56,16 +56,22 @@ fun main(args: Array<String>) {
 
     val debugPort = a["--debug-port"]?.toIntOrNull() ?: sc.debugPort
     val mgmtPort = sc.managementPort
-    val wasPort = a["--was-port"]?.toIntOrNull() ?: sc.wasPort
+    val accountPort = a["--account-port"]?.toIntOrNull() ?: sc.accountPort
 
     val logWatcher = PlayerLogWatcher(eventBus = server.eventBus)
     val debugServer = buildDebugServer(debugPort, server)
     val mgmtServer = ManagementServer(port = mgmtPort, healthCheck = { server.isHealthy() })
-    val wasServer = buildWasServer(a, isProxy, wasPort, tls, fdHost)
+    val playerDbPath = System.getenv("LEYLINE_PLAYER_DB") ?: sc.playerDb
+    val playerDbFile = File(playerDbPath).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), playerDbPath) }
+    val accountDb = org.jetbrains.exposed.v1.jdbc.Database.connect(
+        "jdbc:sqlite:${playerDbFile.absolutePath}",
+        "org.sqlite.JDBC",
+    )
+    val accountServer = buildAccountServer(a, isProxy, accountPort, tls, fdHost, accountDb)
 
-    installShutdownHook(logWatcher, wasServer, debugServer, mgmtServer, server)
-    startAll(server, mgmtServer, debugServer, wasServer, logWatcher)
-    printBanner(server, puzzleFile, isProxy, config, mgmtPort, debugPort, wasPort, wasServer, fdHost)
+    installShutdownHook(logWatcher, accountServer, debugServer, mgmtServer, server)
+    startAll(server, mgmtServer, debugServer, accountServer, logWatcher)
+    printBanner(server, puzzleFile, isProxy, config, mgmtPort, debugPort, accountPort, accountServer, fdHost)
 
     Thread.currentThread().join()
 }
@@ -120,30 +126,33 @@ private fun buildDebugServer(port: Int, server: LeylineServer) = DebugServer(
     recordingInspector = server.recordingInspector,
 )
 
-private fun buildWasServer(
+private fun buildAccountServer(
     a: Map<String, String>,
     isProxy: Boolean,
     port: Int,
     tls: Pair<File?, File?>,
     fdHost: String,
-): MockWasServer {
+    database: org.jetbrains.exposed.v1.jdbc.Database,
+): AccountServer {
     if (isProxy) {
-        return MockWasServer(
+        return AccountServer(
             port = port,
-            certFile = a["--was-cert"]?.let { File(it) } ?: tls.first,
-            keyFile = a["--was-key"]?.let { File(it) } ?: tls.second,
+            certFile = a["--account-cert"]?.let { File(it) } ?: tls.first,
+            keyFile = a["--account-key"]?.let { File(it) } ?: tls.second,
             fdHost = fdHost,
-            upstreamWas = a["--proxy-was"] ?: MockWasServer.DEFAULT_UPSTREAM_WAS,
-            upstreamDoorbell = a["--proxy-doorbell"] ?: MockWasServer.DEFAULT_UPSTREAM_DOORBELL,
+            database = database,
+            upstreamAccount = a["--proxy-account"] ?: AccountServer.DEFAULT_UPSTREAM_ACCOUNT,
+            upstreamDoorbell = a["--proxy-doorbell"] ?: AccountServer.DEFAULT_UPSTREAM_DOORBELL,
         )
     }
     val debugRoles = System.getenv("LEYLINE_DEBUG").let { it == "true" || it == "1" }
-    return MockWasServer(
+    return AccountServer(
         port = port,
-        roles = if (debugRoles) MockWasServer.DEBUG_ROLES else MockWasServer.DEFAULT_ROLES,
-        certFile = a["--was-cert"]?.let { File(it) } ?: tls.first,
-        keyFile = a["--was-key"]?.let { File(it) } ?: tls.second,
+        roles = if (debugRoles) leyline.account.TokenService.DEBUG_ROLES else leyline.account.TokenService.DEFAULT_ROLES,
+        certFile = a["--account-cert"]?.let { File(it) } ?: tls.first,
+        keyFile = a["--account-key"]?.let { File(it) } ?: tls.second,
         fdHost = fdHost,
+        database = database,
     )
 }
 
@@ -151,7 +160,7 @@ private fun buildWasServer(
 
 private fun installShutdownHook(
     logWatcher: PlayerLogWatcher,
-    wasServer: MockWasServer,
+    accountServer: AccountServer,
     debugServer: DebugServer,
     mgmtServer: ManagementServer,
     server: LeylineServer,
@@ -159,7 +168,7 @@ private fun installShutdownHook(
     Runtime.getRuntime().addShutdownHook(
         Thread {
             logWatcher.stop()
-            wasServer.stop()
+            accountServer.stop()
             debugServer.stop()
             mgmtServer.stop()
             server.stop()
@@ -171,13 +180,13 @@ private fun startAll(
     server: LeylineServer,
     mgmtServer: ManagementServer,
     debugServer: DebugServer,
-    wasServer: MockWasServer,
+    accountServer: AccountServer,
     logWatcher: PlayerLogWatcher,
 ) {
     server.start()
     mgmtServer.start()
     debugServer.start()
-    wasServer.start()
+    accountServer.start()
     logWatcher.start()
 }
 
@@ -188,14 +197,14 @@ private fun printBanner(
     config: MatchConfig,
     mgmtPort: Int,
     debugPort: Int,
-    wasPort: Int,
-    wasServer: MockWasServer,
+    accountPort: Int,
+    accountServer: AccountServer,
     fdHost: String,
 ) {
     val mode = when {
         server.isReplay -> "replay"
         server.isProxy -> "proxy"
-        else -> "stub"
+        else -> "local"
     }
     val puzzleSuffix = if (puzzleFile != null) " + puzzle" else ""
 
@@ -203,10 +212,10 @@ private fun printBanner(
     println("Leyline server running. Press Ctrl+C to stop.")
     println("Management: http://localhost:$mgmtPort/health")
     println("Debug panel: http://localhost:$debugPort")
-    if (wasServer.isProxy) {
-        println("WAS proxy:   https://localhost:$wasPort -> ${MockWasServer.DEFAULT_UPSTREAM_WAS}")
+    if (accountServer.isProxy) {
+        println("Account:     https://localhost:$accountPort -> ${AccountServer.DEFAULT_UPSTREAM_ACCOUNT} (proxy)")
     } else {
-        println("Mock WAS:    https://localhost:$wasPort")
+        println("Account:     https://localhost:$accountPort")
     }
     println("Doorbell:    FdURI=$fdHost")
     if (puzzleFile != null) {

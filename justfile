@@ -41,9 +41,9 @@ _cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_op
 # CheckSC=0 does NOT bypass Unity's Mono TLS stack.
 _cert     := certs / "frontdoor-combined.pem"
 _key      := certs / "frontdoor.key"
-_was_cert := certs / "was-combined.pem"
-_was_key  := certs / "was.key"
-_cert_flags := 'cert_flags=""; if [ -f "' + _cert + '" ] && [ -f "' + _key + '" ]; then cert_flags="--cert ' + _cert + ' --key ' + _key + '"; fi; was_flags=""; if [ -f "' + _was_cert + '" ] && [ -f "' + _was_key + '" ]; then was_flags="--was-cert ' + _was_cert + ' --was-key ' + _was_key + '"; fi; cert_flags="$cert_flags $was_flags"'
+_account_cert := certs / "account-combined.pem"
+_account_key  := certs / "account.key"
+_cert_flags := 'cert_flags=""; if [ -f "' + _cert + '" ] && [ -f "' + _key + '" ]; then cert_flags="--cert ' + _cert + ' --key ' + _key + '"; fi; account_flags=""; if [ -f "' + _account_cert + '" ] && [ -f "' + _account_key + '" ]; then account_flags="--account-cert ' + _account_cert + ' --account-key ' + _account_key + '"; fi; cert_flags="$cert_flags $account_flags"'
 
 # --- Build ---
 
@@ -189,7 +189,7 @@ seed-db: (_require classpath) check-java
 
 # --- Serve ---
 
-# default dev mode: stub FD + stub MD (fully offline, no real Arena needed)
+# default dev mode: local FD + local MD (fully offline, no real Arena needed)
 [group('serve')]
 serve: (_require classpath) check-java
     #!/usr/bin/env bash
@@ -197,7 +197,7 @@ serve: (_require classpath) check-java
     {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags
 
-# replay-stub mode: replay captured FD session (fd-frames.jsonl), stub MD
+# replay-local mode: replay captured FD session (fd-frames.jsonl), local MD
 [group('serve')]
 serve-replay-stub golden="": (_require classpath) check-java
     #!/usr/bin/env bash
@@ -223,7 +223,7 @@ serve-proxy: (_require classpath) check-java
     {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
 
-# replay mode (stub FD, replay recorded bytes on MD)
+# replay mode (local FD, replay recorded bytes on MD)
 [group('serve')]
 serve-replay: (_require classpath) check-java
     #!/usr/bin/env bash

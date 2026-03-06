@@ -37,8 +37,9 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":account"))
     implementation(libs.kotlin.stdlib)
-implementation(libs.serialization.json)
+ implementation(libs.serialization.json)
     implementation(libs.protobuf.java)
     implementation(libs.protobuf.java.util)
     implementation(libs.tomlkt)

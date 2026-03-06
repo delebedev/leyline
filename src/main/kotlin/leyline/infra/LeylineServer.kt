@@ -41,7 +41,7 @@ import java.io.File
 
 /**
  * Client-compatible TLS TCP server — the single entry point for all three operating modes
- * (stub/proxy/replay). Each mode assembles a different Netty pipeline per door.
+ * (local/proxy/replay). Each mode assembles a different Netty pipeline per door.
  *
  * **Shared mutable state:** [selectedDeckId] and [selectedEventName] are written by the
  * FD handler (CmdType 612) on the Netty IO thread and read by [MatchHandler] on connect.
@@ -129,7 +129,7 @@ class LeylineServer(
         when {
             isReplay -> startReplay(ssl, ssl)
             isProxy -> startProxy(ssl, ssl)
-            else -> startStub(ssl, ssl)
+            else -> startLocal(ssl, ssl)
         }
     }
 
@@ -142,7 +142,7 @@ class LeylineServer(
         SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey()).build()
     }
 
-    private fun startStub(fdSsl: SslContext, mdSsl: SslContext) {
+    private fun startLocal(fdSsl: SslContext, mdSsl: SslContext) {
         val playerDbFile = File(playerDbPath).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), playerDbPath) }
         val hasDb = playerDbFile.exists()
         val resolvedPlayerId = if (hasDb) {
@@ -198,7 +198,7 @@ class LeylineServer(
                     ),
                 )
             }
-            log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
+            log.info("Client Front Door (local) listening on :{}", frontDoorPort)
         }
 
         // Deck lookups for match handler — crosses BC boundary via function, not import
@@ -236,14 +236,14 @@ class LeylineServer(
                 ),
             )
         }
-        log.info("Client Match Door (stub) listening on :{}", matchDoorPort)
+        log.info("Client Match Door (local) listening on :{}", matchDoorPort)
     }
 
     private fun startReplay(fdSsl: SslContext, mdSsl: SslContext) {
         val dir = replayDir!!
         require(dir.isDirectory) { "Replay dir does not exist: $dir" }
 
-        // FD stub — in-memory SQLite, no deck/player data needed for replay
+        // FD local — in-memory SQLite, no deck/player data needed for replay
         val golden = GoldenData.loadFromClasspath()
         val memDb = org.jetbrains.exposed.v1.jdbc.Database.connect("jdbc:sqlite::memory:", "org.sqlite.JDBC")
         val memStore = SqlitePlayerStore(memDb)
@@ -266,7 +266,7 @@ class LeylineServer(
                 ),
             )
         }
-        log.info("Client Front Door (stub) listening on :{}", frontDoorPort)
+        log.info("Client Front Door (local) listening on :{}", frontDoorPort)
 
         // Match Door: replay recorded payloads
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor-Replay") { ch ->
