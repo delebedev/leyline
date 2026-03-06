@@ -1,7 +1,6 @@
 package leyline.frontdoor.service
 
-import leyline.bridge.DeckConverter
-import leyline.bridge.DeckLoader
+import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.MatchInfo
 import leyline.frontdoor.domain.PlayerId
@@ -16,12 +15,20 @@ import java.util.UUID
  * Deck legality is validated against the event's Forge format (looked up via [EventRegistry]).
  * Events flagged `SkipDeckValidation` in the registry bypass this check entirely — used for
  * formats Forge doesn't model yet (e.g. Alchemy) so the client can still queue.
+ *
+ * Deck validation is injected as a lambda to keep this module free of Forge engine
+ * dependencies. The wiring layer ([leyline.infra.LeylineServer]) composes DeckConverter,
+ * DeckLoader, and FormatService into the lambda.
  */
 class MatchmakingService(
     private val decks: DeckRepository,
     private val matchDoorHost: String,
     private val matchDoorPort: Int,
-    private val nameByGrpId: (Int) -> String? = { null },
+    /**
+     * Validate a deck against a format. Returns null if legal, error string if illegal.
+     * Params: (mainDeck, sideboard, formatId).
+     */
+    private val validateDeck: ((List<DeckCard>, List<DeckCard>, String) -> String?)? = null,
 ) {
     private val log = LoggerFactory.getLogger(MatchmakingService::class.java)
 
@@ -33,18 +40,12 @@ class MatchmakingService(
             ?: throw IllegalArgumentException("Deck not found: ${deckId.value}")
 
         val forgeFormat = EventRegistry.forgeFormatFor(eventName)
-        if (forgeFormat != null) {
-            val deckText = DeckConverter.toDeckText(deck.mainDeck, deck.sideboard, nameByGrpId)
-            if (deckText.isBlank()) {
-                log.warn("Cannot validate deck '{}' — card name resolver not wired", deck.name)
-            } else {
-                val forgeDeck = DeckLoader.parseDeckList(deckText)
-                val problem = FormatService.validateDeck(forgeDeck, forgeFormat)
-                if (problem != null) {
-                    throw IllegalArgumentException("Deck '${deck.name}' not legal in $forgeFormat: $problem")
-                }
-                log.info("Deck '{}' validated for format {}", deck.name, forgeFormat)
+        if (forgeFormat != null && validateDeck != null) {
+            val problem = validateDeck.invoke(deck.mainDeck, deck.sideboard, forgeFormat)
+            if (problem != null) {
+                throw IllegalArgumentException("Deck '${deck.name}' not legal in $forgeFormat: $problem")
             }
+            log.info("Deck '{}' validated for format {}", deck.name, forgeFormat)
         }
 
         return MatchInfo(

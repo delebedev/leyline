@@ -1,4 +1,4 @@
-package leyline.protocol
+package leyline.frontdoor.wire
 
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -7,6 +7,21 @@ import kotlinx.serialization.json.putJsonObject
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPInputStream
+
+/**
+ * Wire-level frame constants shared by FD codecs.
+ *
+ * Duplicated from [ClientFrameDecoder] companion so that FD code can
+ * be extracted into a separate module without depending on the Netty
+ * codec class.
+ */
+object FdWireConstants {
+    const val HEADER_SIZE = 6
+    const val VERSION: Byte = 0x04
+    const val TYPE_CTRL_INIT: Byte = 0x12
+    const val TYPE_CTRL_ACK: Byte = 0x13
+    const val TYPE_DATA_FD: Byte = 0x21
+}
 
 /**
  * Front Door protobuf envelope codec.
@@ -383,9 +398,9 @@ object FdEnvelope {
      * Shared by FrontDoorHandler and FrontDoorReplayStub.
      */
     fun buildOutgoingHeader(payloadLength: Int): ByteArray {
-        val h = ByteArray(ClientFrameDecoder.HEADER_SIZE)
-        h[0] = ClientFrameDecoder.VERSION
-        h[1] = ClientFrameDecoder.TYPE_DATA_FD
+        val h = ByteArray(FdWireConstants.HEADER_SIZE)
+        h[0] = FdWireConstants.VERSION
+        h[1] = FdWireConstants.TYPE_DATA_FD
         h[2] = (payloadLength and 0xFF).toByte()
         h[3] = ((payloadLength shr 8) and 0xFF).toByte()
         h[4] = ((payloadLength shr 16) and 0xFF).toByte()

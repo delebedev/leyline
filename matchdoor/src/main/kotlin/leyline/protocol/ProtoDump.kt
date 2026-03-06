@@ -1,7 +1,6 @@
 package leyline.protocol
 
 import com.google.protobuf.TextFormat
-import leyline.LeylinePaths
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
@@ -22,8 +21,15 @@ object ProtoDump {
     private val counter = AtomicInteger(0)
     private val printer = TextFormat.printer()
 
+    /**
+     * Output directory for proto dumps. Set at startup from LeylinePaths.ENGINE_DUMP.
+     * Defaults to `engine/` under CWD if not configured.
+     */
+    @Volatile
+    var engineDumpDir: File = File("engine")
+
     private val dumpDir: File by lazy {
-        LeylinePaths.ENGINE_DUMP.also {
+        engineDumpDir.also {
             it.mkdirs()
             log.info("Client proto dump → {}", it.absolutePath)
         }

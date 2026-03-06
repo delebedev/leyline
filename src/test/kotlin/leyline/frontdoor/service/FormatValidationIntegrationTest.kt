@@ -7,6 +7,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.string.shouldNotBeBlank
 import leyline.IntegrationTag
 import leyline.bridge.DeckLoader
+import leyline.bridge.FormatService
 import leyline.bridge.GameBootstrap
 
 /**
@@ -49,7 +50,7 @@ class FormatValidationIntegrationTest :
 
         test("mapArenaFormat + resolve round-trip") {
             val format = FormatService.resolve(
-                FormatService.mapArenaFormat("TraditionalStandard"),
+                EventRegistry.mapArenaFormat("TraditionalStandard"),
             )
             format.shouldNotBeNull()
         }

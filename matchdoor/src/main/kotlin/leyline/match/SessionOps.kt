@@ -1,7 +1,6 @@
 package leyline.match
 
 import forge.game.Game
-import leyline.debug.GameStateCollector
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
@@ -23,7 +22,7 @@ interface SessionOps {
     fun sendRealGameState(bridge: GameBridge)
     fun sendBundle(result: BundleBuilder.BundleResult)
     fun sendGameOver(reason: ResultReason = ResultReason.Game_ae0a)
-    fun traceEvent(type: GameStateCollector.EventType, game: Game, detail: String)
+    fun traceEvent(type: MatchEventType, game: Game, detail: String)
     fun paceDelay(multiplier: Int)
 
     /** Build a single GRE message with explicit IDs. */

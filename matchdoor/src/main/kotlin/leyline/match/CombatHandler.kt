@@ -3,8 +3,6 @@ package leyline.match
 import forge.game.Game
 import forge.game.phase.PhaseType
 import leyline.bridge.PlayerAction
-import leyline.debug.GameStateCollector
-import leyline.debug.Tap
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
@@ -266,12 +264,12 @@ class CombatHandler(private val ops: SessionOps) {
                 if (isHumanTurn) {
                     val req = BundleBuilder.buildDeclareAttackersReq(game, ops.seatId, bridge)
                     if (req.attackersCount > 0) {
-                        ops.traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
+                        ops.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
                         sendDeclareAttackersReq(bridge, req)
                         return Signal.STOP
                     }
                 } else if (isAiTurn && combat != null && combat.attackers.isNotEmpty()) {
-                    ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "AI attacking, ${combat.attackers.size} attackers")
+                    ops.traceEvent(MatchEventType.SEND_STATE, game, "AI attacking, ${combat.attackers.size} attackers")
                     ops.paceDelay(2)
                     return Signal.SEND_STATE
                 }
@@ -286,25 +284,25 @@ class CombatHandler(private val ops: SessionOps) {
                     // Drain any pending playback messages — the engine thread may have
                     // captured AI actions between the last drain and now.
                     drainPendingPlayback(bridge)
-                    ops.traceEvent(GameStateCollector.EventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
+                    ops.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
                     sendDeclareBlockersReq(bridge)
                     return Signal.STOP
                 } else if (isHumanTurn && combat != null && combat.attackers.isNotEmpty()) {
-                    ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "AI blocking result")
+                    ops.traceEvent(MatchEventType.SEND_STATE, game, "AI blocking result")
                     ops.paceDelay(2)
                     return Signal.SEND_STATE
                 }
             }
             PhaseType.COMBAT_DAMAGE -> {
                 if (combat != null && combat.attackers.isNotEmpty()) {
-                    ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat damage")
+                    ops.traceEvent(MatchEventType.SEND_STATE, game, "combat damage")
                     ops.paceDelay(2)
                     return Signal.SEND_STATE
                 }
             }
             PhaseType.COMBAT_END -> {
                 if (combat != null && combat.attackers.isNotEmpty()) {
-                    ops.traceEvent(GameStateCollector.EventType.SEND_STATE, game, "combat end")
+                    ops.traceEvent(MatchEventType.SEND_STATE, game, "combat end")
                     return Signal.SEND_STATE
                 }
             }

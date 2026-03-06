@@ -10,7 +10,6 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
-import leyline.debug.FdDebugCollector
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.MatchInfo
 import leyline.frontdoor.domain.PlayerId
@@ -21,15 +20,15 @@ import leyline.frontdoor.service.EventRegistry
 import leyline.frontdoor.service.LobbyStubs
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
+import leyline.frontdoor.wire.CmdType
 import leyline.frontdoor.wire.DeckWireBuilder
 import leyline.frontdoor.wire.EventWireBuilder
+import leyline.frontdoor.wire.FdEnvelope
 import leyline.frontdoor.wire.FdRequests
 import leyline.frontdoor.wire.FdResponse
 import leyline.frontdoor.wire.FdResponseWriter
+import leyline.frontdoor.wire.FdWireConstants
 import leyline.frontdoor.wire.PlayerWireBuilder
-import leyline.protocol.ClientFrameDecoder
-import leyline.protocol.CmdType
-import leyline.protocol.FdEnvelope
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
@@ -51,7 +50,7 @@ class FrontDoorHandler(
     private val collectionService: CollectionService,
     private val writer: FdResponseWriter,
     private val golden: GoldenData,
-    private val fdCollector: FdDebugCollector? = null,
+    private val onFdMessage: ((String, FdEnvelope.FdMessage) -> Unit)? = null,
     /** Called when client sends 612 with a deckId — writes to shared holder. */
     private val onDeckSelected: ((String) -> Unit)? = null,
     /** Called when client sends 612 with an eventName — writes to shared holder. */
@@ -90,24 +89,24 @@ class FrontDoorHandler(
             val bytes = ByteArray(msg.readableBytes())
             msg.readBytes(bytes)
 
-            if (bytes.size < ClientFrameDecoder.HEADER_SIZE) return
+            if (bytes.size < FdWireConstants.HEADER_SIZE) return
 
             val frameType = bytes[1]
             log.debug("Front Door: frame type=0x{} size={}", String.format("%02x", frameType), bytes.size)
 
             // Control frames
-            if (frameType == ClientFrameDecoder.TYPE_CTRL_INIT) {
+            if (frameType == FdWireConstants.TYPE_CTRL_INIT) {
                 log.debug("Front Door: CTRL_INIT received, sending ACK")
                 writer.sendCtrlAck(ctx, bytes)
                 return
             }
-            if (frameType == ClientFrameDecoder.TYPE_CTRL_ACK) {
+            if (frameType == FdWireConstants.TYPE_CTRL_ACK) {
                 log.debug("Front Door: CTRL_ACK received (ignored)")
                 return
             }
 
-            val payload = if (bytes.size > ClientFrameDecoder.HEADER_SIZE) {
-                bytes.copyOfRange(ClientFrameDecoder.HEADER_SIZE, bytes.size)
+            val payload = if (bytes.size > FdWireConstants.HEADER_SIZE) {
+                bytes.copyOfRange(FdWireConstants.HEADER_SIZE, bytes.size)
             } else {
                 null
             }
@@ -129,7 +128,7 @@ class FrontDoorHandler(
             val cmdType = decoded.cmdType
             val cmdName = cmdType?.let { CmdType.nameOf(it) } ?: "unknown"
 
-            fdCollector?.record("C2S", decoded)
+            onFdMessage?.invoke("C2S", decoded)
             log.debug("Front Door: cmd={} cmdType={} txId={}", cmdName, cmdType, transactionId)
 
             dispatch(ctx, cmdType, transactionId, json)

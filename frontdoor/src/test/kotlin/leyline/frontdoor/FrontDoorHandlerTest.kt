@@ -19,7 +19,6 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import leyline.FdTag
 import leyline.frontdoor.domain.Deck
 import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
@@ -30,9 +29,9 @@ import leyline.frontdoor.service.CollectionService
 import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
+import leyline.frontdoor.wire.FdEnvelope
 import leyline.frontdoor.wire.FdResponseWriter
-import leyline.protocol.ClientFrameDecoder
-import leyline.protocol.FdEnvelope
+import leyline.frontdoor.wire.FdWireConstants
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.io.File
 import java.util.UUID
@@ -94,7 +93,6 @@ class FrontDoorHandlerTest :
         /** Create a fresh FD channel wired to our test player. */
         fun fdChannel(): EmbeddedChannel {
             val ch = EmbeddedChannel(
-                ClientFrameDecoder(),
                 FrontDoorHandler(
                     playerId = PlayerId(testPlayerId),
                     deckService = deckService,
@@ -431,7 +429,7 @@ private fun assertKeysMatch(
 private fun decodeResponse(buf: ByteBuf): FdEnvelope.FdMessage {
     try {
         val totalBytes = buf.readableBytes()
-        if (totalBytes <= ClientFrameDecoder.HEADER_SIZE) {
+        if (totalBytes <= FdWireConstants.HEADER_SIZE) {
             // Header-only response (empty ack)
             return FdEnvelope.FdMessage(
                 cmdType = null,
@@ -441,7 +439,7 @@ private fun decodeResponse(buf: ByteBuf): FdEnvelope.FdMessage {
             )
         }
         // Skip 6-byte header
-        buf.skipBytes(ClientFrameDecoder.HEADER_SIZE)
+        buf.skipBytes(FdWireConstants.HEADER_SIZE)
         val payload = ByteArray(buf.readableBytes())
         buf.readBytes(payload)
         return FdEnvelope.decode(payload)

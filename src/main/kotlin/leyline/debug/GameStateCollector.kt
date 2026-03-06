@@ -3,6 +3,7 @@ package leyline.debug
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import leyline.game.CardRepository
+import leyline.match.MatchEventType
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -107,7 +108,7 @@ class GameStateCollector(
     /** Record a priority/engine decision event. */
     fun recordEvent(
         gsId: Int,
-        type: EventType,
+        type: MatchEventType,
         phase: String?,
         turn: Int,
         detail: String,
@@ -474,7 +475,7 @@ class GameStateCollector(
         val seq: Int,
         val ts: Long,
         val gsId: Int,
-        val type: EventType,
+        val type: MatchEventType,
         val phase: String?,
         val turn: Int,
         val detail: String,
@@ -494,18 +495,4 @@ class GameStateCollector(
         val phase: String?,
         val turn: Int,
     )
-
-    @Serializable
-    enum class EventType {
-        PRIORITY_GRANT,
-        AUTO_PASS,
-        SEND_STATE,
-        CLIENT_ACTION,
-        COMBAT_PROMPT,
-        TARGET_PROMPT,
-        GAME_OVER,
-        GAME_START,
-        AI_TURN_WAIT,
-        AI_TURN_TIMEOUT,
-    }
 }

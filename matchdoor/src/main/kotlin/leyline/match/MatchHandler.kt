@@ -7,13 +7,9 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import leyline.bridge.CardEntry
 import leyline.bridge.DeckConverter
 import leyline.config.MatchConfig
-import leyline.debug.DebugCollector
-import leyline.debug.GameStateCollector
-import leyline.debug.SessionRecorder
-import leyline.debug.Tap
-import leyline.frontdoor.domain.DeckCard
 import leyline.game.CardRepository
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
@@ -49,10 +45,10 @@ class MatchHandler(
     private val deckLookupByName: ((String) -> String?)? = null,
     /** Card data repository — used for grpId→name in deck conversion. */
     private val cards: CardRepository? = null,
-    /** Protocol message collector for debug panel. */
-    private val debugCollector: DebugCollector? = null,
-    /** Structured game state collector for debug panel. */
-    private val gameStateCollector: GameStateCollector? = null,
+    /** Debug diagnostics sink — protocol messages + game state collector. Null in tests. */
+    private val debugSink: MatchDebugSink? = null,
+    /** Factory for per-session recorders. Null = no recording. */
+    private val recorderFactory: (() -> MatchRecorder)? = null,
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
@@ -89,8 +85,8 @@ class MatchHandler(
 
     init {
         // Wire debug collector's bridge/session providers once per handler instance.
-        debugCollector?.bridgeProvider = { registry.activeBridges() }
-        debugCollector?.sessionProvider = { registry.activeSession() }
+        debugSink?.bridgeProvider = { registry.activeBridges() }
+        debugSink?.sessionProvider = { registry.activeSession() }
     }
 
     override fun channelActive(ctx: ChannelHandlerContext) {
@@ -99,7 +95,7 @@ class MatchHandler(
 
     override fun channelRead0(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
         Tap.inbound(msg.clientToMatchServiceMessageType, msg.requestId)
-        debugCollector?.recordInbound(msg)
+        debugSink?.recordInbound(msg)
 
         when (msg.clientToMatchServiceMessageType) {
             ClientToMatchServiceMessageType.AuthenticateRequest_f487 -> handleMatchAuth(ctx, msg)
@@ -143,16 +139,14 @@ class MatchHandler(
             // Create session + sink + recorder
             // Seat 2 (Familiar) sink skips ProtoDump to avoid duplicate .bin files
             val sink = NettyMessageSink(ctx, dumpEnabled = seatId == 1)
-            val rec = SessionRecorder(mode = "engine")
-            SessionRecorder.register(rec)
+            val rec = recorderFactory?.invoke()
             val s = MatchSession(
                 seatId,
                 matchId,
                 sink,
                 registry,
                 recorder = rec,
-                debugCollector = debugCollector,
-                gameStateCollector = gameStateCollector,
+                debugSink = debugSink,
             )
             s.playerId = clientId.removeSuffix("_Familiar")
             session = s
@@ -180,8 +174,8 @@ class MatchHandler(
                 val evicted = registry.evictStale(matchId)
                 if (evicted.isNotEmpty()) {
                     evicted.forEach { it.shutdown() }
-                    debugCollector?.clear()
-                    gameStateCollector?.clear()
+                    debugSink?.clear()
+                    debugSink?.clearState()
                     log.info("Match Door: evicted {} stale bridge(s)", evicted.size)
                 }
 
@@ -323,19 +317,13 @@ class MatchHandler(
     override fun channelInactive(ctx: ChannelHandlerContext) {
         log.info("Match Door: client disconnected")
         // Close recorder on disconnect (triggers analysis if game didn't end cleanly)
-        session?.recorder?.run {
-            close()
-            SessionRecorder.unregister(this)
-        }
+        session?.recorder?.shutdown()
         super.channelInactive(ctx)
     }
 
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
         log.error("Match Door error: {}", cause.message, cause)
-        session?.recorder?.run {
-            close()
-            SessionRecorder.unregister(this)
-        }
+        session?.recorder?.shutdown()
         session?.gameBridge?.shutdown()
         ctx.close()
     }
@@ -387,13 +375,13 @@ class MatchHandler(
     private fun parseDeckSection(
         obj: kotlinx.serialization.json.JsonObject,
         section: String,
-    ): List<DeckCard> {
+    ): List<CardEntry> {
         val arr = obj[section]?.jsonArray ?: return emptyList()
         return arr.mapNotNull { entry ->
             val cardObj = entry.jsonObject
             val grpId = cardObj["cardId"]?.jsonPrimitive?.int ?: return@mapNotNull null
             val qty = cardObj["quantity"]?.jsonPrimitive?.int ?: return@mapNotNull null
-            DeckCard(grpId, qty)
+            CardEntry(grpId, qty)
         }
     }
 }

@@ -51,7 +51,7 @@ internal fun parseManaCost(s: String?): List<Pair<ManaColor, Int>> {
 }
 
 /** Parse "99866:94161,175756:94156" → mapOf(99866 to 94161, 175756 to 94156). */
-internal fun parseTokenGrpIds(s: String?): Map<Int, Int> {
+fun parseTokenGrpIds(s: String?): Map<Int, Int> {
     if (s.isNullOrBlank()) return emptyMap()
     val result = mutableMapOf<Int, Int>()
     for (entry in s.split(",")) {

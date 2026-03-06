@@ -2,7 +2,7 @@ package leyline.frontdoor.domain
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import leyline.FdTag
+import leyline.frontdoor.FdTag
 
 class DeckTest :
     FunSpec({

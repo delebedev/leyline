@@ -1,4 +1,4 @@
-package leyline.protocol
+package leyline.frontdoor.wire
 
 /**
  * Front Door command type — wraps the CmdType varint from FD envelopes.

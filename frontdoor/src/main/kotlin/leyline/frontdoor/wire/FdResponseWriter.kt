@@ -1,20 +1,16 @@
 package leyline.frontdoor.wire
 
 import io.netty.channel.ChannelHandlerContext
-import leyline.debug.FdDebugCollector
-import leyline.protocol.ClientFrameDecoder
-import leyline.protocol.CmdType
-import leyline.protocol.FdEnvelope
 import java.util.UUID
 
 /**
  * Netty write utilities for Front Door responses.
  *
- * Handles framing, channel writes, and [FdDebugCollector] recording.
+ * Handles framing, channel writes, and optional message recording.
  * Extracted from handler code so handlers stay protocol-agnostic.
  */
 class FdResponseWriter(
-    private val fdCollector: FdDebugCollector? = null,
+    private val onFdMessage: ((String, FdEnvelope.FdMessage) -> Unit)? = null,
 ) {
 
     fun sendJson(ctx: ChannelHandlerContext, txId: String?, json: String) {
@@ -48,7 +44,7 @@ class FdResponseWriter(
     /** Acknowledge a control init frame by echoing it with the ACK type byte. */
     fun sendCtrlAck(ctx: ChannelHandlerContext, initFrame: ByteArray) {
         val ack = initFrame.copyOf()
-        ack[1] = ClientFrameDecoder.TYPE_CTRL_ACK
+        ack[1] = FdWireConstants.TYPE_CTRL_ACK
         val buf = ctx.alloc().buffer(ack.size)
         buf.writeBytes(ack)
         ctx.writeAndFlush(buf)
@@ -83,7 +79,7 @@ class FdResponseWriter(
         envelope: ByteArray,
     ) {
         val header = FdEnvelope.buildOutgoingHeader(envelope.size)
-        fdCollector?.record(
+        onFdMessage?.invoke(
             "S2C",
             FdEnvelope.FdMessage(
                 cmdType = null,

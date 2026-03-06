@@ -9,7 +9,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import leyline.FdTag
+import leyline.frontdoor.FdTag
 import leyline.frontdoor.wire.EventWireBuilder
 
 class EventRegistryTest :

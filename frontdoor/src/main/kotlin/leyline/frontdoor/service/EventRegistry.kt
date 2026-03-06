@@ -35,6 +35,24 @@ data class EventDef(
  */
 object EventRegistry {
 
+    /** Arena format names that have no Forge equivalent — skip validation. */
+    private val UNMAPPED_FORMATS = setOf("Timeless", "Alchemy")
+
+    /** Arena → Forge renames (after stripping "Traditional" prefix). */
+    private val ARENA_TO_FORGE = mapOf(
+        "Explorer" to "Pioneer",
+    )
+
+    /**
+     * Map Arena deckSelectFormat string to Forge format name, or null if unmapped.
+     * "TraditionalStandard" → "Standard", "Explorer" → "Pioneer".
+     */
+    fun mapArenaFormat(arenaFormat: String): String? {
+        val base = arenaFormat.removePrefix("Traditional")
+        if (base in UNMAPPED_FORMATS) return null
+        return ARENA_TO_FORGE[base] ?: base
+    }
+
     /** Matches real server queue config (proxy capture 2026-03-03, 14 queues). */
     val queues: List<QueueEntry> = listOf(
         // Ranked (no QueueType field emitted — client default)
@@ -279,7 +297,7 @@ object EventRegistry {
     fun forgeFormatFor(eventName: String): String? {
         val event = findEvent(eventName) ?: return null
         if (event.flags.contains("SkipDeckValidation")) return null
-        return FormatService.mapArenaFormat(event.deckSelectFormat)
+        return mapArenaFormat(event.deckSelectFormat)
     }
 
     /**

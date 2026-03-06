@@ -1,20 +1,22 @@
 package leyline.bridge
 
-import leyline.frontdoor.domain.DeckCard
 import org.slf4j.LoggerFactory
+
+/** Card entry for deck conversion: grpId + quantity. */
+data class CardEntry(val grpId: Int, val quantity: Int)
 
 object DeckConverter {
     private val log = LoggerFactory.getLogger(DeckConverter::class.java)
 
     /**
-     * Convert Arena DeckCard lists to Forge-parseable deck text.
+     * Convert card entry lists to Forge-parseable deck text.
      * Unknown grpIds are skipped with a warning.
      *
      * @param nameByGrpId lookup function: grpId → card name (null if unknown)
      */
     fun toDeckText(
-        mainDeck: List<DeckCard>,
-        sideboard: List<DeckCard>,
+        mainDeck: List<CardEntry>,
+        sideboard: List<CardEntry>,
         nameByGrpId: (Int) -> String?,
     ): String = buildString {
         for (card in mainDeck) {
@@ -39,14 +41,14 @@ object DeckConverter {
     }
 
     /**
-     * Convert Arena DeckCard lists to a Forge Deck.
+     * Convert card entry lists to a Forge Deck.
      * Requires Forge card database to be initialized.
      *
      * @param nameByGrpId lookup function: grpId → card name (null if unknown)
      */
     fun toForgeDeck(
-        mainDeck: List<DeckCard>,
-        sideboard: List<DeckCard>,
+        mainDeck: List<CardEntry>,
+        sideboard: List<CardEntry>,
         nameByGrpId: (Int) -> String?,
     ): forge.deck.Deck {
         val text = toDeckText(mainDeck, sideboard, nameByGrpId)

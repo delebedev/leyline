@@ -6,10 +6,9 @@ import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.util.ReferenceCountUtil
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import leyline.debug.FdDebugCollector
-import leyline.protocol.ClientFrameDecoder
-import leyline.protocol.CmdType
-import leyline.protocol.FdEnvelope
+import leyline.frontdoor.wire.CmdType
+import leyline.frontdoor.wire.FdEnvelope
+import leyline.frontdoor.wire.FdWireConstants
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.util.UUID
@@ -34,7 +33,7 @@ class FrontDoorReplayStub(
     goldenFile: File,
     private val matchDoorHost: String = "localhost",
     private val matchDoorPort: Int = 30003,
-    private val fdCollector: FdDebugCollector? = null,
+    private val onFdMessage: ((String, FdEnvelope.FdMessage) -> Unit)? = null,
 ) : ChannelInboundHandlerAdapter() {
 
     private val log = LoggerFactory.getLogger(FrontDoorReplayStub::class.java)
@@ -77,22 +76,22 @@ class FrontDoorReplayStub(
             val bytes = ByteArray(msg.readableBytes())
             msg.readBytes(bytes)
 
-            if (bytes.size < ClientFrameDecoder.HEADER_SIZE) return
+            if (bytes.size < FdWireConstants.HEADER_SIZE) return
             val frameType = bytes[1]
 
             // Handle control frames
-            if (frameType == ClientFrameDecoder.TYPE_CTRL_INIT) {
+            if (frameType == FdWireConstants.TYPE_CTRL_INIT) {
                 val ack = bytes.copyOf()
-                ack[1] = ClientFrameDecoder.TYPE_CTRL_ACK
+                ack[1] = FdWireConstants.TYPE_CTRL_ACK
                 val buf = ctx.alloc().buffer(ack.size)
                 buf.writeBytes(ack)
                 ctx.writeAndFlush(buf)
                 return
             }
-            if (frameType == ClientFrameDecoder.TYPE_CTRL_ACK) return
+            if (frameType == FdWireConstants.TYPE_CTRL_ACK) return
 
-            val payload = if (bytes.size > ClientFrameDecoder.HEADER_SIZE) {
-                bytes.copyOfRange(ClientFrameDecoder.HEADER_SIZE, bytes.size)
+            val payload = if (bytes.size > FdWireConstants.HEADER_SIZE) {
+                bytes.copyOfRange(FdWireConstants.HEADER_SIZE, bytes.size)
             } else {
                 return
             }
@@ -100,7 +99,7 @@ class FrontDoorReplayStub(
             val decoded = FdEnvelope.decode(payload)
             val cmdType = decoded.cmdType
             val cmdName = cmdType?.let { CmdType.nameOf(it) }
-            fdCollector?.record("C2S", decoded)
+            onFdMessage?.invoke("C2S", decoded)
 
             log.info("FD Replay: C→S cmd={} ({}) txId={}", cmdName, cmdType, decoded.transactionId)
 
@@ -163,7 +162,7 @@ class FrontDoorReplayStub(
         val envelope = FdEnvelope.encodeResponse(transactionId, json)
         val header = FdEnvelope.buildOutgoingHeader(envelope.size)
 
-        fdCollector?.record(
+        onFdMessage?.invoke(
             "S2C",
             FdEnvelope.FdMessage(
                 cmdType = null,
