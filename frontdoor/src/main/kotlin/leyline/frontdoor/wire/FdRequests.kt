@@ -107,6 +107,25 @@ object FdRequests {
         DeleteDeck(id)
     }
 
+    /** BotDraft_DraftPick — client sends pick info with string card IDs. */
+    data class DraftPick(
+        val eventName: String,
+        val cardId: Int,
+        val packNumber: Int,
+        val pickNumber: Int,
+    )
+
+    fun parseDraftPick(json: String?): DraftPick? = parse(json) { obj ->
+        val eventName = obj["EventName"]?.jsonPrimitive?.content ?: return@parse null
+        val pickInfo = obj["PickInfo"]?.jsonObject ?: return@parse null
+        val cardIds = pickInfo["CardIds"]?.jsonArray ?: return@parse null
+        val cardId = cardIds.firstOrNull()?.jsonPrimitive?.content?.toIntOrNull()
+            ?: return@parse null
+        val packNumber = pickInfo["PackNumber"]?.jsonPrimitive?.int ?: return@parse null
+        val pickNumber = pickInfo["PickNumber"]?.jsonPrimitive?.int ?: return@parse null
+        DraftPick(eventName, cardId, packNumber, pickNumber)
+    }
+
     private fun parseDeckCards(element: JsonElement?): List<DeckCard> {
         if (element == null) return emptyList()
         return try {

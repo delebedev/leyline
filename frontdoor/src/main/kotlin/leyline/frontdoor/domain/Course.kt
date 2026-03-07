@@ -6,6 +6,7 @@ package leyline.frontdoor.domain
  * Client-visible course state machine modules.
  *
  * Sealed event lifecycle: `DeckSelect → CreateMatch ⇄ MatchResults → Complete`.
+ * Quick Draft lifecycle: `BotDraft → DeckSelect → CreateMatch ⇄ MatchResults → Complete`.
  * Constructed events skip straight to `CreateMatch`. The remaining variants
  * (`Join`, `Sealed`, `GrantCardPool`, `RankUpdate`, `ClaimPrize`) exist in
  * the real server protocol but are not yet used by our implementation.
@@ -19,6 +20,7 @@ enum class CourseModule {
     Join,
     Sealed,
     GrantCardPool,
+    BotDraft,
     DeckSelect,
     CreateMatch,
     MatchResults,

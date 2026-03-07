@@ -12,6 +12,9 @@ import leyline.frontdoor.domain.CourseModule
 import leyline.frontdoor.domain.Deck
 import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
+import leyline.frontdoor.domain.DraftSession
+import leyline.frontdoor.domain.DraftSessionId
+import leyline.frontdoor.domain.DraftStatus
 import leyline.frontdoor.domain.Format
 import leyline.frontdoor.domain.Player
 import leyline.frontdoor.domain.PlayerId
@@ -76,6 +79,19 @@ class SqlitePlayerStore(private val database: Database) :
         override val primaryKey = PrimaryKey(id)
     }
 
+    private object DraftSessions : Table("draft_sessions") {
+        val id = text("id")
+        val playerId = text("player_id")
+        val eventName = text("event_name")
+        val status = text("status")
+        val packNumber = integer("pack_number").default(0)
+        val pickNumber = integer("pick_number").default(0)
+        val draftPack = text("draft_pack").default("[]")
+        val packs = text("packs").default("[]")
+        val pickedCards = text("picked_cards").default("[]")
+        override val primaryKey = PrimaryKey(id)
+    }
+
     /* ---------- JSON wire format for the cards column ---------- */
 
     @Serializable
@@ -112,7 +128,7 @@ class SqlitePlayerStore(private val database: Database) :
     /* ---------- Schema bootstrap ---------- */
 
     fun createTables() {
-        transaction(database) { SchemaUtils.create(Players, Decks, Courses) }
+        transaction(database) { SchemaUtils.create(Players, Decks, Courses, DraftSessions) }
     }
 
     /* ---------- DeckRepository ---------- */
@@ -273,6 +289,75 @@ class SqlitePlayerStore(private val database: Database) :
 
     override fun delete(id: CourseId) {
         transaction(database) { Courses.deleteWhere { Courses.id eq id.value } }
+    }
+
+    /* ---------- DraftSessionRepository ---------- */
+
+    fun findDraftByPlayerAndEvent(playerId: PlayerId, eventName: String): DraftSession? =
+        transaction(database) {
+            DraftSessions.selectAll().where {
+                (DraftSessions.playerId eq playerId.value) and (DraftSessions.eventName eq eventName)
+            }.firstOrNull()?.toDraftSession()
+        }
+
+    fun findDraftById(id: DraftSessionId): DraftSession? = transaction(database) {
+        DraftSessions.selectAll().where { DraftSessions.id eq id.value }
+            .firstOrNull()?.toDraftSession()
+    }
+
+    fun saveDraft(session: DraftSession): Unit = transaction(database) {
+        val packsJson = json.encodeToString<List<List<Int>>>(session.packs)
+        val draftPackJson = json.encodeToString<List<Int>>(session.draftPack)
+        val pickedJson = json.encodeToString<List<Int>>(session.pickedCards)
+
+        val exists = DraftSessions.selectAll()
+            .where { DraftSessions.id eq session.id.value }.count() > 0
+        if (exists) {
+            DraftSessions.update({ DraftSessions.id eq session.id.value }) {
+                it[status] = session.status.name
+                it[packNumber] = session.packNumber
+                it[pickNumber] = session.pickNumber
+                it[draftPack] = draftPackJson
+                it[packs] = packsJson
+                it[pickedCards] = pickedJson
+            }
+        } else {
+            DraftSessions.insert {
+                it[id] = session.id.value
+                it[playerId] = session.playerId.value
+                it[eventName] = session.eventName
+                it[status] = session.status.name
+                it[this.packNumber] = session.packNumber
+                it[this.pickNumber] = session.pickNumber
+                it[this.draftPack] = draftPackJson
+                it[this.packs] = packsJson
+                it[this.pickedCards] = pickedJson
+            }
+        }
+    }
+
+    fun deleteDraft(id: DraftSessionId): Unit = transaction(database) {
+        DraftSessions.deleteWhere { DraftSessions.id eq id.value }
+    }
+
+    private fun ResultRow.toDraftSession(): DraftSession = DraftSession(
+        id = DraftSessionId(this[DraftSessions.id]),
+        playerId = PlayerId(this[DraftSessions.playerId]),
+        eventName = this[DraftSessions.eventName],
+        status = DraftStatus.valueOf(this[DraftSessions.status]),
+        packNumber = this[DraftSessions.packNumber],
+        pickNumber = this[DraftSessions.pickNumber],
+        draftPack = json.decodeFromString<List<Int>>(this[DraftSessions.draftPack]),
+        packs = json.decodeFromString<List<List<Int>>>(this[DraftSessions.packs]),
+        pickedCards = json.decodeFromString<List<Int>>(this[DraftSessions.pickedCards]),
+    )
+
+    fun asDraftSessionRepository(): DraftSessionRepository = object : DraftSessionRepository {
+        override fun findById(id: DraftSessionId) = findDraftById(id)
+        override fun findByPlayerAndEvent(playerId: PlayerId, eventName: String) =
+            findDraftByPlayerAndEvent(playerId, eventName)
+        override fun save(session: DraftSession) = saveDraft(session)
+        override fun delete(id: DraftSessionId) = deleteDraft(id)
     }
 
     /* ---------- Mapping helpers ---------- */

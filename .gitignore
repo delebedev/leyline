@@ -76,3 +76,7 @@ matchdoor/engine/*.txt
 
 # Override global gitignore — bin/ contains our CLI tools
 !bin/
+
+# ML models (large, regenerable from leyline-vision)
+bin/models/
+*.mlmodel

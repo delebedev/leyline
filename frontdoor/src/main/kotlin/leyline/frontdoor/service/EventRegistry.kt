@@ -12,6 +12,8 @@ data class QueueEntry(
     val sideboardBO3: String = "Events/Sideboard_15minus",
 )
 
+data class EntryFee(val currencyType: String, val quantity: Int, val referenceId: String? = null)
+
 data class EventDef(
     val internalName: String,
     val publicName: String,
@@ -27,6 +29,14 @@ data class EventDef(
     val eventTags: List<String> = emptyList(),
     val maxWins: Int? = null,
     val maxLosses: Int? = null,
+    /** True for Quick Draft (BotDraft) events — internal flag, not sent on wire. */
+    val isBotDraft: Boolean = false,
+    val entryFees: List<EntryFee> = emptyList(),
+    val dynamicFilterTagIds: List<String> = emptyList(),
+    /** Shows editable deck button on event blade (sealed/draft). */
+    val editableDeck: Boolean = false,
+    /** Arena collation ID for limited events (sealed/draft). 0 = unknown. */
+    val collationId: Int = 0,
 ) {
     val isSealed: Boolean get() = formatType == "Sealed"
 }
@@ -306,6 +316,30 @@ object EventRegistry {
             descLocKey = "Events/Event_Desc_Sealed_FDN",
             maxWins = 7,
             maxLosses = 3,
+            editableDeck = true,
+        ),
+        // Quick Draft
+        EventDef(
+            "QuickDraft_ECL_20260223",
+            "ECL_Quick_Draft",
+            "Draft",
+            formatType = "Draft",
+            displayPriority = 61,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
+            bladeBehavior = null,
+            eventTags = listOf("QuickDraft", "Limited"),
+            titleLocKey = "Events/Event_Title_ECL_Quick_Draft",
+            descLocKey = "Events/Event_Desc_ECL_Quick_Draft",
+            maxWins = 7,
+            maxLosses = 3,
+            isBotDraft = true,
+            entryFees = listOf(
+                EntryFee("Gold", 5000),
+                EntryFee("Gem", 750),
+            ),
+            dynamicFilterTagIds = listOf("ECL Limited"),
+            editableDeck = true,
+            collationId = 100058, // TODO(#62): look up from client card DB
         ),
     )
 
@@ -313,6 +347,8 @@ object EventRegistry {
         events.firstOrNull { it.internalName == internalName }
 
     fun isSealed(eventName: String): Boolean = findEvent(eventName)?.isSealed == true
+
+    fun isDraft(eventName: String): Boolean = findEvent(eventName)?.isBotDraft == true
 
     /** Look up Forge format name for an Arena event. Null = no restriction (e.g. AIBotMatch with SkipDeckValidation). */
     fun forgeFormatFor(eventName: String): String? {

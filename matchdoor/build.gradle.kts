@@ -26,6 +26,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":frontdoor"))
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
     api(libs.protobuf.java)

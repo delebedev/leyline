@@ -78,6 +78,21 @@ class CourseServiceTest :
             course.module shouldBe CourseModule.Complete
         }
 
+        test("join for draft event creates course with BotDraft module and empty pool") {
+            val course = service.join(playerId, "QuickDraft_ECL_20260223")
+            course.module shouldBe CourseModule.BotDraft
+            course.cardPool shouldBe emptyList()
+        }
+
+        test("completeDraft transitions course to DeckSelect with card pool and collation ID") {
+            service.join(playerId, "QuickDraft_ECL_20260223")
+            val pickedCards = listOf(98353, 98519, 98350)
+            val course = service.completeDraft(playerId, "QuickDraft_ECL_20260223", pickedCards, collationId = 100058)
+            course.module shouldBe CourseModule.DeckSelect
+            course.cardPool shouldBe pickedCards
+            course.cardPoolByCollation shouldBe listOf(CollationPool(100058, pickedCards))
+        }
+
         test("join constructed event creates course at CreateMatch with empty pool") {
             val course = service.join(playerId, "Ladder")
             course.module shouldBe CourseModule.CreateMatch
@@ -86,7 +101,7 @@ class CourseServiceTest :
 
         test("getCoursesForPlayer returns all courses") {
             val courses = service.getCoursesForPlayer(playerId)
-            courses.size shouldBe 2
+            courses.size shouldBe 3
         }
 
         test("join after drop creates fresh course (re-join)") {

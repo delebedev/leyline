@@ -30,7 +30,7 @@ data class GeneratedPool(
  * (Event_Join → DeckSelect → EnterPairing), but no server-side guard exists yet.
  *
  * **Invisible constraint — match result callback:** [recordMatchResult] is called
- * from [leyline.match.MatchSession.onMatchComplete] on the Netty IO thread. The
+ * from [MatchCoordinator.reportMatchResult] on the Netty IO thread. The
  * repository write must be thread-safe (SQLite serialized mode handles this).
  */
 class CourseService(
@@ -66,6 +66,13 @@ class CourseService(
                 module = CourseModule.DeckSelect,
                 cardPool = pool.cards,
                 cardPoolByCollation = pool.byCollation,
+            )
+        } else if (EventRegistry.isDraft(eventName)) {
+            Course(
+                id = CourseId(UUID.randomUUID().toString()),
+                playerId = playerId,
+                eventName = eventName,
+                module = CourseModule.BotDraft,
             )
         } else {
             Course(
@@ -116,6 +123,18 @@ class CourseService(
         val result = if (complete) updated.copy(module = CourseModule.Complete) else updated
         repo.save(result)
         return result
+    }
+
+    fun completeDraft(playerId: PlayerId, eventName: String, pickedCards: List<Int>, collationId: Int = 0): Course {
+        val course = repo.findByPlayerAndEvent(playerId, eventName)
+            ?: throw IllegalArgumentException("No course for $eventName")
+        val updated = course.copy(
+            module = CourseModule.DeckSelect,
+            cardPool = pickedCards,
+            cardPoolByCollation = listOf(CollationPool(collationId, pickedCards)),
+        )
+        repo.save(updated)
+        return updated
     }
 
     fun getCoursesForPlayer(playerId: PlayerId): List<Course> =
