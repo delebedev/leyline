@@ -106,6 +106,10 @@ class FrontDoorHandlerTest :
                     playerService = playerService,
                     matchmaking = matchmakingService,
                     collectionService = CollectionService { emptyList() },
+                    courseService = CourseService(InMemoryCourseRepository()) { _ ->
+                        GeneratedPool(emptyList(), emptyList(), 0)
+                    },
+                    draftService = DraftService(InMemoryDraftSessionRepository()) { _ -> emptyList() },
                     writer = writer,
                     golden = golden,
                 ),
@@ -680,10 +684,12 @@ class FrontDoorHandlerTest :
             val obj = sendJsonWith(ch, 609, """{"EventName":"QuickDraft_ECL_20260223"}""")
             obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "Complete"
 
-            // Draft status should be gone
-            val statusObj = sendJsonWith(ch, 1802, """{"EventName":"QuickDraft_ECL_20260223"}""")
-            // Falls back to golden since session was dropped
-            statusObj.containsKey("CurrentModule") shouldBe true
+            // Draft status should return empty (session was dropped)
+            ch.writeCmd(1802, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            val resp = ch.readOutbound<ByteBuf>()!!
+            val msg = decodeResponse(resp)
+            // No session → empty response (no JSON payload)
+            msg.transactionId.shouldNotBeNull()
         }
     })
 

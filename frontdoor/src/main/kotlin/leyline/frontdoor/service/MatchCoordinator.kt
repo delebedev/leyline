@@ -41,4 +41,17 @@ interface MatchCoordinator {
 
     /** Record match outcome. Called from MatchSession when game ends. */
     fun reportMatchResult(won: Boolean)
+
+    companion object {
+        /** No-op implementation for tests and modes without a game engine. */
+        val NOOP: MatchCoordinator = object : MatchCoordinator {
+            override fun selectDeck(deckId: String) {}
+            override fun selectEvent(eventName: String) {}
+            override val selectedDeckId: String? = null
+            override val selectedEventName: String? = null
+            override fun resolveDeckJson(deckId: String): String? = null
+            override fun resolveDeckJsonByName(name: String): String? = null
+            override fun reportMatchResult(won: Boolean) {}
+        }
+    }
 }
