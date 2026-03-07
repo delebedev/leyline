@@ -1,7 +1,7 @@
 # Quick Draft Implementation Retro
 
 **Date:** 2026-03-07
-**Scope:** Phase 1-2 (golden stubs + real handlers), smoke test attempt
+**Scope:** Phase 1-3 (golden stubs → real handlers → real Forge packs), full smoke test
 
 ## What worked well
 
@@ -33,3 +33,30 @@
 2. **`just build && just serve`** -- never just `just serve` after code changes.
 3. **Fresh player.db breaks seed courses.** Need a startup seeder or the merge-defaults pattern we added.
 4. **Spec review is worth the cost** when wire format matters. Skip it for pure domain logic (DraftService, DraftSession) but never for EventDef/wire builder tasks.
+
+---
+
+## Phase 3: Real packs + full smoke test
+
+### What worked well
+
+- **DraftPackGenerator followed SealedPoolGenerator pattern exactly.** Same module (matchdoor), same injected-lambda wiring in LeylineServer, same CardRepository lookup. Zero new patterns needed.
+- **Golden inventory bump unblocked paid events.** start-hook.json `Gems: 10000, Gold: 50000` — simple fix, enables all paid event testing.
+- **Full draft flow worked end-to-end.** 39 DraftPick calls, all 3 packs, draft completion → DeckSelect → deckbuilding → Event_SetDeckV2. Client UI rendered real ECL card art/stats throughout.
+- **Forge booster generation for ECL worked out of the box.** Only 1 unmapped card (Stoic Grove-Guide) out of 42.
+
+### What didn't work
+
+- **`just build` doesn't rebuild matchdoor jar from new files.** Gradle config cache + jar dependency means adding a new .kt file to matchdoor requires `./gradlew :matchdoor:jar --rerun-tasks` before `just build` picks it up. Wasted 2 restart cycles on NoClassDefFoundError.
+- **Forge boosters have variable sizes (13-14 cards).** DraftService assumes CARDS_PER_PACK=13 but Forge can generate 14-card packs. Last card in oversized pack gets stuck — client shows Pick 13/14 but there's no server-side handling for the 14th pick. Had to manually pick it.
+- **Single remaining card in draft has no OCR text.** When only 1 card remains, the UI shows a tiny thumbnail with no name/stats overlay. OCR finds nothing in the pick area. Had to find it visually — it's at approximately (68, 140) in logical coords.
+- **Draft card clicks need ~1s delay.** Clicking card then immediately clicking Confirm Pick doesn't register — the selection animation needs time. 0.5s was too fast, 1s works.
+- **Trashing player.db while server is running breaks everything.** Account table disappears mid-session. Must restart server after DB reset.
+
+### Takeaways
+
+5. **Force jar rebuild when adding new files to matchdoor.** `./gradlew :matchdoor:jar --rerun-tasks && just build` — or better, fix the build system to detect new source files.
+6. **Pack size must be dynamic.** Change CARDS_PER_PACK to read from actual pack size, not hardcoded 13. Forge boosters vary.
+7. **Draft automation: 1s delay between card click and Confirm Pick.** Card selection needs animation time.
+8. **Last card in pack: click (68, 140).** Single remaining card renders as tiny thumbnail in upper-left with no OCR text.
+9. **Always restart server after DB reset.** Never trash player.db with a running server.
