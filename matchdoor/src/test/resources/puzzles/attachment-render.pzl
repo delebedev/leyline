@@ -1,0 +1,18 @@
+[metadata]
+Name:Attachment Rendering Test
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Pre-attached equipment and aura. Short Sword on Grizzly Bears, Pacifism on AI creature. Verify attachments render on creatures (not floating in artifact area).
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Grizzly Bears|Id:1;Short Sword|AttachedTo:1;Plains;Plains;Forest;Forest
+humanhand=Savannah Lions
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Runeclaw Bear|Id:2;Pacifism|AttachedTo:2;Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
