@@ -21,19 +21,30 @@ test-gate:
 test-integration:
     cd "{{project_dir}}" && ./gradlew :matchdoor:testIntegration
 
-# JaCoCo coverage report (unit+conformance only)
+# JaCoCo coverage report (per-module, merged summary)
 [group('test')]
 coverage:
     #!/usr/bin/env bash
     set +e
-    cd "{{project_dir}}" && ./gradlew :matchdoor:testGate jacocoTestReport; rc=$?
-    xml="{{project_dir}}/build/reports/jacoco/test/jacocoTestReport.xml"
-    if [ -f "$xml" ]; then
+    cd "{{project_dir}}"
+    ./gradlew :matchdoor:testGate :matchdoor:jacocoTestReport \
+              :tooling:testGate :tooling:jacocoTestReport \
+              :frontdoor:test :frontdoor:jacocoTestReport \
+              :account:test :account:jacocoTestReport; rc=$?
+    xmls=$(find . -path '*/build/reports/jacoco/*/jacocoTestReport.xml' -not -path '*/forge/*' 2>/dev/null | tr '\n' ' ')
+    if [ -n "$xmls" ]; then
         echo ""
-        python3 "{{project_dir}}/gradle/scripts/coverage-summary.py" "$xml"
-        echo ""
-        echo "HTML: build/reports/jacoco/test/html/index.html"
+        for xml in $xmls; do
+            echo "--- $(echo $xml | sed 's|^\./||;s|/build/.*||') ---"
+            python3 "{{project_dir}}/gradle/scripts/coverage-summary.py" "$xml"
+            echo ""
+        done
     else
-        echo "⚠ No coverage report (tests may have failed before report phase)"
+        echo "No coverage reports found"
     fi
     exit $rc
+
+# detekt static analysis (all modules)
+[group('test')]
+detekt:
+    cd "{{project_dir}}" && ./gradlew detekt

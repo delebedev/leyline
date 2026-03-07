@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   gate:
-    name: Gate (fmt + unit + conformance)
+    name: Gate (fmt + detekt + unit + conformance + coverage)
     runs-on: [self-hosted, Linux, ARM64]
     steps:
       - name: Generate app token
@@ -32,7 +32,7 @@ jobs:
           submodules: true
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Setup Java + Maven
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -62,15 +62,33 @@ jobs:
       - name: Build
         run: just build
 
+      - name: Detekt
+        run: ./gradlew detekt
+
       - name: Test (unit + conformance)
         run: just test-gate
+
+      - name: Coverage reports
+        if: always()
+        run: |
+          ./gradlew :matchdoor:jacocoTestReport :tooling:jacocoTestReport \
+                    :frontdoor:jacocoTestReport :account:jacocoTestReport || true
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: test-results-gate
-          path: build/test-results/**/*.xml
+          path: '**/build/test-results/**/TEST-*.xml'
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: '**/build/reports/jacoco/**/jacocoTestReport.xml'
           if-no-files-found: ignore
           retention-days: 7
 
@@ -92,7 +110,7 @@ jobs:
           submodules: true
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Setup Java + Maven
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
@@ -127,27 +145,51 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-results-integration
-          path: build/test-results/**/*.xml
+          path: '**/build/test-results/**/TEST-*.xml'
           if-no-files-found: ignore
           retention-days: 7
 
   report:
-    name: Test report
+    name: Report
     needs: [gate, integration]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
         with:
-          pattern: test-results-*
-          merge-multiple: true
+          sparse-checkout: gradle/scripts
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ci-artifacts
 
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
-          files: |
-            **/TEST-*.xml
+          files: 'ci-artifacts/**/TEST-*.xml'
           check_name: 'Test Results'
           comment_title: 'Test Results'
           deduplicate_classes_by_file_name: true
+
+      - name: Generate CI report
+        if: github.event_name == 'pull_request'
+        run: |
+          jacoco_args=""
+          for f in $(find ci-artifacts -name 'jacocoTestReport.xml' 2>/dev/null); do
+            jacoco_args="$jacoco_args --jacoco-xml $f"
+          done
+          test_dir_args=""
+          for d in $(find ci-artifacts -type d -name 'test-results-*' 2>/dev/null); do
+            test_dir_args="$test_dir_args --test-xml-dir $d"
+          done
+          python3 gradle/scripts/ci-report.py $jacoco_args $test_dir_args > ci-comment.md
+          cat ci-comment.md
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: ci-comment.md
+          header: ci-report
