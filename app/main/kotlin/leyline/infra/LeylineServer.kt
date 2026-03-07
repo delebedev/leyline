@@ -232,9 +232,7 @@ class LeylineServer(
         // MatchHandler always sees the write. No stronger sync needed.
         //
         // Sealed fallback: when deckId isn't in DeckRepository (constructed decks),
-        // falls back to scanning CourseService for the first course with a deck.
-        // TODO: key on selectedEventName instead of scanning all courses — current
-        // approach picks wrong deck if player has multiple sealed courses.
+        // falls back to CourseService keyed on the current event.
         val deckToJson: (leyline.frontdoor.domain.Deck) -> String = { deck ->
             buildJsonObject {
                 put("MainDeck", DeckWireBuilder.cardsToJsonArray(deck.mainDeck))
@@ -244,14 +242,18 @@ class LeylineServer(
         val deckLookup: (String) -> String? = { deckId ->
             deckService.getById(DeckId(deckId))?.let(deckToJson)
                 ?: resolvedPlayerId?.let { pid ->
-                    courseService.getCoursesForPlayer(PlayerId(pid))
-                        .firstOrNull { it.deck != null }
-                        ?.deck?.let { courseDeck ->
-                            buildJsonObject {
-                                put("MainDeck", DeckWireBuilder.cardsToJsonArray(courseDeck.mainDeck))
-                                put("Sideboard", DeckWireBuilder.cardsToJsonArray(courseDeck.sideboard))
-                            }.toString()
-                        }
+                    val event = selectedEventName
+                    val courseDeck = if (event != null) {
+                        courseService.getCourse(PlayerId(pid), event)?.deck
+                    } else {
+                        null
+                    }
+                    courseDeck?.let { cd ->
+                        buildJsonObject {
+                            put("MainDeck", DeckWireBuilder.cardsToJsonArray(cd.mainDeck))
+                            put("Sideboard", DeckWireBuilder.cardsToJsonArray(cd.sideboard))
+                        }.toString()
+                    }
                 }
         }
         val deckLookupByName: (String) -> String? = { name ->

@@ -27,7 +27,9 @@ data class EventDef(
     val eventTags: List<String> = emptyList(),
     val maxWins: Int? = null,
     val maxLosses: Int? = null,
-)
+) {
+    val isSealed: Boolean get() = formatType == "Sealed"
+}
 
 /**
  * Server-owned queue + event definitions for the Play blade.
@@ -309,6 +311,8 @@ object EventRegistry {
 
     fun findEvent(internalName: String): EventDef? =
         events.firstOrNull { it.internalName == internalName }
+
+    fun isSealed(eventName: String): Boolean = findEvent(eventName)?.isSealed == true
 
     /** Look up Forge format name for an Arena event. Null = no restriction (e.g. AIBotMatch with SkipDeckValidation). */
     fun forgeFormatFor(eventName: String): String? {
