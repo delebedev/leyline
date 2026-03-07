@@ -49,6 +49,7 @@ puzzle-check file:
     if [ ! -f "{{file}}" ]; then echo "Puzzle file not found: {{file}}" >&2; exit 1; fi
     cards=$(grep -E '^(human|ai)(battlefield|hand|library|graveyard|exile)=' "{{file}}" \
         | sed 's/^[^=]*=//' | tr ';' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' \
+        | sed 's/|.*//' \
         | grep -Ev '^(Plains|Island|Swamp|Mountain|Forest)$' | sort -u)
     fail=0
     while IFS= read -r name; do
