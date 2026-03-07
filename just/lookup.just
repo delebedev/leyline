@@ -39,6 +39,25 @@ card-grp name:
     escaped=$(echo "{{name}}" | sed "s/'/''/g")
     sqlite3 "$db" "SELECT c.GrpId, l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE l.Formatted = 1 AND l.Loc = '$escaped';"
 
+# validate all card names in a .pzl puzzle file against Arena's card DB
+[group('lookup')]
+puzzle-check file:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    db=$(echo "{{arena_db}}"/Raw_CardDatabase_*.mtga)
+    if [ ! -f "$db" ]; then echo "Arena DB not found at {{arena_db}}" >&2; exit 1; fi
+    if [ ! -f "{{file}}" ]; then echo "Puzzle file not found: {{file}}" >&2; exit 1; fi
+    cards=$(grep -E '^(human|ai)(battlefield|hand|library|graveyard|exile)=' "{{file}}" \
+        | sed 's/^[^=]*=//' | tr ';' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' \
+        | grep -Ev '^(Plains|Island|Swamp|Mountain|Forest)$' | sort -u)
+    fail=0
+    while IFS= read -r name; do
+        escaped=$(echo "$name" | sed "s/'/''/g")
+        grp=$(sqlite3 "$db" "SELECT c.GrpId FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE l.Formatted = 1 AND l.Loc = '$escaped' LIMIT 1;")
+        if [ -z "$grp" ]; then echo "FAIL  $name"; fail=1; else echo "  OK  $name ($grp)"; fi
+    done <<< "$cards"
+    [ "$fail" -eq 0 ] && echo "All cards valid." || { echo "Missing cards — puzzle will crash."; exit 1; }
+
 # card name → Forge script path (fuzzy: lowercased, spaces/punctuation → underscore)
 [group('lookup')]
 card-script name:
