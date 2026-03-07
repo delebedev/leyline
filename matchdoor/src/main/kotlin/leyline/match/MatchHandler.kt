@@ -239,9 +239,11 @@ class MatchHandler(
 
             // SubmitAttackersReq is a type-only signal ("Done" button, no payload).
             // The client may send it on either channel (seat 1 or 2) — race condition
-            // in the Arena client. Route from any channel to avoid silent drops.
+            // in the Arena client. Combat state (lastDeclaredAttackerIds) lives on
+            // seat-1's CombatHandler, so always route to seat-1's session.
             ClientMessageType.SubmitAttackersReq -> {
-                s?.onDeclareAttackers(greMsg)
+                val seat1 = if (seatId == 1) s else registry.activeSession()
+                seat1?.onDeclareAttackers(greMsg)
             }
 
             ClientMessageType.DeclareBlockersResp_097b -> {
@@ -252,9 +254,10 @@ class MatchHandler(
                 }
             }
 
-            // Same pattern as SubmitAttackersReq — route from any channel.
+            // Same pattern as SubmitAttackersReq — route to seat-1's session.
             ClientMessageType.SubmitBlockersReq -> {
-                s?.onDeclareBlockers(greMsg)
+                val seat1 = if (seatId == 1) s else registry.activeSession()
+                seat1?.onDeclareBlockers(greMsg)
             }
 
             ClientMessageType.SelectTargetsResp_097b -> {
