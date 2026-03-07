@@ -1,4 +1,4 @@
-# Nexus — Architecture
+# Leyline — Architecture
 
 Mermaid diagrams: package wiring, server layout, wire protocol, bridge threading, match lifecycle.
 
@@ -6,7 +6,7 @@ Mermaid diagrams: package wiring, server layout, wire protocol, bridge threading
 
 ## 1. Package Wiring
 
-How `forge-nexus` relates to the core engine and the web port.
+How `leyline` relates to the core engine and the web port.
 
 ```mermaid
 graph TB
@@ -14,7 +14,7 @@ graph TB
         ARENA["Game Client<br/><small>Unity · C# · protobuf</small>"]
     end
 
-    subgraph "forge-nexus (Kotlin)"
+    subgraph "leyline (Kotlin)"
         SRV["server/<br/><small>Netty TLS TCP · MatchHandler<br/>FrontDoorService · MatchRegistry</small>"]
         GAME_PKG["game/<br/><small>GameBridge · BundleBuilder<br/>AnnotationBuilder · StateMapper<br/>CardDb · ZoneIds · PromptIds</small>"]
         PROTO["protocol/<br/><small>FrameCodec · HandshakeMessages<br/>DecodeCapture</small>"]
@@ -51,7 +51,7 @@ graph TB
     style CORE fill:#ff9800,color:#fff
 ```
 
-**Key point:** `forge-nexus` never touches the rules engine directly. It goes through `forge-web`'s bridges (`GameActionBridge`, `InteractivePromptBridge`) — the same `CompletableFuture` pattern the web UI uses. The bridge doesn't know or care whether the thing completing it is a WebSocket JSON handler or a protobuf handler.
+**Key point:** `leyline` never touches the rules engine directly. It goes through `forge-web`'s bridges (`GameActionBridge`, `InteractivePromptBridge`) — the same `CompletableFuture` pattern the web UI uses. The bridge doesn't know or care whether the thing completing it is a WebSocket JSON handler or a protobuf handler.
 
 ---
 
@@ -234,7 +234,7 @@ Game (forge-game)
 
 ## 7. forge-web Reuse Boundary
 
-What forge-nexus reuses from forge-web, and the clean separation between transport-agnostic orchestration and transport-specific handling.
+What leyline reuses from forge-web, and the clean separation between transport-agnostic orchestration and transport-specific handling.
 
 ### Reused Layer (transport-agnostic game orchestration)
 
@@ -265,10 +265,10 @@ forge-web/src/main/kotlin/forge/web/
   └── dto/                       ← JSON DTOs for web UI wire format
 ```
 
-### How Nexus Consumes Bridges
+### How Leyline Consumes Bridges
 
 ```
-GameBridge.kt (nexus)
+GameBridge.kt (leyline)
   ├── GameBootstrap.createConstructedGame(deck1, deck2)
   ├── GameLoopController(game).start()
   ├── GameActionBridge()
@@ -291,22 +291,22 @@ Two forge-web DTO types leak through the bridge API:
 
 | Type | Where | Impact |
 |------|-------|--------|
-| `TargetDto` | In `PlayerAction.CastSpell/ActivateAbility` | Nexus passes empty lists; cosmetic dependency |
-| `PromptCandidateRefDto` | In `PromptRequest.candidateRefs` | Nexus reads for instanceId mapping in SelectTargetsReq |
+| `TargetDto` | In `PlayerAction.CastSpell/ActivateAbility` | Leyline passes empty lists; cosmetic dependency |
+| `PromptCandidateRefDto` | In `PromptRequest.candidateRefs` | Leyline reads for instanceId mapping in SelectTargetsReq |
 
-Both are trivial `@Serializable` data classes (2-3 fields). Extractable to a shared-types package if the dependency bothers us, but functionally harmless — nexus never serializes them to JSON.
+Both are trivial `@Serializable` data classes (2-3 fields). Extractable to a shared-types package if the dependency bothers us, but functionally harmless — leyline never serializes them to JSON.
 
 ### Design Principle
 
-The bridge layer is intentionally transport-agnostic. The `CompletableFuture` pattern doesn't know or care whether the completion comes from a WebSocket JSON handler, a protobuf handler, or a test harness. This is what makes nexus possible without forking forge-web.
+The bridge layer is intentionally transport-agnostic. The `CompletableFuture` pattern doesn't know or care whether the completion comes from a WebSocket JSON handler, a protobuf handler, or a test harness. This is what makes leyline possible without forking forge-web.
 
 ---
 
 ## 8. Package Structure & Scale
 
 ```
-forge-nexus/src/main/kotlin/forge/nexus/     65 files, ~14.5K LOC
-  ├── NexusMain.kt                            ← Entry point
+leyline/src/main/kotlin/leyline/              65 files, ~14.5K LOC
+  ├── LeylineMain.kt                          ← Entry point
   ├── game/           (22 files, ~5.5K LOC)   ← Core: StateMapper, BundleBuilder, AnnotationBuilder,
   │                                              GameBridge, AnnotationPipeline, GameEventCollector,
   │                                              NexusGamePlayback, ObjectMapper, ZoneMapper, CardDb
@@ -320,7 +320,7 @@ forge-nexus/src/main/kotlin/forge/nexus/     65 files, ~14.5K LOC
   ├── config/         (2 files, ~200 LOC)     ← TOML config, deck validation
   └── analysis/       (4 files, ~1K LOC)      ← Session analysis, invariant checking
 
-forge-nexus/src/test/kotlin/                  63 files, ~13.4K LOC
+leyline/src/test/kotlin/                       63 files, ~13.4K LOC
   ├── game/           (14 files)              ← Unit + integration: AnnotationBuilder, StateMapper,
   │                                              CategoryFromEvents, MatchFlowHarness tests
   ├── conformance/    (48 files)              ← Golden conformance, flow tests, field tests,
@@ -343,7 +343,7 @@ forge-nexus/src/test/kotlin/                  63 files, ~13.4K LOC
 
 ### Strengths
 
-**Transport-head pattern.** The most consequential design choice: reusing forge-web's `CompletableFuture` bridges means the entire engine integration layer (157 `PlayerControllerHuman` overrides, game lifecycle, bridge threading) is shared. Nexus is a second transport head, not a parallel implementation. This halved the integration surface.
+**Transport-head pattern.** The most consequential design choice: reusing forge-web's `CompletableFuture` bridges means the entire engine integration layer (157 `PlayerControllerHuman` overrides, game lifecycle, bridge threading) is shared. Leyline is a second transport head, not a parallel implementation. This halved the integration surface.
 
 **Three-stage diff pipeline.** `detectZoneTransfers → annotationsForTransfer → combatAnnotations` is a pure, composable pipeline. Each stage's output is deterministic from its inputs. Easy to test in isolation, easy to extend.
 
@@ -367,6 +367,6 @@ forge-nexus/src/test/kotlin/                  63 files, ~13.4K LOC
 
 ### Risks
 
-**forge-web coupling creep.** Currently 10 classes imported. The `TargetDto`/`PromptCandidateRefDto` leak is minor today but sets a precedent. If forge-web adds web-specific behavior to bridge classes (WS keepalive, session affinity), nexus breaks.
+**forge-web coupling creep.** Currently 10 classes imported. The `TargetDto`/`PromptCandidateRefDto` leak is minor today but sets a precedent. If forge-web adds web-specific behavior to bridge classes (WS keepalive, session affinity), leyline breaks.
 
 **Engine-thread mutations.** `GameEventCollector` subscribes synchronously on the engine thread and mutates a `ConcurrentLinkedQueue`. `NexusGamePlayback` sleeps the engine thread. Both are correct today but any new subscriber that does I/O or acquires locks on the engine thread path creates deadlock risk.

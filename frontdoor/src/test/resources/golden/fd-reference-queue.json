@@ -1,0 +1,9 @@
+{
+  "Id": "StandardRanked",
+  "LocTitle": "PlayBlade/FindMatch/Blade_Standard_Ladder",
+  "EventNameBO1": "Ladder",
+  "DeckSizeBO1": "Events/Deck_60plus",
+  "DeckSizeBO3": "Events/Deck_60plus",
+  "SideBoardBO1": "Events/Sideboard_7minus",
+  "SideBoardBO3": "Events/Sideboard_15minus"
+}

@@ -1,0 +1,22 @@
+package leyline.frontdoor.service
+
+/** Stub responses for unimplemented lobby endpoints. Each graduates to a real service when implemented. */
+object LobbyStubs {
+    fun activeMatches() = """{"MatchesV3":[]}"""
+
+    fun currencies() = """{"Currencies":[]}"""
+    fun boosters() = """{"Boosters":[]}"""
+    fun quests() = """{"Quests":[]}"""
+    fun periodicRewards() = """{}"""
+    fun cosmetics() = """{"Cosmetics":[]}"""
+    fun netDeckFolders() = """[]"""
+    fun playerInbox() = """{"Messages":[]}"""
+    fun staticContent() = """{}"""
+
+    fun storeStatus() = """{"CatalogStatus":[]}"""
+    fun rankSeasonDetails() = """{}"""
+    fun preferredPrintings() = """{}"""
+    fun prizeWalls() = """{"ActivePrizeWalls":[]}"""
+    fun rankInfo() = """{"playerId":null,"constructedSeasonOrdinal":0,"constructedClass":"Bronze","constructedLevel":0,"constructedStep":0,"constructedMatchesWon":0,"constructedMatchesLost":0,"constructedMatchesDrawn":0,"limitedSeasonOrdinal":0,"limitedClass":"Bronze","limitedLevel":0,"limitedStep":0,"limitedMatchesWon":0,"limitedMatchesLost":0,"limitedMatchesDrawn":0}"""
+    fun telemetryAck() = "Success"
+}

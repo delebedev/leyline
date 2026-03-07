@@ -1,0 +1,18 @@
+[metadata]
+Name:Counter Persistent Annotation
+Goal:Win
+Turns:10
+Difficulty:Tutorial
+Description:Verify Counter_803b persistent annotation appears when Ajani's Pridemate gains +1/+1 counters from lifegain trigger. Cast Revitalize to gain life.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Ajani's Pridemate;Plains;Plains
+humanhand=Revitalize
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

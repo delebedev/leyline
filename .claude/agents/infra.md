@@ -11,8 +11,8 @@ You maintain leyline's build infrastructure, tooling, and dev experience.
 Key areas:
 - `build.gradle.kts`, `settings.gradle.kts` — Gradle build
 - `justfile` — task runner recipes
-- `tools/` — card lookup, recording CLI, utilities
+- `bin/` — CLI tools (arena, ocr, click), dev scripts
 - `deploy/` — deployment config
-- `scripts/`, `buildscripts/` — build/CI scripts
+- `gradle/scripts/` — build helper scripts (coverage, test summary)
 
 Don't assume specific tool interfaces — read the justfile and existing scripts to understand what's available.
