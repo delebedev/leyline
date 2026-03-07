@@ -18,9 +18,9 @@ import org.slf4j.LoggerFactory
  * that previously lived as lambdas and fields in LeylineServer.
  */
 class AppMatchCoordinator(
-    private val playerId: PlayerId?,
+    private val playerId: PlayerId,
     private val deckService: DeckService,
-    private val courseService: CourseService?,
+    private val courseService: CourseService,
 ) : MatchCoordinator {
 
     private val log = LoggerFactory.getLogger(AppMatchCoordinator::class.java)
@@ -46,9 +46,8 @@ class AppMatchCoordinator(
         deckService.getById(DeckId(deckId))?.let { return cardsToJson(it.mainDeck, it.sideboard) }
 
         // 2. Sealed/draft course deck
-        val pid = playerId ?: return null
         val event = selectedEventName ?: return null
-        val courseDeck = courseService?.getCourse(pid, event)?.deck ?: return null
+        val courseDeck = courseService.getCourse(playerId, event)?.deck ?: return null
         return cardsToJson(courseDeck.mainDeck, courseDeck.sideboard)
     }
 
@@ -58,9 +57,8 @@ class AppMatchCoordinator(
     }
 
     override fun reportMatchResult(won: Boolean) {
-        val pid = playerId ?: return
         val event = selectedEventName ?: return
-        courseService?.recordMatchResult(pid, event, won)
+        courseService.recordMatchResult(playerId, event, won)
         log.info("Match result recorded: event={} won={}", event, won)
     }
 

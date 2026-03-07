@@ -143,12 +143,7 @@ class LeylineServer(
 
     private fun startLocal(fdSsl: SslContext, mdSsl: SslContext) {
         val hasDb = playerDbFile.exists()
-        val resolvedPlayerId = if (hasDb) {
-            playerId
-        } else {
-            log.warn("No player.db found — run `just seed-db` first. Using golden fallback.")
-            null
-        }
+        if (!hasDb) log.warn("No player.db found — run `just seed-db` first. Using in-memory DB.")
 
         val db = org.jetbrains.exposed.v1.jdbc.Database.connect(
             if (hasDb) "jdbc:sqlite:${playerDbFile.absolutePath}" else "jdbc:sqlite::memory:",
@@ -156,6 +151,8 @@ class LeylineServer(
         )
         val store = SqlitePlayerStore(db)
         store.createTables()
+        val pid = PlayerId(playerId)
+        store.ensurePlayer(pid, "Player")
         val deckService = DeckService(store)
         val playerService = PlayerService(store)
         val sealedPoolGen = leyline.game.SealedPoolGenerator(cardRepo)
@@ -178,7 +175,7 @@ class LeylineServer(
         val golden = GoldenData.loadFromClasspath()
 
         val coordinator = AppMatchCoordinator(
-            playerId = resolvedPlayerId?.let { PlayerId(it) },
+            playerId = pid,
             deckService = deckService,
             courseService = courseService,
         )
@@ -204,7 +201,7 @@ class LeylineServer(
                 ch.pipeline().addLast(
                     "handler",
                     FrontDoorHandler(
-                        playerId = resolvedPlayerId?.let { PlayerId(it) },
+                        playerId = pid,
                         deckService = deckService,
                         playerService = playerService,
                         matchmaking = matchmakingService,
@@ -248,11 +245,18 @@ class LeylineServer(
         val dir = replayDir!!
         require(dir.isDirectory) { "Replay dir does not exist: $dir" }
 
-        // FD local — in-memory SQLite, no deck/player data needed for replay
         val golden = GoldenData.loadFromClasspath()
         val memDb = org.jetbrains.exposed.v1.jdbc.Database.connect("jdbc:sqlite::memory:", "org.sqlite.JDBC")
         val memStore = SqlitePlayerStore(memDb)
         memStore.createTables()
+        val pid = PlayerId(playerId)
+        memStore.ensurePlayer(pid, "Player")
+        val deckService = DeckService(memStore)
+        val courseService = CourseService(memStore) { _ ->
+            GeneratedPool(emptyList(), emptyList(), 0)
+        }
+        val draftService = DraftService(memStore.asDraftSessionRepository()) { _ -> emptyList() }
+        val coordinator = AppMatchCoordinator(pid, deckService, courseService)
         val memWriter = FdResponseWriter(onFdMessage = fdCollector::record)
 
         frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
@@ -260,18 +264,21 @@ class LeylineServer(
             ch.pipeline().addLast(
                 "handler",
                 FrontDoorHandler(
-                    playerId = null,
-                    deckService = DeckService(memStore),
+                    playerId = pid,
+                    deckService = deckService,
                     playerService = PlayerService(memStore),
                     matchmaking = MatchmakingService(memStore, externalHost, matchDoorPort),
                     collectionService = CollectionService { cardRepo.findAllGrpIds() },
+                    courseService = courseService,
+                    draftService = draftService,
                     writer = memWriter,
                     golden = golden,
                     onFdMessage = fdCollector::record,
+                    coordinator = coordinator,
                 ),
             )
         }
-        log.info("Client Front Door (local) listening on :{}", frontDoorPort)
+        log.info("Client Front Door (replay) listening on :{}", frontDoorPort)
 
         // Match Door: replay recorded payloads
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor-Replay") { ch ->
