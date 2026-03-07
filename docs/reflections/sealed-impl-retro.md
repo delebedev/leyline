@@ -52,3 +52,22 @@ Captured during sealed format implementation (2026-03-07). Raw notes for later s
 - **Use `just fd-response` for conformance:** targeted, fast, exact field comparison. Reserve subagent for broad unknown-shape analysis.
 - **Non-zero-only is common in Arena wire:** `CurrentWins`, `CurrentLosses`, many fields omitted when default. Check golden for absence patterns.
 - **Event tile click = image area, not text label:** same deck thumbnail pattern. Click 40-80px above the text.
+
+## Process improvements — what to change for next feature
+
+### 1. Conformance-first workflow (biggest lever)
+Current: build stub → smoke test → client error → Player.log → fix → rebuild → retry.
+Better: `just fd-response <cmd>` → diff our builder output against golden → fix mismatches → THEN smoke test.
+A `just sealed-conformance` recipe comparing wire shapes against recording would catch 80% of issues in seconds, no Arena needed.
+
+### 2. `just fd-response` as step 1 for any new handler
+Before writing a single line of wire builder code, extract the golden shape. Pattern: `just fd-response <cmd> | jq keys` → match that shape → test. Not a debugging fallback — the starting point.
+
+### 3. Arena wire omits default values
+`CurrentWins: 0` not sent. `CurrentLosses: 0` not sent. `EventState` not sent (we invented it). Convention: always check golden for field ABSENCE, not just presence. Fields present in golden = emit. Fields absent in golden = omit.
+
+### 4. Proxy-record our own sealed flow
+TMT recording from real servers was invaluable. We should `just serve-proxy` our own sealed flow periodically to compare our shapes vs real. Catches drift early.
+
+### 5. Deck editing not yet tested
+"Sealed Deck" button renders (SelectedDeckWidget wired). Edit→save→play cycle untested. Next priority for sealed polish.
