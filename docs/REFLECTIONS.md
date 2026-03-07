@@ -401,3 +401,11 @@ curl -s http://localhost:8090/api/state     # confirm phase
 ## Key rule
 
 **Playtest navigation is boilerplate — minimize tokens spent on it.** Use coords for every known button, `arena wait` for every transition, never OCR to find buttons whose positions are stable. Reserve OCR for reading dynamic game state (card names, prompts, life totals).
+
+## `gradle clean` + NoClassDefFoundError
+
+**Problem:** `./gradlew clean :matchdoor:compileKotlin` may report `FROM-CACHE` (build cache hit), but the actual class files under `build/classes/` are gone. `just build` generates module jars via `writeClasspath`, but those jars might be stale copies from cache. Running `just serve-*` then fails with `NoClassDefFoundError: leyline/config/MatchConfig`.
+
+**Root cause:** Gradle build cache (`FROM-CACHE`) doesn't guarantee local class files exist — it caches outputs by input hash. After `clean`, the cache restores outputs to the build directory, but the classpath jar task may not re-assemble because it thinks nothing changed.
+
+**Fix:** Don't use `./gradlew clean` during iterative development. If you must, follow with `just build` (not `./gradlew classes`) and verify with `jar tf <module>.jar | grep <class>`. Or just `pkill -f LeylineMainKt && just build && just serve-*`.
