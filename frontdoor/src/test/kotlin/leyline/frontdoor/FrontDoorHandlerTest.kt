@@ -474,83 +474,41 @@ class FrontDoorHandlerTest :
             decksMap[deckId]!!.jsonObject["MainDeck"].shouldNotBeNull()
         }
 
-        // --- Sealed event integration tests ---
+        // --- Sealed event lifecycle ---
 
-        test("CmdType 600 - Event_Join sealed creates course with DeckSelect") {
+        test("sealed lifecycle - join, get pool, set deck, check courses, resign") {
             val ch = fdChannelWithCourseService()
-            ch.writeCmd(600, """{"EventName":"Sealed_FDN_20260307"}""")
-            val resp = ch.readOutbound<ByteBuf>()!!
-            val msg = decodeResponse(resp)
-            val obj = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
-            val course = obj["Course"]?.jsonObject
-            course.shouldNotBeNull()
+            val event = "Sealed_FDN_20260307"
+
+            // 1. Join — get DeckSelect module with card pool
+            val join = sendJsonWith(ch, 600, """{"EventName":"$event"}""")
+            val course = join["Course"]!!.jsonObject
             course["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"
-            course["CardPool"]?.jsonArray.shouldNotBeNull()
             course["CardPool"]!!.jsonArray.shouldNotBeEmpty()
-        }
 
-        test("CmdType 622 - Event_SetDeckV2 transitions sealed course to CreateMatch") {
-            val ch = fdChannelWithCourseService()
-            // Join first
-            ch.writeCmd(600, """{"EventName":"Sealed_FDN_20260307"}""")
-            ch.readOutbound<ByteBuf>()!!.release()
-
-            // Set deck
+            // 2. Set deck — transitions to CreateMatch
             val mainDeck = (1..40).joinToString(",") { """{"cardId":$it,"quantity":1}""" }
-            val setDeckPayload = """
-                {
-                    "EventName":"Sealed_FDN_20260307",
-                    "Deck": {
-                        "MainDeck": [$mainDeck],
-                        "Sideboard": [],
-                        "CommandZone": [],
-                        "Companions": []
-                    },
-                    "Summary": {
-                        "DeckId":"sealed-deck-001",
-                        "Name":"My Sealed Deck",
-                        "DeckTileId":12345
-                    }
-                }
-            """.trimIndent()
-            ch.writeCmd(622, setDeckPayload)
-            val resp = ch.readOutbound<ByteBuf>()!!
-            val msg = decodeResponse(resp)
-            val obj = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
-            obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "CreateMatch"
-        }
+            val setDeck = sendJsonWith(
+                ch,
+                622,
+                """
+                {"EventName":"$event",
+                 "Deck":{"MainDeck":[$mainDeck],"Sideboard":[],"CommandZone":[],"Companions":[]},
+                 "Summary":{"DeckId":"sealed-001","Name":"My Sealed","DeckTileId":12345}}
+                """.trimIndent(),
+            )
+            setDeck["CurrentModule"]?.jsonPrimitive?.content shouldBe "CreateMatch"
 
-        test("CmdType 623 - Event_GetCoursesV2 includes sealed course after join") {
-            val ch = fdChannelWithCourseService()
-            // Join sealed
-            ch.writeCmd(600, """{"EventName":"Sealed_FDN_20260307"}""")
-            ch.readOutbound<ByteBuf>()!!.release()
-
-            // Get courses
-            ch.writeCmd(623)
-            val resp = ch.readOutbound<ByteBuf>()!!
-            val msg = decodeResponse(resp)
-            val obj = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
-            val courses = obj["Courses"]?.jsonArray
-            courses.shouldNotBeNull()
-            val sealedCourse = courses.firstOrNull {
-                it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "Sealed_FDN_20260307"
+            // 3. Courses list includes our sealed event
+            val courses = sendJsonWith(ch, 623)
+            val names = courses["Courses"]!!.jsonArray.map {
+                it.jsonObject["InternalEventName"]?.jsonPrimitive?.content
             }
-            sealedCourse.shouldNotBeNull()
-        }
+            names shouldContain event
 
-        test("CmdType 601 - Event_Resign drops sealed course") {
-            val ch = fdChannelWithCourseService()
-            // Join sealed
-            ch.writeCmd(600, """{"EventName":"Sealed_FDN_20260307"}""")
-            ch.readOutbound<ByteBuf>()!!.release()
-
-            // Resign
-            ch.writeCmd(601, """{"EventName":"Sealed_FDN_20260307"}""")
-            val resp = ch.readOutbound<ByteBuf>()!!
-            val msg = decodeResponse(resp)
-            val obj = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
-            obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "Complete"
+            // 4. Resign — transitions to Complete
+            val resign = sendJsonWith(ch, 601, """{"EventName":"$event"}""")
+            resign["CurrentModule"]?.jsonPrimitive?.content shouldBe "Complete"
         }
     })
 
