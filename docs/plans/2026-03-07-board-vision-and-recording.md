@@ -69,6 +69,6 @@ arena-record --no-crop         # full screen
 ## Phase 2 (not yet built)
 
 - **Screen lock check in `Shell.kt`** — preflight in `captureWindow()`, fail fast with clear message instead of silently capturing locked screen
-- **`arena board` live test** — needs active match to validate OCR correlation and zone mapping
+- ~~**`arena board` live test**~~ — done, uses `/api/id-map` accumulator instead of snapshot merging
 - **YouTube training data pipeline** — `yt-dlp` + `ffmpeg` scene extraction + auto-labeling from protocol timestamps for card bounding box model training (documented in meeting notes, separate spike)
 - **YOLO/CoreML card detector** — when protocol-informed zone mapping breaks down (multiple same-P/T creatures). Bootstrapped from our recordings + YouTube data.
