@@ -307,12 +307,29 @@ object EventRegistry {
             maxWins = 7,
             maxLosses = 3,
         ),
+        // Quick Draft
+        EventDef(
+            "QuickDraft_ECL_20260223",
+            "Quick Draft ECL",
+            "Limited",
+            formatType = "BotDraft",
+            displayPriority = 70,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
+            bladeBehavior = null,
+            eventTags = listOf("Draft", "Limited"),
+            titleLocKey = "Events/Event_Title_QuickDraft_ECL",
+            descLocKey = "Events/Event_Desc_QuickDraft_ECL",
+            maxWins = 7,
+            maxLosses = 3,
+        ),
     )
 
     fun findEvent(internalName: String): EventDef? =
         events.firstOrNull { it.internalName == internalName }
 
     fun isSealed(eventName: String): Boolean = findEvent(eventName)?.isSealed == true
+
+    fun isDraft(eventName: String): Boolean = findEvent(eventName)?.formatType == "BotDraft"
 
     /** Look up Forge format name for an Arena event. Null = no restriction (e.g. AIBotMatch with SkipDeckValidation). */
     fun forgeFormatFor(eventName: String): String? {
