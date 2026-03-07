@@ -30,7 +30,18 @@ just fd-search Carousel
 just fd-search MWM_StandardPauper
 
 # Show a specific frame (header + pretty-printed JSON)
+# S2C responses are labeled with their matching request's cmdTypeName
 just fd-show 92
+
+# Structure overview — top-level keys, types, sizes (no payload dump)
+just fd-keys 227
+# Output: Course → object {8 keys}, Course.CardPool → array [84 items], ...
+
+# Delta view — frames since a known seq (useful during live proxy sessions)
+just fd-since 144
+
+# Resolve grpId arrays in a frame to card names (sealed pools, decks)
+just fd-cards 227
 ```
 
 ## Extracting response payloads
