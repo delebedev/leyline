@@ -20,7 +20,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 11 | CreateAttachment | `GameEventCardAttachment` | `CardAttached` | `attachmentCreated()` | affector/affected ids | Implemented |
 | 12 | RemoveAttachment | `GameEventCardAttachment` | `CardDetached` | `removeAttachment()` | aura/equipment id | Implemented |
 | 13 | ObjectIdChanged | (internal to StateMapper) | -- | `objectIdChanged()` | `orig_id`, `new_id` | Implemented |
-| 14 | Counter | `GameEventCardCounters` | `CountersChanged` | -- | `count`, `counter_type`, `perpetual_count` | MISSING (state parser; event uses CounterAdded/Removed) |
+| 14 | Counter | `GameEventCardCounters` | `CountersChanged` | `counter()` (persistent) | `count`, `counter_type` | Implemented (persistent; Forge display name → proto enum mapping) |
 | 15 | ControllerChanged | `GameEventPlayerControl` | -- | -- | affector/affected ids | MISSING |
 | 16 | CounterAdded | `GameEventCardCounters` | `CountersChanged` | `counterAdded()` | `counter_type`, `transaction_amount` | Implemented |
 | 17 | CounterRemoved | `GameEventCardCounters` | `CountersChanged` | `counterRemoved()` | `counter_type`, `transaction_amount` | Implemented |
