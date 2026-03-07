@@ -431,51 +431,27 @@ def cmd_board(args: list[str]) -> None:
         print(json.dumps({"match": match_info}, indent=2))
         return
 
-    # 2. Fetch latest game state snapshot
+    # 2. Fetch game state timeline and merge snapshots (Full seeds, Diffs overlay)
     gs_raw = fetch_api("/api/game-states")
-    snapshot = None
+    all_snapshots: list[dict] = []
     if gs_raw:
         gs = json.loads(gs_raw)
-        snapshots = gs.get("data", [])
-        if snapshots:
-            snapshot = snapshots[-1]
+        all_snapshots = gs.get("data", [])
 
-    # 3. Optionally get OCR
-    ocr_items: list[dict] = []
-    if with_ocr:
-        ocr_items = _board_ocr()
-
-    # 4. Parse objects and actions from snapshot
-    objects: list[dict] = []
-    actions: list[dict] = []
+    # Merge objects across all snapshots — later diffs override by instanceId
+    merged_objects: dict[int, dict] = {}
     players: dict[int, int] = {}
+    actions: list[dict] = []
 
-    if snapshot:
-        for p in snapshot.get("players", []):
+    for snap in all_snapshots:
+        for obj in snap.get("objects", {}).values():
+            merged_objects[obj.get("instanceId", 0)] = obj
+        for p in snap.get("players", []):
             players[p["seatId"]] = p["life"]
 
-        for obj in snapshot.get("objects", {}).values():
-            objects.append(
-                {
-                    "instanceId": obj.get("instanceId", 0),
-                    "grpId": obj.get("grpId", 0),
-                    "name": obj.get("name"),
-                    "type": obj.get("type"),
-                    "zoneId": obj.get("zoneId", 0),
-                    "ownerSeatId": obj.get("ownerSeatId", 0),
-                    "controllerSeatId": obj.get("controllerSeatId", 0),
-                    "power": obj.get("power"),
-                    "toughness": obj.get("toughness"),
-                    "isTapped": obj.get("isTapped", False),
-                    "hasSummoningSickness": obj.get("hasSummoningSickness", False),
-                    "damage": obj.get("damage", 0),
-                    "loyalty": obj.get("loyalty"),
-                    "attackState": obj.get("attackState"),
-                    "blockState": obj.get("blockState"),
-                }
-            )
-
-        for act in snapshot.get("actions", []):
+    # Actions from the latest snapshot (always complete)
+    if all_snapshots:
+        for act in all_snapshots[-1].get("actions", []):
             actions.append(
                 {
                     "actionType": act.get("actionType", ""),
@@ -484,6 +460,33 @@ def cmd_board(args: list[str]) -> None:
                     "name": act.get("name"),
                 }
             )
+
+    # 3. Optionally get OCR
+    ocr_items: list[dict] = []
+    if with_ocr:
+        ocr_items = _board_ocr()
+
+    # 4. Build objects list from merged state
+    objects: list[dict] = [
+        {
+            "instanceId": obj.get("instanceId", 0),
+            "grpId": obj.get("grpId", 0),
+            "name": obj.get("name"),
+            "type": obj.get("type"),
+            "zoneId": obj.get("zoneId", 0),
+            "ownerSeatId": obj.get("ownerSeatId", 0),
+            "controllerSeatId": obj.get("controllerSeatId", 0),
+            "power": obj.get("power"),
+            "toughness": obj.get("toughness"),
+            "isTapped": obj.get("isTapped", False),
+            "hasSummoningSickness": obj.get("hasSummoningSickness", False),
+            "damage": obj.get("damage", 0),
+            "loyalty": obj.get("loyalty"),
+            "attackState": obj.get("attackState"),
+            "blockState": obj.get("blockState"),
+        }
+        for obj in merged_objects.values()
+    ]
 
     # 5. Group by zone (seat 1 = human, seat 2 = AI)
     our_seat, opp_seat = 1, 2
