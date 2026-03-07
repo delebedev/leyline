@@ -35,7 +35,7 @@ client-infrastructure:
   ui-automation:
     status: wired
     notes: >
-      Synthetic mouse clicks via tools/click (CGEvent + mach_absolute_time).
+      Synthetic mouse clicks via bin/click (CGEvent + mach_absolute_time).
       Works on macOS 15+ with Unity — window must be foreground. Supports
       left/right/double click and move. Screenshot capture via just
       capture-screenshot. client-auto.sh provides log-driven state machine

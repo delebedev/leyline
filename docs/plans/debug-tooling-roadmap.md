@@ -4,7 +4,7 @@ Testing iteration speed, client conformance verification, and game replay withou
 
 ## Status
 
-Phase 1 (Full GSM injection) confirmed working. Remaining phases pending.
+Phase 1 (Full GSM injection) and Phase 1.5 (Puzzle hot-swap) confirmed working. Remaining phases pending.
 
 ---
 
@@ -28,6 +28,33 @@ The Arena client accepts a Full `GameStateMessage` mid-game at any point. No val
 2. Bridge snapshot must be updated after injection (`bridge.snapshotState()`) — otherwise next Diff is computed against wrong baseline
 3. No client errors on repeated injection (tested 3+ times mid-game)
 4. Annotations can be empty on Full GSM — cards render from zone membership, animations are skipped
+
+---
+
+## Phase 1.5: Puzzle Hot-Swap (DONE)
+
+**Issue:** [#56](https://github.com/delebedev/leyline/issues/56)
+
+### What we shipped
+
+`POST /api/inject-puzzle` debug endpoint — tears down the running game, loads a `.pzl` puzzle, starts a fresh Forge engine, and injects the new board state into the connected client. No lobby re-navigation needed.
+
+### Usage
+
+```bash
+# By file name (loads from matchdoor/src/test/resources/puzzles/)
+curl -X POST "http://localhost:8090/api/inject-puzzle?file=bolt-face"
+
+# By raw .pzl content in body
+curl -X POST http://localhost:8090/api/inject-puzzle -d @path/to/puzzle.pzl
+```
+
+### Key findings
+
+1. `GameBridge.resetForPuzzle(puzzle)` — shutdown loop, clear all state (instanceIds, limbo, zones, snapshots, persistent annotations), swap to InMemoryCardRepository, call startPuzzle
+2. Production bridges use `ExposedCardRepository` (client SQLite) — puzzle synthetic grpIds (300000+) don't exist there. Must swap to `InMemoryCardRepository` on puzzle reset.
+3. Sequential injection works: tested 3+ puzzles in a row, zero client errors
+4. Iteration time: ~2s per puzzle swap (engine init + priority wait)
 
 ---
 

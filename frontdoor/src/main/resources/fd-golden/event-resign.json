@@ -1,0 +1,259 @@
+{
+  "CourseId": "e5ff47e2-92c5-4795-b070-34ee522d0426",
+  "InternalEventName": "Jump_In_2024",
+  "CurrentModule": "Complete",
+  "ModulePayload": "",
+  "CourseDeckSummary": {
+    "DeckId": "01043cdf-c559-455a-b688-eef9cfe33e9e",
+    "Attributes": [],
+    "DeckTileId": 86795,
+    "DeckArtId": 0,
+    "FormatLegalities": {},
+    "PreferredCosmetics": {
+      "Avatar": "",
+      "Sleeve": "",
+      "Pet": "",
+      "Title": "",
+      "Emotes": []
+    },
+    "DeckValidationSummaries": [],
+    "UnownedCards": {}
+  },
+  "CourseDeck": {
+    "MainDeck": [
+      {
+        "cardId": 86834,
+        "quantity": 1
+      },
+      {
+        "cardId": 86845,
+        "quantity": 1
+      },
+      {
+        "cardId": 86932,
+        "quantity": 1
+      },
+      {
+        "cardId": 86926,
+        "quantity": 1
+      },
+      {
+        "cardId": 86795,
+        "quantity": 1
+      },
+      {
+        "cardId": 86793,
+        "quantity": 1
+      },
+      {
+        "cardId": 86824,
+        "quantity": 1
+      },
+      {
+        "cardId": 86810,
+        "quantity": 1
+      },
+      {
+        "cardId": 86799,
+        "quantity": 1
+      },
+      {
+        "cardId": 86855,
+        "quantity": 1
+      },
+      {
+        "cardId": 86829,
+        "quantity": 1
+      },
+      {
+        "cardId": 83951,
+        "quantity": 1
+      },
+      {
+        "cardId": 90479,
+        "quantity": 1
+      },
+      {
+        "cardId": 90590,
+        "quantity": 1
+      },
+      {
+        "cardId": 90588,
+        "quantity": 1
+      },
+      {
+        "cardId": 90470,
+        "quantity": 1
+      },
+      {
+        "cardId": 90488,
+        "quantity": 1
+      },
+      {
+        "cardId": 90487,
+        "quantity": 1
+      },
+      {
+        "cardId": 90491,
+        "quantity": 1
+      },
+      {
+        "cardId": 90486,
+        "quantity": 1
+      },
+      {
+        "cardId": 90489,
+        "quantity": 1
+      },
+      {
+        "cardId": 90496,
+        "quantity": 1
+      },
+      {
+        "cardId": 90481,
+        "quantity": 1
+      },
+      {
+        "cardId": 90477,
+        "quantity": 1
+      },
+      {
+        "cardId": 84574,
+        "quantity": 1
+      },
+      {
+        "cardId": 84574,
+        "quantity": 1
+      },
+      {
+        "cardId": 91838,
+        "quantity": 1
+      },
+      {
+        "cardId": 91838,
+        "quantity": 1
+      },
+      {
+        "cardId": 91838,
+        "quantity": 1
+      },
+      {
+        "cardId": 91836,
+        "quantity": 1
+      },
+      {
+        "cardId": 91838,
+        "quantity": 1
+      },
+      {
+        "cardId": 91836,
+        "quantity": 1
+      },
+      {
+        "cardId": 91838,
+        "quantity": 1
+      },
+      {
+        "cardId": 91836,
+        "quantity": 1
+      },
+      {
+        "cardId": 91838,
+        "quantity": 1
+      },
+      {
+        "cardId": 91836,
+        "quantity": 1
+      },
+      {
+        "cardId": 91838,
+        "quantity": 1
+      },
+      {
+        "cardId": 91836,
+        "quantity": 1
+      },
+      {
+        "cardId": 91838,
+        "quantity": 1
+      },
+      {
+        "cardId": 91836,
+        "quantity": 1
+      }
+    ],
+    "ReducedSideboard": [],
+    "Sideboard": [],
+    "CommandZone": [],
+    "Companions": [],
+    "CardSkins": []
+  },
+  "CurrentWins": 2,
+  "CurrentLosses": 4,
+  "CardPool": [
+    86834,
+    86845,
+    86932,
+    86926,
+    86795,
+    86793,
+    86824,
+    86810,
+    86799,
+    86855,
+    86829,
+    83951,
+    90479,
+    90590,
+    90588,
+    90470,
+    90488,
+    90487,
+    90491,
+    90486,
+    90489,
+    90496,
+    90481,
+    90477,
+    84574,
+    84574,
+    91838,
+    91838,
+    91838,
+    91836,
+    91838,
+    91836,
+    91838,
+    91836,
+    91838,
+    91836,
+    91838,
+    91836,
+    91838,
+    91836
+  ],
+  "CardPoolByCollation": [],
+  "CardStyles": [],
+  "JumpStart": {
+    "CurrentChoices": [],
+    "PacketsChosen": [
+      {
+        "packetName": "SJMP_PacketName_WOE_Rats",
+        "displayArtId": 434489,
+        "displayGrpId": 86795,
+        "colors": [
+          "R",
+          "B"
+        ]
+      },
+      {
+        "packetName": "SJMP_PacketName_OTJ_Treasured",
+        "displayArtId": 444223,
+        "displayGrpId": 90590,
+        "colors": [
+          "R"
+        ]
+      }
+    ]
+  }
+}

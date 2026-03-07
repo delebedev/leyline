@@ -1,13 +1,10 @@
 import leyline.build.CheckUpstreamTask
-import leyline.build.SyncProtoTask
 import leyline.build.WriteClasspathTask
-import leyline.build.configureTestDefaults
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlin.power.assert)
-    alias(libs.plugins.protobuf)
     alias(libs.plugins.spotless)
     alias(libs.plugins.detekt)
     id("org.gradle.test-retry")
@@ -36,46 +33,36 @@ kotlin {
     }
 }
 
+// Root module sources live in app/ (not default src/) so modules group visually in the tree.
+sourceSets {
+    main {
+        kotlin.setSrcDirs(listOf("app/main/kotlin"))
+        resources.setSrcDirs(listOf("app/main/resources"))
+    }
+    test {
+        kotlin.setSrcDirs(listOf("app/test/kotlin"))
+        resources.setSrcDirs(listOf("app/test/resources"))
+    }
+}
+
 dependencies {
+    implementation(project(":account"))
+    implementation(project(":frontdoor"))
+    implementation(project(":matchdoor"))
+    implementation(project(":tooling"))
     implementation(libs.kotlin.stdlib)
-implementation(libs.serialization.json)
-    implementation(libs.protobuf.java)
-    implementation(libs.protobuf.java.util)
-    implementation(libs.tomlkt)
+    implementation(libs.serialization.json)
+    implementation(libs.exposed.core)
+    implementation(libs.exposed.jdbc)
     implementation(libs.sqlite.jdbc)
     implementation(libs.netty.handler)
     implementation(libs.netty.codec)
     implementation(libs.bouncycastle.pkix)
     implementation(libs.logback.classic)
     implementation(libs.sentry.logback)
-    implementation(libs.forge.core)
-    implementation(libs.forge.game)
-    implementation(libs.forge.ai)
-    implementation(libs.forge.gui)
 
-    testImplementation(libs.archunit)
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
-    testImplementation(libs.kotest.datatest)
-}
-
-// --- Proto sync + generation ---
-
-val syncProto by tasks.registering(SyncProtoTask::class) {
-    description = "Generate messages.proto from upstream submodule + rename map"
-    sedFile.set(layout.projectDirectory.file("proto/rename-map.sed"))
-    upstream.set(layout.projectDirectory.file("proto/upstream/messages.proto"))
-    outputFile.set(layout.projectDirectory.file("src/main/proto/messages.proto"))
-}
-
-tasks.named("extractProto") {
-    dependsOn(syncProto)
-}
-
-protobuf {
-    protoc {
-        artifact = "com.google.protobuf:protoc:3.25.5"
-    }
 }
 
 // --- Upstream JAR freshness check ---
@@ -94,7 +81,7 @@ tasks.named("compileKotlin") {
 
 spotless {
     kotlin {
-        target("src/**/*.kt")
+        target("app/**/*.kt")
         ktlint("1.3.1").editorConfigOverride(
             mapOf("ktlint_standard_no-wildcard-imports" to "disabled"),
         )
@@ -116,34 +103,7 @@ detekt {
     config.setFrom(files("gradle/detekt.yml"))
     baseline = file("gradle/detekt-baseline.xml")
     parallel = true
-    source.setFrom(files("src/main/kotlin", "src/test/kotlin"))
-}
-
-// --- Testing ---
-
-tasks.test {
-    configureTestDefaults()
-}
-
-val testUnit by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "UnitTag")
-}
-
-val testConformance by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "ConformanceTag")
-}
-
-val testIntegration by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "IntegrationTag")
-    maxParallelForks = 4
-}
-
-val testGate by tasks.registering(Test::class) {
-    configureTestDefaults()
-    systemProperty("kotest.tags", "UnitTag | ConformanceTag")
+    source.setFrom(files("app/main/kotlin", "app/test/kotlin"))
 }
 
 // --- JaCoCo ---
@@ -162,8 +122,8 @@ tasks.jacocoTestReport {
                     "leyline/LeylinePaths*",
                     "leyline/analysis/**",
                     "leyline/debug/**",
-                    "leyline/server/**",
-                    "leyline/protocol/**",
+                    "leyline/infra/**",
+                    "leyline/cli/**",
                     "leyline/conformance/CompareMain*",
                     "leyline/conformance/GameFlowAnalyzer*",
                     "leyline/recording/**",

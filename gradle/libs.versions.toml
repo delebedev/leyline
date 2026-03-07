@@ -3,9 +3,12 @@ kotlin = "2.2.20"
 serialization = "1.9.0"
 protobuf = "3.25.5"
 netty = "4.1.101.Final"
+ktor = "3.2.0"
 logback = "1.5.13"
 sentry = "8.21.1"
 tomlkt = "0.4.0"
+jbcrypt = "0.4"
+exposed = "1.1.1"
 sqlite = "3.45.1.0"
 kotest = "5.9.1"
 bouncycastle = "1.83"
@@ -23,6 +26,8 @@ serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-jso
 protobuf-java = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
 protobuf-java-util = { module = "com.google.protobuf:protobuf-java-util", version.ref = "protobuf" }
 tomlkt = { module = "net.peanuuutz.tomlkt:tomlkt-jvm", version.ref = "tomlkt" }
+exposed-core = { module = "org.jetbrains.exposed:exposed-core", version.ref = "exposed" }
+exposed-jdbc = { module = "org.jetbrains.exposed:exposed-jdbc", version.ref = "exposed" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 netty-handler = { module = "io.netty:netty-handler", version.ref = "netty" }
 netty-codec = { module = "io.netty:netty-codec", version.ref = "netty" }
@@ -36,6 +41,13 @@ kotest-runner = { module = "io.kotest:kotest-runner-junit5", version.ref = "kote
 kotest-assertions = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
 kotest-datatest = { module = "io.kotest:kotest-framework-datatest", version.ref = "kotest" }
 bouncycastle-pkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
+ktor-server-netty = { module = "io.ktor:ktor-server-netty", version.ref = "ktor" }
+ktor-server-content-negotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+ktor-server-status-pages = { module = "io.ktor:ktor-server-status-pages", version.ref = "ktor" }
+ktor-network-tls-certificates = { module = "io.ktor:ktor-network-tls-certificates", version.ref = "ktor" }
+ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
+jbcrypt = { module = "org.mindrot:jbcrypt", version.ref = "jbcrypt" }
 archunit = { module = "com.tngtech.archunit:archunit", version.ref = "archunit" }
 
 [plugins]

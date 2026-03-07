@@ -15,18 +15,24 @@ nbactions.xml
 
 # Gradle
 .gradle/
-/build/
-buildSrc/build/
+**/build/
 target
 
 # Logs
 *.log
+/logs/
+
+# Player data (created by `just seed-db`)
+/data/
 
 # macOS
 .DS_Store
 
 # Vim
 *.swp
+
+# Kotlin compiler daemon
+.kotlin/
 
 # Python
 __pycache__
@@ -49,10 +55,24 @@ recordings/*
 !recordings/manifest.json
 
 # Generated proto (from submodule + rename-map.sed)
-src/main/proto/messages.proto
+app/main/proto/messages.proto
+/proto-gen/
 
 # Forge submodule build artifacts handled by its own .gitignore
 # Local-only dev notes
 .local/
 
 !.claude/
+
+# Contains creds
+deploy/services-proxy.conf
+
+# Wrangler local state
+.wrangler/
+
+# Engine debug captures
+matchdoor/engine/*.bin
+matchdoor/engine/*.txt
+
+# Override global gitignore — bin/ contains our CLI tools
+!bin/

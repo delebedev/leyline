@@ -27,42 +27,37 @@ just deploy         # docker-build + pull + restart on VPS
 - Application JARs + launch script (`installDist`)
 - Card scripts (`forge-gui/res/`, minus images/sounds)
 - `playtest.toml` + deck files
-- `entrypoint.sh` (PKCS#1 → PKCS#8 key conversion for Netty)
+- `entrypoint.sh`
 
 ### NOT in the image
 
 - **Card database** (222MB SQLite) — volume mount
-- **TLS certificates** — volume mount
 - Images, sounds, skins, adventure data
 
 ## Environment Variables
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `LEYLINE_CERT_PATH` | TLS cert (PEM) for FD/MD/WAS | Self-signed |
-| `LEYLINE_KEY_PATH` | TLS key (PEM) for FD/MD/WAS | Self-signed |
 | `LEYLINE_CARD_DB` | Card database SQLite path | Auto-detect macOS |
 | `LEYLINE_FD_HOST` | FrontDoor `host:port` for doorbell + MatchCreated | `localhost:30010` |
 | `LEYLINE_DEBUG` | Enable `MTGA_DEBUG` role (debug menu) | Off |
 | `JAVA_OPTS` | JVM flags | `-Xmx384m` |
 
-CLI args (`--fd-cert`, `--fd-key`, etc.) take precedence.
-
 ## Ports
 
 | Port | Protocol | Service |
 |------|----------|---------|
-| 443 | HTTPS | MockWAS (auth + doorbell), via reverse proxy |
+| 443 | HTTPS | AccountServer (auth + doorbell), via reverse proxy |
 | 30010 | TLS TCP | FrontDoor (direct) |
 | 30003 | TLS TCP | MatchDoor (direct) |
-| 9443 | HTTPS | MockWAS (internal) |
+| 9443 | HTTPS | AccountServer (internal) |
 | 8090 | HTTP | Debug panel (internal) |
 
 ## Local Dev
 
 ```bash
 just dev-setup      # gen certs + patch Arena + macOS defaults
-just serve          # start server (hybrid mode)
+just serve          # start server (local mode)
 just dev-teardown   # undo
 ```
 
@@ -76,4 +71,4 @@ Auto-detects card DB from `~/Library/Application Support/com.wizards.mtga/Downlo
 | `MTGA_FeatureToggle` | Feature toggle editor (always on) |
 | `MTGA_DEBUG` | Debug panel — `LEYLINE_DEBUG=true` to enable |
 
-No account verification — any credentials work.
+Dev mode auto-seeds account `forge@local` / `forge`. Registration and login with bcrypt password verification.
