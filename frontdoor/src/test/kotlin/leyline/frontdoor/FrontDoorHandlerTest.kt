@@ -19,14 +19,18 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import leyline.frontdoor.domain.CollationPool
 import leyline.frontdoor.domain.Deck
 import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.Format
 import leyline.frontdoor.domain.PlayerId
+import leyline.frontdoor.repo.InMemoryCourseRepository
 import leyline.frontdoor.repo.SqlitePlayerStore
 import leyline.frontdoor.service.CollectionService
+import leyline.frontdoor.service.CourseService
 import leyline.frontdoor.service.DeckService
+import leyline.frontdoor.service.GeneratedPool
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.FdEnvelope
@@ -143,6 +147,38 @@ class FrontDoorHandlerTest :
         /** Send a cmd, parse first response as JsonObject. */
         fun sendJson(cmdType: Int, payload: String? = "{}"): JsonObject {
             val ch = fdChannel()
+            val msg = ch.sendCmd(cmdType, payload)
+            return json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
+        }
+
+        /** Create a FD channel with CourseService wired (for sealed event tests). */
+        fun fdChannelWithCourseService(): EmbeddedChannel {
+            val poolGen: (String) -> GeneratedPool = { _ ->
+                GeneratedPool(
+                    cards = (1..84).toList(),
+                    byCollation = listOf(CollationPool(100026, (1..84).toList())),
+                    collationId = 100026,
+                )
+            }
+            val courseService = CourseService(InMemoryCourseRepository(), poolGen)
+            val ch = EmbeddedChannel(
+                FrontDoorHandler(
+                    playerId = PlayerId(testPlayerId),
+                    deckService = deckService,
+                    playerService = playerService,
+                    matchmaking = matchmakingService,
+                    collectionService = CollectionService { emptyList() },
+                    courseService = courseService,
+                    writer = writer,
+                    golden = golden,
+                ),
+            )
+            channel = ch
+            return ch
+        }
+
+        /** Send a cmd on a course-wired channel, parse first response as JsonObject. */
+        fun sendJsonWith(ch: EmbeddedChannel, cmdType: Int, payload: String? = "{}"): JsonObject {
             val msg = ch.sendCmd(cmdType, payload)
             return json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
         }
@@ -390,6 +426,85 @@ class FrontDoorHandlerTest :
             val msg = ch.sendCmd(9999)
             msg.transactionId.shouldNotBeNull()
             // Empty response is fine — just shouldn't crash
+        }
+
+        // --- Sealed event integration tests ---
+
+        test("CmdType 600 - Event_Join sealed creates course with DeckSelect") {
+            val ch = fdChannelWithCourseService()
+            ch.writeCmd(600, """{"EventName":"Sealed_FDN_20260307"}""")
+            val resp = ch.readOutbound<ByteBuf>()!!
+            val msg = decodeResponse(resp)
+            val obj = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
+            val course = obj["Course"]?.jsonObject
+            course.shouldNotBeNull()
+            course["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"
+            course["CardPool"]?.jsonArray.shouldNotBeNull()
+            course["CardPool"]!!.jsonArray.shouldNotBeEmpty()
+        }
+
+        test("CmdType 622 - Event_SetDeckV2 transitions sealed course to CreateMatch") {
+            val ch = fdChannelWithCourseService()
+            // Join first
+            ch.writeCmd(600, """{"EventName":"Sealed_FDN_20260307"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+
+            // Set deck
+            val mainDeck = (1..40).joinToString(",") { """{"cardId":$it,"quantity":1}""" }
+            val setDeckPayload = """
+                {
+                    "EventName":"Sealed_FDN_20260307",
+                    "Deck": {
+                        "MainDeck": [$mainDeck],
+                        "Sideboard": [],
+                        "CommandZone": [],
+                        "Companions": []
+                    },
+                    "Summary": {
+                        "DeckId":"sealed-deck-001",
+                        "Name":"My Sealed Deck",
+                        "DeckTileId":12345
+                    }
+                }
+            """.trimIndent()
+            ch.writeCmd(622, setDeckPayload)
+            val resp = ch.readOutbound<ByteBuf>()!!
+            val msg = decodeResponse(resp)
+            val obj = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
+            obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "CreateMatch"
+        }
+
+        test("CmdType 623 - Event_GetCoursesV2 includes sealed course after join") {
+            val ch = fdChannelWithCourseService()
+            // Join sealed
+            ch.writeCmd(600, """{"EventName":"Sealed_FDN_20260307"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+
+            // Get courses
+            ch.writeCmd(623)
+            val resp = ch.readOutbound<ByteBuf>()!!
+            val msg = decodeResponse(resp)
+            val obj = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
+            val courses = obj["Courses"]?.jsonArray
+            courses.shouldNotBeNull()
+            val sealedCourse = courses.firstOrNull {
+                it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "Sealed_FDN_20260307"
+            }
+            sealedCourse.shouldNotBeNull()
+        }
+
+        test("CmdType 601 - Event_Resign drops sealed course") {
+            val ch = fdChannelWithCourseService()
+            // Join sealed
+            ch.writeCmd(600, """{"EventName":"Sealed_FDN_20260307"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+
+            // Resign
+            ch.writeCmd(601, """{"EventName":"Sealed_FDN_20260307"}""")
+            val resp = ch.readOutbound<ByteBuf>()!!
+            val msg = decodeResponse(resp)
+            val obj = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
+            obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "Complete"
         }
     })
 
