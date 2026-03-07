@@ -67,5 +67,12 @@ app/main/proto/messages.proto
 # Contains creds
 deploy/services-proxy.conf
 
+# Wrangler local state
+.wrangler/
+
+# Engine debug captures
+matchdoor/engine/*.bin
+matchdoor/engine/*.txt
+
 # Override global gitignore — bin/ contains our CLI tools
 !bin/
