@@ -331,13 +331,12 @@ class FrontDoorHandler(
                     val course = courseService.join(playerId, eventName)
                     writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildJoinResponse(course)))
                 } else {
-                    writer.send(
-                        ctx,
-                        txId,
-                        FdResponse.Json(
-                            if (EventRegistry.isSealed(eventName ?: "")) golden.sealedJoinJson else golden.eventJoinJson,
-                        ),
-                    )
+                    val goldenJson = when {
+                        EventRegistry.isDraft(eventName ?: "") -> golden.draftJoinJson
+                        EventRegistry.isSealed(eventName ?: "") -> golden.sealedJoinJson
+                        else -> golden.eventJoinJson
+                    }
+                    writer.send(ctx, txId, FdResponse.Json(goldenJson))
                 }
             }
 
@@ -429,6 +428,23 @@ class FrontDoorHandler(
                 val req = FdRequests.parseEventName(json)
                 log.info("Front Door: Event_SetJumpStartPacket event={}", req?.eventName)
                 writer.send(ctx, txId, FdResponse.Json(golden.eventSetJumpstartPacketJson))
+            }
+
+            CmdType.BOT_DRAFT_START.value -> {
+                val req = FdRequests.parseEventName(json)
+                log.info("Front Door: BotDraft_StartDraft event={}", req?.eventName)
+                writer.send(ctx, txId, FdResponse.Json(golden.draftStartJson))
+            }
+
+            CmdType.BOT_DRAFT_PICK.value -> {
+                log.info("Front Door: BotDraft_DraftPick (golden stub)")
+                writer.send(ctx, txId, FdResponse.Json(golden.draftPickJson))
+            }
+
+            CmdType.BOT_DRAFT_STATUS.value -> {
+                val req = FdRequests.parseEventName(json)
+                log.info("Front Door: BotDraft_DraftStatus event={}", req?.eventName)
+                writer.send(ctx, txId, FdResponse.Json(golden.draftStatusJson))
             }
 
             CmdType.EVENT_SET_DECK_V2.value -> {
