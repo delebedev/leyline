@@ -49,10 +49,12 @@ class GameBridge(
     /** Shared protocol counter for GRE message sequencing.
      *  Production: shared with MatchSession. Tests: local default. */
     val messageCounter: MessageCounter = MessageCounter(),
-    /** Card data repository — lookups for grpId ↔ name, card metadata. */
-    val cards: CardRepository = InMemoryCardRepository(),
-    /** Proto builder for GameObjectInfo — uses [cards] for static card data. */
-    val cardProto: CardProtoBuilder = CardProtoBuilder(cards),
+    /** Card data repository — lookups for grpId ↔ name, card metadata.
+     *  Swapped to [InMemoryCardRepository] on puzzle hot-swap. */
+    var cards: CardRepository = InMemoryCardRepository(),
+    /** Proto builder for GameObjectInfo — uses [cards] for static card data.
+     *  Rebuilt on puzzle hot-swap to reference the new repo. */
+    var cardProto: CardProtoBuilder = CardProtoBuilder(cards),
 ) : IdMapping,
     PlayerLookup,
     ZoneTracking,
@@ -582,6 +584,34 @@ class GameBridge(
         log.info("GameBridge: puzzle loop started, waiting for priority")
         awaitPriority()
         log.info("GameBridge: puzzle engine reached priority, ready")
+    }
+
+    /**
+     * Tear down the current game and start a new puzzle in-place.
+     * Clears all bridge state (instanceIds, limbo, zones, snapshots, annotations)
+     * so the new puzzle gets a clean slate. The client receives a Full GSM after.
+     */
+    fun resetForPuzzle(puzzle: Puzzle) {
+        log.info("GameBridge: resetting for new puzzle")
+        shutdown()
+
+        // Clear all mapping/tracking state from the previous game
+        ids.resetAll()
+        limbo.clear()
+        diff.resetAll()
+        activePersistentAnnotations.clear()
+        pendingPersistentDeletions.clear()
+        nextAnnotationId = INITIAL_ANNOTATION_ID
+        nextPersistentAnnotationId = INITIAL_PERSISTENT_ANNOTATION_ID
+
+        // Swap to InMemoryCardRepository for puzzle (puzzle cards use synthetic grpIds
+        // that don't exist in ExposedCardRepository / client SQLite)
+        val memRepo = InMemoryCardRepository()
+        cards = memRepo
+        cardProto = CardProtoBuilder(memRepo)
+
+        startPuzzle(puzzle)
+        log.info("GameBridge: puzzle hot-swap complete")
     }
 
     fun shutdown() {

@@ -20,4 +20,9 @@ class LimboTracker {
 
     /** Current ordered list of all retired instanceIds. */
     fun all(): List<Int> = retired.toList()
+
+    /** Clear all retired instanceIds (used on puzzle hot-swap). */
+    fun clear() {
+        retired.clear()
+    }
 }
