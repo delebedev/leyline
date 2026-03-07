@@ -121,34 +121,32 @@ def sips(*args: str) -> tuple[int, str, str]:
     return run("sips", *args)
 
 
+def _mtga_window_id() -> int | None:
+    """Get MTGA main window CGWindowID via Quartz. Works without activation."""
+    try:
+        import Quartz
+        windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionAll, Quartz.kCGNullWindowID)
+        for w in windows:
+            if w.get("kCGWindowOwnerName") == "MTGA" and w.get("kCGWindowName") == "MTGA":
+                return int(w["kCGWindowNumber"])
+    except ImportError:
+        pass
+    return None
+
+
 def capture_window(out_path: str) -> tuple[int, int, int, int] | None:
-    """Capture MTGA window region. Returns bounds or None."""
-    _activate_mtga()
+    """Capture MTGA window rect. Resizes to logical size so OCR coords = window-relative."""
     bounds = mtga_window_bounds()
     if bounds is None:
         return None
 
-    raw = "/tmp/arena/_screen_raw.png"
-    code, _, _ = peekaboo("image", "--mode", "screen", "--path", raw)
+    x, y, w, h = bounds
+    code, _, _ = run("screencapture", "-R", f"{x},{y},{w},{h}", "-x", out_path)
     if code != 0:
         return None
 
-    bx, by, bw, bh = bounds
-    sips(
-        "--cropOffset",
-        str(by),
-        str(bx),
-        "--cropToHeightWidth",
-        str(bh),
-        str(bw),
-        raw,
-        "--out",
-        out_path,
-    )
-    try:
-        os.remove(raw)
-    except OSError:
-        pass
+    # Retina captures at 2x — resize to logical so OCR coords match click coords
+    run("sips", "--resampleWidth", str(w), out_path, "--out", out_path)
     return bounds
 
 
