@@ -204,87 +204,105 @@ Event blade shows updated loss counter. Click "Play" for next match.
 
 ## Quick Draft Loop (Full Example)
 
+Smoke-tested 2026-03-07. Full flow: join → 39 picks across 3 packs → deckbuild → event blade.
+
 ### Prerequisites
 ```bash
-just serve-proxy   # proxy mode for recording, or just serve for local
+just build && just serve  # (background, tmux)
 bin/arena launch
+# Requires 750+ gems or 5000+ gold in start-hook.json inventory
 ```
 
 ### 1. Navigate to Quick Draft
 ```bash
 bin/arena click "Play" --retry 3          # lobby → play menu
 sleep 2
-bin/arena click "Limited" --retry 3       # filter to limited events
-sleep 1
-# Quick Draft tile — OCR for title, click card art ~50px above
-bin/arena ocr --find "Quick Draft"        # get title coords
-bin/arena click <cx>,<cy - 50>            # click tile image
+# Quick Draft tile is in the "All" or "Limited" view
+# Click tile IMAGE, not title text — ~50px above the title
+bin/arena click 141,200                   # Quick Draft tile image (960-wide coords)
 sleep 2
 ```
 
 ### 2. Join (pay entry fee)
 ```bash
-# Event blade shows entry fees: 750 gems (top) / 5000 gold (bottom), bottom-right
-bin/arena click 854,478                   # 750 gem button (bottom-right area)
-sleep 1
-bin/arena click "OK" --retry 3           # confirm purchase dialog
+# Event blade shows entry fees bottom-right: 750 gems (~868,485) / 5000 gold (~870,530)
+bin/arena click 868,485                   # 750 gem button
+sleep 2
+# Confirm Purchase dialog appears: "Are you sure you want to purchase this item?"
+bin/arena click "oK" --retry 3            # note: OCR reads it as "oK" not "OK"
 sleep 3                                   # → draft screen loads
 ```
 
-### 3. Draft picks (3 packs × ~14 picks)
+### 3. Draft picks (3 packs × 13+ picks)
 ```bash
-# Draft screen: cards in rows, "Confirm Pick" button at ~588,532
-# "Pack N / Pick M" in top-left shows progress
-# Pick from top row (rares tend to be top-left):
+# Draft screen: card grid in left area, "Confirm Pick" at (643,539)
+# "Pack N / Pick M" header shows progress
+# Cards rendered in grid ~x:100-600, y:130-520
+# IMPORTANT: need ~1s delay between card click and Confirm Pick
+
 for i in $(seq 1 42); do
-    bin/arena click 150,200               # select top-left card
-    sleep 0.5
-    bin/arena click 588,532               # confirm pick
-    sleep 1.5
+    bin/arena click 200,200               # click card in grid area
+    sleep 1                               # MUST wait — selection animation
+    bin/arena click 643,539               # Confirm Pick
+    sleep 2                               # wait for next pack state
     bin/arena ocr --find "Confirm Pick" >/dev/null 2>&1 || break
 done
-# After last pick: "Vault Progress" + "Okay" button appears
+
+# GOTCHA: Last card in a pack renders as tiny thumbnail at (~68,140)
+# with NO OCR text. If stuck on "Pick 13/14", click (68,140) then Confirm.
+
+# After final pick: "Vault Progress" overlay + "Okay" button at (480,469)
 bin/arena click "Okay" --retry 3          # → deck builder
 sleep 2
 ```
 
-### 4. Build deck (same as sealed — 40 cards)
+### 4. Build deck
 ```bash
-# Deck builder: "N/40 Cards" counter, card list on left
-# Auto-build or click cards to add, then Done
+# Deck builder: "N/40 Cards" counter, all drafted cards auto-added
+# Client may auto-build a 40-card deck from the pool
+# If not, click cards in the card list to add them
 bin/arena click "Done" --retry 3          # submit deck → event blade
 sleep 2
 ```
 
 ### 5. Play / concede loop
 ```bash
-# Event blade: "Play" button, "N LOSSES" counter, "Resign" option
+# Event blade: "Play" button, "0 Losses" counter, "Resign" option
 bin/arena click "Play" --retry 3
-bin/arena wait text="Keep" --timeout 30
+bin/arena wait text="Keep" --timeout 10
 bin/arena click "Keep" --retry 3
-# ... play or concede as needed
+# ... play or concede as needed (see In-Game section)
 ```
+
+### Draft automation gotchas
+
+- **1s delay mandatory between card click and Confirm Pick.** Faster = click doesn't register.
+- **Last card in pack has no OCR text.** Renders as tiny thumbnail at upper-left (~68,140 in 960-wide). Must click by position.
+- **Forge packs can have 13-14 cards.** Variable per set. Some packs need 14 picks to exhaust.
+- **"Pick N" display is 1-indexed from client perspective** but 0-indexed in server logs.
+- **Card grid positions shift** as cards are picked. Always click a fixed area (200,200) — there's usually a card there until pack is nearly empty.
 
 ### Key signals
 | Stage | OCR signal | Means |
 |-------|-----------|-------|
 | Events tab | `"Quick Draft"` | Event tile visible |
-| Event blade | `750` / `5000` | Entry fee, click to join |
-| Purchase | `"OK"` | Confirm spend |
+| Event blade | `750` / `5000` | Entry fee buttons, click to join |
+| Purchase | `"oK"` | Confirm spend (OCR reads lowercase o) |
 | Draft | `"Pack N / Pick M"` | Active drafting |
-| Draft | `"Confirm Pick"` | Card selected, ready to pick |
+| Draft | `"Confirm Pick"` | Ready to pick (card may or may not be selected) |
+| Last card | No OCR in pick area | Single tiny card at ~(68,140) |
 | Draft done | `"Vault Progress"` + `"Okay"` | All picks made |
 | Deck builder | `"N/40 Cards"` + `"Done"` | Building limited deck |
-| Event blade | `"0 LOSSES"` + `"Play"` | Deck submitted, can queue |
+| Event blade | `"0 Losses"` + `"Play"` | Deck submitted, can queue |
 
 ### Protocol flow (CmdTypes)
 ```
-Event_Join(600)           → Course with CurrentModule="BotDraft"
-BotDraft_StartDraft(1800) → first pack (13 cards, draftStatus=PickNext)
-BotDraft_DraftPick(1801)  × 39 picks → next pack each time
-  (last pick returns draftStatus=Completed)
-Draft_CompleteDraft(1908) → finalizes pool
-Event_GetCoursesV2(623)   → Course with CurrentModule="DeckSelect", CardPool=[39 grpIds]
+Event_Join(600)           → Course with CurrentModule="BotDraft", empty CardPool
+BotDraft_StartDraft(1800) → first pack (13-14 grpIds as strings, draftStatus=PickNext)
+BotDraft_DraftPick(1801)  × 39+ picks → remaining pack, or next pack when exhausted
+BotDraft_DraftStatus(1802)→ poll current state (optional)
+  (last pick returns draftStatus=Completed, CurrentModule switches to "DeckSelect")
+Event_GetCoursesV2(623)   → Course with CurrentModule="DeckSelect", CardPool=[picked grpIds]
 Event_SetDeckV2(622)      → submit 40-card deck
 Event_EnterPairing(603)   → queue for match
 ```
