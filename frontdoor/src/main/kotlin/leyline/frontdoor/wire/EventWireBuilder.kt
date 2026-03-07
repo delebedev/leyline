@@ -66,6 +66,18 @@ object EventWireBuilder {
         }
     }.toString()
 
+    /** Merge real Course objects with default seed courses (Ladder, Play, etc.). */
+    fun toMergedCoursesJson(courses: List<Course>, defaults: List<Pair<String, String>>): String = buildJsonObject {
+        putJsonArray("Courses") {
+            for (course in courses) {
+                add(buildCourseJson(course))
+            }
+            for ((eventName, module) in defaults) {
+                add(buildCourseJson(eventName, module))
+            }
+        }
+    }.toString()
+
     fun buildCourseJson(
         course: Course,
         includeDeck: Boolean = true,
