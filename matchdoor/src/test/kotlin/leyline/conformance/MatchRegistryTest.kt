@@ -7,6 +7,7 @@ import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.UnitTag
 import leyline.game.GameBridge
 import leyline.infra.ListMessageSink
+import leyline.match.Match
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 
@@ -15,19 +16,26 @@ class MatchRegistryTest :
 
         tags(UnitTag)
 
-        test("getOrCreateBridge creates on first call, reuses on second") {
+        test("getOrCreateMatch creates on first call, reuses on second") {
             val registry = MatchRegistry()
             var created = 0
-            val b1 = registry.getOrCreateBridge("m1") {
+            val m1 = registry.getOrCreateMatch("m1") {
                 created++
-                GameBridge()
+                Match("m1", GameBridge())
             }
-            val b2 = registry.getOrCreateBridge("m1") {
+            val m2 = registry.getOrCreateMatch("m1") {
                 created++
-                GameBridge()
+                Match("m1", GameBridge())
             }
-            b1 shouldBeSameInstanceAs b2
+            m1 shouldBeSameInstanceAs m2
             created shouldBe 1
+        }
+
+        test("getBridge returns bridge from match") {
+            val registry = MatchRegistry()
+            val bridge = GameBridge()
+            registry.getOrCreateMatch("m1") { Match("m1", bridge) }
+            registry.getBridge("m1") shouldBeSameInstanceAs bridge
         }
 
         test("registerSession + getPeer returns correct session") {
@@ -43,8 +51,8 @@ class MatchRegistryTest :
 
         test("evictStale removes old match entries") {
             val registry = MatchRegistry()
-            registry.getOrCreateBridge("old-match") { GameBridge() }
-            registry.getOrCreateBridge("current") { GameBridge() }
+            registry.getOrCreateMatch("old-match") { Match("old-match", GameBridge()) }
+            registry.getOrCreateMatch("current") { Match("current", GameBridge()) }
             val evicted = registry.evictStale("current")
             evicted.size shouldBe 1
         }

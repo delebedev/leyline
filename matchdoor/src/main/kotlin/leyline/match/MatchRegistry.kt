@@ -4,15 +4,15 @@ import leyline.game.GameBridge
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Manages shared bridges and peer sessions across connections.
+ * Manages shared matches and peer sessions across connections.
  * Replaces MatchHandler.Companion static maps.
  *
  * Production: singleton instance. Tests: fresh per test.
  */
 class MatchRegistry {
 
-    /** matchId -> shared GameBridge. First seat creates, second reuses. */
-    private val bridges = ConcurrentHashMap<String, GameBridge>()
+    /** matchId -> shared Match. First seat creates, second reuses. */
+    private val matches = ConcurrentHashMap<String, Match>()
 
     /** matchId -> (seatId -> MatchSession). For cross-connection signaling. */
     private val sessions = ConcurrentHashMap<String, ConcurrentHashMap<Int, MatchSession>>()
@@ -20,8 +20,11 @@ class MatchRegistry {
     /** matchId -> (seatId -> MatchHandler). For pre-mulligan cross-connection messaging. */
     private val handlers = ConcurrentHashMap<String, ConcurrentHashMap<Int, MatchHandler>>()
 
-    fun getOrCreateBridge(matchId: String, factory: () -> GameBridge): GameBridge =
-        bridges.computeIfAbsent(matchId) { factory() }
+    fun getOrCreateMatch(matchId: String, factory: () -> Match): Match =
+        matches.computeIfAbsent(matchId) { factory() }
+
+    /** Convenience: get the bridge for a match directly. */
+    fun getBridge(matchId: String): GameBridge? = matches[matchId]?.bridge
 
     fun registerSession(matchId: String, seatId: Int, session: MatchSession) {
         sessions.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId] = session
@@ -34,12 +37,12 @@ class MatchRegistry {
     }
 
     /**
-     * Remove all bridges and sessions except [currentMatchId].
-     * Returns list of evicted bridges (caller should shutdown).
+     * Remove all matches and sessions except [currentMatchId].
+     * Returns list of evicted matches (caller should shutdown).
      */
-    fun evictStale(currentMatchId: String): List<GameBridge> {
-        val staleKeys = bridges.keys.filter { it != currentMatchId }
-        val evicted = staleKeys.mapNotNull { bridges.remove(it) }
+    fun evictStale(currentMatchId: String): List<Match> {
+        val staleKeys = matches.keys.filter { it != currentMatchId }
+        val evicted = staleKeys.mapNotNull { matches.remove(it) }
         staleKeys.forEach {
             sessions.remove(it)
             handlers.remove(it)
@@ -54,10 +57,11 @@ class MatchRegistry {
     fun getHandler(matchId: String, seatId: Int): MatchHandler? =
         handlers[matchId]?.get(seatId)
 
-    fun removeBridge(matchId: String): GameBridge? = bridges.remove(matchId)
+    fun removeMatch(matchId: String): Match? = matches.remove(matchId)
 
     /** Snapshot of all active bridges (for debug panel). */
-    fun activeBridges(): Map<String, GameBridge> = HashMap(bridges)
+    fun activeBridges(): Map<String, GameBridge> =
+        HashMap(matches).mapValues { it.value.bridge }
 
     /** Get seat 1 session for any active match (for debug injection). */
     fun activeSession(): MatchSession? =

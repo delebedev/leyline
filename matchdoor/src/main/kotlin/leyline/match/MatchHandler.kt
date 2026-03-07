@@ -179,7 +179,7 @@ class MatchHandler(
                     evicted.forEach { it.shutdown() }
                     debugSink?.clear()
                     debugSink?.clearState()
-                    log.info("Match Door: evicted {} stale bridge(s)", evicted.size)
+                    log.info("Match Door: evicted {} stale match(es)", evicted.size)
                 }
 
                 if (puzzleHandler.isPuzzleMatch(matchId)) {
@@ -187,8 +187,9 @@ class MatchHandler(
                     puzzleHandler.onPuzzleConnect(ctx, s!!, matchId, seatId)
                 } else {
                     // Constructed mode: normal flow
-                    val bridge = registry.getOrCreateBridge(matchId) {
-                        GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter, cards = cards ?: leyline.game.InMemoryCardRepository()).also {
+                    val match = registry.getOrCreateMatch(matchId) {
+                        val bridge = GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter, cards = cards ?: leyline.game.InMemoryCardRepository())
+                        Match(matchId, bridge).also {
                             it.start(
                                 seed = matchConfig.game.seed,
                                 deckList1 = resolveSeat1Deck(),
@@ -196,6 +197,7 @@ class MatchHandler(
                             )
                         }
                     }
+                    val bridge = match.bridge
                     s?.connectBridge(bridge)
                     mulliganHandler.seat1Hand = bridge.getHandGrpIds(1)
                     mulliganHandler.seat2Hand = bridge.getHandGrpIds(2)
