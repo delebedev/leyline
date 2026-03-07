@@ -26,6 +26,11 @@ rec-actions-filtered session card actor="" limit="500": (_require classpath) che
 rec-who-played session card: (_require classpath) check-java
     @{{_cli}} leyline.debug.RecordingCliKt who-played "{{session}}" --card "{{card}}"
 
+# turnInfo timeline: turn/phase/step/active/priority per GSM
+[group('recording')]
+rec-turninfo session: (_require classpath) check-java
+    @{{_cli}} leyline.debug.RecordingCliKt turninfo "{{session}}"
+
 # compare two recordings by compact action stream
 [group('recording')]
 rec-compare left right: (_require classpath) check-java

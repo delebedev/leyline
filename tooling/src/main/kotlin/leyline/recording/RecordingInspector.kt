@@ -220,6 +220,37 @@ class RecordingInspector(
             .toList()
     }
 
+    fun turninfo(sessionIdOrPath: String): List<TurnInfoEntry>? {
+        val dir = resolveSessionDir(sessionIdOrPath) ?: return null
+        val messages = RecordingDecoder.decodeDirectory(dir, seatFilter = null)
+        return messages.mapNotNull { msg ->
+            val ti = msg.turnInfo ?: return@mapNotNull null
+            if (ti.phase == "None") return@mapNotNull null
+            TurnInfoEntry(
+                gsId = msg.gsId,
+                msgId = msg.msgId,
+                turn = ti.turn,
+                phase = ti.phase,
+                step = ti.step,
+                activePlayer = ti.activePlayer,
+                priorityPlayer = ti.priorityPlayer,
+                decisionPlayer = ti.decisionPlayer,
+            )
+        }
+    }
+
+    @Serializable
+    data class TurnInfoEntry(
+        val gsId: Int,
+        val msgId: Int,
+        val turn: Int,
+        val phase: String,
+        val step: String,
+        val activePlayer: Int,
+        val priorityPlayer: Int,
+        val decisionPlayer: Int,
+    )
+
     fun messages(sessionIdOrPath: String): List<RecordingDecoder.DecodedMessage>? {
         val dir = resolveSessionDir(sessionIdOrPath) ?: return null
         val files = RecordingDecoder.listRecordingFiles(dir)

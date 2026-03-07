@@ -18,6 +18,7 @@ Recordings are captured client↔server sessions from `just serve-proxy`. They a
 - **Session paths are timestamped** (`recordings/2026-03-06_16-47-08/`). Always resolve via `recordings/latest` or glob — never hardcode session names.
 - **fd-frames.jsonl is the FD rosetta stone.** When implementing a new FD handler, find the real response with `just fd-response <CmdType>` and match its shape exactly.
 - **`just fd-coverage`** shows which CmdTypes are handled vs observed — use it to find gaps.
+- **`just rec-turninfo <session>`** dumps the turnInfo timeline (turn/phase/step/active/priority per GSM). Use it to compare phase transitions between engine and proxy recordings.
 
 ## Playbooks
 
