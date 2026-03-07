@@ -35,6 +35,8 @@ data class EventDef(
     val dynamicFilterTagIds: List<String> = emptyList(),
     /** Shows editable deck button on event blade (sealed/draft). */
     val editableDeck: Boolean = false,
+    /** Arena collation ID for limited events (sealed/draft). 0 = unknown. */
+    val collationId: Int = 0,
 ) {
     val isSealed: Boolean get() = formatType == "Sealed"
 }
@@ -337,6 +339,7 @@ object EventRegistry {
             ),
             dynamicFilterTagIds = listOf("ECL Limited"),
             editableDeck = true,
+            collationId = 100058, // TODO(#62): look up from client card DB
         ),
     )
 
