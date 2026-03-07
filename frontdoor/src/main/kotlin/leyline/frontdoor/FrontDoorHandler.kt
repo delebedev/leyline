@@ -63,7 +63,14 @@ class FrontDoorHandler(
 
     private val log = LoggerFactory.getLogger(FrontDoorHandler::class.java)
 
-    /** Deck selected via 622 (Event_SetDeckV2), keyed by eventName. Consumed by 603. */
+    /**
+     * Deck selected via 622 (Event_SetDeckV2), keyed by eventName. Consumed by 603 (EnterPairing).
+     *
+     * Only used for constructed events where the deck lives in [DeckRepository].
+     * Sealed events get their deck from [CourseService] instead — 622 writes
+     * the deck into the Course, and 603 reads it back via [CourseService.enterPairing].
+     * Entries are never cleaned up (harmless — handler is per-connection).
+     */
     private val selectedDeckByEvent = mutableMapOf<String, String>()
 
     private val lenientJson = Json {

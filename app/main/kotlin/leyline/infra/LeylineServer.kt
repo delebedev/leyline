@@ -223,7 +223,18 @@ class LeylineServer(
             log.info("Client Front Door (local) listening on :{}", frontDoorPort)
         }
 
-        // Deck lookups for match handler — crosses BC boundary via function, not import
+        // Deck lookups for match handler — crosses BC boundary via function, not import.
+        //
+        // Invisible constraint — ordering: FD handler writes selectedDeckId (via
+        // onDeckSelected callback on CmdType 612/603) before the client opens
+        // the MD connection. The client's connection sequence guarantees FD
+        // handshake completes before MD ConnectReq, so the @Volatile read in
+        // MatchHandler always sees the write. No stronger sync needed.
+        //
+        // Sealed fallback: when deckId isn't in DeckRepository (constructed decks),
+        // falls back to scanning CourseService for the first course with a deck.
+        // TODO: key on selectedEventName instead of scanning all courses — current
+        // approach picks wrong deck if player has multiple sealed courses.
         val deckToJson: (leyline.frontdoor.domain.Deck) -> String = { deck ->
             buildJsonObject {
                 put("MainDeck", DeckWireBuilder.cardsToJsonArray(deck.mainDeck))
