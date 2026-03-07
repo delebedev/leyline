@@ -25,6 +25,8 @@ data class EventDef(
     /** "Queue" for Find Match events, null for Events-tab events (drafts, sealed, etc.) */
     val bladeBehavior: String? = "Queue",
     val eventTags: List<String> = emptyList(),
+    val maxWins: Int? = null,
+    val maxLosses: Int? = null,
 )
 
 /**
@@ -287,6 +289,19 @@ object EventRegistry {
             eventTags = listOf("JumpIn", "Limited"),
             titleLocKey = "Events/Event_Title_Jump_In",
             descLocKey = "Events/Event_Desc_Jump_In",
+        ),
+        // Sealed
+        EventDef(
+            "Sealed_FDN_20260307",
+            "Sealed FDN",
+            "Sealed",
+            formatType = "Sealed",
+            displayPriority = 75,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
+            bladeBehavior = null,
+            eventTags = listOf("Limited"),
+            maxWins = 7,
+            maxLosses = 3,
         ),
     )
 
