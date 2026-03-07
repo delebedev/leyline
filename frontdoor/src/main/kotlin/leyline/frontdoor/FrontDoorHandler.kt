@@ -406,6 +406,9 @@ class FrontDoorHandler(
                 log.info("Front Door: Event_Resign event={}", req?.eventName)
                 if (req?.eventName != null && courseService != null && playerId != null) {
                     try {
+                        if (EventRegistry.isDraft(req.eventName)) {
+                            draftService?.drop(playerId, req.eventName)
+                        }
                         val course = courseService.drop(playerId, req.eventName)
                         writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
                     } catch (e: IllegalArgumentException) {
@@ -599,7 +602,7 @@ class FrontDoorHandler(
     }
 
     private fun sendMatchCreated(ctx: ChannelHandlerContext, match: MatchInfo) {
-        val json = FdEnvelope.buildMatchCreatedJson(match.matchId, match.host, match.port, match.eventName)
+        val json = FdEnvelope.buildMatchCreatedJson(match.matchId, match.host, match.port, eventId = match.eventName)
         log.info("Front Door: pushing MatchCreated matchId={} event={}", match.matchId, match.eventName)
         writer.send(ctx, null, FdResponse.Json(json))
     }

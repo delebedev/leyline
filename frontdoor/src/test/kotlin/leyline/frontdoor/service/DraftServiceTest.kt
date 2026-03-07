@@ -102,4 +102,40 @@ class DraftServiceTest :
             val service = createService()
             service.getStatus(playerId, eventName) shouldBe null
         }
+
+        test("drop removes draft session") {
+            val service = createService()
+            service.startDraft(playerId, eventName)
+            service.getStatus(playerId, eventName) shouldNotBe null
+
+            service.drop(playerId, eventName)
+            service.getStatus(playerId, eventName) shouldBe null
+        }
+
+        test("drop on non-existent session is a no-op") {
+            val service = createService()
+            service.drop(playerId, eventName) // should not throw
+        }
+
+        test("variable pack sizes complete correctly") {
+            val repo = InMemoryDraftSessionRepository()
+            val service = DraftService(repo) { _ ->
+                listOf(
+                    (1..14).toList(),
+                    (101..114).toList(),
+                    (201..213).toList(),
+                )
+            }
+            var session = service.startDraft(playerId, eventName)
+
+            val totalCards = 14 + 14 + 13
+            for (i in 0 until totalCards) {
+                val card = session.draftPack.first()
+                session = service.pick(playerId, eventName, card, session.packNumber, session.pickNumber)
+            }
+
+            session.status shouldBe DraftStatus.Completed
+            session.pickedCards shouldHaveSize totalCards
+            session.draftPack shouldHaveSize 0
+        }
     })
