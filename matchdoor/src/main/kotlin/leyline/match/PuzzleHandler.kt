@@ -45,16 +45,18 @@ class PuzzleHandler(
         matchId: String,
         seatId: Int,
     ): GameBridge {
-        val bridge = registry.getOrCreateBridge(matchId) {
-            GameBridge(
+        val match = registry.getOrCreateMatch(matchId) {
+            val bridge = GameBridge(
                 matchConfig = matchConfig,
                 messageCounter = session.counter,
                 cards = cards ?: InMemoryCardRepository(),
-            ).also {
+            )
+            Match(matchId, bridge).also {
                 val puzzle = loadPuzzleForMatch(matchId)
-                it.startPuzzle(puzzle)
+                bridge.startPuzzle(puzzle)
             }
         }
+        val bridge = match.bridge
         session.connectBridge(bridge)
         log.info("Match Door: puzzle mode, seat {} connected", seatId)
         sendPuzzleInitialBundle(ctx, session, matchId, seatId)
