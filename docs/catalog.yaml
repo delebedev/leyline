@@ -99,6 +99,17 @@ client-infrastructure:
       end-to-end. Course deck lookup crosses FD→MD boundary via deckLookup lambda.
       Sets: FDN tested. Any set with Forge booster template should work.
 
+  quick-draft:
+    status: wired
+    notes: >
+      Quick Draft (BotDraft) lifecycle: join → BotDraft_StartDraft → 3×14-card
+      packs with bot-simulated picks → BotDraft_DraftPick per selection →
+      BotDraft_DraftStatus polling → card pool grant → deck builder (40-card)
+      → match against Sparky AI → Course result callback. DraftSession model
+      with SQLite persistence, parallels Course. BotDraft CmdTypes 1800-1802
+      handled in FrontDoorHandler. Forge pack generation via UnOpenedProduct
+      (same as sealed). EventDef uses FormatType "Draft", EventTag "QuickDraft".
+
   emotes:
     status: missing
 
