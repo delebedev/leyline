@@ -28,3 +28,27 @@ Captured during sealed format implementation (2026-03-07). Raw notes for later s
 - **`just seed-db` before first smoke test:** null playerId silently skips all course logic.
 - **Golden = ground truth for types:** when building a stub response, extract field types from golden, don't guess from memory.
 - **Sealed deck path is separate from constructed:** course decks are stored in Course entity, not Deck table. Match start for sealed events needs course-aware lookup.
+
+## Phase 2 reflections (conformance + match result)
+
+### What worked well
+
+1. **`just fd-search` / `just fd-response` tooling.** Finding the TMT sealed recording and extracting per-endpoint golden responses was fast. The proxy recording had every sealed endpoint captured.
+
+2. **Golden-driven wire fixing.** Compared `LossDetailsDisplay` field by field — found `{Games: 3}` vs our `{PlayUntilEventEnds}`. One line fix, immediate visible result (loss counter appeared).
+
+3. **Match result callback was clean.** `onMatchComplete` lambda through MatchSession → MatchHandler → LeylineServer → CourseService. No cross-module imports needed.
+
+### What was slow
+
+9. **"Event blade doesn't open" — wrong click target.** Clicked event title text instead of tile image area above it. OCR shows text coords but the clickable area is the card art ~40px above. Burned time OCR-retrying.
+
+10. **Conformance report via subagent was slow but thorough.** 4 minutes for analysis, but found real issues (LossDetailsDisplay, SelectedDeckWidget, EventState). Trade-off: could have done targeted field-by-field `just fd-response` comparison faster for known endpoints.
+
+11. **Non-zero-only field pattern.** Golden omits `CurrentWins` when 0, includes when non-zero. Same for `CurrentLosses`. Built the conditional wrong initially (always emitted), had to re-check golden to match pattern.
+
+### Rules to add
+
+- **Use `just fd-response` for conformance:** targeted, fast, exact field comparison. Reserve subagent for broad unknown-shape analysis.
+- **Non-zero-only is common in Arena wire:** `CurrentWins`, `CurrentLosses`, many fields omitted when default. Check golden for absence patterns.
+- **Event tile click = image area, not text label:** same deck thumbnail pattern. Click 40-80px above the text.
