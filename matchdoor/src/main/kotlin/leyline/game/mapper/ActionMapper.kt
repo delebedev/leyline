@@ -100,7 +100,7 @@ object ActionMapper {
                 landAbility.activatingPlayer = player
                 player.canPlayLand(card, false, landAbility)
             } else {
-                true
+                false
             }
             if (canPlay) {
                 builder.addActions(
