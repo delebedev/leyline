@@ -58,12 +58,12 @@ class EventWireBuilderTest :
         }
 
         test("buildCourseJson omits CurrentLosses when zero") {
-            val obj = EventWireBuilder.buildCourseJson(sealedCourse(losses = 0), includeLosses = true)
+            val obj = EventWireBuilder.buildCourseJson(sealedCourse(losses = 0))
             obj["CurrentLosses"].shouldBeNull()
         }
 
         test("buildCourseJson includes CurrentLosses when non-zero") {
-            val obj = EventWireBuilder.buildCourseJson(sealedCourse(losses = 1), includeLosses = true)
+            val obj = EventWireBuilder.buildCourseJson(sealedCourse(losses = 1))
             obj["CurrentLosses"]?.jsonPrimitive?.int shouldBe 1
         }
 

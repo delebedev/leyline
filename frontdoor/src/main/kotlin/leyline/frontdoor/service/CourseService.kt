@@ -46,8 +46,8 @@ class CourseService(
         }
     }
 
-    private fun isSealed(eventName: String): Boolean =
-        eventName.startsWith("Sealed", ignoreCase = true)
+    fun getCourse(playerId: PlayerId, eventName: String): Course? =
+        repo.findByPlayerAndEvent(playerId, eventName)
 
     fun join(playerId: PlayerId, eventName: String): Course {
         repo.findByPlayerAndEvent(playerId, eventName)?.let { existing ->
@@ -56,7 +56,7 @@ class CourseService(
             repo.delete(existing.id)
         }
 
-        val course = if (isSealed(eventName)) {
+        val course = if (EventRegistry.isSealed(eventName)) {
             val setCode = extractSetCode(eventName)
             val pool = generatePool(setCode)
             Course(
@@ -105,13 +105,17 @@ class CourseService(
     fun recordMatchResult(playerId: PlayerId, eventName: String, won: Boolean): Course {
         val course = repo.findByPlayerAndEvent(playerId, eventName)
             ?: throw IllegalArgumentException("No course for $eventName")
+        val event = EventRegistry.findEvent(eventName)
         val updated = if (won) {
             course.copy(wins = course.wins + 1)
         } else {
             course.copy(losses = course.losses + 1)
         }
-        repo.save(updated)
-        return updated
+        val complete = (event?.maxWins != null && updated.wins >= event.maxWins) ||
+            (event?.maxLosses != null && updated.losses >= event.maxLosses)
+        val result = if (complete) updated.copy(module = CourseModule.Complete) else updated
+        repo.save(result)
+        return result
     }
 
     fun getCoursesForPlayer(playerId: PlayerId): List<Course> =
