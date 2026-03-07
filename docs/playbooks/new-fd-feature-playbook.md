@@ -156,6 +156,21 @@ Each phase has a **verification gate** — don't proceed until it passes.
 
 This catches wire format issues (null fields, wrong types, missing keys) before you write real logic. Cheap to do, expensive to debug later.
 
+#### Arena UI navigation for events
+
+Events with `bladeBehavior = null` (sealed, draft) appear on the **Events tab**, not Find Match. To navigate:
+
+1. Click "Play" from home screen
+2. The Events tab shows event tiles — but **event names may not render** if the loc key (`Events/Event_Title_<name>`) isn't in the client's string table. The tile still appears (with artwork from the set) but shows no title text.
+3. Use category filters ("Limited", "Constructed") on the right sidebar to narrow the list.
+4. Click the event tile — the event blade opens with a "Start" / "Enter" button.
+5. After joining, the client transitions based on `CurrentModule` in the response.
+
+**Common issues during golden playtest:**
+- **Missing event title**: client doesn't have our custom loc keys. The tile renders but is unnamed. Navigate by position or filter category.
+- **Ghost "Resume" on Jump In**: default courses include `Jump_In_2024` at `CreateMatch`, client shows "Resume" even though no real session exists. Harmless but confusing during navigation.
+- **Pack opening animation**: the sealed join response includes `CardPool` — the client auto-plays a pack reveal animation showing rares. This works if the grpIds in the golden are real cards.
+
 ### Phase 3: Real logic
 
 - Replace golden stubs with service calls
