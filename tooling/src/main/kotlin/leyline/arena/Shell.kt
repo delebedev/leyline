@@ -62,6 +62,19 @@ object Shell {
         return run("$projectDir/bin/click", x.toString(), y.toString(), action)
     }
 
+    /** Drag from (x1,y1) to (x2,y2) in screen-absolute coordinates. */
+    fun drag(x1: Int, y1: Int, x2: Int, y2: Int): ShellResult {
+        activateMtga()
+        return run(
+            "$projectDir/bin/click",
+            x1.toString(),
+            y1.toString(),
+            "drag",
+            x2.toString(),
+            y2.toString(),
+        )
+    }
+
     fun peekaboo(vararg args: String): ShellResult =
         run("/opt/homebrew/bin/peekaboo", *args)
 

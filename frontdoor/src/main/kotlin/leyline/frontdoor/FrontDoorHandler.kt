@@ -339,10 +339,22 @@ class FrontDoorHandler(
                 writer.send(ctx, txId, FdResponse.Empty)
             }
 
+            CmdType.EVENT_RESIGN.value -> {
+                val req = FdRequests.parseEventName(json)
+                log.info("Front Door: Event_Resign event={}", req?.eventName)
+                writer.send(ctx, txId, FdResponse.Json(golden.eventResignJson))
+            }
+
             CmdType.EVENT_GET_MATCH_RESULT.value -> {
                 val req = FdRequests.parseMatchResult(json)
                 log.info("Front Door: Event_GetMatchResultReport event={}", req?.eventName)
-                writer.send(ctx, txId, FdResponse.Json("""{"CurrentModule":"Complete","questUpdates":[]}"""))
+                writer.send(ctx, txId, FdResponse.Json(golden.eventMatchResultReportJson))
+            }
+
+            CmdType.EVENT_SET_JUMPSTART_PACKET.value -> {
+                val req = FdRequests.parseEventName(json)
+                log.info("Front Door: Event_SetJumpStartPacket event={}", req?.eventName)
+                writer.send(ctx, txId, FdResponse.Json(golden.eventSetJumpstartPacketJson))
             }
 
             CmdType.EVENT_SET_DECK_V2.value -> {

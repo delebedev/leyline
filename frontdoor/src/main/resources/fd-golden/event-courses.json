@@ -1,0 +1,1719 @@
+{
+  "Courses": [
+    {
+      "CourseId": "11427d95-ef23-4010-b960-d0ea003b1e6d",
+      "InternalEventName": "Alchemy_Ladder",
+      "CurrentModule": "Complete",
+      "ModulePayload": "",
+      "CourseDeckSummary": {
+        "DeckId": "b19c8b9c-18e1-43ab-b668-b67061be6614",
+        "Name": "Exploit zombies Alchemy",
+        "Attributes": [
+          {
+            "name": "Version",
+            "value": "11"
+          },
+          {
+            "name": "TileID",
+            "value": "75330"
+          },
+          {
+            "name": "LastPlayed",
+            "value": "\"2022-02-28T20:20:12.775156+00:00\""
+          },
+          {
+            "name": "LastUpdated",
+            "value": "\"2022-02-25T21:22:49.106775\""
+          },
+          {
+            "name": "IsFavorite",
+            "value": "false"
+          },
+          {
+            "name": "Format",
+            "value": "Alchemy"
+          }
+        ],
+        "Description": "",
+        "DeckTileId": 75330,
+        "DeckArtId": 0,
+        "FormatLegalities": {},
+        "PreferredCosmetics": {
+          "Avatar": "",
+          "Sleeve": "",
+          "Pet": "",
+          "Title": "",
+          "Emotes": []
+        },
+        "DeckValidationSummaries": [],
+        "UnownedCards": {}
+      },
+      "CourseDeck": {
+        "MainDeck": [
+          {
+            "cardId": 75330,
+            "quantity": 7
+          },
+          {
+            "cardId": 78914,
+            "quantity": 3
+          },
+          {
+            "cardId": 78908,
+            "quantity": 3
+          },
+          {
+            "cardId": 78885,
+            "quantity": 3
+          },
+          {
+            "cardId": 78862,
+            "quantity": 2
+          },
+          {
+            "cardId": 78861,
+            "quantity": 3
+          },
+          {
+            "cardId": 78847,
+            "quantity": 1
+          },
+          {
+            "cardId": 78575,
+            "quantity": 3
+          },
+          {
+            "cardId": 78457,
+            "quantity": 1
+          },
+          {
+            "cardId": 78430,
+            "quantity": 4
+          },
+          {
+            "cardId": 77224,
+            "quantity": 4
+          },
+          {
+            "cardId": 75313,
+            "quantity": 4
+          },
+          {
+            "cardId": 75144,
+            "quantity": 4
+          },
+          {
+            "cardId": 73474,
+            "quantity": 3
+          },
+          {
+            "cardId": 75332,
+            "quantity": 10
+          },
+          {
+            "cardId": 81216,
+            "quantity": 2
+          },
+          {
+            "cardId": 81217,
+            "quantity": 2
+          },
+          {
+            "cardId": 73299,
+            "quantity": 1
+          }
+        ],
+        "ReducedSideboard": [],
+        "Sideboard": [],
+        "CommandZone": [],
+        "Companions": [],
+        "CardSkins": [
+          {
+            "GrpId": 78575,
+            "CCV": "DA"
+          },
+          {
+            "GrpId": 73299,
+            "CCV": "DA"
+          },
+          {
+            "GrpId": 81216,
+            "CCV": "DA"
+          }
+        ]
+      },
+      "CurrentWins": 1,
+      "CardPool": [],
+      "CardPoolByCollation": [],
+      "CardStyles": []
+    },
+    {
+      "CourseId": "ed9dd8f9-3c0b-44ea-a971-9f25703d0f25",
+      "InternalEventName": "DualColorPrecons",
+      "CurrentModule": "CreateMatch",
+      "ModulePayload": "",
+      "CourseDeckSummary": {
+        "DeckId": "ded6cdc1-b6f0-4f78-a7dc-228a15d632ea",
+        "Name": "?=?Loc/Decks/Precon/Precon_EPPFDN_WG",
+        "Attributes": [
+          {
+            "name": "Format",
+            "value": "Standard"
+          }
+        ],
+        "Description": "Decks/Precon/Precon_EPPFDN_WG_desc",
+        "DeckTileId": 93715,
+        "DeckArtId": 0,
+        "FormatLegalities": {},
+        "PreferredCosmetics": {
+          "Avatar": "",
+          "Sleeve": "",
+          "Pet": "",
+          "Title": "",
+          "Emotes": []
+        },
+        "DeckValidationSummaries": [],
+        "UnownedCards": {}
+      },
+      "CourseDeck": {
+        "MainDeck": [
+          {
+            "cardId": 95192,
+            "quantity": 9
+          },
+          {
+            "cardId": 93715,
+            "quantity": 1
+          },
+          {
+            "cardId": 95200,
+            "quantity": 6
+          },
+          {
+            "cardId": 93829,
+            "quantity": 1
+          },
+          {
+            "cardId": 94007,
+            "quantity": 1
+          },
+          {
+            "cardId": 94131,
+            "quantity": 1
+          },
+          {
+            "cardId": 93818,
+            "quantity": 2
+          },
+          {
+            "cardId": 93998,
+            "quantity": 2
+          },
+          {
+            "cardId": 93859,
+            "quantity": 3
+          },
+          {
+            "cardId": 93725,
+            "quantity": 2
+          },
+          {
+            "cardId": 93851,
+            "quantity": 2
+          },
+          {
+            "cardId": 93648,
+            "quantity": 3
+          },
+          {
+            "cardId": 93948,
+            "quantity": 4
+          },
+          {
+            "cardId": 93993,
+            "quantity": 1
+          },
+          {
+            "cardId": 93953,
+            "quantity": 3
+          },
+          {
+            "cardId": 94122,
+            "quantity": 4
+          },
+          {
+            "cardId": 93719,
+            "quantity": 2
+          },
+          {
+            "cardId": 93719,
+            "quantity": 2
+          },
+          {
+            "cardId": 94150,
+            "quantity": 1
+          },
+          {
+            "cardId": 93936,
+            "quantity": 2
+          },
+          {
+            "cardId": 93729,
+            "quantity": 4
+          },
+          {
+            "cardId": 93973,
+            "quantity": 4
+          }
+        ],
+        "ReducedSideboard": [],
+        "Sideboard": [],
+        "CommandZone": [],
+        "Companions": [],
+        "CardSkins": []
+      },
+      "CurrentWins": 6,
+      "CurrentLosses": 2,
+      "CardPool": [],
+      "CardPoolByCollation": [],
+      "CardStyles": [],
+      "MadeChoice": "ded6cdc1-b6f0-4f78-a7dc-228a15d632ea"
+    },
+    {
+      "CourseId": "e5ff47e2-92c5-4795-b070-34ee522d0426",
+      "InternalEventName": "Jump_In_2024",
+      "CurrentModule": "CreateMatch",
+      "ModulePayload": "",
+      "CourseDeckSummary": {
+        "DeckId": "01043cdf-c559-455a-b688-eef9cfe33e9e",
+        "Attributes": [],
+        "DeckTileId": 86795,
+        "DeckArtId": 0,
+        "FormatLegalities": {},
+        "PreferredCosmetics": {
+          "Avatar": "",
+          "Sleeve": "",
+          "Pet": "",
+          "Title": "",
+          "Emotes": []
+        },
+        "DeckValidationSummaries": [],
+        "UnownedCards": {}
+      },
+      "CourseDeck": {
+        "MainDeck": [
+          {
+            "cardId": 86834,
+            "quantity": 1
+          },
+          {
+            "cardId": 86845,
+            "quantity": 1
+          },
+          {
+            "cardId": 86932,
+            "quantity": 1
+          },
+          {
+            "cardId": 86926,
+            "quantity": 1
+          },
+          {
+            "cardId": 86795,
+            "quantity": 1
+          },
+          {
+            "cardId": 86793,
+            "quantity": 1
+          },
+          {
+            "cardId": 86824,
+            "quantity": 1
+          },
+          {
+            "cardId": 86810,
+            "quantity": 1
+          },
+          {
+            "cardId": 86799,
+            "quantity": 1
+          },
+          {
+            "cardId": 86855,
+            "quantity": 1
+          },
+          {
+            "cardId": 86829,
+            "quantity": 1
+          },
+          {
+            "cardId": 83951,
+            "quantity": 1
+          },
+          {
+            "cardId": 90479,
+            "quantity": 1
+          },
+          {
+            "cardId": 90590,
+            "quantity": 1
+          },
+          {
+            "cardId": 90588,
+            "quantity": 1
+          },
+          {
+            "cardId": 90470,
+            "quantity": 1
+          },
+          {
+            "cardId": 90488,
+            "quantity": 1
+          },
+          {
+            "cardId": 90487,
+            "quantity": 1
+          },
+          {
+            "cardId": 90491,
+            "quantity": 1
+          },
+          {
+            "cardId": 90486,
+            "quantity": 1
+          },
+          {
+            "cardId": 90489,
+            "quantity": 1
+          },
+          {
+            "cardId": 90496,
+            "quantity": 1
+          },
+          {
+            "cardId": 90481,
+            "quantity": 1
+          },
+          {
+            "cardId": 90477,
+            "quantity": 1
+          },
+          {
+            "cardId": 84574,
+            "quantity": 1
+          },
+          {
+            "cardId": 84574,
+            "quantity": 1
+          },
+          {
+            "cardId": 91838,
+            "quantity": 1
+          },
+          {
+            "cardId": 91838,
+            "quantity": 1
+          },
+          {
+            "cardId": 91838,
+            "quantity": 1
+          },
+          {
+            "cardId": 91836,
+            "quantity": 1
+          },
+          {
+            "cardId": 91838,
+            "quantity": 1
+          },
+          {
+            "cardId": 91836,
+            "quantity": 1
+          },
+          {
+            "cardId": 91838,
+            "quantity": 1
+          },
+          {
+            "cardId": 91836,
+            "quantity": 1
+          },
+          {
+            "cardId": 91838,
+            "quantity": 1
+          },
+          {
+            "cardId": 91836,
+            "quantity": 1
+          },
+          {
+            "cardId": 91838,
+            "quantity": 1
+          },
+          {
+            "cardId": 91836,
+            "quantity": 1
+          },
+          {
+            "cardId": 91838,
+            "quantity": 1
+          },
+          {
+            "cardId": 91836,
+            "quantity": 1
+          }
+        ],
+        "ReducedSideboard": [],
+        "Sideboard": [],
+        "CommandZone": [],
+        "Companions": [],
+        "CardSkins": []
+      },
+      "CurrentWins": 2,
+      "CurrentLosses": 4,
+      "CardPool": [
+        86834,
+        86845,
+        86932,
+        86926,
+        86795,
+        86793,
+        86824,
+        86810,
+        86799,
+        86855,
+        86829,
+        83951,
+        90479,
+        90590,
+        90588,
+        90470,
+        90488,
+        90487,
+        90491,
+        90486,
+        90489,
+        90496,
+        90481,
+        90477,
+        84574,
+        84574,
+        91838,
+        91838,
+        91838,
+        91836,
+        91838,
+        91836,
+        91838,
+        91836,
+        91838,
+        91836,
+        91838,
+        91836,
+        91838,
+        91836
+      ],
+      "CardPoolByCollation": [],
+      "CardStyles": [],
+      "JumpStart": {
+        "CurrentChoices": [],
+        "PacketsChosen": [
+          {
+            "packetName": "SJMP_PacketName_WOE_Rats",
+            "displayArtId": 434489,
+            "displayGrpId": 86795,
+            "colors": [
+              "R",
+              "B"
+            ]
+          },
+          {
+            "packetName": "SJMP_PacketName_OTJ_Treasured",
+            "displayArtId": 444223,
+            "displayGrpId": 90590,
+            "colors": [
+              "R"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "CourseId": "a74ffd30-f591-43b1-816a-e079dd45a0d1",
+      "InternalEventName": "Explorer_Ladder",
+      "CurrentModule": "CreateMatch",
+      "ModulePayload": "",
+      "CourseDeckSummary": {
+        "DeckId": "2af8cb6a-9543-48ef-b600-75f0d154f4d1",
+        "Name": "Azorius Enchantments (2)",
+        "Attributes": [
+          {
+            "name": "Version",
+            "value": "11"
+          },
+          {
+            "name": "TileID",
+            "value": "58437"
+          },
+          {
+            "name": "LastPlayed",
+            "value": "\"2025-01-03T12:51:40.06493+07:00\""
+          },
+          {
+            "name": "LastUpdated",
+            "value": "\"2024-12-11T21:16:45.51451+07:00\""
+          },
+          {
+            "name": "IsFavorite",
+            "value": "false"
+          },
+          {
+            "name": "Format",
+            "value": "Standard"
+          }
+        ],
+        "DeckTileId": 58437,
+        "DeckArtId": 0,
+        "FormatLegalities": {},
+        "PreferredCosmetics": {
+          "Avatar": "",
+          "Sleeve": "",
+          "Pet": "",
+          "Title": "",
+          "Emotes": []
+        },
+        "DeckValidationSummaries": [],
+        "UnownedCards": {}
+      },
+      "CourseDeck": {
+        "MainDeck": [
+          {
+            "cardId": 58437,
+            "quantity": 7
+          },
+          {
+            "cardId": 58441,
+            "quantity": 5
+          },
+          {
+            "cardId": 82295,
+            "quantity": 3
+          },
+          {
+            "cardId": 83958,
+            "quantity": 2
+          },
+          {
+            "cardId": 51307,
+            "quantity": 4
+          },
+          {
+            "cardId": 88986,
+            "quantity": 1
+          },
+          {
+            "cardId": 92064,
+            "quantity": 2
+          },
+          {
+            "cardId": 92081,
+            "quantity": 4
+          },
+          {
+            "cardId": 92083,
+            "quantity": 2
+          },
+          {
+            "cardId": 92090,
+            "quantity": 4
+          },
+          {
+            "cardId": 92098,
+            "quantity": 4
+          },
+          {
+            "cardId": 92117,
+            "quantity": 1
+          },
+          {
+            "cardId": 92119,
+            "quantity": 2
+          },
+          {
+            "cardId": 92138,
+            "quantity": 2
+          },
+          {
+            "cardId": 92142,
+            "quantity": 4
+          },
+          {
+            "cardId": 92309,
+            "quantity": 2
+          },
+          {
+            "cardId": 92311,
+            "quantity": 4
+          },
+          {
+            "cardId": 92359,
+            "quantity": 4
+          },
+          {
+            "cardId": 88932,
+            "quantity": 1
+          },
+          {
+            "cardId": 88983,
+            "quantity": 1
+          },
+          {
+            "cardId": 92105,
+            "quantity": 1
+          }
+        ],
+        "ReducedSideboard": [],
+        "Sideboard": [],
+        "CommandZone": [],
+        "Companions": [],
+        "CardSkins": [
+          {
+            "GrpId": 92064,
+            "CCV": "DA"
+          }
+        ]
+      },
+      "CardPool": [],
+      "CardPoolByCollation": [],
+      "CardStyles": []
+    },
+    {
+      "CourseId": "dd746cf4-d52b-4f2f-ab81-4828df4ba6b6",
+      "InternalEventName": "Ladder",
+      "CurrentModule": "Complete",
+      "ModulePayload": "",
+      "CourseDeckSummary": {
+        "DeckId": "2af8cb6a-9543-48ef-b600-75f0d154f4d1",
+        "Name": "Azorius Enchantments (2)",
+        "Attributes": [
+          {
+            "name": "Version",
+            "value": "11"
+          },
+          {
+            "name": "TileID",
+            "value": "58437"
+          },
+          {
+            "name": "LastPlayed",
+            "value": "\"2025-02-16T22:15:55.929966+00:00\""
+          },
+          {
+            "name": "LastUpdated",
+            "value": "\"2024-12-11T14:16:45.51451+00:00\""
+          },
+          {
+            "name": "IsFavorite",
+            "value": "false"
+          },
+          {
+            "name": "Format",
+            "value": "Standard"
+          }
+        ],
+        "DeckTileId": 58437,
+        "DeckArtId": 0,
+        "FormatLegalities": {
+          "ArtisanHistoric": false
+        },
+        "PreferredCosmetics": {
+          "Avatar": "",
+          "Sleeve": "",
+          "Pet": "",
+          "Title": "",
+          "Emotes": []
+        },
+        "DeckValidationSummaries": [],
+        "UnownedCards": {}
+      },
+      "CourseDeck": {
+        "MainDeck": [
+          {
+            "cardId": 58437,
+            "quantity": 7
+          },
+          {
+            "cardId": 58441,
+            "quantity": 5
+          },
+          {
+            "cardId": 82295,
+            "quantity": 3
+          },
+          {
+            "cardId": 83958,
+            "quantity": 2
+          },
+          {
+            "cardId": 51307,
+            "quantity": 4
+          },
+          {
+            "cardId": 88986,
+            "quantity": 1
+          },
+          {
+            "cardId": 92064,
+            "quantity": 2
+          },
+          {
+            "cardId": 92081,
+            "quantity": 4
+          },
+          {
+            "cardId": 92083,
+            "quantity": 2
+          },
+          {
+            "cardId": 92090,
+            "quantity": 4
+          },
+          {
+            "cardId": 92098,
+            "quantity": 4
+          },
+          {
+            "cardId": 92117,
+            "quantity": 1
+          },
+          {
+            "cardId": 92119,
+            "quantity": 2
+          },
+          {
+            "cardId": 92138,
+            "quantity": 2
+          },
+          {
+            "cardId": 92142,
+            "quantity": 4
+          },
+          {
+            "cardId": 92309,
+            "quantity": 2
+          },
+          {
+            "cardId": 92311,
+            "quantity": 4
+          },
+          {
+            "cardId": 92359,
+            "quantity": 4
+          },
+          {
+            "cardId": 88932,
+            "quantity": 1
+          },
+          {
+            "cardId": 88983,
+            "quantity": 1
+          },
+          {
+            "cardId": 92105,
+            "quantity": 1
+          }
+        ],
+        "ReducedSideboard": [],
+        "Sideboard": [],
+        "CommandZone": [],
+        "Companions": [],
+        "CardSkins": [
+          {
+            "GrpId": 92064,
+            "CCV": "DA"
+          }
+        ]
+      },
+      "CurrentLosses": 1,
+      "CardPool": [],
+      "CardPoolByCollation": [],
+      "CardStyles": []
+    },
+    {
+      "CourseId": "326cc45c-e8a6-4505-9a04-7722a8815283",
+      "InternalEventName": "AIBotMatch",
+      "ModulePayload": "",
+      "CourseDeckSummary": {
+        "DeckId": "62d466e6-ca2d-4d7f-b9b7-1e9b45082454",
+        "Name": "Might of the Legion",
+        "Attributes": [
+          {
+            "name": "Version",
+            "value": "11"
+          },
+          {
+            "name": "TileID",
+            "value": "94079"
+          },
+          {
+            "name": "LastPlayed",
+            "value": "\"2026-03-03T23:46:51.000398+00:00\""
+          },
+          {
+            "name": "LastUpdated",
+            "value": "\"0001-01-01T00:00:00\""
+          },
+          {
+            "name": "IsFavorite",
+            "value": "false"
+          },
+          {
+            "name": "Format",
+            "value": "Standard"
+          }
+        ],
+        "Description": "Decks/Precon/Precon_EPPFDN_RW_desc",
+        "DeckTileId": 94079,
+        "DeckArtId": 0,
+        "FormatLegalities": {
+          "HistoricShakeup2": true,
+          "HistoricBrawlWithAllowList_20251014": false,
+          "Brawl": false,
+          "AllZeroes": true,
+          "HistoricBrawlWithAllowList_20250902": false,
+          "GiantMonsters": true,
+          "QE_IndvQuotaPri_RarityQuotas_UBorUR": false,
+          "Ikoria": false,
+          "Pauper": false,
+          "EOE": false,
+          "HistoricBrawlWithAllowList_20250513": false,
+          "Timeless_EarlyAccess": true,
+          "HistoricArtisan": false,
+          "HistoricSingleton100": false,
+          "FDNFIN": true,
+          "AlchemyArtisan": false,
+          "MoreBans": true,
+          "HistoricBrawlWithAllowList_20250624": false,
+          "MKM": false,
+          "OTJ": false,
+          "Sealed_Rebalanced": false,
+          "QE_RedCreaturesOnly_NoMythics": false,
+          "PreHistoricTEST": true,
+          "TreasuredHistoricSingleton": false,
+          "Traditional_Standard_EarlyAccess": true,
+          "ArtisanStandard": false,
+          "HistoricBrawlWithAllowList_20251219": false,
+          "InnistradConstructed": false,
+          "100CardStandard": false,
+          "TraditionalAlchemy": true,
+          "LTRBrawl": false,
+          "BLB": false,
+          "ArtisanBrawl": false,
+          "Historic": true,
+          "TreasureSingleton": false,
+          "AdventuresintheForgottenRealms": false,
+          "GRN": false,
+          "Strixhaven": false,
+          "HarvestBash": false,
+          "HistoricBrawlWithAllowList_20251202": false,
+          "LTR": false,
+          "DSK": false,
+          "LCI": false,
+          "DirectGameLimited": true,
+          "STXBrawl": false,
+          "ArtisanHistoric_Achievement": false,
+          "StandardTreasures": true,
+          "HistoricSingleton": false,
+          "DominariaUnited": false,
+          "PlaneswalkerParty": false,
+          "DirectGameLimitedRebalanced": true,
+          "Alchemy": true,
+          "HistoricBrawlWithAllowList_20260126": false,
+          "HistoricBrawlWithAllowList_20241008": false,
+          "Draft": false,
+          "HistoricShakeup": true,
+          "HistoricBrawlWithAllowList_20241203": false,
+          "HistoricAprilFoolLimited": true,
+          "LastCall": false,
+          "HistoricBrawlWithAllowList_20240514": false,
+          "TraditionalHistoric": true,
+          "Kaldheim": false,
+          "Gladiator": false,
+          "StandardCascade": true,
+          "FIN": false,
+          "HistoricBrawlWithAllowList_20241217": false,
+          "QE_2ArtifactCommanders": false,
+          "StandardPauper": false,
+          "Explorer": true,
+          "Renewal_ZNRTest": false,
+          "Timeless": true,
+          "Standard_EarlyAccess": true,
+          "DirectGameBrawlRebalanced": false,
+          "HistoricBrawlWithAllowList_20260217_Challenge": false,
+          "HistoricBrawlWithAllowList_20251216": false,
+          "Eldraine": false,
+          "Renewal": false,
+          "HistoricBrawl": false,
+          "DirectGame": true,
+          "TCConstructed": true,
+          "HistoricBrawlWithAllowList_20240604": false,
+          "Zendikar": false,
+          "RetroHistoric": true,
+          "CascadeBrawl": false,
+          "Ravnica": false,
+          "CoreSetConstructed": false,
+          "HistoricCascadeAndChimil": true,
+          "Standard_Recent": true,
+          "Historic_WithoutStandard": false,
+          "CrimsonVow": false,
+          "RavnicaALL": false,
+          "HistoricBrawlWithAllowList": false,
+          "DFT": false,
+          "BaldursGate": false,
+          "ArtisanHistoric": false,
+          "ArtisanFuture": false,
+          "KTK": false,
+          "Singleton": false,
+          "FDNTLA": true,
+          "HistoricPauper": false,
+          "FDN": true,
+          "Cascade": true,
+          "Draft_Rebalanced": false,
+          "DirectGameBrawl": false,
+          "Theros": false,
+          "FutureAlchemy": false,
+          "HistoricSingletonNoBans": false,
+          "3Sets": true,
+          "CascadeSingleton": false,
+          "QE_RuleBreakers_NoIndvQuota": false,
+          "ONE": false,
+          "TraditionalTimeless_EarlyAccess": true,
+          "Standard": true,
+          "HistoricShakeup3": true,
+          "Timeless_WithoutUB": true,
+          "HistoricNBL": true,
+          "StreetsOfNewCapenna": false,
+          "Sealed": false,
+          "StandardImmortalSun": true,
+          "QE_HeavyWeight": false,
+          "IdentityTest": true,
+          "TraditionalStandard": true,
+          "Tripleton": false,
+          "StandardGiantMonsters": true,
+          "QE_2Mythic_1Sideboard_3Yarok": false,
+          "MOM": false,
+          "WOE": false,
+          "Pandemonium": true,
+          "StandardArtisan": false,
+          "NeonDynasty": false,
+          "HistoricBrawlWithAllowList_20240903": false,
+          "TraditionalExplorer": true,
+          "IxalanForward": false,
+          "TCSingleton": false,
+          "FDNOM1": true,
+          "MH3": false,
+          "HistoricBrawlWithAllowList_20260210_MWM": false,
+          "TraditionalTimeless": true,
+          "StandardStaircase": true,
+          "RebalancedHistoric": true,
+          "MidnightHunt": false,
+          "DirectGameAlchemy": true,
+          "HistoricBrawlWithAllowList_20250325": false
+        },
+        "PreferredCosmetics": {
+          "Avatar": "",
+          "Sleeve": "",
+          "Pet": "",
+          "Title": "",
+          "Emotes": []
+        },
+        "DeckValidationSummaries": [
+          {
+            "Format": "HistoricBrawlWithAllowList_20251014",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "Brawl",
+            "InvalidCardCount": 23
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20250902",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "QE_IndvQuotaPri_RarityQuotas_UBorUR",
+            "InvalidCardCount": 4,
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "Ikoria",
+            "NonFormatCardCount": 21
+          },
+          {
+            "Format": "Pauper",
+            "NonFormatCardCount": 13
+          },
+          {
+            "Format": "EOE",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20250513",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "HistoricArtisan",
+            "NonFormatCardCount": 5
+          },
+          {
+            "Format": "HistoricSingleton100",
+            "InvalidCardCount": 21,
+            "DeckTooSmallCardCount": 40
+          },
+          {
+            "Format": "AlchemyArtisan",
+            "NonFormatCardCount": 5
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20250624",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "MKM",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "OTJ",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "Sealed_Rebalanced"
+          },
+          {
+            "Format": "QE_RedCreaturesOnly_NoMythics",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "TreasuredHistoricSingleton",
+            "InvalidCardCount": 21
+          },
+          {
+            "Format": "ArtisanStandard",
+            "NonFormatCardCount": 5
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20251219",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "InnistradConstructed",
+            "NonFormatCardCount": 21
+          },
+          {
+            "Format": "100CardStandard",
+            "DeckTooSmallCardCount": 40
+          },
+          {
+            "Format": "LTRBrawl",
+            "InvalidCardCount": 23,
+            "NonFormatCardCount": 18
+          },
+          {
+            "Format": "BLB",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "ArtisanBrawl",
+            "InvalidCardCount": 22,
+            "NonFormatCardCount": 5,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "TreasureSingleton",
+            "InvalidCardCount": 21
+          },
+          {
+            "Format": "AdventuresintheForgottenRealms",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "GRN",
+            "NonFormatCardCount": 21
+          },
+          {
+            "Format": "Strixhaven",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "HarvestBash",
+            "InvalidCardCount": 21
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20251202",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "LTR",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "DSK",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "LCI",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "STXBrawl",
+            "InvalidCardCount": 23,
+            "NonFormatCardCount": 17
+          },
+          {
+            "Format": "ArtisanHistoric_Achievement",
+            "NonFormatCardCount": 5
+          },
+          {
+            "Format": "HistoricSingleton",
+            "InvalidCardCount": 21
+          },
+          {
+            "Format": "DominariaUnited",
+            "NonFormatCardCount": 21
+          },
+          {
+            "Format": "PlaneswalkerParty",
+            "InvalidCardCount": 1
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20260126",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20241008",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "Draft"
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20241203",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "LastCall",
+            "NonFormatCardCount": 20
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20240514",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "Kaldheim",
+            "NonFormatCardCount": 20
+          },
+          {
+            "Format": "Gladiator",
+            "InvalidCardCount": 21,
+            "DeckTooSmallCardCount": 40
+          },
+          {
+            "Format": "FIN",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20241217",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "QE_2ArtifactCommanders",
+            "InvalidCardCount": 1,
+            "NonFormatCardCount": 17
+          },
+          {
+            "Format": "StandardPauper",
+            "NonFormatCardCount": 13
+          },
+          {
+            "Format": "Renewal_ZNRTest",
+            "NonFormatCardCount": 19
+          },
+          {
+            "Format": "DirectGameBrawlRebalanced",
+            "InvalidCardCount": 22
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20260217_Challenge",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20251216",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "Eldraine",
+            "NonFormatCardCount": 21
+          },
+          {
+            "Format": "Renewal",
+            "NonFormatCardCount": 19
+          },
+          {
+            "Format": "HistoricBrawl",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20240604",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "Zendikar",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "CascadeBrawl",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "Ravnica",
+            "NonFormatCardCount": 21
+          },
+          {
+            "Format": "CoreSetConstructed",
+            "NonFormatCardCount": 19
+          },
+          {
+            "Format": "Historic_WithoutStandard",
+            "NonFormatCardCount": 6
+          },
+          {
+            "Format": "CrimsonVow",
+            "NonFormatCardCount": 21
+          },
+          {
+            "Format": "RavnicaALL",
+            "NonFormatCardCount": 21
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "DFT",
+            "NonFormatCardCount": 21
+          },
+          {
+            "Format": "BaldursGate",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "ArtisanHistoric",
+            "NonFormatCardCount": 5
+          },
+          {
+            "Format": "ArtisanFuture",
+            "NonFormatCardCount": 19
+          },
+          {
+            "Format": "KTK",
+            "NonFormatCardCount": 21
+          },
+          {
+            "Format": "Singleton",
+            "InvalidCardCount": 21
+          },
+          {
+            "Format": "HistoricPauper",
+            "NonFormatCardCount": 13
+          },
+          {
+            "Format": "Draft_Rebalanced"
+          },
+          {
+            "Format": "DirectGameBrawl",
+            "InvalidCardCount": 22
+          },
+          {
+            "Format": "Theros",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "FutureAlchemy",
+            "NonFormatCardCount": 19
+          },
+          {
+            "Format": "HistoricSingletonNoBans",
+            "InvalidCardCount": 21
+          },
+          {
+            "Format": "CascadeSingleton",
+            "InvalidCardCount": 21
+          },
+          {
+            "Format": "QE_RuleBreakers_NoIndvQuota",
+            "InvalidCardCount": 4,
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "ONE",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "StreetsOfNewCapenna",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "Sealed"
+          },
+          {
+            "Format": "QE_HeavyWeight",
+            "InvalidCardCount": 1,
+            "NonFormatCardCount": 17,
+            "DeckTooSmallCardCount": 4
+          },
+          {
+            "Format": "Tripleton",
+            "InvalidCardCount": 1
+          },
+          {
+            "Format": "QE_2Mythic_1Sideboard_3Yarok",
+            "InvalidCardCount": 1,
+            "NonFormatCardCount": 17
+          },
+          {
+            "Format": "MOM",
+            "NonFormatCardCount": 21
+          },
+          {
+            "Format": "WOE",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "StandardArtisan",
+            "NonFormatCardCount": 5
+          },
+          {
+            "Format": "NeonDynasty",
+            "NonFormatCardCount": 21
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20240903",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "IxalanForward",
+            "NonFormatCardCount": 13
+          },
+          {
+            "Format": "TCSingleton",
+            "InvalidCardCount": 21
+          },
+          {
+            "Format": "MH3",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20260210_MWM",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          },
+          {
+            "Format": "MidnightHunt",
+            "NonFormatCardCount": 22
+          },
+          {
+            "Format": "HistoricBrawlWithAllowList_20250325",
+            "InvalidCardCount": 22,
+            "DeckTooSmallCardCount": 39
+          }
+        ],
+        "UnownedCards": {}
+      },
+      "CourseDeck": {
+        "MainDeck": [
+          {
+            "cardId": 95198,
+            "quantity": 8
+          },
+          {
+            "cardId": 93966,
+            "quantity": 2
+          },
+          {
+            "cardId": 93998,
+            "quantity": 2
+          },
+          {
+            "cardId": 93858,
+            "quantity": 2
+          },
+          {
+            "cardId": 94011,
+            "quantity": 2
+          },
+          {
+            "cardId": 93997,
+            "quantity": 3
+          },
+          {
+            "cardId": 93721,
+            "quantity": 2
+          },
+          {
+            "cardId": 94079,
+            "quantity": 1
+          },
+          {
+            "cardId": 94112,
+            "quantity": 2
+          },
+          {
+            "cardId": 93905,
+            "quantity": 2
+          },
+          {
+            "cardId": 95192,
+            "quantity": 9
+          },
+          {
+            "cardId": 93718,
+            "quantity": 1
+          },
+          {
+            "cardId": 93902,
+            "quantity": 2
+          },
+          {
+            "cardId": 93684,
+            "quantity": 2
+          },
+          {
+            "cardId": 93917,
+            "quantity": 1
+          },
+          {
+            "cardId": 93912,
+            "quantity": 2
+          },
+          {
+            "cardId": 93954,
+            "quantity": 2
+          },
+          {
+            "cardId": 93984,
+            "quantity": 4
+          },
+          {
+            "cardId": 94133,
+            "quantity": 1
+          },
+          {
+            "cardId": 93806,
+            "quantity": 1
+          },
+          {
+            "cardId": 93908,
+            "quantity": 3
+          },
+          {
+            "cardId": 93860,
+            "quantity": 2
+          },
+          {
+            "cardId": 94008,
+            "quantity": 2
+          },
+          {
+            "cardId": 93913,
+            "quantity": 2
+          }
+        ],
+        "ReducedSideboard": [],
+        "Sideboard": [],
+        "CommandZone": [],
+        "Companions": [],
+        "CardSkins": []
+      },
+      "CardPool": [],
+      "CardPoolByCollation": [],
+      "CardStyles": []
+    },
+    {
+      "CourseId": "eb6b8327-4440-42fe-9d3d-0e3b756270d4",
+      "InternalEventName": "Play",
+      "CurrentModule": "MatchResults",
+      "ModulePayload": "",
+      "CourseDeckSummary": {
+        "DeckId": "62d466e6-ca2d-4d7f-b9b7-1e9b45082454",
+        "Name": "Might of the Legion",
+        "Attributes": [
+          {
+            "name": "Version",
+            "value": "11"
+          },
+          {
+            "name": "TileID",
+            "value": "94079"
+          },
+          {
+            "name": "LastPlayed",
+            "value": "\"2026-03-03T21:31:39.214611+00:00\""
+          },
+          {
+            "name": "LastUpdated",
+            "value": "\"0001-01-01T00:00:00\""
+          },
+          {
+            "name": "IsFavorite",
+            "value": "false"
+          },
+          {
+            "name": "Format",
+            "value": "Standard"
+          }
+        ],
+        "Description": "Decks/Precon/Precon_EPPFDN_RW_desc",
+        "DeckTileId": 94079,
+        "DeckArtId": 0,
+        "FormatLegalities": {
+          "ArtisanHistoric_Achievement": false
+        },
+        "PreferredCosmetics": {
+          "Avatar": "",
+          "Sleeve": "",
+          "Pet": "",
+          "Title": "",
+          "Emotes": []
+        },
+        "DeckValidationSummaries": [],
+        "UnownedCards": {}
+      },
+      "CourseDeck": {
+        "MainDeck": [
+          {
+            "cardId": 95198,
+            "quantity": 8
+          },
+          {
+            "cardId": 93966,
+            "quantity": 2
+          },
+          {
+            "cardId": 93998,
+            "quantity": 2
+          },
+          {
+            "cardId": 93858,
+            "quantity": 2
+          },
+          {
+            "cardId": 94011,
+            "quantity": 2
+          },
+          {
+            "cardId": 93997,
+            "quantity": 3
+          },
+          {
+            "cardId": 93721,
+            "quantity": 2
+          },
+          {
+            "cardId": 94079,
+            "quantity": 1
+          },
+          {
+            "cardId": 94112,
+            "quantity": 2
+          },
+          {
+            "cardId": 93905,
+            "quantity": 2
+          },
+          {
+            "cardId": 95192,
+            "quantity": 9
+          },
+          {
+            "cardId": 93718,
+            "quantity": 1
+          },
+          {
+            "cardId": 93902,
+            "quantity": 2
+          },
+          {
+            "cardId": 93684,
+            "quantity": 2
+          },
+          {
+            "cardId": 93917,
+            "quantity": 1
+          },
+          {
+            "cardId": 93912,
+            "quantity": 2
+          },
+          {
+            "cardId": 93954,
+            "quantity": 2
+          },
+          {
+            "cardId": 93984,
+            "quantity": 4
+          },
+          {
+            "cardId": 94133,
+            "quantity": 1
+          },
+          {
+            "cardId": 93806,
+            "quantity": 1
+          },
+          {
+            "cardId": 93908,
+            "quantity": 3
+          },
+          {
+            "cardId": 93860,
+            "quantity": 2
+          },
+          {
+            "cardId": 94008,
+            "quantity": 2
+          },
+          {
+            "cardId": 93913,
+            "quantity": 2
+          }
+        ],
+        "ReducedSideboard": [],
+        "Sideboard": [],
+        "CommandZone": [],
+        "Companions": [],
+        "CardSkins": []
+      },
+      "CardPool": [],
+      "CardPoolByCollation": [],
+      "CardStyles": []
+    }
+  ]
+}
