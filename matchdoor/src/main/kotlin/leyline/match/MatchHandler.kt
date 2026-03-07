@@ -49,6 +49,8 @@ class MatchHandler(
     private val debugSink: MatchDebugSink? = null,
     /** Factory for per-session recorders. Null = no recording. */
     private val recorderFactory: (() -> MatchRecorder)? = null,
+    /** Callback when match ends. Parameter = true if human won. */
+    private val onMatchComplete: ((won: Boolean) -> Unit)? = null,
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
@@ -147,6 +149,7 @@ class MatchHandler(
                 registry,
                 recorder = rec,
                 debugSink = debugSink,
+                onMatchComplete = onMatchComplete,
             )
             s.playerId = clientId.removeSuffix("_Familiar")
             session = s

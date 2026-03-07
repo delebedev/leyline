@@ -1,5 +1,6 @@
 package leyline.frontdoor.service
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -86,5 +87,51 @@ class CourseServiceTest :
         test("getCoursesForPlayer returns all courses") {
             val courses = service.getCoursesForPlayer(playerId)
             courses.size shouldBe 2
+        }
+
+        test("join after drop creates fresh course (re-join)") {
+            val course = service.join(playerId, "Sealed_FDN_20260307")
+            course.module shouldBe CourseModule.DeckSelect
+            course.cardPool.size shouldBe 84
+            course.wins shouldBe 0
+            course.losses shouldBe 0
+            // old Complete course should be gone — only one course for this event
+            val courses = service.getCoursesForPlayer(playerId)
+            courses.count { it.eventName == "Sealed_FDN_20260307" } shouldBe 1
+        }
+
+        test("setDeck on nonexistent course throws") {
+            val deck = CourseDeck(
+                deckId = DeckId("deck1"),
+                mainDeck = (1..40).map { DeckCard(it, 1) },
+                sideboard = (41..84).map { DeckCard(it, 1) },
+            )
+            val summary = CourseDeckSummary(
+                deckId = DeckId("deck1"),
+                name = "Sealed Deck",
+                tileId = 12345,
+                format = "Limited",
+            )
+            shouldThrow<IllegalArgumentException> {
+                service.setDeck(playerId, "NonExistent_Event", deck, summary)
+            }
+        }
+
+        test("enterPairing on nonexistent course throws") {
+            shouldThrow<IllegalArgumentException> {
+                service.enterPairing(playerId, "NonExistent_Event")
+            }
+        }
+
+        test("recordMatchResult on nonexistent course throws") {
+            shouldThrow<IllegalArgumentException> {
+                service.recordMatchResult(playerId, "NonExistent_Event", won = true)
+            }
+        }
+
+        test("drop on nonexistent course throws") {
+            shouldThrow<IllegalArgumentException> {
+                service.drop(playerId, "NonExistent_Event")
+            }
         }
     })

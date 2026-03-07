@@ -171,12 +171,13 @@ class LeylineServer(
         store.createTables()
         val deckService = DeckService(store)
         val playerService = PlayerService(store)
-        val courseService = CourseService(store) { _ ->
-            // Stub pool generator — real Forge integration in Task 14
+        val sealedPoolGen = leyline.game.SealedPoolGenerator(cardRepo)
+        val courseService = CourseService(store) { setCode ->
+            val pool = sealedPoolGen.generate(setCode)
             GeneratedPool(
-                cards = (1..84).toList(),
-                byCollation = listOf(CollationPool(100026, (1..84).toList())),
-                collationId = 100026,
+                cards = pool.grpIds,
+                byCollation = listOf(CollationPool(pool.collationId, pool.grpIds)),
+                collationId = pool.collationId,
             )
         }
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
@@ -222,7 +223,16 @@ class LeylineServer(
             log.info("Client Front Door (local) listening on :{}", frontDoorPort)
         }
 
-        // Deck lookups for match handler — crosses BC boundary via function, not import
+        // Deck lookups for match handler — crosses BC boundary via function, not import.
+        //
+        // Invisible constraint — ordering: FD handler writes selectedDeckId (via
+        // onDeckSelected callback on CmdType 612/603) before the client opens
+        // the MD connection. The client's connection sequence guarantees FD
+        // handshake completes before MD ConnectReq, so the @Volatile read in
+        // MatchHandler always sees the write. No stronger sync needed.
+        //
+        // Sealed fallback: when deckId isn't in DeckRepository (constructed decks),
+        // falls back to CourseService keyed on the current event.
         val deckToJson: (leyline.frontdoor.domain.Deck) -> String = { deck ->
             buildJsonObject {
                 put("MainDeck", DeckWireBuilder.cardsToJsonArray(deck.mainDeck))
@@ -231,6 +241,20 @@ class LeylineServer(
         }
         val deckLookup: (String) -> String? = { deckId ->
             deckService.getById(DeckId(deckId))?.let(deckToJson)
+                ?: resolvedPlayerId?.let { pid ->
+                    val event = selectedEventName
+                    val courseDeck = if (event != null) {
+                        courseService.getCourse(PlayerId(pid), event)?.deck
+                    } else {
+                        null
+                    }
+                    courseDeck?.let { cd ->
+                        buildJsonObject {
+                            put("MainDeck", DeckWireBuilder.cardsToJsonArray(cd.mainDeck))
+                            put("Sideboard", DeckWireBuilder.cardsToJsonArray(cd.sideboard))
+                        }.toString()
+                    }
+                }
         }
         val deckLookupByName: (String) -> String? = { name ->
             deckService.getByName(name)?.let(deckToJson)
@@ -255,6 +279,13 @@ class LeylineServer(
                     debugSink = DebugSinkAdapter(debugCollector, gameStateCollector),
                     recorderFactory = {
                         SessionRecorder(mode = "engine").also { SessionRecorder.register(it) }
+                    },
+                    onMatchComplete = { won ->
+                        val event = selectedEventName
+                        if (resolvedPlayerId != null && event != null) {
+                            courseService.recordMatchResult(PlayerId(resolvedPlayerId), event, won)
+                            log.info("Match result recorded: event={} won={}", event, won)
+                        }
                     },
                 ),
             )
