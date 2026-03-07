@@ -47,3 +47,18 @@ fd-response-all cmd:
 [group('fd')]
 fd-coverage:
     @{{_fd}} coverage
+
+# top-level keys + types for a seq payload (structure overview)
+[group('fd')]
+fd-keys seq:
+    @{{_fd}} keys {{seq}}
+
+# frames since a given seq number (delta view)
+[group('fd')]
+fd-since seq:
+    @{{_fd}} since {{seq}}
+
+# resolve grpId arrays in a frame to card names
+[group('fd')]
+fd-cards seq:
+    @{{_fd}} cards {{seq}}

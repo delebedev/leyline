@@ -70,11 +70,28 @@ def cmd_search(term):
                 preview = payload[:80]
             print(f"{seq:5d} {dr:3s} {cn:<35s} {preview}")
 
+def _find_request_for(frames, frame):
+    """For an S2C frame, find the matching C2S request by transactionId."""
+    tid = frame.get("transactionId")
+    if not tid:
+        return None
+    for d in frames:
+        if d.get("dir") == "C2S" and d.get("transactionId") == tid:
+            return d
+    return None
+
 def cmd_show(seq_num):
     f = find_jsonl()
-    for d in load_frames(f):
+    frames = load_frames(f)
+    for d in frames:
         if d.get("seq") == seq_num:
-            print(f"seq={d['seq']} dir={d['dir']} cmd={d.get('cmdTypeName','')} envelope={d.get('envelopeType','')}")
+            cmd_label = d.get("cmdTypeName") or ""
+            if d.get("dir") == "S2C" and not cmd_label:
+                req = _find_request_for(frames, d)
+                if req:
+                    req_cmd = req.get("cmdTypeName") or ""
+                    cmd_label = f"response to {req_cmd}" if req_cmd else "response"
+            print(f"seq={d['seq']} {d['dir']} {cmd_label} envelope={d.get('envelopeType','')}")
             print(f"transactionId={d.get('transactionId','')}")
             p = d.get("jsonPayload")
             if p:
@@ -84,6 +101,77 @@ def cmd_show(seq_num):
                     print(p)
             else:
                 print("(no payload)")
+            return
+    print(f"seq {seq_num} not found")
+
+def _type_hint(val):
+    """Return type name and size hint for a JSON value."""
+    if val is None:
+        return "null", ""
+    if isinstance(val, bool):
+        return "bool", ""
+    if isinstance(val, (int, float)):
+        return "number", ""
+    if isinstance(val, str):
+        return "string", f"({len(val)} chars)"
+    if isinstance(val, list):
+        n = len(val)
+        if n > 0 and isinstance(val[0], dict):
+            keys = list(val[0].keys())
+            keys_str = ", ".join(keys[:6])
+            if len(keys) > 6:
+                keys_str += ", ..."
+            return "array", f"[{n} items] of object {{{keys_str}}}"
+        return "array", f"[{n} items]"
+    if isinstance(val, dict):
+        keys = list(val.keys())
+        keys_str = ", ".join(keys[:8])
+        if len(keys) > 8:
+            keys_str += ", ..."
+        return "object", f"{{{len(keys)} keys: {keys_str}}}"
+    return type(val).__name__, ""
+
+def _print_keys_recursive(obj, prefix="", depth=0, max_depth=2):
+    """Print keys with types and size hints, recursing into dicts."""
+    if not isinstance(obj, dict):
+        return
+    for key, val in obj.items():
+        full_key = f"{prefix}.{key}" if prefix else key
+        type_name, hint = _type_hint(val)
+        print(f"  {full_key:<40s} {type_name:<8s} {hint}")
+        if depth < max_depth and isinstance(val, dict):
+            _print_keys_recursive(val, full_key, depth + 1, max_depth)
+        elif depth < max_depth and isinstance(val, list) and val and isinstance(val[0], dict):
+            _print_keys_recursive(val[0], full_key + "[0]", depth + 1, max_depth)
+
+def cmd_keys(seq_num):
+    f = find_jsonl()
+    frames = load_frames(f)
+    for d in frames:
+        if d.get("seq") == seq_num:
+            cmd_label = d.get("cmdTypeName") or ""
+            if d.get("dir") == "S2C" and not cmd_label:
+                req = _find_request_for(frames, d)
+                if req:
+                    req_cmd = req.get("cmdTypeName") or ""
+                    cmd_label = f"response to {req_cmd}" if req_cmd else "response"
+            print(f"seq={d['seq']} {d['dir']} {cmd_label}")
+            p = d.get("jsonPayload")
+            if not p:
+                print("(no payload)")
+                return
+            try:
+                payload = json.loads(p)
+            except Exception:
+                print("(payload is not valid JSON)")
+                return
+            if not isinstance(payload, dict):
+                type_name, hint = _type_hint(payload)
+                print(f"  (root)  {type_name}  {hint}")
+                return
+            print(f"  {'key':<40s} {'type':<8s} size/structure")
+            print("  " + "-" * 70)
+            _print_keys_recursive(payload)
             return
     print(f"seq {seq_num} not found")
 
@@ -256,6 +344,117 @@ def cmd_coverage():
         for ct, name, count in sorted(missing, key=lambda x: -x[2]):
             print(f"  {ct:5d}  {name:<40s}  seen {count}x")
 
+def cmd_since(seq_num):
+    """Print all frames with seq > seq_num in the same table format as cmd_tail."""
+    f = find_jsonl()
+    frames = load_frames(f)
+    newer = [d for d in frames if d.get("seq", 0) > seq_num]
+    print(f"Session: {session_name(f)} — {len(newer)} frames after seq {seq_num}")
+    print(f"{'seq':>5s} {'dir':3s} {'type':8s} {'cmd':<35s} {'size':>8s}  preview")
+    print("-" * 110)
+    for d in newer:
+        seq = d.get("seq", 0)
+        dr = d.get("dir", "?")
+        et = d.get("envelopeType", "")[:8]
+        cmd = d.get("cmdTypeName") or ""
+        p = d.get("jsonPayload") or ""
+        plen = f"{len(p)}B"
+        preview = p[:60].replace("\n", " ") if p else ""
+        print(f"{seq:5d} {dr:3s} {et:8s} {cmd:<35s} {plen:>8s}  {preview}")
+
+def _find_arena_db():
+    """Locate the Arena card database."""
+    import glob as _glob
+    home = os.path.expanduser("~")
+    pattern = os.path.join(home, "Library", "Application Support",
+                           "com.wizards.mtga", "Downloads", "Raw",
+                           "Raw_CardDatabase_*.mtga")
+    matches = _glob.glob(pattern)
+    if matches:
+        return matches[0]
+    return None
+
+def cmd_cards(seq_num):
+    """Resolve grpId arrays in a frame to card names via Arena SQLite DB."""
+    import sqlite3
+
+    db_path = _find_arena_db()
+    if not db_path:
+        print("Arena card DB not found. Launch Arena at least once to download it.", file=sys.stderr)
+        sys.exit(1)
+
+    f = find_jsonl()
+    frames = load_frames(f)
+    target = None
+    for d in frames:
+        if d.get("seq") == seq_num:
+            target = d
+            break
+    if not target:
+        print(f"seq {seq_num} not found")
+        return
+
+    p = target.get("jsonPayload")
+    if not p:
+        print("(no payload)")
+        return
+
+    try:
+        payload = json.loads(p)
+    except Exception:
+        print("(payload is not valid JSON)")
+        return
+
+    # Walk payload recursively, collect arrays of ints that look like grpIds
+    def collect_grpid_arrays(obj, path=""):
+        results = []
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                results.extend(collect_grpid_arrays(v, f"{path}.{k}" if path else k))
+        elif isinstance(obj, list) and len(obj) >= 5:
+            if all(isinstance(x, int) and x > 10000 for x in obj):
+                results.append((path, obj))
+            else:
+                for i, v in enumerate(obj):
+                    if isinstance(v, (dict, list)):
+                        results.extend(collect_grpid_arrays(v, f"{path}[{i}]"))
+        return results
+
+    grpid_arrays = collect_grpid_arrays(payload)
+    if not grpid_arrays:
+        print(f"seq={seq_num}: no grpId arrays found (need int arrays of 5+ items > 10000)")
+        return
+
+    conn = sqlite3.connect(db_path)
+    try:
+        for field_path, grp_ids in grpid_arrays:
+            unique_ids = list(set(grp_ids))
+            placeholders = ",".join("?" * len(unique_ids))
+            rows = conn.execute(
+                f"SELECT c.GrpId, l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId "
+                f"WHERE l.Formatted = 1 AND c.GrpId IN ({placeholders})",
+                unique_ids
+            ).fetchall()
+            name_map = {grp: name for grp, name in rows}
+
+            count_by_name = Counter()
+            unknown = 0
+            for grp in grp_ids:
+                name = name_map.get(grp)
+                if name:
+                    count_by_name[name] += 1
+                else:
+                    unknown += 1
+
+            print(f"\n{field_path}: {len(grp_ids)} cards ({len(count_by_name)} unique named, {unknown} unknown)")
+            for name, cnt in count_by_name.most_common():
+                bar = f"x{cnt}" if cnt > 1 else "  "
+                print(f"  {bar:>3s}  {name}")
+            if unknown:
+                print(f"  ---  {unknown} unknown grpId(s)")
+    finally:
+        conn.close()
+
 def cmd_response(cmd_type_str):
     """Print the S2C response payload for a given cmdType (by number or name)."""
     f = find_jsonl()
@@ -329,6 +528,18 @@ if __name__ == "__main__":
         cmd_response_all(sys.argv[2])
     elif cmd == "coverage":
         cmd_coverage()
+    elif cmd == "keys":
+        cmd_keys(int(sys.argv[2]) if len(sys.argv) > 2 else 0)
+    elif cmd == "since":
+        if len(sys.argv) < 3:
+            print("Usage: fd-inspect.py since <seq>", file=sys.stderr)
+            sys.exit(1)
+        cmd_since(int(sys.argv[2]))
+    elif cmd == "cards":
+        if len(sys.argv) < 3:
+            print("Usage: fd-inspect.py cards <seq>", file=sys.stderr)
+            sys.exit(1)
+        cmd_cards(int(sys.argv[2]))
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)
