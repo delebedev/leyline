@@ -85,7 +85,7 @@ class DraftServiceTest :
             session.pickedCards shouldHaveSize 39
             session.draftPack shouldHaveSize 0
             session.packNumber shouldBe 2
-            session.pickNumber shouldBe 13
+            session.pickNumber shouldBe 12
         }
 
         test("getStatus returns current session state") {

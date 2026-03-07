@@ -21,7 +21,47 @@ object DraftWireBuilder {
         return buildJsonObject {
             put("CurrentModule", module)
             put("Payload", payload)
+            put("DTO_InventoryInfo", buildInventoryInfo(session))
         }.toString()
+    }
+
+    private fun buildInventoryInfo(session: DraftSession) = buildJsonObject {
+        put("SeqId", 1)
+        put(
+            "Changes",
+            buildJsonArray {
+                if (session.status == DraftStatus.Completed) {
+                    add(
+                        buildJsonObject {
+                            put("Source", "EventGrantCardPool")
+                            put("SourceId", session.eventName)
+                            put(
+                                "GrantedCards",
+                                buildJsonArray {
+                                    session.pickedCards.forEach { grpId ->
+                                        add(
+                                            buildJsonObject {
+                                                put("GrpId", grpId)
+                                                put("CardAdded", true)
+                                            },
+                                        )
+                                    }
+                                },
+                            )
+                        },
+                    )
+                }
+            },
+        )
+        put("Gems", 0)
+        put("Gold", 0)
+        put("TotalVaultProgress", 0)
+        put("WildCardCommons", 0)
+        put("WildCardUnCommons", 0)
+        put("WildCardRares", 0)
+        put("WildCardMythics", 0)
+        put("CustomTokens", buildJsonObject {})
+        put("Boosters", buildJsonArray {})
     }
 
     private fun buildPayloadJson(session: DraftSession): String = buildJsonObject {
