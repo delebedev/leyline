@@ -56,6 +56,14 @@ class MatchmakingService(
         )
     }
 
+    /** Create MatchInfo without deck validation — for sealed events where deck is in Course. */
+    fun createMatchInfo(eventName: String): MatchInfo = MatchInfo(
+        matchId = UUID.randomUUID().toString(),
+        host = matchDoorHost,
+        port = matchDoorPort,
+        eventName = eventName,
+    )
+
     /** Convenience: delegates to [startMatch]. */
     fun startAiMatch(playerId: PlayerId, deckId: DeckId, eventName: String = "AIBotMatch"): MatchInfo =
         startMatch(playerId, deckId, eventName)

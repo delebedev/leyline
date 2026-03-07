@@ -63,7 +63,14 @@ class FrontDoorHandler(
 
     private val log = LoggerFactory.getLogger(FrontDoorHandler::class.java)
 
-    /** Deck selected via 622 (Event_SetDeckV2), keyed by eventName. Consumed by 603. */
+    /**
+     * Deck selected via 622 (Event_SetDeckV2), keyed by eventName. Consumed by 603 (EnterPairing).
+     *
+     * Only used for constructed events where the deck lives in [DeckRepository].
+     * Sealed events get their deck from [CourseService] instead — 622 writes
+     * the deck into the Course, and 603 reads it back via [CourseService.enterPairing].
+     * Entries are never cleaned up (harmless — handler is per-connection).
+     */
     private val selectedDeckByEvent = mutableMapOf<String, String>()
 
     private val lenientJson = Json {
@@ -324,12 +331,11 @@ class FrontDoorHandler(
                     val course = courseService.join(playerId, eventName)
                     writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildJoinResponse(course)))
                 } else {
-                    val isSealed = eventName?.startsWith("Sealed") == true
                     writer.send(
                         ctx,
                         txId,
                         FdResponse.Json(
-                            if (isSealed) golden.sealedJoinJson else golden.eventJoinJson,
+                            if (EventRegistry.isSealed(eventName ?: "")) golden.sealedJoinJson else golden.eventJoinJson,
                         ),
                     )
                 }
@@ -353,14 +359,27 @@ class FrontDoorHandler(
             CmdType.EVENT_ENTER_PAIRING.value -> {
                 val req = FdRequests.parseEnterPairing(json)
                 val eventName = req?.eventName
-                val deckId = eventName?.let { selectedDeckByEvent[it] }
-                log.info("Front Door: Event_EnterPairing event={} deck={}", eventName, deckId)
+                log.info("Front Door: Event_EnterPairing event={}", eventName)
 
                 val pid = playerId ?: PlayerId("anonymous")
                 try {
                     if (eventName != null) onEventSelected?.invoke(eventName)
+
+                    // Try course-based deck (sealed events), fall back to selected deck (constructed)
+                    val course = if (courseService != null && playerId != null && eventName != null) {
+                        courseService.getCourse(playerId, eventName)
+                    } else {
+                        null
+                    }
+                    val courseDeckId = course?.deck?.deckId?.value
+                    val deckId = courseDeckId ?: eventName?.let { selectedDeckByEvent[it] }
                     if (deckId != null) onDeckSelected?.invoke(deckId)
-                    val match = matchmaking.startMatch(pid, DeckId(deckId ?: ""), eventName ?: "")
+
+                    val match = if (courseDeckId != null) {
+                        matchmaking.createMatchInfo(eventName ?: "")
+                    } else {
+                        matchmaking.startMatch(pid, DeckId(deckId ?: ""), eventName ?: "")
+                    }
                     writer.send(ctx, txId, FdResponse.Json("""{"CurrentModule":"CreateMatch","Payload":"Success"}"""))
                     sendMatchCreated(ctx, match)
                 } catch (e: IllegalArgumentException) {
@@ -378,13 +397,32 @@ class FrontDoorHandler(
             CmdType.EVENT_RESIGN.value -> {
                 val req = FdRequests.parseEventName(json)
                 log.info("Front Door: Event_Resign event={}", req?.eventName)
-                writer.send(ctx, txId, FdResponse.Json(golden.eventResignJson))
+                if (req?.eventName != null && courseService != null && playerId != null) {
+                    try {
+                        val course = courseService.drop(playerId, req.eventName)
+                        writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
+                    } catch (e: IllegalArgumentException) {
+                        writer.send(ctx, txId, FdResponse.Json(golden.eventResignJson))
+                    }
+                } else {
+                    writer.send(ctx, txId, FdResponse.Json(golden.eventResignJson))
+                }
             }
 
             CmdType.EVENT_GET_MATCH_RESULT.value -> {
                 val req = FdRequests.parseMatchResult(json)
                 log.info("Front Door: Event_GetMatchResultReport event={}", req?.eventName)
-                writer.send(ctx, txId, FdResponse.Json(golden.eventMatchResultReportJson))
+                val eventName = req?.eventName
+                val course = if (courseService != null && playerId != null && eventName != null) {
+                    courseService.getCourse(playerId, eventName)
+                } else {
+                    null
+                }
+                if (course != null) {
+                    writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildMatchResultReport(course)))
+                } else {
+                    writer.send(ctx, txId, FdResponse.Json(golden.eventMatchResultReportJson))
+                }
             }
 
             CmdType.EVENT_SET_JUMPSTART_PACKET.value -> {
@@ -401,22 +439,29 @@ class FrontDoorHandler(
                 log.info("Front Door: Event_SetDeckV2 event={} deck={}", req?.eventName, req?.deckId)
                 if (req != null && courseService != null && playerId != null) {
                     try {
+                        val resolvedDeckId = DeckId(req.deckId ?: UUID.randomUUID().toString())
                         val deck = CourseDeck(
-                            deckId = DeckId(req.deckId ?: UUID.randomUUID().toString()),
+                            deckId = resolvedDeckId,
                             mainDeck = req.mainDeck,
                             sideboard = req.sideboard,
                         )
                         val summary = CourseDeckSummary(
-                            deckId = DeckId(req.deckId ?: UUID.randomUUID().toString()),
+                            deckId = resolvedDeckId,
                             name = req.deckName ?: "Sealed Deck",
                             tileId = req.tileId ?: 0,
                             format = "Limited",
                         )
                         val course = courseService.setDeck(playerId, req.eventName, deck, summary)
-                        writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
+                        writer.send(
+                            ctx,
+                            txId,
+                            FdResponse.Json(
+                                EventWireBuilder.buildCourseJson(course).toString(),
+                            ),
+                        )
                     } catch (e: IllegalArgumentException) {
                         log.warn("Front Door: Event_SetDeckV2 failed: {}", e.message)
-                        val isSealed = req.eventName.startsWith("Sealed")
+                        val isSealed = EventRegistry.isSealed(req.eventName)
                         writer.send(
                             ctx,
                             txId,
@@ -426,7 +471,7 @@ class FrontDoorHandler(
                         )
                     }
                 } else {
-                    val isSealed = req?.eventName?.startsWith("Sealed") == true
+                    val isSealed = EventRegistry.isSealed(req?.eventName ?: "")
                     writer.send(
                         ctx,
                         txId,
