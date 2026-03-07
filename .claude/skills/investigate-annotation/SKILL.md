@@ -117,6 +117,24 @@ Output as a structured artifact:
 <Anything notable: enum mappings needed, lifecycle complexity, Forge API to read from>
 ```
 
+## Post-fix verification checklist
+
+After implementing or fixing an annotation, verify end-to-end:
+
+1. **Write puzzle** — `.pzl` file that triggers the annotation (e.g. creature with counters, aura attachment). Validate with `just puzzle-check`.
+2. **Unit test** — use real Forge names in test input (e.g. `"+1/+1"` not `"P1P1"`). Assert detail key values match proto enum numbers.
+3. **Visual verify** — `just serve-puzzle <file>`, connect client, trigger the annotation in-game.
+4. **Wire check** — `curl -s http://localhost:8090/api/messages` → find the annotation in JSON, confirm detail values match real server recordings.
+5. **Update docs** — `docs/rosetta.md` status column, `docs/catalog.yaml` entry, protocol-summary counts if tier changes.
+
+### Forge naming gotcha
+
+Forge enum display names ≠ Java enum constants ≠ proto enum names:
+- `CounterEnumType.P1P1.getName()` → `"+1/+1"` (display), `.name()` → `"P1P1"` (Java), proto → `P1P1 = 1`
+- `CounterEnumType.LOYALTY.getName()` → `"LOYAL"`, proto → `Loyalty_a40e = 7`
+
+Any mapping between Forge events and proto values must account for display names. Test with what Forge actually sends, not what the enum constant looks like.
+
 ## Key conventions
 
 - **Use tooling, not manual grep.** `proto-annotation-variance` is the entry point. `just card`/`just ability` for name resolution.
@@ -124,3 +142,4 @@ Output as a structured artifact:
 - **Dual-typed annotations are common.** `["AddAbility", "LayeredEffect"]` — document both types and their relationship.
 - **Check lifecycle.** Some persistent annotations appear once and stay forever. Others update (count changes) or get removed. Note which.
 - **Don't propose fixes.** This is research, not implementation. The field note feeds into plan-fix.
+- **Variance report can be misleading.** "NOT IMPLEMENTED" means not in proxy recordings — check our code first before assuming a gap.
