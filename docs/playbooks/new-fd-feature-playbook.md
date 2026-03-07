@@ -147,6 +147,15 @@ Each phase has a **verification gate** — don't proceed until it passes.
 - Golden data extraction for any static responses
 - **Gate**: `just serve` + client connects, navigates to the feature, no crashes
 
+### Phase 2.5: Golden replay smoke test
+
+- Extract key response payloads from the recording as golden JSON files
+- Wire handlers to return golden data for the new feature flow
+- `just serve` → client navigates to the feature → exercises the full UI flow
+- **Gate**: client renders the feature UI without crashes (no domain logic needed yet)
+
+This catches wire format issues (null fields, wrong types, missing keys) before you write real logic. Cheap to do, expensive to debug later.
+
 ### Phase 3: Real logic
 
 - Replace golden stubs with service calls
