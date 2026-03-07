@@ -34,6 +34,7 @@ import leyline.frontdoor.repo.SqlitePlayerStore
 import leyline.frontdoor.service.CollectionService
 import leyline.frontdoor.service.CourseService
 import leyline.frontdoor.service.DeckService
+import leyline.frontdoor.service.DraftService
 import leyline.frontdoor.service.GeneratedPool
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
@@ -180,6 +181,11 @@ class LeylineServer(
                 collationId = pool.collationId,
             )
         }
+        val draftRepo = store.asDraftSessionRepository()
+        val draftService = DraftService(draftRepo) { _ ->
+            // Placeholder packs — Phase 3 will wire real Forge BoosterDraft
+            (0 until 3).map { (1..13).map { 90000 + it } }
+        }
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
         val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort, validateDeck = validateDeck)
         val writer = FdResponseWriter(onFdMessage = fdCollector::record)
@@ -212,6 +218,7 @@ class LeylineServer(
                         matchmaking = matchmakingService,
                         collectionService = CollectionService { cardRepo.findAllGrpIds() },
                         courseService = courseService,
+                        draftService = draftService,
                         writer = writer,
                         golden = golden,
                         onFdMessage = fdCollector::record,
