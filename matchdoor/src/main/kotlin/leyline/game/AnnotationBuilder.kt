@@ -464,17 +464,21 @@ object AnnotationBuilder {
             .addDetails(int32Detail("counter_type", counterType))
             .build()
 
-    /** Map Forge counter type name (e.g. "P1P1", "LOYALTY") to proto CounterType numeric value.
-     *  Forge uses UPPERCASE names, proto uses PascalCase (some with _a40e suffix).
-     *  We build a case-insensitive lookup from the proto enum at init time. */
+    /** Map Forge counter type name to proto CounterType numeric value.
+     *  Forge's CounterEnumType.getName() returns display names ("+1/+1", "LOYAL")
+     *  which differ from both the Java enum constant ("P1P1", "LOYALTY") and the
+     *  proto enum name. We index both proto names and known Forge display names. */
     private val forgeNameToProtoNumber: Map<String, Int> by lazy {
         val map = mutableMapOf<String, Int>()
         for (ct in CounterType.entries) {
             if (ct == CounterType.UNRECOGNIZED) continue
-            // Strip _a40e suffix, uppercase for matching
             val base = ct.name.removeSuffix("_a40e").uppercase()
             map[base] = ct.number
         }
+        // Forge display names that differ from proto enum names
+        map["+1/+1"] = CounterType.P1P1.number
+        map["-1/-1"] = CounterType.M1M1.number
+        map["LOYAL"] = CounterType.Loyalty_a40e.number
         map
     }
 
