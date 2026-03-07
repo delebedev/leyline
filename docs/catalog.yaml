@@ -87,6 +87,18 @@ client-infrastructure:
       autoPassPriority (full control) all wired. clearAllStops/clearAllYields
       honored. Transient stops merged same as regular stops.
 
+  sealed-events:
+    status: wired
+    notes: >
+      Full sealed format lifecycle: join → Forge pack generation (6 boosters via
+      UnOpenedProduct) → grpId mapping → pack opening UI → deck builder (40-card)
+      → match against Sparky AI → result callback updates Course wins/losses.
+      Course domain model with SQLite persistence. EventWireBuilder matches golden
+      wire shape (LossDetailsDisplay, SelectedDeckWidget, CourseDeckSummary).
+      Event blade shows loss counter. Deck edit button present but not yet tested
+      end-to-end. Course deck lookup crosses FD→MD boundary via deckLookup lambda.
+      Sets: FDN tested. Any set with Forge booster template should work.
+
   emotes:
     status: missing
 
