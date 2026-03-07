@@ -108,6 +108,100 @@ Most "non-text" elements actually have nearby OCR-detectable text. **Prefer OCR-
 
 **Window resolution check:** At session start, run `arena ocr` and check the rightmost cx value. If max cx < 1000, the window is NOT 1920px — all hardcoded coords will miss. Use OCR coords only.
 
+## Sealed Event Loop (Full Example)
+
+Fresh DB to loss counter in ~60 seconds of interaction.
+
+### Prerequisites
+```bash
+just stop; trash data/player.db; just seed-db
+./gradlew jar -q && just serve  # (background)
+bin/arena launch
+```
+
+### 1. Navigate to event
+```bash
+bin/arena click "Play" --retry 3          # lobby → play menu
+sleep 2
+bin/arena click <sealed tile image>       # click card ART, not title text (~40px above title)
+                                          # ocr --find "Sealed" gives title coords; click above
+```
+
+### 2. Join
+```bash
+bin/arena ocr --find "Start"              # fresh course shows "Start"
+bin/arena click "Start" --retry 3
+```
+
+### 3. Open packs
+```bash
+bin/arena wait text="Open" --timeout 10   # "Open packs to craft your sealed deck"
+bin/arena click "Open" --retry 3          # opens all 6 packs
+sleep 4                                   # card reveal animation
+bin/arena click "Continue" --retry 3      # → deck builder
+bin/arena wait text="Cards" --timeout 10  # "0/40 Cards" confirms deck builder loaded
+```
+
+### 4. Build deck (add 40 cards)
+
+Cards in a grid. Click to add. Two rows visible at a time.
+
+```bash
+# Row 1 y≈200, Row 2 y≈400. x from 80 to 640, spacing ~120px.
+for x in 80 200 350 500 640; do bin/arena click $x,200; sleep 0.3; done
+for x in 80 200 350 500 640; do bin/arena click $x,400; sleep 0.3; done
+# Repeat — cards shift as added. Keep clicking until 40/40.
+# Check progress:
+bin/arena ocr --find "40/40 Cards"        # ready signal
+```
+**Don't click Done with <40 cards** — triggers "Invalid Deck" modal (dismiss with `arena click "OK"`).
+
+### 5. Submit deck
+```bash
+bin/arena click "Done" --retry 3          # sends Event_SetDeckV2
+sleep 2                                   # returns to event blade
+```
+Event blade now shows: **"0 Losses"**, **"Sealed Deck"** edit button, **"Play"**.
+
+### 6. Play match
+```bash
+bin/arena click "Play" --retry 3          # Event_EnterPairing → match starts
+bin/arena wait text="Keep" --timeout 30   # VS screen → mulligan
+bin/arena click "Keep" --retry 3
+```
+
+### 7. Concede (or play it out)
+```bash
+sleep 3
+bin/arena click 940,55                    # cog icon
+sleep 1
+bin/arena click "Concede" --retry 3
+bin/arena wait text="Defeat" --timeout 10
+```
+
+### 8. Return to event blade
+```bash
+bin/arena click 480,300 && sleep 2 && bin/arena click 480,300 && sleep 2 && bin/arena click 480,300
+sleep 3
+bin/arena ocr --find "Loss"              # "1 Loss" — result tracked
+```
+Event blade shows updated loss counter. Click "Play" for next match.
+
+### Key signals at each stage
+| Stage | OCR signal | Means |
+|-------|-----------|-------|
+| Events tab | `"Sealed"` + `"New"` | Fresh event, never joined |
+| Event blade (fresh) | `"Start"` | Ready to join |
+| Pack opening | `"Open"` | Packs generated, click to reveal |
+| Card reveal | `"Continue"` | Done revealing, proceed to builder |
+| Deck builder | `"N/40 Cards"` | Count of cards added |
+| Event blade (ready) | `"0 Losses"` + `"Play"` | Deck submitted, can queue |
+| Mulligan | `"Keep"` | Hand dealt |
+| Result | `"Defeat"` or `"Victory"` | Match ended |
+| Event blade (after) | `"N Loss"` | Result recorded |
+
+---
+
 ## Bot Match Loop (Full Example)
 
 All steps use OCR — no hardcoded coords except deck thumbnail offset.
@@ -166,5 +260,8 @@ for i in 1 2 3 4 5; do bin/arena ocr --find "Home" && break; sleep 3; done
 - **Invalid decks** show under "Invalid Decks:" label with warning triangles — deck has fewer than 60 cards.
 - **Check state, don't assume.** After relaunching MTGA, run `arena ocr` before assuming which screen you're on. The client may auto-login, show popups, or be stuck on an error.
 - **Ghost courses after mode switch.** Switching from `serve-proxy` to `just serve` (or vice versa) leaves stale courses in the client. "Resume" or "Build Your Deck" appears for events that don't exist on the new server. Fix: `just stop` + trash `data/player.db` + fresh `arena launch`.
+- **Sealed: click card ART to open event, not title text.** Same pattern as deck thumbnails — clickable area is the image, not the label. OCR gives title coords; click ~40px above.
+- **Sealed: pack opening is Open → reveal → Continue.** Don't skip "Continue" — without it you stay on the reveal screen. `arena wait text="Continue"` after the reveal animation (~4s).
+- **Sealed: Invalid Deck modal if Done with <40.** Check `arena ocr --find "40/40 Cards"` before clicking Done. Dismiss modal with `arena click "OK"`.
 - **Sealed deck builder: "40/40 Cards" is the ready signal.** Use `arena ocr --find "40/40 Cards"` to confirm the deck is complete before clicking Done. Partial decks can't be submitted.
 - **Event names need baked loc keys.** Custom event names (e.g. `Sealed_FDN_20260307`) won't render titles unless `titleLocKey` points to a key the client already has (e.g. `Events/Event_Title_Sealed_FDN`). Without it, the tile appears but shows no title — hard to find via OCR.
