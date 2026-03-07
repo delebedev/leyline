@@ -227,7 +227,7 @@ class FrontDoorHandler(
             }
 
             CmdType.EVENT_GET_COURSES_V2.value -> {
-                val coursesJson = EventWireBuilder.toCoursesJson(EventRegistry.defaultCourses)
+                val coursesJson = EventWireBuilder.toDefaultCoursesJson(EventRegistry.defaultCourses)
                 log.debug("Front Door: EventGetCoursesV2")
                 writer.send(ctx, txId, FdResponse.Json(coursesJson))
             }
