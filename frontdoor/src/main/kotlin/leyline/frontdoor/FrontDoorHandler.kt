@@ -396,7 +396,18 @@ class FrontDoorHandler(
             CmdType.EVENT_GET_MATCH_RESULT.value -> {
                 val req = FdRequests.parseMatchResult(json)
                 log.info("Front Door: Event_GetMatchResultReport event={}", req?.eventName)
-                writer.send(ctx, txId, FdResponse.Json(golden.eventMatchResultReportJson))
+                val eventName = req?.eventName
+                val isSealed = eventName?.startsWith("Sealed", ignoreCase = true) == true
+                if (isSealed && courseService != null && playerId != null && eventName != null) {
+                    val course = courseService.enterPairing(playerId, eventName)
+                    writer.send(
+                        ctx,
+                        txId,
+                        FdResponse.Json(EventWireBuilder.buildMatchResultReport(course)),
+                    )
+                } else {
+                    writer.send(ctx, txId, FdResponse.Json(golden.eventMatchResultReportJson))
+                }
             }
 
             CmdType.EVENT_SET_JUMPSTART_PACKET.value -> {
