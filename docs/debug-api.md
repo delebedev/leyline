@@ -66,6 +66,14 @@ Errors also written to `recordings/<session>/client-errors.jsonl`.
 
 Standalone mode (no server): `just watch-client`
 
+## State injection
+
+- `POST /api/inject-full` — rebuild current engine state as Full GSM, send to client. No request body needed.
+- `POST /api/inject-puzzle` — hot-swap the running game to a new puzzle. Tears down engine, loads `.pzl`, restarts, injects Full GSM + actions.
+  - Body: raw `.pzl` content (text/plain)
+  - Query param: `?file=<name>` — loads from `matchdoor/src/test/resources/puzzles/<name>.pzl`
+  - Sequential injection works — no reconnect needed between puzzles
+
 ## Recording analysis (post-game)
 
 - `GET /api/recording-analysis?id=...` — post-game analysis (mechanics, invariants, gsId chain). Auto-generates if missing.

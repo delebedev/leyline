@@ -5,6 +5,8 @@ import com.sun.net.httpserver.HttpServer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import leyline.analysis.SessionAnalyzer
+import leyline.bridge.GameBootstrap
+import leyline.game.PuzzleSource
 import leyline.game.StateMapper
 import leyline.game.mapper.ActionMapper
 import leyline.match.MatchSession
@@ -92,6 +94,26 @@ class DebugServer(
                 serveInjectFull(ex)
             } catch (t: Throwable) {
                 log.error("inject-full error: {}", t.message, t)
+                try {
+                    respond(ex, 500, "text/plain", "Error: ${t.message}")
+                } catch (_: Throwable) {
+                    try {
+                        ex.close()
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        srv.createContext("/api/inject-puzzle") { ex ->
+            try {
+                if (ex.requestMethod != "POST") {
+                    ex.sendResponseHeaders(405, -1)
+                    ex.close()
+                    return@createContext
+                }
+                serveInjectPuzzle(ex)
+            } catch (t: Throwable) {
+                log.error("inject-puzzle error: {}", t.message, t)
                 try {
                     respond(ex, 500, "text/plain", "Error: ${t.message}")
                 } catch (_: Throwable) {
@@ -548,6 +570,105 @@ class DebugServer(
         bridge.snapshotState(fullGsm)
 
         val info = "Injected Full GSM gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
+        log.info(info)
+        respond(ex, 200, "text/plain", info)
+    }
+
+    /**
+     * POST `/api/inject-puzzle` — hot-swap the running game to a new puzzle.
+     *
+     * Accepts raw `.pzl` content in the request body, or `?file=<name>` to load
+     * from test resources (e.g. `?file=bolt-face` → `puzzles/bolt-face.pzl`).
+     *
+     * Tears down the current game, clears all bridge state, starts a fresh puzzle
+     * game, and injects its Full GSM + actions into the connected client.
+     */
+    private fun serveInjectPuzzle(ex: HttpExchange) {
+        val session = debugCollector?.sessionProvider?.invoke() as? MatchSession
+        if (session == null) {
+            respond(ex, 404, "text/plain", "No active session")
+            return
+        }
+        val bridge = session.gameBridge
+        if (bridge == null) {
+            respond(ex, 404, "text/plain", "No game bridge")
+            return
+        }
+
+        // Load puzzle: body content takes precedence, then ?file= query param
+        val body = ex.requestBody.bufferedReader().readText().trim()
+        val fileParam = ex.requestURI.query
+            ?.split("&")
+            ?.associate { it.split("=", limit = 2).let { p -> p[0] to (p.getOrNull(1) ?: "") } }
+            ?.get("file")
+
+        // Puzzle constructor triggers GameState.<clinit> which needs localization
+        GameBootstrap.initializeLocalization()
+
+        val puzzle = when {
+            body.isNotEmpty() -> PuzzleSource.loadFromText(body, "injected")
+            fileParam != null -> {
+                // Try filesystem first (test resources), then classpath
+                val testResDir = File("matchdoor/src/test/resources/puzzles")
+                val pzlFile = File(testResDir, "$fileParam.pzl")
+                if (pzlFile.exists()) {
+                    PuzzleSource.loadFromFile(pzlFile.absolutePath)
+                } else {
+                    try {
+                        PuzzleSource.loadFromResource("puzzles/$fileParam.pzl")
+                    } catch (e: IllegalStateException) {
+                        respond(ex, 404, "text/plain", "Puzzle not found: $fileParam (checked ${pzlFile.absolutePath} and classpath)")
+                        return
+                    }
+                }
+            }
+            else -> {
+                respond(ex, 400, "text/plain", "Provide .pzl content in body or ?file=<name> query param")
+                return
+            }
+        }
+
+        // Reset bridge with new puzzle (shutdown → clear state → startPuzzle)
+        bridge.resetForPuzzle(puzzle)
+
+        // Build and send Full GSM + actions from the new engine state
+        val counter = session.counter
+        val gsId = counter.nextGsId()
+        val msgId = counter.nextMsgId()
+
+        val game = bridge.getGame()!!
+        val fullGsm = StateMapper.buildFromGame(
+            game,
+            gsId,
+            session.matchId,
+            bridge,
+            updateType = GameStateUpdate.SendAndRecord,
+            viewingSeatId = session.seatId,
+        )
+
+        val greGsm = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.GameStateMessage_695e)
+            .setMsgId(msgId)
+            .setGameStateId(gsId)
+            .addSystemSeatIds(session.seatId)
+            .setGameStateMessage(fullGsm)
+            .build()
+
+        val actions = ActionMapper.buildActions(game, session.seatId, bridge)
+        val greActions = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.ActionsAvailableReq_695e)
+            .setMsgId(counter.nextMsgId())
+            .setGameStateId(gsId)
+            .addSystemSeatIds(session.seatId)
+            .setActionsAvailableReq(actions)
+            .build()
+
+        session.sendBundledGRE(listOf(greGsm, greActions))
+        bridge.snapshotState(fullGsm)
+
+        val meta = PuzzleSource.parseMetadata(if (body.isNotEmpty()) body else "")
+        val label = if (fileParam != null) fileParam else meta.name
+        val info = "Injected puzzle '$label' gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
         log.info(info)
         respond(ex, 200, "text/plain", info)
     }

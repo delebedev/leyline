@@ -47,6 +47,13 @@ class DiffSnapshotter(private val idRegistry: InstanceIdRegistry) {
         previousState = null
     }
 
+    /** Full reset — clear all tracked state (zones, snapshot, turn info). Used on puzzle hot-swap. */
+    fun resetAll() {
+        previousZones.clear()
+        previousState = null
+        lastSentTurnInfo = null
+    }
+
     // --- Last-sent TurnInfo tracking ---
     //
     // Separate from [previousState] (diff baseline). Tracks what the client
