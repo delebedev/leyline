@@ -409,11 +409,38 @@ object FdEnvelope {
     }
 
     /**
+     * Info about a player seat in a match. Used to build the PlayerInfos array
+     * in the MatchCreated push notification.
+     */
+    data class PlayerInfo(
+        val seatId: Int,
+        val teamId: Int,
+        val name: String,
+        val visibleName: String = name,
+        val avatarId: String = "Avatar_Basic_Adventurer",
+    )
+
+    /**
      * Build a MatchCreated push notification JSON payload.
      * Shared by FrontDoorHandler and FrontDoorReplayStub.
+     *
+     * @param playerInfos player seats; null uses Familiar defaults (ForgePlayer + Sparky).
      */
-    fun buildMatchCreatedJson(matchId: String, matchDoorHost: String, matchDoorPort: Int, eventId: String = "AIBotMatch"): String =
-        buildJsonObject {
+    fun buildMatchCreatedJson(
+        matchId: String,
+        matchDoorHost: String,
+        matchDoorPort: Int,
+        matchType: String = "Familiar",
+        matchTypeInternal: Int = 1,
+        yourSeat: Int = 1,
+        eventId: String = "AIBotMatch",
+        playerInfos: List<PlayerInfo>? = null,
+    ): String {
+        val players = playerInfos ?: listOf(
+            PlayerInfo(seatId = 1, teamId = 1, name = "ForgePlayer", avatarId = "Avatar_Basic_Adventurer"),
+            PlayerInfo(seatId = 2, teamId = 2, name = "Sparky", avatarId = "Avatar_Basic_Sparky"),
+        )
+        return buildJsonObject {
             put("Type", "MatchCreated")
             putJsonObject("MatchInfoV3") {
                 put("ControllerFabricUri", "wzmc://forge/$matchId")
@@ -422,16 +449,18 @@ object FdEnvelope {
                 put("MatchId", matchId)
                 put("McFabricId", "wzmc://forge/$matchId")
                 put("EventId", eventId)
-                put("MatchType", "Familiar")
-                put("MatchTypeInternal", 1)
+                put("MatchType", matchType)
+                put("MatchTypeInternal", matchTypeInternal)
                 put("Battlefield", "FDN")
-                put("YourSeat", 1)
+                put("YourSeat", yourSeat)
                 putJsonArray("PlayerInfos") {
-                    add(playerInfoJson(1, 1, "ForgePlayer", "Avatar_Basic_Adventurer"))
-                    add(playerInfoJson(2, 2, "Sparky", "Avatar_Basic_Sparky"))
+                    for (p in players) {
+                        add(playerInfoJson(p.seatId, p.teamId, p.visibleName, p.avatarId))
+                    }
                 }
             }
         }.toString()
+    }
 
     private fun playerInfoJson(seatId: Int, teamId: Int, name: String, avatarId: String) =
         buildJsonObject {
