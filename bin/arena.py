@@ -125,9 +125,15 @@ def _mtga_window_id() -> int | None:
     """Get MTGA main window CGWindowID via Quartz. Works without activation."""
     try:
         import Quartz
-        windows = Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionAll, Quartz.kCGNullWindowID)
+
+        windows = Quartz.CGWindowListCopyWindowInfo(
+            Quartz.kCGWindowListOptionAll, Quartz.kCGNullWindowID
+        )
         for w in windows:
-            if w.get("kCGWindowOwnerName") == "MTGA" and w.get("kCGWindowName") == "MTGA":
+            if (
+                w.get("kCGWindowOwnerName") == "MTGA"
+                and w.get("kCGWindowName") == "MTGA"
+            ):
                 return int(w["kCGWindowNumber"])
     except ImportError:
         pass
@@ -291,6 +297,37 @@ def cmd_ocr(args: list[str]) -> None:
     print(stdout)
 
 
+def cmd_detect(args: list[str]) -> None:
+    """Run card detection on current MTGA window. Outputs JSON array of detections."""
+    threshold = 0.3
+    it = iter(args)
+    for a in it:
+        if a == "--threshold":
+            threshold = float(next(it))
+
+    img = "/tmp/arena/_detect_capture.png"
+    Path(img).parent.mkdir(parents=True, exist_ok=True)
+
+    bounds = capture_window(img)
+    if bounds is None:
+        die("MTGA window not found")
+
+    code, stdout, stderr = run(
+        "swift",
+        f"{PROJECT_DIR}/bin/detect.swift",
+        img,
+        "--threshold",
+        str(threshold),
+        timeout=15,
+    )
+    _try_remove(img)
+
+    if code != 0:
+        die(f"Detection failed: {stderr}")
+
+    print(stdout)
+
+
 def cmd_click(args: list[str]) -> None:
     if not args:
         die("Usage: arena click <target> [--double] [--right] [--retry N] [--exact]")
@@ -408,10 +445,16 @@ def cmd_errors(args: list[str]) -> None:
 
 
 def cmd_board(args: list[str]) -> None:
-    """Unified board state from debug API + OCR."""
+    """Unified board state from debug API + OCR + card detection."""
     HAND_Y_CENTER, HAND_X_MIN, HAND_X_MAX = 530, 60, 720
 
     with_ocr = "--no-ocr" not in args
+    with_detect = "--detect" in args
+    detect_threshold = 0.3
+    if "--detect-threshold" in args:
+        idx = args.index("--detect-threshold")
+        if idx + 1 < len(args):
+            detect_threshold = float(args[idx + 1])
 
     # 1. Fetch match state
     state_raw = fetch_api("/api/state")
@@ -439,15 +482,17 @@ def cmd_board(args: list[str]) -> None:
         if isinstance(entries, dict):
             entries = entries.get("data", [])
         for e in entries:
-            objects.append({
-                "instanceId": e.get("instanceId", 0),
-                "grpId": e.get("grpId", 0),
-                "name": e.get("cardName"),
-                "ownerSeatId": e.get("ownerSeatId", 0),
-                "controllerSeatId": e.get("ownerSeatId", 0),
-                "zoneId": e.get("protoZoneId", 0),
-                "forgeZone": e.get("forgeZone"),
-            })
+            objects.append(
+                {
+                    "instanceId": e.get("instanceId", 0),
+                    "grpId": e.get("grpId", 0),
+                    "name": e.get("cardName"),
+                    "ownerSeatId": e.get("ownerSeatId", 0),
+                    "controllerSeatId": e.get("ownerSeatId", 0),
+                    "zoneId": e.get("protoZoneId", 0),
+                    "forgeZone": e.get("forgeZone"),
+                }
+            )
 
     # 3. Fetch actions + life from latest game state snapshot
     actions: list[dict] = []
@@ -464,12 +509,14 @@ def cmd_board(args: list[str]) -> None:
         # Actions: always from latest snapshot
         if snapshots:
             for act in snapshots[-1].get("actions", []):
-                actions.append({
-                    "actionType": act.get("actionType", ""),
-                    "instanceId": act.get("instanceId", 0),
-                    "grpId": act.get("grpId", 0),
-                    "name": act.get("name"),
-                })
+                actions.append(
+                    {
+                        "actionType": act.get("actionType", ""),
+                        "instanceId": act.get("instanceId", 0),
+                        "grpId": act.get("grpId", 0),
+                        "name": act.get("name"),
+                    }
+                )
 
     # 4. Optionally get OCR
     ocr_items: list[dict] = []
@@ -480,14 +527,26 @@ def cmd_board(args: list[str]) -> None:
     our_seat, opp_seat = 1, 2
     actionable_ids = {a["instanceId"] for a in actions}
 
-    our_hand = [o for o in objects if o["forgeZone"] == "Hand" and o["ownerSeatId"] == our_seat]
-    opp_hand = [o for o in objects if o["forgeZone"] == "Hand" and o["ownerSeatId"] == opp_seat]
+    our_hand = [
+        o for o in objects if o["forgeZone"] == "Hand" and o["ownerSeatId"] == our_seat
+    ]
+    opp_hand = [
+        o for o in objects if o["forgeZone"] == "Hand" and o["ownerSeatId"] == opp_seat
+    ]
     bf = [o for o in objects if o["forgeZone"] == "Battlefield"]
     our_bf = [o for o in bf if o["controllerSeatId"] == our_seat]
     opp_bf = [o for o in bf if o["controllerSeatId"] == opp_seat]
     stack_cards = [o for o in objects if o["forgeZone"] == "Stack"]
-    our_grave = [o for o in objects if o["forgeZone"] == "Graveyard" and o["ownerSeatId"] == our_seat]
-    opp_grave = [o for o in objects if o["forgeZone"] == "Graveyard" and o["ownerSeatId"] == opp_seat]
+    our_grave = [
+        o
+        for o in objects
+        if o["forgeZone"] == "Graveyard" and o["ownerSeatId"] == our_seat
+    ]
+    opp_grave = [
+        o
+        for o in objects
+        if o["forgeZone"] == "Graveyard" and o["ownerSeatId"] == opp_seat
+    ]
     exile_cards = [o for o in objects if o["forgeZone"] == "Exile"]
 
     # 6. Correlate hand cards with OCR x-positions
@@ -528,6 +587,12 @@ def cmd_board(args: list[str]) -> None:
     for card in opp_bf:
         card["screenRegion"] = "opp_battlefield"
 
+    # 7. Card detection — correlate detected bboxes with protocol cards
+    if with_detect:
+        dets = _board_detect(threshold=detect_threshold)
+        if dets:
+            _correlate_detections(dets, our_hand, our_bf, opp_bf, stack_cards)
+
     board = {
         "match": match_info,
         "life": {"ours": players.get(our_seat, 0), "theirs": players.get(opp_seat, 0)},
@@ -548,11 +613,112 @@ def cmd_board(args: list[str]) -> None:
             "cards": [c.get("name", "?") for c in exile_cards],
         },
         "opp_hand_count": len(opp_hand),
-        "our_library_count": sum(1 for o in objects if o["forgeZone"] == "Library" and o["ownerSeatId"] == our_seat),
-        "opp_library_count": sum(1 for o in objects if o["forgeZone"] == "Library" and o["ownerSeatId"] == opp_seat),
+        "our_library_count": sum(
+            1
+            for o in objects
+            if o["forgeZone"] == "Library" and o["ownerSeatId"] == our_seat
+        ),
+        "opp_library_count": sum(
+            1
+            for o in objects
+            if o["forgeZone"] == "Library" and o["ownerSeatId"] == opp_seat
+        ),
         "actions": actions,
     }
     print(json.dumps(board, indent=2))
+
+
+def _correlate_detections(
+    dets: list[dict],
+    our_hand: list[dict],
+    our_bf: list[dict],
+    opp_bf: list[dict],
+    stack_cards: list[dict],
+) -> None:
+    """Correlate detected card bboxes with protocol-known cards.
+
+    Strategy: partition detections by label into zones, then assign to protocol
+    cards left-to-right (battlefield) or by existing estimatedX (hand).
+    Mutates card dicts in-place, adding screenX/screenY/screenW/screenH.
+    """
+    # Partition detections by zone
+    hand_dets = sorted(
+        [d for d in dets if d["label"] == "hand-card"],
+        key=lambda d: d["cx"],
+    )
+    our_bf_dets = sorted(
+        [
+            d
+            for d in dets
+            if d["label"] in ("battlefield-untapped", "battlefield-tapped")
+        ],
+        key=lambda d: d["cx"],
+    )
+    opp_bf_dets = sorted(
+        [d for d in dets if d["label"] in ("opponent-untapped", "opponent-tapped")],
+        key=lambda d: d["cx"],
+    )
+    stack_dets = [d for d in dets if d["label"] == "stack-item"]
+
+    # Hand: if detection count matches protocol count, assign 1:1 left-to-right.
+    # Otherwise, assign by nearest x to estimatedX.
+    if hand_dets and our_hand:
+        if len(hand_dets) == len(our_hand):
+            for card, det in zip(our_hand, hand_dets):
+                _apply_det(card, det)
+        else:
+            _match_nearest_x(our_hand, hand_dets)
+
+    # Our battlefield: assign detections to cards left-to-right
+    if our_bf_dets and our_bf:
+        if len(our_bf_dets) == len(our_bf):
+            for card, det in zip(our_bf, our_bf_dets):
+                _apply_det(card, det)
+        else:
+            _match_nearest_x(our_bf, our_bf_dets)
+
+    # Opponent battlefield
+    if opp_bf_dets and opp_bf:
+        if len(opp_bf_dets) == len(opp_bf):
+            for card, det in zip(opp_bf, opp_bf_dets):
+                _apply_det(card, det)
+        else:
+            _match_nearest_x(opp_bf, opp_bf_dets)
+
+    # Stack: just attach first detection
+    if stack_dets and stack_cards:
+        for card, det in zip(stack_cards, stack_dets):
+            _apply_det(card, det)
+
+
+def _apply_det(card: dict, det: dict) -> None:
+    """Add screen coordinates from a detection to a protocol card."""
+    card["screenX"] = det["x"]
+    card["screenY"] = det["y"]
+    card["screenW"] = det["w"]
+    card["screenH"] = det["h"]
+    card["screenCX"] = det["cx"]
+    card["screenCY"] = det["cy"]
+    card["detectConfidence"] = det["confidence"]
+    card["detectLabel"] = det["label"]
+
+
+def _match_nearest_x(cards: list[dict], dets: list[dict]) -> None:
+    """Greedy nearest-x matching: for each card, find closest unmatched detection."""
+    used: set[int] = set()
+    for card in cards:
+        ref_x = card.get("estimatedX") or card.get("screenCX") or 0
+        best_i, best_dist = -1, float("inf")
+        for i, det in enumerate(dets):
+            if i in used:
+                continue
+            dist = abs(det["cx"] - ref_x)
+            if dist < best_dist:
+                best_dist = dist
+                best_i = i
+        if best_i >= 0:
+            used.add(best_i)
+            _apply_det(card, dets[best_i])
 
 
 def _board_ocr() -> list[dict]:
@@ -571,6 +737,29 @@ def _board_ocr() -> list[dict]:
             {"text": item["text"], "cx": int(item["cx"]), "cy": int(item["cy"])}
             for item in items
         ]
+    except Exception:
+        return []
+
+
+def _board_detect(threshold: float = 0.3) -> list[dict]:
+    """Capture + card detection. Returns list of {label, x, y, w, h, cx, cy, confidence}."""
+    try:
+        img = "/tmp/arena/_board_detect.png"
+        Path(img).parent.mkdir(parents=True, exist_ok=True)
+        if capture_window(img) is None:
+            return []
+        code, stdout, _ = run(
+            "swift",
+            f"{PROJECT_DIR}/bin/detect.swift",
+            img,
+            "--threshold",
+            str(threshold),
+            timeout=15,
+        )
+        _try_remove(img)
+        if code != 0 or not stdout.strip():
+            return []
+        return json.loads(stdout)
     except Exception:
         return []
 
@@ -802,6 +991,7 @@ COMMANDS = {
     "errors": cmd_errors,
     "wait": cmd_wait,
     "board": cmd_board,
+    "detect": cmd_detect,
     "issues": cmd_issues,
 }
 
