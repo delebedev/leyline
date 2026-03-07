@@ -1,0 +1,44 @@
+<?xml version="1.0" ?>
+<SmellBaseline>
+  <ManuallySuppressedIssues></ManuallySuppressedIssues>
+  <CurrentIssues>
+    <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val CommandZone: List&lt;CardEntry&gt; = emptyList()</ID>
+    <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val Companions: List&lt;CardEntry&gt; = emptyList()</ID>
+    <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val MainDeck: List&lt;CardEntry&gt; = emptyList()</ID>
+    <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val Sideboard: List&lt;CardEntry&gt; = emptyList()</ID>
+    <ID>CyclomaticComplexMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun activeMatches()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun boosters()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun cosmetics()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun currencies()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun netDeckFolders()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun periodicRewards()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun playerInbox()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun preferredPrintings()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun prizeWalls()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun quests()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun rankInfo()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun rankSeasonDetails()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun staticContent()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun storeStatus()</ID>
+    <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun telemetryAck()</ID>
+    <ID>ImplicitDefaultLocale:FrontDoorHandler.kt$FrontDoorHandler$String.format("%02x", frameType)</ID>
+    <ID>LongMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
+    <ID>LongParameterList:GoldenData.kt$GoldenData$( val getFormatsProto: ByteArray, val getSetsProto: ByteArray, val startHookJson: String, val graphDefinitionsJson: String, val designerMetadataJson: String, val goldenPlayerPreferencesJson: String, val graphStateResponses: Map&lt;String, String&gt;, val eventJoinJson: String, val eventSetDeckJson: String, val preconDecksJson: String, val carouselJson: String, val eventResignJson: String, val eventMatchResultReportJson: String, val eventSetJumpstartPacketJson: String, )</ID>
+    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"clone-1","Name":"Imported Deck (4)","DeckTileId":55,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":200,"quantity":2}],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Cloned"}"""</ID>
+    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"Explorer Deck","DeckTileId":0,"Attributes":[{"name":"Format","value":"Explorer"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""</ID>
+    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"Fav","DeckTileId":0,"Attributes":[{"name":"IsFavorite","value":"true"},{"name":"Format","value":"Standard"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""</ID>
+    <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"My Deck","DeckTileId":99,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":100,"quantity":4}],"Sideboard":[],"CommandZone":[],"Companions":[],"CardSkins":[]},"ActionType":"CreatedNew"}"""</ID>
+    <ID>MaxLineLength:LobbyStubs.kt$LobbyStubs$fun rankInfo()</ID>
+    <ID>UnusedParameter:CollectionService.kt$CollectionService$playerId: PlayerId?</ID>
+    <ID>UnusedParameter:MatchmakingService.kt$MatchmakingService$playerId: PlayerId</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$// --- Request field numbers --- private const val REQ_TYPE = 1 // varint (RequestType)</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val ANY_VALUE = 2 // bytes field in google.protobuf.Any</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val REQ_JSON_PAYLOAD = 5 // bytes (JSON)</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val REQ_KEY = 3 // string</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val REQ_TRANS_ID = 2 // string</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val TYPE_PREFIX = "type.googleapis.com/"</ID>
+    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$val field4 = fields.firstOrNull { it.fieldNumber == 4 }</ID>
+    <ID>UseRequire:MatchmakingService.kt$MatchmakingService$throw IllegalArgumentException("Deck '${deck.name}' not legal in $forgeFormat: $problem")</ID>
+  </CurrentIssues>
+</SmellBaseline>
