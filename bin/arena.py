@@ -135,7 +135,11 @@ def _mtga_window_id() -> int | None:
 
 
 def capture_window(out_path: str) -> tuple[int, int, int, int] | None:
-    """Capture MTGA window rect. Resizes to logical size so OCR coords = window-relative."""
+    """Capture MTGA window rect. Activates first, then screencapture -R at window bounds.
+
+    Resizes to logical size so OCR coords = window-relative click coords.
+    """
+    _activate_mtga()
     bounds = mtga_window_bounds()
     if bounds is None:
         return None
@@ -438,16 +442,36 @@ def cmd_board(args: list[str]) -> None:
         gs = json.loads(gs_raw)
         all_snapshots = gs.get("data", [])
 
-    # Merge objects across all snapshots — later diffs override by instanceId
+    # Merge objects and zones across all snapshots (Full seeds, Diffs overlay)
     merged_objects: dict[int, dict] = {}
+    merged_zones: dict[str, dict] = {}
     players: dict[int, int] = {}
     actions: list[dict] = []
 
     for snap in all_snapshots:
         for obj in snap.get("objects", {}).values():
             merged_objects[obj.get("instanceId", 0)] = obj
+        for zid, z in snap.get("zones", {}).items():
+            merged_zones[zid] = z
         for p in snap.get("players", []):
             players[p["seatId"]] = p["life"]
+
+    # Zone membership is the source of truth — objects not in any zone are gone
+    live_ids: set[int] = set()
+    zone_to_ids: dict[int, list[int]] = {}
+    for zid, z in merged_zones.items():
+        ids = z.get("objectInstanceIds", [])
+        live_ids.update(ids)
+        zone_to_ids[int(zid)] = ids
+
+    # Update object zoneId from zone membership (more reliable than object's own zoneId)
+    for zid, ids in zone_to_ids.items():
+        for iid in ids:
+            if iid in merged_objects:
+                merged_objects[iid]["zoneId"] = zid
+
+    # Drop objects no longer in any zone (resolved triggers, etc.)
+    merged_objects = {k: v for k, v in merged_objects.items() if k in live_ids}
 
     # Actions from the latest snapshot (always complete)
     if all_snapshots:
