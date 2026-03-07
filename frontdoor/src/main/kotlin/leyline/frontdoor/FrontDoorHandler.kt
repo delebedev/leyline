@@ -304,8 +304,15 @@ class FrontDoorHandler(
 
             CmdType.EVENT_JOIN.value -> {
                 val req = FdRequests.parseEventJoin(json)
-                log.info("Front Door: Event_Join event={} (golden)", req?.eventName)
-                writer.send(ctx, txId, FdResponse.Json(golden.eventJoinJson))
+                val isSealed = req?.eventName?.startsWith("Sealed") == true
+                log.info("Front Door: Event_Join event={} (golden{})", req?.eventName, if (isSealed) "/sealed" else "")
+                writer.send(
+                    ctx,
+                    txId,
+                    FdResponse.Json(
+                        if (isSealed) golden.sealedJoinJson else golden.eventJoinJson,
+                    ),
+                )
             }
 
             CmdType.EVENT_DROP.value -> {
@@ -362,8 +369,15 @@ class FrontDoorHandler(
                 if (req != null && req.deckId != null) {
                     selectedDeckByEvent[req.eventName] = req.deckId
                 }
-                log.info("Front Door: Event_SetDeckV2 event={} deck={}", req?.eventName, req?.deckId)
-                writer.send(ctx, txId, FdResponse.Json(golden.eventSetDeckJson))
+                val isSealed = req?.eventName?.startsWith("Sealed") == true
+                log.info("Front Door: Event_SetDeckV2 event={} deck={} (golden{})", req?.eventName, req?.deckId, if (isSealed) "/sealed" else "")
+                writer.send(
+                    ctx,
+                    txId,
+                    FdResponse.Json(
+                        if (isSealed) golden.sealedSetDeckJson else golden.eventSetDeckJson,
+                    ),
+                )
             }
 
             // Response-type envelope (field 1 is UUID, not varint) — no CmdType extracted.
