@@ -75,9 +75,24 @@ curl -s http://localhost:8090/api/client-errors | python3 -m json.tool
 grep -n "Exception\|Error\|NullReference" ~/Library/Logs/Wizards\ Of\ The\ Coast/MTGA/Player.log | tail -10
 ```
 
-### 4. Code tracing
+### 4. Recording-based protocol analysis
 
-From the anomaly found in steps 2-3, trace to source:
+Before tracing code, check what the real server sends — prevents building the wrong fix:
+
+```bash
+# Annotation variance: what we send vs real server, across all proxy recordings
+just proto-annotation-variance
+
+# Phase/turn comparison between our engine and real server
+just rec-turninfo <our-engine-session>
+just rec-turninfo <proxy-session>
+```
+
+`proto-annotation-variance` is the fastest way to confirm "we don't send X" or "we send X with wrong keys." Run it first for any protocol/visual bug.
+
+### 5. Code tracing
+
+From the anomaly found in steps 2-4, trace to source:
 
 - **Protocol issue** (wrong/missing field) → `matchdoor/` proto builders, game event wiring
 - **State mapping issue** (wrong zone, missing annotation) → `matchdoor/game/` state mapping
@@ -87,7 +102,7 @@ From the anomaly found in steps 2-3, trace to source:
 
 Use `docs/rosetta.md` for protocol type cross-reference. Use `docs/catalog.yaml` to check if the mechanic is known-unsupported.
 
-### 5. Blast radius check
+### 6. Blast radius check
 
 - What other code calls the same function/uses the same path?
 - Are there related open issues that might share the root cause?
@@ -97,7 +112,7 @@ Use `docs/rosetta.md` for protocol type cross-reference. Use `docs/catalog.yaml`
 gh issue list --label bug --json number,title
 ```
 
-### 6. Write diagnosis
+### 7. Write diagnosis
 
 Output a structured artifact — either as a comment on the issue or as input to plan-fix:
 
