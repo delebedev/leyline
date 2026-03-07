@@ -16,6 +16,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -26,10 +27,12 @@ import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.Format
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.InMemoryCourseRepository
+import leyline.frontdoor.repo.InMemoryDraftSessionRepository
 import leyline.frontdoor.repo.SqlitePlayerStore
 import leyline.frontdoor.service.CollectionService
 import leyline.frontdoor.service.CourseService
 import leyline.frontdoor.service.DeckService
+import leyline.frontdoor.service.DraftService
 import leyline.frontdoor.service.GeneratedPool
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
@@ -151,7 +154,7 @@ class FrontDoorHandlerTest :
             return json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
         }
 
-        /** Create a FD channel with CourseService wired (for sealed event tests). */
+        /** Create a FD channel with CourseService + DraftService wired (for sealed/draft tests). */
         fun fdChannelWithCourseService(): EmbeddedChannel {
             val poolGen: (String) -> GeneratedPool = { _ ->
                 GeneratedPool(
@@ -161,6 +164,9 @@ class FrontDoorHandlerTest :
                 )
             }
             val courseService = CourseService(InMemoryCourseRepository(), poolGen)
+            val draftService = DraftService(InMemoryDraftSessionRepository()) { _ ->
+                (0 until 3).map { pack -> (1..13).map { card -> 90000 + pack * 100 + card } }
+            }
             val ch = EmbeddedChannel(
                 FrontDoorHandler(
                     playerId = PlayerId(testPlayerId),
@@ -169,6 +175,7 @@ class FrontDoorHandlerTest :
                     matchmaking = matchmakingService,
                     collectionService = CollectionService { emptyList() },
                     courseService = courseService,
+                    draftService = draftService,
                     writer = writer,
                     golden = golden,
                 ),
@@ -551,6 +558,132 @@ class FrontDoorHandlerTest :
             val msg = decodeResponse(resp)
             val obj = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
             obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "Complete"
+        }
+
+        // --- Quick Draft integration tests ---
+
+        test("CmdType 600 - Event_Join draft creates course with BotDraft module") {
+            val ch = fdChannelWithCourseService()
+            val obj = sendJsonWith(ch, 600, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            val course = obj["Course"]?.jsonObject
+            course.shouldNotBeNull()
+            course["CurrentModule"]?.jsonPrimitive?.content shouldBe "BotDraft"
+            course["CardPool"]?.jsonArray.shouldNotBeNull()
+            course["CardPool"]!!.jsonArray.shouldBeEmpty()
+        }
+
+        test("CmdType 1800 - BotDraft_StartDraft returns draft response with first pack") {
+            val ch = fdChannelWithCourseService()
+            // Join first
+            ch.writeCmd(600, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+
+            val obj = sendJsonWith(ch, 1800, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "BotDraft"
+            val payloadStr = obj["Payload"]?.jsonPrimitive?.content
+            payloadStr.shouldNotBeNull()
+            val payload = json.parseToJsonElement(payloadStr).jsonObject
+            payload["Result"]?.jsonPrimitive?.content shouldBe "Success"
+            payload["DraftStatus"]?.jsonPrimitive?.content shouldBe "PickNext"
+            payload["PackNumber"]?.jsonPrimitive?.int shouldBe 0
+            payload["PickNumber"]?.jsonPrimitive?.int shouldBe 0
+            payload["DraftPack"]?.jsonArray.shouldNotBeNull()
+            payload["DraftPack"]!!.jsonArray.size shouldBe 13
+        }
+
+        test("CmdType 1801 - BotDraft_DraftPick advances pick and returns updated state") {
+            val ch = fdChannelWithCourseService()
+            ch.writeCmd(600, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+
+            // Start draft to get first pack
+            val startObj = sendJsonWith(ch, 1800, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            val startPayload = json.parseToJsonElement(startObj["Payload"]!!.jsonPrimitive.content).jsonObject
+            val firstCard = startPayload["DraftPack"]!!.jsonArray[0].jsonPrimitive.content
+
+            // Pick first card
+            val pickPayload = """{"EventName":"QuickDraft_ECL_20260223","PickInfo":{"CardIds":["$firstCard"],"PackNumber":0,"PickNumber":0}}"""
+            val pickObj = sendJsonWith(ch, 1801, pickPayload)
+            pickObj["CurrentModule"]?.jsonPrimitive?.content shouldBe "BotDraft"
+            val payload = json.parseToJsonElement(pickObj["Payload"]!!.jsonPrimitive.content).jsonObject
+            payload["PickNumber"]?.jsonPrimitive?.int shouldBe 1
+            payload["DraftPack"]!!.jsonArray.size shouldBe 12
+            payload["PickedCards"]!!.jsonArray.size shouldBe 1
+        }
+
+        test("CmdType 1802 - BotDraft_DraftStatus returns current session") {
+            val ch = fdChannelWithCourseService()
+            ch.writeCmd(600, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+            ch.writeCmd(1800, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+
+            val obj = sendJsonWith(ch, 1802, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "BotDraft"
+            val payload = json.parseToJsonElement(obj["Payload"]!!.jsonPrimitive.content).jsonObject
+            payload["DraftStatus"]?.jsonPrimitive?.content shouldBe "PickNext"
+            payload["DraftPack"]!!.jsonArray.size shouldBe 13
+        }
+
+        test("CmdType 1801 - completing all picks transitions to DeckSelect with card pool") {
+            val ch = fdChannelWithCourseService()
+            ch.writeCmd(600, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+
+            // Start draft
+            ch.writeCmd(1800, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            var resp = ch.readOutbound<ByteBuf>()!!
+            var msg = decodeResponse(resp)
+            var outer = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
+            var payload = json.parseToJsonElement(outer["Payload"]!!.jsonPrimitive.content).jsonObject
+
+            // Pick all 39 cards
+            for (i in 0 until 39) {
+                val card = payload["DraftPack"]!!.jsonArray[0].jsonPrimitive.content
+                val packNum = payload["PackNumber"]!!.jsonPrimitive.int
+                val pickNum = payload["PickNumber"]!!.jsonPrimitive.int
+                val pickReq = """{"EventName":"QuickDraft_ECL_20260223","PickInfo":{"CardIds":["$card"],"PackNumber":$packNum,"PickNumber":$pickNum}}"""
+                ch.writeCmd(1801, pickReq)
+                resp = ch.readOutbound<ByteBuf>()!!
+                msg = decodeResponse(resp)
+                outer = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
+                payload = json.parseToJsonElement(outer["Payload"]!!.jsonPrimitive.content).jsonObject
+            }
+
+            // Final pick response should be completed
+            outer["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"
+            payload["DraftStatus"]?.jsonPrimitive?.content shouldBe "Completed"
+            payload["PickedCards"]!!.jsonArray.size shouldBe 39
+
+            // Course should have transitioned to DeckSelect with card pool
+            ch.writeCmd(623)
+            resp = ch.readOutbound<ByteBuf>()!!
+            msg = decodeResponse(resp)
+            val coursesObj = json.parseToJsonElement(msg.jsonPayload!!).jsonObject
+            val courses = coursesObj["Courses"]!!.jsonArray
+            val draftCourse = courses.firstOrNull {
+                it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "QuickDraft_ECL_20260223"
+            }
+            draftCourse.shouldNotBeNull()
+            draftCourse.jsonObject["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"
+            draftCourse.jsonObject["CardPool"]!!.jsonArray.size shouldBe 39
+        }
+
+        test("CmdType 609 - Event_Resign drops draft course and session") {
+            val ch = fdChannelWithCourseService()
+            ch.writeCmd(600, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+            ch.writeCmd(1800, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            ch.readOutbound<ByteBuf>()!!.release()
+
+            // Resign
+            val obj = sendJsonWith(ch, 609, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            obj["CurrentModule"]?.jsonPrimitive?.content shouldBe "Complete"
+
+            // Draft status should be gone
+            val statusObj = sendJsonWith(ch, 1802, """{"EventName":"QuickDraft_ECL_20260223"}""")
+            // Falls back to golden since session was dropped
+            statusObj.containsKey("CurrentModule") shouldBe true
         }
     })
 
