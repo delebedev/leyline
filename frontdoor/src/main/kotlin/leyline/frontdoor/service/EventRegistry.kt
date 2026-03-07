@@ -299,7 +299,7 @@ object EventRegistry {
             displayPriority = 75,
             flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
             bladeBehavior = null,
-            eventTags = listOf("Limited"),
+            eventTags = listOf("Sealed", "Limited"),
             titleLocKey = "Events/Event_Title_Sealed_FDN",
             descLocKey = "Events/Event_Desc_Sealed_FDN",
             maxWins = 7,

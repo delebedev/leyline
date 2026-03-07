@@ -172,7 +172,6 @@ object EventWireBuilder {
 
     private fun buildEventJson(e: EventDef) = buildJsonObject {
         put("InternalEventName", e.internalName)
-        put("EventState", "Active")
         put("FormatType", e.formatType)
         put("StartTime", "2025-01-01T00:00:00Z")
         put("LockedTime", "2099-01-01T00:00:00Z")
@@ -202,7 +201,17 @@ object EventWireBuilder {
                 putJsonObject("ResignWidget") {}
                 putJsonObject("MainButtonWidget") {}
                 putJsonObject("LossDetailsDisplay") {
-                    put("LossDetailsType", "PlayUntilEventEnds")
+                    if (e.maxLosses != null) {
+                        put("Games", e.maxLosses)
+                    } else {
+                        put("LossDetailsType", "PlayUntilEventEnds")
+                    }
+                }
+                if (e.formatType == "Sealed") {
+                    putJsonObject("SelectedDeckWidget") {
+                        put("DeckButtonBehavior", "Editable")
+                        put("ShowCopyDeckButton", true)
+                    }
                 }
             }
         }
