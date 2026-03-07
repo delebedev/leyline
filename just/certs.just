@@ -34,13 +34,19 @@ gen-certs fd_host="" md_host="":
         if [ "$door" = "matchdoor" ]; then host="$md"
         elif [ "$door" = "was" ]; then host="localhost"
         else host="$fd"; fi
+        # frontdoor cert covers both FD + MD hostnames (single cert used for both doors)
+        if [ "$door" = "frontdoor" ]; then
+            san="subjectAltName=DNS:$fd,DNS:$md,DNS:localhost,IP:127.0.0.1"
+        else
+            san="subjectAltName=DNS:$host,DNS:localhost,IP:127.0.0.1"
+        fi
         openssl req -new -newkey rsa:2048 -nodes \
             -keyout "$out/$door.key" -out "$out/$door.csr" \
             -subj "/CN=$host" 2>/dev/null
         openssl x509 -req -in "$out/$door.csr" \
             -CA "$ca_cert" -CAkey "$ca_key" -CAcreateserial \
             -out "$out/$door.crt" -days 365 \
-            -extfile <(echo "subjectAltName=DNS:$host,DNS:localhost,IP:127.0.0.1") 2>/dev/null
+            -extfile <(echo "$san") 2>/dev/null
         cat "$out/$door.crt" "$out/$door.key" > "$out/$door-combined.pem"
         rm -f "$out/$door.csr"
         echo "  ✓ $door-combined.pem"

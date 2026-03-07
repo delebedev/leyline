@@ -19,6 +19,9 @@ class GoldenData(
     val eventSetDeckJson: String,
     val preconDecksJson: String,
     val carouselJson: String,
+    val eventResignJson: String,
+    val eventMatchResultReportJson: String,
+    val eventSetJumpstartPacketJson: String,
 ) {
     companion object {
         fun loadFromClasspath(): GoldenData = GoldenData(
@@ -37,6 +40,9 @@ class GoldenData(
             eventSetDeckJson = loadTextResource("fd-golden/event-set-deck.json"),
             preconDecksJson = loadTextResource("fd-golden/precon-decks.json"),
             carouselJson = loadTextResource("fd-golden/carousel.json"),
+            eventResignJson = loadTextResource("fd-golden/event-resign.json"),
+            eventMatchResultReportJson = loadTextResource("fd-golden/event-match-result-report.json"),
+            eventSetJumpstartPacketJson = loadTextResource("fd-golden/event-set-jumpstart-packet.json"),
         )
 
         private fun loadResource(path: String): ByteArray =

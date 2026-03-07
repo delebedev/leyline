@@ -64,5 +64,8 @@ app/main/proto/messages.proto
 
 !.claude/
 
+# Contains creds
+deploy/services-proxy.conf
+
 # Override global gitignore — bin/ contains our CLI tools
 !bin/

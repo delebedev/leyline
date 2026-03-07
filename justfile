@@ -11,9 +11,9 @@ import 'just/test.just'
 
 project_dir  := justfile_directory()
 classpath    := project_dir / "target/classpath.txt"
-logback      := project_dir / "src/main/resources/logback.xml"
-logback_cli  := project_dir / "src/main/resources/logback-cli.xml"
-templates    := project_dir / "src/main/resources/arena-templates"
+logback      := project_dir / "app/main/resources/logback.xml"
+logback_cli  := project_dir / "app/main/resources/logback-cli.xml"
+templates    := project_dir / "app/main/resources/arena-templates"
 certs        := env("LEYLINE_CERTS", env("HOME", "/tmp") / ".local/share/leyline/certs")
 fd_ip        := env("LEYLINE_FD_IP", "35.160.172.88")
 md_ip        := env("LEYLINE_MD_IP", "44.245.90.131")
@@ -148,7 +148,7 @@ dev-setup:
         echo "Install Arena via Epic Games first."
         exit 1
     fi
-    cp "{{project_dir}}/src/main/resources/services.conf" "$streaming/services.conf"
+    cp "{{project_dir}}/app/main/resources/services.conf" "$streaming/services.conf"
     echo "==> Copied localhost services.conf"
     # 2. Ensure NPE_VO.bnk exists
     audio="{{_audio_dir}}"
@@ -194,6 +194,7 @@ seed-db: (_require classpath) check-java
 serve: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
+    cp "{{project_dir}}/app/main/resources/services.conf" "{{_streaming}}/services.conf"
     {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags
 
@@ -220,6 +221,7 @@ serve-replay-stub golden="": (_require classpath) check-java
 serve-proxy: (_require classpath) check-java
     #!/usr/bin/env bash
     set -euo pipefail
+    cp "{{project_dir}}/deploy/services-proxy.conf" "{{_streaming}}/services.conf"
     {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
 

@@ -52,7 +52,7 @@ Waiting for Server:
 ### In-Game
 - **Wait for priority:** `arena wait phase=MAIN1 --timeout 15`
 - **Pass priority:** `arena click "Pass" --retry 3`
-- **Play a land/spell:** DO NOT click cards directly (Unity treats click as drag-start). Use the debug API action system instead.
+- **Play a land/spell:** `arena drag <x>,530 480,350` — drag from hand to battlefield. Lands play instantly; spells show "Pay" prompt (auto-pays or Cancel at 888,504).
 
 ### Concede
 1. `arena click 1555,72` — cog/settings icon (top-right, no text)
@@ -63,54 +63,74 @@ Waiting for Server:
 - **Dismiss:** click center three times with pauses: `arena click 800,450` → sleep 2 → `arena click 800,450` → sleep 2 → `arena click 800,450`
 - **Back in lobby:** `arena wait text="Play" --timeout 15`
 
-## Non-Text Elements (Fixed Coords)
+## Non-Text Elements
 
-These are window-relative logical coordinates (1920x1080).
+Most "non-text" elements actually have nearby OCR-detectable text. **Prefer OCR-based discovery over hardcoded coords.** Coords break when the window isn't exactly 1920x1080.
 
-| Element | Coords | Notes |
-|---------|--------|-------|
-| Play button (deck select) | 1446,871 | Bottom-right, graphical |
-| Cog/Settings icon | 1555,72 | Top-right corner |
-| Result dismiss (center) | 800,450 | Click 3x with 2s gaps |
-| Pass turn (if no OCR) | 1750,950 | Bottom-right area |
+| Element | OCR discovery | Fallback coords (1920x1080) |
+|---------|--------------|----------------------------|
+| Play button (deck select) | `ocr --find "Play"` — pick bottom-right hit | 1446,871 |
+| Cog/Settings icon | `ocr --find "Sparky"` — cog is top-right of game screen | 1555,72 |
+| Result dismiss (center) | Click screen center 3x with 2s gaps | 800,450 |
+| Pass turn | `ocr --find "Pass"` | 1750,950 |
+| Deck thumbnail | `ocr --find "<deck name>"` — click ~80px above the label | varies |
+
+**Window resolution check:** At session start, run `arena ocr` and check the rightmost cx value. If max cx < 1000, the window is NOT 1920px — all hardcoded coords will miss. Use OCR coords only.
 
 ## Bot Match Loop (Full Example)
 
+All steps use OCR — no hardcoded coords except deck thumbnail offset.
+
 ```bash
 # From Lobby:
-bin/arena click 1446,871                     # Play button (bottom-right)
+bin/arena click "Play" --retry 3
 sleep 2
 bin/arena click "Find Match" --retry 3       # opens deck list + queue picker
 sleep 2
-bin/arena click "Bot Match" --retry 3        # select Bot Match queue
+# Bot Match is in the right-side queue list — use ocr to find it
+bin/arena ocr --find "Bot Match"             # get coords
+bin/arena click <cx>,<cy from ocr>           # click it
 sleep 1
 bin/arena click "My Decks" --retry 3         # expand if collapsed
 sleep 1
-# Click a deck thumbnail (coords depend on deck position)
-bin/arena click 250,825                      # first deck thumbnail
+# Deck thumbnail: find deck name, click ~80px above label center
+bin/arena ocr --find "<deck name>"           # get label coords
+bin/arena click <cx>,<cy - 80>              # click card art above label
 sleep 1
-bin/arena click 1446,871                     # Play button
-bin/arena wait text="Keep" --timeout 15
-bin/arena click "Keep"
-bin/arena wait phase=MAIN1 --timeout 15
+# Confirm deck selected:
+bin/arena ocr --find "Edit Deck"             # appears when deck is highlighted
+# Play button — use OCR, pick the bottom-right "Play" hit
+bin/arena click "Play" --retry 3
+# Poll for mulligan (never wait >10s):
+for i in 1 2 3 4 5; do bin/arena ocr --find "Keep" && break; sleep 3; done
+bin/arena click "Keep" --retry 3
+sleep 5
 bin/arena click "Pass" --retry 3
-bin/arena click 1555,72                      # cog icon
-bin/arena click "Concede"
-bin/arena wait text="Defeat" --timeout 10
-bin/arena click 800,450 && sleep 2 && bin/arena click 800,450 && sleep 2 && bin/arena click 800,450
-bin/arena wait text="Play" --timeout 15      # back in lobby
+sleep 2
+# Concede: find cog via OCR context (top-right area)
+# Cog is ~940,55 in a 960px-wide window — use rightmost OCR x + offset
+bin/arena ocr                                # find max-x text to estimate width
+bin/arena click <width - 20>,55              # top-right cog area
+bin/arena click "Concede" --retry 3
+# Poll for defeat:
+for i in 1 2 3; do bin/arena ocr --find "DEFEAT" && break; sleep 3; done
+# Dismiss result (click center 3x):
+bin/arena click 480,300 && sleep 2 && bin/arena click 480,300 && sleep 2 && bin/arena click 480,300
+# Poll for lobby:
+for i in 1 2 3 4 5; do bin/arena ocr --find "Home" && break; sleep 3; done
 ```
 
 ## Tips
 
-- **Just click, don't inspect.** Follow the scripted flow — click text/coords directly without OCR or screenshots between steps. Only capture/OCR when debugging a failure or when you don't know the current screen state.
+- **OCR is ground truth.** Always use `arena ocr` / `arena ocr --find` for state checks. Never screenshot for routine state detection — screenshots cost ~800 vision tokens, OCR costs ~0.
+- **OCR coords are window-relative logical** — no scaling needed regardless of capture resolution. If OCR says (480, 345), click (480, 345).
+- **Never `arena wait` with timeout >10s** — poll with `for i in 1..N; do arena ocr --find "X" && break; sleep 3; done`. Keeps conversation responsive.
+- **Prefer OCR over hardcoded coords** — coords break when window size changes. OCR adapts.
 - **Use `--exact` only for isolated button text** — works for "Done", "Concede" (standalone UI buttons). Fails for "Keep" and other words that OCR may merge with surrounding text. When in doubt, use substring match (default) + `--retry`.
-- **Prefer coords for bottom-right action buttons** — Play/Edit Deck/Done are always at ~1447,868. Text matching risks card text collisions.
-- **Always use `--retry` for text clicks during transitions** — animations/loading can delay text rendering
+- **Always use `--retry` for text clicks during transitions** — animations/loading can delay text rendering.
 - **Never click cards** — Unity interprets single click as drag. Use debug API for card actions.
-- **Use `arena wait`** instead of `sleep N` — deterministic, faster, no wasted time
-- **OCR is case-insensitive** for `--find` matching
-- **Coord clicks don't need retry** — they always land, but the UI might not be ready (use `arena wait` before)
-- **"Waiting for Server..."** — means FD connection dropped or server not responding. Restart server, then relaunch MTGA
-- **"My Decks" is often collapsed** — must click to expand before deck thumbnails are visible
-- **Invalid decks** show under "Invalid Decks:" label with warning triangles — deck has fewer than 60 cards (common when some card names don't resolve in Arena's DB)
+- **OCR is case-insensitive** for `--find` matching.
+- **"Waiting for Server..."** — means FD connection dropped or server not responding. Restart server, then relaunch MTGA.
+- **"My Decks" is often collapsed** — must click to expand before deck thumbnails are visible.
+- **Invalid decks** show under "Invalid Decks:" label with warning triangles — deck has fewer than 60 cards.
+- **Check state, don't assume.** After relaunching MTGA, run `arena ocr` before assuming which screen you're on. The client may auto-login, show popups, or be stuck on an error.

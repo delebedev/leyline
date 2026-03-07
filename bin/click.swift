@@ -16,14 +16,15 @@ import CoreGraphics
 
 func usage() -> Never {
     fputs("""
-    Usage: click <x> <y> [move|right|double]
-    
+    Usage: click <x> <y> [move|right|double|drag <x2> <y2>]
+
     Actions:
       (default)  left click
       move       move cursor only
       right      right click
       double     double left click
-    
+      drag       drag from (x,y) to (x2,y2)
+
     """, stderr)
     exit(1)
 }
@@ -83,6 +84,39 @@ case "double":
     up2?.setIntegerValueField(.mouseEventClickState, value: 2)
     post(up2)
     print("double-clicked \(Int(x)),\(Int(y))")
+
+case "drag":
+    guard CommandLine.arguments.count >= 6,
+          let x2 = Double(CommandLine.arguments[4]),
+          let y2 = Double(CommandLine.arguments[5]) else {
+        fputs("drag requires: click <x1> <y1> drag <x2> <y2>\n", stderr)
+        exit(1)
+    }
+    let dest = CGPoint(x: x2, y: y2)
+    let steps = 20
+    let duration: UInt32 = 15_000 // 15ms per step (~300ms total drag)
+
+    // Mouse down at source
+    post(CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown,
+                 mouseCursorPosition: point, mouseButton: .left))
+    usleep(50_000) // hold before dragging
+
+    // Intermediate drag events along the path
+    for i in 1...steps {
+        let t = Double(i) / Double(steps)
+        let cx = x + (x2 - x) * t
+        let cy = y + (y2 - y) * t
+        let p = CGPoint(x: cx, y: cy)
+        post(CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged,
+                     mouseCursorPosition: p, mouseButton: .left))
+        usleep(duration)
+    }
+
+    // Mouse up at destination
+    usleep(30_000)
+    post(CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp,
+                 mouseCursorPosition: dest, mouseButton: .left))
+    print("dragged \(Int(x)),\(Int(y)) → \(Int(x2)),\(Int(y2))")
 
 default: // "click" — left click
     post(CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown,

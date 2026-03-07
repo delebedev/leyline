@@ -565,7 +565,8 @@ class DebugServer(
         } catch (t: Throwable) {
             log.error("Debug server error on {}: {}", ex.requestURI, t.message, t)
             try {
-                respond(ex, 500, "text/plain", "Internal error: ${t.message}")
+                val trace = t.stackTrace.take(5).joinToString("\n  ") { it.toString() }
+                respond(ex, 500, "text/plain", "Internal error [${t.javaClass.name}]: ${t.message}\n  $trace")
             } catch (_: Throwable) {
                 try {
                     ex.close()

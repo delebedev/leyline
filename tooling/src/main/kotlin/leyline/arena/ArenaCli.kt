@@ -9,7 +9,7 @@ fun main(args: Array<String>) {
         System.err.println(
             """
             Usage: arena <command> [args...]
-            Commands: capture, ocr, click, state, errors, wait, issues
+            Commands: launch, capture, ocr, click, drag, state, errors, wait, issues
             """.trimIndent(),
         )
         exitProcess(1)
@@ -38,9 +38,11 @@ fun main(args: Array<String>) {
     var exitCode = 0
     try {
         when (command) {
+            "launch" -> Launch.run(cmdArgs)
             "capture" -> Capture.run(cmdArgs)
             "ocr" -> Ocr.run(cmdArgs)
             "click" -> Click.run(cmdArgs)
+            "drag" -> Drag.run(cmdArgs)
             "state" -> State.run(cmdArgs)
             "errors" -> State.errors(cmdArgs)
             "wait" -> Wait.run(cmdArgs)
