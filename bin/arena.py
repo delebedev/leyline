@@ -262,10 +262,13 @@ def cmd_capture(args: list[str]) -> None:
 
 def cmd_ocr(args: list[str]) -> None:
     find_text = None
+    fmt = False
     it = iter(args)
     for a in it:
         if a == "--find":
             find_text = next(it)
+        elif a == "--fmt":
+            fmt = True
         elif a in ("--json", "--no-json"):
             pass
         else:
@@ -294,7 +297,12 @@ def cmd_ocr(args: list[str]) -> None:
         else:
             die(f"OCR failed: {stderr}")
 
-    print(stdout)
+    if fmt:
+        items = json.loads(stdout)
+        for item in items:
+            print(f'{item["text"]:40s} ({item["cx"]},{item["cy"]})')
+    else:
+        print(stdout)
 
 
 def cmd_detect(args: list[str]) -> None:

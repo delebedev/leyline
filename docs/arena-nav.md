@@ -87,12 +87,27 @@ Waiting for Server:
 - **Same nav:** Still need Play → Find Match → Bot Match → deck → Play to trigger the match
 
 ### In-Game
+
+**Engine vs real Arena differences:** Our Forge engine gives priority at every phase stop, producing many more "action button" clicks per turn than real Arena. The button at ~888,505 cycles through labels like "Pass", "Resolve", "My Turn", "Opponent's Turn", "Next" — all at the same coord. Real Arena auto-passes most of these. Expect 5-10 button clicks per turn cycle vs 1-2 in real Arena.
+
+**Engine-specific button labels:**
+- **"Opponent's Turn"** — signals transition to opponent's turn; click to continue
+- **"My Turn"** — signals transition to our turn; click to continue
+- **"Resolve"** — a spell/ability on the stack needs resolving
+- **"Pass"** — pass priority (standard)
+- **"Next"** — advance through upkeep/draw phases
+
+**All of these appear at ~888,505.** Just click the button repeatedly to advance through phases you don't care about.
+
+**Turn cycle pattern (our turn):** Pass upkeep → Pass draw → **MAIN1 (play lands/spells here)** → Pass to combat → declare attackers → Pass → **MAIN2 (play more)** → End turn → Opponent's turn cycle
+
 - **Wait for priority:** `arena wait phase=MAIN1 --timeout 15`
-- **Pass priority:** `arena click "Pass" --retry 3`
+- **Pass priority:** click 888,505 — universal action button
 - **Play a card by name:** `arena play "Grizzly Bears"` — finds card in hand via debug API + detection, drags to battlefield, verifies via zone change. Retries up to 3× with jitter.
 - **Play a card (manual drag):** `arena drag <x>,<y> 480,300` — drag from hand to battlefield center
-- **Resolve a spell:** After a successful drag, the spell goes on the stack. Click `arena click 888,505` (the action button shows "Resolve") to resolve it. Lands don't need this step.
+- **Resolve a spell:** After a successful drag, the spell goes on the stack. Click 888,505 (shows "Resolve") to resolve it. Lands resolve instantly — no extra click needed in puzzle mode, but the engine may still prompt for priority.
 - **Low-level drag with verification:** `arena drag <x1>,<y1> <x2>,<y2> --verify <instanceId>` — polls debug API to confirm card changed zones; retries with ±5px jitter on failure
+- **Getting stuck on a phase:** If clicking 888,505 doesn't advance the turn, check `arena board` for pending actions (targeting prompts, mandatory choices). The game may be waiting for a specific action, not just priority pass.
 
 ### Concede
 1. `arena click 1555,72` — cog/settings icon (top-right, no text)
@@ -100,7 +115,8 @@ Waiting for Server:
 3. `arena wait text="Defeat" --timeout 10`
 
 ### Result Screen
-- **Dismiss:** click center three times with pauses: `arena click 800,450` → sleep 2 → `arena click 800,450` → sleep 2 → `arena click 800,450`
+- **"[Click to Continue]"** may appear at (479,552) after DEFEAT/VICTORY — click it first
+- **Dismiss:** click center three times with pauses: `arena click 480,300` → sleep 2 → repeat
 - **Back in lobby:** `arena wait text="Play" --timeout 15`
 
 ## Non-Text Elements
@@ -368,8 +384,10 @@ The CoreML card detection model is useful but noisy. Known issues:
 - **False positives at cy < 490:** Card hover previews and enlarged cards produce detections in the upper-mid screen area (~cy 410). **Always filter hand cards by `cy > 490`** — real hand cards sit at cy ~530.
 - **Duplicate detections:** Overlapping bounding boxes for the same card (e.g. cx=483 and cx=560 for the same card). The model often returns more `hand-card` detections than actual cards in hand.
 - **Confidence varies wildly:** First card in hand may be 0.94, last card 0.34. Don't discard low-confidence detections if the count matters.
+- **Resolution doesn't help:** Tested 960px vs 1920px — same detection count, same confidence. The model is the bottleneck, not pixel count.
 - **Labels:** `hand-card`, `battlefield-untapped`, `battlefield-tapped`, `opponent-untapped`, `opponent-tapped`, `stack-item`. No land-specific label — lands and creatures use the same battlefield labels.
 - **Right sidebar bleeds in:** Detections with cx > 700 may be sidebar UI (Deck Details button at ~817,91). Filter by `cx < 700` during draft.
+- **Card zoom blocks drag:** When a battlefield card is hovered/expanded, it covers hand cards. Click empty battlefield area (e.g. 300,200) to dismiss the zoom before dragging from hand.
 - **`arena board --detect`** correlates detections with debug API cards — more reliable than raw `arena detect`. Adds `screenCX`/`screenCY` to each card dict. Falls back to estimated positions when detection count doesn't match protocol card count.
 
 ## Tips
