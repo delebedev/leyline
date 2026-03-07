@@ -13,18 +13,21 @@ import kotlinx.serialization.json.put
 import leyline.frontdoor.domain.CourseDeck
 import leyline.frontdoor.domain.CourseDeckSummary
 import leyline.frontdoor.domain.DeckId
+import leyline.frontdoor.domain.DraftStatus
 import leyline.frontdoor.domain.MatchInfo
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.domain.Preferences
 import leyline.frontdoor.service.CollectionService
 import leyline.frontdoor.service.CourseService
 import leyline.frontdoor.service.DeckService
+import leyline.frontdoor.service.DraftService
 import leyline.frontdoor.service.EventRegistry
 import leyline.frontdoor.service.LobbyStubs
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.CmdType
 import leyline.frontdoor.wire.DeckWireBuilder
+import leyline.frontdoor.wire.DraftWireBuilder
 import leyline.frontdoor.wire.EventWireBuilder
 import leyline.frontdoor.wire.FdEnvelope
 import leyline.frontdoor.wire.FdRequests
@@ -52,6 +55,7 @@ class FrontDoorHandler(
     private val matchmaking: MatchmakingService,
     private val collectionService: CollectionService,
     private val courseService: CourseService? = null,
+    private val draftService: DraftService? = null,
     private val writer: FdResponseWriter,
     private val golden: GoldenData,
     private val onFdMessage: ((String, FdEnvelope.FdMessage) -> Unit)? = null,
@@ -432,19 +436,44 @@ class FrontDoorHandler(
 
             CmdType.BOT_DRAFT_START.value -> {
                 val req = FdRequests.parseEventName(json)
-                log.info("Front Door: BotDraft_StartDraft event={}", req?.eventName)
-                writer.send(ctx, txId, FdResponse.Json(golden.draftStartJson))
+                val eventName = req?.eventName
+                log.info("Front Door: BotDraft_StartDraft event={}", eventName)
+                if (eventName != null && draftService != null && playerId != null) {
+                    val session = draftService.startDraft(playerId, eventName)
+                    writer.send(ctx, txId, FdResponse.Json(DraftWireBuilder.buildDraftResponse(session)))
+                } else {
+                    writer.send(ctx, txId, FdResponse.Json(golden.draftStartJson))
+                }
             }
 
             CmdType.BOT_DRAFT_PICK.value -> {
-                log.info("Front Door: BotDraft_DraftPick (golden stub)")
-                writer.send(ctx, txId, FdResponse.Json(golden.draftPickJson))
+                val req = FdRequests.parseDraftPick(json)
+                log.info("Front Door: BotDraft_DraftPick card={} pack={} pick={}", req?.cardId, req?.packNumber, req?.pickNumber)
+                if (req != null && draftService != null && playerId != null) {
+                    val session = draftService.pick(playerId, req.eventName, req.cardId, req.packNumber, req.pickNumber)
+                    if (session.status == DraftStatus.Completed && courseService != null) {
+                        courseService.completeDraft(playerId, req.eventName, session.pickedCards)
+                    }
+                    writer.send(ctx, txId, FdResponse.Json(DraftWireBuilder.buildDraftResponse(session)))
+                } else {
+                    writer.send(ctx, txId, FdResponse.Json(golden.draftPickJson))
+                }
             }
 
             CmdType.BOT_DRAFT_STATUS.value -> {
                 val req = FdRequests.parseEventName(json)
-                log.info("Front Door: BotDraft_DraftStatus event={}", req?.eventName)
-                writer.send(ctx, txId, FdResponse.Json(golden.draftStatusJson))
+                val eventName = req?.eventName
+                log.info("Front Door: BotDraft_DraftStatus event={}", eventName)
+                if (eventName != null && draftService != null && playerId != null) {
+                    val session = draftService.getStatus(playerId, eventName)
+                    if (session != null) {
+                        writer.send(ctx, txId, FdResponse.Json(DraftWireBuilder.buildDraftResponse(session)))
+                    } else {
+                        writer.send(ctx, txId, FdResponse.Json(golden.draftStatusJson))
+                    }
+                } else {
+                    writer.send(ctx, txId, FdResponse.Json(golden.draftStatusJson))
+                }
             }
 
             CmdType.EVENT_SET_DECK_V2.value -> {
