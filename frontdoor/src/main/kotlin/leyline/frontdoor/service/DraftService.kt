@@ -60,7 +60,7 @@ class DraftService(
 
         val currentPackSize = session.packs[session.packNumber].size
         val (nextPackNumber, nextPickNumber, nextDraftPack) = if (completed) {
-            Triple(session.packNumber, currentPackSize, emptyList<Int>())
+            Triple(session.packNumber, session.pickNumber, emptyList<Int>())
         } else if (remainingPack.isEmpty()) {
             val nextPN = session.packNumber + 1
             Triple(nextPN, 0, session.packs[nextPN])
