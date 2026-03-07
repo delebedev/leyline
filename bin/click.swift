@@ -97,9 +97,10 @@ case "drag":
     let totalDragMs: Double = 500 // 500ms total drag time
 
     // 1. Pre-move cursor to source (Unity ignores events from unexpected positions)
+    //    500ms settle: hand cards fan/zoom on hover — must wait for animation
     post(CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
                  mouseCursorPosition: point, mouseButton: .left))
-    usleep(80_000) // 80ms settle
+    usleep(500_000) // 500ms settle for card hover animation
 
     // 2. Mouse down at source with longer hold
     post(CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown,

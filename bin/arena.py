@@ -140,10 +140,13 @@ def _mtga_window_id() -> int | None:
     return None
 
 
-def capture_window(out_path: str) -> tuple[int, int, int, int] | None:
+def capture_window(
+    out_path: str, *, hires: bool = False
+) -> tuple[int, int, int, int] | None:
     """Capture MTGA window rect. Activates first, then screencapture -R at window bounds.
 
-    Resizes to logical size so OCR coords = window-relative click coords.
+    By default resizes to logical size so OCR coords = window-relative click coords.
+    With hires=True, keeps retina resolution (2x) for better text recognition.
     """
     _activate_mtga()
     bounds = mtga_window_bounds()
@@ -155,8 +158,9 @@ def capture_window(out_path: str) -> tuple[int, int, int, int] | None:
     if code != 0:
         return None
 
-    # Retina captures at 2x — resize to logical so OCR coords match click coords
-    run("sips", "--resampleWidth", str(w), out_path, "--out", out_path)
+    if not hires:
+        # Retina captures at 2x — resize to logical so OCR coords match click coords
+        run("sips", "--resampleWidth", str(w), out_path, "--out", out_path)
     return bounds
 
 
@@ -263,12 +267,15 @@ def cmd_capture(args: list[str]) -> None:
 def cmd_ocr(args: list[str]) -> None:
     find_text = None
     fmt = False
+    hires = False
     it = iter(args)
     for a in it:
         if a == "--find":
             find_text = next(it)
         elif a == "--fmt":
             fmt = True
+        elif a == "--hires":
+            hires = True
         elif a in ("--json", "--no-json"):
             pass
         else:
@@ -277,7 +284,7 @@ def cmd_ocr(args: list[str]) -> None:
     img = "/tmp/arena/_ocr_capture.png"
     Path(img).parent.mkdir(parents=True, exist_ok=True)
 
-    bounds = capture_window(img)
+    bounds = capture_window(img, hires=hires)
     if bounds is None:
         die("MTGA window not found")
 
@@ -286,10 +293,7 @@ def cmd_ocr(args: list[str]) -> None:
         ocr_args += ["--find", find_text]
 
     code, stdout, stderr = ocr(img, *ocr_args)
-    try:
-        os.remove(img)
-    except OSError:
-        pass
+    _try_remove(img)
 
     if code != 0:
         if find_text:
@@ -297,8 +301,21 @@ def cmd_ocr(args: list[str]) -> None:
         else:
             die(f"OCR failed: {stderr}")
 
-    if fmt:
+    if hires:
+        # Convert 2x retina coords to logical coords (÷2)
         items = json.loads(stdout)
+        for item in items:
+            for key in ("cx", "cy", "x", "y", "w", "h"):
+                if key in item:
+                    item[key] = item[key] // 2
+        if find_text:
+            # Re-filter after coord conversion
+            stdout = json.dumps(items)
+        else:
+            stdout = json.dumps(items)
+
+    if fmt:
+        items = json.loads(stdout) if isinstance(stdout, str) else stdout
         for item in items:
             print(f'{item["text"]:40s} ({item["cx"]},{item["cy"]})')
     else:
@@ -817,6 +834,16 @@ def cmd_board(args: list[str]) -> None:
         ),
         "actions": actions,
     }
+
+    # Quick OCR for the action button text (~888,505)
+    if with_ocr:
+        btn_items = [
+            item
+            for item in ocr_items
+            if 860 < item["cx"] < 920 and 490 < item["cy"] < 520
+        ]
+        board["button"] = btn_items[0]["text"] if btn_items else None
+
     print(json.dumps(board, indent=2))
 
 
