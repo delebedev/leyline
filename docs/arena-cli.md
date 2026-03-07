@@ -39,6 +39,13 @@ arena click "Play" --double        # double click
 arena click "Play" --right         # right click
 ```
 
+### `arena drag`
+Drag from one window-relative coord to another. Used for playing cards (Unity requires drag, not click).
+
+```
+arena drag 450,530 480,350         # drag card from hand to battlefield
+```
+
 - Text clicks: capture → OCR → click center of first match
 - Coord clicks: offset by window origin for screen-absolute CGEvent
 - `--exact`: match whole OCR text, not substring. Use for common words (Done, Play) in screens with card text.
@@ -57,6 +64,19 @@ arena wait turn=3 --timeout 60            # wait for turn number
 - Text conditions: polls via capture + OCR every 500ms. Skips OCR if screen unchanged.
 - State conditions: polls debug API (`/api/state`) every 200ms.
 - Default timeout: 30s.
+
+### `arena-annotate`
+Annotate an MTGA screenshot with game zones and numbered hand cards. Standalone Python script (`bin/arena-annotate`), requires Pillow.
+
+```
+arena-annotate                              # capture live + annotate
+arena-annotate /tmp/screenshot.png          # annotate existing screenshot
+arena-annotate --out /tmp/annotated.png     # custom output path
+arena-annotate --open                       # open result in Preview
+arena-annotate --cards                      # also number cards in hand
+```
+
+Draws 7 fixed zones (Opp Life, Opp Battlefield, River/Stack, Our Battlefield, Our Life, Our Hand, Action Button). `--cards` adds numbered markers on hand cards using OCR positions. Zone coords are stable across all games at 960x568 logical resolution.
 
 ### `arena state`
 Query game state from debug API (`:8090`).
