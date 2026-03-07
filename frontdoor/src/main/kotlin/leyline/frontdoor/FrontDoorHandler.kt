@@ -245,7 +245,11 @@ class FrontDoorHandler(
                 log.info("Front Door: Event_GetCoursesV2")
                 if (courseService != null && playerId != null) {
                     val courses = courseService.getCoursesForPlayer(playerId)
-                    writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.toCoursesJson(courses)))
+                    // Merge real courses with default seed courses (Ladder, Play, etc.)
+                    val realEventNames = courses.map { it.eventName }.toSet()
+                    val defaultJson = EventRegistry.defaultCourses
+                        .filter { it.first !in realEventNames }
+                    writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.toMergedCoursesJson(courses, defaultJson)))
                 } else {
                     writer.send(
                         ctx,
