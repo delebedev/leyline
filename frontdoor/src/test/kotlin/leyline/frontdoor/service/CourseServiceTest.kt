@@ -84,12 +84,13 @@ class CourseServiceTest :
             course.cardPool shouldBe emptyList()
         }
 
-        test("completeDraft transitions course to DeckSelect with card pool") {
+        test("completeDraft transitions course to DeckSelect with card pool and collation ID") {
             service.join(playerId, "QuickDraft_ECL_20260223")
             val pickedCards = listOf(98353, 98519, 98350)
-            val course = service.completeDraft(playerId, "QuickDraft_ECL_20260223", pickedCards)
+            val course = service.completeDraft(playerId, "QuickDraft_ECL_20260223", pickedCards, collationId = 100058)
             course.module shouldBe CourseModule.DeckSelect
             course.cardPool shouldBe pickedCards
+            course.cardPoolByCollation shouldBe listOf(CollationPool(100058, pickedCards))
         }
 
         test("join constructed event creates course at CreateMatch with empty pool") {
