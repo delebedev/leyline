@@ -2,7 +2,7 @@
 """
 Arena CLI — MTGA window automation.
 
-Commands: launch, capture, ocr, click, drag, state, errors, wait, issues
+Commands: launch, capture, ocr, click, drag, play, state, errors, wait, issues
 Zero external deps. Shells out to bin/click, bin/ocr, bin/window-bounds, peekaboo, sips.
 """
 
@@ -404,9 +404,76 @@ def cmd_click(args: list[str]) -> None:
         return
 
 
+def _do_drag(fr: tuple[int, int], to: tuple[int, int]) -> None:
+    """Low-level drag between window-relative coords."""
+    bounds = mtga_window_bounds()
+    if bounds is None:
+        die("MTGA window not found")
+    sx1, sy1 = bounds[0] + fr[0], bounds[1] + fr[1]
+    sx2, sy2 = bounds[0] + to[0], bounds[1] + to[1]
+    code, _, stderr = drag_screen(sx1, sy1, sx2, sy2)
+    if code != 0:
+        die(f"drag failed: {stderr}")
+
+
+def _verified_drag(
+    fr: tuple[int, int],
+    to: tuple[int, int],
+    instance_id: int | None = None,
+    max_attempts: int = 3,
+) -> bool:
+    """Drag with retry + verification via debug API zone change.
+
+    If instance_id is provided, polls the debug API to confirm the card
+    left its original zone. Retries with jitter on failure.
+    """
+    import random
+
+    for attempt in range(max_attempts):
+        # Get pre-drag zone if we have an instance to track
+        pre_zone = None
+        if instance_id is not None:
+            pre_zone = _get_card_zone(instance_id)
+
+        # Apply jitter on retries (±5px)
+        jitter = 0 if attempt == 0 else random.randint(-5, 5)
+        src = (fr[0] + jitter, fr[1] + jitter)
+
+        _do_drag(src, to)
+
+        if instance_id is None:
+            return True  # no verification possible
+
+        # Poll for zone change (up to 2s)
+        for _ in range(10):
+            time.sleep(0.2)
+            new_zone = _get_card_zone(instance_id)
+            if new_zone != pre_zone:
+                return True
+
+        if attempt < max_attempts - 1:
+            print(f"drag attempt {attempt + 1} failed, retrying...", file=sys.stderr)
+
+    return False
+
+
+def _get_card_zone(instance_id: int) -> str | None:
+    """Get current zone for a card by instanceId from debug API."""
+    raw = fetch_api("/api/id-map?active=true")
+    if not raw:
+        return None
+    entries = json.loads(raw)
+    if isinstance(entries, dict):
+        entries = entries.get("data", [])
+    for e in entries:
+        if e.get("instanceId") == instance_id:
+            return e.get("forgeZone")
+    return None
+
+
 def cmd_drag(args: list[str]) -> None:
     if len(args) < 2:
-        die("Usage: arena drag <from_x>,<from_y> <to_x>,<to_y>")
+        die("Usage: arena drag <from_x>,<from_y> <to_x>,<to_y> [--verify <instanceId>]")
 
     fr = _parse_coord(args[0])
     to = _parse_coord(args[1])
@@ -415,17 +482,134 @@ def cmd_drag(args: list[str]) -> None:
     if to is None:
         die(f"Invalid to coord: {args[1]} (expected x,y)")
 
-    bounds = mtga_window_bounds()
-    if bounds is None:
-        die("MTGA window not found")
+    instance_id = None
+    if "--verify" in args:
+        idx = args.index("--verify")
+        if idx + 1 < len(args):
+            instance_id = int(args[idx + 1])
 
-    sx1, sy1 = bounds[0] + fr[0], bounds[1] + fr[1]
-    sx2, sy2 = bounds[0] + to[0], bounds[1] + to[1]
+    if instance_id is not None:
+        ok = _verified_drag(fr, to, instance_id)
+        if ok:
+            print(f"dragged ({fr[0]},{fr[1]}) → ({to[0]},{to[1]}) ✓ verified")
+        else:
+            die(f"drag failed after 3 attempts: card {instance_id} did not move")
+    else:
+        _do_drag(fr, to)
+        print(f"dragged ({fr[0]},{fr[1]}) → ({to[0]},{to[1]})")
 
-    code, _, stderr = drag_screen(sx1, sy1, sx2, sy2)
-    if code != 0:
-        die(f"drag failed: {stderr}")
-    print(f"dragged ({fr[0]},{fr[1]}) → ({to[0]},{to[1]})")
+
+BATTLEFIELD_DROP = (480, 300)  # center of our battlefield area
+HAND_MIN_CY = 490  # detections below this are hand cards, above are hover previews
+
+
+def _find_hand_card(
+    name: str,
+) -> tuple[tuple[int, int], int] | None:
+    """Find a hand card's screen coords and instanceId.
+
+    Uses debug API for card identity + detection for screen position.
+    Returns ((cx, cy), instanceId) or None.
+    """
+    # 1. Get hand from debug API
+    raw = fetch_api("/api/id-map?active=true")
+    if not raw:
+        return None
+    entries = json.loads(raw)
+    if isinstance(entries, dict):
+        entries = entries.get("data", [])
+
+    hand_cards = [
+        e for e in entries
+        if e.get("forgeZone") == "Hand" and e.get("ownerSeatId") == 1
+    ]
+
+    # Find card by name (case-insensitive partial match)
+    target = None
+    name_lower = name.lower()
+    for card in hand_cards:
+        card_name = (card.get("cardName") or "").lower()
+        if card_name == name_lower or name_lower in card_name:
+            target = card
+            break
+
+    if target is None:
+        return None
+
+    instance_id = target.get("instanceId", 0)
+
+    # 2. Get screen coords via detection
+    dets = _board_detect()
+    hand_dets = sorted(
+        [d for d in dets if d["label"] == "hand-card" and d["cy"] > HAND_MIN_CY],
+        key=lambda d: d["cx"],
+    )
+
+    if not hand_dets:
+        # Fallback: estimate position from card count
+        count = len(hand_cards)
+        idx = next(
+            (i for i, c in enumerate(hand_cards) if c.get("instanceId") == instance_id),
+            0,
+        )
+        spacing = min(80, 400 // max(count, 1))
+        center_x = 480 - (count - 1) * spacing // 2 + idx * spacing
+        return ((center_x, 530), instance_id)
+
+    # 3. Match: if detection count == hand count, use index; otherwise best-effort
+    idx = next(
+        (i for i, c in enumerate(hand_cards) if c.get("instanceId") == instance_id),
+        0,
+    )
+    if len(hand_dets) == len(hand_cards) and idx < len(hand_dets):
+        det = hand_dets[idx]
+    elif idx < len(hand_dets):
+        det = hand_dets[idx]
+    else:
+        det = hand_dets[-1]  # last detection as fallback
+
+    return ((det["cx"], det["cy"]), instance_id)
+
+
+def cmd_play(args: list[str]) -> None:
+    """Play a card from hand by name.
+
+    Usage: arena play <card-name> [--to x,y]
+    """
+    if not args:
+        die("Usage: arena play <card-name> [--to x,y]")
+
+    # Parse card name (everything before flags)
+    name_parts = []
+    drop_to = BATTLEFIELD_DROP
+    i = 0
+    while i < len(args):
+        if args[i] == "--to" and i + 1 < len(args):
+            coord = _parse_coord(args[i + 1])
+            if coord:
+                drop_to = coord
+            i += 2
+            continue
+        if not args[i].startswith("--"):
+            name_parts.append(args[i])
+        i += 1
+
+    card_name = " ".join(name_parts)
+    if not card_name:
+        die("No card name provided")
+
+    result = _find_hand_card(card_name)
+    if result is None:
+        die(f"Card '{card_name}' not found in hand")
+
+    (cx, cy), instance_id = result
+    print(f"Playing {card_name} (id={instance_id}) from ({cx},{cy})")
+
+    ok = _verified_drag((cx, cy), drop_to, instance_id)
+    if ok:
+        print(f"✓ {card_name} played successfully")
+    else:
+        die(f"✗ Failed to play {card_name} after 3 attempts")
 
 
 def cmd_state(args: list[str]) -> None:
@@ -987,6 +1171,7 @@ COMMANDS = {
     "ocr": cmd_ocr,
     "click": cmd_click,
     "drag": cmd_drag,
+    "play": cmd_play,
     "state": cmd_state,
     "errors": cmd_errors,
     "wait": cmd_wait,

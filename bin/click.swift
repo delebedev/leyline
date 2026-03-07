@@ -93,27 +93,39 @@ case "drag":
         exit(1)
     }
     let dest = CGPoint(x: x2, y: y2)
-    let steps = 20
-    let duration: UInt32 = 15_000 // 15ms per step (~300ms total drag)
+    let steps = 30
+    let totalDragMs: Double = 500 // 500ms total drag time
 
-    // Mouse down at source
+    // 1. Pre-move cursor to source (Unity ignores events from unexpected positions)
+    post(CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
+                 mouseCursorPosition: point, mouseButton: .left))
+    usleep(80_000) // 80ms settle
+
+    // 2. Mouse down at source with longer hold
     post(CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown,
                  mouseCursorPosition: point, mouseButton: .left))
-    usleep(50_000) // hold before dragging
+    usleep(150_000) // 150ms hold — Unity needs time to register the grab
 
-    // Intermediate drag events along the path
+    // 3. Ease-in/ease-out drag path (smoothstep curve)
     for i in 1...steps {
-        let t = Double(i) / Double(steps)
+        let linear = Double(i) / Double(steps)
+        // smoothstep: 3t² - 2t³ — slow start, fast middle, slow end
+        let t = linear * linear * (3.0 - 2.0 * linear)
         let cx = x + (x2 - x) * t
         let cy = y + (y2 - y) * t
         let p = CGPoint(x: cx, y: cy)
         post(CGEvent(mouseEventSource: nil, mouseType: .leftMouseDragged,
                      mouseCursorPosition: p, mouseButton: .left))
-        usleep(duration)
+        // Variable timing: slower at start/end (ease curve applied to sleep too)
+        let sleepFactor = 0.6 + 0.8 * (1.0 - abs(linear - 0.5) * 2.0)
+        let baseSleep = totalDragMs / Double(steps) * 1000.0
+        usleep(UInt32(baseSleep * sleepFactor))
     }
 
-    // Mouse up at destination
-    usleep(30_000)
+    // 4. Hold at destination before release (let Unity settle the drop zone)
+    usleep(120_000) // 120ms hold at destination
+
+    // 5. Mouse up at destination
     post(CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp,
                  mouseCursorPosition: dest, mouseButton: .left))
     print("dragged \(Int(x)),\(Int(y)) → \(Int(x2)),\(Int(y2))")
