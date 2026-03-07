@@ -428,6 +428,52 @@ class FrontDoorHandlerTest :
             // Empty response is fine — just shouldn't crash
         }
 
+        // --- Shape conformance tests ---
+
+        test("CmdType 1 - StartHook matches reference shape from real server") {
+            val refKeys = loadGoldenRef("golden/fd-reference-starthook.json")
+            val obj = sendJson(1)
+            assertKeysMatch(refKeys, obj, "StartHook")
+        }
+
+        test("CmdType 612 - MatchCreated matches reference shape from real server") {
+            val refKeys = loadGoldenRef("golden/fd-reference-matchcreated.json")
+            val ch = fdChannel()
+            val responses = ch.sendCmdAll(612, """{"deckId":"$testDeckId"}""")
+            val pushJson = responses[1].jsonPayload.shouldNotBeNull()
+            val pushObj = json.parseToJsonElement(pushJson).jsonObject
+            assertKeysMatch(refKeys, pushObj, "MatchCreated")
+        }
+
+        test("CmdType 406 - upserted deck appears in next StartHook") {
+            val deckId = "test-deck-00000000-0000-0000-0000-roundtrip001"
+            val payload = """
+                {
+                    "Summary": {"DeckId":"$deckId","Name":"Roundtrip Deck","DeckTileId":77777},
+                    "Deck": {
+                        "MainDeck": [{"cardId":75515,"quantity":4},{"cardId":75516,"quantity":56}],
+                        "Sideboard": [],
+                        "CommandZone": [],
+                        "Companions": []
+                    },
+                    "ActionType": "Create"
+                }
+            """.trimIndent()
+            val ch = fdChannel()
+            ch.sendCmd(406, payload)
+
+            // StartHook on same channel should include the new deck
+            val hook = ch.sendCmd(1)
+            val hookObj = json.parseToJsonElement(hook.jsonPayload.shouldNotBeNull()).jsonObject
+            val summaries = hookObj["DeckSummariesV2"]!!.jsonArray
+            val ids = summaries.map { it.jsonObject["DeckId"]?.jsonPrimitive?.content }
+            ids shouldContain deckId
+
+            val decksMap = hookObj["Decks"]!!.jsonObject
+            decksMap.containsKey(deckId) shouldBe true
+            decksMap[deckId]!!.jsonObject["MainDeck"].shouldNotBeNull()
+        }
+
         // --- Sealed event integration tests ---
 
         test("CmdType 600 - Event_Join sealed creates course with DeckSelect") {
@@ -536,6 +582,14 @@ private fun assertKeysMatch(
         val actVal = actual[key]
         if (refVal is JsonObject && actVal is JsonObject) {
             assertKeysMatch(refVal, actVal, context, "$path.$key")
+        }
+        // Check first element of arrays-of-objects (e.g. PlayerInfos)
+        if (refVal is JsonArray && actVal is JsonArray && refVal.isNotEmpty() && actVal.isNotEmpty()) {
+            val refFirst = refVal[0]
+            val actFirst = actVal[0]
+            if (refFirst is JsonObject && actFirst is JsonObject) {
+                assertKeysMatch(refFirst, actFirst, context, "$path.$key[0]")
+            }
         }
     }
 }
