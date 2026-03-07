@@ -97,6 +97,9 @@ class GameBridge(
     var phaseStopProfile: PhaseStopProfile? = null
         private set
 
+    /** Client DB repo saved during puzzle hot-swap — used by PuzzleCardRegistrar for real grpIds. */
+    private var puzzleClientRepo: CardRepository? = null
+
     // --- Composed components ---
 
     /** Card ID mapping (Forge cardId ↔ client instanceId). */
@@ -593,6 +596,10 @@ class GameBridge(
      */
     fun resetForPuzzle(puzzle: Puzzle) {
         log.info("GameBridge: resetting for new puzzle")
+
+        // Save reference to client DB repo before swapping (for real grpId lookups)
+        val previousRepo = cards
+
         shutdown()
 
         // Clear all mapping/tracking state from the previous game
@@ -604,11 +611,12 @@ class GameBridge(
         nextAnnotationId = INITIAL_ANNOTATION_ID
         nextPersistentAnnotationId = INITIAL_PERSISTENT_ANNOTATION_ID
 
-        // Swap to InMemoryCardRepository for puzzle (puzzle cards use synthetic grpIds
-        // that don't exist in ExposedCardRepository / client SQLite)
+        // Swap to InMemoryCardRepository backed by the client DB for real grpIds.
+        // PuzzleCardRegistrar checks clientRepo first (real art), falls back to synthetic.
         val memRepo = InMemoryCardRepository()
         cards = memRepo
         cardProto = CardProtoBuilder(memRepo)
+        puzzleClientRepo = previousRepo
 
         startPuzzle(puzzle)
         log.info("GameBridge: puzzle hot-swap complete")
@@ -681,7 +689,7 @@ class GameBridge(
             log.warn("GameBridge: puzzle card registration requires InMemoryCardRepository")
             return
         }
-        val registrar = PuzzleCardRegistrar(repo)
+        val registrar = PuzzleCardRegistrar(repo, clientRepo = puzzleClientRepo)
         val allZones = listOf(
             ZoneType.Hand,
             ZoneType.Battlefield,
