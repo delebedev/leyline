@@ -27,6 +27,8 @@ data class EventDef(
     val eventTags: List<String> = emptyList(),
     val maxWins: Int? = null,
     val maxLosses: Int? = null,
+    /** True for Quick Draft (BotDraft) events — internal flag, not sent on wire. */
+    val isBotDraft: Boolean = false,
 ) {
     val isSealed: Boolean get() = formatType == "Sealed"
 }
@@ -312,15 +314,16 @@ object EventRegistry {
             "QuickDraft_ECL_20260223",
             "Quick Draft ECL",
             "Limited",
-            formatType = "BotDraft",
+            formatType = "Draft",
             displayPriority = 70,
             flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
             bladeBehavior = null,
-            eventTags = listOf("Draft", "Limited"),
+            eventTags = listOf("QuickDraft", "Limited"),
             titleLocKey = "Events/Event_Title_QuickDraft_ECL",
             descLocKey = "Events/Event_Desc_QuickDraft_ECL",
             maxWins = 7,
             maxLosses = 3,
+            isBotDraft = true,
         ),
     )
 
@@ -329,7 +332,7 @@ object EventRegistry {
 
     fun isSealed(eventName: String): Boolean = findEvent(eventName)?.isSealed == true
 
-    fun isDraft(eventName: String): Boolean = findEvent(eventName)?.formatType == "BotDraft"
+    fun isDraft(eventName: String): Boolean = findEvent(eventName)?.isBotDraft == true
 
     /** Look up Forge format name for an Arena event. Null = no restriction (e.g. AIBotMatch with SkipDeckValidation). */
     fun forgeFormatFor(eventName: String): String? {
