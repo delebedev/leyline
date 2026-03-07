@@ -40,6 +40,8 @@ class MatchSession(
     override var counter: MessageCounter = MessageCounter(),
     /** Debug diagnostics sink — protocol messages + game state collector. Null in tests. */
     private val debugSink: MatchDebugSink? = null,
+    /** Callback when match ends. Parameter = true if human won. */
+    val onMatchComplete: ((won: Boolean) -> Unit)? = null,
 ) : SessionOps {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
@@ -535,6 +537,13 @@ class MatchSession(
         val matchCompletedMsg = HandshakeMessages.matchCompleted(matchId, winningTeam, playerId, reason)
         sink.sendRaw(matchCompletedMsg)
         log.info("MatchSession: sent MatchCompleted room state")
+
+        // Notify match result callback (e.g. CourseService for sealed events)
+        try {
+            onMatchComplete?.invoke(humanWon)
+        } catch (e: Exception) {
+            log.warn("MatchSession: onMatchComplete callback failed: {}", e.message)
+        }
 
         // Trigger post-game analysis
         recorder?.run {

@@ -60,7 +60,7 @@ object EventWireBuilder {
     fun toCoursesJson(courses: List<Course>): String = buildJsonObject {
         putJsonArray("Courses") {
             for (course in courses) {
-                add(buildCourseJson(course))
+                add(buildCourseJson(course, includeLosses = true))
             }
         }
     }.toString()
@@ -108,8 +108,8 @@ object EventWireBuilder {
                 putJsonArray("CardSkins") {}
             }
         }
-        if (includeWins) put("CurrentWins", course.wins)
-        if (includeLosses) put("CurrentLosses", course.losses)
+        if (includeWins && course.wins > 0) put("CurrentWins", course.wins)
+        if (includeLosses && course.losses > 0) put("CurrentLosses", course.losses)
         putJsonArray("CardPool") {
             course.cardPool.forEach { add(JsonPrimitive(it)) }
         }
@@ -146,6 +146,28 @@ object EventWireBuilder {
             putJsonObject("CustomTokens") {}
             putJsonArray("PrizeWallsUnlocked") {}
         }
+    }.toString()
+
+    fun buildMatchResultReport(course: Course): String = buildJsonObject {
+        put("CurrentModule", course.module.wireName())
+        put("FoundMatch", true)
+        putJsonObject("InventoryInfo") {
+            put("SeqId", 1)
+            putJsonArray("Changes") {}
+            put("Gems", 0)
+            put("Gold", 0)
+            put("TotalVaultProgress", 0)
+            put("WildCardCommons", 0)
+            put("WildCardUnCommons", 0)
+            put("WildCardRares", 0)
+            put("WildCardMythics", 0)
+            putJsonArray("Boosters") {}
+            putJsonObject("Vouchers") {}
+            putJsonObject("Cosmetics") {}
+            putJsonObject("CustomTokens") {}
+        }
+        putJsonArray("questUpdates") {}
+        putJsonObject("periodicRewardsProgress") {}
     }.toString()
 
     private fun buildEventJson(e: EventDef) = buildJsonObject {

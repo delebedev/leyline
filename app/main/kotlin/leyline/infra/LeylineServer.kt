@@ -267,6 +267,13 @@ class LeylineServer(
                     recorderFactory = {
                         SessionRecorder(mode = "engine").also { SessionRecorder.register(it) }
                     },
+                    onMatchComplete = { won ->
+                        val event = selectedEventName
+                        if (resolvedPlayerId != null && event != null) {
+                            courseService.recordMatchResult(PlayerId(resolvedPlayerId), event, won)
+                            log.info("Match result recorded: event={} won={}", event, won)
+                        }
+                    },
                 ),
             )
         }
