@@ -23,6 +23,7 @@ import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.DraftService
 import leyline.frontdoor.service.EventRegistry
 import leyline.frontdoor.service.LobbyStubs
+import leyline.frontdoor.service.MatchCoordinator
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.CmdType
@@ -59,10 +60,7 @@ class FrontDoorHandler(
     private val writer: FdResponseWriter,
     private val golden: GoldenData,
     private val onFdMessage: ((String, FdEnvelope.FdMessage) -> Unit)? = null,
-    /** Called when client sends 612 with a deckId — writes to shared holder. */
-    private val onDeckSelected: ((String) -> Unit)? = null,
-    /** Called when client sends 612 with an eventName — writes to shared holder. */
-    private val onEventSelected: ((String) -> Unit)? = null,
+    private val coordinator: MatchCoordinator? = null,
 ) : ChannelInboundHandlerAdapter() {
 
     private val log = LoggerFactory.getLogger(FrontDoorHandler::class.java)
@@ -220,8 +218,8 @@ class FrontDoorHandler(
             CmdType.EVENT_AI_BOT_MATCH.value -> {
                 val req = FdRequests.parseAiBotMatch(json)
                 val deckId = req?.deckId
-                if (deckId != null) onDeckSelected?.invoke(deckId)
-                onEventSelected?.invoke("AIBotMatch")
+                if (deckId != null) coordinator?.selectDeck(deckId)
+                coordinator?.selectEvent("AIBotMatch")
                 val pid = playerId ?: PlayerId("anonymous")
                 val match = matchmaking.startAiMatch(pid, DeckId(deckId ?: ""), "AIBotMatch")
                 log.info("Front Door: Event_AiBotMatch deckId={} botDeckId={} → ack + pushing MatchCreated", deckId, req?.botDeckId)
@@ -370,7 +368,7 @@ class FrontDoorHandler(
 
                 val pid = playerId ?: PlayerId("anonymous")
                 try {
-                    if (eventName != null) onEventSelected?.invoke(eventName)
+                    if (eventName != null) coordinator?.selectEvent(eventName)
 
                     // Try course-based deck (sealed events), fall back to selected deck (constructed)
                     val course = if (courseService != null && playerId != null && eventName != null) {
@@ -380,7 +378,7 @@ class FrontDoorHandler(
                     }
                     val courseDeckId = course?.deck?.deckId?.value
                     val deckId = courseDeckId ?: eventName?.let { selectedDeckByEvent[it] }
-                    if (deckId != null) onDeckSelected?.invoke(deckId)
+                    if (deckId != null) coordinator?.selectDeck(deckId)
 
                     val match = if (courseDeckId != null) {
                         matchmaking.createMatchInfo(eventName ?: "")
@@ -459,7 +457,8 @@ class FrontDoorHandler(
                 if (req != null && draftService != null && playerId != null) {
                     val session = draftService.pick(playerId, req.eventName, req.cardId, req.packNumber, req.pickNumber)
                     if (session.status == DraftStatus.Completed && courseService != null) {
-                        courseService.completeDraft(playerId, req.eventName, session.pickedCards)
+                        val collationId = EventRegistry.findEvent(req.eventName)?.collationId ?: 0
+                        courseService.completeDraft(playerId, req.eventName, session.pickedCards, collationId)
                     }
                     writer.send(ctx, txId, FdResponse.Json(DraftWireBuilder.buildDraftResponse(session)))
                 } else {

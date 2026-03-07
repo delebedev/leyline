@@ -89,6 +89,7 @@ class SealedPoolGenerator(private val cards: CardRepository) {
             "TDM" to 100056,
             "FIN" to 100054,
             "DFT" to 100052,
+            "ECL" to 100058,
         )
     }
 }
