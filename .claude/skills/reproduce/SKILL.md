@@ -54,9 +54,60 @@ Extract:
 
 ### 2. Classify reproduction strategy
 
-**Has recipe:** issue has `## Reproduction` with concrete steps. Follow them literally using arena automation.
+Pick the **fastest tier** that covers the bug:
 
-**Exploratory:** no recipe. Play autopilot games, monitor for the failure pattern:
+#### Tier 1: Puzzle test (~5s, no server/client)
+
+Write a `.pzl` file with the exact board state and a conformance test. Best for:
+- Engine/adapter logic bugs (autotap, action building, zone transitions, annotations)
+- Isolating "is this our code or Forge?" — if puzzle test passes, bug is in Forge core
+- Any bug where the failure is in data/proto output, not visual rendering
+
+```
+# matchdoor/src/test/resources/puzzles/my-bug.pzl
+[metadata]
+Name:Bug #N repro
+Goal:Win
+Turns:10
+Difficulty:Tutorial
+Description:...
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Plains;Plains;Forest;Llanowar Elves
+humanhand=Pacifism
+humanlibrary=Plains;Plains;Plains
+aibattlefield=Mountain;Runeclaw Bear
+ailibrary=Mountain;Mountain;Mountain
+```
+
+Test uses `ConformanceTestBase.startPuzzleAtMain1(puzzleText)` → returns `(bridge, game, counter)` at Main1 with exact board.
+
+#### Tier 2: Puzzle in-game (server + client, ~30s)
+
+Start server with `--puzzle` flag, connect client, play through in MTGA. Best for:
+- Visual bugs that need client rendering to confirm
+- Client-side behavior (highlights, animations, prompts)
+- When Tier 1 passes but you need to see what the player sees
+
+#### Tier 3: Bot match in-game (server + client, ~2-5min)
+
+Full bot match via arena automation. Best for:
+- Bugs that depend on game flow (mulligan, turn sequence, AI decisions)
+- Exploratory reproduction when no specific board state is known
+- Visual bugs during normal gameplay
+
+**Always try Tier 1 first.** It's 100x faster and produces a committed test artifact. Escalate to Tier 2/3 only when visual confirmation or game flow is needed.
+
+---
+
+**Has recipe:** issue has `## Reproduction` with concrete steps. Follow them literally using the appropriate tier.
+
+**Exploratory:** no recipe. Start with Tier 1 puzzle if the bug describes a specific board state. Fall back to Tier 3 autopilot games:
 - Debug API: poll `/api/client-errors?since=N` and `/api/logs?level=WARN&since=N` every few seconds
 - Match failure pattern from issue description against errors/warnings
 - Play 1-3 games max before concluding "could not reproduce"
