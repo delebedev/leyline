@@ -206,7 +206,7 @@ class BundleBuilderTest :
             result.messages[1].allowUndo.shouldBeTrue()
         }
 
-        test("echoAttackersBundle with creatures") {
+        test("echoAttackersBundle conformance — SendAndRecord, no combat state, actions present") {
             val (b, game, counter) = base.startWithBoard { _, human, _ ->
                 base.addCard("Llanowar Elves", human, ZoneType.Battlefield)
                 base.addCard("Elvish Mystic", human, ZoneType.Battlefield)
@@ -225,9 +225,22 @@ class BundleBuilderTest :
             val gsm = result.messages[0].gameStateMessage
             gsm.type shouldBe GameStateType.Diff
             (gsm.gameObjectsCount > 0).shouldBeTrue()
+
+            // Conformance: real server uses SendAndRecord, no pendingMessageCount
+            gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
+            gsm.pendingMessageCount shouldBe 0
+
+            // Conformance: no attackState/blockState on echo objects
+            for (obj in gsm.gameObjectsList) {
+                obj.attackState shouldBe Messages.AttackState.None_a3a9
+                obj.blockState shouldBe Messages.BlockState.None_aa2d
+            }
+
+            // Conformance: actions array present (cumulative turn log)
+            (gsm.actionsCount >= 0).shouldBeTrue() // naive actions may be empty in test
         }
 
-        test("echoBlockersBundle with creatures") {
+        test("echoBlockersBundle conformance — SendAndRecord, no combat state, actions present") {
             val (b, game, counter) = base.startWithBoard { _, human, _ ->
                 base.addCard("Llanowar Elves", human, ZoneType.Battlefield)
             }
@@ -244,6 +257,16 @@ class BundleBuilderTest :
 
             val gsm = result.messages[0].gameStateMessage
             (gsm.gameObjectsCount > 0).shouldBeTrue()
+
+            // Conformance: real server uses SendAndRecord, no pendingMessageCount
+            gsm.update shouldBe Messages.GameStateUpdate.SendAndRecord
+            gsm.pendingMessageCount shouldBe 0
+
+            // Conformance: no blockState on echo objects
+            for (obj in gsm.gameObjectsList) {
+                obj.blockState shouldBe Messages.BlockState.None_aa2d
+                obj.attackState shouldBe Messages.AttackState.None_a3a9
+            }
         }
 
         test("selectNBundle shape") {

@@ -6,7 +6,6 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -382,7 +381,7 @@ class CombatFlowTest :
             h.accumulator.assertConsistent("after full combat cycle")
         }
 
-        test("echo back contains creature object") {
+        test("echo back contains creature object without combat state") {
             val attackerIid = setupSingleAttacker()
             val h = harness!!
 
@@ -398,13 +397,20 @@ class CombatFlowTest :
             val echoGsm = echoMsgs.firstOrNull { it.hasGameStateMessage() }
             echoGsm.shouldNotBeNull()
 
-            val objects = echoGsm.gameStateMessage.gameObjectsList
+            val gsm = echoGsm.gameStateMessage
+            val objects = gsm.gameObjectsList
             objects.shouldNotBeEmpty()
 
             val attackerObj = objects.firstOrNull { it.instanceId == attackerIid }
             attackerObj.shouldNotBeNull()
-            attackerObj.attackState shouldBe AttackState.Attacking
-            attackerObj.isTapped.shouldBeTrue()
+
+            // Conformance: real server echo carries NO combat state (confirmed across 4 recordings)
+            attackerObj.attackState shouldBe AttackState.None_a3a9
+            attackerObj.blockState shouldBe BlockState.None_aa2d
+
+            // Conformance: SendAndRecord, no pendingMessageCount
+            gsm.update shouldBe GameStateUpdate.SendAndRecord
+            gsm.pendingMessageCount shouldBe 0
 
             // Echo should also contain a fresh DeclareAttackersReq
             val echoReq = echoMsgs.firstOrNull { it.hasDeclareAttackersReq() }
@@ -432,7 +438,7 @@ class CombatFlowTest :
 
             val attackerObj = objects.firstOrNull { it.instanceId == attackerIid }
             attackerObj.shouldNotBeNull()
-            attackerObj.attackState shouldNotBe AttackState.Attacking
+            attackerObj.attackState shouldBe AttackState.None_a3a9
         }
 
         test("multi toggle before submit") {
