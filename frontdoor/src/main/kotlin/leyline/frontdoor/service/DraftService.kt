@@ -18,7 +18,6 @@ class DraftService(
     private val generatePacks: (setCode: String) -> List<List<Int>>,
 ) {
     companion object {
-        const val CARDS_PER_PACK = 13
         const val TOTAL_PACKS = 3
     }
 
@@ -56,11 +55,12 @@ class DraftService(
 
         val newPickedCards = session.pickedCards + cardId
         val remainingPack = session.draftPack - cardId
-        val totalPicks = newPickedCards.size
-        val completed = totalPicks >= TOTAL_PACKS * CARDS_PER_PACK
+        val totalPicksNeeded = session.packs.sumOf { it.size }
+        val completed = newPickedCards.size >= totalPicksNeeded
 
+        val currentPackSize = session.packs[session.packNumber].size
         val (nextPackNumber, nextPickNumber, nextDraftPack) = if (completed) {
-            Triple(session.packNumber, CARDS_PER_PACK, emptyList<Int>())
+            Triple(session.packNumber, currentPackSize, emptyList<Int>())
         } else if (remainingPack.isEmpty()) {
             val nextPN = session.packNumber + 1
             Triple(nextPN, 0, session.packs[nextPN])
@@ -81,6 +81,11 @@ class DraftService(
 
     fun getStatus(playerId: PlayerId, eventName: String): DraftSession? =
         repo.findByPlayerAndEvent(playerId, eventName)
+
+    fun drop(playerId: PlayerId, eventName: String) {
+        val session = repo.findByPlayerAndEvent(playerId, eventName) ?: return
+        repo.delete(session.id)
+    }
 
     private fun extractSetCode(eventName: String): String {
         val parts = eventName.split("_")
