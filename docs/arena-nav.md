@@ -202,6 +202,95 @@ Event blade shows updated loss counter. Click "Play" for next match.
 
 ---
 
+## Quick Draft Loop (Full Example)
+
+### Prerequisites
+```bash
+just serve-proxy   # proxy mode for recording, or just serve for local
+bin/arena launch
+```
+
+### 1. Navigate to Quick Draft
+```bash
+bin/arena click "Play" --retry 3          # lobby → play menu
+sleep 2
+bin/arena click "Limited" --retry 3       # filter to limited events
+sleep 1
+# Quick Draft tile — OCR for title, click card art ~50px above
+bin/arena ocr --find "Quick Draft"        # get title coords
+bin/arena click <cx>,<cy - 50>            # click tile image
+sleep 2
+```
+
+### 2. Join (pay entry fee)
+```bash
+# Event blade shows entry fees: 750 gems (top) / 5000 gold (bottom), bottom-right
+bin/arena click 854,478                   # 750 gem button (bottom-right area)
+sleep 1
+bin/arena click "OK" --retry 3           # confirm purchase dialog
+sleep 3                                   # → draft screen loads
+```
+
+### 3. Draft picks (3 packs × ~14 picks)
+```bash
+# Draft screen: cards in rows, "Confirm Pick" button at ~588,532
+# "Pack N / Pick M" in top-left shows progress
+# Pick from top row (rares tend to be top-left):
+for i in $(seq 1 42); do
+    bin/arena click 150,200               # select top-left card
+    sleep 0.5
+    bin/arena click 588,532               # confirm pick
+    sleep 1.5
+    bin/arena ocr --find "Confirm Pick" >/dev/null 2>&1 || break
+done
+# After last pick: "Vault Progress" + "Okay" button appears
+bin/arena click "Okay" --retry 3          # → deck builder
+sleep 2
+```
+
+### 4. Build deck (same as sealed — 40 cards)
+```bash
+# Deck builder: "N/40 Cards" counter, card list on left
+# Auto-build or click cards to add, then Done
+bin/arena click "Done" --retry 3          # submit deck → event blade
+sleep 2
+```
+
+### 5. Play / concede loop
+```bash
+# Event blade: "Play" button, "N LOSSES" counter, "Resign" option
+bin/arena click "Play" --retry 3
+bin/arena wait text="Keep" --timeout 30
+bin/arena click "Keep" --retry 3
+# ... play or concede as needed
+```
+
+### Key signals
+| Stage | OCR signal | Means |
+|-------|-----------|-------|
+| Events tab | `"Quick Draft"` | Event tile visible |
+| Event blade | `750` / `5000` | Entry fee, click to join |
+| Purchase | `"OK"` | Confirm spend |
+| Draft | `"Pack N / Pick M"` | Active drafting |
+| Draft | `"Confirm Pick"` | Card selected, ready to pick |
+| Draft done | `"Vault Progress"` + `"Okay"` | All picks made |
+| Deck builder | `"N/40 Cards"` + `"Done"` | Building limited deck |
+| Event blade | `"0 LOSSES"` + `"Play"` | Deck submitted, can queue |
+
+### Protocol flow (CmdTypes)
+```
+Event_Join(600)           → Course with CurrentModule="BotDraft"
+BotDraft_StartDraft(1800) → first pack (13 cards, draftStatus=PickNext)
+BotDraft_DraftPick(1801)  × 39 picks → next pack each time
+  (last pick returns draftStatus=Completed)
+Draft_CompleteDraft(1908) → finalizes pool
+Event_GetCoursesV2(623)   → Course with CurrentModule="DeckSelect", CardPool=[39 grpIds]
+Event_SetDeckV2(622)      → submit 40-card deck
+Event_EnterPairing(603)   → queue for match
+```
+
+---
+
 ## Bot Match Loop (Full Example)
 
 All steps use OCR — no hardcoded coords except deck thumbnail offset.

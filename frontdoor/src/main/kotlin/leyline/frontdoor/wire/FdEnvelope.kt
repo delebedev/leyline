@@ -416,7 +416,6 @@ object FdEnvelope {
         val seatId: Int,
         val teamId: Int,
         val name: String,
-        val visibleName: String = name,
         val avatarId: String = "Avatar_Basic_Adventurer",
     )
 
@@ -455,7 +454,7 @@ object FdEnvelope {
                 put("YourSeat", yourSeat)
                 putJsonArray("PlayerInfos") {
                     for (p in players) {
-                        add(playerInfoJson(p.seatId, p.teamId, p.visibleName, p.avatarId))
+                        add(playerInfoJson(p.seatId, p.teamId, p.name, p.avatarId))
                     }
                 }
             }
