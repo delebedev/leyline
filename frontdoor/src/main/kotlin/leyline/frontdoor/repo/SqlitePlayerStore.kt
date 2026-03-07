@@ -3,6 +3,12 @@ package leyline.frontdoor.repo
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import leyline.frontdoor.domain.CollationPool
+import leyline.frontdoor.domain.Course
+import leyline.frontdoor.domain.CourseDeck
+import leyline.frontdoor.domain.CourseDeckSummary
+import leyline.frontdoor.domain.CourseId
+import leyline.frontdoor.domain.CourseModule
 import leyline.frontdoor.domain.Deck
 import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
@@ -12,6 +18,7 @@ import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.domain.Preferences
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.SchemaUtils
@@ -27,7 +34,8 @@ import org.jetbrains.exposed.v1.jdbc.update
  */
 class SqlitePlayerStore(private val database: Database) :
     DeckRepository,
-    PlayerRepository {
+    PlayerRepository,
+    CourseRepository {
 
     /* ---------- Exposed table objects (match existing schema exactly) ---------- */
 
@@ -54,10 +62,42 @@ class SqlitePlayerStore(private val database: Database) :
         override val primaryKey = PrimaryKey(deckId)
     }
 
+    private object Courses : Table("courses") {
+        val id = text("id")
+        val playerId = text("player_id")
+        val eventName = text("event_name")
+        val module = text("module")
+        val wins = integer("wins").default(0)
+        val losses = integer("losses").default(0)
+        val cardPool = text("card_pool").default("[]")
+        val cardPoolByCollation = text("card_pool_by_collation").default("[]")
+        val deck = text("deck").nullable()
+        val deckSummary = text("deck_summary").nullable()
+        override val primaryKey = PrimaryKey(id)
+    }
+
     /* ---------- JSON wire format for the cards column ---------- */
 
     @Serializable
     private data class CardEntry(val cardId: Int, val quantity: Int)
+
+    @Serializable
+    private data class CollationPoolDto(val collationId: Int, val cardPool: List<Int>)
+
+    @Serializable
+    private data class CourseDeckDto(
+        val deckId: String,
+        val mainDeck: List<CardEntry>,
+        val sideboard: List<CardEntry>,
+    )
+
+    @Serializable
+    private data class CourseDeckSummaryDto(
+        val deckId: String,
+        val name: String,
+        val tileId: Int,
+        val format: String,
+    )
 
     @Serializable
     private data class CardsBlob(
@@ -72,7 +112,7 @@ class SqlitePlayerStore(private val database: Database) :
     /* ---------- Schema bootstrap ---------- */
 
     fun createTables() {
-        transaction(database) { SchemaUtils.create(Players, Decks) }
+        transaction(database) { SchemaUtils.create(Players, Decks, Courses) }
     }
 
     /* ---------- DeckRepository ---------- */
@@ -166,6 +206,75 @@ class SqlitePlayerStore(private val database: Database) :
         }
     }
 
+    /* ---------- CourseRepository ---------- */
+
+    override fun findById(id: CourseId): Course? = transaction(database) {
+        Courses.selectAll().where { Courses.id eq id.value }.firstOrNull()?.toCourse()
+    }
+
+    override fun findByPlayer(playerId: PlayerId): List<Course> = transaction(database) {
+        Courses.selectAll().where { Courses.playerId eq playerId.value }.map { it.toCourse() }
+    }
+
+    override fun findByPlayerAndEvent(playerId: PlayerId, eventName: String): Course? =
+        transaction(database) {
+            Courses.selectAll().where {
+                (Courses.playerId eq playerId.value) and (Courses.eventName eq eventName)
+            }.firstOrNull()?.toCourse()
+        }
+
+    override fun save(course: Course) {
+        transaction(database) {
+            val existing = Courses.selectAll().where { Courses.id eq course.id.value }.count() > 0
+            val poolJson = json.encodeToString(course.cardPool)
+            val collationJson = json.encodeToString(
+                course.cardPoolByCollation.map { CollationPoolDto(it.collationId, it.cardPool) },
+            )
+            val deckJson = course.deck?.let { d ->
+                json.encodeToString(
+                    CourseDeckDto(
+                        d.deckId.value,
+                        d.mainDeck.map { CardEntry(it.grpId, it.quantity) },
+                        d.sideboard.map { CardEntry(it.grpId, it.quantity) },
+                    ),
+                )
+            }
+            val summaryJson = course.deckSummary?.let { s ->
+                json.encodeToString(
+                    CourseDeckSummaryDto(s.deckId.value, s.name, s.tileId, s.format),
+                )
+            }
+            if (existing) {
+                Courses.update({ Courses.id eq course.id.value }) {
+                    it[module] = course.module.name
+                    it[wins] = course.wins
+                    it[losses] = course.losses
+                    it[cardPool] = poolJson
+                    it[cardPoolByCollation] = collationJson
+                    it[deck] = deckJson
+                    it[deckSummary] = summaryJson
+                }
+            } else {
+                Courses.insert {
+                    it[id] = course.id.value
+                    it[playerId] = course.playerId.value
+                    it[eventName] = course.eventName
+                    it[module] = course.module.name
+                    it[wins] = course.wins
+                    it[losses] = course.losses
+                    it[cardPool] = poolJson
+                    it[cardPoolByCollation] = collationJson
+                    it[deck] = deckJson
+                    it[deckSummary] = summaryJson
+                }
+            }
+        }
+    }
+
+    override fun delete(id: CourseId) {
+        transaction(database) { Courses.deleteWhere { Courses.id eq id.value } }
+    }
+
     /* ---------- Mapping helpers ---------- */
 
     private fun ResultRow.toDeck(): Deck {
@@ -181,6 +290,37 @@ class SqlitePlayerStore(private val database: Database) :
             commandZone = blob.CommandZone.map { DeckCard(it.cardId, it.quantity) },
             companions = blob.Companions.map { DeckCard(it.cardId, it.quantity) },
             isFavorite = this[Decks.isFavorite],
+        )
+    }
+
+    private fun ResultRow.toCourse(): Course {
+        val poolJson = this[Courses.cardPool]
+        val collationJson = this[Courses.cardPoolByCollation]
+        val deckJson = this[Courses.deck]
+        val summaryJson = this[Courses.deckSummary]
+
+        return Course(
+            id = CourseId(this[Courses.id]),
+            playerId = PlayerId(this[Courses.playerId]),
+            eventName = this[Courses.eventName],
+            module = CourseModule.valueOf(this[Courses.module]),
+            wins = this[Courses.wins],
+            losses = this[Courses.losses],
+            cardPool = json.decodeFromString(poolJson),
+            cardPoolByCollation = json.decodeFromString<List<CollationPoolDto>>(collationJson)
+                .map { CollationPool(it.collationId, it.cardPool) },
+            deck = deckJson?.let { d ->
+                val dto = json.decodeFromString<CourseDeckDto>(d)
+                CourseDeck(
+                    DeckId(dto.deckId),
+                    dto.mainDeck.map { DeckCard(it.cardId, it.quantity) },
+                    dto.sideboard.map { DeckCard(it.cardId, it.quantity) },
+                )
+            },
+            deckSummary = summaryJson?.let { s ->
+                val dto = json.decodeFromString<CourseDeckSummaryDto>(s)
+                CourseDeckSummary(DeckId(dto.deckId), dto.name, dto.tileId, dto.format)
+            },
         )
     }
 
