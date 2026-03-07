@@ -13,6 +13,7 @@ import leyline.recording.RecordingInspector
  * - actions <session-dir-or-id> [--card X] [--actor Y] [--limit N]
  * - who-played <session-dir-or-id> --card X
  * - compare <left-session> <right-session>
+ * - turninfo <session-dir-or-id>
  */
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
@@ -94,6 +95,23 @@ fun main(args: Array<String>) {
             }
         }
 
+        "turninfo" -> {
+            val ref = args.getOrNull(1)
+            if (ref.isNullOrBlank()) {
+                printUsage()
+                return
+            }
+            val entries = inspector.turninfo(ref)
+            if (entries.isNullOrEmpty()) {
+                println("No turnInfo entries found.")
+                return
+            }
+            println("gsId\tmsgId\tturn\tphase\tstep\tactive\tpriority\tdecision")
+            entries.forEach {
+                println("${it.gsId}\t${it.msgId}\t${it.turn}\t${it.phase}\t${it.step}\t${it.activePlayer}\t${it.priorityPlayer}\t${it.decisionPlayer}")
+            }
+        }
+
         "compare" -> {
             val left = args.getOrNull(1)
             val right = args.getOrNull(2)
@@ -131,4 +149,5 @@ private fun printUsage() {
     System.err.println("  RecordingCli actions <session-dir-or-id> [--card X] [--actor Y] [--limit N]")
     System.err.println("  RecordingCli who-played <session-dir-or-id> --card X")
     System.err.println("  RecordingCli compare <left-session> <right-session>")
+    System.err.println("  RecordingCli turninfo <session-dir-or-id>")
 }
