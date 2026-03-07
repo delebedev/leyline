@@ -82,8 +82,8 @@ class CombatHandler(private val ops: SessionOps) {
                 lastDeclaredAttackerIds = resp.selectedAttackersList.map { it.attackerInstanceId }
                 log.info("CombatHandler: iterative update — selected {}", lastDeclaredAttackerIds)
             }
-            // Echo back GSM with provisional attack state + DeclareAttackersReq.
-            // Real server sends the toggled creature with attackState=Attacking.
+            // Echo back GSM with creature object (no combat state) + DeclareAttackersReq.
+            // Real server echo carries NO attackState — confirmed across 4 proxy recordings.
             sendAttackerEchoBack(bridge)
             return
         }

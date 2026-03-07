@@ -145,12 +145,12 @@ object ObjectMapper {
     }
 
     /**
-     * Build a [GameObjectInfo] with provisional combat state override.
+     * Build a [GameObjectInfo] for echo-back GSMs during iterative combat declaration.
      *
-     * Used for echo-back GSMs during iterative attacker/blocker declaration.
-     * The engine's combat object doesn't track provisional selections — this
-     * method overrides [AttackState]/[BlockState] and tap state based on the
-     * client's current toggle selection.
+     * Real server echo objects carry NO combat state (no attackState/blockState) —
+     * confirmed across 4 proxy recordings. Only base card fields are included.
+     * The client uses the DeclareAttackersReq/DeclareBlockersReq re-prompt
+     * (not object state) to track provisional selections.
      */
     fun buildProvisionalCombatObject(
         card: Card,
@@ -160,11 +160,9 @@ object ObjectMapper {
         controllerSeatId: Int,
         bridge: GameBridge,
         game: Game,
-        attacking: Boolean = false,
-        blocking: Boolean = false,
     ): GameObjectInfo {
         val grpId = resolveGrpId(card, bridge.cards)
-        val builder = bridge.cardProto.buildObjectInfo(grpId)
+        return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Card)
             .setZoneId(zoneId)
@@ -172,22 +170,7 @@ object ObjectMapper {
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(controllerSeatId)
             .applyCardFields(card, bridge, game)
-
-        // Override combat state from provisional selection
-        if (attacking) {
-            builder.setAttackState(AttackState.Attacking)
-            builder.setIsTapped(true)
-        } else {
-            builder.setAttackState(AttackState.None_a3a9)
-            // Restore original tap state (don't force untapped — card may have been tapped before combat)
-            builder.setIsTapped(card.isTapped)
-        }
-
-        if (blocking) {
-            builder.setBlockState(BlockState.Blocking)
-        }
-
-        return builder.build()
+            .build()
     }
 
     /** Resolve grpId for a card, using token-specific lookup for tokens. */

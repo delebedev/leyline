@@ -383,9 +383,9 @@ object BundleBuilder {
         val nextGs = counter.nextGsId()
         val player = bridge.getPlayer(seatId) ?: return BundleResult(emptyList())
 
-        // Build provisional creature objects for ALL legal attackers
+        // Build provisional creature objects for ALL legal attackers.
+        // Real server echo objects carry NO combat state — confirmed across 4 recordings.
         val objects = mutableListOf<GameObjectInfo>()
-        val selectedSet = selectedAttackerIds.toSet()
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
             val iid = bridge.getOrAllocInstanceId(card.id)
@@ -400,22 +400,24 @@ object BundleBuilder {
                     controllerSeatId = seatId,
                     bridge = bridge,
                     game = game,
-                    attacking = iid in selectedSet,
                 ),
             )
         }
 
-        val gsm = GameStateMessage.newBuilder()
+        // Cumulative turn-level actions (Cast, Play, ActivateMana, Activate).
+        // Real server echo GSMs always include this running log.
+        val actions = ActionMapper.buildNaiveActions(seatId, bridge)
+
+        val gsmBuilder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(nextGs)
             .addAllGameObjects(objects)
             .setPrevGameStateId(nextGs - 1)
-            .setUpdate(GameStateUpdate.SendHiFi)
-            .setPendingMessageCount(1)
-            .build()
+            .setUpdate(GameStateUpdate.SendAndRecord)
+        embedActions(gsmBuilder, actions, seatId, pending = false)
 
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
-            it.gameStateMessage = gsm
+            it.gameStateMessage = gsmBuilder.build()
         }
 
         val req = RequestBuilder.buildDeclareAttackersReq(game, seatId, bridge)
@@ -472,13 +474,13 @@ object BundleBuilder {
         val nextGs = counter.nextGsId()
         val player = bridge.getPlayer(seatId) ?: return BundleResult(emptyList())
 
-        // Build provisional creature objects for all potential blockers
+        // Build provisional creature objects for assigned blockers.
+        // Real server echo objects carry NO combat state — confirmed across 4 recordings.
         val objects = mutableListOf<GameObjectInfo>()
         val blockerSet = blockAssignments.keys
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
             val iid = bridge.getOrAllocInstanceId(card.id)
-            // Only include creatures that are assigned as blockers
             if (iid !in blockerSet) continue
 
             objects.add(
@@ -490,25 +492,27 @@ object BundleBuilder {
                     controllerSeatId = seatId,
                     bridge = bridge,
                     game = game,
-                    blocking = true,
                 ),
             )
         }
 
-        val gsm = GameStateMessage.newBuilder()
+        // Cumulative turn-level actions — same pattern as attacker echo.
+        val actions = ActionMapper.buildNaiveActions(seatId, bridge)
+
+        val gsmBuilder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(nextGs)
             .addAllGameObjects(objects)
             .setPrevGameStateId(nextGs - 1)
-            .setUpdate(GameStateUpdate.SendHiFi)
-            .setPendingMessageCount(1)
-            .build()
+            .setUpdate(GameStateUpdate.SendAndRecord)
+        embedActions(gsmBuilder, actions, seatId, pending = false)
 
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
-            it.gameStateMessage = gsm
+            it.gameStateMessage = gsmBuilder.build()
         }
 
-        val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge)
+        // Re-prompt with assigned blockers' attackerInstanceIds cleared
+        val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge, assignedBlockerIds = blockAssignments.keys)
         val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.declareBlockersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
