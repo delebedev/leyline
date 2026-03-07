@@ -116,12 +116,9 @@ Keep one `PrioritySignal` instance. All action/prompt bridges signal to it. `awa
 
 ## Migration Path
 
-### Phase 1: Fix getPlayer() (zero behavior change)
+### Phase 1: Fix getPlayer() (zero behavior change) — ✅ Done (`5aa147d`)
 
-1. Add `players: Map<Int, Player>` to GameBridge.
-2. Populate in `start()` — seat 1 = first player, seat 2 = second player (preserves current ordering).
-3. Change `getPlayer()` to map lookup.
-4. Run full test gate. No API change — callers still call `getPlayer(1)`.
+`players: MutableMap<Int, Player>` populated in `start()`/`wrapGame()`/`startPuzzle()` via `populateSeatMap()`. `getPlayer()` is now a one-liner map lookup. 13+ callers benefit transitively.
 
 ### Phase 2: Per-seat bridge maps (zero behavior change for 1v1 AI)
 

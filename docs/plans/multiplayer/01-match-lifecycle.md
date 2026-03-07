@@ -78,7 +78,7 @@ This split is formalized in plan 02 (per-seat bridge refactor). For this plan, G
 
 ## Migration Path
 
-**Phase 1: Wrap.** Introduce `Match` as a thin wrapper around `GameBridge`. Match holds the bridge, delegates `start()`/`shutdown()` to it. MatchRegistry stores `Match` instead of `GameBridge`. MatchHandler creates `Match` instead of `GameBridge` directly. Zero behavior change — Match is a pass-through.
+**Phase 1: Wrap.** ✅ Done (`2dc0dc3`). `Match` wraps `GameBridge`, `MatchRegistry` stores `Match`, `MatchHandler`/`PuzzleHandler` create `Match`. Zero behavior change.
 
 **Phase 2: Lifecycle state.** Add `MatchState` enum and `close()`. Wire `close()` into game-over path (`MatchSession.sendGameOver`) and disconnect handler (`MatchHandler.channelInactive`). Replace `evictStale()` ad-hoc cleanup with deterministic `close()` calls.
 
