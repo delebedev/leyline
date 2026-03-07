@@ -26,12 +26,15 @@ import leyline.debug.SessionRecorder
 import leyline.frontdoor.FrontDoorHandler
 import leyline.frontdoor.FrontDoorReplayStub
 import leyline.frontdoor.GoldenData
+import leyline.frontdoor.domain.CollationPool
 import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.SqlitePlayerStore
 import leyline.frontdoor.service.CollectionService
+import leyline.frontdoor.service.CourseService
 import leyline.frontdoor.service.DeckService
+import leyline.frontdoor.service.GeneratedPool
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.DeckWireBuilder
@@ -168,6 +171,14 @@ class LeylineServer(
         store.createTables()
         val deckService = DeckService(store)
         val playerService = PlayerService(store)
+        val courseService = CourseService(store) { _ ->
+            // Stub pool generator — real Forge integration in Task 14
+            GeneratedPool(
+                cards = (1..84).toList(),
+                byCollation = listOf(CollationPool(100026, (1..84).toList())),
+                collationId = 100026,
+            )
+        }
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
         val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort, validateDeck = validateDeck)
         val writer = FdResponseWriter(onFdMessage = fdCollector::record)
@@ -199,6 +210,7 @@ class LeylineServer(
                         playerService = playerService,
                         matchmaking = matchmakingService,
                         collectionService = CollectionService { cardRepo.findAllGrpIds() },
+                        courseService = courseService,
                         writer = writer,
                         golden = golden,
                         onFdMessage = fdCollector::record,

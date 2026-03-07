@@ -1,9 +1,12 @@
 package leyline.frontdoor.wire
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import leyline.frontdoor.domain.DeckCard
 import org.slf4j.LoggerFactory
 
 /**
@@ -37,8 +40,15 @@ object FdRequests {
     /** CmdType 608 */
     data class MatchResult(val eventName: String, val matchId: String?)
 
-    /** CmdType 622 — eventName + deckId extracted from Summary. Full deck parsed by [DeckWireBuilder]. */
-    data class SetDeck(val eventName: String, val deckId: String?)
+    /** CmdType 622 — eventName + deckId extracted from Summary, deck contents from Deck. */
+    data class SetDeck(
+        val eventName: String,
+        val deckId: String?,
+        val deckName: String? = null,
+        val tileId: Int? = null,
+        val mainDeck: List<DeckCard> = emptyList(),
+        val sideboard: List<DeckCard> = emptyList(),
+    )
 
     /** CmdType 403 */
     data class DeleteDeck(val deckId: String)
@@ -80,15 +90,36 @@ object FdRequests {
     }
 
     fun parseSetDeck(json: String?): SetDeck? = parse(json) { obj ->
+        val summary = obj["Summary"]?.jsonObject
+        val deck = obj["Deck"]?.jsonObject
         SetDeck(
             eventName = obj["EventName"]?.jsonPrimitive?.content ?: return@parse null,
-            deckId = obj["Summary"]?.jsonObject?.get("DeckId")?.jsonPrimitive?.content,
+            deckId = summary?.get("DeckId")?.jsonPrimitive?.content,
+            deckName = summary?.get("Name")?.jsonPrimitive?.content,
+            tileId = summary?.get("DeckTileId")?.jsonPrimitive?.int,
+            mainDeck = parseDeckCards(deck?.get("MainDeck")),
+            sideboard = parseDeckCards(deck?.get("Sideboard")),
         )
     }
 
     fun parseDeleteDeck(json: String?): DeleteDeck? = parse(json) { obj ->
         val id = obj["DeckId"]?.jsonPrimitive?.content ?: return@parse null
         DeleteDeck(id)
+    }
+
+    private fun parseDeckCards(element: JsonElement?): List<DeckCard> {
+        if (element == null) return emptyList()
+        return try {
+            element.jsonArray.map { card ->
+                val obj = card.jsonObject
+                DeckCard(
+                    grpId = obj["cardId"]?.jsonPrimitive?.int ?: 0,
+                    quantity = obj["quantity"]?.jsonPrimitive?.int ?: 1,
+                )
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
     }
 
     private inline fun <T> parse(

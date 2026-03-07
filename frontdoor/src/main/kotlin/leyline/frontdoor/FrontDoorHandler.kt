@@ -10,11 +10,14 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
+import leyline.frontdoor.domain.CourseDeck
+import leyline.frontdoor.domain.CourseDeckSummary
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.MatchInfo
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.domain.Preferences
 import leyline.frontdoor.service.CollectionService
+import leyline.frontdoor.service.CourseService
 import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.EventRegistry
 import leyline.frontdoor.service.LobbyStubs
@@ -48,6 +51,7 @@ class FrontDoorHandler(
     private val playerService: PlayerService,
     private val matchmaking: MatchmakingService,
     private val collectionService: CollectionService,
+    private val courseService: CourseService? = null,
     private val writer: FdResponseWriter,
     private val golden: GoldenData,
     private val onFdMessage: ((String, FdEnvelope.FdMessage) -> Unit)? = null,
@@ -227,9 +231,19 @@ class FrontDoorHandler(
             }
 
             CmdType.EVENT_GET_COURSES_V2.value -> {
-                val coursesJson = EventWireBuilder.toDefaultCoursesJson(EventRegistry.defaultCourses)
-                log.debug("Front Door: EventGetCoursesV2")
-                writer.send(ctx, txId, FdResponse.Json(coursesJson))
+                log.info("Front Door: Event_GetCoursesV2")
+                if (courseService != null && playerId != null) {
+                    val courses = courseService.getCoursesForPlayer(playerId)
+                    writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.toCoursesJson(courses)))
+                } else {
+                    writer.send(
+                        ctx,
+                        txId,
+                        FdResponse.Json(
+                            EventWireBuilder.toDefaultCoursesJson(EventRegistry.defaultCourses),
+                        ),
+                    )
+                }
             }
 
             CmdType.GET_PLAYER_PREFERENCES.value -> {
@@ -304,21 +318,36 @@ class FrontDoorHandler(
 
             CmdType.EVENT_JOIN.value -> {
                 val req = FdRequests.parseEventJoin(json)
-                val isSealed = req?.eventName?.startsWith("Sealed") == true
-                log.info("Front Door: Event_Join event={} (golden{})", req?.eventName, if (isSealed) "/sealed" else "")
-                writer.send(
-                    ctx,
-                    txId,
-                    FdResponse.Json(
-                        if (isSealed) golden.sealedJoinJson else golden.eventJoinJson,
-                    ),
-                )
+                val eventName = req?.eventName
+                log.info("Front Door: Event_Join event={}", eventName)
+                if (eventName != null && courseService != null && playerId != null) {
+                    val course = courseService.join(playerId, eventName)
+                    writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildJoinResponse(course)))
+                } else {
+                    val isSealed = eventName?.startsWith("Sealed") == true
+                    writer.send(
+                        ctx,
+                        txId,
+                        FdResponse.Json(
+                            if (isSealed) golden.sealedJoinJson else golden.eventJoinJson,
+                        ),
+                    )
+                }
             }
 
             CmdType.EVENT_DROP.value -> {
                 val req = FdRequests.parseEventName(json)
                 log.info("Front Door: Event_Drop event={}", req?.eventName)
-                writer.send(ctx, txId, FdResponse.Json("{}"))
+                if (req?.eventName != null && courseService != null && playerId != null) {
+                    try {
+                        val course = courseService.drop(playerId, req.eventName)
+                        writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
+                    } catch (e: IllegalArgumentException) {
+                        writer.send(ctx, txId, FdResponse.Json("{}"))
+                    }
+                } else {
+                    writer.send(ctx, txId, FdResponse.Json("{}"))
+                }
             }
 
             CmdType.EVENT_ENTER_PAIRING.value -> {
@@ -369,15 +398,43 @@ class FrontDoorHandler(
                 if (req != null && req.deckId != null) {
                     selectedDeckByEvent[req.eventName] = req.deckId
                 }
-                val isSealed = req?.eventName?.startsWith("Sealed") == true
-                log.info("Front Door: Event_SetDeckV2 event={} deck={} (golden{})", req?.eventName, req?.deckId, if (isSealed) "/sealed" else "")
-                writer.send(
-                    ctx,
-                    txId,
-                    FdResponse.Json(
-                        if (isSealed) golden.sealedSetDeckJson else golden.eventSetDeckJson,
-                    ),
-                )
+                log.info("Front Door: Event_SetDeckV2 event={} deck={}", req?.eventName, req?.deckId)
+                if (req != null && courseService != null && playerId != null) {
+                    try {
+                        val deck = CourseDeck(
+                            deckId = DeckId(req.deckId ?: UUID.randomUUID().toString()),
+                            mainDeck = req.mainDeck,
+                            sideboard = req.sideboard,
+                        )
+                        val summary = CourseDeckSummary(
+                            deckId = DeckId(req.deckId ?: UUID.randomUUID().toString()),
+                            name = req.deckName ?: "Sealed Deck",
+                            tileId = req.tileId ?: 0,
+                            format = "Limited",
+                        )
+                        val course = courseService.setDeck(playerId, req.eventName, deck, summary)
+                        writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
+                    } catch (e: IllegalArgumentException) {
+                        log.warn("Front Door: Event_SetDeckV2 failed: {}", e.message)
+                        val isSealed = req.eventName.startsWith("Sealed")
+                        writer.send(
+                            ctx,
+                            txId,
+                            FdResponse.Json(
+                                if (isSealed) golden.sealedSetDeckJson else golden.eventSetDeckJson,
+                            ),
+                        )
+                    }
+                } else {
+                    val isSealed = req?.eventName?.startsWith("Sealed") == true
+                    writer.send(
+                        ctx,
+                        txId,
+                        FdResponse.Json(
+                            if (isSealed) golden.sealedSetDeckJson else golden.eventSetDeckJson,
+                        ),
+                    )
+                }
             }
 
             // Response-type envelope (field 1 is UUID, not varint) — no CmdType extracted.
