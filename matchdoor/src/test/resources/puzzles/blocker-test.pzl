@@ -3,7 +3,7 @@ Name:Blocker Declaration #30
 Goal:Win
 Turns:10
 Difficulty:Tutorial
-Description:Pass our turn, AI should attack with big creatures into our blockers.
+Description:Pass our turn, AI should attack with big creatures into our blockers. HumanLife=5 forces AI to attack (6 power > 5 life).
 
 [state]
 ActivePlayer=Human
@@ -11,7 +11,7 @@ ActivePhase=Main1
 HumanLife=5
 AILife=20
 
-humanbattlefield=Plains;Plains;Grizzly Bears;Runeclaw Bear;Pillarfield Ox
+humanbattlefield=Plains;Plains;Grizzly Bears;Runeclaw Bear;Centaur Courser
 humanlibrary=Plains;Plains;Plains;Plains;Plains
-aibattlefield=Mountain;Mountain;Mountain;Goblin Piker;Goblin Piker;Gray Ogre
+aibattlefield=Mountain;Mountain;Forest;Hurloon Minotaur;Centaur Courser;Raging Goblin
 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

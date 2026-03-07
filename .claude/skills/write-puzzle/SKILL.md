@@ -72,6 +72,14 @@ ailibrary=<AI's library>
 - `humanbattlefield`, `humanhand`, `humanlibrary`, `humangraveyard`, `humanexile`
 - `aibattlefield`, `aihand`, `ailibrary`, `aigraveyard`, `aiexile`
 
+## Validation (mandatory)
+
+After writing the puzzle, **always run:**
+```bash
+just puzzle-check matchdoor/src/test/resources/puzzles/my-puzzle.pzl
+```
+This checks every non-basic-land card against Arena's client DB. `FAIL` = card has no grpId → puzzle will NPE at runtime. Fix by picking a different card (`just card-grp "<name>"` to search).
+
 ## Testing the puzzle
 
 ### Tier 1 — unit test (no server)
