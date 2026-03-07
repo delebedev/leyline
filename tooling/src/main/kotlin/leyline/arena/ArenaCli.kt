@@ -9,7 +9,7 @@ fun main(args: Array<String>) {
         System.err.println(
             """
             Usage: arena <command> [args...]
-            Commands: launch, capture, ocr, click, drag, state, errors, wait, issues
+            Commands: launch, capture, ocr, click, drag, state, errors, wait, board, issues
             """.trimIndent(),
         )
         exitProcess(1)
@@ -46,6 +46,7 @@ fun main(args: Array<String>) {
             "state" -> State.run(cmdArgs)
             "errors" -> State.errors(cmdArgs)
             "wait" -> Wait.run(cmdArgs)
+            "board" -> Board.run(cmdArgs)
             else -> {
                 System.err.println("Unknown command: $command")
                 exitCode = 1
