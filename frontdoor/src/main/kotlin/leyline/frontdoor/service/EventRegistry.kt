@@ -12,6 +12,8 @@ data class QueueEntry(
     val sideboardBO3: String = "Events/Sideboard_15minus",
 )
 
+data class EntryFee(val currencyType: String, val quantity: Int, val referenceId: String? = null)
+
 data class EventDef(
     val internalName: String,
     val publicName: String,
@@ -29,6 +31,10 @@ data class EventDef(
     val maxLosses: Int? = null,
     /** True for Quick Draft (BotDraft) events — internal flag, not sent on wire. */
     val isBotDraft: Boolean = false,
+    val entryFees: List<EntryFee> = emptyList(),
+    val dynamicFilterTagIds: List<String> = emptyList(),
+    /** Shows editable deck button on event blade (sealed/draft). */
+    val editableDeck: Boolean = false,
 ) {
     val isSealed: Boolean get() = formatType == "Sealed"
 }
@@ -308,22 +314,29 @@ object EventRegistry {
             descLocKey = "Events/Event_Desc_Sealed_FDN",
             maxWins = 7,
             maxLosses = 3,
+            editableDeck = true,
         ),
         // Quick Draft
         EventDef(
             "QuickDraft_ECL_20260223",
-            "Quick Draft ECL",
-            "Limited",
+            "ECL_Quick_Draft",
+            "Draft",
             formatType = "Draft",
-            displayPriority = 70,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
+            displayPriority = 61,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
             bladeBehavior = null,
             eventTags = listOf("QuickDraft", "Limited"),
-            titleLocKey = "Events/Event_Title_QuickDraft_ECL",
-            descLocKey = "Events/Event_Desc_QuickDraft_ECL",
+            titleLocKey = "Events/Event_Title_ECL_Quick_Draft",
+            descLocKey = "Events/Event_Desc_ECL_Quick_Draft",
             maxWins = 7,
             maxLosses = 3,
             isBotDraft = true,
+            entryFees = listOf(
+                EntryFee("Gold", 5000),
+                EntryFee("Gem", 750),
+            ),
+            dynamicFilterTagIds = listOf("ECL Limited"),
+            editableDeck = true,
         ),
     )
 
