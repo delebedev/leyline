@@ -4,33 +4,33 @@
 Usage:
     arena-record [--duration 10] [--out /tmp/repro.mp4] [--fps 5] [--open]
 
-Captures frames via peekaboo (already has screen permissions), crops to
-MTGA window bounds via sips, stitches with ffmpeg into H.264 MP4.
+Captures frames via screencapture -R (exact window rect), resizes to
+logical size, stitches with ffmpeg into H.264 MP4.
 Output is GitHub-embeddable (~0.3-1.5MB per 10s).
 """
 import argparse
-import glob
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-BIN = Path(__file__).parent
 FRAME_DIR = Path("/tmp/arena/_record_frames")
 
 
 def get_window_bounds():
-    """Get MTGA window bounds (x, y, w, h) in logical points."""
+    """Get MTGA window bounds (x, y, w, h) in logical points via osascript."""
     r = subprocess.run(
-        [str(BIN / "window-bounds")],
+        ["osascript", "-e",
+         'tell application "System Events" to tell process "MTGA" '
+         'to get {position, size} of window 1'],
         capture_output=True, text=True,
     )
     if r.returncode != 0 or not r.stdout.strip():
         return None
-    parts = r.stdout.strip().split()
+    parts = [int(p.strip()) for p in r.stdout.strip().split(",")]
     if len(parts) != 4:
         return None
-    return tuple(int(p) for p in parts)
+    return tuple(parts)
 
 
 def check_screen_locked():
@@ -52,14 +52,14 @@ def activate_mtga():
 
 
 def capture_frames(duration, fps, bounds):
-    """Capture individual frames using peekaboo + sips crop."""
+    """Capture individual frames using screencapture -R."""
     FRAME_DIR.mkdir(parents=True, exist_ok=True)
-    # Clean old frames
     for f in FRAME_DIR.glob("*.png"):
         f.unlink()
 
     interval = 1.0 / fps
     total_frames = int(duration * fps)
+    x, y, w, h = bounds
 
     print(f"Recording {duration}s at {fps}fps ({total_frames} frames)...", file=sys.stderr)
 
@@ -67,31 +67,22 @@ def capture_frames(duration, fps, bounds):
         frame_path = FRAME_DIR / f"frame_{i:05d}.png"
         t_start = time.time()
 
-        # Capture full screen
-        r = subprocess.run(
-            ["/opt/homebrew/bin/peekaboo", "image", "--mode", "screen",
-             "--path", str(frame_path)],
-            capture_output=True, text=True,
+        # Capture exact window rect
+        subprocess.run(
+            ["screencapture", "-R", f"{x},{y},{w},{h}", "-x", str(frame_path)],
+            capture_output=True,
         )
-        if r.returncode != 0:
-            print(f"Frame {i} capture failed", file=sys.stderr)
-            continue
 
-        # Crop to MTGA window bounds
-        if bounds:
-            x, y, w, h = bounds
-            subprocess.run(
-                ["sips", "--cropOffset", str(y), str(x),
-                 "--cropToHeightWidth", str(h), str(w),
-                 str(frame_path), "--out", str(frame_path)],
-                capture_output=True,
-            )
+        # Resize to logical (Retina captures at 2x)
+        subprocess.run(
+            ["sips", "--resampleWidth", str(w), str(frame_path),
+             "--out", str(frame_path)],
+            capture_output=True,
+        )
 
-        # Progress indicator
         if (i + 1) % fps == 0:
             print(f"  {(i + 1) // fps}s / {duration}s", file=sys.stderr)
 
-        # Sleep for remainder of interval
         elapsed = time.time() - t_start
         remaining = interval - elapsed
         if remaining > 0:
@@ -123,7 +114,6 @@ def stitch(out_path, fps):
         print(f"Encode failed: {r.stderr[-500:]}", file=sys.stderr)
         sys.exit(1)
 
-    # Cleanup frames
     for f in FRAME_DIR.glob("*.png"):
         f.unlink()
 
@@ -138,22 +128,19 @@ def main():
     parser.add_argument("--out", "-o", default="/tmp/arena-repro.mp4",
                         help="Output path")
     parser.add_argument("--fps", type=int, default=5,
-                        help="Frames per second (default: 5, max ~8 with peekaboo)")
+                        help="Frames per second (default: 5)")
     parser.add_argument("--open", action="store_true",
                         help="Open result in QuickTime")
-    parser.add_argument("--no-crop", action="store_true",
-                        help="Record full screen (skip window crop)")
     args = parser.parse_args()
 
     if check_screen_locked():
         print("WARNING: Screen locked — recording will show screen saver",
               file=sys.stderr)
 
-    bounds = None
-    if not args.no_crop:
-        bounds = get_window_bounds()
-        if bounds is None:
-            print("MTGA window not found — recording full screen", file=sys.stderr)
+    bounds = get_window_bounds()
+    if bounds is None:
+        print("MTGA window not found", file=sys.stderr)
+        sys.exit(1)
 
     activate_mtga()
     n = capture_frames(args.duration, args.fps, bounds)
