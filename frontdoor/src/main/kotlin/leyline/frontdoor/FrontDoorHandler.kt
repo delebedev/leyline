@@ -390,7 +390,16 @@ class FrontDoorHandler(
             CmdType.EVENT_RESIGN.value -> {
                 val req = FdRequests.parseEventName(json)
                 log.info("Front Door: Event_Resign event={}", req?.eventName)
-                writer.send(ctx, txId, FdResponse.Json(golden.eventResignJson))
+                if (req?.eventName != null && courseService != null && playerId != null) {
+                    try {
+                        val course = courseService.drop(playerId, req.eventName)
+                        writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
+                    } catch (e: IllegalArgumentException) {
+                        writer.send(ctx, txId, FdResponse.Json(golden.eventResignJson))
+                    }
+                } else {
+                    writer.send(ctx, txId, FdResponse.Json(golden.eventResignJson))
+                }
             }
 
             CmdType.EVENT_GET_MATCH_RESULT.value -> {

@@ -33,7 +33,11 @@ class CourseService(
         eventName.startsWith("Sealed", ignoreCase = true)
 
     fun join(playerId: PlayerId, eventName: String): Course {
-        repo.findByPlayerAndEvent(playerId, eventName)?.let { return it }
+        repo.findByPlayerAndEvent(playerId, eventName)?.let { existing ->
+            if (existing.module != CourseModule.Complete) return existing
+            // Dropped/complete course — delete it so we can create a fresh one
+            repo.delete(existing.id)
+        }
 
         val course = if (isSealed(eventName)) {
             val setCode = extractSetCode(eventName)
