@@ -67,6 +67,13 @@ class CourseService(
                 cardPool = pool.cards,
                 cardPoolByCollation = pool.byCollation,
             )
+        } else if (EventRegistry.isDraft(eventName)) {
+            Course(
+                id = CourseId(UUID.randomUUID().toString()),
+                playerId = playerId,
+                eventName = eventName,
+                module = CourseModule.BotDraft,
+            )
         } else {
             Course(
                 id = CourseId(UUID.randomUUID().toString()),
@@ -116,6 +123,18 @@ class CourseService(
         val result = if (complete) updated.copy(module = CourseModule.Complete) else updated
         repo.save(result)
         return result
+    }
+
+    fun completeDraft(playerId: PlayerId, eventName: String, pickedCards: List<Int>): Course {
+        val course = repo.findByPlayerAndEvent(playerId, eventName)
+            ?: throw IllegalArgumentException("No course for $eventName")
+        val updated = course.copy(
+            module = CourseModule.DeckSelect,
+            cardPool = pickedCards,
+            cardPoolByCollation = listOf(CollationPool(0, pickedCards)),
+        )
+        repo.save(updated)
+        return updated
     }
 
     fun getCoursesForPlayer(playerId: PlayerId): List<Course> =
