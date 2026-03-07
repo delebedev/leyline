@@ -74,16 +74,25 @@ Waiting for Server:
 ### Deck Selection → Start (Bot Match)
 - **After selecting Bot Match + deck:** "Play" button at bottom-right
 - **Play button coords:** `arena click 1446,871` (no OCR text — it's an icon/graphic)
-- **Wait:** `arena wait text="Keep" --timeout 15` for mulligan screen
+- **Wait (normal match):** `arena wait text="Keep" --timeout 15` for mulligan screen
+- **Wait (puzzle):** Puzzles skip mulligan — wait for the game board directly (e.g. `arena ocr --find "Pass"` or check debug API state)
 
 ### Mulligan
 - **Indicators:** "Keep", "Mulligan" visible
 - **Actions:** `arena click "Keep"` or `arena click "Mulligan"`
 
+### Puzzle Mode
+- **Start:** `just serve-puzzle <path>.pzl` — loads a .pzl file as the match
+- **No mulligan:** Puzzles skip the Keep/Mulligan screen — goes straight to the game board
+- **Same nav:** Still need Play → Find Match → Bot Match → deck → Play to trigger the match
+
 ### In-Game
 - **Wait for priority:** `arena wait phase=MAIN1 --timeout 15`
 - **Pass priority:** `arena click "Pass" --retry 3`
-- **Play a land/spell:** `arena drag <x>,530 480,350` — drag from hand to battlefield. Lands play instantly; spells show "Pay" prompt (auto-pays or Cancel at 888,504).
+- **Play a card by name:** `arena play "Grizzly Bears"` — finds card in hand via debug API + detection, drags to battlefield, verifies via zone change. Retries up to 3× with jitter.
+- **Play a card (manual drag):** `arena drag <x>,<y> 480,300` — drag from hand to battlefield center
+- **Resolve a spell:** After a successful drag, the spell goes on the stack. Click `arena click 888,505` (the action button shows "Resolve") to resolve it. Lands don't need this step.
+- **Low-level drag with verification:** `arena drag <x1>,<y1> <x2>,<y2> --verify <instanceId>` — polls debug API to confirm card changed zones; retries with ±5px jitter on failure
 
 ### Concede
 1. `arena click 1555,72` — cog/settings icon (top-right, no text)
@@ -352,6 +361,17 @@ bin/arena click 480,300 && sleep 2 && bin/arena click 480,300 && sleep 2 && bin/
 for i in 1 2 3 4 5; do bin/arena ocr --find "Home" && break; sleep 3; done
 ```
 
+## Detection Known Issues (`arena detect`)
+
+The CoreML card detection model is useful but noisy. Known issues:
+
+- **False positives at cy < 490:** Card hover previews and enlarged cards produce detections in the upper-mid screen area (~cy 410). **Always filter hand cards by `cy > 490`** — real hand cards sit at cy ~530.
+- **Duplicate detections:** Overlapping bounding boxes for the same card (e.g. cx=483 and cx=560 for the same card). The model often returns more `hand-card` detections than actual cards in hand.
+- **Confidence varies wildly:** First card in hand may be 0.94, last card 0.34. Don't discard low-confidence detections if the count matters.
+- **Labels:** `hand-card`, `battlefield-untapped`, `battlefield-tapped`, `opponent-untapped`, `opponent-tapped`, `stack-item`. No land-specific label — lands and creatures use the same battlefield labels.
+- **Right sidebar bleeds in:** Detections with cx > 700 may be sidebar UI (Deck Details button at ~817,91). Filter by `cx < 700` during draft.
+- **`arena board --detect`** correlates detections with debug API cards — more reliable than raw `arena detect`. Adds `screenCX`/`screenCY` to each card dict. Falls back to estimated positions when detection count doesn't match protocol card count.
+
 ## Tips
 
 - **OCR is ground truth.** Always use `arena ocr` / `arena ocr --find` for state checks. Never screenshot for routine state detection — screenshots cost ~800 vision tokens, OCR costs ~0.
@@ -360,7 +380,7 @@ for i in 1 2 3 4 5; do bin/arena ocr --find "Home" && break; sleep 3; done
 - **Prefer OCR over hardcoded coords** — coords break when window size changes. OCR adapts.
 - **Use `--exact` only for isolated button text** — works for "Done", "Concede" (standalone UI buttons). Fails for "Keep" and other words that OCR may merge with surrounding text. When in doubt, use substring match (default) + `--retry`.
 - **Always use `--retry` for text clicks during transitions** — animations/loading can delay text rendering.
-- **Never click cards** — Unity interprets single click as drag. Use debug API for card actions.
+- **Never click cards to play them** — Unity interprets single click as drag-start, not play. Use `arena play "<name>"` or `arena drag` instead.
 - **OCR is case-insensitive** for `--find` matching.
 - **"Waiting for Server..."** — means FD connection dropped or server not responding. Restart server, then relaunch MTGA.
 - **"My Decks" is often collapsed** — must click to expand before deck thumbnails are visible.
