@@ -349,6 +349,7 @@ class FrontDoorHandler(
                         val course = courseService.drop(playerId, req.eventName)
                         writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
                     } catch (e: IllegalArgumentException) {
+                        log.debug("Front Door: Event_Drop failed: {}", e.message)
                         writer.send(ctx, txId, FdResponse.Json("{}"))
                     }
                 } else {
@@ -402,6 +403,7 @@ class FrontDoorHandler(
                         val course = courseService.drop(playerId, req.eventName)
                         writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildCourseJson(course).toString()))
                     } catch (e: IllegalArgumentException) {
+                        log.debug("Front Door: Event_Resign failed: {}", e.message)
                         writer.send(ctx, txId, FdResponse.Json(golden.eventResignJson))
                     }
                 } else {
