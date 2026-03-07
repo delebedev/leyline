@@ -243,8 +243,9 @@ class AnnotationPipelineTest :
         // -- CountersChanged --
 
         test("counterAddedAnnotation") {
+            // Forge sends display name "+1/+1" (from CounterEnumType.getName()), not "P1P1"
             val events = listOf(
-                GameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 0, newCount = 2),
+                GameEvent.CountersChanged(forgeCardId = 42, counterType = "+1/+1", oldCount = 0, newCount = 2),
             )
             val result = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
 
@@ -253,20 +254,23 @@ class AnnotationPipelineTest :
             result.transient[0].affectedIdsList shouldContain 1042
 
             val counterType = result.transient[0].detailsList.first { it.key == "counter_type" }
-            counterType.getValueString(0) shouldBe "P1P1"
+            counterType.getValueString(0) shouldBe "+1/+1"
             val txnAmount = result.transient[0].detailsList.first { it.key == "transaction_amount" }
             txnAmount.getValueInt32(0) shouldBe 2
 
-            // Persistent: Counter state annotation with current count
+            // Persistent: Counter state annotation with current count and correct enum value
             result.persistent.size shouldBe 1
             result.persistent[0].typeList shouldContain AnnotationType.Counter_803b
             val count = result.persistent[0].detailsList.first { it.key == "count" }
             count.getValueInt32(0) shouldBe 2
+            val persistentType = result.persistent[0].detailsList.first { it.key == "counter_type" }
+            persistentType.getValueInt32(0) shouldBe 1 // P1P1 = 1
         }
 
         test("counterRemovedAnnotation") {
+            // Forge sends "LOYAL" for loyalty counters (CounterEnumType.LOYALTY.getName())
             val events = listOf(
-                GameEvent.CountersChanged(forgeCardId = 42, counterType = "LOYALTY", oldCount = 5, newCount = 2),
+                GameEvent.CountersChanged(forgeCardId = 42, counterType = "LOYAL", oldCount = 5, newCount = 2),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
 
