@@ -38,7 +38,7 @@ Announce: "Working on #N — <title>"
 
 Invoke the **reproduce** skill with the issue number.
 
-**If REPRODUCED:** proceed to diagnose with evidence in hand.
+**If REPRODUCED:** `gh issue edit <N> --add-label dl:reproduced`. Proceed to diagnose.
 **If NOT_REPRODUCED after 3 attempts:**
 - Check if the bug is environment-specific or needs a specific deck
 - Comment on the issue with reproduction attempt details
@@ -48,13 +48,13 @@ Invoke the **reproduce** skill with the issue number.
 
 Invoke the **diagnose** skill. Use reproduction evidence + debug API + code tracing.
 
-**Output:** structured diagnosis artifact with root cause + suggested approach.
+**Output:** structured diagnosis artifact with root cause + suggested approach. `gh issue edit <N> --add-label dl:diagnosed`.
 
 ### Phase 4: Plan (HUMAN GATE)
 
 Invoke the **plan-fix** skill. Produces concrete implementation plan.
 
-**STOP HERE.** Present the plan. Wait for human approval.
+**STOP HERE.** Present the plan. Wait for human approval. `gh issue edit <N> --add-label dl:planned`.
 
 Do not proceed without explicit "approved" / "go" / "lgtm" / "yes".
 

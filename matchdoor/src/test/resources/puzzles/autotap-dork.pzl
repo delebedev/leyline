@@ -1,0 +1,18 @@
+[metadata]
+Name:Autotap Dork vs Land #39
+Goal:Win
+Turns:10
+Difficulty:Tutorial
+Description:Casting Pacifism (1W) with 4 Plains + Forest + Llanowar Elves. Engine should tap lands, not the dork.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Plains;Plains;Plains;Plains;Forest;Llanowar Elves
+humanhand=Pacifism
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain;Mountain;Runeclaw Bear
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
