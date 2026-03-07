@@ -7,6 +7,7 @@ package leyline.frontdoor
  * FD connection. Player-specific data (decks, preferences) is served from
  * the repository layer; this class provides the fallback values.
  */
+@Suppress("LongParameterList")
 class GoldenData(
     val getFormatsProto: ByteArray,
     val getSetsProto: ByteArray,
