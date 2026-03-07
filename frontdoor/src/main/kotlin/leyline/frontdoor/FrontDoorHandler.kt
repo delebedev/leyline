@@ -12,6 +12,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import leyline.frontdoor.domain.CourseDeck
 import leyline.frontdoor.domain.CourseDeckSummary
+import leyline.frontdoor.domain.CourseModule
 import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.DraftStatus
 import leyline.frontdoor.domain.MatchInfo
@@ -243,6 +244,7 @@ class FrontDoorHandler(
                 log.info("Front Door: Event_GetCoursesV2")
                 if (courseService != null && playerId != null) {
                     val courses = courseService.getCoursesForPlayer(playerId)
+                        .filter { it.module != CourseModule.BotDraft } // real server hides draft-in-progress courses
                     // Merge real courses with default seed courses (Ladder, Play, etc.)
                     val realEventNames = courses.map { it.eventName }.toSet()
                     val defaultJson = EventRegistry.defaultCourses

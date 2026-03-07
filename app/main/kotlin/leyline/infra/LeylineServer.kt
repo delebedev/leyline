@@ -10,8 +10,6 @@ import io.netty.handler.codec.protobuf.ProtobufEncoder
 import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.SelfSignedCertificate
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import leyline.bridge.DeckConverter
 import leyline.bridge.DeckLoader
 import leyline.bridge.FormatService
@@ -28,7 +26,6 @@ import leyline.frontdoor.FrontDoorReplayStub
 import leyline.frontdoor.GoldenData
 import leyline.frontdoor.domain.CollationPool
 import leyline.frontdoor.domain.DeckCard
-import leyline.frontdoor.domain.DeckId
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.SqlitePlayerStore
 import leyline.frontdoor.service.CollectionService
@@ -38,7 +35,6 @@ import leyline.frontdoor.service.DraftService
 import leyline.frontdoor.service.GeneratedPool
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
-import leyline.frontdoor.wire.DeckWireBuilder
 import leyline.frontdoor.wire.FdResponseWriter
 import leyline.match.MatchHandler
 import leyline.match.ReplayHandler
@@ -53,10 +49,8 @@ import java.io.File
  * Client-compatible TLS TCP server — the single entry point for all three operating modes
  * (local/proxy/replay). Each mode assembles a different Netty pipeline per door.
  *
- * **Shared mutable state:** [selectedDeckId] and [selectedEventName] are written by the
- * FD handler (CmdType 612) on the Netty IO thread and read by [MatchHandler] on connect.
- * Marked `@Volatile`; no stronger sync needed because writes always precede reads in the
- * client's connection sequence (FD handshake completes before MD connect).
+ * Cross-BC state (deck/event selection, deck resolution, match results) flows through
+ * [AppMatchCoordinator] — both doors receive the same instance.
  *
  * Both doors share the same 6-byte header framing (see [ClientFrameDecoder]).
  */
@@ -88,14 +82,6 @@ class LeylineServer(
 
     /** Hardcoded player ID — matches seed-db. */
     private val playerId = "9da3ee9f-0d6a-4b18-a3e0-c9e315d2475b"
-
-    /** Shared deck selection: FD writes (on 612), MH reads (on ConnectReq). */
-    @Volatile
-    var selectedDeckId: String? = null
-
-    /** Shared event selection: FD writes (on 612), MH reads (on ConnectReq). */
-    @Volatile
-    var selectedEventName: String? = null
 
     private val bossGroup = NioEventLoopGroup(1)
     private val workerGroup = NioEventLoopGroup()
@@ -191,6 +177,12 @@ class LeylineServer(
         val writer = FdResponseWriter(onFdMessage = fdCollector::record)
         val golden = GoldenData.loadFromClasspath()
 
+        val coordinator = AppMatchCoordinator(
+            playerId = resolvedPlayerId?.let { PlayerId(it) },
+            deckService = deckService,
+            courseService = courseService,
+        )
+
         val goldenFile = fdGoldenFile
         if (goldenFile != null) {
             frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Replay") { ch ->
@@ -222,49 +214,11 @@ class LeylineServer(
                         writer = writer,
                         golden = golden,
                         onFdMessage = fdCollector::record,
-                        onDeckSelected = { selectedDeckId = it },
-                        onEventSelected = { selectedEventName = it },
+                        coordinator = coordinator,
                     ),
                 )
             }
             log.info("Client Front Door (local) listening on :{}", frontDoorPort)
-        }
-
-        // Deck lookups for match handler — crosses BC boundary via function, not import.
-        //
-        // Invisible constraint — ordering: FD handler writes selectedDeckId (via
-        // onDeckSelected callback on CmdType 612/603) before the client opens
-        // the MD connection. The client's connection sequence guarantees FD
-        // handshake completes before MD ConnectReq, so the @Volatile read in
-        // MatchHandler always sees the write. No stronger sync needed.
-        //
-        // Sealed fallback: when deckId isn't in DeckRepository (constructed decks),
-        // falls back to CourseService keyed on the current event.
-        val deckToJson: (leyline.frontdoor.domain.Deck) -> String = { deck ->
-            buildJsonObject {
-                put("MainDeck", DeckWireBuilder.cardsToJsonArray(deck.mainDeck))
-                put("Sideboard", DeckWireBuilder.cardsToJsonArray(deck.sideboard))
-            }.toString()
-        }
-        val deckLookup: (String) -> String? = { deckId ->
-            deckService.getById(DeckId(deckId))?.let(deckToJson)
-                ?: resolvedPlayerId?.let { pid ->
-                    val event = selectedEventName
-                    val courseDeck = if (event != null) {
-                        courseService.getCourse(PlayerId(pid), event)?.deck
-                    } else {
-                        null
-                    }
-                    courseDeck?.let { cd ->
-                        buildJsonObject {
-                            put("MainDeck", DeckWireBuilder.cardsToJsonArray(cd.mainDeck))
-                            put("Sideboard", DeckWireBuilder.cardsToJsonArray(cd.sideboard))
-                        }.toString()
-                    }
-                }
-        }
-        val deckLookupByName: (String) -> String? = { name ->
-            deckService.getByName(name)?.let(deckToJson)
         }
 
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor") { ch ->
@@ -278,21 +232,11 @@ class LeylineServer(
                 MatchHandler(
                     matchConfig = matchConfig,
                     puzzleFile = puzzleFile,
-                    selectedDeckOverride = { selectedDeckId },
-                    selectedEventOverride = { selectedEventName },
-                    deckLookup = deckLookup,
-                    deckLookupByName = deckLookupByName,
+                    coordinator = coordinator,
                     cards = cardRepo,
                     debugSink = DebugSinkAdapter(debugCollector, gameStateCollector),
                     recorderFactory = {
                         SessionRecorder(mode = "engine").also { SessionRecorder.register(it) }
-                    },
-                    onMatchComplete = { won ->
-                        val event = selectedEventName
-                        if (resolvedPlayerId != null && event != null) {
-                            courseService.recordMatchResult(PlayerId(resolvedPlayerId), event, won)
-                            log.info("Match result recorded: event={} won={}", event, won)
-                        }
                     },
                 ),
             )
