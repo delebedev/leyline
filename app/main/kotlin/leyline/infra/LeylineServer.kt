@@ -171,12 +171,13 @@ class LeylineServer(
         store.createTables()
         val deckService = DeckService(store)
         val playerService = PlayerService(store)
-        val courseService = CourseService(store) { _ ->
-            // Stub pool generator — real Forge integration in Task 14
+        val sealedPoolGen = leyline.game.SealedPoolGenerator(cardRepo)
+        val courseService = CourseService(store) { setCode ->
+            val pool = sealedPoolGen.generate(setCode)
             GeneratedPool(
-                cards = (1..84).toList(),
-                byCollation = listOf(CollationPool(100026, (1..84).toList())),
-                collationId = 100026,
+                cards = pool.grpIds,
+                byCollation = listOf(CollationPool(pool.collationId, pool.grpIds)),
+                collationId = pool.collationId,
             )
         }
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
@@ -231,6 +232,16 @@ class LeylineServer(
         }
         val deckLookup: (String) -> String? = { deckId ->
             deckService.getById(DeckId(deckId))?.let(deckToJson)
+                ?: resolvedPlayerId?.let { pid ->
+                    courseService.getCoursesForPlayer(PlayerId(pid))
+                        .firstOrNull { it.deck != null }
+                        ?.deck?.let { courseDeck ->
+                            buildJsonObject {
+                                put("MainDeck", DeckWireBuilder.cardsToJsonArray(courseDeck.mainDeck))
+                                put("Sideboard", DeckWireBuilder.cardsToJsonArray(courseDeck.sideboard))
+                            }.toString()
+                        }
+                }
         }
         val deckLookupByName: (String) -> String? = { name ->
             deckService.getByName(name)?.let(deckToJson)
