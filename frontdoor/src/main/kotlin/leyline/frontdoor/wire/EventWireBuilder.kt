@@ -6,6 +6,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import leyline.frontdoor.domain.Course
+import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.service.EventDef
 import leyline.frontdoor.service.QueueEntry
 
@@ -47,13 +49,80 @@ object EventWireBuilder {
         putJsonArray("AiBotMatches") {}
     }.toString()
 
-    fun toCoursesJson(courses: List<Pair<String, String>>): String = buildJsonObject {
+    fun toDefaultCoursesJson(courses: List<Pair<String, String>>): String = buildJsonObject {
         putJsonArray("Courses") {
             for ((eventName, module) in courses) {
                 add(buildCourseJson(eventName, module))
             }
         }
     }.toString()
+
+    fun toCoursesJson(courses: List<Course>): String = buildJsonObject {
+        putJsonArray("Courses") {
+            for (course in courses) {
+                add(buildCourseJson(course))
+            }
+        }
+    }.toString()
+
+    fun buildCourseJson(course: Course) = buildJsonObject {
+        put("CourseId", course.id.value)
+        put("InternalEventName", course.eventName)
+        put("CurrentModule", course.module.wireName())
+        put("ModulePayload", "")
+        putJsonObject("CourseDeckSummary") {
+            val s = course.deckSummary
+            put("DeckId", s?.deckId?.value ?: "00000000-0000-0000-0000-000000000000")
+            put("Name", s?.name ?: "")
+            putJsonArray("Attributes") {}
+            put("DeckTileId", s?.tileId ?: 0)
+            put("DeckArtId", 0)
+            putJsonObject("FormatLegalities") {}
+            putJsonObject("PreferredCosmetics") {
+                put("Avatar", "")
+                put("Sleeve", "")
+                put("Pet", "")
+                put("Title", "")
+                putJsonArray("Emotes") {}
+            }
+            putJsonArray("DeckValidationSummaries") {}
+            putJsonObject("UnownedCards") {}
+        }
+        putJsonObject("CourseDeck") {
+            val d = course.deck
+            putJsonArray("MainDeck") {
+                d?.mainDeck?.forEach { add(buildDeckCardJson(it)) }
+            }
+            putJsonArray("ReducedSideboard") {}
+            putJsonArray("Sideboard") {
+                d?.sideboard?.forEach { add(buildDeckCardJson(it)) }
+            }
+            putJsonArray("CommandZone") {}
+            putJsonArray("Companions") {}
+            putJsonArray("CardSkins") {}
+        }
+        put("CurrentWins", course.wins)
+        put("CurrentLosses", course.losses)
+        putJsonArray("CardPool") {
+            course.cardPool.forEach { add(JsonPrimitive(it)) }
+        }
+        putJsonArray("CardPoolByCollation") {
+            for (cp in course.cardPoolByCollation) {
+                add(
+                    buildJsonObject {
+                        put("CollationId", cp.collationId)
+                        putJsonArray("CardPool") {
+                            cp.cardPool.forEach { add(JsonPrimitive(it)) }
+                        }
+                    },
+                )
+            }
+        }
+        putJsonArray("CardStyles") {}
+    }
+
+    fun buildJoinResponse(course: Course): String =
+        buildCourseJson(course).toString()
 
     private fun buildEventJson(e: EventDef) = buildJsonObject {
         put("InternalEventName", e.internalName)
@@ -94,6 +163,11 @@ object EventWireBuilder {
         put("WinCondition", e.winCondition)
         putJsonArray("AllowedCountryCodes") {}
         putJsonArray("ExcludedCountryCodes") {}
+    }
+
+    private fun buildDeckCardJson(card: DeckCard) = buildJsonObject {
+        put("cardId", card.grpId)
+        put("quantity", card.quantity)
     }
 
     private fun buildCourseJson(eventName: String, module: String) = buildJsonObject {

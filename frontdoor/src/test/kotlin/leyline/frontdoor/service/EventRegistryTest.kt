@@ -76,7 +76,7 @@ class EventRegistryTest :
 
         test("courses JSON has default entries referencing valid events") {
             val eventNames = EventRegistry.events.map { it.internalName }.toSet()
-            val result = EventWireBuilder.toCoursesJson(EventRegistry.defaultCourses)
+            val result = EventWireBuilder.toDefaultCoursesJson(EventRegistry.defaultCourses)
             val courses = json.parseToJsonElement(result).jsonObject["Courses"]!!.jsonArray
             courses shouldHaveAtLeastSize 1
             for (course in courses) {
