@@ -78,6 +78,20 @@ arena-annotate --cards                      # also number cards in hand
 
 Draws 7 fixed zones (Opp Life, Opp Battlefield, River/Stack, Our Battlefield, Our Life, Our Hand, Action Button). `--cards` adds numbered markers on hand cards using OCR positions. Zone coords are stable across all games at 960x568 logical resolution.
 
+### `arena board`
+Unified board state — merges debug API (`/api/id-map`, `/api/state`, `/api/game-states`) and optionally OCR into one JSON response. Shows hand, battlefield, stack, graveyard, exile, life totals, library counts, and available actions.
+
+```
+arena board                        # full board state (with OCR)
+arena board --no-ocr               # protocol-only (faster, no screen capture)
+```
+
+**Data sources:**
+- `/api/id-map?active=true` — card objects with zones (bridge accumulator, always current)
+- `/api/state` — phase, turn, active player
+- `/api/game-states` — actions + life totals (latest snapshot)
+- OCR — hand card x-positions for click targeting
+
 ### `arena state`
 Query game state from debug API (`:8090`).
 
@@ -96,11 +110,11 @@ arena errors                       # JSON array of client-side errors
 
 ```
 arena click "Play"
-  → Shell.activateMtga()          (deduped within 2s)
-  → Shell.captureWindow()         (peekaboo screen + sips crop to window)
-  → Shell.mtgaWindowBounds()      (compiled tool, cached 5s)
-  → bin/ocr --find "Play"      (compiled Swift, Vision framework)
-  → bin/click x y              (compiled Swift, CGEvent)
+  → _activate_mtga()              (osascript, deduped within 2s)
+  → capture_window()              (screencapture -R + sips resize to logical)
+  → mtga_window_bounds()          (osascript, cached 5s)
+  → bin/ocr --find "Play"         (compiled Swift, Vision framework)
+  → bin/click x y                 (compiled Swift, CGEvent)
 ```
 
 ### Compiled Tools
