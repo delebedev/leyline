@@ -8,6 +8,12 @@ import org.slf4j.LoggerFactory
 /**
  * Generates sealed card pools using Forge's booster templates.
  * Opens 6 packs for the given set, maps each card to its Arena grpId.
+ *
+ * Lives in matchdoor (not frontdoor) because it depends on Forge's card database
+ * and booster template engine ([UnOpenedProduct]). Frontdoor consumes it via an
+ * injected `(setCode) -> GeneratedPool` lambda — see [leyline.infra.LeylineServer]
+ * wiring. This keeps the frontdoor module free of engine dependencies per the
+ * architecture rule (frontdoor → domain model only, zero matchdoor imports).
  */
 class SealedPoolGenerator(private val cards: CardRepository) {
 

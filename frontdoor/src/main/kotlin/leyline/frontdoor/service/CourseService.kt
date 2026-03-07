@@ -16,6 +16,23 @@ data class GeneratedPool(
     val collationId: Int,
 )
 
+/**
+ * Manages event course lifecycle — join, deck selection, match results, drop.
+ *
+ * Lives in frontdoor (not matchdoor) because courses are a lobby-layer concept:
+ * the client manages them via FD CmdTypes (600/603/608/622/623) before any match
+ * connection exists. Pool generation is injected as a lambda to keep Forge engine
+ * dependencies out of this module — the wiring layer ([leyline.infra.LeylineServer])
+ * composes [leyline.game.SealedPoolGenerator] into the lambda.
+ *
+ * **Invisible constraint — ordering:** [join] must be called before [setDeck],
+ * [enterPairing], or [recordMatchResult]. The client enforces this via its UI flow
+ * (Event_Join → DeckSelect → EnterPairing), but no server-side guard exists yet.
+ *
+ * **Invisible constraint — match result callback:** [recordMatchResult] is called
+ * from [leyline.match.MatchSession.onMatchComplete] on the Netty IO thread. The
+ * repository write must be thread-safe (SQLite serialized mode handles this).
+ */
 class CourseService(
     private val repo: CourseRepository,
     private val generatePool: (setCode: String) -> GeneratedPool,
