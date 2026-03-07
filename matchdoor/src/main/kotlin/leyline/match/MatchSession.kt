@@ -4,6 +4,7 @@ import forge.game.Game
 import leyline.bridge.ClientAutoPassState
 import leyline.bridge.PhaseStopProfile
 import leyline.bridge.PlayerAction
+import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
@@ -40,8 +41,8 @@ class MatchSession(
     override var counter: MessageCounter = MessageCounter(),
     /** Debug diagnostics sink — protocol messages + game state collector. Null in tests. */
     private val debugSink: MatchDebugSink? = null,
-    /** Callback when match ends. Parameter = true if human won. */
-    val onMatchComplete: ((won: Boolean) -> Unit)? = null,
+    /** Cross-BC coordinator — match results flow back to FD services. */
+    val coordinator: MatchCoordinator? = null,
 ) : SessionOps {
     private val log = LoggerFactory.getLogger(MatchSession::class.java)
 
@@ -538,11 +539,11 @@ class MatchSession(
         sink.sendRaw(matchCompletedMsg)
         log.info("MatchSession: sent MatchCompleted room state")
 
-        // Notify match result callback (e.g. CourseService for sealed events)
+        // Notify coordinator (e.g. CourseService for sealed events)
         try {
-            onMatchComplete?.invoke(humanWon)
+            coordinator?.reportMatchResult(humanWon)
         } catch (e: Exception) {
-            log.warn("MatchSession: onMatchComplete callback failed: {}", e.message)
+            log.warn("MatchSession: reportMatchResult failed: {}", e.message)
         }
 
         // Trigger post-game analysis

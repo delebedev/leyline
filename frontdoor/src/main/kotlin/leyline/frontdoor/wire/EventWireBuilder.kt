@@ -66,6 +66,18 @@ object EventWireBuilder {
         }
     }.toString()
 
+    /** Merge real Course objects with default seed courses (Ladder, Play, etc.). */
+    fun toMergedCoursesJson(courses: List<Course>, defaults: List<Pair<String, String>>): String = buildJsonObject {
+        putJsonArray("Courses") {
+            for (course in courses) {
+                add(buildCourseJson(course))
+            }
+            for ((eventName, module) in defaults) {
+                add(buildCourseJson(eventName, module))
+            }
+        }
+    }.toString()
+
     fun buildCourseJson(
         course: Course,
         includeDeck: Boolean = true,
@@ -169,14 +181,26 @@ object EventWireBuilder {
         putJsonArray("Flags") { e.flags.forEach { add(JsonPrimitive(it)) } }
         putJsonArray("EventTags") { e.eventTags.forEach { add(JsonPrimitive(it)) } }
         putJsonObject("PastEntries") {}
-        putJsonArray("EntryFees") {}
+        putJsonArray("EntryFees") {
+            for (fee in e.entryFees) {
+                add(
+                    buildJsonObject {
+                        put("CurrencyType", fee.currencyType)
+                        put("Quantity", fee.quantity)
+                        if (fee.referenceId != null) put("ReferenceId", fee.referenceId)
+                    },
+                )
+            }
+        }
         putJsonObject("EventUXInfo") {
             put("PublicEventName", e.publicName)
             put("DisplayPriority", e.displayPriority)
             if (e.bladeBehavior != null) put("EventBladeBehavior", e.bladeBehavior)
             put("DeckSelectFormat", e.deckSelectFormat)
             putJsonObject("Parameters") {}
-            putJsonArray("DynamicFilterTagIds") {}
+            putJsonArray("DynamicFilterTagIds") {
+                e.dynamicFilterTagIds.forEach { add(JsonPrimitive(it)) }
+            }
             put("Group", "")
             putJsonArray("FactionSealedUXInfo") {}
             putJsonObject("Prizes") {}
@@ -197,7 +221,7 @@ object EventWireBuilder {
                         put("LossDetailsType", "PlayUntilEventEnds")
                     }
                 }
-                if (e.formatType == "Sealed") {
+                if (e.editableDeck) {
                     putJsonObject("SelectedDeckWidget") {
                         put("DeckButtonBehavior", "Editable")
                         put("ShowCopyDeckButton", true)

@@ -10,6 +10,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import leyline.bridge.CardEntry
 import leyline.bridge.DeckConverter
 import leyline.config.MatchConfig
+import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.CardRepository
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
@@ -35,22 +36,14 @@ class MatchHandler(
     private val matchConfig: MatchConfig = MatchConfig(),
     /** CLI --puzzle override: forces puzzle mode for all connections. */
     private val puzzleFile: File? = null,
-    /** Returns the deckId selected in FD's 612 handler, if any. */
-    private val selectedDeckOverride: (() -> String?)? = null,
-    /** Returns the eventName selected in FD's 612 handler, if any. */
-    private val selectedEventOverride: (() -> String?)? = null,
-    /** Look up a deck's cards JSON by deckId. Injected from LeylineServer. */
-    private val deckLookup: ((String) -> String?)? = null,
-    /** Look up a deck's cards JSON by name. Used for AI deck from config. */
-    private val deckLookupByName: ((String) -> String?)? = null,
+    /** Cross-BC coordinator — deck/event selection, deck resolution, match results. */
+    private val coordinator: MatchCoordinator? = null,
     /** Card data repository — used for grpId→name in deck conversion. */
     private val cards: CardRepository? = null,
     /** Debug diagnostics sink — protocol messages + game state collector. Null in tests. */
     private val debugSink: MatchDebugSink? = null,
     /** Factory for per-session recorders. Null = no recording. */
     private val recorderFactory: (() -> MatchRecorder)? = null,
-    /** Callback when match ends. Parameter = true if human won. */
-    private val onMatchComplete: ((won: Boolean) -> Unit)? = null,
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
@@ -149,7 +142,7 @@ class MatchHandler(
                 registry,
                 recorder = rec,
                 debugSink = debugSink,
-                onMatchComplete = onMatchComplete,
+                coordinator = coordinator,
             )
             s.playerId = clientId.removeSuffix("_Familiar")
             session = s
@@ -170,7 +163,7 @@ class MatchHandler(
 
         when (greMsg.type) {
             ClientMessageType.ConnectReq_097b -> {
-                val eventName = selectedEventOverride?.invoke()
+                val eventName = coordinator?.selectedEventName
                 if (eventName != null) log.info("Match Door: event={}", eventName)
 
                 // Evict stale bridges from previous matches and reset debug collectors
@@ -338,9 +331,9 @@ class MatchHandler(
      * and convert grpIds → card names for Forge engine.
      */
     private fun resolveSeat1Deck(): String {
-        val deckId = selectedDeckOverride?.invoke()
-        if (deckId != null && deckLookup != null) {
-            val cardsJson = deckLookup.invoke(deckId)
+        val deckId = coordinator?.selectedDeckId
+        if (deckId != null) {
+            val cardsJson = coordinator?.resolveDeckJson(deckId)
             if (cardsJson != null) {
                 log.info("Match Door: seat 1 deck from DB deckId={}", deckId)
                 return convertArenaCardsToDeckText(cardsJson)
@@ -357,8 +350,8 @@ class MatchHandler(
     private fun resolveSeat2Deck(): String {
         // Try AI deck from config (name-based lookup)
         val aiDeckName = matchConfig.game.aiDeck
-        if (aiDeckName != null && deckLookupByName != null) {
-            val cardsJson = deckLookupByName.invoke(aiDeckName)
+        if (aiDeckName != null && coordinator != null) {
+            val cardsJson = coordinator.resolveDeckJsonByName(aiDeckName)
             if (cardsJson != null) {
                 log.info("Match Door: seat 2 deck from DB name={}", aiDeckName)
                 return convertArenaCardsToDeckText(cardsJson)
