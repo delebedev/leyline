@@ -18,7 +18,11 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * Production counterpart of the test-only `CardDataDeriver` / `TestCardRegistry`.
  */
-class PuzzleCardRegistrar(private val repo: InMemoryCardRepository) {
+class PuzzleCardRegistrar(
+    private val repo: InMemoryCardRepository,
+    /** Optional client DB repo — checked first for real grpIds (art/text). */
+    private val clientRepo: CardRepository? = null,
+) {
     private val log = LoggerFactory.getLogger(PuzzleCardRegistrar::class.java)
 
     private val nextGrpId = AtomicInteger(300000)
@@ -31,13 +35,25 @@ class PuzzleCardRegistrar(private val repo: InMemoryCardRepository) {
     /**
      * Ensure a card is registered in the repository. Idempotent.
      * If already known, returns existing grpId.
-     * Otherwise derives CardData from the live Forge [Card] and registers it.
+     * Checks [clientRepo] first for a real grpId (with art), then falls back to synthetic.
      */
     fun ensureCardRegistered(card: Card): Int {
         repo.findGrpIdByName(card.name)?.let { return it }
+
+        // Try client DB for real grpId (has art/text assets)
+        val clientGrpId = clientRepo?.findGrpIdByName(card.name)
+        if (clientGrpId != null) {
+            val clientData = clientRepo.findByGrpId(clientGrpId)
+            if (clientData != null) {
+                repo.registerData(clientData, card.name)
+                log.debug("Registered puzzle card '{}' grpId={} (client DB)", card.name, clientGrpId)
+                return clientGrpId
+            }
+        }
+
         val data = fromForgeCard(card)
         repo.registerData(data, card.name)
-        log.debug("Registered puzzle card '{}' grpId={}", card.name, data.grpId)
+        log.debug("Registered puzzle card '{}' grpId={} (synthetic)", card.name, data.grpId)
         return data.grpId
     }
 
@@ -47,6 +63,18 @@ class PuzzleCardRegistrar(private val repo: InMemoryCardRepository) {
      */
     fun ensureCardRegisteredByName(cardName: String): Int {
         repo.findGrpIdByName(cardName)?.let { return it }
+
+        // Try client DB first
+        val clientGrpId = clientRepo?.findGrpIdByName(cardName)
+        if (clientGrpId != null) {
+            val clientData = clientRepo.findByGrpId(clientGrpId)
+            if (clientData != null) {
+                repo.registerData(clientData, cardName)
+                log.debug("Registered puzzle card '{}' grpId={} (client DB)", cardName, clientGrpId)
+                return clientGrpId
+            }
+        }
+
         val db = FModel.getMagicDb()?.commonCards ?: return 0
         val paperCard = db.getCard(cardName)
             ?: run {
