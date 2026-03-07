@@ -117,7 +117,7 @@ Current stub already handles `3006` (ChallengeReconnectAll) with empty proto res
 
 ## Migration Path
 
-**Phase 1: Parameterize MatchCreated.** Refactor `buildMatchCreatedJson()` to accept matchType, yourSeat, playerInfos. Existing 612 path passes Familiar defaults. No behavior change.
+**Phase 1: Parameterize MatchCreated.** ✅ Done (`7d49731`). `buildMatchCreatedJson()` accepts `matchType`, `yourSeat`, `playerInfos` with Familiar defaults. `PlayerInfo` data class added.
 
 **Phase 2: MatchmakingQueue.** Introduce `MatchmakingQueue` class. Wire into `FrontDoorService` constructor (default: new instance). Add 603/606 dispatch. Add `CMD_TYPE_NAMES` entries for 603/606.
 
