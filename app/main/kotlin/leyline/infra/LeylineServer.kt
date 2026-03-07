@@ -182,9 +182,9 @@ class LeylineServer(
             )
         }
         val draftRepo = store.asDraftSessionRepository()
-        val draftService = DraftService(draftRepo) { _ ->
-            // Placeholder packs — Phase 3 will wire real Forge BoosterDraft
-            (0 until 3).map { (1..13).map { 90000 + it } }
+        val draftPackGen = leyline.game.DraftPackGenerator(cardRepo)
+        val draftService = DraftService(draftRepo) { setCode ->
+            draftPackGen.generate(setCode)
         }
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
         val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort, validateDeck = validateDeck)
