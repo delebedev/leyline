@@ -243,7 +243,25 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 32 | DeclareBlockersResp | `onDeclareBlockers` |
 | 36 | SelectTargetsResp | `onSelectTargets` |
 
-## Table 6: Phase/Step Mapping
+## Table 6: Front Door CmdTypes (Key)
+
+Selected FD command types relevant to gameplay. Full list in `frontdoor/.../CmdType.kt`.
+
+| CmdType | Name | Handler | Status |
+|--------:|------|---------|--------|
+| 0 | Authenticate | `onAuthenticate` | Implemented |
+| 1 | StartHook | `onStartHook` | Implemented |
+| 600 | Event_Join | `onEventJoin` | Implemented |
+| 603 | Event_EnterPairing | `onEnterPairing` | Implemented |
+| 612 | Event_AiBotMatch | `onAiBotMatch` | Implemented |
+| 622 | Event_SetDeckV2 | `onSetDeckV2` | Implemented |
+| 623 | Event_GetCoursesV2 | `onGetCoursesV2` | Implemented |
+| 624 | Event_GetActiveEventsV2 | `onGetActiveEventsV2` | Implemented |
+| 1800 | BotDraft_StartDraft | `onBotDraftStart` | Implemented |
+| 1801 | BotDraft_DraftPick | `onBotDraftPick` | Implemented |
+| 1802 | BotDraft_DraftStatus | `onBotDraftStatus` | Implemented |
+
+## Table 7: Phase/Step Mapping
 
 Forge uses a single `PhaseType` enum covering both phases and steps. Arena uses separate `Phase` + `Step` enums.
 
@@ -268,7 +286,7 @@ Forge uses a single `PhaseType` enum covering both phases and steps. Arena uses 
 - Forge's `COMBAT_FIRST_STRIKE_DAMAGE` only occurs when a creature with first/double strike is in combat.
 - Arena sends `PhaseOrStepModified` annotations with both phase# and step# on every transition; forge-nexus produces these in `phaseTransitionDiff` and `aiActionDiff`.
 
-## Table 7: GameObjectType
+## Table 8: GameObjectType
 
 | Value | Arena Name | Forge Equivalent | Notes |
 |------:|------------|------------------|-------|
