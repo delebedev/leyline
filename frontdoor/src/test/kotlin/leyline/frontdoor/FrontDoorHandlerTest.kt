@@ -144,9 +144,8 @@ class FrontDoorHandlerTest :
             return readAllResponses()
         }
 
-        /** Send a cmd, parse first response as JsonObject. */
-        fun sendJson(cmdType: Int, payload: String? = "{}"): JsonObject {
-            val ch = fdChannel()
+        /** Send a cmd, parse first response as JsonObject. Uses [ch] or creates a fresh channel. */
+        fun sendJson(cmdType: Int, payload: String? = "{}", ch: EmbeddedChannel = fdChannel()): JsonObject {
             val msg = ch.sendCmd(cmdType, payload)
             return json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
         }
@@ -175,12 +174,6 @@ class FrontDoorHandlerTest :
             )
             channel = ch
             return ch
-        }
-
-        /** Send a cmd on a course-wired channel, parse first response as JsonObject. */
-        fun sendJsonWith(ch: EmbeddedChannel, cmdType: Int, payload: String? = "{}"): JsonObject {
-            val msg = ch.sendCmd(cmdType, payload)
-            return json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
         }
 
         // --- Tests ---
@@ -481,33 +474,33 @@ class FrontDoorHandlerTest :
             val event = "Sealed_FDN_20260307"
 
             // 1. Join — get DeckSelect module with card pool
-            val join = sendJsonWith(ch, 600, """{"EventName":"$event"}""")
+            val join = sendJson(600, """{"EventName":"$event"}""", ch)
             val course = join["Course"]!!.jsonObject
             course["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"
             course["CardPool"]!!.jsonArray.shouldNotBeEmpty()
 
             // 2. Set deck — transitions to CreateMatch
             val mainDeck = (1..40).joinToString(",") { """{"cardId":$it,"quantity":1}""" }
-            val setDeck = sendJsonWith(
-                ch,
+            val setDeck = sendJson(
                 622,
                 """
                 {"EventName":"$event",
                  "Deck":{"MainDeck":[$mainDeck],"Sideboard":[],"CommandZone":[],"Companions":[]},
                  "Summary":{"DeckId":"sealed-001","Name":"My Sealed","DeckTileId":12345}}
                 """.trimIndent(),
+                ch,
             )
             setDeck["CurrentModule"]?.jsonPrimitive?.content shouldBe "CreateMatch"
 
             // 3. Courses list includes our sealed event
-            val courses = sendJsonWith(ch, 623)
+            val courses = sendJson(623, "{}", ch)
             val names = courses["Courses"]!!.jsonArray.map {
                 it.jsonObject["InternalEventName"]?.jsonPrimitive?.content
             }
             names shouldContain event
 
             // 4. Resign — transitions to Complete
-            val resign = sendJsonWith(ch, 601, """{"EventName":"$event"}""")
+            val resign = sendJson(601, """{"EventName":"$event"}""", ch)
             resign["CurrentModule"]?.jsonPrimitive?.content shouldBe "Complete"
         }
     })
