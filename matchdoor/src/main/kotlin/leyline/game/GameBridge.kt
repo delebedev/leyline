@@ -64,6 +64,7 @@ class GameBridge(
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
 
     private var game: Game? = null
+    private val players: MutableMap<Int, Player> = mutableMapOf()
     private var loopController: GameLoopController? = null
 
     /** Shared signal — bridges notify when they have a pending item, replacing poll loops. */
@@ -258,6 +259,7 @@ class GameBridge(
      */
     fun wrapGame(g: Game) {
         game = g
+        g.players.forEachIndexed { index, player -> players[index + 1] = player }
         val collector = GameEventCollector(this)
         eventCollector = collector
         g.subscribeToEvents(collector)
@@ -300,6 +302,9 @@ class GameBridge(
 
         val g = GameBootstrap.createConstructedGame(deck1, deck2)
         game = g
+
+        // Populate seat map by registration order (seat 1 = first, seat 2 = second)
+        g.players.forEachIndexed { index, player -> players[index + 1] = player }
 
         // Wire WebPlayerController for seat 1 (human) with mulligan bridge
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
@@ -374,14 +379,7 @@ class GameBridge(
 
     override fun getGame(): Game? = game
 
-    override fun getPlayer(seatId: Int): Player? {
-        val g = game ?: return null
-        return if (seatId == 1) {
-            g.players.firstOrNull { it.lobbyPlayer !is LobbyPlayerAi }
-        } else {
-            g.players.firstOrNull { it.lobbyPlayer is LobbyPlayerAi }
-        }
-    }
+    override fun getPlayer(seatId: Int): Player? = players[seatId]
 
     /**
      * Block until the engine reaches a priority stop (via [GameActionBridge]).
@@ -532,6 +530,7 @@ class GameBridge(
 
         val g = GameBootstrap.createPuzzleGame()
         game = g
+        g.players.forEachIndexed { index, player -> players[index + 1] = player }
 
         // Apply puzzle state via reflection (applyGameOnThread is protected).
         // Install temp WebPlayerControllers with autoKeep + zero-timeout bridges
@@ -629,6 +628,7 @@ class GameBridge(
         playback = null
         eventCollector = null
         game = null
+        players.clear()
     }
 
     // --- Puzzle internals ---
