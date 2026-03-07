@@ -409,10 +409,6 @@ def cmd_errors(args: list[str]) -> None:
 
 def cmd_board(args: list[str]) -> None:
     """Unified board state from debug API + OCR."""
-    # Proto zone IDs (must match ZoneIds.kt)
-    STACK, BATTLEFIELD, EXILE = 27, 28, 29
-    P1_HAND, P1_LIBRARY, P1_GRAVEYARD = 31, 32, 33
-    P2_HAND, P2_LIBRARY, P2_GRAVEYARD = 35, 36, 37
     HAND_Y_CENTER, HAND_X_MIN, HAND_X_MAX = 530, 60, 720
 
     with_ocr = "--no-ocr" not in args
@@ -435,108 +431,64 @@ def cmd_board(args: list[str]) -> None:
         print(json.dumps({"match": match_info}, indent=2))
         return
 
-    # 2. Fetch game state timeline and merge snapshots (Full seeds, Diffs overlay)
-    gs_raw = fetch_api("/api/game-states")
-    all_snapshots: list[dict] = []
-    if gs_raw:
-        gs = json.loads(gs_raw)
-        all_snapshots = gs.get("data", [])
+    # 2. Fetch objects from id-map (bridge accumulator — always current)
+    idmap_raw = fetch_api("/api/id-map?active=true")
+    objects: list[dict] = []
+    if idmap_raw:
+        entries = json.loads(idmap_raw)
+        if isinstance(entries, dict):
+            entries = entries.get("data", [])
+        for e in entries:
+            objects.append({
+                "instanceId": e.get("instanceId", 0),
+                "grpId": e.get("grpId", 0),
+                "name": e.get("cardName"),
+                "ownerSeatId": e.get("ownerSeatId", 0),
+                "controllerSeatId": e.get("ownerSeatId", 0),
+                "zoneId": e.get("protoZoneId", 0),
+                "forgeZone": e.get("forgeZone"),
+            })
 
-    # Merge objects and zones across all snapshots (Full seeds, Diffs overlay)
-    merged_objects: dict[int, dict] = {}
-    merged_zones: dict[str, dict] = {}
-    players: dict[int, int] = {}
+    # 3. Fetch actions + life from latest game state snapshot
     actions: list[dict] = []
-
-    for snap in all_snapshots:
-        for obj in snap.get("objects", {}).values():
-            merged_objects[obj.get("instanceId", 0)] = obj
-        for zid, z in snap.get("zones", {}).items():
-            merged_zones[zid] = z
-        for p in snap.get("players", []):
-            players[p["seatId"]] = p["life"]
-
-    # Zone membership is the source of truth — objects not in any zone are gone
-    live_ids: set[int] = set()
-    zone_to_ids: dict[int, list[int]] = {}
-    for zid, z in merged_zones.items():
-        ids = z.get("objectInstanceIds", [])
-        live_ids.update(ids)
-        zone_to_ids[int(zid)] = ids
-
-    # Update object zoneId from zone membership (more reliable than object's own zoneId)
-    for zid, ids in zone_to_ids.items():
-        for iid in ids:
-            if iid in merged_objects:
-                merged_objects[iid]["zoneId"] = zid
-
-    # Drop objects no longer in any zone (resolved triggers, etc.)
-    merged_objects = {k: v for k, v in merged_objects.items() if k in live_ids}
-
-    # Actions from the latest snapshot (always complete)
-    if all_snapshots:
-        for act in all_snapshots[-1].get("actions", []):
-            actions.append(
-                {
+    players: dict[int, int] = {}
+    gs_raw = fetch_api("/api/game-states")
+    if gs_raw:
+        snapshots = json.loads(gs_raw).get("data", [])
+        # Life: last snapshot with players
+        for snap in reversed(snapshots):
+            if snap.get("players"):
+                for p in snap["players"]:
+                    players[p["seatId"]] = p["life"]
+                break
+        # Actions: always from latest snapshot
+        if snapshots:
+            for act in snapshots[-1].get("actions", []):
+                actions.append({
                     "actionType": act.get("actionType", ""),
                     "instanceId": act.get("instanceId", 0),
                     "grpId": act.get("grpId", 0),
                     "name": act.get("name"),
-                }
-            )
+                })
 
-    # 3. Optionally get OCR
+    # 4. Optionally get OCR
     ocr_items: list[dict] = []
     if with_ocr:
         ocr_items = _board_ocr()
 
-    # 4. Build objects list from merged state
-    objects: list[dict] = [
-        {
-            "instanceId": obj.get("instanceId", 0),
-            "grpId": obj.get("grpId", 0),
-            "name": obj.get("name"),
-            "type": obj.get("type"),
-            "zoneId": obj.get("zoneId", 0),
-            "ownerSeatId": obj.get("ownerSeatId", 0),
-            "controllerSeatId": obj.get("controllerSeatId", 0),
-            "power": obj.get("power"),
-            "toughness": obj.get("toughness"),
-            "isTapped": obj.get("isTapped", False),
-            "hasSummoningSickness": obj.get("hasSummoningSickness", False),
-            "damage": obj.get("damage", 0),
-            "loyalty": obj.get("loyalty"),
-            "attackState": obj.get("attackState"),
-            "blockState": obj.get("blockState"),
-        }
-        for obj in merged_objects.values()
-    ]
-
-    # 5. Group by zone (seat 1 = human, seat 2 = AI)
+    # 5. Group by zone using forgeZone strings from id-map
     our_seat, opp_seat = 1, 2
     actionable_ids = {a["instanceId"] for a in actions}
 
-    our_hand = [
-        o for o in objects if o["zoneId"] == P1_HAND and o["ownerSeatId"] == our_seat
-    ]
-    opp_hand = [
-        o for o in objects if o["zoneId"] == P2_HAND and o["ownerSeatId"] == opp_seat
-    ]
-    bf = [o for o in objects if o["zoneId"] == BATTLEFIELD]
+    our_hand = [o for o in objects if o["forgeZone"] == "Hand" and o["ownerSeatId"] == our_seat]
+    opp_hand = [o for o in objects if o["forgeZone"] == "Hand" and o["ownerSeatId"] == opp_seat]
+    bf = [o for o in objects if o["forgeZone"] == "Battlefield"]
     our_bf = [o for o in bf if o["controllerSeatId"] == our_seat]
     opp_bf = [o for o in bf if o["controllerSeatId"] == opp_seat]
-    stack_cards = [o for o in objects if o["zoneId"] == STACK]
-    our_grave = [
-        o
-        for o in objects
-        if o["zoneId"] == P1_GRAVEYARD and o["ownerSeatId"] == our_seat
-    ]
-    opp_grave = [
-        o
-        for o in objects
-        if o["zoneId"] == P2_GRAVEYARD and o["ownerSeatId"] == opp_seat
-    ]
-    exile_cards = [o for o in objects if o["zoneId"] == EXILE]
+    stack_cards = [o for o in objects if o["forgeZone"] == "Stack"]
+    our_grave = [o for o in objects if o["forgeZone"] == "Graveyard" and o["ownerSeatId"] == our_seat]
+    opp_grave = [o for o in objects if o["forgeZone"] == "Graveyard" and o["ownerSeatId"] == opp_seat]
+    exile_cards = [o for o in objects if o["forgeZone"] == "Exile"]
 
     # 6. Correlate hand cards with OCR x-positions
     hand_ocr = [
@@ -596,8 +548,8 @@ def cmd_board(args: list[str]) -> None:
             "cards": [c.get("name", "?") for c in exile_cards],
         },
         "opp_hand_count": len(opp_hand),
-        "our_library_count": sum(1 for o in objects if o["zoneId"] == P1_LIBRARY),
-        "opp_library_count": sum(1 for o in objects if o["zoneId"] == P2_LIBRARY),
+        "our_library_count": sum(1 for o in objects if o["forgeZone"] == "Library" and o["ownerSeatId"] == our_seat),
+        "opp_library_count": sum(1 for o in objects if o["forgeZone"] == "Library" and o["ownerSeatId"] == opp_seat),
         "actions": actions,
     }
     print(json.dumps(board, indent=2))
