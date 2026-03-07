@@ -19,6 +19,7 @@ Recordings are captured client↔server sessions from `just serve-proxy`. They a
 - **fd-frames.jsonl is the FD rosetta stone.** When implementing a new FD handler, find the real response with `just fd-response <CmdType>` and match its shape exactly.
 - **`just fd-coverage`** shows which CmdTypes are handled vs observed — use it to find gaps.
 - **`just rec-turninfo <session>`** dumps the turnInfo timeline (turn/phase/step/active/priority per GSM). Use it to compare phase transitions between engine and proxy recordings.
+- **`proto-annotation-variance` "NOT IMPLEMENTED" means "not seen in proxy recordings"** — NOT "our code doesn't emit it." The tool only scans proxy sessions (real server traffic). If we implement an annotation but only test via `just serve` (local engine), it still shows NOT IMPLEMENTED. Always check our code before assuming a gap.
 - **`persistentAnnotations` ≠ `annotations`** in GSMs. Ongoing effects (granted keywords, layered effects, aura attachments) live in `persistentAnnotations`. Regular `annotations` are one-shot events (zone transfers, damage, taps). When grepping recordings for effect-related data (AddAbility, LayeredEffect, etc.), search `persistentAnnotations` — they won't appear in `annotations`.
 
 ## Playbooks
