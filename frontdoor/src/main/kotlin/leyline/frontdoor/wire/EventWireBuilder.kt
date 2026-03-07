@@ -65,7 +65,12 @@ object EventWireBuilder {
         }
     }.toString()
 
-    fun buildCourseJson(course: Course) = buildJsonObject {
+    fun buildCourseJson(
+        course: Course,
+        includeDeck: Boolean = true,
+        includeWins: Boolean = true,
+        includeLosses: Boolean = false,
+    ) = buildJsonObject {
         put("CourseId", course.id.value)
         put("InternalEventName", course.eventName)
         put("CurrentModule", course.module.wireName())
@@ -88,21 +93,23 @@ object EventWireBuilder {
             putJsonArray("DeckValidationSummaries") {}
             putJsonObject("UnownedCards") {}
         }
-        putJsonObject("CourseDeck") {
-            val d = course.deck
-            putJsonArray("MainDeck") {
-                d?.mainDeck?.forEach { add(buildDeckCardJson(it)) }
+        if (includeDeck) {
+            putJsonObject("CourseDeck") {
+                val d = course.deck
+                putJsonArray("MainDeck") {
+                    d?.mainDeck?.forEach { add(buildDeckCardJson(it)) }
+                }
+                putJsonArray("ReducedSideboard") {}
+                putJsonArray("Sideboard") {
+                    d?.sideboard?.forEach { add(buildDeckCardJson(it)) }
+                }
+                putJsonArray("CommandZone") {}
+                putJsonArray("Companions") {}
+                putJsonArray("CardSkins") {}
             }
-            putJsonArray("ReducedSideboard") {}
-            putJsonArray("Sideboard") {
-                d?.sideboard?.forEach { add(buildDeckCardJson(it)) }
-            }
-            putJsonArray("CommandZone") {}
-            putJsonArray("Companions") {}
-            putJsonArray("CardSkins") {}
         }
-        put("CurrentWins", course.wins)
-        put("CurrentLosses", course.losses)
+        if (includeWins) put("CurrentWins", course.wins)
+        if (includeLosses) put("CurrentLosses", course.losses)
         putJsonArray("CardPool") {
             course.cardPool.forEach { add(JsonPrimitive(it)) }
         }
@@ -121,8 +128,25 @@ object EventWireBuilder {
         putJsonArray("CardStyles") {}
     }
 
-    fun buildJoinResponse(course: Course): String =
-        buildCourseJson(course).toString()
+    fun buildJoinResponse(course: Course): String = buildJsonObject {
+        put("Course", buildCourseJson(course, includeDeck = false, includeWins = false))
+        putJsonObject("InventoryInfo") {
+            put("SeqId", 1)
+            putJsonArray("Changes") {}
+            put("Gems", 0)
+            put("Gold", 0)
+            put("TotalVaultProgress", 0)
+            put("WildCardCommons", 0)
+            put("WildCardUnCommons", 0)
+            put("WildCardRares", 0)
+            put("WildCardMythics", 0)
+            putJsonArray("Boosters") {}
+            putJsonObject("Vouchers") {}
+            putJsonObject("Cosmetics") {}
+            putJsonObject("CustomTokens") {}
+            putJsonArray("PrizeWallsUnlocked") {}
+        }
+    }.toString()
 
     private fun buildEventJson(e: EventDef) = buildJsonObject {
         put("InternalEventName", e.internalName)
