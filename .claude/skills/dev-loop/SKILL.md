@@ -34,6 +34,16 @@ Filter to gameplay/protocol bugs (not tooling, not account-server). Check `docs/
 
 Announce: "Working on #N — <title>"
 
+### Phase 1b: Recording scope (for mechanic/protocol bugs)
+
+If the bug involves a game mechanic, zone transfer, or annotation:
+
+Invoke the **recording-scope** skill. Decode the proxy recording to see what the real server sends for this mechanic. This prevents discovering protocol gaps during debugging.
+
+**Example:** Surveil (#66) — we spent 4 hours debugging because we didn't decode the recording first. The real server's `ObjectIdChanged` + `ZoneTransfer(category:"Surveil")` + dual-object diff pattern was visible in 15 minutes of recording analysis. See `docs/retros/2026-03-08-surveil-scoping-retro.md`.
+
+Skip this phase for pure UI bugs, account-server issues, or FD protocol bugs that don't involve game state.
+
 ### Phase 2: Reproduce
 
 Invoke the **reproduce** skill with the issue number.

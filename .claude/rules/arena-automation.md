@@ -36,10 +36,25 @@ Signal priority (most authoritative → fallback):
 
 - Every click needs a purpose and a confirmation (`arena ocr --find` or `arena wait` after)
 - `--retry 3` for text clicks during transitions (animations delay text rendering)
-- **Play cards by dragging**, not clicking — Unity treats click as drag-start. `arena drag <from> <to>` with window-relative coords.
-  - Lands: `arena drag <x>,530 480,350` — plays automatically, no prompt.
-  - Spells: same drag, get "Pay" prompt → auto-pays if mana available, or "Cancel" at 888,504.
-  - Cards in hand span ~x 350-620, y~530. Space ~40px apart.
+- **Play cards with click-move-click**, not drag gestures. Unity responds better to: click card in hand → move cursor to above-center battlefield → click to drop.
+  ```bash
+  # 1. Activate MTGA
+  osascript -e 'tell application "System Events" to set frontmost of (first process whose name is "MTGA") to true'
+  sleep 0.15
+  # 2. Click card in hand (screen coords = window origin + OCR coords)
+  bin/click <screen_x> <screen_y>
+  # 3. Move to above-center of screen (no click) — higher than center works better
+  sleep 0.2
+  bin/click <center_screen_x> <above_center_screen_y> move
+  # 4. Small pause, then click to confirm placement
+  sleep 0.15
+  bin/click <center_screen_x> <above_center_screen_y>
+  ```
+  - Screen coords = window origin (from `mtga_window_bounds()`) + OCR coords.
+  - Move target should be horizontally centered and above vertical center (~y offset -100 from center).
+  - Works reliably for leftmost and rightmost cards in hand.
+  - Lands play instantly; spells get "Pay" prompt → auto-pays if mana available.
+  - Fallback: `arena drag <from> <to>` still works but is less reliable.
 - **Prefer blind coord clicks over OCR-matching when the position is stable.** In-game action buttons always appear at ~888,504 regardless of label. Don't OCR to find "Next" vs "End Turn" — just click the coord.
 
 ## Recovery
@@ -160,11 +175,13 @@ bin/arena wait text="Home" --timeout 10          # back to lobby
 
 ### Playing cards from hand
 
-Cards span **x ~350-620, y ~530**, spaced ~40px apart. **Don't figure out what's playable — just drag left to right and see what happens.**
+Cards span **x ~350-620, y ~530**, spaced ~40px apart. **Don't figure out what's playable — just try left to right and see what happens.**
+
+**Use click-move-click** (not drag) to play cards. Get card coords from OCR, convert to screen coords (add window origin), then: click card → `sleep 0.2` → move to above-center → `sleep 0.15` → click.
 
 - Card played successfully → board changes, new priority button appears
 - "Pay" prompt + "Cancel" → out of mana, click 888,504 to cancel, move on
-- Modal choice (kicker, scry) → click the option, then "Done"
+- Modal choice (kicker, scry, surveil) → handle the prompt, then "Done"
 
 ### Targeting spells
 
@@ -181,6 +198,7 @@ When a spell says "Choose any target":
 
 ### Triggers and modals
 
+- **Surveil:** "Surveil" header, card shown with "Graveyard" (left) and "Library" (right) zones. Drag card to Library to keep on top, or Graveyard to bin it. Click "Done" after. Good cards → Library, bad cards → Graveyard.
 - **Scry:** "TOP" / "BOTTOM" buttons visible, click one, then "Done"
 - **Kicker:** "Choose One" screen — click the option (left = without, right = with kicker)
 - **"[Click to Continue]"** — click it at the shown coords

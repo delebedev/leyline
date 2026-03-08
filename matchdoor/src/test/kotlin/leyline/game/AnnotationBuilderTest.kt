@@ -89,6 +89,39 @@ class AnnotationBuilderTest :
             ann.affectorId shouldBe 0
         }
 
+        test("objectIdChangedWithAffectorId") {
+            val ann = AnnotationBuilder.objectIdChanged(origId = 100, newId = 200, affectorId = 500)
+            ann.affectorId shouldBe 500
+            ann.affectedIdsList shouldContain 100
+        }
+
+        // --- ZoneTransfer affectorId ---
+
+        test("zoneTransferWithAffectorId") {
+            val ann = AnnotationBuilder.zoneTransfer(
+                instanceId = 200,
+                srcZoneId = 32,
+                destZoneId = 33,
+                category = "Surveil",
+                affectorId = 500,
+            )
+            ann.affectorId shouldBe 500
+            ann.affectedIdsList shouldContain 200
+        }
+
+        test("zoneTransferAffectorIdTakesPrecedenceOverActingSeat") {
+            val ann = AnnotationBuilder.zoneTransfer(
+                instanceId = 200,
+                srcZoneId = 32,
+                destZoneId = 33,
+                category = "Surveil",
+                actingSeatId = 1,
+                affectorId = 500,
+            )
+            // affectorId (ability instance) takes precedence over actingSeatId (player seat)
+            ann.affectorId shouldBe 500
+        }
+
         // --- UserActionTaken ---
 
         test("userActionTakenFields") {

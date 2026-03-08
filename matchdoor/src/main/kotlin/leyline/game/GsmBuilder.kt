@@ -180,6 +180,74 @@ object GsmBuilder {
     }
 
     /**
+     * Build a GroupReq for surveil/scry: put cards on top of library or into graveyard/bottom.
+     *
+     * Surveil 1: one card, two groups — Library/Top (keep) and Graveyard/None (away).
+     * Scry 1: one card, two groups — Library/Top (keep) and Library/Bottom (away).
+     *
+     * @param context [GroupingContext.Surveil] or [GroupingContext.Scry_a0f6]
+     * @param sourceInstanceId the card that triggered the surveil/scry (for sourceId)
+     */
+    fun buildSurveilScryGroupReq(
+        msgId: Int,
+        gameStateId: Int,
+        seatId: Int,
+        cardInstanceIds: List<Int>,
+        context: GroupingContext,
+        sourceInstanceId: Int,
+    ): GREToClientMessage {
+        val promptId = when (context) {
+            GroupingContext.Surveil -> PromptIds.GROUP_SURVEIL
+            GroupingContext.Scry_a0f6 -> PromptIds.GROUP_SCRY
+            else -> PromptIds.GROUP_SURVEIL
+        }
+        val awayZone = when (context) {
+            GroupingContext.Surveil -> ZoneType.Graveyard
+            else -> ZoneType.Library // scry puts on bottom
+        }
+        val awaySubZone = when (context) {
+            GroupingContext.Surveil -> SubZoneType.None_a455
+            else -> SubZoneType.Bottom
+        }
+        return GREToClientMessage.newBuilder()
+            .setType(GREMessageType.GroupReq_695e)
+            .addSystemSeatIds(seatId)
+            .setMsgId(msgId)
+            .setGameStateId(gameStateId)
+            .setPrompt(
+                Prompt.newBuilder().setPromptId(promptId)
+                    .addParameters(
+                        PromptParameter.newBuilder()
+                            .setParameterName("CardId")
+                            .setType(ParameterType.Number),
+                    ),
+            )
+            .setGroupReq(
+                GroupReq.newBuilder()
+                    .addAllInstanceIds(cardInstanceIds)
+                    .addGroupSpecs(
+                        GroupSpecification.newBuilder()
+                            .setLowerBound(0)
+                            .setUpperBound(cardInstanceIds.size)
+                            .setZoneType(ZoneType.Library)
+                            .setSubZoneType(SubZoneType.Top),
+                    )
+                    .addGroupSpecs(
+                        GroupSpecification.newBuilder()
+                            .setLowerBound(0)
+                            .setUpperBound(cardInstanceIds.size)
+                            .setZoneType(awayZone)
+                            .setSubZoneType(awaySubZone),
+                    )
+                    .setGroupType(GroupType.Ordered)
+                    .setContext(context)
+                    .setSourceId(sourceInstanceId),
+            )
+            .setAllowCancel(AllowCancel.No_a526)
+            .build()
+    }
+
+    /**
      * Build the initial Full [GameStateMessage] for the connection bundle.
      * Zones show the pre-deal state: all cards in library, hands empty.
      * No game objects (cards are face-down).

@@ -2,6 +2,7 @@ package leyline.game
 
 import forge.game.Game
 import forge.game.phase.PhaseType
+import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.ZoneIds
 import org.slf4j.LoggerFactory
@@ -46,6 +47,8 @@ object AnnotationPipeline {
         val destZoneId: Int,
         val grpId: Int,
         val ownerSeatId: Int,
+        /** InstanceId of the ability/spell that caused this transfer (for affectorId). */
+        val affectorId: Int = 0,
     )
 
     /**
@@ -115,8 +118,22 @@ object AnnotationPipeline {
                     retiredIds.add(origId)
                     appendToZone(patchedZones, ZONE_LIMBO, origId)
                 }
+                // Resolve affectorId: the ability instance that caused this transfer.
+                // For surveil (and future mechanics), the source card's ability on the
+                // stack has instanceId = getOrAlloc(sourceForgeCardId + STACK_ABILITY_ID_OFFSET).
+                val affectorId = if (forgeCardId != null && events.isNotEmpty()) {
+                    val sourceForgeId = AnnotationBuilder.affectorSourceFromEvents(forgeCardId, events)
+                    if (sourceForgeId != null) {
+                        bridge.getOrAllocInstanceId(sourceForgeId + ObjectMapper.STACK_ABILITY_ID_OFFSET)
+                    } else {
+                        0
+                    }
+                } else {
+                    0
+                }
+
                 transfers.add(
-                    AppliedTransfer(origId, newId, category, prevZone, obj.zoneId, obj.grpId, obj.ownerSeatId),
+                    AppliedTransfer(origId, newId, category, prevZone, obj.zoneId, obj.grpId, obj.ownerSeatId, affectorId),
                 )
                 zoneRecordings.add(newId to obj.zoneId)
             } else {
@@ -149,7 +166,7 @@ object AnnotationPipeline {
         transfer: AppliedTransfer,
         actingSeat: Int,
     ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
-        val (origId, newId, category, srcZone, destZone, grpId, _) = transfer
+        val (origId, newId, category, srcZone, destZone, grpId, _, affectorId) = transfer
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
 
@@ -174,13 +191,14 @@ object AnnotationPipeline {
             }
             TransferCategory.Destroy, TransferCategory.Sacrifice, TransferCategory.Countered,
             TransferCategory.Bounce, TransferCategory.Draw, TransferCategory.Discard,
-            TransferCategory.Mill, TransferCategory.Exile, TransferCategory.Return,
-            TransferCategory.Search, TransferCategory.Put, TransferCategory.ZoneTransfer,
+            TransferCategory.Mill, TransferCategory.Surveil, TransferCategory.Exile,
+            TransferCategory.Return, TransferCategory.Search, TransferCategory.Put,
+            TransferCategory.ZoneTransfer,
             -> {
                 if (origId != newId) {
-                    annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
+                    annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
                 }
-                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
+                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId))
             }
         }
 

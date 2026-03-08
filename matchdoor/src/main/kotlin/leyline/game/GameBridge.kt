@@ -632,8 +632,10 @@ class GameBridge(
      * Tear down the current game and start a new puzzle in-place.
      * Clears all bridge state (instanceIds, limbo, zones, snapshots, annotations)
      * so the new puzzle gets a clean slate. The client receives a Full GSM after.
+     *
+     * @return old instanceIds that the client should delete (for diffDeletedInstanceIds)
      */
-    fun resetForPuzzle(puzzle: Puzzle) {
+    fun resetForPuzzle(puzzle: Puzzle): List<Int> {
         log.info("GameBridge: resetting for new puzzle")
 
         // Save reference to client DB repo before swapping (for real grpId lookups)
@@ -642,7 +644,7 @@ class GameBridge(
         shutdown()
 
         // Clear all mapping/tracking state from the previous game
-        ids.resetAll()
+        val deletedIds = ids.resetAll()
         limbo.clear()
         diff.resetAll()
         effects.resetAll()
@@ -659,7 +661,8 @@ class GameBridge(
         puzzleClientRepo = previousRepo
 
         startPuzzle(puzzle)
-        log.info("GameBridge: puzzle hot-swap complete")
+        log.info("GameBridge: puzzle hot-swap complete, deleted {} old instanceIds", deletedIds.size)
+        return deletedIds
     }
 
     /**

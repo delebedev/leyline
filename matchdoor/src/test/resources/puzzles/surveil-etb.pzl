@@ -1,0 +1,18 @@
+[metadata]
+Name:Surveil ETB
+Goal:Win
+Turns:10
+Difficulty:Tutorial
+Description:Cast Wary Thespian to trigger surveil 1 on ETB. Tests surveil modal (keep on top / put in graveyard). Library has a mix of cards to make the choice meaningful.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Forest;Forest
+humanhand=Wary Thespian;Wary Thespian
+humanlibrary=Grizzly Bears;Giant Growth;Forest;Forest;Forest;Forest;Forest
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

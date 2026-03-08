@@ -447,7 +447,7 @@ class AnnotationPipelineTest :
 
         test("mechanicAnnotationsIgnoresZoneTransferEvents") {
             val events = listOf(
-                GameEvent.ZoneChanged(forgeCardId = 1, from = forge.game.zone.ZoneType.Hand, to = forge.game.zone.ZoneType.Battlefield),
+                GameEvent.ZoneChanged(forgeCardId = 1, from = Zone.Hand, to = Zone.Battlefield),
                 GameEvent.LandPlayed(forgeCardId = 1, seatId = 1),
                 GameEvent.CardDestroyed(forgeCardId = 2, seatId = 1),
                 GameEvent.DamageDealtToPlayer(sourceForgeId = 4, targetSeatId = 1, amount = 3, combat = true),
@@ -699,6 +699,53 @@ class AnnotationPipelineTest :
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
             val category = annotations.last().detailsList.first { it.key == "category" }
             category.getValueString(0) shouldBe "Mill"
+        }
+
+        test("surveilProducesAnnotationsWithAffectorId") {
+            val abilityInstanceId = 500
+            val transfer = AnnotationPipeline.AppliedTransfer(
+                origId = 100,
+                newId = 200,
+                category = TransferCategory.Surveil,
+                srcZoneId = ZoneIds.P1_LIBRARY,
+                destZoneId = ZoneIds.P1_GRAVEYARD,
+                grpId = 0,
+                ownerSeatId = 1,
+                affectorId = abilityInstanceId,
+            )
+            val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            annotations.size shouldBe 2
+
+            // ObjectIdChanged carries affectorId
+            val oidChanged = annotations[0]
+            oidChanged.typeList.first() shouldBe AnnotationType.ObjectIdChanged
+            oidChanged.affectorId shouldBe abilityInstanceId
+            oidChanged.affectedIdsList shouldContain 100
+
+            // ZoneTransfer carries affectorId and category
+            val zt = annotations[1]
+            zt.typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+            zt.affectorId shouldBe abilityInstanceId
+            zt.affectedIdsList shouldContain 200
+            val category = zt.detailsList.first { it.key == "category" }
+            category.getValueString(0) shouldBe "Surveil"
+        }
+
+        test("surveilWithoutAffectorIdHasZeroAffector") {
+            val transfer = AnnotationPipeline.AppliedTransfer(
+                origId = 100,
+                newId = 200,
+                category = TransferCategory.Surveil,
+                srcZoneId = ZoneIds.P1_LIBRARY,
+                destZoneId = ZoneIds.P1_GRAVEYARD,
+                grpId = 0,
+                ownerSeatId = 1,
+                // no affectorId
+            )
+            val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            // Without affectorId, annotations should still work but have 0 affector
+            annotations[0].affectorId shouldBe 0
+            annotations[1].affectorId shouldBe 0
         }
 
         test("counteredProducesAnnotations") {

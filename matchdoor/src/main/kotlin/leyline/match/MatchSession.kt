@@ -309,6 +309,12 @@ class MatchSession(
         targetingHandler.onSelectN(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
+    /** Handle GroupResp for surveil/scry — delegates to [TargetingHandler]. */
+    fun onGroupResp(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+        val bridge = gameBridge ?: return
+        targetingHandler.onGroupResp(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
+    }
+
     /**
      * Handle CancelActionReq — player cancelled targeting (backed out of spell cast).
      *
