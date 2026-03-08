@@ -4,19 +4,19 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from scry_lib.tail import scan_backward_for_full, tail_log
+from scry_lib.tail import find_last_full_offset, tail_log
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 # ---------------------------------------------------------------------------
-# scan_backward_for_full
+# find_last_full_offset
 # ---------------------------------------------------------------------------
 
 class TestScanBackwardForFull:
     def test_game_start_fixture_finds_full(self):
         path = FIXTURES / "game_start.jsonl"
-        offset = scan_backward_for_full(path)
+        offset = find_last_full_offset(path)
         assert offset is not None
         # The Full is in the first GRE block (line 1 header, line 2 JSON).
         # Offset should be 0 — the header is the very first line.
@@ -24,7 +24,7 @@ class TestScanBackwardForFull:
 
     def test_game_start_offset_points_to_header(self):
         path = FIXTURES / "game_start.jsonl"
-        offset = scan_backward_for_full(path)
+        offset = find_last_full_offset(path)
         assert offset is not None
         with open(path) as f:
             f.seek(offset)
@@ -34,13 +34,13 @@ class TestScanBackwardForFull:
     def test_mid_session_has_no_full(self):
         """mid_session_catchup.jsonl has only Diff states, no Full."""
         path = FIXTURES / "mid_session_catchup.jsonl"
-        offset = scan_backward_for_full(path)
+        offset = find_last_full_offset(path)
         assert offset is None
 
     def test_empty_file(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
             f.flush()
-            result = scan_backward_for_full(Path(f.name))
+            result = find_last_full_offset(Path(f.name))
         assert result is None
 
     def test_no_full_in_diffs_only(self):
@@ -48,7 +48,7 @@ class TestScanBackwardForFull:
             f.write("[UnityCrossThreadLogger]08/03/2026 10:21:24: Match to abc-123: GreToClientEvent\n")
             f.write('{ "greToClientEvent": { "greToClientMessages": [{"type": "GREMessageType_GameStateMessage", "gameStateMessage": {"type": "GameStateType_Diff"}}] } }\n')
             f.flush()
-            result = scan_backward_for_full(Path(f.name))
+            result = find_last_full_offset(Path(f.name))
         assert result is None
 
     def test_returns_last_full_header(self):
@@ -62,7 +62,7 @@ class TestScanBackwardForFull:
             f.write("[UnityCrossThreadLogger]08/03/2026 10:22:00: Match to abc-123: GreToClientEvent\n")
             f.write('{ "greToClientEvent": { "greToClientMessages": [{"type": "GREMessageType_GameStateMessage", "gameStateMessage": {"type": "GameStateType_Full"}}] } }\n')
             f.flush()
-            result = scan_backward_for_full(Path(f.name))
+            result = find_last_full_offset(Path(f.name))
         assert result == second_header_offset
 
 

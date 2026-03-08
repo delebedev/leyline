@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Iterator
 
 
-def scan_backward_for_full(path: Path) -> int | None:
+def find_last_full_offset(path: Path) -> int | None:
     """Find the byte offset of the header line preceding the last GameStateType_Full GSM.
 
     Scans forward through the file tracking GreToClientEvent header offsets.

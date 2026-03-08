@@ -25,7 +25,7 @@ def server_url():
     """Start the scry HTTP server on a free port against the game_start fixture."""
     from scry_lib.parser import parse_gre_blocks
     from scry_lib.server import _make_server
-    from scry_lib.tail import scan_backward_for_full, tail_log
+    from scry_lib.tail import find_last_full_offset, tail_log
     from scry_lib.tracker import GameTracker
 
     log_path = FIXTURES / "game_start.jsonl"
@@ -34,7 +34,7 @@ def server_url():
     tracker = GameTracker()
     lock = threading.Lock()
 
-    offset = scan_backward_for_full(log_path)
+    offset = find_last_full_offset(log_path)
     start = offset if offset is not None else 0
     for block in parse_gre_blocks(
         tail_log(log_path, follow=False, start_offset=start),

@@ -162,17 +162,19 @@ class TestToDict:
         assert d["players"][0] == {"seat": 1, "life": 20}
         assert d["object_count"] == 1
         assert d["completed_games"] == 0
-        # Only non-empty zones
-        assert "ZoneType_Hand" in d["zones"]
-        assert "ZoneType_Battlefield" not in d["zones"]  # no objects
+        # Only non-empty zones (list, not dict — avoids key collision for per-player zones)
+        zone_types = [z["type"] for z in d["zones"]]
+        assert "ZoneType_Hand" in zone_types
+        assert "ZoneType_Battlefield" not in zone_types  # no objects
 
     def test_zones_include_owner_and_objects(self):
         t = GameTracker()
         t.feed(_gsm_block(_full_gsm(), match_id="m-1"))
-        hand = t.to_dict()["zones"]["ZoneType_Hand"]
-        assert hand["zone_id"] == 31
-        assert hand["owner"] == 1
-        assert hand["objects"] == [151]
+        hands = [z for z in t.to_dict()["zones"] if z["type"] == "ZoneType_Hand"]
+        assert len(hands) == 1
+        assert hands[0]["zone_id"] == 31
+        assert hands[0]["owner"] == 1
+        assert hands[0]["objects"] == [151]
 
     def test_with_no_state(self):
         t = GameTracker()

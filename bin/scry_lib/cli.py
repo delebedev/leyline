@@ -23,9 +23,9 @@ def _cmd_state(args: argparse.Namespace) -> None:
         lines = log_path.read_text().splitlines()
     else:
         # Catchup: scan backward for last Full GSM, replay from there
-        from scry_lib.tail import scan_backward_for_full, tail_log
+        from scry_lib.tail import find_last_full_offset, tail_log
 
-        offset = scan_backward_for_full(log_path)
+        offset = find_last_full_offset(log_path)
         start = offset if offset is not None else 0
         lines = list(tail_log(log_path, follow=False, start_offset=start))
 

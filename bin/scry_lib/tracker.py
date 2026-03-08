@@ -81,14 +81,16 @@ class GameTracker:
             for p in state.players
         ]
 
-        zones: dict[str, dict] = {}
-        for z in state.zones:
-            if z.object_ids:
-                zones[z.type] = {
-                    "zone_id": z.zone_id,
-                    "owner": z.owner_seat_id,
-                    "objects": list(z.object_ids),
-                }
+        zones = [
+            {
+                "zone_id": z.zone_id,
+                "type": z.type,
+                "owner": z.owner_seat_id,
+                "objects": list(z.object_ids),
+            }
+            for z in state.zones
+            if z.object_ids
+        ]
 
         return {
             "match_id": self.current_match_id,
