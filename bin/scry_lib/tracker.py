@@ -57,13 +57,19 @@ class GameTracker:
         self._accumulator.reset()
         self.current_match_id = None
 
-    def to_dict(self) -> dict:
+    def to_dict(self, card_resolver=None) -> dict:
         state = self.current_state
         if state is None:
             return {
                 "match_id": self.current_match_id,
                 "state": None,
             }
+
+        # Resolve card names if resolver provided
+        names: dict[int, str] = {}
+        if card_resolver is not None:
+            grp_ids = [obj.grp_id for obj in state.objects.values() if obj.grp_id]
+            names = card_resolver.resolve_batch(grp_ids)
 
         turn_info = None
         if state.turn_info is not None:
@@ -81,12 +87,27 @@ class GameTracker:
             for p in state.players
         ]
 
+        # Build object lookup for zone enrichment
+        def _obj_summary(iid: int) -> dict | int:
+            obj = state.objects.get(iid)
+            if obj is None or not names:
+                return iid
+            name = names.get(obj.grp_id)
+            if name is None:
+                return iid
+            entry: dict = {"id": iid, "name": name}
+            if obj.power is not None:
+                entry["p/t"] = f"{obj.power}/{obj.toughness}"
+            if obj.is_tapped:
+                entry["tapped"] = True
+            return entry
+
         zones = [
             {
                 "zone_id": z.zone_id,
                 "type": z.type,
                 "owner": z.owner_seat_id,
-                "objects": list(z.object_ids),
+                "objects": [_obj_summary(iid) for iid in z.object_ids],
             }
             for z in state.zones
             if z.object_ids

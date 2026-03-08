@@ -33,7 +33,15 @@ def _cmd_state(args: argparse.Namespace) -> None:
     for block in parse_gre_blocks(lines):
         tracker.feed(block)
 
-    print(json.dumps(tracker.to_dict(), indent=2))
+    resolver = None
+    if args.cards:
+        from scry_lib.cards import CardResolver, find_arena_db
+
+        db = find_arena_db()
+        if db:
+            resolver = CardResolver(db)
+
+    print(json.dumps(tracker.to_dict(card_resolver=resolver), indent=2))
 
 
 def _cmd_stream(args: argparse.Namespace) -> None:
@@ -87,6 +95,8 @@ def main() -> None:
     p_state = subs.add_parser("state", help="Parse log and print accumulated game state as JSON")
     p_state.add_argument("--log", default=str(DEFAULT_LOG), help="Path to Player.log")
     p_state.add_argument("--no-catchup", action="store_true", help="Parse entire file instead of scanning for last Full GSM")
+    p_state.add_argument("--cards", action="store_true", default=True, help="Resolve card names from Arena DB (default: on)")
+    p_state.add_argument("--no-cards", dest="cards", action="store_false", help="Disable card name resolution")
 
     # stream
     p_stream = subs.add_parser("stream", help="Stream GRE blocks as JSONL")
