@@ -25,7 +25,10 @@ import leyline.frontdoor.service.DraftService
 import leyline.frontdoor.service.EventRegistry
 import leyline.frontdoor.service.LobbyStubs
 import leyline.frontdoor.service.MatchCoordinator
+import leyline.frontdoor.service.MatchmakingQueue
 import leyline.frontdoor.service.MatchmakingService
+import leyline.frontdoor.service.PairResult
+import leyline.frontdoor.service.PairingEntry
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.CmdType
 import leyline.frontdoor.wire.DeckWireBuilder
@@ -62,6 +65,7 @@ class FrontDoorHandler(
     private val golden: GoldenData,
     private val onFdMessage: ((String, FdEnvelope.FdMessage) -> Unit)? = null,
     private val coordinator: MatchCoordinator = MatchCoordinator.NOOP,
+    private val matchmakingQueue: MatchmakingQueue? = null,
 ) : ChannelInboundHandlerAdapter() {
 
     private val log = LoggerFactory.getLogger(FrontDoorHandler::class.java)
@@ -346,13 +350,35 @@ class FrontDoorHandler(
                     val deckId = courseDeckId ?: eventName?.let { selectedDeckByEvent[it] }
                     if (deckId != null) coordinator.selectDeck(deckId)
 
-                    val match = if (courseDeckId != null) {
-                        matchmaking.createMatchInfo(eventName ?: "")
-                    } else {
-                        matchmaking.startMatch(playerId, DeckId(deckId ?: ""), eventName ?: "")
-                    }
+                    // Ack immediately — spinner shows while waiting for MatchCreated push
                     writer.send(ctx, txId, FdResponse.Json("""{"CurrentModule":"CreateMatch","Payload":"Success"}"""))
-                    sendMatchCreated(ctx, match)
+
+                    if (matchmakingQueue != null && eventName == "PlayQueue") {
+                        // PvP queue path — hold connection until paired
+                        val evName = eventName
+                        val entry = PairingEntry(
+                            screenName = playerId.value,
+                            pushCallback = { matchId, yourSeat ->
+                                val info = MatchInfo(matchId, matchmaking.matchDoorHost, matchmaking.matchDoorPort, evName)
+                                sendMatchCreated(ctx, info, yourSeat)
+                            },
+                        )
+                        when (val result = matchmakingQueue.pair(entry)) {
+                            is PairResult.Waiting -> log.info("Front Door: {} entered queue", playerId.value)
+                            is PairResult.Paired -> {
+                                result.seat1.pushCallback(result.matchId, 1)
+                                result.seat2.pushCallback(result.matchId, 2)
+                            }
+                        }
+                    } else {
+                        // Single-player path (bot match, sealed, draft) — immediate match
+                        val match = if (courseDeckId != null) {
+                            matchmaking.createMatchInfo(eventName ?: "")
+                        } else {
+                            matchmaking.startMatch(playerId, DeckId(deckId ?: ""), eventName ?: "")
+                        }
+                        sendMatchCreated(ctx, match)
+                    }
                 } catch (e: IllegalArgumentException) {
                     log.warn("Front Door: Event_EnterPairing rejected — {}", e.message)
                     writer.send(ctx, txId, FdResponse.Empty)
@@ -362,6 +388,7 @@ class FrontDoorHandler(
             CmdType.EVENT_LEAVE_PAIRING.value -> {
                 val req = FdRequests.parseEventName(json)
                 log.info("Front Door: Event_LeavePairing event={}", req?.eventName)
+                matchmakingQueue?.cancel(playerId.value)
                 writer.send(ctx, txId, FdResponse.Empty)
             }
 
@@ -541,9 +568,17 @@ class FrontDoorHandler(
         return lenientJson.encodeToString(JsonObject.serializer(), patched)
     }
 
-    private fun sendMatchCreated(ctx: ChannelHandlerContext, match: MatchInfo) {
-        val json = FdEnvelope.buildMatchCreatedJson(match.matchId, match.host, match.port, eventId = match.eventName)
-        log.info("Front Door: pushing MatchCreated matchId={} event={}", match.matchId, match.eventName)
+    private fun sendMatchCreated(ctx: ChannelHandlerContext, match: MatchInfo, yourSeat: Int = 1) {
+        val matchType = if (yourSeat > 0 && match.eventName == "PlayQueue") "Queue" else "Familiar"
+        val json = FdEnvelope.buildMatchCreatedJson(
+            match.matchId,
+            match.host,
+            match.port,
+            matchType = matchType,
+            yourSeat = yourSeat,
+            eventId = match.eventName,
+        )
+        log.info("Front Door: pushing MatchCreated matchId={} event={} seat={}", match.matchId, match.eventName, yourSeat)
         writer.send(ctx, null, FdResponse.Json(json))
     }
 

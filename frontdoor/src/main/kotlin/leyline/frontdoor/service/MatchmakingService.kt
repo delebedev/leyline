@@ -22,8 +22,8 @@ import java.util.UUID
  */
 class MatchmakingService(
     private val decks: DeckRepository,
-    private val matchDoorHost: String,
-    private val matchDoorPort: Int,
+    val matchDoorHost: String,
+    val matchDoorPort: Int,
     /**
      * Validate a deck against a format. Returns null if legal, error string if illegal.
      * Params: (mainDeck, sideboard, formatId).
