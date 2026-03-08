@@ -4,6 +4,38 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class SceneChange:
+    """A Client.SceneChange event from Player.log — lobby navigation."""
+
+    from_scene: str
+    to_scene: str
+    initiator: str  # "User" or "System"
+    context: str
+    timestamp: str | None = None
+
+    @classmethod
+    def from_raw(cls, raw: dict, timestamp: str | None = None) -> SceneChange:
+        return cls(
+            from_scene=raw.get("fromSceneName", ""),
+            to_scene=raw.get("toSceneName", ""),
+            initiator=raw.get("initiator", ""),
+            context=raw.get("context", ""),
+            timestamp=timestamp,
+        )
+
+    def to_dict(self) -> dict:
+        d: dict = {
+            "from": self.from_scene,
+            "to": self.to_scene,
+            "initiator": self.initiator,
+            "context": self.context,
+        }
+        if self.timestamp:
+            d["timestamp"] = self.timestamp
+        return d
+
+
+@dataclass
 class TurnInfo:
     turn_number: int | None = None
     phase: str | None = None
@@ -142,7 +174,9 @@ class GameState:
             actions=list(raw.get("actions", [])),
             game_info=raw.get("gameInfo"),
             diff_deleted_instance_ids=list(raw.get("diffDeletedInstanceIds", [])),
-            diff_deleted_annotation_ids=list(raw.get("diffDeletedPersistentAnnotationIds", [])),
+            diff_deleted_annotation_ids=list(
+                raw.get("diffDeletedPersistentAnnotationIds", [])
+            ),
         )
 
     @property

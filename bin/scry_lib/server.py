@@ -30,6 +30,10 @@ def _make_server(
                         "errors": tracker._errors_list(limit=50),
                     }
                 self._json_response(200, data)
+            elif self.path == "/scene":
+                with lock:
+                    data = tracker._scene_dict()
+                self._json_response(200, data)
             else:
                 self._json_response(404, {"error": "not found"})
 
@@ -57,6 +61,7 @@ def run_server(log_path: Path, port: int = 8091) -> None:
     4. Starts the HTTP server on 0.0.0.0:port (blocks the calling thread)
     """
     from scry_lib.errors import ClientError
+    from scry_lib.models import SceneChange
     from scry_lib.parser import GREBlock, parse_log
     from scry_lib.tail import find_last_full_offset, tail_log
 
@@ -69,6 +74,8 @@ def run_server(log_path: Path, port: int = 8091) -> None:
                 tracker.feed(event)
             elif isinstance(event, ClientError):
                 tracker.feed_error(event)
+            elif isinstance(event, SceneChange):
+                tracker.feed_scene(event)
 
     # Mid-session catch-up: parse from last Full GSM
     offset = find_last_full_offset(log_path)
@@ -86,6 +93,8 @@ def run_server(log_path: Path, port: int = 8091) -> None:
                     tracker.feed(event)
                 elif isinstance(event, ClientError):
                     tracker.feed_error(event)
+                elif isinstance(event, SceneChange):
+                    tracker.feed_scene(event)
 
     tailer = threading.Thread(target=_tail_and_feed, daemon=True)
     tailer.start()

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from scry_lib.accumulator import Accumulator
 from scry_lib.annotations import Annotation
 from scry_lib.errors import ClientError
-from scry_lib.models import GameState
+from scry_lib.models import GameState, SceneChange
 from scry_lib.parser import GREBlock
 
 
@@ -19,13 +19,17 @@ class CompletedGame:
 class GameTracker:
     """Sits above Accumulator — handles multi-game sessions."""
 
-    def __init__(self, max_history: int = 5, max_errors: int = 200) -> None:
+    def __init__(
+        self, max_history: int = 5, max_errors: int = 200, max_scenes: int = 50
+    ) -> None:
         self._max_history = max_history
         self._accumulator = Accumulator()
         self.current_match_id: str | None = None
         self.completed_games: list[CompletedGame] = []
         self.errors: deque[ClientError] = deque(maxlen=max_errors)
         self.error_count: int = 0
+        self.current_scene: str | None = None
+        self.scene_history: deque[SceneChange] = deque(maxlen=max_scenes)
 
     @property
     def current_state(self) -> GameState | None:
@@ -33,15 +37,24 @@ class GameTracker:
 
     def feed(self, block: GREBlock) -> None:
         has_connect_resp = any(
-            m.get("type") == "GREMessageType_ConnectResp"
-            for m in block.messages
+            m.get("type") == "GREMessageType_ConnectResp" for m in block.messages
         )
 
         if has_connect_resp and self.current_match_id is not None:
             self._archive_current()
 
-        if block.match_id is not None:
-            self.current_match_id = block.match_id
+        # Extract real match ID from gameInfo inside GSMs (header match_id
+        # is the session/connection ID, not the actual match ID).
+        for msg in block.messages:
+            gi = msg.get("gameStateMessage", {}).get("gameInfo", {})
+            mid = gi.get("matchID")
+            if mid:
+                self.current_match_id = mid
+                break
+        else:
+            # Fallback to header match_id if no gameInfo found
+            if block.match_id is not None and self.current_match_id is None:
+                self.current_match_id = block.match_id
 
         for msg in block.game_state_messages():
             gsm = msg.get("gameStateMessage", {})
@@ -54,6 +67,10 @@ class GameTracker:
         self.errors.append(error)
         self.error_count += 1
 
+    def feed_scene(self, scene: SceneChange) -> None:
+        self.current_scene = scene.to_scene
+        self.scene_history.append(scene)
+
     def _archive_current(self) -> None:
         self.completed_games.append(
             CompletedGame(
@@ -62,7 +79,7 @@ class GameTracker:
             ),
         )
         if len(self.completed_games) > self._max_history:
-            self.completed_games = self.completed_games[-self._max_history:]
+            self.completed_games = self.completed_games[-self._max_history :]
         self._accumulator.reset()
         self.current_match_id = None
 
@@ -72,6 +89,7 @@ class GameTracker:
             return {
                 "match_id": self.current_match_id,
                 "state": None,
+                "scene": self._scene_dict(),
                 "error_count": self.error_count,
                 "recent_errors": self._errors_list(),
             }
@@ -93,10 +111,7 @@ class GameTracker:
                 "priority_player": ti.priority_player,
             }
 
-        players = [
-            {"seat": p.seat_number, "life": p.life_total}
-            for p in state.players
-        ]
+        players = [{"seat": p.seat_number, "life": p.life_total} for p in state.players]
 
         # Build object lookup for zone enrichment
         def _obj_summary(iid: int) -> dict | int:
@@ -125,15 +140,11 @@ class GameTracker:
         ]
 
         # Annotations from latest GSM
-        annotations = [
-            Annotation.from_raw(a).to_dict()
-            for a in state.annotations
-        ]
+        annotations = [Annotation.from_raw(a).to_dict() for a in state.annotations]
 
         # Persistent annotations (active set across GSMs)
         persistent = [
-            a.to_dict()
-            for a in self._accumulator.persistent_annotations.values()
+            a.to_dict() for a in self._accumulator.persistent_annotations.values()
         ]
 
         return {
@@ -146,8 +157,15 @@ class GameTracker:
             "annotations": annotations,
             "persistent_annotations": persistent,
             "completed_games": len(self.completed_games),
+            "scene": self._scene_dict(),
             "error_count": self.error_count,
             "recent_errors": self._errors_list(),
+        }
+
+    def _scene_dict(self) -> dict:
+        return {
+            "current": self.current_scene,
+            "history": [s.to_dict() for s in self.scene_history],
         }
 
     def _errors_list(self, limit: int = 10) -> list[dict]:
