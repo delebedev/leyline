@@ -419,19 +419,23 @@ object AnnotationPipeline {
         val persistent = mutableListOf<AnnotationInfo>()
 
         for (effect in diff.created) {
-            transient.add(AnnotationBuilder.layeredEffectCreated(effect.syntheticId))
+            // Transient: LayeredEffectCreated with affectorId = card instance
+            transient.add(
+                AnnotationBuilder.layeredEffectCreated(
+                    effectId = effect.syntheticId,
+                    affectorId = effect.cardInstanceId,
+                ),
+            )
 
-            val effectType = when {
-                effect.powerDelta != 0 && effect.toughnessDelta != 0 -> "Effect_ModifiedPowerAndToughness"
-                effect.powerDelta != 0 -> "Effect_ModifiedPower"
-                effect.toughnessDelta != 0 -> "Effect_ModifiedToughness"
-                else -> null
-            }
+            // Persistent: multi-typed [ModifiedToughness, ModifiedPower, LayeredEffect]
+            // No LayeredEffectType for P/T buffs — real server only uses that for CopyObject
             persistent.add(
                 AnnotationBuilder.layeredEffect(
-                    instanceId = effect.fingerprint.cardInstanceId,
+                    instanceId = effect.cardInstanceId,
                     effectId = effect.syntheticId,
-                    effectType = effectType,
+                    powerDelta = effect.powerDelta,
+                    toughnessDelta = effect.toughnessDelta,
+                    affectorId = effect.cardInstanceId,
                 ),
             )
         }
