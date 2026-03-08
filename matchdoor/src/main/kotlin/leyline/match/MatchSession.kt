@@ -523,7 +523,7 @@ class MatchSession(
      */
     override fun sendGameOver(reason: ResultReason) {
         val bridge = gameBridge
-        val humanPlayer = bridge?.getPlayer(SeatId(1))
+        val humanPlayer = bridge?.getPlayer(SeatId(seatId))
         val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
         val winningTeam = if (humanWon) 1 else 2
         val losingPlayerSeatId = if (humanWon) 2 else 1

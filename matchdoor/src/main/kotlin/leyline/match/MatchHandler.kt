@@ -185,14 +185,27 @@ class MatchHandler(
                     puzzleHandler.onPuzzleConnect(ctx, s!!, matchId, seatId)
                 } else {
                     // Constructed mode: normal flow
+                    // PvP matches use startTwoPlayer (both seats human-wired).
+                    // For now seat 2 gets synthetic bridges (auto-pass) until a
+                    // second client connects — getOrPut in ensureSeatBridges
+                    // preserves them.
+                    val isPvp = coordinator?.isPvpMatch(matchId) == true
                     val match = registry.getOrCreateMatch(matchId) {
                         val bridge = GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter, cards = cards ?: leyline.game.InMemoryCardRepository())
                         Match(matchId, bridge).also {
-                            it.start(
-                                seed = matchConfig.game.seed,
-                                deckList1 = resolveSeat1Deck(),
-                                deckList2 = resolveSeat2Deck(),
-                            )
+                            if (isPvp) {
+                                it.startTwoPlayer(
+                                    seed = matchConfig.game.seed,
+                                    deckList1 = resolveSeat1Deck(),
+                                    deckList2 = resolveSeat2Deck(),
+                                )
+                            } else {
+                                it.start(
+                                    seed = matchConfig.game.seed,
+                                    deckList1 = resolveSeat1Deck(),
+                                    deckList2 = resolveSeat2Deck(),
+                                )
+                            }
                         }
                     }
                     val bridge = match.bridge
@@ -305,8 +318,9 @@ class MatchHandler(
 
     private fun sendRoomState(ctx: ChannelHandlerContext) {
         val playerId = clientId.removeSuffix("_Familiar")
-        val msg = HandshakeMessages.roomState(matchId, playerId)
-        Tap.outboundTemplate("RoomState matchId=$matchId")
+        val opponentName = coordinator?.pvpOpponentName(matchId) ?: "Sparky"
+        val msg = HandshakeMessages.roomState(matchId, playerId, opponentName)
+        Tap.outboundTemplate("RoomState matchId=$matchId opponent=$opponentName")
         ProtoDump.dump(msg, "RoomState")
         ctx.writeAndFlush(msg)
     }

@@ -33,6 +33,10 @@ timer = false
 # AI opponent deck (name from player.db). Omit for mirror match (same as seat 1).
 #ai_deck = "Green stompy"
 
+# Solo PvP testing: queue auto-pairs with Forge AI instead of waiting for a
+# second player. Full queue/pairing flow, but seat 2 is the engine AI.
+#synthetic_opponent = true
+
 [ai]
 # AI animation speed. 2 = twice as fast, 1 = default, 0 = instant.
 speed = 1.0

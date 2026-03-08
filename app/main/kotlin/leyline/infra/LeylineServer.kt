@@ -33,6 +33,7 @@ import leyline.frontdoor.service.CourseService
 import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.DraftService
 import leyline.frontdoor.service.GeneratedPool
+import leyline.frontdoor.service.MatchmakingQueue
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.FdResponseWriter
@@ -174,6 +175,8 @@ class LeylineServer(
         val writer = FdResponseWriter(onFdMessage = fdCollector::record)
         val golden = GoldenData.loadFromClasspath()
 
+        val pvpQueue = MatchmakingQueue(syntheticOpponent = matchConfig.game.syntheticOpponent)
+
         val coordinator = AppMatchCoordinator(
             playerId = pid,
             deckService = deckService,
@@ -212,6 +215,7 @@ class LeylineServer(
                         golden = golden,
                         onFdMessage = fdCollector::record,
                         coordinator = coordinator,
+                        matchmakingQueue = pvpQueue,
                     ),
                 )
             }

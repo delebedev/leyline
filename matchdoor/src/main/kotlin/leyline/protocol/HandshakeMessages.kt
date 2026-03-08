@@ -17,12 +17,12 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 object HandshakeMessages {
 
     /** Room state event — match room with both players. */
-    fun roomState(matchId: String, playerId: String): MatchServiceToClientMessage {
+    fun roomState(matchId: String, playerId: String, opponentName: String = "Sparky"): MatchServiceToClientMessage {
         val roomInfo = MatchGameRoomInfo.newBuilder()
-            .setGameRoomConfig(buildRoomConfig(matchId, playerId))
+            .setGameRoomConfig(buildRoomConfig(matchId, playerId, opponentName))
             .setStateType(MatchGameRoomStateType.Playing)
             .addPlayers(playerInfo(playerId, "Player", 1, 1))
-            .addPlayers(playerInfo("${playerId}_Familiar", "Sparky", 2, 2))
+            .addPlayers(playerInfo("${playerId}_Familiar", opponentName, 2, 2))
 
         return wrapRoomState(roomInfo)
     }
@@ -72,7 +72,7 @@ object HandshakeMessages {
             .setUserId(userId).setPlayerName(name)
             .setSystemSeatId(seat).setTeamId(team)
 
-    private fun buildRoomConfig(matchId: String, playerId: String): MatchGameRoomConfig.Builder {
+    private fun buildRoomConfig(matchId: String, playerId: String, opponentName: String = "Sparky"): MatchGameRoomConfig.Builder {
         val familiarId = "${playerId}_Familiar"
         return MatchGameRoomConfig.newBuilder()
             .setMatchId(matchId)
@@ -83,7 +83,7 @@ object HandshakeMessages {
                     .setPlatformId("Mac"),
             )
             .addReservedPlayers(
-                playerInfo(familiarId, "Sparky", 2, 2)
+                playerInfo(familiarId, opponentName, 2, 2)
                     .setCourseId("Avatar_Basic_Sparky")
                     .setIsBotPlayer(true)
                     .setEventId("AIBotMatch"),
