@@ -579,7 +579,7 @@ object AnnotationBuilder {
             .addAffectedIds(instanceId)
             .addDetails(int32Detail("effect_id", effectId))
         if (effectType != null) {
-            builder.addDetails(stringDetail("LayeredEffectType", effectType))
+            builder.addDetails(typedStringDetail("LayeredEffectType", effectType))
         }
         if (sourceAbilityGrpId != null) {
             builder.addDetails(int32Detail("sourceAbilityGRPID", sourceAbilityGrpId))
@@ -706,11 +706,6 @@ object AnnotationBuilder {
             .addValueUint32(value)
             .build()
 
-    private fun stringDetail(key: String, value: String): KeyValuePairInfo =
-        KeyValuePairInfo.newBuilder()
-            .setKey(key)
-            .addValueString(value)
-            .build()
 
     private fun int32Detail(key: String, value: Int): KeyValuePairInfo =
         KeyValuePairInfo.newBuilder()
