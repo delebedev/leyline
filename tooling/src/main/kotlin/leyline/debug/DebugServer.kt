@@ -606,7 +606,7 @@ class DebugServer(
         }
 
         // Reset bridge with new puzzle (shutdown → clear state → startPuzzle)
-        bridge.resetForPuzzle(puzzle)
+        val deletedIds = bridge.resetForPuzzle(puzzle)
 
         // Build and send Full GSM + actions from the new engine state
         val counter = session.counter
@@ -623,12 +623,19 @@ class DebugServer(
             viewingSeatId = session.seatId,
         )
 
+        // Add diffDeletedInstanceIds so the client purges cached objects from the old puzzle
+        val gsmWithDeletes = if (deletedIds.isNotEmpty()) {
+            fullGsm.toBuilder().addAllDiffDeletedInstanceIds(deletedIds).build()
+        } else {
+            fullGsm
+        }
+
         val greGsm = GREToClientMessage.newBuilder()
             .setType(GREMessageType.GameStateMessage_695e)
             .setMsgId(msgId)
             .setGameStateId(gsId)
             .addSystemSeatIds(session.seatId)
-            .setGameStateMessage(fullGsm)
+            .setGameStateMessage(gsmWithDeletes)
             .build()
 
         val actions = ActionMapper.buildActions(game, session.seatId, bridge)
@@ -641,7 +648,7 @@ class DebugServer(
             .build()
 
         session.sendBundledGRE(listOf(greGsm, greActions))
-        bridge.snapshotState(fullGsm)
+        bridge.snapshotState(gsmWithDeletes)
 
         val meta = PuzzleSource.parseMetadata(if (body.isNotEmpty()) body else "")
         val label = if (fileParam != null) fileParam else meta.name
