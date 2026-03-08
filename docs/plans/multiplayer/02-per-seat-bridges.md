@@ -120,20 +120,13 @@ Keep one `PrioritySignal` instance. All action/prompt bridges signal to it. `awa
 
 `players: MutableMap<Int, Player>` populated in `start()`/`wrapGame()`/`startPuzzle()` via `populateSeatMap()`. `getPlayer()` is now a one-liner map lookup. 13+ callers benefit transitively.
 
-### Phase 2: Per-seat bridge maps (zero behavior change for 1v1 AI)
+### Phase 2: Per-seat bridge maps (zero behavior change for 1v1 AI) — ✅ Done (`8ed52fb`)
 
-1. Replace `actionBridge` field with `actionBridges: Map<Int, GameActionBridge>`.
-2. Add `actionBridge(seatId: Int)` accessor. Keep `actionBridge` as `actionBridge(1)` alias for backward compat during migration.
-3. Same for `promptBridge`, `mulliganBridge`, `humanController`.
-4. Update `start()` to create bridge instances per human seat.
-5. Update `GameLoopController` call to pass `actionBridges.values.toList()`.
-6. For AI seat: no bridge entry (Forge handles it natively).
+`actionBridges`, `promptBridges`, `mulliganBridges` as `MutableMap<Int, *>`. Parameterized accessors `actionBridge(seatId)` etc. Backward-compat `val actionBridge` / `val promptBridge` properties delegate to seat 1. Seat 1 bridges seeded in `init`. `GameLoopController` receives `.values.toList()`.
 
-### Phase 3: Remove seat 1 gates in MatchHandler
+### Phase 3: Remove seat 1 gates in MatchHandler — ✅ Done (`8ae07de`)
 
-1. Remove `if (seatId == 1)` checks from action handlers.
-2. Add `if (seatId == familiarSeatId) return` at the top of processGREMessage for Familiar connections.
-3. For PvP: both seats route to their respective sessions. Each session uses `bridge.actionBridge(seatId)`.
+`isFamiliar` flag set during auth via `clientId.endsWith("_Familiar")`. All 6 `seatId == 1` gates replaced with `!isFamiliar`. `SubmitAttackers/BlockersReq` routing uses `isFamiliar` for Familiar fallback to `activeSession()`.
 
 ### Phase 4: Dual-seat start()
 
