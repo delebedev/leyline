@@ -19,4 +19,5 @@ data class CardData(
     val abilityIds: List<Pair<Int, Int>>, // abilityGrpId:textId pairs
     val manaCost: List<Pair<ManaColor, Int>>, // (color, count) from OldSchoolManaText
     val tokenGrpIds: Map<Int, Int> = emptyMap(), // abilityGrpId → tokenGrpId
+    val keywordAbilityGrpIds: Map<String, Int> = emptyMap(), // keyword name → abilityGrpId
 )

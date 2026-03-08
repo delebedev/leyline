@@ -408,8 +408,14 @@ object AnnotationPipeline {
      * Pure function — converts diff results to proto annotations.
      * Returns (transient, persistent) matching the pipeline convention.
      */
+    /**
+     * Build LayeredEffect annotations for P/T boost changes.
+     * [sourceAbilityResolver] maps cardInstanceId → sourceAbilityGRPID (nullable).
+     * Used to drive ability-specific VFX (e.g. Prowess glow).
+     */
     fun effectAnnotations(
         diff: EffectTracker.DiffResult,
+        sourceAbilityResolver: ((Int) -> Int?)? = null,
     ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
         if (diff.created.isEmpty() && diff.destroyed.isEmpty()) {
             return emptyList<AnnotationInfo>() to emptyList()
@@ -419,6 +425,8 @@ object AnnotationPipeline {
         val persistent = mutableListOf<AnnotationInfo>()
 
         for (effect in diff.created) {
+            val sourceAbilityGrpId = sourceAbilityResolver?.invoke(effect.cardInstanceId)
+
             // Transient: LayeredEffectCreated with affectorId = card instance
             transient.add(
                 AnnotationBuilder.layeredEffectCreated(
@@ -448,6 +456,7 @@ object AnnotationPipeline {
                     powerDelta = effect.powerDelta,
                     toughnessDelta = effect.toughnessDelta,
                     affectorId = effect.cardInstanceId,
+                    sourceAbilityGrpId = sourceAbilityGrpId,
                 ),
             )
         }

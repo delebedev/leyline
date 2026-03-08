@@ -171,7 +171,10 @@ object StateMapper {
         // Stage 5: Layered effect lifecycle (P/T boost diffing)
         val boostSnapshot = bridge.snapshotBoosts()
         val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
-        val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff)
+
+        // Resolve sourceAbilityGRPID: instanceId → card keyword → abilityGrpId
+        val sourceAbilityResolver = buildSourceAbilityResolver(game, bridge)
+        val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
         annotations.addAll(effectTransient)
 
         // Store effect persistent annotations (LayeredEffect)
@@ -380,6 +383,34 @@ object StateMapper {
             GameStateUpdate.SendAndRecord
         } else {
             GameStateUpdate.SendHiFi
+        }
+    }
+
+    /** Keywords whose triggered/static abilities produce P/T boosts. */
+    private val PT_BOOST_KEYWORDS = setOf("PROWESS")
+
+    /**
+     * Build a resolver: cardInstanceId → sourceAbilityGRPID.
+     * Scans battlefield once, then checks each card for P/T-boost keywords.
+     */
+    private fun buildSourceAbilityResolver(game: Game, bridge: GameBridge): (Int) -> Int? {
+        // Build instanceId → card name map from battlefield (same cards snapshotBoosts iterates)
+        val instanceIdToName = mutableMapOf<Int, String>()
+        for (player in game.players) {
+            for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+                val instanceId = bridge.getOrAllocInstanceId(card.id)
+                instanceIdToName[instanceId] = card.name
+            }
+        }
+
+        return resolver@{ instanceId ->
+            val name = instanceIdToName[instanceId] ?: return@resolver null
+            val grpId = bridge.cards.findGrpIdByName(name) ?: return@resolver null
+            val cardData = bridge.cards.findByGrpId(grpId) ?: return@resolver null
+            for (keyword in PT_BOOST_KEYWORDS) {
+                cardData.keywordAbilityGrpIds[keyword]?.let { return@resolver it }
+            }
+            null
         }
     }
 }
