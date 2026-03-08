@@ -649,8 +649,11 @@ def cmd_state(args: list[str]) -> None:
 
 
 def cmd_errors(args: list[str]) -> None:
-    body = fetch_api("/api/client-errors")
-    print(body if body else "[]")
+    """Show client errors from scry (Player.log parser)."""
+    import subprocess
+    scry = Path(__file__).parent / "scry"
+    result = subprocess.run([str(scry), "state", "--no-cards"], capture_output=True, text=True)
+    print(result.stdout if result.stdout else "{}")
 
 
 def cmd_board(args: list[str]) -> None:

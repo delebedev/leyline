@@ -568,8 +568,8 @@
   <button class="view-tab" :class="{ active: view === 'messages' }" @click="view = 'messages'">Messages</button>
   <button class="view-tab" :class="{ active: view === 'states' }" @click="view = 'states'">States</button>
   <button class="view-tab" :class="{ active: view === 'logs' }" @click="view = 'logs'">Logs</button>
-  <button class="view-tab" :class="{ active: view === 'errors' }" @click="view = 'errors'; fetchClientErrors()" style="position:relative">
-    Errors<span class="ce-badge" x-show="clientErrors.length > 0" x-text="clientErrors.length"></span>
+  <button class="view-tab" :class="{ active: view === 'errors' }" @click="view = 'errors'" style="position:relative">
+    Errors
   </button>
   <button class="view-tab" :class="{ active: view === 'recordings' }" @click="view = 'recordings'; fetchRecordings()">Recordings</button>
   <button class="header-btn active-purple" :class="{ on: showIdPanel }" @click="showIdPanel = !showIdPanel; if (showIdPanel) fetchIdMap()">ID Map</button>
@@ -1112,23 +1112,11 @@
 
   <!-- Client errors panel -->
   <div id="timeline" x-show="view === 'errors'" x-cloak style="overflow-y:auto; flex:1; padding:8px;">
-    <div x-show="clientErrors.length === 0" style="color:var(--fg2); padding:20px; text-align:center;">
-      No client errors captured. Errors from Player.log appear here in real-time.
+    <div style="color:var(--fg2); padding:20px; text-align:center;">
+      Client error tracking moved to <b>scry</b>.<br>
+      CLI: <code>just scry state</code><br>
+      HTTP: <code>just scry serve</code> (port 8091, endpoints: /state, /errors)
     </div>
-    <template x-for="ce in clientErrors.slice(-50).reverse()" :key="ce.seq">
-      <div class="ce-row" @click="ceExpanded[ce.seq] = !ceExpanded[ce.seq]">
-        <div class="ce-header">
-          <span class="ce-type" x-text="ce.exceptionType"></span>
-          <span class="ce-msg" x-text="ce.message"></span>
-          <template x-if="ce.annotationId != null">
-            <span class="ce-annot" x-text="'annot #' + ce.annotationId + (ce.annotationType ? ' type=' + ce.annotationType.join(',') : '')"></span>
-          </template>
-          <span class="ce-meta" x-text="'#' + ce.seq + ' ' + ce.ts.substring(11, 23)"></span>
-        </div>
-        <div class="ce-stack" x-show="ceExpanded[ce.seq] && ce.stackTrace" x-text="ce.stackTrace"></div>
-        <div class="ce-stack" x-show="ceExpanded[ce.seq]" style="margin-top:2px; color:var(--fg2); opacity:0.5;" x-text="ce.raw"></div>
-      </div>
-    </template>
   </div>
 
   <!-- Logs panel -->
@@ -1193,10 +1181,6 @@ function debugApp() {
     recHiddenTypes: JSON.parse(localStorage.getItem('recHiddenTypes') || '{}'),
     recListCollapsed: false,
 
-    // Client errors tab data
-    clientErrors: [],
-    ceExpanded: {},
-    _lastCeSeq: 0,
 
     // States tab data
     gameStates: [],
@@ -1359,13 +1343,6 @@ function debugApp() {
           const idx = this.gameStates.findIndex(gs => gs.gsId === s.gsId);
           if (idx >= 0) this.gameStates[idx] = s;
           else this.gameStates.push(s);
-        });
-        es.addEventListener('client-error', (ev) => {
-          const ce = JSON.parse(ev.data);
-          if (ce.seq <= this._lastCeSeq) return;
-          this.clientErrors.push(ce);
-          this._lastCeSeq = ce.seq;
-          if (this.clientErrors.length > 500) this.clientErrors.splice(0, this.clientErrors.length - 200);
         });
         es.onopen = () => { this._sseConnected = true; };
         es.onerror = () => { this._sseConnected = false; };
@@ -1530,20 +1507,6 @@ function debugApp() {
       } catch (_) {}
     },
 
-    async fetchClientErrors() {
-      try {
-        const r = await fetch('/api/client-errors?since=' + this._lastCeSeq);
-        if (!r.ok) return;
-        const env = await r.json();
-        const errors = env.data || [];
-        for (const ce of errors) {
-          if (ce.seq <= this._lastCeSeq) continue;
-          this.clientErrors.push(ce);
-          this._lastCeSeq = ce.seq;
-        }
-        if (env.cursor) this._lastCeSeq = env.cursor;
-      } catch (_) {}
-    },
 
     async runRecordingCompare() {
       if (!this.selectedRecordingId || !this.recordingCompareTargetId) return;

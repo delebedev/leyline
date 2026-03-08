@@ -28,7 +28,6 @@
     <ID>UnusedParameter:State.kt$State$args: List&lt;String&gt;</ID>
     <ID>UnusedParameter:Trace.kt$field: FieldDescriptor</ID>
     <ID>UnusedPrivateMember:LeylinePaths.kt$private fun File.walkUpFind(pred: (File) -&gt; Boolean): File?</ID>
-    <ID>UnusedPrivateProperty:PlayerLogWatcher.kt$PlayerLogWatcher$val lineBuf = StringBuilder()</ID>
-    <ID>UnusedPrivateProperty:RecordingInspector.kt$RecordingInspector$private val recordingsRoot = LeylinePaths.RECORDINGS</ID>
+<ID>UnusedPrivateProperty:RecordingInspector.kt$RecordingInspector$private val recordingsRoot = LeylinePaths.RECORDINGS</ID>
   </CurrentIssues>
 </SmellBaseline>

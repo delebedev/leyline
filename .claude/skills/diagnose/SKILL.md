@@ -68,11 +68,8 @@ curl -s 'http://localhost:8090/api/recording-summary?id=latest' | python3 -m jso
 Always check — server can look fine while client crashes:
 
 ```bash
-# Recent client errors from debug API
-curl -s http://localhost:8090/api/client-errors | python3 -m json.tool
-
-# Or direct from Player.log if server is down
-grep -n "Exception\|Error\|NullReference" ~/Library/Logs/Wizards\ Of\ The\ Coast/MTGA/Player.log | tail -10
+# Client errors from scry (parses Player.log)
+just scry state --no-cards
 ```
 
 ### 4. Recording-based protocol analysis

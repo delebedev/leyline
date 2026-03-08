@@ -52,19 +52,13 @@ In proxy mode, FD frames are also written to `recordings/<session>/capture/fd-fr
 - `GET /api/recording-messages?id=...` — decoded messages for a session
 - `GET /api/recording-compare?left=...&right=...` — action-level comparison between sessions
 
-## Client error watcher
+## Client errors
 
-Auto-tails `~/Library/Logs/Wizards of the Coast/MTGA/Player.log` during `just serve`. Captures any line matching `Exception` — annotation parse failures, missing fields, etc.
+Client error tracking is handled by **scry** (`bin/scry`), not the debug server.
 
-- `GET /api/client-errors` — current session errors (ring buffer, max 200)
-- `GET /api/client-errors?since=N` — poll for new (cursor-based)
-- `GET /api/client-errors?type=ArgumentException` — filter by exception type
-
-SSE event type: `client-error` — emitted on each new error for real-time updates.
-
-Errors also written to `recordings/<session>/client-errors.jsonl`.
-
-Standalone mode (no server): `just watch-client`
+- `just scry state` — game state + recent errors from Player.log
+- `just scry serve` — HTTP server on :8091 with `/state` and `/errors` endpoints
+- `just watch-client` — quick error snapshot (alias for `scry state --no-cards`)
 
 ## State injection
 
