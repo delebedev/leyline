@@ -71,6 +71,18 @@ class CombatHandler(private val ops: SessionOps) {
     ) {
         val isSubmit = greMsg.type == ClientMessageType.SubmitAttackersReq
 
+        // Reject stale Submit messages — the client may send on either channel (race).
+        // The echo-back advances the counter, so a Submit from the slower channel
+        // arrives with an outdated gsId. Only applies to Submit (type-only signal);
+        // iterative DeclareAttackersResp always carries fresh data.
+        if (isSubmit) {
+            val clientGsId = greMsg.gameStateId
+            if (clientGsId != 0 && clientGsId < ops.counter.currentGsId()) {
+                log.debug("CombatHandler: stale SubmitAttackersReq gsId={} (current={}), ignoring", clientGsId, ops.counter.currentGsId())
+                return
+            }
+        }
+
         if (!isSubmit) {
             // Iterative update: DeclareAttackersResp — update tracked selection
             val resp = greMsg.declareAttackersResp
@@ -82,8 +94,8 @@ class CombatHandler(private val ops: SessionOps) {
                 lastDeclaredAttackerIds = resp.selectedAttackersList.map { it.attackerInstanceId }
                 log.info("CombatHandler: iterative update — selected {}", lastDeclaredAttackerIds)
             }
-            // Echo back GSM with provisional attack state + DeclareAttackersReq.
-            // Real server sends the toggled creature with attackState=Attacking.
+            // Echo back GSM with creature object (no combat state) + DeclareAttackersReq.
+            // Real server echo carries NO attackState — confirmed across 4 proxy recordings.
             sendAttackerEchoBack(bridge)
             return
         }
@@ -192,6 +204,15 @@ class CombatHandler(private val ops: SessionOps) {
         autoPass: (GameBridge) -> Unit,
     ) {
         val isSubmit = greMsg.type == ClientMessageType.SubmitBlockersReq
+
+        // Reject stale Submit — same pattern as attackers (see onDeclareAttackers).
+        if (isSubmit) {
+            val clientGsId = greMsg.gameStateId
+            if (clientGsId != 0 && clientGsId < ops.counter.currentGsId()) {
+                log.debug("CombatHandler: stale SubmitBlockersReq gsId={} (current={}), ignoring", clientGsId, ops.counter.currentGsId())
+                return
+            }
+        }
 
         if (!isSubmit) {
             // Iterative update: save blocker assignments, then echo back
