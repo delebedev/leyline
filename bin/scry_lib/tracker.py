@@ -43,6 +43,10 @@ class GameTracker:
         if has_connect_resp and self.current_match_id is not None:
             self._archive_current()
 
+        # Synthesize scene from GRE events — ConnectResp = match started
+        if has_connect_resp:
+            self.current_scene = "InGame"
+
         # Extract real match ID from gameInfo inside GSMs (header match_id
         # is the session/connection ID, not the actual match ID).
         for msg in block.messages:
@@ -62,6 +66,10 @@ class GameTracker:
                 continue
             gs = GameState.from_raw(gsm)
             self._accumulator.apply(gs)
+
+            # Synthesize PostGame scene
+            if gs.game_over:
+                self.current_scene = "PostGame"
 
     def feed_error(self, error: ClientError) -> None:
         self.errors.append(error)

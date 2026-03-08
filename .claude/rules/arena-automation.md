@@ -10,10 +10,16 @@ Arena automation is a state machine: **what screen am I on → what's my goal �
 
 ## State detection
 
-**`arena ocr` is the only state detection tool.** Never use screenshots for routine checks (~800 tokens each). `arena ocr` returns structured JSON for ~0 tokens.
+Signal priority (most authoritative → fallback):
+
+1. **GRE messages** (Player.log via scry) — ConnectResp = match started, GSM = game state. Fastest in-game signal.
+2. **Scene changes** (Player.log `Client.SceneChange`) — lobby navigation (Home, DeckBuilder, etc.)
+3. **OCR** (`arena ocr`) — visual confirmation, UI text. ~0 tokens. Never use screenshots (~800 tokens).
+4. **Debug API** (`:8090`) — Forge engine state. Use only for debugging game logic, not screen detection. Can be stale.
 
 - `arena ocr` — full screen text with coords
 - `arena ocr --find "text"` — targeted check (exit 0 = found, exit 1 = not found)
+- `arena scene` — latest scene from Player.log
 - `arena wait text="X" --timeout 10` — polls OCR with change detection (500ms interval, skips OCR on unchanged frames). Use this for transitions. Always set `--timeout 10` or less.
 
 **Use `arena wait` for all transitions.** It's better than hand-rolled sleep+ocr loops — it has built-in change detection and skips redundant OCR. Just keep timeout <= 10s.
@@ -121,17 +127,23 @@ To pause the game during Sparky's turn (e.g. reproducing visual bugs on opponent
 When the goal is to lose quickly (recording FD traffic, not MD):
 
 ```bash
-bin/arena click 864,534                          # Play (event screen button, bottom-right)
-bin/arena wait text="Keep" --timeout 30          # wait for mulligan
-bin/arena click "Keep" --retry 3
-sleep 3
-bin/arena click 940,42                           # cog icon (top-right, no OCR text)
+bin/arena click 866,533                          # Play (deck select screen button)
+sleep 5                                          # match load (~3-5s local Forge)
+# If mulligan appears, click Keep; if server auto-keeps, this is a no-op
+bin/arena click "Keep" --retry 2 2>/dev/null; true
 sleep 1
+bin/arena click 940,42                           # cog icon (top-right, no OCR text)
+sleep 0.5
 bin/arena click "Concede" --retry 3
-bin/arena wait text="Defeat" --timeout 10
-bin/arena click 480,300 && sleep 2 && bin/arena click 480,300 && sleep 2 && bin/arena click 480,300
-bin/arena wait text="LOSSES" --timeout 10        # back to event screen
+bin/arena wait text="DEFEAT" --timeout 10
+bin/arena click 210,482 && sleep 2 && bin/arena click 210,482 && sleep 2 && bin/arena click 210,482
+bin/arena wait text="Home" --timeout 10          # back to lobby
 ```
+
+**Notes:**
+- Mulligan screen may not appear — server sometimes auto-keeps. Don't block on it.
+- `sleep 5` is a blunt wait for match load. TODO: add `arena wait gre=ConnectResp` for precise detection.
+- Timeout 10s max for local Forge. Proxy mode may need 15s.
 
 ## In-game: playing cards
 
@@ -180,9 +192,9 @@ Click 400,530 (hand area, selects a card), then 886,504 (Submit).
 
 ### Result screen
 
-"DEFEAT" or "VICTORY" → click center 3x with 2s gaps:
+"DEFEAT" or "VICTORY" → click (210,482) 3x with 2s gaps to dismiss:
 ```bash
-bin/arena click 480,300 && sleep 2 && bin/arena click 480,300 && sleep 2 && bin/arena click 480,300
+bin/arena click 210,482 && sleep 2 && bin/arena click 210,482 && sleep 2 && bin/arena click 210,482
 ```
 
 ### Two modes

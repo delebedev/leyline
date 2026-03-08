@@ -180,21 +180,45 @@ def fetch_api(path: str) -> str | None:
     return None
 
 
+_SCENE_RE = re.compile(r"\[UnityCrossThreadLogger\]Client\.SceneChange\s+(\{.+\})")
+_CONNECT_RE = re.compile(r'"type"\s*:\s*"GREMessageType_ConnectResp"')
+_GAME_OVER_RE = re.compile(r'"gameOver"\s*:\s*true')
+_RESULT_RE = re.compile(r'"ResultType_WinLoss"')
+
+_TAIL_BYTES = 1024 * 1024  # 1MB from end — GRE messages are bulky
+
+
 def get_current_scene() -> str | None:
-    """One-shot Player.log parse for latest Client.SceneChange scene name."""
+    """One-shot Player.log tail for latest scene.
+
+    Reads last ~256KB of the log (not the whole file). Scans for:
+    - Client.SceneChange → lobby scene name
+    - GRE ConnectResp → "InGame"
+    - gameOver: true → "PostGame"
+    Last-writer-wins.
+    """
     log_path = Path.home() / "Library/Logs/Wizards of the Coast/MTGA/Player.log"
     if not log_path.exists():
         return None
-    scene_re = re.compile(r"\[UnityCrossThreadLogger\]Client\.SceneChange\s+(\{.+\})")
-    current = None
-    for line in log_path.read_text().splitlines():
-        m = scene_re.search(line)
-        if m:
-            try:
-                raw = json.loads(m.group(1))
-                current = raw.get("toSceneName")
-            except (json.JSONDecodeError, ValueError):
-                continue
+    size = log_path.stat().st_size
+    offset = max(0, size - _TAIL_BYTES)
+    with open(log_path, "r", errors="replace") as f:
+        if offset > 0:
+            f.seek(offset)
+            f.readline()  # discard partial line
+        current = None
+        for line in f:
+            m = _SCENE_RE.search(line)
+            if m:
+                try:
+                    raw = json.loads(m.group(1))
+                    current = raw.get("toSceneName")
+                except (json.JSONDecodeError, ValueError):
+                    continue
+            elif _CONNECT_RE.search(line):
+                current = "InGame"
+            elif _GAME_OVER_RE.search(line) or _RESULT_RE.search(line):
+                current = "PostGame"
     return current
 
 
@@ -714,33 +738,33 @@ def cmd_scene(args: list[str]) -> None:
 
 
 def detect_screen() -> str | None:
-    """Identify current screen using scene + OCR + debug API.
+    """Identify current screen using scene (GRE + lobby) + OCR.
+
+    Signal priority:
+      1. Synthetic scene from GRE (InGame/PostGame) — authoritative for match state
+      2. OCR anchors — discriminate between lobby sub-screens
+      3. Lobby scene from Player.log — fallback
 
     Returns screen name from the state machine, or None if unrecognized.
-    Priority: specific OCR anchors first (most discriminating), then scene fallback.
     """
     from arena_screens import SCREENS
 
-    # Gather signals
     scene = get_current_scene()
 
-    # Check debug API for in-game
-    state_body = fetch_api("/api/state")
-    if state_body and '"matchId"' in state_body and '"null"' not in state_body.lower():
-        # Has active match — might be InGame, Mulligan, or Result
-        pass  # fall through to OCR for finer discrimination
+    # InGame/PostGame are synthetic scenes from GRE. They tell us we're
+    # "in match context" but we still need OCR to discriminate sub-states
+    # (Mulligan, ConcedMenu, Result) that share the same scene.
+    # Fall through to OCR — InGame is the default if no sub-state matches.
 
-    # OCR snapshot
+    # OCR snapshot for lobby discrimination
     img = "/tmp/arena/_detect_screen.png"
     Path(img).parent.mkdir(parents=True, exist_ok=True)
     bounds = capture_window(img)
     if bounds is None:
-        # No window — can only use scene
         if scene:
             for name, s in SCREENS.items():
                 if s.get("scene") == scene and not s.get("ocr_anchors"):
                     return name
-            # Default to Home if scene is Home
             if scene == "Home":
                 return "Home"
         return None
@@ -764,8 +788,7 @@ def detect_screen() -> str | None:
     def _has_any(anchors: list[str]) -> bool:
         return any(_has(a) for a in anchors)
 
-    # Score each screen — more specific anchors = higher priority
-    # Check screens with most specific detection first
+    # Score each screen by OCR match quality
     candidates: list[tuple[str, int]] = []
     for name, s in SCREENS.items():
         score = 0
@@ -773,56 +796,22 @@ def detect_screen() -> str | None:
         reject = s.get("ocr_reject", [])
         require_any = s.get("ocr_require_any", [])
 
-        # Reject rules
         if reject and _has_any(reject):
             continue
 
-        # Special: debug_api detection for InGame
-        if s.get("detect") == "debug_api":
-            # Scene is authoritative for lobby — if Player.log says we
-            # navigated to a lobby screen, we're not in-game regardless
-            # of stale debug API state.
-            _LOBBY_SCENES = {
-                "Home",
-                "Profile",
-                "DeckListViewer",
-                "DeckBuilder",
-                "BoosterChamber",
-                "RewardTrack",
-                "Achievements",
-                "EventLanding",
-            }
-            if scene in _LOBBY_SCENES:
-                continue
-            if (
-                state_body
-                and '"matchId"' in state_body
-                and '"matchId":null' not in state_body
-            ):
-                # Has match — but is it still active?
-                if '"gameOver":true' in state_body:
-                    continue
-                # matchId present + not gameOver = real game
-                # (activePlayer can be "" during combat phases — that's fine)
-                score += 10
-            else:
-                continue
-
-        # All anchors must match
         if anchors:
             if all(_has(a) for a in anchors):
                 score += len(anchors) * 3
             else:
                 continue
 
-        # At least one of require_any must match
         if require_any:
             if _has_any(require_any):
                 score += 2
             else:
                 continue
 
-        # Scene match is a bonus, not required
+        # Scene match bonus (works for both real and synthetic scenes)
         if s.get("scene") and s.get("scene") == scene:
             score += 1
 
@@ -830,14 +819,17 @@ def detect_screen() -> str | None:
             candidates.append((name, score))
 
     if not candidates:
-        # Fall back to scene only
+        # Fall back to scene-only screens (no OCR anchors defined)
+        if scene == "InGame":
+            return "InGame"
+        if scene == "PostGame":
+            return "Result"
         if scene == "Home":
             return "Home"
         if scene == "EventLanding":
             return "EventLanding"
         return None
 
-    # Highest score wins; tie-break: more specific (more anchors)
     candidates.sort(key=lambda c: c[1], reverse=True)
     return candidates[0][0]
 
@@ -848,8 +840,98 @@ def cmd_where(args: list[str]) -> None:
     print(json.dumps({"screen": screen}))
 
 
+_MAX_REROUTES = 3
+
+
+def _try_dismiss_popups() -> str | None:
+    """Check for and dismiss any popup overlay.
+
+    Returns the popup name if one was dismissed, None otherwise.
+    """
+    from arena_screens import POPUPS
+
+    img = "/tmp/arena/_popup_check.png"
+    Path(img).parent.mkdir(parents=True, exist_ok=True)
+    bounds = capture_window(img)
+    if bounds is None:
+        return None
+
+    code, stdout, _ = ocr(img)
+    _try_remove(img)
+    if code != 0 or not stdout.strip():
+        return None
+
+    try:
+        ocr_items = json.loads(stdout)
+        ocr_texts = [item.get("text", "") for item in ocr_items]
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+    all_text = " ".join(ocr_texts).lower()
+
+    def _has(anchor: str) -> bool:
+        return anchor.lower() in all_text
+
+    def _has_any(anchors: list[str]) -> bool:
+        return any(_has(a) for a in anchors)
+
+    for popup in POPUPS:
+        anchors = popup.get("ocr_anchors", [])
+        reject = popup.get("ocr_reject", [])
+        require_any = popup.get("ocr_require_any", [])
+
+        if reject and _has_any(reject):
+            continue
+        if not all(_has(a) for a in anchors):
+            continue
+        if require_any and not _has_any(require_any):
+            continue
+
+        # Matched — dismiss it
+        name = popup["name"]
+        print(f"  popup detected: {name}, dismissing...")
+        for step in popup["dismiss"]:
+            _exec_step(step)
+        return name
+
+    return None
+
+
+def _exec_step(step: str) -> None:
+    """Execute a single transition step (click, sleep, etc.)."""
+    if step.startswith("sleep "):
+        time.sleep(float(step.split()[1]))
+        return
+    step_args = _split_step(step)
+    cmd_name = step_args[0]
+    cmd_rest = step_args[1:]
+    handler = COMMANDS.get(cmd_name)
+    if handler is None:
+        die(f"Unknown step command: {cmd_name}")
+    handler(cmd_rest)
+
+
+def _wait_condition(wait: str, timeout_sec: int) -> bool:
+    """Evaluate a wait condition string. Returns True if matched."""
+    if wait.startswith("scene="):
+        return poll_scene(wait.removeprefix("scene="), timeout_sec * 1000)
+    elif wait.startswith("text="):
+        return _poll_ocr(
+            wait.removeprefix("text="),
+            present=True,
+            timeout_ms=timeout_sec * 1000,
+        )
+    elif "=" in wait:
+        return poll_state(wait, timeout_sec * 1000)
+    return False
+
+
 def cmd_navigate(args: list[str]) -> None:
     """Navigate to a target screen using the state machine graph.
+
+    Robust: dismisses popups, re-detects after each transition,
+    re-routes if landed on unexpected screen. Gives up after
+    MAX_REROUTES failed attempts.
 
     Usage: arena navigate <target_screen>
     """
@@ -862,6 +944,9 @@ def cmd_navigate(args: list[str]) -> None:
 
     target = args[0]
     dry_run = "--dry-run" in args
+
+    # Dismiss any popups before detecting
+    _try_dismiss_popups()
 
     current = detect_screen()
     if current is None:
@@ -882,44 +967,64 @@ def cmd_navigate(args: list[str]) -> None:
             print(f"  {t['from']} -> {t['to']}: {t.get('steps', [])}")
         return
 
-    for t in path:
+    reroutes = 0
+
+    while path:
+        t = path[0]
         steps = t.get("steps", [])
         wait = t.get("wait")
         wait_timeout = t.get("wait_timeout", 10)
 
+        # Execute transition steps
         for step in steps:
-            if step.startswith("sleep "):
-                time.sleep(float(step.split()[1]))
-                continue
-            # Parse as arena CLI args
-            step_args = _split_step(step)
-            cmd_name = step_args[0]
-            cmd_rest = step_args[1:]
-            handler = COMMANDS.get(cmd_name)
-            if handler is None:
-                die(
-                    f"Unknown step command: {cmd_name} (in transition {t['from']} -> {t['to']})"
-                )
-            handler(cmd_rest)
+            _exec_step(step)
 
+        # Wait for expected condition
+        ok = True
         if wait:
-            ok = False
-            if wait.startswith("scene="):
-                ok = poll_scene(wait.removeprefix("scene="), wait_timeout * 1000)
-            elif wait.startswith("text="):
-                ok = _poll_ocr(
-                    wait.removeprefix("text="),
-                    present=True,
-                    timeout_ms=wait_timeout * 1000,
-                )
-            elif "=" in wait:
-                ok = poll_state(wait, wait_timeout * 1000)
-            if not ok:
-                die(
-                    f"Navigation stuck: {t['from']} -> {t['to']}, wait '{wait}' timed out"
-                )
+            ok = _wait_condition(wait, wait_timeout)
 
-        print(f"  {t['from']} -> {t['to']} ok")
+        if ok:
+            print(f"  {t['from']} -> {t['to']} ok")
+            path = path[1:]
+            # Dismiss any popups that appeared after transition
+            _try_dismiss_popups()
+            continue
+
+        # Wait failed — re-detect and try to recover
+        reroutes += 1
+        if reroutes > _MAX_REROUTES:
+            die(
+                f"Navigation failed: exceeded {_MAX_REROUTES} reroutes. "
+                f"Last attempt: {t['from']} -> {t['to']}, wait '{wait}' timed out"
+            )
+
+        # Check for popups first
+        popup = _try_dismiss_popups()
+        if popup:
+            print(f"  dismissed popup {popup}, retrying...")
+
+        actual = detect_screen()
+        if actual is None:
+            die(
+                f"Navigation stuck: cannot detect screen after "
+                f"{t['from']} -> {t['to']} failed (wait '{wait}' timed out)"
+            )
+
+        if actual == target:
+            print(f"  already at {target} (detected after reroute)")
+            break
+
+        # Re-plan from actual position
+        new_path = find_path(actual, target)
+        if new_path is None:
+            die(f"Navigation stuck: no path from {actual} to {target}")
+
+        print(
+            f"  rerouting: expected {t['to']}, got {actual}. "
+            f"New path: {actual} -> {' -> '.join(tt['to'] for tt in new_path)}"
+        )
+        path = new_path
 
     print(f"Arrived at {target}")
 
