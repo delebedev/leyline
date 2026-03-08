@@ -1,7 +1,5 @@
 package leyline.game
 
-import java.util.concurrent.atomic.AtomicInteger
-
 /**
  * Tracks synthetic effect IDs and active P/T modifier state for the
  * LayeredEffect annotation lifecycle.
@@ -40,11 +38,11 @@ class EffectTracker {
     /** Whether init effects have been emitted for this game. */
     private var initEmitted = false
 
-    private val nextId = AtomicInteger(INITIAL_EFFECT_ID)
+    private var nextId = INITIAL_EFFECT_ID
     private val activeEffects = mutableMapOf<EffectFingerprint, TrackedEffect>()
 
     /** Allocate the next monotonic synthetic effect ID. */
-    fun nextEffectId(): Int = nextId.getAndIncrement()
+    fun nextEffectId(): Int = nextId++
 
     /**
      * Diff current boost table against previously tracked state.
@@ -113,7 +111,7 @@ class EffectTracker {
 
     /** Full reset — puzzle hot-swap. */
     fun resetAll() {
-        nextId.set(INITIAL_EFFECT_ID)
+        nextId = INITIAL_EFFECT_ID
         activeEffects.clear()
         initEmitted = false
     }
