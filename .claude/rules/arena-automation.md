@@ -125,7 +125,7 @@ bin/arena click 864,534                          # Play (event screen button, bo
 bin/arena wait text="Keep" --timeout 30          # wait for mulligan
 bin/arena click "Keep" --retry 3
 sleep 3
-bin/arena click 940,55                           # cog icon (top-right, no OCR text)
+bin/arena click 940,42                           # cog icon (top-right, no OCR text)
 sleep 1
 bin/arena click "Concede" --retry 3
 bin/arena wait text="Defeat" --timeout 10
