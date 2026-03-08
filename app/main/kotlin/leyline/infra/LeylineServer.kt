@@ -91,10 +91,15 @@ class LeylineServer(
 
     @Volatile private var matchDoorChannel: Channel? = null
 
+    /** Counter for MD proxy connections — first = seat-1, second = seat-2. */
+    private val mdConnectionCount = java.util.concurrent.atomic.AtomicInteger(0)
+
     // --- Debug infrastructure (wired in start()) ---
     val eventBus = DebugEventBus()
     val fdCollector = FdDebugCollector(eventBus)
     val captureSink = CaptureSink(fdCollector)
+    val captureSinkSeat1 = CaptureSink(fdCollector, mdLabel = "seat-1")
+    val captureSinkSeat2 = CaptureSink(fdCollector, mdLabel = "seat-2")
     val debugCollector = DebugCollector(eventBus)
     val gameStateCollector = GameStateCollector(cardRepo, eventBus)
     val recordingInspector = leyline.recording.RecordingInspector(
@@ -304,8 +309,12 @@ class LeylineServer(
         }
         log.info("Client Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
 
+        val mdSinks = arrayOf(captureSinkSeat1, captureSinkSeat2)
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor-Proxy") { ch ->
-            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, mdHost, matchDoorPort, "MD", captureSink))
+            // TODO: seat detection is connection-order based — first MD connection = seat-1, second = seat-2.
+            // Precise seat identification requires auth-based routing (not yet implemented).
+            val idx = mdConnectionCount.getAndIncrement().coerceAtMost(mdSinks.lastIndex)
+            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, mdHost, matchDoorPort, "MD", mdSinks[idx]))
         }
         log.info("Client Match Door (proxy → {}:{}) listening on :{}", mdHost, matchDoorPort, matchDoorPort)
     }
@@ -317,6 +326,8 @@ class LeylineServer(
         workerGroup.shutdownGracefully()
         bossGroup.shutdownGracefully()
         captureSink.close()
+        captureSinkSeat1.close()
+        captureSinkSeat2.close()
     }
 
     /**
