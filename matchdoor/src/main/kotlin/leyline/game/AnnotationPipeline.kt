@@ -402,6 +402,47 @@ object AnnotationPipeline {
             else -> TransferCategory.ZoneTransfer
         }
 
+    /**
+     * Stage 5: Generate layered effect lifecycle annotations from [EffectTracker.DiffResult].
+     *
+     * Pure function — converts diff results to proto annotations.
+     * Returns (transient, persistent) matching the pipeline convention.
+     */
+    fun effectAnnotations(
+        diff: EffectTracker.DiffResult,
+    ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
+        if (diff.created.isEmpty() && diff.destroyed.isEmpty()) {
+            return emptyList<AnnotationInfo>() to emptyList()
+        }
+
+        val transient = mutableListOf<AnnotationInfo>()
+        val persistent = mutableListOf<AnnotationInfo>()
+
+        for (effect in diff.created) {
+            transient.add(AnnotationBuilder.layeredEffectCreated(effect.syntheticId))
+
+            val effectType = when {
+                effect.powerDelta != 0 && effect.toughnessDelta != 0 -> "Effect_ModifiedPowerAndToughness"
+                effect.powerDelta != 0 -> "Effect_ModifiedPower"
+                effect.toughnessDelta != 0 -> "Effect_ModifiedToughness"
+                else -> null
+            }
+            persistent.add(
+                AnnotationBuilder.layeredEffect(
+                    instanceId = effect.fingerprint.cardInstanceId,
+                    effectId = effect.syntheticId,
+                    effectType = effectType,
+                ),
+            )
+        }
+
+        for (effect in diff.destroyed) {
+            transient.add(AnnotationBuilder.layeredEffectDestroyed(effect.syntheticId))
+        }
+
+        return transient to persistent
+    }
+
     // --- helpers ---
 
     /** Replace oldId with newId in a zone's objectInstanceIds list (after instanceId realloc). */
