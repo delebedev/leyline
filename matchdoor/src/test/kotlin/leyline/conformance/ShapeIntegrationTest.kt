@@ -24,13 +24,13 @@ class ShapeIntegrationTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("aiActionDiff produces single SendHiFi GSM (no echo)") {
+        test("remoteActionDiff produces single SendHiFi GSM (no echo)") {
             val (b, game, counter) = base.startWithBoard { _, human, _ ->
                 base.addCard("Plains", human, ZoneType.Hand)
                 base.addCard("Forest", human, ZoneType.Battlefield)
             }
 
-            val result = BundleBuilder.aiActionDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
+            val result = BundleBuilder.remoteActionDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
             val captured = base.fingerprint(result.messages)
 
             captured.size shouldBe 1
