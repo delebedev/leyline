@@ -23,6 +23,9 @@ class MatchRegistry {
     fun getOrCreateMatch(matchId: String, factory: () -> Match): Match =
         matches.computeIfAbsent(matchId) { factory() }
 
+    /** Look up a match by id. */
+    fun getMatch(matchId: String): Match? = matches[matchId]
+
     /** Convenience: get the bridge for a match directly. */
     fun getBridge(matchId: String): GameBridge? = matches[matchId]?.bridge
 
@@ -38,7 +41,7 @@ class MatchRegistry {
 
     /**
      * Remove all matches and sessions except [currentMatchId].
-     * Returns list of evicted matches (caller should shutdown).
+     * Returns list of evicted matches (already closed).
      */
     fun evictStale(currentMatchId: String): List<Match> {
         val staleKeys = matches.keys.filter { it != currentMatchId }
@@ -47,6 +50,7 @@ class MatchRegistry {
             sessions.remove(it)
             handlers.remove(it)
         }
+        evicted.forEach { it.close() }
         return evicted
     }
 

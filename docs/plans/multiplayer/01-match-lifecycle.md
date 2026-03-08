@@ -80,9 +80,9 @@ This split is formalized in plan 02 (per-seat bridge refactor). For this plan, G
 
 **Phase 1: Wrap.** ✅ Done (`2dc0dc3`). `Match` wraps `GameBridge`, `MatchRegistry` stores `Match`, `MatchHandler`/`PuzzleHandler` create `Match`. Zero behavior change.
 
-**Phase 2: Lifecycle state.** Add `MatchState` enum and `close()`. Wire `close()` into game-over path (`MatchSession.sendGameOver`) and disconnect handler (`MatchHandler.channelInactive`). Replace `evictStale()` ad-hoc cleanup with deterministic `close()` calls.
+**Phase 2: Lifecycle state.** ✅ Done (`ba03c20`). `MatchState` enum (WAITING/RUNNING/FINISHED) + `close()` with AtomicReference CAS. `onStateChanged` callback. `evictStale()` calls `close()` on evicted matches. `getMatch()` accessor on MatchRegistry.
 
-**Phase 3: Resource ownership.** Move `GameLoopController`, `GameEventCollector`, `GamePlayback` ownership from `GameBridge` to `Match`. GameBridge.shutdown() becomes just clearing per-seat state; Match.close() handles the heavy lifting.
+**Phase 3: Resource ownership.** ✅ Done (`65ba904`). `teardownResources()` on GameBridge unsubscribes EventBus + stops loop. `Match.close()` calls `shutdown()` which includes teardown. `exceptionCaught()` routes through `Match.close()`.
 
 Each phase is a single commit, independently shippable, no behavior changes until phase 3 (where cleanup becomes deterministic).
 
