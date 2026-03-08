@@ -124,6 +124,91 @@ class SurveilFlowTest :
             h.accumulator.assertConsistent("after surveil to graveyard")
         }
 
+        test("surveil to graveyard produces ZoneTransfer with Surveil category") {
+            val h = setupSurveil(validating = false)
+            val snap = h.messageSnapshot()
+
+            h.castSpellByName("Wary Thespian").shouldBeTrue()
+            h.passPriority()
+
+            val groupReq = h.allMessages.last { it.hasGroupReq() }
+            val cardIds = groupReq.groupReq.instanceIdsList
+
+            // Put card in graveyard
+            h.respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
+
+            // Find ZoneTransfer annotation in post-GroupResp messages
+            val msgs = h.messagesSince(snap)
+            val allAnnotations = msgs.flatMap { msg ->
+                if (msg.hasGameStateMessage()) {
+                    msg.gameStateMessage.annotationsList
+                } else {
+                    emptyList()
+                }
+            }
+            val zt = allAnnotations.filter { ann ->
+                ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a }
+            }
+            zt.shouldNotBeEmpty()
+
+            // Find the surveil-specific ZoneTransfer (not CastSpell/Resolve)
+            // by checking category is either "Surveil" or "Mill" (Library→GY transfer)
+            val surveilZt = zt.firstOrNull { ann ->
+                val cat = ann.detailsList.firstOrNull { it.key == "category" }
+                    ?.valueStringList?.firstOrNull()
+                cat == "Surveil" || cat == "Mill"
+            }
+            surveilZt.shouldNotBeNull()
+
+            val category = surveilZt.detailsList
+                .firstOrNull { it.key == "category" }
+                ?.valueStringList?.firstOrNull()
+            category shouldBe "Surveil"
+
+            // affectorId must be set — real server sets it to the ability instance
+            // that caused the surveil (Wary Thespian's ETB trigger on the stack).
+            // Without this, the client shows the wrong animation.
+            surveilZt.affectorId shouldBe surveilZt.affectorId // non-zero check below
+            (surveilZt.affectorId != 0).shouldBeTrue()
+
+            // The corresponding ObjectIdChanged should also have the same affectorId
+            val surveilOidChanged = allAnnotations.firstOrNull { ann ->
+                ann.typeList.any { it == AnnotationType.ObjectIdChanged } &&
+                    ann.detailsList.any { it.key == "new_id" && it.getValueInt32(0) == surveilZt.affectedIdsList.first() }
+            }
+            surveilOidChanged.shouldNotBeNull()
+            surveilOidChanged.affectorId shouldBe surveilZt.affectorId
+        }
+
+        test("surveil keep does not produce ZoneTransfer annotation") {
+            val h = setupSurveil(validating = false)
+            val snap = h.messageSnapshot()
+
+            h.castSpellByName("Wary Thespian").shouldBeTrue()
+            h.passPriority()
+
+            val groupReq = h.allMessages.last { it.hasGroupReq() }
+            val cardIds = groupReq.groupReq.instanceIdsList
+
+            // Keep on top — no zone transfer should occur for the surveiled card
+            h.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
+
+            val msgs = h.messagesSince(snap)
+            val allAnnotations = msgs.flatMap { msg ->
+                if (msg.hasGameStateMessage()) {
+                    msg.gameStateMessage.annotationsList
+                } else {
+                    emptyList()
+                }
+            }
+            // No ZoneTransfer with Surveil category (card stayed in library)
+            val surveilTransfers = allAnnotations.filter { ann ->
+                ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
+                    ann.detailsList.any { it.key == "category" && it.valueStringList.firstOrNull() == "Surveil" }
+            }
+            surveilTransfers.size shouldBe 0
+        }
+
         test("surveil state validity") {
             val h = setupSurveil(validating = false)
 
