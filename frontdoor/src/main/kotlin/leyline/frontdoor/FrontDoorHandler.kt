@@ -344,7 +344,7 @@ class FrontDoorHandler(
                 try {
                     if (eventName != null) coordinator.selectEvent(eventName)
 
-                    // Try course-based deck (sealed events), fall back to selected deck (constructed)
+                    // Resolve deck: course-based (sealed/draft) or selected (constructed)
                     val course = if (eventName != null) courseService.getCourse(playerId, eventName) else null
                     val courseDeckId = course?.deck?.deckId?.value
                     val deckId = courseDeckId ?: eventName?.let { selectedDeckByEvent[it] }
@@ -353,9 +353,9 @@ class FrontDoorHandler(
                     // Ack immediately — spinner shows while waiting for MatchCreated push
                     writer.send(ctx, txId, FdResponse.Json("""{"CurrentModule":"CreateMatch","Payload":"Success"}"""))
 
-                    if (matchmakingQueue != null && eventName == "PlayQueue") {
-                        // PvP queue path — hold connection until paired
-                        val evName = eventName
+                    if (matchmakingQueue != null) {
+                        // PvP queue path — all 603 events go through the queue
+                        val evName = eventName ?: ""
                         val entry = PairingEntry(
                             screenName = playerId.value,
                             pushCallback = { matchId, yourSeat ->
@@ -372,7 +372,7 @@ class FrontDoorHandler(
                             }
                         }
                     } else {
-                        // Single-player path (bot match, sealed, draft) — immediate match
+                        // No queue — direct match (bot match, sealed, draft)
                         val match = if (courseDeckId != null) {
                             matchmaking.createMatchInfo(eventName ?: "")
                         } else {
@@ -570,7 +570,7 @@ class FrontDoorHandler(
     }
 
     private fun sendMatchCreated(ctx: ChannelHandlerContext, match: MatchInfo, yourSeat: Int = 1) {
-        val matchType = if (yourSeat > 0 && match.eventName == "PlayQueue") "Queue" else "Familiar"
+        val matchType = if (yourSeat > 1) "Queue" else "Familiar"
         val json = FdEnvelope.buildMatchCreatedJson(
             match.matchId,
             match.host,
