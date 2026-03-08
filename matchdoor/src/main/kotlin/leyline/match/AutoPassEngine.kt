@@ -131,7 +131,7 @@ class AutoPassEngine(
      * produced by [GamePlayback] already have correct sequence numbers.
      */
     private fun drainPlayback(bridge: GameBridge): Boolean {
-        val playback = bridge.playback ?: return false
+        val playback = bridge.playbacks[SeatId(ops.seatId)] ?: return false
         if (!playback.hasPendingMessages()) return false
         val batches = playback.drainQueue()
         for ((idx, batch) in batches.withIndex()) {
