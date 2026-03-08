@@ -386,7 +386,9 @@ object StateMapper {
         }
     }
 
-    /** Keywords whose triggered/static abilities produce P/T boosts. */
+    /** Keywords whose triggered/static abilities produce P/T boosts.
+     *  Only Prowess for now — battle cry, lord anthems, and other continuous
+     *  P/T effects don't yet carry sourceAbilityGRPID. Extend as needed. */
     private val PT_BOOST_KEYWORDS = setOf("PROWESS")
 
     /**
