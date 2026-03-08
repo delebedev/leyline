@@ -137,6 +137,7 @@ class WebPlayerController(
         multiAwayPrompt: String,
     ): ImmutablePair<CardCollection, CardCollection> {
         if (topN.isEmpty()) return ImmutablePair.of(null, null)
+        val refs = buildCandidateRefs(topN)
         if (topN.size == 1) {
             val request = PromptRequest(
                 promptType = "confirm",
@@ -145,6 +146,7 @@ class WebPlayerController(
                 min = 1,
                 max = 1,
                 defaultIndex = 0,
+                candidateRefs = refs,
             )
             val result = bridge.requestChoice(request)
             return if (result.firstOrNull() == 1) {
@@ -161,6 +163,7 @@ class WebPlayerController(
             min = 0,
             max = topN.size,
             defaultIndex = 0,
+            candidateRefs = refs,
         )
         val awayIndices = bridge.requestChoice(request)
         val toAway = CardCollection()

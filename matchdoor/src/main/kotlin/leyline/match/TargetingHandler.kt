@@ -139,17 +139,19 @@ class TargetingHandler(private val ops: SessionOps) {
      */
     fun checkPendingPrompt(bridge: GameBridge, game: Game): PromptResult {
         val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: return PromptResult.NONE
+
+        // Surveil/scry prompts: check before candidateRefs — surveil now carries
+        // candidateRefs for card identity, but should route to GroupReq not SelectTargetsReq.
+        val groupingContext = detectSurveilScry(pendingPrompt.request)
+        if (groupingContext != null) {
+            sendGroupReqForSurveilScry(bridge, pendingPrompt, groupingContext)
+            return PromptResult.SENT_TO_CLIENT
+        }
+
         if (pendingPrompt.request.candidateRefs.isNotEmpty()) {
             // Targeting prompt → send SelectTargetsReq to client
             ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
             sendSelectTargetsReq(bridge, pendingPrompt)
-            return PromptResult.SENT_TO_CLIENT
-        }
-
-        // Surveil/scry prompts: message pattern from WebPlayerController.arrangeTopNCards
-        val groupingContext = detectSurveilScry(pendingPrompt.request)
-        if (groupingContext != null) {
-            sendGroupReqForSurveilScry(bridge, pendingPrompt, groupingContext)
             return PromptResult.SENT_TO_CLIENT
         }
 
@@ -316,25 +318,28 @@ class TargetingHandler(private val ops: SessionOps) {
         val player = bridge.getPlayer(ops.seatId) ?: return
         val req = pendingPrompt.request
 
-        // Resolve top-of-library cards to surveil/scry
-        val topCards = if (req.promptType == "confirm") {
-            // Single card: top of library
-            val topCard = player.getZone(forge.game.zone.ZoneType.Library).cards.lastOrNull()
-            if (topCard != null) listOf(topCard) else emptyList()
-        } else {
-            // Multi-card: library top N
-            val libCards = player.getZone(forge.game.zone.ZoneType.Library).cards.toList()
-            libCards.takeLast(req.options.size).reversed()
-        }
+        // Resolve surveil/scry cards from candidateRefs (forge card IDs set by WebPlayerController).
+        // We can't read library top here — the engine already removed the card from the zone
+        // while blocking in requestChoice(). CandidateRefs carry the correct forge card IDs.
+        // Use Game.findById() which visits all cards including those in limbo (no zone).
+        data class ResolvedCard(val card: forge.game.card.Card, val instanceId: Int)
 
-        if (topCards.isEmpty()) {
-            log.warn("TargetingHandler: surveil/scry but no cards found, auto-resolving")
+        val resolved = req.candidateRefs
+            .filter { it.kind == "card" }
+            .mapNotNull { ref ->
+                val card = game.findById(ref.entityId)
+                if (card != null) ResolvedCard(card, bridge.getOrAllocInstanceId(ref.entityId)) else null
+            }
+
+        if (resolved.isEmpty()) {
+            log.warn("TargetingHandler: surveil/scry but no cards resolved from candidateRefs (falling back to library top)")
             bridge.promptBridge.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
             bridge.awaitPriority()
             return
         }
 
-        val cardInstanceIds = topCards.map { bridge.getOrAllocInstanceId(it.id) }
+        val topCards = resolved.map { it.card }
+        val cardInstanceIds = resolved.map { it.instanceId }
 
         // sourceId: the card that triggered surveil — check stack for the trigger source
         val sourceId = game.stack.firstOrNull()?.let { bridge.getOrAllocInstanceId(it.id) } ?: 0
