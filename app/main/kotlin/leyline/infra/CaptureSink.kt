@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class CaptureSink(
     private val fdCollector: FdDebugCollector,
+    /** Seat label for MD frame subdirectories (e.g. "seat-1"). Null = flat layout (backward compat). */
+    private val mdLabel: String? = null,
 ) : AutoCloseable {
     private val log = LoggerFactory.getLogger(CaptureSink::class.java)
     private val lock = Any()
@@ -41,6 +43,21 @@ class CaptureSink(
     private val payloadDir = LeylinePaths.CAPTURE_PAYLOADS
     private val frameDir = LeylinePaths.CAPTURE_FRAMES
     private val fdJsonlFile = File(LeylinePaths.CAPTURE_ROOT, "fd-frames.jsonl")
+
+    /** MD frames route to seat-labeled subdirs when [mdLabel] is set, else fall back to flat layout. */
+    private val mdFrameDir: File
+        get() = if (mdLabel != null) {
+            File(LeylinePaths.CAPTURE_ROOT, "$mdLabel/md-frames")
+        } else {
+            frameDir
+        }
+
+    private val mdPayloadDir: File
+        get() = if (mdLabel != null) {
+            File(LeylinePaths.CAPTURE_ROOT, "$mdLabel/md-payloads")
+        } else {
+            payloadDir
+        }
     private var fdJsonlWriter: PrintWriter? = null
 
     private val jsonFmt = Json { encodeDefaults = true }
@@ -88,14 +105,20 @@ class CaptureSink(
         val fileSeq = seq.incrementAndGet()
         val base = "%09d_%s_%s".format(fileSeq, sanitize(dir), frameTypeName(ft))
 
-        File(frameDir, "$base.bin").writeBytes(frame)
+        val isMd = dir.startsWith("MD")
+        val targetFrameDir = if (isMd) mdFrameDir else frameDir
+        val targetPayloadDir = if (isMd) mdPayloadDir else payloadDir
+
+        targetFrameDir.mkdirs()
+        File(targetFrameDir, "$base.bin").writeBytes(frame)
 
         // Only write data payloads for parser/trace tools.
         if (ft == ClientFrameDecoder.TYPE_CTRL_INIT || ft == ClientFrameDecoder.TYPE_CTRL_ACK) return
         if (payloadLen <= 0) return
 
         val payload = frame.copyOfRange(ClientFrameDecoder.HEADER_SIZE, ClientFrameDecoder.HEADER_SIZE + payloadLen)
-        File(payloadDir, "$base.bin").writeBytes(payload)
+        targetPayloadDir.mkdirs()
+        File(targetPayloadDir, "$base.bin").writeBytes(payload)
 
         // Decode FD envelope and write to JSONL + debug collector
         if (dir.startsWith("FD")) {
@@ -151,13 +174,31 @@ class CaptureSink(
         try {
             val sessionDir = LeylinePaths.SESSION_DIR
             if (!sessionDir.isDirectory) return
-            val messages = RecordingDecoder.decodeDirectory(sessionDir)
+
+            // Collect MD payloads from both flat layout and seat subdirectories
+            val messages = mutableListOf<RecordingDecoder.DecodedMessage>()
+
+            // Flat layout (backward compat) — decodeDirectory auto-discovers capture/payloads/
+            messages.addAll(RecordingDecoder.decodeDirectory(sessionDir))
+
+            // Seat subdirectories (e.g. capture/seat-1/md-payloads/)
+            val captureRoot = LeylinePaths.CAPTURE_ROOT
+            if (captureRoot.isDirectory) {
+                for (seatDir in captureRoot.listFiles()?.filter { it.isDirectory && it.name.startsWith("seat-") } ?: emptyList()) {
+                    val mdPayloads = File(seatDir, "md-payloads")
+                    if (mdPayloads.isDirectory) {
+                        messages.addAll(RecordingDecoder.decodeDirectory(mdPayloads))
+                    }
+                }
+            }
+
             if (messages.isEmpty()) return
+            val sorted = messages.sortedBy { it.seq }
             val outFile = File(sessionDir, "md-frames.jsonl")
             outFile.printWriter().use { pw ->
-                for (msg in messages) pw.println(RecordingDecoder.toJsonLine(msg))
+                for (msg in sorted) pw.println(RecordingDecoder.toJsonLine(msg))
             }
-            log.info("Wrote {} MD messages to {}", messages.size, outFile)
+            log.info("Wrote {} MD messages to {}", sorted.size, outFile)
         } catch (e: Exception) {
             log.warn("MD auto-decode failed: {}", e.message)
         }
