@@ -2,6 +2,9 @@ package leyline.game
 
 import forge.game.Game
 import forge.game.player.Player
+import leyline.bridge.ForgeCardId
+import leyline.bridge.InstanceId
+import leyline.bridge.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
 
@@ -18,19 +21,19 @@ import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
 /** Forge cardId ↔ client instanceId translation. Used by nearly every mapper. */
 interface IdMapping {
     /** Allocate or return existing client instanceId for a Forge card ID. */
-    fun getOrAllocInstanceId(forgeCardId: Int): Int
+    fun getOrAllocInstanceId(forgeCardId: ForgeCardId): InstanceId
 
     /** Allocate a fresh instanceId for a card that changed zones. */
-    fun reallocInstanceId(forgeCardId: Int): InstanceIdRegistry.IdReallocation
+    fun reallocInstanceId(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation
 
     /** Reverse lookup: client instanceId → Forge card ID. */
-    fun getForgeCardId(instanceId: Int): Int?
+    fun getForgeCardId(instanceId: InstanceId): ForgeCardId?
 }
 
 /** Seat number → Forge Player/Game resolution. Used by nearly every mapper. */
 interface PlayerLookup {
     /** Map seat ID (1=human, 2=AI) to Forge player. */
-    fun getPlayer(seatId: Int): Player?
+    fun getPlayer(seatId: SeatId): Player?
 
     /** The underlying Forge game (null before start). */
     fun getGame(): Game?
@@ -39,16 +42,16 @@ interface PlayerLookup {
 /** Zone membership tracking for diff computation and zone-transfer detection. */
 interface ZoneTracking {
     /** Record current zone for an instance. Returns previous zone or null if new. */
-    fun recordZone(instanceId: Int, zoneId: Int): Int?
+    fun recordZone(instanceId: InstanceId, zoneId: Int): Int?
 
     /** Get the zone an instanceId was last seen in. */
-    fun getPreviousZone(instanceId: Int): Int?
+    fun getPreviousZone(instanceId: InstanceId): Int?
 
     /** Retire an instanceId to the Limbo zone (protocol-only, no Forge equivalent). */
-    fun retireToLimbo(instanceId: Int)
+    fun retireToLimbo(instanceId: InstanceId)
 
     /** All retired instanceIds in order. */
-    fun getLimboInstanceIds(): List<Int>
+    fun getLimboInstanceIds(): List<InstanceId>
 }
 
 /** Full GameStateMessage snapshots for diff computation + client tracking. */

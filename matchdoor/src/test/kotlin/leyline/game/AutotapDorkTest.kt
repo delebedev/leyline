@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
+import leyline.bridge.InstanceId
 import leyline.conformance.ConformanceTestBase
 import leyline.game.mapper.ActionMapper
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
@@ -43,10 +44,10 @@ class AutotapDorkTest :
             // All tapped sources should be lands (Plains), not Llanowar Elves
             val human = game.players.first { it.name != "AI" }
             for (tap in autoTap.autoTapActionsList) {
-                val forgeId = bridge.getForgeCardId(tap.instanceId)
+                val forgeId = bridge.getForgeCardId(InstanceId(tap.instanceId))
                 forgeId.shouldNotBeNull()
                 val card = human.getZone(forge.game.zone.ZoneType.Battlefield)
-                    .cards.firstOrNull { it.id == forgeId }
+                    .cards.firstOrNull { it.id == forgeId.value }
                 card.shouldNotBeNull()
                 card.isLand shouldBe true
             }

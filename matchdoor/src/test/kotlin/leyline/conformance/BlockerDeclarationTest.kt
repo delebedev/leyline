@@ -7,6 +7,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
+import leyline.bridge.SeatId
 
 /**
  * End-to-end blocker declaration tests: AI attacks, human blocks.
@@ -117,7 +118,7 @@ class BlockerDeclarationTest :
 
             val h = harness!!
             // Human life before blocking
-            val humanPlayer = h.bridge.getPlayer(1)!!
+            val humanPlayer = h.bridge.getPlayer(SeatId(1))!!
             val lifeBefore = humanPlayer.life
 
             // Declare block: human's Raging Goblin blocks AI's Raging Goblin
@@ -145,7 +146,7 @@ class BlockerDeclarationTest :
             setupAiAttacksHumanCanBlock() // advances to DeclareBlockersReq
 
             val h = harness!!
-            val humanPlayer = h.bridge.getPlayer(1)!!
+            val humanPlayer = h.bridge.getPlayer(SeatId(1))!!
             val lifeBefore = humanPlayer.life
 
             // Human declines to block
@@ -182,8 +183,8 @@ class BlockerDeclarationTest :
             }
 
             // Both creatures should be dead
-            val humanPlayer = h.bridge.getPlayer(1)!!
-            val aiPlayer = h.bridge.getPlayer(2)!!
+            val humanPlayer = h.bridge.getPlayer(SeatId(1))!!
+            val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
 
             val humanGy = humanPlayer.getZone(ZoneType.Graveyard).cards
             val aiGy = aiPlayer.getZone(ZoneType.Graveyard).cards

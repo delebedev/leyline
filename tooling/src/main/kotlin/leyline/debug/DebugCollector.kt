@@ -139,8 +139,8 @@ class DebugCollector(
 
             // Derive seat from player: seat 1 = human, seat 2 = AI
             val seatByPlayerId = mapOf(
-                bridge.getPlayer(1)?.id to 1,
-                bridge.getPlayer(2)?.id to 2,
+                bridge.getPlayer(leyline.bridge.SeatId(1))?.id to 1,
+                bridge.getPlayer(leyline.bridge.SeatId(2))?.id to 2,
             )
 
             allIds.map { (instanceId, forgeCardId) ->

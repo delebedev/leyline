@@ -1,6 +1,7 @@
 package leyline.game
 
 import forge.game.Game
+import leyline.bridge.SeatId
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.PromptIds
@@ -40,8 +41,8 @@ object GsmBuilder {
         diffDeletedInstanceIds: List<Int> = emptyList(),
     ): GameStateMessage {
         val game = bridge.getGame()!!
-        val human = bridge.getPlayer(1)
-        val ai = bridge.getPlayer(2)
+        val human = bridge.getPlayer(SeatId(1))
+        val ai = bridge.getPlayer(SeatId(2))
 
         val zones = mutableListOf<ZoneInfo>()
         val gameObjects = mutableListOf<GameObjectInfo>()
@@ -259,8 +260,8 @@ object GsmBuilder {
         bridge: GameBridge,
         pendingMessageCount: Int = 0,
     ): GameStateMessage {
-        val human = bridge.getPlayer(1)
-        val ai = bridge.getPlayer(2)
+        val human = bridge.getPlayer(SeatId(1))
+        val ai = bridge.getPlayer(SeatId(2))
 
         val gameInfo = GameInfo.newBuilder()
             .setMatchID(matchId)
@@ -331,7 +332,7 @@ object GsmBuilder {
         actionSeatId: Int = 0,
     ): GameStateMessage {
         val handler = game.phaseHandler
-        val human = bridge.getPlayer(1)
+        val human = bridge.getPlayer(SeatId(1))
 
         val activeSeat = if (handler.playerTurn == human) 1 else 2
         val prioritySeat = if (handler.priorityPlayer == human) 1 else 2
@@ -349,8 +350,8 @@ object GsmBuilder {
             .setGameStateId(gameStateId)
             .setPrevGameStateId(prevGameStateId)
             .setTurnInfo(turnInfo)
-            .addPlayers(PlayerMapper.buildPlayerInfo(bridge.getPlayer(1), 1))
-            .addPlayers(PlayerMapper.buildPlayerInfo(bridge.getPlayer(2), 2))
+            .addPlayers(PlayerMapper.buildPlayerInfo(bridge.getPlayer(SeatId(1)), 1))
+            .addPlayers(PlayerMapper.buildPlayerInfo(bridge.getPlayer(SeatId(2)), 2))
             .addAnnotations(
                 AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)
                     .toBuilder().setId(bridge.nextAnnotationId()).build(),
@@ -419,7 +420,7 @@ object GsmBuilder {
         val seatForActions = if (recipientSeatId != 0) {
             recipientSeatId
         } else {
-            val human = bridge.getPlayer(1)
+            val human = bridge.getPlayer(SeatId(1))
             if (game.phaseHandler.priorityPlayer == human) 1 else 2
         }
         for (action in actions.actionsList) {

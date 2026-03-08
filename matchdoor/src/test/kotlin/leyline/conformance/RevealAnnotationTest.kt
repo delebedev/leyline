@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldHaveAtLeastSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import leyline.ConformanceTag
+import leyline.bridge.ForgeCardId
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -33,10 +34,10 @@ class RevealAnnotationTest :
                 b.promptBridge.recordReveal(listOf(handCard.id), 1)
             }
 
-            val instanceId = b.getOrAllocInstanceId(handCard.id)
+            val instanceId = b.getOrAllocInstanceId(ForgeCardId(handCard.id))
             val revealAnn = gsm.annotationOrNull(AnnotationType.RevealedCardCreated)
             revealAnn.shouldNotBeNull()
-            (instanceId in revealAnn.affectedIdsList).shouldBeTrue()
+            revealAnn.affectedIdsList.contains(instanceId.value).shouldBeTrue()
         }
 
         test("multi card reveal produces multiple annotations") {

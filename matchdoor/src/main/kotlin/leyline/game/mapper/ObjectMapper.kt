@@ -2,6 +2,7 @@ package leyline.game.mapper
 
 import forge.game.Game
 import forge.game.card.Card
+import leyline.bridge.ForgeCardId
 import leyline.game.CardProtoBuilder
 import leyline.game.CardRepository
 import leyline.game.GameBridge
@@ -131,7 +132,7 @@ object ObjectMapper {
         // Attachment (Auras, Equipment)
         val attachedTo = card.attachedTo
         if (attachedTo != null && bridge != null) {
-            setParentId(bridge.getOrAllocInstanceId(attachedTo.id))
+            setParentId(bridge.getOrAllocInstanceId(ForgeCardId(attachedTo.id)).value)
         }
 
         // Combat state

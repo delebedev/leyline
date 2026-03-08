@@ -17,6 +17,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * Each test constructs an [AnnotationPipeline.AppliedTransfer] and verifies the
  * annotation sequence matches the real client server pattern.
  */
+@Suppress("LargeClass")
 class AnnotationPipelineTest :
     FunSpec({
 

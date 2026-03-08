@@ -6,6 +6,7 @@ import leyline.bridge.AutoPassReason
 import leyline.bridge.ClientAutoPassState
 import leyline.bridge.PlayerAction
 import leyline.bridge.PriorityDecision
+import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
@@ -77,7 +78,7 @@ class AutoPassEngine(
             // Drain pending AI-action diffs
             if (drainPlayback(bridge)) return@repeat
 
-            val human = bridge.getPlayer(ops.seatId)
+            val human = bridge.getPlayer(SeatId(ops.seatId))
             val phase = game.phaseHandler.phase
             val isHumanTurn = human != null && game.phaseHandler.playerTurn == human
             val isAiTurn = human != null && !isHumanTurn
