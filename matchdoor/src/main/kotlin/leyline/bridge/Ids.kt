@@ -1,5 +1,13 @@
 package leyline.bridge
 
+// Type-safe ID wrappers for the matchdoor module.
+//
+// Not wrapped (low confusion risk):
+//   grpId, abilityGrpId — "lookup → pass to proto" types that don't
+//   participate in bidirectional mapping (getOrAlloc/getForgeCardId).
+//   Distinct value ranges (~50k+ for grpId) and one-way proto flow.
+//   Wire them if a bug proves otherwise.
+
 /** Forge engine card identity (`Card.id`). Stable within a game. */
 @JvmInline value class ForgeCardId(val value: Int)
 
@@ -11,12 +19,6 @@ package leyline.bridge
 
 /** Player seat (1 = human, 2 = AI). Constant within a match. */
 @JvmInline value class SeatId(val value: Int)
-
-/** Card database reference (grpId). Permanent card identity. */
-@JvmInline value class GrpId(val value: Int)
-
-/** Ability database reference (abilityGrpId). Permanent per card. */
-@JvmInline value class AbilityGrpId(val value: Int)
 
 /**
  * Proto-layer identity — "something identifiable on the wire."
