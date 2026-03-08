@@ -23,6 +23,9 @@ class MatchRegistry {
     fun getOrCreateMatch(matchId: String, factory: () -> Match): Match =
         matches.computeIfAbsent(matchId) { factory() }
 
+    /** Look up a match by id. */
+    fun getMatch(matchId: String): Match? = matches[matchId]
+
     /** Convenience: get the bridge for a match directly. */
     fun getBridge(matchId: String): GameBridge? = matches[matchId]?.bridge
 
@@ -47,6 +50,7 @@ class MatchRegistry {
             sessions.remove(it)
             handlers.remove(it)
         }
+        evicted.forEach { it.close() }
         return evicted
     }
 
