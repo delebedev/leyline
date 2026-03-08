@@ -75,6 +75,38 @@ class EffectTrackerTest :
             result.created[0].syntheticId shouldNotBe result.created[1].syntheticId
         }
 
+        test("emitInitEffects returns 3 Created+Destroyed pairs with IDs 7002-7004") {
+            val tracker = EffectTracker()
+            val result = tracker.emitInitEffects()
+
+            result.created.size shouldBe 3
+            result.destroyed.size shouldBe 3
+            result.created.map { it.syntheticId } shouldBe listOf(7002, 7003, 7004)
+            result.destroyed.map { it.syntheticId } shouldBe listOf(7002, 7003, 7004)
+
+            // Next ID after init should be 7005
+            tracker.nextEffectId() shouldBe 7005
+        }
+
+        test("emitInitEffectsOnce only fires once") {
+            val tracker = EffectTracker()
+            val first = tracker.emitInitEffectsOnce()
+            first.created.size shouldBe 3
+
+            val second = tracker.emitInitEffectsOnce()
+            second.created.shouldBeEmpty()
+            second.destroyed.shouldBeEmpty()
+        }
+
+        test("resetAll allows init effects to fire again") {
+            val tracker = EffectTracker()
+            tracker.emitInitEffectsOnce()
+            tracker.resetAll()
+            val result = tracker.emitInitEffectsOnce()
+            result.created.size shouldBe 3
+            result.created.map { it.syntheticId } shouldBe listOf(7002, 7003, 7004)
+        }
+
         test("resetAll clears active effects") {
             val tracker = EffectTracker()
             val boosts = mapOf(

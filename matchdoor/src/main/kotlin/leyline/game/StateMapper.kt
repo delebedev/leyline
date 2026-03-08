@@ -160,6 +160,14 @@ object StateMapper {
         }
         annotations.addAll(mechanicResult.transient)
 
+        // gsId=1 init effects: 3 effects created+destroyed immediately
+        val initDiff = bridge.effects.emitInitEffectsOnce()
+        if (initDiff.created.isNotEmpty()) {
+            val (initTransient, _) = AnnotationPipeline.effectAnnotations(initDiff)
+            annotations.addAll(initTransient)
+            // No persistent annotations stored — they're destroyed in the same GSM
+        }
+
         // Stage 5: Layered effect lifecycle (P/T boost diffing)
         val boostSnapshot = bridge.snapshotBoosts()
         val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
