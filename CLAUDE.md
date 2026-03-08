@@ -4,8 +4,8 @@ Full reimplementation of the client's Front Door, Match Door, and Account Server
 
 **Engineering stance:** correctness over speed. The protocol is opaque and the client is unforgiving — shortcuts compound. Build it right, test it right, tool it right.
 
-- **Depends on:** forge-web (game bridges, bootstrap) — never reverse the dependency
-- **Server modes:** `just serve` (local, main dev — fully offline), `just serve-proxy` (passthrough for recording), `just serve-replay`
+- **Depends on:** forge (engine submodule — game bridges, bootstrap) — never reverse the dependency
+- **Server modes:** `just serve` (local, main dev — fully offline), `just serve-proxy` (passthrough for recording), `just serve-replay`, `just serve-puzzle <file>`
 - **Roadmap:** [GitHub Project board](https://github.com/users/delebedev/projects/1)
 - **Bugs & tasks:** GitHub Issues — no local TODO/BUGS files
 
@@ -72,15 +72,13 @@ Fresh clone needs these steps in order:
 ```bash
 git submodule update --init --recursive   # forge + proto/upstream
 just install-forge                        # mvn install forge jars to forge/.m2-local/
-just build                                # gradle: proto-sync + compileKotlin + writeClasspath
-./gradlew jar                             # ⚠️ `just build` only runs `classes`, not `jar`
-                                          # serve needs jars on classpath (matchdoor.jar etc.)
+just build                                # gradle: proto-sync + compileKotlin + jar + writeClasspath
 just dev-setup                            # gen TLS certs (needs mitmproxy CA), patch Arena, macOS defaults
 just seed-db                              # create data/player.db with starter decks + player
 ```
 
 **Gotchas:**
-- `just build` runs gradle `classes` task — compiles but doesn't produce jars. Server launch (`just serve`) reads `target/classpath.txt` which references module jars. Run `./gradlew jar` after `just build` or you get `NoClassDefFoundError`.
+- `just build` runs `classes jar` — produces jars. But a **running server** holds old jars in memory. After code changes, restart the server (`just stop` + `just serve`) to pick up new classes. `just dev` auto-restarts on `.kt` changes.
 - Forge submodule must point to a commit that exists on remote. If `git submodule update` fails with "Unable to find current revision", the pinned commit was force-pushed away. Fix: `git -C forge checkout origin/master`.
 - `just gen-certs` needs hostnames from `Player.log`. If log is empty, pass them explicitly: `just gen-certs "frontdoor-mtga-production-<ver>.w2.mtgarena.com" "matchdoor-mtga-production-<ver>.w2.mtgarena.com"` (positional args, not `fd_host=`).
 - `data/` dir must exist before `just seed-db` — `mkdir -p data` if missing.
@@ -89,7 +87,7 @@ just seed-db                              # create data/player.db with starter d
 
 ## Proto
 
-`proto/upstream/messages.proto` → `matchdoor/src/main/proto/messages.proto` via `just proto-sync`. The upstream submodule has the raw client schema; `proto/rename-map.sed` applies field/type renames for readability. `just proto-sync` runs the sed transform + triggers protobuf codegen. Don't edit `messages.proto` directly — edit the rename map and re-sync.
+`proto/upstream/messages.proto` → `matchdoor/src/main/proto/messages.proto` via `just sync-proto`. The upstream submodule has the raw client schema; `proto/rename-map.sed` applies field/type renames for readability. `just sync-proto` runs the sed transform + triggers protobuf codegen. Don't edit `messages.proto` directly — edit the rename map and re-sync.
 
 ## Quick Reference
 

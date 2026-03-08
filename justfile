@@ -28,7 +28,8 @@ jvm_opts_cli := _jvm_base + " -Dlogback.configurationFile=" + logback_cli + " -D
 
 # --- Java launch helpers ---
 
-# Full classpath expression (shared by _java and _cli launch helpers)
+# Full classpath expression (shared by _java and _cli launch helpers).
+# classpath.txt contains module jars — `just build` runs `jar` to keep them fresh.
 _cp := '"$classpath:' + project_dir + '/build/classes/kotlin/main:' + project_dir + '/build/classes/java/main:' + project_dir + '/build/resources/main"'
 
 # Kill ports + launch (for server targets)
@@ -90,7 +91,7 @@ build-profile:
 build:
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{project_dir}}" && ./gradlew classes
+    cd "{{project_dir}}" && ./gradlew classes jar
     echo "Build complete. Classpath: {{classpath}}"
 
 # fast Kotlin-only compile
