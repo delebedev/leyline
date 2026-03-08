@@ -154,6 +154,15 @@ data class GameConfig(
      */
     @SerialName("ai_deck")
     val aiDeck: String? = null,
+
+    /**
+     * Solo PvP testing: queue auto-pairs with Forge AI instead of waiting
+     * for a second player. The match goes through the full queue/pairing
+     * flow but seat 2 is the engine AI. Off by default — real PvP waits
+     * for two clients.
+     */
+    @SerialName("synthetic_opponent")
+    val syntheticOpponent: Boolean = false,
 )
 
 @Serializable
