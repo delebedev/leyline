@@ -160,6 +160,26 @@ object StateMapper {
         }
         annotations.addAll(mechanicResult.transient)
 
+        // Stage 5: Layered effect lifecycle (P/T boost diffing)
+        val boostSnapshot = bridge.snapshotBoosts()
+        val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
+        val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff)
+        annotations.addAll(effectTransient)
+
+        // Store effect persistent annotations (LayeredEffect)
+        for (ann in effectPersistent) {
+            val numbered = ann.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
+            bridge.addPersistentAnnotation(numbered)
+        }
+
+        // Remove persistent annotations for destroyed effects
+        for (effect in effectDiff.destroyed) {
+            val annId = bridge.findPersistentEffectByEffectId(effect.syntheticId)
+            if (annId != null) {
+                bridge.removePersistentAnnotation(annId)
+            }
+        }
+
         // Store new persistent annotations in bridge for carry-forward across GSMs
         for (ann in persistentAnnotations) {
             val numbered = ann.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
