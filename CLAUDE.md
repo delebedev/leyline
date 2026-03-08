@@ -65,6 +65,28 @@ All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/nexus-test
 
 See `docs/architecture.md` for diagrams. See `matchdoor/CLAUDE.md` for engine adapter architecture, mental model, cookbook, and debugging guides.
 
+## Build Setup (from scratch)
+
+Fresh clone needs these steps in order:
+
+```bash
+git submodule update --init --recursive   # forge + proto/upstream
+just install-forge                        # mvn install forge jars to forge/.m2-local/
+just build                                # gradle: proto-sync + compileKotlin + writeClasspath
+./gradlew jar                             # ⚠️ `just build` only runs `classes`, not `jar`
+                                          # serve needs jars on classpath (matchdoor.jar etc.)
+just dev-setup                            # gen TLS certs (needs mitmproxy CA), patch Arena, macOS defaults
+just seed-db                              # create data/player.db with starter decks + player
+```
+
+**Gotchas:**
+- `just build` runs gradle `classes` task — compiles but doesn't produce jars. Server launch (`just serve`) reads `target/classpath.txt` which references module jars. Run `./gradlew jar` after `just build` or you get `NoClassDefFoundError`.
+- Forge submodule must point to a commit that exists on remote. If `git submodule update` fails with "Unable to find current revision", the pinned commit was force-pushed away. Fix: `git -C forge checkout origin/master`.
+- `just gen-certs` needs hostnames from `Player.log`. If log is empty, pass them explicitly: `just gen-certs "frontdoor-mtga-production-<ver>.w2.mtgarena.com" "matchdoor-mtga-production-<ver>.w2.mtgarena.com"` (positional args, not `fd_host=`).
+- `data/` dir must exist before `just seed-db` — `mkdir -p data` if missing.
+- `deploy/services-proxy.conf` is gitignored — copy from mini: `scp mini:~/src/leyline/deploy/services-proxy.conf deploy/`.
+- `/etc/hosts` needs FD+MD → 127.0.0.1 for proxy mode (doorbell stays commented out). Compare with `ssh mini 'cat /etc/hosts'`.
+
 ## Proto
 
 `proto/upstream/messages.proto` → `matchdoor/src/main/proto/messages.proto` via `just proto-sync`. The upstream submodule has the raw client schema; `proto/rename-map.sed` applies field/type renames for readability. `just proto-sync` runs the sed transform + triggers protobuf codegen. Don't edit `messages.proto` directly — edit the rename map and re-sync.

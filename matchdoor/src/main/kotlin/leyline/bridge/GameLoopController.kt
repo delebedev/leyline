@@ -1,7 +1,7 @@
 package leyline.bridge
 
 import forge.game.Game
-import forge.game.GameEndReason
+import forge.game.GameStage
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -111,8 +111,10 @@ class GameLoopController(
         // Signal game over so mainGameLoop's `while (!game.isGameOver())` exits cleanly.
         // Without this, the engine thread can survive interrupt (stuck in Forge internals)
         // and call awaitAction on the shared bridge, causing the next puzzle to auto-pass.
+        // Set age directly — Game.setGameOver() clears controllers and fires events,
+        // which corrupts state needed by the next puzzle's card registration.
         if (!game.isGameOver) {
-            game.setGameOver(GameEndReason.AllOpposingTeamsLost)
+            game.age = GameStage.GameOver
         }
 
         actionBridges.forEach { it.cancelPending() }
