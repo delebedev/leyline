@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
@@ -103,6 +104,34 @@ class MatchRegistryTest :
             m.start()
             m.state shouldBe MatchState.RUNNING
             observed.shouldContainExactly(MatchState.RUNNING)
+        }
+
+        test("start() on already-RUNNING match is a no-op for state") {
+            val m = Match("m1", GameBridge())
+            val observed = mutableListOf<MatchState>()
+            m.onStateChanged = { observed.add(it) }
+            m.start()
+            m.start() // second start — CAS fails, no duplicate callback
+            m.state shouldBe MatchState.RUNNING
+            observed.shouldContainExactly(MatchState.RUNNING)
+        }
+
+        test("start() on FINISHED match does not transition back") {
+            val m = Match("m1", GameBridge())
+            m.close()
+            m.state shouldBe MatchState.FINISHED
+            val observed = mutableListOf<MatchState>()
+            m.onStateChanged = { observed.add(it) }
+            m.start() // should not transition back to RUNNING
+            m.state shouldBe MatchState.FINISHED
+            observed shouldBe emptyList()
+        }
+
+        test("actionBridge throws for unknown seat") {
+            val bridge = GameBridge()
+            shouldThrow<IllegalStateException> {
+                bridge.actionBridge(99)
+            }
         }
 
         test("onStateChanged callback enables auto-removal from registry") {

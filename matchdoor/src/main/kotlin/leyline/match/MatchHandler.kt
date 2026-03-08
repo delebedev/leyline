@@ -336,7 +336,8 @@ class MatchHandler(
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
         log.error("Match Door error: {}", cause.message, cause)
         session?.recorder?.shutdown()
-        session?.gameBridge?.shutdown()
+        // Route through Match.close() for proper lifecycle transition + callback
+        registry.getMatch(matchId)?.close() ?: session?.gameBridge?.shutdown()
         ctx.close()
     }
 
