@@ -403,13 +403,11 @@ object AnnotationPipeline {
         }
 
     /**
-     * Stage 5: Generate layered effect lifecycle annotations from [EffectTracker.DiffResult].
+     * Stage 5: Build LayeredEffect lifecycle annotations from [EffectTracker.DiffResult].
      *
      * Pure function — converts diff results to proto annotations.
      * Returns (transient, persistent) matching the pipeline convention.
-     */
-    /**
-     * Build LayeredEffect annotations for P/T boost changes.
+     *
      * [sourceAbilityResolver] maps cardInstanceId → sourceAbilityGRPID (nullable).
      * Used to drive ability-specific VFX (e.g. Prowess glow).
      */
