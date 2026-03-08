@@ -40,10 +40,13 @@ interface MatchCoordinator {
     // --- PvP queue ---
 
     /** Mark a matchId as PvP (two-human). Called by FD when queue pairs. */
-    fun registerPvpMatch(matchId: String) {}
+    fun registerPvpMatch(matchId: String, opponentName: String = "Player 2") {}
 
     /** Check if a matchId is a PvP match (uses startTwoPlayer on MD). */
     fun isPvpMatch(matchId: String): Boolean = false
+
+    /** Opponent screen name for a PvP match. Returns null for non-PvP (use Sparky). */
+    fun pvpOpponentName(matchId: String): String? = null
 
     // --- MD writes back (match result) ---
 
