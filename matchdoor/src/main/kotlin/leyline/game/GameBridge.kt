@@ -107,6 +107,24 @@ class GameBridge(
     /** Backward-compat: seat-1 prompt bridge (used by external callers). */
     val promptBridge: InteractivePromptBridge get() = promptBridge(1)
 
+    /**
+     * Ensure action/prompt/mulligan bridges exist for seats 1..n.
+     * Seat 1 is created in init; this adds any missing seats.
+     */
+    private fun ensureSeatBridges(numSeats: Int) {
+        for (seat in 1..numSeats) {
+            actionBridges.getOrPut(seat) {
+                GameActionBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
+            }
+            promptBridges.getOrPut(seat) {
+                InteractivePromptBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
+            }
+            mulliganBridges.getOrPut(seat) {
+                MulliganBridge(autoKeep = true, timeoutMs = bridgeTimeoutMs)
+            }
+        }
+    }
+
     /** Human player's controller — set during [start]/[startFromPuzzle] for debug observability. */
     var humanController: WebPlayerController? = null
         private set
@@ -392,6 +410,80 @@ class GameBridge(
         }
     }
 
+    /**
+     * Start a two-player (human vs human) game with per-seat bridges.
+     * Both seats get action/prompt/mulligan bridges. No AI player.
+     * Always uses skipMulligan — both seats auto-keep.
+     *
+     * @param seed deterministic RNG seed
+     * @param deckList1 seat 1 decklist text
+     * @param deckList2 seat 2 decklist text (defaults to same as seat 1)
+     */
+    fun startTwoPlayer(
+        seed: Long? = null,
+        deckList1: String? = null,
+        deckList2: String? = null,
+    ) {
+        log.info("GameBridge: starting two-player game")
+        GameBootstrap.initializeCardDatabase()
+
+        if (seed != null) {
+            log.info("GameBridge: using deterministic seed={}", seed)
+            MyRandom.setRandom(Random(seed))
+        }
+
+        val seat1Str = (deckList1 ?: FALLBACK_DECK).trimIndent()
+        val seat2Str = (deckList2 ?: seat1Str).trimIndent()
+        val deck1 = DeckLoader.parseDeckList(seat1Str)
+        val deck2 = DeckLoader.parseDeckList(seat2Str)
+
+        val g = GameBootstrap.createTwoPlayerGame(deck1, deck2)
+        game = g
+        populateSeatMap(g)
+
+        // Create bridges for BOTH human seats
+        ensureSeatBridges(2)
+
+        // PhaseStopProfile for two humans
+        phaseStopProfile = PhaseStopProfile.createDefaults(g.players[0].id, g.players[1].id)
+
+        // Wire WebPlayerController for both seats
+        for ((seatIdx, player) in g.players.withIndex()) {
+            val seat = seatIdx + 1
+            val controller = WebPlayerController(
+                game = g,
+                player = player,
+                lobbyPlayer = player.lobbyPlayer,
+                bridge = promptBridge(seat),
+                actionBridge = actionBridge(seat),
+                mulliganBridge = mulliganBridge(seat),
+                phaseStopProfile = phaseStopProfile,
+            )
+            if (seat == 1) humanController = controller
+            player.addController(Long.MAX_VALUE - 1, player, controller, false)
+        }
+
+        val loop = GameLoopController(
+            g,
+            actionBridges = actionBridges.values.toList(),
+            promptBridges = promptBridges.values.toList(),
+            mulliganBridges = mulliganBridges.values.toList(),
+        )
+        loopController = loop
+        loop.start()
+        loop.awaitStarted()
+
+        val collector = GameEventCollector(this)
+        eventCollector = collector
+        g.subscribeToEvents(collector)
+
+        // No GamePlayback for PvP — no AI actions to stream
+
+        log.info("GameBridge: two-player game started, waiting for priority")
+        awaitPriority()
+        log.info("GameBridge: engine reached priority after auto-keep")
+    }
+
     /** Get the current hand for a seat as client grpIds. */
     fun getHandGrpIds(seatId: Int): List<Int> {
         val player = getPlayer(SeatId(seatId)) ?: return emptyList()
@@ -451,12 +543,12 @@ class GameBridge(
                 log.info("GameBridge: game over detected while waiting for priority")
                 return false
             }
-            if (actionBridge.getPending() != null) {
+            if (actionBridges.values.any { it.getPending() != null }) {
                 // Let engine thread finish in-flight zone moves before we snapshot state
                 Thread.sleep(SETTLE_MS)
                 return true
             }
-            if (promptBridge.getPendingPrompt() != null) {
+            if (promptBridges.values.any { it.getPendingPrompt() != null }) {
                 Thread.sleep(SETTLE_MS)
                 return true
             }
