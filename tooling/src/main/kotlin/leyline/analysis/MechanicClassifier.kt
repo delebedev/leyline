@@ -34,6 +34,7 @@ object MechanicClassifier {
         is GameEvent.CardExiled -> "exile"
         is GameEvent.CardDiscarded -> "discard"
         is GameEvent.CardMilled -> "mill"
+        is GameEvent.CardSurveiled -> "surveil_card"
         is GameEvent.SpellCountered -> "counter"
         is GameEvent.TokenCreated -> "token_create"
         is GameEvent.TokenDestroyed -> "token_destroy"

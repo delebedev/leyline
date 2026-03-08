@@ -228,8 +228,8 @@ class GameEventCollectorTest :
 
             val zc = collector.drainEvents().filterIsInstance<GameEvent.ZoneChanged>()
             zc.size shouldBe 1
-            zc[0].from shouldBe ZoneType.Graveyard
-            zc[0].to shouldBe ZoneType.Library
+            zc[0].from shouldBe Zone.Graveyard
+            zc[0].to shouldBe Zone.Library
         }
 
         // -- CardTapped --

@@ -19,6 +19,11 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * Threading: events fire synchronously on the engine thread. Queue access
  * is via [ConcurrentLinkedQueue] so the Netty/handler thread can drain safely.
  *
+ * **Adding new mechanics:** When upstream Forge events lack the granularity we need
+ * (per-card IDs, zone-pair specificity), add a new event to our fork rather than
+ * retroactively correlating events here. See [GameEventCardSurveiled] for the pattern:
+ * fire per-card from `Player.surveil()`, handle with a simple visit override.
+ *
  * @param bridge used only to resolve Player → seatId (never mutated)
  */
 class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Base<Unit>() {
@@ -89,10 +94,10 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
                     GameEvent.CardDiscarded(card.id, seat)
                 from == ZoneType.Library && to == ZoneType.Graveyard ->
                     GameEvent.CardMilled(card.id, seat)
-                else -> GameEvent.ZoneChanged(card.id, from, to)
+                else -> GameEvent.ZoneChanged(card.id, Zone.fromForge(from), Zone.fromForge(to))
             }
         } else {
-            GameEvent.ZoneChanged(card.id, from, to)
+            GameEvent.ZoneChanged(card.id, Zone.fromForge(from), Zone.fromForge(to))
         }
 
         // Clear cached P/T when a card leaves the battlefield so re-entering
@@ -246,6 +251,16 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val seat = seatOf(ev.player()) ?: return
         queue.add(GameEvent.Surveil(seat, ev.toLibrary(), ev.toGraveyard()))
         log.debug("event: Surveil seat={} lib={} gy={}", seat, ev.toLibrary(), ev.toGraveyard())
+    }
+
+    // Per-card surveil event — fired from Player.surveil() in our Forge fork
+    // for each card moved to graveyard. Allows categoryFromEvents to distinguish
+    // surveil (Library→GY) from mill (Library→GY).
+    override fun visit(ev: GameEventCardSurveiled) {
+        val seat = seatOf(ev.card().controller) ?: return
+        val sourceId = ev.causeCard()?.id
+        queue.add(GameEvent.CardSurveiled(ev.card().id, seat, sourceId))
+        log.debug("event: CardSurveiled card={} seat={} source={}", ev.card().name, seat, sourceId)
     }
 
     override fun visit(ev: GameEventTokenCreated) {

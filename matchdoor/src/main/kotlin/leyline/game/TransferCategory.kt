@@ -24,5 +24,6 @@ enum class TransferCategory(val label: String) {
     Return("Return"),
     Search("Search"),
     Put("Put"),
+    Surveil("Surveil"),
     ZoneTransfer("ZoneTransfer"),
 }
