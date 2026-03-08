@@ -229,9 +229,7 @@ class MatchHandler(
                 }
             }
 
-            ClientMessageType.DeclareAttackersResp_097b,
-            ClientMessageType.SubmitAttackersReq,
-            -> {
+            ClientMessageType.DeclareAttackersResp_097b -> {
                 if (seatId == 1) {
                     s?.onDeclareAttackers(greMsg)
                 } else {
@@ -239,14 +237,27 @@ class MatchHandler(
                 }
             }
 
-            ClientMessageType.DeclareBlockersResp_097b,
-            ClientMessageType.SubmitBlockersReq,
-            -> {
+            // SubmitAttackersReq is a type-only signal ("Done" button, no payload).
+            // The client may send it on either channel (seat 1 or 2) — race condition
+            // in the Arena client. Combat state (lastDeclaredAttackerIds) lives on
+            // seat-1's CombatHandler, so always route to seat-1's session.
+            ClientMessageType.SubmitAttackersReq -> {
+                val seat1 = if (seatId == 1) s else registry.activeSession()
+                seat1?.onDeclareAttackers(greMsg)
+            }
+
+            ClientMessageType.DeclareBlockersResp_097b -> {
                 if (seatId == 1) {
                     s?.onDeclareBlockers(greMsg)
                 } else {
                     log.debug("Match Door: ignoring DeclareBlockersResp from Familiar (seat {})", seatId)
                 }
+            }
+
+            // Same pattern as SubmitAttackersReq — route to seat-1's session.
+            ClientMessageType.SubmitBlockersReq -> {
+                val seat1 = if (seatId == 1) s else registry.activeSession()
+                seat1?.onDeclareBlockers(greMsg)
             }
 
             ClientMessageType.SelectTargetsResp_097b -> {

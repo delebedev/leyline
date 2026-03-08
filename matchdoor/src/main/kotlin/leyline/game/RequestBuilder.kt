@@ -141,9 +141,18 @@ object RequestBuilder {
 
     /**
      * Build [DeclareBlockersReq] listing all creatures that can legally block.
-     * Each blocker includes the attacker instanceIds it can block.
+     *
+     * @param assignedBlockerIds blocker instanceIds already assigned in the current
+     *   iterative declaration. Real server clears `attackerInstanceIds` for these
+     *   (confirmed across 4 recordings) — the client uses this to distinguish
+     *   committed vs available blockers.
      */
-    fun buildDeclareBlockersReq(game: Game, seatId: Int, bridge: GameBridge): DeclareBlockersReq {
+    fun buildDeclareBlockersReq(
+        game: Game,
+        seatId: Int,
+        bridge: GameBridge,
+        assignedBlockerIds: Set<Int> = emptySet(),
+    ): DeclareBlockersReq {
         val player = bridge.getPlayer(seatId) ?: return DeclareBlockersReq.getDefaultInstance()
         val combat = game.phaseHandler.combat ?: return DeclareBlockersReq.getDefaultInstance()
         val builder = DeclareBlockersReq.newBuilder()
@@ -156,15 +165,17 @@ object RequestBuilder {
             if (!CombatUtil.canBlock(card, combat)) continue
 
             val instanceId = bridge.getOrAllocInstanceId(card.id)
+            // Already-assigned blockers get empty attacker list (committed to their assignment)
+            val availableAttackers = if (instanceId in assignedBlockerIds) emptyList() else attackerInstanceIds
             val blocker = Blocker.newBuilder()
                 .setBlockerInstanceId(instanceId)
-                .addAllAttackerInstanceIds(attackerInstanceIds)
+                .addAllAttackerInstanceIds(availableAttackers)
                 .setMinAttackers(0)
                 .setMaxAttackers(1)
             builder.addBlockers(blocker)
         }
 
-        log.info("buildDeclareBlockersReq: seat={} blockers={}", seatId, builder.blockersCount)
+        log.info("buildDeclareBlockersReq: seat={} blockers={} assigned={}", seatId, builder.blockersCount, assignedBlockerIds.size)
         return builder.build()
     }
 

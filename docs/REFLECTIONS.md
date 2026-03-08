@@ -347,3 +347,65 @@ None of these are functionally blocking — creature targeting "worked" without 
 ## Takeaway
 
 **Read key protocol messages with the human, not just in agent code analysis.** Proxy recordings decoded to proto text are the shared artifact. The human spots UX gaps (missing highlights, no cancel button) that an agent would deprioritize as non-functional. Schedule proto review sessions for any new protocol area — especially interactive flows (targeting, combat, mulligan) where cosmetics = usability.
+
+---
+
+# Reflections: Combat Echo-Back Fix Playtest (#30)
+
+## What was slow in the playtest
+
+1. **OCR text extraction via python3 pipe.** Every state check was `bin/arena ocr 2>&1 | python3 -c "import sys,json; ..."` — ~30 tokens of boilerplate per call, repeated 10+ times. Should use `arena ocr --fmt` (returns plain text lines) or a dedicated `arena ocr --text` mode if it exists.
+
+2. **Clicking the wrong "Play".** `arena click "Play"` matched the description text ("Play a practice game...") instead of the Play button. Known problem — the nav guide says to use coords for ambiguous text. Should always use `bin/arena click 867,534` for the Play button.
+
+3. **Redundant state checks after known transitions.** After clicking "Reconnect" → waited 10s → OCR'd → saw home screen → clicked Play → waited 3s → OCR'd to find "Find Match". Could collapse to: `arena click "Reconnect" && arena wait text="Play" --timeout 15 && arena click 867,534`.
+
+4. **`arena ocr` captured terminal instead of Arena.** When Arena wasn't in foreground, `arena ocr` grabbed the terminal window. Used `arena capture` as workaround but then couldn't OCR the capture. The `arena ocr` tool should always target the MTGA window (via `--app` or similar), not whatever is frontmost.
+
+5. **No pre-built playtest script for attack flow.** Had to manually navigate: Home → Play → Find Match → Bot Match → select deck → Play → wait for game → pass to combat → interact. This is 8+ steps before reaching the actual test. Should have a `just playtest-puzzle <file>` that does all navigation automatically.
+
+6. **Server rebuild not verified before playtest.** Started server with `just serve-puzzle` which rebuilds, but didn't confirm the rebuild included our changes. Could have wasted the entire playtest on old code. Should always `just build` first, then start server.
+
+## Playtest automation recipe (for next time)
+
+```bash
+# 1. Build first (confirms changes compile)
+just build
+
+# 2. Start server (blocks in tmux)
+tmux kill-session -t leyline 2>/dev/null
+tmux new-session -d -s leyline 'just serve-puzzle <puzzle.pzl>'
+sleep 15  # wait for full startup
+
+# 3. Confirm server up
+curl -s http://localhost:8090/api/state | grep matchId
+
+# 4. Launch client + navigate to game (all coord-based, no OCR ambiguity)
+bin/arena launch
+arena wait text="Play" --timeout 30        # home screen loaded
+bin/arena click 867,534                     # Play button (bottom-right)
+sleep 2
+bin/arena click 866,112                     # Find Match tab
+sleep 2
+bin/arena click 842,410                     # Bot Match
+sleep 2
+bin/arena click 230,320                     # First deck thumbnail
+sleep 1
+bin/arena click 867,534                     # Play button (start match)
+arena wait text="Pass" --timeout 30         # puzzle loaded (no mulligan)
+
+# 5. Now interact with the actual test scenario
+curl -s http://localhost:8090/api/state     # confirm phase
+```
+
+## Key rule
+
+**Playtest navigation is boilerplate — minimize tokens spent on it.** Use coords for every known button, `arena wait` for every transition, never OCR to find buttons whose positions are stable. Reserve OCR for reading dynamic game state (card names, prompts, life totals).
+
+## `gradle clean` + NoClassDefFoundError
+
+**Problem:** `./gradlew clean :matchdoor:compileKotlin` may report `FROM-CACHE` (build cache hit), but the actual class files under `build/classes/` are gone. `just build` generates module jars via `writeClasspath`, but those jars might be stale copies from cache. Running `just serve-*` then fails with `NoClassDefFoundError: leyline/config/MatchConfig`.
+
+**Root cause:** Gradle build cache (`FROM-CACHE`) doesn't guarantee local class files exist — it caches outputs by input hash. After `clean`, the cache restores outputs to the build directory, but the classpath jar task may not re-assemble because it thinks nothing changed.
+
+**Fix:** Don't use `./gradlew clean` during iterative development. If you must, follow with `just build` (not `./gradlew classes`) and verify with `jar tf <module>.jar | grep <class>`. Or just `pkill -f LeylineMainKt && just build && just serve-*`.
