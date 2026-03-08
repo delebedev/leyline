@@ -377,7 +377,7 @@ object StateMapper {
      *
      * Note: real server uses SendAndRecord for ALL zone-transfer diffs, regardless
      * of whose turn it is. This heuristic (acting == viewing) is an approximation
-     * used by postAction; aiActionDiff hardcodes SendAndRecord directly.
+     * used by postAction; remoteActionDiff hardcodes SendHiFi directly.
      */
     fun resolveUpdateType(game: Game, bridge: GameBridge, viewingSeatId: Int): GameStateUpdate {
         val human = bridge.getPlayer(SeatId(1))

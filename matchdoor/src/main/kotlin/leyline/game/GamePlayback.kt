@@ -1,15 +1,15 @@
 package leyline.game
 
 import com.google.common.eventbus.Subscribe
-import forge.ai.LobbyPlayerAi
 import forge.game.event.*
 import forge.game.phase.PhaseType
+import leyline.bridge.SeatId
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
- * Paces AI turns by sleeping the game thread at key events and capturing
+ * Paces remote turns by sleeping the game thread at key events and capturing
  * per-action GRE state diffs for the client.
  *
  * Subscribes to the engine's Guava EventBus. Events fire synchronously on
@@ -54,22 +54,22 @@ class GamePlayback(
     }
 
     override fun visit(ev: GameEventLandPlayed) {
-        if (!isAiActing()) return
+        if (!isRemoteActing()) return
         captureAndPause(LAND_DELAY)
     }
 
     override fun visit(ev: GameEventSpellAbilityCast) {
-        if (!isAiActing()) return
+        if (!isRemoteActing()) return
         captureAndPause(CAST_DELAY)
     }
 
     override fun visit(ev: GameEventSpellResolved) {
-        if (!isAiActing()) return
+        if (!isRemoteActing()) return
         captureAndPause(RESOLVE_DELAY)
     }
 
     override fun visit(ev: GameEventTurnBegan) {
-        if (!isAiActing()) return
+        if (!isRemoteActing()) return
         val game = bridge.getGame() ?: return
         lastCapturedTurn = game.phaseHandler.turn
         lastCapturedPhase = game.phaseHandler.phase
@@ -77,7 +77,7 @@ class GamePlayback(
     }
 
     override fun visit(ev: GameEventTurnPhase) {
-        if (!isAiActing()) return
+        if (!isRemoteActing()) return
         val game = bridge.getGame() ?: return
         val turn = game.phaseHandler.turn
         val phase = game.phaseHandler.phase
@@ -96,12 +96,12 @@ class GamePlayback(
     }
 
     override fun visit(ev: GameEventAttackersDeclared) {
-        if (!isAiActing()) return
+        if (!isRemoteActing()) return
         captureAndPause(COMBAT_DELAY)
     }
 
     override fun visit(ev: GameEventBlockersDeclared) {
-        if (!isAiActing()) return
+        if (!isRemoteActing()) return
         captureAndPause(COMBAT_DELAY)
     }
 
@@ -134,7 +134,7 @@ class GamePlayback(
         val game = bridge.getGame() ?: return
 
         try {
-            val result = BundleBuilder.aiActionDiff(
+            val result = BundleBuilder.remoteActionDiff(
                 game,
                 bridge,
                 matchId,
@@ -146,7 +146,7 @@ class GamePlayback(
 
             queue.add(result.messages)
 
-            // No need to snapshot here — buildDiffFromGame (called by aiActionDiff)
+            // No need to snapshot here — buildDiffFromGame (called by remoteActionDiff)
             // snapshots internally after computing the diff. A redundant buildFromGame
             // with the same gsId creates a self-referential snapshot.
 
@@ -173,13 +173,14 @@ class GamePlayback(
     }
 
     /**
-     * True when the current turn's active player is AI.
-     * Skips capture on human turns (bridge blocking provides natural pacing).
+     * True when the current turn's active player is not this playback's seat.
+     * Fires for AI turns (1vAI) and opponent turns (PvP) uniformly.
      */
-    private fun isAiActing(): Boolean {
+    private fun isRemoteActing(): Boolean {
         val game = bridge.getGame() ?: return false
         val turnPlayer = game.phaseHandler.playerTurn ?: return false
-        return turnPlayer.lobbyPlayer is LobbyPlayerAi
+        val myPlayer = bridge.getPlayer(SeatId(seatId)) ?: return false
+        return turnPlayer != myPlayer
     }
 
     companion object {
