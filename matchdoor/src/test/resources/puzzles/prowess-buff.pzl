@@ -12,7 +12,7 @@ AILife=20
 removesummoningsickness=true
 
 humanbattlefield=Monastery Swiftspear;Mountain;Forest
-humanhand=Giant Growth
+humanhand=Giant Growth;Shock
 humanlibrary=Forest;Forest;Forest;Forest;Forest
 aibattlefield=Grizzly Bears
 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
