@@ -37,6 +37,9 @@ class EffectTracker {
 
     data class DiffResult(val created: List<TrackedEffect>, val destroyed: List<TrackedEffect>)
 
+    /** Whether init effects have been emitted for this game. */
+    private var initEmitted = false
+
     private val nextId = AtomicInteger(INITIAL_EFFECT_ID)
     private val activeEffects = mutableMapOf<EffectFingerprint, TrackedEffect>()
 
@@ -78,9 +81,40 @@ class EffectTracker {
         return DiffResult(created, destroyed)
     }
 
+    /**
+     * Emit the 3 game-initialization effects (7002-7004) that the real server
+     * creates and immediately destroys at gsId=1.
+     *
+     * Purpose unclear — possibly game-rule initialization bookkeeping. The client
+     * may use the starting counter value (7004) as a baseline. We replicate to
+     * stay safe.
+     *
+     * Call once during the first Full GSM build.
+     */
+    fun emitInitEffects(): DiffResult {
+        val effects = (0 until 3).map { i ->
+            TrackedEffect(
+                syntheticId = nextEffectId(),
+                fingerprint = EffectFingerprint(cardInstanceId = 0, timestamp = 0L, staticId = i.toLong()),
+                powerDelta = 0,
+                toughnessDelta = 0,
+            )
+        }
+        // Created and immediately destroyed — not tracked in activeEffects
+        return DiffResult(created = effects, destroyed = effects)
+    }
+
+    /** Emit init effects if not yet emitted. Returns empty diff if already done. */
+    fun emitInitEffectsOnce(): DiffResult {
+        if (initEmitted) return DiffResult(emptyList(), emptyList())
+        initEmitted = true
+        return emitInitEffects()
+    }
+
     /** Full reset — puzzle hot-swap. */
     fun resetAll() {
         nextId.set(INITIAL_EFFECT_ID)
         activeEffects.clear()
+        initEmitted = false
     }
 }
