@@ -318,6 +318,38 @@ class MatchFlowHarness(
         drainSink()
     }
 
+    /**
+     * Respond to a GroupReq (surveil/scry). Places specified instanceIds into the
+     * "away" group (graveyard for surveil, bottom for scry). Remaining cards stay on top.
+     *
+     * @param awayInstanceIds cards to put into the away zone (group 1)
+     * @param allInstanceIds all card instanceIds from the GroupReq (for the keep group)
+     */
+    fun respondToGroupReq(awayInstanceIds: List<Int>, allInstanceIds: List<Int>) {
+        val keepIds = allInstanceIds.filter { it !in awayInstanceIds }
+        val msg = ClientToGREMessage.newBuilder()
+            .setType(ClientMessageType.GroupResp_097b)
+            .setGroupResp(
+                GroupResp.newBuilder()
+                    .addGroups(
+                        Group.newBuilder()
+                            .addAllIds(keepIds)
+                            .setZoneType(wotc.mtgo.gre.external.messaging.Messages.ZoneType.Library)
+                            .setSubZoneType(SubZoneType.Top),
+                    )
+                    .addGroups(
+                        Group.newBuilder()
+                            .addAllIds(awayInstanceIds)
+                            .setZoneType(wotc.mtgo.gre.external.messaging.Messages.ZoneType.Graveyard)
+                            .setSubZoneType(SubZoneType.None_a455),
+                    )
+                    .setGroupType(GroupType.Ordered),
+            )
+            .build()
+        session.onGroupResp(msg)
+        drainSink()
+    }
+
     /** Cast a spell by card name. Returns false if card not in hand. */
     fun castSpellByName(cardName: String): Boolean {
         val player = bridge.getPlayer(seatId) ?: return false
