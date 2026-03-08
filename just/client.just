@@ -77,5 +77,5 @@ scry *args:
 
 # tail Player.log for client-side exceptions (standalone, no server)
 [group('client')]
-watch-client: (_require classpath) check-java
-    @{{_cli}} leyline.debug.WatchClientLogKt
+watch-client:
+    @{{project_dir}}/bin/scry state --no-cards

@@ -108,7 +108,7 @@ Full bot match via arena automation. Best for:
 **Has recipe:** issue has `## Reproduction` with concrete steps. Follow them literally using the appropriate tier.
 
 **Exploratory:** no recipe. Start with Tier 1 puzzle if the bug describes a specific board state. Fall back to Tier 3 autopilot games:
-- Debug API: poll `/api/client-errors?since=N` and `/api/logs?level=WARN&since=N` every few seconds
+- Client errors: `just scry state --no-cards` and poll `/api/logs?level=WARN&since=N` every few seconds
 - Match failure pattern from issue description against errors/warnings
 - Play 1-3 games max before concluding "could not reproduce"
 
@@ -117,8 +117,7 @@ Full bot match via arena automation. Best for:
 Before triggering the bug, capture baseline:
 
 ```bash
-# Bookmark current cursor positions for later diffing
-curl -s http://localhost:8090/api/client-errors | python3 -c "import sys,json; print(json.load(sys.stdin).get('cursor',0))"
+# Bookmark current message cursor for later diffing
 curl -s http://localhost:8090/api/messages | python3 -c "import sys,json; print(json.load(sys.stdin).get('cursor',0))"
 ```
 
@@ -142,8 +141,8 @@ curl -s http://localhost:8090/api/messages | python3 -c "import sys,json; print(
 After each significant action, check:
 
 ```bash
-# New client errors since pre-flight?
-curl -s 'http://localhost:8090/api/client-errors?since=<baseline_cursor>' | python3 -m json.tool
+# Client errors from Player.log
+just scry state --no-cards
 
 # New warnings?
 curl -s 'http://localhost:8090/api/logs?level=WARN&since=<baseline_cursor>' | python3 -m json.tool
@@ -176,7 +175,7 @@ curl -s 'http://localhost:8090/api/state-diff?last=3' | python3 -m json.tool > /
 curl -s 'http://localhost:8090/api/id-map?active=true' | python3 -m json.tool > /tmp/repro-idmap.json
 
 # Client errors
-curl -s http://localhost:8090/api/client-errors | python3 -m json.tool > /tmp/repro-errors.json
+just scry state --no-cards > /tmp/repro-errors.json
 
 # Recent messages
 curl -s http://localhost:8090/api/messages | python3 -m json.tool > /tmp/repro-messages.json

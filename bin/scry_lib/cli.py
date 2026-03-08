@@ -15,7 +15,8 @@ def _cmd_state(args: argparse.Namespace) -> None:
         print(json.dumps({"error": f"log not found: {log_path}", "state": None}, indent=2))
         return
 
-    from scry_lib.parser import parse_gre_blocks
+    from scry_lib.errors import ClientError
+    from scry_lib.parser import GREBlock, parse_log
     from scry_lib.tracker import GameTracker
 
     if args.no_catchup:
@@ -30,8 +31,11 @@ def _cmd_state(args: argparse.Namespace) -> None:
         lines = list(tail_log(log_path, follow=False, start_offset=start))
 
     tracker = GameTracker()
-    for block in parse_gre_blocks(lines):
-        tracker.feed(block)
+    for event in parse_log(lines):
+        if isinstance(event, GREBlock):
+            tracker.feed(event)
+        elif isinstance(event, ClientError):
+            tracker.feed_error(event)
 
     resolver = None
     if args.cards:

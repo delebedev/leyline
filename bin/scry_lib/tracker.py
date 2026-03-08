@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 
 from scry_lib.accumulator import Accumulator
+from scry_lib.errors import ClientError
 from scry_lib.models import GameState
 from scry_lib.parser import GREBlock
 
@@ -16,11 +18,13 @@ class CompletedGame:
 class GameTracker:
     """Sits above Accumulator — handles multi-game sessions."""
 
-    def __init__(self, max_history: int = 5) -> None:
+    def __init__(self, max_history: int = 5, max_errors: int = 200) -> None:
         self._max_history = max_history
         self._accumulator = Accumulator()
         self.current_match_id: str | None = None
         self.completed_games: list[CompletedGame] = []
+        self.errors: deque[ClientError] = deque(maxlen=max_errors)
+        self.error_count: int = 0
 
     @property
     def current_state(self) -> GameState | None:
@@ -45,6 +49,10 @@ class GameTracker:
             gs = GameState.from_raw(gsm)
             self._accumulator.apply(gs)
 
+    def feed_error(self, error: ClientError) -> None:
+        self.errors.append(error)
+        self.error_count += 1
+
     def _archive_current(self) -> None:
         self.completed_games.append(
             CompletedGame(
@@ -63,6 +71,8 @@ class GameTracker:
             return {
                 "match_id": self.current_match_id,
                 "state": None,
+                "error_count": self.error_count,
+                "recent_errors": self._errors_list(),
             }
 
         # Resolve card names if resolver provided
@@ -121,4 +131,16 @@ class GameTracker:
             "zones": zones,
             "object_count": len(state.objects),
             "completed_games": len(self.completed_games),
+            "error_count": self.error_count,
+            "recent_errors": self._errors_list(),
         }
+
+    def _errors_list(self, limit: int = 10) -> list[dict]:
+        recent = list(self.errors)[-limit:]
+        return [
+            {
+                "type": e.exception_type,
+                "message": e.message,
+            }
+            for e in recent
+        ]

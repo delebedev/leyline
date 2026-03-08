@@ -4,27 +4,20 @@ Quick-reference for extracting game state and debugging annotation errors from t
 
 **Location:** `~/Library/Logs/Wizards of the Coast/MTGA/Player.log` (macOS)
 
-## Automated error watcher
+## Client error tracking
 
-`just serve` auto-tails Player.log and captures any exception the client logs. No manual grepping needed for the common case.
+Client errors are tracked by **scry** (`bin/scry`), which parses Player.log for both GRE game state and exception lines.
 
 ```bash
-# Errors appear inline in serve output as:
-#   WARN  CLIENT ERROR [ArgumentException]: Annotation does not contain shuffled card details.
+# Game state + recent errors:
+just scry state
 
-# Query via debug API:
-curl -s http://localhost:8090/api/client-errors | python3 -m json.tool
+# HTTP server (port 8091) with /state and /errors endpoints:
+just scry serve
 
-# Filter by exception type:
-curl -s 'http://localhost:8090/api/client-errors?type=ArgumentException'
-
-# Poll for new errors (cursor-based):
-curl -s 'http://localhost:8090/api/client-errors?since=3'
+# Quick error snapshot (no card names):
+just watch-client
 ```
-
-Errors are also persisted to `recordings/<session>/client-errors.jsonl` (one JSON object per line).
-
-Standalone watcher (no server): `just watch-client`
 
 ## Ad-hoc scripts
 

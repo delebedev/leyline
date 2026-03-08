@@ -23,6 +23,13 @@ def _make_server(
                 with lock:
                     data = tracker.to_dict()
                 self._json_response(200, data)
+            elif self.path == "/errors":
+                with lock:
+                    data = {
+                        "error_count": tracker.error_count,
+                        "errors": tracker._errors_list(limit=50),
+                    }
+                self._json_response(200, data)
             else:
                 self._json_response(404, {"error": "not found"})
 
@@ -49,28 +56,36 @@ def run_server(log_path: Path, port: int = 8091) -> None:
     3. Spawns a daemon thread that tails the log and feeds the tracker
     4. Starts the HTTP server on 0.0.0.0:port (blocks the calling thread)
     """
-    from scry_lib.parser import parse_gre_blocks
+    from scry_lib.errors import ClientError
+    from scry_lib.parser import GREBlock, parse_log
     from scry_lib.tail import find_last_full_offset, tail_log
 
     tracker = GameTracker()
     lock = threading.Lock()
 
+    def _process_events(lines):
+        for event in parse_log(lines):
+            if isinstance(event, GREBlock):
+                tracker.feed(event)
+            elif isinstance(event, ClientError):
+                tracker.feed_error(event)
+
     # Mid-session catch-up: parse from last Full GSM
     offset = find_last_full_offset(log_path)
     start = offset if offset is not None else 0
-    for block in parse_gre_blocks(
-        tail_log(log_path, follow=False, start_offset=start),
-    ):
-        tracker.feed(block)
+    _process_events(tail_log(log_path, follow=False, start_offset=start))
 
     # Background tailer thread
     def _tail_and_feed() -> None:
         current_size = log_path.stat().st_size
-        for block in parse_gre_blocks(
+        for event in parse_log(
             tail_log(log_path, follow=True, start_offset=current_size),
         ):
             with lock:
-                tracker.feed(block)
+                if isinstance(event, GREBlock):
+                    tracker.feed(event)
+                elif isinstance(event, ClientError):
+                    tracker.feed_error(event)
 
     tailer = threading.Thread(target=_tail_and_feed, daemon=True)
     tailer.start()

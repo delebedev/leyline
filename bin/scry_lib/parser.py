@@ -72,3 +72,40 @@ def parse_gre_blocks(lines: Iterable[str]) -> Iterator[GREBlock]:
             match_id=match_id,
             raw_json=data,
         )
+
+
+def parse_log(lines: Iterable[str]) -> Iterator[GREBlock | ClientError]:
+    """Yield GREBlocks and ClientErrors from Player.log lines.
+
+    Unified stream — processes both GRE messages and exception lines.
+    """
+    from scry_lib.errors import ClientError, parse_client_error
+
+    it = iter(lines)
+    for line in it:
+        m = _HEADER_RE.search(line)
+        if m:
+            timestamp = m.group(1)
+            match_id = m.group(2)
+            payload_line = next(it, None)
+            if payload_line is None:
+                break
+            try:
+                data = json.loads(payload_line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            messages = (
+                data
+                .get("greToClientEvent", {})
+                .get("greToClientMessages", [])
+            )
+            yield GREBlock(
+                messages=messages,
+                timestamp=timestamp,
+                match_id=match_id,
+                raw_json=data,
+            )
+        else:
+            err = parse_client_error(line)
+            if err is not None:
+                yield err

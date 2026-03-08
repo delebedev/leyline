@@ -37,7 +37,7 @@ import java.util.concurrent.Executors
  * - `GET /api/recording-summary?id=...` → compact summary for one session
  * - `GET /api/recording-actions?id=...` → extracted action timeline
  * - `GET /api/recording-compare?left=...&right=...` → action-level comparison
- * - `GET /api/client-errors` → Player.log errors (supports `?since=N`, `?type=...`)
+ * Client errors: use `scry state` or `scry serve` (port 8091) instead.
  */
 class DebugServer(
     private val port: Int = 8090,
@@ -77,7 +77,6 @@ class DebugServer(
             "/api/recording-events" to ::serveRecordingEvents,
             "/api/recording-invariants" to ::serveRecordingInvariants,
             "/api/recording-mechanics" to ::serveRecordingMechanics,
-            "/api/client-errors" to ::serveClientErrors,
             "/api/fd-messages" to ::serveFdMessages,
             "/api/priority-log" to ::servePriorityLog,
         ).forEach { (path, handler) ->
@@ -435,28 +434,6 @@ class DebugServer(
     private fun serveRecordingMechanics(ex: HttpExchange) {
         val manifest = SessionAnalyzer.readManifest()
         respondJson(ex, json.encodeToString(manifest.sorted()))
-    }
-
-    // --- Client error watcher ---
-
-    private fun serveClientErrors(ex: HttpExchange) {
-        val watcher = PlayerLogWatcher.active
-        if (watcher == null) {
-            respondJsonList(ex, "[]", null)
-            return
-        }
-        val params = parseQuery(ex.requestURI.rawQuery)
-        val since = params["since"]?.toIntOrNull() ?: 0
-        var errors = watcher.snapshot(since)
-
-        // Optional filters
-        val typeFilter = params["type"]
-        if (typeFilter != null) {
-            errors = errors.filter { it.exceptionType.contains(typeFilter, ignoreCase = true) }
-        }
-
-        val cursor = errors.maxOfOrNull { it.seq }
-        respondJsonList(ex, json.encodeToString(errors), cursor)
     }
 
     // --- Priority decision log ---

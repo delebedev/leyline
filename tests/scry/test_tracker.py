@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from scry_lib.errors import ClientError
 from scry_lib.models import GameState
 from scry_lib.parser import GREBlock, parse_gre_blocks
 from scry_lib.tracker import CompletedGame, GameTracker
@@ -180,12 +181,17 @@ class TestToDict:
         t = GameTracker()
         t.current_match_id = "pending"
         d = t.to_dict()
-        assert d == {"match_id": "pending", "state": None}
+        assert d["match_id"] == "pending"
+        assert d["state"] is None
+        assert d["error_count"] == 0
+        assert d["recent_errors"] == []
 
     def test_with_no_match_and_no_state(self):
         t = GameTracker()
         d = t.to_dict()
-        assert d == {"match_id": None, "state": None}
+        assert d["match_id"] is None
+        assert d["state"] is None
+        assert d["error_count"] == 0
 
     def test_completed_games_count_in_dict(self):
         t = GameTracker()
@@ -240,3 +246,26 @@ class TestRealData:
         assert d["completed_games"] == 1
         assert d["match_id"] is not None
         assert d["game_state_id"] > 0
+
+
+class TestErrorTracking:
+    def test_feed_error_increments_count(self):
+        t = GameTracker()
+        t.feed_error(ClientError(exception_type="KeyNotFoundException", message="bad"))
+        assert t.error_count == 1
+        assert len(t.errors) == 1
+
+    def test_errors_in_to_dict(self):
+        t = GameTracker()
+        t.feed_error(ClientError(exception_type="KeyNotFoundException", message="bad key"))
+        d = t.to_dict()
+        assert d["error_count"] == 1
+        assert d["recent_errors"] == [{"type": "KeyNotFoundException", "message": "bad key"}]
+
+    def test_error_ring_buffer(self):
+        t = GameTracker(max_errors=3)
+        for i in range(5):
+            t.feed_error(ClientError(exception_type=f"Err{i}", message=f"msg{i}"))
+        assert t.error_count == 5
+        assert len(t.errors) == 3
+        assert t.errors[0].exception_type == "Err2"
