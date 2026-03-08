@@ -191,7 +191,7 @@ seed-db: (_require classpath) check-java
 
 # default dev mode: local FD + local MD (fully offline, no real Arena needed)
 [group('serve')]
-serve: (_require classpath) check-java
+serve: build check-java
     #!/usr/bin/env bash
     set -euo pipefail
     cp "{{project_dir}}/app/main/resources/services.conf" "{{_streaming}}/services.conf"
@@ -200,7 +200,7 @@ serve: (_require classpath) check-java
 
 # replay-local mode: replay captured FD session (fd-frames.jsonl), local MD
 [group('serve')]
-serve-replay-stub golden="": (_require classpath) check-java
+serve-replay-stub golden="": build check-java
     #!/usr/bin/env bash
     set -euo pipefail
     golden="{{golden}}"
@@ -218,7 +218,7 @@ serve-replay-stub golden="": (_require classpath) check-java
 
 # proxy mode (both doors, capture traffic for recording/analysis)
 [group('serve')]
-serve-proxy: (_require classpath) check-java
+serve-proxy: build check-java
     #!/usr/bin/env bash
     set -euo pipefail
     cp "{{project_dir}}/deploy/services-proxy.conf" "{{_streaming}}/services.conf"
@@ -227,7 +227,7 @@ serve-proxy: (_require classpath) check-java
 
 # replay mode (local FD, replay recorded bytes on MD)
 [group('serve')]
-serve-replay: (_require classpath) check-java
+serve-replay: build check-java
     #!/usr/bin/env bash
     set -euo pipefail
     {{_cert_flags}}
@@ -235,7 +235,7 @@ serve-replay: (_require classpath) check-java
 
 # puzzle mode: serve with a specific .pzl file
 [group('serve')]
-serve-puzzle filename: (_require classpath) check-java
+serve-puzzle filename: build check-java
     #!/usr/bin/env bash
     set -euo pipefail
     {{_cert_flags}}
