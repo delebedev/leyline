@@ -545,8 +545,11 @@ class AnnotationBuilderTest :
 
         test("layeredEffect P/T buff has multi-type array") {
             val ann = AnnotationBuilder.layeredEffect(
-                instanceId = 100, effectId = 7005,
-                powerDelta = 1, toughnessDelta = 1, affectorId = 100,
+                instanceId = 100,
+                effectId = 7005,
+                powerDelta = 1,
+                toughnessDelta = 1,
+                affectorId = 100,
             )
             // Real server: [ModifiedToughness, ModifiedPower, LayeredEffect]
             ann.typeList shouldContain AnnotationType.ModifiedToughness
@@ -575,8 +578,11 @@ class AnnotationBuilderTest :
 
         test("layeredEffect sourceAbilityGrpId included when set") {
             val ann = AnnotationBuilder.layeredEffect(
-                instanceId = 100, effectId = 7007, sourceAbilityGrpId = 137,
-                powerDelta = 1, toughnessDelta = 1,
+                instanceId = 100,
+                effectId = 7007,
+                sourceAbilityGrpId = 137,
+                powerDelta = 1,
+                toughnessDelta = 1,
             )
             val detail = ann.detailsList.first { it.key == "sourceAbilityGRPID" }
             detail.getValueInt32(0) shouldBe 137
@@ -584,7 +590,10 @@ class AnnotationBuilderTest :
 
         test("powerToughnessModCreated has affectorId and detail keys") {
             val ann = AnnotationBuilder.powerToughnessModCreated(
-                instanceId = 335, power = 1, toughness = 1, affectorId = 340,
+                instanceId = 335,
+                power = 1,
+                toughness = 1,
+                affectorId = 340,
             )
             ann.typeList shouldBe listOf(AnnotationType.PowerToughnessModCreated)
             ann.affectedIdsList shouldBe listOf(335)

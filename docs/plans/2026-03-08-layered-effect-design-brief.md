@@ -255,4 +255,28 @@ After building `rec-annotation-contract` tooling and confirming the reference, w
 
 **Gap 4 (sourceAbilityGRPID) — deferred.** Forge's `ptBoostTable` stores a `staticId` (internal counter), not an Arena `abilityGrpId`. No clean mapping exists without either modifying Forge or building a reverse index from `StaticAbility.getId()` → card ability slot → `abilityGrpId`. Impact: client falls back to generic P/T animation instead of ability-specific VFX (e.g. prowess glow). Tracked for future work — needs Forge bridge investigation.
 
+**Gap 4 update:** Implemented pragmatic keyword-based `sourceAbilityGRPID` wiring. `CardData.keywordAbilityGrpIds` maps keyword names to their abilityGrpId slots. `StateMapper.buildSourceAbilityResolver()` checks if the boosted card has a P/T-relevant keyword (e.g. Prowess) and uses its abilityGrpId. Full AbilityRegistry deferred to #72.
+
 **Process fix:** Added `rec-annotation-contract` hard gate to `investigate-annotation` skill. No annotation implementation without running the contract extractor first.
+
+## Retro: integration test for prowess annotations
+
+Three bugs discovered while writing the `EffectLifecycleTest` prowess test. All stem from not understanding how the bridge works during spell casting in tests.
+
+### Lesson 1: Targeted spells need prompt handling in tests
+
+`selectTargetsInteractively` only auto-resolves when `mandatory=true` (engine-forced targeting, e.g. triggered abilities with "must target"). For voluntarily cast spells, `mandatory=false` — the player can cancel. With `mandatory=false`, even a single-candidate target list goes through `InteractivePromptBridge` as a `choose_cards` prompt.
+
+**Impact:** `awaitFreshPending` watches `GameActionBridge` only. If the engine is blocked on `InteractivePromptBridge`, `awaitFreshPending` returns null and the test thinks the spell failed silently.
+
+**Fix:** Added `awaitPrompt()` helper to `TestHelpers.kt`. Tests that cast targeted spells must check the prompt bridge after `submitAction(CastSpell)` and respond before expecting priority stops.
+
+### Lesson 2: "Until end of turn" effects expire if you pass too much
+
+Passing priority through every phase advances the game through combat, end step, cleanup, and into the next turn. Any "+X/+X until end of turn" effect (Giant Growth, Prowess) expires. The test was checking `swiftspear.netPower` after 25 priority passes — by then, three turns had elapsed.
+
+**Fix:** Track `stackWasNonEmpty` and break the pass loop once the stack empties after having items. This stops exactly when the spell resolves, before the turn advances.
+
+### Lesson 3: Two bridges, not one
+
+The engine has two blocking mechanisms: `GameActionBridge` (priority stops) and `InteractivePromptBridge` (choices during spell processing — targeting, cost payment, mode selection). Tests that only poll one bridge miss the other. The `awaitPriorityWithTimeout` helper in `GameBridge` checks both, but `awaitFreshPending` only checks actions. Tests that drive spells with prompts need to poll both.

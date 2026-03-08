@@ -1,0 +1,17 @@
+[metadata]
+Name:Prowess Annotation Shape
+Goal:Cast noncreature → prowess trigger → verify LayeredEffect annotations.
+Turns:5
+Difficulty:Easy
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Monastery Swiftspear;Mountain;Forest
+humanhand=Giant Growth
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
