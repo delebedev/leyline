@@ -318,8 +318,9 @@ class MatchHandler(
 
     private fun sendRoomState(ctx: ChannelHandlerContext) {
         val playerId = clientId.removeSuffix("_Familiar")
-        val msg = HandshakeMessages.roomState(matchId, playerId)
-        Tap.outboundTemplate("RoomState matchId=$matchId")
+        val opponentName = coordinator?.pvpOpponentName(matchId) ?: "Sparky"
+        val msg = HandshakeMessages.roomState(matchId, playerId, opponentName)
+        Tap.outboundTemplate("RoomState matchId=$matchId opponent=$opponentName")
         ProtoDump.dump(msg, "RoomState")
         ctx.writeAndFlush(msg)
     }
