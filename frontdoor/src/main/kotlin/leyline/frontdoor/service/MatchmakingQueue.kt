@@ -17,6 +17,12 @@ class MatchmakingQueue(
 ) {
     private val log = LoggerFactory.getLogger(MatchmakingQueue::class.java)
 
+    companion object {
+        /** Stable fake identity for the synthetic opponent. */
+        const val SYNTHETIC_SCREEN_NAME = "Sparky"
+        const val SYNTHETIC_PLAYER_ID = "00000000-0000-0000-0000-000000000002"
+    }
+
     @Volatile
     private var waiting: PairingEntry? = null
 
@@ -35,8 +41,8 @@ class MatchmakingQueue(
         }
         if (syntheticOpponent) {
             val matchId = java.util.UUID.randomUUID().toString()
-            val bot = PairingEntry("SyntheticBot") { _, _ -> }
-            log.info("MatchmakingQueue: auto-paired {} vs SyntheticBot → matchId={}", entry.screenName, matchId)
+            val bot = PairingEntry(SYNTHETIC_SCREEN_NAME) { _, _ -> }
+            log.info("MatchmakingQueue: auto-paired {} vs {} → matchId={}", entry.screenName, SYNTHETIC_SCREEN_NAME, matchId)
             return PairResult.Paired(seat1 = entry, seat2 = bot, matchId = matchId, synthetic = true)
         }
         waiting = entry

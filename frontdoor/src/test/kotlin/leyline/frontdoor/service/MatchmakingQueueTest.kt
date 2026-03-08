@@ -75,7 +75,7 @@ class MatchmakingQueueTest :
             result.shouldBeInstanceOf<PairResult.Paired>()
             val paired = result as PairResult.Paired
             paired.seat1.screenName shouldBe "Alice"
-            paired.seat2.screenName shouldBe "SyntheticBot"
+            paired.seat2.screenName shouldBe MatchmakingQueue.SYNTHETIC_SCREEN_NAME
             paired.synthetic.shouldBeTrue()
             queue.hasWaiting().shouldBeFalse()
         }
