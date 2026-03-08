@@ -599,6 +599,9 @@ class MatchSession(
     private fun mirrorToFamiliar(messages: List<GREToClientMessage>) {
         if (seatId != 1) return
         val peer = registry.getPeer(matchId, seatId) ?: return
+        // Only mirror to FamiliarSession — PvP peers build their own state
+        // via per-seat GamePlayback.
+        if (peer !is FamiliarSession) return
         val mirrorSeat = 2
         val mirrored = messages.map { gre ->
             val builder = gre.toBuilder().clearSystemSeatIds().addSystemSeatIds(mirrorSeat)
