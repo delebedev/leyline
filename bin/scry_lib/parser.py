@@ -11,6 +11,13 @@ _HEADER_RE = re.compile(
     r"Match to ([0-9a-f-]+): GreToClientEvent"
 )
 
+# Standalone GRE JSON line (no header — written by some server sessions)
+_STANDALONE_GRE_RE = re.compile(r'^\{\s*"greToClientEvent":')
+
+_SCENE_CHANGE_RE = re.compile(
+    r"\[UnityCrossThreadLogger\]Client\.SceneChange\s+(\{.+\})"
+)
+
 
 @dataclass
 class GREBlock:
@@ -24,13 +31,13 @@ class GREBlock:
     @property
     def has_game_state(self) -> bool:
         return any(
-            m.get("type") == "GREMessageType_GameStateMessage"
-            for m in self.messages
+            m.get("type") == "GREMessageType_GameStateMessage" for m in self.messages
         )
 
     def game_state_messages(self) -> list[dict]:
         return [
-            m for m in self.messages
+            m
+            for m in self.messages
             if m.get("type") == "GREMessageType_GameStateMessage"
         ]
 
@@ -44,42 +51,54 @@ def parse_gre_blocks(lines: Iterable[str]) -> Iterator[GREBlock]:
     it = iter(lines)
     for line in it:
         m = _HEADER_RE.search(line)
-        if not m:
+        if m:
+            timestamp = m.group(1)
+            match_id = m.group(2)
+            payload_line = next(it, None)
+            if payload_line is None:
+                break
+            try:
+                data = json.loads(payload_line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            messages = data.get("greToClientEvent", {}).get("greToClientMessages", [])
+            yield GREBlock(
+                messages=messages,
+                timestamp=timestamp,
+                match_id=match_id,
+                raw_json=data,
+            )
             continue
 
-        timestamp = m.group(1)
-        match_id = m.group(2)
-
-        # Next line should be the JSON payload
-        payload_line = next(it, None)
-        if payload_line is None:
-            break
-
-        try:
-            data = json.loads(payload_line)
-        except (json.JSONDecodeError, ValueError):
+        # Standalone GRE JSON (no header line)
+        if _STANDALONE_GRE_RE.match(line):
+            try:
+                data = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            messages = data.get("greToClientEvent", {}).get("greToClientMessages", [])
+            mid = None
+            for msg in messages:
+                gi = msg.get("gameStateMessage", {}).get("gameInfo", {})
+                if gi.get("matchID"):
+                    mid = gi["matchID"]
+                    break
+            yield GREBlock(
+                messages=messages,
+                timestamp=None,
+                match_id=mid,
+                raw_json=data,
+            )
             continue
 
-        messages = (
-            data
-            .get("greToClientEvent", {})
-            .get("greToClientMessages", [])
-        )
 
-        yield GREBlock(
-            messages=messages,
-            timestamp=timestamp,
-            match_id=match_id,
-            raw_json=data,
-        )
+def parse_log(lines: Iterable[str]) -> Iterator[GREBlock | ClientError | SceneChange]:
+    """Yield GREBlocks, ClientErrors, and SceneChanges from Player.log lines.
 
-
-def parse_log(lines: Iterable[str]) -> Iterator[GREBlock | ClientError]:
-    """Yield GREBlocks and ClientErrors from Player.log lines.
-
-    Unified stream — processes both GRE messages and exception lines.
+    Unified stream — processes GRE messages, exception lines, and navigation events.
     """
     from scry_lib.errors import ClientError, parse_client_error
+    from scry_lib.models import SceneChange
 
     it = iter(lines)
     for line in it:
@@ -94,18 +113,46 @@ def parse_log(lines: Iterable[str]) -> Iterator[GREBlock | ClientError]:
                 data = json.loads(payload_line)
             except (json.JSONDecodeError, ValueError):
                 continue
-            messages = (
-                data
-                .get("greToClientEvent", {})
-                .get("greToClientMessages", [])
-            )
+            messages = data.get("greToClientEvent", {}).get("greToClientMessages", [])
             yield GREBlock(
                 messages=messages,
                 timestamp=timestamp,
                 match_id=match_id,
                 raw_json=data,
             )
-        else:
-            err = parse_client_error(line)
-            if err is not None:
-                yield err
+            continue
+
+        # Standalone GRE JSON (no header line — some server sessions)
+        if _STANDALONE_GRE_RE.match(line):
+            try:
+                data = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            messages = data.get("greToClientEvent", {}).get("greToClientMessages", [])
+            # Extract match ID from gameInfo if present
+            mid = None
+            for msg in messages:
+                gi = msg.get("gameStateMessage", {}).get("gameInfo", {})
+                if gi.get("matchID"):
+                    mid = gi["matchID"]
+                    break
+            yield GREBlock(
+                messages=messages,
+                timestamp=None,
+                match_id=mid,
+                raw_json=data,
+            )
+            continue
+
+        sm = _SCENE_CHANGE_RE.search(line)
+        if sm:
+            try:
+                raw = json.loads(sm.group(1))
+            except (json.JSONDecodeError, ValueError):
+                continue
+            yield SceneChange.from_raw(raw)
+            continue
+
+        err = parse_client_error(line)
+        if err is not None:
+            yield err
