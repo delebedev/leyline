@@ -185,14 +185,27 @@ class MatchHandler(
                     puzzleHandler.onPuzzleConnect(ctx, s!!, matchId, seatId)
                 } else {
                     // Constructed mode: normal flow
+                    // PvP matches use startTwoPlayer (both seats human-wired).
+                    // For now seat 2 gets synthetic bridges (auto-pass) until a
+                    // second client connects — getOrPut in ensureSeatBridges
+                    // preserves them.
+                    val isPvp = coordinator?.isPvpMatch(matchId) == true
                     val match = registry.getOrCreateMatch(matchId) {
                         val bridge = GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter, cards = cards ?: leyline.game.InMemoryCardRepository())
                         Match(matchId, bridge).also {
-                            it.start(
-                                seed = matchConfig.game.seed,
-                                deckList1 = resolveSeat1Deck(),
-                                deckList2 = resolveSeat2Deck(),
-                            )
+                            if (isPvp) {
+                                it.startTwoPlayer(
+                                    seed = matchConfig.game.seed,
+                                    deckList1 = resolveSeat1Deck(),
+                                    deckList2 = resolveSeat2Deck(),
+                                )
+                            } else {
+                                it.start(
+                                    seed = matchConfig.game.seed,
+                                    deckList1 = resolveSeat1Deck(),
+                                    deckList2 = resolveSeat2Deck(),
+                                )
+                            }
                         }
                     }
                     val bridge = match.bridge

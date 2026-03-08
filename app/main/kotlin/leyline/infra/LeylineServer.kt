@@ -175,7 +175,7 @@ class LeylineServer(
         val writer = FdResponseWriter(onFdMessage = fdCollector::record)
         val golden = GoldenData.loadFromClasspath()
 
-        val pvpQueue = MatchmakingQueue()
+        val pvpQueue = MatchmakingQueue(syntheticOpponent = matchConfig.game.syntheticOpponent)
 
         val coordinator = AppMatchCoordinator(
             playerId = pid,

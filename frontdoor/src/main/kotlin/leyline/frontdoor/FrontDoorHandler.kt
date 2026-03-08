@@ -366,6 +366,7 @@ class FrontDoorHandler(
                         when (val result = matchmakingQueue.pair(entry)) {
                             is PairResult.Waiting -> log.info("Front Door: {} entered queue", playerId.value)
                             is PairResult.Paired -> {
+                                if (!result.synthetic) coordinator.registerPvpMatch(result.matchId)
                                 result.seat1.pushCallback(result.matchId, 1)
                                 result.seat2.pushCallback(result.matchId, 2)
                             }

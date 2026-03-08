@@ -68,4 +68,34 @@ class MatchmakingQueueTest :
             val result = queue.pair(PairingEntry("Carol") { _, _ -> })
             result.shouldBeInstanceOf<PairResult.Waiting>()
         }
+
+        test("synthetic opponent — auto-pairs immediately") {
+            val queue = MatchmakingQueue(syntheticOpponent = true)
+            val result = queue.pair(PairingEntry("Alice") { _, _ -> })
+            result.shouldBeInstanceOf<PairResult.Paired>()
+            val paired = result as PairResult.Paired
+            paired.seat1.screenName shouldBe "Alice"
+            paired.seat2.screenName shouldBe "SyntheticBot"
+            paired.synthetic.shouldBeTrue()
+            queue.hasWaiting().shouldBeFalse()
+        }
+
+        test("synthetic opponent — real pair still works if someone waiting") {
+            val queue = MatchmakingQueue(syntheticOpponent = true)
+            // If someone is already waiting, real pairing takes priority
+            queue.pair(PairingEntry("Alice") { _, _ -> })
+                .shouldBeInstanceOf<PairResult.Paired>() // Alice auto-pairs with bot
+
+            // Now Bob enters — also auto-pairs with bot
+            val result = queue.pair(PairingEntry("Bob") { _, _ -> })
+            result.shouldBeInstanceOf<PairResult.Paired>()
+            (result as PairResult.Paired).synthetic.shouldBeTrue()
+        }
+
+        test("non-synthetic PairResult has synthetic=false") {
+            val queue = MatchmakingQueue()
+            queue.pair(PairingEntry("Alice") { _, _ -> })
+            val result = queue.pair(PairingEntry("Bob") { _, _ -> })
+            (result as PairResult.Paired).synthetic.shouldBeFalse()
+        }
     })

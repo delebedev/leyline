@@ -33,6 +33,16 @@ class AppMatchCoordinator(
     override var selectedEventName: String? = null
         private set
 
+    /** PvP match IDs — FD writes, MD reads. */
+    private val pvpMatchIds: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    override fun registerPvpMatch(matchId: String) {
+        pvpMatchIds.add(matchId)
+        log.info("Registered PvP match: {}", matchId)
+    }
+
+    override fun isPvpMatch(matchId: String): Boolean = matchId in pvpMatchIds
+
     override fun selectDeck(deckId: String) {
         selectedDeckId = deckId
     }

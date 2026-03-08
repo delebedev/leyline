@@ -125,6 +125,21 @@ class GameBridge(
         }
     }
 
+    /**
+     * Pre-populate auto-pass bridges for a synthetic seat.
+     * Must be called BEFORE [startTwoPlayer] — `ensureSeatBridges` uses `getOrPut`
+     * so these entries won't be overwritten.
+     *
+     * timeout=0 means: action bridge returns PassPriority immediately,
+     * prompt bridge returns defaultIndex immediately, mulligan auto-keeps.
+     */
+    fun configureSyntheticSeat(seatId: Int) {
+        actionBridges[seatId] = GameActionBridge(timeoutMs = 0, prioritySignal = prioritySignal)
+        promptBridges[seatId] = InteractivePromptBridge(timeoutMs = 0, prioritySignal = prioritySignal)
+        mulliganBridges[seatId] = MulliganBridge(autoKeep = true, timeoutMs = 0)
+        log.info("GameBridge: seat {} configured as synthetic (auto-pass)", seatId)
+    }
+
     /** Human player's controller — set during [start]/[startFromPuzzle] for debug observability. */
     var humanController: WebPlayerController? = null
         private set

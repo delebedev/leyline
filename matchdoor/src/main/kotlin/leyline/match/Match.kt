@@ -34,6 +34,18 @@ class Match(
         }
     }
 
+    /** Start a two-human-player match. Call [GameBridge.configureSyntheticSeat] first if one seat is synthetic. */
+    fun startTwoPlayer(
+        seed: Long? = null,
+        deckList1: String? = null,
+        deckList2: String? = null,
+    ) {
+        bridge.startTwoPlayer(seed, deckList1, deckList2)
+        if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
+            onStateChanged?.invoke(MatchState.RUNNING)
+        }
+    }
+
     /**
      * Idempotent teardown: transitions to FINISHED, deterministically tears down
      * heavyweight resources (EventBus, game loop), then clears per-seat bridge state.
