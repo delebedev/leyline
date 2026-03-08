@@ -12,7 +12,7 @@
 #   suppressed — deliberately disabled (cosmetic, causes client errors)
 #   n/a       — not applicable to Arena Standard/Pioneer
 #
-# Updated: 2026-03-04
+# Updated: 2026-03-08
 # Authoritative source for protocol-level detail: rosetta.md
 
 # ─── Client Infrastructure ───────────────────────────────────────────
@@ -727,6 +727,17 @@ visual-fidelity:
       PowerToughnessModCreated (type 71) fires with power/toughness delta
       for buff animation. Client can show +X/+X and -X/-X overlays.
 
+  layered-effect:
+    status: wired
+    notes: >
+      LayeredEffectCreated (18) transient + LayeredEffect (19) persistent
+      fire for P/T pump effects (Giant Growth, Prowess). Multi-type array
+      [ModifiedToughness, ModifiedPower, LayeredEffect] on persistent.
+      PowerToughnessModCreated companion fires alongside. sourceAbilityGRPID
+      wired via keyword heuristic (Prowess tested); full abilityGrpId
+      mapping deferred to #72. EffectTracker diffs boosts per snapshot.
+      Integration tested via prowess-annotation.pzl puzzle.
+
   attachment-visual:
     status: wired
     notes: >
@@ -815,16 +826,16 @@ protocol-summary:
         - PlayerSubmittedTargets (93)  # targeting arrows confirmed
 
     # ── Nice-to-have: better UX, common-ish mechanics ──────────────
-    # 20 types. We have 4 working, 15 missing.
+    # 20 types. We have 5 working, 14 missing.
     nice-to-have:
       have:
         - Counter (14)              # persistent counter state badge
+        - LayeredEffectCreated (18) # buff source tracking
         - TokenDeleted (41)         # token leaves battlefield animation
         - SyntheticEvent (72)       # internal sequencing
         - UserActionTaken (73)      # action feedback
       missing:
         - ModifiedColor (7)         # Painter's Servant etc
-        - LayeredEffectCreated (18) # buff source tracking
         - RemoveAbility (23)        # "loses all abilities"
         - ModifiedType (25)         # type-changing effects
         - TargetSpec (26)           # targeting UI hints
