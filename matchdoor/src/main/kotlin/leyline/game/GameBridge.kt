@@ -625,12 +625,31 @@ class GameBridge(
         log.info("GameBridge: puzzle hot-swap complete")
     }
 
-    fun shutdown() {
-        log.info("GameBridge: shutting down")
+    /**
+     * Tear down heavyweight resources: unsubscribe EventBus listeners, stop game loop.
+     * Called by [leyline.match.Match.close] for deterministic lifecycle management.
+     * Idempotent — safe to call before [shutdown].
+     */
+    fun teardownResources() {
+        val g = game
+        if (g != null) {
+            eventCollector?.let { g.unsubscribeFromEvents(it) }
+            playback?.let { g.unsubscribeFromEvents(it) }
+        }
         loopController?.shutdown()
         loopController = null
         playback = null
         eventCollector = null
+    }
+
+    /**
+     * Full shutdown: tear down resources + clear per-seat state.
+     * Tests and puzzle reset call this directly. Production code goes through
+     * [leyline.match.Match.close] which calls [teardownResources] then this.
+     */
+    fun shutdown() {
+        log.info("GameBridge: shutting down")
+        teardownResources()
         game = null
         players.clear()
     }

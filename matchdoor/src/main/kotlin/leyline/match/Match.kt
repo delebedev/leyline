@@ -35,12 +35,14 @@ class Match(
     }
 
     /**
-     * Idempotent teardown: transitions to FINISHED, shuts down the bridge, fires callback.
+     * Idempotent teardown: transitions to FINISHED, deterministically tears down
+     * heavyweight resources (EventBus, game loop), then clears per-seat bridge state.
      * Safe to call from any thread, multiple times.
      */
     fun close() {
         val prev = stateRef.getAndSet(MatchState.FINISHED)
         if (prev == MatchState.FINISHED) return // already closed
+        bridge.teardownResources()
         bridge.shutdown()
         onStateChanged?.invoke(MatchState.FINISHED)
     }
