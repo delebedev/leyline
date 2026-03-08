@@ -83,6 +83,7 @@ class GameObject:
     toughness: int | None = None
     is_tapped: bool = False
     name: int = 0
+    _raw: dict = field(default_factory=dict, repr=False, compare=False)
 
     @classmethod
     def from_raw(cls, raw: dict) -> GameObject:
@@ -102,6 +103,7 @@ class GameObject:
             toughness=toughness_raw["value"] if toughness_raw else None,
             is_tapped=raw.get("isTapped", False),
             name=raw.get("name", 0),
+            _raw=dict(raw),
         )
 
 
