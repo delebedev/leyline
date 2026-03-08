@@ -1,7 +1,10 @@
 package leyline.conformance
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.UnitTag
@@ -10,6 +13,7 @@ import leyline.infra.ListMessageSink
 import leyline.match.Match
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
+import leyline.match.MatchState
 
 class MatchRegistryTest :
     FunSpec({
@@ -38,6 +42,13 @@ class MatchRegistryTest :
             registry.getBridge("m1") shouldBeSameInstanceAs bridge
         }
 
+        test("getMatch returns match or null") {
+            val registry = MatchRegistry()
+            registry.getMatch("nope").shouldBeNull()
+            val m = registry.getOrCreateMatch("m1") { Match("m1", GameBridge()) }
+            registry.getMatch("m1") shouldBeSameInstanceAs m
+        }
+
         test("registerSession + getPeer returns correct session") {
             val registry = MatchRegistry()
             val sink = ListMessageSink()
@@ -49,11 +60,88 @@ class MatchRegistryTest :
             registry.getPeer("m1", 1) shouldBeSameInstanceAs s2
         }
 
-        test("evictStale removes old match entries") {
+        test("evictStale removes old match entries and closes them") {
             val registry = MatchRegistry()
-            registry.getOrCreateMatch("old-match") { Match("old-match", GameBridge()) }
+            val old = registry.getOrCreateMatch("old-match") { Match("old-match", GameBridge()) }
             registry.getOrCreateMatch("current") { Match("current", GameBridge()) }
             val evicted = registry.evictStale("current")
             evicted.size shouldBe 1
+            old.state shouldBe MatchState.FINISHED
+        }
+
+        // --- Match lifecycle tests ---
+
+        test("new Match starts in WAITING state") {
+            val m = Match("m1", GameBridge())
+            m.state shouldBe MatchState.WAITING
+        }
+
+        test("close() transitions to FINISHED and fires callback") {
+            val m = Match("m1", GameBridge())
+            val observed = mutableListOf<MatchState>()
+            m.onStateChanged = { observed.add(it) }
+            m.close()
+            m.state shouldBe MatchState.FINISHED
+            observed.shouldContainExactly(MatchState.FINISHED)
+        }
+
+        test("close() is idempotent — second call is a no-op") {
+            val m = Match("m1", GameBridge())
+            val observed = mutableListOf<MatchState>()
+            m.onStateChanged = { observed.add(it) }
+            m.close()
+            m.close()
+            m.state shouldBe MatchState.FINISHED
+            observed.shouldContainExactly(MatchState.FINISHED) // only one callback
+        }
+
+        test("start() transitions WAITING -> RUNNING") {
+            val m = Match("m1", GameBridge())
+            val observed = mutableListOf<MatchState>()
+            m.onStateChanged = { observed.add(it) }
+            m.state shouldBe MatchState.WAITING
+            // start() will transition state then call bridge.start() which is a no-op on a bare GameBridge
+            m.start()
+            m.state shouldBe MatchState.RUNNING
+            observed.shouldContainExactly(MatchState.RUNNING)
+        }
+
+        test("start() on already-RUNNING match is a no-op for state") {
+            val m = Match("m1", GameBridge())
+            val observed = mutableListOf<MatchState>()
+            m.onStateChanged = { observed.add(it) }
+            m.start()
+            m.start() // second start — CAS fails, no duplicate callback
+            m.state shouldBe MatchState.RUNNING
+            observed.shouldContainExactly(MatchState.RUNNING)
+        }
+
+        test("start() on FINISHED match does not transition back") {
+            val m = Match("m1", GameBridge())
+            m.close()
+            m.state shouldBe MatchState.FINISHED
+            val observed = mutableListOf<MatchState>()
+            m.onStateChanged = { observed.add(it) }
+            m.start() // should not transition back to RUNNING
+            m.state shouldBe MatchState.FINISHED
+            observed shouldBe emptyList()
+        }
+
+        test("actionBridge throws for unknown seat") {
+            val bridge = GameBridge()
+            shouldThrow<IllegalStateException> {
+                bridge.actionBridge(99)
+            }
+        }
+
+        test("onStateChanged callback enables auto-removal from registry") {
+            val registry = MatchRegistry()
+            val m = registry.getOrCreateMatch("m1") { Match("m1", GameBridge()) }
+            m.onStateChanged = { state ->
+                if (state == MatchState.FINISHED) registry.removeMatch(m.matchId)
+            }
+            registry.getMatch("m1").shouldNotBeNull()
+            m.close()
+            registry.getMatch("m1").shouldBeNull()
         }
     })
