@@ -163,6 +163,10 @@ Forge enum display names ≠ Java enum constants ≠ proto enum names:
 
 Any mapping between Forge events and proto values must account for display names. Test with what Forge actually sends, not what the enum constant looks like.
 
+## Related skills
+
+- **recording-scope** — for full mechanic scoping (not just one annotation). Covers the entire message sequence around a mechanic including zone transfers, instanceId lifecycle, and diff patterns. Use recording-scope when implementing a new mechanic; use investigate-annotation when researching a single annotation type.
+
 ## Key conventions
 
 - **Contract first, code never.** Always run `rec-annotation-contract` before writing any annotation code. The contract shows multi-types, affectorId, companions — things the variance report misses.

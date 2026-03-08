@@ -1,6 +1,35 @@
 package leyline.game
 
-import forge.game.zone.ZoneType
+/**
+ * Lightweight zone enum for [GameEvent]. Decoupled from forge.game.zone.ZoneType
+ * so the event/annotation layer has zero forge dependencies. Mapping from
+ * forge ZoneType happens in [GameEventCollector] at the bridge boundary.
+ */
+enum class Zone {
+    Hand,
+    Library,
+    Graveyard,
+    Battlefield,
+    Exile,
+    Stack,
+    Command,
+    Other,
+    ;
+
+    companion object {
+        /** Map from forge ZoneType name. Called only in GameEventCollector. */
+        fun fromForge(forgeZone: forge.game.zone.ZoneType): Zone = when (forgeZone) {
+            forge.game.zone.ZoneType.Hand -> Hand
+            forge.game.zone.ZoneType.Library -> Library
+            forge.game.zone.ZoneType.Graveyard -> Graveyard
+            forge.game.zone.ZoneType.Battlefield -> Battlefield
+            forge.game.zone.ZoneType.Exile -> Exile
+            forge.game.zone.ZoneType.Stack -> Stack
+            forge.game.zone.ZoneType.Command -> Command
+            else -> Other
+        }
+    }
+}
 
 /**
  * Protocol-oriented game events captured from the Forge engine's EventBus.
@@ -13,6 +42,13 @@ import forge.game.zone.ZoneType
  * All IDs here are **Forge card IDs** (not client instanceIds). The bridge
  * resolves them to instanceIds at annotation-build time so the event layer
  * stays decoupled from protocol ID allocation.
+ *
+ * **Forge extension pattern:** When Forge's built-in events lack per-card
+ * granularity (e.g. GameEventSurveil carries counts but no card IDs), we add
+ * per-card events to our fork (e.g. GameEventCardSurveiled) and fire them from
+ * the engine. This keeps the collector simple — one visit method per event type —
+ * instead of correlating summary events with zone changes after the fact.
+ * Consider extending Forge when a new mechanic needs per-card category resolution.
  */
 sealed interface GameEvent {
 
@@ -37,8 +73,8 @@ sealed interface GameEvent {
     /** A card changed zones (generic — covers destroy, exile, sacrifice, bounce, etc.). */
     data class ZoneChanged(
         val forgeCardId: Int,
-        val from: ZoneType,
-        val to: ZoneType,
+        val from: Zone,
+        val to: Zone,
     ) : GameEvent
 
     /** A permanent was tapped or untapped. */
@@ -119,6 +155,15 @@ sealed interface GameEvent {
     data class CardMilled(
         val forgeCardId: Int,
         val seatId: Int,
+    ) : GameEvent
+
+    /** A card was surveiled to graveyard (Library→GY via surveil).
+     *  [sourceForgeCardId] = host card of the ability that caused the surveil
+     *  (e.g. Wary Thespian). Used to resolve the ability's instanceId for affectorId. */
+    data class CardSurveiled(
+        val forgeCardId: Int,
+        val seatId: Int,
+        val sourceForgeCardId: Int? = null,
     ) : GameEvent
 
     /** A spell was countered (Stack→GY without resolving).

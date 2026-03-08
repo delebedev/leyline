@@ -83,6 +83,7 @@ object AnnotationBuilder {
                 is GameEvent.CardExiled -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Exile
                 is GameEvent.CardDiscarded -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Discard
                 is GameEvent.CardMilled -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Mill
+                is GameEvent.CardSurveiled -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Surveil
                 is GameEvent.SpellCountered -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Countered
                 // Generic zone change — fallback, infer category from zone pair
                 is GameEvent.ZoneChanged -> if (ev.forgeCardId == forgeCardId) generic = ev
@@ -107,6 +108,23 @@ object AnnotationBuilder {
     }
 
     /**
+     * Extract the source Forge card ID for the ability that caused a zone transfer.
+     *
+     * Used to resolve the affectorId on annotations. Currently only CardSurveiled
+     * carries source info; extend for other mechanics as needed.
+     *
+     * @return Forge card ID of the causing ability's host card, or null if unknown.
+     */
+    fun affectorSourceFromEvents(forgeCardId: Int, events: List<GameEvent>): Int? {
+        for (ev in events) {
+            if (ev is GameEvent.CardSurveiled && ev.forgeCardId == forgeCardId) {
+                return ev.sourceForgeCardId
+            }
+        }
+        return null
+    }
+
+    /**
      * Map a generic ZoneChanged event to an annotation category using zone-pair heuristics.
      *
      * This covers Group A categories that lack dedicated Forge events:
@@ -114,43 +132,43 @@ object AnnotationBuilder {
      * Mill (Lib→GY), Countered (Stack→GY), and Exile (any→Exile).
      */
     private fun zoneChangedCategory(ev: GameEvent.ZoneChanged): TransferCategory = when {
-        ev.from == forge.game.zone.ZoneType.Hand -> when (ev.to) {
-            forge.game.zone.ZoneType.Battlefield -> TransferCategory.PlayLand
-            forge.game.zone.ZoneType.Stack -> TransferCategory.CastSpell
-            forge.game.zone.ZoneType.Graveyard -> TransferCategory.Discard
-            forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
+        ev.from == Zone.Hand -> when (ev.to) {
+            Zone.Battlefield -> TransferCategory.PlayLand
+            Zone.Stack -> TransferCategory.CastSpell
+            Zone.Graveyard -> TransferCategory.Discard
+            Zone.Exile -> TransferCategory.Exile
             else -> TransferCategory.ZoneTransfer
         }
-        ev.from == forge.game.zone.ZoneType.Stack -> when (ev.to) {
-            forge.game.zone.ZoneType.Battlefield -> TransferCategory.Resolve
-            forge.game.zone.ZoneType.Graveyard -> TransferCategory.Countered
-            forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
+        ev.from == Zone.Stack -> when (ev.to) {
+            Zone.Battlefield -> TransferCategory.Resolve
+            Zone.Graveyard -> TransferCategory.Countered
+            Zone.Exile -> TransferCategory.Exile
             else -> TransferCategory.ZoneTransfer
         }
-        ev.from == forge.game.zone.ZoneType.Battlefield -> when (ev.to) {
-            forge.game.zone.ZoneType.Graveyard -> TransferCategory.Destroy
-            forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
-            forge.game.zone.ZoneType.Hand -> TransferCategory.Bounce
-            forge.game.zone.ZoneType.Library -> TransferCategory.Bounce
+        ev.from == Zone.Battlefield -> when (ev.to) {
+            Zone.Graveyard -> TransferCategory.Destroy
+            Zone.Exile -> TransferCategory.Exile
+            Zone.Hand -> TransferCategory.Bounce
+            Zone.Library -> TransferCategory.Bounce
             else -> TransferCategory.ZoneTransfer
         }
-        ev.from == forge.game.zone.ZoneType.Library -> when (ev.to) {
-            forge.game.zone.ZoneType.Hand -> TransferCategory.Draw
-            forge.game.zone.ZoneType.Battlefield -> TransferCategory.Search
-            forge.game.zone.ZoneType.Graveyard -> TransferCategory.Mill
-            forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
+        ev.from == Zone.Library -> when (ev.to) {
+            Zone.Hand -> TransferCategory.Draw
+            Zone.Battlefield -> TransferCategory.Search
+            Zone.Graveyard -> TransferCategory.Mill
+            Zone.Exile -> TransferCategory.Exile
             else -> TransferCategory.ZoneTransfer
         }
-        ev.from == forge.game.zone.ZoneType.Graveyard -> when (ev.to) {
-            forge.game.zone.ZoneType.Hand, forge.game.zone.ZoneType.Battlefield -> TransferCategory.Return
-            forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
+        ev.from == Zone.Graveyard -> when (ev.to) {
+            Zone.Hand, Zone.Battlefield -> TransferCategory.Return
+            Zone.Exile -> TransferCategory.Exile
             else -> TransferCategory.ZoneTransfer
         }
-        ev.from == forge.game.zone.ZoneType.Exile -> when (ev.to) {
-            forge.game.zone.ZoneType.Hand, forge.game.zone.ZoneType.Battlefield -> TransferCategory.Return
+        ev.from == Zone.Exile -> when (ev.to) {
+            Zone.Hand, Zone.Battlefield -> TransferCategory.Return
             else -> TransferCategory.ZoneTransfer
         }
-        ev.to == forge.game.zone.ZoneType.Exile -> TransferCategory.Exile
+        ev.to == Zone.Exile -> TransferCategory.Exile
         else -> TransferCategory.ZoneTransfer
     }
 
@@ -160,9 +178,14 @@ object AnnotationBuilder {
         destZoneId: Int,
         category: String,
         actingSeatId: Int = 0,
+        affectorId: Int = 0,
     ): AnnotationInfo = AnnotationInfo.newBuilder()
         .addType(AnnotationType.ZoneTransfer_af5a)
-        .apply { if (actingSeatId != 0) setAffectorId(actingSeatId) }
+        .apply {
+            // affectorId takes precedence (ability instance); fall back to actingSeatId (player seat)
+            val aff = if (affectorId != 0) affectorId else actingSeatId
+            if (aff != 0) setAffectorId(aff)
+        }
         .addAffectedIds(instanceId)
         .addDetails(int32Detail("zone_src", srcZoneId))
         .addDetails(int32Detail("zone_dest", destZoneId))
@@ -197,10 +220,12 @@ object AnnotationBuilder {
             .addDetails(int32Detail("step", step))
             .build()
 
-    /** Card's instanceId changed (e.g. zone move creates new object). */
-    fun objectIdChanged(origId: Int, newId: Int): AnnotationInfo =
+    /** Card's instanceId changed (e.g. zone move creates new object).
+     *  [affectorId] = ability instance that caused the change (0 = unset). */
+    fun objectIdChanged(origId: Int, newId: Int, affectorId: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ObjectIdChanged)
+            .apply { if (affectorId != 0) setAffectorId(affectorId) }
             .addAffectedIds(origId)
             .addDetails(int32Detail("orig_id", origId))
             .addDetails(int32Detail("new_id", newId))

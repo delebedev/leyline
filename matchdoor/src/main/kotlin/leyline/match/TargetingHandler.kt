@@ -4,6 +4,9 @@ import forge.game.Game
 import leyline.bridge.InteractivePromptBridge
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
+import leyline.game.GsmBuilder
+import leyline.game.mapper.ObjectMapper
+import leyline.game.mapper.ZoneIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -130,18 +133,28 @@ class TargetingHandler(private val ops: SessionOps) {
     /**
      * Check for pending interactive prompt (targeting, sacrifice, discard, etc.).
      * - Targeting prompts (candidateRefs non-empty) → send SelectTargetsReq to client.
-     * - Non-targeting prompts (confirm, choose_cards, order) → auto-resolve with
+     * - Surveil/scry prompts → send GroupReq to client.
+     * - Other non-targeting prompts (confirm, choose_cards, order) → auto-resolve with
      *   defaultIndex. Covers discard-to-hand-size at Cleanup and similar engine prompts.
-     *   These can be wired to client UI later.
      */
     fun checkPendingPrompt(bridge: GameBridge, game: Game): PromptResult {
         val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: return PromptResult.NONE
+
+        // Surveil/scry prompts: check before candidateRefs — surveil now carries
+        // candidateRefs for card identity, but should route to GroupReq not SelectTargetsReq.
+        val groupingContext = detectSurveilScry(pendingPrompt.request)
+        if (groupingContext != null) {
+            sendGroupReqForSurveilScry(bridge, pendingPrompt, groupingContext)
+            return PromptResult.SENT_TO_CLIENT
+        }
+
         if (pendingPrompt.request.candidateRefs.isNotEmpty()) {
             // Targeting prompt → send SelectTargetsReq to client
             ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
             sendSelectTargetsReq(bridge, pendingPrompt)
             return PromptResult.SENT_TO_CLIENT
         }
+
         // Non-targeting prompt → auto-resolve with default
         val req = pendingPrompt.request
         log.info(
@@ -159,6 +172,63 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge.promptBridge.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
         bridge.awaitPriority()
         return PromptResult.AUTO_RESOLVED
+    }
+
+    /**
+     * Handle GroupResp for surveil/scry: translate client grouping back to prompt indices.
+     *
+     * Arena sends GroupResp with 2 groups:
+     *   - Group 0 (Library/Top): cards to keep on top
+     *   - Group 1 (Graveyard or Library/Bottom): cards to send away
+     *
+     * For single-card surveil: group 0 non-empty → index 0 (keep), group 1 non-empty → index 1 (graveyard).
+     * For multi-card: group 1 IDs → indices of cards chosen for "away" zone.
+     */
+    fun onGroupResp(
+        greMsg: ClientToGREMessage,
+        bridge: GameBridge,
+        autoPass: (GameBridge) -> Unit,
+    ) {
+        val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: run {
+            log.warn("TargetingHandler: GroupResp but no pending prompt")
+            return
+        }
+
+        val groups = greMsg.groupResp.groupsList
+        val req = pendingPrompt.request
+
+        val selectedIndices = if (req.promptType == "confirm" && req.options.size == 2) {
+            // Single-card surveil/scry: "Top of library" (0) vs "Graveyard"/"Bottom" (1)
+            // Group 1 (away zone) has the card → user chose "away" → index 1
+            val awayGroup = if (groups.size >= 2) groups[1] else null
+            if (awayGroup != null && awayGroup.idsList.isNotEmpty()) {
+                listOf(1) // away (graveyard for surveil, bottom for scry)
+            } else {
+                listOf(0) // keep on top
+            }
+        } else if (req.promptType == "choose_cards") {
+            // Multi-card surveil/scry: away group IDs → indices into options
+            val awayIds = if (groups.size >= 2) groups[1].idsList else emptyList()
+            awayIds.mapNotNull { iid ->
+                val forgeCardId = bridge.getForgeCardId(iid) ?: return@mapNotNull null
+                // Options are card names from topN — match by forge card name
+                val player = bridge.getPlayer(ops.seatId) ?: return@mapNotNull null
+                val card = player.allCards.firstOrNull { it.id == forgeCardId }
+                card?.let { req.options.indexOf(it.name) }
+            }.filter { it >= 0 }
+        } else {
+            listOf(req.defaultIndex)
+        }
+
+        log.info("TargetingHandler: GroupResp → prompt indices={}", selectedIndices)
+
+        bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
+        bridge.awaitPriority()
+
+        // Send intermediate state so the client sees the zone transfer
+        // (card moving to graveyard or staying on top of library).
+        ops.sendRealGameState(bridge)
+        autoPass(bridge)
     }
 
     /**
@@ -216,5 +286,98 @@ class TargetingHandler(private val ops: SessionOps) {
         val result = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, pendingPrompt)
         Tap.outboundTemplate("SelectTargetsReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
+    }
+
+    /**
+     * Detect surveil/scry prompts by message prefix pattern.
+     * WebPlayerController uses "Surveil:" / "Scry:" prefixes in arrangeTopNCards.
+     */
+    private fun detectSurveilScry(req: leyline.bridge.PromptRequest): GroupingContext? {
+        val msg = req.message
+        return when {
+            msg.startsWith("Surveil:") -> GroupingContext.Surveil
+            msg.startsWith("Scry:") -> GroupingContext.Scry_a0f6
+            else -> null
+        }
+    }
+
+    /**
+     * Build and send a GroupReq for surveil/scry. Looks up instanceIds for
+     * the cards being surveilled from the library top.
+     *
+     * Real server sends a GSM diff that exposes the library top card(s) as
+     * `visibility=Private, viewers=[seatId]` before the GroupReq — this makes
+     * the card visible (face-up) in the client's surveil/scry modal.
+     */
+    private fun sendGroupReqForSurveilScry(
+        bridge: GameBridge,
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+        context: GroupingContext,
+    ) {
+        val game = bridge.getGame() ?: return
+        val player = bridge.getPlayer(ops.seatId) ?: return
+        val req = pendingPrompt.request
+
+        // Resolve surveil/scry cards from candidateRefs (forge card IDs set by WebPlayerController).
+        // We can't read library top here — the engine already removed the card from the zone
+        // while blocking in requestChoice(). CandidateRefs carry the correct forge card IDs.
+        // Use Game.findById() which visits all cards including those in limbo (no zone).
+        data class ResolvedCard(val card: forge.game.card.Card, val instanceId: Int)
+
+        val resolved = req.candidateRefs
+            .filter { it.kind == "card" }
+            .mapNotNull { ref ->
+                val card = game.findById(ref.entityId)
+                if (card != null) ResolvedCard(card, bridge.getOrAllocInstanceId(ref.entityId)) else null
+            }
+
+        if (resolved.isEmpty()) {
+            log.warn("TargetingHandler: surveil/scry but no cards resolved from candidateRefs (falling back to library top)")
+            bridge.promptBridge.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+            bridge.awaitPriority()
+            return
+        }
+
+        val topCards = resolved.map { it.card }
+        val cardInstanceIds = resolved.map { it.instanceId }
+
+        // sourceId: the card that triggered surveil — check stack for the trigger source
+        val sourceId = game.stack.firstOrNull()?.let { bridge.getOrAllocInstanceId(it.id) } ?: 0
+
+        val contextLabel = if (context == GroupingContext.Surveil) "Surveil" else "Scry"
+        log.info("TargetingHandler: sending GroupReq for {} cards={}", contextLabel, cardInstanceIds)
+        ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "$contextLabel GroupReq cards=${cardInstanceIds.size}")
+
+        // Build GSM diff that reveals card objects (Private + viewer) so client shows face-up
+        val libZoneId = if (ops.seatId == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
+        val revealedObjects = topCards.map { card ->
+            ObjectMapper.buildCardObject(card, bridge.getOrAllocInstanceId(card.id), libZoneId, ops.seatId, bridge, Visibility.Private)
+                .toBuilder().addViewers(ops.seatId).build()
+        }
+        val gsId = ops.counter.nextGsId()
+        val revealDiff = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.GameStateMessage_695e)
+            .addSystemSeatIds(ops.seatId)
+            .setMsgId(ops.counter.nextMsgId())
+            .setGameStateId(gsId)
+            .setGameStateMessage(
+                GameStateMessage.newBuilder()
+                    .setType(GameStateType.Diff)
+                    .setGameStateId(gsId)
+                    .setPrevGameStateId(gsId - 1)
+                    .addAllGameObjects(revealedObjects),
+            )
+            .build()
+
+        val groupReq = GsmBuilder.buildSurveilScryGroupReq(
+            msgId = ops.counter.nextMsgId(),
+            gameStateId = gsId,
+            seatId = ops.seatId,
+            cardInstanceIds = cardInstanceIds,
+            context = context,
+            sourceInstanceId = sourceId,
+        )
+        Tap.outboundTemplate("GroupReq($contextLabel) seat=${ops.seatId}")
+        ops.sendBundledGRE(listOf(revealDiff, groupReq))
     }
 }

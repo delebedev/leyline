@@ -158,7 +158,8 @@ class MatchHandler(
     }
 
     private fun handleGREMessage(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
-        processGREMessage(ctx, ClientToGREMessage.parseFrom(msg.payload))
+        val greMsg = ClientToGREMessage.parseFrom(msg.payload)
+        processGREMessage(ctx, greMsg)
     }
 
     private fun processGREMessage(ctx: ChannelHandlerContext, greMsg: ClientToGREMessage) {
@@ -209,11 +210,15 @@ class MatchHandler(
             ClientMessageType.MulliganResp_097b ->
                 mulliganHandler.onMulliganResp(greMsg)
 
-            // Future: proper London tuck UI via GroupReq/GroupResp.
-            // Currently unreachable — auto-tuck in submitMull() handles tuck during mull.
-            // Will be wired when we send GroupReq to client instead of auto-tucking.
-            ClientMessageType.GroupResp_097b ->
-                mulliganHandler.onGroupResp(greMsg)
+            // GroupResp routes to mulligan handler (London tuck) or session (surveil/scry).
+            // During mulligan phase, route to mulligan handler; otherwise to session.
+            ClientMessageType.GroupResp_097b -> {
+                if (s?.gameBridge?.promptBridge?.getPendingPrompt() != null) {
+                    s.onGroupResp(greMsg)
+                } else {
+                    mulliganHandler.onGroupResp(greMsg)
+                }
+            }
 
             ClientMessageType.SetSettingsReq_097b -> {
                 s?.onSettings(greMsg)

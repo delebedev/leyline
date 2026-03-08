@@ -139,6 +139,9 @@ object RecordingDecoder {
         val clientAction: ClientActionSummary? = null,
         val clientTargets: ClientTargetsSummary? = null,
         val clientSettings: SettingsSummary? = null,
+        // GroupReq/GroupResp (surveil, scry, mulligan grouping prompts)
+        val groupReq: GroupReqSummary? = null,
+        val clientGroupResp: ClientGroupRespSummary? = null,
     )
 
     @Serializable
@@ -268,6 +271,36 @@ object RecordingDecoder {
     data class ClientTargetsSummary(
         val targetIdx: Int = 0,
         val targetInstanceIds: List<Int> = emptyList(),
+    )
+
+    @Serializable
+    data class GroupReqSummary(
+        val instanceIds: List<Int>,
+        val groupSpecs: List<GroupSpecSummary>,
+        val groupType: String,
+        val context: String,
+        val sourceId: Int = 0,
+    )
+
+    @Serializable
+    data class GroupSpecSummary(
+        val lowerBound: Int = 0,
+        val upperBound: Int = 0,
+        val zoneType: String,
+        val subZoneType: String? = null,
+    )
+
+    @Serializable
+    data class ClientGroupRespSummary(
+        val groups: List<GroupSummary>,
+        val groupType: String,
+    )
+
+    @Serializable
+    data class GroupSummary(
+        val ids: List<Int> = emptyList(),
+        val zoneType: String? = null,
+        val subZoneType: String? = null,
     )
 
     @Serializable
@@ -475,6 +508,18 @@ object RecordingDecoder {
             clientSettings = gre.takeIf { it.hasSetSettingsReq() }?.let { msg ->
                 summarizeSettings(msg.setSettingsReq.settings)
             },
+            clientGroupResp = gre.takeIf { it.hasGroupResp() }?.groupResp?.let { resp ->
+                ClientGroupRespSummary(
+                    groups = resp.groupsList.map { g ->
+                        GroupSummary(
+                            ids = g.idsList.map { it.toInt() },
+                            zoneType = g.zoneType.name.strip().takeIf { it != "None" },
+                            subZoneType = g.subZoneType.name.strip().takeIf { it != "None" },
+                        )
+                    },
+                    groupType = resp.groupType.name.strip(),
+                )
+            },
         )
     }
 
@@ -555,6 +600,22 @@ object RecordingDecoder {
                 ?.castingTimeOptionsReq?.castingTimeOptionReqList
                 ?.map { summarizeCastingTimeOption(it) } ?: emptyList(),
             edictal = summarizeEdictal(gre),
+            groupReq = gre.takeIf { it.hasGroupReq() }?.groupReq?.let { req ->
+                GroupReqSummary(
+                    instanceIds = req.instanceIdsList.map { it.toInt() },
+                    groupSpecs = req.groupSpecsList.map { spec ->
+                        GroupSpecSummary(
+                            lowerBound = spec.lowerBound,
+                            upperBound = spec.upperBound,
+                            zoneType = spec.zoneType.name.strip(),
+                            subZoneType = spec.subZoneType.name.strip().takeIf { it != "None" },
+                        )
+                    },
+                    groupType = req.groupType.name.strip(),
+                    context = req.context.name.strip(),
+                    sourceId = req.sourceId,
+                )
+            },
             players = gsm?.playersList?.map { summarizePlayer(it) } ?: emptyList(),
             turnInfo = gsm?.takeIf { it.hasTurnInfo() }?.turnInfo?.let { summarizeTurn(it) },
             promptId = gre.takeIf { it.hasPrompt() && it.prompt.promptId != 0 }?.prompt?.promptId,
