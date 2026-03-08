@@ -2,8 +2,10 @@ package leyline.match
 
 import forge.game.Game
 import leyline.bridge.ClientAutoPassState
+import leyline.bridge.InstanceId
 import leyline.bridge.PhaseStopProfile
 import leyline.bridge.PlayerAction
+import leyline.bridge.SeatId
 import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
@@ -226,25 +228,25 @@ class MatchSession(
                 bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
             }
             ActionType.Play_add3 -> {
-                val forgeCardId = bridge.getForgeCardId(action.instanceId)
+                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                 val submitted = if (forgeCardId != null) {
                     bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(forgeCardId))
                 } else {
                     bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
-                Tap.actionResult(action.actionType, action.instanceId, forgeCardId, submitted)
+                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
             }
             ActionType.Cast -> {
-                val forgeCardId = bridge.getForgeCardId(action.instanceId)
+                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                 val submitted = if (forgeCardId != null) {
                     bridge.actionBridge.submitAction(pending.actionId, PlayerAction.CastSpell(forgeCardId))
                 } else {
                     bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
-                Tap.actionResult(action.actionType, action.instanceId, forgeCardId, submitted)
+                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
             }
             ActionType.Activate_add3 -> {
-                val forgeCardId = bridge.getForgeCardId(action.instanceId)
+                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                 // Map abilityGrpId → index in card's non-mana activated abilities.
                 // For single-ability cards (most common), index 0 is correct.
                 // TODO: correlate abilityGrpId with CardRepository abilityIds for multi-ability cards
@@ -257,7 +259,7 @@ class MatchSession(
                 } else {
                     bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
-                Tap.actionResult(action.actionType, action.instanceId, forgeCardId, submitted)
+                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
             }
             else -> {
                 log.info("MatchSession: unhandled action type {}, passing", action.actionType)
@@ -379,9 +381,9 @@ class MatchSession(
     private fun applyStopsToProfile(settings: SettingsMessage) {
         val bridge = gameBridge ?: return
         val profile = bridge.phaseStopProfile ?: return
-        val humanPlayer = bridge.getPlayer(seatId) ?: return
+        val humanPlayer = bridge.getPlayer(SeatId(seatId)) ?: return
         val aiSeatId = if (seatId == 1) 2 else 1
-        val aiPlayer = bridge.getPlayer(aiSeatId) ?: return
+        val aiPlayer = bridge.getPlayer(SeatId(aiSeatId)) ?: return
 
         // Honor clear-all flags even when no explicit stops present
         if (settings.clearAllStops == SettingStatus.Set || settings.clearAllYields == SettingStatus.Set) {
@@ -521,7 +523,7 @@ class MatchSession(
      */
     override fun sendGameOver(reason: ResultReason) {
         val bridge = gameBridge
-        val humanPlayer = bridge?.getPlayer(1)
+        val humanPlayer = bridge?.getPlayer(SeatId(1))
         val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
         val winningTeam = if (humanWon) 1 else 2
         val losingPlayerSeatId = if (humanWon) 2 else 1
@@ -619,7 +621,7 @@ class MatchSession(
     override fun traceEvent(type: MatchEventType, game: Game, detail: String) {
         val phase = game.phaseHandler.phase?.name
         val turn = game.phaseHandler.turn
-        val human = gameBridge?.getPlayer(seatId)
+        val human = gameBridge?.getPlayer(SeatId(seatId))
         val priority = when (game.phaseHandler.priorityPlayer) {
             human -> "human"
             else -> "ai"

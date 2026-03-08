@@ -9,14 +9,17 @@ import forge.gamemodes.puzzle.Puzzle
 import forge.player.PlayerControllerHuman
 import forge.util.MyRandom
 import leyline.bridge.DeckLoader
+import leyline.bridge.ForgeCardId
 import leyline.bridge.GameActionBridge
 import leyline.bridge.GameBootstrap
 import leyline.bridge.GameLoopController
+import leyline.bridge.InstanceId
 import leyline.bridge.InteractivePromptBridge
 import leyline.bridge.MulliganBridge
 import leyline.bridge.MulliganPhase
 import leyline.bridge.PhaseStopProfile
 import leyline.bridge.PrioritySignal
+import leyline.bridge.SeatId
 import leyline.bridge.WebPlayerController
 import leyline.config.MatchConfig
 import org.slf4j.LoggerFactory
@@ -192,11 +195,11 @@ class GameBridge(
 
     // --- Interface implementations (IdMapping, PlayerLookup, ZoneTracking, etc.) ---
 
-    override fun getOrAllocInstanceId(forgeCardId: Int): Int = ids.getOrAlloc(forgeCardId)
+    override fun getOrAllocInstanceId(forgeCardId: ForgeCardId): InstanceId = ids.getOrAlloc(forgeCardId)
 
-    override fun reallocInstanceId(forgeCardId: Int): InstanceIdRegistry.IdReallocation = ids.realloc(forgeCardId)
+    override fun reallocInstanceId(forgeCardId: ForgeCardId): InstanceIdRegistry.IdReallocation = ids.realloc(forgeCardId)
 
-    override fun getForgeCardId(instanceId: Int): Int? = ids.getForgeCardId(instanceId)
+    override fun getForgeCardId(instanceId: InstanceId): ForgeCardId? = ids.getForgeCardId(instanceId)
 
     /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */
     fun getInstanceIdMap(): Map<Int, Int> = ids.snapshot()
@@ -210,13 +213,13 @@ class GameBridge(
     /** Proto zone tracking — where the protocol last placed each instanceId. */
     fun getProtoZones(): Map<Int, Int> = diff.allZones()
 
-    override fun retireToLimbo(instanceId: Int) = limbo.retire(instanceId)
+    override fun retireToLimbo(instanceId: InstanceId) = limbo.retire(instanceId.value)
 
-    override fun getLimboInstanceIds(): List<Int> = limbo.all()
+    override fun getLimboInstanceIds(): List<InstanceId> = limbo.all().map { InstanceId(it) }
 
-    override fun recordZone(instanceId: Int, zoneId: Int): Int? = diff.recordZone(instanceId, zoneId)
+    override fun recordZone(instanceId: InstanceId, zoneId: Int): Int? = diff.recordZone(instanceId.value, zoneId)
 
-    override fun getPreviousZone(instanceId: Int): Int? = diff.getPreviousZone(instanceId)
+    override fun getPreviousZone(instanceId: InstanceId): Int? = diff.getPreviousZone(instanceId.value)
 
     override fun snapshotState(state: GameStateMessage) {
         diff.snapshotState(state)
@@ -391,7 +394,7 @@ class GameBridge(
 
     /** Get the current hand for a seat as client grpIds. */
     fun getHandGrpIds(seatId: Int): List<Int> {
-        val player = getPlayer(seatId) ?: return emptyList()
+        val player = getPlayer(SeatId(seatId)) ?: return emptyList()
         return player.getZone(ZoneType.Hand).cards.map { card ->
             cards.findGrpIdByName(card.name) ?: FALLBACK_GRPID
         }
@@ -399,7 +402,7 @@ class GameBridge(
 
     /** Full deck as client grpIds (for initial bundle deck message). */
     fun getDeckGrpIds(seatId: Int): List<Int> {
-        val player = getPlayer(seatId) ?: return emptyList()
+        val player = getPlayer(SeatId(seatId)) ?: return emptyList()
         // Combine library + hand + any other zones to reconstruct full deck
         val allCards = mutableListOf<String>()
         for (zone in listOf(ZoneType.Library, ZoneType.Hand)) {
@@ -410,7 +413,7 @@ class GameBridge(
 
     override fun getGame(): Game? = game
 
-    override fun getPlayer(seatId: Int): Player? = players[seatId]
+    override fun getPlayer(seatId: SeatId): Player? = players[seatId.value]
 
     /** Populate seat map by registration order (seat 1 = first, seat 2 = second). */
     private fun populateSeatMap(g: Game) {
@@ -543,7 +546,7 @@ class GameBridge(
 
     /** Get the current hand as Card objects for a seat. */
     fun getHandCards(seatId: Int): List<forge.game.card.Card> {
-        val player = getPlayer(seatId) ?: return emptyList()
+        val player = getPlayer(SeatId(seatId)) ?: return emptyList()
         return player.getZone(ZoneType.Hand).cards.toList()
     }
 
@@ -644,7 +647,7 @@ class GameBridge(
         shutdown()
 
         // Clear all mapping/tracking state from the previous game
-        val deletedIds = ids.resetAll()
+        val deletedIds = ids.resetAll().map { it.value }
         limbo.clear()
         diff.resetAll()
         effects.resetAll()
@@ -766,7 +769,7 @@ class GameBridge(
             for (zone in allZones) {
                 for (card in player.getZone(zone).cards) {
                     registrar.ensureCardRegisteredByName(card.name)
-                    ids.getOrAlloc(card.id)
+                    ids.getOrAlloc(ForgeCardId(card.id))
                     registered++
                 }
             }
@@ -785,7 +788,7 @@ class GameBridge(
             for (card in player.getZone(forge.game.zone.ZoneType.Battlefield).cards) {
                 val table = card.ptBoostTable
                 if (table.isEmpty) continue
-                val instanceId = ids.getOrAlloc(card.id)
+                val instanceId = ids.getOrAlloc(ForgeCardId(card.id))
                 val entries = table.cellSet().map { cell ->
                     EffectTracker.BoostEntry(
                         timestamp = cell.rowKey,
@@ -794,7 +797,7 @@ class GameBridge(
                         toughness = cell.value.right,
                     )
                 }
-                result[instanceId] = entries
+                result[instanceId.value] = entries
             }
         }
         return result

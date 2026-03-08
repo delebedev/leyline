@@ -9,6 +9,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
+import leyline.bridge.InstanceId
 import leyline.game.StateMapper
 import wotc.mtgo.gre.external.messaging.Messages.CardType
 
@@ -43,7 +44,7 @@ class CardInjectionTest :
             obj.toughness.value shouldBe 4
             obj.uniqueAbilitiesCount shouldBeGreaterThanOrEqual 2
 
-            b.getForgeCardId(injected.instanceId) shouldBe injected.forgeCardId
+            b.getForgeCardId(InstanceId(injected.instanceId))?.value shouldBe injected.forgeCardId
             b.cards.findByGrpId(injected.grpId).shouldNotBeNull()
             b.cards.findNameByGrpId(injected.grpId) shouldBe "Serra Angel"
 

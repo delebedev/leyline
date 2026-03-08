@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import leyline.IntegrationTag
 import leyline.bridge.GameBootstrap
+import leyline.bridge.SeatId
 
 /**
  * Tests for [ScriptedPlayerController] — verifies the scripted AI
@@ -53,7 +54,7 @@ class ScriptedPlayerControllerTest :
             h.passUntilTurn(2, maxPasses = 30)
 
             // After AI's turn 1, it should have played a Forest onto the battlefield
-            val aiPlayer = h.bridge.getPlayer(2)!!
+            val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
             val aiBf = aiPlayer.getZone(ZoneType.Battlefield)
             val forests = aiBf.cards.filter { it.name == "Forest" }
             forests.shouldNotBeEmpty()

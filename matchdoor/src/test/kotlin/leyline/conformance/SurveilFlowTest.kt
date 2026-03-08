@@ -7,6 +7,8 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
+import leyline.bridge.InstanceId
+import leyline.bridge.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -68,9 +70,9 @@ class SurveilFlowTest :
             // not the next card in library. This catches the bug where the engine
             // already removed the card before we read library top.
             val revealedInstanceId = req.instanceIdsList.first()
-            val forgeCardId = h.bridge.getForgeCardId(revealedInstanceId)
+            val forgeCardId = h.bridge.getForgeCardId(InstanceId(revealedInstanceId))
             forgeCardId.shouldNotBeNull()
-            val card = h.bridge.getGame()!!.findById(forgeCardId)
+            val card = h.bridge.getGame()!!.findById(checkNotNull(forgeCardId).value)
             card.shouldNotBeNull()
             card.name shouldBe "Grizzly Bears"
         }
@@ -90,7 +92,7 @@ class SurveilFlowTest :
             h.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
 
             // Grizzly Bears should NOT be in graveyard (kept on top of library)
-            val player = h.bridge.getPlayer(1)!!
+            val player = h.bridge.getPlayer(SeatId(1))!!
             val gyCards = player.getZone(ForgeZoneType.Graveyard).cards
             val bearsInGy = gyCards.any { it.name.equals("Grizzly Bears", ignoreCase = true) }
             bearsInGy.shouldBeFalse()
@@ -109,7 +111,7 @@ class SurveilFlowTest :
             h.respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Grizzly Bears should be in graveyard
-            val player = h.bridge.getPlayer(1)!!
+            val player = h.bridge.getPlayer(SeatId(1))!!
             val gyCards = player.getZone(ForgeZoneType.Graveyard).cards
             val bearsInGy = gyCards.any { it.name.equals("Grizzly Bears", ignoreCase = true) }
             bearsInGy.shouldBeTrue()

@@ -2,7 +2,9 @@ package leyline.game
 
 import forge.game.Game
 import forge.game.combat.CombatUtil
+import leyline.bridge.ForgeCardId
 import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.SeatId
 import leyline.game.mapper.PromptIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -45,7 +47,7 @@ object RequestBuilder {
         // sourceId: map the spell's entity ID to its client instanceId
         val sourceEntityId = prompt.request.sourceEntityId
         val sourceInstanceId = if (sourceEntityId != null) {
-            bridge.getOrAllocInstanceId(sourceEntityId)
+            bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
         } else {
             0
         }
@@ -61,7 +63,7 @@ object RequestBuilder {
                 instanceId = seatId
                 highlight = if (seatId == opponentSeatId) HighlightType.Hot else HighlightType.Cold
             } else {
-                instanceId = bridge.getOrAllocInstanceId(ref.entityId)
+                instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
                 // Tepid = blue/cyan "legal target" glow (matches real Arena).
                 // Cold (1) = yellowish-green, Hot (3) = bright/suggested,
                 // None (0) = no glow at all (proto default, field omitted).
@@ -99,7 +101,7 @@ object RequestBuilder {
             .setIdType(IdType.InstanceId_ab2c)
             .setValidationType(SelectionValidationType.NonRepeatable)
         for (ref in prompt.request.candidateRefs) {
-            val instanceId = bridge.getOrAllocInstanceId(ref.entityId)
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
             builder.addIds(instanceId)
         }
         builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
@@ -111,7 +113,7 @@ object RequestBuilder {
      * Each attacker includes legal damage recipients (opponent player seat).
      */
     fun buildDeclareAttackersReq(game: Game, seatId: Int, bridge: GameBridge): DeclareAttackersReq {
-        val player = bridge.getPlayer(seatId) ?: return DeclareAttackersReq.getDefaultInstance()
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return DeclareAttackersReq.getDefaultInstance()
         val builder = DeclareAttackersReq.newBuilder()
 
         val opponentSeatId = if (seatId == 1) 2 else 1
@@ -124,7 +126,7 @@ object RequestBuilder {
             if (!card.isCreature) continue
             if (!CombatUtil.canAttack(card)) continue
 
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             val attacker = Attacker.newBuilder()
                 .setAttackerInstanceId(instanceId)
                 .addLegalDamageRecipients(defaultRecipient)
@@ -153,18 +155,18 @@ object RequestBuilder {
         bridge: GameBridge,
         assignedBlockerIds: Set<Int> = emptySet(),
     ): DeclareBlockersReq {
-        val player = bridge.getPlayer(seatId) ?: return DeclareBlockersReq.getDefaultInstance()
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return DeclareBlockersReq.getDefaultInstance()
         val combat = game.phaseHandler.combat ?: return DeclareBlockersReq.getDefaultInstance()
         val builder = DeclareBlockersReq.newBuilder()
 
         // Collect attacker instanceIds
-        val attackerInstanceIds = combat.attackers.map { bridge.getOrAllocInstanceId(it.id) }
+        val attackerInstanceIds = combat.attackers.map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
 
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
             if (!CombatUtil.canBlock(card, combat)) continue
 
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             // Already-assigned blockers get empty attacker list (committed to their assignment)
             val availableAttackers = if (instanceId in assignedBlockerIds) emptyList() else attackerInstanceIds
             val blocker = Blocker.newBuilder()
@@ -184,8 +186,8 @@ object RequestBuilder {
      * Returns null if the entityId doesn't match either player.
      */
     private fun playerEntityIdToSeatId(entityId: Int, bridge: GameBridge): Int? {
-        val p1 = bridge.getPlayer(1)
-        val p2 = bridge.getPlayer(2)
+        val p1 = bridge.getPlayer(SeatId(1))
+        val p2 = bridge.getPlayer(SeatId(2))
         return when (entityId) {
             p1?.id -> 1
             p2?.id -> 2

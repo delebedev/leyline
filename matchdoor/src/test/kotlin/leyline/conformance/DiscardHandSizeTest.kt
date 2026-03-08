@@ -10,6 +10,7 @@ import io.kotest.matchers.comparables.shouldBeGreaterThanOrEqualTo
 import io.kotest.matchers.ints.shouldBeLessThanOrEqual
 import leyline.IntegrationTag
 import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.SeatId
 
 /**
  * Regression test: when hand exceeds maxHandSize at Cleanup, the engine
@@ -82,7 +83,7 @@ class DiscardHandSizeTest :
             // Pass until turn 4 (AI's turn) — this is AFTER turn 3's cleanup,
             // so the discard has resolved. Passing to turn 5 would stop at
             // human's Main1 where a fresh draw pushes hand back to 8.
-            val player = h.bridge.getPlayer(1)!!
+            val player = h.bridge.getPlayer(SeatId(1))!!
             val gyBefore = player.getZone(ZoneType.Graveyard).size()
 
             h.passUntilTurn(4)

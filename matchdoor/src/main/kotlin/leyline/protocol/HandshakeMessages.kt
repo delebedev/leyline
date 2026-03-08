@@ -1,5 +1,6 @@
 package leyline.protocol
 
+import leyline.bridge.SeatId
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
 import leyline.game.StateMapper
@@ -213,7 +214,7 @@ object HandshakeMessages {
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
             .addPlayers(
-                PlayerMapper.buildPlayerInfo(bridge.getPlayer(2), 2),
+                PlayerMapper.buildPlayerInfo(bridge.getPlayer(SeatId(2)), 2),
             )
             .setTurnInfo(
                 TurnInfo.newBuilder().setActivePlayer(2).setDecisionPlayer(1),
@@ -282,7 +283,7 @@ object HandshakeMessages {
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
             .addPlayers(
-                PlayerMapper.buildPlayerInfo(bridge.getPlayer(1), 1).toBuilder()
+                PlayerMapper.buildPlayerInfo(bridge.getPlayer(SeatId(1)), 1).toBuilder()
                     .setMulliganCount(mulliganCount)
                     .build(),
             )

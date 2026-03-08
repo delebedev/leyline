@@ -6,6 +6,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
+import leyline.bridge.ForgeCardId
 
 /**
  * Spell-forced discard conformance: simulates a spell effect causing
@@ -35,7 +36,7 @@ class SpellForcedDiscardTest :
             val gsm = base.captureAfterAction(b, game, counter) {
                 human.discard(cardInHand, null, false, AbilityKey.newMap())
             }
-            val newId = b.getOrAllocInstanceId(forgeCardId)
+            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId))
             zt.category shouldBe "Discard"
@@ -57,8 +58,8 @@ class SpellForcedDiscardTest :
                 human.discard(card2, null, false, AbilityKey.newMap())
             }
 
-            checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(card1.id))).category shouldBe "Discard"
-            checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(card2.id))).category shouldBe "Discard"
+            checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(ForgeCardId(card1.id)).value)).category shouldBe "Discard"
+            checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(ForgeCardId(card2.id)).value)).category shouldBe "Discard"
         }
 
         test("discard with spell resolved does not contaminate") {
@@ -78,7 +79,7 @@ class SpellForcedDiscardTest :
                 )
                 human.discard(discardTarget, null, false, AbilityKey.newMap())
             }
-            val newId = b.getOrAllocInstanceId(discardForgeId)
+            val newId = b.getOrAllocInstanceId(ForgeCardId(discardForgeId)).value
 
             checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Discard"
         }

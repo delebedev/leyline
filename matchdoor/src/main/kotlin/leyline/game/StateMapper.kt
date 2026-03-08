@@ -1,6 +1,9 @@
 package leyline.game
 
 import forge.game.Game
+import leyline.bridge.ForgeCardId
+import leyline.bridge.InstanceId
+import leyline.bridge.SeatId
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.ZoneIds
@@ -44,8 +47,8 @@ object StateMapper {
         viewingSeatId: Int = 0,
     ): GameStateMessage {
         val handler = game.phaseHandler
-        val human = bridge.getPlayer(1)
-        val ai = bridge.getPlayer(2)
+        val human = bridge.getPlayer(SeatId(1))
+        val ai = bridge.getPlayer(SeatId(2))
 
         val gameInfo = GameInfo.newBuilder()
             .setMatchID(matchId)
@@ -90,7 +93,7 @@ object StateMapper {
             .setType(ZoneType.Limbo)
             .setVisibility(Visibility.Public)
         for (id in bridge.getLimboInstanceIds()) {
-            limboZone.addObjectInstanceIds(id)
+            limboZone.addObjectInstanceIds(id.value)
         }
         zones.add(limboZone.build())
 
@@ -134,8 +137,8 @@ object StateMapper {
         }
         val transferResult = AnnotationPipeline.detectZoneTransfers(gameObjects, zones, bridge, events)
         // Apply deferred tracking side effects
-        for (id in transferResult.retiredIds) bridge.retireToLimbo(id)
-        for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(iid, zid)
+        for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
+        for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(InstanceId(iid), zid)
 
         // Stage 2: Generate annotations from transfers (pure, no side effects)
         val actingSeat = if (handler.priorityPlayer == human) 1 else 2
@@ -156,7 +159,7 @@ object StateMapper {
 
         // Stage 4: Mechanic annotations (Group B: counters, shuffle, scry, tokens + Group A+: attachments)
         val mechanicResult = AnnotationPipeline.mechanicAnnotations(events) { forgeCardId ->
-            bridge.getOrAllocInstanceId(forgeCardId)
+            bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
         }
         annotations.addAll(mechanicResult.transient)
 
@@ -213,7 +216,7 @@ object StateMapper {
 
         // Handle detached auras — remove their Attachment persistent annotations
         for (forgeCardId in mechanicResult.detachedForgeCardIds) {
-            val auraIid = bridge.getOrAllocInstanceId(forgeCardId)
+            val auraIid = bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
             val annId = bridge.findPersistentAnnotationByAura(auraIid)
             if (annId != null) {
                 bridge.removePersistentAnnotation(annId)
@@ -339,7 +342,7 @@ object StateMapper {
         if (actions != null) {
             builder.setPendingMessageCount(1)
             val handler = game.phaseHandler
-            val human = bridge.getPlayer(1)
+            val human = bridge.getPlayer(SeatId(1))
             val activeSeat = if (handler.priorityPlayer == human) 1 else 2
             for (action in actions.actionsList) {
                 builder.addActions(
@@ -377,7 +380,7 @@ object StateMapper {
      * used by postAction; aiActionDiff hardcodes SendAndRecord directly.
      */
     fun resolveUpdateType(game: Game, bridge: GameBridge, viewingSeatId: Int): GameStateUpdate {
-        val human = bridge.getPlayer(1)
+        val human = bridge.getPlayer(SeatId(1))
         val actingSeat = if (game.phaseHandler.priorityPlayer == human) 1 else 2
         return if (actingSeat == viewingSeatId) {
             GameStateUpdate.SendAndRecord
@@ -400,7 +403,7 @@ object StateMapper {
         val instanceIdToName = mutableMapOf<Int, String>()
         for (player in game.players) {
             for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-                val instanceId = bridge.getOrAllocInstanceId(card.id)
+                val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
                 instanceIdToName[instanceId] = card.name
             }
         }

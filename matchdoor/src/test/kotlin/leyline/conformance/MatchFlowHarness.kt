@@ -2,7 +2,9 @@ package leyline.conformance
 
 import forge.game.Game
 import forge.game.zone.ZoneType
+import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
+import leyline.bridge.SeatId
 import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
@@ -149,13 +151,13 @@ class MatchFlowHarness(
 
     /** Play a land from hand. Returns true if successful. */
     fun playLand(): Boolean {
-        val player = bridge.getPlayer(seatId) ?: return false
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
         val land = player.getZone(ZoneType.Hand).cards
             .firstOrNull { it.isLand } ?: return false
 
         val msg = performAction {
             actionType = ActionType.Play_add3
-            instanceId = bridge.getOrAllocInstanceId(land.id)
+            instanceId = bridge.getOrAllocInstanceId(ForgeCardId(land.id)).value
             grpId = bridge.cards.findGrpIdByName(land.name) ?: 0
         }
 
@@ -166,13 +168,13 @@ class MatchFlowHarness(
 
     /** Cast a creature from hand. Returns true if successful. */
     fun castCreature(): Boolean {
-        val player = bridge.getPlayer(seatId) ?: return false
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
         val creature = player.getZone(ZoneType.Hand).cards
             .firstOrNull { it.isCreature } ?: return false
 
         val msg = performAction {
             actionType = ActionType.Cast
-            instanceId = bridge.getOrAllocInstanceId(creature.id)
+            instanceId = bridge.getOrAllocInstanceId(ForgeCardId(creature.id)).value
             grpId = bridge.cards.findGrpIdByName(creature.name) ?: 0
         }
 
@@ -213,7 +215,7 @@ class MatchFlowHarness(
      */
     fun installScriptedAi(script: List<ScriptedAction>): ScriptedPlayerController {
         val game = game()
-        val aiPlayer = bridge.getPlayer(2)
+        val aiPlayer = bridge.getPlayer(SeatId(2))
             ?: error("No AI player found")
         val controller = ScriptedPlayerController(game, aiPlayer, script)
         // Use highest timestamp so this controller takes priority over the default AI
@@ -225,10 +227,10 @@ class MatchFlowHarness(
 
     /** Human's creatures on the battlefield: (instanceId, cardName). */
     fun humanBattlefieldCreatures(): List<Pair<Int, String>> {
-        val player = bridge.getPlayer(seatId) ?: return emptyList()
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return emptyList()
         return player.getZone(ZoneType.Battlefield).cards
             .filter { it.isCreature }
-            .map { bridge.getOrAllocInstanceId(it.id) to it.name }
+            .map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value to it.name }
     }
 
     /**
@@ -353,13 +355,13 @@ class MatchFlowHarness(
 
     /** Cast a spell by card name. Returns false if card not in hand. */
     fun castSpellByName(cardName: String): Boolean {
-        val player = bridge.getPlayer(seatId) ?: return false
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
         val card = player.getZone(ZoneType.Hand).cards
             .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
 
         val msg = performAction {
             actionType = ActionType.Cast
-            instanceId = bridge.getOrAllocInstanceId(card.id)
+            instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             grpId = bridge.cards.findGrpIdByName(card.name) ?: 0
         }
 
@@ -382,7 +384,7 @@ class MatchFlowHarness(
     fun phase(): String? = game().phaseHandler.phase?.name
     fun turn(): Int = game().phaseHandler.turn
     fun isAiTurn(): Boolean {
-        val human = bridge.getPlayer(seatId) ?: return false
+        val human = bridge.getPlayer(SeatId(seatId)) ?: return false
         return game().phaseHandler.playerTurn != human
     }
     fun isGameOver(): Boolean = game().isGameOver

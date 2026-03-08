@@ -6,7 +6,9 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import leyline.IntegrationTag
+import leyline.bridge.ForgeCardId
 import leyline.bridge.PlayerAction
+import leyline.bridge.SeatId
 import leyline.game.awaitFreshPending
 import leyline.game.snapshotFromGame
 
@@ -39,7 +41,7 @@ class ActivateAbilityTest :
         test("activate ability accepted by bridge") {
             // Use default deck — Llanowar Elves + Giant Growth + Forest
             val (b, game, _) = base.startGameAtMain1()
-            val player = b.getPlayer(1)!!
+            val player = b.getPlayer(SeatId(1))!!
 
             // Play Forest, cast Llanowar Elves, resolve
             base.playLand(b)
@@ -62,7 +64,7 @@ class ActivateAbilityTest :
             // Submit ActivateAbility — verifies MatchSession handler accepts it
             val submitted = b.actionBridge.submitAction(
                 pending.actionId,
-                PlayerAction.ActivateAbility(elf.id, 0),
+                PlayerAction.ActivateAbility(ForgeCardId(elf.id), 0),
             )
             // Bridge should accept the action (true = submitted to engine)
             submitted.shouldBeTrue()
@@ -70,7 +72,7 @@ class ActivateAbilityTest :
 
         test("activate ability does not pass priority") {
             val (b, game, _) = base.startGameAtMain1(deckList = jadeMageDeck)
-            val player = b.getPlayer(1)!!
+            val player = b.getPlayer(SeatId(1))!!
 
             // Quick setup: cast Jade Mage on turn 1 (need 2 mana).
             base.playLand(b)

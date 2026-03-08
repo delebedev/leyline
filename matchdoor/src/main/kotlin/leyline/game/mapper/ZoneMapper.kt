@@ -2,6 +2,7 @@ package leyline.game.mapper
 
 import forge.game.Game
 import forge.game.player.Player
+import leyline.bridge.ForgeCardId
 import leyline.game.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -49,7 +50,7 @@ object ZoneMapper {
             .setOwnerSeatId(seatId).setVisibility(Visibility.Private)
             .addViewers(seatId)
         for (card in hand.cards) {
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             handBuilder.addObjectInstanceIds(instanceId)
             if (canSeeHand) {
                 gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, handZoneId, seatId, bridge))
@@ -63,7 +64,7 @@ object ZoneMapper {
             .setZoneId(libZoneId).setType(ZoneType.Library)
             .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
         for (card in lib.cards) {
-            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(card.id))
+            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
         }
         zones.add(libBuilder.build())
 
@@ -73,7 +74,7 @@ object ZoneMapper {
             .setZoneId(gyZoneId).setType(ZoneType.Graveyard)
             .setOwnerSeatId(seatId).setVisibility(Visibility.Public)
         for (card in gy.cards) {
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             gyBuilder.addObjectInstanceIds(instanceId)
             gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, gyZoneId, seatId, bridge, Visibility.Public))
         }
@@ -103,7 +104,7 @@ object ZoneMapper {
         // no GameObjectInfo — client renders them face-down.
         val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId
         for (card in hand.cards) {
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             handBuilder.addObjectInstanceIds(instanceId)
             if (canSeeHand) {
                 gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, handZoneId, seatId, bridge))
@@ -117,7 +118,7 @@ object ZoneMapper {
             .setZoneId(libZoneId).setType(ZoneType.Library)
             .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
         for (card in lib.cards) {
-            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(card.id))
+            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
         }
         zones.add(libBuilder.build())
     }
@@ -147,7 +148,7 @@ object ZoneMapper {
         for (card in allCards) {
             val ownerSeatId = if (card.owner == human) 1 else 2
             val controllerSeatId = if (card.controller == human) 1 else 2
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             zoneBuilder.addObjectInstanceIds(instanceId)
 
             gameObjects.add(
@@ -180,12 +181,12 @@ object ZoneMapper {
 
         for (entry in stack) {
             val sourceCard = entry.sourceCard ?: continue
-            val cardInstanceId = bridge.getOrAllocInstanceId(sourceCard.id)
+            val cardInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceCard.id)).value
             // Skip if the source card is already represented in the stack zone
             if (cardInstanceId in existingIds) continue
 
             // Use a separate instance ID for the ability on the stack
-            val abilityInstanceId = bridge.getOrAllocInstanceId(sourceCard.id + STACK_ABILITY_ID_OFFSET)
+            val abilityInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceCard.id + STACK_ABILITY_ID_OFFSET)).value
             val ownerSeatId = if (sourceCard.owner == human) 1 else 2
             val grpId = bridge.cards.findGrpIdByName(sourceCard.name) ?: GameBridge.FALLBACK_GRPID
 
@@ -218,10 +219,10 @@ object ZoneMapper {
         val libBuilder = ZoneInfo.newBuilder().setZoneId(libZoneId).setType(ZoneType.Library)
             .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
         for (card in player.getZone(ForgeZoneType.Library).cards) {
-            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(card.id))
+            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
         }
         for (card in player.getZone(ForgeZoneType.Hand).cards) {
-            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(card.id))
+            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
         }
         zones.add(libBuilder.build())
         // Graveyard — empty

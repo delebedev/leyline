@@ -162,6 +162,7 @@ class MatchHandler(
         processGREMessage(ctx, greMsg)
     }
 
+    @Suppress("LongMethod", "CyclomaticComplexMethod")
     private fun processGREMessage(ctx: ChannelHandlerContext, greMsg: ClientToGREMessage) {
         Tap.inboundGRE(greMsg.type, greMsg.systemSeatId, greMsg.gameStateId)
         val s = session
