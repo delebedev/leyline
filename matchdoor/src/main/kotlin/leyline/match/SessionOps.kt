@@ -32,4 +32,39 @@ interface SessionOps {
         msgId: Int,
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage
+
+    // -- Action handlers -- default no-ops for read-only sessions ----------
+
+    /** Handle PerformActionResp. Default no-op for read-only sessions. */
+    fun onPerformAction(greMsg: ClientToGREMessage) {}
+
+    /** Handle DeclareAttackersResp. Default no-op for read-only sessions. */
+    fun onDeclareAttackers(greMsg: ClientToGREMessage) {}
+
+    /** Handle DeclareBlockersResp. Default no-op for read-only sessions. */
+    fun onDeclareBlockers(greMsg: ClientToGREMessage) {}
+
+    /** Handle SelectTargetsResp. Default no-op for read-only sessions. */
+    fun onSelectTargets(greMsg: ClientToGREMessage) {}
+
+    /** Handle SelectNResp. Default no-op for read-only sessions. */
+    fun onSelectN(greMsg: ClientToGREMessage) {}
+
+    /** Handle GroupResp. Default no-op for read-only sessions. */
+    fun onGroupResp(greMsg: ClientToGREMessage) {}
+
+    /** Handle CancelActionResp. Default no-op for read-only sessions. */
+    fun onCancelAction(greMsg: ClientToGREMessage) {}
+
+    /** Handle concession. Default no-op for read-only sessions. */
+    fun onConcede() {}
+
+    /** Handle settings update. Default no-op for read-only sessions. */
+    fun onSettings(greMsg: ClientToGREMessage) {}
+
+    /** Handle mulligan keep decision. Default no-op for read-only sessions. */
+    fun onMulliganKeep() {}
+
+    /** Handle puzzle start. Default no-op for read-only sessions. */
+    fun onPuzzleStart() {}
 }
