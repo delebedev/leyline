@@ -335,3 +335,85 @@ class TestRealData:
         # History should have entries (capped at 8)
         history_count = sum(1 for i in range(100) if acc.get_state(i) is not None)
         assert 0 < history_count <= 8
+
+
+# ---------------------------------------------------------------------------
+# Persistent annotation tracking
+# ---------------------------------------------------------------------------
+
+class TestPersistentAnnotations:
+    def test_full_state_captures_persistent(self):
+        acc = Accumulator()
+        acc.apply(_full_state(
+            gameStateId=1,
+            annotations=[
+                {"id": 10, "type": ["AnnotationType_Counter"], "affectedIds": [100]},
+                {"id": 11, "type": ["AnnotationType_ZoneTransfer"], "affectedIds": [200]},
+            ],
+        ))
+        # Counter is persistent, ZoneTransfer is not
+        assert 10 in acc.persistent_annotations
+        assert 11 not in acc.persistent_annotations
+
+    def test_diff_adds_new_persistent(self):
+        acc = Accumulator()
+        acc.apply(_full_state(gameStateId=1))
+        acc.apply(_diff_state(
+            gameStateId=2,
+            annotations=[
+                {"id": 20, "type": ["AnnotationType_LayeredEffect"], "affectedIds": [300],
+                 "details": [{"key": "effect_id", "type": "KeyValuePairValueType_int32", "valueInt32": [7007]}]},
+            ],
+        ))
+        assert 20 in acc.persistent_annotations
+        a = acc.persistent_annotations[20]
+        assert a.details.get("effect_id") == 7007
+
+    def test_diff_deleted_removes_persistent(self):
+        acc = Accumulator()
+        acc.apply(_full_state(
+            gameStateId=1,
+            annotations=[
+                {"id": 10, "type": ["AnnotationType_Counter"], "affectedIds": [100]},
+            ],
+        ))
+        assert 10 in acc.persistent_annotations
+
+        # Diff deletes the persistent annotation
+        diff_raw = {
+            "type": "GameStateType_Diff",
+            "gameStateId": 2,
+            "prevGameStateId": 1,
+            "diffDeletedPersistentAnnotationIds": [10],
+        }
+        acc.apply(GameState.from_raw(diff_raw))
+        assert 10 not in acc.persistent_annotations
+
+    def test_reset_clears_persistent(self):
+        acc = Accumulator()
+        acc.apply(_full_state(
+            gameStateId=1,
+            annotations=[
+                {"id": 10, "type": ["AnnotationType_Counter"], "affectedIds": [100]},
+            ],
+        ))
+        acc.reset()
+        assert len(acc.persistent_annotations) == 0
+
+    def test_full_state_resets_persistent(self):
+        acc = Accumulator()
+        acc.apply(_full_state(
+            gameStateId=1,
+            annotations=[
+                {"id": 10, "type": ["AnnotationType_Counter"], "affectedIds": [100]},
+            ],
+        ))
+        # New Full state — persistent set rebuilds from scratch
+        acc.apply(_full_state(
+            gameStateId=5,
+            annotations=[
+                {"id": 20, "type": ["AnnotationType_LayeredEffect"], "affectedIds": [200]},
+            ],
+        ))
+        assert 10 not in acc.persistent_annotations
+        assert 20 in acc.persistent_annotations
