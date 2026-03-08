@@ -114,7 +114,7 @@ class PuzzleCardRegistrar(
         val toughness = if (type.isCreature) rules.intToughness.let { if (it == Integer.MAX_VALUE) "0" else it.toString() } else ""
 
         val manaCost = deriveManaCost(rules.manaCost)
-        val abilityIds = deriveAbilityIds(card)
+        val (abilityIds, keywordAbilityGrpIds) = deriveAbilityIds(card)
 
         return CardData(
             grpId = grpId,
@@ -127,6 +127,7 @@ class PuzzleCardRegistrar(
             supertypes = supertypes,
             abilityIds = abilityIds,
             manaCost = manaCost,
+            keywordAbilityGrpIds = keywordAbilityGrpIds,
         )
     }
 
@@ -142,15 +143,27 @@ class PuzzleCardRegistrar(
         return counts.toList()
     }
 
-    private fun deriveAbilityIds(card: Card): List<Pair<Int, Int>> {
+    /** Returns (abilityIds, keywordAbilityGrpIds). */
+    private fun deriveAbilityIds(card: Card): Pair<List<Pair<Int, Int>>, Map<String, Int>> {
         val subtypes = card.type.subtypes.map { it.lowercase() }
         for ((subtype, abilityId) in BASIC_LAND_ABILITIES) {
-            if (subtype in subtypes) return listOf(abilityId to 0)
+            if (subtype in subtypes) return listOf(abilityId to 0) to emptyMap()
         }
-        val keywordCount = card.rules?.mainPart?.keywords?.count() ?: 0
+        val keywords = card.rules?.mainPart?.keywords?.toList() ?: emptyList()
         val spellAbilityCount = maxOf(0, (card.spellAbilities?.size ?: 1) - 1)
-        val totalCount = maxOf(1, keywordCount + spellAbilityCount)
-        return (0 until totalCount).map { nextAbilityGrpId.getAndIncrement() to 0 }
+        val totalCount = maxOf(1, keywords.size + spellAbilityCount)
+
+        val abilityIds = (0 until totalCount).map { nextAbilityGrpId.getAndIncrement() to 0 }
+
+        // Map keyword names to their assigned abilityGrpId slots (keywords come first)
+        val keywordMap = mutableMapOf<String, Int>()
+        for ((i, kw) in keywords.withIndex()) {
+            if (i < abilityIds.size) {
+                // Keywords are raw strings like "Prowess", "Flying", "Lifelink"
+                keywordMap[kw.uppercase()] = abilityIds[i].first
+            }
+        }
+        return abilityIds to keywordMap
     }
 
     companion object {

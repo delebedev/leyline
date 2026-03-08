@@ -1,0 +1,18 @@
+[metadata]
+Name:Prowess P/T Buff
+Goal:Cast a noncreature spell to trigger Prowess. Verify LayeredEffectCreated fires.
+Turns:5
+Difficulty:Easy
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Monastery Swiftspear;Mountain;Forest
+humanhand=Giant Growth;Shock
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Grizzly Bears
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

@@ -19,6 +19,30 @@ Research one annotation type from the `proto-annotation-variance` report. Combin
 
 ## Process
 
+### 0. HARD GATE — Extract full contract BEFORE any manual investigation
+
+Run `rec-annotation-contract` on every proxy session that has the type. This extracts the complete annotation shape (multi-types, affectorId, detail keys, companions, lifecycle) in seconds. **Do not skip this step.**
+
+```bash
+# Find sessions with relevant cards
+just rec-find "<CardName>"
+
+# Extract full contract from a proxy session
+just rec-annotation-contract <session> <TypeName>
+
+# Narrow to a specific effect ID if needed
+just rec-annotation-contract <session> <TypeName> <effectId>
+```
+
+The contract output gives you:
+- **Type arrays** — multi-type co-occurrence (e.g. `[ModifiedPower, ModifiedToughness, LayeredEffect]`)
+- **affectorId pattern** — always/never/sometimes set, and what it points to
+- **Detail keys** — frequency, value type, samples
+- **Companion annotations** — other types in same GSM with related IDs
+- **Lifecycle** — Created → Persistent → Destroyed timeline
+
+**This is the ground truth.** Everything below is verification and enrichment.
+
 ### 1. Variance report
 
 ```bash
@@ -28,18 +52,15 @@ just proto-annotation-variance 2>&1 | grep -A 20 '## <TypeName> '
 Extract:
 - Instance count and session spread
 - Status (NOT IMPLEMENTED / MISMATCH / OK)
-- Detail keys: Always / Sometimes / Samples
-- Sample instances with gsId, affectedIds, file references
+- Cross-session detail key frequency (complements per-session contract)
 
-### 2. Recording extraction
+### 2. Recording deep-dive (if contract output needs clarification)
 
-Find all instances across recordings with full context:
+Only needed when the contract output raises questions. The contract tool handles most cases.
+
+For edge cases, manually inspect:
 
 ```python
-# Search persistentAnnotations (persistent state) and annotations (one-shot events)
-# The type may appear in either or both — check the disjoint catalog:
-#   persistentAnnotations: ongoing effects, counters, granted abilities, markers
-#   annotations: one-shot events (zone transfers, damage, taps)
 for ann in d.get("persistentAnnotations", []) + d.get("annotations", []):
     if "<TypeName>" in ann.get("types", []):
         # extract affectedIds, affectorId, details
@@ -48,8 +69,8 @@ for ann in d.get("persistentAnnotations", []) + d.get("annotations", []):
 Track:
 - **Affected cards** (instanceId → grpId from objects in same GSM)
 - **Detail key values** — distribution, not just samples
-- **Dual-typed annotations** — some have two types e.g. `["AddAbility", "LayeredEffect"]`
-- **Lifecycle** — does it appear, persist across GSMs, then disappear? Or one-shot?
+- **Multi-typed annotations** — the contract tool shows these, verify if unclear
+- **Lifecycle** — the contract tool shows Created/Persistent/Destroyed events
 
 ### 3. Resolve names
 
@@ -113,6 +134,13 @@ Output as a structured artifact:
 ### Dependencies
 <Other annotations this relates to, e.g. AddAbility depends on LayeredEffect>
 
+### Implementation contract (from rec-annotation-contract)
+- Type array: `[<types>]`
+- affectorId: always/never/sometimes — points to <what>
+- Detail keys: <key=frequency>
+- Companion transients: <types>
+- Lifecycle: Created→Persistent→Destroyed / one-shot / permanent
+
 ### Implementation notes
 <Anything notable: enum mappings needed, lifecycle complexity, Forge API to read from>
 ```
@@ -137,9 +165,12 @@ Any mapping between Forge events and proto values must account for display names
 
 ## Key conventions
 
-- **Use tooling, not manual grep.** `proto-annotation-variance` is the entry point. `just card`/`just ability` for name resolution.
+- **Contract first, code never.** Always run `rec-annotation-contract` before writing any annotation code. The contract shows multi-types, affectorId, companions — things the variance report misses.
+- **Use tooling, not manual grep.** `rec-find` for card lookup, `rec-annotation-contract` for full shape, `proto-annotation-variance` for cross-session stats. `just card`/`just ability` for name resolution.
 - **One annotation at a time.** Don't batch — each has unique detail keys and semantics.
-- **Dual-typed annotations are common.** `["AddAbility", "LayeredEffect"]` — document both types and their relationship.
+- **Multi-typed annotations are the norm.** `["AddAbility", "LayeredEffect"]`, `["ModifiedPower", "ModifiedToughness", "LayeredEffect"]` — the type array is part of the contract. Don't emit a single type when the real server sends three.
+- **affectorId matters.** It drives client behavior (animation source, linking). Check the contract — it tells you if it's always/never/sometimes set.
+- **Check companion annotations.** `PowerToughnessModCreated` alongside `LayeredEffectCreated`, `ResolutionComplete` alongside ability resolution — companions are part of the contract.
 - **Check lifecycle.** Some persistent annotations appear once and stay forever. Others update (count changes) or get removed. Note which.
 - **Don't propose fixes.** This is research, not implementation. The field note feeds into plan-fix.
 - **Variance report can be misleading.** "NOT IMPLEMENTED" means not in proxy recordings — check our code first before assuming a gap.

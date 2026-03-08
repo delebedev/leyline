@@ -43,15 +43,25 @@ rec-compare left right: (_require classpath) check-java
 rec-analyze session *args: (_require classpath) check-java
     @{{_cli}} leyline.analysis.AnalysisCliKt analyze "{{session}}" {{args}}
 
-# run analysis on all sessions missing analysis.json
+# run analysis on all sessions missing analysis.json (--force to rebuild)
 [group('recording')]
-rec-analyze-all: (_require classpath) check-java
-    @{{_cli}} leyline.analysis.AnalysisCliKt analyze-all
+rec-analyze-all *args: (_require classpath) check-java
+    @{{_cli}} leyline.analysis.AnalysisCliKt analyze-all {{args}}
 
 # show invariant violations (latest session if omitted)
 [group('recording')]
 rec-violations session="": (_require classpath) check-java
     @{{_cli}} leyline.analysis.AnalysisCliKt violations {{session}}
+
+# search card names across all analyzed sessions
+[group('recording')]
+rec-find keyword: (_require classpath) check-java
+    @{{_cli}} leyline.analysis.AnalysisCliKt find "{{keyword}}"
+
+# extract full annotation contract from a session (types, affectorId, keys, companions, lifecycle)
+[group('recording')]
+rec-annotation-contract session type effectId="": (_require classpath) check-java
+    @{{_cli}} leyline.analysis.AnalysisCliKt annotation-contract "{{session}}" "{{type}}" {{effectId}}
 
 # show cross-session mechanic coverage report
 [group('recording')]

@@ -270,6 +270,27 @@ private val OUR_BUILDERS: Map<String, Set<String>> by lazy {
         "RemoveAttachment" to keysOf(AnnotationBuilder.removeAttachment(1)),
         "RevealedCardCreated" to keysOf(AnnotationBuilder.revealedCardCreated(1)),
         "RevealedCardDeleted" to keysOf(AnnotationBuilder.revealedCardDeleted(1)),
+        // Tier 1 state annotations
+        "Counter" to keysOf(AnnotationBuilder.counter(1, 1, 1)),
+        "AddAbility" to keysOf(AnnotationBuilder.addAbility(1, 1, 1, 1, 1)),
+        "RemoveAbility" to keysOf(AnnotationBuilder.removeAbility(1, 1)),
+        "AbilityExhausted" to keysOf(AnnotationBuilder.abilityExhausted(1, 1, 0, 1)),
+        "GainDesignation" to keysOf(AnnotationBuilder.gainDesignation(1, 19)),
+        "Designation" to keysOf(AnnotationBuilder.designation(1, 19)),
+        "LayeredEffect" to keysOf(AnnotationBuilder.layeredEffect(1, 7000, powerDelta = 1, toughnessDelta = 1)),
+        // Tier 2 detail-carrying annotations
+        "ColorProduction" to keysOf(AnnotationBuilder.colorProduction(1, 4)),
+        "TriggeringObject" to keysOf(AnnotationBuilder.triggeringObject(1, 27)),
+        "TargetSpec" to keysOf(AnnotationBuilder.targetSpec(1, 1, 1, 1, 1)),
+        "PowerToughnessModCreated" to keysOf(AnnotationBuilder.powerToughnessModCreated(1, 1, 1)),
+        "DisplayCardUnderCard" to keysOf(AnnotationBuilder.displayCardUnderCard(1)),
+        "PredictedDirectDamage" to keysOf(AnnotationBuilder.predictedDirectDamage(1, 2)),
+        // Tier 2 detail-less annotations
+        "LayeredEffectDestroyed" to keysOf(AnnotationBuilder.layeredEffectDestroyed(1)),
+        "PlayerSelectingTargets" to keysOf(AnnotationBuilder.playerSelectingTargets(1)),
+        "PlayerSubmittedTargets" to keysOf(AnnotationBuilder.playerSubmittedTargets(1)),
+        "DamagedThisTurn" to keysOf(AnnotationBuilder.damagedThisTurn(1)),
+        "InstanceRevealedToOpponent" to keysOf(AnnotationBuilder.instanceRevealedToOpponent(1)),
     )
 }
 

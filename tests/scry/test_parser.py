@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
-from scry_lib.parser import GREBlock, parse_gre_blocks
+from scry_lib.parser import GREBlock, parse_gre_blocks, parse_log
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -12,6 +12,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # ---------------------------------------------------------------------------
 # GREBlock unit tests
 # ---------------------------------------------------------------------------
+
 
 class TestGREBlock:
     def test_has_game_state_true(self):
@@ -31,7 +32,10 @@ class TestGREBlock:
         assert block.has_game_state is False
 
     def test_game_state_messages(self):
-        gsm = {"type": "GREMessageType_GameStateMessage", "gameStateMessage": {"gameStateId": 1}}
+        gsm = {
+            "type": "GREMessageType_GameStateMessage",
+            "gameStateMessage": {"gameStateId": 1},
+        }
         other = {"type": "GREMessageType_ConnectResp"}
         block = GREBlock(messages=[other, gsm])
         result = block.game_state_messages()
@@ -45,6 +49,7 @@ class TestGREBlock:
 # ---------------------------------------------------------------------------
 # parse_gre_blocks
 # ---------------------------------------------------------------------------
+
 
 class TestParseGREBlocks:
     def test_fixture_block_count(self):
@@ -118,3 +123,61 @@ class TestParseGREBlocks:
         blocks = list(parse_gre_blocks(lines))
         types = [m["type"] for m in blocks[2].messages]
         assert "GREMessageType_MulliganReq" in types
+
+
+# ---------------------------------------------------------------------------
+# Standalone GRE lines (no header)
+# ---------------------------------------------------------------------------
+
+
+class TestStandaloneGRE:
+    def test_standalone_gre_parsed_by_parse_log(self):
+        """GRE JSON without a header line should be parsed as a GREBlock."""
+        line = '{ "greToClientEvent": { "greToClientMessages": [{"type": "GREMessageType_ConnectResp"}] } }'
+        blocks = [e for e in parse_log([line]) if isinstance(e, GREBlock)]
+        assert len(blocks) == 1
+        assert blocks[0].messages[0]["type"] == "GREMessageType_ConnectResp"
+        assert blocks[0].timestamp is None
+
+    def test_standalone_extracts_match_id_from_game_info(self):
+        line = json.dumps(
+            {
+                "greToClientEvent": {
+                    "greToClientMessages": [
+                        {
+                            "type": "GREMessageType_GameStateMessage",
+                            "gameStateMessage": {
+                                "type": "GameStateType_Full",
+                                "gameStateId": 2,
+                                "gameInfo": {"matchID": "standalone-match-123"},
+                            },
+                        }
+                    ],
+                },
+            }
+        )
+        blocks = [e for e in parse_log([line]) if isinstance(e, GREBlock)]
+        assert len(blocks) == 1
+        assert blocks[0].match_id == "standalone-match-123"
+
+    def test_standalone_no_match_id_when_absent(self):
+        line = '{ "greToClientEvent": { "greToClientMessages": [{"type": "GREMessageType_ActionsAvailableReq"}] } }'
+        blocks = [e for e in parse_log([line]) if isinstance(e, GREBlock)]
+        assert len(blocks) == 1
+        assert blocks[0].match_id is None
+
+    def test_mixed_header_and_standalone(self):
+        """Header-style block (2 lines) followed by standalone GRE line."""
+        lines = [
+            "[UnityCrossThreadLogger]08/03/2026 10:21:24: Match to 9da3ee9f-0d6a-4b18-a3e0-c9e315d2475b: GreToClientEvent",
+            '{ "greToClientEvent": { "greToClientMessages": [{"type": "GREMessageType_ConnectResp"}] } }',
+            "some other log line",
+            '{ "greToClientEvent": { "greToClientMessages": [{"type": "GREMessageType_ActionsAvailableReq"}] } }',
+        ]
+        blocks = [e for e in parse_log(lines) if isinstance(e, GREBlock)]
+        # Line 0+1 = header-style block, line 3 = standalone
+        assert len(blocks) == 2
+        assert blocks[0].match_id == "9da3ee9f-0d6a-4b18-a3e0-c9e315d2475b"
+        assert blocks[0].timestamp == "08/03/2026 10:21:24"
+        assert blocks[1].match_id is None
+        assert blocks[1].timestamp is None

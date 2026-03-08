@@ -1,0 +1,18 @@
+[metadata]
+Name:Pump Spell P/T Buff
+Goal:Cast Giant Growth targeting a creature. Verify LayeredEffectCreated fires.
+Turns:5
+Difficulty:Easy
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Grizzly Bears;Forest
+humanhand=Giant Growth
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Runeclaw Bear
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
