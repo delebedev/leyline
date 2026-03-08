@@ -427,6 +427,18 @@ object AnnotationPipeline {
                 ),
             )
 
+            // Transient companion: PowerToughnessModCreated (drives buff animation)
+            if (effect.powerDelta != 0 || effect.toughnessDelta != 0) {
+                transient.add(
+                    AnnotationBuilder.powerToughnessModCreated(
+                        instanceId = effect.cardInstanceId,
+                        power = effect.powerDelta,
+                        toughness = effect.toughnessDelta,
+                        affectorId = effect.cardInstanceId,
+                    ),
+                )
+            }
+
             // Persistent: multi-typed [ModifiedToughness, ModifiedPower, LayeredEffect]
             // No LayeredEffectType for P/T buffs — real server only uses that for CopyObject
             persistent.add(
