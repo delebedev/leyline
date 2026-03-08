@@ -114,7 +114,7 @@ class MatchSession(
         // Drain AI action diffs queued during awaitPriority.
         // These have gsIds allocated by the engine thread via the shared counter
         // during awaitPriority. Send them first (lower gsIds).
-        val playback = bridge.playback
+        val playback = bridge.playbacks[SeatId(seatId)]
         if (playback != null) {
             for (batch in playback.drainQueue()) {
                 sendBundledGRE(batch)
