@@ -5,6 +5,7 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
+import leyline.bridge.ForgeCardId
 
 /**
  * Removal spell flow conformance: simulates removal effects resolving
@@ -32,7 +33,7 @@ class RemovalSpellFlowTest :
                 game.action.moveToHand(creature, null)
             }
 
-            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(forgeCardId)))
+            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value))
             zt.category shouldBe "Bounce"
         }
 
@@ -47,7 +48,7 @@ class RemovalSpellFlowTest :
                 game.action.destroy(creature, null, false, AbilityKey.newMap())
             }
 
-            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(forgeCardId)))
+            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value))
             zt.category shouldBe "Destroy"
         }
 
@@ -62,7 +63,7 @@ class RemovalSpellFlowTest :
                 game.action.exile(creature, null, AbilityKey.newMap())
             }
 
-            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(forgeCardId)))
+            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value))
             zt.category shouldBe "Exile"
         }
 
@@ -83,7 +84,7 @@ class RemovalSpellFlowTest :
                 game.action.exile(creature, null, AbilityKey.newMap())
             }
 
-            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(creatureForgeId)))
+            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value))
             zt.category shouldBe "Exile"
         }
     })

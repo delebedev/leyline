@@ -9,6 +9,8 @@ import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
+import leyline.bridge.ForgeCardId
+import leyline.bridge.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -76,7 +78,7 @@ class TargetingFlowTest :
             val creatures = h.humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
 
-            val player = h.bridge.getPlayer(1)!!
+            val player = h.bridge.getPlayer(SeatId(1))!!
             val hasGiantGrowth = player.getZone(ForgeZoneType.Hand).cards
                 .any { it.name.equals("Giant Growth", ignoreCase = true) }
             hasGiantGrowth.shouldBeTrue()
@@ -140,9 +142,9 @@ class TargetingFlowTest :
             gsms.shouldNotBeEmpty()
 
             // The creature should have updated power/toughness (+3/+3 from Giant Growth)
-            val player = h.bridge.getPlayer(1)!!
+            val player = h.bridge.getPlayer(SeatId(1))!!
             val creature = player.getZone(ForgeZoneType.Battlefield).cards
-                .firstOrNull { h.bridge.getOrAllocInstanceId(it.id) == creatureIid }
+                .firstOrNull { h.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value == creatureIid }
             creature.shouldNotBeNull()
             (creature.netPower >= 4).shouldBeTrue()
             (creature.netToughness >= 4).shouldBeTrue()
@@ -259,7 +261,7 @@ class TargetingFlowTest :
             h.accumulator.assertConsistent("after spell resolution zone transfer")
 
             // Verify the spell is actually in graveyard now
-            val player = h.bridge.getPlayer(1)!!
+            val player = h.bridge.getPlayer(SeatId(1))!!
             val gyCards = player.getZone(ForgeZoneType.Graveyard).cards
             val giantGrowthInGy = gyCards.any { it.name.equals("Giant Growth", ignoreCase = true) }
             giantGrowthInGy.shouldBeTrue()
@@ -289,9 +291,9 @@ class TargetingFlowTest :
                 }
 
                 // Creature should have +6/+6 (two Giant Growths)
-                val player = h.bridge.getPlayer(1)!!
+                val player = h.bridge.getPlayer(SeatId(1))!!
                 val creature = player.getZone(ForgeZoneType.Battlefield).cards
-                    .firstOrNull { h.bridge.getOrAllocInstanceId(it.id) == creatureIid }
+                    .firstOrNull { h.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value == creatureIid }
                 if (creature != null) {
                     (creature.netPower >= 7).shouldBeTrue()
                 }
@@ -325,7 +327,7 @@ class TargetingFlowTest :
             game.stack.isEmpty.shouldBeTrue()
 
             // Giant Growth should be back in hand
-            val player = h.bridge.getPlayer(1)!!
+            val player = h.bridge.getPlayer(SeatId(1))!!
             val handCards = player.getZone(ForgeZoneType.Hand).cards
             val hasGG = handCards.any { it.name.equals("Giant Growth", ignoreCase = true) }
             hasGG.shouldBeTrue()
@@ -360,9 +362,9 @@ class TargetingFlowTest :
             h.passPriority()
 
             // Creature should have +3/+3
-            val player = h.bridge.getPlayer(1)!!
+            val player = h.bridge.getPlayer(SeatId(1))!!
             val creature = player.getZone(ForgeZoneType.Battlefield).cards
-                .firstOrNull { h.bridge.getOrAllocInstanceId(it.id) == creatureIid }
+                .firstOrNull { h.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value == creatureIid }
             creature.shouldNotBeNull()
             (creature.netPower >= 4).shouldBeTrue()
 

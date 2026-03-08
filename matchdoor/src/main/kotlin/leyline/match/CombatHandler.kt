@@ -2,7 +2,12 @@ package leyline.match
 
 import forge.game.Game
 import forge.game.phase.PhaseType
+import leyline.bridge.ForgeCardId
+import leyline.bridge.ForgePlayerId
+import leyline.bridge.InstanceId
 import leyline.bridge.PlayerAction
+import leyline.bridge.SeatId
+import leyline.bridge.Target
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
@@ -115,7 +120,7 @@ class CombatHandler(private val ops: SessionOps) {
         )
 
         val attackerCardIds = selectedInstanceIds.mapNotNull { instanceId ->
-            val forgeId = bridge.getForgeCardId(instanceId)
+            val forgeId = bridge.getForgeCardId(InstanceId(instanceId))
             if (forgeId == null) {
                 log.warn("CombatHandler: instanceId {} not in map (map size={})", instanceId, bridge.getInstanceIdMap().size)
             }
@@ -136,13 +141,13 @@ class CombatHandler(private val ops: SessionOps) {
 
         // Resolve the defending player: the opponent of the active (attacking) player.
         val game = bridge.getGame()
-        val humanPlayer = bridge.getPlayer(ops.seatId)
+        val humanPlayer = bridge.getPlayer(SeatId(ops.seatId))
         val defenderPlayerId = game?.players
             ?.firstOrNull { it != humanPlayer }?.id
 
         bridge.actionBridge.submitAction(
             pending.actionId,
-            PlayerAction.DeclareAttackers(attackerCardIds, defenderPlayerId = defenderPlayerId),
+            PlayerAction.DeclareAttackers(attackerCardIds, defender = defenderPlayerId?.let { Target.Player(ForgePlayerId(it)) }),
         )
         bridge.awaitPriority()
         autoPass(bridge)
@@ -179,13 +184,13 @@ class CombatHandler(private val ops: SessionOps) {
         )
 
         val game = bridge.getGame()
-        val humanPlayer = bridge.getPlayer(ops.seatId)
+        val humanPlayer = bridge.getPlayer(SeatId(ops.seatId))
         val defenderPlayerId = game?.players
             ?.firstOrNull { it != humanPlayer }?.id
 
         bridge.actionBridge.submitAction(
             pending.actionId,
-            PlayerAction.DeclareAttackers(emptyList(), defenderPlayerId = defenderPlayerId),
+            PlayerAction.DeclareAttackers(emptyList(), defender = defenderPlayerId?.let { Target.Player(ForgePlayerId(it)) }),
         )
         bridge.awaitPriority()
         autoPass(bridge)
@@ -236,10 +241,10 @@ class CombatHandler(private val ops: SessionOps) {
             return
         }
 
-        val blockAssignments = mutableMapOf<Int, Int>()
+        val blockAssignments = mutableMapOf<ForgeCardId, ForgeCardId>()
         for ((blockerIid, attackerIid) in lastDeclaredBlockAssignments) {
-            val blockerCardId = bridge.getForgeCardId(blockerIid) ?: continue
-            val attackerCardId = bridge.getForgeCardId(attackerIid) ?: continue
+            val blockerCardId = bridge.getForgeCardId(InstanceId(blockerIid)) ?: continue
+            val attackerCardId = bridge.getForgeCardId(InstanceId(attackerIid)) ?: continue
             blockAssignments[blockerCardId] = attackerCardId
         }
         lastDeclaredBlockAssignments.clear()

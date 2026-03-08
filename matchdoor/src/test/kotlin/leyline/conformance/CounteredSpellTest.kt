@@ -5,6 +5,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
+import leyline.bridge.ForgeCardId
+import leyline.bridge.SeatId
 import leyline.game.snapshotFromGame
 
 /**
@@ -32,14 +34,14 @@ class CounteredSpellTest :
             b.snapshotFromGame(game, counter.nextGsId())
 
             // Cast creature (goes to Stack)
-            val player = b.getPlayer(1)!!
+            val player = b.getPlayer(SeatId(1))!!
             val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
                 ?: error("No creature in hand")
             val forgeCardId = creature.id
 
             base.castCreature(b)
             b.snapshotFromGame(game, counter.nextGsId())
-            val stackId = b.getOrAllocInstanceId(forgeCardId)
+            val stackId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
             // Now counter it: move from Stack to Graveyard directly.
             val stackCard = game.stackZone.cards.firstOrNull { it.id == forgeCardId }
@@ -49,7 +51,7 @@ class CounteredSpellTest :
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.moveToGraveyard(stackCard, null)
             }
-            val newId = b.getOrAllocInstanceId(forgeCardId)
+            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
             // Assert: ZoneTransfer annotation with "Countered" category
             val zt = gsm.findZoneTransfer(newId) ?: gsm.findZoneTransfer(stackId)
@@ -67,7 +69,7 @@ class CounteredSpellTest :
             base.playLand(b)
             b.snapshotFromGame(game, counter.nextGsId())
 
-            val player = b.getPlayer(1)!!
+            val player = b.getPlayer(SeatId(1))!!
             val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
                 ?: error("No creature in hand")
             val forgeCardId = creature.id
@@ -83,7 +85,7 @@ class CounteredSpellTest :
                 game.fireEvent(forge.game.event.GameEventSpellResolved(stackCard.firstSpellAbility, true))
                 game.action.moveToGraveyard(stackCard, null)
             }
-            val newId = b.getOrAllocInstanceId(forgeCardId)
+            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
             val zt = gsm.findZoneTransfer(newId)
             zt.shouldNotBeNull()

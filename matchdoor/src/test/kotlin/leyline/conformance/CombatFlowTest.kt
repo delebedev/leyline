@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
+import leyline.bridge.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -263,7 +264,7 @@ class CombatFlowTest :
             val h = harness!!
 
             // Record AI life before combat
-            val aiPlayer = h.bridge.getPlayer(2)!!
+            val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
             val lifeBefore = aiPlayer.life
             val startTurn = h.turn()
 
@@ -447,7 +448,7 @@ class CombatFlowTest :
             (attackerIids.size >= 2).shouldBeTrue()
             val (iidA, iidB) = attackerIids
 
-            val aiPlayer = h.bridge.getPlayer(2)!!
+            val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
             val lifeBefore = aiPlayer.life
             val startTurn = h.turn()
 
@@ -480,7 +481,7 @@ class CombatFlowTest :
             val attackerIid = setupSingleAttacker()
             val h = harness!!
 
-            val aiPlayer = h.bridge.getPlayer(2)!!
+            val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
             val lifeBefore = aiPlayer.life
             val startTurn = h.turn()
 
@@ -514,7 +515,7 @@ class CombatFlowTest :
             val attackerIid = setupSingleAttacker()
             val h = harness!!
 
-            val aiPlayer = h.bridge.getPlayer(2)!!
+            val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
             val lifeBefore = aiPlayer.life
             val startTurn = h.turn()
 

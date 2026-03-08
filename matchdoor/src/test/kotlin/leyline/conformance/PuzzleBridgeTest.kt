@@ -12,8 +12,10 @@ import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
+import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
 import leyline.bridge.PlayerAction
+import leyline.bridge.SeatId
 import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
@@ -95,26 +97,26 @@ class PuzzleBridgeTest :
         test("puzzle cards registered in InstanceIdRegistry") {
             val b = startPuzzle("puzzles/simple-attack.pzl")
             val game = b.getGame()!!
-            val human = b.getPlayer(1)!!
+            val human = b.getPlayer(SeatId(1))!!
             val bears = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
-            val instanceId = b.getOrAllocInstanceId(bears.id)
-            (instanceId > 0).shouldBeTrue()
+            val instanceId = b.getOrAllocInstanceId(ForgeCardId(bears.id))
+            (instanceId.value > 0).shouldBeTrue()
             // Verify reverse lookup
             val forgeId = b.getForgeCardId(instanceId)
-            forgeId shouldBe bears.id
+            forgeId?.value shouldBe bears.id
         }
 
         test("puzzle life totals match spec") {
             val b = startPuzzle("puzzles/custom-life.pzl")
-            val human = b.getPlayer(1)!!
-            val ai = b.getPlayer(2)!!
+            val human = b.getPlayer(SeatId(1))!!
+            val ai = b.getPlayer(SeatId(2))!!
             human.life shouldBe 7
             ai.life shouldBe 1
         }
 
         test("puzzle battlefield matches spec") {
             val b = startPuzzle("puzzles/simple-attack.pzl")
-            val human = b.getPlayer(1)!!
+            val human = b.getPlayer(SeatId(1))!!
             val battlefield = human.getZone(ZoneType.Battlefield).cards.map { it.name }
             battlefield shouldContain "Grizzly Bears"
             battlefield shouldContain "Forest"
@@ -122,7 +124,7 @@ class PuzzleBridgeTest :
 
         test("puzzle hand matches spec") {
             val b = startPuzzle("puzzles/simple-attack.pzl")
-            val human = b.getPlayer(1)!!
+            val human = b.getPlayer(SeatId(1))!!
             val hand = human.getZone(ZoneType.Hand).cards.map { it.name }
             hand shouldContain "Giant Growth"
         }
@@ -171,13 +173,13 @@ class PuzzleBridgeTest :
             b.isPuzzle.shouldBeTrue()
             game.phaseHandler.phase shouldBe PhaseType.MAIN1
             // Human: 1 Mountain on battlefield, Lightning Bolt in hand
-            val human = b.getPlayer(1)!!
+            val human = b.getPlayer(SeatId(1))!!
             val hand = human.getZone(ZoneType.Hand).cards.map { it.name }
             val battlefield = human.getZone(ZoneType.Battlefield).cards.map { it.name }
             hand shouldContain "Lightning Bolt"
             battlefield shouldContain "Mountain"
             // AI at 3 life
-            val ai = b.getPlayer(2)!!
+            val ai = b.getPlayer(SeatId(2))!!
             ai.life shouldBe 3
             // Should have actions (Cast Lightning Bolt + Pass at minimum)
             val pending = b.actionBridge.getPending()

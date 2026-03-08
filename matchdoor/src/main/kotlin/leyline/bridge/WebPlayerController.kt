@@ -1049,7 +1049,7 @@ class WebPlayerController(
                     // Mana abilities don't use the stack — player retains priority.
                     // Activate and loop back to await the next action.
                     if (!executeActivateMana(action.cardId)) {
-                        log.debug("Mana activation failed for card {}", action.cardId)
+                        log.debug("Mana activation failed for card {}", action.cardId.value)
                     }
                     continue
                 }
@@ -1072,18 +1072,11 @@ class WebPlayerController(
         )
         when (val action = ab.awaitAction(state)) {
             is PlayerAction.DeclareAttackers -> {
+                val resolvedDefender = resolveAttackDefender(game, attacker, action.defender)
                 for (cardId in action.attackerIds) {
                     val card = findCard(cardId) ?: continue
                     if (!CombatUtil.canAttack(card)) continue
-                    val defender = when {
-                        action.defenderCardId != null -> {
-                            val pw = findCard(action.defenderCardId)
-                            if (pw != null && pw.isPlaneswalker) pw as GameEntity else combat.defenders.firstOrNull()
-                        }
-                        action.defenderPlayerId != null ->
-                            game.players.firstOrNull { it.id == action.defenderPlayerId } as? GameEntity
-                        else -> combat.defenders.firstOrNull()
-                    } ?: continue
+                    val defender = resolvedDefender ?: combat.defenders.firstOrNull() ?: continue
                     combat.addAttacker(card, defender)
                 }
             }
@@ -1105,9 +1098,9 @@ class WebPlayerController(
         )
         when (val action = ab.awaitAction(state)) {
             is PlayerAction.DeclareBlockers -> {
-                for ((blockerId, attackerId) in action.blockAssignments) {
-                    val blocker = findCard(blockerId) ?: continue
-                    val attackerCard = findCard(attackerId) ?: continue
+                for ((blockerCardId, attackerCardId) in action.blockAssignments) {
+                    val blocker = findCard(blockerCardId) ?: continue
+                    val attackerCard = findCard(attackerCardId) ?: continue
                     if (combat.isAttacking(attackerCard)) {
                         combat.addBlocker(attackerCard, blocker)
                     }
@@ -1165,7 +1158,7 @@ class WebPlayerController(
         return result
     }
 
-    private fun executeCastSpell(cardId: Int, abilityId: Int?, targets: List<TargetDto>): List<SpellAbility>? {
+    private fun executeCastSpell(cardId: ForgeCardId, abilityId: Int?, targets: List<Target>): List<SpellAbility>? {
         val card = findCard(cardId) ?: return null
         val candidates = getAllCastableAbilities(card)
         if (candidates.isEmpty()) return null
@@ -1178,7 +1171,7 @@ class WebPlayerController(
         return listOf(sa)
     }
 
-    private fun executeActivateAbility(cardId: Int, abilityId: Int, targets: List<TargetDto>): List<SpellAbility>? {
+    private fun executeActivateAbility(cardId: ForgeCardId, abilityId: Int, targets: List<Target>): List<SpellAbility>? {
         val card = findCard(cardId) ?: return null
         val abilities = getNonManaActivatedAbilities(card)
         val sa = abilities.getOrNull(abilityId) ?: return null
@@ -1186,16 +1179,11 @@ class WebPlayerController(
         return listOf(sa)
     }
 
-    private fun applyTargets(sa: SpellAbility, targets: List<TargetDto>) {
+    private fun applyTargets(sa: SpellAbility, targets: List<Target>) {
         if (targets.isEmpty() || !sa.usesTargeting()) return
         sa.resetTargets()
         for (t in targets) {
-            val obj: GameObject? = when (t.kind) {
-                "player" -> game.getPlayer(t.id)
-                "card" -> game.findById(t.id)
-                "stack_item" -> game.getStack().firstOrNull { it.id == t.id }?.getSpellAbility()
-                else -> null
-            }
+            val obj: GameObject? = resolveTarget(game, t)
             if (obj != null) sa.targets.add(obj)
         }
     }
@@ -1204,7 +1192,7 @@ class WebPlayerController(
      * Activate a mana ability: tap the permanent, choose color if needed, produce mana.
      * Returns true on success.  Refs #11 (color choice), fixes infinite-mana bug.
      */
-    private fun executeActivateMana(cardId: Int): Boolean {
+    private fun executeActivateMana(cardId: ForgeCardId): Boolean {
         val card = findCard(cardId) ?: return false
         val playableAbilities = card.manaAbilities.filter { it.canPlay() }
         if (playableAbilities.isEmpty()) return false
@@ -1252,7 +1240,7 @@ class WebPlayerController(
         return true
     }
 
-    private fun executePlayLand(cardId: Int): List<SpellAbility>? {
+    private fun executePlayLand(cardId: ForgeCardId): List<SpellAbility>? {
         val card = findCard(cardId) ?: return null
         if (!card.isLand) return null
         val landAbility = LandAbility(card, card.currentState)
@@ -1267,7 +1255,7 @@ class WebPlayerController(
     private fun getNonManaActivatedAbilities(card: Card): List<SpellAbility> =
         getNonManaActivatedAbilities(card, player)
 
-    private fun findCard(cardId: Int): Card? = findCard(game, cardId)
+    private fun findCard(cardId: ForgeCardId): Card? = findCard(game, cardId)
 
     private fun notifyStateChanged() {
         if (onStateChanged != null) {

@@ -7,6 +7,7 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
+import leyline.bridge.ForgeCardId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
 import leyline.game.mapper.PromptIds
@@ -213,7 +214,7 @@ class BundleBuilderTest :
             }
 
             val creatures = game.humanPlayer.getZone(ZoneType.Battlefield).cards.filter { it.isCreature }
-            val allIds = creatures.map { b.getOrAllocInstanceId(it.id) }
+            val allIds = creatures.map { b.getOrAllocInstanceId(ForgeCardId(it.id)).value }
             val selectedIds = listOf(allIds.first())
 
             val result = BundleBuilder.echoAttackersBundle(game, b, 1, counter, selectedIds, allIds)
@@ -246,7 +247,7 @@ class BundleBuilderTest :
             }
 
             val blocker = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-            val blockerId = b.getOrAllocInstanceId(blocker.id)
+            val blockerId = b.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
             val blockAssignments = mapOf(blockerId to 999)
 
             val result = BundleBuilder.echoBlockersBundle(game, b, 1, counter, blockAssignments)

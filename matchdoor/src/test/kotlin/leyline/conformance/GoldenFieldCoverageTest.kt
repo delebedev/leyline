@@ -9,6 +9,7 @@ import leyline.ConformanceTag
 import leyline.bridge.InteractivePromptBridge.PendingPrompt
 import leyline.bridge.PromptCandidateRefDto
 import leyline.bridge.PromptRequest
+import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.GsmBuilder
 import leyline.game.RequestBuilder
@@ -107,8 +108,8 @@ class GoldenFieldCoverageTest :
                 base.addCard("Llanowar Elves", ai, ZoneType.Battlefield)
             }
 
-            val humanCreature = b.getPlayer(1)!!.getZone(ZoneType.Battlefield).cards.first()
-            val aiCreature = b.getPlayer(2)!!.getZone(ZoneType.Battlefield).cards.first()
+            val humanCreature = b.getPlayer(SeatId(1))!!.getZone(ZoneType.Battlefield).cards.first()
+            val aiCreature = b.getPlayer(SeatId(2))!!.getZone(ZoneType.Battlefield).cards.first()
             val sourceCard = humanCreature
 
             val prompt = PendingPrompt(
@@ -239,7 +240,7 @@ class GoldenFieldCoverageTest :
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
                 base.addCard("Llanowar Elves", ai, ZoneType.Battlefield)
             }
-            val aiCreature = b.getPlayer(2)!!.getZone(ZoneType.Battlefield).cards.first()
+            val aiCreature = b.getPlayer(SeatId(2))!!.getZone(ZoneType.Battlefield).cards.first()
 
             val prompt = PendingPrompt(
                 promptId = "test",

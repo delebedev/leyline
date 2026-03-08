@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
+import leyline.bridge.ForgeCardId
 
 /**
  * SBA (state-based action) death conformance: creatures dying to zero
@@ -31,12 +32,12 @@ class SbaDeathTest :
             val human = game.humanPlayer
             val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val forgeCardId = creature.id
-            val origId = b.getOrAllocInstanceId(forgeCardId)
+            val origId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
             val gsm = base.captureAfterAction(b, game, counter, checkSba = true) {
                 creature.baseToughness = 0
             }
-            val newId = b.getOrAllocInstanceId(forgeCardId)
+            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId) ?: gsm.findZoneTransfer(origId))
             zt.category shouldBe "Destroy"
@@ -50,12 +51,12 @@ class SbaDeathTest :
             val human = game.humanPlayer
             val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val forgeCardId = creature.id
-            val origId = b.getOrAllocInstanceId(forgeCardId)
+            val origId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
             val gsm = base.captureAfterAction(b, game, counter, checkSba = true) {
                 creature.damage = creature.netToughness
             }
-            val newId = b.getOrAllocInstanceId(forgeCardId)
+            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId) ?: gsm.findZoneTransfer(origId))
             zt.category shouldBe "Destroy"
@@ -68,13 +69,13 @@ class SbaDeathTest :
             val human = game.humanPlayer
             val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val forgeCardId = creature.id
-            val origId = b.getOrAllocInstanceId(forgeCardId)
+            val origId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
             val gsm = base.captureAfterAction(b, game, counter, checkSba = true) {
                 creature.damage = 1
                 creature.setHasBeenDealtDeathtouchDamage(true)
             }
-            val newId = b.getOrAllocInstanceId(forgeCardId)
+            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId) ?: gsm.findZoneTransfer(origId))
             zt.category shouldBe "Destroy"

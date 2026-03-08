@@ -3,6 +3,8 @@ package leyline.conformance
 import forge.game.card.Card
 import forge.game.zone.ZoneType
 import forge.model.FModel
+import leyline.bridge.ForgeCardId
+import leyline.bridge.SeatId
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
 
@@ -47,7 +49,7 @@ object TestCardInjector {
         tapped: Boolean = false,
         sick: Boolean = true,
     ): InjectedCard {
-        val player = bridge.getPlayer(playerSeatId)
+        val player = bridge.getPlayer(SeatId(playerSeatId))
             ?: error("No player for seatId=$playerSeatId")
 
         // 1. Create Forge Card object from paper card DB
@@ -73,7 +75,7 @@ object TestCardInjector {
         val grpId = TestCardRegistry.ensureCardRegistered(cardName)
 
         // 3. Allocate instanceId in InstanceIdRegistry
-        val instanceId = bridge.ids.getOrAlloc(card.id)
+        val instanceId = bridge.ids.getOrAlloc(ForgeCardId(card.id)).value
 
         log.info(
             "Injected '{}' → {} (grpId={}, instanceId={}, forgeId={})",

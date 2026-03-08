@@ -11,12 +11,6 @@ data class PromptCandidateRefDto(
 )
 
 @Serializable
-data class TargetDto(
-    val kind: String, // "player" or "card"
-    val id: Int,
-)
-
-@Serializable
 data class PromptChoiceDto(
     val promptId: String,
     val promptType: String, // "confirm" | "choose_cards" | "choose_one" | "choose_color" | "order"

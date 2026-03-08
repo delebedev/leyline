@@ -10,6 +10,8 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
+import leyline.bridge.ForgeCardId
+import leyline.bridge.SeatId
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -164,33 +166,33 @@ class PlayLandFieldTest :
             acc.processAll(startResult.messages)
             b.snapshotFromGame(game)
 
-            val player = b.getPlayer(1) ?: error("Player 1 not found")
+            val player = b.getPlayer(SeatId(1)) ?: error("Player 1 not found")
             val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
-            val origInstanceId = b.getOrAllocInstanceId(land.id)
+            val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id))
             val forgeCardId = land.id
 
             base.playLand(b) ?: error("No land in hand at seed 42")
             val postResult = base.postAction(game, b, counter)
             acc.processAll(postResult.messages)
-            val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
+            val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
 
             // New instanceId on BF
-            val newObj = acc.objects[newInstanceId]
+            val newObj = acc.objects[newInstanceId.value]
             newObj.shouldNotBeNull()
             newObj.zoneId shouldBe ZoneIds.BATTLEFIELD
 
             val handZone = acc.zones.values.firstOrNull { it.type == ZoneType.Hand && it.ownerSeatId == 1 }
             handZone.shouldNotBeNull()
-            handZone.objectInstanceIdsList.contains(origInstanceId).shouldBeFalse()
+            handZone.objectInstanceIdsList.contains(origInstanceId.value).shouldBeFalse()
 
             // BF + Limbo zone checks
             val bfZone = acc.zones[ZoneIds.BATTLEFIELD]
             bfZone.shouldNotBeNull()
-            bfZone.objectInstanceIdsList.shouldContain(newInstanceId)
+            bfZone.objectInstanceIdsList.shouldContain(newInstanceId.value)
 
             val limboZone = acc.zones[ZoneIds.LIMBO]
             limboZone.shouldNotBeNull()
-            limboZone.objectInstanceIdsList.shouldContain(origInstanceId)
+            limboZone.objectInstanceIdsList.shouldContain(origInstanceId.value)
 
             acc.assertConsistent("after play land")
         }
