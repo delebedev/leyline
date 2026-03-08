@@ -120,6 +120,7 @@ class GameState:
     actions: list[dict] = field(default_factory=list)
     game_info: dict | None = None
     diff_deleted_instance_ids: list[int] = field(default_factory=list)
+    diff_deleted_annotation_ids: list[int] = field(default_factory=list)
 
     @classmethod
     def from_raw(cls, raw: dict) -> GameState:
@@ -141,6 +142,7 @@ class GameState:
             actions=list(raw.get("actions", [])),
             game_info=raw.get("gameInfo"),
             diff_deleted_instance_ids=list(raw.get("diffDeletedInstanceIds", [])),
+            diff_deleted_annotation_ids=list(raw.get("diffDeletedPersistentAnnotationIds", [])),
         )
 
     @property

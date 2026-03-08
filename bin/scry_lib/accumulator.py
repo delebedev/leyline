@@ -4,6 +4,7 @@ import copy
 from collections import OrderedDict
 from dataclasses import dataclass, field
 
+from scry_lib.annotations import Annotation
 from scry_lib.models import GameState, GameObject, Player, TurnInfo, Zone
 
 _MAX_HISTORY = 8
@@ -14,6 +15,7 @@ class Accumulator:
     """Maintains current game state by applying Full and Diff updates."""
 
     current: GameState | None = None
+    persistent_annotations: dict[int, Annotation] = field(default_factory=dict)
     _history: OrderedDict[int, GameState] = field(
         default_factory=OrderedDict, repr=False,
     )
@@ -22,14 +24,25 @@ class Accumulator:
         """Apply a Full or Diff state update."""
         if state.is_full or self.current is None:
             merged = copy.deepcopy(state)
+            self.persistent_annotations.clear()
         else:
             merged = self._merge_diff(self.current, state)
+            # Remove deleted persistent annotations
+            for aid in state.diff_deleted_annotation_ids:
+                self.persistent_annotations.pop(aid, None)
+
+        # Add new persistent annotations from this GSM
+        for raw_annot in state.annotations:
+            a = Annotation.from_raw(raw_annot)
+            if a.is_persistent and a.id is not None:
+                self.persistent_annotations[a.id] = a
 
         self.current = merged
         self._record(merged)
 
     def reset(self) -> None:
         self.current = None
+        self.persistent_annotations.clear()
         self._history.clear()
 
     def get_state(self, gsid: int) -> GameState | None:

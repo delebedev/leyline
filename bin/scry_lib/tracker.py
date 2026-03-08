@@ -4,6 +4,7 @@ from collections import deque
 from dataclasses import dataclass, field
 
 from scry_lib.accumulator import Accumulator
+from scry_lib.annotations import Annotation
 from scry_lib.errors import ClientError
 from scry_lib.models import GameState
 from scry_lib.parser import GREBlock
@@ -123,6 +124,18 @@ class GameTracker:
             if z.object_ids
         ]
 
+        # Annotations from latest GSM
+        annotations = [
+            Annotation.from_raw(a).to_dict()
+            for a in state.annotations
+        ]
+
+        # Persistent annotations (active set across GSMs)
+        persistent = [
+            a.to_dict()
+            for a in self._accumulator.persistent_annotations.values()
+        ]
+
         return {
             "match_id": self.current_match_id,
             "game_state_id": state.game_state_id,
@@ -130,6 +143,8 @@ class GameTracker:
             "players": players,
             "zones": zones,
             "object_count": len(state.objects),
+            "annotations": annotations,
+            "persistent_annotations": persistent,
             "completed_games": len(self.completed_games),
             "error_count": self.error_count,
             "recent_errors": self._errors_list(),
