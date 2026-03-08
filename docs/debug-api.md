@@ -52,13 +52,36 @@ In proxy mode, FD frames are also written to `recordings/<session>/capture/fd-fr
 - `GET /api/recording-messages?id=...` — decoded messages for a session
 - `GET /api/recording-compare?left=...&right=...` — action-level comparison between sessions
 
-## Client errors
+## Client-side observability (scry)
 
-Client error tracking is handled by **scry** (`bin/scry`), not the debug server.
+**scry** (`bin/scry`) parses Player.log for GRE game state, annotations, and client exceptions. It's the client-side counterpart to the debug server.
 
-- `just scry state` — game state + recent errors from Player.log
-- `just scry serve` — HTTP server on :8091 with `/state` and `/errors` endpoints
-- `just watch-client` — quick error snapshot (alias for `scry state --no-cards`)
+- `just scry state` — accumulated game state + annotations + errors
+- `just scry serve` — HTTP server on :8091 (`/state`, `/errors`, `/health`)
+- `just watch-client` — quick snapshot (alias for `scry state --no-cards`)
+
+### Annotation tracking
+
+`scry state` output includes two annotation fields:
+
+- **`annotations`** — annotations from the latest GSM (transient, replaced each diff)
+- **`persistent_annotations`** — active persistent annotations across GSMs (Counter, LayeredEffect, etc.), with `diffDeletedPersistentAnnotationIds` removals applied
+
+Each annotation has `types` (prefix-stripped), `affected_ids`, optional `affector_id`, and `details` (KVP flattened to plain dict).
+
+### Comparing server vs client
+
+To check whether annotations reach the wire:
+
+```bash
+# What the server sent (debug API)
+curl -s http://localhost:8090/api/state | python3 -m json.tool
+
+# What the client received (Player.log)
+just scry state --no-cards | python3 -m json.tool
+```
+
+If the server shows annotations but scry doesn't, the gap is in the annotation → GRE message assembly path (StateMapper/BundleBuilder).
 
 ## State injection
 
