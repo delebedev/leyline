@@ -134,6 +134,9 @@ class GameBridge(
     /** Zone tracking + state snapshots for diff computation. */
     val diff = DiffSnapshotter(ids)
 
+    /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
+    val effects = EffectTracker()
+
     /** Monotonic annotation ID counter. Real server starts around 49; we start at 50. */
     private var nextAnnotationId = INITIAL_ANNOTATION_ID
 
@@ -178,6 +181,13 @@ class GameBridge(
             ann.typeList.any { it == wotc.mtgo.gre.external.messaging.Messages.AnnotationType.Counter_803b } &&
                 ann.affectedIdsList.contains(instanceId) &&
                 ann.detailsList.any { it.key == "counter_type" && it.valueInt32Count > 0 && it.getValueInt32(0) == counterType }
+        }?.key
+
+    /** Find persistent LayeredEffect annotation by effect_id detail key. */
+    fun findPersistentEffectByEffectId(effectId: Int): Int? =
+        activePersistentAnnotations.entries.firstOrNull { (_, ann) ->
+            ann.typeList.any { it == wotc.mtgo.gre.external.messaging.Messages.AnnotationType.LayeredEffect } &&
+                ann.detailsList.any { it.key == "effect_id" && it.valueInt32Count > 0 && it.getValueInt32(0) == effectId }
         }?.key
 
     // --- Interface implementations (IdMapping, PlayerLookup, ZoneTracking, etc.) ---
@@ -635,6 +645,7 @@ class GameBridge(
         ids.resetAll()
         limbo.clear()
         diff.resetAll()
+        effects.resetAll()
         activePersistentAnnotations.clear()
         pendingPersistentDeletions.clear()
         nextAnnotationId = INITIAL_ANNOTATION_ID
@@ -758,6 +769,32 @@ class GameBridge(
             }
         }
         log.info("GameBridge: registered {} puzzle cards in CardRepository + InstanceIdRegistry", registered)
+    }
+
+    /**
+     * Snapshot current P/T boost state for all battlefield cards.
+     * Returns map of cardInstanceId → boost entries from Forge's boostPT table.
+     */
+    fun snapshotBoosts(): Map<Int, List<EffectTracker.BoostEntry>> {
+        val game = game ?: return emptyMap()
+        val result = mutableMapOf<Int, List<EffectTracker.BoostEntry>>()
+        for (player in game.players) {
+            for (card in player.getZone(forge.game.zone.ZoneType.Battlefield).cards) {
+                val table = card.ptBoostTable
+                if (table.isEmpty) continue
+                val instanceId = ids.getOrAlloc(card.id)
+                val entries = table.cellSet().map { cell ->
+                    EffectTracker.BoostEntry(
+                        timestamp = cell.rowKey,
+                        staticId = cell.columnKey,
+                        power = cell.value.left,
+                        toughness = cell.value.right,
+                    )
+                }
+                result[instanceId] = entries
+            }
+        }
+        return result
     }
 
     // --- Internal ---
