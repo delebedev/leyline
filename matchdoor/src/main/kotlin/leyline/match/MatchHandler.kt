@@ -51,6 +51,9 @@ class MatchHandler(
     private var clientId = "forge-player-1"
     private var seatId = 1
 
+    /** True when this connection is the Familiar (spectator), detected by `_Familiar` client ID suffix. */
+    private var isFamiliar = false
+
     /** Netty context — saved for template senders and cross-connection calls. */
     private var nettyCtx: ChannelHandlerContext? = null
 
@@ -104,8 +107,9 @@ class MatchHandler(
     private fun handleMatchAuth(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
         val authReq = AuthenticateRequest.parseFrom(msg.payload)
         clientId = authReq.clientId.ifEmpty { "forge-player-$seatId" }
+        isFamiliar = clientId.endsWith("_Familiar")
         val playerName = authReq.playerName.ifEmpty { "ForgePlayer" }
-        log.info("Match Door: auth clientId={} playerName={}", clientId, playerName)
+        log.info("Match Door: auth clientId={} playerName={} familiar={}", clientId, playerName, isFamiliar)
 
         val resp = MatchServiceToClientMessage.newBuilder()
             .setRequestId(msg.requestId)
@@ -133,7 +137,7 @@ class MatchHandler(
 
             // Create session + sink + recorder
             // Seat 2 (Familiar) sink skips ProtoDump to avoid duplicate .bin files
-            val sink = NettyMessageSink(ctx, dumpEnabled = seatId == 1)
+            val sink = NettyMessageSink(ctx, dumpEnabled = !isFamiliar)
             val rec = recorderFactory?.invoke()
             val s = MatchSession(
                 seatId,
@@ -221,7 +225,7 @@ class MatchHandler(
             }
 
             ClientMessageType.PerformActionResp_097b -> {
-                if (seatId == 1) {
+                if (!isFamiliar) {
                     s?.onPerformAction(greMsg)
                 } else {
                     log.debug("Match Door: ignoring PerformActionResp from Familiar (seat {})", seatId)
@@ -229,7 +233,7 @@ class MatchHandler(
             }
 
             ClientMessageType.DeclareAttackersResp_097b -> {
-                if (seatId == 1) {
+                if (!isFamiliar) {
                     s?.onDeclareAttackers(greMsg)
                 } else {
                     log.debug("Match Door: ignoring DeclareAttackersResp from Familiar (seat {})", seatId)
@@ -239,40 +243,40 @@ class MatchHandler(
             // SubmitAttackersReq is a type-only signal ("Done" button, no payload).
             // The client may send it on either channel (seat 1 or 2) — race condition
             // in the Arena client. Combat state (lastDeclaredAttackerIds) lives on
-            // seat-1's CombatHandler, so always route to seat-1's session.
+            // the player's CombatHandler, so always route to the player's session.
             ClientMessageType.SubmitAttackersReq -> {
-                val seat1 = if (seatId == 1) s else registry.activeSession()
-                seat1?.onDeclareAttackers(greMsg)
+                val target = if (!isFamiliar) s else registry.activeSession()
+                target?.onDeclareAttackers(greMsg)
             }
 
             ClientMessageType.DeclareBlockersResp_097b -> {
-                if (seatId == 1) {
+                if (!isFamiliar) {
                     s?.onDeclareBlockers(greMsg)
                 } else {
                     log.debug("Match Door: ignoring DeclareBlockersResp from Familiar (seat {})", seatId)
                 }
             }
 
-            // Same pattern as SubmitAttackersReq — route to seat-1's session.
+            // Same pattern as SubmitAttackersReq — route to player's session.
             ClientMessageType.SubmitBlockersReq -> {
-                val seat1 = if (seatId == 1) s else registry.activeSession()
-                seat1?.onDeclareBlockers(greMsg)
+                val target = if (!isFamiliar) s else registry.activeSession()
+                target?.onDeclareBlockers(greMsg)
             }
 
             ClientMessageType.SelectTargetsResp_097b -> {
-                if (seatId == 1) {
+                if (!isFamiliar) {
                     s?.onSelectTargets(greMsg)
                 }
             }
 
             ClientMessageType.CancelActionReq_097b -> {
-                if (seatId == 1) {
+                if (!isFamiliar) {
                     s?.onCancelAction(greMsg)
                 }
             }
 
             ClientMessageType.SelectNresp -> {
-                if (seatId == 1) {
+                if (!isFamiliar) {
                     s?.onSelectN(greMsg)
                 }
             }
