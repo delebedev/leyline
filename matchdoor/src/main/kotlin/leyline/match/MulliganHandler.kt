@@ -1,6 +1,8 @@
 package leyline.match
 
 import io.netty.channel.ChannelHandlerContext
+import leyline.bridge.ForgeCardId
+import leyline.bridge.InstanceId
 import leyline.config.MatchConfig
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
@@ -85,7 +87,7 @@ class MulliganHandler(
         } else {
             mulliganCount++
             bridge?.submitMull(seatId)
-            val deletedIds = bridge?.ids?.resetAll() ?: emptyList()
+            val deletedIds = bridge?.ids?.resetAll()?.map { it.value } ?: emptyList()
             seat1Hand = bridge?.getHandGrpIds(1) ?: emptyList()
             sendDealHand(ctx!!, deletedIds)
             sendMulliganReq(reportedMulliganCount = 0, numCards = seat1Hand.size)
@@ -103,7 +105,7 @@ class MulliganHandler(
         log.info("Match Door GRE: seat {} GroupResp tuck {} cards", seatId, tuckIds.size)
         val handCards = bridge.getHandCards(seatId)
         val tuckCards = tuckIds.mapNotNull { iid ->
-            val forgeId = bridge.getForgeCardId(iid)
+            val forgeId = bridge.getForgeCardId(InstanceId(iid))?.value
             handCards.firstOrNull { it.id == forgeId }
         }
         bridge.submitTuck(seatId, tuckCards)
@@ -174,7 +176,7 @@ class MulliganHandler(
         val bridge = s.gameBridge ?: return
         val gsId = s.counter.nextGsId()
         val handCards = bridge.getHandCards(seatId)
-        val handInstanceIds = handCards.map { bridge.getOrAllocInstanceId(it.id) }
+        val handInstanceIds = handCards.map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
         val tuckCount = bridge.getTuckCount()
         val (msg, nextMsgId) = HandshakeMessages.groupReqBundle(
             s.counter.currentMsgId(),

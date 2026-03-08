@@ -6,6 +6,7 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import leyline.IntegrationTag
+import leyline.bridge.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -51,7 +52,7 @@ class ClientSettingsTest :
             h.connectAndKeep()
 
             val profile = h.bridge.phaseStopProfile!!
-            val humanId = h.bridge.getPlayer(1)!!.id
+            val humanId = h.bridge.getPlayer(SeatId(1))!!.id
 
             // Default: Upkeep is NOT enabled for human
             profile.isEnabled(humanId, PhaseType.UPKEEP).shouldBeFalse()
@@ -68,7 +69,7 @@ class ClientSettingsTest :
             h.connectAndKeep()
 
             val profile = h.bridge.phaseStopProfile!!
-            val humanId = h.bridge.getPlayer(1)!!.id
+            val humanId = h.bridge.getPlayer(SeatId(1))!!.id
 
             // Default: Main1 IS enabled for human
             profile.isEnabled(humanId, PhaseType.MAIN1).shouldBeTrue()
@@ -85,7 +86,7 @@ class ClientSettingsTest :
             h.connectAndKeep()
 
             val profile = h.bridge.phaseStopProfile!!
-            val humanId = h.bridge.getPlayer(1)!!.id
+            val humanId = h.bridge.getPlayer(SeatId(1))!!.id
 
             // Enable Draw, disable Main2
             sendSettings(
@@ -106,7 +107,7 @@ class ClientSettingsTest :
             h.connectAndKeep()
 
             val profile = h.bridge.phaseStopProfile!!
-            val humanId = h.bridge.getPlayer(1)!!.id
+            val humanId = h.bridge.getPlayer(SeatId(1))!!.id
 
             val before = profile.getEnabled(humanId)
 
@@ -123,7 +124,7 @@ class ClientSettingsTest :
             h.connectAndKeep()
 
             val profile = h.bridge.phaseStopProfile!!
-            val humanId = h.bridge.getPlayer(1)!!.id
+            val humanId = h.bridge.getPlayer(SeatId(1))!!.id
 
             profile.isEnabled(humanId, PhaseType.END_OF_TURN).shouldBeFalse()
 

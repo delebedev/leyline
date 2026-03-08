@@ -5,8 +5,10 @@ import forge.game.card.Card
 import forge.game.phase.PhaseType
 import forge.game.player.Player
 import forge.game.zone.ZoneType
+import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
 import leyline.bridge.PlayerAction
+import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
@@ -146,7 +148,7 @@ open class ConformanceTestBase {
             for (zone in listOf(ZoneType.Battlefield, ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile, ZoneType.Library)) {
                 for (card in player.getZone(zone).cards) {
                     TestCardRegistry.ensureCardRegistered(card.name)
-                    b.getOrAllocInstanceId(card.id)
+                    b.getOrAllocInstanceId(ForgeCardId(card.id))
                 }
             }
         }
@@ -222,20 +224,20 @@ open class ConformanceTestBase {
         messages.map { StructuralFingerprint.fromGRE(it) }
 
     fun playLand(b: GameBridge): PlayerAction? {
-        val player = b.getPlayer(1) ?: return null
+        val player = b.getPlayer(SeatId(1)) ?: return null
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
         val pending = awaitFreshPending(b, null) ?: return null
-        val action = PlayerAction.PlayLand(land.id)
+        val action = PlayerAction.PlayLand(ForgeCardId(land.id))
         b.actionBridge.submitAction(pending.actionId, action)
         awaitFreshPending(b, pending.actionId)
         return action
     }
 
     fun castCreature(b: GameBridge): PlayerAction? {
-        val player = b.getPlayer(1) ?: return null
+        val player = b.getPlayer(SeatId(1)) ?: return null
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
         val pending = awaitFreshPending(b, null) ?: return null
-        val action = PlayerAction.CastSpell(creature.id)
+        val action = PlayerAction.CastSpell(ForgeCardId(creature.id))
         b.actionBridge.submitAction(pending.actionId, action)
         awaitFreshPending(b, pending.actionId)
         return action
@@ -310,14 +312,14 @@ open class ConformanceTestBase {
     fun playLandAndCaptureWithIds(): Triple<GameStateMessage, Int, Int>? {
         val (b, game, counter) = startGameAtMain1()
 
-        val player = b.getPlayer(1) ?: return null
+        val player = b.getPlayer(SeatId(1)) ?: return null
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
-        val origInstanceId = b.getOrAllocInstanceId(land.id)
+        val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id)).value
         val forgeCardId = land.id
 
         playLand(b) ?: return null
         val gsm = postAction(game, b, counter).gsmOrNull ?: return null
-        val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
+        val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
         return Triple(gsm, origInstanceId, newInstanceId)
     }
@@ -343,14 +345,14 @@ open class ConformanceTestBase {
         playLand(b) ?: return null
         b.snapshotFromGame(game)
 
-        val player = b.getPlayer(1) ?: return null
+        val player = b.getPlayer(SeatId(1)) ?: return null
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
-        val origInstanceId = b.getOrAllocInstanceId(creature.id)
+        val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(creature.id)).value
         val forgeCardId = creature.id
 
         castCreature(b) ?: return null
         val gsm = postAction(game, b, counter).gsmOrNull ?: return null
-        val newInstanceId = b.getOrAllocInstanceId(forgeCardId)
+        val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
         return Triple(gsm, origInstanceId, newInstanceId)
     }

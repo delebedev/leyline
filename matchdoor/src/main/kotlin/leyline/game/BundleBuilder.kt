@@ -1,6 +1,8 @@
 package leyline.game
 
 import forge.game.Game
+import leyline.bridge.ForgeCardId
+import leyline.bridge.SeatId
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.PlayerMapper
@@ -69,7 +71,7 @@ object BundleBuilder {
             bridge.isPhaseChangedFromLastSent(gsBase.turnInfo)
         ) {
             val handler = game.phaseHandler
-            val human = bridge.getPlayer(1)
+            val human = bridge.getPlayer(SeatId(1))
             val activeSeat = if (handler.playerTurn == human) 1 else 2
             gsBase.toBuilder()
                 .addAnnotations(
@@ -144,7 +146,7 @@ object BundleBuilder {
         turnStarted: Boolean = false,
     ): BundleResult {
         val handler = game.phaseHandler
-        val human = bridge.getPlayer(1)
+        val human = bridge.getPlayer(SeatId(1))
         val activeSeat = if (handler.playerTurn == human) 1 else 2
         val nextGs = counter.nextGsId()
         // Build state first (triggers instanceId realloc), then actions with new IDs
@@ -268,7 +270,7 @@ object BundleBuilder {
         // actual priority gating uses ActionsAvailableReq sent when human gets priority).
         val actions = ActionMapper.buildNaiveActions(seatId, bridge)
         val handler = game.phaseHandler
-        val human = bridge.getPlayer(1)
+        val human = bridge.getPlayer(SeatId(1))
         val activeSeat = if (handler.playerTurn == human) 1 else 2
         val prioritySeat = if (handler.priorityPlayer == human) 1 else 2
 
@@ -372,6 +374,7 @@ object BundleBuilder {
      * @param selectedAttackerIds instanceIds currently selected as attackers
      * @param allLegalAttackerIds all instanceIds eligible to attack (for deselect detection)
      */
+    @Suppress("UnusedParameter")
     fun echoAttackersBundle(
         game: Game,
         bridge: GameBridge,
@@ -381,14 +384,14 @@ object BundleBuilder {
         allLegalAttackerIds: List<Int>,
     ): BundleResult {
         val nextGs = counter.nextGsId()
-        val player = bridge.getPlayer(seatId) ?: return BundleResult(emptyList())
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
 
         // Build provisional creature objects for ALL legal attackers.
         // Real server echo objects carry NO combat state — confirmed across 4 recordings.
         val objects = mutableListOf<GameObjectInfo>()
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
-            val iid = bridge.getOrAllocInstanceId(card.id)
+            val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             if (iid !in allLegalAttackerIds) continue
 
             objects.add(
@@ -472,7 +475,7 @@ object BundleBuilder {
         blockAssignments: Map<Int, Int>, // blockerInstanceId → attackerInstanceId
     ): BundleResult {
         val nextGs = counter.nextGsId()
-        val player = bridge.getPlayer(seatId) ?: return BundleResult(emptyList())
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
 
         // Build provisional creature objects for assigned blockers.
         // Real server echo objects carry NO combat state — confirmed across 4 recordings.
@@ -480,7 +483,7 @@ object BundleBuilder {
         val blockerSet = blockAssignments.keys
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
-            val iid = bridge.getOrAllocInstanceId(card.id)
+            val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             if (iid !in blockerSet) continue
 
             objects.add(
@@ -748,7 +751,7 @@ object BundleBuilder {
         // Teams with PendingLoss for losing team
         gs1.addTeams(TeamInfo.newBuilder().setId(losingTeam).addPlayerIds(losingPlayerSeatId).setStatus(TeamStatus.PendingLoss_a458))
         // Players: loser with full state (lifeTotal, maxHandSize, etc.) + PendingLoss status
-        val loserPlayer = bridge?.getPlayer(losingPlayerSeatId)
+        val loserPlayer = bridge?.getPlayer(SeatId(losingPlayerSeatId))
         val loserInfo = PlayerMapper.buildPlayerInfo(loserPlayer, losingPlayerSeatId).toBuilder()
             .setStatus(PlayerStatus.PendingLoss_a1c6)
         gs1.addPlayers(loserInfo)

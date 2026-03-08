@@ -7,6 +7,8 @@ import forge.game.card.CardLists
 import forge.game.card.CardPredicates
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
+import leyline.bridge.ForgeCardId
+import leyline.bridge.SeatId
 import leyline.bridge.chooseCastAbility
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
@@ -48,7 +50,7 @@ object ActionMapper {
         bridge: GameBridge,
         checkLegality: Boolean,
     ): ActionsAvailableReq {
-        val player = bridge.getPlayer(seatId) ?: return passOnlyActions()
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return passOnlyActions()
         val builder = ActionsAvailableReq.newBuilder()
 
         // Battlefield permanents: ActivateMana + Activate
@@ -56,7 +58,7 @@ object ActionMapper {
             // Naive mode only cares about ActivateMana — skip tapped cards entirely
             if (!checkLegality && card.isTapped) continue
 
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             val grpId = bridge.cards.findGrpIdByName(card.name) ?: GameBridge.FALLBACK_GRPID
 
             // ActivateMana — untapped permanents with mana abilities
@@ -93,7 +95,7 @@ object ActionMapper {
 
         // Lands: playable → actions, not playable → inactiveActions (legality only)
         for (card in CardLists.filter(handCards, CardPredicates.LANDS)) {
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             val grpId = bridge.cards.findGrpIdByName(card.name) ?: GameBridge.FALLBACK_GRPID
             val canPlay = if (checkLegality) {
                 val landAbility = LandAbility(card, card.currentState)
@@ -134,7 +136,7 @@ object ActionMapper {
                 }
                 if (!canPay) continue
             }
-            val instanceId = bridge.getOrAllocInstanceId(card.id)
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             val grpId = bridge.cards.findGrpIdByName(card.name) ?: GameBridge.FALLBACK_GRPID
             val actionBuilder = Action.newBuilder()
                 .setActionType(ActionType.Cast)
@@ -244,7 +246,7 @@ object ActionMapper {
                 if (!sa.canPlay()) continue
                 val produced = sa.manaPart?.origProduced ?: continue
                 val manaColor = producedToManaColor(produced) ?: continue
-                val instanceId = bridge.getOrAllocInstanceId(card.id)
+                val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
                 val grpId = bridge.cards.findGrpIdByName(card.name) ?: GameBridge.FALLBACK_GRPID
                 val abilityGrpId = bridge.cards.findByGrpId(grpId)?.abilityIds?.firstOrNull()?.first ?: 0
                 sources.add(ManaSource(card, instanceId, manaColor, abilityGrpId))

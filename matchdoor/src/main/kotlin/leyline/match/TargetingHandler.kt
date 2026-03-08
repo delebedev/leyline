@@ -1,7 +1,10 @@
 package leyline.match
 
 import forge.game.Game
+import leyline.bridge.ForgeCardId
+import leyline.bridge.InstanceId
 import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
@@ -47,8 +50,8 @@ class TargetingHandler(private val ops: SessionOps) {
             if (playerIdx != null) return@mapNotNull playerIdx
 
             // Card targets: normal instanceId → forgeCardId reverse lookup
-            val forgeCardId = bridge.getForgeCardId(instanceId) ?: return@mapNotNull null
-            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId }
+            val forgeCardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@mapNotNull null
+            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
         }.filter { it >= 0 }
 
         log.info("TargetingHandler: SelectTargetsResp indices={}", selectedIndices)
@@ -82,9 +85,9 @@ class TargetingHandler(private val ops: SessionOps) {
         }
 
         val selectedIndices = resp.idsList.mapNotNull { instanceId ->
-            val forgeCardId = bridge.getForgeCardId(instanceId)
+            val forgeCardId = bridge.getForgeCardId(InstanceId(instanceId))
             if (forgeCardId == null) return@mapNotNull null
-            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId }
+            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
         }.filter { it >= 0 }
 
         log.info("TargetingHandler: SelectNResp indices={}", selectedIndices)
@@ -210,10 +213,10 @@ class TargetingHandler(private val ops: SessionOps) {
             // Multi-card surveil/scry: away group IDs → indices into options
             val awayIds = if (groups.size >= 2) groups[1].idsList else emptyList()
             awayIds.mapNotNull { iid ->
-                val forgeCardId = bridge.getForgeCardId(iid) ?: return@mapNotNull null
+                val forgeCardId = bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
                 // Options are card names from topN — match by forge card name
-                val player = bridge.getPlayer(ops.seatId) ?: return@mapNotNull null
-                val card = player.allCards.firstOrNull { it.id == forgeCardId }
+                val player = bridge.getPlayer(SeatId(ops.seatId)) ?: return@mapNotNull null
+                val card = player.allCards.firstOrNull { it.id == forgeCardId.value }
                 card?.let { req.options.indexOf(it.name) }
             }.filter { it >= 0 }
         } else {
@@ -271,7 +274,7 @@ class TargetingHandler(private val ops: SessionOps) {
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ): Int? {
         // Arena uses seatId as instanceId for player targets (1 or 2)
-        val player = bridge.getPlayer(instanceId) ?: return null
+        val player = bridge.getPlayer(SeatId(instanceId)) ?: return null
         val idx = pendingPrompt.request.candidateRefs.indexOfFirst {
             it.kind == "player" && it.entityId == player.id
         }
@@ -315,7 +318,7 @@ class TargetingHandler(private val ops: SessionOps) {
         context: GroupingContext,
     ) {
         val game = bridge.getGame() ?: return
-        val player = bridge.getPlayer(ops.seatId) ?: return
+        val player = bridge.getPlayer(SeatId(ops.seatId)) ?: return
         val req = pendingPrompt.request
 
         // Resolve surveil/scry cards from candidateRefs (forge card IDs set by WebPlayerController).
@@ -328,7 +331,7 @@ class TargetingHandler(private val ops: SessionOps) {
             .filter { it.kind == "card" }
             .mapNotNull { ref ->
                 val card = game.findById(ref.entityId)
-                if (card != null) ResolvedCard(card, bridge.getOrAllocInstanceId(ref.entityId)) else null
+                if (card != null) ResolvedCard(card, bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value) else null
             }
 
         if (resolved.isEmpty()) {
@@ -342,7 +345,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val cardInstanceIds = resolved.map { it.instanceId }
 
         // sourceId: the card that triggered surveil — check stack for the trigger source
-        val sourceId = game.stack.firstOrNull()?.let { bridge.getOrAllocInstanceId(it.id) } ?: 0
+        val sourceId = game.stack.firstOrNull()?.let { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value } ?: 0
 
         val contextLabel = if (context == GroupingContext.Surveil) "Surveil" else "Scry"
         log.info("TargetingHandler: sending GroupReq for {} cards={}", contextLabel, cardInstanceIds)
@@ -351,7 +354,7 @@ class TargetingHandler(private val ops: SessionOps) {
         // Build GSM diff that reveals card objects (Private + viewer) so client shows face-up
         val libZoneId = if (ops.seatId == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
         val revealedObjects = topCards.map { card ->
-            ObjectMapper.buildCardObject(card, bridge.getOrAllocInstanceId(card.id), libZoneId, ops.seatId, bridge, Visibility.Private)
+            ObjectMapper.buildCardObject(card, bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value, libZoneId, ops.seatId, bridge, Visibility.Private)
                 .toBuilder().addViewers(ops.seatId).build()
         }
         val gsId = ops.counter.nextGsId()

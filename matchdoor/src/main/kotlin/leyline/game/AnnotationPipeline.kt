@@ -2,6 +2,9 @@ package leyline.game
 
 import forge.game.Game
 import forge.game.phase.PhaseType
+import leyline.bridge.ForgeCardId
+import leyline.bridge.InstanceId
+import leyline.bridge.SeatId
 import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.ZoneIds
@@ -92,11 +95,11 @@ object AnnotationPipeline {
 
         for (i in patchedObjects.indices) {
             val obj = patchedObjects[i]
-            val prevZone = bridge.getPreviousZone(obj.instanceId)
+            val prevZone = bridge.getPreviousZone(InstanceId(obj.instanceId))
             if (prevZone != null && prevZone != obj.zoneId) {
-                val forgeCardId = bridge.getForgeCardId(obj.instanceId)
+                val forgeCardId = bridge.getForgeCardId(InstanceId(obj.instanceId))
                 val category = if (forgeCardId != null && events.isNotEmpty()) {
-                    AnnotationBuilder.categoryFromEvents(forgeCardId, events)
+                    AnnotationBuilder.categoryFromEvents(forgeCardId.value, events)
                         ?: inferCategory(obj, prevZone, obj.zoneId)
                 } else {
                     inferCategory(obj, prevZone, obj.zoneId)
@@ -106,10 +109,10 @@ object AnnotationPipeline {
                 val realloc = if (category != TransferCategory.Resolve && forgeCardId != null) {
                     bridge.reallocInstanceId(forgeCardId)
                 } else {
-                    InstanceIdRegistry.IdReallocation(obj.instanceId, obj.instanceId)
+                    InstanceIdRegistry.IdReallocation(InstanceId(obj.instanceId), InstanceId(obj.instanceId))
                 }
-                val origId = realloc.old
-                val newId = realloc.new
+                val origId = realloc.old.value
+                val newId = realloc.new.value
                 log.debug("zone transfer: iid {} → {} category={}", origId, newId, category)
                 // Patch gameObject and zone with new instanceId
                 if (newId != origId) {
@@ -122,9 +125,9 @@ object AnnotationPipeline {
                 // For surveil (and future mechanics), the source card's ability on the
                 // stack has instanceId = getOrAlloc(sourceForgeCardId + STACK_ABILITY_ID_OFFSET).
                 val affectorId = if (forgeCardId != null && events.isNotEmpty()) {
-                    val sourceForgeId = AnnotationBuilder.affectorSourceFromEvents(forgeCardId, events)
+                    val sourceForgeId = AnnotationBuilder.affectorSourceFromEvents(forgeCardId.value, events)
                     if (sourceForgeId != null) {
-                        bridge.getOrAllocInstanceId(sourceForgeId + ObjectMapper.STACK_ABILITY_ID_OFFSET)
+                        bridge.getOrAllocInstanceId(ForgeCardId(sourceForgeId + ObjectMapper.STACK_ABILITY_ID_OFFSET)).value
                     } else {
                         0
                     }
@@ -166,7 +169,13 @@ object AnnotationPipeline {
         transfer: AppliedTransfer,
         actingSeat: Int,
     ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
-        val (origId, newId, category, srcZone, destZone, grpId, _, affectorId) = transfer
+        val origId = transfer.origId
+        val newId = transfer.newId
+        val category = transfer.category
+        val srcZone = transfer.srcZoneId
+        val destZone = transfer.destZoneId
+        val grpId = transfer.grpId
+        val affectorId = transfer.affectorId
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
 
@@ -229,7 +238,7 @@ object AnnotationPipeline {
         val annotations = mutableListOf<AnnotationInfo>()
 
         for (attacker in combat.attackers) {
-            val iid = bridge.getOrAllocInstanceId(attacker.id)
+            val iid = bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
             val dmg = attacker.getTotalDamageDoneBy()
             if (dmg > 0) {
                 annotations.add(AnnotationBuilder.damageDealt(iid, dmg))
@@ -242,7 +251,7 @@ object AnnotationPipeline {
             // TODO: a blocker blocking multiple attackers may get duplicate annotations here
             for (blocker in combat.getBlockers(attacker)) {
                 if (blocker.getDamage() > 0) {
-                    val blockerIid = bridge.getOrAllocInstanceId(blocker.id)
+                    val blockerIid = bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
                     annotations.add(AnnotationBuilder.damagedThisTurn(blockerIid))
                 }
             }
@@ -252,7 +261,7 @@ object AnnotationPipeline {
         if (prev != null) {
             for (playerInfo in prev.playersList) {
                 val seat = playerInfo.systemSeatNumber
-                val player = bridge.getPlayer(seat)
+                val player = bridge.getPlayer(SeatId(seat))
                 if (player != null) {
                     val delta = player.life - playerInfo.lifeTotal
                     if (delta != 0) {
@@ -262,7 +271,7 @@ object AnnotationPipeline {
             }
         }
 
-        val human = bridge.getPlayer(1)
+        val human = bridge.getPlayer(SeatId(1))
         val activeSeat = if (handler.playerTurn == human) 1 else 2
         val protoPhase = PlayerMapper.mapPhase(handler.phase).number
         val protoStep = PlayerMapper.mapStep(handler.phase).number

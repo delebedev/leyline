@@ -8,8 +8,10 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
+import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
 import leyline.bridge.PlayerAction
+import leyline.bridge.SeatId
 import leyline.conformance.TestCardRegistry
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -77,14 +79,14 @@ class EffectLifecycleTest :
             b.startPuzzle(puzzle)
 
             val game = b.getGame()!!
-            val human = b.getPlayer(1)!!
+            val human = b.getPlayer(SeatId(1))!!
 
             // Verify setup: Swiftspear on battlefield, Giant Growth in hand
             val swiftspear = human.getZone(ZoneType.Battlefield).cards
                 .first { it.name == "Monastery Swiftspear" }
             val giantGrowth = human.getZone(ZoneType.Hand).cards
                 .first { it.name == "Giant Growth" }
-            val swiftspearIid = b.getOrAllocInstanceId(swiftspear.id)
+            val swiftspearIid = b.getOrAllocInstanceId(ForgeCardId(swiftspear.id)).value
 
             // Take initial snapshot (gsId=1)
             val gsm1 = StateMapper.buildFromGame(game, 1, "test", b)
@@ -92,7 +94,7 @@ class EffectLifecycleTest :
 
             // Cast Giant Growth targeting Swiftspear
             val pending = awaitFreshPending(b, null).shouldNotBeNull()
-            b.actionBridge.submitAction(pending.actionId, PlayerAction.CastSpell(giantGrowth.id))
+            b.actionBridge.submitAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(giantGrowth.id)))
 
             // Engine prompts for target selection (mandatory=false for voluntary casts)
             val targetPrompt = awaitPrompt(b, timeoutMs = 5_000).shouldNotBeNull()

@@ -18,31 +18,28 @@ internal val searchableZones = listOf(
     ZoneType.Stack,
 )
 
-internal fun findCard(game: Game, cardId: Int): Card? =
-    game.getCardsIn(searchableZones).firstOrNull { it.id == cardId }
+internal fun findCard(game: Game, cardId: ForgeCardId): Card? =
+    game.getCardsIn(searchableZones).firstOrNull { it.id == cardId.value }
 
-internal fun resolveTarget(game: Game, target: TargetDto): forge.game.GameObject? = when (target.kind) {
-    "player" -> game.getPlayer(target.id)
-    "card" -> findCard(game, target.id)
-    "stack_item" -> game.getStack().firstOrNull { it.id == target.id }?.getSpellAbility()
-    else -> null
+internal fun resolveTarget(game: Game, target: Target): forge.game.GameObject? = when (target) {
+    is Target.Card -> findCard(game, target.cardId)
+    is Target.Player -> game.getPlayer(target.playerId.value)
 }
 
 internal fun resolveAttackDefender(
     game: Game,
     attackingPlayer: Player,
-    defenderPlayerId: Int?,
-    defenderCardId: Int? = null,
-): GameEntity? {
-    if (defenderCardId != null) {
-        val card = findCard(game, defenderCardId) ?: return null
-        return if (card.isPlaneswalker && card.controller.isOpponentOf(attackingPlayer)) card else null
+    defender: Target?,
+): GameEntity? = when (defender) {
+    is Target.Card -> {
+        val card = findCard(game, defender.cardId)
+        if (card != null && card.isPlaneswalker && card.controller.isOpponentOf(attackingPlayer)) card else null
     }
-    if (defenderPlayerId != null) {
-        val playerDefender = game.getPlayer(defenderPlayerId) ?: return null
-        return if (playerDefender.isOpponentOf(attackingPlayer)) playerDefender else null
+    is Target.Player -> {
+        val playerDefender = game.getPlayer(defender.playerId.value)
+        if (playerDefender != null && playerDefender.isOpponentOf(attackingPlayer)) playerDefender else null
     }
-    return attackingPlayer.opponents.firstOrNull()
+    null -> attackingPlayer.opponents.firstOrNull()
 }
 
 /**

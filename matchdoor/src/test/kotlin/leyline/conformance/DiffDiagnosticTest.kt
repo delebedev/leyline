@@ -6,6 +6,8 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
+import leyline.bridge.ForgeCardId
+import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
@@ -67,7 +69,7 @@ class DiffDiagnosticTest :
             val afterLand = base.postAction(game, b, counter)
             acc.processAll(afterLand.messages)
 
-            val player = b.getPlayer(1)!!
+            val player = b.getPlayer(SeatId(1))!!
             val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature }
                 ?: error("No creature in hand at seed 42")
             val creatureForgeId = creature.id
@@ -76,7 +78,7 @@ class DiffDiagnosticTest :
             val afterCast = base.postAction(game, b, counter)
             acc.processAll(afterCast.messages)
 
-            val creatureNewId = b.getOrAllocInstanceId(creatureForgeId)
+            val creatureNewId = b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
             val creatureObj = checkNotNull(acc.objects[creatureNewId]) {
                 "Creature should exist in accumulated objects with instanceId $creatureNewId"
             }
@@ -104,21 +106,21 @@ class DiffDiagnosticTest :
             base.playLand(b) ?: error("playLand failed at seed 42")
             base.postAction(game, b, counter)
 
-            val player = b.getPlayer(1)!!
+            val player = b.getPlayer(SeatId(1))!!
             val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature }
                 ?: error("No creature in hand at seed 42")
             val creatureForgeId = creature.id
 
             base.castCreature(b) ?: error("castCreature failed at seed 42")
             base.postAction(game, b, counter)
-            val castId = b.getOrAllocInstanceId(creatureForgeId)
+            val castId = b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
 
             if (!game.stack.isEmpty) {
                 base.passPriority(b)
                 base.postAction(game, b, counter)
             }
 
-            val resolvedId = b.getOrAllocInstanceId(creatureForgeId)
+            val resolvedId = b.getOrAllocInstanceId(ForgeCardId(creatureForgeId)).value
             castId shouldBe resolvedId
         }
 

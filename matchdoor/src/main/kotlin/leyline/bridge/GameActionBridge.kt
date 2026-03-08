@@ -183,17 +183,23 @@ data class PendingActionState(
     val priorityPlayerId: Int,
 )
 
+/** A game entity that can be targeted: card or player. */
+sealed class Target {
+    data class Card(val cardId: ForgeCardId) : Target()
+    data class Player(val playerId: ForgePlayerId) : Target()
+}
+
 /**
  * Actions a player can take when they have priority.
  */
 sealed class PlayerAction {
     data object PassPriority : PlayerAction()
-    data class CastSpell(val cardId: Int, val abilityId: Int? = null, val targets: List<TargetDto> = emptyList()) : PlayerAction()
-    data class ActivateAbility(val cardId: Int, val abilityId: Int, val targets: List<TargetDto> = emptyList()) : PlayerAction()
-    data class ActivateMana(val cardId: Int) : PlayerAction()
-    data class PlayLand(val cardId: Int) : PlayerAction()
-    data class DeclareAttackers(val attackerIds: List<Int>, val defenderPlayerId: Int?, val defenderCardId: Int? = null) : PlayerAction()
-    data class DeclareBlockers(val blockAssignments: Map<Int, Int>) : PlayerAction()
+    data class CastSpell(val cardId: ForgeCardId, val abilityId: Int? = null, val targets: List<Target> = emptyList()) : PlayerAction()
+    data class ActivateAbility(val cardId: ForgeCardId, val abilityId: Int, val targets: List<Target> = emptyList()) : PlayerAction()
+    data class ActivateMana(val cardId: ForgeCardId) : PlayerAction()
+    data class PlayLand(val cardId: ForgeCardId) : PlayerAction()
+    data class DeclareAttackers(val attackerIds: List<ForgeCardId>, val defender: Target? = null) : PlayerAction()
+    data class DeclareBlockers(val blockAssignments: Map<ForgeCardId, ForgeCardId>) : PlayerAction()
 
     /** Auto-pass all remaining priority in this turn (matches desktop "End Turn" button). */
     data object EndTurn : PlayerAction()
