@@ -101,7 +101,7 @@ class MatchSession(
      * After keep: wait for engine to reach priority, send real game state bundle.
      * Then auto-pass through phases where only Pass is available.
      */
-    fun onMulliganKeep() = synchronized(sessionLock) {
+    override fun onMulliganKeep() = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         log.info("MatchSession: waiting for engine to reach priority after keep")
 
@@ -139,7 +139,7 @@ class MatchSession(
      * Similar to [onMulliganKeep] but without mulligan seeding or phaseTransitionDiff
      * — the puzzle initial bundle already sent a Full GSM with the board state.
      */
-    fun onPuzzleStart() = synchronized(sessionLock) {
+    override fun onPuzzleStart() = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
 
         // Only seat 1 (human player) drives the auto-pass game loop.
@@ -170,7 +170,7 @@ class MatchSession(
     /**
      * Handle a client action (land play, spell cast, pass) and advance the engine.
      */
-    fun onPerformAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onPerformAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         log.info("MatchSession: onPerformAction enter gsId={} (current={})", greMsg.gameStateId, counter.currentGsId())
 
@@ -288,31 +288,31 @@ class MatchSession(
     }
 
     /** Handle DeclareAttackersResp — delegates to [CombatHandler]. */
-    fun onDeclareAttackers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onDeclareAttackers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         combatHandler.onDeclareAttackers(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /** Handle DeclareBlockersResp — delegates to [CombatHandler]. */
-    fun onDeclareBlockers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onDeclareBlockers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         combatHandler.onDeclareBlockers(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
-    fun onSelectTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onSelectTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         targetingHandler.onSelectTargets(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
-    fun onSelectN(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onSelectN(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         targetingHandler.onSelectN(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /** Handle GroupResp for surveil/scry — delegates to [TargetingHandler]. */
-    fun onGroupResp(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onGroupResp(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         targetingHandler.onGroupResp(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
@@ -324,7 +324,7 @@ class MatchSession(
      * to return `TargetSelectionResult(false, false)` → spell targeting fails →
      * engine unwinds the cast (removes from stack, returns mana).
      */
-    fun onCancelAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onCancelAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         // During combat declaration, cancel means "pass combat" (submit empty attackers).
         if (combatHandler.pendingLegalAttackers.isNotEmpty()) {
@@ -338,12 +338,12 @@ class MatchSession(
     // TODO: clean up bridge after game-over (both concede and lethal paths leak the engine
     // thread until server restart). Needs a delayed cleanup — immediate shutdown breaks
     // concede because the client sends messages after game-over that need a live session.
-    fun onConcede() = synchronized(sessionLock) {
+    override fun onConcede() = synchronized(sessionLock) {
         sendGameOver(ResultReason.Concede)
     }
 
     /** Handle SetSettingsReq: merge settings, apply stops to PhaseStopProfile, echo response. */
-    fun onSettings(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onSettings(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val reqSettings = greMsg.setSettingsReq
         val incoming = reqSettings.settings
         log.info(
