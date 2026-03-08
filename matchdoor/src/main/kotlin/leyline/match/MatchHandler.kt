@@ -169,7 +169,6 @@ class MatchHandler(
                 // Evict stale bridges from previous matches and reset debug collectors
                 val evicted = registry.evictStale(matchId)
                 if (evicted.isNotEmpty()) {
-                    evicted.forEach { it.shutdown() }
                     debugSink?.clear()
                     debugSink?.clearState()
                     log.info("Match Door: evicted {} stale match(es)", evicted.size)
