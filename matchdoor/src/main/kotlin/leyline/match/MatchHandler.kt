@@ -58,13 +58,13 @@ class MatchHandler(
     private var nettyCtx: ChannelHandlerContext? = null
 
     /** Game session — created on connect, holds all post-mulligan state. */
-    internal var session: MatchSession? = null
+    internal var session: SessionOps? = null
 
     /** Mulligan flow delegate — owns mulligan state and DealHand/MulliganReq senders. */
     internal val mulliganHandler = MulliganHandler(
         matchConfig,
         registry,
-        sessionProvider = { session },
+        sessionProvider = { session as? MatchSession },
         ctxProvider = { nettyCtx },
         matchIdProvider = { matchId },
         seatIdProvider = { seatId },
@@ -139,16 +139,19 @@ class MatchHandler(
             // Seat 2 (Familiar) sink skips ProtoDump to avoid duplicate .bin files
             val sink = NettyMessageSink(ctx, dumpEnabled = !isFamiliar)
             val rec = recorderFactory?.invoke()
-            val s = MatchSession(
-                seatId,
-                matchId,
-                sink,
-                registry,
-                recorder = rec,
-                debugSink = debugSink,
-                coordinator = coordinator,
-            )
-            s.playerId = clientId.removeSuffix("_Familiar")
+            val s: SessionOps = if (isFamiliar) {
+                FamiliarSession(seatId, matchId, sink)
+            } else {
+                MatchSession(
+                    seatId,
+                    matchId,
+                    sink,
+                    registry,
+                    recorder = rec,
+                    debugSink = debugSink,
+                    coordinator = coordinator,
+                ).also { it.playerId = clientId.removeSuffix("_Familiar") }
+            }
             session = s
             registry.registerSession(matchId, seatId, s)
             registry.registerHandler(matchId, seatId, this)
@@ -182,7 +185,7 @@ class MatchHandler(
 
                 if (puzzleHandler.isPuzzleMatch(matchId)) {
                     sendRoomState(ctx)
-                    puzzleHandler.onPuzzleConnect(ctx, s!!, matchId, seatId)
+                    puzzleHandler.onPuzzleConnect(ctx, s as MatchSession, matchId, seatId)
                 } else {
                     // Constructed mode: normal flow
                     // PvP matches use startTwoPlayer (both seats human-wired).
@@ -209,7 +212,7 @@ class MatchHandler(
                         }
                     }
                     val bridge = match.bridge
-                    s?.connectBridge(bridge)
+                    (s as? MatchSession)?.connectBridge(bridge)
                     mulliganHandler.seat1Hand = bridge.getHandGrpIds(1)
                     mulliganHandler.seat2Hand = bridge.getHandGrpIds(2)
                     log.info("Match Door: seat {} connected, hands seat1={} seat2={}", seatId, mulliganHandler.seat1Hand, mulliganHandler.seat2Hand)
@@ -227,8 +230,9 @@ class MatchHandler(
             // GroupResp routes to mulligan handler (London tuck) or session (surveil/scry).
             // During mulligan phase, route to mulligan handler; otherwise to session.
             ClientMessageType.GroupResp_097b -> {
-                if (s?.gameBridge?.promptBridge?.getPendingPrompt() != null) {
-                    s.onGroupResp(greMsg)
+                val ms = s as? MatchSession
+                if (ms?.gameBridge?.promptBridge?.getPendingPrompt() != null) {
+                    s?.onGroupResp(greMsg)
                 } else {
                     mulliganHandler.onGroupResp(greMsg)
                 }
@@ -243,62 +247,24 @@ class MatchHandler(
                 s?.onConcede()
             }
 
-            ClientMessageType.PerformActionResp_097b -> {
-                if (!isFamiliar) {
-                    s?.onPerformAction(greMsg)
-                } else {
-                    log.debug("Match Door: ignoring PerformActionResp from Familiar (seat {})", seatId)
-                }
-            }
+            ClientMessageType.PerformActionResp_097b -> s?.onPerformAction(greMsg)
 
-            ClientMessageType.DeclareAttackersResp_097b -> {
-                if (!isFamiliar) {
-                    s?.onDeclareAttackers(greMsg)
-                } else {
-                    log.debug("Match Door: ignoring DeclareAttackersResp from Familiar (seat {})", seatId)
-                }
-            }
+            ClientMessageType.DeclareAttackersResp_097b -> s?.onDeclareAttackers(greMsg)
 
-            // SubmitAttackersReq is a type-only signal ("Done" button, no payload).
-            // The client may send it on either channel (seat 1 or 2) — race condition
-            // in the Arena client. Combat state (lastDeclaredAttackerIds) lives on
-            // the player's CombatHandler, so always route to the player's session.
-            ClientMessageType.SubmitAttackersReq -> {
-                val target = if (!isFamiliar) s else registry.activeSession()
-                target?.onDeclareAttackers(greMsg)
-            }
+            // SubmitAttackersReq: client race condition may send on Familiar channel.
+            // FamiliarSession no-ops handle it. PvP may want cross-seat routing later.
+            ClientMessageType.SubmitAttackersReq -> s?.onDeclareAttackers(greMsg)
 
-            ClientMessageType.DeclareBlockersResp_097b -> {
-                if (!isFamiliar) {
-                    s?.onDeclareBlockers(greMsg)
-                } else {
-                    log.debug("Match Door: ignoring DeclareBlockersResp from Familiar (seat {})", seatId)
-                }
-            }
+            ClientMessageType.DeclareBlockersResp_097b -> s?.onDeclareBlockers(greMsg)
 
-            // Same pattern as SubmitAttackersReq — route to player's session.
-            ClientMessageType.SubmitBlockersReq -> {
-                val target = if (!isFamiliar) s else registry.activeSession()
-                target?.onDeclareBlockers(greMsg)
-            }
+            // Same pattern as SubmitAttackersReq.
+            ClientMessageType.SubmitBlockersReq -> s?.onDeclareBlockers(greMsg)
 
-            ClientMessageType.SelectTargetsResp_097b -> {
-                if (!isFamiliar) {
-                    s?.onSelectTargets(greMsg)
-                }
-            }
+            ClientMessageType.SelectTargetsResp_097b -> s?.onSelectTargets(greMsg)
 
-            ClientMessageType.CancelActionReq_097b -> {
-                if (!isFamiliar) {
-                    s?.onCancelAction(greMsg)
-                }
-            }
+            ClientMessageType.CancelActionReq_097b -> s?.onCancelAction(greMsg)
 
-            ClientMessageType.SelectNresp -> {
-                if (!isFamiliar) {
-                    s?.onSelectN(greMsg)
-                }
-            }
+            ClientMessageType.SelectNresp -> s?.onSelectN(greMsg)
 
             ClientMessageType.CheckpointReq -> {
                 // Client acknowledges IntermissionReq — MatchCompleted room state
@@ -326,7 +292,7 @@ class MatchHandler(
     }
 
     private fun sendInitialBundle(ctx: ChannelHandlerContext) {
-        val s = session ?: return
+        val s = session as? MatchSession ?: return
         val bridge = s.gameBridge ?: return
         val gsId = s.counter.nextGsId()
         val deckGrpIds = bridge.getDeckGrpIds(seatId)
@@ -349,15 +315,15 @@ class MatchHandler(
     override fun channelInactive(ctx: ChannelHandlerContext) {
         log.info("Match Door: client disconnected")
         // Close recorder on disconnect (triggers analysis if game didn't end cleanly)
-        session?.recorder?.shutdown()
+        (session as? MatchSession)?.recorder?.shutdown()
         super.channelInactive(ctx)
     }
 
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
         log.error("Match Door error: {}", cause.message, cause)
-        session?.recorder?.shutdown()
+        (session as? MatchSession)?.recorder?.shutdown()
         // Route through Match.close() for proper lifecycle transition + callback
-        registry.getMatch(matchId)?.close() ?: session?.gameBridge?.shutdown()
+        registry.getMatch(matchId)?.close() ?: (session as? MatchSession)?.gameBridge?.shutdown()
         ctx.close()
     }
 
