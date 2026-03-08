@@ -582,6 +582,17 @@ class AnnotationBuilderTest :
             detail.getValueInt32(0) shouldBe 137
         }
 
+        test("powerToughnessModCreated has affectorId and detail keys") {
+            val ann = AnnotationBuilder.powerToughnessModCreated(
+                instanceId = 335, power = 1, toughness = 1, affectorId = 340,
+            )
+            ann.typeList shouldBe listOf(AnnotationType.PowerToughnessModCreated)
+            ann.affectedIdsList shouldBe listOf(335)
+            ann.affectorId shouldBe 340
+            ann.detailsList.first { it.key == "power" }.getValueInt32(0) shouldBe 1
+            ann.detailsList.first { it.key == "toughness" }.getValueInt32(0) shouldBe 1
+        }
+
         // --- Detail-less Tier 2 ---
 
         test("layeredEffectDestroyedFields") {

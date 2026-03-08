@@ -243,3 +243,16 @@ No tooling to extract the full annotation "contract" from recordings before writ
 - **Companion annotations**: what else appears in the same GSM alongside the target annotation
 
 We wrote code against incomplete field notes. Future annotation work: before any implementation, run a companion-extraction query against at least 2 recordings to get the full shape — types[], affectorId, affectedIds, all detail keys, and what else appears in the same GSM.
+
+### Resolution (same session)
+
+After building `rec-annotation-contract` tooling and confirming the reference, we fixed gaps 1–3 and 5 in code:
+
+- **Gap 1 (multi-type):** `AnnotationBuilder.layeredEffect()` now emits `[ModifiedToughness, ModifiedPower, LayeredEffect]` based on `powerDelta`/`toughnessDelta`. Tested.
+- **Gap 2 (affectorId):** Both `layeredEffectCreated` and `layeredEffect` now take `affectorId`. Pipeline passes `effect.cardInstanceId`. Tested.
+- **Gap 3 (companion):** Pipeline now emits `PowerToughnessModCreated` transient alongside `LayeredEffectCreated` for P/T buffs. Builder updated with `affectorId` param. Tested.
+- **Gap 5 (spurious LayeredEffectType):** Removed entirely. Tests confirm no `LayeredEffectType` key for P/T buffs.
+
+**Gap 4 (sourceAbilityGRPID) — deferred.** Forge's `ptBoostTable` stores a `staticId` (internal counter), not an Arena `abilityGrpId`. No clean mapping exists without either modifying Forge or building a reverse index from `StaticAbility.getId()` → card ability slot → `abilityGrpId`. Impact: client falls back to generic P/T animation instead of ability-specific VFX (e.g. prowess glow). Tracked for future work — needs Forge bridge investigation.
+
+**Process fix:** Added `rec-annotation-contract` hard gate to `investigate-annotation` skill. No annotation implementation without running the contract extractor first.

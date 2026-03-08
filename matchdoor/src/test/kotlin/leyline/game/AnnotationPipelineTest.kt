@@ -511,12 +511,18 @@ class AnnotationPipelineTest :
 
             val (transient, persistent) = AnnotationPipeline.effectAnnotations(diff)
 
-            transient.size shouldBe 1
+            // Transient: LayeredEffectCreated + PowerToughnessModCreated companion
+            transient.size shouldBe 2
             transient[0].typeList.first() shouldBe AnnotationType.LayeredEffectCreated
             transient[0].affectedIdsList shouldBe listOf(7005)
+            transient[1].typeList.first() shouldBe AnnotationType.PowerToughnessModCreated
+            transient[1].affectedIdsList shouldBe listOf(100)
+            transient[1].affectorId shouldBe 100
+            transient[1].detailsList.first { it.key == "power" }.getValueInt32(0) shouldBe 3
+            transient[1].detailsList.first { it.key == "toughness" }.getValueInt32(0) shouldBe 3
 
             persistent.size shouldBe 1
-            persistent[0].typeList.first() shouldBe AnnotationType.LayeredEffect
+            persistent[0].typeList shouldContain AnnotationType.LayeredEffect
             persistent[0].affectedIdsList shouldBe listOf(100)
             val effectIdDetail = persistent[0].detailsList.first { it.key == "effect_id" }
             effectIdDetail.getValueInt32(0) shouldBe 7005
@@ -548,33 +554,39 @@ class AnnotationPipelineTest :
             persistent.shouldBeEmpty()
         }
 
-        test("effectAnnotations sets LayeredEffectType based on power and toughness deltas") {
-            // Both power and toughness changed
+        test("effectAnnotations uses multi-type array based on deltas (no LayeredEffectType)") {
+            // Both power and toughness changed → [ModifiedToughness, ModifiedPower, LayeredEffect]
             val both = EffectTracker.DiffResult(
                 listOf(EffectTracker.TrackedEffect(7005, EffectTracker.EffectFingerprint(100, 1L, 0L), 3, 3)),
                 emptyList(),
             )
-            val (_, persistentBoth) = AnnotationPipeline.effectAnnotations(both)
-            val typeBoth = persistentBoth[0].detailsList.first { it.key == "LayeredEffectType" }
-            typeBoth.getValueString(0) shouldBe "Effect_ModifiedPowerAndToughness"
+            val (transientBoth, persistentBoth) = AnnotationPipeline.effectAnnotations(both)
+            persistentBoth[0].typeList shouldContain AnnotationType.ModifiedPower
+            persistentBoth[0].typeList shouldContain AnnotationType.ModifiedToughness
+            persistentBoth[0].typeList shouldContain AnnotationType.LayeredEffect
+            persistentBoth[0].detailsList.none { it.key == "LayeredEffectType" } shouldBe true
+            // Companion PowerToughnessModCreated emitted
+            transientBoth.any { it.typeList.contains(AnnotationType.PowerToughnessModCreated) } shouldBe true
 
-            // Only power changed
+            // Only power changed → [ModifiedPower, LayeredEffect], no ModifiedToughness
             val powerOnly = EffectTracker.DiffResult(
                 listOf(EffectTracker.TrackedEffect(7006, EffectTracker.EffectFingerprint(101, 2L, 0L), 2, 0)),
                 emptyList(),
             )
             val (_, persistentPower) = AnnotationPipeline.effectAnnotations(powerOnly)
-            val typePower = persistentPower[0].detailsList.first { it.key == "LayeredEffectType" }
-            typePower.getValueString(0) shouldBe "Effect_ModifiedPower"
+            persistentPower[0].typeList shouldContain AnnotationType.ModifiedPower
+            persistentPower[0].typeList shouldContain AnnotationType.LayeredEffect
+            persistentPower[0].typeList.none { it == AnnotationType.ModifiedToughness } shouldBe true
 
-            // Only toughness changed
+            // Only toughness changed → [ModifiedToughness, LayeredEffect], no ModifiedPower
             val toughOnly = EffectTracker.DiffResult(
                 listOf(EffectTracker.TrackedEffect(7007, EffectTracker.EffectFingerprint(102, 3L, 0L), 0, 1)),
                 emptyList(),
             )
             val (_, persistentTough) = AnnotationPipeline.effectAnnotations(toughOnly)
-            val typeTough = persistentTough[0].detailsList.first { it.key == "LayeredEffectType" }
-            typeTough.getValueString(0) shouldBe "Effect_ModifiedToughness"
+            persistentTough[0].typeList shouldContain AnnotationType.ModifiedToughness
+            persistentTough[0].typeList shouldContain AnnotationType.LayeredEffect
+            persistentTough[0].typeList.none { it == AnnotationType.ModifiedPower } shouldBe true
         }
 
         // --- annotationsForTransfer: new zone-specific categories ---

@@ -636,11 +636,13 @@ object AnnotationBuilder {
             .build()
 
     /** P/T modification event (buff animation). Arena type 71 (PowerToughnessModCreated).
-     *  Real card: grp:91865, +1/+1 (session 09-33-05). */
-    fun powerToughnessModCreated(instanceId: Int, power: Int, toughness: Int): AnnotationInfo =
+     *  Real card: grp:91865, +1/+1 (session 09-33-05).
+     *  [affectorId] = source of the P/T change (ability instance or card). */
+    fun powerToughnessModCreated(instanceId: Int, power: Int, toughness: Int, affectorId: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.PowerToughnessModCreated)
             .addAffectedIds(instanceId)
+            .apply { if (affectorId != 0) setAffectorId(affectorId) }
             .addDetails(int32Detail("power", power))
             .addDetails(int32Detail("toughness", toughness))
             .build()
