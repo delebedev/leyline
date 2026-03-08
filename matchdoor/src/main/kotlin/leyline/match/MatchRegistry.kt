@@ -14,8 +14,8 @@ class MatchRegistry {
     /** matchId -> shared Match. First seat creates, second reuses. */
     private val matches = ConcurrentHashMap<String, Match>()
 
-    /** matchId -> (seatId -> MatchSession). For cross-connection signaling. */
-    private val sessions = ConcurrentHashMap<String, ConcurrentHashMap<Int, MatchSession>>()
+    /** matchId -> (seatId -> SessionOps). For cross-connection signaling. */
+    private val sessions = ConcurrentHashMap<String, ConcurrentHashMap<Int, SessionOps>>()
 
     /** matchId -> (seatId -> MatchHandler). For pre-mulligan cross-connection messaging. */
     private val handlers = ConcurrentHashMap<String, ConcurrentHashMap<Int, MatchHandler>>()
@@ -29,12 +29,12 @@ class MatchRegistry {
     /** Convenience: get the bridge for a match directly. */
     fun getBridge(matchId: String): GameBridge? = matches[matchId]?.bridge
 
-    fun registerSession(matchId: String, seatId: Int, session: MatchSession) {
+    fun registerSession(matchId: String, seatId: Int, session: SessionOps) {
         sessions.computeIfAbsent(matchId) { ConcurrentHashMap() }[seatId] = session
     }
 
     /** Get the OTHER seat's session (seat 1 -> seat 2, seat 2 -> seat 1). */
-    fun getPeer(matchId: String, seatId: Int): MatchSession? {
+    fun getPeer(matchId: String, seatId: Int): SessionOps? {
         val peerSeat = if (seatId == 1) 2 else 1
         return sessions[matchId]?.get(peerSeat)
     }
@@ -67,7 +67,7 @@ class MatchRegistry {
     fun activeBridges(): Map<String, GameBridge> =
         HashMap(matches).mapValues { it.value.bridge }
 
-    /** Get seat 1 session for any active match (for debug injection). */
+    /** Get seat 1 MatchSession for any active match (for debug injection). */
     fun activeSession(): MatchSession? =
-        sessions.values.firstOrNull()?.get(1)
+        sessions.values.firstOrNull()?.values?.filterIsInstance<MatchSession>()?.firstOrNull()
 }
