@@ -525,6 +525,40 @@ class AnnotationBuilderTest :
             ann.detailsList.first { it.key == "effect_id" }.getValueInt32(0) shouldBe 7004
         }
 
+        // --- LayeredEffectCreated ---
+
+        test("layeredEffectCreated has correct type and affectedIds") {
+            val ann = AnnotationBuilder.layeredEffectCreated(effectId = 7005)
+            ann.typeList.first() shouldBe AnnotationType.LayeredEffectCreated
+            ann.affectedIdsList shouldBe listOf(7005)
+        }
+
+        test("layeredEffectCreated with affectorId includes it") {
+            val ann = AnnotationBuilder.layeredEffectCreated(effectId = 7005, affectorId = 335)
+            ann.affectorId shouldBe 335
+        }
+
+        test("layeredEffectCreated without affectorId defaults to zero") {
+            val ann = AnnotationBuilder.layeredEffectCreated(effectId = 7005)
+            ann.affectorId shouldBe 0
+        }
+
+        test("layeredEffect with effectType includes it") {
+            val ann = AnnotationBuilder.layeredEffect(instanceId = 100, effectId = 7005, effectType = "Effect_ModifiedPowerAndToughness")
+            val detail = ann.detailsList.first { it.key == "LayeredEffectType" }
+            detail.getValueString(0) shouldBe "Effect_ModifiedPowerAndToughness"
+        }
+
+        test("layeredEffect backward compat — two-arg call still works") {
+            val ann = AnnotationBuilder.layeredEffect(instanceId = 100, effectId = 7005)
+            ann.typeList.first() shouldBe AnnotationType.LayeredEffect
+            ann.affectedIdsList shouldBe listOf(100)
+            val effectIdDetail = ann.detailsList.first { it.key == "effect_id" }
+            effectIdDetail.getValueInt32(0) shouldBe 7005
+            // No LayeredEffectType detail when not provided
+            ann.detailsList.none { it.key == "LayeredEffectType" } shouldBe true
+        }
+
         // --- Detail-less Tier 2 ---
 
         test("layeredEffectDestroyedFields") {

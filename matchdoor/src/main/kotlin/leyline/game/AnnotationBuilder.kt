@@ -551,17 +551,41 @@ object AnnotationBuilder {
             .addDetails(int32Detail("DesignationType", designationType))
             .build()
 
+    /** Layered effect creation event (buff/debuff started). Arena type 18 (LayeredEffectCreated).
+     *  Transient — fires once when the effect begins. No detail keys on this annotation;
+     *  all metadata lives on the companion LayeredEffect persistent annotation.
+     *  [affectorId] = ability instance on stack that created the effect (optional — ~35% omitted). */
+    fun layeredEffectCreated(effectId: Int, affectorId: Int? = null): AnnotationInfo {
+        val builder = AnnotationInfo.newBuilder()
+            .addType(AnnotationType.LayeredEffectCreated)
+            .addAffectedIds(effectId)
+        if (affectorId != null) {
+            builder.affectorId = affectorId
+        }
+        return builder.build()
+    }
+
     /** Layered effect state (continuous effects). Arena type 51 (LayeredEffect).
-     *  Stub — emits always-present key only.
-     *  Optional details (context needed): grpid, UniqueAbilityId, sourceAbilityGRPID,
-     *  originalAbilityObjectZcid, MaxHandSize (seen in sessions 09-33-05, 14-15-29).
-     *  Real card: grp:93848, effect_id=7004 (session 09-33-05). */
-    fun layeredEffect(instanceId: Int, effectId: Int): AnnotationInfo =
-        AnnotationInfo.newBuilder()
+     *  Persistent — present in every GSM while the effect is active.
+     *  [effectType] maps to client sub-handler for the correct animation. */
+    fun layeredEffect(
+        instanceId: Int,
+        effectId: Int,
+        effectType: String? = null,
+        sourceAbilityGrpId: Int? = null,
+    ): AnnotationInfo {
+        val builder = AnnotationInfo.newBuilder()
             .addType(AnnotationType.LayeredEffect)
             .addAffectedIds(instanceId)
             .addDetails(int32Detail("effect_id", effectId))
-            .build()
+        if (effectType != null) {
+            builder.addDetails(stringDetail("LayeredEffectType", effectType))
+        }
+        if (sourceAbilityGrpId != null) {
+            builder.addDetails(int32Detail("sourceAbilityGRPID", sourceAbilityGrpId))
+        }
+        return builder.build()
+    }
 
     // -- Tier 2 detail-carrying annotations --
 
@@ -680,6 +704,12 @@ object AnnotationBuilder {
             .setKey(key)
             .setType(KeyValuePairValueType.Uint32)
             .addValueUint32(value)
+            .build()
+
+    private fun stringDetail(key: String, value: String): KeyValuePairInfo =
+        KeyValuePairInfo.newBuilder()
+            .setKey(key)
+            .addValueString(value)
             .build()
 
     private fun int32Detail(key: String, value: Int): KeyValuePairInfo =
