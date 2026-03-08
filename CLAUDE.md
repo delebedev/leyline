@@ -40,11 +40,11 @@ Other dirs: `bin/` (CLI tools), `docs/`, `forge/` (engine submodule), `gradle/`,
 - `capture/fd-frames.jsonl` — Front Door request/response frames (decoded JSON payloads)
 - `md-frames.jsonl` — Match Door GRE messages (protobuf)
 - `events.jsonl` — game events timeline
-- `client-errors.jsonl` — client-side exceptions captured from `Player.log`
+- `client-errors.jsonl` — legacy client exceptions (now use `just scry state`)
 - `capture/frames/` — raw binary frames
 - `analysis.json` — post-session analysis output
 
-`recordings/latest` points to the most recent session. `just serve` (non-proxy) only captures `client-errors.jsonl`. Recordings are the primary source of truth for understanding what the real server sends — use `just fd-*` and `just rec-*` commands to inspect them.
+`recordings/latest` points to the most recent session. Recordings are the primary source of truth for understanding what the real server sends — use `just fd-*` and `just rec-*` commands to inspect them.
 
 ## Testing
 
@@ -53,7 +53,7 @@ All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/nexus-test
 ## Debugging
 
 - **Server logs:** `logs/leyline.log` (rotated daily, gzipped). Read this instead of piping server output.
-- **Client errors:** `recordings/<session>/client-errors.jsonl` (persisted per session). Arena log: `~/Library/Logs/Wizards of the Coast/MTGA/Player.log`. Auto-tailed during `just serve`; standalone: `just watch-client`.
+- **Client errors:** `just scry state` (parses Player.log for GRE state + exceptions). HTTP: `just scry serve` on :8091. See `docs/debug-api.md`.
 - **Debug server** on `:8090` (auto-starts with `just serve`) — browser UI for live game state, priority log, accumulator. Full endpoint reference: `docs/debug-api.md`. Prefer reading files/using CLI tools over HTTP API for non-live inspection.
 
 ## Reference

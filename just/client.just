@@ -70,7 +70,12 @@ stop:
 arena *args: (_require classpath) check-java
     @{{project_dir}}/bin/arena {{args}}
 
+# scry — Player.log state accumulator (current game state from client perspective)
+[group('client')]
+scry *args:
+    @{{project_dir}}/bin/scry {{args}}
+
 # tail Player.log for client-side exceptions (standalone, no server)
 [group('client')]
-watch-client: (_require classpath) check-java
-    @{{_cli}} leyline.debug.WatchClientLogKt
+watch-client:
+    @{{project_dir}}/bin/scry state --no-cards

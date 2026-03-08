@@ -38,7 +38,7 @@ Arena automation is a state machine: **what screen am I on → what's my goal �
 
 ## Recovery
 
-1. Check `recordings/latest/client-errors.jsonl` and `logs/leyline.log`
+1. Check `just scry state --no-cards` and `logs/leyline.log`
 2. `arena ocr` to assess current state
 3. If recognizable screen — resume from that point
 4. Black screen — check server logs, don't click

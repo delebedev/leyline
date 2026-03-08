@@ -100,10 +100,10 @@ arena state                        # JSON game state
 ```
 
 ### `arena errors`
-Query client errors from debug API.
+Show client errors from Player.log (via scry).
 
 ```
-arena errors                       # JSON array of client-side errors
+arena errors                       # JSON game state with error_count + recent_errors
 ```
 
 ## Architecture

@@ -3,7 +3,6 @@ package leyline
 import leyline.account.AccountServer
 import leyline.config.MatchConfig
 import leyline.debug.DebugServer
-import leyline.debug.PlayerLogWatcher
 import leyline.game.ExposedCardRepository
 import leyline.infra.LeylineServer
 import leyline.infra.ManagementServer
@@ -61,7 +60,6 @@ fun main(args: Array<String>) {
     val mgmtPort = sc.managementPort
     val accountPort = a["--account-port"]?.toIntOrNull() ?: sc.accountPort
 
-    val logWatcher = PlayerLogWatcher(eventBus = server.eventBus)
     val debugServer = buildDebugServer(debugPort, server)
     val mgmtServer = ManagementServer(port = mgmtPort, healthCheck = { server.isHealthy() })
     val accountDb = org.jetbrains.exposed.v1.jdbc.Database.connect(
@@ -70,8 +68,8 @@ fun main(args: Array<String>) {
     )
     val accountServer = buildAccountServer(a, isProxy, accountPort, tls, fdHost, accountDb)
 
-    installShutdownHook(logWatcher, accountServer, debugServer, mgmtServer, server)
-    startAll(server, mgmtServer, debugServer, accountServer, logWatcher)
+    installShutdownHook(accountServer, debugServer, mgmtServer, server)
+    startAll(server, mgmtServer, debugServer, accountServer)
     printBanner(server, puzzleFile, isProxy, config, mgmtPort, debugPort, accountPort, accountServer, fdHost)
 
     Thread.currentThread().join()
@@ -160,7 +158,6 @@ private fun buildAccountServer(
 // -- Lifecycle ----------------------------------------------------------------
 
 private fun installShutdownHook(
-    logWatcher: PlayerLogWatcher,
     accountServer: AccountServer,
     debugServer: DebugServer,
     mgmtServer: ManagementServer,
@@ -168,7 +165,6 @@ private fun installShutdownHook(
 ) {
     Runtime.getRuntime().addShutdownHook(
         Thread {
-            logWatcher.stop()
             accountServer.stop()
             debugServer.stop()
             mgmtServer.stop()
@@ -182,13 +178,11 @@ private fun startAll(
     mgmtServer: ManagementServer,
     debugServer: DebugServer,
     accountServer: AccountServer,
-    logWatcher: PlayerLogWatcher,
 ) {
     server.start()
     mgmtServer.start()
     debugServer.start()
     accountServer.start()
-    logWatcher.start()
 }
 
 private fun printBanner(
