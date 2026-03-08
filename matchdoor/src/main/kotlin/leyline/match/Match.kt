@@ -28,10 +28,10 @@ class Match(
         deckList1: String? = null,
         deckList2: String? = null,
     ) {
+        bridge.start(seed, deckList, deckList1, deckList2)
         if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
             onStateChanged?.invoke(MatchState.RUNNING)
         }
-        bridge.start(seed, deckList, deckList1, deckList2)
     }
 
     /**
@@ -42,7 +42,6 @@ class Match(
     fun close() {
         val prev = stateRef.getAndSet(MatchState.FINISHED)
         if (prev == MatchState.FINISHED) return // already closed
-        bridge.teardownResources()
         bridge.shutdown()
         onStateChanged?.invoke(MatchState.FINISHED)
     }

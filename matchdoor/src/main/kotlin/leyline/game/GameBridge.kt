@@ -460,11 +460,13 @@ class GameBridge(
     }
 
     /** Submit keep decision for seat. */
+    // TODO(pvp): remove seatId == 1 guard — seat 2 needs mulligan support for PvP
     fun submitKeep(seatId: Int) {
         log.info("GameBridge: seat {} keeps hand", seatId)
         if (seatId == 1) mulliganBridge(1).submitKeep()
     }
 
+    // TODO(pvp): remove seatId == 1 guard — seat 2 needs mulligan support for PvP
     /**
      * Submit mulligan decision for seat.
      * Blocks until engine re-deals and reaches mulligan again.
@@ -525,6 +527,7 @@ class GameBridge(
         log.warn("GameBridge: timed out waiting for engine to reach tuck phase")
     }
 
+    // TODO(pvp): parameterize by seatId for PvP mulligan support
     /** How many cards the player must put on bottom (London mulligan). */
     fun getTuckCount(): Int = mulliganBridge(1).pendingCardsToTuck
 
@@ -534,6 +537,7 @@ class GameBridge(
         return player.getZone(ZoneType.Hand).cards.toList()
     }
 
+    // TODO(pvp): remove seatId == 1 guard — seat 2 needs tuck support for PvP
     /** Submit tuck decision — cards to put on bottom of library. */
     fun submitTuck(seatId: Int, cards: List<forge.game.card.Card>) {
         log.info("GameBridge: seat {} tucking {} cards", seatId, cards.size)
