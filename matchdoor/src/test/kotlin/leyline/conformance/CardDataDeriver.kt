@@ -62,7 +62,7 @@ object CardDataDeriver {
         val manaCost = deriveManaCost(rules.manaCost)
 
         // Abilities — assign synthetic sequential IDs per ability on the card
-        val abilityIds = deriveAbilityIds(card)
+        val (abilityIds, keywordAbilityGrpIds) = deriveAbilityIds(card)
 
         return CardData(
             grpId = grpId,
@@ -75,6 +75,7 @@ object CardDataDeriver {
             supertypes = supertypes,
             abilityIds = abilityIds,
             manaCost = manaCost,
+            keywordAbilityGrpIds = keywordAbilityGrpIds,
         )
     }
 
@@ -90,19 +91,26 @@ object CardDataDeriver {
         return counts.toList()
     }
 
-    private fun deriveAbilityIds(card: Card): List<Pair<Int, Int>> {
+    /** Returns (abilityIds, keywordAbilityGrpIds). */
+    private fun deriveAbilityIds(card: Card): Pair<List<Pair<Int, Int>>, Map<String, Int>> {
         // For basic lands, use well-known ability IDs matching TestCardRegistry
         val subtypes = card.type.subtypes.map { it.lowercase() }
         for ((subtype, abilityId) in BASIC_LAND_ABILITIES) {
-            if (subtype in subtypes) return listOf(abilityId to 0)
+            if (subtype in subtypes) return listOf(abilityId to 0) to emptyMap()
         }
         // Count abilities: keyword abilities + activated/triggered from card rules
-        // Keywords (Flying, Vigilance, Haste, etc.) are intrinsic keywords in CardRules
-        val keywordCount = card.rules?.mainPart?.keywords?.count() ?: 0
-        // Spell abilities from rules (activated abilities, mana abilities, etc.)
-        val spellAbilityCount = maxOf(0, (card.spellAbilities?.size ?: 1) - 1) // -1 for main cast spell
-        val totalCount = maxOf(1, keywordCount + spellAbilityCount)
-        return (0 until totalCount).map { nextAbilityGrpId.getAndIncrement() to 0 }
+        val keywords = card.rules?.mainPart?.keywords?.toList() ?: emptyList()
+        val spellAbilityCount = maxOf(0, (card.spellAbilities?.size ?: 1) - 1)
+        val totalCount = maxOf(1, keywords.size + spellAbilityCount)
+        val abilityIds = (0 until totalCount).map { nextAbilityGrpId.getAndIncrement() to 0 }
+
+        val keywordMap = mutableMapOf<String, Int>()
+        for ((i, kw) in keywords.withIndex()) {
+            if (i < abilityIds.size) {
+                keywordMap[kw.uppercase()] = abilityIds[i].first
+            }
+        }
+        return abilityIds to keywordMap
     }
 
     // ---- Static mapping tables ----
