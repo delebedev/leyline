@@ -103,10 +103,10 @@ class TestStreamSubcommand:
 # ---------------------------------------------------------------------------
 
 class TestServeSubcommand:
-    def test_serve_placeholder(self):
-        result = run_scry("serve")
-        assert result.returncode == 0
-        assert "not implemented" in result.stdout.lower()
+    def test_serve_nonexistent_log(self):
+        result = run_scry("serve", "--log", "/tmp/no-such-file-12345.log")
+        assert result.returncode == 1
+        assert "not found" in result.stderr.lower()
 
 
 # ---------------------------------------------------------------------------

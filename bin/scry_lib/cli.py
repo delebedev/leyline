@@ -65,7 +65,15 @@ def _cmd_stream(args: argparse.Namespace) -> None:
 
 
 def _cmd_serve(args: argparse.Namespace) -> None:
-    print("serve not implemented yet")
+    log_path = Path(args.log)
+
+    if not log_path.exists():
+        print(f"error: log not found: {log_path}", file=sys.stderr)
+        sys.exit(1)
+
+    from scry_lib.server import run_server
+
+    run_server(log_path, port=args.port)
 
 
 def main() -> None:
@@ -86,7 +94,7 @@ def main() -> None:
     p_stream.add_argument("-f", "--follow", action="store_true", help="Keep tailing (like tail -f)")
 
     # serve
-    p_serve = subs.add_parser("serve", help="Start HTTP server (placeholder)")
+    p_serve = subs.add_parser("serve", help="HTTP server for live game state")
     p_serve.add_argument("--log", default=str(DEFAULT_LOG), help="Path to Player.log")
     p_serve.add_argument("--port", type=int, default=8091, help="HTTP port")
 
