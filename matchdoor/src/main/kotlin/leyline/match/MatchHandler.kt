@@ -158,7 +158,8 @@ class MatchHandler(
     }
 
     private fun handleGREMessage(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
-        processGREMessage(ctx, ClientToGREMessage.parseFrom(msg.payload))
+        val greMsg = ClientToGREMessage.parseFrom(msg.payload)
+        processGREMessage(ctx, greMsg)
     }
 
     private fun processGREMessage(ctx: ChannelHandlerContext, greMsg: ClientToGREMessage) {

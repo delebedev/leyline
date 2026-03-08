@@ -91,6 +91,7 @@ class MatchFlowHarness(
 
     /** Start puzzle game from classpath resource, advance to first action phase. */
     fun connectAndKeepPuzzle(resourcePath: String, aiScript: List<ScriptedAction>? = null) {
+        GameBootstrap.initializeCardDatabase(quiet = true)
         startPuzzleBridge(PuzzleSource.loadFromResource(resourcePath), aiScript)
     }
 
