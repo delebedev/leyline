@@ -7,6 +7,48 @@ Used by arena.py for screen detection and navigation.
 from __future__ import annotations
 
 
+# --- Popup definitions ---
+# Popups are modal overlays that block the current screen.
+# Each popup: OCR anchors to detect it, dismiss steps to clear it.
+# Checked before/after every navigation transition.
+
+POPUPS: list[dict] = [
+    {
+        "name": "RewardDialog",
+        "ocr_anchors": ["Claim"],
+        "ocr_require_any": ["Daily", "Weekly", "Quest", "Reward"],
+        "dismiss": ['click "Claim" --retry 3', "sleep 1"],
+    },
+    {
+        "name": "LevelUp",
+        "ocr_anchors": ["Level Up"],
+        "dismiss": ["click 210,482", "sleep 1"],
+    },
+    {
+        "name": "PatchNotes",
+        "ocr_anchors": ["Patch Notes"],
+        "dismiss": ['click "X" --retry 3', "sleep 1"],
+    },
+    {
+        "name": "WildcardTracker",
+        "ocr_anchors": ["Wildcard"],
+        "ocr_require_any": ["Track", "Open"],
+        "dismiss": ["click 210,482", "sleep 1"],
+    },
+    {
+        "name": "DailyDeals",
+        "ocr_anchors": ["Daily Deals"],
+        "dismiss": ["click 210,482", "sleep 1"],
+    },
+    {
+        "name": "GenericModal",
+        "ocr_anchors": ["Okay"],
+        "ocr_reject": ["Banned"],  # BannedCards is a real screen, not a popup
+        "dismiss": ['click "Okay" --retry 3', "sleep 1"],
+    },
+]
+
+
 # --- Screen definitions ---
 # Each screen: detection signals (scene from Player.log, OCR anchors)
 
@@ -15,17 +57,18 @@ SCREENS: dict[str, dict] = {
     "Home": {
         "scene": "Home",
         "ocr_anchors": ["Play"],
-        "ocr_reject": ["Keep", "Concede", "Find Match", "Bot Match"],
+        "ocr_reject": ["Keep", "Concede", "Find Match", "Recently Played"],
     },
-    "Play": {
+    # --- Play blade tabs (overlay on Home, scene stays "Home") ---
+    "RecentlyPlayed": {
         "scene": "Home",
-        "ocr_anchors": ["Find Match"],
-        "ocr_reject": ["Keep", "Bot Match", "Edit Deck"],
+        "ocr_anchors": ["Recently Played"],
+        "ocr_reject": ["Keep", "Edit Deck"],
     },
     "FindMatch": {
         "scene": "Home",
-        "ocr_anchors": ["Bot Match"],
-        "ocr_reject": ["Keep", "Edit Deck"],
+        "ocr_anchors": ["Find Match"],
+        "ocr_reject": ["Keep", "Recently Played"],
     },
     "DeckSelected": {
         "scene": "Home",
@@ -35,10 +78,21 @@ SCREENS: dict[str, dict] = {
         "scene": "Home",
         "ocr_anchors": ["Events"],
         "ocr_require_any": ["All", "In Progress", "Limited", "Constructed"],
+        "ocr_reject": ["Recently Played"],
     },
     "EventLanding": {
         "scene": "EventLanding",
-        "ocr_require_any": ["Start", "Resume", "Build Your Deck", "Resign"],
+        "ocr_require_any": ["Start", "Resume", "Build Your Deck"],
+        "ocr_reject": ["Resign", "Loss"],
+    },
+    "EventLobby": {
+        "scene": "EventLanding",
+        "ocr_require_any": ["Play", "Resign"],
+        "ocr_anchors": ["Loss"],
+    },
+    "SealedBoosterOpen": {
+        "scene": "SealedBoosterOpen",
+        "ocr_require_any": ["Open", "Continue"],
     },
     # --- Nav bar screens ---
     "Profile": {
@@ -79,8 +133,7 @@ SCREENS: dict[str, dict] = {
         "ocr_anchors": ["Keep"],
     },
     "InGame": {
-        "scene": None,
-        "detect": "debug_api",
+        "scene": "InGame",
     },
     "ConcedMenu": {
         "scene": None,
@@ -88,6 +141,12 @@ SCREENS: dict[str, dict] = {
     },
     "Result": {
         "scene": None,
+        "ocr_require_any": ["DEFEAT", "VICTORY"],
+        "ocr_reject": ["Click to Continue"],
+    },
+    "EventResult": {
+        "scene": None,
+        "ocr_anchors": ["Click to Continue"],
         "ocr_require_any": ["DEFEAT", "VICTORY"],
     },
     "Reconnecting": {
@@ -102,21 +161,58 @@ SCREENS: dict[str, dict] = {
 # "wait" is the confirmation condition. "wait_timeout" in seconds.
 
 TRANSITIONS: list[dict] = [
-    # --- Forward: Home → Play → FindMatch → DeckSelected → Mulligan → InGame ---
+    # --- Play blade: Home opens to RecentlyPlayed by default ---
     {
         "from": "Home",
-        "to": "Play",
-        "steps": ['click "Play" --retry 3'],
-        "wait": 'text="Find Match"',
+        "to": "RecentlyPlayed",
+        "steps": ["click 866,533"],
+        "wait": 'text="Recently Played"',
         "wait_timeout": 5,
     },
+    # --- Tab switching within play blade ---
     {
-        "from": "Play",
+        "from": "RecentlyPlayed",
         "to": "FindMatch",
         "steps": ['click "Find Match" --retry 3'],
         "wait": 'text="Bot Match"',
         "wait_timeout": 5,
     },
+    {
+        "from": "RecentlyPlayed",
+        "to": "Events",
+        "steps": ['click "Events" --retry 3'],
+        "wait": 'text="All"',
+        "wait_timeout": 5,
+    },
+    {
+        "from": "FindMatch",
+        "to": "RecentlyPlayed",
+        "steps": ['click "Recently Played" --retry 3'],
+        "wait": 'text="Recently Played"',
+        "wait_timeout": 5,
+    },
+    {
+        "from": "FindMatch",
+        "to": "Events",
+        "steps": ['click "Events" --retry 3'],
+        "wait": 'text="All"',
+        "wait_timeout": 5,
+    },
+    {
+        "from": "Events",
+        "to": "RecentlyPlayed",
+        "steps": ['click "Recently Played" --retry 3'],
+        "wait": 'text="Recently Played"',
+        "wait_timeout": 5,
+    },
+    {
+        "from": "Events",
+        "to": "FindMatch",
+        "steps": ['click "Find Match" --retry 3'],
+        "wait": 'text="Bot Match"',
+        "wait_timeout": 5,
+    },
+    # --- FindMatch → DeckSelected (click format, then deck appears) ---
     {
         "from": "FindMatch",
         "to": "DeckSelected",
@@ -128,19 +224,22 @@ TRANSITIONS: list[dict] = [
         "wait_timeout": 5,
         "note": "Caller must click a deck thumbnail after this.",
     },
+    # --- Starting a game ---
     {
-        "from": "DeckSelected",
-        "to": "Mulligan",
-        "steps": ['click "Play" --retry 3'],
-        "wait": 'text="Keep"',
-        "wait_timeout": 30,
+        "from": "RecentlyPlayed",
+        "to": "InGame",
+        "steps": ["click 866,533"],
+        "wait": "scene=InGame",
+        "wait_timeout": 10,
+        "note": "Starts match with last-used deck. Mulligan may or may not appear.",
     },
     {
-        "from": "Mulligan",
+        "from": "DeckSelected",
         "to": "InGame",
-        "steps": ['click "Keep" --retry 3'],
-        "wait": "phase=PRECOMBAT_MAIN",
-        "wait_timeout": 15,
+        "steps": ["click 866,533"],
+        "wait": "scene=InGame",
+        "wait_timeout": 10,
+        "note": "Mulligan may or may not appear.",
     },
     # --- In-game flow ---
     {
@@ -161,23 +260,25 @@ TRANSITIONS: list[dict] = [
         "from": "Result",
         "to": "Home",
         "steps": [
-            "click 480,300",
+            "click 210,482",
             "sleep 2",
-            "click 480,300",
+            "click 210,482",
             "sleep 2",
-            "click 480,300",
+            "click 210,482",
         ],
         "wait": "scene=Home",
         "wait_timeout": 15,
     },
-    # --- Events path ---
+    # --- Events → EventLanding (click event tile — coords vary) ---
     {
-        "from": "Play",
-        "to": "Events",
-        "steps": ['click "Events" --retry 3'],
-        "wait": 'text="Limited"',
+        "from": "Events",
+        "to": "EventLanding",
+        "steps": ['click "Sealed" --retry 3'],
+        "wait": "scene=EventLanding",
         "wait_timeout": 5,
+        "note": "Clicks Sealed tile. For other events, caller must click the right tile.",
     },
+    # --- Events path (generic) ---
     {
         "from": "EventLanding",
         "to": "DeckBuilder",
@@ -187,38 +288,98 @@ TRANSITIONS: list[dict] = [
     },
     {
         "from": "DeckBuilder",
-        "to": "EventLanding",
+        "to": "EventLobby",
         "steps": ['click "Done" --retry 3'],
         "wait": "scene=EventLanding",
         "wait_timeout": 5,
     },
     {
         "from": "EventLanding",
-        "to": "Mulligan",
-        "steps": ['click "Play" --retry 3'],
-        "wait": 'text="Keep"',
-        "wait_timeout": 30,
+        "to": "InGame",
+        "steps": ["click 866,533"],
+        "wait": "scene=InGame",
+        "wait_timeout": 10,
     },
-    # --- Back navigation ---
     {
-        "from": "Play",
+        "from": "EventLobby",
+        "to": "InGame",
+        "steps": ["click 866,533"],
+        "wait": "scene=InGame",
+        "wait_timeout": 10,
+    },
+    # --- Sealed flow ---
+    {
+        "from": "EventLanding",
+        "to": "SealedBoosterOpen",
+        "steps": ["click 866,533"],
+        "wait": "scene=SealedBoosterOpen",
+        "wait_timeout": 10,
+        "note": "Click Start on pre-deck EventLanding.",
+    },
+    {
+        "from": "SealedBoosterOpen",
+        "to": "DeckBuilder",
+        "steps": [
+            "click 480,533",
+            "sleep 2",
+            "click 867,532",
+        ],
+        "wait": "scene=DeckBuilder",
+        "wait_timeout": 10,
+        "note": "Open packs → rares reveal → Continue → DeckBuilder.",
+    },
+    # --- Event result (defeat with Click to Continue) ---
+    {
+        "from": "ConcedMenu",
+        "to": "EventResult",
+        "steps": ['click "Concede" --retry 3'],
+        "wait": 'text="DEFEAT"',
+        "wait_timeout": 10,
+    },
+    {
+        "from": "EventResult",
+        "to": "EventLobby",
+        "steps": ["click 478,551"],
+        "wait": "scene=EventLanding",
+        "wait_timeout": 10,
+        "note": "Click to Continue → back to event lobby with updated loss count.",
+    },
+    # --- Event lobby back nav ---
+    {
+        "from": "EventLobby",
         "to": "Home",
-        "steps": ['click "Home" --retry 3'],
+        "steps": ["click 53,57"],
         "wait": "scene=Home",
         "wait_timeout": 5,
+    },
+    # --- Back navigation (blade tabs → Home) ---
+    {
+        "from": "RecentlyPlayed",
+        "to": "Home",
+        "steps": ["click 746,93"],
+        "wait": 'no-text="Recently Played"',
+        "wait_timeout": 5,
+        "note": "X button closes the play blade.",
     },
     {
         "from": "FindMatch",
         "to": "Home",
-        "steps": ['click "Home" --retry 3'],
-        "wait": "scene=Home",
+        "steps": ["click 746,93"],
+        "wait": 'no-text="Find Match"',
+        "wait_timeout": 5,
+    },
+    {
+        "from": "DeckSelected",
+        "to": "Home",
+        "steps": ["click 746,93"],
+        "wait": 'no-text="Edit Deck"',
         "wait_timeout": 5,
     },
     {
         "from": "Events",
         "to": "Home",
-        "steps": ['click "Home" --retry 3'],
-        "wait": "scene=Home",
+        "steps": ["click 746,93"],
+        "wait": 'no-text="All"',
         "wait_timeout": 5,
     },
     {
