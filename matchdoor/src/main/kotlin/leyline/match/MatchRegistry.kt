@@ -41,7 +41,7 @@ class MatchRegistry {
 
     /**
      * Remove all matches and sessions except [currentMatchId].
-     * Returns list of evicted matches (caller should shutdown).
+     * Returns list of evicted matches (already closed).
      */
     fun evictStale(currentMatchId: String): List<Match> {
         val staleKeys = matches.keys.filter { it != currentMatchId }

@@ -19,8 +19,8 @@ class Match(
     /** Current lifecycle state. */
     val state: MatchState get() = stateRef.get()
 
-    /** Optional callback fired on every state transition. */
-    var onStateChanged: ((MatchState) -> Unit)? = null
+    /** Optional callback fired on every state transition. Volatile for JMM visibility. */
+    @Volatile var onStateChanged: ((MatchState) -> Unit)? = null
 
     fun start(
         seed: Long? = null,
