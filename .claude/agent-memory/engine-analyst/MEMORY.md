@@ -12,6 +12,7 @@
 
 - Priority loop doc: `docs/priority-loop.md`
 - Priority analysis: `docs/priority-system-analysis.md`
+- Layered effects doc: `docs/forge-layered-effects.md`
 - Rosetta table: `docs/rosetta.md`
 - Arena priority ref: `~/src/mtga-internals/docs/phase-transitions-and-autopass.md`
 - Arena auto-pass: `~/src/mtga-internals/docs/auto-pass-protocol.md`
@@ -33,3 +34,24 @@
 - PrioritySignal (semaphore) wakes awaitPriority without polling
 - PhaseStopProfile: human defaults = MAIN1, COMBAT_DECLARE_ATTACKERS/BLOCKERS, MAIN2
 - EdictalMessage = server-forced pass (sent during auto-pass to break client out of waiting state)
+
+## Ability ID Mapping (docs/forge-ability-id-mapping.md)
+
+- Three independent ID counters: StaticAbility, SpellAbility, Trigger (each `++maxId`)
+- ptBoostTable staticId: continuous effects = StaticAbility.getId(); resolved spells/perpetual = 0
+- No global staticId→StaticAbility lookup in engine; must scan cards
+- Card trait creation order: replacements → statics → triggers → keywords → activated abilities
+- Keywords expand to sub-traits via KeywordInstance.createTraits() (grouped per KeywordInterface)
+- CardData.abilityIds slots are positional (card text order); Forge splits by type
+- Current workaround: `.firstOrNull()` everywhere (breaks multi-ability cards)
+- Bridge registry approach: map forge trait IDs → abilityGrpId slots at card registration
+
+## Layered Effects (docs/forge-layered-effects.md)
+
+- All per-card modifications use `Table<Long(timestamp), Long(staticAbilityId), Value>`
+- P/T split into 4 tables: newPTText (L3), newPTCharacterDefining (L7a), newPT (L7b/SetPT), boostPT (L7c/Modify)
+- Continuous effects: staticId = StaticAbility.getId() (stable int); resolved spells: staticId = 0
+- `checkStaticAbilities()` clears and reapplies all continuous effects every state check
+- `StatBreakdown(currentValue, tempBoost, bonusFromCounters)` decomposes final P/T
+- `getPTBoostTable()` returns immutable copy -- diffable between snapshots
+- `GameEventCardStatsChanged` fires with affected cards list but no delta

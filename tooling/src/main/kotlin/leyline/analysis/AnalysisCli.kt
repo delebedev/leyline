@@ -13,13 +13,15 @@ private val inspector = RecordingInspector()
 
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
-        System.err.println("Usage: analyze <session> [--force] | analyze-all | violations [session] | mechanics | latest")
+        System.err.println("Usage: analyze <session> [--force] | analyze-all | find <keyword> | annotation-contract <session> <type> [effectId] | violations [session] | mechanics | latest")
         exitProcess(1)
     }
 
     when (args[0]) {
         "analyze" -> cmdAnalyze(args.drop(1))
-        "analyze-all" -> cmdAnalyzeAll()
+        "analyze-all" -> cmdAnalyzeAll(args.drop(1))
+        "find" -> cmdFind(args.drop(1))
+        "annotation-contract" -> cmdAnnotationContract(args.drop(1))
         "violations" -> cmdViolations(args.drop(1))
         "mechanics" -> cmdMechanics()
         "latest" -> cmdLatest()
@@ -48,7 +50,8 @@ private fun cmdAnalyze(args: List<String>) {
     printAnalysisSummary(analysis)
 }
 
-private fun cmdAnalyzeAll() {
+private fun cmdAnalyzeAll(args: List<String>) {
+    val force = "--force" in args
     val root = LeylinePaths.RECORDINGS
     if (!root.isDirectory) {
         println("No recordings directory found at ${root.absolutePath}")
@@ -64,13 +67,13 @@ private fun cmdAnalyzeAll() {
     var skipped = 0
     for (sessionDir in sessions) {
         val analysisFile = File(sessionDir, "analysis.json")
-        if (analysisFile.exists()) {
+        if (analysisFile.exists() && !force) {
             skipped++
             continue
         }
-        val analysis = SessionAnalyzer.analyze(sessionDir)
+        val analysis = SessionAnalyzer.analyze(sessionDir, force = force)
         if (analysis != null) {
-            println("  ${sessionDir.name}: ${analysis.mechanicsExercised.size} mechanics, ${analysis.invariantViolations.size} violations")
+            println("  ${sessionDir.name}: ${analysis.mechanicsExercised.size} mechanics, ${analysis.invariantViolations.size} violations, ${analysis.cardIndex.size} cards")
             analyzed++
         }
     }
@@ -147,6 +150,61 @@ private fun cmdLatest() {
     } else {
         println("\nNo analysis available (no engine messages)")
     }
+}
+
+private fun cmdFind(args: List<String>) {
+    if (args.isEmpty()) {
+        System.err.println("Usage: find <keyword>  — searches card names across all analyzed sessions")
+        exitProcess(1)
+    }
+    val keyword = args.joinToString(" ")
+    val root = LeylinePaths.RECORDINGS
+    if (!root.isDirectory) {
+        println("No recordings directory")
+        return
+    }
+
+    val sessions = root.listFiles()
+        ?.filter { it.isDirectory && it.name != "latest" }
+        ?.sortedByDescending { it.name }
+        ?: emptyList()
+
+    var hits = 0
+    for (sessionDir in sessions) {
+        val analysis = SessionAnalyzer.readAnalysis(sessionDir) ?: continue
+        val matches = analysis.cardIndex.filter {
+            it.name.contains(keyword, ignoreCase = true)
+        }
+        if (matches.isNotEmpty()) {
+            hits++
+            val mode = analysis.mode.padEnd(6)
+            println("${sessionDir.name}  $mode  T${analysis.turns}  ${matches.joinToString(", ") { "${it.name} (${it.grpId})" }}")
+        }
+    }
+    if (hits == 0) {
+        println("No sessions with cards matching '$keyword'. Run 'just rec-analyze-all --force' to rebuild card indexes.")
+    } else {
+        println("\n$hits session(s) found.")
+    }
+}
+
+private fun cmdAnnotationContract(args: List<String>) {
+    if (args.size < 2) {
+        System.err.println("Usage: annotation-contract <session> <type> [effectId]")
+        System.err.println("  e.g.: annotation-contract 09-33-05 LayeredEffect 7007")
+        exitProcess(1)
+    }
+    val sessionDir = resolveSession(args[0]) ?: return
+    val typeName = args[1]
+    val effectId = args.getOrNull(2)?.toIntOrNull()
+
+    val result = AnnotationContract.extract(sessionDir, typeName, effectId)
+    if (result == null) {
+        println("No instances of '$typeName' found in ${sessionDir.name}")
+        return
+    }
+
+    print(AnnotationContract.format(result))
 }
 
 private fun printAnalysisSummary(analysis: SessionAnalyzer.Analysis) {

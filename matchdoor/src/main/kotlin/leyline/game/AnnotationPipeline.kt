@@ -402,6 +402,70 @@ object AnnotationPipeline {
             else -> TransferCategory.ZoneTransfer
         }
 
+    /**
+     * Stage 5: Build LayeredEffect lifecycle annotations from [EffectTracker.DiffResult].
+     *
+     * Pure function — converts diff results to proto annotations.
+     * Returns (transient, persistent) matching the pipeline convention.
+     *
+     * [sourceAbilityResolver] maps cardInstanceId → sourceAbilityGRPID (nullable).
+     * Used to drive ability-specific VFX (e.g. Prowess glow).
+     */
+    fun effectAnnotations(
+        diff: EffectTracker.DiffResult,
+        sourceAbilityResolver: ((Int) -> Int?)? = null,
+    ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
+        if (diff.created.isEmpty() && diff.destroyed.isEmpty()) {
+            return emptyList<AnnotationInfo>() to emptyList()
+        }
+
+        val transient = mutableListOf<AnnotationInfo>()
+        val persistent = mutableListOf<AnnotationInfo>()
+
+        for (effect in diff.created) {
+            val sourceAbilityGrpId = sourceAbilityResolver?.invoke(effect.cardInstanceId)
+
+            // Transient: LayeredEffectCreated with affectorId = card instance
+            transient.add(
+                AnnotationBuilder.layeredEffectCreated(
+                    effectId = effect.syntheticId,
+                    affectorId = effect.cardInstanceId,
+                ),
+            )
+
+            // Transient companion: PowerToughnessModCreated (drives buff animation)
+            if (effect.powerDelta != 0 || effect.toughnessDelta != 0) {
+                transient.add(
+                    AnnotationBuilder.powerToughnessModCreated(
+                        instanceId = effect.cardInstanceId,
+                        power = effect.powerDelta,
+                        toughness = effect.toughnessDelta,
+                        affectorId = effect.cardInstanceId,
+                    ),
+                )
+            }
+
+            // Persistent: multi-typed [ModifiedToughness, ModifiedPower, LayeredEffect]
+            // No LayeredEffectType for P/T buffs — real server only uses that for CopyObject
+            persistent.add(
+                AnnotationBuilder.layeredEffect(
+                    instanceId = effect.cardInstanceId,
+                    effectId = effect.syntheticId,
+                    powerDelta = effect.powerDelta,
+                    toughnessDelta = effect.toughnessDelta,
+                    affectorId = effect.cardInstanceId,
+                    sourceAbilityGrpId = sourceAbilityGrpId,
+                ),
+            )
+        }
+
+        for (effect in diff.destroyed) {
+            transient.add(AnnotationBuilder.layeredEffectDestroyed(effect.syntheticId))
+        }
+
+        return transient to persistent
+    }
+
     // --- helpers ---
 
     /** Replace oldId with newId in a zone's objectInstanceIds list (after instanceId realloc). */

@@ -12,10 +12,13 @@ def _cmd_state(args: argparse.Namespace) -> None:
     log_path = Path(args.log)
 
     if not log_path.exists():
-        print(json.dumps({"error": f"log not found: {log_path}", "state": None}, indent=2))
+        print(
+            json.dumps({"error": f"log not found: {log_path}", "state": None}, indent=2)
+        )
         return
 
     from scry_lib.errors import ClientError
+    from scry_lib.models import SceneChange
     from scry_lib.parser import GREBlock, parse_log
     from scry_lib.tracker import GameTracker
 
@@ -36,6 +39,8 @@ def _cmd_state(args: argparse.Namespace) -> None:
             tracker.feed(event)
         elif isinstance(event, ClientError):
             tracker.feed_error(event)
+        elif isinstance(event, SceneChange):
+            tracker.feed_scene(event)
 
     resolver = None
     if args.cards:
@@ -76,6 +81,35 @@ def _cmd_stream(args: argparse.Namespace) -> None:
         print(json.dumps(record))
 
 
+def _cmd_scene(args: argparse.Namespace) -> None:
+    """One-shot: parse Player.log for the latest scene (lobby screen)."""
+    log_path = Path(args.log)
+    if not log_path.exists():
+        print(json.dumps({"error": f"log not found: {log_path}", "current": None}))
+        return
+
+    from scry_lib.models import SceneChange
+    from scry_lib.parser import _SCENE_CHANGE_RE
+
+    # Scan from end — we only need the last SceneChange line
+    current: str | None = None
+    history: list[dict] = []
+    for line in log_path.read_text().splitlines():
+        m = _SCENE_CHANGE_RE.search(line)
+        if m:
+            try:
+                raw = json.loads(m.group(1))
+            except (json.JSONDecodeError, ValueError):
+                continue
+            sc = SceneChange.from_raw(raw)
+            current = sc.to_scene
+            history.append(sc.to_dict())
+
+    # Keep last N
+    history = history[-20:]
+    print(json.dumps({"current": current, "history": history}, indent=2))
+
+
 def _cmd_serve(args: argparse.Namespace) -> None:
     log_path = Path(args.log)
 
@@ -96,16 +130,40 @@ def main() -> None:
     subs = parser.add_subparsers(dest="command")
 
     # state
-    p_state = subs.add_parser("state", help="Parse log and print accumulated game state as JSON")
+    p_state = subs.add_parser(
+        "state", help="Parse log and print accumulated game state as JSON"
+    )
     p_state.add_argument("--log", default=str(DEFAULT_LOG), help="Path to Player.log")
-    p_state.add_argument("--no-catchup", action="store_true", help="Parse entire file instead of scanning for last Full GSM")
-    p_state.add_argument("--cards", action="store_true", default=True, help="Resolve card names from Arena DB (default: on)")
-    p_state.add_argument("--no-cards", dest="cards", action="store_false", help="Disable card name resolution")
+    p_state.add_argument(
+        "--no-catchup",
+        action="store_true",
+        help="Parse entire file instead of scanning for last Full GSM",
+    )
+    p_state.add_argument(
+        "--cards",
+        action="store_true",
+        default=True,
+        help="Resolve card names from Arena DB (default: on)",
+    )
+    p_state.add_argument(
+        "--no-cards",
+        dest="cards",
+        action="store_false",
+        help="Disable card name resolution",
+    )
 
     # stream
     p_stream = subs.add_parser("stream", help="Stream GRE blocks as JSONL")
     p_stream.add_argument("--log", default=str(DEFAULT_LOG), help="Path to Player.log")
-    p_stream.add_argument("-f", "--follow", action="store_true", help="Keep tailing (like tail -f)")
+    p_stream.add_argument(
+        "-f", "--follow", action="store_true", help="Keep tailing (like tail -f)"
+    )
+
+    # scene
+    p_scene = subs.add_parser(
+        "scene", help="Show current lobby screen from Player.log scene changes"
+    )
+    p_scene.add_argument("--log", default=str(DEFAULT_LOG), help="Path to Player.log")
 
     # serve
     p_serve = subs.add_parser("serve", help="HTTP server for live game state")
@@ -121,6 +179,7 @@ def main() -> None:
     dispatch = {
         "state": _cmd_state,
         "stream": _cmd_stream,
+        "scene": _cmd_scene,
         "serve": _cmd_serve,
     }
     dispatch[args.command](args)

@@ -13,10 +13,11 @@
 
 import Foundation
 import CoreGraphics
+import ApplicationServices
 
 func usage() -> Never {
     fputs("""
-    Usage: click <x> <y> [move|right|double|drag <x2> <y2>]
+    Usage: click <x> <y> [move|right|double|drag <x2> <y2>|scroll <delta>|hover <ms>]
 
     Actions:
       (default)  left click
@@ -24,6 +25,8 @@ func usage() -> Never {
       right      right click
       double     double left click
       drag       drag from (x,y) to (x2,y2)
+      scroll     scroll wheel at (x,y); delta>0 = up, <0 = down
+      hover      move to (x,y) and hold for <ms> milliseconds
 
     """, stderr)
     exit(1)
@@ -38,6 +41,10 @@ guard CommandLine.arguments.count >= 3,
 let action = CommandLine.arguments.count > 3 ? CommandLine.arguments[3] : "click"
 let point = CGPoint(x: x, y: y)
 
+if !AXIsProcessTrusted() {
+    fputs("WARNING: not accessibility-trusted — clicks will silently fail\n", stderr)
+}
+
 func post(_ event: CGEvent?) {
     guard let event = event else {
         fputs("Failed to create CGEvent\n", stderr)
@@ -49,6 +56,10 @@ func post(_ event: CGEvent?) {
 
 switch action {
 case "move":
+    // CGWarpMouseCursorPosition actually moves the visible cursor.
+    // CGEvent(.mouseMoved) only posts an event — cursor stays put.
+    CGWarpMouseCursorPosition(point)
+    // Post a mouseMoved event too so apps track the new position.
     post(CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
                  mouseCursorPosition: point, mouseButton: .left))
     print("moved to \(Int(x)),\(Int(y))")
@@ -84,6 +95,35 @@ case "double":
     up2?.setIntegerValueField(.mouseEventClickState, value: 2)
     post(up2)
     print("double-clicked \(Int(x)),\(Int(y))")
+
+case "scroll":
+    guard CommandLine.arguments.count >= 5,
+          let delta = Int32(CommandLine.arguments[4]) else {
+        fputs("scroll requires: click <x> <y> scroll <delta>\n", stderr)
+        exit(1)
+    }
+    CGWarpMouseCursorPosition(point)
+    post(CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
+                 mouseCursorPosition: point, mouseButton: .left))
+    usleep(50_000)
+    let scrollEvent = CGEvent(scrollWheelEvent2Source: nil,
+                              units: .pixel,
+                              wheelCount: 1,
+                              wheel1: delta, wheel2: 0, wheel3: 0)
+    post(scrollEvent)
+    print("scrolled \(delta) at \(Int(x)),\(Int(y))")
+
+case "hover":
+    guard CommandLine.arguments.count >= 5,
+          let ms = UInt32(CommandLine.arguments[4]) else {
+        fputs("hover requires: click <x> <y> hover <milliseconds>\n", stderr)
+        exit(1)
+    }
+    CGWarpMouseCursorPosition(point)
+    post(CGEvent(mouseEventSource: nil, mouseType: .mouseMoved,
+                 mouseCursorPosition: point, mouseButton: .left))
+    usleep(ms * 1000)
+    print("hovered \(Int(x)),\(Int(y)) for \(ms)ms")
 
 case "drag":
     guard CommandLine.arguments.count >= 6,

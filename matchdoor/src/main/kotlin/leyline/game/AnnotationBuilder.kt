@@ -551,17 +551,50 @@ object AnnotationBuilder {
             .addDetails(int32Detail("DesignationType", designationType))
             .build()
 
+    /** Layered effect creation event (buff/debuff started). Arena type 18 (LayeredEffectCreated).
+     *  Transient — fires once when the effect begins. No detail keys on this annotation;
+     *  all metadata lives on the companion LayeredEffect persistent annotation.
+     *  [affectorId] = ability instance on stack that created the effect (optional — ~35% omitted). */
+    fun layeredEffectCreated(effectId: Int, affectorId: Int? = null): AnnotationInfo {
+        val builder = AnnotationInfo.newBuilder()
+            .addType(AnnotationType.LayeredEffectCreated)
+            .addAffectedIds(effectId)
+        if (affectorId != null) {
+            builder.affectorId = affectorId
+        }
+        return builder.build()
+    }
+
     /** Layered effect state (continuous effects). Arena type 51 (LayeredEffect).
-     *  Stub — emits always-present key only.
-     *  Optional details (context needed): grpid, UniqueAbilityId, sourceAbilityGRPID,
-     *  originalAbilityObjectZcid, MaxHandSize (seen in sessions 09-33-05, 14-15-29).
-     *  Real card: grp:93848, effect_id=7004 (session 09-33-05). */
-    fun layeredEffect(instanceId: Int, effectId: Int): AnnotationInfo =
-        AnnotationInfo.newBuilder()
-            .addType(AnnotationType.LayeredEffect)
-            .addAffectedIds(instanceId)
-            .addDetails(int32Detail("effect_id", effectId))
-            .build()
+     *  Persistent — present in every GSM while the effect is active.
+     *
+     *  Real server uses multi-type arrays: `[ModifiedToughness, ModifiedPower, LayeredEffect]`
+     *  for P/T buffs — the co-types are part of the contract (drive client animation dispatch).
+     *  [affectorId] = the affected creature (for P/T buffs), not the ability instance.
+     *  [sourceAbilityGrpId] = ability grpId that created the effect (drives specific VFX, e.g. Prowess).
+     *
+     *  No `LayeredEffectType` for P/T buffs — real server only uses it for CopyObject. */
+    fun layeredEffect(
+        instanceId: Int,
+        effectId: Int,
+        powerDelta: Int = 0,
+        toughnessDelta: Int = 0,
+        affectorId: Int = 0,
+        sourceAbilityGrpId: Int? = null,
+    ): AnnotationInfo {
+        val builder = AnnotationInfo.newBuilder()
+        // Multi-type: co-type with ModifiedPower/ModifiedToughness for P/T buffs
+        if (toughnessDelta != 0) builder.addType(AnnotationType.ModifiedToughness)
+        if (powerDelta != 0) builder.addType(AnnotationType.ModifiedPower)
+        builder.addType(AnnotationType.LayeredEffect)
+        builder.addAffectedIds(instanceId)
+        if (affectorId != 0) builder.affectorId = affectorId
+        builder.addDetails(int32Detail("effect_id", effectId))
+        if (sourceAbilityGrpId != null) {
+            builder.addDetails(int32Detail("sourceAbilityGRPID", sourceAbilityGrpId))
+        }
+        return builder.build()
+    }
 
     // -- Tier 2 detail-carrying annotations --
 
@@ -603,11 +636,13 @@ object AnnotationBuilder {
             .build()
 
     /** P/T modification event (buff animation). Arena type 71 (PowerToughnessModCreated).
-     *  Real card: grp:91865, +1/+1 (session 09-33-05). */
-    fun powerToughnessModCreated(instanceId: Int, power: Int, toughness: Int): AnnotationInfo =
+     *  Real card: grp:91865, +1/+1 (session 09-33-05).
+     *  [affectorId] = source of the P/T change (ability instance or card). */
+    fun powerToughnessModCreated(instanceId: Int, power: Int, toughness: Int, affectorId: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.PowerToughnessModCreated)
             .addAffectedIds(instanceId)
+            .apply { if (affectorId != 0) setAffectorId(affectorId) }
             .addDetails(int32Detail("power", power))
             .addDetails(int32Detail("toughness", toughness))
             .build()

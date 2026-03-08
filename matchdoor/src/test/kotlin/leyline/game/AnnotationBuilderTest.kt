@@ -525,6 +525,83 @@ class AnnotationBuilderTest :
             ann.detailsList.first { it.key == "effect_id" }.getValueInt32(0) shouldBe 7004
         }
 
+        // --- LayeredEffectCreated ---
+
+        test("layeredEffectCreated has correct type and affectedIds") {
+            val ann = AnnotationBuilder.layeredEffectCreated(effectId = 7005)
+            ann.typeList.first() shouldBe AnnotationType.LayeredEffectCreated
+            ann.affectedIdsList shouldBe listOf(7005)
+        }
+
+        test("layeredEffectCreated with affectorId includes it") {
+            val ann = AnnotationBuilder.layeredEffectCreated(effectId = 7005, affectorId = 335)
+            ann.affectorId shouldBe 335
+        }
+
+        test("layeredEffectCreated without affectorId defaults to zero") {
+            val ann = AnnotationBuilder.layeredEffectCreated(effectId = 7005)
+            ann.affectorId shouldBe 0
+        }
+
+        test("layeredEffect P/T buff has multi-type array") {
+            val ann = AnnotationBuilder.layeredEffect(
+                instanceId = 100,
+                effectId = 7005,
+                powerDelta = 1,
+                toughnessDelta = 1,
+                affectorId = 100,
+            )
+            // Real server: [ModifiedToughness, ModifiedPower, LayeredEffect]
+            ann.typeList shouldContain AnnotationType.ModifiedToughness
+            ann.typeList shouldContain AnnotationType.ModifiedPower
+            ann.typeList shouldContain AnnotationType.LayeredEffect
+            ann.affectedIdsList shouldBe listOf(100)
+            ann.affectorId shouldBe 100
+            val effectIdDetail = ann.detailsList.first { it.key == "effect_id" }
+            effectIdDetail.getValueInt32(0) shouldBe 7005
+            // No LayeredEffectType for P/T buffs (real server only uses it for CopyObject)
+            ann.detailsList.none { it.key == "LayeredEffectType" } shouldBe true
+        }
+
+        test("layeredEffect power-only has ModifiedPower co-type") {
+            val ann = AnnotationBuilder.layeredEffect(instanceId = 100, effectId = 7005, powerDelta = 3)
+            ann.typeList shouldContain AnnotationType.ModifiedPower
+            ann.typeList shouldContain AnnotationType.LayeredEffect
+            ann.typeList.none { it == AnnotationType.ModifiedToughness } shouldBe true
+        }
+
+        test("layeredEffect no deltas has LayeredEffect only") {
+            val ann = AnnotationBuilder.layeredEffect(instanceId = 100, effectId = 7005)
+            ann.typeList shouldBe listOf(AnnotationType.LayeredEffect)
+            ann.affectedIdsList shouldBe listOf(100)
+        }
+
+        test("layeredEffect sourceAbilityGrpId included when set") {
+            val ann = AnnotationBuilder.layeredEffect(
+                instanceId = 100,
+                effectId = 7007,
+                sourceAbilityGrpId = 137,
+                powerDelta = 1,
+                toughnessDelta = 1,
+            )
+            val detail = ann.detailsList.first { it.key == "sourceAbilityGRPID" }
+            detail.getValueInt32(0) shouldBe 137
+        }
+
+        test("powerToughnessModCreated has affectorId and detail keys") {
+            val ann = AnnotationBuilder.powerToughnessModCreated(
+                instanceId = 335,
+                power = 1,
+                toughness = 1,
+                affectorId = 340,
+            )
+            ann.typeList shouldBe listOf(AnnotationType.PowerToughnessModCreated)
+            ann.affectedIdsList shouldBe listOf(335)
+            ann.affectorId shouldBe 340
+            ann.detailsList.first { it.key == "power" }.getValueInt32(0) shouldBe 1
+            ann.detailsList.first { it.key == "toughness" }.getValueInt32(0) shouldBe 1
+        }
+
         // --- Detail-less Tier 2 ---
 
         test("layeredEffectDestroyedFields") {

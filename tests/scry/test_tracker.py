@@ -14,6 +14,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # helpers
 # ---------------------------------------------------------------------------
 
+
 def _gsm_block(
     gsm_raw: dict,
     match_id: str = "match-1",
@@ -21,10 +22,12 @@ def _gsm_block(
 ) -> GREBlock:
     """Build a GREBlock with a single GameStateMessage (+ optional extras)."""
     messages = list(extra_messages or [])
-    messages.append({
-        "type": "GREMessageType_GameStateMessage",
-        "gameStateMessage": gsm_raw,
-    })
+    messages.append(
+        {
+            "type": "GREMessageType_GameStateMessage",
+            "gameStateMessage": gsm_raw,
+        }
+    )
     return GREBlock(messages=messages, match_id=match_id)
 
 
@@ -35,10 +38,12 @@ def _connect_block(
     """Block containing a ConnectResp (+ optional GameStateMessage)."""
     messages: list[dict] = [{"type": "GREMessageType_ConnectResp"}]
     if gsm_raw is not None:
-        messages.append({
-            "type": "GREMessageType_GameStateMessage",
-            "gameStateMessage": gsm_raw,
-        })
+        messages.append(
+            {
+                "type": "GREMessageType_GameStateMessage",
+                "gameStateMessage": gsm_raw,
+            }
+        )
     return GREBlock(messages=messages, match_id=match_id)
 
 
@@ -48,22 +53,48 @@ def _full_gsm(**overrides) -> dict:
         "gameStateId": 1,
         "turnInfo": {"turnNumber": 1, "phase": "Phase_Beginning"},
         "players": [
-            {"systemSeatNumber": 1, "lifeTotal": 20, "maxHandSize": 7,
-             "teamId": 1, "controllerSeatId": 1, "startingLifeTotal": 20},
-            {"systemSeatNumber": 2, "lifeTotal": 20, "maxHandSize": 7,
-             "teamId": 2, "controllerSeatId": 2, "startingLifeTotal": 20},
+            {
+                "systemSeatNumber": 1,
+                "lifeTotal": 20,
+                "maxHandSize": 7,
+                "teamId": 1,
+                "controllerSeatId": 1,
+                "startingLifeTotal": 20,
+            },
+            {
+                "systemSeatNumber": 2,
+                "lifeTotal": 20,
+                "maxHandSize": 7,
+                "teamId": 2,
+                "controllerSeatId": 2,
+                "startingLifeTotal": 20,
+            },
         ],
         "zones": [
-            {"zoneId": 28, "type": "ZoneType_Battlefield",
-             "visibility": "Visibility_Public"},
-            {"zoneId": 31, "type": "ZoneType_Hand",
-             "visibility": "Visibility_Private", "ownerSeatId": 1,
-             "objectInstanceIds": [151]},
+            {
+                "zoneId": 28,
+                "type": "ZoneType_Battlefield",
+                "visibility": "Visibility_Public",
+            },
+            {
+                "zoneId": 31,
+                "type": "ZoneType_Hand",
+                "visibility": "Visibility_Private",
+                "ownerSeatId": 1,
+                "objectInstanceIds": [151],
+            },
         ],
         "gameObjects": [
-            {"instanceId": 151, "grpId": 72032, "type": "GameObjectType_Card",
-             "zoneId": 31, "ownerSeatId": 1, "controllerSeatId": 1,
-             "cardTypes": ["CardType_Land"], "name": 46190},
+            {
+                "instanceId": 151,
+                "grpId": 72032,
+                "type": "GameObjectType_Card",
+                "zoneId": 31,
+                "ownerSeatId": 1,
+                "controllerSeatId": 1,
+                "cardTypes": ["CardType_Land"],
+                "name": 46190,
+            },
         ],
     }
     base.update(overrides)
@@ -73,6 +104,7 @@ def _full_gsm(**overrides) -> dict:
 # ---------------------------------------------------------------------------
 # Single game tracking
 # ---------------------------------------------------------------------------
+
 
 class TestSingleGame:
     def test_feed_sets_match_id(self):
@@ -91,10 +123,58 @@ class TestSingleGame:
         t.feed(_gsm_block(_full_gsm()))
         assert t.completed_games == []
 
+    def test_match_id_from_game_info_overrides_header(self):
+        """gameInfo.matchID inside GSM takes precedence over header match_id."""
+        gsm = _full_gsm(
+            gameInfo={
+                "matchID": "real-match-id",
+                "gameNumber": 1,
+                "stage": "GameStage_Play",
+            }
+        )
+        t = GameTracker()
+        t.feed(_gsm_block(gsm, match_id="session-id"))
+        assert t.current_match_id == "real-match-id"
+
+    def test_header_match_id_used_as_fallback(self):
+        """When no gameInfo, header match_id is used."""
+        gsm = _full_gsm()  # no gameInfo
+        t = GameTracker()
+        t.feed(_gsm_block(gsm, match_id="header-id"))
+        assert t.current_match_id == "header-id"
+
+    def test_multi_match_same_session_id(self):
+        """Two games with different gameInfo.matchID but same header session ID."""
+        gsm1 = _full_gsm(
+            gameStateId=1,
+            gameInfo={
+                "matchID": "match-aaa",
+                "gameNumber": 1,
+                "stage": "GameStage_Play",
+            },
+        )
+        gsm2 = _full_gsm(
+            gameStateId=10,
+            gameInfo={
+                "matchID": "match-bbb",
+                "gameNumber": 1,
+                "stage": "GameStage_Play",
+            },
+        )
+        t = GameTracker()
+        t.feed(_connect_block("session-id", gsm1))
+        assert t.current_match_id == "match-aaa"
+        # Second game starts
+        t.feed(_connect_block("session-id", gsm2))
+        assert t.current_match_id == "match-bbb"
+        assert len(t.completed_games) == 1
+        assert t.completed_games[0].match_id == "match-aaa"
+
 
 # ---------------------------------------------------------------------------
 # Multi-game (ConnectResp boundary)
 # ---------------------------------------------------------------------------
+
 
 class TestMultiGame:
     def test_connect_resp_archives_previous(self):
@@ -102,10 +182,12 @@ class TestMultiGame:
         # Game 1
         t.feed(_gsm_block(_full_gsm(gameStateId=1), match_id="match-1"))
         # Game 2 starts — ConnectResp with new full state
-        t.feed(_connect_block(
-            match_id="match-1",
-            gsm_raw=_full_gsm(gameStateId=10),
-        ))
+        t.feed(
+            _connect_block(
+                match_id="match-1",
+                gsm_raw=_full_gsm(gameStateId=10),
+            )
+        )
         assert len(t.completed_games) == 1
         assert t.completed_games[0].match_id == "match-1"
         assert t.completed_games[0].final_state is not None
@@ -116,10 +198,12 @@ class TestMultiGame:
     def test_first_connect_resp_no_archive(self):
         """First ConnectResp (no prior game) should not archive."""
         t = GameTracker()
-        t.feed(_connect_block(
-            match_id="match-1",
-            gsm_raw=_full_gsm(gameStateId=1),
-        ))
+        t.feed(
+            _connect_block(
+                match_id="match-1",
+                gsm_raw=_full_gsm(gameStateId=1),
+            )
+        )
         assert len(t.completed_games) == 0
         assert t.current_state.game_state_id == 1
 
@@ -127,6 +211,7 @@ class TestMultiGame:
 # ---------------------------------------------------------------------------
 # History cap
 # ---------------------------------------------------------------------------
+
 
 class TestHistoryCap:
     def test_completed_games_capped(self):
@@ -149,6 +234,7 @@ class TestHistoryCap:
 # ---------------------------------------------------------------------------
 # to_dict
 # ---------------------------------------------------------------------------
+
 
 class TestToDict:
     def test_with_state(self):
@@ -212,6 +298,7 @@ class TestToDict:
 # Integration: real fixture data
 # ---------------------------------------------------------------------------
 
+
 class TestRealData:
     def test_game_start_fixture(self):
         t = GameTracker()
@@ -257,10 +344,14 @@ class TestErrorTracking:
 
     def test_errors_in_to_dict(self):
         t = GameTracker()
-        t.feed_error(ClientError(exception_type="KeyNotFoundException", message="bad key"))
+        t.feed_error(
+            ClientError(exception_type="KeyNotFoundException", message="bad key")
+        )
         d = t.to_dict()
         assert d["error_count"] == 1
-        assert d["recent_errors"] == [{"type": "KeyNotFoundException", "message": "bad key"}]
+        assert d["recent_errors"] == [
+            {"type": "KeyNotFoundException", "message": "bad key"}
+        ]
 
     def test_error_ring_buffer(self):
         t = GameTracker(max_errors=3)

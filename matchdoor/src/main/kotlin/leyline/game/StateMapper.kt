@@ -160,6 +160,37 @@ object StateMapper {
         }
         annotations.addAll(mechanicResult.transient)
 
+        // gsId=1 init effects: 3 effects created+destroyed immediately
+        val initDiff = bridge.effects.emitInitEffectsOnce()
+        if (initDiff.created.isNotEmpty()) {
+            val (initTransient, _) = AnnotationPipeline.effectAnnotations(initDiff)
+            annotations.addAll(initTransient)
+            // No persistent annotations stored — they're destroyed in the same GSM
+        }
+
+        // Stage 5: Layered effect lifecycle (P/T boost diffing)
+        val boostSnapshot = bridge.snapshotBoosts()
+        val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
+
+        // Resolve sourceAbilityGRPID: instanceId → card keyword → abilityGrpId
+        val sourceAbilityResolver = buildSourceAbilityResolver(game, bridge)
+        val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
+        annotations.addAll(effectTransient)
+
+        // Store effect persistent annotations (LayeredEffect)
+        for (ann in effectPersistent) {
+            val numbered = ann.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
+            bridge.addPersistentAnnotation(numbered)
+        }
+
+        // Remove persistent annotations for destroyed effects
+        for (effect in effectDiff.destroyed) {
+            val annId = bridge.findPersistentEffectByEffectId(effect.syntheticId)
+            if (annId != null) {
+                bridge.removePersistentAnnotation(annId)
+            }
+        }
+
         // Store new persistent annotations in bridge for carry-forward across GSMs
         for (ann in persistentAnnotations) {
             val numbered = ann.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
@@ -352,6 +383,36 @@ object StateMapper {
             GameStateUpdate.SendAndRecord
         } else {
             GameStateUpdate.SendHiFi
+        }
+    }
+
+    /** Keywords whose triggered/static abilities produce P/T boosts.
+     *  Only Prowess for now — battle cry, lord anthems, and other continuous
+     *  P/T effects don't yet carry sourceAbilityGRPID. Extend as needed. */
+    private val PT_BOOST_KEYWORDS = setOf("PROWESS")
+
+    /**
+     * Build a resolver: cardInstanceId → sourceAbilityGRPID.
+     * Scans battlefield once, then checks each card for P/T-boost keywords.
+     */
+    private fun buildSourceAbilityResolver(game: Game, bridge: GameBridge): (Int) -> Int? {
+        // Build instanceId → card name map from battlefield (same cards snapshotBoosts iterates)
+        val instanceIdToName = mutableMapOf<Int, String>()
+        for (player in game.players) {
+            for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
+                val instanceId = bridge.getOrAllocInstanceId(card.id)
+                instanceIdToName[instanceId] = card.name
+            }
+        }
+
+        return resolver@{ instanceId ->
+            val name = instanceIdToName[instanceId] ?: return@resolver null
+            val grpId = bridge.cards.findGrpIdByName(name) ?: return@resolver null
+            val cardData = bridge.cards.findByGrpId(grpId) ?: return@resolver null
+            for (keyword in PT_BOOST_KEYWORDS) {
+                cardData.keywordAbilityGrpIds[keyword]?.let { return@resolver it }
+            }
+            null
         }
     }
 }

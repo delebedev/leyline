@@ -36,6 +36,7 @@ object SessionAnalyzer {
         val gsidChain: GsIdChainResult = GsIdChainResult(),
         val interestingMoments: List<InterestingMoment> = emptyList(),
         val annotationCoverage: AnnotationCoverage = AnnotationCoverage(),
+        val cardIndex: List<CardSeen> = emptyList(),
     )
 
     @Serializable
@@ -56,6 +57,12 @@ object SessionAnalyzer {
     data class AnnotationCoverage(
         val seen: List<Int> = emptyList(),
         val totalDistinct: Int = 0,
+    )
+
+    @Serializable
+    data class CardSeen(
+        val grpId: Int,
+        val name: String = "",
     )
 
     /**
@@ -153,6 +160,14 @@ object SessionAnalyzer {
             totalDistinct = allAnnotationTypes.size,
         )
 
+        // --- Card index (all seats — don't miss opponent's cards) ---
+        val allSeatMessages = if (sourceDir != null) {
+            RecordingDecoder.decodeDirectory(sourceDir, seatFilter = null)
+        } else {
+            emptyList()
+        }
+        val cardIndex = buildCardIndex(allSeatMessages)
+
         // --- Interesting moments ---
         val interestingMoments = findInterestingMoments(messages, mechanics, sessionDir)
 
@@ -168,6 +183,7 @@ object SessionAnalyzer {
             gsidChain = gsIdChain,
             interestingMoments = interestingMoments,
             annotationCoverage = annotationCoverage,
+            cardIndex = cardIndex,
         )
 
         // Write analysis.json
@@ -196,6 +212,59 @@ object SessionAnalyzer {
     }
 
     // --- Private helpers ---
+
+    /**
+     * Build card index from all objects seen in the session.
+     * Uses [allMessages] (no seat filter) to catch both players' cards.
+     */
+    private fun buildCardIndex(messages: List<RecordingDecoder.DecodedMessage>): List<CardSeen> {
+        val grpIds = messages
+            .flatMap { it.objects }
+            .map { it.grpId }
+            .filter { it > 0 }
+            .distinct()
+            .sorted()
+        if (grpIds.isEmpty()) return emptyList()
+
+        val names = resolveCardNames(grpIds)
+        return grpIds.map { CardSeen(it, names[it] ?: "") }
+    }
+
+    /**
+     * Resolve grpIds to card names via Arena's local SQLite DB.
+     * Same DB and query pattern as `just card` in lookup.just.
+     * Returns empty map if DB not found (CI, no Arena installed).
+     */
+    private fun resolveCardNames(grpIds: List<Int>): Map<Int, String> {
+        val rawDir = File(
+            System.getenv("HOME") ?: "/tmp",
+            "Library/Application Support/com.wizards.mtga/Downloads/Raw",
+        )
+        val dbFile = rawDir.listFiles()
+            ?.firstOrNull { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
+            ?: return emptyMap()
+
+        val inClause = grpIds.joinToString(",")
+        val query = "SELECT c.GrpId, l.Loc FROM Cards c " +
+            "JOIN Localizations_enUS l ON c.TitleId = l.LocId " +
+            "WHERE c.GrpId IN ($inClause);"
+        return try {
+            val process = ProcessBuilder("sqlite3", dbFile.absolutePath, query)
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().readText()
+            process.waitFor()
+            output.lines()
+                .filter { it.contains("|") }
+                .associate {
+                    val parts = it.split("|", limit = 2)
+                    parts[0].toInt() to parts[1]
+                }
+        } catch (e: Exception) {
+            log.debug("Card name resolution failed: {}", e.message)
+            emptyMap()
+        }
+    }
 
     private fun detectWinner(messages: List<RecordingDecoder.DecodedMessage>): String {
         // Look for IntermissionReq (game over indicator)
