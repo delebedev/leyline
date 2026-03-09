@@ -473,6 +473,18 @@ class FrontDoorHandler(
                 }
             }
 
+            // Stub: client sends these after last BotDraft pick as fallback when our
+            // completed-draft response doesn't fully convince it the draft ended.
+            // Real server never receives them during BotDraft (see proxy recording
+            // 2026-03-07_17-57-22, seq 301-304). Needs investigation into response
+            // shape difference vs real server.
+            CmdType.EVENT_PLAYER_DRAFT_CONFIRM_CARD_POOL_GRANT.value,
+            CmdType.DRAFT_COMPLETE_DRAFT.value,
+            -> {
+                log.warn("Front Door: stub no-op for CmdType {} ({})", cmdType, CmdType.nameOf(cmdType))
+                writer.send(ctx, txId, FdResponse.Empty)
+            }
+
             CmdType.EVENT_SET_DECK_V2.value -> {
                 val req = FdRequests.parseSetDeck(json)
                 if (req != null && req.deckId != null) {

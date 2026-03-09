@@ -45,10 +45,12 @@ value class CmdType(val value: Int) {
         val EVENT_GET_COURSES_V2 = CmdType(623)
         val EVENT_GET_ACTIVE_EVENTS_V2 = CmdType(624)
 
-        // --- BotDraft ---
+        // --- Draft ---
+        val EVENT_PLAYER_DRAFT_CONFIRM_CARD_POOL_GRANT = CmdType(621)
         val BOT_DRAFT_START = CmdType(1800)
         val BOT_DRAFT_PICK = CmdType(1801)
         val BOT_DRAFT_STATUS = CmdType(1802)
+        val DRAFT_COMPLETE_DRAFT = CmdType(1908)
 
         // --- Store ---
         val CAROUSEL_GET_ITEMS = CmdType(704)
@@ -135,6 +137,7 @@ value class CmdType(val value: Int) {
             1800 to "BotDraft_StartDraft",
             1801 to "BotDraft_DraftPick",
             1802 to "BotDraft_DraftStatus",
+            1908 to "Draft_CompleteDraft",
             703 to "Store_GetEntitlements",
             704 to "Carousel_GetCarouselItems",
             708 to "Merc_GetStoreStatusV2",
