@@ -593,7 +593,7 @@ class FrontDoorHandlerTest :
             var payload = json.parseToJsonElement(outer["Payload"]!!.jsonPrimitive.content).jsonObject
 
             // Pick all 39 cards
-            for (i in 0 until 39) {
+            repeat(39) {
                 val card = payload["DraftPack"]!!.jsonArray[0].jsonPrimitive.content
                 val packNum = payload["PackNumber"]!!.jsonPrimitive.int
                 val pickNum = payload["PickNumber"]!!.jsonPrimitive.int
