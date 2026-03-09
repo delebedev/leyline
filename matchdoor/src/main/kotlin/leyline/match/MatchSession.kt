@@ -272,14 +272,26 @@ class MatchSession(
         // After a cast or activate, check for targeting prompt or intermediate stack state
         if (isCastOrActivate && targetingHandler.handlePostCastPrompt(bridge)) return
 
-        // After stack resolution: send intermediate state so the client sees the
-        // creature move from stack to battlefield with resolution annotations.
+        // After stack resolution: check for modal ETB prompt before sending state.
+        // The engine may have fired a modal trigger (e.g. Charming Prince ETB)
+        // during resolution, blocking in chooseModeForAbility.
         if (stackWasNonEmpty) {
             val g = bridge.getGame()
-            if (g != null && g.stack.isEmpty) {
-                log.info("MatchSession: stack resolved, sending intermediate resolution state")
-                sendRealGameState(bridge)
-                return
+            if (g != null) {
+                // Check for pending modal prompt from ETB trigger
+                when (targetingHandler.checkPendingPrompt(bridge, g)) {
+                    TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
+                    TargetingHandler.PromptResult.AUTO_RESOLVED -> {
+                        // Fall through to autoPass
+                    }
+                    TargetingHandler.PromptResult.NONE -> {
+                        if (g.stack.isEmpty) {
+                            log.info("MatchSession: stack resolved, sending intermediate resolution state")
+                            sendRealGameState(bridge)
+                            return
+                        }
+                    }
+                }
             }
         }
 
@@ -314,6 +326,12 @@ class MatchSession(
     override fun onGroupResp(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         targetingHandler.onGroupResp(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
+    }
+
+    /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */
+    override fun onCastingTimeOptions(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+        val bridge = gameBridge ?: return
+        targetingHandler.onCastingTimeOptions(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /**
@@ -602,7 +620,10 @@ class MatchSession(
         // via per-seat GamePlayback.
         if (peer !is FamiliarSession) return
         val mirrorSeat = 2
-        val mirrored = messages.map { gre ->
+        // Filter out CastingTimeOptionsReq — Familiar must not auto-respond to modal prompts
+        val filtered = messages.filter { it.type != GREMessageType.CastingTimeOptionsReq_695e }
+        if (filtered.isEmpty()) return
+        val mirrored = filtered.map { gre ->
             val builder = gre.toBuilder().clearSystemSeatIds().addSystemSeatIds(mirrorSeat)
             // Strip Private gameObjects not visible to mirror seat (real server
             // omits Limbo objects from non-owner messages).

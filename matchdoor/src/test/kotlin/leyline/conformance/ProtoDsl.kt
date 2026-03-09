@@ -192,6 +192,35 @@ fun cancelActionReq(): ClientToGREMessage =
     }
 
 // ---------------------------------------------------------------------------
+// Modal — CastingTimeOptionsResp
+// ---------------------------------------------------------------------------
+
+/**
+ * [CastingTimeOptionsResp] — respond to a modal/kicker CastingTimeOptionsReq.
+ *
+ * @param selectedGrpIds the grpIds of chosen modal options
+ * @param ctoId must match the ctoId from the request (usually 1)
+ */
+fun castingTimeOptionsResp(
+    selectedGrpIds: List<Int>,
+    ctoId: Int = 1,
+): ClientToGREMessage =
+    clientMessage(ClientMessageType.CastingTimeOptionsResp_097b) {
+        setCastingTimeOptionsResp(
+            CastingTimeOptionsResp.newBuilder().setCastingTimeOptionResp(
+                CastingTimeOptionResp.newBuilder()
+                    .setCtoId(ctoId)
+                    .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4)
+                    .setChooseModalResp(
+                        ChooseModalResp.newBuilder().apply {
+                            for (grpId in selectedGrpIds) addGrpIds(grpId)
+                        },
+                    ),
+            ),
+        )
+    }
+
+// ---------------------------------------------------------------------------
 // Settings — for unit tests building SettingsMessage / stops
 // ---------------------------------------------------------------------------
 
