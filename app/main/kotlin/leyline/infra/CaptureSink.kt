@@ -193,7 +193,7 @@ class CaptureSink(
             }
 
             if (messages.isEmpty()) return
-            val sorted = messages.sortedBy { it.seq }
+            val sorted = messages.sortedBy { it.index }
             val outFile = File(sessionDir, "md-frames.jsonl")
             outFile.printWriter().use { pw ->
                 for (msg in sorted) pw.println(RecordingDecoder.toJsonLine(msg))

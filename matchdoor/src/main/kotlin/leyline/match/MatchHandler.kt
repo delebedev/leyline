@@ -292,8 +292,8 @@ class MatchHandler(
     }
 
     private fun sendInitialBundle(ctx: ChannelHandlerContext) {
-        val s = session as? MatchSession ?: return
-        val bridge = s.gameBridge ?: return
+        val s = session ?: return
+        val bridge = registry.getMatch(matchId)?.bridge ?: return
         val gsId = s.counter.nextGsId()
         val deckGrpIds = bridge.getDeckGrpIds(seatId)
         val deck = GsmBuilder.buildDeckMessage(deckGrpIds)
