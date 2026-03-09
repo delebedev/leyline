@@ -124,7 +124,7 @@ class DiffDiagnosticTest :
             castId shouldBe resolvedId
         }
 
-        test("aiActionDiff contains BF objects for AI land play") {
+        test("remoteActionDiff contains BF objects for AI land play") {
             val (b, game, counter) = base.startGameAtMain1()
 
             base.gameStart(game, b, counter)
@@ -132,7 +132,7 @@ class DiffDiagnosticTest :
 
             base.playLand(b) ?: error("playLand failed at seed 42")
 
-            val aiResult = BundleBuilder.aiActionDiff(
+            val aiResult = BundleBuilder.remoteActionDiff(
                 game,
                 b,
                 ConformanceTestBase.TEST_MATCH_ID,

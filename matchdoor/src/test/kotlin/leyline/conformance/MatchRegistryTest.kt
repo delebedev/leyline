@@ -10,6 +10,7 @@ import io.kotest.matchers.types.shouldBeSameInstanceAs
 import leyline.UnitTag
 import leyline.game.GameBridge
 import leyline.infra.ListMessageSink
+import leyline.match.FamiliarSession
 import leyline.match.Match
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -132,6 +133,27 @@ class MatchRegistryTest :
             shouldThrow<IllegalStateException> {
                 bridge.actionBridge(99)
             }
+        }
+
+        test("registerSession accepts FamiliarSession via SessionOps interface") {
+            val registry = MatchRegistry()
+            val sink = ListMessageSink()
+            val human = MatchSession(seatId = 1, matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
+            val familiar = FamiliarSession(seatId = 2, matchId = "m1", sink = sink)
+            registry.registerSession("m1", 1, human)
+            registry.registerSession("m1", 2, familiar)
+            registry.getPeer("m1", 1) shouldBeSameInstanceAs familiar
+            registry.getPeer("m1", 2) shouldBeSameInstanceAs human
+        }
+
+        test("activeSession returns MatchSession, not FamiliarSession") {
+            val registry = MatchRegistry()
+            val sink = ListMessageSink()
+            val human = MatchSession(seatId = 1, matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
+            val familiar = FamiliarSession(seatId = 2, matchId = "m1", sink = sink)
+            registry.registerSession("m1", 1, human)
+            registry.registerSession("m1", 2, familiar)
+            registry.activeSession() shouldBeSameInstanceAs human
         }
 
         test("onStateChanged callback enables auto-removal from registry") {

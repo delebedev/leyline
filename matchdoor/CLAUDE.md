@@ -16,8 +16,10 @@ game/       State mapping, annotations, proto builders, card data.
             Pure translation: Forge state → Arena protobuf.
   mapper/   Per-domain mappers (actions, objects, players, zones, stops).
 
-match/      Match orchestration — MatchHandler, MatchSession, combat,
-            targeting, mulligan, puzzle handlers. Entry point for client messages.
+match/      Match orchestration — MatchHandler, MatchSession, FamiliarSession,
+            combat, targeting, mulligan, puzzle handlers. Entry point for
+            client messages. Two session types: MatchSession (human, full
+            game logic) and FamiliarSession (read-only mirror, no-op actions).
 ```
 
 ArchUnit enforces: bridge → game → match (no reverse deps within the module).
@@ -26,7 +28,11 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 
 **Outbound (engine → client):** Forge `Game` → `StateMapper.buildFromGame()` snapshots zones/objects/players → `GameEventCollector.drainEvents()` feeds `AnnotationBuilder.categoryFromEvents()` for transfer categories → `annotationsForTransfer()` builds per-event proto annotations → `BundleBuilder` assembles GRE messages (Diff/Full GSM + ActionsAvailableReq) → `MessageSink` → Arena client.
 
-**Inbound (client → engine):** Arena proto (`PerformActionResp`, `DeclareAttackersResp`, etc.) → `MatchSession` handler → translates to `PlayerAction` or prompt response → submits through `GameActionBridge.submitAction()` or `InteractivePromptBridge.submitResponse()` (both `CompletableFuture.complete()`) → engine thread unblocks.
+**Inbound (client → engine):** Arena proto (`PerformActionResp`, `DeclareAttackersResp`, etc.) → `MatchHandler` dispatches unconditionally to session (`SessionOps`) → `MatchSession` translates to `PlayerAction` or prompt response → submits through `GameActionBridge.submitAction()` or `InteractivePromptBridge.submitResponse()` (both `CompletableFuture.complete()`) → engine thread unblocks. `FamiliarSession` no-ops all action methods.
+
+**Session types:** `MatchHandler` creates `MatchSession` (human, full game logic) or `FamiliarSession` (read-only mirror) based on `clientId` suffix. No `isFamiliar` boolean gates — the type system enforces the constraint.
+
+**Per-seat GamePlayback:** Each seat gets its own `GamePlayback` instance (via `bridge.playbacks[SeatId]`). Each fires on the EventBus when the OTHER player acts (`isRemoteActing()`). 1vAI: seat 1 only. PvP: both seats. Delivers animated opponent diffs with the same animation fidelity as AI turns.
 
 **Threading:** Engine runs on a dedicated daemon thread, blocks on `CompletableFuture.get()` at every priority stop / prompt. `MatchSession` receives client messages on Netty I/O thread, completes the future. All session entry points synchronized on `sessionLock`. Timeout = engine blocked waiting for a response MatchSession never submitted.
 

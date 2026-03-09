@@ -39,7 +39,7 @@ class MatchSession(
     val sink: MessageSink,
     val registry: MatchRegistry,
     val paceDelayMs: Long = 200L,
-    val recorder: MatchRecorder? = null,
+    override val recorder: MatchRecorder? = null,
     override var counter: MessageCounter = MessageCounter(),
     /** Debug diagnostics sink — protocol messages + game state collector. Null in tests. */
     private val debugSink: MatchDebugSink? = null,
@@ -51,7 +51,7 @@ class MatchSession(
     /** Serializes all game-logic entry points (Netty I/O threads are concurrent). */
     private val sessionLock = Any()
 
-    var gameBridge: GameBridge? = null
+    override var gameBridge: GameBridge? = null
         private set
 
     /** Client player ID — set by MatchHandler after auth, used in MatchCompleted room state. */
@@ -78,7 +78,7 @@ class MatchSession(
      * it as our own — ensuring the engine thread (GamePlayback) and this
      * session share a single counter.
      */
-    fun connectBridge(bridge: GameBridge) = synchronized(sessionLock) {
+    override fun connectBridge(bridge: GameBridge): Unit = synchronized(sessionLock) {
         gameBridge = bridge
         val bridgeCounter = bridge.messageCounter
         if (bridgeCounter !== counter) {
@@ -101,7 +101,7 @@ class MatchSession(
      * After keep: wait for engine to reach priority, send real game state bundle.
      * Then auto-pass through phases where only Pass is available.
      */
-    fun onMulliganKeep() = synchronized(sessionLock) {
+    override fun onMulliganKeep() = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         log.info("MatchSession: waiting for engine to reach priority after keep")
 
@@ -114,7 +114,7 @@ class MatchSession(
         // Drain AI action diffs queued during awaitPriority.
         // These have gsIds allocated by the engine thread via the shared counter
         // during awaitPriority. Send them first (lower gsIds).
-        val playback = bridge.playback
+        val playback = bridge.playbacks[SeatId(seatId)]
         if (playback != null) {
             for (batch in playback.drainQueue()) {
                 sendBundledGRE(batch)
@@ -139,16 +139,15 @@ class MatchSession(
      * Similar to [onMulliganKeep] but without mulligan seeding or phaseTransitionDiff
      * — the puzzle initial bundle already sent a Full GSM with the board state.
      */
-    fun onPuzzleStart() = synchronized(sessionLock) {
+    override fun onPuzzleStart() = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
 
-        // Only seat 1 (human player) drives the auto-pass game loop.
-        // Familiar (seat 2) is a spectator — it receives mirrored messages
-        // from seat 1 and must not enter the auto-pass loop. Doing so would
-        // consume seat 1's pending priority action via the shared ActionBridge,
-        // advancing the engine past Main1 into later phases/turns.
+        // FamiliarSession inherits a no-op onPuzzleStart from SessionOps, so this
+        // path only fires for MatchSession. Warn if somehow called for a non-seat-1
+        // MatchSession — it would consume seat 1's pending priority via the shared
+        // ActionBridge, advancing the engine past Main1.
         if (seatId != 1) {
-            log.info("MatchSession: skipping puzzle auto-pass for spectator seat {}", seatId)
+            log.warn("MatchSession: onPuzzleStart called for seat {} — expected seat 1 only", seatId)
             return
         }
 
@@ -170,7 +169,7 @@ class MatchSession(
     /**
      * Handle a client action (land play, spell cast, pass) and advance the engine.
      */
-    fun onPerformAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onPerformAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         log.info("MatchSession: onPerformAction enter gsId={} (current={})", greMsg.gameStateId, counter.currentGsId())
 
@@ -288,31 +287,31 @@ class MatchSession(
     }
 
     /** Handle DeclareAttackersResp — delegates to [CombatHandler]. */
-    fun onDeclareAttackers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onDeclareAttackers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         combatHandler.onDeclareAttackers(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /** Handle DeclareBlockersResp — delegates to [CombatHandler]. */
-    fun onDeclareBlockers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onDeclareBlockers(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         combatHandler.onDeclareBlockers(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
-    fun onSelectTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onSelectTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         targetingHandler.onSelectTargets(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
-    fun onSelectN(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onSelectN(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         targetingHandler.onSelectN(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /** Handle GroupResp for surveil/scry — delegates to [TargetingHandler]. */
-    fun onGroupResp(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onGroupResp(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         targetingHandler.onGroupResp(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
@@ -324,7 +323,7 @@ class MatchSession(
      * to return `TargetSelectionResult(false, false)` → spell targeting fails →
      * engine unwinds the cast (removes from stack, returns mana).
      */
-    fun onCancelAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onCancelAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         // During combat declaration, cancel means "pass combat" (submit empty attackers).
         if (combatHandler.pendingLegalAttackers.isNotEmpty()) {
@@ -338,12 +337,12 @@ class MatchSession(
     // TODO: clean up bridge after game-over (both concede and lethal paths leak the engine
     // thread until server restart). Needs a delayed cleanup — immediate shutdown breaks
     // concede because the client sends messages after game-over that need a live session.
-    fun onConcede() = synchronized(sessionLock) {
+    override fun onConcede() = synchronized(sessionLock) {
         sendGameOver(ResultReason.Concede)
     }
 
     /** Handle SetSettingsReq: merge settings, apply stops to PhaseStopProfile, echo response. */
-    fun onSettings(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onSettings(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val reqSettings = greMsg.setSettingsReq
         val incoming = reqSettings.settings
         log.info(
@@ -599,6 +598,9 @@ class MatchSession(
     private fun mirrorToFamiliar(messages: List<GREToClientMessage>) {
         if (seatId != 1) return
         val peer = registry.getPeer(matchId, seatId) ?: return
+        // Only mirror to FamiliarSession — PvP peers build their own state
+        // via per-seat GamePlayback.
+        if (peer !is FamiliarSession) return
         val mirrorSeat = 2
         val mirrored = messages.map { gre ->
             val builder = gre.toBuilder().clearSystemSeatIds().addSystemSeatIds(mirrorSeat)

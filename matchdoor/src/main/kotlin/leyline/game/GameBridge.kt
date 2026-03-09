@@ -144,9 +144,11 @@ class GameBridge(
     var humanController: WebPlayerController? = null
         private set
 
-    /** AI action playback — captures per-action state diffs via EventBus. Null before start(). */
-    var playback: GamePlayback? = null
-        private set
+    /** Per-seat action playback — captures remote-action state diffs via EventBus. Empty before start(). */
+    val playbacks: MutableMap<SeatId, GamePlayback> = mutableMapOf()
+
+    /** Backward-compat: seat-1 playback (single-player path). */
+    val playback: GamePlayback? get() = playbacks[SeatId(1)]
 
     /** Event collector — captures Forge engine events for annotation building. Null before start(). */
     var eventCollector: GameEventCollector? = null
@@ -408,11 +410,11 @@ class GameBridge(
         g.subscribeToEvents(collector)
         log.info("GameBridge: registered GameEventCollector for event-driven annotations")
 
-        // Register AI action playback subscriber (after collector)
+        // Register action playback subscriber (after collector)
         val pb = GamePlayback(this, "forge-match-1", 1, messageCounter, matchConfig.aiDelayMultiplier)
-        playback = pb
+        playbacks[SeatId(1)] = pb
         g.subscribeToEvents(pb)
-        log.info("GameBridge: registered GamePlayback for AI action streaming")
+        log.info("GameBridge: registered GamePlayback for seat 1")
 
         if (matchConfig.game.skipMulligan) {
             log.info("GameBridge: skipMulligan — engine auto-kept, waiting for priority")
@@ -492,7 +494,13 @@ class GameBridge(
         eventCollector = collector
         g.subscribeToEvents(collector)
 
-        // No GamePlayback for PvP — no AI actions to stream
+        // Register per-seat playback — each seat captures the other's actions
+        for (seat in 1..2) {
+            val pb = GamePlayback(this, "forge-match-1", seat, messageCounter, matchConfig.aiDelayMultiplier)
+            playbacks[SeatId(seat)] = pb
+            g.subscribeToEvents(pb)
+        }
+        log.info("GameBridge: registered per-seat GamePlayback for PvP")
 
         log.info("GameBridge: two-player game started, waiting for priority")
         awaitPriority()
@@ -730,7 +738,7 @@ class GameBridge(
         g.subscribeToEvents(collector)
 
         val pb = GamePlayback(this, "forge-match-1", 1, messageCounter, matchConfig.aiDelayMultiplier)
-        playback = pb
+        playbacks[SeatId(1)] = pb
         g.subscribeToEvents(pb)
 
         log.info("GameBridge: puzzle loop started, waiting for priority")
@@ -784,11 +792,13 @@ class GameBridge(
         val g = game
         if (g != null) {
             eventCollector?.let { g.unsubscribeFromEvents(it) }
-            playback?.let { g.unsubscribeFromEvents(it) }
+            for (pb in playbacks.values) {
+                g.unsubscribeFromEvents(pb)
+            }
         }
         loopController?.shutdown()
         loopController = null
-        playback = null
+        playbacks.clear()
         eventCollector = null
     }
 
