@@ -35,7 +35,9 @@ timer = false
 
 # Solo PvP testing: queue auto-pairs with Forge AI instead of waiting for a
 # second player. Full queue/pairing flow, but seat 2 is the engine AI.
-#synthetic_opponent = true
+# Required for local mode sealed/draft/events — without this, Event_EnterPairing
+# queues the player but never finds an opponent.
+synthetic_opponent = true
 
 [ai]
 # AI animation speed. 2 = twice as fast, 1 = default, 0 = instant.
