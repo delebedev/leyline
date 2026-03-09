@@ -165,7 +165,7 @@ TRANSITIONS: list[dict] = [
     {
         "from": "Home",
         "to": "RecentlyPlayed",
-        "steps": ["click 866,533"],
+        "steps": ['click "Play" --retry 3'],
         "wait": 'text="Recently Played"',
         "wait_timeout": 5,
     },
