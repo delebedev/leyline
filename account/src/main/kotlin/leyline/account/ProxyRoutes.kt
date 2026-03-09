@@ -4,6 +4,8 @@ import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.net.URI
 import java.net.http.HttpClient
@@ -53,7 +55,9 @@ private suspend fun proxyPass(call: io.ktor.server.application.ApplicationCall, 
     } else {
         reqBuilder.method(call.request.httpMethod.value, HttpRequest.BodyPublishers.noBody())
     }
-    val resp = proxyClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofByteArray())
+    val resp = withContext(Dispatchers.IO) {
+        proxyClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofByteArray())
+    }
     log.info("Proxy: {} {} -> {} ({})", call.request.httpMethod.value, call.request.path(), targetUrl, resp.statusCode())
     val contentType = resp.headers().firstValue("Content-Type").orElse("application/json")
     call.respondBytes(
@@ -72,7 +76,9 @@ private suspend fun proxyDoorbell(call: io.ktor.server.application.ApplicationCa
     } else {
         reqBuilder.method(call.request.httpMethod.value, HttpRequest.BodyPublishers.noBody())
     }
-    val resp = proxyClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofString())
+    val resp = withContext(Dispatchers.IO) {
+        proxyClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofString())
+    }
     var json = resp.body()
     // Rewrite FdURI to localhost so client connects to our proxy FD
     json = json.replace(Regex(""""FdURI"\s*:\s*"[^"]+""""), """"FdURI":"$fdHost"""")
