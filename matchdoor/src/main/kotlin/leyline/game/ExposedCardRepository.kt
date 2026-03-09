@@ -49,11 +49,18 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
         override val primaryKey = PrimaryKey(locId)
     }
 
+    private object Abilities : Table("Abilities") {
+        val id = integer("Id")
+        val modalChildIds = text("ModalChildIds").default("")
+        override val primaryKey = PrimaryKey(id)
+    }
+
     // --- In-memory caches ---
 
     private val dataCache = ConcurrentHashMap<Int, CardData?>()
     private val grpIdToName = ConcurrentHashMap<Int, String>()
     private val nameToGrpId = ConcurrentHashMap<String, Int>()
+    private val modalCache = ConcurrentHashMap<Int, ModalAbilityInfo?>()
 
     // --- CardRepository ---
 
@@ -93,6 +100,37 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
     } catch (e: Exception) {
         log.warn("Failed to query all grpIds: {}", e.message)
         emptyList()
+    }
+
+    override fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? {
+        modalCache[cardGrpId]?.let { return it }
+        val card = findByGrpId(cardGrpId) ?: return null
+        if (card.abilityIds.isEmpty()) return null
+        val info = queryModalOptions(card.abilityIds.map { it.first })
+        modalCache[cardGrpId] = info
+        return info
+    }
+
+    override fun registerModalOptions(cardGrpId: Int, info: ModalAbilityInfo) {
+        modalCache[cardGrpId] = info
+    }
+
+    private fun queryModalOptions(abilityGrpIds: List<Int>): ModalAbilityInfo? = try {
+        transaction(database) {
+            for (abilityId in abilityGrpIds) {
+                val row = Abilities.selectAll().where { Abilities.id eq abilityId }.firstOrNull() ?: continue
+                val modalChildren = row[Abilities.modalChildIds]
+                if (modalChildren.isBlank()) continue
+                val childIds = modalChildren.split(",").mapNotNull { it.trim().toIntOrNull() }
+                if (childIds.isNotEmpty()) {
+                    return@transaction ModalAbilityInfo(parentGrpId = abilityId, childGrpIds = childIds)
+                }
+            }
+            null
+        }
+    } catch (e: Exception) {
+        log.warn("Failed to query modal options for abilities: {}", e.message)
+        null
     }
 
     // --- Queries ---

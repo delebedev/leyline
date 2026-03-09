@@ -11,6 +11,7 @@ class InMemoryCardRepository : CardRepository {
     private val cache = mutableMapOf<Int, CardData>()
     private val grpIdToName = mutableMapOf<Int, String>()
     private val nameToGrpId = mutableMapOf<String, Int>()
+    private val modalCache = mutableMapOf<Int, ModalAbilityInfo>()
 
     val registeredCount: Int get() = grpIdToName.size
 
@@ -28,6 +29,7 @@ class InMemoryCardRepository : CardRepository {
         grpIdToName.clear()
         nameToGrpId.clear()
         cache.clear()
+        modalCache.clear()
     }
 
     override fun findByGrpId(grpId: Int): CardData? = cache[grpId]
@@ -37,4 +39,10 @@ class InMemoryCardRepository : CardRepository {
     override fun findGrpIdByName(name: String): Int? = nameToGrpId[name]
 
     override fun findAllGrpIds(): List<Int> = grpIdToName.keys.toList()
+
+    override fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? = modalCache[cardGrpId]
+
+    override fun registerModalOptions(cardGrpId: Int, info: ModalAbilityInfo) {
+        modalCache[cardGrpId] = info
+    }
 }

@@ -15,6 +15,18 @@ interface CardRepository {
     fun findAllGrpIds(): List<Int>
 
     /**
+     * Look up modal options for a card. Returns the parent ability grpId
+     * and list of child option grpIds from the Abilities table's ModalChildIds column.
+     * Returns null if the card has no modal abilities.
+     */
+    fun lookupModalOptions(cardGrpId: Int): ModalAbilityInfo? = null
+
+    /**
+     * Register modal options for testing (no DB needed).
+     */
+    fun registerModalOptions(cardGrpId: Int, info: ModalAbilityInfo) {}
+
+    /**
      * Token grpId produced by [sourceGrpId].
      * Single token -> returns directly. Multiple -> matches by [tokenName].
      */
@@ -31,3 +43,12 @@ interface CardRepository {
         return null
     }
 }
+
+/**
+ * Modal ability info: parent ability grpId and list of child option grpIds.
+ * Used for CastingTimeOptionsReq (modal ETB, modal cast, etc.).
+ */
+data class ModalAbilityInfo(
+    val parentGrpId: Int,
+    val childGrpIds: List<Int>,
+)
