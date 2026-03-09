@@ -44,7 +44,11 @@ Quick links for debugging, reverse-engineering, and conformance workflows.
 
 - `puzzles.md` — puzzle mode: `.pzl` loading, protocol differences, card registration, architecture
 
-## Bugs / Tracking
+## Tracking
 
-- `BUGS.md` — known issues and investigations
-- `TODO.md` — remaining work items
+- [GitHub Issues](https://github.com/delebedev/leyline/issues) — bugs and tasks
+- [Project Board](https://github.com/users/delebedev/projects/1) — roadmap
+
+## Retro
+
+- `retro/` — archived session retrospectives
