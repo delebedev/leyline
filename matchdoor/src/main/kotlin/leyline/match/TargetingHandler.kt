@@ -24,6 +24,12 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class TargetingHandler(private val ops: SessionOps) {
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
 
+    /** Saved state for pending modal prompt — maps response grpIds back to prompt indices. */
+    data class PendingModal(val promptId: String, val childGrpIds: List<Int>)
+
+    @Volatile
+    private var pendingModal: PendingModal? = null
+
     /**
      * Handle SelectTargetsResp: map client instanceIds back to prompt option indices and submit.
      *
@@ -103,15 +109,25 @@ class TargetingHandler(private val ops: SessionOps) {
      */
     fun handlePostCastPrompt(bridge: GameBridge): Boolean {
         val pendingPrompt = bridge.promptBridge.getPendingPrompt()
-        if (pendingPrompt != null && pendingPrompt.request.candidateRefs.isNotEmpty()) {
-            val game = bridge.getGame() ?: return false
-            ops.traceEvent(
-                MatchEventType.TARGET_PROMPT,
-                game,
-                "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
-            )
-            sendSelectTargetsReq(bridge, pendingPrompt)
-            return true
+        if (pendingPrompt != null) {
+            // Modal prompt (ETB trigger fires during resolution)
+            if (pendingPrompt.request.promptType == "modal") {
+                val game = bridge.getGame() ?: return false
+                ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "post-cast modal: ${pendingPrompt.request.message}")
+                sendCastingTimeOptionsReq(bridge, pendingPrompt)
+                return true
+            }
+            // Targeting prompt
+            if (pendingPrompt.request.candidateRefs.isNotEmpty()) {
+                val game = bridge.getGame() ?: return false
+                ops.traceEvent(
+                    MatchEventType.TARGET_PROMPT,
+                    game,
+                    "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
+                )
+                sendSelectTargetsReq(bridge, pendingPrompt)
+                return true
+            }
         }
         val g = bridge.getGame()
         if (g != null && !g.stack.isEmpty) {
@@ -148,6 +164,13 @@ class TargetingHandler(private val ops: SessionOps) {
         val groupingContext = detectSurveilScry(pendingPrompt.request)
         if (groupingContext != null) {
             sendGroupReqForSurveilScry(bridge, pendingPrompt, groupingContext)
+            return PromptResult.SENT_TO_CLIENT
+        }
+
+        // Modal prompt → send CastingTimeOptionsReq to client
+        if (pendingPrompt.request.promptType == "modal") {
+            ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "modal: ${pendingPrompt.request.message}")
+            sendCastingTimeOptionsReq(bridge, pendingPrompt)
             return PromptResult.SENT_TO_CLIENT
         }
 
@@ -279,6 +302,111 @@ class TargetingHandler(private val ops: SessionOps) {
             it.kind == "player" && it.entityId == player.id
         }
         return if (idx >= 0) idx else null
+    }
+
+    /**
+     * Build and send CastingTimeOptionsReq for a modal prompt.
+     * Looks up card grpId and modal option grpIds from CardRepository,
+     * saves PendingModal state for response mapping.
+     */
+    private fun sendCastingTimeOptionsReq(
+        bridge: GameBridge,
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+    ) {
+        val game = bridge.getGame() ?: return
+        val req = pendingPrompt.request
+        val cardName = req.modalSourceCardName
+        if (cardName == null) {
+            log.warn("TargetingHandler: modal prompt but no modalSourceCardName, auto-resolving")
+            bridge.promptBridge.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+            bridge.awaitPriority()
+            return
+        }
+
+        // Look up card grpId and modal options
+        val cardGrpId = bridge.cards.findGrpIdByName(cardName)
+        if (cardGrpId == null) {
+            log.warn("TargetingHandler: card '{}' not in card DB, auto-resolving modal", cardName)
+            bridge.promptBridge.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+            bridge.awaitPriority()
+            return
+        }
+
+        val modalInfo = bridge.cards.lookupModalOptions(cardGrpId)
+        if (modalInfo == null) {
+            log.warn("TargetingHandler: no modal options for grpId={}, auto-resolving", cardGrpId)
+            bridge.promptBridge.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+            bridge.awaitPriority()
+            return
+        }
+
+        // Resolve source instanceId from sourceEntityId (forge card ID)
+        val sourceInstanceId = if (req.sourceEntityId != null) {
+            bridge.getOrAllocInstanceId(ForgeCardId(req.sourceEntityId)).value
+        } else {
+            0
+        }
+
+        // Build ModalReq
+        val modalReq = ModalReq.newBuilder()
+            .setAbilityGrpId(modalInfo.parentGrpId)
+            .setMinSel(req.min)
+            .setMaxSel(req.max)
+        for (childGrpId in modalInfo.childGrpIds) {
+            modalReq.addModalOptions(ModalOption.newBuilder().setGrpId(childGrpId))
+        }
+
+        // Build CastingTimeOptionsReq
+        val ctoReq = CastingTimeOptionsReq.newBuilder()
+            .addCastingTimeOptionReq(
+                CastingTimeOptionReq.newBuilder()
+                    .setCtoId(1)
+                    .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4)
+                    .setAffectedId(sourceInstanceId)
+                    .setAffectorId(sourceInstanceId)
+                    .setGrpId(cardGrpId)
+                    .setIsRequired(true)
+                    .setModalReq(modalReq),
+            )
+            .build()
+
+        // Save pending state for response mapping
+        pendingModal = PendingModal(pendingPrompt.promptId, modalInfo.childGrpIds)
+
+        val result = BundleBuilder.castingTimeOptionsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, ctoReq)
+        Tap.outboundTemplate("CastingTimeOptionsReq seat=${ops.seatId} card=$cardName")
+        ops.sendBundledGRE(result.messages)
+    }
+
+    /**
+     * Handle CastingTimeOptionsResp: map client grpIds back to prompt indices
+     * and submit to the bridge to unblock the engine.
+     */
+    fun onCastingTimeOptions(
+        greMsg: ClientToGREMessage,
+        bridge: GameBridge,
+        autoPass: (GameBridge) -> Unit,
+    ) {
+        val modal = pendingModal
+        if (modal == null) {
+            log.warn("TargetingHandler: CastingTimeOptionsResp but no pending modal")
+            return
+        }
+
+        val resp = greMsg.castingTimeOptionsResp
+        val chosenGrpIds = resp.castingTimeOptionResp.chooseModalResp.grpIdsList
+
+        // Map grpIds back to indices into the childGrpIds list
+        val selectedIndices = chosenGrpIds.mapNotNull { grpId ->
+            modal.childGrpIds.indexOf(grpId).takeIf { it >= 0 }
+        }
+
+        log.info("TargetingHandler: CastingTimeOptionsResp grpIds={} → indices={}", chosenGrpIds, selectedIndices)
+
+        bridge.promptBridge.submitResponse(modal.promptId, selectedIndices)
+        pendingModal = null
+        bridge.awaitPriority()
+        autoPass(bridge)
     }
 
     private fun sendSelectTargetsReq(

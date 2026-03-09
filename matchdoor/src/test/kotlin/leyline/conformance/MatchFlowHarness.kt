@@ -370,6 +370,14 @@ class MatchFlowHarness(
         return true
     }
 
+    // --- Modal helpers ---
+
+    /** Respond to a CastingTimeOptionsReq (modal choice) with selected grpIds. */
+    fun respondModalChoice(selectedGrpIds: List<Int>) {
+        session.onCastingTimeOptions(castingTimeOptionsResp(selectedGrpIds = selectedGrpIds))
+        drainSink()
+    }
+
     // --- Message inspection ---
 
     /** Snapshot current message count for later comparison with [messagesSince]. */

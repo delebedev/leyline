@@ -244,6 +244,8 @@ data class PromptRequest(
     val candidateRefs: List<PromptCandidateRefDto> = emptyList(),
     /** Source card entity ID for targeting prompts (spell or ability source). */
     val sourceEntityId: Int? = null,
+    /** Card name for modal ETB prompts — session layer resolves grpId from this. */
+    val modalSourceCardName: String? = null,
 )
 
 /** Convert a pending engine prompt into its wire DTO. */

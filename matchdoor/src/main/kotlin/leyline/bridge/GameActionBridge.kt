@@ -162,8 +162,18 @@ class GameActionBridge(
     /**
      * Get the current pending action for WS broadcast. Returns null if no action
      * is pending.
+     *
+     * A pending action whose future is already completed (submitted but not yet
+     * cleared by the engine thread's `finally` block) is NOT considered pending —
+     * the engine is still in its cleanup path and hasn't reached the next priority
+     * stop. Without this check, [GameBridge.awaitPriorityWithTimeout] can see a
+     * stale pending action and return prematurely, causing the session to send
+     * state before the engine processes triggers (e.g. modal ETB).
      */
-    fun getPending(): PendingAction? = pending.get()
+    fun getPending(): PendingAction? {
+        val p = pending.get() ?: return null
+        return if (p.future.isDone) null else p
+    }
 
     /**
      * Cancel any pending action (e.g. on disconnect / game reset).
