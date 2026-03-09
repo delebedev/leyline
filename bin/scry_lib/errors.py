@@ -23,13 +23,18 @@ _DESERIALIZATION_SHORT = re.compile(
 )
 
 _BARE_EXCEPTION = re.compile(
-    r"(\w+Exception):\s+(.+)"
+    r"(\w+(?:Exception|Error)):\s+(.+)"
+)
+
+_UNITY_ASSERTION = re.compile(
+    r"Assertion failed on expression: '(.+)'"
 )
 
 _SUPPRESSED = frozenset({
     "ArgumentNullException",
     "ArgumentOutOfRangeException",
     "NullReferenceException",
+    "IndexOutOfRangeException",
 })
 
 
@@ -48,7 +53,12 @@ def parse_client_error(line: str) -> ClientError | None:
 
     Returns None if the line isn't an error or is a suppressed type.
     """
-    if "Exception" not in line and "Deserialization" not in line:
+    if (
+        "Exception" not in line
+        and "Deserialization" not in line
+        and "Error:" not in line
+        and "Assertion failed" not in line
+    ):
         return None
 
     # 1. Annotation parse exception (richest)
@@ -93,7 +103,16 @@ def parse_client_error(line: str) -> ClientError | None:
             raw=line,
         )
 
-    # 3. Bare exception
+    # 3. Unity assertion failure
+    m = _UNITY_ASSERTION.search(line)
+    if m:
+        return ClientError(
+            exception_type="AssertionFailure",
+            message=f"Assertion failed: {m.group(1)}",
+            raw=line,
+        )
+
+    # 4. Bare exception or error
     m = _BARE_EXCEPTION.search(line)
     if m:
         ex_type = m.group(1)
