@@ -73,8 +73,8 @@ Waiting for Server:
 
 ### Deck Selection → Start (Bot Match)
 - **After selecting Bot Match + deck:** "Play" button at bottom-right
-- **Play button coords:** `arena click 1446,871` (no OCR text — it's an icon/graphic)
-- **Wait (normal match):** `arena wait text="Keep" --timeout 15` for mulligan screen
+- **Play button coords:** `arena click 866,533` (bottom-right Play button, 960-wide logical)
+- **Wait (normal match):** `arena wait scene=InGame --timeout 15` then check for mulligan
 - **Wait (puzzle):** Puzzles skip mulligan — wait for the game board directly (e.g. `arena ocr --find "Pass"` or check debug API state)
 
 ### Mulligan
@@ -110,9 +110,9 @@ Waiting for Server:
 - **Getting stuck on a phase:** If clicking 888,505 doesn't advance the turn, check `arena board` for pending actions (targeting prompts, mandatory choices). The game may be waiting for a specific action, not just priority pass.
 
 ### Concede
-1. `arena click 1555,72` — cog/settings icon (top-right, no text)
-2. `arena click "Concede"`
-3. `arena wait text="Defeat" --timeout 10`
+1. `arena click 940,42` — cog/settings icon (top-right, no text)
+2. `arena click "Concede" --retry 3`
+3. `arena wait text="DEFEAT" --timeout 10`
 
 ### Result Screen
 - **"[Click to Continue]"** may appear at (479,552) after DEFEAT/VICTORY — click it first
@@ -121,17 +121,19 @@ Waiting for Server:
 
 ## Non-Text Elements
 
-Most "non-text" elements actually have nearby OCR-detectable text. **Prefer OCR-based discovery over hardcoded coords.** Coords break when the window isn't exactly 1920x1080.
+Most "non-text" elements actually have nearby OCR-detectable text. **Prefer OCR-based discovery over hardcoded coords.**
 
-| Element | OCR discovery | Fallback coords (1920x1080) |
-|---------|--------------|----------------------------|
-| Play button (deck select) | `ocr --find "Play"` — pick bottom-right hit | 1446,871 |
-| Cog/Settings icon | `ocr --find "Sparky"` — cog is top-right of game screen | 1555,72 |
-| Result dismiss (center) | Click screen center 3x with 2s gaps | 800,450 |
-| Pass turn | `ocr --find "Pass"` | 1750,950 |
+All fallback coords are in **960-wide logical space** (macOS window logical points on 2x Retina).
+
+| Element | OCR discovery | Fallback coords (960-wide) |
+|---------|--------------|---------------------------|
+| Play button (deck select) | `ocr --find "Play"` — pick bottom-right hit | 866,533 |
+| Cog/Settings icon | No OCR text — use coord | 940,42 |
+| Action button (Pass/Next) | `ocr --find "Pass"` | 888,504 |
+| Result dismiss | Click 3x with 2s gaps | 210,482 |
 | Deck thumbnail | `ocr --find "<deck name>"` — click ~80px above the label | varies |
 
-**Window resolution check:** At session start, run `arena ocr` and check the rightmost cx value. If max cx < 1000, the window is NOT 1920px — all hardcoded coords will miss. Use OCR coords only.
+**Coord space check:** `arena ocr` auto-detects 1x vs 2x displays. If clicks miss, check: `system_profiler SPDisplaysDataType | grep "UI Looks like"`.
 
 ## Sealed Event Loop (Full Example)
 
@@ -198,10 +200,10 @@ bin/arena click "Keep" --retry 3
 ### 7. Concede (or play it out)
 ```bash
 sleep 3
-bin/arena click 940,55                    # cog icon
+bin/arena click 940,42                    # cog icon (960-wide coord)
 sleep 1
 bin/arena click "Concede" --retry 3
-bin/arena wait text="Defeat" --timeout 10
+bin/arena wait text="DEFEAT" --timeout 10
 ```
 
 ### 8. Return to event blade
@@ -229,7 +231,7 @@ Event blade shows updated loss counter. Click "Play" for next match.
 
 ## Quick Draft Loop (Full Example)
 
-Smoke-tested 2026-03-07. Full flow: join → 39 picks across 3 packs → deckbuild → event blade.
+Smoke-tested 2026-03-09. Full flow: join → 41 picks across 3 packs → deckbuild → event blade.
 
 ### Prerequisites
 ```bash
@@ -244,7 +246,8 @@ bin/arena click "Play" --retry 3          # lobby → play menu
 sleep 2
 # Quick Draft tile is in the "All" or "Limited" view
 # Click tile IMAGE, not title text — ~50px above the title
-bin/arena click 141,200                   # Quick Draft tile image (960-wide coords)
+bin/arena ocr --find "Quick Draft"        # get coords of title text
+bin/arena click <cx>,<cy - 50>            # click card art above title
 sleep 2
 ```
 
@@ -258,34 +261,49 @@ bin/arena click "oK" --retry 3            # note: OCR reads it as "oK" not "OK"
 sleep 3                                   # → draft screen loads
 ```
 
-### 3. Draft picks (3 packs × 13+ picks)
+### 3. Draft picks (3 packs, 41 server-side picks)
+
+**Double-click to pick** — bypasses "Confirm Pick" button (which may be off-screen on 1x displays). This is the recommended method.
+
 ```bash
-# Draft screen: card grid in left area, "Confirm Pick" at (643,539)
-# "Pack N / Pick M" header shows progress
+# Draft screen: card grid in center, "Pack N / Pick M" header
 # Cards rendered in grid ~x:100-600, y:130-520
-# IMPORTANT: need ~1s delay between card click and Confirm Pick
 
-for i in $(seq 1 42); do
-    bin/arena click 200,200               # click card in grid area
-    sleep 1                               # MUST wait — selection animation
-    bin/arena click 643,539               # Confirm Pick
-    sleep 2                               # wait for next pack state
-    bin/arena ocr --find "Confirm Pick" >/dev/null 2>&1 || break
-done
+# Per-pick loop (step by step, NOT a bash loop):
+bin/arena ocr --fmt                       # find card names + coords
+bin/arena click <cx>,<cy> --double         # double-click any card to pick it
+sleep 1
+bin/arena click 480,50                    # dismiss tooltip overlay (blocks Pack/Pick header)
+sleep 1
+bin/arena ocr --find "Pack"               # confirm next pack loaded
 
-# GOTCHA: Last card in a pack renders as tiny thumbnail at (~68,140)
-# with NO OCR text. If stuck on "Pick 13/14", click (68,140) then Confirm.
+# Repeat until draft complete.
+# Pack 0: 14 picks (0-13)
+# Pack 1: 14 picks (0-13)
+# Pack 2: 13 picks (0-12) — last card auto-granted
+# Total: 41 server-side picks, 42 cards in pool
+```
 
-# After final pick: "Vault Progress" overlay + "Okay" button at (480,469)
-bin/arena click "Okay" --retry 3          # → deck builder
+**Alternative (if double-click doesn't work):**
+```bash
+bin/arena click <cx>,<cy>                 # select card (highlights it)
+sleep 1                                   # MUST wait — selection animation
+bin/arena click 643,539                   # "Confirm Pick" button
+sleep 2
+```
+
+**Last card in pack:** Renders as tiny thumbnail at (~68,140) with NO OCR text. If stuck on the last pick of a pack, click (68,140) then double-click or Confirm.
+
+**After final pick:** "Vault Progress" overlay may appear with "Okay" button at (480,469).
+```bash
+bin/arena click "Okay" --retry 3          # dismiss vault progress → deck builder
 sleep 2
 ```
 
 ### 4. Build deck
 ```bash
-# Deck builder: "N/40 Cards" counter, all drafted cards auto-added
-# Client may auto-build a 40-card deck from the pool
-# If not, click cards in the card list to add them
+# Deck builder: "N/40 Cards" counter, drafted cards in pool
+# Client may auto-build a 40-card deck, or show "54/40 Cards" if all added
 bin/arena click "Done" --retry 3          # submit deck → event blade
 sleep 2
 ```
@@ -301,11 +319,14 @@ bin/arena click "Keep" --retry 3
 
 ### Draft automation gotchas
 
-- **1s delay mandatory between card click and Confirm Pick.** Faster = click doesn't register.
-- **Last card in pack has no OCR text.** Renders as tiny thumbnail at upper-left (~68,140 in 960-wide). Must click by position.
-- **Forge packs can have 13-14 cards.** Variable per set. Some packs need 14 picks to exhaust.
-- **"Pick N" display is 1-indexed from client perspective** but 0-indexed in server logs.
-- **Card grid positions shift** as cards are picked. Always click a fixed area (200,200) — there's usually a card there until pack is nearly empty.
+- **Double-click to pick is fastest.** `arena click <cx>,<cy> --double` (note: `--double` flag, not positional). Bypasses "Confirm Pick" entirely. On 1x displays, "Confirm Pick" may be off-screen.
+- **Dismiss tooltip after each pick.** Double-clicking shows a card tooltip that blocks the "Pack/Pick" header. Click neutral area (`arena click 480,50`) before reading pack progress via OCR.
+- **Pack counts: 14 + 14 + 13 = 41 picks.** The 42nd card is auto-granted by the client. Don't loop to 42.
+- **Last card in pack has no OCR text.** Tiny thumbnail at upper-left (~68,140). Click by position.
+- **"Pick N" display is 1-indexed** in client but 0-indexed in server logs.
+- **Card grid positions shift** as cards are picked. OCR each pack to find current card positions.
+- **"Unable to finish draft" after last pick is expected (current stubs).** After pick 41, client shows "Drafting Completed" dialog, then sends CmdTypes 621/1908 which are stubbed as no-ops. Client shows "Unable to finish draft" error. Dismiss it, then restart: `just stop` + restart server + `arena launch`. See #85 for proper fix.
+- **"Build Your Deck" on resume.** After server restart, completed drafts show "Build Your Deck" on the event blade. Click it → deckbuilder loads with the full card pool. This is the current workaround for the stub transition.
 
 ### Key signals
 | Stage | OCR signal | Means |
@@ -316,7 +337,9 @@ bin/arena click "Keep" --retry 3
 | Draft | `"Pack N / Pick M"` | Active drafting |
 | Draft | `"Confirm Pick"` | Ready to pick (card may or may not be selected) |
 | Last card | No OCR in pick area | Single tiny card at ~(68,140) |
+| Draft stuck | `"Waiting on other players"` | Transition failed — restart server + client |
 | Draft done | `"Vault Progress"` + `"Okay"` | All picks made |
+| Resume | `"Build Your Deck"` | Draft complete, deckbuild available |
 | Deck builder | `"N/40 Cards"` + `"Done"` | Building limited deck |
 | Event blade | `"0 Losses"` + `"Play"` | Deck submitted, can queue |
 
@@ -324,9 +347,11 @@ bin/arena click "Keep" --retry 3
 ```
 Event_Join(600)           → Course with CurrentModule="BotDraft", empty CardPool
 BotDraft_StartDraft(1800) → first pack (13-14 grpIds as strings, draftStatus=PickNext)
-BotDraft_DraftPick(1801)  × 39+ picks → remaining pack, or next pack when exhausted
+BotDraft_DraftPick(1801)  × 41 picks → remaining pack, or next pack when exhausted
 BotDraft_DraftStatus(1802)→ poll current state (optional)
   (last pick returns draftStatus=Completed, CurrentModule switches to "DeckSelect")
+  Client may send Event_PlayerDraftConfirmCardPoolGrant(621) + Draft_CompleteDraft(1908)
+  as fallback — currently stubbed as no-op (see #85)
 Event_GetCoursesV2(623)   → Course with CurrentModule="DeckSelect", CardPool=[picked grpIds]
 Event_SetDeckV2(622)      → submit 40-card deck
 Event_EnterPairing(603)   → queue for match
@@ -398,7 +423,7 @@ The CoreML card detection model is useful but noisy. Known issues:
 - **Prefer OCR over hardcoded coords** — coords break when window size changes. OCR adapts.
 - **Use `--exact` only for isolated button text** — works for "Done", "Concede" (standalone UI buttons). Fails for "Keep" and other words that OCR may merge with surrounding text. When in doubt, use substring match (default) + `--retry`.
 - **Always use `--retry` for text clicks during transitions** — animations/loading can delay text rendering.
-- **Never click cards to play them** — Unity interprets single click as drag-start, not play. Use `arena play "<name>"` or `arena drag` instead.
+- **Play cards with `arena play "Name"` or `arena drag`** — Unity needs drag gestures, not single clicks. `arena play` handles this automatically with verified zone changes.
 - **OCR is case-insensitive** for `--find` matching.
 - **"Waiting for Server..."** — means FD connection dropped or server not responding. Restart server, then relaunch MTGA.
 - **"My Decks" is often collapsed** — must click to expand before deck thumbnails are visible.
