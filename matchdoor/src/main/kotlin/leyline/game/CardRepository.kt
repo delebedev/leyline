@@ -6,15 +6,6 @@ package leyline.game
  * Production impl ([ExposedCardRepository]) reads from the client's SQLite.
  * Tests use [InMemoryCardRepository] with synthetic data derived from Forge.
  */
-/**
- * Modal ability info: parent ability grpId and list of child option grpIds.
- * Used for CastingTimeOptionsReq (modal ETB, modal cast, etc.).
- */
-data class ModalAbilityInfo(
-    val parentGrpId: Int,
-    val childGrpIds: List<Int>,
-)
-
 interface CardRepository {
     fun findByGrpId(grpId: Int): CardData?
     fun findNameByGrpId(grpId: Int): String?
@@ -52,3 +43,12 @@ interface CardRepository {
         return null
     }
 }
+
+/**
+ * Modal ability info: parent ability grpId and list of child option grpIds.
+ * Used for CastingTimeOptionsReq (modal ETB, modal cast, etc.).
+ */
+data class ModalAbilityInfo(
+    val parentGrpId: Int,
+    val childGrpIds: List<Int>,
+)
