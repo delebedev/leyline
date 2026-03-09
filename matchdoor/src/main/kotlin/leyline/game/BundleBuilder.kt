@@ -619,6 +619,39 @@ object BundleBuilder {
     }
 
     /**
+     * CastingTimeOptions bundle: GameState + CastingTimeOptionsReq.
+     * Used for modal ETB/cast prompts (Charming Prince, Goblin Surprise, etc.).
+     *
+     * Sends a GSM diff first (state may have changed during trigger/resolution),
+     * followed by CastingTimeOptionsReq with the ModalReq payload. Sets
+     * allowCancel=Abort and allowUndo=true (client shows Cancel button).
+     */
+    fun castingTimeOptionsBundle(
+        game: Game,
+        bridge: GameBridge,
+        matchId: String,
+        seatId: Int,
+        counter: MessageCounter,
+        req: CastingTimeOptionsReq,
+    ): BundleResult {
+        val nextGs = counter.nextGsId()
+
+        val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId)
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+            it.gameStateMessage = gs
+        }
+
+        val msg2 = makeGRE(GREMessageType.CastingTimeOptionsReq_695e, nextGs, seatId, counter.nextMsgId()) {
+            it.castingTimeOptionsReq = req
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.CASTING_TIME_OPTIONS).build())
+            it.allowCancel = AllowCancel.Abort
+            it.allowUndo = true
+        }
+
+        return BundleResult(listOf(msg1, msg2))
+    }
+
+    /**
      * PayCosts bundle: GameState + PayCostsReq.
      * Tells the Arena client to show its native mana payment UI.
      *

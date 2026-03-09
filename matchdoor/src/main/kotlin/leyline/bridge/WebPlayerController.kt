@@ -8,6 +8,7 @@ import forge.card.mana.ManaCostShard
 import forge.game.Game
 import forge.game.GameEntity
 import forge.game.GameObject
+import forge.game.ability.AbilityUtils
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
@@ -23,6 +24,7 @@ import forge.game.player.Player
 import forge.game.player.PlayerActionConfirmMode
 import forge.game.player.PlayerController.BinaryChoiceType
 import forge.game.replacement.ReplacementEffect
+import forge.game.spellability.AbilitySub
 import forge.game.spellability.LandAbility
 import forge.game.spellability.SpellAbility
 import forge.game.trigger.WrappedAbility
@@ -922,10 +924,37 @@ class WebPlayerController(
 
     override fun playSpellAbilityNoStack(effectSA: SpellAbility, mayChoseNewTargets: Boolean) {
         // Direct resolve — this is called by the engine for triggered abilities,
-        // replacement effects, and other no-stack effects.  Full HumanPlay flow
-        // (with interactive targeting + cost payment) is Seam 4 territory.
+        // replacement effects, and other no-stack effects.
+        // Must use AbilityUtils.resolve (not raw effectSA.resolve()) so that
+        // chained sub-abilities execute — e.g. CharmEffect chains the chosen
+        // mode as a sub, and the sub must resolve after the parent no-op.
         effectSA.activatingPlayer = player
-        effectSA.resolve()
+        forge.game.ability.AbilityUtils.resolve(effectSA)
+    }
+
+    override fun chooseModeForAbility(
+        sa: SpellAbility,
+        possible: MutableList<AbilitySub>,
+        min: Int,
+        num: Int,
+        allowRepeat: Boolean,
+    ): List<AbilitySub> {
+        if (!allowRepeat && min == num && num == possible.size) return possible
+        if (possible.isEmpty()) return emptyList()
+
+        val labels = possible.map { it.description ?: it.toString() }
+        val request = PromptRequest(
+            promptType = "modal",
+            message = "Choose mode for ${sa.hostCard.translatedName}",
+            options = labels,
+            min = min,
+            max = num,
+            defaultIndex = 0,
+            modalSourceCardName = sa.hostCard.name,
+            sourceEntityId = sa.hostCard.id,
+        )
+        val result = bridge.requestChoice(request)
+        return result.mapNotNull { idx -> possible.getOrNull(idx) }
     }
 
     // -- Mulligan / starting player ----------------------------------------
