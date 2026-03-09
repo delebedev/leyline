@@ -12,7 +12,7 @@
 #   suppressed — deliberately disabled (cosmetic, causes client errors)
 #   n/a       — not applicable to Arena Standard/Pioneer
 #
-# Updated: 2026-03-08
+# Updated: 2026-03-09
 # Authoritative source for protocol-level detail: rosetta.md
 
 # ─── Client Infrastructure ───────────────────────────────────────────
@@ -47,7 +47,10 @@ client-infrastructure:
     notes: >
       Netty TLS on :30020. 6-byte framing + protobuf. Handles ConnectReq,
       settings exchange, mulligan, then enters game loop. Production-path
-      MatchHandler → MatchSession dispatch.
+      MatchHandler → MatchSession dispatch. FamiliarSession (PR #82) provides
+      type-safe read-only mirror for the non-active seat — replaces scattered
+      isFamiliar boolean gates with SessionOps interface polymorphism.
+      Per-seat GamePlayback for symmetric opponent diffs.
 
   concede:
     status: works
@@ -73,9 +76,10 @@ client-infrastructure:
       rope countdown.
 
   starting-player:
-    status: missing
+    status: wired
     notes: >
-      ChooseStartingPlayerReq (type 6) not sent. Server always picks.
+      ChooseStartingPlayerReq (type 6) sent to seat 2 after DieRollResults.
+      ChooseStartingPlayerResp handled in MulliganHandler → triggers mulligan flow.
 
   settings:
     status: works
@@ -240,6 +244,20 @@ spells:
   cast-foretell:
     status: missing
     notes: "CastOmen action type not implemented."
+
+  modal-etb:
+    status: wired
+    notes: >
+      CastingTimeOptionsReq (GRE) sent when a spell has modal enter-the-battlefield
+      choices (e.g. charms, Eldritch Evolution). Client shows choice UI.
+      CastingTimeOptionsResp handler wired. PR #84.
+
+  surveil:
+    status: wired
+    notes: >
+      Surveil mechanic end-to-end. GameEventSurveil → Surveil game event.
+      CardSurveiled enriched zone event fires with Surveil transfer category.
+      Scry annotation (65) reused for the look-at-top visual.
 
   stack-resolution:
     status: wired
@@ -788,7 +806,7 @@ protocol-summary:
 
   annotation-tiers:
     # ── Core: needed for most games, absence breaks UX ──────────────
-    # 28 types. We have 26 working, 6 missing.
+    # 28 types. We have 28 working, 6 missing.
     core:
       have:
         - ZoneTransfer (1)          # every card move
@@ -826,14 +844,16 @@ protocol-summary:
         - PlayerSubmittedTargets (93)  # targeting arrows confirmed
 
     # ── Nice-to-have: better UX, common-ish mechanics ──────────────
-    # 20 types. We have 5 working, 14 missing.
+    # 20 types. We have 7 working, 12 missing.
     nice-to-have:
       have:
         - Counter (14)              # persistent counter state badge
         - LayeredEffectCreated (18) # buff source tracking
+        - LayeredEffect (51)        # persistent buff state (P/T pumps)
         - TokenDeleted (41)         # token leaves battlefield animation
         - SyntheticEvent (72)       # internal sequencing
         - UserActionTaken (73)      # action feedback
+        - DamagedThisTurn (90)      # persistent badge on damaged creatures
       missing:
         - ModifiedColor (7)         # Painter's Servant etc
         - RemoveAbility (23)        # "loses all abilities"
@@ -871,7 +891,7 @@ protocol-summary:
 
   action-types:
     implemented: 3  # Cast, Play, Pass (end-to-end)
-    wired: 2        # Activate, ActivateMana (generated, not all paths tested)
+    partial: 1      # Activate (basic path works, multi-ability mapping incomplete)
     total: 24
     notes: >
       Multi-face variants (10 types) deferred. FloatMana observed but not generated.
@@ -885,12 +905,12 @@ protocol-summary:
       Cards always move correctly; category only affects animation.
 
   gre-message-types:
-    server-to-client: 14  # implemented (added TimerStateMessage)
-    client-to-server: 7   # handled (added CheckpointReq)
-    missing: 3             # ChooseStartingPlayer, OrderReq, AssignDamageReq (GroupReq/GroupResp coded, deferred)
+    server-to-client: 16  # +TimerStateMessage, +CastingTimeOptionsReq, +SelectNreq
+    client-to-server: 8   # +CastingTimeOptionsResp
+    missing: 1             # AssignDamageReq (GroupReq/GroupResp coded, deferred)
 
   game-events-wired:
-    wired: 20
+    wired: 21
     total: 57
     notes: >
       Key unwired: CardPhased, SpellRemovedFromStack,

@@ -61,6 +61,33 @@ class TokenServiceTest :
             service.validateRefreshToken("abc").shouldBeNull()
         }
 
+        test("access token has wotc-ttyp=access") {
+            val pair = service.issueTokens(testAccount)
+            val payload = decodePayload(pair.accessToken)
+            payload shouldContain """"wotc-ttyp":"access""""
+        }
+
+        test("refresh token has wotc-ttyp=refresh") {
+            val pair = service.issueTokens(testAccount)
+            val payload = decodePayload(pair.refreshToken)
+            payload shouldContain """"wotc-ttyp":"refresh""""
+        }
+
+        test("validateAccessToken returns persona ID for access token") {
+            val pair = service.issueTokens(testAccount)
+            service.validateAccessToken(pair.accessToken) shouldBe "TEST-PERSONA-ID"
+        }
+
+        test("validateAccessToken rejects refresh token") {
+            val pair = service.issueTokens(testAccount)
+            service.validateAccessToken(pair.refreshToken).shouldBeNull()
+        }
+
+        test("validateRefreshToken rejects access token") {
+            val pair = service.issueTokens(testAccount)
+            service.validateRefreshToken(pair.accessToken).shouldBeNull()
+        }
+
         test("custom roles appear in token") {
             val debugService = TokenService(roles = TokenService.DEBUG_ROLES)
             val pair = debugService.issueTokens(testAccount)

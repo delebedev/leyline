@@ -24,7 +24,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 15 | ControllerChanged | `GameEventPlayerControl` | -- | -- | affector/affected ids | MISSING |
 | 16 | CounterAdded | `GameEventCardCounters` | `CountersChanged` | `counterAdded()` | `counter_type`, `transaction_amount` | Implemented |
 | 17 | CounterRemoved | `GameEventCardCounters` | `CountersChanged` | `counterRemoved()` | `counter_type`, `transaction_amount` | Implemented |
-| 18 | LayeredEffectCreated | `GameEventCardStatsChanged` | -- | -- | sub-handlers for type/color/P+T/ability/controller | MISSING |
+| 18 | LayeredEffectCreated | `GameEventCardStatsChanged` | `PowerToughnessChanged` | `layeredEffectCreated()` | `effect_id`, `sourceAbilityGRPID`, `LayeredEffectType` | Implemented |
 | 20 | Attachment | `GameEventCardAttachment` | `CardAttached` | `attachment()` (persistent) | affector/affected ids | Implemented |
 | 22 | CopiedObject | -- | -- | -- | `abilityGrpId`, `LayeredEffectType`, `CopyObject` | MISSING |
 | 23 | RemoveAbility | -- | -- | -- | `effect_id` | MISSING |
@@ -51,7 +51,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 48 | NewTurnStarted | `GameEventTurnBegan` | -- | `newTurnStarted()` | (none) | Implemented (hardcoded, not event-driven) |
 | 49 | ManaDetails | -- | -- | -- | `Enum_Type`, `Enum_Value_` prefix | MISSING |
 | 50 | DisqualifiedEffect | -- | -- | -- | affector id | MISSING |
-| 51 | LayeredEffect | -- | -- | -- | `effect_id`, `abilityGrpId`, `isTop`, `Duration` | MISSING |
+| 51 | LayeredEffect | `GameEventCardStatsChanged` | `PowerToughnessChanged` | `layeredEffect()` (persistent) | `effect_id`, `abilityGrpId`, `isTop`, `Duration` | Implemented |
 | 52 | MiscContinuousEffect | -- | -- | -- | `grpid`, `QualificationType` | MISSING |
 | 53 | ShouldntPlay | -- | -- | -- | `Reason`, `ability_grpid` | MISSING |
 | 54 | UseOrCostsManaCost | -- | -- | -- | from affectedIds | MISSING |
@@ -59,18 +59,18 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 56 | Shuffle | `GameEventShuffle` | `LibraryShuffled` | `shuffle()` | `OldIds`, `NewIds` | Implemented (no detail keys) |
 | 57 | CoinFlip | `GameEventFlipCoin` | -- | -- | `CoinFlipResult` | MISSING |
 | 58 | ChoiceResult | -- | -- | -- | `Choice_Value`, `Choice_Options`, `Choice_Domain` | MISSING |
-| 59 | RevealedCardCreated | -- | -- | -- | affected ids | MISSING |
-| 60 | RevealedCardDeleted | -- | -- | -- | affected ids | MISSING |
+| 59 | RevealedCardCreated | -- | -- | `revealedCardCreated()` | affected ids | Implemented |
+| 60 | RevealedCardDeleted | -- | -- | `revealedCardDeleted()` | affected ids | Implemented |
 | 61 | SuspendLike | -- | -- | -- | `abilityGrpid` | MISSING |
 | 62 | ReplacementEffect | -- | -- | -- | `grpid`, `replacedEffectSource` | MISSING |
 | 63 | EnteredZoneThisTurn | (internal to StateMapper) | -- | `enteredZoneThisTurn()` | (none) | Implemented (persistent) |
-| 64 | CastingTimeOption | -- | -- | -- | `alternateCostGrpId`, `castAbilityGrpId`, `type` | MISSING |
+| 64 | CastingTimeOption | -- | -- | -- | `alternateCostGrpId`, `castAbilityGrpId`, `type` | N/A (see GRE CastingTimeOptionsReq) |
 | 65 | Scry | `GameEventScry` | `Scry` | `scry()` | `topCount`, `bottomCount` | Implemented |
 | 66 | PredictedDirectDamage | -- | -- | -- | `value`, `modifierString` | MISSING |
 | 67 | SwitchPowerToughness | -- | -- | -- | (none) | MISSING |
 | 69 | PendingEffect | -- | -- | -- | `effect_type`, `counter_type`, `count` | MISSING |
 | 70 | AttachmentCreated | `GameEventCardAttachment` | `CardAttached` | `attachmentCreated()` | affector/affected ids | Implemented |
-| 71 | PowerToughnessModCreated | -- | -- | -- | `power`, `toughness` | MISSING |
+| 71 | PowerToughnessModCreated | `GameEventCardStatsChanged` | `PowerToughnessChanged` | `powerToughnessModCreated()` | `power`, `toughness` | Implemented |
 | 72 | SyntheticEvent | -- | -- | `syntheticEvent()` | `type` | Implemented |
 | 73 | UserActionTaken | -- | -- | `userActionTaken()` | `actionType`, `abilityGrpId` | Implemented |
 | 74 | DelayedTriggerAffectees | -- | -- | -- | `abilityGrpId`, `removesFromZone` | MISSING |
@@ -88,7 +88,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 87 | LinkedDamage | -- | -- | -- | `abilityGrpId` | MISSING |
 | 88 | ClassLevel | -- | -- | -- | `Level` | MISSING |
 | 89 | TokenImmediatelyDied | -- | -- | -- | affected ids | MISSING |
-| 90 | DamagedThisTurn | -- | -- | -- | (none) | MISSING |
+| 90 | DamagedThisTurn | `GameEventCardDamaged` | `DamageDealtToCard` | `damagedThisTurn()` (persistent) | (none) | Implemented |
 | 91 | ReferencedCardNames | -- | -- | -- | (none) | MISSING |
 | 92 | PlayerSelectingTargets | -- | -- | -- | affector/affected ids | MISSING |
 | 93 | PlayerSubmittedTargets | -- | -- | -- | affector/affected ids | MISSING |
@@ -109,7 +109,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 111 | CopyException | -- | -- | -- | `manaCost` | MISSING |
 | 113 | ModifiedCost | -- | -- | -- | (unknown) | MISSING |
 
-**Implemented: 25 types. Missing: 69+ types.**
+**Implemented: 31 types. Missing: 63+ types.**
 
 ## Table 2: Zone Transfer Categories
 
@@ -211,13 +211,13 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 |------:|------|-----------|---------------------|---------------------|
 | 1 | GameStateMessage | S→C | `postAction`, `stateOnlyDiff`, `aiActionDiff`, `phaseTransitionDiff` | -- |
 | 2 | ActionsAvailableReq | S→C | `postAction`, `phaseTransitionDiff` | `onPerformAction` (response) |
-| 6 | ChooseStartingPlayerReq | S→C | -- | -- (MISSING) |
+| 6 | ChooseStartingPlayerReq | S→C | (HandshakeMessages) | `onChooseStartingPlayer` (response) |
 | 7 | ConnectResp | S→C | (HandshakeMessages) | -- |
 | 10 | SetSettingsResp | S→C | (HandshakeMessages) | `onSettings` (response) |
 | 15 | MulliganReq | S→C | (HandshakeMessages) | `onMulliganKeep` (via bridge) |
 | 17 | OrderReq | S→C | -- | -- (MISSING) |
 | 18 | PromptReq | S→C | `phaseTransitionDiff` | -- |
-| 22 | SelectNreq | S→C | -- | -- (MISSING) |
+| 22 | SelectNreq | S→C | `selectNBundle` | `onSelectN` (response) |
 | 26 | DeclareAttackersReq | S→C | `declareAttackersBundle` | `onDeclareAttackers` (response) |
 | 27 | SubmitAttackersResp | S→C | (inline in MatchSession) | -- |
 | 28 | DeclareBlockersReq | S→C | `declareBlockersBundle` | `onDeclareBlockers` (response) |
@@ -225,10 +225,11 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 30 | AssignDamageReq | S→C | -- | -- (MISSING) |
 | 34 | SelectTargetsReq | S→C | `selectTargetsBundle` | `onSelectTargets` (response) |
 | 35 | SubmitTargetsResp | S→C | (inline in MatchSession) | -- |
+| 36 | CastingTimeOptionsReq | S→C | `castingTimeOptionsBundle` | `onCastingTimeOptions` (response) |
 | 37 | IntermissionReq | S→C | (inline in sendGameOver) | -- |
 | 51 | QueuedGameStateMessage | S→C | `queuedGameState` | -- |
 | 54 | EdictalMessage | S→C | `edictalPass` | -- |
-| 56 | TimerStateMessage | S→C | -- | -- (MISSING) |
+| 56 | TimerStateMessage | S→C | `timerStart`, `timerStop` | -- |
 
 **Client message types handled**:
 
@@ -260,6 +261,8 @@ Selected FD command types relevant to gameplay. Full list in `frontdoor/.../CmdT
 | 1800 | BotDraft_StartDraft | `onBotDraftStart` | Implemented |
 | 1801 | BotDraft_DraftPick | `onBotDraftPick` | Implemented |
 | 1802 | BotDraft_DraftStatus | `onBotDraftStatus` | Implemented |
+| 621 | Event_PlayerDraftConfirmCardPoolGrant | stub no-op | Stubbed |
+| 1908 | Draft_CompleteDraft | stub no-op | Stubbed |
 
 ## Table 7: Phase/Step Mapping
 
@@ -365,13 +368,13 @@ All 57 concrete `GameEvent` classes in `forge.game.event`:
 | `GameEventSprocketUpdate` | contraption, oldSprocket, sprocket | No |
 | `GameEventSubgameEnd` | maingame, message | No |
 | `GameEventSubgameStart` | subgame, message | No |
-| `GameEventSurveil` | player, toLibrary, toGraveyard | Yes → `Surveil` |
+| `GameEventSurveil` | player, toLibrary, toGraveyard | Yes → `Surveil` + `CardSurveiled` (enriched zone handler) |
 | `GameEventTokenCreated` | tokens (List\<Card\>) | Yes → `TokenCreated` |
 | `GameEventTurnBegan` | turnOwner, turnNumber | No |
 | `GameEventTurnEnded` | (empty) | No |
 | `GameEventTurnPhase` | playerTurn, phase, phaseDesc | No |
 | `GameEventZone` | zoneType, player, mode, card, sa | No |
 
-**Wired: 20 of 57 events** (35%). `CardChangeZone` now dispatches 6 zone-specific variants in addition to generic `ZoneChanged`. Key unwired events for future work: `CardPhased`, `SpellRemovedFromStack`, `FlipCoin`, `RollDie`, `PlayerControl`.
+**Wired: 21 of 57 events** (37%). `CardChangeZone` now dispatches 6 zone-specific variants in addition to generic `ZoneChanged`. Key unwired events for future work: `CardPhased`, `SpellRemovedFromStack`, `FlipCoin`, `RollDie`, `PlayerControl`.
 
 **Known limitation:** `GameEventCardDestroyed` is an empty Java record (`record Foo() implements GameEvent`) — no card field. Zone-pair inference from `GameEventCardChangeZone` covers destroy/exile/bounce/etc. `GameEventTokenCreated` was enriched with `List<Card> tokens` (4 of 5 call sites pass token refs; `InvestigateEffect` uses empty fallback due to per-player loop).

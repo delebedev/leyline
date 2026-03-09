@@ -114,6 +114,48 @@ class AccountRoutesTest :
             }
         }
 
+        test("register with invalid email returns 422") {
+            testApp {
+                val resp = client.post("/accounts/register") {
+                    setBody(
+                        """{"displayName":"Test","email":"notanemail","password":"secret",""" +
+                            """"country":"US","dateOfBirth":"1990-01-01","acceptedTC":true}""",
+                    )
+                    contentType(ContentType.Application.Json)
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+                resp.bodyAsText() shouldContain "INVALID EMAIL"
+            }
+        }
+
+        test("register with short password returns 422") {
+            testApp {
+                val resp = client.post("/accounts/register") {
+                    setBody(
+                        """{"displayName":"Test","email":"short@test.com","password":"ab",""" +
+                            """"country":"US","dateOfBirth":"1990-01-01","acceptedTC":true}""",
+                    )
+                    contentType(ContentType.Application.Json)
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+                resp.bodyAsText() shouldContain "PASSWORD TOO SHORT"
+            }
+        }
+
+        test("register with blank display name returns 422") {
+            testApp {
+                val resp = client.post("/accounts/register") {
+                    setBody(
+                        """{"displayName":"","email":"blank@test.com","password":"secret",""" +
+                            """"country":"US","dateOfBirth":"1990-01-01","acceptedTC":true}""",
+                    )
+                    contentType(ContentType.Application.Json)
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+                resp.bodyAsText() shouldContain "INVALID DISPLAY NAME"
+            }
+        }
+
         test("register with duplicate email returns 422") {
             testApp {
                 val resp = client.post("/accounts/register") {

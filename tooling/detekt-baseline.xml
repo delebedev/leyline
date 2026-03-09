@@ -3,14 +3,12 @@
   <ManuallySuppressedIssues></ManuallySuppressedIssues>
   <CurrentIssues>
     <ID>CyclomaticComplexMethod:AnnotationVariance.kt$fun main(args: Array&lt;String&gt;)</ID>
-    <ID>CyclomaticComplexMethod:Click.kt$Click$fun run(args: List&lt;String&gt;)</ID>
     <ID>CyclomaticComplexMethod:DecodeFdCapture.kt$fun main(args: Array&lt;String&gt;)</ID>
     <ID>CyclomaticComplexMethod:GameFlowAnalyzer.kt$GameFlowAnalyzer$private fun groupIntoTimeline(segments: List&lt;Segment&gt;): Analysis</ID>
     <ID>CyclomaticComplexMethod:MechanicClassifier.kt$MechanicClassifier$fun classify(event: GameEvent): String</ID>
     <ID>CyclomaticComplexMethod:PriorityTimeline.kt$PriorityTimeline$fun analyze(messages: List&lt;DecodedMessage&gt;, cards: CardRepository? = null): Analysis</ID>
     <ID>CyclomaticComplexMethod:RecordingCli.kt$fun main(args: Array&lt;String&gt;)</ID>
     <ID>CyclomaticComplexMethod:Trace.kt$private fun checkRenames( greMessages: List&lt;com.google.protobuf.Message&gt;, targets: MutableSet&lt;Int&gt;, ): List&lt;Pair&lt;Int, Int&gt;&gt;</ID>
-    <ID>ImplicitDefaultLocale:Wait.kt$Wait$String.format("%.1f", elapsed)</ID>
     <ID>LongMethod:RecordingCli.kt$fun main(args: Array&lt;String&gt;)</ID>
     <ID>LongParameterList:SemanticTimelineTest.kt$SemanticTimelineTest$( index: Int = 0, greType: String = "GameStateMessage", gsId: Int = 0, prevGsId: Int? = null, updateType: String? = null, annotations: List&lt;AnnotationSummary&gt; = emptyList(), zones: List&lt;ZoneSummary&gt; = emptyList(), turnInfo: TurnInfoSummary? = null, hasActionsAvailableReq: Boolean = false, hasIntermissionReq: Boolean = false, promptId: Int? = null, actions: List&lt;RecordingDecoder.ActionSummary&gt; = emptyList(), )</ID>
     <ID>MaxLineLength:DecodeCapture.kt$println(" reservedPlayers=${info.gameRoomConfig.reservedPlayersList.map { "${it.playerName}(seat=${it.systemSeatId},bot=${it.isBotPlayer})" }}")</ID>
@@ -19,15 +17,10 @@
     <ID>ReturnCount:GameFlowAnalyzer.kt$GameFlowAnalyzer$private fun isGameStartAt(i: Int): Boolean</ID>
     <ID>ReturnCount:RecordingCli.kt$fun main(args: Array&lt;String&gt;)</ID>
     <ID>SwallowedException:DebugServer.kt$DebugServer$e: IllegalStateException</ID>
-    <ID>ThrowsCount:Click.kt$Click$fun run(args: List&lt;String&gt;)</ID>
-    <ID>ThrowsCount:Drag.kt$Drag$fun run(args: List&lt;String&gt;)</ID>
-    <ID>ThrowsCount:Ocr.kt$Ocr$fun run(args: List&lt;String&gt;)</ID>
-    <ID>ThrowsCount:Wait.kt$Wait$fun run(args: List&lt;String&gt;)</ID>
     <ID>UnusedParameter:SessionAnalyzer.kt$SessionAnalyzer$mechanics: List&lt;MechanicClassifier.MechanicCount&gt;</ID>
     <ID>UnusedParameter:SessionAnalyzer.kt$SessionAnalyzer$sessionDir: File</ID>
-    <ID>UnusedParameter:State.kt$State$args: List&lt;String&gt;</ID>
     <ID>UnusedParameter:Trace.kt$field: FieldDescriptor</ID>
     <ID>UnusedPrivateMember:LeylinePaths.kt$private fun File.walkUpFind(pred: (File) -&gt; Boolean): File?</ID>
-<ID>UnusedPrivateProperty:RecordingInspector.kt$RecordingInspector$private val recordingsRoot = LeylinePaths.RECORDINGS</ID>
+    <ID>UnusedPrivateProperty:RecordingInspector.kt$RecordingInspector$private val recordingsRoot = LeylinePaths.RECORDINGS</ID>
   </CurrentIssues>
 </SmellBaseline>

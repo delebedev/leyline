@@ -85,6 +85,12 @@ private fun Route.registerRoute(store: AccountStore, tokens: TokenService) {
             return@post call.respondError(AccountError.INVALID_REQUEST)
         }
 
+        // Validate fields
+        val validationError = validateRegistration(req)
+        if (validationError != null) {
+            return@post call.respondError(validationError)
+        }
+
         // Check duplicate email
         if (store.findByEmail(req.email) != null) {
             return@post call.respondError(AccountError.INVALID_EMAIL)
@@ -120,7 +126,7 @@ private fun Route.profileRoute(store: AccountStore, tokens: TokenService) {
         if (bearer == null) {
             return@get call.respondError(AccountError.MISSING_AUTH)
         }
-        val personaId = tokens.validateRefreshToken(bearer)
+        val personaId = tokens.validateAccessToken(bearer)
             ?: extractPersonaIdFromJwt(bearer)
         if (personaId == null) {
             return@get call.respondError(AccountError.INVALID_TOKEN)
@@ -265,6 +271,17 @@ private fun extractPersonaIdFromJwt(jwt: String): String? {
     } catch (_: Exception) {
         null
     }
+}
+
+// -- Validation ---------------------------------------------------------------
+
+private val EMAIL_PATTERN = Regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")
+
+private fun validateRegistration(req: RegisterRequest): AccountError? {
+    if (req.email.isBlank() || !EMAIL_PATTERN.matches(req.email)) return AccountError.INVALID_EMAIL
+    if (req.password.length < 4) return AccountError.PASSWORD_TOO_SHORT
+    if (req.displayName.isBlank() || req.displayName.length > 32) return AccountError.INVALID_DISPLAY_NAME
+    return null
 }
 
 // -- Request DTOs -------------------------------------------------------------

@@ -185,7 +185,7 @@ object FdEnvelope {
         val gzipOffset = findGzipMagic(data)
         val stream = if (gzipOffset >= 0) data.copyOfRange(gzipOffset, data.size) else data
         return try {
-            GZIPInputStream(ByteArrayInputStream(stream)).bufferedReader(Charsets.UTF_8).readText()
+            GZIPInputStream(ByteArrayInputStream(stream)).bufferedReader(Charsets.UTF_8).use { it.readText() }
         } catch (_: Exception) {
             // Not actually gzip — try raw UTF-8
             try {
