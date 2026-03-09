@@ -69,6 +69,9 @@ interface SessionOps {
     /** Handle CancelActionResp. Default no-op for read-only sessions. */
     fun onCancelAction(greMsg: ClientToGREMessage) {}
 
+    /** Handle CastingTimeOptionsResp. Default no-op for read-only sessions. */
+    fun onCastingTimeOptions(greMsg: ClientToGREMessage) {}
+
     /** Handle concession. Default no-op for read-only sessions. */
     fun onConcede() {}
 
