@@ -61,7 +61,7 @@ class DraftServiceTest :
             val service = createService()
             var session = service.startDraft(playerId, eventName)
 
-            for (i in 0 until 13) {
+            repeat(13) {
                 val card = session.draftPack.first()
                 session = service.pick(playerId, eventName, card, packNumber = session.packNumber, pickNumber = session.pickNumber)
             }
@@ -76,7 +76,7 @@ class DraftServiceTest :
             val service = createService()
             var session = service.startDraft(playerId, eventName)
 
-            for (i in 0 until 39) {
+            repeat(39) {
                 val card = session.draftPack.first()
                 session = service.pick(playerId, eventName, card, packNumber = session.packNumber, pickNumber = session.pickNumber)
             }
@@ -129,7 +129,7 @@ class DraftServiceTest :
             var session = service.startDraft(playerId, eventName)
 
             val totalCards = 14 + 14 + 13
-            for (i in 0 until totalCards) {
+            repeat(totalCards) {
                 val card = session.draftPack.first()
                 session = service.pick(playerId, eventName, card, session.packNumber, session.pickNumber)
             }

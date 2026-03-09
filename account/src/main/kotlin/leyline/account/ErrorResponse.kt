@@ -19,6 +19,8 @@ enum class AccountError(val httpCode: Int, val grpcCode: String, val message: St
     INVALID_TOKEN(401, "16", "INVALID TOKEN"),
     NOT_FOUND(404, "5", "ACCOUNT NOT FOUND"),
     INVALID_EMAIL(422, "6", "INVALID EMAIL"),
+    PASSWORD_TOO_SHORT(422, "6", "PASSWORD TOO SHORT"),
+    INVALID_DISPLAY_NAME(422, "6", "INVALID DISPLAY NAME"),
 }
 
 /** Send an account error response: `{code, grpcCode, error}`. */

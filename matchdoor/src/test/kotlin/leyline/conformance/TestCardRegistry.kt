@@ -65,8 +65,14 @@ object TestCardRegistry {
             .filter { it.isNotBlank() }
             .map { it.trim().replaceFirst(Regex("^\\d+\\s+"), "") }
             .distinct()
+        val failures = mutableListOf<String>()
         for (name in names) {
-            ensureCardRegistered(name)
+            val grpId = ensureCardRegistered(name)
+            if (grpId == 0) failures.add(name)
+        }
+        check(failures.isEmpty()) {
+            "Cards not found in Forge DB (grpId=0): ${failures.joinToString()}. " +
+                "Use `just card-grp \"<name>\"` to verify card names."
         }
     }
 

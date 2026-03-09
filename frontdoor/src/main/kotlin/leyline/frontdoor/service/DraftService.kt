@@ -58,7 +58,6 @@ class DraftService(
         val totalPicksNeeded = session.packs.sumOf { it.size }
         val completed = newPickedCards.size >= totalPicksNeeded
 
-        val currentPackSize = session.packs[session.packNumber].size
         val (nextPackNumber, nextPickNumber, nextDraftPack) = if (completed) {
             Triple(session.packNumber, session.pickNumber, emptyList<Int>())
         } else if (remainingPack.isEmpty()) {

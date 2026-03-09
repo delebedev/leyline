@@ -13,7 +13,10 @@ private val inspector = RecordingInspector()
 
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
-        System.err.println("Usage: analyze <session> [--force] | analyze-all | find <keyword> | annotation-contract <session> <type> [effectId] | violations [session] | mechanics | latest")
+        System.err.println(
+            "Usage: analyze <session> [--force] | analyze-all | find <keyword> | " +
+                "annotation-contract <session> <type> [effectId] | violations [session] | mechanics | latest",
+        )
         exitProcess(1)
     }
 
@@ -73,7 +76,10 @@ private fun cmdAnalyzeAll(args: List<String>) {
         }
         val analysis = SessionAnalyzer.analyze(sessionDir, force = force)
         if (analysis != null) {
-            println("  ${sessionDir.name}: ${analysis.mechanicsExercised.size} mechanics, ${analysis.invariantViolations.size} violations, ${analysis.cardIndex.size} cards")
+            println(
+                "  ${sessionDir.name}: ${analysis.mechanicsExercised.size} mechanics, " +
+                    "${analysis.invariantViolations.size} violations, ${analysis.cardIndex.size} cards",
+            )
             analyzed++
         }
     }

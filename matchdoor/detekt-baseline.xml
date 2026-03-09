@@ -8,17 +8,16 @@
     <ID>CyclomaticComplexMethod:AnnotationBuilder.kt$AnnotationBuilder$fun categoryFromEvents(forgeCardId: Int, events: List&lt;GameEvent&gt;): TransferCategory?</ID>
     <ID>CyclomaticComplexMethod:AnnotationBuilder.kt$AnnotationBuilder$private fun zoneChangedCategory(ev: GameEvent.ZoneChanged): TransferCategory</ID>
     <ID>CyclomaticComplexMethod:AnnotationPipeline.kt$AnnotationPipeline$fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): TransferCategory</ID>
-    <ID>CyclomaticComplexMethod:MatchHandler.kt$MatchHandler$private fun processGREMessage(ctx: ChannelHandlerContext, greMsg: ClientToGREMessage)</ID>
-    <ID>CyclomaticComplexMethod:MatchSession.kt$MatchSession$fun onPerformAction(greMsg: ClientToGREMessage)</ID>
+    <ID>CyclomaticComplexMethod:MatchSession.kt$MatchSession$override fun onPerformAction(greMsg: ClientToGREMessage)</ID>
     <ID>CyclomaticComplexMethod:StateMapper.kt$StateMapper$fun buildFromGame( game: Game, gameStateId: Int, matchId: String, bridge: GameBridge, actions: ActionsAvailableReq? = null, updateType: GameStateUpdate = GameStateUpdate.SendAndRecord, viewingSeatId: Int = 0, ): GameStateMessage</ID>
     <ID>CyclomaticComplexMethod:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
     <ID>CyclomaticComplexMethod:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostRemoveCounter): PaymentDecision?</ID>
     <ID>CyclomaticComplexMethod:WebPlayerController.kt$WebPlayerController$override fun chooseSpellAbilityToPlay(): List&lt;SpellAbility&gt;?</ID>
     <ID>CyclomaticComplexMethod:WebPlayerController.kt$WebPlayerController$override fun selectTargetsInteractively( validTargets: List&lt;Card&gt;, sa: SpellAbility, mandatory: Boolean, numTargets: Int?, divisionValues: Collection&lt;Int&gt;?, filter: java.util.function.Predicate&lt;forge.game.GameObject&gt;?, mustTargetFiltered: Boolean, ): forge.player.TargetSelectionResult</ID>
-    <ID>DestructuringDeclarationWithTooManyEntries:AnnotationPipeline.kt$AnnotationPipeline$val (origId, newId, category, srcZone, destZone, grpId, _) = transfer</ID>
     <ID>LargeClass:WebCostDecision.kt$WebCostDecision : CostDecisionMakerBase</ID>
     <ID>LargeClass:WebPlayerController.kt$WebPlayerController : PlayerControllerHuman</ID>
     <ID>LongMethod:ActionMapper.kt$ActionMapper$internal fun buildActionList( seatId: Int, bridge: GameBridge, checkLegality: Boolean, ): ActionsAvailableReq</ID>
+    <ID>LongMethod:MatchSession.kt$MatchSession$override fun onPerformAction(greMsg: ClientToGREMessage)</ID>
     <ID>LongMethod:StateMapper.kt$StateMapper$fun buildFromGame( game: Game, gameStateId: Int, matchId: String, bridge: GameBridge, actions: ActionsAvailableReq? = null, updateType: GameStateUpdate = GameStateUpdate.SendAndRecord, viewingSeatId: Int = 0, ): GameStateMessage</ID>
     <ID>LongMethod:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
     <ID>LongParameterList:GsmBuilder.kt$GsmBuilder$( game: Game, gameStateId: Int, prevGameStateId: Int, matchId: String, bridge: GameBridge, phase: Phase, step: Step, isStageTransition: Boolean = false, actions: ActionsAvailableReq? = null, actionSeatId: Int = 0, )</ID>
@@ -54,8 +53,6 @@
     <ID>UnusedParameter:AnnotationPipeline.kt$AnnotationPipeline$obj: GameObjectInfo</ID>
     <ID>UnusedParameter:GoldenFieldCoverageTest.kt$GoldenFieldCoverageTest$label: String</ID>
     <ID>UnusedParameter:GsmBuilder.kt$GsmBuilder$seatId: Int</ID>
-    <ID>UnusedParameter:MatchSession.kt$MatchSession$greMsg: ClientToGREMessage</ID>
-    <ID>UnusedParameter:MulliganHandler.kt$MulliganHandler$matchHandlerRef: MatchHandler</ID>
     <ID>UnusedParameter:RequestBuilder.kt$RequestBuilder$game: Game</ID>
     <ID>UnusedParameter:ShouldStopConformanceTest.kt$ShouldStopConformanceTest$label: String</ID>
     <ID>UnusedParameter:Tap.kt$Tap$requestId: Int</ID>
@@ -80,7 +77,6 @@
     <ID>UnusedPrivateProperty:InvariantChecker.kt$InvariantChecker$val isSendAndRecord = gsm.update == GameStateUpdate.SendAndRecord</ID>
     <ID>UnusedPrivateProperty:TargetingFlowTest.kt$TargetingFlowTest$val allAnnotations = msgs .filter { it.hasGameStateMessage() } .flatMap { it.gameStateMessage.annotationsList }</ID>
     <ID>UnusedPrivateProperty:WebCostDecision.kt$WebCostDecision.Companion$private val log = LoggerFactory.getLogger(WebCostDecision::class.java)</ID>
-    <ID>UnusedPrivateProperty:ZoneTransitionConformanceTest.kt$ZoneTransitionConformanceTest$val stackId = b.getOrAllocInstanceId(forgeCardId)</ID>
     <ID>UseCheckOrError:InteractivePromptBridge.kt$InteractivePromptBridge$throw IllegalStateException("No prompt within ${timeoutMs}ms")</ID>
     <ID>UseRequire:DeckLoader.kt$DeckLoader$throw IllegalArgumentException("No valid cards found in decklist")</ID>
     <ID>UseRequire:WebGuiGame.kt$WebGuiGame$throw IllegalArgumentException("one() called with empty list")</ID>
