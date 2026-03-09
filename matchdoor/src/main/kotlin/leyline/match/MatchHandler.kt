@@ -267,11 +267,7 @@ class MatchHandler(
 
             ClientMessageType.SelectNresp -> s?.onSelectN(greMsg)
 
-            ClientMessageType.CastingTimeOptionsResp_097b -> {
-                if (!isFamiliar) {
-                    s?.onCastingTimeOptions(greMsg)
-                }
-            }
+            ClientMessageType.CastingTimeOptionsResp_097b -> s?.onCastingTimeOptions(greMsg)
 
             ClientMessageType.CheckpointReq -> {
                 // Client acknowledges IntermissionReq — MatchCompleted room state

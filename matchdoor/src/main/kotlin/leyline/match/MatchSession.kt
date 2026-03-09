@@ -329,7 +329,7 @@ class MatchSession(
     }
 
     /** Handle CastingTimeOptionsResp — delegates to [TargetingHandler]. */
-    fun onCastingTimeOptions(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+    override fun onCastingTimeOptions(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
         targetingHandler.onCastingTimeOptions(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
