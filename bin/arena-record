@@ -9,12 +9,21 @@ logical size, stitches with ffmpeg into H.264 MP4.
 Output is GitHub-embeddable (~0.3-1.5MB per 10s).
 """
 import argparse
+import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
 
 FRAME_DIR = Path("/tmp/arena/_record_frames")
+_stop_recording = False
+
+
+def _handle_signal(signum, frame):
+    """Handle SIGTERM/SIGINT — stop capturing, stitch whatever we have."""
+    global _stop_recording
+    _stop_recording = True
+    print(f"\nRecording stopped (signal {signum})", file=sys.stderr)
 
 
 def get_window_bounds():
@@ -64,6 +73,9 @@ def capture_frames(duration, fps, bounds):
     print(f"Recording {duration}s at {fps}fps ({total_frames} frames)...", file=sys.stderr)
 
     for i in range(total_frames):
+        if _stop_recording:
+            break
+
         frame_path = FRAME_DIR / f"frame_{i:05d}.png"
         t_start = time.time()
 
@@ -85,7 +97,7 @@ def capture_frames(duration, fps, bounds):
 
         elapsed = time.time() - t_start
         remaining = interval - elapsed
-        if remaining > 0:
+        if remaining > 0 and not _stop_recording:
             time.sleep(remaining)
 
     actual = len(list(FRAME_DIR.glob("*.png")))
@@ -105,6 +117,8 @@ def stitch(out_path, fps):
         "-preset", "fast",
         "-crf", "28",
         "-pix_fmt", "yuv420p",
+        # Ensure even dimensions (libx264 requirement)
+        "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
         "-movflags", "+faststart",
         out_path,
     ]
@@ -132,6 +146,10 @@ def main():
     parser.add_argument("--open", action="store_true",
                         help="Open result in QuickTime")
     args = parser.parse_args()
+
+    # Handle SIGTERM/SIGINT — stop capturing and stitch whatever we have
+    signal.signal(signal.SIGTERM, _handle_signal)
+    signal.signal(signal.SIGINT, _handle_signal)
 
     if check_screen_locked():
         print("WARNING: Screen locked — recording will show screen saver",
