@@ -63,6 +63,11 @@ def ocr(image_path: str, *extra_args: str) -> tuple[int, str, str]:
     return run(f"{PROJECT_DIR}/bin/ocr", image_path, "--json", *extra_args)
 
 
+# Canonical coord space: 960-wide (macOS logical on 2x Retina with 1920 Unity render).
+# All coords in guidance, transition tables, and arena_screens.py use this space.
+# OCR normalizes to this space; cmd_click scales from this space to actual window coords.
+REFERENCE_WIDTH = 960
+
 # Window bounds cache (5s TTL)
 _cached_bounds: tuple[int, int, int, int] | None = None
 _cached_bounds_ts: float = 0.0
@@ -348,6 +353,14 @@ def cmd_ocr(args: list[str]) -> None:
         ocr_args += ["--find", find_text]
 
     code, stdout, stderr = ocr(img, *ocr_args)
+
+    # Measure capture pixel width BEFORE deleting the file (needed for coord scaling)
+    capture_pixel_width = 0
+    if hires:
+        _, sips_out, _ = run("sips", "-g", "pixelWidth", img)
+        m_sips = re.search(r"pixelWidth:\s*(\d+)", sips_out)
+        if m_sips:
+            capture_pixel_width = int(m_sips.group(1))
     _try_remove(img)
 
     if code != 0:
@@ -356,18 +369,20 @@ def cmd_ocr(args: list[str]) -> None:
         else:
             die(f"OCR failed: {stderr}")
 
-    if hires:
-        # Convert 2x retina coords to logical coords (÷2)
+    if hires and capture_pixel_width > 0:
+        # Normalize OCR coords to REFERENCE_WIDTH (960) space.
+        # This works on both 1x and 2x displays:
+        #   2x Retina: capture=1920px → scale=2 → 960-space coords
+        #   1x:        capture=1920px → scale=2 → 960-space coords
+        # cmd_click scales back to actual window-relative when clicking.
+        scale = max(1, round(capture_pixel_width / REFERENCE_WIDTH))
         items = json.loads(stdout)
-        for item in items:
-            for key in ("cx", "cy", "x", "y", "w", "h"):
-                if key in item:
-                    item[key] = item[key] // 2
-        if find_text:
-            # Re-filter after coord conversion
-            stdout = json.dumps(items)
-        else:
-            stdout = json.dumps(items)
+        if scale > 1:
+            for item in items:
+                for key in ("cx", "cy", "x", "y", "w", "h"):
+                    if key in item:
+                        item[key] = item[key] // scale
+        stdout = json.dumps(items)
 
     if fmt:
         items = json.loads(stdout) if isinstance(stdout, str) else stdout
@@ -415,15 +430,17 @@ def cmd_move(args: list[str]) -> None:
     m = re.fullmatch(r"(\d+),(\d+)", args[0])
     if not m:
         die("Usage: arena move <x>,<y>")
-    wx, wy = int(m.group(1)), int(m.group(2))
+    ref_x, ref_y = int(m.group(1)), int(m.group(2))
     bounds = mtga_window_bounds()
     if bounds is None:
         die("MTGA window not found")
+    scale = bounds[2] / REFERENCE_WIDTH if REFERENCE_WIDTH > 0 else 1.0
+    wx, wy = int(ref_x * scale), int(ref_y * scale)
     sx, sy = bounds[0] + wx, bounds[1] + wy
     code, _, stderr = click_screen(sx, sy, "move")
     if code != 0:
         die(f"move failed: {stderr}")
-    print(f"moved to ({wx}, {wy}) → screen ({sx}, {sy})")
+    print(f"moved to ({ref_x},{ref_y}) → screen ({sx},{sy})")
 
 
 def cmd_click(args: list[str]) -> None:
@@ -442,18 +459,28 @@ def cmd_click(args: list[str]) -> None:
         if idx + 1 < len(args):
             max_retries = int(args[idx + 1])
 
-    # Coordinate click: x,y
+    # Coordinate click: x,y (coords expected in REFERENCE_WIDTH=960 space)
     m = re.fullmatch(r"(\d+),(\d+)", target)
     if m:
-        wx, wy = int(m.group(1)), int(m.group(2))
+        ref_x, ref_y = int(m.group(1)), int(m.group(2))
         bounds = mtga_window_bounds()
         if bounds is None:
             die("MTGA window not found")
+        # Scale from 960-space to actual window-relative coords
+        win_w = bounds[2]
+        scale = win_w / REFERENCE_WIDTH if REFERENCE_WIDTH > 0 else 1.0
+        wx = int(ref_x * scale)
+        wy = int(ref_y * scale)
         sx, sy = bounds[0] + wx, bounds[1] + wy
         code, _, stderr = click_screen(sx, sy, action)
         if code != 0:
             die(f"click failed: {stderr}")
-        print(f"clicked ({wx}, {wy}) → screen ({sx}, {sy})")
+        if scale != 1.0:
+            print(
+                f"clicked ({ref_x},{ref_y}) ×{scale:.1f} → ({wx},{wy}) → screen ({sx},{sy})"
+            )
+        else:
+            print(f"clicked ({wx},{wy}) → screen ({sx},{sy})")
         return
 
     # Text click with retry
@@ -503,12 +530,15 @@ def cmd_click(args: list[str]) -> None:
 
 
 def _do_drag(fr: tuple[int, int], to: tuple[int, int]) -> None:
-    """Low-level drag between window-relative coords."""
+    """Low-level drag between coords in REFERENCE_WIDTH (960) space."""
     bounds = mtga_window_bounds()
     if bounds is None:
         die("MTGA window not found")
-    sx1, sy1 = bounds[0] + fr[0], bounds[1] + fr[1]
-    sx2, sy2 = bounds[0] + to[0], bounds[1] + to[1]
+    scale = bounds[2] / REFERENCE_WIDTH if REFERENCE_WIDTH > 0 else 1.0
+    sx1 = bounds[0] + int(fr[0] * scale)
+    sy1 = bounds[1] + int(fr[1] * scale)
+    sx2 = bounds[0] + int(to[0] * scale)
+    sy2 = bounds[1] + int(to[1] * scale)
     code, _, stderr = drag_screen(sx1, sy1, sx2, sy2)
     if code != 0:
         die(f"drag failed: {stderr}")
@@ -1582,8 +1612,99 @@ def _parse_coord(s: str) -> tuple[int, int] | None:
 
 
 # ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+
+
+def cmd_health(args: list[str]) -> None:
+    """Pre-flight check: server, client, OCR, coord space."""
+    checks: list[tuple[str, bool, str]] = []
+
+    # 1. Server up?
+    state = fetch_api("/api/state")
+    server_ok = state is not None
+    checks.append(
+        (
+            "Server (:8090)",
+            server_ok,
+            "ok" if server_ok else "not responding — run: just serve",
+        )
+    )
+
+    # 2. Port listening?
+    code, out, _ = run("lsof", "-i", ":30010", "-sTCP:LISTEN")
+    listen_ok = code == 0 and "LISTEN" in out
+    checks.append(
+        ("Port :30010 LISTEN", listen_ok, "ok" if listen_ok else "not listening")
+    )
+
+    # 3. Client connected?
+    code, out, _ = run("lsof", "-i", ":30010", "-sTCP:ESTABLISHED")
+    conn_ok = code == 0 and "ESTABLISHED" in out
+    checks.append(
+        (
+            "Client connected",
+            conn_ok,
+            "ok" if conn_ok else "MTGA not connected — run: arena launch",
+        )
+    )
+
+    # 4. MTGA window found?
+    bounds = mtga_window_bounds()
+    win_ok = bounds is not None
+    win_msg = (
+        f"ok ({bounds[2]}x{bounds[3]} at {bounds[0]},{bounds[1]})"
+        if bounds
+        else "MTGA window not found"
+    )
+    checks.append(("MTGA window", win_ok, win_msg))
+
+    # 5. OCR working?
+    ocr_ok = False
+    ocr_count = 0
+    if win_ok:
+        img = "/tmp/arena/_health_capture.png"
+        cap_bounds = capture_window(img)
+        if cap_bounds:
+            code, stdout, _ = ocr(img)
+            if code == 0 and stdout.strip():
+                items = json.loads(stdout)
+                ocr_count = len(items)
+                ocr_ok = ocr_count > 0
+        _try_remove(img)
+    checks.append(("OCR", ocr_ok, f"ok ({ocr_count} items)" if ocr_ok else "failed"))
+
+    # 6. Display scale
+    scale_msg = "unknown"
+    if win_ok:
+        img = "/tmp/arena/_health_hires.png"
+        capture_window(img, hires=True)
+        _, sips_out, _ = run("sips", "-g", "pixelWidth", str(img))
+        m = re.search(r"pixelWidth:\s*(\d+)", sips_out)
+        if m and bounds:
+            img_w = int(m.group(1))
+            ratio = img_w / bounds[2] if bounds[2] > 0 else 0
+            scale_msg = f"{ratio:.0f}x (image {img_w}px, window {bounds[2]} logical)"
+        _try_remove(img)
+    checks.append(("Display scale", True, scale_msg))
+
+    # Print results
+    all_ok = all(ok for _, ok, _ in checks)
+    for name, ok, msg in checks:
+        status = "PASS" if ok else "FAIL"
+        print(f"  [{status}] {name}: {msg}")
+
+    if all_ok:
+        print("\nAll checks passed. Ready for automation.")
+    else:
+        print("\nSome checks failed. Fix before automating.")
+        raise SystemExit(1)
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 COMMANDS = {
     "launch": cmd_launch,
@@ -1602,6 +1723,7 @@ COMMANDS = {
     "board": cmd_board,
     "detect": cmd_detect,
     "issues": cmd_issues,
+    "health": cmd_health,
 }
 
 
