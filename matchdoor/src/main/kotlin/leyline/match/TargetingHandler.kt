@@ -318,8 +318,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val cardName = req.modalSourceCardName
         if (cardName == null) {
             log.warn("TargetingHandler: modal prompt but no modalSourceCardName, auto-resolving")
-            bridge.promptBridge.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
-            bridge.awaitPriority()
+            autoResolvePrompt(bridge, pendingPrompt)
             return
         }
 
@@ -327,16 +326,14 @@ class TargetingHandler(private val ops: SessionOps) {
         val cardGrpId = bridge.cards.findGrpIdByName(cardName)
         if (cardGrpId == null) {
             log.warn("TargetingHandler: card '{}' not in card DB, auto-resolving modal", cardName)
-            bridge.promptBridge.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
-            bridge.awaitPriority()
+            autoResolvePrompt(bridge, pendingPrompt)
             return
         }
 
         val modalInfo = bridge.cards.lookupModalOptions(cardGrpId)
         if (modalInfo == null) {
             log.warn("TargetingHandler: no modal options for grpId={}, auto-resolving", cardGrpId)
-            bridge.promptBridge.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
-            bridge.awaitPriority()
+            autoResolvePrompt(bridge, pendingPrompt)
             return
         }
 
@@ -510,5 +507,11 @@ class TargetingHandler(private val ops: SessionOps) {
         )
         Tap.outboundTemplate("GroupReq($contextLabel) seat=${ops.seatId}")
         ops.sendBundledGRE(listOf(revealDiff, groupReq))
+    }
+
+    /** Submit default response and wait — used when modal lookup fails. */
+    private fun autoResolvePrompt(bridge: GameBridge, prompt: InteractivePromptBridge.PendingPrompt) {
+        bridge.promptBridge.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
+        bridge.awaitPriority()
     }
 }

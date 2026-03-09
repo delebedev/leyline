@@ -1,7 +1,9 @@
 package leyline.conformance
 
+import forge.game.card.CounterEnumType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
@@ -105,5 +107,22 @@ class ModalETBFlowTest :
             // Verify life gain
             val endLife = h.bridge.getPlayer(SeatId(1))!!.life
             (endLife - startLife) shouldBe 4
+        }
+
+        test("modal choice resolves +1/+1 counter") {
+            val h = setupModal()
+
+            h.castSpellByName("Trufflesnout").shouldBeTrue()
+            h.passPriority()
+
+            // Choose counter mode (index 0 → counterModeGrpId)
+            h.respondModalChoice(listOf(counterModeGrpId))
+
+            // Find Trufflesnout on battlefield — should have a +1/+1 counter
+            val player = h.bridge.getPlayer(SeatId(1))!!
+            val trufflesnout = player.getZone(forge.game.zone.ZoneType.Battlefield).cards
+                .firstOrNull { it.name == "Trufflesnout" }
+            trufflesnout.shouldNotBeNull()
+            trufflesnout.getCounters(CounterEnumType.P1P1) shouldBeGreaterThan 0
         }
     })
