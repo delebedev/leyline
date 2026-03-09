@@ -77,6 +77,26 @@ class TestBareException:
         assert parse_client_error(line) is None
 
 
+class TestErrorTypes:
+    def test_bare_error(self):
+        line = "MissingFieldError: field 'name' not found in response"
+        err = parse_client_error(line)
+        assert err is not None
+        assert err.exception_type == "MissingFieldError"
+        assert "field 'name'" in err.message
+
+    def test_unity_assertion(self):
+        line = "Assertion failed on expression: 'm_CurrentEncodingState == EncodingState.Clear'"
+        err = parse_client_error(line)
+        assert err is not None
+        assert err.exception_type == "AssertionFailure"
+        assert "m_CurrentEncodingState" in err.message
+
+    def test_index_out_of_range_suppressed(self):
+        line = "IndexOutOfRangeException: Index was outside bounds"
+        assert parse_client_error(line) is None
+
+
 class TestNoMatch:
     def test_normal_line(self):
         assert parse_client_error("Initialize engine version: 2022.3.62f2") is None
