@@ -2,6 +2,7 @@ package leyline.match
 
 import forge.game.Game
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.nulls.shouldBeNull
 import leyline.UnitTag
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
@@ -77,5 +78,17 @@ class SessionOpsDefaultsTest :
 
         test("onPuzzleStart default is no-op") {
             ops.onPuzzleStart()
+        }
+
+        test("gameBridge default is null") {
+            ops.gameBridge.shouldBeNull()
+        }
+
+        test("recorder default is null") {
+            ops.recorder.shouldBeNull()
+        }
+
+        test("connectBridge default is no-op") {
+            ops.connectBridge(GameBridge())
         }
     })

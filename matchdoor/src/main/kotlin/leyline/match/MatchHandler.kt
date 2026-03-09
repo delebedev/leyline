@@ -64,7 +64,7 @@ class MatchHandler(
     internal val mulliganHandler = MulliganHandler(
         matchConfig,
         registry,
-        sessionProvider = { session as? MatchSession },
+        sessionProvider = { session },
         ctxProvider = { nettyCtx },
         matchIdProvider = { matchId },
         seatIdProvider = { seatId },
@@ -185,7 +185,9 @@ class MatchHandler(
 
                 if (puzzleHandler.isPuzzleMatch(matchId)) {
                     sendRoomState(ctx)
-                    puzzleHandler.onPuzzleConnect(ctx, s as MatchSession, matchId, seatId)
+                    val ms = s as? MatchSession
+                        ?: error("Puzzle mode requires MatchSession (seat 1), got ${s?.javaClass?.simpleName} for seat $seatId")
+                    puzzleHandler.onPuzzleConnect(ctx, ms, matchId, seatId)
                 } else {
                     // Constructed mode: normal flow
                     // PvP matches use startTwoPlayer (both seats human-wired).
@@ -212,7 +214,7 @@ class MatchHandler(
                         }
                     }
                     val bridge = match.bridge
-                    (s as? MatchSession)?.connectBridge(bridge)
+                    s?.connectBridge(bridge)
                     mulliganHandler.seat1Hand = bridge.getHandGrpIds(1)
                     mulliganHandler.seat2Hand = bridge.getHandGrpIds(2)
                     log.info("Match Door: seat {} connected, hands seat1={} seat2={}", seatId, mulliganHandler.seat1Hand, mulliganHandler.seat2Hand)
@@ -230,9 +232,8 @@ class MatchHandler(
             // GroupResp routes to mulligan handler (London tuck) or session (surveil/scry).
             // During mulligan phase, route to mulligan handler; otherwise to session.
             ClientMessageType.GroupResp_097b -> {
-                val ms = s as? MatchSession
-                if (ms?.gameBridge?.promptBridge?.getPendingPrompt() != null) {
-                    s?.onGroupResp(greMsg)
+                if (s?.gameBridge?.promptBridge?.getPendingPrompt() != null) {
+                    s.onGroupResp(greMsg)
                 } else {
                     mulliganHandler.onGroupResp(greMsg)
                 }
@@ -315,15 +316,15 @@ class MatchHandler(
     override fun channelInactive(ctx: ChannelHandlerContext) {
         log.info("Match Door: client disconnected")
         // Close recorder on disconnect (triggers analysis if game didn't end cleanly)
-        (session as? MatchSession)?.recorder?.shutdown()
+        session?.recorder?.shutdown()
         super.channelInactive(ctx)
     }
 
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
         log.error("Match Door error: {}", cause.message, cause)
-        (session as? MatchSession)?.recorder?.shutdown()
+        session?.recorder?.shutdown()
         // Route through Match.close() for proper lifecycle transition + callback
-        registry.getMatch(matchId)?.close() ?: (session as? MatchSession)?.gameBridge?.shutdown()
+        registry.getMatch(matchId)?.close() ?: session?.gameBridge?.shutdown()
         ctx.close()
     }
 
