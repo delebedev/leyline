@@ -416,7 +416,7 @@ class CombatHandler(private val ops: SessionOps) {
      * drain and send.
      */
     private fun drainPendingPlayback(bridge: GameBridge) {
-        val playback = bridge.playback ?: return
+        val playback = bridge.playbacks[SeatId(ops.seatId)] ?: return
         if (playback.hasPendingMessages()) {
             val batches = playback.drainQueue()
             for (batch in batches) {

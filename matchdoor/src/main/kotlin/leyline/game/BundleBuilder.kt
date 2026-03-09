@@ -129,14 +129,14 @@ object BundleBuilder {
     }
 
     /**
-     * AI action diff: single GS Diff with SendHiFi.
+     * Remote action diff: single GS Diff with SendHiFi.
      *
      * Real server sends exactly one GSM per AI action — no echo, no
      * pendingMessageCount. Uses SendHiFi (transient update the client
      * doesn't need to persist as a save point). Actions are embedded
      * without the pending flag so the client dispatches immediately.
      */
-    fun aiActionDiff(
+    fun remoteActionDiff(
         game: Game,
         bridge: GameBridge,
         matchId: String,

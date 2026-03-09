@@ -58,7 +58,7 @@ class MatchHandler(
     private var nettyCtx: ChannelHandlerContext? = null
 
     /** Game session — created on connect, holds all post-mulligan state. */
-    internal var session: MatchSession? = null
+    internal var session: SessionOps? = null
 
     /** Mulligan flow delegate — owns mulligan state and DealHand/MulliganReq senders. */
     internal val mulliganHandler = MulliganHandler(
@@ -139,16 +139,19 @@ class MatchHandler(
             // Seat 2 (Familiar) sink skips ProtoDump to avoid duplicate .bin files
             val sink = NettyMessageSink(ctx, dumpEnabled = !isFamiliar)
             val rec = recorderFactory?.invoke()
-            val s = MatchSession(
-                seatId,
-                matchId,
-                sink,
-                registry,
-                recorder = rec,
-                debugSink = debugSink,
-                coordinator = coordinator,
-            )
-            s.playerId = clientId.removeSuffix("_Familiar")
+            val s: SessionOps = if (isFamiliar) {
+                FamiliarSession(seatId, matchId, sink)
+            } else {
+                MatchSession(
+                    seatId,
+                    matchId,
+                    sink,
+                    registry,
+                    recorder = rec,
+                    debugSink = debugSink,
+                    coordinator = coordinator,
+                ).also { it.playerId = clientId.removeSuffix("_Familiar") }
+            }
             session = s
             registry.registerSession(matchId, seatId, s)
             registry.registerHandler(matchId, seatId, this)
@@ -182,7 +185,9 @@ class MatchHandler(
 
                 if (puzzleHandler.isPuzzleMatch(matchId)) {
                     sendRoomState(ctx)
-                    puzzleHandler.onPuzzleConnect(ctx, s!!, matchId, seatId)
+                    val ms = s as? MatchSession
+                        ?: error("Puzzle mode requires MatchSession (seat 1), got ${s?.javaClass?.simpleName} for seat $seatId")
+                    puzzleHandler.onPuzzleConnect(ctx, ms, matchId, seatId)
                 } else {
                     // Constructed mode: normal flow
                     // PvP matches use startTwoPlayer (both seats human-wired).
@@ -243,62 +248,24 @@ class MatchHandler(
                 s?.onConcede()
             }
 
-            ClientMessageType.PerformActionResp_097b -> {
-                if (!isFamiliar) {
-                    s?.onPerformAction(greMsg)
-                } else {
-                    log.debug("Match Door: ignoring PerformActionResp from Familiar (seat {})", seatId)
-                }
-            }
+            ClientMessageType.PerformActionResp_097b -> s?.onPerformAction(greMsg)
 
-            ClientMessageType.DeclareAttackersResp_097b -> {
-                if (!isFamiliar) {
-                    s?.onDeclareAttackers(greMsg)
-                } else {
-                    log.debug("Match Door: ignoring DeclareAttackersResp from Familiar (seat {})", seatId)
-                }
-            }
+            ClientMessageType.DeclareAttackersResp_097b -> s?.onDeclareAttackers(greMsg)
 
-            // SubmitAttackersReq is a type-only signal ("Done" button, no payload).
-            // The client may send it on either channel (seat 1 or 2) — race condition
-            // in the Arena client. Combat state (lastDeclaredAttackerIds) lives on
-            // the player's CombatHandler, so always route to the player's session.
-            ClientMessageType.SubmitAttackersReq -> {
-                val target = if (!isFamiliar) s else registry.activeSession()
-                target?.onDeclareAttackers(greMsg)
-            }
+            // SubmitAttackersReq: client race condition may send on Familiar channel.
+            // FamiliarSession no-ops handle it. PvP may want cross-seat routing later.
+            ClientMessageType.SubmitAttackersReq -> s?.onDeclareAttackers(greMsg)
 
-            ClientMessageType.DeclareBlockersResp_097b -> {
-                if (!isFamiliar) {
-                    s?.onDeclareBlockers(greMsg)
-                } else {
-                    log.debug("Match Door: ignoring DeclareBlockersResp from Familiar (seat {})", seatId)
-                }
-            }
+            ClientMessageType.DeclareBlockersResp_097b -> s?.onDeclareBlockers(greMsg)
 
-            // Same pattern as SubmitAttackersReq — route to player's session.
-            ClientMessageType.SubmitBlockersReq -> {
-                val target = if (!isFamiliar) s else registry.activeSession()
-                target?.onDeclareBlockers(greMsg)
-            }
+            // Same pattern as SubmitAttackersReq.
+            ClientMessageType.SubmitBlockersReq -> s?.onDeclareBlockers(greMsg)
 
-            ClientMessageType.SelectTargetsResp_097b -> {
-                if (!isFamiliar) {
-                    s?.onSelectTargets(greMsg)
-                }
-            }
+            ClientMessageType.SelectTargetsResp_097b -> s?.onSelectTargets(greMsg)
 
-            ClientMessageType.CancelActionReq_097b -> {
-                if (!isFamiliar) {
-                    s?.onCancelAction(greMsg)
-                }
-            }
+            ClientMessageType.CancelActionReq_097b -> s?.onCancelAction(greMsg)
 
-            ClientMessageType.SelectNresp -> {
-                if (!isFamiliar) {
-                    s?.onSelectN(greMsg)
-                }
-            }
+            ClientMessageType.SelectNresp -> s?.onSelectN(greMsg)
 
             ClientMessageType.CheckpointReq -> {
                 // Client acknowledges IntermissionReq — MatchCompleted room state
@@ -327,7 +294,7 @@ class MatchHandler(
 
     private fun sendInitialBundle(ctx: ChannelHandlerContext) {
         val s = session ?: return
-        val bridge = s.gameBridge ?: return
+        val bridge = registry.getMatch(matchId)?.bridge ?: return
         val gsId = s.counter.nextGsId()
         val deckGrpIds = bridge.getDeckGrpIds(seatId)
         val deck = GsmBuilder.buildDeckMessage(deckGrpIds)

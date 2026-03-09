@@ -26,11 +26,11 @@ class GsIdChainTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("aiActionDiff produces single GSM with no pendingMessageCount") {
+        test("remoteActionDiff produces single GSM with no pendingMessageCount") {
             val (b, game, counter) = base.startGameAtMain1()
             b.snapshotFromGame(game, counter.currentGsId())
 
-            val result = BundleBuilder.aiActionDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
+            val result = BundleBuilder.remoteActionDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
             result.messages.size shouldBe 1
 
             val gsm = result.messages[0].gameStateMessage
