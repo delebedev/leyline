@@ -39,7 +39,7 @@ class MatchSession(
     val sink: MessageSink,
     val registry: MatchRegistry,
     val paceDelayMs: Long = 200L,
-    val recorder: MatchRecorder? = null,
+    override val recorder: MatchRecorder? = null,
     override var counter: MessageCounter = MessageCounter(),
     /** Debug diagnostics sink — protocol messages + game state collector. Null in tests. */
     private val debugSink: MatchDebugSink? = null,
@@ -51,7 +51,7 @@ class MatchSession(
     /** Serializes all game-logic entry points (Netty I/O threads are concurrent). */
     private val sessionLock = Any()
 
-    var gameBridge: GameBridge? = null
+    override var gameBridge: GameBridge? = null
         private set
 
     /** Client player ID — set by MatchHandler after auth, used in MatchCompleted room state. */
@@ -78,7 +78,7 @@ class MatchSession(
      * it as our own — ensuring the engine thread (GamePlayback) and this
      * session share a single counter.
      */
-    fun connectBridge(bridge: GameBridge) = synchronized(sessionLock) {
+    override fun connectBridge(bridge: GameBridge): Unit = synchronized(sessionLock) {
         gameBridge = bridge
         val bridgeCounter = bridge.messageCounter
         if (bridgeCounter !== counter) {
@@ -142,13 +142,12 @@ class MatchSession(
     override fun onPuzzleStart() = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
 
-        // Only seat 1 (human player) drives the auto-pass game loop.
-        // Familiar (seat 2) is a spectator — it receives mirrored messages
-        // from seat 1 and must not enter the auto-pass loop. Doing so would
-        // consume seat 1's pending priority action via the shared ActionBridge,
-        // advancing the engine past Main1 into later phases/turns.
+        // FamiliarSession inherits a no-op onPuzzleStart from SessionOps, so this
+        // path only fires for MatchSession. Warn if somehow called for a non-seat-1
+        // MatchSession — it would consume seat 1's pending priority via the shared
+        // ActionBridge, advancing the engine past Main1.
         if (seatId != 1) {
-            log.info("MatchSession: skipping puzzle auto-pass for spectator seat {}", seatId)
+            log.warn("MatchSession: onPuzzleStart called for seat {} — expected seat 1 only", seatId)
             return
         }
 

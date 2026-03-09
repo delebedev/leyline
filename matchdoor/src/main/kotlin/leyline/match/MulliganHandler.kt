@@ -22,7 +22,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class MulliganHandler(
     private val matchConfig: MatchConfig,
     private val registry: MatchRegistry,
-    private val sessionProvider: () -> MatchSession?,
+    private val sessionProvider: () -> SessionOps?,
     private val ctxProvider: () -> ChannelHandlerContext?,
     private val matchIdProvider: () -> String,
     private val seatIdProvider: () -> Int,

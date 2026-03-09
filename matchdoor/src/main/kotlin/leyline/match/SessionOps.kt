@@ -12,11 +12,24 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Provides counter access, message sending, and tracing without exposing
  * MatchSession internals. Handlers ([CombatHandler], [TargetingHandler],
  * [AutoPassEngine]) take this interface rather than the full session.
+ *
+ * Two implementations: [MatchSession] (human, full game logic) and
+ * [FamiliarSession] (read-only mirror, no-op actions). Code that needs
+ * session access should use this interface — never downcast to a concrete type.
  */
 interface SessionOps {
     val seatId: Int
     val matchId: String
     var counter: MessageCounter
+
+    /** Game bridge — non-null for [MatchSession], null for [FamiliarSession]. */
+    val gameBridge: GameBridge? get() = null
+
+    /** Session recorder — non-null when recording is enabled. */
+    val recorder: MatchRecorder? get() = null
+
+    /** Wire the game bridge. No-op for read-only sessions. */
+    fun connectBridge(bridge: GameBridge) {}
 
     fun sendBundledGRE(messages: List<GREToClientMessage>)
     fun sendRealGameState(bridge: GameBridge)
