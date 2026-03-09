@@ -33,6 +33,18 @@ class TokenService(
     /** Decode and validate a refresh token. Returns the persona ID or null if invalid/expired. */
     fun validateRefreshToken(token: String): String? {
         val payload = decodePayload(token) ?: return null
+        val typ = CLAIM_TTYP.find(payload)?.groupValues?.get(1)
+        if (typ != null && typ != "refresh") return null
+        val exp = CLAIM_EXP.find(payload)?.groupValues?.get(1)?.toLongOrNull() ?: return null
+        if (exp < nowSeconds()) return null
+        return CLAIM_SUB.find(payload)?.groupValues?.get(1)
+    }
+
+    /** Decode and validate an access token. Returns the persona ID or null if invalid/expired. */
+    fun validateAccessToken(token: String): String? {
+        val payload = decodePayload(token) ?: return null
+        val typ = CLAIM_TTYP.find(payload)?.groupValues?.get(1)
+        if (typ != null && typ != "access") return null
         val exp = CLAIM_EXP.find(payload)?.groupValues?.get(1)?.toLongOrNull() ?: return null
         if (exp < nowSeconds()) return null
         return CLAIM_SUB.find(payload)?.groupValues?.get(1)
@@ -46,6 +58,7 @@ class TokenService(
             put("iat", JsonPrimitive(now))
             put("iss", JsonPrimitive(account.accountId))
             put("sub", JsonPrimitive(account.personaId))
+            put("wotc-ttyp", JsonPrimitive("access"))
             put("wotc-acct", JsonPrimitive(account.accountId))
             put("wotc-name", JsonPrimitive(account.displayName))
             put("wotc-domn", JsonPrimitive("wizards"))
@@ -70,6 +83,7 @@ class TokenService(
             put("iat", JsonPrimitive(now))
             put("iss", JsonPrimitive(account.accountId))
             put("sub", JsonPrimitive(account.personaId))
+            put("wotc-ttyp", JsonPrimitive("refresh"))
             put("wotc-domn", JsonPrimitive("wizards"))
             putJsonArray("wotc-scps") { add(JsonPrimitive("first-party")) }
             put("wotc-flgs", JsonPrimitive(0))
@@ -111,5 +125,6 @@ class TokenService(
 
         private val CLAIM_EXP = """"exp"\s*:\s*(\d+)""".toRegex()
         private val CLAIM_SUB = """"sub"\s*:\s*"([^"]+)"""".toRegex()
+        private val CLAIM_TTYP = """"wotc-ttyp"\s*:\s*"([^"]+)"""".toRegex()
     }
 }
