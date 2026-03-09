@@ -43,8 +43,7 @@ class AccountStore(private val database: Database) {
         val accountId = generateId()
         val personaId = generateId()
         val hash = BCrypt.hashpw(password, BCrypt.gensalt())
-        val discriminator = (1..99999).random()
-        val fullName = "$displayName#${discriminator.toString().padStart(5, '0')}"
+        val fullName = generateUniqueDisplayName(displayName)
 
         val now = java.time.Instant.now().toString()
         transaction(database) {
@@ -138,6 +137,18 @@ class AccountStore(private val database: Database) {
         dob = this[Accounts.dob],
         createdAt = this[Accounts.createdAt],
     )
+
+    private fun generateUniqueDisplayName(baseName: String): String {
+        repeat(10) {
+            val disc = (1..99999).random()
+            val candidate = "$baseName#${disc.toString().padStart(5, '0')}"
+            val exists = transaction(database) {
+                Accounts.selectAll().where { Accounts.displayName eq candidate }.empty().not()
+            }
+            if (!exists) return candidate
+        }
+        error("Failed to generate unique display name for '$baseName' after 10 attempts")
+    }
 
     private fun generateId(): String =
         UUID.randomUUID().toString().replace("-", "").uppercase().take(26)
