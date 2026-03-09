@@ -4,6 +4,7 @@ import io.netty.channel.ChannelHandlerContext
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.config.MatchConfig
+import leyline.game.GameBridge
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
@@ -41,15 +42,18 @@ class MulliganHandler(
 
     /** Handle ChooseStartingPlayerResp — triggers mulligan flow or skip-mulligan. */
     fun onChooseStartingPlayer(matchHandlerRef: MatchHandler) {
-        val s = session ?: return
-        if (s.gameBridge?.isPuzzle == true) {
+        // ChooseStartingPlayerResp may arrive on any seat's channel (often seat 2).
+        // Check puzzle mode via registry; don't require MatchSession locally.
+        val match = registry.getMatch(matchId)
+        if (match?.bridge?.isPuzzle == true) {
             log.info("Match Door GRE: ignoring ChooseStartingPlayerResp for puzzle")
             return
         }
 
         if (matchConfig.game.skipMulligan) {
             log.info("Match Door GRE: skipMulligan — bypassing mulligan phase")
-            sendDealHand(ctx!!)
+            // Send DealHand on this seat's channel — use handler's session (may be FamiliarSession)
+            sendDealHandViaHandler(ctx!!, matchHandlerRef.session, match?.bridge)
             val seat1Handler = registry.getHandler(matchId, 1)
             seat1Handler?.mulliganHandler?.sendDealHandPublic()
             seat1Handler?.session?.onMulliganKeep()
@@ -114,6 +118,24 @@ class MulliganHandler(
     }
 
     // --- Senders ---
+
+    /**
+     * DealHand via any SessionOps (works for both MatchSession and FamiliarSession).
+     * Used when ChooseStartingPlayerResp arrives on the Familiar channel with skipMulligan.
+     */
+    private fun sendDealHandViaHandler(
+        ctx: ChannelHandlerContext,
+        s: SessionOps?,
+        bridge: GameBridge?,
+    ) {
+        if (s == null || bridge == null) return
+        val gsId = s.counter.nextGsId()
+        val (msg, nextMsgId) = HandshakeMessages.dealHand(s.counter.currentMsgId(), gsId, bridge, seatId)
+        s.counter.setMsgId(nextMsgId)
+        Tap.outboundTemplate("DealHand seat=$seatId deletedIds=0")
+        ProtoDump.dump(msg, "DealHand-seat$seatId")
+        ctx.writeAndFlush(msg)
+    }
 
     /** DealHand only — public for cross-connection calls. Uses stored ctx. */
     fun sendDealHandPublic() {
