@@ -147,6 +147,24 @@ class GameTracker:
             if z.object_ids
         ]
 
+        # Build hand summary for our seat (seat 1).
+        # NOTE: zone order ≠ visual order. Arena sorts cards visually by mana cost
+        # (lands first, then by CMC). We can't predict screen positions from zone order.
+        hand = []
+        for z in state.zones:
+            if z.type == "ZoneType_Hand" and z.owner_seat_id == 1:
+                for iid in z.object_ids:
+                    obj = state.objects.get(iid)
+                    card_name = None
+                    if obj and obj.grp_id:
+                        card_name = names.get(obj.grp_id)
+                    entry: dict = {
+                        "id": iid,
+                        "name": card_name or f"?({iid})",
+                    }
+                    hand.append(entry)
+                break
+
         # Annotations from latest GSM
         annotations = [Annotation.from_raw(a).to_dict() for a in state.annotations]
 
@@ -189,6 +207,7 @@ class GameTracker:
             "game_state_id": state.game_state_id,
             "turn_info": turn_info,
             "players": players,
+            "hand": hand,
             "zones": zones,
             "object_count": len(state.objects),
             "actions": actions,
