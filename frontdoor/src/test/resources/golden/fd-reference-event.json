@@ -1,6 +1,5 @@
 {
   "InternalEventName": "Ladder",
-  "EventState": "Active",
   "FormatType": "Constructed",
   "StartTime": "2025-01-01T00:00:00Z",
   "LockedTime": "2099-01-01T00:00:00Z",
@@ -11,9 +10,10 @@
   "EntryFees": [],
   "EventUXInfo": {
     "PublicEventName": "Standard Ranked",
-    "DisplayPriority": 100,
-"DeckSelectFormat": "Standard",
+    "DisplayPriority": -1,
+    "DisplayPriorityMilestoneChanges": [],
     "Parameters": {},
+    "DeckSelectFormat": "Standard",
     "DynamicFilterTagIds": [],
     "Group": "",
     "FactionSealedUXInfo": [],

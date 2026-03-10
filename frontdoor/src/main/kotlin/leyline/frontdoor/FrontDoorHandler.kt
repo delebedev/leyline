@@ -232,8 +232,9 @@ class FrontDoorHandler(
             }
 
             CmdType.EVENT_GET_ACTIVE_EVENTS_V2.value -> {
-                val eventsJson = EventWireBuilder.toActiveEventsJson(EventRegistry.events)
-                log.info("Front Door: ActiveEventsV2 ({} events)", EventRegistry.events.size)
+                val homeEvents = EventRegistry.activeEvents
+                val eventsJson = EventWireBuilder.toActiveEventsJson(homeEvents, EventRegistry.aiBotMatches)
+                log.info("Front Door: ActiveEventsV2 ({} events, {} aiBotMatches)", homeEvents.size, EventRegistry.aiBotMatches.size)
                 writer.send(ctx, txId, FdResponse.Json(eventsJson))
             }
 
