@@ -73,6 +73,7 @@ value class CmdType(val value: Int) {
         val GET_SETS = CmdType(1521)
         val GRAPH_GET_DEFINITIONS = CmdType(1700)
         val GRAPH_GET_STATE = CmdType(1701)
+        val GRAPH_ADVANCE_NODE = CmdType(1703)
         val COSMETICS_GET_OWNED = CmdType(1900)
         val GET_PLAY_BLADE_QUEUE_CONFIG = CmdType(1910)
         val GET_PLAYER_PREFERENCES = CmdType(1911)
@@ -156,6 +157,7 @@ value class CmdType(val value: Int) {
             1700 to "Graph_GetGraphDefinitions",
             1701 to "Graph_GetGraphState",
             1702 to "Graph_Process",
+            1703 to "Graph_AdvanceNode",
             1900 to "Cosmetics_GetPlayerOwnedCosmetics",
             1910 to "GetPlayBladeQueueConfig",
             1911 to "GetPlayerPreferences",
