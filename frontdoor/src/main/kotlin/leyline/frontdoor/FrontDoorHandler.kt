@@ -214,6 +214,8 @@ class FrontDoorHandler(
 
             CmdType.GRAPH_GET_STATE.value -> handleGraphRequest(ctx, txId, json)
 
+            CmdType.GRAPH_ADVANCE_NODE.value -> handleGraphAdvanceNode(ctx, txId, json)
+
             CmdType.EVENT_AI_BOT_MATCH.value -> {
                 val req = FdRequests.parseAiBotMatch(json)
                 val deckId = req?.deckId
@@ -420,6 +422,9 @@ class FrontDoorHandler(
                 val course = if (eventName != null) courseService.getCourse(playerId, eventName) else null
                 if (course != null) {
                     writer.send(ctx, txId, FdResponse.Json(EventWireBuilder.buildMatchResultReport(course)))
+                } else if (eventName != null && eventName.startsWith("ColorChallenge_")) {
+                    // Color Challenge bot matches have no course — return FoundMatch ack
+                    writer.send(ctx, txId, FdResponse.Json("""{"FoundMatch":true,"InventoryInfo":{"SeqId":1,"Changes":[]}}"""))
                 } else {
                     writer.send(ctx, txId, FdResponse.Empty)
                 }
@@ -596,6 +601,59 @@ class FrontDoorHandler(
         writer.send(ctx, null, FdResponse.Json(json))
     }
 
+    /**
+     * CmdType 1703 — Color Challenge match start.
+     * Client sends: {"GraphId":"ColorChallenge","NodeIds":["white01"],"Payload":null}
+     * Server responds with graph state + inventory, then pushes MatchCreated.
+     */
+    private fun handleGraphAdvanceNode(ctx: ChannelHandlerContext, transactionId: String?, json: String?) {
+        val graphId = json?.let { GRAPH_ID_PATTERN.find(it)?.groupValues?.get(1) } ?: "unknown"
+        val nodeId = json?.let { NODE_ID_PATTERN.find(it)?.groupValues?.get(1) }
+        log.info("Front Door: Graph_AdvanceNode graphId={} nodeId={}", graphId, nodeId)
+
+        if (graphId != "ColorChallenge" || nodeId == null) {
+            log.warn("Front Door: unhandled Graph_AdvanceNode graphId={}", graphId)
+            handleGraphRequest(ctx, transactionId, json)
+            return
+        }
+
+        val node = EventRegistry.colorChallengeNodes[nodeId]
+        if (node == null) {
+            log.warn("Front Door: unknown ColorChallenge node={}", nodeId)
+            handleGraphRequest(ctx, transactionId, json)
+            return
+        }
+
+        // Respond with graph state (wrapping it in GraphStates + InventoryInfo like real server)
+        val graphState = golden.graphStateResponses["ColorChallenge"] ?: GRAPH_DEFAULT
+        val response = """{"GraphStates":{"ColorChallenge":$graphState},"InventoryInfo":{"SeqId":1,"Changes":[]}}"""
+        writer.send(ctx, transactionId, FdResponse.Json(response))
+
+        // Start a bot match — precon decks aren't in our DB, use first available deck as fallback
+        val eventName = "ColorChallenge_$nodeId"
+        val fallbackDeck = deckService.listForPlayer(playerId).firstOrNull()
+        if (fallbackDeck != null) coordinator.selectDeck(fallbackDeck.id.value)
+        coordinator.selectEvent(eventName)
+        val match = matchmaking.createMatchInfo(eventName)
+
+        // Push MatchCreated with Color Challenge opponent avatar
+        val opponentName = node.opponentAvatar.removePrefix("Avatar_Basic_").replace("_", " ")
+        val matchCreatedJson = FdEnvelope.buildMatchCreatedJson(
+            match.matchId,
+            match.host,
+            match.port,
+            matchType = "Familiar",
+            yourSeat = 1,
+            eventId = eventName,
+            playerInfos = listOf(
+                FdEnvelope.PlayerInfo(seatId = 1, teamId = 1, name = "ForgePlayer"),
+                FdEnvelope.PlayerInfo(seatId = 2, teamId = 2, name = opponentName, avatarId = node.opponentAvatar),
+            ),
+        )
+        log.info("Front Door: pushing MatchCreated for ColorChallenge node={} matchId={}", nodeId, match.matchId)
+        writer.send(ctx, null, FdResponse.Json(matchCreatedJson))
+    }
+
     private fun handleGraphRequest(ctx: ChannelHandlerContext, transactionId: String?, json: String?) {
         val graphId = json?.let { GRAPH_ID_PATTERN.find(it)?.groupValues?.get(1) } ?: "unknown"
         log.info("Front Door: GraphState graphId={}", graphId)
@@ -610,6 +668,7 @@ class FrontDoorHandler(
 
     companion object {
         private val GRAPH_ID_PATTERN = Regex(""""GraphId"\s*:\s*"([^"]+)"""")
+        private val NODE_ID_PATTERN = Regex(""""NodeIds"\s*:\s*\[\s*"([^"]+)"""")
 
         private const val GRAPH_DEFAULT = """{"NodeStates":{},"MilestoneStates":{}}"""
     }

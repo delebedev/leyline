@@ -47,6 +47,9 @@ data class EventDef(
     val isSealed: Boolean get() = formatType == "Sealed"
 }
 
+/** Color Challenge node config — precon deck + opponent avatar (from graph definitions). */
+data class ColorChallengeNode(val preconDeckId: String, val opponentAvatar: String)
+
 /** Bot Match entry in the AiBotMatches array (separate from Events). */
 data class AiBotMatchDef(
     val publicEventName: String = "AIBotMatch",
@@ -496,6 +499,33 @@ object EventRegistry {
                 "8ef7d808-fec0-42b4-bfc1-323f56633375",
             ),
         ),
+    )
+
+    /**
+     * Color Challenge node → precon deck ID (from graph definitions, proxy capture 2026-03-10).
+     * Used by CmdType 1703 (Graph_AdvanceNode) to start a Familiar bot match.
+     */
+    val colorChallengeNodes: Map<String, ColorChallengeNode> = mapOf(
+        "white01" to ColorChallengeNode("2b165bff-4ea9-4e90-b5a5-3e067beb6584", "Avatar_Basic_ChandraNalaar"),
+        "white02" to ColorChallengeNode("9eca8462-f83a-4fb2-b22e-697344d62934", "Avatar_Basic_LilianaVess"),
+        "white03" to ColorChallengeNode("2c583e9b-69c2-4528-aac5-cf42dbaaf647", "Avatar_Basic_JaceBeleren"),
+        "white04" to ColorChallengeNode("bbb9cb46-0f82-4b86-8ccd-ba442a9f7a59", "Avatar_Basic_VivienReid"),
+        "blue01" to ColorChallengeNode("8460b1c2-0522-422a-866e-ece751377e22", "Avatar_Basic_LilianaVess"),
+        "blue02" to ColorChallengeNode("a6d166b0-81d7-46ee-a54b-8dd7f4c484e1", "Avatar_Basic_VivienReid"),
+        "blue03" to ColorChallengeNode("d695efa7-dcaa-4b1c-b264-3f45edc07dbc", "Avatar_Basic_AjaniGoldmane"),
+        "blue04" to ColorChallengeNode("24b08b3c-2cb8-46d8-a2e9-4705fdc445b2", "Avatar_Basic_ChandraNalaar"),
+        "black01" to ColorChallengeNode("112c3de6-1049-4f1a-9c84-0cf2c298c67c", "Avatar_Basic_VivienReid"),
+        "black02" to ColorChallengeNode("c2f8212d-b7d5-4da0-9fd4-37fb2d24ed2f", "Avatar_Basic_AjaniGoldmane"),
+        "black03" to ColorChallengeNode("0f1710d9-3ae7-45d9-ae18-dd96efc26eab", "Avatar_Basic_ChandraNalaar"),
+        "black04" to ColorChallengeNode("7a85a9b9-8cc6-4625-bc92-f1f64609fa59", "Avatar_Basic_JaceBeleren"),
+        "red01" to ColorChallengeNode("8b095570-a8e6-49d5-a564-f30b46698c0b", "Avatar_Basic_JaceBeleren"),
+        "red02" to ColorChallengeNode("63a1acaf-36e0-4c6b-8854-cf2ca8c5709e", "Avatar_Basic_LilianaVess"),
+        "red03" to ColorChallengeNode("a42c9d36-05b7-40a6-afc2-f662c236f53a", "Avatar_Basic_VivienReid"),
+        "red04" to ColorChallengeNode("05b73a9f-cecb-4cbd-a370-b20ba6a07d14", "Avatar_Basic_AjaniGoldmane"),
+        "green01" to ColorChallengeNode("12eb4102-f51f-4853-b9f9-5dca962352f2", "Avatar_Basic_AjaniGoldmane"),
+        "green02" to ColorChallengeNode("a646ac00-fbe5-4dbd-85f5-1b4d1a838f5a", "Avatar_Basic_ChandraNalaar"),
+        "green03" to ColorChallengeNode("40616755-71ba-4d3a-bb4b-10bd67114616", "Avatar_Basic_JaceBeleren"),
+        "green04" to ColorChallengeNode("ba302e86-efaf-4881-aec3-d22e90274363", "Avatar_Basic_LilianaVess"),
     )
 
     fun findEvent(internalName: String): EventDef? =
