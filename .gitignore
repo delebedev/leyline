@@ -63,6 +63,7 @@ app/main/proto/messages.proto
 .local/
 
 !.claude/
+.claude/CLAUDE.md
 
 # Contains creds
 deploy/services-proxy.conf
