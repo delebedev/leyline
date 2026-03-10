@@ -155,6 +155,35 @@ class GameTracker:
             a.to_dict() for a in self._accumulator.persistent_annotations.values()
         ]
 
+        # Available actions from latest GSM (what the player can do right now)
+        # Raw format: {"seatId": 1, "action": {"actionType": "...", "instanceId": N, "manaCost": [...]}}
+        actions = []
+        for a in state.actions:
+            inner = a.get("action", a)  # unwrap nested action, fallback to flat
+            action_type = inner.get("actionType", a.get("actionType", "?"))
+            iid = inner.get("instanceId", a.get("instanceId"))
+            grp = inner.get("grpId", a.get("grpId"))
+            seat = a.get("seatId")
+
+            entry: dict = {"actionType": action_type}
+            if iid is not None:
+                entry["instanceId"] = iid
+                # Resolve card name from objects
+                obj = state.objects.get(iid)
+                if obj and obj.grp_id and names.get(obj.grp_id):
+                    entry["name"] = names[obj.grp_id]
+                elif grp and names.get(grp):
+                    entry["name"] = names[grp]
+            if grp is not None:
+                entry["grpId"] = grp
+            if seat is not None:
+                entry["seatId"] = seat
+            # Include mana cost if present (helps agent know what's affordable)
+            mana = inner.get("manaCost")
+            if mana:
+                entry["manaCost"] = mana
+            actions.append(entry)
+
         return {
             "match_id": self.current_match_id,
             "game_state_id": state.game_state_id,
@@ -162,6 +191,7 @@ class GameTracker:
             "players": players,
             "zones": zones,
             "object_count": len(state.objects),
+            "actions": actions,
             "annotations": annotations,
             "persistent_annotations": persistent,
             "completed_games": len(self.completed_games),

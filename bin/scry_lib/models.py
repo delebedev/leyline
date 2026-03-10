@@ -187,5 +187,13 @@ class GameState:
     def is_diff(self) -> bool:
         return self.type == "GameStateType_Diff"
 
+    @property
+    def game_over(self) -> bool:
+        """Check if game has ended via gameInfo results."""
+        if self.game_info is None:
+            return False
+        results = self.game_info.get("results", [])
+        return len(results) > 0
+
     def zones_by_type(self, zone_type: str) -> list[Zone]:
         return [z for z in self.zones if z.type == zone_type]

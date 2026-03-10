@@ -1,0 +1,28 @@
+# Agent Retro
+
+- Own turns played: 5 (game turns 1, 3, 5, 7, 9 — active_player=1)
+- Cards played: 3
+  - Plains (turn 1, gsId 6→7)
+  - Leonin Vanguard 1/1 (turn 1, after land)
+  - Blossoming Sands (turn 3, gsId 43→50, gave +1 life)
+  - Plains (turn 5, gsId 95→96)
+- Cards failed (drag missed or cancelled): 6
+  - Banishing Light (turn 5): went to stack, needed target → cancelled
+  - Banishing Light (turn 7): drag at x=310 hit it accidentally → cancelled
+  - Unflinching Courage (turn 7): drag at x=370,y=510 hit it → target prompt → cancelled via Cancel button
+  - Regal Caracal (turn 7): drag at x=410 and x=720 → pay prompt → cancelled twice
+- Discard: N
+- Stuck:
+  - Plains card (id 167) was the primary struggle — OCR doesn't show it reliably, likely hidden behind other hand cards
+  - Hand y=500 vs y=510 both work but hit different cards; Plains was consistently missed until accidentally hitting spells instead
+  - Turn 9 Main1 was skipped (advanced too fast), arrived at Main2 active_player=1 — still counted as 5th own turn
+- What worked:
+  - `bin/scry state` was reliable for game state
+  - OCR + cancel pattern worked well for targeting prompts once "Cancel" button text was found at correct coords
+  - `bin/arena click "Cancel" --retry 3` was more reliable than clicking action button coord for cancel
+  - Concede flow worked perfectly (cog → Concede → wait Defeat → dismiss)
+- What didn't:
+  - Plains card drag was unreliable; OCR misses land cards (no bold/distinctive name)
+  - Hand y=500 per instructions sometimes missed; y=510 was more successful but hit spells
+  - Needed to brute-force x-coordinates since Plains isn't visible in OCR
+  - Lobby: initial "Play" click failed due to Mastery Pass modal — required Escape key via osascript to dismiss

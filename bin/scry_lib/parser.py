@@ -8,7 +8,7 @@ from typing import Iterable, Iterator
 _HEADER_RE = re.compile(
     r"\[UnityCrossThreadLogger\]"
     r"(\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2}): "
-    r"Match to ([0-9a-f-]+): GreToClientEvent"
+    r"Match to ([0-9a-zA-Z_-]+): GreToClientEvent"
 )
 
 # Standalone GRE JSON line (no header — written by some server sessions)
