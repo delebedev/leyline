@@ -9,6 +9,7 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import leyline.frontdoor.domain.Course
 import leyline.frontdoor.domain.DeckCard
+import leyline.frontdoor.service.AiBotMatchDef
 import leyline.frontdoor.service.EventDef
 import leyline.frontdoor.service.QueueEntry
 
@@ -38,7 +39,10 @@ object EventWireBuilder {
         }
     }.toString()
 
-    fun toActiveEventsJson(events: List<EventDef>): String = buildJsonObject {
+    fun toActiveEventsJson(
+        events: List<EventDef>,
+        aiBotMatches: List<AiBotMatchDef> = emptyList(),
+    ): String = buildJsonObject {
         putJsonArray("DynamicFilterTags") {}
         put("CacheVersion", 2)
         putJsonArray("Events") {
@@ -47,7 +51,11 @@ object EventWireBuilder {
             }
         }
         putJsonArray("Challenges") {}
-        putJsonArray("AiBotMatches") {}
+        putJsonArray("AiBotMatches") {
+            for (m in aiBotMatches) {
+                add(buildAiBotMatchJson(m))
+            }
+        }
     }.toString()
 
     fun toDefaultCoursesJson(courses: List<Pair<String, String>>): String = buildJsonObject {
@@ -173,7 +181,7 @@ object EventWireBuilder {
 
     private fun buildEventJson(e: EventDef) = buildJsonObject {
         put("InternalEventName", e.internalName)
-        put("EventState", "Active")
+        if (e.eventState != null) put("EventState", e.eventState)
         put("FormatType", e.formatType)
         put("StartTime", "2025-01-01T00:00:00Z")
         put("LockedTime", "2099-01-01T00:00:00Z")
@@ -195,14 +203,15 @@ object EventWireBuilder {
         putJsonObject("EventUXInfo") {
             put("PublicEventName", e.publicName)
             put("DisplayPriority", e.displayPriority)
-            if (e.bladeBehavior != null) put("EventBladeBehavior", e.bladeBehavior)
-            put("DeckSelectFormat", e.deckSelectFormat)
+            putJsonArray("DisplayPriorityMilestoneChanges") {}
             putJsonObject("Parameters") {}
+            put("Group", "")
+            if (e.bladeBehavior != null) put("EventBladeBehavior", e.bladeBehavior)
             putJsonArray("DynamicFilterTagIds") {
                 e.dynamicFilterTagIds.forEach { add(JsonPrimitive(it)) }
             }
-            put("Group", "")
             putJsonArray("FactionSealedUXInfo") {}
+            put("DeckSelectFormat", e.deckSelectFormat)
             putJsonObject("Prizes") {}
             putJsonObject("EventComponentData") {
                 putJsonObject("DescriptionText") {
@@ -211,20 +220,31 @@ object EventWireBuilder {
                 putJsonObject("TitleRankText") {
                     put("LocKey", e.titleLocKey)
                 }
-                putJsonObject("TimerDisplay") {}
-                putJsonObject("ResignWidget") {}
-                putJsonObject("MainButtonWidget") {}
-                putJsonObject("LossDetailsDisplay") {
-                    if (e.maxLosses != null) {
-                        put("Games", e.maxLosses)
-                    } else {
-                        put("LossDetailsType", "PlayUntilEventEnds")
+                if (e.preconDeckIds.isNotEmpty()) {
+                    putJsonObject("InspectPreconDecksWidget") {
+                        putJsonArray("DeckIds") {
+                            e.preconDeckIds.forEach { add(JsonPrimitive(it)) }
+                        }
                     }
-                }
-                if (e.editableDeck) {
                     putJsonObject("SelectedDeckWidget") {
-                        put("DeckButtonBehavior", "Editable")
-                        put("ShowCopyDeckButton", true)
+                        put("DeckButtonBehavior", e.deckButtonBehavior ?: "Fixed")
+                    }
+                } else {
+                    putJsonObject("TimerDisplay") {}
+                    putJsonObject("ResignWidget") {}
+                    putJsonObject("MainButtonWidget") {}
+                    putJsonObject("LossDetailsDisplay") {
+                        if (e.maxLosses != null) {
+                            put("Games", e.maxLosses)
+                        } else {
+                            put("LossDetailsType", "PlayUntilEventEnds")
+                        }
+                    }
+                    if (e.editableDeck) {
+                        putJsonObject("SelectedDeckWidget") {
+                            put("DeckButtonBehavior", "Editable")
+                            put("ShowCopyDeckButton", true)
+                        }
                     }
                 }
             }
@@ -232,6 +252,17 @@ object EventWireBuilder {
         put("WinCondition", e.winCondition)
         putJsonArray("AllowedCountryCodes") {}
         putJsonArray("ExcludedCountryCodes") {}
+    }
+
+    private fun buildAiBotMatchJson(m: AiBotMatchDef) = buildJsonObject {
+        put("PublicEventName", m.publicEventName)
+        put("InternalEventName", m.internalEventName)
+        put("Format", m.format)
+        put("WinCondition", m.winCondition)
+        putJsonArray("DeckIds") {
+            m.deckIds.forEach { add(JsonPrimitive(it)) }
+        }
+        put("DisplayPriority", m.displayPriority)
     }
 
     private fun buildDeckCardJson(card: DeckCard) = buildJsonObject {

@@ -37,15 +37,55 @@ data class EventDef(
     val editableDeck: Boolean = false,
     /** Arena collation ID for limited events (sealed/draft). 0 = unknown. */
     val collationId: Int = 0,
+    /** Wire EventState — null omits the field (default), "ForceActive" for always-visible events. */
+    val eventState: String? = null,
+    /** Precon deck IDs for InspectPreconDecksWidget (Color Challenge nodes). */
+    val preconDeckIds: List<String> = emptyList(),
+    /** Fixed deck selection (Color Challenge nodes use "Fixed"). */
+    val deckButtonBehavior: String? = null,
 ) {
     val isSealed: Boolean get() = formatType == "Sealed"
 }
+
+/** Bot Match entry in the AiBotMatches array (separate from Events). */
+data class AiBotMatchDef(
+    val publicEventName: String = "AIBotMatch",
+    val internalEventName: String,
+    val format: String,
+    val winCondition: String = "SingleElimination",
+    val deckIds: List<String> = emptyList(),
+    val displayPriority: Int = 99,
+)
 
 /**
  * Server-owned queue + event definitions for the Play blade.
  *
  * Data and lookups only — wire serialization lives in [leyline.frontdoor.wire.EventWireBuilder].
- * Matches prod Arena server shape captured 2026-03-03.
+ * Matches prod Arena server shape captured 2026-03-03, updated 2026-03-10 with mature account data.
+ *
+ * ## How the client decides what to display
+ *
+ * Three CmdType responses feed the home/play UI:
+ * - **1910 (PlayBladeQueueConfig)** — queue list for Find Match tab. Independent of events.
+ * - **624 (ActiveEventsV2)** — three sub-arrays: `Events[]`, `AiBotMatches[]`, `DynamicFilterTags[]`.
+ * - **623 (CoursesV2)** — player's joined/completed events (resume state).
+ *
+ * ### DisplayPriority controls home lobby tiles
+ * Events with `bladeBehavior="Queue"` appear in Find Match only (never home tiles).
+ * Non-queue events (`bladeBehavior=null`) with **positive** displayPriority render as
+ * home lobby tiles, sorted by priority. Priority **-1** hides from home but keeps the
+ * event in the client's registry (accessible via Events tab or programmatically).
+ *
+ * ### Key fields
+ * - `EventBladeBehavior: "Queue"` → Find Match only. Real server uses prio -1 for all queue events.
+ * - `EventBladeBehavior: null` (omitted) → home tile candidate, ordered by displayPriority.
+ * - `EventState: "ForceActive"` → always visible regardless of start/lock times (ColorChallenge).
+ * - `EventState: "NotActive"` → exists in registry but greyed out (test/seasonal events).
+ * - `AiBotMatches[]` is a **separate array** from `Events[]` — putting AIBotMatch in both
+ *   causes a client crash ("duplicate key"). Bot Match home tile on mature accounts comes from
+ *   `SparkyStarterDeckDuel` in Events (prio 92), not from the AiBotMatches array (prio -1).
+ *
+ * ### Carousel (1600) is cosmetic — store/mastery promos, not gameplay events.
  */
 object EventRegistry {
 
@@ -129,28 +169,29 @@ object EventRegistry {
     )
 
     val events: List<EventDef> = listOf(
+        // Queue-backing events — all displayPriority=-1 per real server (mature account capture 2026-03-10)
         // Standard
         EventDef(
             "Ladder",
             "Standard Ranked",
             "Standard",
-            displayPriority = 100,
+            displayPriority = -1,
             flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
         ),
         EventDef(
             "Traditional_Ladder",
             "Traditional Standard Ranked",
             "TraditionalStandard",
-            displayPriority = 99,
+            displayPriority = -1,
             flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
             winCondition = "BestOf3",
         ),
-        EventDef("Play", "Standard Play", "Standard", displayPriority = 90),
+        EventDef("Play", "Standard Play", "Standard", displayPriority = -1),
         EventDef(
             "Constructed_BestOf3",
             "Traditional Standard Play",
             "TraditionalStandard",
-            displayPriority = 89,
+            displayPriority = -1,
             winCondition = "BestOf3",
             titleLocKey = "Events/Event_Title_Play_Standard_Bo3",
             descLocKey = "Events/Event_Desc_Traditional_Play",
@@ -160,30 +201,30 @@ object EventRegistry {
             "Alchemy_Ladder",
             "Alchemy Ranked",
             "Alchemy",
-            displayPriority = 85,
+            displayPriority = -1,
             flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
         ),
         EventDef(
             "Traditional_Alchemy_Ladder",
             "Traditional Alchemy Ranked",
             "TraditionalAlchemy",
-            displayPriority = 84,
+            displayPriority = -1,
             flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
             winCondition = "BestOf3",
         ),
-        EventDef("Alchemy_Play", "Alchemy Play", "Alchemy", displayPriority = 83),
+        EventDef("Alchemy_Play", "Alchemy Play", "Alchemy", displayPriority = -1),
         EventDef(
             "Traditional_Alchemy_Play",
             "Traditional Alchemy Play",
             "TraditionalAlchemy",
-            displayPriority = 82,
+            displayPriority = -1,
             winCondition = "BestOf3",
         ),
         EventDef(
             "Spark_Alchemy_Ladder",
             "Spark Alchemy Ranked",
             "SparkAlchemy",
-            displayPriority = 81,
+            displayPriority = -1,
             flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
             titleLocKey = "Events/Event_Title_Spark_Ladder",
             descLocKey = "Events/Event_Desc_Spark_Ladder",
@@ -193,23 +234,23 @@ object EventRegistry {
             "Historic_Ladder",
             "Historic Ranked",
             "Historic",
-            displayPriority = 80,
+            displayPriority = -1,
             flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
         ),
         EventDef(
             "Traditional_Historic_Ladder",
             "Traditional Historic Ranked",
             "TraditionalHistoric",
-            displayPriority = 79,
+            displayPriority = -1,
             flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
             winCondition = "BestOf3",
         ),
-        EventDef("Historic_Play", "Historic Play", "Historic", displayPriority = 78),
+        EventDef("Historic_Play", "Historic Play", "Historic", displayPriority = -1),
         EventDef(
             "Traditional_Historic_Play",
             "Traditional Historic Play",
             "TraditionalHistoric",
-            displayPriority = 77,
+            displayPriority = -1,
             winCondition = "BestOf3",
         ),
         // Explorer
@@ -217,23 +258,23 @@ object EventRegistry {
             "Explorer_Ladder",
             "Explorer Ranked",
             "Explorer",
-            displayPriority = 70,
+            displayPriority = -1,
             flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
         ),
         EventDef(
             "Traditional_Explorer_Ladder",
             "Traditional Explorer Ranked",
             "TraditionalExplorer",
-            displayPriority = 69,
+            displayPriority = -1,
             flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
             winCondition = "BestOf3",
         ),
-        EventDef("Explorer_Play", "Explorer Play", "Explorer", displayPriority = 68),
+        EventDef("Explorer_Play", "Explorer Play", "Explorer", displayPriority = -1),
         EventDef(
             "Traditional_Explorer_Play",
             "Traditional Explorer Play",
             "TraditionalExplorer",
-            displayPriority = 67,
+            displayPriority = -1,
             winCondition = "BestOf3",
         ),
         // Timeless
@@ -241,14 +282,14 @@ object EventRegistry {
             "Timeless_Ladder",
             "Timeless Ranked",
             "Timeless",
-            displayPriority = 60,
+            displayPriority = -1,
             flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
         ),
         EventDef(
             "Traditional_Timeless_Ladder",
             "Traditional Timeless Ranked",
             "TraditionalTimeless",
-            displayPriority = 59,
+            displayPriority = -1,
             flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
             winCondition = "BestOf3",
             titleLocKey = "Events/Event_Title_Timeless_Traditional_Ladder",
@@ -258,7 +299,7 @@ object EventRegistry {
             "Timeless_Play",
             "Timeless Play",
             "Timeless",
-            displayPriority = 58,
+            displayPriority = -1,
             titleLocKey = "Events/Event_Title_Play_Timeless",
             descLocKey = "Events/Event_Desc_Play_Timeless",
         ),
@@ -267,7 +308,7 @@ object EventRegistry {
             "Play_Brawl_Historic",
             "Historic Brawl",
             "HistoricBrawl",
-            displayPriority = 50,
+            displayPriority = -1,
             flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
             titleLocKey = "Events/Event_Title_Play_Brawl_Historic",
             descLocKey = "Events/Event_Desc_Play_Brawl_Historic",
@@ -276,12 +317,12 @@ object EventRegistry {
             "Play_Brawl",
             "Standard Brawl",
             "StandardBrawl",
-            displayPriority = 49,
+            displayPriority = -1,
             flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
             titleLocKey = "Events/Event_Title_Play_Brawl_Bo1",
             descLocKey = "Events/Event_Desc_Play_Brawl_Bo1",
         ),
-        // AIBotMatch
+        // AIBotMatch — kept for findEvent() lookups by gameplay code
         EventDef(
             "AIBotMatch",
             "Bot Match",
@@ -289,13 +330,93 @@ object EventRegistry {
             displayPriority = 40,
             flags = listOf("IsArenaPlayModeEvent", "IsAiBotMatch", "SkipDeckValidation"),
         ),
-        // Non-queue events (Events tab)
+        // SparkyStarterDeckDuel — Bot Match home tile (mature account shape, prio 92)
+        EventDef(
+            "SparkyStarterDeckDuel",
+            "SparkyStarterDeckDuel",
+            "AllZeroes",
+            displayPriority = 92,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "SkipDeckValidation", "AllowUncollectedCards", "IsPreconEvent", "IsAiBotMatch"),
+            bladeBehavior = null,
+            eventTags = listOf("AiBotMatch"),
+            titleLocKey = "Events/Event_Title_SparkyChallenge",
+            descLocKey = "Events/Event_Desc_SparkyChallenge",
+        ),
+        // Color Challenge — main tile (ForceActive, no blade behavior)
+        EventDef(
+            "ColorChallenge",
+            "ColorChallenge",
+            "Alchemy",
+            displayPriority = 93,
+            flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "IsPreconEvent"),
+            bladeBehavior = null,
+            eventState = "ForceActive",
+            titleLocKey = "Events/Event_Title_ColorChallenge",
+            descLocKey = "Events/Event_Desc_ColorChallenge",
+        ),
+        // Color Challenge per-color nodes (hidden, priority -1)
+        EventDef(
+            "ColorChallenge_Node5_W",
+            "ColorChallenge_Node5_W",
+            "Alchemy",
+            displayPriority = -1,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "SkipDeckValidation", "IsPreconEvent"),
+            preconDeckIds = listOf("af38619e-72fa-4e54-9b92-11551eed8c28"),
+            deckButtonBehavior = "Fixed",
+            titleLocKey = "Events/Event_Title_Alchemy_Play",
+            descLocKey = "Events/Event_Desc_Alchemy_Play",
+        ),
+        EventDef(
+            "ColorChallenge_Node5_U",
+            "ColorChallenge_Node5_U",
+            "Alchemy",
+            displayPriority = -1,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "SkipDeckValidation", "IsPreconEvent"),
+            preconDeckIds = listOf("d073372e-ba43-440a-a98e-9201803a5e15"),
+            deckButtonBehavior = "Fixed",
+            titleLocKey = "Events/Event_Title_Alchemy_Play",
+            descLocKey = "Events/Event_Desc_Alchemy_Play",
+        ),
+        EventDef(
+            "ColorChallenge_Node5_B",
+            "ColorChallenge_Node5_B",
+            "Alchemy",
+            displayPriority = -1,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "SkipDeckValidation", "IsPreconEvent"),
+            preconDeckIds = listOf("6c40709b-6e87-4973-a645-bfada529f992"),
+            deckButtonBehavior = "Fixed",
+            titleLocKey = "Events/Event_Title_Alchemy_Play",
+            descLocKey = "Events/Event_Desc_Alchemy_Play",
+        ),
+        EventDef(
+            "ColorChallenge_Node5_R",
+            "ColorChallenge_Node5_R",
+            "Alchemy",
+            displayPriority = -1,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "SkipDeckValidation", "IsPreconEvent"),
+            preconDeckIds = listOf("4792e924-c693-4b06-b4e7-31bfeedd610d"),
+            deckButtonBehavior = "Fixed",
+            titleLocKey = "Events/Event_Title_Alchemy_Play",
+            descLocKey = "Events/Event_Desc_Alchemy_Play",
+        ),
+        EventDef(
+            "ColorChallenge_Node5_G",
+            "ColorChallenge_Node5_G",
+            "Alchemy",
+            displayPriority = -1,
+            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "SkipDeckValidation", "IsPreconEvent"),
+            preconDeckIds = listOf("c7df76d9-1c2a-4b25-b41a-85ed0424c86e"),
+            deckButtonBehavior = "Fixed",
+            titleLocKey = "Events/Event_Title_Alchemy_Play",
+            descLocKey = "Events/Event_Desc_Alchemy_Play",
+        ),
+        // Non-queue events (Events tab) — disabled for new-account mode
         EventDef(
             "Jump_In_2024",
             "Jump_In",
             "Draft_Rebalanced",
             formatType = "Draft",
-            displayPriority = 80,
+            displayPriority = -1,
             flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "IsPreconEvent"),
             bladeBehavior = null,
             eventTags = listOf("JumpIn", "Limited"),
@@ -308,7 +429,7 @@ object EventRegistry {
             "Sealed FDN",
             "Sealed",
             formatType = "Sealed",
-            displayPriority = 75,
+            displayPriority = -1,
             flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
             bladeBehavior = null,
             eventTags = listOf("Sealed", "Limited"),
@@ -343,6 +464,40 @@ object EventRegistry {
         ),
     )
 
+    /** Events for 624 response — all events except AIBotMatch (which lives in AiBotMatches array). */
+    val activeEvents: List<EventDef>
+        get() = events.filter { it.internalName != "AIBotMatch" }
+
+    /** AiBotMatches array — separate from Events, rendered as "Bot Match" tile. */
+    val aiBotMatches = listOf(
+        AiBotMatchDef(
+            internalEventName = "AIBotMatch_Rebalanced",
+            format = "DirectGameAlchemy",
+            deckIds = listOf(
+                "e2aaafa8-a633-4eb4-bb94-4309dd915a6a",
+                "92f8315c-4f38-4c6c-b233-f0aa809d33b4",
+                "557335a3-4cbd-4c9f-8e31-0939f18b449b",
+                "437eda14-8f28-4667-95b8-fd5ac97c583d",
+                "ee38d813-aba6-4831-8c5e-1c54f3ef84a9",
+                "9ac025df-75ec-4e10-9fb0-3b6c796a19c9",
+                "8ef7d808-fec0-42b4-bfc1-323f56633375",
+            ),
+        ),
+        AiBotMatchDef(
+            internalEventName = "AIBotMatch",
+            format = "DirectGame",
+            deckIds = listOf(
+                "e2aaafa8-a633-4eb4-bb94-4309dd915a6a",
+                "92f8315c-4f38-4c6c-b233-f0aa809d33b4",
+                "557335a3-4cbd-4c9f-8e31-0939f18b449b",
+                "437eda14-8f28-4667-95b8-fd5ac97c583d",
+                "ee38d813-aba6-4831-8c5e-1c54f3ef84a9",
+                "9ac025df-75ec-4e10-9fb0-3b6c796a19c9",
+                "8ef7d808-fec0-42b4-bfc1-323f56633375",
+            ),
+        ),
+    )
+
     fun findEvent(internalName: String): EventDef? =
         events.firstOrNull { it.internalName == internalName }
 
@@ -365,6 +520,5 @@ object EventRegistry {
     val defaultCourses = listOf(
         "Ladder" to "Complete",
         "Play" to "CreateMatch",
-        "Jump_In_2024" to "CreateMatch",
     )
 }

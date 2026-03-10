@@ -34,20 +34,27 @@ class EventRegistryTest :
             result shouldContain "AIBotMatch"
         }
 
-        test("active events JSON has Events array with all events") {
-            val result = EventWireBuilder.toActiveEventsJson(EventRegistry.events)
+        test("active events JSON has all formats, ColorChallenge, and AiBotMatches") {
+            val result = EventWireBuilder.toActiveEventsJson(EventRegistry.activeEvents, EventRegistry.aiBotMatches)
             val obj = json.parseToJsonElement(result).jsonObject
             val events = obj["Events"]?.jsonArray ?: error("no Events")
             events shouldHaveAtLeastSize 13
 
-            val ladder = events.first {
-                it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "Ladder"
+            // Queue-backing events present
+            events.first { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "Ladder" }
+
+            // ColorChallenge added
+            val cc = events.first {
+                it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "ColorChallenge"
             }.jsonObject
-            ladder["FormatType"]?.jsonPrimitive?.content shouldBe "Constructed"
-            ladder["EventState"]?.jsonPrimitive?.content shouldBe "Active"
-            val ux = ladder["EventUXInfo"]?.jsonObject ?: error("no EventUXInfo")
-            ux["DeckSelectFormat"]?.jsonPrimitive?.content shouldBe "Standard"
-            ux["Group"]?.jsonPrimitive?.content shouldBe ""
+            cc["EventState"]?.jsonPrimitive?.content shouldBe "ForceActive"
+
+            // AIBotMatch NOT in Events (lives in AiBotMatches)
+            val names = events.map { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content }
+            check("AIBotMatch" !in names) { "AIBotMatch should not be in Events array" }
+
+            val bots = obj["AiBotMatches"]?.jsonArray ?: error("no AiBotMatches")
+            bots shouldHaveAtLeastSize 2
         }
 
         test("every event has non-null Group in EventUXInfo") {
