@@ -84,7 +84,7 @@ def _activate_mtga() -> None:
     if now - _last_activate < ACTIVATE_DEDUP:
         return
     run("osascript", "-e", 'tell application "MTGA" to activate')
-    time.sleep(0.15)
+    time.sleep(0.3)
     _last_activate = time.time()
 
 
@@ -367,10 +367,108 @@ def cmd_capture(args: list[str]) -> None:
     print(f"{out} ({size_kb}KB, {resolution}px)")
 
 
+def _cmd_ocr_hand() -> None:
+    """Zone-aware OCR for hand cards. Gets card names from scry/debug API,
+    crops hand strip, matches OCR against known names. Prints JSON results."""
+    # Get hand card names from debug API or scry
+    known_names: list[str] = []
+    raw = fetch_api("/api/id-map?active=true")
+    if raw:
+        entries = json.loads(raw)
+        if isinstance(entries, dict):
+            entries = entries.get("data", [])
+        known_names = [
+            e.get("cardName", "")
+            for e in entries
+            if e.get("forgeZone") == "Hand" and e.get("ownerSeatId") == 1
+            and e.get("cardName")
+        ]
+
+    if not known_names:
+        state = _scry_state()
+        if state:
+            known_names = [
+                c.get("name", "") for c in state.get("hand", []) if c.get("name")
+            ]
+
+    if not known_names:
+        die("No hand cards found (debug API and scry both empty)")
+
+    # Run zone-aware OCR pipeline
+    tmp = "/tmp/arena/_hand_ocr"
+    Path(tmp).mkdir(parents=True, exist_ok=True)
+
+    img = f"{tmp}/capture.png"
+    bounds = capture_window(img, hires=True)
+    if bounds is None:
+        die("MTGA window not found")
+
+    _, sips_out, _ = run("sips", "-g", "pixelWidth", "-g", "pixelHeight", img)
+    w_m = re.search(r"pixelWidth:\s*(\d+)", sips_out)
+    h_m = re.search(r"pixelHeight:\s*(\d+)", sips_out)
+    if not w_m or not h_m:
+        _try_remove(img)
+        die("Cannot read capture dimensions")
+
+    cap_w = int(w_m.group(1))
+    cap_h = int(h_m.group(1))
+
+    crop_top = int(cap_h * _HAND_Y_RATIO)
+    strip_h = cap_h - crop_top
+
+    strip = f"{tmp}/strip.png"
+    run(
+        "sips", "--cropOffset", str(crop_top), "0",
+        "--cropToHeightWidth", str(strip_h), str(cap_w),
+        img, "--out", strip,
+    )
+    _try_remove(img)
+
+    strip_2x = f"{tmp}/strip_2x.png"
+    run("sips", "--resampleWidth", str(cap_w * 2), strip, "--out", strip_2x)
+    _try_remove(strip)
+
+    code, stdout, _ = ocr(strip_2x, "--min-confidence", "0.15")
+    _try_remove(strip_2x)
+
+    if code != 0 or not stdout.strip():
+        die("OCR returned no results on hand strip")
+
+    items = json.loads(stdout)
+    ocr_to_960 = REFERENCE_WIDTH / (cap_w * 2)
+
+    # Show raw OCR detections in hand strip
+    print(f"Known hand ({len(known_names)}): {known_names}")
+    print(f"OCR detections ({len(items)}):")
+    for item in items:
+        cx_960 = int(item["cx"] * ocr_to_960)
+        print(f"  {item['text']:30s} cx={cx_960:4d}  conf={item.get('confidence', 0):.2f}")
+
+    # Match against known names
+    matched: dict[str, tuple[float, int]] = {}  # name → (best_score, cx_960)
+    for item in items:
+        for name in known_names:
+            score = _fuzzy_card_match(item["text"], name)
+            if score >= 0.4:
+                cx_960 = int(item["cx"] * ocr_to_960)
+                prev = matched.get(name)
+                if prev is None or score > prev[0]:
+                    matched[name] = (score, cx_960)
+
+    print(f"\nMatched ({len(matched)}/{len(known_names)}):")
+    for name in known_names:
+        if name in matched:
+            score, cx = matched[name]
+            print(f"  {name:30s} cx={cx:4d}  score={score:.2f}")
+        else:
+            print(f"  {name:30s} NOT FOUND")
+
+
 def cmd_ocr(args: list[str]) -> None:
     find_text = None
     fmt = False
     hires = True  # default: retina resolution for better text recognition
+    hand_mode = False
     it = iter(args)
     for a in it:
         if a == "--find":
@@ -381,10 +479,16 @@ def cmd_ocr(args: list[str]) -> None:
             hires = True
         elif a == "--lores":
             hires = False
+        elif a == "--hand":
+            hand_mode = True
         elif a in ("--json", "--no-json"):
             pass
         else:
             die(f"Unknown flag: {a}")
+
+    if hand_mode:
+        _cmd_ocr_hand()
+        return
 
     img = "/tmp/arena/_ocr_capture.png"
     Path(img).parent.mkdir(parents=True, exist_ok=True)
@@ -688,13 +792,218 @@ def cmd_drag(args: list[str]) -> None:
 BATTLEFIELD_DROP = (480, 300)  # center of our battlefield area
 HAND_MIN_CY = 490  # detections below this are hand cards, above are hover previews
 
+# Hand zone ratios for zone-aware OCR (in 960-space: y > ~460 out of ~568 height)
+_HAND_Y_RATIO = 0.78  # crop starts at 78% from top (slightly generous)
+_HAND_CY_CENTER = 530  # hand card cy at arc center (960-space)
+_HAND_ARC_DROP = 35  # max y-offset at arc edges vs center (pixels in 960-space)
+_HAND_X_MIN = 120  # left bound: anything left of this is deck/graveyard area
+_HAND_X_MAX = 800  # right bound: anything right is action button / UI chrome
+_HAND_X_CENTER = 500  # arc center x (shifted 20px right of screen center)
+_HAND_CX_BASE_SHIFT = 20  # OCR title cx → card center: base rightward shift
+_HAND_CX_NUDGE = 20  # additional cx nudge toward center, proportional to edge distance
+
+
+def _hand_adjust(ocr_cx: int) -> tuple[int, int]:
+    """Adjust OCR title center to card logical center (cx, cy).
+
+    OCR reads the card title which is offset from the card center on rotated
+    edge cards. Applies base shift + proportional nudge toward arc center,
+    then computes arc y.
+    """
+    import math
+    # Nudge cx: base shift + proportional pull toward center
+    offset_ratio = (_HAND_X_CENTER - ocr_cx) / (_HAND_X_CENTER - _HAND_X_MIN)
+    cx = ocr_cx + _HAND_CX_BASE_SHIFT + int(_HAND_CX_NUDGE * offset_ratio)
+    # Arc y: edges curve down from center
+    dx = (cx - _HAND_X_CENTER) / (_HAND_X_MAX - _HAND_X_MIN)
+    arc_offset = _HAND_ARC_DROP * (1 - math.cos(dx * math.pi))
+    cy = _HAND_CY_CENTER + int(arc_offset)
+    return (cx, cy)
+
+
+# ---------------------------------------------------------------------------
+# Zone-aware OCR — crop hand strip, upscale, match against known card names
+# ---------------------------------------------------------------------------
+
+
+def _fuzzy_card_match(ocr_text: str, card_name: str) -> float:
+    """Score how well OCR text matches a card name. 0.0 = no match, 1.0 = perfect.
+
+    Handles partial OCR (truncated names), OCR errors (1-2 char diffs), and
+    short names like "Plains" that appear as substrings of OCR noise.
+    """
+    ot = ocr_text.lower().strip().replace("'", "").replace("\u2019", "")
+    cn = card_name.lower().strip().replace("'", "").replace("\u2019", "")
+
+    if not ot or not cn:
+        return 0.0
+
+    # Exact match
+    if ot == cn:
+        return 1.0
+
+    # Card name is a substring of OCR text (e.g. OCR got "Inspiring Overseer 3/3")
+    if cn in ot:
+        return 0.9
+
+    # OCR text is a substring of card name (partial read, e.g. "Inspirin" for "Inspiring Overseer")
+    if ot in cn and len(ot) >= 3:
+        return 0.7 * len(ot) / len(cn)
+
+    # Word-level: check if significant words from card name appear in OCR text
+    cn_words = cn.split()
+    ot_words = ot.split()
+    if len(cn_words) > 1:
+        hits = sum(1 for w in cn_words if len(w) > 2 and any(w in ow for ow in ot_words))
+        if hits > 0:
+            return 0.6 * hits / len(cn_words)
+
+    # Single-word names: check edit distance for short OCR errors
+    if len(cn) <= 8 and len(ot) <= 12:
+        # Simple Levenshtein for short strings
+        dist = _levenshtein(ot, cn)
+        if dist <= 1:
+            return 0.8
+        if dist <= 2 and len(cn) >= 5:
+            return 0.5
+
+    return 0.0
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """Levenshtein edit distance. Only used for short strings (card names ≤ 12 chars)."""
+    if len(a) < len(b):
+        return _levenshtein(b, a)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a):
+        curr = [i + 1]
+        for j, cb in enumerate(b):
+            curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (0 if ca == cb else 1)))
+        prev = curr
+    return prev[-1]
+
+
+def _find_hand_card_ocr(
+    card_name: str, known_names: list[str]
+) -> tuple[int, int] | None:
+    """Find a hand card's screen position using zone-aware OCR.
+
+    Crops the hand strip from a hires capture, upscales 2x, runs OCR,
+    and fuzzy-matches results against known card names from scry/debug API.
+    Returns (cx, cy) in 960-space or None.
+    """
+    tmp = "/tmp/arena/_hand_ocr"
+    Path(tmp).mkdir(parents=True, exist_ok=True)
+
+    img = f"{tmp}/capture.png"
+    bounds = capture_window(img, hires=True)
+    if bounds is None:
+        return None
+
+    # Get capture pixel dimensions
+    _, sips_out, _ = run("sips", "-g", "pixelWidth", "-g", "pixelHeight", img)
+    w_m = re.search(r"pixelWidth:\s*(\d+)", sips_out)
+    h_m = re.search(r"pixelHeight:\s*(\d+)", sips_out)
+    if not w_m or not h_m:
+        _try_remove(img)
+        return None
+
+    cap_w = int(w_m.group(1))
+    cap_h = int(h_m.group(1))
+
+    # Crop hand strip: bottom portion of the screen, upscale 2x
+    # PIL crop — sips --cropOffset silently fails on macOS
+    from PIL import Image
+    crop_top = int(cap_h * _HAND_Y_RATIO)
+    pil_img = Image.open(img)
+    strip_pil = pil_img.crop((0, crop_top, cap_w, cap_h))
+    strip_2x = f"{tmp}/strip_2x.png"
+    strip_pil = strip_pil.resize(
+        (cap_w * 2, strip_pil.height * 2), Image.LANCZOS
+    )
+    strip_pil.save(strip_2x)
+    pil_img.close()
+    strip_pil.close()
+    _try_remove(img)
+
+    # Run OCR with lowered confidence threshold (rotated hand cards are noisy)
+    code, stdout, _ = ocr(strip_2x, "--min-confidence", "0.15")
+    _try_remove(strip_2x)
+
+    if code != 0 or not stdout.strip():
+        return None
+
+    items = json.loads(stdout)
+    if not items:
+        return None
+
+    # Map OCR coords back to 960-space.
+    # OCR coords are in strip_2x pixel space (cap_w*2 wide).
+    # To get 960-space x: ocr_cx / (cap_w * 2) * 960
+    ocr_to_960 = REFERENCE_WIDTH / (cap_w * 2)
+
+    # Build matches: for each OCR detection, find best card name match
+    # Then pick the best detection for each card name
+    card_matches: dict[str, list[tuple[float, int]]] = {}  # name → [(score, cx_960)]
+    for item in items:
+        cx_960 = int(item["cx"] * ocr_to_960)
+        # Reject detections outside plausible hand x-range (deck pile, UI chrome)
+        if cx_960 < _HAND_X_MIN or cx_960 > _HAND_X_MAX:
+            continue
+        for name in known_names:
+            score = _fuzzy_card_match(item["text"], name)
+            if score >= 0.4:
+                card_matches.setdefault(name, []).append((score, cx_960))
+
+    # Resolve: pick highest-scoring match per card, preferring non-overlapping positions
+    resolved: dict[str, int] = {}  # name → cx_960
+    used_cx: set[int] = set()
+
+    # Sort by best score descending so high-confidence matches claim positions first
+    for name in sorted(
+        card_matches, key=lambda n: max(s for s, _ in card_matches[n]), reverse=True
+    ):
+        candidates = sorted(card_matches[name], key=lambda t: -t[0])
+        for score, cx in candidates:
+            # Avoid two cards claiming the same x (within 30px)
+            if not any(abs(cx - ux) < 30 for ux in used_cx):
+                resolved[name] = cx
+                used_cx.add(cx)
+                break
+        # If all positions overlap, take best anyway
+        if name not in resolved and candidates:
+            resolved[name] = candidates[0][1]
+
+    target_lower = card_name.lower()
+    for name, ocr_cx in resolved.items():
+        if name.lower() == target_lower or target_lower in name.lower():
+            return _hand_adjust(ocr_cx)
+
+    # Card not found in OCR — try positional inference.
+    # If we matched N-1 of N cards, the missing card is at the unmatched position.
+    if len(resolved) == len(known_names) - 1:
+        # Estimate positions for all cards based on hand count
+        count = len(known_names)
+        spacing = min(80, 400 // max(count, 1))
+        all_positions = [
+            480 - (count - 1) * spacing // 2 + i * spacing for i in range(count)
+        ]
+        # Find which position isn't claimed
+        for pos in all_positions:
+            if not any(abs(pos - ocr_cx) < 30 for ocr_cx in resolved.values()):
+                return _hand_adjust(pos)
+
+    return None
+
 
 def _find_hand_card(
     name: str,
 ) -> tuple[tuple[int, int], int] | None:
     """Find a hand card's screen coords and instanceId.
 
-    Uses debug API for card identity + detection for screen position.
+    Uses debug API for card identity + zone-aware OCR / detection for screen position.
     Falls back to scry (Player.log parser) when debug API is unavailable.
     Returns ((cx, cy), instanceId) or None.
     """
@@ -711,8 +1020,9 @@ def _find_hand_card(
             for e in entries
             if e.get("forgeZone") == "Hand" and e.get("ownerSeatId") == 1
         ]
-    else:
-        # Fallback: scry state
+
+    if not hand_cards:
+        # Fallback: scry state (debug API empty or unavailable)
         state = _scry_state()
         if state:
             for card in state.get("hand", []):
@@ -740,8 +1050,14 @@ def _find_hand_card(
         return None
 
     instance_id = target.get("instanceId", 0)
+    known_names = [c.get("cardName") or "" for c in hand_cards if c.get("cardName")]
 
-    # 2. Get screen coords via detection
+    # 2. Try zone-aware OCR first (more reliable for rotated hand cards)
+    ocr_pos = _find_hand_card_ocr(name, known_names)
+    if ocr_pos is not None:
+        return (ocr_pos, instance_id)
+
+    # 3. Fall back to detection model
     dets = _board_detect()
     hand_dets = sorted(
         [d for d in dets if d["label"] == "hand-card" and d["cy"] > HAND_MIN_CY],
@@ -757,9 +1073,9 @@ def _find_hand_card(
         )
         spacing = min(80, 400 // max(count, 1))
         center_x = 480 - (count - 1) * spacing // 2 + idx * spacing
-        return ((center_x, 530), instance_id)
+        return (_hand_adjust(center_x), instance_id)
 
-    # 3. Match: if detection count == hand count, use index; otherwise best-effort
+    # 4. Match: if detection count == hand count, use index; otherwise best-effort
     idx = next(
         (i for i, c in enumerate(hand_cards) if c.get("instanceId") == instance_id),
         0,

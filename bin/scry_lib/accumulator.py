@@ -91,10 +91,10 @@ class Accumulator:
             objects[iid] = copy.deepcopy(obj)
         for iid, diff_obj in diff.objects.items():
             if iid in objects:
-                # merge raw dicts: base keys + diff keys (diff wins)
-                merged_raw = dict(objects[iid]._raw)
-                merged_raw.update(diff_obj._raw)
-                objects[iid] = GameObject.from_raw(merged_raw)
+                # Proto3: default values (false/0/"") are omitted from wire.
+                # A diff object is a complete snapshot of current fields —
+                # absent fields mean default, not "unchanged". Replace, don't merge.
+                objects[iid] = copy.deepcopy(diff_obj)
             else:
                 objects[iid] = copy.deepcopy(diff_obj)
 
