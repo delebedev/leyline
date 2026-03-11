@@ -1,0 +1,133 @@
+# Conformance Pipeline: 10x Levers
+
+Six structural gaps that prevent the conformance pipeline from becoming self-sustaining. Not tooling polish — architectural leverage points where fixing one unlocks compound gains.
+
+Current state: the pipeline compares annotation shapes in single GSM frames, manually, across two languages, for seat 1 only, with no regression detection. These levers transform it into an automated regression suite covering full message sequences for both seats.
+
+---
+
+## 1. Sequence comparison (unit of comparison is wrong)
+
+**What:** The pipeline compares ONE GSM frame — the frame containing the ZoneTransfer annotation for a given category. Real conformance is a *message sequence*: `ActionsAvailableReq → cast → GSM(stack) → GSM(priority flip) → GSM(resolve)`. Single-frame comparison catches annotation bugs but is structurally blind to message-flow bugs (#92, #93).
+
+**What it misses:**
+- Wrong message at wrong time (spurious `ActionsAvailableReq` during auto-pass)
+- Missing intermediate diffs (bare `turnInfo`-only GSMs for priority passing)
+- Wrong `updateType` on non-ZoneTransfer messages (`SendHiFi` vs `SendAndRecord`)
+- `pendingMessageCount` mismatches (client expecting follow-up that never arrives)
+- Edictal passes that should/shouldn't exist
+
+**How — engine side:** `MatchFlowHarness.messagesSince(snap)` already captures the full message sequence after an action. `ConformancePipelineTest` needs to serialize ALL messages, not just extract-by-category. Output: ordered `List<GREToClientMessage>` as JSON array.
+
+**How — recording side:** `md-segments.py extract` returns single frames. Needs `find_interaction_segment()` that returns the full message window from `ActionsAvailableReq` to next `ActionsAvailableReq` (stable-state boundaries). The recording already has these — `md-frames.jsonl` is the full ordered stream.
+
+**How — diff side:** Replace `bind_ids(template_anns, engine_anns)` (single-frame zip) with sequence alignment. Pair recording messages to engine messages by structure (GRE type + annotation fingerprint), then diff each pair. Proper sequence diff (LCS/edit-distance on message fingerprints), not positional zip. Extra/missing messages surface as insertions/deletions in the alignment.
+
+**Unlocks:** Catches the entire class of bugs where the right annotations are sent but in the wrong message, at the wrong time, or with wrong surrounding messages. This is where #92 and #93 live — and likely many undiscovered bugs.
+
+---
+
+## 2. Closed-loop tests (pipeline is split across JVM and Python)
+
+**What:** The workflow is three manual steps across two languages: (1) run `ConformancePipelineTest` → engine JSON, (2) run `md-segments.py template` → recording template, (3) run `md-segments.py diff` → comparison. No single entry point. No CI. A code change can silently break PlayLand conformance and nothing detects it.
+
+**Why it's split:** Engine output lives in Kotlin/proto space. Recording templates live in Python/JSON. Binding+diff logic lives in Python. The structural barrier is language boundary, not complexity — the Python binding logic is ~100 lines of JSON pattern matching.
+
+**How — port binding+diff to Kotlin:** The binding logic (`bind_ids`, `hydrate_template`, `diff_annotations`) is mechanical: match by type, extract IDs from affectedIds/details, build a map, hydrate, compare field-by-field. Port to Kotlin, put next to `AnnotationSerializer.kt` in the conformance package.
+
+**How — load recordings in JVM tests:** `RecordingDecoder` (in `tooling/`) already decodes `md-frames.jsonl` into structured proto messages. The conformance test loads the recording segment, runs the engine with `MatchFlowHarness`, binds IDs, diffs, and asserts — all in one test method. No shell scripts, no file copying.
+
+**How — make it a regression gate:** Conformance tests run under `testGate` tag. `just test-gate` catches conformance regressions before commit. Golden expected-diff results checked into repo as JSON — test fails if divergences increase.
+
+**Unlocks:** Conformance becomes a regression suite, not an investigation tool. Every `testGate` run automatically verifies that PlayLand, CastSpell, Resolve, etc. still conform to recordings. Code changes that introduce new divergences fail the build.
+
+---
+
+## 3. Seat 2 conformance (AI messages are a blind spot)
+
+**What:** `GamePlayback` generates AI-turn messages through completely different code paths than human actions. `remoteActionDiff()` vs `postAction()` — different `updateType` logic, different annotation embedding, no `pendingMessageCount`. No conformance test exercises these paths. Recordings contain full AI-turn message sequences (the `SendHiFi` frames with `activePlayer=2`), but nobody compares against them.
+
+**What it misses:**
+- Wrong `updateType` on AI action diffs
+- Missing or extra annotations in `remoteActionDiff` vs what the real server sends
+- Wrong `turnInfo` during AI turns (could explain #93's wrong button labels)
+- Phase transition messages during AI turn (BeginCombat, DeclareAttackers, etc.)
+
+**How — harness extension:** `MatchFlowHarness` already captures all messages including AI-generated ones. `messagesSince(snap)` after `passPriority()` or `passUntilTurn()` returns AI diffs queued by `GamePlayback`. The messages are already there — just need tests that assert on them.
+
+**How — recording extraction:** `md-segments.py` needs seat filtering. Each GSM diff in the recording has `turnInfo.activePlayer`. Extract AI-turn segments by filtering for `activePlayer=2`. Compare against engine's AI-turn output.
+
+**How — scripted AI:** Use `ScriptedPlayerController` (or the existing `PuzzleAI`) to make AI behavior deterministic. Set up a board where AI will attack/cast predictably, capture the resulting message sequence, compare against recording of same board state.
+
+**Unlocks:** Full protocol conformance for both players. Currently, AI-turn bugs only surface when a human plays through and notices wrong visuals. This makes them testable.
+
+---
+
+## 4. Structural binding (binder assumes positional alignment)
+
+**What:** The binder (`bind_ids` in `md-segments.py`) works by `zip(template_anns, engine_anns)` — positional pairing. If annotation ordering differs, counts differ, or repeated types exist, it silently mis-binds or skips. Works for PlayLand (3 annotations, same order). Breaks for CastSpell (6 vs 8 annotations, mana ability lifecycle), combat (multiple creatures → multiple identical-type annotations), triggered ability chains (variable-length sequences).
+
+**What breaks:**
+- CastSpell: recording has 8 annotations (including mana ability lifecycle), engine has 6. Zip truncates at 6, losing 2 recording annotations entirely.
+- Combat: multiple `DamageDealt` annotations (one per creature). Positional zip pairs creature A's damage with creature B's damage if ordering differs.
+- Triggered abilities: recording may have `AbilityInstanceCreated` for trigger + mana ability. Engine collapses them. 1:many mapping can't be expressed as a dict.
+
+**How — composite key matching:** Match annotations by `(annotationType, grpId-in-details, zone_src/zone_dest-for-ZoneTransfer)` — a structural key identifying WHAT happened, not WHERE it appears. Multiple annotations of the same type disambiguate by `affectedIds` grpId or detail values.
+
+**How — anchor on ObjectIdChanged:** `ObjectIdChanged` annotations provide the canonical ID mapping: `orig_id → new_id`. These are unambiguous (one per moved card). Build the binding table from ObjectIdChanged first, then propagate to other annotations. The templatizer already orders variables by ObjectIdChanged — make the binder use the same anchor.
+
+**How — handle 1:many:** When the recording has a separate mana ability instance ID that the engine collapses into the spell ID, detect the collision (two template vars binding to one engine ID) and report it as a known divergence rather than a binding failure.
+
+**Unlocks:** The pipeline works for complex mechanics (combat, ability chains, multi-spell turns) without false diffs from ordering differences. Required before sequence comparison (#1) works on anything beyond simple single-card interactions.
+
+---
+
+## 5. Lossless object tracking (puzzle generation is lossy)
+
+**What:** `_resolve_hand_cards()` tries to find card names for hand IDs by scanning backwards for a Full GSM. Falls back to `'Island'` for unresolvable IDs. Hand cards dealt at mulligan and never moved may only appear in the initial Full GSM, which could be dozens of frames back. Result: puzzle generation fails silently for segments deep in a recording, producing wrong card setups.
+
+**What breaks:** Any segment where the hand contains cards not visible in a nearby Full GSM. This is most segments past turn 2 — the further into the game, the staler the last Full GSM becomes. Currently limits pipeline to early-game segments in recordings where the initial Full GSM is close.
+
+**How — running object accumulator:** Build a Python `ObjectTracker` that maintains `{instanceId: {grpId, name, zone, cardTypes, ...}}` across ALL frames in a recording. On Full GSM: snapshot all objects. On Diff GSM: apply zone changes (objectIds lists), apply ObjectIdChanged (update key), track new objects. ~50 lines of Python. Same thing `ClientAccumulator` does engine-side.
+
+**How — integrate with puzzle generation:** `cmd_puzzle` calls `tracker.objects_at(frame_index)` instead of `_resolve_hand_cards()`. Returns complete board state at any point in the recording. Hand, battlefield, graveyard, exile — all zones, all cards, all resolved.
+
+**How — card name resolution:** Combine with `just card <grpId>` lookups (or a prebuilt grpId→name table from the Arena card DB). The tracker provides grpIds, the card DB provides Forge-compatible names for puzzle files.
+
+**Unlocks:** Any segment in any recording becomes puzzle-generatable automatically. Currently, puzzle generation is reliable only for early-game segments. This makes the full recording catalogue usable as conformance test sources.
+
+---
+
+## 6. Regression signal (no score, no trend, no CI gate)
+
+**What:** No way to answer "how conformant are we?" or "did this commit make conformance better or worse?" The annotation-variance tool reports per-type key coverage. The conformance pipeline reports per-segment PASS/FAIL. Neither produces a number tracked over time. No CI gate prevents conformance regressions.
+
+**How — golden conformance diffs:** For each tested interaction type (PlayLand, CastSpell, Resolve, etc.), store the expected diff result as a JSON file in the repo. Fields: which annotations matched, which diverged, what the specific gaps are. Test asserts that actual diff matches or improves on the golden. If a code change introduces new divergences, the golden file comparison fails.
+
+**How — conformance index:** `(matched_fields / total_fields)` per interaction type across a stable set of recording segments. Composite score across all types. Stored in `build/conformance/index.json`, printed by CI. Goes up = good. Goes down = investigate.
+
+**How — wire annotation-variance into tests:** `AnnotationVariance` knows which types have mismatched keys. When a conformance test runs for CastSpell and the recording contains `ManaPaid`, check whether our `ManaPaid` builder produces the right detail keys. Turns the variance report from a standalone analysis into a conformance oracle that fails tests.
+
+**Unlocks:** Conformance improvements stick. Without regression detection, you fix a bug and a different change quietly re-breaks it. With golden diffs and a CI gate, the ratchet only moves forward.
+
+---
+
+## Compound effects
+
+| Combination | What it enables |
+|---|---|
+| 1 + 2 (sequence + closed loop) | Automated regression suite catching message-flow bugs. **The highest-leverage pair.** |
+| 2 + 6 (closed loop + regression) | CI gate preventing conformance regressions. Improvements stick. |
+| 1 + 3 (sequence + seat 2) | Full protocol conformance for both players across all message types. |
+| 4 + 5 (robust binder + lossless puzzles) | Any recording segment becomes a reliable conformance test. Scaling. |
+| 1 + 4 (sequence + structural binding) | Sequence comparison works for complex multi-annotation mechanics. |
+| All six | Pipeline that automatically converts any proxy recording into regression tests covering full message sequences for both seats, with structural binding, CI gating, and trend tracking. |
+
+## Execution order
+
+1. **Close the loop (#2)** — port binding/diff to Kotlin, self-contained tests. Fastest to implement (all pieces exist). Immediately enables CI regression.
+2. **Structural binding (#4)** — prerequisite for sequence comparison on complex mechanics. Independent of #2, can parallelize.
+3. **Sequence comparison (#1)** — extend closed-loop tests to compare message sequences. Catches #92/#93 class. Requires #4 for robustness.
+4. **Lossless puzzles (#5)** — object tracker for recordings. Unblocks scaling to more segments. Independent, can happen anytime.
+5. **Seat 2 (#3)** — add AI-turn tests. Infrastructure from #1+#2 makes this incremental.
+6. **Regression signal (#6)** — golden diffs, CI gate. Meaningful once pipeline runs reliably from #1+#2.
