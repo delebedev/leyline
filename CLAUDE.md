@@ -94,4 +94,6 @@ just seed-db                              # create data/player.db with starter d
 ## Quick Reference
 
 - **Card lookups:** `just card <grpId>`, `just card-grp <name>`, `just ability <id>`, `just card-script <name>`. Full reference: `docs/playbooks/card-lookup-playbook.md`.
-- **Arena CLI:** `bin/arena` — `click`, `ocr`, `wait`, `capture`, `state`, `issues`. Docs: `docs/arena-cli.md`, `docs/arena-nav.md`.
+- **Arena CLI:** `bin/arena` — `click`, `ocr`, `wait`, `capture`, `state`, `issues`. Docs: `tools/arena/docs/cli.md`, `tools/arena/docs/nav.md`.
+- **Recording tools:** `tape session list`, `tape session show`, `tape proto decode`, `tape annotation ranges`. Docs: `tools/tape/docs/cli.md`.
+- **FD inspection:** `wire tail`, `wire search`, `wire show`, `wire flow`, `wire coverage`. Run `wire --help` for all commands.
