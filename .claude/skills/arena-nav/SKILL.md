@@ -83,7 +83,7 @@ Never batch commands blindly. One action, one check, next action.
 
 1. **`arena play "Card Name"`** — Best. Finds card via debug API, verified drag, retries with jitter. Confirms zone change.
 2. **`arena drag <from_x>,<from_y> <to_x>,<to_y>`** — Fallback. Manual coords. Cards in hand are at y~530, x spans 350-620.
-3. **Never use raw `bin/click`** — that's arena's internal tool. Agents use `arena` commands only.
+3. **Never use raw click binary** — that's arena's internal tool. Agents use `arena` commands only.
 
 ### Card playing patterns
 
@@ -177,7 +177,7 @@ arena wait text="Play" --timeout 10          # back in lobby
 ```bash
 just stop; trash data/player.db; just seed-db   # fresh DB — no stale courses
 just serve                                       # (in tmux background)
-bin/arena launch
+just arena launch
 ```
 
 **`synthetic_opponent = true` must be set in `leyline.toml`** — without it, Event_EnterPairing queues the player but never finds an opponent. This is the default in the checked-in config.
@@ -271,7 +271,7 @@ arena wait text="Play" --timeout 10          # back in lobby
 ### Prerequisites
 ```bash
 just build && just serve  # (background, tmux)
-bin/arena launch
+just arena launch
 # Requires 750+ gems or 5000+ gold in start-hook.json inventory
 ```
 

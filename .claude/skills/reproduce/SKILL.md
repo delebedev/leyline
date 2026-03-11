@@ -163,7 +163,7 @@ On failure detection, immediately capture:
 
 ```bash
 # Screenshot of the game window (clean, cropped, OCR-coord-compatible)
-bin/arena capture --out /tmp/repro-screenshot.png --resolution 1920
+just arena capture --out /tmp/repro-screenshot.png --resolution 1920
 
 # Full state snapshot
 curl -s http://localhost:8090/api/state | python3 -m json.tool > /tmp/repro-state.json
@@ -226,7 +226,7 @@ gh issue comment <N> --body "## Reproduction ...
 
 ## Screenshots
 
-**Capture:** `bin/arena capture --out /tmp/repro-screenshot.png --resolution 1920`
+**Capture:** `just arena capture --out /tmp/repro-screenshot.png --resolution 1920`
 - Crops to MTGA window, logical coords (960x568), OCR coords map 1:1
 
 **Annotate** with Pillow — OCR coords are pixel coords on the capture:
@@ -250,5 +250,5 @@ img.save('/tmp/repro-annotated.png')
 - **Visual bugs need visual proof.** Protocol evidence (messages API) is necessary but not sufficient for visual bugs. Use `arena capture` + annotate with Pillow to show what the player sees. Confirm game context (phase, activePlayer) via debug API.
 - **Concede and restart** if the game gets to an unrelated stuck state. Don't waste time debugging a different bug.
 - **Check catalog.yaml** before reproducing. If the mechanic is listed as "missing", reproduction will just confirm the known gap.
-- **Use `rec-*` tools** for post-hoc analysis when recordings exist (`just rec-actions`, `just rec-summary`, `just rec-violations`). Structured and replayable. Debug API for live state checks only.
+- **Use `just tape`** for post-hoc analysis when recordings exist (`just tape session actions`, `just tape session show`, `just tape session violations`). Structured and replayable. Debug API for live state checks only.
 - **Restart server after code changes.** `just stop` + `just serve` before in-game verification. The running JVM has old bytecode — testing against stale code wastes cycles.

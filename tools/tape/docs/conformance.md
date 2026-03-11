@@ -135,19 +135,19 @@ This prevents false positives from bystander permanents whose field ordering or 
 
 ```bash
 # 1. List segments in a recording
-python3 tooling/scripts/md-segments.py list [session]
+just tape segment list [session]
 
 # 2. Extract + templatize a segment
-python3 tooling/scripts/md-segments.py template PlayLand [session] > /tmp/playland-template.json
+just tape segment template PlayLand [session] > /tmp/playland-template.json
 
 # 3. Generate puzzle from segment
-python3 tooling/scripts/md-segments.py puzzle PlayLand [session]
+just tape segment puzzle PlayLand [session]
 
 # 4. Run engine tests (writes to matchdoor/build/conformance/)
 just test-one ConformancePipelineTest
 
 # 5. Diff template against engine output
-python3 tooling/scripts/md-segments.py diff /tmp/playland-template.json matchdoor/build/conformance/playland-frame.json
+just tape conform run /tmp/playland-template.json matchdoor/build/conformance/playland-frame.json
 
 # One-shot (planned):
 just conform PlayLand [session]
@@ -242,7 +242,7 @@ Found by running the pipeline end-to-end against the recording's CastSpell segme
 
 | File | Role |
 |---|---|
-| `tooling/scripts/md-segments.py` | Python CLI: `list`, `extract`, `template`, `puzzle`, `diff` |
+| `tools/tape/segments.py` | Python CLI: `list`, `extract`, `template`, `puzzle`, `diff` (via `just tape segment`) |
 | `matchdoor/.../conformance/AnnotationSerializer.kt` | Proto → recording-compatible JSON serializer |
 | `matchdoor/.../conformance/ConformancePipelineTest.kt` | Engine run tests, dumps to `build/conformance/` |
 | `matchdoor/.../conformance/MatchFlowHarness.kt` | Test harness: puzzle load, action execution, message capture |

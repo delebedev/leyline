@@ -12,98 +12,98 @@ How to analyze Front Door protocol traffic from proxy recordings.
 
 ```bash
 # What happened in this session?
-just fd-summary
+just wire summary
 
 # Last 30 frames (table: seq, dir, type, cmd, size, preview)
-just fd-tail 30
+just wire tail 30
 
 # Request/response pairs matched by transactionId
-just fd-pairs
+just wire pairs
 ```
 
 ## Finding specific traffic
 
 ```bash
 # Search by CmdType name or payload content (case-insensitive)
-just fd-search Deck
-just fd-search Carousel
-just fd-search MWM_StandardPauper
+just wire search Deck
+just wire search Carousel
+just wire search MWM_StandardPauper
 
 # Show a specific frame (header + pretty-printed JSON)
 # S2C responses are labeled with their matching request's cmdTypeName
-just fd-show 92
+just wire show 92
 
 # Structure overview — top-level keys, types, sizes (no payload dump)
-just fd-keys 227
+just wire keys 227
 # Output: Course → object {8 keys}, Course.CardPool → array [84 items], ...
 
 # Delta view — frames since a known seq (useful during live proxy sessions)
-just fd-since 144
+just wire since 144
 
 # Resolve grpId arrays in a frame to card names (sealed pools, decks)
-just fd-cards 227
+just wire cards 227
 ```
 
 ## Extracting response payloads
 
-`fd-response` gets the S2C response for a CmdType — by number or name substring.
+`wire response` gets the S2C response for a CmdType — by number or name substring.
 Stdout is clean JSON; header goes to stderr. Pipe directly to jq.
 
 ```bash
 # By CmdType number
-just fd-response 624 | jq '.Events | length'
+just wire response 624 | jq '.Events | length'
 
 # By name substring (case-insensitive)
-just fd-response Queue | jq '.[].Id'
-just fd-response Preferences | jq 'keys'
+just wire response Queue | jq '.[].Id'
+just wire response Preferences | jq 'keys'
 
 # Full event object for a specific event
-just fd-response 624 | jq '.Events[] | select(.InternalEventName == "PremierDraft_TMT_20260303")'
+just wire response 624 | jq '.Events[] | select(.InternalEventName == "PremierDraft_TMT_20260303")'
 
 # All draft events
-just fd-response 624 | jq '[.Events[] | select(.FormatType == "Draft") | .InternalEventName]'
+just wire response 624 | jq '[.Events[] | select(.FormatType == "Draft") | .InternalEventName]'
 
 # Course list
-just fd-response 623 | jq '[.Courses[] | {event:.InternalEventName, module:.CurrentModule}]'
+just wire response 623 | jq '[.Courses[] | {event:.InternalEventName, module:.CurrentModule}]'
 ```
 
 ## Cross-session analysis
 
-`fd-response-all` emits one JSONL line per session (payload wrapped with `_session` metadata).
+`wire response-all` emits one JSONL line per session (payload wrapped with `_session` metadata).
 Use `jq -s` (slurp) to aggregate.
 
 ```bash
 # Did queue config ever change?
-just fd-response-all 1910 | jq -r '[.payload[].Id] | sort | join(",")' | sort -u
+just wire response-all 1910 | jq -r '[.payload[].Id] | sort | join(",")' | sort -u
 
 # All unique draft event names across all sessions
-just fd-response-all 624 | jq -r '.payload.Events[] | select(.FormatType=="Draft") | .InternalEventName' | sort -u
+just wire response-all 624 | jq -r '.payload.Events[] | select(.FormatType=="Draft") | .InternalEventName' | sort -u
 
 # Which events appeared/disappeared between earliest and latest session?
-diff <(just fd-response-all 624 | head -1 | jq '[.payload.Events[].InternalEventName] | sort') \
-     <(just fd-response-all 624 | tail -1 | jq '[.payload.Events[].InternalEventName] | sort')
+diff <(just wire response-all 624 | head -1 | jq '[.payload.Events[].InternalEventName] | sort') \
+     <(just wire response-all 624 | tail -1 | jq '[.payload.Events[].InternalEventName] | sort')
 
 # Field values grouped by blade behavior
-just fd-response 624 | jq '[.Events[] | {name:.InternalEventName, blade:(.EventUXInfo.EventBladeBehavior // "none"), prio:.EventUXInfo.DisplayPriority}] | group_by(.blade) | .[] | {blade: .[0].blade, events: [.[] | "\(.prio) \(.name)"] | sort}'
+just wire response 624 | jq '[.Events[] | {name:.InternalEventName, blade:(.EventUXInfo.EventBladeBehavior // "none"), prio:.EventUXInfo.DisplayPriority}] | group_by(.blade) | .[] | {blade: .[0].blade, events: [.[] | "\(.prio) \(.name)"] | sort}'
 
 # Check if a field is stable across sessions for a given event
-just fd-response-all 624 | jq -r '{s:._session, prio: [.payload.Events[] | select(.InternalEventName=="Ladder") | .EventUXInfo.DisplayPriority][0]} | "\(.s) \(.prio)"'
+just wire response-all 624 | jq -r '{s:._session, prio: [.payload.Events[] | select(.InternalEventName=="Ladder") | .EventUXInfo.DisplayPriority][0]} | "\(.s) \(.prio)"'
 ```
 
 ## Raw payload access (by seq number)
 
-`just fd-raw <seq>` outputs pure JSON — no headers, pipe-friendly.
-Use when you already know the seq from `fd-pairs` or `fd-tail`.
+`just wire raw <seq>` outputs pure JSON — no headers, pipe-friendly.
+Use when you already know the seq from `wire pairs` or `wire tail`.
 
 ```bash
-just fd-raw 56 | jq 'keys'
-just fd-raw 56 | jq '.PreconDecks | length'
+just wire raw 56 | jq 'keys'
+just wire raw 56 | jq '.PreconDecks | length'
 
 # Deck upsert: request vs response field diff
-diff <(just fd-raw 145 | jq '.Summary | keys') <(just fd-raw 146 | jq '.Summary | keys')
+diff <(just wire raw 145 | jq '.Summary | keys') <(just wire raw 146 | jq '.Summary | keys')
 
 # FormatLegalities: which formats is a deck legal in?
-just fd-raw 146 | jq '.FormatLegalities | to_entries | map(select(.value == true)) | .[].key'
+just wire raw 146 | jq '.FormatLegalities | to_entries | map(select(.value == true)) | .[].key'
 ```
 
 ## Finding unhandled CmdTypes
@@ -122,13 +122,13 @@ When adding a handler for a CmdType we don't serve yet:
 
 ```bash
 # 1. Find the request/response pair
-just fd-pairs | grep PreconDecks
+just wire pairs | grep PreconDecks
 
 # 2. Check request shape
-just fd-raw 42 | jq .
+just wire raw 42 | jq .
 
 # 3. Extract response as golden file
-just fd-raw 56 | jq . > src/main/resources/fd-golden/precon-decks.json
+just wire raw 56 | jq . > src/main/resources/fd-golden/precon-decks.json
 
 # 4. Validate it round-trips
 cat src/main/resources/fd-golden/precon-decks.json | jq 'keys'
@@ -136,7 +136,7 @@ cat src/main/resources/fd-golden/precon-decks.json | jq 'keys'
 
 ## Comparing sessions
 
-`fd-response-all` covers most cross-session queries (see above).
+`wire response-all` covers most cross-session queries (see above).
 For lower-level access to a specific older session:
 
 ```bash

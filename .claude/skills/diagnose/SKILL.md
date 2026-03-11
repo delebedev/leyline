@@ -81,8 +81,8 @@ Before tracing code, check what the real server sends — prevents building the 
 just proto-annotation-variance
 
 # Phase/turn comparison between our engine and real server
-just rec-turninfo <our-engine-session>
-just rec-turninfo <proxy-session>
+just tape session turns <our-engine-session>
+just tape session turns <proxy-session>
 ```
 
 `proto-annotation-variance` is the fastest way to confirm "we don't send X" or "we send X with wrong keys." Run it first for any protocol/visual bug.

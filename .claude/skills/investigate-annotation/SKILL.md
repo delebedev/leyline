@@ -21,17 +21,17 @@ Research one annotation type from the `proto-annotation-variance` report. Combin
 
 ### 0. HARD GATE — Extract full contract BEFORE any manual investigation
 
-Run `rec-annotation-contract` on every proxy session that has the type. This extracts the complete annotation shape (multi-types, affectorId, detail keys, companions, lifecycle) in seconds. **Do not skip this step.**
+Run `tape annotation contract` on every proxy session that has the type. This extracts the complete annotation shape (multi-types, affectorId, detail keys, companions, lifecycle) in seconds. **Do not skip this step.**
 
 ```bash
 # Find sessions with relevant cards
-just rec-find "<CardName>"
+just tape session find "<CardName>"
 
 # Extract full contract from a proxy session
-just rec-annotation-contract <session> <TypeName>
+just tape annotation contract <session> <TypeName>
 
 # Narrow to a specific effect ID if needed
-just rec-annotation-contract <session> <TypeName> <effectId>
+just tape annotation contract <session> <TypeName> <effectId>
 ```
 
 The contract output gives you:
@@ -134,7 +134,7 @@ Output as a structured artifact:
 ### Dependencies
 <Other annotations this relates to, e.g. AddAbility depends on LayeredEffect>
 
-### Implementation contract (from rec-annotation-contract)
+### Implementation contract (from tape annotation contract)
 - Type array: `[<types>]`
 - affectorId: always/never/sometimes — points to <what>
 - Detail keys: <key=frequency>
@@ -169,8 +169,8 @@ Any mapping between Forge events and proto values must account for display names
 
 ## Key conventions
 
-- **Contract first, code never.** Always run `rec-annotation-contract` before writing any annotation code. The contract shows multi-types, affectorId, companions — things the variance report misses.
-- **Use tooling, not manual grep.** `rec-find` for card lookup, `rec-annotation-contract` for full shape, `proto-annotation-variance` for cross-session stats. `just card`/`just ability` for name resolution.
+- **Contract first, code never.** Always run `just tape annotation contract` before writing any annotation code. The contract shows multi-types, affectorId, companions — things the variance report misses.
+- **Use tooling, not manual grep.** `just tape session find` for card lookup, `just tape annotation contract` for full shape, `just tape annotation variance` for cross-session stats. `just card`/`just ability` for name resolution.
 - **One annotation at a time.** Don't batch — each has unique detail keys and semantics.
 - **Multi-typed annotations are the norm.** `["AddAbility", "LayeredEffect"]`, `["ModifiedPower", "ModifiedToughness", "LayeredEffect"]` — the type array is part of the contract. Don't emit a single type when the real server sends three.
 - **affectorId matters.** It drives client behavior (animation source, linking). Check the contract — it tells you if it's always/never/sometimes set.
