@@ -1,0 +1,18 @@
+{
+  "tool_calls": 25,
+  "screenshots": 0,
+  "ocr_calls": 16,
+  "scry_calls": 7,
+  "blind_clicks_888": 0,
+  "drag_calls": 6,
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "total_cost_usd": null,
+  "duration_ms": 0,
+  "num_turns": 0,
+  "game_num": 2,
+  "turns_reached": 15,
+  "kill_reason": "stuck (gsId=26 unchanged for 90s)",
+  "exit_code": -15,
+  "wall_time_s": 246.2
+}

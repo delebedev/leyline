@@ -455,6 +455,143 @@ def cmd_cards(seq_num):
     finally:
         conn.close()
 
+def cmd_flow():
+    """Chronological request→response flow with key payloads expanded.
+
+    Shows paired C2S/S2C frames in order. Highlights:
+    - Graph state changes (1701 ColorChallenge, NPE)
+    - MatchCreated pushes
+    - Match result reports (608)
+    - Unknown/new CmdTypes
+    Designed to replace ad-hoc python scripts during feature investigation.
+    """
+    f = find_jsonl()
+    frames = load_frames(f)
+    pairs = _build_pairs(frames)
+    print(f"Session: {session_name(f)} ({len(frames)} frames, {len(pairs)} pairs)")
+    print()
+
+    # Also collect server pushes (S2C with no matching C2S request)
+    paired_tids = set()
+    for req, rsp in pairs:
+        paired_tids.add(req.get("transactionId"))
+
+    # Build ordered timeline: pairs + unpaired pushes
+    events = []
+    for req, rsp in pairs:
+        events.append(("pair", req["seq"], req, rsp))
+    for d in frames:
+        if d["dir"] == "S2C" and d.get("transactionId") not in paired_tids:
+            p = d.get("jsonPayload") or ""
+            if len(p) > 4:  # skip empty responses
+                events.append(("push", d["seq"], None, d))
+    events.sort(key=lambda x: x[1])
+
+    HIGHLIGHT_CMDS = {1700, 1701, 1703, 608, 612}
+    HIGHLIGHT_PUSHES = {"MatchCreated", "MatchComplete"}
+
+    for kind, _, req, rsp in events:
+        if kind == "push":
+            # Server push
+            p = rsp.get("jsonPayload") or ""
+            try:
+                payload = json.loads(p)
+            except Exception:
+                continue
+            push_type = payload.get("Type", "")
+            if push_type in HIGHLIGHT_PUSHES or len(p) > 100:
+                print(f"  ← PUSH seq={rsp['seq']} Type={push_type or '?'}")
+                if push_type == "MatchCreated":
+                    mi = payload.get("MatchInfoV3", {})
+                    print(f"    matchType={mi.get('MatchType')} event={mi.get('EventId')} seat={mi.get('YourSeat')}")
+                    players = mi.get("PlayerInfos", [])
+                    for pi in players:
+                        print(f"    seat{pi.get('SeatId')}: {pi.get('ScreenName')} avatar={pi.get('CosmeticsSelection',{}).get('Avatar',{}).get('Id','')}")
+                    meta = mi.get("ClientMetadata", [])
+                    for m in meta:
+                        if m.get("Key") in ("BotMatchPlayer", "GraphId", "NodeId") or "GraphId" in m.get("Key", ""):
+                            print(f"    meta: {m['Key']}={m['Value']}")
+                print()
+            continue
+
+        # Paired request/response
+        cmd_type = req.get("cmdType")
+        cmd_name = req.get("cmdTypeName") or f"CmdType({cmd_type})"
+        rsp_payload = rsp.get("jsonPayload") or ""
+        req_payload = req.get("jsonPayload") or ""
+
+        # Compact line for boring commands
+        if cmd_type not in HIGHLIGHT_CMDS and "Unknown" not in cmd_name:
+            # One-liner for routine commands
+            rp_len = len(rsp_payload)
+            print(f"  {req['seq']:>4d}→{rsp['seq']:<4d} {cmd_name:<35s} {rp_len:>6d}B")
+            continue
+
+        # Expanded view for interesting commands
+        print(f"  {req['seq']:>4d}→{rsp['seq']:<4d} ★ {cmd_name}")
+
+        # Show request payload briefly
+        if req_payload:
+            try:
+                rq = json.loads(req_payload)
+                # For graph requests, show GraphId
+                if "GraphId" in rq:
+                    nodes = rq.get("NodeIds", [])
+                    print(f"    req: GraphId={rq['GraphId']} NodeIds={nodes}")
+                elif "EventName" in rq:
+                    print(f"    req: EventName={rq['EventName']} MatchId={rq.get('MatchId','')[:8]}")
+                else:
+                    brief = json.dumps(rq, separators=(",", ":"))
+                    if len(brief) > 120:
+                        brief = brief[:120] + "..."
+                    print(f"    req: {brief}")
+            except Exception:
+                pass
+
+        # Show response payload highlights
+        if rsp_payload:
+            try:
+                rp = json.loads(rsp_payload)
+                # Graph state: show node statuses
+                if "NodeStates" in rp:
+                    for nid, ns in rp["NodeStates"].items():
+                        status = ns.get("Status", "")
+                        extras = []
+                        if "FamiliarMatchState" in ns:
+                            fms = ns["FamiliarMatchState"]
+                            if fms:
+                                extras.append(f"matches={fms.get('MatchesPlayed','?')}")
+                        if "QueueMatchState" in ns:
+                            extras.append("queue")
+                        extra = f" ({', '.join(extras)})" if extras else ""
+                        print(f"    {nid}: {status}{extra}")
+                elif "GraphStates" in rp:
+                    for gid, gs in rp["GraphStates"].items():
+                        nodes = gs.get("NodeStates", {})
+                        print(f"    GraphStates.{gid}: {len(nodes)} nodes")
+                        for nid, ns in nodes.items():
+                            status = ns.get("Status", "")
+                            fms = ns.get("FamiliarMatchState", {})
+                            extra = f" (matches={fms['MatchesPlayed']})" if fms.get("MatchesPlayed") else ""
+                            print(f"      {nid}: {status}{extra}")
+                elif "FoundMatch" in rp:
+                    print(f"    FoundMatch={rp['FoundMatch']}")
+                elif "GraphDefinitions" in rp:
+                    defs = rp["GraphDefinitions"]
+                    if isinstance(defs, list):
+                        names = [g.get("Id", "?") for g in defs]
+                    else:
+                        names = list(defs.keys())
+                    print(f"    {len(names)} graphs: {', '.join(names)}")
+                else:
+                    brief = json.dumps(rp, separators=(",", ":"))
+                    if len(brief) > 150:
+                        brief = brief[:150] + "..."
+                    print(f"    rsp: {brief}")
+            except Exception:
+                print(f"    rsp: {len(rsp_payload)}B")
+        print()
+
 def cmd_response(cmd_type_str):
     """Print the S2C response payload for a given cmdType (by number or name)."""
     f = find_jsonl()
@@ -540,6 +677,8 @@ if __name__ == "__main__":
             print("Usage: fd-inspect.py cards <seq>", file=sys.stderr)
             sys.exit(1)
         cmd_cards(int(sys.argv[2]))
+    elif cmd == "flow":
+        cmd_flow()
     else:
         print(f"Unknown command: {cmd}")
         sys.exit(1)

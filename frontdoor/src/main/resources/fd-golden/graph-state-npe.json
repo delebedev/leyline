@@ -1,55 +1,86 @@
 {
   "NodeStates": {
     "UnlockPlayModes": {
-      "Status": "Completed"
+      "Status": "Available"
     },
     "MigrateFromNPEv1": {
       "Status": "Completed"
+    },
+    "CheckForForceCloseSDD": {
+      "Status": "Available"
     },
     "SparkyMatch": {
       "Status": "Available",
       "ProgressNodeState": {},
       "ProgressionHistoryStateDataState": {}
     },
+    "SparkyMatchNonRebalanced": {
+      "Status": "Available",
+      "ProgressNodeState": {}
+    },
     "ColorChallengeAnyOneTrackComplete": {
       "Status": "Available",
-      "ProgressionHistoryStateDataState": {
-        "availableDateTimeUTC": "2023-11-25T09:13:24.45Z"
-      }
-    },
-    "CloseSparkyDeckDuel": {
-      "Status": "Available",
-      "ProgressNodeState": {},
-      "ProgressionHistoryStateDataState": {
-        "availableDateTimeUTC": "2026-02-22T18:53:57.815Z"
-      }
-    },
-    "DualColorPreconEventWonEnough": {
-      "Status": "Completed",
-      "ProgressionHistoryStateDataState": {
-        "progressedDateTimeUTC": "2023-12-17T15:06:42.355Z"
-      }
-    },
-    "SparkRankTier3": {
-      "Status": "Completed",
-      "ProgressionHistoryStateDataState": {
-        "availableDateTimeUTC": "2023-12-17T15:06:42.355Z",
-        "progressedDateTimeUTC": "2022-11-24T01:23:36.284Z"
-      }
-    },
-    "ColorChallengeComplete": {
-      "Status": "Completed",
       "ProgressionHistoryStateDataState": {}
     },
-    "Played3QuickDraftEvents": {
-      "Status": "Completed",
-      "ProgressionHistoryStateDataState": {
-        "progressedDateTimeUTC": "2024-11-28T22:28:20.97Z"
-      }
+    "CheckForceCompleteJumpInUnlock": {
+      "Status": "Completed"
+    },
+    "JumpIn_Unlocked": {
+      "Status": "Available"
+    },
+    "ColorChallengeComplete": {
+      "Status": "Available",
+      "ProgressionHistoryStateDataState": {}
+    },
+    "UnlockQuickDraftExitNode": {
+      "Status": "Available"
+    },
+    "UnlockAlchemyPlayExitNode": {
+      "Status": "Available"
+    },
+    "UnlockBrawlPlayExitNode": {
+      "Status": "Available"
     }
   },
   "MilestoneStates": {
-    "OpenSparkyDeckDuel": true,
-    "CloseSparkyDeckDuel": false
+    "OpenSparkyDeckDuel": false,
+    "CloseSparkyDeckDuel": false,
+    "OpenDualColorPreconEvent": false,
+    "CompletedDualColorPreconEvent": false,
+    "OpenSparkQueue": false,
+    "SparkRankTier3": false,
+    "SparkRankTier2": false,
+    "OpenAlchemyPlayQueue": false,
+    "SparkRankTier1": false,
+    "PlayedThroughSparkRank": false,
+    "SkippedSparkRank": false,
+    "OpenJumpInEvent": false,
+    "GraduateSparkRank": false,
+    "Played3QuickDraftEvents": false,
+    "GraduateAlchemyBronzeRank": false,
+    "Play5BrawlGames": false,
+    "NPE_Completed": false,
+    "SkippedNPEV2FromNPEV1Migration": false,
+    "OpenQuickDraftAndSealedEvents": false,
+    "OpenHistoricBrawlQueue": false,
+    "Unlocked_StarterPrecon_2023_WU": false,
+    "Unlocked_StarterPrecon_2023_UB": false,
+    "Unlocked_StarterPrecon_2023_BR": false,
+    "Unlocked_StarterPrecon_2023_RG": false,
+    "Unlocked_StarterPrecon_2023_GW": false,
+    "Unlocked_StarterPrecon_2023_WB": false,
+    "Unlocked_StarterPrecon_2023_UR": false,
+    "Unlocked_StarterPrecon_2023_BG": false,
+    "Unlocked_StarterPrecon_2023_RW": false,
+    "Unlocked_StarterPrecon_2023_GU": false,
+    "OpenAlchemyRankQueue": false,
+    "AlchemyBronzeTier3": false,
+    "AlchemyBronzeTier2": false,
+    "AlchemyBronzeTier1": false,
+    "SparkRank1GamePlayed": false,
+    "SparkRank2GamesPlayed": false,
+    "GrantHistoricBrawlStarterDeck1": false,
+    "GrantHistoricBrawlStarterDeck2": false,
+    "NPEv4_Landing": false
   }
 }
