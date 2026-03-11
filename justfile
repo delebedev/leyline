@@ -3,10 +3,9 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 import 'just/java.just'
 import 'just/lookup.just'
 import 'just/proto.just'
-import 'just/recording.just'
 import 'just/client.just'
 import 'just/certs.just'
-import 'just/fd.just'
+import 'just/tools.just'
 import 'just/test.just'
 
 project_dir  := justfile_directory()

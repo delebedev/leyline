@@ -40,7 +40,7 @@ Match lifecycle, per-seat bridge maps, MatchState enum, resource teardown, Famil
 ### Recordings (ground truth)
 - `recordings/2026-03-08_19-44-CHALLENGE-STARTER-SEAT1/` — forgetest's perspective (seat 1, challenge owner)
 - `recordings/2026-03-08_19-30-44-CHALLENGE-JOINER-SEAT2/` — garnett's perspective (seat 2, joiner)
-- Inspect: `just rec-summary`, `just rec-turninfo`, `just rec-actions`, `just fd-summary`, `just fd-show <seq>`
+- Inspect: `just tape session show`, `just tape session turns`, `just tape session actions`, `just wire summary`, `just wire show <seq>`
 
 ### Core classes (matchdoor)
 - `match/Match.kt` — lifecycle wrapper (MatchState: WAITING → RUNNING → FINISHED)

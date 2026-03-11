@@ -46,7 +46,7 @@ Other dirs: `bin/` (CLI tools), `docs/`, `forge/` (engine submodule), `gradle/`,
 - `capture/frames/` — raw binary frames
 - `analysis.json` — post-session analysis output
 
-`recordings/latest` points to the most recent session. Recordings are the primary source of truth for understanding what the real server sends — use `just fd-*` and `just rec-*` commands to inspect them.
+`recordings/latest` points to the most recent session. Recordings are the primary source of truth for understanding what the real server sends — use `just wire` and `just tape` to inspect them.
 
 ## Testing
 
@@ -93,7 +93,9 @@ just seed-db                              # create data/player.db with starter d
 
 ## Quick Reference
 
+All tool CLIs run via just: `just wire ...`, `just tape ...`, `just arena ...`.
+
 - **Card lookups:** `just card <grpId>`, `just card-grp <name>`, `just ability <id>`, `just card-script <name>`. Full reference: `docs/playbooks/card-lookup-playbook.md`.
-- **Arena CLI:** `bin/arena` — `click`, `ocr`, `wait`, `capture`, `state`, `issues`. Docs: `tools/arena/docs/cli.md`, `tools/arena/docs/nav.md`.
-- **Recording tools:** `tape session list`, `tape session show`, `tape proto decode`, `tape annotation ranges`. Docs: `tools/tape/docs/cli.md`.
-- **FD inspection:** `wire tail`, `wire search`, `wire show`, `wire flow`, `wire coverage`. Run `wire --help` for all commands.
+- **Arena CLI:** `just arena` — `click`, `ocr`, `wait`, `capture`, `state`, `issues`. Docs: `tools/arena/docs/cli.md`, `tools/arena/docs/nav.md`.
+- **Recording tools:** `just tape session list`, `just tape session show`, `just tape proto decode`, `just tape annotation ranges`. Docs: `tools/tape/docs/cli.md`.
+- **FD inspection:** `just wire tail`, `just wire search`, `just wire show`, `just wire flow`, `just wire coverage`. Run `just wire --help` for all commands.

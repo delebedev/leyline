@@ -32,7 +32,7 @@ Use `arena ocr` to check current state. Navigate as needed:
 ### 2. Record
 
 ```bash
-bin/arena-record --duration <seconds> --fps 5 --out /tmp/<name>.mp4
+just arena record --duration <seconds> --fps 5 --out /tmp/<name>.mp4
 ```
 
 **Duration guide:**
@@ -67,7 +67,7 @@ GitHub renders MP4 URLs as inline video players — no special markup needed. Ju
 For a static thumbnail alongside the video:
 
 ```bash
-bin/arena capture --out /tmp/<name>.png
+just arena capture --out /tmp/<name>.png
 ~/.claude/skills/screenshot-upload/upload.sh /tmp/<name>.png
 ```
 

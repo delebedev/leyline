@@ -6,10 +6,10 @@ Quick links for debugging, reverse-engineering, and conformance workflows.
 
 | Tool | Entry point | Purpose | Docs |
 |------|-------------|---------|------|
-| `tape` | `bin/tape` | Recording analysis, proto inspection, conformance | `tools/tape/docs/` |
-| `wire` | `bin/wire` | Front Door frame inspection | `tools/wire/docs/` |
-| `arena` | `bin/arena` | MTGA UI automation | `tools/arena/docs/` |
-| `scry` | `bin/scry` | Game state from Player.log | `tools/scry/docs/` |
+| `tape` | `just tape` | Recording analysis, proto inspection, conformance | `tools/tape/docs/` |
+| `wire` | `just wire` | Front Door frame inspection | `tools/wire/docs/` |
+| `arena` | `just arena` | MTGA UI automation | `tools/arena/docs/` |
+| `scry` | `just scry` | Game state from Player.log | `tools/scry/docs/` |
 
 Each tool has `--help` with examples. Docs co-located in `tools/<name>/docs/`.
 

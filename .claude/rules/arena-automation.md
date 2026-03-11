@@ -28,7 +28,7 @@ All coords assume 960-wide MTGA window (macOS logical on 2x Retina). `arena ocr`
 
 1. **`arena play "Card Name"`** — best. Verified drag + zone change check.
 2. **`arena drag <from> <to>`** — fallback. Manual coords.
-3. **Never use raw `bin/click`** — agents use `arena` commands only.
+3. **Never use raw click binary** — agents use `arena` commands only.
 
 ## Server
 

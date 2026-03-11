@@ -6,7 +6,7 @@ Quick-reference for extracting game state and debugging annotation errors from t
 
 ## Client error tracking
 
-Client errors are tracked by **scry** (`bin/scry`), which parses Player.log for both GRE game state and exception lines.
+Client errors are tracked by **scry** (`just scry`), which parses Player.log for both GRE game state and exception lines.
 
 ```bash
 # Game state + recent errors:
@@ -14,9 +14,6 @@ just scry state
 
 # HTTP server (port 8091) with /state and /errors endpoints:
 just scry serve
-
-# Quick error snapshot (no card names):
-just watch-client
 ```
 
 ## Ad-hoc scripts

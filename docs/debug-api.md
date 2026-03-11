@@ -54,11 +54,10 @@ In proxy mode, FD frames are also written to `recordings/<session>/capture/fd-fr
 
 ## Client-side observability (scry)
 
-**scry** (`bin/scry`) parses Player.log for GRE game state, annotations, and client exceptions. It's the client-side counterpart to the debug server.
+**scry** (`just scry`) parses Player.log for GRE game state, annotations, and client exceptions. It's the client-side counterpart to the debug server.
 
 - `just scry state` — accumulated game state + annotations + errors
 - `just scry serve` — HTTP server on :8091 (`/state`, `/errors`, `/health`)
-- `just watch-client` — quick snapshot (alias for `scry state --no-cards`)
 
 ### Annotation tracking
 

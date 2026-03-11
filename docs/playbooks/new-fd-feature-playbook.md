@@ -13,7 +13,7 @@ Missing the tail end means you'll discover the post-match protocol by crashing t
 ```bash
 # Start proxy
 tmux new-session -d -s leyline 'just serve-proxy'
-bin/arena launch
+just arena launch
 
 # Monitor capture growth
 wc -l recordings/*/capture/fd-frames.jsonl
@@ -25,25 +25,25 @@ Find the new traffic and build the **sequence table** — the authoritative refe
 
 ```bash
 # What message types appeared?
-just fd-summary
+just wire summary
 
 # Find feature-specific frames
-just fd-search sealed
+just wire search sealed
 
 # Delta view if you already know a checkpoint
-just fd-since 144
+just wire since 144
 
 # Structure at a glance (don't dump 40KB of JSON)
-just fd-keys 227
+just wire keys 227
 
 # Resolve grpId arrays to card names
-just fd-cards 227
+just wire cards 227
 
 # Pair requests with responses
-just fd-pairs | grep Event_
+just wire pairs | grep Event_
 
 # Extract a specific response payload
-just fd-response Event_Join | jq .
+just wire response Event_Join | jq .
 ```
 
 Build a table like this — it becomes the implementation spec:
@@ -54,7 +54,7 @@ Build a table like this — it becomes the implementation spec:
 | Submit deck | 243→244 | Event_SetDeckV2 | C2S→S2C | deck contents, module transition |
 | ... | | | | |
 
-Save notable payloads for reference: `just fd-raw 227 | jq . > /tmp/sealed-join-response.json`
+Save notable payloads for reference: `just wire raw 227 | jq . > /tmp/sealed-join-response.json`
 
 ## 3. Check client internals
 
@@ -87,7 +87,7 @@ Compare what exists against what's needed:
 
 ```bash
 # Which CmdTypes are handled vs observed?
-just fd-coverage
+just wire coverage
 
 # What domain types exist?
 ls frontdoor/src/main/kotlin/leyline/frontdoor/domain/
@@ -170,7 +170,7 @@ Events with `bladeBehavior = null` (sealed, draft) appear on the **Events tab**,
 
 - Compare our wire output against the recording
 - Fix field ordering, missing fields, null vs empty
-- **Gate**: diff our response shapes against `just fd-raw` captures
+- **Gate**: diff our response shapes against `just wire raw` captures
 
 ## 8. Verify
 
@@ -182,7 +182,7 @@ just test-frontdoor
 just serve
 
 # Compare against recording
-just fd-response Event_Join | jq 'keys' > /tmp/real-keys.json
+just wire response Event_Join | jq 'keys' > /tmp/real-keys.json
 # ... compare with our response
 ```
 

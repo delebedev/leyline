@@ -10,7 +10,7 @@ When adding a new event format (Sealed, Draft, Brawl, etc.) to the arena state m
 
 ### Phase 1: Discovery run
 
-Launch a `general` subagent with the discovery prompt. The subagent navigates the format step-by-step using raw `bin/arena` commands (no `navigate` — it has known bugs and the point is to discover new screens).
+Launch a `general` subagent with the discovery prompt. The subagent navigates the format step-by-step using raw `arena` commands (no `navigate` — it has known bugs and the point is to discover new screens).
 
 **Template prompt:**
 
@@ -21,9 +21,9 @@ the {FORMAT_NAME} format flow, documenting every screen you encounter.
 ## Context
 - Working dir: /Users/denislebedev/src/leyline
 - MTGA is running, you're on {STARTING_SCREEN}
-- `bin/arena ocr --fmt` for screen text + coords
-- `bin/arena click <x>,<y>` for coord clicks, `bin/arena click "text" --retry 3` for text
-- `bin/arena scene` for Player.log scene
+- `just arena ocr --fmt` for screen text + coords
+- `just arena click <x>,<y>` for coord clicks, `just arena click "text" --retry 3` for text
+- `just arena scene` for Player.log scene
 - Action buttons: ~866,533 (Play), ~888,504 (in-game), 940,42 (cog), 210,482 (dismiss)
 
 ## Your task
@@ -36,7 +36,7 @@ the {FORMAT_NAME} format flow, documenting every screen you encounter.
 ## Rules
 - DO NOT modify any files. Read-only exploration.
 - DO NOT use detect_screen() or navigate command.
-- After EVERY click, run `bin/arena ocr --fmt` to see the result.
+- After EVERY click, run `just arena ocr --fmt` to see the result.
 - Step by step — one command, check, next.
 
 ## Output format
@@ -90,7 +90,7 @@ run as fast as possible.
 
 Distill the logs into:
 
-1. **New SCREENS entries** for `bin/arena_screens.py`
+1. **New SCREENS entries** for `tools/arena/screens.py`
    - Screen name, scene value, OCR anchors, reject lists
    - Every screen the subagent documented
 

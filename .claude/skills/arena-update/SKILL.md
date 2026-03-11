@@ -120,7 +120,7 @@ tmux capture-pane -t leyline -p | tail -10
 # Launch Arena
 open -a MTGA
 # Wait ~15s then OCR for lobby
-bin/arena ocr  # expect "Home", "Play", etc.
+just arena ocr  # expect "Home", "Play", etc.
 ```
 
 **Done when:** OCR shows lobby through proxy (Home, Decks, Play visible).

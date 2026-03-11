@@ -1,8 +1,9 @@
 ---
 paths:
+  - "tools/**"
   - "tooling/**"
-  - "bin/**"
   - "just/fd.just"
+  - "just/tools.just"
 ---
 
 # Tooling
@@ -17,8 +18,8 @@ Pick by what the tool imports, not by habit:
 | Needs | Language | Location |
 |---|---|---|
 | Project classpath (proto types, Forge, domain model) | Kotlin | `tooling/src/` |
-| File/JSON/text parsing, HTTP, analysis | Python (stdlib only) | `tooling/scripts/` or `bin/` |
-| macOS platform APIs (CGEvent, Vision, CoreGraphics) | Swift | `bin/` (source + compiled) |
-| Thin launcher/glue | Bash | `bin/` |
+| File/JSON/text parsing, HTTP, analysis | Python (stdlib only) | `tools/<name>/` |
+| macOS platform APIs (CGEvent, Vision, CoreGraphics) | Swift | `tools/arena/swift/` (source), `tools/arena/native/` (compiled) |
+| Thin launcher/glue | Bash | `bin/` or justfile |
 
 **Default to Python** for new CLI tools unless they need project types. Fast startup, no build step, edit-and-run.
