@@ -1,8 +1,11 @@
 package leyline.frontdoor.service
 
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 
+private val lenientJson = Json { ignoreUnknownKeys = true }
+
+@Serializable
 data class QueueEntry(
     val id: String,
     val queueType: String = "Ranked",
@@ -15,8 +18,10 @@ data class QueueEntry(
     val sideboardBO3: String = "Events/Sideboard_15minus",
 )
 
+@Serializable
 data class EntryFee(val currencyType: String, val quantity: Int, val referenceId: String? = null)
 
+@Serializable
 data class EventDef(
     val internalName: String,
     val publicName: String,
@@ -51,9 +56,11 @@ data class EventDef(
 }
 
 /** Color Challenge node config — precon deck + opponent avatar (from graph definitions). */
+@Serializable
 data class ColorChallengeNode(val preconDeckId: String, val opponentAvatar: String)
 
 /** Bot Match entry in the AiBotMatches array (separate from Events). */
+@Serializable
 data class AiBotMatchDef(
     val publicEventName: String = "AIBotMatch",
     val internalEventName: String,
@@ -92,6 +99,8 @@ data class AiBotMatchDef(
  *   `SparkyStarterDeckDuel` in Events (prio 92), not from the AiBotMatches array (prio -1).
  *
  * ### Carousel (1600) is cosmetic — store/mastery promos, not gameplay events.
+ *
+ * All data loaded from fd-golden JSON resource files (proxy captures).
  */
 object EventRegistry {
 
@@ -114,402 +123,23 @@ object EventRegistry {
     }
 
     /** Matches real server queue config (proxy capture 2026-03-03, 14 queues). */
-    val queues: List<QueueEntry> = listOf(
-        // Ranked (no QueueType field emitted — client default)
-        QueueEntry("StandardRanked", "Ranked", "PlayBlade/FindMatch/Blade_Standard_Ladder", "Ladder", "Traditional_Ladder"),
-        QueueEntry("AlchemyRanked", "Ranked", "PlayBlade/FindMatch/Blade_Alchemy_Ladder", "Alchemy_Ladder", "Traditional_Alchemy_Ladder"),
-        QueueEntry(
-            "SparkAlchemyRanked",
-            "Ranked",
-            "Events/Event_Title_Spark_Ladder",
-            "Spark_Alchemy_Ladder",
-            deckSizeBO3 = "MainNav/General/Empty_String",
-            sideboardBO3 = "MainNav/General/Empty_String",
-        ),
-        QueueEntry("HistoricRanked", "Ranked", "PlayBlade/FindMatch/Blade_Traditional_Historic_Ladder", "Historic_Ladder", "Traditional_Historic_Ladder"),
-        QueueEntry("ExplorerRanked", "Ranked", "Events/Event_Title_Explorer_Ladder", "Explorer_Ladder", "Traditional_Explorer_Ladder"),
-        QueueEntry("TimelessRanked", "Ranked", "Events/Event_Title_Timeless_Ladder", "Timeless_Ladder", "Traditional_Timeless_Ladder"),
-        // Unranked
-        QueueEntry("StandardUnranked", "Unranked", "PlayBlade/FindMatch/Blade_Traditional_Standard_Play", "Play", "Constructed_BestOf3"),
-        QueueEntry("AlchemyUnranked", "Unranked", "PlayBlade/FindMatch/Blade_Alchemy_Play", "Alchemy_Play", "Traditional_Alchemy_Play"),
-        QueueEntry("HistoricUnranked", "Unranked", "PlayBlade/FindMatch/Blade_Traditional_Historic_Play", "Historic_Play", "Traditional_Historic_Play"),
-        QueueEntry("ExplorerUnranked", "Unranked", "Events/Event_Title_Explorer_Play", "Explorer_Play", "Traditional_Explorer_Play"),
-        QueueEntry(
-            "TimelessUnranked",
-            "Unranked",
-            "Events/Event_Title_Play_Timeless",
-            "Timeless_Play",
-            deckSizeBO3 = "MainNav/General/Empty_String",
-            sideboardBO3 = "MainNav/General/Empty_String",
-        ),
-        QueueEntry(
-            "AIBotMatch",
-            "Unranked",
-            "Events/Event_Title_AIBotMatch",
-            "AIBotMatch",
-            deckSizeBO3 = "MainNav/General/Empty_String",
-            sideboardBO1 = "MainNav/General/Empty_String",
-            sideboardBO3 = "MainNav/General/Empty_String",
-        ),
-        // Brawl
-        QueueEntry(
-            "HistoricBrawl",
-            "Brawl",
-            "Events/Event_Title_Play_Brawl_Historic",
-            "Play_Brawl_Historic",
-            deckSizeBO1 = "Events/Deck_100commander",
-            deckSizeBO3 = "MainNav/General/Empty_String",
-            sideboardBO1 = "MainNav/General/Empty_String",
-            sideboardBO3 = "MainNav/General/Empty_String",
-        ),
-        QueueEntry(
-            "StandardBrawl",
-            "Brawl",
-            "Events/Event_Title_Play_Brawl_Bo1",
-            "Play_Brawl",
-            deckSizeBO1 = "Events/Deck_60commander",
-            deckSizeBO3 = "MainNav/General/Empty_String",
-            sideboardBO1 = "MainNav/General/Empty_String",
-            sideboardBO3 = "MainNav/General/Empty_String",
-        ),
-    )
+    val queues: List<QueueEntry> = loadResource("/fd-golden/queues.json")
 
-    val events: List<EventDef> = listOf(
-        // Queue-backing events — all displayPriority=-1 per real server (mature account capture 2026-03-10)
-        // Standard
-        EventDef(
-            "Ladder",
-            "Standard Ranked",
-            "Standard",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
-        ),
-        EventDef(
-            "Traditional_Ladder",
-            "Traditional Standard Ranked",
-            "TraditionalStandard",
-            displayPriority = -1,
-            flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
-            winCondition = "BestOf3",
-        ),
-        EventDef("Play", "Standard Play", "Standard", displayPriority = -1),
-        EventDef(
-            "Constructed_BestOf3",
-            "Traditional Standard Play",
-            "TraditionalStandard",
-            displayPriority = -1,
-            winCondition = "BestOf3",
-            titleLocKey = "Events/Event_Title_Play_Standard_Bo3",
-            descLocKey = "Events/Event_Desc_Traditional_Play",
-        ),
-        // Alchemy
-        EventDef(
-            "Alchemy_Ladder",
-            "Alchemy Ranked",
-            "Alchemy",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
-        ),
-        EventDef(
-            "Traditional_Alchemy_Ladder",
-            "Traditional Alchemy Ranked",
-            "TraditionalAlchemy",
-            displayPriority = -1,
-            flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
-            winCondition = "BestOf3",
-        ),
-        EventDef("Alchemy_Play", "Alchemy Play", "Alchemy", displayPriority = -1),
-        EventDef(
-            "Traditional_Alchemy_Play",
-            "Traditional Alchemy Play",
-            "TraditionalAlchemy",
-            displayPriority = -1,
-            winCondition = "BestOf3",
-        ),
-        EventDef(
-            "Spark_Alchemy_Ladder",
-            "Spark Alchemy Ranked",
-            "SparkAlchemy",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
-            titleLocKey = "Events/Event_Title_Spark_Ladder",
-            descLocKey = "Events/Event_Desc_Spark_Ladder",
-        ),
-        // Historic
-        EventDef(
-            "Historic_Ladder",
-            "Historic Ranked",
-            "Historic",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
-        ),
-        EventDef(
-            "Traditional_Historic_Ladder",
-            "Traditional Historic Ranked",
-            "TraditionalHistoric",
-            displayPriority = -1,
-            flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
-            winCondition = "BestOf3",
-        ),
-        EventDef("Historic_Play", "Historic Play", "Historic", displayPriority = -1),
-        EventDef(
-            "Traditional_Historic_Play",
-            "Traditional Historic Play",
-            "TraditionalHistoric",
-            displayPriority = -1,
-            winCondition = "BestOf3",
-        ),
-        // Explorer
-        EventDef(
-            "Explorer_Ladder",
-            "Explorer Ranked",
-            "Explorer",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
-        ),
-        EventDef(
-            "Traditional_Explorer_Ladder",
-            "Traditional Explorer Ranked",
-            "TraditionalExplorer",
-            displayPriority = -1,
-            flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
-            winCondition = "BestOf3",
-        ),
-        EventDef("Explorer_Play", "Explorer Play", "Explorer", displayPriority = -1),
-        EventDef(
-            "Traditional_Explorer_Play",
-            "Traditional Explorer Play",
-            "TraditionalExplorer",
-            displayPriority = -1,
-            winCondition = "BestOf3",
-        ),
-        // Timeless
-        EventDef(
-            "Timeless_Ladder",
-            "Timeless Ranked",
-            "Timeless",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
-        ),
-        EventDef(
-            "Traditional_Timeless_Ladder",
-            "Traditional Timeless Ranked",
-            "TraditionalTimeless",
-            displayPriority = -1,
-            flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
-            winCondition = "BestOf3",
-            titleLocKey = "Events/Event_Title_Timeless_Traditional_Ladder",
-            descLocKey = "Events/Event_Desc_Timeless_Traditional_Ladder",
-        ),
-        EventDef(
-            "Timeless_Play",
-            "Timeless Play",
-            "Timeless",
-            displayPriority = -1,
-            titleLocKey = "Events/Event_Title_Play_Timeless",
-            descLocKey = "Events/Event_Desc_Play_Timeless",
-        ),
-        // Brawl
-        EventDef(
-            "Play_Brawl_Historic",
-            "Historic Brawl",
-            "HistoricBrawl",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
-            titleLocKey = "Events/Event_Title_Play_Brawl_Historic",
-            descLocKey = "Events/Event_Desc_Play_Brawl_Historic",
-        ),
-        EventDef(
-            "Play_Brawl",
-            "Standard Brawl",
-            "StandardBrawl",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
-            titleLocKey = "Events/Event_Title_Play_Brawl_Bo1",
-            descLocKey = "Events/Event_Desc_Play_Brawl_Bo1",
-        ),
-        // AIBotMatch — kept for findEvent() lookups by gameplay code
-        EventDef(
-            "AIBotMatch",
-            "Bot Match",
-            "Standard",
-            displayPriority = 40,
-            flags = listOf("IsArenaPlayModeEvent", "IsAiBotMatch", "SkipDeckValidation"),
-        ),
-        // SparkyStarterDeckDuel — Bot Match home tile (mature account shape, prio 92)
-        EventDef(
-            "SparkyStarterDeckDuel",
-            "SparkyStarterDeckDuel",
-            "AllZeroes",
-            displayPriority = 92,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "SkipDeckValidation", "AllowUncollectedCards", "IsPreconEvent", "IsAiBotMatch"),
-            bladeBehavior = null,
-            eventTags = listOf("AiBotMatch"),
-            titleLocKey = "Events/Event_Title_SparkyChallenge",
-            descLocKey = "Events/Event_Desc_SparkyChallenge",
-        ),
-        // Color Challenge — main tile (ForceActive, no blade behavior)
-        EventDef(
-            "ColorChallenge",
-            "ColorChallenge",
-            "Alchemy",
-            displayPriority = 93,
-            flags = listOf("UpdateQuests", "UpdateDailyWeeklyRewards", "IsPreconEvent"),
-            bladeBehavior = null,
-            eventState = "ForceActive",
-            titleLocKey = "Events/Event_Title_ColorChallenge",
-            descLocKey = "Events/Event_Desc_ColorChallenge",
-        ),
-        // Color Challenge per-color nodes (hidden, priority -1)
-        EventDef(
-            "ColorChallenge_Node5_W",
-            "ColorChallenge_Node5_W",
-            "Alchemy",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "SkipDeckValidation", "IsPreconEvent"),
-            preconDeckIds = listOf("af38619e-72fa-4e54-9b92-11551eed8c28"),
-            deckButtonBehavior = "Fixed",
-            titleLocKey = "Events/Event_Title_Alchemy_Play",
-            descLocKey = "Events/Event_Desc_Alchemy_Play",
-        ),
-        EventDef(
-            "ColorChallenge_Node5_U",
-            "ColorChallenge_Node5_U",
-            "Alchemy",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "SkipDeckValidation", "IsPreconEvent"),
-            preconDeckIds = listOf("d073372e-ba43-440a-a98e-9201803a5e15"),
-            deckButtonBehavior = "Fixed",
-            titleLocKey = "Events/Event_Title_Alchemy_Play",
-            descLocKey = "Events/Event_Desc_Alchemy_Play",
-        ),
-        EventDef(
-            "ColorChallenge_Node5_B",
-            "ColorChallenge_Node5_B",
-            "Alchemy",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "SkipDeckValidation", "IsPreconEvent"),
-            preconDeckIds = listOf("6c40709b-6e87-4973-a645-bfada529f992"),
-            deckButtonBehavior = "Fixed",
-            titleLocKey = "Events/Event_Title_Alchemy_Play",
-            descLocKey = "Events/Event_Desc_Alchemy_Play",
-        ),
-        EventDef(
-            "ColorChallenge_Node5_R",
-            "ColorChallenge_Node5_R",
-            "Alchemy",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "SkipDeckValidation", "IsPreconEvent"),
-            preconDeckIds = listOf("4792e924-c693-4b06-b4e7-31bfeedd610d"),
-            deckButtonBehavior = "Fixed",
-            titleLocKey = "Events/Event_Title_Alchemy_Play",
-            descLocKey = "Events/Event_Desc_Alchemy_Play",
-        ),
-        EventDef(
-            "ColorChallenge_Node5_G",
-            "ColorChallenge_Node5_G",
-            "Alchemy",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "SkipDeckValidation", "IsPreconEvent"),
-            preconDeckIds = listOf("c7df76d9-1c2a-4b25-b41a-85ed0424c86e"),
-            deckButtonBehavior = "Fixed",
-            titleLocKey = "Events/Event_Title_Alchemy_Play",
-            descLocKey = "Events/Event_Desc_Alchemy_Play",
-        ),
-        // Non-queue events (Events tab) — disabled for new-account mode
-        EventDef(
-            "Jump_In_2024",
-            "Jump_In",
-            "Draft_Rebalanced",
-            formatType = "Draft",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "IsPreconEvent"),
-            bladeBehavior = null,
-            eventTags = listOf("JumpIn", "Limited"),
-            titleLocKey = "Events/Event_Title_Jump_In",
-            descLocKey = "Events/Event_Desc_Jump_In",
-        ),
-        // Sealed
-        EventDef(
-            "Sealed_FDN_20260307",
-            "Sealed FDN",
-            "Sealed",
-            formatType = "Sealed",
-            displayPriority = -1,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards"),
-            bladeBehavior = null,
-            eventTags = listOf("Sealed", "Limited"),
-            titleLocKey = "Events/Event_Title_Sealed_FDN",
-            descLocKey = "Events/Event_Desc_Sealed_FDN",
-            maxWins = 7,
-            maxLosses = 3,
-            editableDeck = true,
-        ),
-        // Quick Draft
-        EventDef(
-            "QuickDraft_ECL_20260223",
-            "ECL_Quick_Draft",
-            "Draft",
-            formatType = "Draft",
-            displayPriority = 61,
-            flags = listOf("IsArenaPlayModeEvent", "UpdateQuests", "UpdateDailyWeeklyRewards", "Ranked"),
-            bladeBehavior = null,
-            eventTags = listOf("QuickDraft", "Limited"),
-            titleLocKey = "Events/Event_Title_ECL_Quick_Draft",
-            descLocKey = "Events/Event_Desc_ECL_Quick_Draft",
-            maxWins = 7,
-            maxLosses = 3,
-            isBotDraft = true,
-            entryFees = listOf(
-                EntryFee("Gold", 5000),
-                EntryFee("Gem", 750),
-            ),
-            dynamicFilterTagIds = listOf("ECL Limited"),
-            editableDeck = true,
-            collationId = 100058, // TODO(#62): look up from client card DB
-        ),
-    )
+    val events: List<EventDef> = loadResource("/fd-golden/events.json")
 
     /** Events for 624 response — all events except AIBotMatch (which lives in AiBotMatches array). */
     val activeEvents: List<EventDef>
         get() = events.filter { it.internalName != "AIBotMatch" }
 
     /** AiBotMatches array — separate from Events, rendered as "Bot Match" tile. */
-    val aiBotMatches = listOf(
-        AiBotMatchDef(
-            internalEventName = "AIBotMatch_Rebalanced",
-            format = "DirectGameAlchemy",
-            deckIds = listOf(
-                "e2aaafa8-a633-4eb4-bb94-4309dd915a6a",
-                "92f8315c-4f38-4c6c-b233-f0aa809d33b4",
-                "557335a3-4cbd-4c9f-8e31-0939f18b449b",
-                "437eda14-8f28-4667-95b8-fd5ac97c583d",
-                "ee38d813-aba6-4831-8c5e-1c54f3ef84a9",
-                "9ac025df-75ec-4e10-9fb0-3b6c796a19c9",
-                "8ef7d808-fec0-42b4-bfc1-323f56633375",
-            ),
-        ),
-        AiBotMatchDef(
-            internalEventName = "AIBotMatch",
-            format = "DirectGame",
-            deckIds = listOf(
-                "e2aaafa8-a633-4eb4-bb94-4309dd915a6a",
-                "92f8315c-4f38-4c6c-b233-f0aa809d33b4",
-                "557335a3-4cbd-4c9f-8e31-0939f18b449b",
-                "437eda14-8f28-4667-95b8-fd5ac97c583d",
-                "ee38d813-aba6-4831-8c5e-1c54f3ef84a9",
-                "9ac025df-75ec-4e10-9fb0-3b6c796a19c9",
-                "8ef7d808-fec0-42b4-bfc1-323f56633375",
-            ),
-        ),
-    )
+    val aiBotMatches: List<AiBotMatchDef> = loadResource("/fd-golden/ai-bot-matches.json")
 
     /**
      * Color Challenge node → precon deck ID + opponent avatar.
      * Loaded from `fd-golden/color-challenge-nodes.json` (proxy capture 2026-03-10).
      * Used by CmdType 1703 (Graph_AdvanceNode) to start a Familiar bot match.
      */
-    val colorChallengeNodes: Map<String, ColorChallengeNode> = loadColorChallengeNodes()
+    val colorChallengeNodes: Map<String, ColorChallengeNode> = loadResource("/fd-golden/color-challenge-nodes.json")
 
     fun findEvent(internalName: String): EventDef? =
         events.firstOrNull { it.internalName == internalName }
@@ -535,16 +165,10 @@ object EventRegistry {
         "Play" to "CreateMatch",
     )
 
-    private fun loadColorChallengeNodes(): Map<String, ColorChallengeNode> {
-        val text = EventRegistry::class.java.getResourceAsStream("/fd-golden/color-challenge-nodes.json")
-            ?.bufferedReader()?.readText() ?: return emptyMap()
-        val root = kotlinx.serialization.json.Json.parseToJsonElement(text).jsonObject
-        return root.entries.associate { (nodeId, element) ->
-            val obj = element.jsonObject
-            nodeId to ColorChallengeNode(
-                preconDeckId = obj["preconDeckId"]!!.jsonPrimitive.content,
-                opponentAvatar = obj["opponentAvatar"]!!.jsonPrimitive.content,
-            )
-        }
+    private inline fun <reified T> loadResource(path: String): T {
+        val text = EventRegistry::class.java.getResourceAsStream(path)
+            ?.bufferedReader()?.readText()
+            ?: error("Missing resource: $path")
+        return lenientJson.decodeFromString(text)
     }
 }
