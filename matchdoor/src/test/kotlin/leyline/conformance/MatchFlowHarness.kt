@@ -353,6 +353,35 @@ class MatchFlowHarness(
         drainSink()
     }
 
+    /**
+     * Respond to a GroupReq for scry. Places specified instanceIds on the bottom
+     * of library. Remaining cards stay on top.
+     */
+    fun respondToScry(bottomInstanceIds: List<Int>, allInstanceIds: List<Int>) {
+        val topIds = allInstanceIds.filter { it !in bottomInstanceIds }
+        val msg = ClientToGREMessage.newBuilder()
+            .setType(ClientMessageType.GroupResp_097b)
+            .setGroupResp(
+                GroupResp.newBuilder()
+                    .addGroups(
+                        Group.newBuilder()
+                            .addAllIds(topIds)
+                            .setZoneType(wotc.mtgo.gre.external.messaging.Messages.ZoneType.Library)
+                            .setSubZoneType(SubZoneType.Top),
+                    )
+                    .addGroups(
+                        Group.newBuilder()
+                            .addAllIds(bottomInstanceIds)
+                            .setZoneType(wotc.mtgo.gre.external.messaging.Messages.ZoneType.Library)
+                            .setSubZoneType(SubZoneType.Bottom),
+                    )
+                    .setGroupType(GroupType.Ordered),
+            )
+            .build()
+        session.onGroupResp(msg)
+        drainSink()
+    }
+
     /** Cast a spell by card name. Returns false if card not in hand. */
     fun castSpellByName(cardName: String): Boolean {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return false
