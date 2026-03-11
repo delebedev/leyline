@@ -1,30 +1,28 @@
-# MTGA Autoplay Agent (v9 — arena play)
+# MTGA Autoplay Agent (v10 — max density)
 
-Play a bot match against Sparky. Play 5 of your own turns. Concede. Write retro.
+Play a bot match against Sparky. Play 10 of your own turns. Maximize cards played and damage dealt. Concede. Write retro.
 
 ## TOOLS
 
-- `bin/scry state` — game state: turn, phase, hand (card names + ids), actions (legal plays + mana cost)
-- `bin/arena play "<card name>"` — play a card from hand by name (finds card, drags, verifies zone change). Works in all server modes.
-- `bin/arena play "<card name>" --to <x>,<y>` — play targeting a specific position (for auras, targeted spells)
+- `bin/scry state` — game state: turn, phase, hand, actions (legal plays)
+- `bin/arena play "<card name>"` — play a card from hand by name. Prints `✓` on success.
+- `bin/arena play "<card name>" --to <x>,<y>` — play targeting a position (auras, targeted spells)
 - `bin/arena click <target>` — click text or x,y
-- `bin/arena drag <from> <to>` — drag between coords (low-level fallback)
-- `bin/arena wait text="X" --timeout N` — wait for text
-- `bin/arena ocr --fmt` — screen text with (x,y) coords
+- `bin/arena ocr --fmt` — screen text with coords (only when stuck)
 - `sleep N`
 
 ## FORBIDDEN
 
 - `curl`, `localhost:8090`, `localhost:8091`
 - Reading source code, loading skills, grepping files
-- Taking screenshots (use `arena ocr` instead)
+- Taking screenshots
+- Scrying after successful plays (trust `✓`)
+- Thinking more than 1 sentence between actions
 
 ## LOBBY
 
-If you're not sure you're on the Home screen, click "Home" first: `bin/arena click 40,25 && sleep 2`
-
-Then the lobby sequence:
 ```
+bin/arena click 40,25 && sleep 2
 bin/arena click "Play" --retry 3
 bin/arena wait text="Find Match" --timeout 10
 bin/arena click 867,112 && sleep 1 && bin/arena click "Bot Match" --retry 3 && sleep 1
@@ -36,108 +34,71 @@ If `wait text="Find Match"` fails, OCR to see where you are and navigate manuall
 
 ## STATE VARIABLES
 
-Track these yourself:
 - `own_turns` = 0  (increment when active_player=1 on a new turn_number)
 - `last_turn` = 0
-- `land_played_this_turn` = false
 
 ## GAME LOOP
 
-**Every iteration: scry first, then act based on what scry says.**
+### Core rule: ACT FAST, SCRY RARELY
 
-### Reading scry output
+Scry once at start of your turn. Play everything you can. Pass. Scry at start of next turn.
 
-Key fields:
-- `turn_info.active_player` — 1=you, 2=Sparky
-- `turn_info.phase` — Phase_Main1, Phase_Combat, Phase_Main2, Phase_Ending
-- `hand` — array of {name, id}. Card count = length.
-- `actions` — legal plays: ActionType_Play (lands), ActionType_Cast (spells with manaCost)
+**Do NOT scry between plays.** If `arena play` prints `✓`, the card was played. Move to the next one.
 
-### How to play a card
+### Your turn (active_player=1, Main1 or Main2)
 
-Use `arena play` for everything — lands, creatures, spells:
+Scry → read actions → execute this burst:
 
 ```bash
-bin/arena play "<card name>"
+# 1. Play a land (if ActionType_Play exists)
+bin/arena play "<land name>" && sleep 2
+
+# 2. Drain mana — play ALL castable spells, cheapest first
+bin/arena play "<cheapest spell>" && sleep 2
+bin/arena play "<next cheapest>" && sleep 2
+# ... keep going until no more ActionType_Cast in actions list
+
+# 3. Pass to combat
+bin/arena click 888,504 && sleep 1 && bin/arena click 888,504 && sleep 2
 ```
 
-1. Check `actions` from scry. Pick what to play (land first, then cheapest spell).
-2. Run `bin/arena play "<exact card name from scry>"`. Sleep 2.
-3. Run `bin/scry state` to confirm hand count decreased.
-4. If hand count decreased → success! Continue with next play.
-5. If hand count unchanged → play failed. Cancel any prompt: `bin/arena click 888,504 && sleep 1`. Move to next card.
+If `arena play` prints `✗` or fails: skip that card, try the next one. Don't scry, don't OCR, just move on.
 
-**Auras and targeted spells:** use `--to` with a target position:
-- Target opponent's face: `bin/arena play "Lightning Strike" --to 480,100`
-- Target a creature: use OCR to find creature name, then `--to cx,cy`
+After the burst, scry ONCE to see the new state.
 
-**If `arena play` fails** (card not found in hand): fall back to OCR-guided drag:
-1. `bin/arena ocr --fmt` to find card name → cx coordinate
-2. `bin/arena drag cx,500 480,300 && sleep 2`
-3. Scry to verify.
+### Combat (Phase_Combat, active_player=1)
 
-### Decision tree (after scry):
+Clicking 888,504 during combat = "All Attack". Your creatures attack. This deals damage. You WANT this.
 
-**If own_turns >= 5 → CONCEDE immediately.**
-
-**If active_player=1, Phase_Main1 or Phase_Main2:**
-Increment own_turns if turn_number > last_turn. Set last_turn. Reset land_played_this_turn.
-
-1. If `actions` has `ActionType_Play` and !land_played_this_turn:
-   - Find the land name in actions → `bin/arena play "<land name>"`. Sleep 2. Scry.
-   - If success, set land_played_this_turn=true.
-2. If `actions` has `ActionType_Cast`:
-   - Pick the cheapest non-aura spell from actions.
-   - `bin/arena play "<spell name>"`. Sleep 2. Scry.
-   - If success and more mana available, try next spell.
-3. When done playing: `bin/arena click 888,504 && sleep 1 && bin/arena click 888,504 && sleep 2`
-
-**If active_player=1, Phase_Combat:**
 ```
 bin/arena click 889,504 && sleep 1 && bin/arena click 889,504 && sleep 3
 ```
 
-**If active_player=2 (Sparky's turn):**
-Click ONLY the two stacked buttons, then scry to check:
+### Sparky's turn (active_player=2)
+
+Blind chain. No thinking needed:
+
 ```
-bin/arena click 887,491 && sleep 1 && bin/arena click 890,510 && sleep 3
-bin/scry state
+bin/arena click 887,491 && sleep 1 && bin/arena click 890,510 && sleep 3 && bin/scry state
 ```
-If still active_player=2 → click `888,504` once, sleep 3, scry again. Repeat.
-If active_player=1 → it's your turn! Handle your Main phase.
 
-**CRITICAL: Do NOT add a third 888,504 click after the two pass buttons. That third click lands during YOUR Main1 and passes your turn.**
+If still active_player=2 → `bin/arena click 888,504 && sleep 3 && bin/scry state`. Repeat until active_player=1.
 
-**If Phase_Ending or Step_Cleanup:**
-If hand count > 7: `bin/arena click 400,500 && sleep 1 && bin/arena click 888,489 && sleep 2`
-If hand count <= 7: `bin/arena click 888,504 && sleep 2`
+**CRITICAL: Do NOT add extra 888,504 clicks after the two pass buttons. That passes YOUR Main1.**
 
-**If gsId unchanged after 2 actions:** You're stuck. OCR to see what's on screen. Click any visible button. If stuck 3 times → CONCEDE.
+### Discard (Phase_Ending, hand > 7)
 
-### Complete turn example:
-
-```bash
-# 1. Scry: own turn, Main1, 7 cards
-bin/scry state
-# hand: 7 cards, actions: ActionType_Play "Plains", ActionType_Cast "Searslicer Goblin" (1R)
-
-# 2. Play land
-bin/arena play "Plains" && sleep 2
-bin/scry state
-# hand now 6 → land played!
-
-# 3. Play spell
-bin/arena play "Searslicer Goblin" && sleep 2
-bin/scry state
-# hand 6→5 → cast!
-
-# 4. Advance to combat
-bin/arena click 888,504 && sleep 1 && bin/arena click 888,504 && sleep 2
 ```
+bin/arena click 400,500 && sleep 1 && bin/arena click 888,489 && sleep 2
+```
+
+### Stuck (gsId unchanged after 2 actions)
+
+OCR to see what's on screen. Click any visible button. If stuck 3 times → CONCEDE.
 
 ## CONCEDE
 
-After own_turns >= 5, or stuck 3 times:
+After own_turns >= 10, or stuck 3 times:
 
 ```
 bin/arena click 940,42 && sleep 1 && bin/arena click "Concede" --retry 3
@@ -147,11 +108,11 @@ bin/arena click 480,300 && sleep 2 && bin/arena click 480,300 && sleep 2 && bin/
 
 ## COORDS
 
+- Action button = 888,504 (Pass / Next / All Attack — all same coord)
 - Drop target = 480,300
-- Action button = 888,504
 - Discard: click 400,500 then submit 888,489
 - Cog = 940,42
-- Opponent stacked buttons: 887,491 + 890,510 (only these two! no extra 888,504)
+- Sparky pass: 887,491 + 890,510 (only these two!)
 
 ## RETRO
 
@@ -159,9 +120,9 @@ Write `/tmp/agent-retro.md`:
 ```
 # Agent Retro
 - Own turns played: X
-- Cards played: (list name + turn + method: arena-play/ocr-drag/fallback)
-- Cards skipped: (why — aura, too expensive, failed play)
-- Deck type: (what colors/cards seen)
+- Cards played: (list name + turn)
+- Cards failed: (name + error)
+- Damage dealt: (if known from life total changes)
 - Stuck moments: where/why/how resolved
 - Concede: clean or killed?
 ```

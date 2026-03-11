@@ -263,12 +263,15 @@ def run_game(game_num: int, batch_dir: Path, model: str, record_video: bool = Fa
     ]
 
     log(f"  spawning agent (model={model})...")
+    # Strip CLAUDECODE env var so nested claude sessions work
+    env = {k: v for k, v in os.environ.items() if "CLAUDE" not in k.upper()}
     with open(transcript_path, "w") as transcript_f:
         proc = subprocess.Popen(
             cmd,
             stdout=transcript_f,
             stderr=subprocess.PIPE,
             cwd=str(ROOT),
+            env=env,
         )
 
     # Watchdog loop
@@ -468,9 +471,11 @@ Write/append refinements to: {batch_dir}/refinements.md
     ]
 
     log(f"  spawning analyst (model={model})...")
+    analyst_env = {k: v for k, v in os.environ.items() if "CLAUDE" not in k.upper()}
     r = subprocess.run(
         cmd,
         capture_output=True, text=True, timeout=600, cwd=str(ROOT),
+        env=analyst_env,
     )
 
     if r.returncode == 0:

@@ -31,7 +31,7 @@ Game 3 details: Mono-black deck — played 3 Swamps, 2× Hopeless Nightmare, Gri
 | v8 (wrong x est.) | 12 | 3 | 33% | 0-1 | n/a | **Regression**: bad position formula |
 | v8.1 (OCR+land heur.) | 13 | 3 | 100% | 1-2 | $0.76 | First clean game! 1 land, no spells |
 | v8.2 (2-click fix) | 14 | 3 | 100% | 7-11 | $1.09 | Breakthrough: land x=300, OCR spells, 2-click pass |
-| **v9 (arena play)** | **—** | **—** | **—** | **—** | **—** | **`arena play` replaces scan-and-cancel; scry fallback for proxy mode** |
+| **v9 (arena play + zone OCR)** | **—** | **—** | **—** | **—** | **—** | **`arena play` + zone-aware OCR (7-8/8), arc geometry, scry fallback, PIL crop fix** |
 
 Key breakthrough (v8.2): removing the third 888,504 click from the Sparky pass pattern stopped the agent from accidentally passing its own Main1 phase.
 
@@ -65,9 +65,11 @@ New this session:
 ## What works
 
 - Lobby navigation (5-6 calls, reliable)
-- Land play via blind drag x=300,y=500 (90%+ success)
-- Spell play via OCR name→coord drag (works for named spells)
+- **`arena play "<name>"`** — primary card play method, replaces all blind drags
+- **Zone-aware OCR** — 7-8/8 hand card detection (PIL crop + 2x upscale + fuzzy match)
+- **Arc-aware click geometry** — cosine arc models card fan, edge card positions accurate
 - Scry-first decision loop (actions array → land first, cheapest spell)
+- Scry fallback for proxy mode (debug API empty → `bin/scry state`)
 - 2-click Sparky pass without overshooting own turn
 - Discard detection + handling (Phase_Ending, hand > 7)
 - Combat pass (889,504 double-click)
@@ -78,18 +80,18 @@ New this session:
 
 ## What doesn't work yet
 
-1. **Land drag x=200 always misses** — x=300 works. Updated in v8.3.
-2. **Some games stuck at gsId** — unclear why; possibly server-side blocking prompt
-3. **Cost/tokens null for killed games** — stream-json doesn't emit result on SIGTERM
-4. **No combat attacks** — creatures enter BF but agent never declares attackers
-5. **No targeting spells** — auras/enchantments skipped (correct fallback)
-6. **OCR misses some card names** — small text, overlapping cards
-7. **Mastery Pass modal** still appears between games (mitigated in cleanup)
+1. **Some games stuck at gsId** — unclear why; possibly server-side blocking prompt
+2. **Cost/tokens null for killed games** — stream-json doesn't emit result on SIGTERM
+3. **No combat attacks** — creatures enter BF but agent never declares attackers
+4. **No targeting spells** — auras/enchantments skipped (correct fallback)
+5. **Mastery Pass modal** still appears between games (mitigated in cleanup)
+6. **Battlefield tokens** — Food/Treasure/creature tokens not clickable via OCR (no text)
+7. **`ActionType_Play` (lands)** — server lists even if land already played this turn; agent must track `land_played_this_turn`
 
 ## Next steps (prioritized)
 
-1. **Validate v8.3** (land x=300 first try) with 3-5 games
+1. **Run v9 batch** — validate `arena play` + zone-aware OCR with 3-5 games
 2. **Add combat attack step** — when creatures on BF, click "All Attack" at 889,504
-3. **Reduce stuck timeout** from 90s → 30s for drag failures
-4. **Randomize deck selection** — OCR deck list, pick different decks
-5. **Handle targeting** — for simple targeted spells (e.g., burn spells), click opponent face
+3. **Randomize deck selection** — OCR deck list, pick different decks
+4. **Handle targeting** — for simple targeted spells (e.g., burn spells), click opponent face
+5. **Forge oracle endpoint** — `/api/best-play` for intelligent card selection (see `docs/plans/forge-oracle-local.md`)
