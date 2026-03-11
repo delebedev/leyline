@@ -58,25 +58,13 @@ Save notable payloads for reference: `just fd-raw 227 | jq . > /tmp/sealed-join-
 
 ## 3. Check client internals
 
-Consult `~/src/mtga-internals` for the client-side model — wire types, enums, state machines, null-safety landmines.
-
-- `il2cpp-dump/dump.cs` — search for class definitions, enum values, field layouts
-- `docs/` — existing analysis (front-door-stub.md, post-game-protocol.md, etc.)
-- `docs/front-door-stub.md` § "Hard-Won Implementation Lessons" — null fields that crash the client
+Consult client decompilation artifacts (IL2CPP dump, protocol analysis) for the client-side model — wire types, enums, state machines, null-safety landmines.
 
 Key things to extract:
 - **Wire enums** and their integer values (e.g. `EModule`: Join=0, Sealed=1, DeckSelect=3, CreateMatch=4, Complete=7)
 - **Required vs optional fields** — which nulls cause NRE
 - **State machine transitions** — valid module progressions
 - **Ordering constraints** — e.g. ActiveEventsV2 must resolve before GetCoursesV2
-
-```bash
-# Find a class definition
-grep -n 'class ClientPlayerCourseV2' ~/src/mtga-internals/il2cpp-dump/dump.cs
-
-# Find an enum
-grep -n 'enum EModule' ~/src/mtga-internals/il2cpp-dump/dump.cs
-```
 
 ## 4. Check forge-web for engine reuse
 

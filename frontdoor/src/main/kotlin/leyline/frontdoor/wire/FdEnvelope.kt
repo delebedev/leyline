@@ -27,7 +27,7 @@ object FdWireConstants {
  * Front Door protobuf envelope codec.
  *
  * The FD uses a different protobuf schema from the Match Door (not in messages.proto).
- * Field numbers from IL2CPP dump: `mtga-internals/docs/fd-envelope-proto.md`.
+ * Field numbers from Arena client IL2CPP decompilation.
  *
  * Three envelope types:
  * - **Cmd** (C→S command / S→C push): type=1, raw_trans_id=2, {proto=3, json=4}, compressed=5

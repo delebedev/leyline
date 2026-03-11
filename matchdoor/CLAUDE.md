@@ -46,7 +46,7 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 
 1. `game/GameEventCollector` — subscribe to Forge `GameEvent`, emit `GameEvent`
 2. `game/GameEvent.kt` — add sealed variant with forge card IDs (not instanceIds)
-3. `game/AnnotationBuilder` — add builder method matching Arena annotation type number + detail keys (reference `mtga-internals/docs/13-annotation-system.md`)
+3. `game/AnnotationBuilder` — add builder method matching Arena annotation type number + detail keys (reference: decompiled client annotation system)
 4. `game/StateMapper` annotation pipeline — wire event into annotation generation (either transfer-based or standalone in `buildFromGame`)
 5. Test: unit test in `AnnotationBuilderTest`, category test in `CategoryFromEventsTest`
 

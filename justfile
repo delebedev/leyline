@@ -245,23 +245,10 @@ serve-puzzle filename: build check-java
 
 # --- Docker ---
 
-_registry := "ghcr.io/delebedev/leyline"
-
-# build + push Docker image with registry cache (fast rebuilds after first build)
+# build Docker image for local use
 [group('deploy')]
-docker-build tag=(_registry + ":latest"):
-    docker buildx build \
-        -f deploy/Dockerfile \
-        --cache-from type=registry,ref={{_registry}}:buildcache \
-        --cache-to type=registry,ref={{_registry}}:buildcache,mode=max \
-        -t "{{tag}}" \
-        --push .
-
-# deploy: build + push, then pull + restart on VPS
-[group('deploy')]
-deploy:
-    just docker-build
-    ssh {{env("LEYLINE_VPS", "vps")}} "cd /opt/leyline && docker compose pull && docker compose up -d"
+docker-build tag="leyline:latest":
+    docker buildx build -f deploy/Dockerfile -t "{{tag}}" .
 
 # --- Private helpers ---
 

@@ -40,6 +40,7 @@ import leyline.frontdoor.wire.FdResponse
 import leyline.frontdoor.wire.FdResponseWriter
 import leyline.frontdoor.wire.FdWireConstants
 import leyline.frontdoor.wire.PlayerWireBuilder
+import leyline.frontdoor.wire.StartHookBuilder
 import org.slf4j.LoggerFactory
 import java.util.UUID
 
@@ -87,10 +88,9 @@ class FrontDoorHandler(
 
     init {
         log.info(
-            "Front Door stub: loaded golden data — formats={}B sets={}B startHook={}B",
+            "Front Door: loaded golden data — formats={}B sets={}B",
             golden.getFormatsProto.size,
             golden.getSetsProto.size,
-            golden.startHookJson.length,
         )
     }
 
@@ -162,7 +162,7 @@ class FrontDoorHandler(
         CmdType.GET_SETS.value to { FdResponse.RawProto(golden.getSetsProto) },
         // Golden data (JSON)
         CmdType.DECK_GET_PRECONS_V3.value to { FdResponse.Json(golden.preconDecksJson) },
-        CmdType.CAROUSEL_GET_ITEMS.value to { FdResponse.Json(golden.carouselJson) },
+        CmdType.CAROUSEL_GET_ITEMS.value to { FdResponse.Json("[]") },
         CmdType.GRAPH_GET_DEFINITIONS.value to { FdResponse.Json(golden.graphDefinitionsJson) },
         CmdType.GET_DESIGNER_METADATA.value to { FdResponse.Json(golden.designerMetadataJson) },
         // Lobby stubs
@@ -207,8 +207,9 @@ class FrontDoorHandler(
             }
 
             CmdType.START_HOOK.value -> {
-                val hook = buildStartHook()
-                log.info("Front Door: StartHook ({}B)", hook.length)
+                val decks = deckService.listForPlayer(playerId)
+                val hook = StartHookBuilder.build(decks)
+                log.info("Front Door: StartHook ({}B, {} decks)", hook.length, decks.size)
                 writer.send(ctx, txId, FdResponse.Json(hook))
             }
 
@@ -431,9 +432,7 @@ class FrontDoorHandler(
             }
 
             CmdType.EVENT_SET_JUMPSTART_PACKET.value -> {
-                val req = FdRequests.parseEventName(json)
-                log.info("Front Door: Event_SetJumpStartPacket event={}", req?.eventName)
-                writer.send(ctx, txId, FdResponse.Json(golden.eventSetJumpstartPacketJson))
+                error("EVENT_SET_JUMPSTART_PACKET: not supported — should not be reachable in local mode")
             }
 
             CmdType.BOT_DRAFT_START.value -> {
@@ -570,21 +569,6 @@ class FrontDoorHandler(
             return
         }
         block(json)
-    }
-
-    private fun buildStartHook(): String {
-        val decks = deckService.listForPlayer(playerId)
-        if (decks.isEmpty()) return golden.startHookJson
-
-        val root = lenientJson.parseToJsonElement(golden.startHookJson).jsonObject
-        val summaries = buildJsonArray { decks.forEach { add(DeckWireBuilder.toV2Summary(it)) } }
-        val decksMap = buildJsonObject {
-            for (d in decks) put(d.id.value, DeckWireBuilder.toStartHookEntry(d))
-        }
-
-        val patched = JsonObject(root + ("DeckSummariesV2" to summaries) + ("Decks" to decksMap))
-        log.info("StartHook assembled from DB: {} deck(s)", decks.size)
-        return lenientJson.encodeToString(JsonObject.serializer(), patched)
     }
 
     private fun sendMatchCreated(ctx: ChannelHandlerContext, match: MatchInfo, yourSeat: Int = 1) {

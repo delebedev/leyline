@@ -264,7 +264,7 @@ Same pattern for blockers: `DeclareBlockersResp` (type=32) vs `SubmitBlockersReq
 - **Protocol-level test helpers.** Harness methods should mirror the actual client protocol, not shortcuts. `declareAttackers()` now sends both phases (update + submit). Added `submitAttackers()` (submit-only, like "Done" with pre-selected) and `declareAllAttackers()` (auto_declare=true, like "Attack All").
 - **Message-type-aware dispatch.** `SubmitAttackersReq` and `DeclareAttackersResp` are different messages with different semantics. The handler now checks `greMsg.type` to distinguish them.
 - **State tracking for two-phase protocols.** Added `lastDeclaredAttackerIds` (defaults to `pendingLegalAttackers` since we pre-select all) and `lastDeclaredBlockAssignments`. `SubmitAttackersReq` reads the tracked state instead of parsing an empty proto.
-- **Read mtga-internals first.** The two-phase protocol was clearly documented in `mtga-internals/docs/combat-flow.md` and the IL2CPP dump. Checking protocol docs before implementing handlers would have prevented both this and any future message-type confusion.
+- **Read protocol docs first.** The two-phase protocol was clearly documented in client decompilation analysis and the IL2CPP dump. Checking protocol docs before implementing handlers would have prevented both this and any future message-type confusion.
 - **Test with real client message types, not just logical intent.** The distinction between "what the test intends" (declare these attackers) and "what the client actually sends" (SubmitAttackersReq with no payload) is where bugs hide. Tests should exercise both paths explicitly.
 
 ---
@@ -294,7 +294,7 @@ Additionally, the client sends `CheckpointReq` (type=10) in response to `Intermi
 ## What we should add
 
 - **Test both protocol layers.** GRE-layer tests (WireShapeTest) and match-service-layer tests (GameEndTest checking `allRawMessages` for MatchCompleted) are both needed. One layer being correct doesn't imply the other is.
-- **Protocol checklist from mtga-internals.** `post-game-protocol.md` documents the exact 6-step sequence. Should be used as a checklist when implementing any lifecycle transition (connect → play → game-over → result → disconnect).
+- **Protocol checklist from client analysis.** The post-game protocol documents the exact 6-step sequence. Should be used as a checklist when implementing any lifecycle transition (connect → play → game-over → result → disconnect).
 - **Warn on unhandled message types louder.** The `else -> log.warn("unhandled type")` catch-all in MatchHandler should count occurrences and surface them in the debug panel. `CheckpointReq` arriving repeatedly is a signal that something is missing, not just noise.
 - **Pre-existing flaky test.** `ActionFieldConformanceTest.castActionFields` fails intermittently under parallelism but passes in isolation — likely a shared-state issue in `startGameAtMain1()`. Tracked separately.
 

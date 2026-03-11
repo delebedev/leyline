@@ -2,7 +2,7 @@
 
 > Status: **Implemented** (Phases 1-3, 5 complete; `--puzzle` CLI flag working; Phase 4 deferred)
 > Documentation: `forge-nexus/docs/puzzles.md`
-> Ref: `~/src/mtga-internals/research/puzzle-mode-feasibility.md`, `~/src/mtga-internals/decompilation-request.md`
+> Ref: puzzle mode feasibility analysis (from Arena client decompilation)
 
 ## Goal
 

@@ -81,7 +81,7 @@ Key: after resolution, priority goes to the **active player**, not the spell's c
 
 ## 2. Arena Client Priority Protocol
 
-Sources: `mtga-internals/docs/phase-transitions-and-autopass.md`, `auto-pass-protocol.md`, `action-submission.md`
+Sources: Arena client decompilation (phase transitions, auto-pass protocol, action submission)
 
 ### TurnInfo (in every GameStateMessage)
 
@@ -592,8 +592,8 @@ Engine thread                         Session thread
 | Session | `src/.../game/mapper/StopTypeMapping.kt` | Arena StopType to Forge PhaseType |
 | Session | `src/.../game/BundleBuilder.kt` | Message assembly, edictalPass, shouldAutoPass |
 | Session | `src/.../game/GameBridge.kt` | awaitPriority, bridge lifecycle |
-| Arena ref | `mtga-internals/docs/phase-transitions-and-autopass.md` | Complete priority/stop/autopass reference |
-| Arena ref | `mtga-internals/docs/auto-pass-protocol.md` | AutoPassOption, shouldStop, settings |
-| Arena ref | `mtga-internals/docs/action-submission.md` | Client action submission flow |
-| Arena ref | `mtga-internals/docs/edictal-message.md` | Server-forced actions |
-| Arena ref | `mtga-internals/docs/timer-protocol.md` | Timer/rope protocol |
+| Arena ref | (from client decompilation) | Complete priority/stop/autopass reference |
+| Arena ref | (from client decompilation) | AutoPassOption, shouldStop, settings |
+| Arena ref | (from client decompilation) | Client action submission flow |
+| Arena ref | (from client decompilation) | Server-forced actions |
+| Arena ref | (from client decompilation) | Timer/rope protocol |

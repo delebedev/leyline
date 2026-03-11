@@ -31,7 +31,7 @@ object HandshakeMessages {
      * Match-completed room state — sent after IntermissionReq to trigger
      * the client's result screen.
      *
-     * Per mtga-internals/docs/post-game-protocol.md, the client waits for
+     * Per client decompilation (post-game protocol), the client waits for
      * [MatchGameRoomStateType.MatchCompleted] before showing the result UI.
      */
     fun matchCompleted(matchId: String, winningTeam: Int, playerId: String, reason: ResultReason = ResultReason.Concede): MatchServiceToClientMessage {

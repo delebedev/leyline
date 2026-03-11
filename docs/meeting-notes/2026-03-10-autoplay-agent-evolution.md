@@ -54,7 +54,7 @@ This means:
 
 ### 6. Wild ideas explored
 
-**Code injection:** BepInEx/MelonLoader for Unity. Could expose "play card by instanceId" via localhost. `~/src/mtga-internals/` has IL2CPP dumps + Ghidra project but no runtime hooks yet.
+**Code injection:** BepInEx/MelonLoader for Unity. Could expose "play card by instanceId" via localhost. IL2CPP dumps + Ghidra analysis available but no runtime hooks yet.
 
 **Forge board eval:** Confirmed feasible — `GameStateEvaluator.getScoreForGameState()` scores positions, 150+ ability evaluators, combat planning. Gives "best play" not just "available plays."
 

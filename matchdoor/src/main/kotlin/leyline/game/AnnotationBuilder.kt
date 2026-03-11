@@ -39,7 +39,7 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
  * categories — resolves which [TransferCategory] label to stamp on each
  * zone transfer annotation based on captured [GameEvent]s.
  *
- * Authoritative client parser reference: `mtga-internals/docs/annotation-registry.md`
+ * Authoritative client parser reference: from Arena client decompilation (annotation registry)
  *
  * @see AnnotationPipeline for the pipeline that calls these builders
  * @see GameEvent for the Forge→protocol event translation layer

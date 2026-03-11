@@ -179,7 +179,7 @@ Builders exist and detail keys match the real server.
 
 ## Client-side reference
 
-From decompiled client code (`mtga-internals/docs/annotation-registry.md`):
+From decompiled client code:
 
 **State parsers** mutate `MtgCardInstance` / `MtgEntity` / `MtgGameState` fields.
 **Event parsers** produce `GameRulesEvent` for animation/visual layer.
@@ -241,8 +241,8 @@ All 18 builders registered this session have correct detail key shapes but are N
 - [Annotation variance tool guide](annotation-variance.md) — CLI usage, workflow, key files
 - [Annotation field notes (legacy)](annotation-field-notes.md) — deep investigations from 2026-03-01
 - [Field notes directory](field-notes/) — per-type investigation notes from 2026-03-08 sprint
-- [Client annotation registry](../mtga-internals/docs/annotation-registry.md) — decompiled state + event parsers
-- [Client annotation parsers](../mtga-internals/docs/annotation-parsers.md) — decompiled parser coroutines
+- Client annotation registry (from Arena client decompilation) — state + event parsers
+- Client annotation parsers (from Arena client decompilation) — parser coroutines
 - [Conformance debugging cookbook](conformance-debugging.md) — annotation ordering, category codes, detail key types
 - [Implementation plan (batch 1)](plans/2026-03-01-annotation-fidelity-impl.md) — original plan (stale paths, needs update)
 - [Variance tooling improvements](plans/2026-03-08-variance-tooling-improvements.md) — tool gaps found during investigation sprint

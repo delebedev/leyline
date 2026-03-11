@@ -450,7 +450,7 @@ regression blocking it.
 
 | File | Key area |
 |------|----------|
-| `~/src/mtga-internals/docs/18-phase-transitions-and-autopass.md` | Full MTGA reference |
+| (from Arena client decompilation) | Full MTGA priority/autopass reference |
 | `forge-nexus/docs/priority-loop.md` | Engine state machine diagram |
 | `forge-nexus/docs/combat-protocol.md` | Combat wire protocol |
 | `forge-nexus/docs/plans/phase-stop-profile.md` | Blocked fix + regression analysis |

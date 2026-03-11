@@ -129,7 +129,7 @@ Send stable Full GSM as baseline, then send Diffs with specific annotations to t
 
 ## Phase 5: Arena Debug Tooling Integration
 
-Reference: `~/src/mtga-internals/research/debug-tooling-inventory.md`
+The client ships debug tooling (discovered via client decompilation).
 
 The client ships 23 debug tabs, autoplay scripting, protocol watchers, and a replay system — all gated by `HasDebugRole()` checking `MTGA_DEBUG` account role.
 

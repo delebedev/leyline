@@ -6,13 +6,13 @@ Checklist for diagnosing proto conformance failures — annotation shape, ID lif
 
 Arena client requires `ObjectIdChanged` before `ZoneTransfer` in the same GSM. If reversed, the client can't resolve the new instanceId and drops the zone-transfer animation.
 
-Reference: `mtga-internals/docs/03-zone-transfer-pipeline.md`
+Reference: from client decompilation (zone transfer pipeline)
 
 ## Category codes
 
 `ZoneTransfer` annotation's `category` detail must match Arena's reason enum string exactly (`"PlayLand"`, `"CastSpell"`, `"Resolve"`, `"Destroy"`, etc.). Wrong category → client plays wrong animation or ignores the transfer.
 
-Reference: `mtga-internals/docs/07-zone-transfer-reasons.md`
+Reference: from client decompilation (zone transfer reason codes)
 
 Check `TransferCategory.label` values against the spec. `AnnotationBuilder.categoryFromEvents()` picks the most-specific event; if it falls through to `StateMapper.inferCategory()`, the zone-pair heuristic may pick a wrong default (e.g. BF→GY defaults to `Destroy` when it should be `Sacrifice`).
 

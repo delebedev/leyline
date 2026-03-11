@@ -1,4 +1,0 @@
-{
-  "CurrentModule": "BotDraft",
-  "Payload": "{\"Result\":\"Success\",\"EventName\":\"QuickDraft_ECL_20260223\",\"DraftStatus\":\"PickNext\",\"PackNumber\":0,\"PickNumber\":0,\"NumCardsToPick\":1,\"DraftPack\":[\"98499\",\"98353\",\"98532\",\"98390\",\"98583\",\"98485\",\"98452\",\"98367\",\"98562\",\"98402\",\"98519\",\"98383\",\"98455\"],\"PackStyles\":[],\"PickedCards\":[],\"PickedStyles\":[]}"
-}
