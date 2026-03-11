@@ -1,7 +1,7 @@
 # FD frame inspection tools
 # Imported by justfile — all variables available from parent.
 
-_fd := "python3 tooling/scripts/fd-inspect.py"
+_fd := "python3 tools/wire/wire.py"
 
 # last N frames, formatted table
 [group('fd')]
