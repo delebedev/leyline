@@ -62,3 +62,8 @@ fd-since seq:
 [group('fd')]
 fd-cards seq:
     @{{_fd}} cards {{seq}}
+
+# chronological request→response flow with graph states, MatchCreated, match results expanded
+[group('fd')]
+fd-flow:
+    @{{_fd}} flow
