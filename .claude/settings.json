@@ -1,0 +1,8 @@
+{
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": false,
+    "gopls-lsp@claude-plugins-official": false,
+    "typescript-lsp@claude-plugins-official": false,
+    "swift-lsp@claude-plugins-official": false
+  }
+}
