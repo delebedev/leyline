@@ -1,5 +1,7 @@
 # leyline
 
+**Recording is the spec.** Real server recordings are the source of truth for protocol conformance — not guesses, not docs. Mine segments from recordings, templatize instance IDs, reproduce with matching cards in puzzles, compare hydrated templates against engine output.
+
 Full reimplementation of the client's Front Door, Match Door, and Account Server — makes the game client connect to Forge's engine instead of the official servers.
 
 **Engineering stance:** correctness over speed. The protocol is opaque and the client is unforgiving — shortcuts compound. Build it right, test it right, tool it right.

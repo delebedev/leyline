@@ -164,8 +164,9 @@ def capture_window(
         return None
 
     if not hires:
-        # Retina captures at 2x — resize to logical so OCR coords match click coords
-        run("sips", "--resampleWidth", str(w), out_path, "--out", out_path)
+        # Resize to REFERENCE_WIDTH so OCR/detect coords = 960-space click coords.
+        # On retina this halves from 2x; on non-retina 1920-wide this also scales.
+        run("sips", "--resampleWidth", str(REFERENCE_WIDTH), out_path, "--out", out_path)
     return bounds
 
 
@@ -300,7 +301,7 @@ def poll_state(condition: str, timeout_ms: int) -> bool:
 
 
 def cmd_launch(args: list[str]) -> None:
-    width, height, kill = 1920, 1080, False
+    width, height, kill, fullscreen = 1920, 1080, False, False
     it = iter(args)
     for a in it:
         if a == "--width":
@@ -309,13 +310,25 @@ def cmd_launch(args: list[str]) -> None:
             height = int(next(it))
         elif a == "--kill":
             kill = True
+        elif a == "--fullscreen":
+            fullscreen = True
         else:
             die(f"Unknown arg: {a}")
+
+    # Auto-detect: fullscreen on non-retina monitors where the window overflows.
+    # MTGA at 1920x1080 + title bar = 1920x1108. On 1080p that's 59px off-screen.
+    if not fullscreen:
+        _, sips_out, _ = run(
+            "system_profiler", "SPDisplaysDataType",
+        )
+        if "1920 x 1080" in sips_out and "Retina" not in sips_out:
+            fullscreen = True
 
     if kill:
         run("osascript", "-e", 'tell application "MTGA" to quit')
         time.sleep(2)
 
+    fs_flag = "1" if fullscreen else "0"
     code, _, stderr = run(
         "open",
         "-a",
@@ -326,11 +339,12 @@ def cmd_launch(args: list[str]) -> None:
         "-screen-height",
         str(height),
         "-screen-fullscreen",
-        "0",
+        fs_flag,
     )
     if code != 0:
         die(f"Failed to launch MTGA: {stderr}")
-    print(f"MTGA launched ({width}x{height} windowed)")
+    mode = "fullscreen" if fullscreen else "windowed"
+    print(f"MTGA launched ({width}x{height} {mode})")
 
 
 def cmd_capture(args: list[str]) -> None:
@@ -668,8 +682,12 @@ def cmd_click(args: list[str]) -> None:
         first = matches[0]
         cx = int(float(first["cx"]))
         cy = int(float(first["cy"]))
-        sx = bounds[0] + cx
-        sy = bounds[1] + cy
+        # OCR coords are in capture pixel space (960-wide after resize).
+        # Scale to actual window coords before adding window origin.
+        win_w = bounds[2]
+        scale = win_w / REFERENCE_WIDTH if REFERENCE_WIDTH > 0 else 1.0
+        sx = bounds[0] + int(cx * scale)
+        sy = bounds[1] + int(cy * scale)
 
         code, _, stderr = click_screen(sx, sy, action)
         if code != 0:

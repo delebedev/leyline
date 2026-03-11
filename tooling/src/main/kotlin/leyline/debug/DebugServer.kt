@@ -2,9 +2,11 @@ package leyline.debug
 
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
+import forge.ai.simulation.SpellAbilityPicker
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import leyline.analysis.SessionAnalyzer
+import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
@@ -33,6 +35,7 @@ import java.util.concurrent.Executors
  * - `GET /api/state-diff`  → diff between two gsIds (`?from=X&to=Y`)
  * - `GET /api/priority-events` → priority trace events
  * - `GET /api/instance-history` → zone history for an instanceId (`?id=N`)
+ * - `GET /api/best-play`    → Forge AI oracle — best play for current board state
  * - `GET /api/recordings` → discover recording sessions on disk
  * - `GET /api/recording-summary?id=...` → compact summary for one session
  * - `GET /api/recording-actions?id=...` → extracted action timeline
@@ -79,6 +82,7 @@ class DebugServer(
             "/api/recording-mechanics" to ::serveRecordingMechanics,
             "/api/fd-messages" to ::serveFdMessages,
             "/api/priority-log" to ::servePriorityLog,
+            "/api/best-play" to ::serveBestPlay,
         ).forEach { (path, handler) ->
             srv.createContext(path) { ex -> safe(ex) { handler(ex) } }
         }
@@ -472,6 +476,113 @@ class DebugServer(
 
         respondJsonList(ex, json.encodeToString(entries), null)
     }
+
+    // --- Forge Oracle ---
+
+    /**
+     * `GET /api/best-play` — asks the Forge AI simulation engine what the best
+     * play is for the current board state. Uses [SpellAbilityPicker] which runs
+     * Monte Carlo simulations to evaluate every legal play.
+     *
+     * Returns the single best action with card name, IDs, action type, and score.
+     *
+     * // TODO: return top-N alternatives by scoring each candidate individually
+     * // via evaluateSa() on getCandidateSpellsAndAbilities(). Expensive but
+     * // gives the agent a ranked list of options with scores.
+     */
+    private fun serveBestPlay(ex: HttpExchange) {
+        val session = debugCollector?.sessionProvider?.invoke() as? MatchSession
+        if (session == null) {
+            respondJson(ex, """{"bestPlay":null,"reason":"no active session"}""")
+            return
+        }
+        val bridge = session.gameBridge
+        if (bridge == null) {
+            respondJson(ex, """{"bestPlay":null,"reason":"no game bridge"}""")
+            return
+        }
+        val game = bridge.getGame()
+        if (game == null) {
+            respondJson(ex, """{"bestPlay":null,"reason":"no game"}""")
+            return
+        }
+        val player = bridge.getPlayer(leyline.bridge.SeatId(session.seatId))
+        if (player == null) {
+            respondJson(ex, """{"bestPlay":null,"reason":"no player for seat ${session.seatId}"}""")
+            return
+        }
+
+        try {
+            val picker = SpellAbilityPicker(game, player)
+            val bestSa = picker.chooseSpellAbilityToPlay(null)
+            val score = picker.getScoreForChosenAbility()
+            val phase = game.phaseHandler.phase?.toString()
+            val turn = game.phaseHandler.turn
+
+            if (bestSa == null) {
+                respondJson(ex, """{"bestPlay":null,"phase":"$phase","turn":$turn,"reason":"no beneficial play"}""")
+                return
+            }
+
+            val card = bestSa.hostCard
+            val cardName = card?.name ?: "unknown"
+            val forgeCardId = card?.id ?: -1
+            val arenaInstanceId = try {
+                bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+            } catch (_: Exception) {
+                -1
+            }
+
+            val actionType = when {
+                bestSa.isSpell && card?.isLand == true -> "PlayLand"
+                bestSa.isSpell -> "CastSpell"
+                bestSa.isActivatedAbility -> "ActivateAbility"
+                else -> "Unknown"
+            }
+
+            val saDesc = SpellAbilityPicker.abilityToString(bestSa, true)
+
+            respondJson(
+                ex,
+                json.encodeToString(
+                    BestPlayResponse(
+                        bestPlay = BestPlayEntry(
+                            cardName = cardName,
+                            forgeCardId = forgeCardId,
+                            arenaInstanceId = arenaInstanceId,
+                            actionType = actionType,
+                            score = score.value,
+                            description = saDesc,
+                        ),
+                        phase = phase,
+                        turn = turn,
+                        reason = null,
+                    ),
+                ),
+            )
+        } catch (t: Throwable) {
+            log.warn("best-play simulation failed: {}", t.message, t)
+            respondJson(ex, """{"bestPlay":null,"reason":"simulation error: ${t.message?.replace("\"", "'")}"}""")
+        }
+    }
+
+    @Serializable
+    private data class BestPlayEntry(
+        val cardName: String,
+        val forgeCardId: Int,
+        val arenaInstanceId: Int,
+        val actionType: String,
+        val score: Int,
+        val description: String,
+    )
+
+    @Serializable
+    private data class BestPlayResponse(
+        val bestPlay: BestPlayEntry?,
+        val phase: String?,
+        val turn: Int = 0,
+        val reason: String? = null,
+    )
 
     // --- Front Door messages ---
 
