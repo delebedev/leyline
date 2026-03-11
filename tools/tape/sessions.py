@@ -1,4 +1,5 @@
 """Pure Python session inspection — reads jsonl directly, no JVM needed."""
+
 import json
 import os
 import sys
@@ -16,10 +17,24 @@ def find_sessions(recordings_dir="recordings"):
         has_fd = os.path.exists(os.path.join(d, "capture", "fd-frames.jsonl"))
         has_md = os.path.exists(os.path.join(d, "md-frames.jsonl"))
         has_analysis = os.path.exists(os.path.join(d, "analysis.json"))
-        sessions.append({
-            "name": name, "path": d,
-            "has_fd": has_fd, "has_md": has_md, "has_analysis": has_analysis,
-        })
+        has_engine = os.path.isdir(os.path.join(d, "engine"))
+        has_capture = os.path.isdir(os.path.join(d, "capture"))
+        if has_capture:
+            kind = "proxy"
+        elif has_engine:
+            kind = "engine"
+        else:
+            kind = "-"
+        sessions.append(
+            {
+                "name": name,
+                "path": d,
+                "kind": kind,
+                "has_fd": has_fd,
+                "has_md": has_md,
+                "has_analysis": has_analysis,
+            }
+        )
     return sessions
 
 
@@ -43,13 +58,14 @@ def cmd_list(recordings_dir="recordings"):
     if not sessions:
         print("No recordings found. Run: just serve-proxy")
         return
-    print(f"{'Session':<30}  {'FD':>3}  {'MD':>3}  {'Analysis':>8}")
-    print("-" * 50)
+    print(f"{'Session':<30}  {'Type':<6}  {'FD':>3}  {'MD':>3}  {'Analysis':>8}")
+    print("-" * 58)
     for s in sessions:
+        kind = s["kind"]
         fd = "yes" if s["has_fd"] else " - "
         md = "yes" if s["has_md"] else " - "
         an = "yes" if s["has_analysis"] else " - "
-        print(f"{s['name']:<30}  {fd:>3}  {md:>3}  {an:>8}")
+        print(f"{s['name']:<30}  {kind:<6}  {fd:>3}  {md:>3}  {an:>8}")
 
 
 def cmd_latest(recordings_dir="recordings"):
@@ -100,7 +116,9 @@ def cmd_show(session=None, recordings_dir="recordings"):
                 analysis = json.load(f)
             violations = analysis.get("violations", [])
             mechanics = analysis.get("mechanics", [])
-            print(f"  Analysis: yes ({len(violations)} violations, {len(mechanics)} mechanics)")
+            print(
+                f"  Analysis: yes ({len(violations)} violations, {len(mechanics)} mechanics)"
+            )
         except Exception:
             print(f"  Analysis: yes (parse error)")
 
@@ -117,7 +135,11 @@ def cmd_find(keyword, recordings_dir="recordings"):
     keyword_lower = keyword.lower()
     hits = 0
     for s in sessions:
-        for jsonl_name in ["md-frames.jsonl", "capture/fd-frames.jsonl", "events.jsonl"]:
+        for jsonl_name in [
+            "md-frames.jsonl",
+            "capture/fd-frames.jsonl",
+            "events.jsonl",
+        ]:
             fpath = os.path.join(s["path"], jsonl_name)
             if not os.path.exists(fpath):
                 continue
