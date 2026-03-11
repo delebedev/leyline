@@ -1,7 +1,0 @@
-## Batch 2026-03-10_14-11-42 — 2026-03-10
-1. Use `arena play "<name>"` for ALL card plays (lands included) — scry `hand` array always has names; eliminates wrong-card drag errors seen in run-4 turn-7 (Rowan's Grim Search instead of Swamp) and run-3/run-5 coord failures at x=700+. Fourth consecutive batch with this as top recommendation.
-2. Add explicit combat phase rule to prompt: Phase_Combat + active=priority=own_seat → double-click 888,504, no OCR, no creature clicks. Runs 1 and 2 each spent 4–10 tool calls navigating their own attack phase without a clear rule.
-3. Reduce stuck-kill timeout to 30s. Fourth consecutive batch recommendation; runs 3 and 5 were visibly stuck within 20s. Current 90s wastes ~2 minutes per stuck run.
-4. Fix token aggregation: write running token totals to `/tmp/run-N-tokens.json` after every call; read on exit if `result` line missing. 4 of 5 runs in this batch have zero cost data.
-5. Add OCR-before-coord-escalation rule: if drag returns stale gsId, next step must be `arena ocr --fmt` to locate actual card positions, not try higher x-coords. Run-3 tried x=700/770/855 without OCR; run-5 tried x=680 without OCR.
-6. Default sacrifice/modal fallback: on unexpected sub-prompt (not Choose One, not DeclareAttackers), click Cancel at 887,456 immediately rather than guessing target coords. Run-4 Fanatical Offering: 5 failed clicks before Cancel; Cancel worked on first try.
