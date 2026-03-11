@@ -6,11 +6,6 @@
 mtga:
     @pkill -9 -f MTGA 2>/dev/null || true; sleep 1; open -a "MTGA"
 
-# launch client with log-driven automation (screenshots + cliclick)
-[group('client')]
-client-auto mode="--proxy" timeout="120":
-    @bash bin/client-auto.sh {{mode}} {{timeout}}
-
 # synthetic mouse click (works on macOS 15+ / Unity via timestamp fix)
 # NOTE: must activate MTGA window first — Unity ignores clicks on background windows
 [group('client')]
