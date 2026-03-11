@@ -111,7 +111,7 @@ proto-priority dir: (_require classpath) check-java
 proto-annotation-variance *args: (_require classpath) check-java
     @{{_cli}} leyline.debug.AnnotationVarianceKt {{args}}
 
-_ann_ids := "python3 tooling/scripts/annotation-ids.py"
+_ann_ids := "python3 tools/tape/annotation_ids.py"
 
 # affectorId/affectedIds range classification per annotation type
 [group('proto')]
