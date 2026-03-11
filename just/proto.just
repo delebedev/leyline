@@ -111,19 +111,3 @@ proto-priority dir: (_require classpath) check-java
 proto-annotation-variance *args: (_require classpath) check-java
     @{{_cli}} leyline.debug.AnnotationVarianceKt {{args}}
 
-_ann_ids := "python3 tools/tape/annotation_ids.py"
-
-# affectorId/affectedIds range classification per annotation type
-[group('proto')]
-ann-id-ranges session="":
-    @{{_ann_ids}} ranges {{session}}
-
-# full provenance + relationship pattern analysis (builds object accumulator)
-[group('proto')]
-ann-id-analyze session="" *args="":
-    @{{_ann_ids}} analyze {{session}} {{args}}
-
-# deep dive on a single annotation type with concrete examples
-[group('proto')]
-ann-id-detail type session="" *args="":
-    @{{_ann_ids}} detail {{type}} {{session}} {{args}}
