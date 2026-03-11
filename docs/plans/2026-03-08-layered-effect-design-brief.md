@@ -31,7 +31,7 @@ LayeredEffectCreated is the **highest-frequency NOT_IMPL type** (131 instances a
 
 ## The client side (from decompiled code)
 
-**`mtga-internals/docs/annotation-registry.md`** has the full parser tables. Key facts:
+The decompiled client annotation registry has the full parser tables. Key facts:
 
 ### LayeredEffectCreated event parser (type 18) — mega-parser
 
@@ -208,8 +208,8 @@ What's missing: the LayeredEffect lifecycle that tells the client WHY the P/T ch
 | `matchdoor/src/main/kotlin/leyline/game/StateMapper.kt` | Where annotations are assembled into GSMs |
 | `matchdoor/src/main/kotlin/leyline/game/GameEventCollector.kt` | Where Forge events become our GameEvents |
 | `matchdoor/CLAUDE.md` | Mental model, pipeline architecture, cookbook |
-| `~/src/mtga-internals/docs/annotation-registry.md` | Client annotation type registry — state parsers, event parsers, detail keys, LayeredEffectCreated sub-handlers |
-| `~/src/mtga-internals/docs/annotation-parsers.md` | Client parser structure, dispatch loop, annotation ordering contract |
+| (from Arena client decompilation) | Client annotation type registry — state parsers, event parsers, detail keys, LayeredEffectCreated sub-handlers |
+| (from Arena client decompilation) | Client parser structure, dispatch loop, annotation ordering contract |
 
 ## Retro: contract gaps found during playtest
 

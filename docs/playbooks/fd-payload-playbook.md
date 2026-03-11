@@ -171,4 +171,4 @@ Envelope types:
 - **Request** (C2S newer path): RequestType + key + transactionId + payload
 - **Response** (S2C reply): transactionId + JSON/proto payload
 
-Full schema: `~/src/mtga-internals/docs/fd-envelope-proto.md`
+Full schema derived from Arena client decompilation (IL2CPP protobuf field numbers).

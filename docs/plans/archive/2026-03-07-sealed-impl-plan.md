@@ -12,7 +12,7 @@
 - Design doc: `docs/plans/2026-03-07-sealed-design.md`
 - Existing patterns: `SqlitePlayerStore.kt` (Exposed tables), `DeckServiceTest.kt` (InMemory test doubles), `EventWireBuilder.kt` (wire JSON)
 - Recording: `recordings/2026-03-07_11-49-05/` — real sealed session
-- Client wire model: `~/src/mtga-internals/docs/front-door-stub.md`
+- Client wire model: from Arena client decompilation (FD stub responses, field validation)
 
 ---
 

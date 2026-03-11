@@ -366,26 +366,6 @@
     "descLocKey": "Events/Event_Desc_Alchemy_Play"
   },
   {
-    "internalName": "Jump_In_2024",
-    "publicName": "Jump_In",
-    "deckSelectFormat": "Draft_Rebalanced",
-    "formatType": "Draft",
-    "displayPriority": -1,
-    "flags": [
-      "IsArenaPlayModeEvent",
-      "UpdateQuests",
-      "UpdateDailyWeeklyRewards",
-      "IsPreconEvent"
-    ],
-    "bladeBehavior": null,
-    "eventTags": [
-      "JumpIn",
-      "Limited"
-    ],
-    "titleLocKey": "Events/Event_Title_Jump_In",
-    "descLocKey": "Events/Event_Desc_Jump_In"
-  },
-  {
     "internalName": "Sealed_FDN_20260307",
     "publicName": "Sealed FDN",
     "deckSelectFormat": "Sealed",

@@ -21,6 +21,10 @@ just build           # compile
 just serve           # start server
 ```
 
+## Disclaimer
+
+This project provides a local game server for personal playtesting. It requires a legally obtained copy of Magic: The Gathering Arena. It is not affiliated with, endorsed by, or connected to Wizards of the Coast, Hasbro, or any of their affiliates. "Magic: The Gathering" is a trademark of Wizards of the Coast LLC. This project does not distribute any copyrighted game assets.
+
 ## License
 
-GPL-3.0 — see [LICENSE](LICENSE) and [LEGAL.md](LEGAL.md).
+GPL-3.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).

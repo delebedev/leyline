@@ -28,7 +28,7 @@ they never restate it.
 
 | Layer | Authority | Example |
 |-------|-----------|---------|
-| Protocol behavior | Decompiled client reference | `mtga-internals/docs/annotation-registry.md` |
+| Protocol behavior | Decompiled client reference | (from Arena client analysis) |
 | Engine behavior | Engine source | `PhaseHandler.java` |
 | Bridge design | KDoc on the bridge class | `GameBridge.kt` header |
 | What works e2e | Living catalog | `catalog.yaml` |

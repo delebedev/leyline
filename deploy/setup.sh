@@ -3,7 +3,7 @@
 # Patches the Arena client to connect to the Leyline game server.
 #
 # Usage:
-#   ./setup.sh on    — patch Arena to connect to leyline.games
+#   ./setup.sh on    — patch Arena to connect to local leyline server
 #   ./setup.sh off   — restore Arena to stock (removes services.conf)
 #
 # Override MTGA path: MTGA_PATH="/path/to/MTGA.app" ./setup.sh on
@@ -23,22 +23,22 @@ case "${1:-}" in
       exit 1
     fi
 
-    # Write services.conf pointing to leyline.games
+    # Write services.conf pointing to local leyline server
     cat > "$SERVICES" << 'CONF'
 {
   "environments": {
     "Leyline": {
       "name": "Leyline",
-      "fdHost": "leyline.games",
+      "fdHost": "localhost",
       "fdPort": 30010,
       "ecoUri": "",
-      "accountSystemBaseUri": "https://leyline.games/",
+      "accountSystemBaseUri": "https://localhost/",
       "accountSystemId": "leyline",
       "accountSystemSecret": "forge-secret",
       "accountSystemEnvironment": 1,
-      "doorbellUri": "https://leyline.games/api/doorbell",
+      "doorbellUri": "https://localhost/api/doorbell",
       "HostPlatform": 1,
-      "mdHost": "leyline.games",
+      "mdHost": "localhost",
       "mdPort": 30003,
       "bikeUri": ""
     }
@@ -55,7 +55,7 @@ CONF
       echo "Created NPE_VO.bnk stub."
     fi
 
-    echo "Leyline enabled."
+    echo "Leyline enabled. Server must be running on localhost (just serve)."
     echo "Launch MTGA, select the 'Leyline' environment, enter any email/password."
     echo ""
     echo "To undo: $0 off"
@@ -73,7 +73,7 @@ CONF
   *)
     echo "Usage: $0 on|off"
     echo ""
-    echo "  on   — patch Arena to connect to leyline.games"
+    echo "  on   — patch Arena to connect to local leyline server"
     echo "  off  — restore Arena to stock"
     exit 1
     ;;

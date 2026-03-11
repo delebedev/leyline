@@ -10,7 +10,7 @@ You investigate how Forge's Java game engine works and produce documentation for
 
 Primary input:
 - `forge/` submodule — Java source (forge-core, forge-game, forge-ai, forge-gui)
-- `~/src/mtga-internals/docs/` — Arena client behavior docs (cross-reference to understand what Forge should do)
+- Arena client behavior analysis (cross-reference to understand what Forge should do)
 - `docs/forge-internals.md` — existing engine docs (extend this)
 
 Key engine areas:

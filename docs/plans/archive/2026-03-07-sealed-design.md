@@ -195,7 +195,7 @@ Diff our wire output against recording. Fix field ordering, missing fields, null
 
 ## Client Wire Reference
 
-From `~/src/mtga-internals`:
+From Arena client decompilation:
 
 **EModule** (wire enum, string-serialized): Join=0, Sealed=1, GrantCardPool=2, DeckSelect=3, CreateMatch=4, MatchResults=5, RankUpdate=6, Complete=7, ClaimPrize=8
 

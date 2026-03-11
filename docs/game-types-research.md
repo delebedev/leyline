@@ -460,6 +460,6 @@ Modern/Legacy/Vintage with full card pools. Depends on Phase 3 results. May requ
 
 ## 11. Client Imagery & Asset System
 
-See [`~/src/mtga-internals/docs/asset-bundle-system.md`](../../mtga-internals/docs/asset-bundle-system.md) — covers asset delivery model, bundle pipeline, integrity checking, injection feasibility.
+Asset delivery model based on local bundles — covers bundle pipeline, integrity checking, injection feasibility.
 
 **TL;DR:** Almost everything is local asset bundles (card art, cosmetics, event banners, rewards). Server sends string IDs, not URLs. Only store items and notifications use server-provided `image_url`. Bundle injection is feasible (no code signing, hash check only at download time, community tool MTGA_Swapper confirms).

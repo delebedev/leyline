@@ -14,9 +14,9 @@
 - Priority analysis: `docs/priority-system-analysis.md`
 - Layered effects doc: `docs/forge-layered-effects.md`
 - Rosetta table: `docs/rosetta.md`
-- Arena priority ref: `~/src/mtga-internals/docs/phase-transitions-and-autopass.md`
-- Arena auto-pass: `~/src/mtga-internals/docs/auto-pass-protocol.md`
-- Arena actions: `~/src/mtga-internals/docs/action-submission.md`
+- Arena priority ref: from client decompilation (phase transitions and autopass)
+- Arena auto-pass: from client decompilation (AutoPassOption protocol)
+- Arena actions: from client decompilation (action submission flow)
 
 ## Known Gaps (priority-system-analysis.md)
 

@@ -30,7 +30,7 @@ client-infrastructure:
       CaptureSink records frames to JSONL for replay. FrontDoorReplayStub
       replays captured sessions. Key insight: S→C always Response envelope,
       push notifications use fresh txId. See front-door-stub.md in
-      mtga-internals for protocol lessons.
+      client decompilation for protocol lessons.
 
   ui-automation:
     status: wired

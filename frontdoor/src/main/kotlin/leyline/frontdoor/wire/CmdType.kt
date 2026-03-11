@@ -91,7 +91,7 @@ value class CmdType(val value: Int) {
         /** Human-readable name for any CmdType value, including unknown ones. */
         fun nameOf(code: Int): String = NAMES[code] ?: "Unknown($code)"
 
-        /** CmdType enum values → names (from mtga-internals/docs/fd-envelope-proto.md). */
+        /** CmdType enum values → names (from Arena client decompilation). */
         private val NAMES = mapOf(
             0 to "Authenticate",
             1 to "StartHook",

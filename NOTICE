@@ -1,0 +1,14 @@
+Leyline
+Copyright 2025-2026 Denis Lebedev
+
+This project includes or depends on the following third-party works:
+
+Forge — MTG rules engine
+  https://github.com/Card-Forge/forge
+  License: GPL-3.0
+  Copyright: Forge contributors
+
+MtgaProto — MTG Arena protobuf definitions
+  https://github.com/riQQ/MtgaProto
+  License: MIT
+  Copyright: riQQ

@@ -15,11 +15,7 @@ We tried to make FD stub mode work offline with the Arena client. Six iterations
 
 ## Reference Docs
 
-- `~/src/mtga-internals/docs/front-door-stub.md` — minimum viable responses, field validation, dispatch table
-- `~/src/mtga-internals/docs/fd-envelope-proto.md` — exact proto field numbers, CmdType enum (120+ values)
-- `~/src/mtga-internals/docs/INDEX.md` — full doc index
-- `~/src/mtga-internals/decompilation-request-frontdoor.md` — original request + findings (RESOLVED)
-- `~/src/mtga-internals/decompilation-request-fd-envelope.md` — envelope extraction task
+All derived from Arena client decompilation: minimum viable responses, field validation, dispatch table, exact proto field numbers, CmdType enum (120+ values).
 
 ## Envelope Schema (from fd-envelope-proto.md)
 

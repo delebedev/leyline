@@ -529,7 +529,7 @@ class MatchSession(
     /**
      * Send game-over sequence: 3x GS Diff + IntermissionReq + MatchCompleted room state.
      *
-     * Per mtga-internals/docs/post-game-protocol.md, the full sequence is:
+     * Per client decompilation (post-game protocol), the full sequence is:
      * 1. Server sends 3x GSM (GameOver) + IntermissionReq
      * 2. Client responds with CheckpointReq (handled in MatchHandler)
      * 3. Server sends MatchGameRoomStateChangedEvent (MatchCompleted)
