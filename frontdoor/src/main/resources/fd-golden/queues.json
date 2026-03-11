@@ -1,0 +1,110 @@
+[
+  {
+    "id": "StandardRanked",
+    "queueType": "Ranked",
+    "locTitle": "PlayBlade/FindMatch/Blade_Standard_Ladder",
+    "eventNameBO1": "Ladder",
+    "eventNameBO3": "Traditional_Ladder"
+  },
+  {
+    "id": "AlchemyRanked",
+    "queueType": "Ranked",
+    "locTitle": "PlayBlade/FindMatch/Blade_Alchemy_Ladder",
+    "eventNameBO1": "Alchemy_Ladder",
+    "eventNameBO3": "Traditional_Alchemy_Ladder"
+  },
+  {
+    "id": "SparkAlchemyRanked",
+    "queueType": "Ranked",
+    "locTitle": "Events/Event_Title_Spark_Ladder",
+    "eventNameBO1": "Spark_Alchemy_Ladder",
+    "deckSizeBO3": "MainNav/General/Empty_String",
+    "sideboardBO3": "MainNav/General/Empty_String"
+  },
+  {
+    "id": "HistoricRanked",
+    "queueType": "Ranked",
+    "locTitle": "PlayBlade/FindMatch/Blade_Traditional_Historic_Ladder",
+    "eventNameBO1": "Historic_Ladder",
+    "eventNameBO3": "Traditional_Historic_Ladder"
+  },
+  {
+    "id": "ExplorerRanked",
+    "queueType": "Ranked",
+    "locTitle": "Events/Event_Title_Explorer_Ladder",
+    "eventNameBO1": "Explorer_Ladder",
+    "eventNameBO3": "Traditional_Explorer_Ladder"
+  },
+  {
+    "id": "TimelessRanked",
+    "queueType": "Ranked",
+    "locTitle": "Events/Event_Title_Timeless_Ladder",
+    "eventNameBO1": "Timeless_Ladder",
+    "eventNameBO3": "Traditional_Timeless_Ladder"
+  },
+  {
+    "id": "StandardUnranked",
+    "queueType": "Unranked",
+    "locTitle": "PlayBlade/FindMatch/Blade_Traditional_Standard_Play",
+    "eventNameBO1": "Play",
+    "eventNameBO3": "Constructed_BestOf3"
+  },
+  {
+    "id": "AlchemyUnranked",
+    "queueType": "Unranked",
+    "locTitle": "PlayBlade/FindMatch/Blade_Alchemy_Play",
+    "eventNameBO1": "Alchemy_Play",
+    "eventNameBO3": "Traditional_Alchemy_Play"
+  },
+  {
+    "id": "HistoricUnranked",
+    "queueType": "Unranked",
+    "locTitle": "PlayBlade/FindMatch/Blade_Traditional_Historic_Play",
+    "eventNameBO1": "Historic_Play",
+    "eventNameBO3": "Traditional_Historic_Play"
+  },
+  {
+    "id": "ExplorerUnranked",
+    "queueType": "Unranked",
+    "locTitle": "Events/Event_Title_Explorer_Play",
+    "eventNameBO1": "Explorer_Play",
+    "eventNameBO3": "Traditional_Explorer_Play"
+  },
+  {
+    "id": "TimelessUnranked",
+    "queueType": "Unranked",
+    "locTitle": "Events/Event_Title_Play_Timeless",
+    "eventNameBO1": "Timeless_Play",
+    "deckSizeBO3": "MainNav/General/Empty_String",
+    "sideboardBO3": "MainNav/General/Empty_String"
+  },
+  {
+    "id": "AIBotMatch",
+    "queueType": "Unranked",
+    "locTitle": "Events/Event_Title_AIBotMatch",
+    "eventNameBO1": "AIBotMatch",
+    "deckSizeBO3": "MainNav/General/Empty_String",
+    "sideboardBO1": "MainNav/General/Empty_String",
+    "sideboardBO3": "MainNav/General/Empty_String"
+  },
+  {
+    "id": "HistoricBrawl",
+    "queueType": "Brawl",
+    "locTitle": "Events/Event_Title_Play_Brawl_Historic",
+    "eventNameBO1": "Play_Brawl_Historic",
+    "deckSizeBO1": "Events/Deck_100commander",
+    "deckSizeBO3": "MainNav/General/Empty_String",
+    "sideboardBO1": "MainNav/General/Empty_String",
+    "sideboardBO3": "MainNav/General/Empty_String"
+  },
+  {
+    "id": "StandardBrawl",
+    "queueType": "Brawl",
+    "locTitle": "Events/Event_Title_Play_Brawl_Bo1",
+    "eventNameBO1": "Play_Brawl",
+    "deckSizeBO1": "Events/Deck_60commander",
+    "deckSizeBO3": "MainNav/General/Empty_String",
+    "sideboardBO1": "MainNav/General/Empty_String",
+    "sideboardBO3": "MainNav/General/Empty_String"
+  }
+]

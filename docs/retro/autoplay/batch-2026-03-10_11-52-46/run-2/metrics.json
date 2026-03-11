@@ -1,0 +1,18 @@
+{
+  "tool_calls": 28,
+  "screenshots": 0,
+  "ocr_calls": 4,
+  "scry_calls": 15,
+  "blind_clicks_888": 8,
+  "drag_calls": 10,
+  "total_input_tokens": 0,
+  "total_output_tokens": 0,
+  "total_cost_usd": null,
+  "duration_ms": 0,
+  "num_turns": 0,
+  "game_num": 2,
+  "turns_reached": 6,
+  "kill_reason": "absolute timeout (600s)",
+  "exit_code": -15,
+  "wall_time_s": 608.3
+}

@@ -287,7 +287,7 @@ class FrontDoorHandlerTest :
             ids shouldContain "StandardBrawl"
         }
 
-        test("CmdType 624 - ActiveEventsV2 has events for all formats") {
+        test("CmdType 624 - ActiveEventsV2 has all formats, ColorChallenge, and AiBotMatches") {
             val obj = sendJson(624)
             val events = obj["Events"]?.jsonArray
             events.shouldNotBeNull()
@@ -296,8 +296,14 @@ class FrontDoorHandlerTest :
             names shouldContain "Ladder"
             names shouldContain "Historic_Ladder"
             names shouldContain "Explorer_Ladder"
-            names shouldContain "Timeless_Ladder"
-            names shouldContain "AIBotMatch"
+            names shouldContain "ColorChallenge"
+            names shouldContain "ColorChallenge_Node5_W"
+
+            val bots = obj["AiBotMatches"]?.jsonArray
+            bots.shouldNotBeNull()
+            bots.shouldNotBeEmpty()
+            val botNames = bots.map { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content }
+            botNames shouldContain "AIBotMatch"
         }
 
         test("CmdType 624 - every event matches reference shape from real server") {
@@ -309,7 +315,7 @@ class FrontDoorHandlerTest :
             }
         }
 
-        test("CmdType 623 - EventGetCoursesV2 returns default courses") {
+        test("CmdType 623 - EventGetCoursesV2 returns courses with defaults") {
             val obj = sendJson(623)
             val courses = obj["Courses"]?.jsonArray
             courses.shouldNotBeNull()

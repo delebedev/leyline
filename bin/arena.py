@@ -185,6 +185,51 @@ def fetch_api(path: str) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# Scry fallback (Player.log parser — works without debug server)
+# ---------------------------------------------------------------------------
+
+_scry_cache: dict | None = None
+_scry_cache_ts: float = 0.0
+_SCRY_TTL = 1.0  # cache 1s — scry takes ~0.3s
+
+
+def _scry_state() -> dict | None:
+    """Run bin/scry state, return parsed JSON dict or None on failure.
+
+    Cached for 1s to avoid hammering the subprocess during polling loops.
+    """
+    global _scry_cache, _scry_cache_ts
+    now = time.time()
+    if _scry_cache is not None and now - _scry_cache_ts < _SCRY_TTL:
+        return _scry_cache
+
+    scry_path = Path(__file__).resolve().parent / "scry"
+    try:
+        p = subprocess.run(
+            [str(scry_path), "state"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=PROJECT_DIR,
+        )
+        if p.returncode != 0 or not p.stdout.strip():
+            return None
+        data = json.loads(p.stdout)
+        _scry_cache = data
+        _scry_cache_ts = time.time()
+        return data
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError, OSError):
+        return None
+
+
+def _normalize_zone(zone_type: str) -> str:
+    """Normalize scry zone names (ZoneType_Hand → Hand, ZoneType_Battlefield → Battlefield)."""
+    if zone_type.startswith("ZoneType_"):
+        return zone_type[len("ZoneType_"):]
+    return zone_type
+
+
 _SCENE_RE = re.compile(r"\[UnityCrossThreadLogger\]Client\.SceneChange\s+(\{.+\})")
 _CONNECT_RE = re.compile(r'"type"\s*:\s*"GREMessageType_ConnectResp"')
 _GAME_OVER_RE = re.compile(r'"gameOver"\s*:\s*true')
@@ -586,16 +631,29 @@ def _verified_drag(
 
 
 def _get_card_zone(instance_id: int) -> str | None:
-    """Get current zone for a card by instanceId from debug API."""
+    """Get current zone for a card by instanceId.
+
+    Tries debug API first, falls back to scry (Player.log parser).
+    """
+    # Primary: debug API
     raw = fetch_api("/api/id-map?active=true")
-    if not raw:
+    if raw:
+        entries = json.loads(raw)
+        if isinstance(entries, dict):
+            entries = entries.get("data", [])
+        for e in entries:
+            if e.get("instanceId") == instance_id:
+                return e.get("forgeZone")
+
+    # Fallback: scry state
+    state = _scry_state()
+    if state is None:
         return None
-    entries = json.loads(raw)
-    if isinstance(entries, dict):
-        entries = entries.get("data", [])
-    for e in entries:
-        if e.get("instanceId") == instance_id:
-            return e.get("forgeZone")
+    for zone in state.get("zones", []):
+        for obj in zone.get("objects", []):
+            obj_id = obj.get("id") if isinstance(obj, dict) else obj
+            if obj_id == instance_id:
+                return _normalize_zone(zone.get("type", ""))
     return None
 
 
@@ -637,19 +695,37 @@ def _find_hand_card(
     """Find a hand card's screen coords and instanceId.
 
     Uses debug API for card identity + detection for screen position.
+    Falls back to scry (Player.log parser) when debug API is unavailable.
     Returns ((cx, cy), instanceId) or None.
     """
-    # 1. Get hand from debug API
-    raw = fetch_api("/api/id-map?active=true")
-    if not raw:
-        return None
-    entries = json.loads(raw)
-    if isinstance(entries, dict):
-        entries = entries.get("data", [])
+    hand_cards: list[dict] = []
 
-    hand_cards = [
-        e for e in entries if e.get("forgeZone") == "Hand" and e.get("ownerSeatId") == 1
-    ]
+    # 1. Get hand — try debug API first, fall back to scry
+    raw = fetch_api("/api/id-map?active=true")
+    if raw:
+        entries = json.loads(raw)
+        if isinstance(entries, dict):
+            entries = entries.get("data", [])
+        hand_cards = [
+            e
+            for e in entries
+            if e.get("forgeZone") == "Hand" and e.get("ownerSeatId") == 1
+        ]
+    else:
+        # Fallback: scry state
+        state = _scry_state()
+        if state:
+            for card in state.get("hand", []):
+                # Normalize to same shape as debug API entries
+                hand_cards.append(
+                    {
+                        "instanceId": card.get("id"),
+                        "cardName": card.get("name", ""),
+                    }
+                )
+
+    if not hand_cards:
+        return None
 
     # Find card by name (case-insensitive partial match)
     target = None
