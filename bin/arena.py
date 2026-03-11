@@ -315,13 +315,15 @@ def cmd_launch(args: list[str]) -> None:
         else:
             die(f"Unknown arg: {a}")
 
-    # Auto-detect: fullscreen on non-retina monitors where the window overflows.
+    # Auto-detect: fullscreen on non-retina 1080p monitors where the window overflows.
     # MTGA at 1920x1080 + title bar = 1920x1108. On 1080p that's 59px off-screen.
+    # HiDPI/4K monitors that report "UI Looks like: 1920 x 1080" are fine windowed.
     if not fullscreen:
         _, sips_out, _ = run(
             "system_profiler", "SPDisplaysDataType",
         )
-        if "1920 x 1080" in sips_out and "Retina" not in sips_out:
+        native_1080p = "1920 x 1080" in sips_out and "Retina" not in sips_out and "UI Looks like" not in sips_out
+        if native_1080p:
             fullscreen = True
 
     if kill:
