@@ -187,7 +187,12 @@ def dispatch(args):
     # --- conform ---
     if noun == "conform":
         if verb == "run":
-            _run_python("segments.py", "diff", args.template, args.engine)
+            extra = []
+            if getattr(args, "json", False):
+                extra.append("--json")
+            if getattr(args, "golden", None):
+                extra += ["--golden", args.golden]
+            _run_python("segments.py", "diff", args.template, args.engine, *extra)
         elif verb == "index":
             print("tape conform index: not yet implemented", file=sys.stderr)
             sys.exit(1)
@@ -426,6 +431,8 @@ def main():
     p = ss.add_parser("run", help="Bind + hydrate + diff")
     p.add_argument("template")
     p.add_argument("engine")
+    p.add_argument("--json", action="store_true", help="Output structured JSON result")
+    p.add_argument("--golden", help="Compare against golden file; exit 2 on regression")
 
     ss.add_parser("index", help="Overall conformance score")
 

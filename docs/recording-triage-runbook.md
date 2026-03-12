@@ -146,7 +146,7 @@ Read these **before** coding. They compress thousands of LOC into patterns and t
 | Priority/prompt flow | `docs/priority-system-analysis.md` |
 | Proto field meanings | `recording-analysis-runbook.md` §4 Pattern Catalog, §5 updateType Semantics |
 | Debugging test timeout | `CLAUDE.md` cookbook "Debugging a test timeout" |
-| Debugging conformance failure | `docs/conformance-debugging.md` |
+| Debugging conformance failure | `docs/conformance/debugging.md` |
 
 ### Key source files by role
 

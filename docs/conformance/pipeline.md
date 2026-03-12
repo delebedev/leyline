@@ -134,23 +134,19 @@ This prevents false positives from bystander permanents whose field ordering or 
 ## Quick Start
 
 ```bash
-# 1. List segments in a recording
-just tape segment list [session]
-
-# 2. Extract + templatize a segment
-just tape segment template PlayLand [session] > /tmp/playland-template.json
-
-# 3. Generate puzzle from segment
-just tape segment puzzle PlayLand [session]
-
-# 4. Run engine tests (writes to matchdoor/build/conformance/)
-just test-one ConformancePipelineTest
-
-# 5. Diff template against engine output
-just tape conform run /tmp/playland-template.json matchdoor/build/conformance/playland-frame.json
-
-# One-shot (planned):
+# One-shot: engine test → template → diff (with golden regression check)
 just conform PlayLand [session]
+
+# Capture golden baseline after a successful run
+just conform-golden PlayLand [session]
+
+# Manual steps (if needed):
+just tape segment list [session]                          # 1. List segments
+just tape segment template PlayLand [session] > /tmp/t.json  # 2. Templatize
+just test-one ConformancePipelineTest                     # 3. Run engine
+just tape conform run /tmp/t.json matchdoor/build/conformance/playland-frame.json  # 4. Diff
+just tape conform run /tmp/t.json engine.json --json      # 4b. JSON output
+just tape conform run /tmp/t.json engine.json --golden golden.json  # 4c. With regression check
 ```
 
 Session defaults to the most recent recording with `md-frames.jsonl`. Substring matching works: `CHALLENGE-STARTER-SEAT1` matches the full timestamp prefix.
@@ -178,8 +174,14 @@ Session defaults to the most recent recording with `md-frames.jsonl`. Substring 
 | Engine JSON serializer | `AnnotationSerializer.kt` | **Done** |
 | Engine run tests | `ConformancePipelineTest.kt` | **Done** |
 | Bind IDs + hydrate + diff | `md-segments.py diff` | **Done** |
+| JSON diff output | `md-segments.py diff --json` | **Done** |
+| Golden regression check | `md-segments.py diff --golden <file>` | **Done** |
+| One-shot recipe | `just conform <category> [session]` | **Done** |
+| Golden capture recipe | `just conform-golden <category> [session]` | **Done** |
+| PlayLand golden baseline | `matchdoor/src/test/resources/golden/conform-playland.json` | **Done** |
+| Wire spec schema | `docs/conformance/wire-spec-schema.md` | **Done** |
+| Diagnosis schema | `docs/conformance/diagnosis-schema.md` | **Done** |
 | **State reduction (active set)** | — | **Not built** |
-| **`just conform` recipe** | — | **Not built** |
 
 ## Discoveries
 
