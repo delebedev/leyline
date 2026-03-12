@@ -54,8 +54,8 @@ data class MatchConfig(
 
     /** Validate config values. Throws [IllegalArgumentException] on invalid state. */
     fun validate() {
-        require(game.dieRollWinner in 1..2) {
-            "game.die_roll_winner must be 1 or 2, got ${game.dieRollWinner}"
+        game.dieRollWinner?.let {
+            require(it in 1..2) { "game.die_roll_winner must be 1 or 2, got $it" }
         }
         require(ai.speed >= 0.0) {
             "ai.speed must be non-negative, got ${ai.speed}"
@@ -79,7 +79,8 @@ data class MatchConfig(
     fun summary(): String = buildString {
         append("seed=")
         append(game.seed ?: "random")
-        append(" first=seat${game.dieRollWinner}")
+        append(" first=")
+        append(game.dieRollWinner?.let { "seat$it" } ?: "random")
         append(" skipMulligan=${game.skipMulligan}")
         append(" aiSpeed=${ai.speed}x")
     }
@@ -130,10 +131,11 @@ data class GameConfig(
 
     /**
      * Which seat wins the die roll (and goes first).
-     * 1 = human goes first, 2 = AI goes first (default).
+     * 1 = human goes first, 2 = AI goes first.
+     * Null = randomize at match start (default).
      */
     @SerialName("die_roll_winner")
-    val dieRollWinner: Int = 2,
+    val dieRollWinner: Int? = null,
 
     /**
      * Skip the mulligan phase — auto-keep opening hand.
