@@ -4,6 +4,7 @@ import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
 import leyline.LeylinePaths
 import leyline.recording.RecordingDecoder
+import leyline.recording.parseTurnRange
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.io.File
@@ -28,18 +29,22 @@ private val INT_TYPES = setOf(
 fun main(args: Array<String>) {
     val targetId = args.firstOrNull()?.toIntOrNull()
     if (targetId == null) {
-        System.err.println("Usage: proto-trace <id> [payloads-dir]")
+        System.err.println("Usage: proto-trace <id> [payloads-dir] [--start N] [--finish N]")
         System.exit(1)
         return
     }
 
-    val dir = File(args.getOrElse(1) { LeylinePaths.CAPTURE_PAYLOADS.absolutePath })
+    // Second positional arg is dir (skip flags)
+    val dirPath = args.drop(1).firstOrNull { !it.startsWith("--") && it.toIntOrNull() == null }
+        ?: args.getOrElse(1) { LeylinePaths.CAPTURE_PAYLOADS.absolutePath }
+    val dir = File(dirPath)
     if (!dir.isDirectory) {
         System.err.println("Not a directory: $dir")
         System.exit(1)
         return
     }
 
+    val turnRange = parseTurnRange(args.toList())
     val files = RecordingDecoder.listRecordingFiles(dir)
 
     if (files.isEmpty()) {
@@ -52,9 +57,13 @@ fun main(args: Array<String>) {
     val labels = mutableMapOf<Int, String>() // instanceId → "Land/Swamp" etc.
     var totalHits = 0
     var filesWithHits = 0
+    var currentTurn = 0
 
     println("Tracing ID: $targetId")
     println("Payloads: ${files.size} files in $dir")
+    if (turnRange.active) {
+        println("Turn range: ${turnRange.start ?: "*"}..${turnRange.finish ?: "*"}")
+    }
     println()
 
     for (file in files) {
@@ -62,6 +71,17 @@ fun main(args: Array<String>) {
 
         if (!msg.hasGreToClientEvent()) continue
         val greMessages = msg.greToClientEvent.greToClientMessagesList
+
+        // Track current turn from GSMs
+        val fileTurn = extractTurn(greMessages)
+        if (fileTurn != null) currentTurn = fileTurn
+
+        // Skip files outside turn range
+        if (turnRange.active && !turnRange.contains(currentTurn)) {
+            // Still learn labels for context even when skipping
+            for (gre in greMessages) learnLabels(gre, tracing, labels)
+            continue
+        }
 
         // Learn card labels from gameObjects before reporting hits
         for (gre in greMessages) {
@@ -92,7 +112,8 @@ fun main(args: Array<String>) {
         }
 
         if (fileHits.isNotEmpty()) {
-            println("=== ${file.name} ===")
+            val turnTag = if (turnRange.active) " (T$currentTurn)" else ""
+            println("=== ${file.name}$turnTag ===")
             fileHits.forEach(::println)
             println()
             totalHits += fileHits.count { it.startsWith("    ") }
@@ -105,6 +126,23 @@ fun main(args: Array<String>) {
         println("Labels: ${labels.entries.joinToString(", ") { "${it.key}=${it.value}" }}")
     }
     println("Summary: $totalHits hits across $filesWithHits files. Traced IDs: $tracing")
+}
+
+/** Extract the latest turn number from GRE messages in a payload. */
+private fun extractTurn(greMessages: List<com.google.protobuf.Message>): Int? {
+    var turn: Int? = null
+    for (gre in greMessages) {
+        val gsmField = gre.descriptorForType.findFieldByName("gameStateMessage") ?: continue
+        if (!gre.hasField(gsmField)) continue
+        val gsm = gre.getField(gsmField) as com.google.protobuf.Message
+        val tiField = gsm.descriptorForType.findFieldByName("turnInfo") ?: continue
+        if (!gsm.hasField(tiField)) continue
+        val ti = gsm.getField(tiField) as com.google.protobuf.Message
+        val turnField = ti.descriptorForType.findFieldByName("turnNumber") ?: continue
+        val t = ti.getField(turnField) as? Int ?: continue
+        if (t > 0) turn = t
+    }
+    return turn
 }
 
 private fun walkMessage(

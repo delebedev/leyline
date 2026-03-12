@@ -28,6 +28,10 @@ fun main(args: Array<String>) {
         System.err.println("  --seat 1   Player perspective (default)")
         System.err.println("  --seat 2   AI/Sparky perspective")
         System.err.println("  --seat 0   All seats interleaved (legacy)")
+        System.err.println()
+        System.err.println("Turn range:")
+        System.err.println("  --start N   Only include turns >= N")
+        System.err.println("  --finish N  Only include turns <= N")
         System.exit(1)
         return
     }
@@ -41,20 +45,37 @@ fun main(args: Array<String>) {
 
     val accumulate = args.any { it == "--accumulate" }
     val priority = args.any { it == "--priority" }
-    val outputPath = args.drop(1).firstOrNull { !it.startsWith("--") && it != args.getOrNull(args.indexOf("--seat") + 1) }
+    val flagValues = setOf("--seat", "--start", "--finish")
+    val outputPath = args.drop(1).firstOrNull { !it.startsWith("--") && args.toList().let { a -> flagValues.none { f -> a.indexOf(f).let { i -> i >= 0 && a.getOrNull(i + 1) == it } } } }
 
     // Parse --seat flag (default: 1 = player perspective)
     val seatFilter = parseSeatFilter(args.toList())
+    val turnRange = parseTurnRange(args.toList())
 
     // Print seat identification
     val seats = RecordingDecoder.detectSeats(dir)
     printSeatIdentification(seats)
 
-    val messages = RecordingDecoder.decodeDirectory(dir, seatFilter)
-    if (messages.isEmpty()) {
+    val allMessages = RecordingDecoder.decodeDirectory(dir, seatFilter)
+    if (allMessages.isEmpty()) {
         System.err.println("No parseable MatchServiceToClientMessage payloads found in $dir")
         System.exit(1)
         return
+    }
+
+    // Apply turn range filter: keep messages up to and including the finish turn,
+    // starting from the start turn. Messages without turnInfo inherit the last seen turn.
+    val messages = if (turnRange.active) {
+        var lastTurn = 0
+        allMessages.filter { msg ->
+            val turn = msg.turnInfo?.turn ?: lastTurn
+            if (msg.turnInfo != null) lastTurn = turn
+            turnRange.contains(turn)
+        }.also {
+            System.err.println("Turn range: ${turnRange.start ?: "*"}..${turnRange.finish ?: "*"} (${it.size}/${allMessages.size} messages)")
+        }
+    } else {
+        allMessages
     }
 
     val filterDesc = if (seatFilter != null) " (seat $seatFilter)" else " (all seats)"

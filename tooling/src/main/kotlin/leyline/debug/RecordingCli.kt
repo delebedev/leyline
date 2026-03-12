@@ -3,6 +3,7 @@ package leyline.debug
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import leyline.recording.RecordingInspector
+import leyline.recording.parseTurnRange
 
 /**
  * Recording inspector CLI.
@@ -101,10 +102,15 @@ fun main(args: Array<String>) {
                 printUsage()
                 return
             }
+            val range = parseTurnRange(args.toList())
             val entries = inspector.turninfo(ref)
+                ?.let { all -> if (range.active) all.filter { range.contains(it.turn) } else all }
             if (entries.isNullOrEmpty()) {
                 println("No turnInfo entries found.")
                 return
+            }
+            if (range.active) {
+                System.err.println("Turn range: ${range.start ?: "*"}..${range.finish ?: "*"}")
             }
             println("gsId\tmsgId\tturn\tphase\tstep\tactive\tpriority\tdecision")
             entries.forEach {
@@ -149,5 +155,5 @@ private fun printUsage() {
     System.err.println("  RecordingCli actions <session-dir-or-id> [--card X] [--actor Y] [--limit N]")
     System.err.println("  RecordingCli who-played <session-dir-or-id> --card X")
     System.err.println("  RecordingCli compare <left-session> <right-session>")
-    System.err.println("  RecordingCli turninfo <session-dir-or-id>")
+    System.err.println("  RecordingCli turninfo <session-dir-or-id> [--start N] [--finish N]")
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """tape — recording analysis, proto inspection, conformance."""
+
 import argparse
 import os
 import subprocess
@@ -15,9 +16,7 @@ TAPE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(os.path.dirname(TAPE_DIR))
 
 CLASSPATH_FILE = os.path.join(PROJECT_DIR, "target", "classpath.txt")
-LOGBACK_CLI = os.path.join(
-    PROJECT_DIR, "app", "main", "resources", "logback-cli.xml"
-)
+LOGBACK_CLI = os.path.join(PROJECT_DIR, "app", "main", "resources", "logback-cli.xml")
 
 # JVM flags matching justfile's _cli helper
 _JVM_BASE = (
@@ -43,11 +42,13 @@ def _classpath():
     with open(CLASSPATH_FILE) as f:
         base_cp = f.read().strip()
     # Match justfile _cp: classpath.txt + build dirs
-    extra = ":".join([
-        os.path.join(PROJECT_DIR, "build", "classes", "kotlin", "main"),
-        os.path.join(PROJECT_DIR, "build", "classes", "java", "main"),
-        os.path.join(PROJECT_DIR, "build", "resources", "main"),
-    ])
+    extra = ":".join(
+        [
+            os.path.join(PROJECT_DIR, "build", "classes", "kotlin", "main"),
+            os.path.join(PROJECT_DIR, "build", "classes", "java", "main"),
+            os.path.join(PROJECT_DIR, "build", "resources", "main"),
+        ]
+    )
     return f"{base_cp}:{extra}"
 
 
@@ -65,9 +66,7 @@ def _run_python(script_name, *cli_args):
     """Run a sibling Python script."""
     script = os.path.join(TAPE_DIR, script_name)
     args_list = [a for a in cli_args if a]
-    result = subprocess.run(
-        [sys.executable, script] + args_list, cwd=PROJECT_DIR
-    )
+    result = subprocess.run([sys.executable, script] + args_list, cwd=PROJECT_DIR)
     if result.returncode:
         sys.exit(result.returncode)
 
@@ -122,7 +121,12 @@ def dispatch(args):
                 *extra,
             )
         if verb == "turns":
-            _java("leyline.debug.RecordingCliKt", "turninfo", args.session)
+            extra = []
+            if args.start is not None:
+                extra += ["--start", str(args.start)]
+            if args.finish is not None:
+                extra += ["--finish", str(args.finish)]
+            _java("leyline.debug.RecordingCliKt", "turninfo", args.session, *extra)
         if verb == "compare":
             _java(
                 "leyline.debug.RecordingCliKt",
@@ -139,9 +143,7 @@ def dispatch(args):
                 *extra,
             )
         if verb == "violations":
-            _java(
-                "leyline.analysis.AnalysisCliKt", "violations", args.session
-            )
+            _java("leyline.analysis.AnalysisCliKt", "violations", args.session)
         if verb == "mechanics":
             _java("leyline.analysis.AnalysisCliKt", "mechanics")
         if verb == "latest-analyzed":
@@ -156,9 +158,7 @@ def dispatch(args):
             _run_python("annotation_ids.py", "analyze", args.session, *extra)
         elif verb == "detail":
             extra = ["--include-details"] if args.include_details else []
-            _run_python(
-                "annotation_ids.py", "detail", args.type, args.session, *extra
-            )
+            _run_python("annotation_ids.py", "detail", args.type, args.session, *extra)
         elif verb == "variance":
             _java("leyline.debug.AnnotationVarianceKt", *args.extra)
         elif verb == "contract":
@@ -175,9 +175,7 @@ def dispatch(args):
         if verb == "list":
             _run_python("segments.py", "list", args.session or "")
         elif verb == "extract":
-            _run_python(
-                "segments.py", "extract", args.category, args.session or ""
-            )
+            _run_python("segments.py", "extract", args.category, args.session or "")
         elif verb == "template":
             cli_args = ["template", args.category]
             if args.session:
@@ -209,9 +207,18 @@ def dispatch(args):
                 )
                 _java("leyline.debug.DecodeCaptureKt", payloads)
         elif verb == "trace":
-            _java("leyline.debug.TraceKt", args.id, args.dir or "")
+            extra = []
+            if args.start is not None:
+                extra += ["--start", str(args.start)]
+            if args.finish is not None:
+                extra += ["--finish", str(args.finish)]
+            _java("leyline.debug.TraceKt", args.id, args.dir or "", *extra)
         elif verb == "accumulate":
             extra = [args.output] if args.output else []
+            if args.start is not None:
+                extra += ["--start", str(args.start)]
+            if args.finish is not None:
+                extra += ["--finish", str(args.finish)]
             _java(
                 "leyline.recording.RecordingDecoderMainKt",
                 args.dir,
@@ -232,9 +239,7 @@ def dispatch(args):
             _java("leyline.debug.InspectKt", args.file)
         elif verb == "decode-recording":
             extra = [args.output] if args.output else []
-            _java(
-                "leyline.recording.RecordingDecoderMainKt", args.dir, *extra
-            )
+            _java("leyline.recording.RecordingDecoderMainKt", args.dir, *extra)
         elif verb in ("diff-prep", "diff", "extract"):
             print(
                 f"tape proto {verb}: use 'just proto-{verb}' (bash script)",
@@ -251,9 +256,7 @@ def dispatch(args):
                 import glob
 
                 caps = sorted(
-                    glob.glob(
-                        os.path.join(PROJECT_DIR, "recordings", "*", "capture")
-                    ),
+                    glob.glob(os.path.join(PROJECT_DIR, "recordings", "*", "capture")),
                     reverse=True,
                 )
                 if not caps:
@@ -290,6 +293,12 @@ def main():
               tape proto decode <dir>     decode protobuf payloads
               tape annotation ranges      ID range classification
               tape segment list           list segment categories
+
+            turn range (--start N, --finish N):
+              tape session turns <s> --finish 5          turns 1-5
+              tape session turns <s> --start 3 --finish 5  turns 3-5
+              tape proto accumulate <dir> --finish 3     snapshots through turn 3
+              tape proto trace <id> <dir> --start 4      trace from turn 4 on
         """),
     )
     subs = parser.add_subparsers(dest="noun")
@@ -316,8 +325,10 @@ def main():
     p.add_argument("--actor", default="")
     p.add_argument("--limit", default="500")
 
-    p = ss.add_parser("turns", help="Turn/phase/step timeline (Kotlin)")
+    p = ss.add_parser("turns", help="Turn/phase/step timeline (--start/--finish)")
     p.add_argument("session")
+    p.add_argument("--start", type=int, default=None, help="Only include turns >= N")
+    p.add_argument("--finish", type=int, default=None, help="Only include turns <= N")
 
     p = ss.add_parser("compare", help="Compare two recordings (Kotlin)")
     p.add_argument("left")
@@ -332,9 +343,7 @@ def main():
 
     ss.add_parser("mechanics", help="Cross-session mechanic coverage (Kotlin)")
 
-    ss.add_parser(
-        "latest-analyzed", help="Summary + analysis of most recent (Kotlin)"
-    )
+    ss.add_parser("latest-analyzed", help="Summary + analysis of most recent (Kotlin)")
 
     # --- proto ---
     s = subs.add_parser("proto", help="Protobuf decode, trace, accumulate")
@@ -346,19 +355,23 @@ def main():
     p = ss.add_parser("inspect", help="Inspect a .bin template")
     p.add_argument("file")
 
-    p = ss.add_parser("trace", help="Trace an ID across payloads")
+    p = ss.add_parser("trace", help="Trace an ID across payloads (--start/--finish)")
     p.add_argument("id")
     p.add_argument("dir", nargs="?", default="")
+    p.add_argument("--start", type=int, default=None, help="Only include turns >= N")
+    p.add_argument("--finish", type=int, default=None, help="Only include turns <= N")
 
     p = ss.add_parser("decode-recording", help="Decode recording to JSONL")
     p.add_argument("dir")
     p.add_argument("output", nargs="?", default="")
 
     p = ss.add_parser(
-        "accumulate", help="Decode + accumulate state snapshots"
+        "accumulate", help="Decode + accumulate snapshots (--start/--finish)"
     )
     p.add_argument("dir")
     p.add_argument("output", nargs="?", default="")
+    p.add_argument("--start", type=int, default=None, help="Only include turns >= N")
+    p.add_argument("--finish", type=int, default=None, help="Only include turns <= N")
 
     p = ss.add_parser("priority", help="Priority analysis report")
     p.add_argument("dir")
@@ -382,9 +395,7 @@ def main():
     p.add_argument("session", nargs="?", default="")
     p.add_argument("--include-details", action="store_true")
 
-    p = ss.add_parser(
-        "variance", help="Cross-session annotation variance (Kotlin)"
-    )
+    p = ss.add_parser("variance", help="Cross-session annotation variance (Kotlin)")
     p.add_argument("extra", nargs="*")
 
     p = ss.add_parser("contract", help="Full annotation contract (Kotlin)")
