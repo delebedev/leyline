@@ -2,6 +2,7 @@ package leyline.game
 
 import forge.game.phase.PhaseType
 import forge.game.zone.ZoneType
+import forge.util.MyRandom
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -20,6 +21,7 @@ import leyline.conformance.TestCardRegistry
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages
+import java.util.Random
 
 /**
  * Integration tests for [GameBridge] — verifies the real Forge engine
@@ -304,6 +306,33 @@ class GameBridgeTest :
                 val inZone = gs.zonesList.any { obj.instanceId in it.objectInstanceIdsList }
                 inZone.shouldBeTrue()
             }
+        }
+
+        // --- Die roll winner randomization ---
+
+        test("dieRollWinner uses RNG when config unset") {
+            MyRandom.setRandom(Random(42))
+            val b1 = GameBridge()
+            val r1 = b1.dieRollWinner
+            (r1 in 1..2).shouldBeTrue()
+
+            // Same seed produces same result (deterministic)
+            MyRandom.setRandom(Random(42))
+            val b2 = GameBridge()
+            b2.dieRollWinner shouldBe r1
+
+            // Lazy val is stable across accesses
+            b1.dieRollWinner shouldBe r1
+        }
+
+        test("dieRollWinner respects config override") {
+            val config1 = MatchConfig(game = GameConfig(dieRollWinner = 1))
+            val b1 = GameBridge(matchConfig = config1)
+            b1.dieRollWinner shouldBe 1
+
+            val config2 = MatchConfig(game = GameConfig(dieRollWinner = 2))
+            val b2 = GameBridge(matchConfig = config2)
+            b2.dieRollWinner shouldBe 2
         }
 
         // --- Deterministic seed tests ---

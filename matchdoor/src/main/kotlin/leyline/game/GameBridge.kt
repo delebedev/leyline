@@ -73,6 +73,15 @@ class GameBridge(
     /** Shared signal — bridges notify when they have a pending item, replacing poll loops. */
     val prioritySignal = PrioritySignal()
 
+    /**
+     * Resolved die roll winner for this match.
+     * Uses config override if set, otherwise randomizes (1 or 2) via Forge RNG.
+     * Lazy — evaluated once, after [start] seeds the RNG.
+     */
+    val dieRollWinner: Int by lazy {
+        matchConfig.game.dieRollWinner ?: (MyRandom.getRandom().nextInt(2) + 1)
+    }
+
     // --- Per-seat bridge maps ---
 
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()

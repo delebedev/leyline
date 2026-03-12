@@ -307,7 +307,7 @@ class MatchHandler(
             gsId,
             deck,
             bridge,
-            dieRollWinner = matchConfig.game.dieRollWinner,
+            dieRollWinner = bridge.dieRollWinner,
         )
         s.counter.setMsgId(nextMsgId)
         Tap.outboundTemplate("InitialBundle seat=$seatId")
