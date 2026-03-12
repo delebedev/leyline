@@ -93,7 +93,7 @@ just seed-db                              # create data/player.db with starter d
 
 ## Quick Reference
 
-All tool CLIs run via just: `just wire ...`, `just tape ...`, `just arena ...`. Always use `just` to invoke tools — never call Python scripts directly.
+All tool CLIs run via just: `just wire ...`, `just tape ...`, `just arena ...`. Always use `just` to invoke tools — never call Python scripts directly. **Discovery:** append `--help` to any tool/subcommand for full usage.
 
 - **Card lookups:** `just card <grpId>`, `just card-grp <name>`, `just ability <id>`, `just card-script <name>`. Full reference: `docs/playbooks/card-lookup-playbook.md`.
 - **Arena CLI:** `just arena` — `click`, `ocr`, `wait`, `capture`, `state`, `issues`. Docs: `tools/arena/docs/cli.md`, `tools/arena/docs/nav.md`.
