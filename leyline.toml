@@ -22,6 +22,7 @@
 #seed = 2
 
 # Which seat wins the die roll and goes first (1 = human, 2 = AI).
+# Omit or leave unset for random (default).
 #die_roll_winner = 1
 
 # Skip mulligan phase — auto-keep opening hand to speed up playtesting.

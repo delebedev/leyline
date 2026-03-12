@@ -306,7 +306,7 @@ object HandshakeMessages {
             .build()
 
         // 2) PromptReq: who's going first (same as mulliganReqSeat1)
-        val dieRollWinner = bridge.matchConfig.game.dieRollWinner
+        val dieRollWinner = bridge.dieRollWinner
         val grePrompt = GREToClientMessage.newBuilder()
             .setType(GREMessageType.PromptReq)
             .addSystemSeatIds(seatId).addSystemSeatIds(if (dieRollWinner == seatId) seatId else 3 - seatId)
