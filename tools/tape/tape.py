@@ -41,15 +41,24 @@ def _classpath():
         sys.exit(1)
     with open(CLASSPATH_FILE) as f:
         base_cp = f.read().strip()
-    # Match justfile _cp: classpath.txt + build dirs
-    extra = ":".join(
-        [
-            os.path.join(PROJECT_DIR, "build", "classes", "kotlin", "main"),
-            os.path.join(PROJECT_DIR, "build", "classes", "java", "main"),
-            os.path.join(PROJECT_DIR, "build", "resources", "main"),
-        ]
-    )
-    return f"{base_cp}:{extra}"
+    # Module class dirs prepended so fresh classes take precedence over stale jars.
+    # Matches justfile _cp. Fixes: dev-build + CLI tools seeing old jar bytecode.
+    modules = ["matchdoor", "tooling", "frontdoor", "account", "app"]
+    module_dirs = []
+    for mod in modules:
+        module_dirs.append(
+            os.path.join(PROJECT_DIR, mod, "build", "classes", "kotlin", "main")
+        )
+        module_dirs.append(
+            os.path.join(PROJECT_DIR, mod, "build", "classes", "java", "main")
+        )
+        module_dirs.append(os.path.join(PROJECT_DIR, mod, "build", "resources", "main"))
+    root_dirs = [
+        os.path.join(PROJECT_DIR, "build", "classes", "kotlin", "main"),
+        os.path.join(PROJECT_DIR, "build", "classes", "java", "main"),
+        os.path.join(PROJECT_DIR, "build", "resources", "main"),
+    ]
+    return ":".join(module_dirs) + ":" + base_cp + ":" + ":".join(root_dirs)
 
 
 def _java(*args):
@@ -184,10 +193,22 @@ def dispatch(args):
                 cli_args += ["--index", str(args.index)]
             _run_python("segments.py", *cli_args)
 
+    # --- rec (recording helpers) ---
+    if noun == "rec":
+        if verb == "annotations":
+            _run_python("segments.py", "annotations", args.type, args.session or "")
+        elif verb == "zones":
+            _run_python("segments.py", "zones", args.session or "")
+
     # --- conform ---
     if noun == "conform":
         if verb == "run":
-            _run_python("segments.py", "diff", args.template, args.engine)
+            extra = []
+            if getattr(args, "json", False):
+                extra.append("--json")
+            if getattr(args, "golden", None):
+                extra += ["--golden", args.golden]
+            _run_python("segments.py", "diff", args.template, args.engine, *extra)
         elif verb == "index":
             print("tape conform index: not yet implemented", file=sys.stderr)
             sys.exit(1)
@@ -419,6 +440,19 @@ def main():
     p.add_argument("session", nargs="?")
     p.add_argument("--index", type=int, default=0)
 
+    # --- rec (recording helpers) ---
+    s = subs.add_parser("rec", help="Recording research helpers")
+    ss = s.add_subparsers(dest="verb")
+
+    p = ss.add_parser("annotations", help="Extract annotations by type from recording")
+    p.add_argument(
+        "type", help="Annotation type name (e.g. ZoneTransfer, LayeredEffectCreated)"
+    )
+    p.add_argument("session", nargs="?")
+
+    p = ss.add_parser("zones", help="Zone map from recording (from first full GSM)")
+    p.add_argument("session", nargs="?")
+
     # --- conform ---
     s = subs.add_parser("conform", help="Conformance comparison")
     ss = s.add_subparsers(dest="verb")
@@ -426,6 +460,8 @@ def main():
     p = ss.add_parser("run", help="Bind + hydrate + diff")
     p.add_argument("template")
     p.add_argument("engine")
+    p.add_argument("--json", action="store_true", help="Output structured JSON result")
+    p.add_argument("--golden", help="Compare against golden file; exit 2 on regression")
 
     ss.add_parser("index", help="Overall conformance score")
 
