@@ -106,8 +106,12 @@ class TargetingHandler(private val ops: SessionOps) {
     /**
      * After a cast, check for a pending targeting prompt or intermediate stack state.
      * Returns true if handled (caller should return), false to continue normal flow.
+     *
+     * @param clientAutoResolve true when the client's autoPassOption signals
+     *   "resolve my stack effects" — skips the stack prompt when the player has
+     *   no meaningful responses, matching real server behavior (#92).
      */
-    fun handlePostCastPrompt(bridge: GameBridge): Boolean {
+    fun handlePostCastPrompt(bridge: GameBridge, clientAutoResolve: Boolean = false): Boolean {
         val pendingPrompt = bridge.promptBridge.getPendingPrompt()
         if (pendingPrompt != null) {
             // Modal prompt (ETB trigger fires during resolution)
@@ -131,6 +135,12 @@ class TargetingHandler(private val ops: SessionOps) {
         }
         val g = bridge.getGame()
         if (g != null && !g.stack.isEmpty) {
+            // When auto-resolve is active and the player has no meaningful responses
+            // (only Pass), skip the prompt — let autoPassAndAdvance() handle stack
+            // resolution transparently, matching the real server (#92).
+            if (clientAutoResolve && BundleBuilder.shouldAutoPass(BundleBuilder.buildActions(g, ops.seatId, bridge))) {
+                return false
+            }
             ops.sendRealGameState(bridge)
             return true
         }
