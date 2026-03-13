@@ -1,0 +1,23 @@
+{
+  "status": "FAIL",
+  "annotations": {
+    "compared": 3,
+    "diffs": []
+  },
+  "persistentAnnotations": {
+    "compared": 2,
+    "diffs": [
+      {
+        "index": 1,
+        "type": "extra_recording",
+        "recording": [
+          "ColorProduction"
+        ]
+      }
+    ]
+  },
+  "bindings": {
+    "$var_1": 100,
+    "$var_2": 122
+  }
+}

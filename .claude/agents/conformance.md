@@ -12,7 +12,7 @@ Key areas:
 - `recordings/` — captured Arena sessions (protobuf traces)
 - `docs/catalog.yaml` — mechanic support status (update when findings change)
 - `docs/annotation-field-notes.md` — observed annotation patterns
-- `docs/conformance-debugging.md` — triage flow
+- `docs/conformance/debugging.md` — triage flow
 - `docs/recording-analysis-runbook.md` — how to analyze recordings
 
 Workflow:

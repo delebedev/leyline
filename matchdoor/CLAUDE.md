@@ -75,4 +75,4 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 
 ### Debugging a proto conformance failure
 
-See `docs/conformance-debugging.md` — covers annotation ordering, category codes, instanceId lifecycle, gsId chain, detail key types, diff vs full, and triage flow.
+See `docs/conformance/debugging.md` — covers annotation ordering, category codes, instanceId lifecycle, gsId chain, detail key types, diff vs full, and triage flow.

@@ -116,4 +116,4 @@ grep "StateMapper\|buildFromGame\|ZoneTransfer\|ObjectIdChanged" logs/leyline.lo
 
 ## Verification notes
 
-See `docs/plans/2026-03-08-surveil-zone-transfer-verification.md` for independent subagent verification of these claims against the recording data.
+See `docs/plans/archive/2026-03-08-surveil-zone-transfer-verification.md` for independent subagent verification of these claims against the recording data.
