@@ -66,6 +66,19 @@ log() {
 preflight() {
     log "Pre-flight checks..."
 
+    # Display awake? Unity Metal renders black if display is sleeping.
+    # This is the #1 cause of "MTGA launches but shows black screen."
+    if pmset -g assertions 2>/dev/null | grep -q "PreventUserIdleDisplaySleep.*0"; then
+        log "Display may be sleeping — waking with caffeinate..."
+        caffeinate -u -t 10 &  # send user-activity wake
+        caffeinate -d -i &     # keep display + system awake
+        CAFFEINATE_PID=$!
+        sleep 5
+        log "Display wake assertion set (caffeinate PID: $CAFFEINATE_PID)"
+    else
+        log "Display: awake"
+    fi
+
     # Server running?
     if ! curl -s http://localhost:8090/api/state > /dev/null 2>&1; then
         log "Server not running. Starting..."

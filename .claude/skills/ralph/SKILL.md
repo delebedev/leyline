@@ -15,6 +15,10 @@ You are one iteration of an autonomous loop. Your job:
 
 State from previous iterations is in PROGRESS.md. Read it first.
 
+**Reference:** `~/src/mtga-internals/docs/autoplay/forge-mode-notes.md` has critical Forge-mode
+quirks (Stack/Resolve, combat, Main phase skipping, cards to avoid). Read it if you get stuck
+on gameplay mechanics.
+
 ## Phase 0: Orient
 
 ```bash
@@ -28,7 +32,36 @@ If PROGRESS.md lists a wall as "DEFERRED" or "NEEDS_HUMAN", skip it and play on 
 
 ## Phase 1: Pre-flight
 
-Verify the server and client are up:
+### Display awake?
+
+**Critical:** Unity Metal renders a black screen if the display is sleeping. This is the #1 cause of "MTGA launches but everything is black." Check and wake before anything else:
+
+```bash
+# Check if display sleep prevention is active
+pmset -g assertions | grep PreventUserIdleDisplaySleep
+```
+
+If it shows `0`, wake the display:
+```bash
+caffeinate -u -t 10 &   # send user-activity wake event
+caffeinate -d -i &       # keep display + system awake for the session
+sleep 5
+```
+
+If MTGA was already running while display was asleep, **kill and relaunch** — Unity's Metal context won't recover from a sleeping display.
+
+### Verify display renders
+
+After waking, confirm MTGA actually renders (not just window frame):
+```bash
+bin/arena ocr --fmt
+```
+If only "MTGA" title bar text appears (no UI elements like "Play", deck names, etc.), the display
+is still not rendering. Options:
+1. Kill MTGA, wait 5s, relaunch
+2. If still black after relaunch: defer with NEEDS_HUMAN — display issue, cannot automate blind
+
+### Server up?
 
 ```bash
 curl -s http://localhost:8090/api/state > /dev/null && echo "Server: OK" || echo "Server: DOWN"
@@ -40,83 +73,92 @@ just build && tmux new-session -d -s leyline 'just serve'
 sleep 8
 ```
 
-Check MTGA:
+### MTGA connected?
+
 ```bash
-arena where
+bin/arena where
 ```
 
-If not connected, `arena launch` and wait.
+If not connected, `bin/arena launch` and wait 15-20s for full lobby load.
 
 ## Phase 2: Play
 
 Start a bot match and play until something breaks.
 
-### Start the match
+### Lobby → Bot Match
+
+Proven sequence from v10 autoplay prompt (21 batches of testing):
 
 ```bash
-arena where   # detect current screen
+bin/arena click 40,25 && sleep 2                              # dismiss any overlay
+bin/arena click "Play" --retry 3
+bin/arena wait text="Find Match" --timeout 10
+bin/arena click 867,112 && sleep 1                            # Find Match tab
+bin/arena click "Bot Match" --retry 3 && sleep 1
+bin/arena click 82,455 && sleep 1                             # first deck in list
+bin/arena click 867,516                                       # Play button
+bin/arena wait text="Keep" --timeout 30                       # mulligan screen
+bin/arena click "Keep" --retry 3 && sleep 5                   # keep hand, wait for game
 ```
 
-Navigate to bot match:
+If `wait text="Find Match"` fails, OCR to see where you are and navigate manually.
+
+### Game loop: ACT FAST, SCRY RARELY
+
+**Core rule:** Scry once at start of your turn. Play everything you can. Pass. Scry at start of next turn. Do NOT scry between plays — if `arena play` prints `✓`, the card was played.
+
+**State tool:** `bin/scry state` — returns turn, phase, active_player, hand, actions (legal plays).
+
+#### Your turn (active_player=1, Main1 or Main2)
+
 ```bash
-arena click "Play" --retry 3
-sleep 2
-arena click "Find Match" --retry 3
-sleep 2
-arena click "Bot Match" --retry 3
-sleep 2
+bin/scry state   # read hand + actions once
 ```
 
-Select a deck (use OCR to find deck names):
+Then burst — play everything you can:
+
 ```bash
-arena ocr --fmt   # find deck label and coords
-# Click card art ~80px above the deck name
-arena click <cx>,<cy-80>
-sleep 1
-arena click 866,533   # Play button
-sleep 5                # match load
+# 1. Play a land (if ActionType_Play in actions)
+bin/arena play "<land name>" && sleep 2
+
+# 2. Drain mana — cast ALL spells, cheapest first
+bin/arena play "<cheapest spell>" && sleep 2
+bin/arena play "<next cheapest>" && sleep 2
+# keep going until no more ActionType_Cast in actions
+
+# 3. Pass to combat
+bin/arena click 888,504 && sleep 1 && bin/arena click 888,504 && sleep 2
 ```
 
-Handle mulligan:
+**Forge mode:** Spells go on Stack after drag. Click 888,504 (Resolve) then 888,504 (Pass) after each spell. Lands play directly (no Resolve needed).
+
+If `arena play` prints `✗` or fails: skip that card, try the next one. Don't scry, don't OCR, just move on.
+
+#### Combat (Phase_Combat, active_player=1)
+
 ```bash
-arena click "Keep" --retry 3 2>/dev/null; true
-sleep 2
+bin/arena click 889,504 && sleep 1 && bin/arena click 889,504 && sleep 3
 ```
 
-### Play the game
+This sends "All Attack". Note: in Forge mode, "All Attack" may not respond — if so, skip combat.
 
-Simple strategy — play what you can, pass when you can't:
+#### Sparky's turn (active_player=2)
 
-1. **Check hand via debug API:**
-   ```bash
-   arena board --no-ocr   # shows hand, battlefield, phase
-   ```
+**EXACTLY two clicks, no more:**
+```bash
+bin/arena click 887,491 && sleep 1 && bin/arena click 890,510 && sleep 3
+bin/scry state   # check if it's our turn now
+```
 
-2. **Play cards from hand** (left to right, lands first):
-   ```bash
-   arena play "Card Name"   # verified drag, zone change check
-   ```
-   If `arena play` fails (card not found, can't cast), move to next card.
+If still active_player=2: `bin/arena click 888,504 && sleep 3 && bin/scry state`. Repeat until active_player=1.
 
-3. **Pass priority / advance phase:**
-   ```bash
-   arena click 888,504   # universal button (Pass/Next/End Turn/All Attack)
-   sleep 1
-   ```
+**CRITICAL: Do NOT add extra 888,504 clicks after the two pass buttons. That passes YOUR Main1.**
 
-4. **During Sparky's turn:** sleep 5, then resume clicking 888,504.
+#### Discard (Phase_Ending, hand > 7)
 
-5. **After each turn, check for problems:**
-   ```bash
-   arena errors            # client errors from Player.log
-   curl -s http://localhost:8090/api/state | python3 -c "
-   import sys, json
-   s = json.load(sys.stdin)
-   print(f'Turn: {s.get(\"turn\",\"?\")}, Phase: {s.get(\"phase\",\"?\")}, Active: {s.get(\"activePlayer\",\"?\")}')
-   " 2>/dev/null || echo "No game state"
-   ```
-
-6. **Play 3-5 turns** or until something breaks. If the game completes without issues — great! Concede, log success, and exit.
+```bash
+bin/arena click 400,500 && sleep 1 && bin/arena click 888,489 && sleep 2
+```
 
 ### Detect a wall
 
@@ -124,15 +166,24 @@ A "wall" is anything that stops the game or degrades the experience:
 
 | Signal | How to detect | Priority |
 |--------|--------------|----------|
-| Client error/exception | `arena errors` shows new errors | HIGH |
-| Stuck priority (button doesn't advance) | 3x clicks on 888,504 with no phase change | HIGH |
+| Client error/exception | `bin/arena errors` shows new errors | HIGH |
+| Stuck (gsId unchanged after 2 actions) | `bin/scry state` shows same gsId | HIGH |
 | Server crash/exception | `logs/leyline.log` has ERROR/exception | HIGH |
 | Bridge timeout | Server log: "bridge timeout" | HIGH |
-| Wrong phase/stuck turn | Debug API shows same turn for >30s | MEDIUM |
-| Missing visual (no animation, wrong card) | OCR doesn't match expected state | LOW |
-| Game completes but with warnings | `arena errors` has warnings | LOW |
+| Wrong phase/stuck turn | Scry shows same turn for >30s | MEDIUM |
+| Game completes but with warnings | `bin/arena errors` has warnings | LOW |
+
+**Stuck 3 times → CONCEDE and move to diagnose.**
 
 **If no wall is hit in 5 turns:** Concede the game, log "clean game" in PROGRESS.md, exit. This is a win — the game is more playable than before.
+
+### Cards to avoid in test decks
+
+These are known to stall the bridge (see forge-mode-notes.md):
+- Commune with Beavers / Commune with Nature / Adventurous Impulse (top-N choose prompts)
+- Analyze the Pollen (same)
+- Modal choice cards (choose one/two)
+- Auras (targeting prompt handling is fragile)
 
 ## Phase 3: Diagnose
 
@@ -140,10 +191,10 @@ You hit a wall. Now figure out why.
 
 ```bash
 # Capture evidence
-arena errors > /tmp/ralph-errors.txt 2>/dev/null
+bin/arena errors > /tmp/ralph-errors.txt 2>/dev/null
 curl -s http://localhost:8090/api/state > /tmp/ralph-state.json 2>/dev/null
 tail -50 logs/leyline.log > /tmp/ralph-server-log.txt 2>/dev/null
-arena ocr > /tmp/ralph-ocr.json 2>/dev/null
+bin/arena ocr > /tmp/ralph-ocr.json 2>/dev/null
 ```
 
 Read the error/log. Trace it to source code. Common patterns:
@@ -224,7 +275,7 @@ If the wall is still there, your fix was wrong. Revert and defer.
 
 Quick checks:
 ```bash
-arena errors                    # no new client errors
+bin/arena errors                    # no new client errors
 curl -s http://localhost:8090/api/state > /dev/null   # server alive
 ```
 
@@ -286,21 +337,31 @@ Before exiting, make sure:
 ## Concede recipe
 
 ```bash
-arena click 940,42        # cog icon
-sleep 1
-arena click "Concede" --retry 3
-arena wait text="DEFEAT" --timeout 10
-arena click 210,482 && sleep 2 && arena click 210,482 && sleep 2 && arena click 210,482
-sleep 3
+bin/arena click 940,42 && sleep 1
+bin/arena click "Concede" --retry 3
+bin/arena wait text="Defeat" --timeout 10
+bin/arena click 480,300 && sleep 2 && bin/arena click 480,300 && sleep 2 && bin/arena click 480,300
 ```
+
+## Coords quick reference
+
+- Action button (Pass/Next/Resolve/All Attack) = 888,504
+- Sparky pass: 887,491 + 890,510 (ONLY these two!)
+- Drop target / dismiss = 480,300
+- Discard: click 400,500 then submit 888,489
+- Cog (settings) = 940,42
+- Play button = 867,516
+- Find Match tab = 867,112
 
 ## Recovery
 
 | Stuck state | Recovery |
 |-------------|----------|
-| Unknown screen | `arena where` → `arena navigate Home` |
-| Modal blocking | `arena click 480,300` (center dismiss) |
+| Unknown screen | `bin/arena where` → `bin/arena navigate Home` |
+| Modal blocking | `bin/arena click 480,300` (center dismiss) |
 | Server down | `just build && just serve` in tmux |
-| MTGA disconnected | `arena launch`, wait 10s |
-| Ghost match ("Resume") | `just stop` + restart + `arena launch` |
-| Can't find deck | `arena ocr --fmt` to discover deck names |
+| MTGA disconnected | `bin/arena launch`, wait 15s |
+| Ghost match ("Resume") | `just stop` + restart + `bin/arena launch` |
+| Can't find deck | `bin/arena ocr --fmt` to discover deck names |
+| Black screen | Display sleeping — see Phase 1 display check |
+| Connection Lost dialog | `bin/arena click "Reconnect" --retry 3` |
