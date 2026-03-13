@@ -675,12 +675,23 @@ class AnnotationBuilderTest :
         // --- ColorProduction (Tier 2) ---
 
         test("colorProductionFields") {
-            val ann = AnnotationBuilder.colorProduction(instanceId = 279, colors = 4)
+            val ann = AnnotationBuilder.colorProduction(instanceId = 279, colors = listOf(4))
             ann.typeList shouldContain AnnotationType.ColorProduction
+            ann.affectorId shouldBe 279
             ann.affectedIdsList shouldContain 279
             val colors = ann.detailsList.first { it.key == "colors" }
             colors.type shouldBe KeyValuePairValueType.Int32
             colors.getValueInt32(0) shouldBe 4
+        }
+
+        test("colorProductionMultiColor") {
+            val ann = AnnotationBuilder.colorProduction(instanceId = 283, colors = listOf(4, 5))
+            ann.affectorId shouldBe 283
+            ann.affectedIdsList shouldContain 283
+            val colors = ann.detailsList.first { it.key == "colors" }
+            colors.valueInt32Count shouldBe 2
+            colors.getValueInt32(0) shouldBe 4
+            colors.getValueInt32(1) shouldBe 5
         }
 
         // --- TriggeringObject (Tier 2) ---

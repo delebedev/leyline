@@ -106,5 +106,6 @@ conform-golden category session="":
         exit 1
     fi
 
-    python3 tools/tape/segments.py diff "$template_file" "$frame_file" --json > "$golden_file"
+    # Exit 0 = PASS, 1 = known diffs (both valid for golden capture)
+    python3 tools/tape/segments.py diff "$template_file" "$frame_file" --json > "$golden_file" || true
     echo "Golden captured: $golden_file"

@@ -52,6 +52,8 @@ object AnnotationPipeline {
         val ownerSeatId: Int,
         /** InstanceId of the ability/spell that caused this transfer (for affectorId). */
         val affectorId: Int = 0,
+        /** Color bitmasks for land color production (1=W, 2=U, 4=B, 8=R, 16=G). */
+        val colorBitmasks: List<Int> = emptyList(),
     )
 
     /**
@@ -135,8 +137,17 @@ object AnnotationPipeline {
                     0
                 }
 
+                // Extract color bitmasks from LandPlayed event for ColorProduction annotation.
+                val colorBitmasks = if (category == TransferCategory.PlayLand && forgeCardId != null) {
+                    events.filterIsInstance<GameEvent.LandPlayed>()
+                        .firstOrNull { it.forgeCardId == forgeCardId.value }
+                        ?.colorBitmasks ?: emptyList()
+                } else {
+                    emptyList()
+                }
+
                 transfers.add(
-                    AppliedTransfer(origId, newId, category, prevZone, obj.zoneId, obj.grpId, obj.ownerSeatId, affectorId),
+                    AppliedTransfer(origId, newId, category, prevZone, obj.zoneId, obj.grpId, obj.ownerSeatId, affectorId, colorBitmasks),
                 )
                 zoneRecordings.add(newId to obj.zoneId)
             } else {
@@ -211,9 +222,14 @@ object AnnotationPipeline {
             }
         }
 
-        // Persistent: EnteredZoneThisTurn for cards landing on battlefield
-        if (destZone == ZONE_BATTLEFIELD) {
-            persistent.add(AnnotationBuilder.enteredZoneThisTurn(ZONE_BATTLEFIELD, newId))
+        // Persistent: EnteredZoneThisTurn for cards landing on battlefield or stack
+        if (destZone == ZONE_BATTLEFIELD || destZone == ZONE_STACK) {
+            persistent.add(AnnotationBuilder.enteredZoneThisTurn(destZone, newId))
+        }
+
+        // Persistent: ColorProduction for lands entering the battlefield
+        if (category == TransferCategory.PlayLand && transfer.colorBitmasks.isNotEmpty()) {
+            persistent.add(AnnotationBuilder.colorProduction(newId, transfer.colorBitmasks))
         }
 
         return annotations to persistent

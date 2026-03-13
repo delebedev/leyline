@@ -112,8 +112,9 @@ class AnnotationPipelineTest :
             annotations[4].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted
             annotations[5].typeList.first() shouldBe AnnotationType.UserActionTaken
 
-            // Stack is not battlefield — no persistent annotation
-            persistent.shouldBeEmpty()
+            // Stack gets EnteredZoneThisTurn (recording confirms)
+            persistent.size shouldBe 1
+            persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
         }
 
         test("castSpellUserActionIsCast") {
@@ -208,7 +209,7 @@ class AnnotationPipelineTest :
             persistent.shouldBeEmpty()
         }
 
-        test("noBattlefieldDestNoPersistentAnnotation") {
+        test("castSpellToStackGetsPersistentAnnotation") {
             val transfer = AnnotationPipeline.AppliedTransfer(
                 origId = 100,
                 newId = 200,
@@ -219,7 +220,9 @@ class AnnotationPipelineTest :
                 ownerSeatId = 1,
             )
             val (_, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
-            persistent.shouldBeEmpty()
+            persistent.size shouldBe 1
+            persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
+            persistent[0].affectorId shouldBe ZoneIds.STACK
         }
 
         test("resolveToGraveyardNoPersistentAnnotation") {

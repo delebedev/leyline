@@ -52,10 +52,13 @@ enum class Zone {
  */
 sealed interface GameEvent {
 
-    /** A land was played from hand to battlefield. */
+    /** A land was played from hand to battlefield.
+     *  [colorBitmasks] = per-mana-ability color bitmask (1=W, 2=U, 4=B, 8=R, 16=G).
+     *  Single-ability lands produce one entry; dual/multi-lands produce multiple. */
     data class LandPlayed(
         val forgeCardId: Int,
         val seatId: Int,
+        val colorBitmasks: List<Int> = emptyList(),
     ) : GameEvent
 
     /** A spell or ability was cast (hand/battlefield → stack). */
