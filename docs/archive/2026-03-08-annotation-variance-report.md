@@ -243,6 +243,6 @@ All 18 builders registered this session have correct detail key shapes but are N
 - [Field notes directory](field-notes/) — per-type investigation notes from 2026-03-08 sprint
 - Client annotation registry (from Arena client decompilation) — state + event parsers
 - Client annotation parsers (from Arena client decompilation) — parser coroutines
-- [Conformance debugging cookbook](conformance-debugging.md) — annotation ordering, category codes, detail key types
+- [Conformance debugging cookbook](../conformance/debugging.md) — annotation ordering, category codes, detail key types
 - [Implementation plan (batch 1)](plans/2026-03-01-annotation-fidelity-impl.md) — original plan (stale paths, needs update)
 - [Variance tooling improvements](plans/2026-03-08-variance-tooling-improvements.md) — tool gaps found during investigation sprint
