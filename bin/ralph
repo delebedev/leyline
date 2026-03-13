@@ -66,6 +66,16 @@ log() {
 preflight() {
     log "Pre-flight checks..."
 
+    # Console user must match current user. Unity Metal can't render
+    # if MTGA runs under a different user than the GUI session owner.
+    console_user="$(stat -f '%Su' /dev/console 2>/dev/null || who | grep console | awk '{print $1}' | head -1)"
+    current_user="$(whoami)"
+    if [[ -n "$console_user" && "$console_user" != "$current_user" ]]; then
+        log "WARN: Console user is '$console_user' but running as '$current_user'"
+        log "MTGA will render black. Switch console user or run as '$console_user'."
+        log "Continuing anyway — gameplay via server logs + debug API may still work."
+    fi
+
     # Display awake? Unity Metal renders black if display is sleeping.
     # This is the #1 cause of "MTGA launches but shows black screen."
     if pmset -g assertions 2>/dev/null | grep -q "PreventUserIdleDisplaySleep.*0"; then
