@@ -1,3 +1,5 @@
+@file:Suppress("MaxLineLength")
+
 package leyline.recording
 
 import kotlinx.serialization.Serializable
