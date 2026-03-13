@@ -193,6 +193,13 @@ def dispatch(args):
                 cli_args += ["--index", str(args.index)]
             _run_python("segments.py", *cli_args)
 
+    # --- rec (recording helpers) ---
+    if noun == "rec":
+        if verb == "annotations":
+            _run_python("segments.py", "annotations", args.type, args.session or "")
+        elif verb == "zones":
+            _run_python("segments.py", "zones", args.session or "")
+
     # --- conform ---
     if noun == "conform":
         if verb == "run":
@@ -432,6 +439,19 @@ def main():
     p.add_argument("category")
     p.add_argument("session", nargs="?")
     p.add_argument("--index", type=int, default=0)
+
+    # --- rec (recording helpers) ---
+    s = subs.add_parser("rec", help="Recording research helpers")
+    ss = s.add_subparsers(dest="verb")
+
+    p = ss.add_parser("annotations", help="Extract annotations by type from recording")
+    p.add_argument(
+        "type", help="Annotation type name (e.g. ZoneTransfer, LayeredEffectCreated)"
+    )
+    p.add_argument("session", nargs="?")
+
+    p = ss.add_parser("zones", help="Zone map from recording (from first full GSM)")
+    p.add_argument("session", nargs="?")
 
     # --- conform ---
     s = subs.add_parser("conform", help="Conformance comparison")

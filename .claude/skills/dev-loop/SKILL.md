@@ -58,7 +58,20 @@ Invoke the **reproduce** skill with the issue number.
 
 Invoke the **diagnose** skill. Use reproduction evidence + debug API + code tracing.
 
-**Output:** structured diagnosis artifact with root cause + suggested approach. `gh issue edit <N> --add-label dl:diagnosed`.
+**For protocol/annotation bugs:** Structure the diagnosis using `docs/conformance/diagnosis-schema.md` — every claim must cite evidence (recording data, code location, engine output, tool output). Unsourced assertions about protocol behavior are not acceptable.
+
+**Output:** structured diagnosis artifact with root cause + cited claims. `gh issue edit <N> --add-label dl:diagnosed`.
+
+### Phase 3b: Verify Diagnosis (Gate 1)
+
+**For protocol/annotation bugs:** Dispatch to the **conformance subagent** to independently verify each claim in the diagnosis against recording data. The diagnosing agent does not verify its own claims.
+
+> Verify the claims in [diagnosis] against recording data at [session path].
+> For each claim: check the cited evidence, confirm or correct.
+
+**Why:** The surveil retro proved same-agent verification fails. The conformance subagent corrected a wrong root cause that the main agent was confident about.
+
+**If claims are corrected:** Revise diagnosis before proceeding to plan.
 
 ### Phase 4: Plan (HUMAN GATE)
 
@@ -76,18 +89,19 @@ On approval:
 3. Run module-scoped checks: `just check` for the affected module
 4. Format: `just fmt`
 
-### Phase 6: Verify
+### Phase 6: Verify (Gate 3)
 
 **Server restart is mandatory.** If source files changed since last server start, `just stop` + `just serve` before any in-game checks. The running JVM has old bytecode.
 
-Both layers must pass:
+Three layers for protocol/annotation bugs, two for others:
 
-1. **Unit/integration test** — the regression test from Phase 5 passes, proving the code change works
-2. **In-game** — re-run the **reproduce** skill. For visual bugs: `arena capture` + annotated screenshot proving the visual is fixed. For protocol bugs: debug API confirms correct output. Check for new client errors.
-3. `just test` for the affected module — no regressions
-4. **Before/after comparison** (visual bugs) — side-by-side annotated image using the repro screenshot as "before" and the verify screenshot as "after". Upload to R2 for issue comment.
+1. **Conformance pipeline** (protocol bugs) — `just conform <Category> [session]`. Verifies annotation structure matches recording. Exit 0 = perfect, exit 1 = known gaps, exit 2 = regression. If improved over golden, capture new baseline: `just conform-golden <Category>`.
+2. **Unit/integration test** — the regression test from Phase 5 passes, proving the code change works
+3. **In-game** — re-run the **reproduce** skill. For visual bugs: `arena capture` + annotated screenshot proving the visual is fixed. For protocol bugs: debug API confirms correct output. Check for new client errors.
+4. `just test` for the affected module — no regressions
+5. **Before/after comparison** (visual bugs) — side-by-side annotated image using the repro screenshot as "before" and the verify screenshot as "after". Upload to R2 for issue comment.
 
-Unit test alone can miss client-side behavior. In-game alone can miss edge cases. Both together = reliable.
+Unit test alone can miss client-side behavior. In-game alone can miss edge cases. Conformance pipeline catches proto-level regressions that both miss. All layers together = reliable.
 
 **If verification fails:** go back to diagnose. The fix was incomplete or wrong.
 

@@ -23,6 +23,7 @@ import sys
 import json
 import glob
 import os
+import re
 from collections import OrderedDict
 
 
@@ -889,12 +890,103 @@ def _check_golden(result, golden_path):
         sys.exit(2)  # distinct from diff failure (exit 1)
 
 
+def cmd_annotations(args):
+    """
+    Extract annotations of a given type from a recording session.
+
+    Usage: md-segments.py annotations <TypeName> [session]
+
+    Outputs clean JSON for each matching annotation with resolved context.
+    Field name is `types` (array), not `type`.
+    """
+    if not args:
+        print("Usage: md-segments.py annotations <TypeName> [session]", file=sys.stderr)
+        sys.exit(1)
+
+    type_name = args[0]
+    session = args[1] if len(args) > 1 else None
+    md_path = find_md_jsonl(session)
+
+    results = []
+    with open(md_path) as f:
+        for line in f:
+            frame = json.loads(line)
+            gs_id = frame.get("gsId", 0)
+            turn_info = frame.get("turnInfo", {})
+            for ann_list_key in ("annotations", "persistentAnnotations"):
+                for ann in frame.get(ann_list_key, []):
+                    # Strip proto suffixes for matching
+                    clean_types = [
+                        re.sub(r"_[a-f0-9]{3,4}$", "", t) for t in ann.get("types", [])
+                    ]
+                    if type_name in clean_types:
+                        results.append(
+                            {
+                                "gsId": gs_id,
+                                "turn": turn_info.get("turnNumber"),
+                                "phase": turn_info.get("phase"),
+                                "source": ann_list_key,
+                                "annotation": {
+                                    "id": ann.get("id"),
+                                    "types": clean_types,
+                                    "affectorId": ann.get("affectorId", 0),
+                                    "affectedIds": ann.get("affectedIds", []),
+                                    "details": ann.get("details", {}),
+                                },
+                            }
+                        )
+
+    print(json.dumps(results, indent=2))
+    print(f"\n# {len(results)} instances of {type_name}", file=sys.stderr)
+
+
+def cmd_zones(args):
+    """
+    Extract zone map from a recording session (from first full GSM).
+
+    Usage: md-segments.py zones [session]
+
+    Zone IDs are player-relative and vary per game. This extracts the
+    zone definitions from gsId=1 (the initial full GSM).
+    """
+    session = args[0] if args else None
+    md_path = find_md_jsonl(session)
+
+    with open(md_path) as f:
+        for line in f:
+            frame = json.loads(line)
+            zones = frame.get("zones", [])
+            if zones and frame.get("gsmType") == "Full":
+                # Group by owner
+                by_owner = {}
+                for z in zones:
+                    owner = z.get("owner", 0)
+                    by_owner.setdefault(owner, []).append(z)
+
+                for owner in sorted(by_owner.keys()):
+                    label = f"Player {owner}" if owner > 0 else "Shared"
+                    print(f"=== {label} ===")
+                    for z in sorted(by_owner[owner], key=lambda x: x["zoneId"]):
+                        obj_count = len(z.get("objectIds", []))
+                        vis = z.get("visibility", "?")
+                        print(
+                            f"  {z['zoneId']:3d}  {z['type']:<15s}  {vis:<10s}  ({obj_count} objects)"
+                        )
+                    print()
+                return
+
+    print("No full GSM found in recording", file=sys.stderr)
+    sys.exit(1)
+
+
 COMMANDS = {
     "list": cmd_list,
     "extract": cmd_extract,
     "template": cmd_template,
     "puzzle": cmd_puzzle,
     "diff": cmd_diff,
+    "annotations": cmd_annotations,
+    "zones": cmd_zones,
 }
 
 
