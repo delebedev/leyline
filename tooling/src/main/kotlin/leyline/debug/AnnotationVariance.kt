@@ -58,20 +58,31 @@ fun main(args: Array<String>) {
         val messages = RecordingDecoder.decodeDirectory(payloadsDir)
         totalPayloads += RecordingDecoder.listRecordingFiles(payloadsDir).size
 
-        // Build instanceId → card name map for this session
+        // #3: Build per-gsId instanceId→card snapshots (not global last-seen)
         val instanceToCard = mutableMapOf<Int, String>()
+        val cardSnapshots = mutableMapOf<Int, Map<Int, String>>() // gsId → snapshot
+
+        // #4: Track seen (gsId, typeList) pairs for per-seat dedup
+        val seenAnnotations = mutableSetOf<String>()
+
         for (msg in messages) {
+            // Update running map with objects from this message
             for (obj in msg.objects) {
                 if (obj.grpId != 0) {
                     instanceToCard[obj.instanceId] = "grp:${obj.grpId}"
                 }
             }
+            // Snapshot at each gsId
+            if (msg.gsId > 0) {
+                cardSnapshots[msg.gsId] = instanceToCard.toMap()
+            }
         }
 
         for (msg in messages) {
             if (msg.gsId > 0) totalGsms++
-            collectAnnotations(collector, msg, msg.annotations, sessionName, instanceToCard)
-            collectAnnotations(collector, msg, msg.persistentAnnotations, sessionName, instanceToCard)
+            val snapshot = cardSnapshots[msg.gsId] ?: instanceToCard
+            collectAnnotations(collector, msg, msg.annotations, sessionName, snapshot, seenAnnotations)
+            collectAnnotations(collector, msg, msg.persistentAnnotations, sessionName, snapshot, seenAnnotations)
         }
     }
 
@@ -98,7 +109,7 @@ fun main(args: Array<String>) {
     println("# Annotation Variance Report")
     println(
         "${captureDirs.size} sessions, $totalPayloads S-C payloads, " +
-            "$totalGsms GSMs, ${collector.totalInstances()} annotation instances, " +
+            "$totalGsms GSMs, ${collector.totalInstances()} annotation instances (deduped per-seat), " +
             "${types.size} distinct types",
     )
     println("Status: $mismatchCount MISMATCH, $notImplCount NOT IMPLEMENTED, $okCount OK")
@@ -133,6 +144,9 @@ private data class AnnotationInstance(
     val file: String,
     val affectedIds: List<Int>,
     val affectedCards: List<String>, // resolved card names
+    val affectorId: Int, // #5: source of effect
+    val affectorCard: String?, // #5: resolved card name for affector
+    val coTypes: List<String>, // #1: full type list from the original annotation
     val detailKeys: Set<String>,
     val detailValues: Map<String, String>, // key → sample value as string
 )
@@ -197,15 +211,23 @@ private fun collectAnnotations(
     msg: DecodedMessage,
     annotations: List<AnnotationSummary>,
     sessionName: String,
-    instanceToCard: Map<Int, String>,
+    cardSnapshot: Map<Int, String>,
+    seenAnnotations: MutableSet<String>,
 ) {
     for (ann in annotations) {
         val detailKeys = ann.details.keys.toSet()
         val detailValues = ann.details.mapValues { (_, v) -> formatValue(v) }
-        val affectedCards = ann.affectedIds.mapNotNull { instanceToCard[it] }
+        val affectedCards = ann.affectedIds.mapNotNull { cardSnapshot[it] } // #3: per-gsId
+        val affectorCard = if (ann.affectorId != 0) cardSnapshot[ann.affectorId] else null // #5
+        val coTypes = ann.types.map { it.replace(PROTO_SUFFIX, "") } // #1: full type list
 
         for (rawType in ann.types) {
             val typeName = rawType.replace(PROTO_SUFFIX, "")
+
+            // #4: Per-seat dedup — skip if same (session, gsId, annotationId, type) seen
+            val dedupKey = "$sessionName:${msg.gsId}:${ann.id}:$typeName"
+            if (!seenAnnotations.add(dedupKey)) continue
+
             collector.add(
                 typeName,
                 AnnotationInstance(
@@ -217,6 +239,9 @@ private fun collectAnnotations(
                     file = msg.file,
                     affectedIds = ann.affectedIds,
                     affectedCards = affectedCards,
+                    affectorId = ann.affectorId, // #5
+                    affectorCard = affectorCard, // #5
+                    coTypes = coTypes, // #1
                     detailKeys = detailKeys,
                     detailValues = detailValues,
                 ),
@@ -313,8 +338,8 @@ private fun compareStatus(profile: TypeProfile): Triple<Status, Set<String>, Set
 // ---------------------------------------------------------------------------
 
 private fun printSummaryTable(profiles: List<TypeProfile>) {
-    println("| Type | Count | Sessions | Server Keys | Our Keys | Status |")
-    println("|---|---|---|---|---|---|")
+    println("| Type | Count | Sessions | Co-types | Server Keys | Our Keys | Status |")
+    println("|---|---|---|---|---|---|---|")
     for (p in profiles) {
         val (status, missing, extra) = compareStatus(p)
         val serverKeys = (p.alwaysKeys.sorted() + p.sometimesKeys.keys.sorted().map { "$it?" }).joinToString(", ").ifEmpty { "-" }
@@ -328,7 +353,15 @@ private fun printSummaryTable(profiles: List<TypeProfile>) {
             if (missing.isNotEmpty()) append(" miss={${missing.sorted().joinToString(",")}}")
             if (extra.isNotEmpty()) append(" extra={${extra.sorted().joinToString(",")}}")
         }
-        println("| ${p.name} | ${p.instanceCount} | ${p.sessionCount} | $serverKeys | $ourKeys | $statusLabel$detail |")
+        // #1: Show co-type bundles in summary
+        val coTypeBundles = p.instances.map { it.coTypes.sorted() }.toSet()
+        val coTypeLabel = coTypeBundles
+            .filter { it.size > 1 }
+            .map { bundle -> bundle.filter { it != p.name }.joinToString("+") }
+            .filter { it.isNotEmpty() }
+            .joinToString("; ")
+            .ifEmpty { "-" }
+        println("| ${p.name} | ${p.instanceCount} | ${p.sessionCount} | $coTypeLabel | $serverKeys | $ourKeys | $statusLabel$detail |")
     }
     println()
 }
@@ -387,6 +420,15 @@ private fun printTypeProfile(profile: TypeProfile, maxExamples: Int) {
         println("  Samples:   $sampleParts")
     }
 
+    // #1: Co-type detection — show if this type always appears with others
+    val coTypeBundles = profile.instances.map { it.coTypes.sorted() }.toSet()
+    if (coTypeBundles.any { it.size > 1 }) {
+        val bundleLabels = coTypeBundles
+            .filter { it.size > 1 }
+            .map { "[${it.joinToString(", ")}]" }
+        println("  Co-types:  ${bundleLabels.joinToString(" | ")}")
+    }
+
     // Examples with provenance
     println()
     val examples = profile.instances.take(maxExamples)
@@ -399,15 +441,26 @@ private fun printTypeProfile(profile: TypeProfile, maxExamples: Int) {
             }
         }.ifEmpty { "?" }
 
-        val cardLabels = inst.affectedIds.map { id ->
-            val card = inst.affectedCards.firstOrNull()
-            if (card != null) "$id -> $card" else "$id"
+        val cardLabels = inst.affectedIds.mapIndexed { idx, id ->
+            val card = inst.affectedCards.getOrNull(idx)
+            if (card != null) "$id → $card" else "$id"
         }.joinToString(", ")
+
+        // #5: affectorId with resolved card name
+        val affectorLabel = if (inst.affectorId != 0) {
+            val card = inst.affectorCard
+            if (card != null) "${inst.affectorId} → $card" else "${inst.affectorId}"
+        } else {
+            ""
+        }
 
         println(
             "  [${i + 1}] session=${inst.session} gsId=${inst.gsId} " +
                 "msg=${inst.msgId} $turnPhase",
         )
+        if (affectorLabel.isNotEmpty()) {
+            println("      affectorId=$affectorLabel")
+        }
         println("      affectedIds=[$cardLabels] details=${inst.detailValues}")
         println("      file: ${inst.file}")
     }
