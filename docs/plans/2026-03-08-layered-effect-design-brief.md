@@ -203,7 +203,7 @@ What's missing: the LayeredEffect lifecycle that tells the client WHY the P/T ch
 | `docs/field-notes/CopiedObject.md` | Clone annotation structure |
 | `docs/field-notes/MiscContinuousEffect.md` | Dual-type with LayeredEffect |
 | `docs/annotation-field-notes.md` § LayeredEffectDestroyed | Lifecycle patterns, game-start noise |
-| `docs/2026-03-08-annotation-variance-report.md` | Full variance data + client parser tables |
+| `docs/archive/2026-03-08-annotation-variance-report.md` | Full variance data + client parser tables (archived; distilled findings in `docs/conformance/protocol-findings.md`) |
 | `matchdoor/src/main/kotlin/leyline/game/AnnotationBuilder.kt` | Existing builders (~line 559 for layeredEffect, ~637 for layeredEffectDestroyed) |
 | `matchdoor/src/main/kotlin/leyline/game/StateMapper.kt` | Where annotations are assembled into GSMs |
 | `matchdoor/src/main/kotlin/leyline/game/GameEventCollector.kt` | Where Forge events become our GameEvents |
