@@ -41,15 +41,24 @@ def _classpath():
         sys.exit(1)
     with open(CLASSPATH_FILE) as f:
         base_cp = f.read().strip()
-    # Match justfile _cp: classpath.txt + build dirs
-    extra = ":".join(
-        [
-            os.path.join(PROJECT_DIR, "build", "classes", "kotlin", "main"),
-            os.path.join(PROJECT_DIR, "build", "classes", "java", "main"),
-            os.path.join(PROJECT_DIR, "build", "resources", "main"),
-        ]
-    )
-    return f"{base_cp}:{extra}"
+    # Module class dirs prepended so fresh classes take precedence over stale jars.
+    # Matches justfile _cp. Fixes: dev-build + CLI tools seeing old jar bytecode.
+    modules = ["matchdoor", "tooling", "frontdoor", "account", "app"]
+    module_dirs = []
+    for mod in modules:
+        module_dirs.append(
+            os.path.join(PROJECT_DIR, mod, "build", "classes", "kotlin", "main")
+        )
+        module_dirs.append(
+            os.path.join(PROJECT_DIR, mod, "build", "classes", "java", "main")
+        )
+        module_dirs.append(os.path.join(PROJECT_DIR, mod, "build", "resources", "main"))
+    root_dirs = [
+        os.path.join(PROJECT_DIR, "build", "classes", "kotlin", "main"),
+        os.path.join(PROJECT_DIR, "build", "classes", "java", "main"),
+        os.path.join(PROJECT_DIR, "build", "resources", "main"),
+    ]
+    return ":".join(module_dirs) + ":" + base_cp + ":" + ":".join(root_dirs)
 
 
 def _java(*args):
