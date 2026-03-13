@@ -631,11 +631,12 @@ object AnnotationBuilder {
     /** Land color production for card frame rendering. Arena type 110 (ColorProduction).
      *  [colors] = bitmask (1=W, 2=U, 4=B, 8=R, 16=G).
      *  Real card: grp:96188, colors=4 (session 09-33-05). */
-    fun colorProduction(instanceId: Int, colors: Int): AnnotationInfo =
+    fun colorProduction(instanceId: Int, colors: List<Int>): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ColorProduction)
+            .setAffectorId(instanceId)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail("colors", colors))
+            .addDetails(int32ListDetail("colors", colors))
             .build()
 
     /** Which object triggered an ability + source zone. Arena type 32 (TriggeringObject).
@@ -752,5 +753,12 @@ object AnnotationBuilder {
             .setKey(key)
             .setType(KeyValuePairValueType.Int32)
             .addValueInt32(value)
+            .build()
+
+    private fun int32ListDetail(key: String, values: List<Int>): KeyValuePairInfo =
+        KeyValuePairInfo.newBuilder()
+            .setKey(key)
+            .setType(KeyValuePairValueType.Int32)
+            .apply { values.forEach { addValueInt32(it) } }
             .build()
 }
