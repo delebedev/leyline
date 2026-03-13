@@ -57,8 +57,9 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
     override fun visit(ev: GameEventLandPlayed) {
         val seat = seatOf(ev.player()) ?: return
-        queue.add(GameEvent.LandPlayed(ev.land().id, seat))
-        log.debug("event: LandPlayed card={} seat={}", ev.land().name, seat)
+        val colorBitmasks = computeColorBitmasks(ev.land())
+        queue.add(GameEvent.LandPlayed(ev.land().id, seat, colorBitmasks))
+        log.debug("event: LandPlayed card={} seat={} colors={}", ev.land().name, seat, colorBitmasks)
     }
 
     override fun visit(ev: GameEventSpellAbilityCast) {
@@ -309,4 +310,22 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         }
         return false
     }
+
+    /**
+     * Compute color bitmask(s) from a land's mana abilities.
+     * Each mana ability produces one bitmask entry (OR of its color chars).
+     * Basic lands → single entry (e.g. [2] for Island).
+     * Dual/multi-lands → multiple entries (e.g. [4, 5] for Orzhov Gate).
+     * Uses Forge's MagicColor bitmask which matches Arena's (1=W, 2=U, 4=B, 8=R, 16=G).
+     */
+    private fun computeColorBitmasks(card: forge.game.card.Card): List<Int> =
+        card.getManaAbilities()
+            .mapNotNull { sa ->
+                val produced = sa.manaPart?.origProduced ?: return@mapNotNull null
+                var bitmask = 0
+                for (ch in produced) {
+                    bitmask = bitmask or forge.card.MagicColor.fromName(ch).toInt()
+                }
+                if (bitmask != 0) bitmask else null
+            }
 }
