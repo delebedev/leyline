@@ -1,0 +1,214 @@
+#!/usr/bin/env bash
+#
+# ralph — play-fix-play loop for leyline
+#
+# Spawns a fresh Claude Code agent each iteration. The agent plays a bot match,
+# hits a wall, fixes it, and writes progress. State lives in PROGRESS.md + git,
+# not in LLM memory.
+#
+# Usage:
+#   bin/ralph              # run until stuck or interrupted
+#   bin/ralph --dry-run    # print the prompt, don't spawn agent
+#   bin/ralph --max 5      # stop after 5 iterations
+#   bin/ralph --continue   # resume (skip server pre-flight if already running)
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+SKILL="$ROOT/.claude/skills/ralph/SKILL.md"
+PROGRESS="$ROOT/PROGRESS.md"
+RALPH_LOG="$ROOT/logs/ralph.log"
+
+# ── Args ──────────────────────────────────────────────────────────────
+
+MAX_ITERATIONS=0  # 0 = unlimited
+DRY_RUN=false
+CONTINUE=false
+BUDGET="2.00"     # USD per iteration (gutter protection)
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run)  DRY_RUN=true; shift ;;
+        --max)      MAX_ITERATIONS="$2"; shift 2 ;;
+        --budget)   BUDGET="$2"; shift 2 ;;
+        --continue) CONTINUE=true; shift ;;
+        -h|--help)
+            echo "Usage: bin/ralph [--dry-run] [--max N] [--budget USD] [--continue]"
+            echo ""
+            echo "Play-fix-play loop. Agent plays MTGA, fixes what breaks, repeats."
+            echo ""
+            echo "  --dry-run    Print the agent prompt, don't spawn"
+            echo "  --max N      Stop after N iterations (default: unlimited)"
+            echo "  --budget USD Max spend per iteration (default: 2.00)"
+            echo "  --continue   Skip server pre-flight (already running)"
+            echo ""
+            echo "State: PROGRESS.md (agent-written), logs/ralph.log"
+            echo "Stop:  Ctrl-C (agent finishes current action, then exits)"
+            exit 0
+            ;;
+        *) echo "Unknown arg: $1"; exit 1 ;;
+    esac
+done
+
+# ── Logging ───────────────────────────────────────────────────────────
+
+mkdir -p "$ROOT/logs"
+
+log() {
+    local msg="$(date '+%H:%M:%S') [ralph] $*"
+    echo "$msg"
+    echo "$msg" >> "$RALPH_LOG"
+}
+
+# ── Pre-flight ────────────────────────────────────────────────────────
+
+preflight() {
+    log "Pre-flight checks..."
+
+    # Server running?
+    if ! curl -s http://localhost:8090/api/state > /dev/null 2>&1; then
+        log "Server not running. Starting..."
+        tmux new-session -d -s leyline "cd $ROOT && just serve" 2>/dev/null || true
+        sleep 8
+        if ! curl -s http://localhost:8090/api/state > /dev/null 2>&1; then
+            log "FATAL: Server failed to start. Check logs/leyline.log"
+            exit 1
+        fi
+    fi
+    log "Server: OK"
+
+    # MTGA connected?
+    if ! lsof -i :30010 2>/dev/null | grep -q ESTABLISHED; then
+        log "MTGA not connected. Launching..."
+        "$ROOT/bin/arena" launch 2>/dev/null || true
+        sleep 10
+    fi
+
+    if lsof -i :30010 2>/dev/null | grep -q ESTABLISHED; then
+        log "MTGA: connected"
+    else
+        log "WARN: MTGA not connected (may need manual launch)"
+    fi
+}
+
+# ── Stuck detection ──────────────────────────────────────────────────
+
+LAST_PROGRESS_HASH=""
+
+progress_changed() {
+    if [[ ! -f "$PROGRESS" ]]; then
+        return 0  # no file yet = first run, not stuck
+    fi
+    local hash
+    hash="$(md5 -q "$PROGRESS" 2>/dev/null || md5sum "$PROGRESS" | cut -d' ' -f1)"
+    if [[ "$hash" == "$LAST_PROGRESS_HASH" ]]; then
+        return 1  # unchanged
+    fi
+    LAST_PROGRESS_HASH="$hash"
+    return 0
+}
+
+# ── Build prompt ─────────────────────────────────────────────────────
+
+build_prompt() {
+    local iteration="$1"
+
+    # The skill file is the bulk of the prompt — agent reads it via tool
+    # We pass a short bootstrap that tells it what to do
+    cat <<PROMPT
+You are running as iteration $iteration of the Ralph play-fix-play loop.
+
+Your mission: make the game more playable. Play a bot match in MTGA, hit whatever breaks first, fix it, verify the fix, commit, and exit.
+
+## Instructions
+
+Load and follow the skill at .claude/skills/ralph/SKILL.md — it has the full workflow.
+
+Read PROGRESS.md (if it exists) for context from previous iterations.
+
+Key rules:
+- ONE fix per iteration. Fix the first wall you hit, verify, commit, update PROGRESS.md, exit.
+- If a wall needs human judgment (architecture, engine-level, unclear root cause), log it in PROGRESS.md and exit. Don't thrash.
+- If the same error appeared in a previous iteration and wasn't fixed, skip it (file as issue) and find the next wall.
+- Always restart the server after code changes (just stop + just serve).
+- Run scoped tests (just test-gate for the module you changed).
+- Format code: just fmt.
+- Commit with a descriptive message.
+PROMPT
+}
+
+# ── Main loop ────────────────────────────────────────────────────────
+
+if [[ "$DRY_RUN" == "true" ]]; then
+    build_prompt 1
+    exit 0
+fi
+
+if [[ "$CONTINUE" != "true" ]]; then
+    preflight
+fi
+
+iteration=0
+stale_count=0
+
+log "=== Ralph loop starting ==="
+log "Max iterations: ${MAX_ITERATIONS:-unlimited}"
+log "Budget per iteration: \$$BUDGET"
+log "Progress file: $PROGRESS"
+
+# Snapshot initial progress hash
+if [[ -f "$PROGRESS" ]]; then
+    LAST_PROGRESS_HASH="$(md5 -q "$PROGRESS" 2>/dev/null || md5sum "$PROGRESS" | cut -d' ' -f1)"
+fi
+
+while true; do
+    iteration=$((iteration + 1))
+
+    # Max iterations check
+    if [[ "$MAX_ITERATIONS" -gt 0 && "$iteration" -gt "$MAX_ITERATIONS" ]]; then
+        log "Reached max iterations ($MAX_ITERATIONS). Stopping."
+        break
+    fi
+
+    log "── Iteration $iteration ──"
+
+    # Build and run agent
+    prompt="$(build_prompt "$iteration")"
+
+    # Run claude with the prompt
+    # --max-budget-usd is gutter protection — kills the agent before context pollution
+    # --dangerously-skip-permissions lets agent edit/run without prompts (it's a loop, nobody's watching)
+    if ! echo "$prompt" | claude \
+        --print \
+        --max-budget-usd "$BUDGET" \
+        --dangerously-skip-permissions \
+        2>>"$RALPH_LOG"; then
+        log "Agent exited with error (iteration $iteration)"
+    fi
+
+    log "Agent finished iteration $iteration"
+
+    # Check if progress changed
+    if progress_changed; then
+        stale_count=0
+        log "Progress updated"
+    else
+        stale_count=$((stale_count + 1))
+        log "Progress unchanged (stale count: $stale_count)"
+    fi
+
+    # Stuck detection: 2 iterations with no progress change = halt
+    if [[ "$stale_count" -ge 2 ]]; then
+        log "STUCK: Progress unchanged for $stale_count iterations. Halting."
+        log "Check PROGRESS.md for the last known state."
+        break
+    fi
+
+    # Brief pause between iterations
+    sleep 3
+done
+
+log "=== Ralph loop ended after $iteration iterations ==="
+log "Review: git log --oneline -10"
+log "Progress: cat PROGRESS.md"

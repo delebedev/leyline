@@ -84,3 +84,6 @@ bin/models/
 
 # Autoplay session videos (large, ephemeral)
 docs/retro/autoplay/**/gameplay.mp4
+
+# Ralph loop state (agent-written, local only)
+/PROGRESS.md

@@ -1,5 +1,5 @@
 # Tool CLIs — catchall passthrough
-# Usage: just wire tail 5, just tape session list
+# Usage: just wire tail 5, just tape session list, just ralph --max 3
 
 [group('tools')]
 wire *ARGS:
@@ -8,6 +8,11 @@ wire *ARGS:
 [group('tools')]
 tape *ARGS:
     @python3 tools/tape/tape.py {{ARGS}}
+
+# play-fix-play loop: agent plays MTGA, fixes what breaks, repeats
+[group('tools')]
+ralph *ARGS:
+    @bin/ralph {{ARGS}}
 
 # all unique grpIds in a session → card names
 [group('tools')]
