@@ -32,54 +32,85 @@ If PROGRESS.md lists a wall as "DEFERRED" or "NEEDS_HUMAN", skip it and play on 
 
 ## Phase 1: Pre-flight
 
-### Display awake?
+The outer `bin/ralph` runner handles most of this automatically. But if you're running manually
+(or the runner skipped checks with `--continue`), verify each of these. **Every check has been
+learned the hard way — don't skip any.**
 
-**Critical:** Unity Metal renders a black screen if the display is sleeping. This is the #1 cause of "MTGA launches but everything is black." Check and wake before anything else:
+### 1. Console user == process owner
 
 ```bash
-# Check if display sleep prevention is active
+stat -f '%Su' /dev/console   # who owns the GUI session?
+whoami                        # who are we?
+```
+
+**If they don't match: STOP.** Unity Metal requires the MTGA process owner to be the same user
+as the macOS console (GUI) session. SSH as user X while console belongs to user Y = guaranteed
+black screen. The server, networking, even CGEvent clicks all work fine — but the Metal render
+surface produces zero frames.
+
+**Symptoms:** MTGA window frame visible (title bar says "MTGA"), content area solid black,
+`bin/arena ocr` returns only `[{"text": "MTGA", ...}]`, server logs look completely normal,
+`bin/arena scene` correctly reports "Home".
+
+**Fix:** SSH as the console user, or switch the console user via Fast User Switching.
+
+### 2. Display awake
+
+```bash
 pmset -g assertions | grep PreventUserIdleDisplaySleep
 ```
 
-If it shows `0`, wake the display:
+If it shows `0` — display is sleeping or will sleep. macOS does NOT count SSH sessions as user
+activity, so the display sleeps after `displaysleep` minutes even with active SSH.
+
 ```bash
-caffeinate -u -t 10 &   # send user-activity wake event
-caffeinate -d -i &       # keep display + system awake for the session
+caffeinate -u -t 10 &    # synthetic user-activity wake event
+caffeinate -d -i &        # prevent display + idle sleep
 sleep 5
 ```
 
-If MTGA was already running while display was asleep, **kill and relaunch** — Unity's Metal context won't recover from a sleeping display.
+**If MTGA was already running when display slept:** kill and relaunch. Unity's Metal context
+doesn't recover — it initialized the swap chain while the display was on and now the compositor
+can't present frames.
 
-### Verify display renders
+```bash
+pkill -f MTGA; sleep 5; bin/arena launch
+```
 
-After waking, confirm MTGA actually renders (not just window frame):
+### 3. Render verification
+
+After wake/launch, confirm MTGA is actually rendering:
 ```bash
 bin/arena ocr --fmt
 ```
-If only "MTGA" title bar text appears (no UI elements like "Play", deck names, etc.), the display
-is still not rendering. Options:
-1. Kill MTGA, wait 5s, relaunch
-2. If still black after relaunch: defer with NEEDS_HUMAN — display issue, cannot automate blind
 
-### Server up?
+A healthy Home screen has 5+ OCR elements (deck names, "Play", event titles, etc.).
+If only "MTGA" appears (1 element = just the title bar), the render surface is black.
+
+Relaunch once. If still black: `NEEDS_HUMAN` — exit and note the pre-flight failure.
+
+### 4. Server
 
 ```bash
 curl -s http://localhost:8090/api/state > /dev/null && echo "Server: OK" || echo "Server: DOWN"
 ```
 
-If server is down:
+If down:
 ```bash
-just build && tmux new-session -d -s leyline 'just serve'
-sleep 8
+just build
+tmux kill-session -t leyline 2>/dev/null; tmux new-session -d -s leyline 'just serve'
+sleep 10
 ```
 
-### MTGA connected?
+### 5. MTGA connected
 
 ```bash
 bin/arena where
 ```
 
-If not connected, `bin/arena launch` and wait 15-20s for full lobby load.
+If not connected: `bin/arena launch` and wait 15-20s for full lobby load. The FD handshake
+(auth → golden data → events → cards) takes 5-10s, then the Unity scene transition to Home
+takes another 5-10s.
 
 ## Phase 2: Play
 
