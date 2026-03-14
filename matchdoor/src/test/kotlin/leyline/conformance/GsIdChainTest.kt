@@ -1,21 +1,24 @@
 package leyline.conformance
 
+import forge.game.ability.AbilityKey
+import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.game.BundleBuilder
-import leyline.game.snapshotFromGame
 
 /**
- * Validates gsId chain **semantics** that go beyond structural invariants.
+ * Validates gsId chain **semantics** beyond structural invariants.
  *
  * Structural checks (gsId monotonicity, prevGsId validity, msgId monotonicity,
- * no self-referential gsIds) are now automatic via [ValidatingMessageSink] and
- * run on every message in every conformance test.
+ * no self-referential gsIds) are automatic via [ValidatingMessageSink].
  *
- * What remains here: scenario-specific contracts about pendingMessageCount values,
+ * What remains here: scenario-specific contracts about pendingMessageCount,
  * phase transition bundle structure, and cross-bundle chain continuity.
+ *
+ * Uses [startWithBoard] (~0.01s) — all checks are on synchronous diff builders.
  */
 class GsIdChainTest :
     FunSpec({
@@ -27,28 +30,34 @@ class GsIdChainTest :
         afterEach { base.tearDown() }
 
         test("remoteActionDiff produces single GSM with no pendingMessageCount") {
-            val (b, game, counter) = base.startGameAtMain1()
-            b.snapshotFromGame(game, counter.currentGsId())
+            val (b, game, counter) = base.startWithBoard { _, human, _ ->
+                base.addCard("Plains", human, ZoneType.Hand)
+            }
 
             val result = BundleBuilder.remoteActionDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
             result.messages.size shouldBe 1
-
-            val gsm = result.messages[0].gameStateMessage
-            gsm.pendingMessageCount shouldBe 0
+            result.messages[0].gameStateMessage.pendingMessageCount shouldBe 0
         }
 
         test("postAction GSM has pendingMessageCount=1 (AAR follows)") {
-            val (b, game, counter) = base.startGameAtMain1()
+            val (b, game, counter) = base.startWithBoard { _, human, _ ->
+                base.addCard("Plains", human, ZoneType.Hand)
+            }
 
-            base.playLand(b) ?: error("playLand failed at seed 42")
+            val land = game.humanPlayer.getZone(ZoneType.Hand).cards.first { it.isLand }
+            base.captureAfterAction(b, game, counter) {
+                game.action.moveToPlay(land, null, AbilityKey.newMap())
+            }
+
             val result = base.postAction(game, b, counter)
-            val gsm = result.gsmOrNull ?: error("No GSM in bundle result")
-
+            val gsm = result.gsm
             gsm.pendingMessageCount shouldBe 1
         }
 
         test("phaseTransitionDiff produces 5 messages with correct echo chain") {
-            val (b, game, counter) = base.startGameAtMain1()
+            val (b, game, counter) = base.startWithBoard { _, human, _ ->
+                base.addCard("Plains", human, ZoneType.Hand)
+            }
 
             val result = BundleBuilder.phaseTransitionDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
             result.messages.size shouldBe 5
@@ -56,15 +65,13 @@ class GsIdChainTest :
             val gsms = result.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
             gsms.size shouldBeGreaterThanOrEqual 3
 
-            // msg2 (echo) should chain from msg1 and have no pendingMessageCount
-            val msg1 = gsms[0]
-            val echo = gsms[1]
+            assertSoftly {
+                // msg2 (echo) chains from msg1, no pendingMessageCount
+                gsms[1].prevGameStateId shouldBe gsms[0].gameStateId
+                gsms[1].pendingMessageCount shouldBe 0
 
-            echo.prevGameStateId shouldBe msg1.gameStateId
-            echo.pendingMessageCount shouldBe 0
-
-            // msg3 (commit) should chain from echo
-            val commit = gsms[2]
-            commit.prevGameStateId shouldBe echo.gameStateId
+                // msg3 (commit) chains from echo
+                gsms[2].prevGameStateId shouldBe gsms[1].gameStateId
+            }
         }
     })
