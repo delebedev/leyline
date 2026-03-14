@@ -317,58 +317,54 @@ class ZoneTransitionConformanceTest :
             zt.category shouldBe "Exile"
         }
 
-        // 13. Exile → Battlefield (Put)
+        // 13. Exile → Battlefield (Return)
         test("Exile → Battlefield") {
             val (b, game, counter) = base.startWithBoard { _, human, _ ->
                 base.addCard("Grizzly Bears", human, ZoneType.Exile)
             }
-            val player = game.humanPlayer
-            val exiled = player.getZone(ZoneType.Exile).cards.first { it.isCreature }
+            val exiled = game.humanPlayer.getZone(ZoneType.Exile).cards.first { it.isCreature }
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.moveToPlay(exiled, null, AbilityKey.newMap())
             }
             val newId = b.getOrAllocInstanceId(ForgeCardId(exiled.id))
 
-            val zt = gsm.findZoneTransfer(newId.value)
-            zt.shouldNotBeNull()
-
+            val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for Exile→BF" }
+            zt.category shouldBe "Return"
             hasEnteredZoneThisTurn(gsm, newId.value).shouldBeTrue()
         }
 
-        // 14. Graveyard → Battlefield (Reanimate/Put)
+        // 14. Graveyard → Battlefield (Return)
         test("Graveyard → Battlefield") {
             val (b, game, counter) = base.startWithBoard { _, human, _ ->
                 base.addCard("Grizzly Bears", human, ZoneType.Graveyard)
             }
-            val player = game.humanPlayer
-            val inGY = player.getZone(ZoneType.Graveyard).cards.first { it.isCreature }
+            val inGY = game.humanPlayer.getZone(ZoneType.Graveyard).cards.first { it.isCreature }
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.moveToPlay(inGY, null, AbilityKey.newMap())
             }
             val newId = b.getOrAllocInstanceId(ForgeCardId(inGY.id))
 
-            val zt = gsm.findZoneTransfer(newId.value)
-            zt.shouldNotBeNull()
+            val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for GY→BF" }
+            zt.category shouldBe "Return"
             hasEnteredZoneThisTurn(gsm, newId.value).shouldBeTrue()
         }
 
-        // 15. Graveyard → Hand (Regrowth)
+        // 15. Graveyard → Hand (Return)
         test("Graveyard → Hand") {
             val (b, game, counter) = base.startWithBoard { _, human, _ ->
                 base.addCard("Grizzly Bears", human, ZoneType.Graveyard)
             }
-            val player = game.humanPlayer
-            val inGY = player.getZone(ZoneType.Graveyard).cards.first { it.isCreature }
+            val inGY = game.humanPlayer.getZone(ZoneType.Graveyard).cards.first { it.isCreature }
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.moveToHand(inGY, null)
             }
             val newId = b.getOrAllocInstanceId(ForgeCardId(inGY.id))
 
-            val zt = gsm.findZoneTransfer(newId.value)
-            zt.shouldNotBeNull()
+            val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for GY→Hand" }
+            zt.category shouldBe "Return"
         }
 
         // 16. Hand → Exile
@@ -404,13 +400,9 @@ class ZoneTransitionConformanceTest :
                 creature.addCounterInternal(CounterEnumType.P1P1, 2, game.humanPlayer, true, null, AbilityKey.newMap())
             }
 
-            val counterAnn = checkNotNull(
-                gsm.annotationsList.firstOrNull { AnnotationType.CounterAdded in it.typeList },
-            ) { "Should have CounterAdded annotation" }
-            val counterType = checkNotNull(counterAnn.detailsList.firstOrNull { it.key == "counter_type" }) { "CounterAdded should have counter_type detail" }
-            counterType.getValueString(0) shouldBe "+1/+1"
-            val txnAmount = counterAnn.detailsList.first { it.key == "transaction_amount" }
-            txnAmount.getValueInt32(0) shouldBe 2
+            val counterAnn = gsm.annotation(AnnotationType.CounterAdded)
+            counterAnn.detailString("counter_type") shouldBe "+1/+1"
+            counterAnn.detailInt("transaction_amount") shouldBe 2
         }
 
         // C2. Counter removed
@@ -429,11 +421,8 @@ class ZoneTransitionConformanceTest :
                 creature.subtractCounter(CounterEnumType.P1P1, 2, game.humanPlayer)
             }
 
-            val counterAnn = checkNotNull(
-                gsm.annotationsList.firstOrNull { AnnotationType.CounterRemoved in it.typeList },
-            ) { "Should have CounterRemoved annotation" }
-            val txnAmount = counterAnn.detailsList.first { it.key == "transaction_amount" }
-            txnAmount.getValueInt32(0) shouldBe 2
+            val counterAnn = gsm.annotation(AnnotationType.CounterRemoved)
+            counterAnn.detailInt("transaction_amount") shouldBe 2
         }
 
         // C3. Library shuffle
