@@ -28,6 +28,7 @@ class GameLoopController(
     private val promptBridges: Collection<InteractivePromptBridge> = emptyList(),
     private val mulliganBridges: Collection<MulliganBridge> = emptyList(),
     private val onStateChanged: (() -> Unit)? = null,
+    private val prioritySignal: PrioritySignal? = null,
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(GameLoopController::class.java)
@@ -86,6 +87,10 @@ class GameLoopController(
                 }
             } finally {
                 running.set(false)
+                // Wake up any awaitPriority() blocked on the semaphore — game over
+                // means no more priority stops, so without this signal the caller
+                // waits the full 15s timeout before detecting isGameOver.
+                prioritySignal?.signal()
                 started.countDown()
             }
         }, name)
