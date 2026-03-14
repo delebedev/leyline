@@ -1,0 +1,27 @@
+{
+  "diffs": [
+    {
+      "path": "initial_req.manaCost",
+      "type": "missing_in_engine",
+      "recording": [
+        {}
+      ]
+    },
+    {
+      "path": "rounds[0].echo_req.attackers[0].selectedDamageRecipient",
+      "type": "missing_in_engine",
+      "recording": {
+        "type": "Player_a0e5",
+        "playerSystemSeatId": 2
+      }
+    },
+    {
+      "path": "rounds[0].echo_req.manaCost",
+      "type": "missing_in_engine",
+      "recording": [
+        {}
+      ]
+    }
+  ],
+  "count": 3
+}
