@@ -148,8 +148,7 @@ class CombatFlowTest :
 
         // --- Tests ---
 
-        // TODO(#18): SEND_STATE overshoot — passPriority() falls through combat phases
-        xtest("human declares single attacker") {
+        test("human declares single attacker") {
             val attackerIid = setupSingleAttacker()
             val h = harness!!
 
@@ -169,10 +168,6 @@ class CombatFlowTest :
             val eligibleIds = req.attackersList.map { it.attackerInstanceId }
             (attackerIid in eligibleIds).shouldBeTrue()
 
-            // Each attacker should have legalDamageRecipients (opponent player)
-            val attacker = req.attackersList.first { it.attackerInstanceId == attackerIid }
-            (attacker.legalDamageRecipientsCount > 0).shouldBeTrue()
-
             // Declare the attack
             val snap2 = h.messageSnapshot()
             h.declareAttackers(listOf(attackerIid))
@@ -186,8 +181,7 @@ class CombatFlowTest :
             h.isGameOver().shouldBeFalse()
         }
 
-        // TODO(#18): SEND_STATE overshoot — same as single attacker
-        xtest("human declares multiple attackers") {
+        test("human declares multiple attackers") {
             val attackerIids = setupMultipleAttackers()
             val h = harness!!
 
@@ -540,6 +534,80 @@ class CombatFlowTest :
             }
 
             // Verify AI took damage
+            val lifeAfter = aiPlayer.life
+            (lifeAfter < lifeBefore).shouldBeTrue()
+        }
+
+        test("DeclareAttackersReq shape matches recording — no legalDamageRecipients, no canSubmitAttackers") {
+            val attackerIid = setupSingleAttacker()
+            val h = harness!!
+
+            // Advance to combat — DeclareAttackersReq emitted
+            h.passPriority()
+            val daReqMsg = h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
+            daReqMsg.shouldNotBeNull()
+
+            val req = daReqMsg.declareAttackersReq
+
+            // Conformance: real server sends attackers with only instanceId.
+            // No legalDamageRecipients, no canSubmitAttackers.
+            // Evidence: 6 DeclareAttackersReq frames in recording 2026-03-06_22-37-41.
+            req.attackersCount shouldBe req.qualifiedAttackersCount
+            for (attacker in req.attackersList) {
+                attacker.legalDamageRecipientsCount shouldBe 0
+                attacker.hasSelectedDamageRecipient().shouldBeFalse()
+            }
+            req.canSubmitAttackers.shouldBeFalse() // default false = not set
+
+            // promptId = 6 (SELECT_TARGETS)
+            daReqMsg.prompt.promptId shouldBe 6
+        }
+
+        test("attack all + submit with conformant request shape deals damage") {
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            harness = h
+            h.connectAndKeep()
+
+            h.installScriptedAi(
+                listOf(
+                    ScriptedAction.PlayLand("Mountain"),
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.PassPriority,
+                ),
+            )
+
+            // Turn 1: play Mountain, cast Raging Goblin (haste)
+            h.playLand().shouldBeTrue()
+            h.castSpellByName("Raging Goblin").shouldBeTrue()
+            h.passPriority()
+
+            val aiPlayer = h.bridge.getPlayer(SeatId(2))!!
+            val lifeBefore = aiPlayer.life
+            val startTurn = h.turn()
+
+            // Advance to combat
+            h.passPriority()
+
+            // Verify DeclareAttackersReq has recording-conformant shape
+            val daReqMsg = h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
+            daReqMsg.shouldNotBeNull()
+            val req = daReqMsg.declareAttackersReq
+            for (attacker in req.attackersList) {
+                attacker.legalDamageRecipientsCount shouldBe 0
+            }
+
+            // "All Attack" → "Done" — the exact client flow
+            h.declareAllAttackers()
+            h.submitAttackers()
+
+            // Pass through remaining combat
+            repeat(15) {
+                if (h.isGameOver()) return@repeat
+                if (h.turn() > startTurn) return@repeat
+                h.passPriority()
+            }
+
+            // Verify damage dealt
             val lifeAfter = aiPlayer.life
             (lifeAfter < lifeBefore).shouldBeTrue()
         }

@@ -21,7 +21,7 @@ class GameActionBridgeTest :
             val engineThread = Thread {
                 ready.countDown()
                 bridge.awaitAction(
-                    PendingActionState(phase = "Main1", activePlayerId = 1, priorityPlayerId = 1),
+                    PendingActionState(phase = "Main1", turn = 1, activePlayerId = 1, priorityPlayerId = 1),
                 )
             }
             engineThread.isDaemon = true
@@ -53,7 +53,7 @@ class GameActionBridgeTest :
             val engineThread = Thread {
                 ready.countDown()
                 bridge.awaitAction(
-                    PendingActionState(phase = "Main1", activePlayerId = 1, priorityPlayerId = 1),
+                    PendingActionState(phase = "Main1", turn = 1, activePlayerId = 1, priorityPlayerId = 1),
                 )
             }
             engineThread.isDaemon = true

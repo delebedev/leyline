@@ -12,18 +12,10 @@ import leyline.bridge.SeatId
 /**
  * End-to-end blocker declaration tests: AI attacks, human blocks.
  *
- * DISABLED: multi-turn setup takes 28-42s per test (~110s total for 2 enabled).
- * Needs puzzle-based rewrite: start with creatures on BF, script AI to attack.
- * Attempted puzzle migration but ScriptedPlayerController.declareAttackers()
- * doesn't fire in puzzle mode — autoPassAndAdvance skips through AI combat
- * without CombatHandler emitting DeclareBlockersReq. Root cause: puzzle-mode
- * AI controller interaction with AutoPassEngine needs investigation.
- *
- * Verifies:
- * - DeclareBlockersReq sent when AI attacks and human has eligible blockers
- * - Blocker assignments (human creature blocks AI creature) resolve correctly
- * - Declining to block lets damage through to human life
- * - 1/1 trading produces creature deaths (zone transfers)
+ * DISABLED: ScriptedPlayerController.Attack doesn't fire through
+ * AutoPassEngine — the auto-pass loop skips AI combat without triggering
+ * WebPlayerController.declareAttackers(). Blocked on puzzle-mode AI
+ * combat integration or ScriptedPlayerController wiring through AutoPassEngine.
  *
  * Uses non-validating harness: combat zone transfers can produce transient
  * instanceId gaps (known StateMapper issue tracked separately).
@@ -110,9 +102,9 @@ class BlockerDeclarationTest :
             return blockerIid to attackerIid
         }
 
-        // TODO: flaky — setupAiAttacksHumanCanBlock loop doesn't reliably reach
-        //  DeclareBlockersReq within iteration budget. AI script timing is seed-sensitive.
-        //  Pre-existing issue (fails 1/3 on old code too). Needs deterministic puzzle-based setup.
+        // TODO: AI ScriptedPlayerController.Attack doesn't fire through AutoPassEngine —
+        //  the auto-pass loop skips AI combat without triggering declareAttackers.
+        //  Needs either puzzle-mode fix or ScriptedPlayerController integration with AutoPassEngine.
         xtest("human blocks AI attacker") {
             val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
 

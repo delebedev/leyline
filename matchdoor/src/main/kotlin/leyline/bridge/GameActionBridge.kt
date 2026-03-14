@@ -189,6 +189,7 @@ class GameActionBridge(
  */
 data class PendingActionState(
     val phase: String,
+    val turn: Int,
     val activePlayerId: Int,
     val priorityPlayerId: Int,
 )
