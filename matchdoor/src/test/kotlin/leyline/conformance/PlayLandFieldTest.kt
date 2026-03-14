@@ -19,7 +19,6 @@ import leyline.bridge.SeatId
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
 /**
  * Field-level conformance test for play-land protocol messages.
@@ -66,36 +65,22 @@ class PlayLandFieldTest :
                 // ZoneTransfer annotation
                 val zt = gsm.annotationOrNull(AnnotationType.ZoneTransfer_af5a).shouldNotBeNull()
                 zt.affectedIdsList.shouldContain(newInstanceId)
-                val zoneSrc = zt.detail("zone_src").shouldNotBeNull()
-                zoneSrc.type shouldBe KeyValuePairValueType.Int32
-                zoneSrc.getValueInt32(0) shouldBe ZoneIds.P1_HAND
-                val zoneDest = zt.detail("zone_dest").shouldNotBeNull()
-                zoneDest.type shouldBe KeyValuePairValueType.Int32
-                zoneDest.getValueInt32(0) shouldBe ZoneIds.BATTLEFIELD
-                @Suppress("EnumValuesSoftDeprecate")
-                val category = zt.detail("category").shouldNotBeNull()
-                category.type shouldBe KeyValuePairValueType.String
-                category.getValueString(0) shouldBe "PlayLand"
+                zt.detailInt("zone_src") shouldBe ZoneIds.P1_HAND
+                zt.detailInt("zone_dest") shouldBe ZoneIds.BATTLEFIELD
+                zt.detailString("category") shouldBe "PlayLand"
 
                 // ObjectIdChanged
                 val oic = gsm.annotationOrNull(AnnotationType.ObjectIdChanged).shouldNotBeNull()
                 oic.affectedIdsList.shouldContain(origInstanceId)
-                val origIdDetail = oic.detail("orig_id").shouldNotBeNull()
-                origIdDetail.type shouldBe KeyValuePairValueType.Int32
-                origIdDetail.getValueInt32(0) shouldBe origInstanceId
-                val newIdDetail = oic.detail("new_id").shouldNotBeNull()
-                newIdDetail.type shouldBe KeyValuePairValueType.Int32
-                newIdDetail.getValueInt32(0) shouldBe newInstanceId
+                oic.detailInt("orig_id") shouldBe origInstanceId
+                oic.detailInt("new_id") shouldBe newInstanceId
 
                 // UserActionTaken
                 val uat = gsm.annotationOrNull(AnnotationType.UserActionTaken).shouldNotBeNull()
                 uat.affectorId.toInt() shouldBe 1
                 uat.affectedIdsList.shouldContain(newInstanceId)
-                val actionType = uat.detail("actionType").shouldNotBeNull()
-                actionType.type shouldBe KeyValuePairValueType.Int32
-                (actionType.valueInt32Count > 0).shouldBeTrue()
-                val abilityGrpId = uat.detail("abilityGrpId").shouldNotBeNull()
-                abilityGrpId.type shouldBe KeyValuePairValueType.Int32
+                uat.detailInt("actionType") shouldBeGreaterThan 0
+                uat.detail("abilityGrpId").shouldNotBeNull()
 
                 // prevGameStateId
                 gsm.prevGameStateId.toInt() shouldNotBe 0
