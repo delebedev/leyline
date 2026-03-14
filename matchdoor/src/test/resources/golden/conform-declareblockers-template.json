@@ -1,0 +1,81 @@
+
+{
+  "category": "DeclareBlockers",
+  "initial_req_promptData": {
+    "blockers": [
+      {
+        "blockerInstanceId": "$var_1",
+        "attackerInstanceIds": [
+          "$var_2"
+        ],
+        "maxAttackers": 1
+      },
+      {
+        "blockerInstanceId": "$var_3",
+        "attackerInstanceIds": [
+          "$var_2"
+        ],
+        "maxAttackers": 1
+      }
+    ],
+    "manaCost": [
+      {}
+    ]
+  },
+  "rounds": [
+    {
+      "response_promptData": {
+        "selectedBlockers": [
+          {
+            "blockerInstanceId": "$var_1",
+            "attackerInstanceIds": [
+              "$var_2"
+            ],
+            "selectedAttackerInstanceIds": [
+              "$var_2"
+            ],
+            "maxAttackers": 1
+          }
+        ]
+      },
+      "echo_gsms": [
+        {
+          "objects": [
+            {
+              "instanceId": "$var_1",
+              "zoneId": 28,
+              "type": "Card",
+              "visibility": "Public",
+              "owner": 1,
+              "controller": 1
+            }
+          ],
+          "annotations": [],
+          "persistentAnnotations": [],
+          "updateType": "SendAndRecord"
+        }
+      ],
+      "echo_req_promptData": {
+        "blockers": [
+          {
+            "blockerInstanceId": "$var_1",
+            "selectedAttackerInstanceIds": [
+              "$var_2"
+            ],
+            "maxAttackers": 1
+          },
+          {
+            "blockerInstanceId": "$var_3",
+            "attackerInstanceIds": [
+              "$var_2"
+            ],
+            "maxAttackers": 1
+          }
+        ],
+        "manaCost": [
+          {}
+        ]
+      }
+    }
+  ]
+}
