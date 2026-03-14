@@ -255,10 +255,7 @@ class MatchSession(
             }
             ActionType.Activate_add3 -> {
                 val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                // Map abilityGrpId → index in card's non-mana activated abilities.
-                // For single-ability cards (most common), index 0 is correct.
-                // TODO: correlate abilityGrpId with CardRepository abilityIds for multi-ability cards
-                val abilityIndex = 0
+                val abilityIndex = resolveAbilityIndex(action, bridge)
                 val submitted = if (forgeCardId != null) {
                     bridge.actionBridge.submitAction(
                         pending.actionId,
@@ -461,6 +458,24 @@ class MatchSession(
 
         for (phase in enabled) profile.setEnabled(playerId, phase, true)
         for (phase in disabled) profile.setEnabled(playerId, phase, false)
+    }
+
+    /**
+     * Map Arena abilityGrpId → Forge ability index for multi-ability cards.
+     *
+     * CardData.abilityIds layout: [keyword0, ..., activate0, activate1, ...]
+     * Keyword entries occupy the first keywordAbilityGrpIds.size slots.
+     * Falls back to 0 if lookup fails (single-ability cards, missing data).
+     */
+    private fun resolveAbilityIndex(action: Action, bridge: GameBridge): Int {
+        val abilityGrpId = action.abilityGrpId
+        if (abilityGrpId == 0) return 0
+        val cardData = bridge.cards.findByGrpId(action.grpId) ?: return 0
+        val keywordCount = cardData.keywordAbilityGrpIds.size
+        val slotIndex = cardData.abilityIds.indexOfFirst { it.first == abilityGrpId }
+        if (slotIndex < 0) return 0
+        val abilityIndex = slotIndex - keywordCount
+        return if (abilityIndex >= 0) abilityIndex else 0
     }
 
     /**
