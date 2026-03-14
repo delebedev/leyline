@@ -139,6 +139,15 @@ class MatchSession(
      * Similar to [onMulliganKeep] but without mulligan seeding or phaseTransitionDiff
      * — the puzzle initial bundle already sent a Full GSM with the board state.
      */
+    /**
+     * Trigger autoPassAndAdvance without submitting an action first.
+     * Used by tests when the engine is already at a combat phase and
+     * CombatHandler needs to send the prompt (DeclareBlockersReq).
+     */
+    fun triggerAutoPass(bridge: GameBridge) = synchronized(sessionLock) {
+        autoPassEngine.autoPassAndAdvance(bridge)
+    }
+
     override fun onPuzzleStart() = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
 
