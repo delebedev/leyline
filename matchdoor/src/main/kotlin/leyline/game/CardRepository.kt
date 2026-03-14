@@ -10,6 +10,7 @@ interface CardRepository {
     fun findByGrpId(grpId: Int): CardData?
     fun findNameByGrpId(grpId: Int): String?
     fun findGrpIdByName(name: String): Int?
+    fun findGrpIdByNameAndSet(name: String, setCode: String): Int? = findGrpIdByName(name)
 
     /** All non-token, primary-card grpIds in the database. */
     fun findAllGrpIds(): List<Int>

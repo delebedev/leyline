@@ -24,6 +24,7 @@ target
 
 # Player data (created by `just seed-db`)
 /data/
+!/data/decks/
 
 # macOS
 .DS_Store
@@ -84,3 +85,4 @@ bin/models/
 
 # Autoplay session videos (large, ephemeral)
 docs/retro/autoplay/**/gameplay.mp4
+PROGRESS.md
