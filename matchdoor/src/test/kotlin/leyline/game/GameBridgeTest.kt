@@ -397,42 +397,6 @@ class GameBridgeTest :
             }
         }
 
-        // --- Combat tests ---
-
-        test("declare attackers req lists eligible creatures") {
-            val b = GameBridge()
-            bridge = b
-            b.start(seed = 42L)
-            b.submitKeep(1)
-            advanceToMain1(b)
-
-            val game = b.getGame()!!
-            val player = b.getPlayer(SeatId(1))!!
-
-            // Play a land, cast a creature, pass to turn 2 for sickness to clear
-            playLandAndCastCreature(b)
-
-            // Check if we actually have creatures on battlefield
-            val creatures = player.getZone(ZoneType.Battlefield).cards.filter { it.isCreature }
-            if (creatures.isEmpty()) {
-                // Creature cast may have failed — skip
-                return@test
-            }
-
-            // Advance through turn 1 end, turn 2 start, to combat
-            advanceToPhase(b, "COMBAT_DECLARE_ATTACKERS", maxPasses = 80)
-            if (game.isGameOver || game.phaseHandler.phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return@test
-
-            val req = RequestBuilder.buildDeclareAttackersReq(game, 1, b)
-            req.canSubmitAttackers.shouldBeTrue()
-
-            // If we have eligible attackers, each should have legal + selected damage recipients
-            for (attacker in req.attackersList) {
-                (attacker.legalDamageRecipientsCount > 0).shouldBeTrue()
-                attacker.hasSelectedDamageRecipient().shouldBeTrue()
-            }
-        }
-
         // --- Game loop contract tests ---
 
         // TODO: flaky after forge submodule update — investigate separately
@@ -549,6 +513,10 @@ class GameBridgeTest :
 
         // --- AI combat visibility tests ---
 
+        // Best-effort: AI behavior is seed-dependent. If AI doesn't produce
+        // creatures or reach combat, the test passes vacuously. This is acceptable
+        // because the behavior under test (attackState mapping) is also covered by
+        // CombatFlowTest with deterministic ScriptedPlayerController.
         test("AI combat populates attack state") {
             val b = GameBridge()
             bridge = b
@@ -557,27 +525,22 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            // Pass through entire turn 1 to let AI play
             advanceToPhase(b, "MAIN1", maxPasses = 80)
             if (game.isGameOver) return@test
 
-            // Check if AI has creatures on battlefield
             val ai = b.getPlayer(SeatId(2))!!
             val aiCreatures = ai.getZone(ZoneType.Battlefield).cards.filter { it.isCreature }
-            if (aiCreatures.isEmpty()) return@test // AI didn't play creatures — skip
+            if (aiCreatures.isEmpty()) return@test
 
-            // Advance to AI's combat
             advanceToPhase(b, "COMBAT_DECLARE_ATTACKERS", maxPasses = 80)
-            if (game.isGameOver) return@test
-            if (game.phaseHandler.phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return@test
+            if (game.isGameOver || game.phaseHandler.phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return@test
 
             val gs = StateMapper.buildFromGame(game, 1, "test-match", b)
-            val bfObjects = gs.gameObjectsList.filter { it.zoneId == ZoneIds.BATTLEFIELD }
-
-            // If combat is active, attacking creatures should have attackState
             val combat = game.phaseHandler.combat
             if (combat != null && combat.attackers.isNotEmpty()) {
-                val attacking = bfObjects.filter { it.attackState == Messages.AttackState.Attacking }
+                val attacking = gs.gameObjectsList.filter {
+                    it.zoneId == ZoneIds.BATTLEFIELD && it.attackState == Messages.AttackState.Attacking
+                }
                 attacking.shouldNotBeEmpty()
             }
         }

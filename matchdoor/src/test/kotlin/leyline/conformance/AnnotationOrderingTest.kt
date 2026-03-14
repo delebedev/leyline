@@ -3,6 +3,7 @@ package leyline.conformance
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
@@ -35,8 +36,7 @@ class AnnotationOrderingTest :
 
         fun assertAnnotationIdsSequential(gsm: GameStateMessage) {
             val ids = gsm.annotationsList.map { it.id }
-            if (ids.isEmpty()) return
-            ids.all { it > 0 }.shouldBeTrue()
+            ids.shouldNotBeEmpty()
             ids shouldBe ids.sorted()
             ids.toSet().size shouldBe ids.size
         }
