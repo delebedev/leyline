@@ -62,6 +62,21 @@ These are DIFFERENT things:
 
 `type=13` (CastThroughAbility) appears for alternate-cast mechanics (Warp, Impending, Flash-granted casts). The `alternateCostGrpId` matches the `alternativeGrpId` already in `UserActionTaken`.
 
+## Kicker wire protocol (fully documented)
+
+Full spec: `docs/plans/2026-03-14-kicker-wire-spec.md`
+
+Key facts:
+- `CastingTimeOptionsReq` with `type="Kicker"` is sent in the **same GSM file** (same TCP flush) as the stack-placement Diff GSM, at the same `gsId`.
+- `promptId` = 23 (fixed constant for all CastingTimeOptionsReq).
+- `grpId` in the kicker option = the **kicker ability grpId** (not the card grpId). Look up with `just ability <id>`.
+- `Done` option always has `ctoId=0`, `isRequired=true`.
+- Kicker option: no nested `modal`/`SelectNReq` block — flat structure.
+- **Declined response is bare** (no body, no selectedOptions).
+- **Kicker accepted**: not yet recorded — CastingTimeOptionsResp body unknown, CastingTimeOption annotation type value unknown.
+- Targeting (SelectTargetsReq) is gated behind CastingTimeOptionsResp — never fires before option resolution.
+- 4 kicker instances observed, all declined: 2× Burst Lightning (22-37-41), 1× Burst Lightning (00-18-46), 1× Sun-Blessed Healer (00-11-05).
+
 ## Field notes directory
 
 Individual per-annotation-type field notes: `docs/field-notes/<TypeName>.md`
