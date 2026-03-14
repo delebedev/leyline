@@ -1,19 +1,17 @@
 [metadata]
-Name:Declare Blockers Test
-Goal:AI wins
-Turns:10
+Name:Block or Die
+Goal:Survive
+Turns:2
 Difficulty:Easy
-Description:AI has 2 attacking Raging Goblins. Human has 2 Grizzly Bears to block with.
+Description:Juggernaut must attack. Double-block to kill it and survive.
 
 [state]
 ActivePlayer=AI
 ActivePhase=Main1
-HumanLife=20
+HumanLife=3
 AILife=20
 
-humanbattlefield=Forest;Forest;Grizzly Bears;Grizzly Bears
-humanhand=Forest
-humanlibrary=Forest;Forest;Forest;Forest;Forest
-aibattlefield=Mountain;Mountain;Raging Goblin;Raging Goblin
-aihand=Mountain
-ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+humanbattlefield=Centaur Courser;Centaur Courser
+humanlibrary=Forest
+aibattlefield=Juggernaut
+ailibrary=Mountain
