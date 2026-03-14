@@ -909,23 +909,22 @@ class WebPlayerController(
     /**
      * Choose optional additional costs (kicker, buyback, etc.).
      *
-     * Cannot use [InteractivePromptBridge] here — this runs on the engine thread
-     * inside [playChosenSpellAbility], before returning to the priority loop.
-     * Using the bridge would deadlock (engine blocks on prompt, auto-pass can't
-     * run until engine returns).
-     *
-     * Auto-accepts all optional costs when the player can afford them.
-     * The Arena client handles kicker via CastingTimeOptionsReq — future work
-     * would intercept the cast action, check for kicker before submitting to
-     * engine, and send the prompt to the client.
+     * Reads stashed decision from [GameBridge.stashedOptionalCostIndices], set by
+     * [TargetingHandler] after client responds to CastingTimeOptionsReq.
+     * Falls back to auto-accept if no stashed decision (e.g. MatchHarness tests).
      */
     override fun chooseOptionalCosts(
         chosenSa: SpellAbility,
         optionalCosts: MutableList<forge.game.spellability.OptionalCostValue>,
     ): MutableList<forge.game.spellability.OptionalCostValue> {
-        // Auto-accept all optional costs — the engine will check mana availability
-        // during cost payment. If the player can't afford it, the spell fizzles
-        // and rolls back.
+        val stashed = bridge.stashedOptionalCostIndices
+        if (stashed != null) {
+            bridge.stashedOptionalCostIndices = null
+            val chosen = stashed.mapNotNull { optionalCosts.getOrNull(it) }.toMutableList()
+            log.info("chooseOptionalCosts: using stashed decision — chose {} of {} for {}", chosen.size, optionalCosts.size, chosenSa.hostCard?.name)
+            return chosen
+        }
+        // Fallback: auto-accept all (MatchHarness path, no prior CastingTimeOptionsReq)
         log.info("chooseOptionalCosts: auto-accepting {} optional costs for {}", optionalCosts.size, chosenSa.hostCard?.name)
         return optionalCosts
     }

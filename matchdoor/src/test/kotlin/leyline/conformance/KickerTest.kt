@@ -5,6 +5,7 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
+import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
  * Integration test for kicker — Burst Lightning kicked for 4 damage.
@@ -54,8 +55,20 @@ class KickerTest :
 
             h.phase() shouldBe "MAIN1"
 
-            // Cast Burst Lightning (kicker auto-accepted by WebPlayerController)
+            // Cast Burst Lightning — triggers optional cost prompt
             h.castSpellByName("Burst Lightning").shouldBeTrue()
+
+            // Respond to kicker prompt: accept kicker (ctoId=1)
+            val kickerResp = clientMessage(ClientMessageType.CastingTimeOptionsResp_097b) {
+                setCastingTimeOptionsResp(
+                    CastingTimeOptionsResp.newBuilder()
+                        .setCastingTimeOptionResp(
+                            CastingTimeOptionResp.newBuilder().setCtoId(1),
+                        ),
+                )
+            }
+            h.session.onCastingTimeOptions(kickerResp)
+            h.drainSink()
 
             // Burst Lightning targets "any target" — select opponent (seatId 2)
             h.selectTargets(listOf(2))
