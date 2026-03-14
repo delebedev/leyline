@@ -225,7 +225,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 30 | AssignDamageReq | S→C | -- | -- (MISSING) |
 | 34 | SelectTargetsReq | S→C | `selectTargetsBundle` | `onSelectTargets` (response) |
 | 35 | SubmitTargetsResp | S→C | (inline in MatchSession) | -- |
-| 36 | CastingTimeOptionsReq | S→C | `castingTimeOptionsBundle` | `onCastingTimeOptions` (response) |
+| 36 | CastingTimeOptionsReq | S→C | `castingTimeOptionsBundle` | `onCastingTimeOptions` (response). Types: Modal (ETB choices), Kicker, AdditionalCost, OptionalCost, Bargain. Session intercepts Cast for optional costs. |
 | 37 | IntermissionReq | S→C | (inline in sendGameOver) | -- |
 | 51 | QueuedGameStateMessage | S→C | `queuedGameState` | -- |
 | 54 | EdictalMessage | S→C | `edictalPass` | -- |

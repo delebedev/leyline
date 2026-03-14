@@ -222,6 +222,16 @@ spells:
       (supports +N/-N/-ultimate selection). Emblem zone not mapped.
       LoyaltyActivationsRemaining annotation missing.
 
+  optional-costs:
+    status: wired
+    notes: >
+      Kicker, buyback, entwine, bargain, and all optional additional costs.
+      Session layer intercepts Cast, checks for optional costs via
+      GameActionUtil.getOptionalCostValues, sends CastingTimeOptionsReq
+      with per-cost type (Kicker, AdditionalCost, OptionalCost). Client
+      shows "Choose One" modal. Response stashed for engine's
+      chooseOptionalCosts. Auto-accept fallback for MatchHarness.
+
   cast-mdfc:
     status: missing
     notes: "CastMdfc/PlayMdfc action types not implemented."
