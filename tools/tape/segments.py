@@ -390,13 +390,16 @@ def extract_prompt_lifecycle(frames, start_idx, category):
                     lifecycle['end_index'] = i + 1
             break
 
-        # GSM diff — part of echo round
+        # GSM diff — part of echo round (only before echo_req is set)
         if f.get('gsmType') in ('Diff', 'Full'):
-            if current_round is not None:
+            if current_round is not None and current_round['echo_req'] is None:
                 current_round['echo_gsms'].append(f)
                 lifecycle['end_index'] = i
                 i += 1
                 continue
+            # GSM after echo_req means the round is complete, this is post-combat
+            if current_round is not None and current_round['echo_req'] is not None:
+                break
             # GSM before any response — skip (part of initial context)
             i += 1
             continue

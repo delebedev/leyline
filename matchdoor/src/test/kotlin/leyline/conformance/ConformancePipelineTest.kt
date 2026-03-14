@@ -4,7 +4,16 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import leyline.IntegrationTag
+import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
 
 /**
@@ -159,7 +168,114 @@ class ConformancePipelineTest :
                 },
             )
         }
+        test("DeclareAttackers prompt lifecycle capture") {
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            harness = h
+            h.connectAndKeep()
+
+            h.installScriptedAi(
+                listOf(
+                    ScriptedAction.PlayLand("Mountain"),
+                    ScriptedAction.DeclareNoAttackers,
+                    ScriptedAction.PassPriority,
+                ),
+            )
+
+            // Turn 1: play Mountain, cast Raging Goblin (haste)
+            h.playLand().shouldBeTrue()
+            h.castSpellByName("Raging Goblin").shouldBeTrue()
+            h.passPriority() // resolve
+
+            // Advance to combat — DeclareAttackersReq emitted
+            h.passPriority()
+
+            val daReqMsg = h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }
+            daReqMsg.shouldNotBeNull()
+            val initialReq = PromptSerializer.serialize(daReqMsg.declareAttackersReq)
+
+            // Toggle one attacker (iterative DeclareAttackersResp)
+            val attackerIid = daReqMsg.declareAttackersReq.attackersList.first().attackerInstanceId
+            val echoMsgs = h.toggleAttackers(listOf(attackerIid))
+
+            // Capture echo GSM
+            val echoGsm = echoMsgs.firstOrNull { it.hasGameStateMessage() }
+            val echoGsmJson = echoGsm?.let { buildEchoGsmJson(it) }
+
+            // Capture echo DeclareAttackersReq
+            val echoReqMsg = echoMsgs.firstOrNull { it.hasDeclareAttackersReq() }
+            val echoReq = echoReqMsg?.let { PromptSerializer.serialize(it.declareAttackersReq) }
+
+            // Submit
+            h.submitAttackers()
+
+            // Build lifecycle JSON matching template format
+            val lifecycle = buildJsonObject {
+                put("category", "DeclareAttackers")
+                put("initial_req_promptData", initialReq)
+                put("rounds", buildJsonArray {
+                    add(buildJsonObject {
+                        put("echo_gsms", buildJsonArray {
+                            echoGsmJson?.let { add(it) }
+                        })
+                        echoReq?.let { put("echo_req_promptData", it) }
+                    })
+                })
+            }
+
+            val prettyJson = Json { prettyPrint = true }
+            File(outputDir, "declare-attackers-lifecycle.json")
+                .writeText(prettyJson.encodeToString(JsonElement.serializer(), lifecycle))
+        }
     })
+
+/** Build echo GSM JSON matching the template's conformance-relevant fields. */
+private fun buildEchoGsmJson(msg: GREToClientMessage): JsonObject {
+    val gsm = msg.gameStateMessage
+    return buildJsonObject {
+        put("updateType", gsm.update.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))
+        put("objects", buildJsonArray {
+            for (obj in gsm.gameObjectsList) {
+                add(buildJsonObject {
+                    put("instanceId", obj.instanceId)
+                    put("grpId", obj.grpId)
+                    put("zoneId", obj.zoneId)
+                    put("type", obj.type.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))
+                    put("visibility", obj.visibility.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))
+                    put("owner", obj.ownerSeatId)
+                    put("controller", obj.controllerSeatId)
+                    if (obj.isTapped) put("isTapped", true)
+                    if (obj.hasPower()) put("power", obj.power.value)
+                    if (obj.hasToughness()) put("toughness", obj.toughness.value)
+                    put("cardTypes", buildJsonArray {
+                        obj.cardTypesList.forEach { add(JsonPrimitive(it.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))) }
+                    })
+                    put("subtypes", buildJsonArray {
+                        obj.subtypesList.forEach { add(JsonPrimitive(it.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))) }
+                    })
+                    put("uniqueAbilityCount", obj.uniqueAbilitiesCount)
+                })
+            }
+        })
+        put("annotations", buildJsonArray {
+            for (ann in gsm.annotationsList) {
+                add(buildJsonObject {
+                    put("types", buildJsonArray {
+                        ann.typeList.forEach { add(JsonPrimitive(it.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))) }
+                    })
+                })
+            }
+        })
+        put("persistentAnnotations", buildJsonArray {
+            for (ann in gsm.persistentAnnotationsList) {
+                add(buildJsonObject {
+                    put("types", buildJsonArray {
+                        ann.typeList.forEach { add(JsonPrimitive(it.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))) }
+                    })
+                })
+            }
+        })
+    }
+}
 
 /** Minimal JSON value serializer for test output. */
 private fun serializeValue(value: Any?): String = when (value) {
