@@ -77,6 +77,10 @@ Never batch commands blindly. One action, one check, next action.
 | Booster open button | 480,533 | Center-bottom |
 | Continue (pack reveal) | 867,532 | Bottom-right |
 | Opponent portrait (targeting) | 480,85 | Click during targeting prompt to select opponent as target |
+| Resolve (stack) | 888,490 | Same area as Pass — resolves top of stack |
+| Submit (targeting) | 888,489 | Confirm target selection ("Submit N") |
+| Cancel (targeting/kicker) | 888,456 | Back out of targeting or decline optional cost |
+| Kicker choice (right card) | 560,250 | "Choose One" modal — right option = Cast With Kicker |
 
 ## How to Play Cards
 
@@ -94,7 +98,8 @@ Never batch commands blindly. One action, one check, next action.
   - **Player targeting:** click opponent portrait at 480,85. OCR won't show a text label — it's a portrait click.
   - **Creature targeting:** click the creature card on the battlefield.
   - After selecting, "Submit 1" appears at 888,489 — click to confirm.
-- **Modal choices (kicker, scry, surveil):** Handle the prompt, then click "Done"
+- **Optional costs (kicker, buyback, bargain):** "Choose One" modal appears — left=normal cast, right=with cost. Click the right card (~560,250) to pay, or left to decline. Then targeting follows.
+- **Modal choices (scry, surveil, modal ETB):** "Choose One" modal — click the option card. Then click "Done".
 
 ### Combat interactions (attackers & blockers)
 
