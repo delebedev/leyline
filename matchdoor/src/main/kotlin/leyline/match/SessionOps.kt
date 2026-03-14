@@ -60,6 +60,9 @@ interface SessionOps {
     /** Handle SelectTargetsResp. Default no-op for read-only sessions. */
     fun onSelectTargets(greMsg: ClientToGREMessage) {}
 
+    /** Handle SubmitTargetsReq. Default no-op for read-only sessions. */
+    fun onSubmitTargets(greMsg: ClientToGREMessage) {}
+
     /** Handle SelectNResp. Default no-op for read-only sessions. */
     fun onSelectN(greMsg: ClientToGREMessage) {}
 

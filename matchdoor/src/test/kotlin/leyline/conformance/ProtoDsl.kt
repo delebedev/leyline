@@ -191,6 +191,14 @@ fun cancelActionReq(): ClientToGREMessage =
         setCancelActionReq(CancelActionReq.newBuilder())
     }
 
+/**
+ * [SubmitTargetsReq] — finalize targeting (the "Done" button).
+ *
+ * Type-only, no payload — matches real client behavior.
+ */
+fun submitTargetsReq(): ClientToGREMessage =
+    clientMessage(ClientMessageType.SubmitTargetsReq)
+
 // ---------------------------------------------------------------------------
 // Modal — CastingTimeOptionsResp
 // ---------------------------------------------------------------------------
