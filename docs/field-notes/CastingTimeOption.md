@@ -62,8 +62,17 @@ Three sub-cases:
 
 The primary missing piece is detecting "was this spell cast via an alternate cost?" in the post-cast GSM. The `UserActionTaken.alternativeGrpId` field already encodes this for the cast action.
 
+### Kicker (CastingTimeOptionsReq type="Kicker") interaction
+
+`CastingTimeOptionsReq` with `type="Kicker"` is the interactive prompt. When the player **declines** kicker, the response is bare (no body). No `CastingTimeOption` annotation (type 64) appears in the subsequent GSMs in this case.
+
+When kicker is **accepted**, a `CastingTimeOption` annotation with the appropriate type value is expected — not yet observed in recordings.
+
+See full kicker wire protocol in `docs/plans/2026-03-14-kicker-wire-spec.md`.
+
 ### Open questions
 
 - Does `type=2` (ChooseX) ever appear in the casting player's GSM or only in opponent-echo QueuedGameStateMessages?
 - Is the annotation deleted when the `CastingTimeOptionsReq` is dismissed (i.e. player chose "Done"), or only when the spell resolves?
-- Are there other `CastingTimeOptionType` values (Kicker=3, Bargain=17, etc.) not yet observed? Almost certainly yes.
+- What `type` value appears for `CastingTimeOption` when kicker is accepted? Likely 3 (not yet observed).
+- What `ctoId` value is in CastingTimeOptionsResp when a non-Done option is selected?
