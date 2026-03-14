@@ -63,16 +63,52 @@ fun awaitPrompt(
     return null
 }
 
-fun advanceToMain1(b: GameBridge, maxPasses: Int = 20) {
+/**
+ * Advance the engine to a phase matching [predicate] by submitting one
+ * PassPriority at a time via the bridge. No AutoPassEngine involvement —
+ * each pass is a single engine step, so there is no phase overshoot.
+ *
+ * Returns the [GameActionBridge.PendingAction] at the target phase
+ * (the engine is blocked, so game state is stable for assertions).
+ *
+ * Combat phases are safe: submitting PassPriority during declareAttackers
+ * / declareBlockers means "no attackers / no blockers" — the engine
+ * continues to the next phase without hanging.
+ */
+fun advanceTo(
+    b: GameBridge,
+    maxPasses: Int = 50,
+    timeoutMs: Long = 15_000,
+    predicate: (phase: String, turn: Int) -> Boolean,
+): GameActionBridge.PendingAction {
     val game = b.getGame()!!
-    var passes = 0
     var lastId: String? = null
-    while (passes < maxPasses) {
-        val pending = awaitFreshPending(b, lastId)
-            ?: error("Timed out waiting for priority while advancing to Main1 (phase=${game.phaseHandler.phase})")
-        if (pending.state.phase == "MAIN1") return
+    repeat(maxPasses) {
+        val pending = awaitFreshPending(b, lastId, timeoutMs)
+            ?: error("Timed out waiting for priority (phase=${game.phaseHandler.phase}, turn=${game.phaseHandler.turn})")
+        if (predicate(pending.state.phase, pending.state.turn)) return pending
         b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
         lastId = pending.actionId
-        passes++
     }
+    error("Max passes ($maxPasses) exceeded advancing to target phase (current: ${game.phaseHandler.phase}, turn ${game.phaseHandler.turn})")
+}
+
+/** Advance to a specific [phase], optionally on a specific [turn]. */
+fun advanceToPhase(
+    b: GameBridge,
+    phase: String,
+    turn: Int? = null,
+    maxPasses: Int = 50,
+) = advanceTo(b, maxPasses) { p, t -> p == phase && (turn == null || t == turn) }
+
+/** Advance to COMBAT_DECLARE_ATTACKERS. */
+fun advanceToCombat(b: GameBridge, turn: Int? = null) =
+    advanceToPhase(b, "COMBAT_DECLARE_ATTACKERS", turn)
+
+/** Advance to MAIN2. */
+fun advanceToMain2(b: GameBridge, turn: Int? = null) =
+    advanceToPhase(b, "MAIN2", turn)
+
+fun advanceToMain1(b: GameBridge, maxPasses: Int = 20) {
+    advanceToPhase(b, "MAIN1", maxPasses = maxPasses)
 }

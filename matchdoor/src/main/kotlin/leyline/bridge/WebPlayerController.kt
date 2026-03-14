@@ -1063,6 +1063,7 @@ class WebPlayerController(
 
             val state = PendingActionState(
                 phase = handler.phase?.name ?: "UNKNOWN",
+                turn = handler.turn,
                 activePlayerId = handler.playerTurn?.id ?: -1,
                 priorityPlayerId = player.id,
             )
@@ -1096,6 +1097,7 @@ class WebPlayerController(
 
         val state = PendingActionState(
             phase = "COMBAT_DECLARE_ATTACKERS",
+            turn = game.phaseHandler.turn,
             activePlayerId = attacker.id,
             priorityPlayerId = attacker.id,
         )
@@ -1122,6 +1124,7 @@ class WebPlayerController(
 
         val state = PendingActionState(
             phase = "COMBAT_DECLARE_BLOCKERS",
+            turn = game.phaseHandler.turn,
             activePlayerId = defender.id,
             priorityPlayerId = defender.id,
         )
