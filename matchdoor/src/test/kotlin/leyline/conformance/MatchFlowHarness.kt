@@ -371,9 +371,31 @@ class MatchFlowHarness(
 
     // --- Targeting helpers ---
 
-    /** Select targets by instanceId for a pending SelectTargetsReq. */
+    /**
+     * Two-phase target selection: send SelectTargetsResp + SubmitTargetsReq.
+     *
+     * Phase 1: SelectTargetsResp stores selection and sends echo-back re-prompt.
+     * Phase 2: SubmitTargetsReq finalizes — submits to engine, resolves.
+     */
     fun selectTargets(targetInstanceIds: List<Int>) {
         session.onSelectTargets(selectTargetsResp(targets = targetInstanceIds))
+        drainSink()
+        session.onSubmitTargets(submitTargetsReq())
+        drainSink()
+    }
+
+    /**
+     * Phase 1 only: send SelectTargetsResp without submitting.
+     * Use when you need to inspect the echo-back before confirming.
+     */
+    fun selectTargetsIterative(targetInstanceIds: List<Int>) {
+        session.onSelectTargets(selectTargetsResp(targets = targetInstanceIds))
+        drainSink()
+    }
+
+    /** Phase 2 only: send SubmitTargetsReq to finalize targeting. */
+    fun submitTargets() {
+        session.onSubmitTargets(submitTargetsReq())
         drainSink()
     }
 
