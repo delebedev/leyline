@@ -395,6 +395,38 @@ class CombatFlowTest :
             // Echo should also contain a fresh DeclareAttackersReq
             val echoReq = echoMsgs.firstOrNull { it.hasDeclareAttackersReq() }
             echoReq.shouldNotBeNull()
+
+            // Conformance: committed attackers have selectedDamageRecipient set
+            val echoAttacker = echoReq.declareAttackersReq.attackersList
+                .first { it.attackerInstanceId == attackerIid }
+            echoAttacker.hasSelectedDamageRecipient().shouldBeTrue()
+            echoAttacker.selectedDamageRecipient.type shouldBe DamageRecType.Player_a0e5
+
+            // Conformance: qualifiedAttackers never has selectedDamageRecipient
+            val qualAttacker = echoReq.declareAttackersReq.qualifiedAttackersList
+                .first { it.attackerInstanceId == attackerIid }
+            qualAttacker.hasSelectedDamageRecipient().shouldBeFalse()
+
+            // Conformance: manaCost present (empty entry)
+            (echoReq.declareAttackersReq.manaCostCount > 0).shouldBeTrue()
+        }
+
+        test("echo back deselect clears selectedDamageRecipient") {
+            val attackerIid = setupSingleAttacker()
+            val h = harness!!
+
+            h.passPriority() // advance to combat
+            h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
+
+            // Toggle ON
+            val onMsgs = h.toggleAttackers(listOf(attackerIid))
+            val onReq = onMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
+            onReq.attackersList.first().hasSelectedDamageRecipient().shouldBeTrue()
+
+            // Toggle OFF (empty selection)
+            val offMsgs = h.toggleAttackers(emptyList())
+            val offReq = offMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
+            offReq.attackersList.first().hasSelectedDamageRecipient().shouldBeFalse()
         }
 
         test("echo back deselect restores state") {
