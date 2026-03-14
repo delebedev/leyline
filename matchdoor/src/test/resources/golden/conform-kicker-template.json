@@ -1,0 +1,26 @@
+{
+  "_comment": "Kicker CastingTimeOptionsReq template — from recording 2026-03-06_22-37-41 (Burst Lightning)",
+  "_source": "Wire spec: docs/plans/2026-03-14-kicker-wire-spec.md",
+  "greType": "CastingTimeOptionsReq",
+  "castingTimeOptions": [
+    {
+      "ctoId": 2,
+      "type": "Kicker",
+      "affectedId": "{{stackInstanceId}}",
+      "affectorId": "{{stackInstanceId}}",
+      "grpId": "{{kickerAbilityGrpId}}"
+    },
+    {
+      "ctoId": 0,
+      "type": "Done",
+      "isRequired": true
+    }
+  ],
+  "promptId": 23,
+  "_notes": {
+    "pattern": "Same flat structure for all optional costs: Kicker, Bargain, Buyback, etc.",
+    "grpId": "The kicker ABILITY grpId (e.g. 2852 for Burst Lightning's Kicker {4}), NOT the card grpId",
+    "accepted_response": "Unknown from recordings — all 4 observed instances were declined (bare response body)",
+    "declined_response": "Bare CastingTimeOptionsResp with no castingTimeOptionResp fields"
+  }
+}
