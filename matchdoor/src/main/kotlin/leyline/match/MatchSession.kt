@@ -245,13 +245,21 @@ class MatchSession(
                 Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
             }
             ActionType.Cast -> {
-                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val submitted = if (forgeCardId != null) {
-                    bridge.actionBridge.submitAction(pending.actionId, PlayerAction.CastSpell(forgeCardId))
+                // Check for optional costs (kicker, buyback, etc.) before submitting.
+                // If found, sends CastingTimeOptionsReq to client and returns without
+                // submitting to engine. onCastingTimeOptions resumes the cast.
+                if (targetingHandler.checkOptionalCosts(action, pending.actionId, bridge)) {
+                    Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
+                    // Don't submit to engine yet — wait for CastingTimeOptionsResp
                 } else {
-                    bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                    val submitted = if (forgeCardId != null) {
+                        bridge.actionBridge.submitAction(pending.actionId, PlayerAction.CastSpell(forgeCardId))
+                    } else {
+                        bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    }
+                    Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
                 }
-                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
             }
             ActionType.Activate_add3 -> {
                 val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
