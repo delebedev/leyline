@@ -1,0 +1,19 @@
+[metadata]
+Name:Declare Blockers Test
+Goal:AI wins
+Turns:10
+Difficulty:Easy
+Description:AI has 2 attacking Raging Goblins. Human has 2 Grizzly Bears to block with.
+
+[state]
+ActivePlayer=AI
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Forest;Forest;Grizzly Bears;Grizzly Bears
+humanhand=Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Mountain;Mountain;Raging Goblin;Raging Goblin
+aihand=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
