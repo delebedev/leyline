@@ -5,7 +5,6 @@ import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -168,6 +167,90 @@ class ConformancePipelineTest :
                 },
             )
         }
+        test("DeclareBlockers prompt lifecycle capture") {
+            // Puzzle: AI starts with Juggernaut (must-attack) on battlefield.
+            // Human has two Centaur Coursers as potential blockers.
+            // AI's turn → Juggernaut attacks → DeclareBlockersReq sent to human.
+            val h = MatchFlowHarness(validating = false)
+            harness = h
+            h.connectAndKeepPuzzleText(
+                """
+                [metadata]
+                Name:Conformance DeclareBlockers
+                Goal:Survive
+                Turns:2
+                Difficulty:Tutorial
+                Description:Pipeline test — blocker declaration
+
+                [state]
+                ActivePlayer=AI
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Centaur Courser;Centaur Courser
+                humanlibrary=Forest;Forest;Forest
+                aibattlefield=Juggernaut
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+            )
+
+            // Puzzle starts on AI turn — Juggernaut must attack.
+            // Auto-pass advances through AI turn, emitting DeclareBlockersReq.
+            // May need extra passes if auto-pass stopped early.
+            for (i in 0 until 15) {
+                if (h.isGameOver()) break
+                if (h.allMessages.any { it.hasDeclareBlockersReq() }) break
+                h.passPriority()
+            }
+            val dbReqMsg = h.allMessages.lastOrNull { it.hasDeclareBlockersReq() }
+            dbReqMsg.shouldNotBeNull()
+            val initialReq = PromptSerializer.serialize(dbReqMsg.declareBlockersReq)
+
+            // Toggle one blocker (iterative DeclareBlockersResp)
+            val blocker = dbReqMsg.declareBlockersReq.blockersList.first()
+            val blockerIid = blocker.blockerInstanceId
+            val attackerIid = blocker.attackerInstanceIdsList.first()
+            val echoMsgs = h.toggleBlockers(mapOf(blockerIid to attackerIid))
+
+            // Capture echo GSM
+            val echoGsm = echoMsgs.firstOrNull { it.hasGameStateMessage() }
+            val echoGsmJson = echoGsm?.let { buildEchoGsmJson(it) }
+
+            // Capture echo DeclareBlockersReq
+            val echoReqMsg = echoMsgs.firstOrNull { it.hasDeclareBlockersReq() }
+            val echoReq = echoReqMsg?.let { PromptSerializer.serialize(it.declareBlockersReq) }
+
+            // Submit
+            h.submitBlockers()
+
+            // Build lifecycle JSON matching template format
+            val lifecycle = buildJsonObject {
+                put("category", "DeclareBlockers")
+                put("initial_req_promptData", initialReq)
+                put(
+                    "rounds",
+                    buildJsonArray {
+                        add(
+                            buildJsonObject {
+                                put(
+                                    "echo_gsms",
+                                    buildJsonArray {
+                                        echoGsmJson?.let { add(it) }
+                                    },
+                                )
+                                echoReq?.let { put("echo_req_promptData", it) }
+                            },
+                        )
+                    },
+                )
+            }
+
+            val prettyJson = Json { prettyPrint = true }
+            File(outputDir, "declare-blockers-lifecycle.json")
+                .writeText(prettyJson.encodeToString(JsonElement.serializer(), lifecycle))
+        }
+
         test("DeclareAttackers prompt lifecycle capture") {
             val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
             harness = h
@@ -212,14 +295,22 @@ class ConformancePipelineTest :
             val lifecycle = buildJsonObject {
                 put("category", "DeclareAttackers")
                 put("initial_req_promptData", initialReq)
-                put("rounds", buildJsonArray {
-                    add(buildJsonObject {
-                        put("echo_gsms", buildJsonArray {
-                            echoGsmJson?.let { add(it) }
-                        })
-                        echoReq?.let { put("echo_req_promptData", it) }
-                    })
-                })
+                put(
+                    "rounds",
+                    buildJsonArray {
+                        add(
+                            buildJsonObject {
+                                put(
+                                    "echo_gsms",
+                                    buildJsonArray {
+                                        echoGsmJson?.let { add(it) }
+                                    },
+                                )
+                                echoReq?.let { put("echo_req_promptData", it) }
+                            },
+                        )
+                    },
+                )
             }
 
             val prettyJson = Json { prettyPrint = true }
@@ -236,36 +327,57 @@ private fun buildEchoGsmJson(msg: GREToClientMessage): JsonObject {
     val stripSuffix = Regex("_[a-f0-9]{3,4}$")
     return buildJsonObject {
         put("updateType", gsm.update.name.replace(stripSuffix, ""))
-        put("objects", buildJsonArray {
-            for (obj in gsm.gameObjectsList) {
-                add(buildJsonObject {
-                    put("instanceId", obj.instanceId)
-                    put("zoneId", obj.zoneId)
-                    put("type", obj.type.name.replace(stripSuffix, ""))
-                    put("visibility", obj.visibility.name.replace(stripSuffix, ""))
-                    put("owner", obj.ownerSeatId)
-                    put("controller", obj.controllerSeatId)
-                })
-            }
-        })
-        put("annotations", buildJsonArray {
-            for (ann in gsm.annotationsList) {
-                add(buildJsonObject {
-                    put("types", buildJsonArray {
-                        ann.typeList.forEach { add(JsonPrimitive(it.name.replace(stripSuffix, ""))) }
-                    })
-                })
-            }
-        })
-        put("persistentAnnotations", buildJsonArray {
-            for (ann in gsm.persistentAnnotationsList) {
-                add(buildJsonObject {
-                    put("types", buildJsonArray {
-                        ann.typeList.forEach { add(JsonPrimitive(it.name.replace(stripSuffix, ""))) }
-                    })
-                })
-            }
-        })
+        put(
+            "objects",
+            buildJsonArray {
+                for (obj in gsm.gameObjectsList) {
+                    add(
+                        buildJsonObject {
+                            put("instanceId", obj.instanceId)
+                            put("zoneId", obj.zoneId)
+                            put("type", obj.type.name.replace(stripSuffix, ""))
+                            put("visibility", obj.visibility.name.replace(stripSuffix, ""))
+                            put("owner", obj.ownerSeatId)
+                            put("controller", obj.controllerSeatId)
+                        },
+                    )
+                }
+            },
+        )
+        put(
+            "annotations",
+            buildJsonArray {
+                for (ann in gsm.annotationsList) {
+                    add(
+                        buildJsonObject {
+                            put(
+                                "types",
+                                buildJsonArray {
+                                    ann.typeList.forEach { add(JsonPrimitive(it.name.replace(stripSuffix, ""))) }
+                                },
+                            )
+                        },
+                    )
+                }
+            },
+        )
+        put(
+            "persistentAnnotations",
+            buildJsonArray {
+                for (ann in gsm.persistentAnnotationsList) {
+                    add(
+                        buildJsonObject {
+                            put(
+                                "types",
+                                buildJsonArray {
+                                    ann.typeList.forEach { add(JsonPrimitive(it.name.replace(stripSuffix, ""))) }
+                                },
+                            )
+                        },
+                    )
+                }
+            },
+        )
     }
 }
 
