@@ -12,10 +12,11 @@ import leyline.bridge.SeatId
 /**
  * End-to-end blocker declaration tests: AI attacks, human blocks.
  *
- * DISABLED: ScriptedPlayerController.Attack doesn't fire through
- * AutoPassEngine — the auto-pass loop skips AI combat without triggering
- * WebPlayerController.declareAttackers(). Blocked on puzzle-mode AI
- * combat integration or ScriptedPlayerController wiring through AutoPassEngine.
+ * Key insight: after declareNoAttackers() on human's combat, the
+ * autoPassAndAdvance inside the submit handler processes the AI turn.
+ * DO NOT call passPriority() to "advance" — it submits Pass to the
+ * COMBAT_DECLARE_BLOCKERS pending, which means "no blockers" and
+ * skips the entire DeclareBlockersReq flow.
  *
  * Uses non-validating harness: combat zone transfers can produce transient
  * instanceId gaps (known StateMapper issue tracked separately).
@@ -62,33 +63,30 @@ class BlockerDeclarationTest :
             h.castSpellByName("Raging Goblin").shouldBeTrue()
             h.passPriority() // resolve
 
-            // Skip human's own combat if prompted
+            // Human combat: decline if prompted. The autoPassAndAdvance inside
+            // declareNoAttackers processes the AI turn (land, cast, attack)
+            // and may send DeclareBlockersReq in the same call.
             if (h.allMessages.any { it.hasDeclareAttackersReq() }) {
                 h.declareNoAttackers()
             }
 
-            // Get human blocker instanceId before combat
+            // If DeclareBlockersReq isn't in messages yet, the AI turn hasn't
+            // completed. Use bridge-level advanceTo to reach COMBAT_DECLARE_BLOCKERS
+            // without intercepting the pending (passPriority would submit Pass
+            // to the blocker pending = "no blockers"). Then trigger autoPassAndAdvance
+            // directly — CombatHandler detects the combat phase and sends
+            // DeclareBlockersReq before any action is submitted.
+            if (!h.allMessages.any { it.hasDeclareBlockersReq() }) {
+                leyline.game.advanceToPhase(h.bridge, "COMBAT_DECLARE_BLOCKERS")
+                h.triggerAutoPass()
+                h.drainSink()
+            }
+
+            h.allMessages.any { it.hasDeclareBlockersReq() }.shouldBeTrue()
+
             val humanCreatures = h.humanBattlefieldCreatures()
             humanCreatures.shouldNotBeEmpty()
             val blockerIid = humanCreatures.first().first
-
-            // Advance to AI's turn — AI script runs: land, cast, attack.
-            var sawBlockerReq = false
-            for (i in 0 until 50) {
-                if (h.isGameOver()) break
-                val snap = h.messageSnapshot()
-                h.passPriority()
-                val recent = h.messagesSince(snap)
-                if (recent.any { it.hasDeclareBlockersReq() }) {
-                    sawBlockerReq = true
-                    break
-                }
-                if (recent.any { it.hasDeclareAttackersReq() }) {
-                    h.declareNoAttackers()
-                }
-            }
-
-            sawBlockerReq.shouldBeTrue()
 
             // Find the AI attacker instanceId from the DeclareBlockersReq
             val blockReq = h.allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq
@@ -102,10 +100,7 @@ class BlockerDeclarationTest :
             return blockerIid to attackerIid
         }
 
-        // TODO: AI ScriptedPlayerController.Attack doesn't fire through AutoPassEngine —
-        //  the auto-pass loop skips AI combat without triggering declareAttackers.
-        //  Needs either puzzle-mode fix or ScriptedPlayerController integration with AutoPassEngine.
-        xtest("human blocks AI attacker") {
+        test("human blocks AI attacker") {
             val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
 
             val h = harness!!
@@ -130,7 +125,7 @@ class BlockerDeclarationTest :
             h.isGameOver().shouldBeFalse()
         }
 
-        xtest("human declines blocking takes damage") {
+        test("human declines blocking takes damage") {
             setupAiAttacksHumanCanBlock() // advances to DeclareBlockersReq
 
             val h = harness!!
@@ -153,7 +148,7 @@ class BlockerDeclarationTest :
             h.isGameOver().shouldBeFalse()
         }
 
-        xtest("trade produces creature deaths") {
+        test("trade produces creature deaths") {
             val (blockerIid, attackerIid) = setupAiAttacksHumanCanBlock()
 
             val h = harness!!

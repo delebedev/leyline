@@ -220,6 +220,18 @@ class MatchFlowHarness(
     }
 
     /**
+     * Trigger autoPassAndAdvance directly — without submitting an action first.
+     *
+     * Use when the engine is already blocked at a combat phase (e.g.
+     * COMBAT_DECLARE_BLOCKERS) and you need CombatHandler to send the
+     * prompt message. Calling [passPriority] would submit Pass to the
+     * combat pending, which is not what you want.
+     */
+    fun triggerAutoPass() {
+        session.triggerAutoPass(bridge)
+    }
+
+    /**
      * Replace the AI seat's controller with a [ScriptedPlayerController].
      * Call after [connectAndKeep] — the AI player must already exist.
      * Returns the scripted controller for inspection.
@@ -334,6 +346,25 @@ class MatchFlowHarness(
 
     /** Declare no blockers (let all attackers through). Sends SubmitBlockersReq directly. */
     fun declareNoBlockers() {
+        session.onDeclareBlockers(submitBlockersReq(seatId))
+        drainSink()
+    }
+
+    /**
+     * Send only the iterative DeclareBlockersResp (no Submit) — simulates a single
+     * blocker assignment click. Returns messages produced by the echo-back.
+     */
+    fun toggleBlockers(assignments: Map<Int, Int>): List<GREToClientMessage> {
+        val snap = messageSnapshot()
+        session.onDeclareBlockers(declareBlockersResp(assignments))
+        drainSink()
+        return messagesSince(snap)
+    }
+
+    /**
+     * Send SubmitBlockersReq (type-only, no payload) — the real client's "Done" button.
+     */
+    fun submitBlockers() {
         session.onDeclareBlockers(submitBlockersReq(seatId))
         drainSink()
     }
