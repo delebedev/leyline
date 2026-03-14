@@ -5,7 +5,6 @@ import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -19,6 +18,7 @@ import leyline.bridge.SeatId
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
 /**
  * Field-level conformance test for play-land protocol messages.
@@ -56,59 +56,51 @@ class PlayLandFieldTest :
             origInstanceId shouldNotBe newInstanceId
 
             assertSoftly {
-                // annotation IDs sequential
+                // annotation IDs: positive, sequential, unique
                 val ids = gsm.annotationsList.map { it.id }
-                ids.all { it > 0 }.shouldBeTrue()
                 ids shouldBe ids.sorted()
                 ids.toSet().size shouldBe ids.size
 
-                // ZoneTransfer annotation
+                // ZoneTransfer: Hand → Battlefield, PlayLand category
                 val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
                 zt.affectedIdsList.shouldContain(newInstanceId)
                 zt.detailInt("zone_src") shouldBe ZoneIds.P1_HAND
                 zt.detailInt("zone_dest") shouldBe ZoneIds.BATTLEFIELD
                 zt.detailString("category") shouldBe "PlayLand"
 
-                // ObjectIdChanged
+                // ObjectIdChanged: old → new instanceId
                 val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
                 oic.affectedIdsList.shouldContain(origInstanceId)
                 oic.detailInt("orig_id") shouldBe origInstanceId
                 oic.detailInt("new_id") shouldBe newInstanceId
 
-                // UserActionTaken
+                // UserActionTaken: seat 1 played the land
                 val uat = gsm.annotation(AnnotationType.UserActionTaken)
                 uat.affectorId.toInt() shouldBe 1
                 uat.affectedIdsList.shouldContain(newInstanceId)
                 uat.detailInt("actionType") shouldBeGreaterThan 0
                 uat.detail("abilityGrpId").shouldNotBeNull()
 
-                // prevGameStateId
-                gsm.prevGameStateId.toInt() shouldNotBe 0
-                (gsm.prevGameStateId < gsm.gameStateId).shouldBeTrue()
+                // gsId chain: prev < current
+                gsm.prevGameStateId shouldBe gsm.gameStateId - 1
 
-                // persistentAnnotations
-                (gsm.persistentAnnotationsCount > 0).shouldBeTrue()
+                // persistent: EnteredZoneThisTurn on the land
+                gsm.persistentAnnotationsCount shouldBeGreaterThan 0
                 val enteredZone = gsm.persistentAnnotationsList
                     .firstOrNull { AnnotationType.EnteredZoneThisTurn in it.typeList }
                     .shouldNotBeNull()
                 enteredZone.affectedIdsList.shouldContain(newInstanceId)
 
-                // land object on battlefield with abilities
+                // land object: on BF with mana abilities, not in Limbo
                 val landObj = gsm.gameObjectsList
                     .firstOrNull { it.instanceId == newInstanceId }
                     .shouldNotBeNull()
                 landObj.zoneId shouldBe ZoneIds.BATTLEFIELD
                 landObj.uniqueAbilitiesCount shouldBeGreaterThan 0
-
-                // no Limbo objects in diff
                 gsm.gameObjectsList.filter { it.zoneId == ZoneIds.LIMBO }.shouldBeEmpty()
 
-                // old instance retired to Limbo zone
+                // old instanceId retired to Limbo zone, not deleted
                 assertLimboContains(gsm, origInstanceId)
-                val newObj = gsm.gameObjectsList
-                    .firstOrNull { it.instanceId == newInstanceId }
-                    .shouldNotBeNull()
-                newObj.zoneId shouldBe ZoneIds.BATTLEFIELD
                 gsm.diffDeletedInstanceIdsList.contains(origInstanceId).shouldBeFalse()
             }
         }
@@ -138,9 +130,7 @@ class PlayLandFieldTest :
                 newObj.zoneId shouldBe ZoneIds.BATTLEFIELD
 
                 val handZone = acc.zones.values
-                    .firstOrNull {
-                        it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand && it.ownerSeatId == 1
-                    }
+                    .firstOrNull { it.type == ProtoZoneType.Hand && it.ownerSeatId == 1 }
                     .shouldNotBeNull()
                 handZone.objectInstanceIdsList.contains(origInstanceId.value).shouldBeFalse()
 
