@@ -27,11 +27,19 @@ class TargetingHandler(private val ops: SessionOps) {
     /** Saved state for pending modal prompt — maps response grpIds back to prompt indices. */
     data class PendingModal(val promptId: String, val childGrpIds: List<Int>)
 
+    /** Saved state for two-phase targeting — stores selection between SelectTargetsResp and SubmitTargetsReq. */
+    data class PendingTargetSelection(val promptId: String, val selectedIndices: List<Int>)
+
     @Volatile
     private var pendingModal: PendingModal? = null
 
+    @Volatile
+    private var pendingTargetSelection: PendingTargetSelection? = null
+
     /**
-     * Handle SelectTargetsResp: map client instanceIds back to prompt option indices and submit.
+     * Handle SelectTargetsResp (phase 1): map client instanceIds to prompt indices,
+     * store selection, send echo-back GSM + re-prompt SelectTargetsReq.
+     * Does NOT submit to engine — waits for [onSubmitTargets].
      *
      * Player targets use seatId (1/2) as instanceId — these won't be in the card
      * instanceId registry, so we check for player refs first.
@@ -51,16 +59,37 @@ class TargetingHandler(private val ops: SessionOps) {
         val selectedTarget = resp.target
         val selectedIndices = selectedTarget.targetsList.mapNotNull { target ->
             val instanceId = target.targetInstanceId
-            // Player targets: instanceId == seatId (1 or 2). Match against player candidateRefs.
             val playerIdx = resolvePlayerTarget(instanceId, bridge, pendingPrompt)
             if (playerIdx != null) return@mapNotNull playerIdx
-
-            // Card targets: normal instanceId → forgeCardId reverse lookup
             val forgeCardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@mapNotNull null
             pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
         }.filter { it >= 0 }
 
-        log.info("TargetingHandler: SelectTargetsResp indices={}", selectedIndices)
+        log.info("TargetingHandler: SelectTargetsResp indices={} (stored, awaiting SubmitTargetsReq)", selectedIndices)
+
+        // Store selection for phase 2
+        pendingTargetSelection = PendingTargetSelection(pendingPrompt.promptId, selectedIndices)
+
+        // Send echo-back: actions-only GSM diff + re-prompt SelectTargetsReq
+        sendTargetEchoBack(bridge, pendingPrompt)
+    }
+
+    /**
+     * Handle SubmitTargetsReq (phase 2): submit stored target selection to engine.
+     * No payload — uses selection stored by [onSelectTargets].
+     */
+    fun onSubmitTargets(
+        bridge: GameBridge,
+        autoPass: (GameBridge) -> Unit,
+    ) {
+        val pending = pendingTargetSelection
+        if (pending == null) {
+            log.warn("TargetingHandler: SubmitTargetsReq but no pending selection")
+            return
+        }
+        pendingTargetSelection = null
+
+        log.info("TargetingHandler: SubmitTargetsReq — submitting indices={}", pending.selectedIndices)
 
         ops.sendBundledGRE(
             listOf(
@@ -70,7 +99,7 @@ class TargetingHandler(private val ops: SessionOps) {
             ),
         )
 
-        bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
+        bridge.promptBridge.submitResponse(pending.promptId, pending.selectedIndices)
         bridge.awaitPriority()
         autoPass(bridge)
     }
@@ -404,6 +433,38 @@ class TargetingHandler(private val ops: SessionOps) {
         pendingModal = null
         bridge.awaitPriority()
         autoPass(bridge)
+    }
+
+    /**
+     * Send echo-back after SelectTargetsResp: actions-only GSM diff + re-prompt SelectTargetsReq.
+     * Mirrors the real server behavior (wire spec: gsId advances, re-prompt shows selection as Unselect).
+     */
+    private fun sendTargetEchoBack(
+        bridge: GameBridge,
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+    ) {
+        val game = bridge.getGame() ?: return
+
+        // Actions-only GSM diff (no zone/object changes)
+        val gsId = ops.counter.nextGsId()
+        val echoDiff = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.GameStateMessage_695e)
+            .addSystemSeatIds(ops.seatId)
+            .setMsgId(ops.counter.nextMsgId())
+            .setGameStateId(gsId)
+            .setGameStateMessage(
+                GameStateMessage.newBuilder()
+                    .setType(GameStateType.Diff)
+                    .setGameStateId(gsId)
+                    .setPrevGameStateId(gsId - 1),
+            )
+            .build()
+
+        // Re-prompt SelectTargetsReq (client sees selection reflected)
+        val rePrompt = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, pendingPrompt)
+
+        Tap.outboundTemplate("SelectTargetsReq echo seat=${ops.seatId}")
+        ops.sendBundledGRE(listOf(echoDiff) + rePrompt.messages)
     }
 
     private fun sendSelectTargetsReq(

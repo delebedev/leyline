@@ -263,6 +263,9 @@ class MatchHandler(
 
             ClientMessageType.SelectTargetsResp_097b -> s?.onSelectTargets(greMsg)
 
+            // SubmitTargetsReq: client's "Done" button for targeting (like SubmitAttackersReq for combat).
+            ClientMessageType.SubmitTargetsReq -> s?.onSubmitTargets(greMsg)
+
             ClientMessageType.CancelActionReq_097b -> s?.onCancelAction(greMsg)
 
             ClientMessageType.SelectNresp -> s?.onSelectN(greMsg)
