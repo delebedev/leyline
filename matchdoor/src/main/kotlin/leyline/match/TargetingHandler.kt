@@ -8,6 +8,7 @@ import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
+import leyline.game.RequestBuilder
 import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.ZoneIds
 import org.slf4j.LoggerFactory
@@ -27,8 +28,8 @@ class TargetingHandler(private val ops: SessionOps) {
     /** Saved state for pending modal prompt — maps response grpIds back to prompt indices. */
     data class PendingModal(val promptId: String, val childGrpIds: List<Int>)
 
-    /** Saved state for targeting — tracks whether selection was already submitted to engine. */
-    data class PendingTargetSelection(val promptId: String, val selectedIndices: List<Int>, val submitted: Boolean = false)
+    /** Saved state between SelectTargetsResp and SubmitTargetsReq. */
+    data class PendingTargetSelection(val promptId: String, val selectedIndices: List<Int>)
 
     @Volatile
     private var pendingModal: PendingModal? = null
@@ -37,16 +38,14 @@ class TargetingHandler(private val ops: SessionOps) {
     private var pendingTargetSelection: PendingTargetSelection? = null
 
     /**
-     * Handle SelectTargetsResp: map client instanceIds to prompt indices and submit.
+     * Handle SelectTargetsResp (phase 1): store selection, send echo-back re-prompt.
      *
-     * The real server uses a two-phase protocol (SelectTargetsResp → echo → SubmitTargetsReq)
-     * but Arena's client also works with immediate submission. We submit immediately
-     * and store the result so [onSubmitTargets] can no-op gracefully if the client
-     * sends the follow-up SubmitTargetsReq.
+     * Does NOT submit to engine — waits for [onSubmitTargets] (SubmitTargetsReq).
+     * The echo-back re-prompt reflects the selection per real server wire spec:
+     * only selected targets, legalAction=Unselect, selectedTargets count set.
      *
-     * Player targets use seatId (1/2) as instanceId — these won't be in the card
-     * instanceId registry, so we check for player refs first.
-     * See `docs/plans/player-targeting.md`.
+     * Player targets use seatId (1/2) as instanceId.
+     * Wire spec: docs/plans/2026-03-14-submit-targets-wire-spec.md
      */
     fun onSelectTargets(
         greMsg: ClientToGREMessage,
@@ -60,6 +59,7 @@ class TargetingHandler(private val ops: SessionOps) {
         }
 
         val selectedTarget = resp.target
+        val selectedInstanceIds = selectedTarget.targetsList.map { it.targetInstanceId }
         val selectedIndices = selectedTarget.targetsList.mapNotNull { target ->
             val instanceId = target.targetInstanceId
             val playerIdx = resolvePlayerTarget(instanceId, bridge, pendingPrompt)
@@ -68,31 +68,33 @@ class TargetingHandler(private val ops: SessionOps) {
             pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
         }.filter { it >= 0 }
 
-        log.info("TargetingHandler: SelectTargetsResp indices={}", selectedIndices)
+        log.info("TargetingHandler: SelectTargetsResp iids={} indices={} (awaiting SubmitTargetsReq)", selectedInstanceIds, selectedIndices)
 
-        // Mark that we've already submitted — SubmitTargetsReq will no-op
-        pendingTargetSelection = PendingTargetSelection(pendingPrompt.promptId, selectedIndices, submitted = true)
+        pendingTargetSelection = PendingTargetSelection(pendingPrompt.promptId, selectedIndices)
 
-        ops.sendBundledGRE(
-            listOf(
-                ops.makeGRE(GREMessageType.SubmitTargetsResp_695e, ops.counter.currentGsId(), ops.counter.nextMsgId()) {
-                    it.submitTargetsResp = SubmitTargetsResp.newBuilder().setResult(ResultCode.Success_a500).build()
-                },
-            ),
-        )
-
-        bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
-        bridge.awaitPriority()
-        autoPass(bridge)
+        // Echo-back: actions-only GSM diff + re-prompt with selection reflected
+        val game = bridge.getGame() ?: return
+        val gsId = ops.counter.nextGsId()
+        val echoDiff = ops.makeGRE(GREMessageType.GameStateMessage_695e, gsId, ops.counter.nextMsgId()) {
+            it.gameStateMessage = GameStateMessage.newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(gsId)
+                .setPrevGameStateId(gsId - 1)
+                .build()
+        }
+        val rePrompt = RequestBuilder.buildSelectTargetsRePrompt(pendingPrompt, bridge, selectedInstanceIds, ops.seatId)
+        val rePromptMsg = ops.makeGRE(GREMessageType.SelectTargetsReq_695e, gsId, ops.counter.nextMsgId()) {
+            it.selectTargetsReq = rePrompt
+        }
+        Tap.outboundTemplate("SelectTargetsReq re-prompt seat=${ops.seatId}")
+        ops.sendBundledGRE(listOf(echoDiff, rePromptMsg))
     }
 
     /**
-     * Handle SubmitTargetsReq: client's "Done" button for targeting.
+     * Handle SubmitTargetsReq (phase 2): submit stored selection to engine.
      *
-     * In our flow, [onSelectTargets] already submitted to the engine.
-     * This handler acknowledges the message gracefully instead of dropping it
-     * as "unhandled". If we later implement full two-phase (echo-back re-prompt),
-     * this would trigger the actual engine submission.
+     * Type-only message (no payload). Uses selection stored by [onSelectTargets].
+     * Wire spec: docs/plans/2026-03-14-submit-targets-wire-spec.md
      */
     fun onSubmitTargets(
         bridge: GameBridge,
@@ -105,13 +107,8 @@ class TargetingHandler(private val ops: SessionOps) {
         }
         pendingTargetSelection = null
 
-        if (pending.submitted) {
-            log.info("TargetingHandler: SubmitTargetsReq — already submitted, acknowledging")
-            return
-        }
-
-        // Future: full two-phase would submit here
         log.info("TargetingHandler: SubmitTargetsReq — submitting indices={}", pending.selectedIndices)
+
         ops.sendBundledGRE(
             listOf(
                 ops.makeGRE(GREMessageType.SubmitTargetsResp_695e, ops.counter.currentGsId(), ops.counter.nextMsgId()) {
@@ -119,6 +116,7 @@ class TargetingHandler(private val ops: SessionOps) {
                 },
             ),
         )
+
         bridge.promptBridge.submitResponse(pending.promptId, pending.selectedIndices)
         bridge.awaitPriority()
         autoPass(bridge)

@@ -83,6 +83,52 @@ object RequestBuilder {
     }
 
     /**
+     * Build a re-prompt [SelectTargetsReq] reflecting the current selection.
+     *
+     * Real server re-prompt differences from initial:
+     * - Only selected targets remain (unselected removed)
+     * - `legalAction: Unselect` (was Select)
+     * - `highlight` absent (proto default = None)
+     * - `selectedTargets` count set
+     *
+     * Wire spec: docs/plans/2026-03-14-submit-targets-wire-spec.md
+     */
+    fun buildSelectTargetsRePrompt(
+        prompt: InteractivePromptBridge.PendingPrompt,
+        bridge: GameBridge,
+        selectedInstanceIds: List<Int>,
+        chooserSeatId: Int = 1,
+    ): SelectTargetsReq {
+        val builder = SelectTargetsReq.newBuilder()
+        val selBuilder = TargetSelection.newBuilder()
+        selBuilder.setTargetIdx(1)
+        selBuilder.setTargetingPlayer(chooserSeatId)
+        selBuilder.setMinTargets(prompt.request.min)
+        selBuilder.setMaxTargets(prompt.request.max)
+        selBuilder.setSelectedTargets(selectedInstanceIds.size)
+
+        val sourceEntityId = prompt.request.sourceEntityId
+        val sourceInstanceId = if (sourceEntityId != null) {
+            bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
+        } else {
+            0
+        }
+        if (sourceInstanceId != 0) builder.setSourceId(sourceInstanceId)
+
+        // Only include selected targets with Unselect action, no highlight
+        for (iid in selectedInstanceIds) {
+            selBuilder.addTargets(
+                wotc.mtgo.gre.external.messaging.Messages.Target.newBuilder()
+                    .setTargetInstanceId(iid)
+                    .setLegalAction(SelectAction.Unselect),
+            )
+        }
+
+        builder.addTargets(selBuilder)
+        return builder.build()
+    }
+
+    /**
      * Build a [SelectNReq] from a pending prompt with candidateRefs.
      * Used for "choose N cards" prompts (discard, sacrifice selection, etc.).
      *
