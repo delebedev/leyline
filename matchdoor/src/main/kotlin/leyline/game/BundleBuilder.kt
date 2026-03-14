@@ -423,7 +423,10 @@ object BundleBuilder {
             it.gameStateMessage = gsmBuilder.build()
         }
 
-        val req = RequestBuilder.buildDeclareAttackersReq(game, seatId, bridge)
+        val req = RequestBuilder.buildDeclareAttackersReq(
+            game, seatId, bridge,
+            committedAttackerIds = selectedAttackerIds.toSet(),
+        )
         val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.declareAttackersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
