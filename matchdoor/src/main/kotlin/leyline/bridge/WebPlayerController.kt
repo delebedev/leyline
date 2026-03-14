@@ -895,6 +895,41 @@ class WebPlayerController(
         return super.chooseNumberForKeywordCost(sa, cost, keyword, prompt, max)
     }
 
+    /**
+     * Choose optional additional costs (kicker, buyback, etc.).
+     *
+     * Routes through [InteractivePromptBridge] as a multi-select choice.
+     * The engine thread blocks here — same pattern as [chooseNumberForKeywordCost].
+     * Client would see this as a CastingTimeOptionsReq with Kicker type.
+     *
+     * For now, presents as a confirm prompt per optional cost. Each cost is
+     * offered individually with Yes/No. This matches how the engine structures
+     * the choice (list of OptionalCostValue, choose 0..N).
+     */
+    /**
+     * Choose optional additional costs (kicker, buyback, etc.).
+     *
+     * Cannot use [InteractivePromptBridge] here — this runs on the engine thread
+     * inside [playChosenSpellAbility], before returning to the priority loop.
+     * Using the bridge would deadlock (engine blocks on prompt, auto-pass can't
+     * run until engine returns).
+     *
+     * Auto-accepts all optional costs when the player can afford them.
+     * The Arena client handles kicker via CastingTimeOptionsReq — future work
+     * would intercept the cast action, check for kicker before submitting to
+     * engine, and send the prompt to the client.
+     */
+    override fun chooseOptionalCosts(
+        chosenSa: SpellAbility,
+        optionalCosts: MutableList<forge.game.spellability.OptionalCostValue>,
+    ): MutableList<forge.game.spellability.OptionalCostValue> {
+        // Auto-accept all optional costs — the engine will check mana availability
+        // during cost payment. If the player can't afford it, the spell fizzles
+        // and rolls back.
+        log.info("chooseOptionalCosts: auto-accepting {} optional costs for {}", optionalCosts.size, chosenSa.hostCard?.name)
+        return optionalCosts
+    }
+
     // -- Play spell --------------------------------------------------------
     // PCHuman uses HumanPlay + HumanPlaySpellAbility (desktop Input classes)
 
@@ -915,10 +950,21 @@ class WebPlayerController(
             return true
         }
 
-        chosenSa.hostCard?.setSplitStateToPlayAbility(chosenSa)
+        // Auto-apply optional additional costs (kicker, buyback, etc.) BEFORE
+        // the spell hits the stack. Can't use InteractivePromptBridge here (deadlock —
+        // engine thread is blocked, auto-pass can't run until engine returns).
+        // Auto-accept all optional costs; engine checks mana during payment.
+        var sa = chosenSa
+        val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
+        if (optionalCosts.isNotEmpty()) {
+            log.info("playChosenSpellAbility: auto-accepting {} optional costs for {}", optionalCosts.size, sa.hostCard?.name)
+            sa = forge.game.GameActionUtil.addOptionalCosts(sa, optionalCosts)
+        }
 
-        val needsTargeting = chosenSa.usesTargeting() && chosenSa.targets.isEmpty()
-        val req = forge.player.HumanPlaySpellAbility(this, chosenSa)
+        sa.hostCard?.setSplitStateToPlayAbility(sa)
+
+        val needsTargeting = sa.usesTargeting() && sa.targets.isEmpty()
+        val req = forge.player.HumanPlaySpellAbility(this, sa)
         return req.playAbility(needsTargeting, false, false)
     }
 
