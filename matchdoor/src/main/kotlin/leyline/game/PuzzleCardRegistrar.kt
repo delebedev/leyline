@@ -143,31 +143,7 @@ class PuzzleCardRegistrar(
         return counts.toList()
     }
 
-    /** Returns (abilityIds, keywordAbilityGrpIds). */
-    private fun deriveAbilityIds(card: Card): Pair<List<Pair<Int, Int>>, Map<String, Int>> {
-        val subtypes = card.type.subtypes.map { it.lowercase() }
-        for ((subtype, abilityId) in BASIC_LAND_ABILITIES) {
-            if (subtype in subtypes) return listOf(abilityId to 0) to emptyMap()
-        }
-        val keywords = card.rules?.mainPart?.keywords?.toList() ?: emptyList()
-        // Count non-mana activated abilities — matches the filter in ActionMapper and CardLookup.
-        // The old (spellAbilities.size - 1) heuristic undercounted planeswalkers and other
-        // multi-activated-ability cards.
-        val activatedCount = card.spellAbilities?.count { it.isActivatedAbility && !it.isManaAbility() } ?: 0
-        val totalCount = maxOf(1, keywords.size + activatedCount)
-
-        val abilityIds = (0 until totalCount).map { nextAbilityGrpId.getAndIncrement() to 0 }
-
-        // Map keyword names to their assigned abilityGrpId slots (keywords come first)
-        val keywordMap = mutableMapOf<String, Int>()
-        for ((i, kw) in keywords.withIndex()) {
-            if (i < abilityIds.size) {
-                // Keywords are raw strings like "Prowess", "Flying", "Lifelink"
-                keywordMap[kw.uppercase()] = abilityIds[i].first
-            }
-        }
-        return abilityIds to keywordMap
-    }
+    private fun deriveAbilityIds(card: Card) = AbilityIdDeriver.deriveAbilityIds(card, nextAbilityGrpId)
 
     companion object {
         private val CORE_TYPE_MAP = mapOf(
@@ -207,14 +183,6 @@ class PuzzleCardRegistrar(
             ManaCostShard.GREEN to ManaColor.Green_afc9,
             ManaCostShard.COLORLESS to ManaColor.Colorless_afc9,
             ManaCostShard.X to ManaColor.X,
-        )
-
-        private val BASIC_LAND_ABILITIES = listOf(
-            "plains" to 1001,
-            "island" to 1002,
-            "swamp" to 1003,
-            "mountain" to 1004,
-            "forest" to 1005,
         )
     }
 }

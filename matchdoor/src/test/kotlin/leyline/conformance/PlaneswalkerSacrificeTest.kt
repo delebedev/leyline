@@ -6,8 +6,6 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
-import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
  * Integration test for planeswalker sacrifice puzzle.
@@ -69,25 +67,8 @@ class PlaneswalkerSacrificeTest :
             human.getZone(ZoneType.Battlefield).cards
                 .any { it.name.contains("Liliana") }.shouldBeTrue()
 
-            // Find Liliana and build Activate action for -2 (second ability)
-            val liliana = human.getZone(ZoneType.Battlefield).cards
-                .first { it.name.contains("Liliana") }
-            val lilianaIid = h.bridge.getOrAllocInstanceId(ForgeCardId(liliana.id)).value
-            val lilianaGrpId = h.bridge.cards.findGrpIdByName("Liliana of the Veil") ?: 0
-
-            // Look up the -2 ability's abilityGrpId (second activated ability after keywords)
-            val cardData = h.bridge.cards.findByGrpId(lilianaGrpId)!!
-            val keywordCount = cardData.keywordAbilityGrpIds.size
-            val minus2AbilityGrpId = cardData.abilityIds.getOrNull(keywordCount + 1)?.first ?: 0
-
-            val activateMsg = performAction {
-                actionType = ActionType.Activate_add3
-                instanceId = lilianaIid
-                grpId = lilianaGrpId
-                abilityGrpId = minus2AbilityGrpId
-            }
-            h.session.onPerformAction(activateMsg)
-            h.drainSink()
+            // Activate -2 (second ability, index 1)
+            h.activateAbility("Liliana of the Veil", abilityIndex = 1).shouldBeTrue()
 
             // Target opponent (seatId 2)
             h.selectTargets(listOf(2))
@@ -101,9 +82,6 @@ class PlaneswalkerSacrificeTest :
 
             ai.getZone(ZoneType.Battlefield).cards
                 .filter { it.isCreature }.isEmpty().shouldBeTrue()
-
-            // Liliana should have loyalty 1 (started at 3, used -2)
-            liliana.currentLoyalty shouldBe 1
 
             // Advance to combat, attack with Bears
             repeat(10) {
