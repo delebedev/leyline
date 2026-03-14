@@ -78,6 +78,7 @@ val testUnit by tasks.registering(Test::class) {
 val testConformance by tasks.registering(Test::class) {
     configureTestDefaults()
     systemProperty("kotest.tags", "ConformanceTag")
+    maxParallelForks = 4
 }
 
 val testIntegration by tasks.registering(Test::class) {
