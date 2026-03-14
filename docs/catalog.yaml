@@ -215,10 +215,11 @@ spells:
       Client shows visual link between equipment and equipped creature.
 
   cast-planeswalker:
-    status: partial
+    status: wired
     notes: >
       Casts and enters battlefield. Loyalty counters tracked.
-      Ability activation wired. Emblem zone not mapped.
+      Multi-ability dispatch maps abilityGrpId→Forge ability index
+      (supports +N/-N/-ultimate selection). Emblem zone not mapped.
       LoyaltyActivationsRemaining annotation missing.
 
   cast-mdfc:
