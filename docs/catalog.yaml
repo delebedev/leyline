@@ -293,34 +293,28 @@ spells:
 # ─── Combat ──────────────────────────────────────────────────────────
 
 combat:
-  # REGRESSED (2026-03): sequence change broke integration tests — 20 failures
-  # in CombatFlowTest, TargetingFlowTest, DiscardHandSizeTest (all
-  # ValidatingMessageSink affectedId unresolvable). Will focus on this area later.
-
   declare-attackers:
-    status: broken
+    status: wired
     notes: >
       DeclareAttackersReq sent to active player. Iterative per-creature
       toggles with echo-back GSM (provisional attackState + tap). Cancel
       button works (CancelActionReq → empty attackers → pass combat).
-      Creatures are NOT pre-selected (removed selectedDamageRecipient).
-      Commit 850c846. REGRESSED: sequence change causes affectedId
-      unresolvable errors in integration tests.
+      All Attack button works (selectedDamageRecipient on committed attackers).
+      XOR toggle for selectedAttackers. 13 CombatFlowTest + 3 BlockerDeclarationTest pass.
 
   declare-blockers:
-    status: broken
+    status: wired
     notes: >
       DeclareBlockersReq sent to defending player. Iterative toggle with
-      echo-back GSM (provisional blockState). Double-send stall fixed
-      (2026-02-21). Commit 850c846. REGRESSED: blocker ordering
-      (OrderBlockersReq) not implemented, multiple test failures.
+      echo-back GSM (provisional blockState). Root cause of regression fixed
+      (passPriority was intercepting blocker pending). OrderBlockersReq
+      (multi-blocker ordering) not implemented.
 
   combat-damage:
-    status: broken
+    status: wired
     notes: >
-      Auto-distributed for unblocked attackers. DamageDealt annotation fires
-      (confirmed in recordings) but client animation doesn't play — annotation
-      shape mismatch, not absence. Manual damage assignment (AssignDamageReq)
+      Auto-distributed for unblocked attackers. DamageDealt annotation fires.
+      Manual damage assignment (AssignDamageReq)
       not implemented. REGRESSED: affectedId resolution errors in tests.
 
   first-strike:
