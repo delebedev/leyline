@@ -98,10 +98,10 @@ object CardDataDeriver {
         for ((subtype, abilityId) in BASIC_LAND_ABILITIES) {
             if (subtype in subtypes) return listOf(abilityId to 0) to emptyMap()
         }
-        // Count abilities: keyword abilities + activated/triggered from card rules
+        // Count abilities: keyword abilities + non-mana activated abilities
         val keywords = card.rules?.mainPart?.keywords?.toList() ?: emptyList()
-        val spellAbilityCount = maxOf(0, (card.spellAbilities?.size ?: 1) - 1)
-        val totalCount = maxOf(1, keywords.size + spellAbilityCount)
+        val activatedCount = card.spellAbilities?.count { it.isActivatedAbility && !it.isManaAbility() } ?: 0
+        val totalCount = maxOf(1, keywords.size + activatedCount)
         val abilityIds = (0 until totalCount).map { nextAbilityGrpId.getAndIncrement() to 0 }
 
         val keywordMap = mutableMapOf<String, Int>()
