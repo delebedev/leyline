@@ -3,6 +3,8 @@ package leyline.conformance
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.ints.shouldBeGreaterThan
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -10,8 +12,13 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 /**
  * Integration test for kicker — Burst Lightning kicked for 4 damage.
  *
- * Verifies: optional cost prompt fires, kicker cost auto-accepted,
- * spell deals kicked damage (4 not 2), targeting works.
+ * Verifies:
+ * 1. CastingTimeOptionsReq prompt sent with Kicker type (conformance)
+ * 2. Kicker cost accepted via response
+ * 3. Spell deals kicked damage (4 not 2)
+ *
+ * Wire spec: docs/plans/2026-03-14-kicker-wire-spec.md
+ * Golden template: golden/conform-kicker-template.json
  */
 class KickerTest :
     FunSpec({
@@ -56,21 +63,45 @@ class KickerTest :
             h.phase() shouldBe "MAIN1"
 
             // Cast Burst Lightning — triggers optional cost prompt
+            val snap = h.messageSnapshot()
             h.castSpellByName("Burst Lightning").shouldBeTrue()
+            val castMessages = h.messagesSince(snap)
 
-            // Respond to kicker prompt: accept kicker (ctoId=1)
+            // --- Conformance: verify CastingTimeOptionsReq shape ---
+            val ctoReqMsg = castMessages.firstOrNull { it.hasCastingTimeOptionsReq() }
+            ctoReqMsg.shouldNotBeNull()
+
+            val ctoReq = ctoReqMsg.castingTimeOptionsReq
+            ctoReq.castingTimeOptionReqCount shouldBeGreaterThan 1
+
+            // Find kicker option (type = Kicker, ctoId > 0)
+            val kickerOption = ctoReq.castingTimeOptionReqList.firstOrNull {
+                it.castingTimeOptionType == CastingTimeOptionType.Kicker
+            }
+            kickerOption.shouldNotBeNull()
+            kickerOption.ctoId shouldBeGreaterThan 0
+
+            // Find Done option (type = Done, ctoId = 0)
+            val doneOption = ctoReq.castingTimeOptionReqList.firstOrNull {
+                it.castingTimeOptionType == CastingTimeOptionType.Done
+            }
+            doneOption.shouldNotBeNull()
+            doneOption.ctoId shouldBe 0
+            doneOption.isRequired.shouldBeTrue()
+
+            // --- Accept kicker ---
             val kickerResp = clientMessage(ClientMessageType.CastingTimeOptionsResp_097b) {
                 setCastingTimeOptionsResp(
                     CastingTimeOptionsResp.newBuilder()
                         .setCastingTimeOptionResp(
-                            CastingTimeOptionResp.newBuilder().setCtoId(1),
+                            CastingTimeOptionResp.newBuilder().setCtoId(kickerOption.ctoId),
                         ),
                 )
             }
             h.session.onCastingTimeOptions(kickerResp)
             h.drainSink()
 
-            // Burst Lightning targets "any target" — select opponent (seatId 2)
+            // Target opponent (seatId 2)
             h.selectTargets(listOf(2))
 
             // Resolve
@@ -82,7 +113,6 @@ class KickerTest :
             h.isGameOver().shouldBeTrue()
             human.hasWon().shouldBeTrue()
             human.hasLost().shouldBeFalse()
-            // Kicked = 4 damage, AI was at 4 → should be 0
             ai.life shouldBe 0
         }
     })
