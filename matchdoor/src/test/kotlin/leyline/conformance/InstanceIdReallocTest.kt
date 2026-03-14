@@ -1,5 +1,8 @@
 package leyline.conformance
 
+import forge.game.ability.AbilityKey
+import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -17,14 +20,12 @@ import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
- * Tests for instanceId reallocation on zone transfer and Limbo zone accumulation.
+ * InstanceId reallocation on zone transfer and Limbo zone accumulation.
  *
- * Real client server allocates a new instanceId every time a card changes zones
- * (except Stack->Battlefield on resolve). The old instanceId is retired to Limbo
+ * Real server allocates a new instanceId every time a card changes zones
+ * (except Stack→Battlefield on resolve). The old instanceId is retired to Limbo
  * via objectInstanceIds in the Limbo ZoneInfo — no GameObjectInfo is emitted for it.
- *
- * Limbo is monotonically growing -- retired IDs are never removed. Each subsequent
- * buildFromGame must include the full retirement history.
+ * Limbo is monotonically growing — retired IDs are never removed.
  */
 class InstanceIdReallocTest :
     FunSpec({
@@ -35,82 +36,71 @@ class InstanceIdReallocTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        // ===== PlayLand realloc =====
+        test("PlayLand realloc — new instanceId, Limbo retirement, ObjectIdChanged") {
+            val (b, game, counter) = base.startWithBoard { _, human, _ ->
+                base.addCard("Plains", human, ZoneType.Hand)
+            }
 
-        test("PlayLand reallocs instanceId") {
-            val (b, game, counter) = base.startGameAtMain1()
-
-            val player = b.getPlayer(SeatId(1)) ?: error("Player 1 not found")
-            val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
+            val player = b.getPlayer(SeatId(1))!!
+            val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
             val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id))
             val forgeCardId = land.id
 
-            base.playLand(b) ?: error("playLand failed at seed 42")
-            base.postAction(game, b, counter)
-
+            val gsm = base.captureAfterAction(b, game, counter) {
+                game.action.moveToPlay(land, null, AbilityKey.newMap())
+            }
             val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+
             origInstanceId shouldNotBe newInstanceId
+
+            assertSoftly {
+                // Old instanceId retired to Limbo (bridge tracking)
+                b.getLimboInstanceIds().shouldContain(origInstanceId)
+
+                // Limbo zone in GSM contains retired id
+                assertLimboContains(gsm, origInstanceId.value)
+
+                // No GameObjectInfo for Limbo objects in diff
+                gsm.gameObjectsList.filter { it.zoneId == ZoneIds.LIMBO }.shouldBeEmpty()
+
+                // Old instanceId NOT in diffDeletedInstanceIds
+                gsm.diffDeletedInstanceIdsList.contains(origInstanceId.value).shouldBeFalse()
+
+                // ObjectIdChanged annotation: orig → new
+                val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
+                oic.detailInt("orig_id") shouldBe origInstanceId.value
+                oic.detailInt("new_id") shouldBe newInstanceId.value
+                oic.affectedIdsList.shouldContain(origInstanceId.value)
+            }
         }
 
-        test("PlayLand retires to Limbo") {
-            val (b, game, counter) = base.startGameAtMain1()
+        test("zone transfer reallocs instanceId (Destroy)") {
+            val (b, game, counter) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            }
 
-            val player = b.getPlayer(SeatId(1)) ?: error("Player 1 not found")
-            val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
-            val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id))
-
-            base.playLand(b) ?: error("playLand failed at seed 42")
-            base.postAction(game, b, counter)
-
-            b.getLimboInstanceIds().shouldContain(origInstanceId)
-        }
-
-        test("PlayLand Limbo zone tracking") {
-            val (b, game, counter) = base.startGameAtMain1()
-
-            val player = b.getPlayer(SeatId(1)) ?: error("Player 1 not found")
-            val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
-            val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id))
-
-            base.playLand(b) ?: error("playLand failed at seed 42")
-            val gsm = base.postAction(game, b, counter).gsm
-
-            // Limbo zone should contain the retired instanceId
-            assertLimboContains(gsm, origInstanceId.value)
-
-            // Real server doesn't send GameObjectInfo for Limbo objects
-            val limboObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.LIMBO }
-            limboObjects.shouldBeEmpty()
-        }
-
-        // ===== CastSpell realloc =====
-
-        test("CastSpell reallocs instanceId") {
-            val (b, game, counter) = base.startGameAtMain1()
-            base.playLand(b) ?: error("playLand failed at seed 42")
-            b.snapshotFromGame(game)
-
-            val player = b.getPlayer(SeatId(1)) ?: error("Player 1 not found")
-            val creature = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: error("No creature in hand at seed 42")
+            val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(creature.id))
             val forgeCardId = creature.id
 
-            base.castCreature(b) ?: error("castCreature failed at seed 42")
-            base.postAction(game, b, counter)
-
+            base.captureAfterAction(b, game, counter) {
+                game.action.destroy(creature, null, false, AbilityKey.newMap())
+            }
             val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+
             origInstanceId shouldNotBe newInstanceId
+            b.getLimboInstanceIds().shouldContain(origInstanceId)
         }
 
-        // ===== Resolve: no realloc =====
+        // ===== Engine-dependent tests =====
 
         test("Resolve keeps same instanceId") {
             val (b, game, counter) = base.startGameAtMain1()
             base.playLand(b) ?: error("playLand failed at seed 42")
             b.snapshotFromGame(game)
 
-            val player = b.getPlayer(SeatId(1)) ?: error("Player 1 not found")
-            val creature = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: error("No creature in hand at seed 42")
+            val player = b.getPlayer(SeatId(1))!!
+            val creature = player.getZone(ZoneType.Hand).cards.first { it.isCreature }
             val forgeCardId = creature.id
 
             base.castCreature(b) ?: error("castCreature failed at seed 42")
@@ -126,31 +116,12 @@ class InstanceIdReallocTest :
             bfInstanceId shouldBe stackInstanceId
         }
 
-        // ===== Limbo accumulation =====
-
-        fun advanceToNextMainPhase(b: leyline.game.GameBridge) {
-            val game = b.getGame()!!
-            var lastId: String? = null
-            repeat(80) {
-                if (game.isGameOver) return
-                val pending = awaitFreshPending(b, lastId, timeoutMs = 5_000) ?: return
-                if ((pending.state.phase == "MAIN1" || pending.state.phase == "MAIN2") &&
-                    game.phaseHandler.turn > 1 &&
-                    game.phaseHandler.playerTurn == b.getPlayer(SeatId(1))
-                ) {
-                    return
-                }
-                b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
-                lastId = pending.actionId
-            }
-        }
-
         test("Limbo grows across multiple plays") {
             val (b, game, counter) = base.startGameAtMain1()
 
-            val player = b.getPlayer(SeatId(1)) ?: error("Player 1 not found")
-            val lands = player.getZone(forge.game.zone.ZoneType.Hand).cards.filter { it.isLand }
-            if (lands.size < 2) return@test
+            val player = b.getPlayer(SeatId(1))!!
+            val lands = player.getZone(ZoneType.Hand).cards.filter { it.isLand }
+            (lands.size >= 2) shouldBe true
 
             val land1 = lands[0]
             val origId1 = b.getOrAllocInstanceId(ForgeCardId(land1.id))
@@ -161,67 +132,34 @@ class InstanceIdReallocTest :
             b.getLimboInstanceIds().size shouldBe 1
             b.getLimboInstanceIds().shouldContain(origId1)
 
-            advanceToNextMainPhase(b)
+            // Advance to next human main phase (turn 2+)
+            val game2 = b.getGame()!!
+            var lastId: String? = null
+            repeat(80) {
+                if (game2.isGameOver) return@test
+                val pending = awaitFreshPending(b, lastId, timeoutMs = 5_000) ?: return@test
+                if ((pending.state.phase == "MAIN1" || pending.state.phase == "MAIN2") &&
+                    game2.phaseHandler.turn > 1 &&
+                    game2.phaseHandler.playerTurn == b.getPlayer(SeatId(1))
+                ) {
+                    // At next main phase — play second land
+                    val player2 = b.getPlayer(SeatId(1))!!
+                    val land2 = player2.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
+                        ?: error("No land in hand for turn 2")
+                    val origId2 = b.getOrAllocInstanceId(ForgeCardId(land2.id))
 
-            val player2 = b.getPlayer(SeatId(1)) ?: error("Player 1 not found")
-            val land2 = player2.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
-            val origId2 = b.getOrAllocInstanceId(ForgeCardId(land2.id))
+                    b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land2.id)))
+                    awaitFreshPending(b, pending.actionId)
+                    base.postAction(game, b, counter)
 
-            val pending = awaitFreshPending(b, null) ?: error("No pending action available")
-            b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land2.id)))
-            awaitFreshPending(b, pending.actionId)
-
-            base.postAction(game, b, counter)
-
-            val limbo = b.getLimboInstanceIds()
-            limbo.size shouldBeGreaterThanOrEqual 2
-            limbo.shouldContain(origId1)
-            limbo.shouldContain(origId2)
-        }
-
-        test("Limbo zone in GSM contains all retired ids") {
-            val (b, game, counter) = base.startGameAtMain1()
-
-            val player = b.getPlayer(SeatId(1)) ?: error("Player 1 not found")
-            val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
-            val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id))
-
-            base.playLand(b) ?: error("playLand failed at seed 42")
-            val gsm = base.postAction(game, b, counter).gsm
-
-            assertLimboContains(gsm, origInstanceId.value)
-        }
-
-        test("no diffDeleted on retirement") {
-            val (b, game, counter) = base.startGameAtMain1()
-
-            val player = b.getPlayer(SeatId(1)) ?: error("Player 1 not found")
-            val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
-            val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id))
-
-            base.playLand(b) ?: error("playLand failed at seed 42")
-            val gsm = base.postAction(game, b, counter).gsm
-
-            gsm.diffDeletedInstanceIdsList.contains(origInstanceId.value).shouldBeFalse()
-        }
-
-        // ===== ObjectIdChanged consistency =====
-
-        test("ObjectIdChanged consistency") {
-            val (b, game, counter) = base.startGameAtMain1()
-
-            val player = b.getPlayer(SeatId(1)) ?: error("Player 1 not found")
-            val land = player.getZone(forge.game.zone.ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
-            val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id))
-            val forgeCardId = land.id
-
-            base.playLand(b) ?: error("playLand failed at seed 42")
-            val gsm = base.postAction(game, b, counter).gsm
-            val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
-
-            val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
-            oic.detailInt("orig_id") shouldBe origInstanceId.value
-            oic.detailInt("new_id") shouldBe newInstanceId.value
-            oic.affectedIdsList.shouldContain(origInstanceId.value)
+                    val limbo = b.getLimboInstanceIds()
+                    limbo.size shouldBeGreaterThanOrEqual 2
+                    limbo.shouldContain(origId1)
+                    limbo.shouldContain(origId2)
+                    return@test
+                }
+                b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+                lastId = pending.actionId
+            }
         }
     })
