@@ -1,12 +1,9 @@
 package leyline.conformance
 
-import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
-import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
  * Integration test for activated ability puzzle (Goblin Fireslinger tap-to-ping).
@@ -55,25 +52,8 @@ class ActivatedAbilityPuzzleTest :
 
             h.phase() shouldBe "MAIN1"
 
-            // Find Fireslinger and activate its tap ability
-            val fireslinger = human.getZone(ZoneType.Battlefield).cards
-                .first { it.name == "Goblin Fireslinger" }
-            val iid = h.bridge.getOrAllocInstanceId(ForgeCardId(fireslinger.id)).value
-            val grpId = h.bridge.cards.findGrpIdByName("Goblin Fireslinger") ?: 0
-
-            // Single activated ability — abilityGrpId from first non-keyword slot
-            val cardData = h.bridge.cards.findByGrpId(grpId)!!
-            val keywordCount = cardData.keywordAbilityGrpIds.size
-            val tapAbilityGrpId = cardData.abilityIds.getOrNull(keywordCount)?.first ?: 0
-
-            val activateMsg = performAction {
-                actionType = ActionType.Activate_add3
-                instanceId = iid
-                this.grpId = grpId
-                abilityGrpId = tapAbilityGrpId
-            }
-            h.session.onPerformAction(activateMsg)
-            h.drainSink()
+            // Activate tap ability (only ability, index 0)
+            h.activateAbility("Goblin Fireslinger").shouldBeTrue()
 
             // Target opponent (seatId 2)
             h.selectTargets(listOf(2))

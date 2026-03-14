@@ -91,27 +91,7 @@ object CardDataDeriver {
         return counts.toList()
     }
 
-    /** Returns (abilityIds, keywordAbilityGrpIds). */
-    private fun deriveAbilityIds(card: Card): Pair<List<Pair<Int, Int>>, Map<String, Int>> {
-        // For basic lands, use well-known ability IDs matching TestCardRegistry
-        val subtypes = card.type.subtypes.map { it.lowercase() }
-        for ((subtype, abilityId) in BASIC_LAND_ABILITIES) {
-            if (subtype in subtypes) return listOf(abilityId to 0) to emptyMap()
-        }
-        // Count abilities: keyword abilities + non-mana activated abilities
-        val keywords = card.rules?.mainPart?.keywords?.toList() ?: emptyList()
-        val activatedCount = card.spellAbilities?.count { it.isActivatedAbility && !it.isManaAbility() } ?: 0
-        val totalCount = maxOf(1, keywords.size + activatedCount)
-        val abilityIds = (0 until totalCount).map { nextAbilityGrpId.getAndIncrement() to 0 }
-
-        val keywordMap = mutableMapOf<String, Int>()
-        for ((i, kw) in keywords.withIndex()) {
-            if (i < abilityIds.size) {
-                keywordMap[kw.uppercase()] = abilityIds[i].first
-            }
-        }
-        return abilityIds to keywordMap
-    }
+    private fun deriveAbilityIds(card: Card) = leyline.game.AbilityIdDeriver.deriveAbilityIds(card, nextAbilityGrpId)
 
     // ---- Static mapping tables ----
 
@@ -266,14 +246,5 @@ object CardDataDeriver {
         ManaCostShard.GREEN to ManaColor.Green_afc9,
         ManaCostShard.COLORLESS to ManaColor.Colorless_afc9,
         ManaCostShard.X to ManaColor.X,
-    )
-
-    /** Basic land subtype → implicit mana ability grpId (matches TestCardRegistry). */
-    private val BASIC_LAND_ABILITIES = listOf(
-        "plains" to 1001,
-        "island" to 1002,
-        "swamp" to 1003,
-        "mountain" to 1004,
-        "forest" to 1005,
     )
 }

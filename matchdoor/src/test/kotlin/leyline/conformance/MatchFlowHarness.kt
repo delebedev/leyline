@@ -461,6 +461,36 @@ class MatchFlowHarness(
         return true
     }
 
+    /**
+     * Activate a non-mana ability on a battlefield card by name and ability index.
+     *
+     * @param cardName name of the card on the battlefield
+     * @param abilityIndex 0-based index into the card's non-mana activated abilities
+     *                     (e.g., planeswalker: 0=first loyalty, 1=second, 2=ultimate)
+     * @return true if the card was found and action sent
+     */
+    fun activateAbility(cardName: String, abilityIndex: Int = 0): Boolean {
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
+        val card = player.getZone(ZoneType.Battlefield).cards
+            .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
+
+        val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        val grpId = bridge.cards.findGrpIdByName(card.name) ?: 0
+        val cardData = bridge.cards.findByGrpId(grpId)
+        val keywordCount = cardData?.keywordAbilityGrpIds?.size ?: 0
+        val abilityGrpId = cardData?.abilityIds?.getOrNull(keywordCount + abilityIndex)?.first ?: 0
+
+        val msg = performAction {
+            actionType = ActionType.Activate_add3
+            instanceId = iid
+            this.grpId = grpId
+            this.abilityGrpId = abilityGrpId
+        }
+        session.onPerformAction(msg)
+        drainSink()
+        return true
+    }
+
     // --- Modal helpers ---
 
     /** Respond to a CastingTimeOptionsReq (modal choice) with selected grpIds. */
