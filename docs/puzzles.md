@@ -130,6 +130,25 @@ Puzzle mode affects several MatchHandler code paths:
 
 Detection: `isPuzzleMatch()` returns true if `puzzleFile != null` (CLI override) OR `matchId.startsWith("puzzle-")` (convention).
 
+## Goal Types
+
+Forge creates a goal enforcement card in the Command zone with triggers. The `Turns:N` field is the deadline.
+
+| Goal | Win trigger | Lose trigger |
+|------|-----------|-------------|
+| `Win` | Opponent life → 0 (normal rules) | Cleanup of turn N → `LosesGame` |
+| `Survive` | Upkeep of turn N+1 → `WinsGame` | Normal game loss (life=0, etc.) |
+| `Destroy Specified Creatures` | Last `Targets:` creature leaves BF → `WinsGame` | Cleanup of turn N → `LosesGame` |
+| `Play the Specified Permanent` | `Targets:` permanent enters BF → `WinsGame` | Cleanup of turn N → `LosesGame` |
+| `Gain Control of Specified Permanents` | Last `Targets:` permanent changes controller → `WinsGame` | Cleanup of turn N → `LosesGame` |
+| `Win Before Opponent's Next Turn` | Opponent life → 0 | Opponent's upkeep → `LosesGame` |
+
+`Targets:` uses Forge card filter syntax (e.g. `Creature.OppCtrl`). `TargetCount:N` sets how many must be on BF for Play goal.
+
+`HumanControl:true` gives the human player control of both seats (AI has no autonomous decisions). Useful for scripted test runs.
+
+See `docs/puzzle-design.md` for design patterns and AI behavior considerations.
+
 ## `.pzl` File Format
 
 See `docs/puzzle-format.md` for the full spec. Quick reference:
