@@ -223,6 +223,26 @@ class MatchFlowHarness(
         return controller
     }
 
+    // --- Phase-precise advancement (bridge-level, no AutoPassEngine) ---
+
+    /**
+     * Advance to a specific phase via bridge — one PassPriority at a time.
+     * No AutoPassEngine involvement, no phase overshoot.
+     */
+    fun advanceToPhase(phase: String, turn: Int? = null) =
+        leyline.game.advanceToPhase(bridge, phase, turn)
+
+    /** Advance to Main1 via bridge. */
+    fun advanceToMain1() = leyline.game.advanceToMain1(bridge)
+
+    /** Advance to COMBAT_DECLARE_ATTACKERS via bridge. */
+    fun advanceToCombat(turn: Int? = null) =
+        leyline.game.advanceToCombat(bridge, turn)
+
+    /** Advance to MAIN2 via bridge. */
+    fun advanceToMain2(turn: Int? = null) =
+        leyline.game.advanceToMain2(bridge, turn)
+
     // --- Combat helpers ---
 
     /** Human's creatures on the battlefield: (instanceId, cardName). */
