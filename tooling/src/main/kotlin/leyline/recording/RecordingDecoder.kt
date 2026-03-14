@@ -177,6 +177,21 @@ object RecordingDecoder {
         val cardTypes: List<String> = emptyList(),
         val subtypes: List<String> = emptyList(),
         val uniqueAbilityCount: Int = 0,
+        // Combat state — only non-null during combat phases
+        val attackState: String? = null,
+        val blockState: String? = null,
+        val attackInfo: AttackInfoSummary? = null,
+        val blockInfo: BlockInfoSummary? = null,
+    )
+
+    @Serializable
+    data class AttackInfoSummary(
+        val targetId: Int,
+    )
+
+    @Serializable
+    data class BlockInfoSummary(
+        val attackerIds: List<Int>,
     )
 
     @Serializable
@@ -680,6 +695,14 @@ object RecordingDecoder {
         cardTypes = o.cardTypesList.map { it.name.strip() },
         subtypes = o.subtypesList.map { it.name.strip() },
         uniqueAbilityCount = o.uniqueAbilitiesCount,
+        attackState = o.attackState.name.strip().takeIf { it != "None" },
+        blockState = o.blockState.name.strip().takeIf { it != "None" },
+        attackInfo = o.takeIf { it.hasAttackInfo() }?.attackInfo?.let {
+            AttackInfoSummary(targetId = it.targetId)
+        },
+        blockInfo = o.takeIf { it.hasBlockInfo() }?.blockInfo?.let {
+            BlockInfoSummary(attackerIds = it.attackerIdsList.map { id -> id.toInt() })
+        },
     )
 
     private fun summarizeAnnotation(a: AnnotationInfo): AnnotationSummary {
