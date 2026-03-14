@@ -209,6 +209,17 @@ class MatchFlowHarness(
     }
 
     /**
+     * Pass priority through remaining combat until the turn advances or game ends.
+     * Replaces the verbose `repeat(15) { if (gameOver/nextTurn) return@repeat; passPriority() }` pattern.
+     */
+    fun passThroughCombat(startTurn: Int = turn(), maxPasses: Int = 15) {
+        repeat(maxPasses) {
+            if (isGameOver() || turn() > startTurn) return
+            passPriority()
+        }
+    }
+
+    /**
      * Replace the AI seat's controller with a [ScriptedPlayerController].
      * Call after [connectAndKeep] — the AI player must already exist.
      * Returns the scripted controller for inspection.

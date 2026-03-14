@@ -82,11 +82,7 @@ class DeclareBlockersDedupeTest :
             // Human declares no blockers
             h.declareNoBlockers()
 
-            // Pass through remaining combat
-            repeat(10) {
-                if (h.isGameOver()) return@repeat
-                h.passPriority()
-            }
+            h.passThroughCombat()
 
             // Count ALL DeclareBlockersReq since before the loop — should be exactly 1
             val allMsgs = h.messagesSince(preLoopSnap)

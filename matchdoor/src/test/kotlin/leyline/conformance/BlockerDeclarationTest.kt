@@ -116,11 +116,7 @@ class BlockerDeclarationTest :
             // Declare block: human's Raging Goblin blocks AI's Raging Goblin
             h.declareBlockers(mapOf(blockerIid to attackerIid))
 
-            // Pass through remaining combat
-            repeat(15) {
-                if (h.isGameOver()) return@repeat
-                h.passPriority()
-            }
+            h.passThroughCombat()
 
             // Human life should NOT decrease (blocked damage)
             val lifeAfter = humanPlayer.life
@@ -144,11 +140,7 @@ class BlockerDeclarationTest :
             // Human declines to block
             h.declareNoBlockers()
 
-            // Pass through remaining combat
-            repeat(15) {
-                if (h.isGameOver()) return@repeat
-                h.passPriority()
-            }
+            h.passThroughCombat()
 
             // Human should have taken exactly 1 damage (Raging Goblin is 1/1)
             val lifeAfter = humanPlayer.life
@@ -168,11 +160,7 @@ class BlockerDeclarationTest :
             // Declare block
             h.declareBlockers(mapOf(blockerIid to attackerIid))
 
-            // Pass through remaining combat
-            repeat(15) {
-                if (h.isGameOver()) return@repeat
-                h.passPriority()
-            }
+            h.passThroughCombat()
 
             // Both creatures should be dead
             val humanPlayer = h.bridge.getPlayer(SeatId(1))!!
