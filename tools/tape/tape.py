@@ -192,6 +192,13 @@ def dispatch(args):
             if args.index:
                 cli_args += ["--index", str(args.index)]
             _run_python("segments.py", *cli_args)
+        elif verb == "show":
+            cli_args = ["show", args.category]
+            if args.session:
+                cli_args.append(args.session)
+            if args.index:
+                cli_args += ["--index", str(args.index)]
+            _run_python("segments.py", *cli_args)
 
     # --- rec (recording helpers) ---
     if noun == "rec":
@@ -436,6 +443,11 @@ def main():
     p.add_argument("session", nargs="?")
 
     p = ss.add_parser("template", help="Extract + templatize")
+    p.add_argument("category")
+    p.add_argument("session", nargs="?")
+    p.add_argument("--index", type=int, default=0)
+
+    p = ss.add_parser("show", help="Show prompt lifecycle with full proto fields")
     p.add_argument("category")
     p.add_argument("session", nargs="?")
     p.add_argument("--index", type=int, default=0)

@@ -32,6 +32,7 @@ dependencies {
     implementation(libs.exposed.core)       // SeedDb
     implementation(libs.exposed.jdbc)
     implementation(libs.sqlite.jdbc)
+    implementation(libs.protobuf.java.util)
 
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)
