@@ -2,8 +2,12 @@ package leyline.game
 
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.CustomFunction
+import org.jetbrains.exposed.v1.core.TextColumnType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.core.stringLiteral
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -39,6 +43,7 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
         val isPrimaryCard = integer("IsPrimaryCard").default(1)
         val isDigitalOnly = integer("IsDigitalOnly").default(0)
         val isRebalanced = integer("IsRebalanced").default(0)
+        val expansionCode = text("ExpansionCode").default("")
         override val primaryKey = PrimaryKey(grpId)
     }
 
@@ -54,6 +59,10 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
         val modalChildIds = text("ModalChildIds").default("")
         override val primaryKey = PrimaryKey(id)
     }
+
+    /** Strip HTML formatting tags (e.g. `<nobr>`) from localized card names. */
+    private fun stripTags(name: String): String = name.replace(TAG_RE, "")
+    private val TAG_RE = Regex("</?[a-zA-Z][^>]*>")
 
     // --- In-memory caches ---
 
@@ -86,6 +95,13 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
     override fun findGrpIdByName(name: String): Int? {
         nameToGrpId[name]?.let { return it }
         return queryGrpIdByName(name)?.also { grpId ->
+            nameToGrpId[name] = grpId
+            grpIdToName[grpId] = name
+        }
+    }
+
+    override fun findGrpIdByNameAndSet(name: String, setCode: String): Int? {
+        return queryGrpIdByNameAndSet(name, setCode)?.also { grpId ->
             nameToGrpId[name] = grpId
             grpIdToName[grpId] = name
         }
@@ -166,9 +182,44 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
                 .where { (Cards.grpId eq grpId) and (Localizations.formatted eq 1) }
                 .firstOrNull()
                 ?.get(Localizations.loc)
+                ?.let(::stripTags)
         }
     } catch (e: Exception) {
         log.warn("Failed to query name for grpId={}: {}", grpId, e.message)
+        null
+    }
+
+    /**
+     * Match card name against Loc column, tolerating HTML tags like `<nobr>`.
+     * Tries exact match first, falls back to stripping tags via SQL REPLACE.
+     */
+    private fun locMatches(cardName: String) =
+        (Localizations.loc eq cardName) or
+            (CustomFunction<String>(
+                "REPLACE", TextColumnType(),
+                CustomFunction<String>(
+                    "REPLACE", TextColumnType(),
+                    Localizations.loc, stringLiteral("<nobr>"), stringLiteral(""),
+                ),
+                stringLiteral("</nobr>"), stringLiteral(""),
+            ) eq cardName)
+
+    private fun queryGrpIdByNameAndSet(cardName: String, setCode: String): Int? = try {
+        transaction(database) {
+            Cards.join(Localizations, JoinType.INNER, Cards.titleId, Localizations.locId)
+                .selectAll()
+                .where {
+                    (Localizations.formatted eq 1) and
+                        locMatches(cardName) and
+                        (Cards.expansionCode eq setCode) and
+                        (Cards.isToken eq 0) and
+                        (Cards.isPrimaryCard eq 1)
+                }
+                .firstOrNull()
+                ?.get(Cards.grpId)
+        }
+    } catch (e: Exception) {
+        log.warn("Failed to query grpId for name='{}' set='{}': {}", cardName, setCode, e.message)
         null
     }
 
@@ -178,7 +229,7 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
                 .selectAll()
                 .where {
                     (Localizations.formatted eq 1) and
-                        (Localizations.loc eq cardName) and
+                        locMatches(cardName) and
                         (Cards.isToken eq 0) and
                         (Cards.isPrimaryCard eq 1)
                 }
