@@ -10,6 +10,10 @@ How to write `.pzl` files that produce reliable, unambiguous signals.
 
 **Life totals as kill switch.** Set human life to exactly lethal damage so unblocked = death. Turns Survive goal into a diagnostic: alive = mechanic worked, dead = mechanic broken.
 
+**One win path.** If testing a specific mechanic, close off alternative wins. Testing activated ability? Give AI a blocker so combat can't win. Testing a spell? Don't give creatures that could attack for lethal. The puzzle should only be solvable through the mechanic under test.
+
+**No summoning sickness.** Puzzle-placed creatures have sickness cleared by default (Forge `GameState` calls `setSickness(false)`). Tap abilities work immediately. Add `|SummonSick` to opt in.
+
 ## AI Behavior Traps
 
 Forge AI evaluates trades individually, not collectively:
@@ -128,6 +132,32 @@ humanlibrary=Forest
 aibattlefield=Grizzly Bears
 ailibrary=Mountain
 ```
+
+## Template: Activated Ability
+
+```ini
+[metadata]
+Name:Ping for Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Tap Goblin Fireslinger to ping opponent for lethal. Attacking is suicide.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=1
+
+humanbattlefield=Goblin Fireslinger
+humanlibrary=Mountain
+aibattlefield=Centaur Courser
+ailibrary=Mountain
+```
+
+Why it works: Fireslinger (1/1) can't attack into Centaur Courser (3/3) — it dies. Only win path is the tap ability targeting opponent. Eliminates combat as alternative win condition.
+
+**Pattern: use enemy blockers to close off combat wins** when testing non-combat mechanics.
 
 ## Checklist
 
