@@ -384,6 +384,30 @@ Kill everything: `just stop` → start new server → `arena launch`. Ghost matc
 - Verify selection: `arena ocr --find "Edit Deck"` appears when deck is highlighted
 - Invalid decks show under "Invalid Decks:" with warning triangles
 
+### Deck Manager Toolbar (bottom bar)
+
+Reference image: `decks-toolbar.png` in this skill directory.
+
+Between "Collection" (left) and "Edit Deck" (right), 6 icon buttons in 960-space (y=518 for all):
+
+| Button | x (960) | Notes |
+|--------|---------|-------|
+| Deck Details | 206 | Opens deck stats/details panel |
+| Favorite | 246 | Toggle favorite star |
+| Import | 282 | Import deck from clipboard |
+| Export | 322 | Export deck to clipboard |
+| Clone | 360 | Duplicate the selected deck |
+| | | *visual gap* |
+| Delete | 424 | Delete selected deck (trash icon) |
+
+First 5 icons are tightly spaced (~40px apart). Delete is separated by a gap (~64px after Clone).
+
+**Import flow:** copy deck text to clipboard → navigate to Decks tab → click Import icon (282,518). Client parses clipboard and sends `Deck_UpsertDeckV2` with `ActionType: Imported`.
+
+**Delete flow:** select a deck (click thumbnail) → click Delete (424,518) → confirm dialog.
+
+None of these icons have OCR-readable text — use coord clicks only.
+
 ## Wait Timeouts
 
 - **OCR waits:** `arena wait text="X" --timeout 10` max. If longer needed, poll manually:

@@ -368,7 +368,7 @@ class FrontDoorHandlerTest :
             obj["limitedClass"].shouldNotBeNull()
         }
 
-        test("CmdType 403 - DeleteDeck removes deck from store") {
+        test("CmdType 403 - DeleteDeck removes deck and returns Success") {
             val deletableId = "test-deck-00000000-0000-0000-0000-deleteme0001"
             store.save(
                 Deck(
@@ -386,16 +386,18 @@ class FrontDoorHandlerTest :
             deckService.getById(DeckId(deletableId)).shouldNotBeNull()
 
             val ch = fdChannel()
-            ch.sendCmd(403, """{"DeckId":"$deletableId"}""")
+            val msg = ch.sendCmd(403, """{"DeckId":"$deletableId"}""")
+            msg.jsonPayload shouldBe "Success"
 
             deckService.getById(DeckId(deletableId)) shouldBe null
         }
 
-        test("CmdType 406 - UpsertDeckV2 creates deck and echoes Summary") {
+        test("CmdType 406 - UpsertDeckV2 creates deck and returns enriched Summary") {
             val newDeckId = "test-deck-00000000-0000-0000-0000-upsert000001"
             val payload = """
                 {
-                    "Summary": {"DeckId":"$newDeckId","Name":"New Deck","DeckTileId":11111},
+                    "Summary": {"DeckId":"$newDeckId","Name":"New Deck","DeckTileId":11111,
+                        "Attributes":[{"name":"Format","value":"Standard"}]},
                     "Deck": {
                         "MainDeck": [{"cardId":75515,"quantity":4}],
                         "Sideboard": [],
@@ -408,7 +410,13 @@ class FrontDoorHandlerTest :
             val ch = fdChannel()
             val msg = ch.sendCmd(406, payload)
             val resp = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonObject
-            resp["DeckId"]?.jsonPrimitive?.content shouldBe newDeckId
+            val summary = resp["Summary"]?.jsonObject
+            summary.shouldNotBeNull()
+            summary["DeckId"]?.jsonPrimitive?.content shouldBe newDeckId
+            summary["Name"]?.jsonPrimitive?.content shouldBe "New Deck"
+            summary["FormatLegalities"]?.jsonObject.shouldNotBeNull()
+            summary["PreferredCosmetics"]?.jsonObject.shouldNotBeNull()
+            summary["DeckValidationSummaries"]?.jsonArray.shouldNotBeNull()
 
             val saved = deckService.getById(DeckId(newDeckId))
             saved.shouldNotBeNull()

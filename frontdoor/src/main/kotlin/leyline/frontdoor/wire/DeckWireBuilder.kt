@@ -177,15 +177,28 @@ object DeckWireBuilder {
         put("UnownedCards", buildJsonObject {})
     }
 
+    /** Format legality keys the client expects. Subset of real server's ~143 formats. */
+    private val CONSTRUCTED_FORMATS = listOf(
+        "Standard", "Historic", "Explorer", "Timeless", "Alchemy",
+        "TraditionalStandard", "TraditionalHistoric", "TraditionalExplorer", "TraditionalTimeless",
+        "DirectGame", "DirectGameAlchemy",
+    )
+    private val BRAWL_FORMATS = listOf("Brawl", "HistoricBrawl")
+    private val LIMITED_FORMATS = listOf(
+        "Draft",
+        "Sealed",
+        "Draft_Rebalanced",
+        "Sealed_Rebalanced",
+        "DirectGameLimited",
+        "DirectGameLimitedRebalanced",
+    )
+
     private fun formatLegalities(totalCards: Int): JsonObject {
-        val legal = totalCards >= 60
+        val constructedLegal = totalCards >= 60
         return buildJsonObject {
-            put("Standard", legal)
-            put("Historic", legal)
-            put("Explorer", legal)
-            put("Timeless", legal)
-            put("Alchemy", legal)
-            put("Brawl", false)
+            for (fmt in CONSTRUCTED_FORMATS) put(fmt, constructedLegal)
+            for (fmt in BRAWL_FORMATS) put(fmt, false)
+            for (fmt in LIMITED_FORMATS) put(fmt, true)
         }
     }
 
