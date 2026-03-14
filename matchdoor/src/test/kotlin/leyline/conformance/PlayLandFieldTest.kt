@@ -63,20 +63,20 @@ class PlayLandFieldTest :
                 ids.toSet().size shouldBe ids.size
 
                 // ZoneTransfer annotation
-                val zt = gsm.annotationOrNull(AnnotationType.ZoneTransfer_af5a).shouldNotBeNull()
+                val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
                 zt.affectedIdsList.shouldContain(newInstanceId)
                 zt.detailInt("zone_src") shouldBe ZoneIds.P1_HAND
                 zt.detailInt("zone_dest") shouldBe ZoneIds.BATTLEFIELD
                 zt.detailString("category") shouldBe "PlayLand"
 
                 // ObjectIdChanged
-                val oic = gsm.annotationOrNull(AnnotationType.ObjectIdChanged).shouldNotBeNull()
+                val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
                 oic.affectedIdsList.shouldContain(origInstanceId)
                 oic.detailInt("orig_id") shouldBe origInstanceId
                 oic.detailInt("new_id") shouldBe newInstanceId
 
                 // UserActionTaken
-                val uat = gsm.annotationOrNull(AnnotationType.UserActionTaken).shouldNotBeNull()
+                val uat = gsm.annotation(AnnotationType.UserActionTaken)
                 uat.affectorId.toInt() shouldBe 1
                 uat.affectedIdsList.shouldContain(newInstanceId)
                 uat.detailInt("actionType") shouldBeGreaterThan 0
