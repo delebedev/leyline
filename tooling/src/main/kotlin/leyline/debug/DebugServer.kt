@@ -42,6 +42,7 @@ import java.util.concurrent.Executors
  * - `GET /api/recording-compare?left=...&right=...` → action-level comparison
  * Client errors: use `scry state` or `scry serve` (port 8091) instead.
  */
+@Suppress("LargeClass")
 class DebugServer(
     private val port: Int = 8090,
     private val debugCollector: DebugCollector? = null,
