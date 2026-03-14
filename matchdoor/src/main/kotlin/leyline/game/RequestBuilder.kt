@@ -161,16 +161,16 @@ object RequestBuilder {
     /**
      * Build [DeclareBlockersReq] listing all creatures that can legally block.
      *
-     * @param assignedBlockerIds blocker instanceIds already assigned in the current
-     *   iterative declaration. Real server clears `attackerInstanceIds` for these
-     *   (confirmed across 4 recordings) — the client uses this to distinguish
-     *   committed vs available blockers.
+     * @param blockerAssignments committed blocker→attacker assignments (instanceIds).
+     *   Committed blockers get `selectedAttackerInstanceIds` set and `attackerInstanceIds`
+     *   cleared. Uncommitted blockers get `attackerInstanceIds` (available targets).
+     *   Conformance: recording 2026-03-01_00-18-46 idx 238, 2026-03-14_17-28-50 idx 106.
      */
     fun buildDeclareBlockersReq(
         game: Game,
         seatId: Int,
         bridge: GameBridge,
-        assignedBlockerIds: Set<Int> = emptySet(),
+        blockerAssignments: Map<Int, Int> = emptyMap(),
     ): DeclareBlockersReq {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return DeclareBlockersReq.getDefaultInstance()
         val combat = game.phaseHandler.combat ?: return DeclareBlockersReq.getDefaultInstance()
@@ -184,17 +184,24 @@ object RequestBuilder {
             if (!CombatUtil.canBlock(card, combat)) continue
 
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            // Already-assigned blockers get empty attacker list (committed to their assignment)
-            val availableAttackers = if (instanceId in assignedBlockerIds) emptyList() else attackerInstanceIds
             val blocker = Blocker.newBuilder()
                 .setBlockerInstanceId(instanceId)
-                .addAllAttackerInstanceIds(availableAttackers)
-                .setMinAttackers(0)
                 .setMaxAttackers(1)
+
+            val assignedAttacker = blockerAssignments[instanceId]
+            if (assignedAttacker != null) {
+                // Committed: selectedAttackerInstanceIds set, attackerInstanceIds cleared
+                blocker.addSelectedAttackerInstanceIds(assignedAttacker)
+            } else {
+                // Available: attackerInstanceIds lists what this blocker can block
+                blocker.addAllAttackerInstanceIds(attackerInstanceIds)
+            }
             builder.addBlockers(blocker)
         }
+        // Conformance: real server includes empty manaCost
+        builder.addManaCost(ManaRequirement.getDefaultInstance())
 
-        log.info("buildDeclareBlockersReq: seat={} blockers={} assigned={}", seatId, builder.blockersCount, assignedBlockerIds.size)
+        log.info("buildDeclareBlockersReq: seat={} blockers={} assigned={}", seatId, builder.blockersCount, blockerAssignments.size)
         return builder.build()
     }
 
