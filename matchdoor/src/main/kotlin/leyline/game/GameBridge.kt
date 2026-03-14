@@ -407,6 +407,7 @@ class GameBridge(
             actionBridges = actionBridges.values.toList(),
             promptBridges = promptBridges.values.toList(),
             mulliganBridges = mulliganBridges.values.toList(),
+            prioritySignal = prioritySignal,
         )
         loopController = loop
         loop.start()
@@ -494,6 +495,7 @@ class GameBridge(
             actionBridges = actionBridges.values.toList(),
             promptBridges = promptBridges.values.toList(),
             mulliganBridges = mulliganBridges.values.toList(),
+            prioritySignal = prioritySignal,
         )
         loopController = loop
         loop.start()
@@ -736,6 +738,7 @@ class GameBridge(
             actionBridges = actionBridges.values.toList(),
             promptBridges = promptBridges.values.toList(),
             mulliganBridges = mulliganBridges.values.toList(),
+            prioritySignal = prioritySignal,
         )
         loopController = loop
         loop.startFromCurrentState()
