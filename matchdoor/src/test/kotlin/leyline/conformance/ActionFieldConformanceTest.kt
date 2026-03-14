@@ -108,15 +108,6 @@ class ActionFieldConformanceTest :
                     a.autoTapSolution.autoTapActionsCount shouldBeGreaterThan 0
                 }
 
-                // Activate (if present): shouldStop=true, instanceId + grpId
-                val activateActions = actions.actionsList.filter { it.actionType == ActionType.Activate_add3 }
-                for (a in activateActions) {
-                    a.shouldStop.shouldBeTrue()
-                    a.instanceId shouldNotBe 0
-                    a.grpId shouldNotBe 0
-                    a.facetId shouldBe a.instanceId
-                }
-
                 // AutoTapSolution: maps mana sources to spell cost
                 val castWithTap = castActions.filter { it.hasAutoTapSolution() }
                 for (a in castWithTap) {
@@ -165,6 +156,27 @@ class ActionFieldConformanceTest :
                         }
                         else -> {}
                     }
+                }
+            }
+        }
+
+        test("Activate action fields — non-mana activated ability") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                // Gingerbrute: {1}: can't be blocked except by haste creatures
+                base.addCard("Forest", human, ZoneType.Battlefield)
+                base.addCard("Gingerbrute", human, ZoneType.Battlefield)
+            }
+
+            val actions = ActionMapper.buildActions(game, 1, b)
+            val activateActions = actions.actionsList.filter { it.actionType == ActionType.Activate_add3 }
+            activateActions.shouldNotBeEmpty()
+
+            assertSoftly {
+                for (a in activateActions) {
+                    a.shouldStop.shouldBeTrue()
+                    a.instanceId shouldNotBe 0
+                    a.grpId shouldNotBe 0
+                    a.facetId shouldBe a.instanceId
                 }
             }
         }
