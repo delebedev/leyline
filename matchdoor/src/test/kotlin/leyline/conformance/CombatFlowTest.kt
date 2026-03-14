@@ -268,12 +268,7 @@ class CombatFlowTest :
             // Declare attack with haste creature (Raging Goblin, 1/1)
             h.declareAttackers(listOf(attackerIid))
 
-            // Pass through combat to completion (AI has no creatures → no blockers)
-            repeat(15) {
-                if (h.isGameOver()) return@repeat
-                if (h.turn() > startTurn) return@repeat
-                h.passPriority()
-            }
+            h.passThroughCombat(startTurn)
 
             // Verify AI took damage (1/1 unblocked = 1 damage)
             val lifeAfter = aiPlayer.life
@@ -326,12 +321,7 @@ class CombatFlowTest :
                 h.declareAttackers(listOf(iid))
             }
 
-            // Pass through combat to completion
-            repeat(15) {
-                if (h.isGameOver()) return@repeat
-                if (h.turn() > startTurn) return@repeat
-                h.passPriority()
-            }
+            h.passThroughCombat(startTurn)
 
             // Check message stream for annotations
             val combatMsgs = h.messagesSince(snap)
@@ -360,12 +350,7 @@ class CombatFlowTest :
             // Declare attack
             h.declareAttackers(listOf(attackerIid))
 
-            // Pass through remaining combat + Main2 + end step
-            repeat(15) {
-                if (h.isGameOver()) return@repeat
-                if (h.turn() > startTurn) return@repeat
-                h.passPriority()
-            }
+            h.passThroughCombat(startTurn)
 
             // Validate full message chain
             val allMsgs = h.messagesSince(snap)
@@ -459,12 +444,7 @@ class CombatFlowTest :
             // Submit with B only
             h.submitAttackers()
 
-            // Pass through remaining combat
-            repeat(15) {
-                if (h.isGameOver()) return@repeat
-                if (h.turn() > startTurn) return@repeat
-                h.passPriority()
-            }
+            h.passThroughCombat(startTurn)
 
             // B is 1/1 Raging Goblin → 1 damage (not 2)
             val lifeAfter = aiPlayer.life
@@ -493,12 +473,7 @@ class CombatFlowTest :
             // Send SubmitAttackersReq (type-only, no payload) — real client "Done" button
             h.submitAttackers()
 
-            // Pass through remaining combat
-            repeat(15) {
-                if (h.isGameOver()) return@repeat
-                if (h.turn() > startTurn) return@repeat
-                h.passPriority()
-            }
+            h.passThroughCombat(startTurn)
 
             // Verify AI took damage — Raging Goblin 1/1 unblocked = 1 damage
             val lifeAfter = aiPlayer.life
@@ -526,12 +501,7 @@ class CombatFlowTest :
             // Send "Done" (SubmitAttackersReq, empty)
             h.submitAttackers()
 
-            // Pass through remaining combat
-            repeat(15) {
-                if (h.isGameOver()) return@repeat
-                if (h.turn() > startTurn) return@repeat
-                h.passPriority()
-            }
+            h.passThroughCombat(startTurn)
 
             // Verify AI took damage
             val lifeAfter = aiPlayer.life
@@ -600,12 +570,7 @@ class CombatFlowTest :
             h.declareAllAttackers()
             h.submitAttackers()
 
-            // Pass through remaining combat
-            repeat(15) {
-                if (h.isGameOver()) return@repeat
-                if (h.turn() > startTurn) return@repeat
-                h.passPriority()
-            }
+            h.passThroughCombat(startTurn)
 
             // Verify damage dealt
             val lifeAfter = aiPlayer.life
