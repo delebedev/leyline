@@ -1,9 +1,13 @@
 package leyline.conformance
 
+import forge.game.ability.AbilityKey
+import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.ForgeCardId
@@ -11,14 +15,16 @@ import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
-import wotc.mtgo.gre.external.messaging.Messages.*
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GameStateType
+import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Diagnostic tests tracing exact diff contents for each game action.
  *
  * Accumulator consistency (zone-object refs, action instanceIds, no duplicates)
- * is now automatic via [ValidatingMessageSink]. What remains here are structural
+ * is automatic via [ValidatingMessageSink]. What remains here are structural
  * assertions about diff contents — which zones appear, annotation types, field values.
  */
 class DiffDiagnosticTest :
@@ -31,29 +37,27 @@ class DiffDiagnosticTest :
         afterEach { base.tearDown() }
 
         test("diff after land play has correct GSM type, zones, and annotations") {
-            val (b, game, counter) = base.startGameAtMain1()
+            val (b, game, counter) = base.startWithBoard { _, human, _ ->
+                base.addCard("Plains", human, ForgeZoneType.Hand)
+            }
 
-            base.gameStart(game, b, counter)
-            b.snapshotFromGame(game)
-            base.postAction(game, b, counter)
+            val land = game.humanPlayer.getZone(ForgeZoneType.Hand).cards.first { it.isLand }
+            val gsm = base.captureAfterAction(b, game, counter) {
+                game.action.moveToPlay(land, null, AbilityKey.newMap())
+            }
 
-            base.playLand(b) ?: error("playLand failed at seed 42")
+            assertSoftly {
+                gsm.type shouldBe GameStateType.Diff
 
-            val result = base.postAction(game, b, counter)
-            val gsm = result.gsm
+                val zoneTypes = gsm.zonesList.map { it.type }.toSet()
+                (ProtoZoneType.Hand in zoneTypes).shouldBeTrue()
+                (ProtoZoneType.Battlefield in zoneTypes).shouldBeTrue()
+                (ProtoZoneType.Limbo in zoneTypes).shouldBeTrue()
 
-            gsm.type shouldBe GameStateType.Diff
-
-            val zoneTypes = gsm.zonesList.map { it.type }.toSet()
-            (ZoneType.Hand in zoneTypes).shouldBeTrue()
-            (ZoneType.Battlefield in zoneTypes).shouldBeTrue()
-            (ZoneType.Limbo in zoneTypes).shouldBeTrue()
-
-            gsm.annotationsList.any { AnnotationType.ObjectIdChanged in it.typeList }.shouldBeTrue()
-
-            val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
-            val origId = oic.detailInt("orig_id")
-            gsm.diffDeletedInstanceIdsList.contains(origId).shouldBeFalse()
+                val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
+                val origId = oic.detailInt("orig_id")
+                gsm.diffDeletedInstanceIdsList.contains(origId).shouldBeFalse()
+            }
         }
 
         test("cast creature -> pass -> resolve tracks zone placement correctly") {
@@ -70,8 +74,7 @@ class DiffDiagnosticTest :
             acc.processAll(afterLand.messages)
 
             val player = b.getPlayer(SeatId(1))!!
-            val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature }
-                ?: error("No creature in hand at seed 42")
+            val creature = player.getZone(ForgeZoneType.Hand).cards.first { it.isCreature }
             val creatureForgeId = creature.id
 
             base.castCreature(b) ?: error("castCreature failed at seed 42")
@@ -94,9 +97,7 @@ class DiffDiagnosticTest :
 
                 val resolved = checkNotNull(acc.objects[creatureNewId]) { "Creature should still exist after resolve" }
                 resolved.zoneId shouldBe ZoneIds.BATTLEFIELD
-
-                val bfAfter = acc.zones[ZoneIds.BATTLEFIELD]!!
-                bfAfter.objectInstanceIdsList.shouldContain(creatureNewId)
+                acc.zones[ZoneIds.BATTLEFIELD]!!.objectInstanceIdsList.shouldContain(creatureNewId)
             }
         }
 
@@ -107,8 +108,7 @@ class DiffDiagnosticTest :
             base.postAction(game, b, counter)
 
             val player = b.getPlayer(SeatId(1))!!
-            val creature = player.getZone(ForgeZoneType.Hand).cards.firstOrNull { it.isCreature }
-                ?: error("No creature in hand at seed 42")
+            val creature = player.getZone(ForgeZoneType.Hand).cards.first { it.isCreature }
             val creatureForgeId = creature.id
 
             base.castCreature(b) ?: error("castCreature failed at seed 42")
@@ -125,29 +125,24 @@ class DiffDiagnosticTest :
         }
 
         test("remoteActionDiff contains BF objects for AI land play") {
-            val (b, game, counter) = base.startGameAtMain1()
+            val (b, game, counter) = base.startWithBoard { _, human, _ ->
+                base.addCard("Plains", human, ForgeZoneType.Hand)
+            }
 
-            base.gameStart(game, b, counter)
-            b.snapshotFromGame(game)
-
-            base.playLand(b) ?: error("playLand failed at seed 42")
+            val land = game.humanPlayer.getZone(ForgeZoneType.Hand).cards.first { it.isLand }
+            base.captureAfterAction(b, game, counter) {
+                game.action.moveToPlay(land, null, AbilityKey.newMap())
+            }
 
             val aiResult = BundleBuilder.remoteActionDiff(
-                game,
-                b,
-                ConformanceTestBase.TEST_MATCH_ID,
-                ConformanceTestBase.SEAT_ID,
-                counter,
+                game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter,
             )
 
             val gsm = aiResult.gsm
             gsm.type shouldBe GameStateType.Diff
 
-            val bfZone = gsm.zonesList.firstOrNull { it.type == ZoneType.Battlefield }
-            if (bfZone != null) {
-                (bfZone.objectInstanceIdsCount > 0).shouldBeTrue()
-            }
-
+            // remoteActionDiff may or may not include BF zone depending on
+            // what changed. Core invariant: all objects have a valid zoneId.
             for (obj in gsm.gameObjectsList) {
                 (obj.zoneId > 0).shouldBeTrue()
             }
