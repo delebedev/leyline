@@ -542,7 +542,6 @@ class CombatFlowTest :
             (lifeAfter < lifeBefore).shouldBeTrue()
         }
 
-
         test("declare no attackers skips combat") {
             setupSingleAttacker()
             val h = harness!!
