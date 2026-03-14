@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.InteractivePromptBridge.PendingPrompt
@@ -164,7 +165,11 @@ class GoldenFieldCoverageTest :
 
         // --- DeclareBlockersReq ---
 
-        test("DeclareBlockersReq field coverage vs real server") {
+        // TODO: combat setup incomplete — devModeSet to COMBAT_DECLARE_BLOCKERS
+        //  doesn't initialize Forge's Combat object, so addAttacker returns null
+        //  and buildDeclareBlockersReq produces empty output. Needs proper combat
+        //  initialization or a MatchFlowHarness-based test with real combat.
+        xtest("DeclareBlockersReq field coverage vs real server") {
             val goldenGRE = loadGoldenGRE("declare-blockers-req.bin", GREMessageType.DeclareBlockersReq_695e)
             val goldenFields = FieldPathExtractor.extract(goldenGRE.declareBlockersReq)
 
@@ -179,11 +184,7 @@ class GoldenFieldCoverageTest :
 
             val expectedMissing = setOf("manaCost")
 
-            if (ourFields.isEmpty()) {
-                System.err.println("WARN: DeclareBlockersReq builder returned empty (combat setup incomplete)")
-                return@test
-            }
-
+            ourFields.shouldNotBeEmpty()
             assertFieldCoverage("DeclareBlockersReq", goldenFields, ourFields, expectedMissing)
         }
 
