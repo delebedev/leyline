@@ -111,8 +111,18 @@ object RequestBuilder {
     /**
      * Build [DeclareAttackersReq] listing all creatures that can legally attack.
      * Each attacker includes legal damage recipients (opponent player seat).
+     *
+     * @param committedAttackerIds instanceIds of attackers already selected (echo-back).
+     *   Committed attackers get [selectedDamageRecipient] set to the opponent player.
+     *   Initial request passes empty set (no pre-selection).
+     *   Conformance: recording 2026-03-06_22-37-41 frames 202 vs 205.
      */
-    fun buildDeclareAttackersReq(game: Game, seatId: Int, bridge: GameBridge): DeclareAttackersReq {
+    fun buildDeclareAttackersReq(
+        game: Game,
+        seatId: Int,
+        bridge: GameBridge,
+        committedAttackerIds: Set<Int> = emptySet(),
+    ): DeclareAttackersReq {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return DeclareAttackersReq.getDefaultInstance()
         val builder = DeclareAttackersReq.newBuilder()
 
@@ -130,14 +140,21 @@ object RequestBuilder {
             val attacker = Attacker.newBuilder()
                 .setAttackerInstanceId(instanceId)
                 .addLegalDamageRecipients(defaultRecipient)
-            // No selectedDamageRecipient — creatures are eligible, not pre-selected.
-            // Client shows them as available; player clicks to declare each attacker.
+            if (instanceId in committedAttackerIds) {
+                attacker.setSelectedDamageRecipient(defaultRecipient)
+            }
             builder.addAttackers(attacker)
-            builder.addQualifiedAttackers(attacker)
+            // qualifiedAttackers never has selectedDamageRecipient (confirmed in recordings)
+            val qualified = Attacker.newBuilder()
+                .setAttackerInstanceId(instanceId)
+                .addLegalDamageRecipients(defaultRecipient)
+            builder.addQualifiedAttackers(qualified)
         }
         builder.setCanSubmitAttackers(true)
+        // Conformance: real server always includes an empty manaCost entry.
+        builder.addManaCost(ManaRequirement.getDefaultInstance())
 
-        log.info("buildDeclareAttackersReq: seat={} attackers={}", seatId, builder.attackersCount)
+        log.info("buildDeclareAttackersReq: seat={} attackers={} committed={}", seatId, builder.attackersCount, committedAttackerIds.size)
         return builder.build()
     }
 
