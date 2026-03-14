@@ -228,31 +228,23 @@ class ConformancePipelineTest :
         }
     })
 
-/** Build echo GSM JSON matching the template's conformance-relevant fields. */
+/** Build echo GSM JSON matching the template's conformance-relevant fields.
+ *  Strips card-identity fields (grpId, power, subtypes, etc.) — same as
+ *  segments.py's _extract_conformance_gsm. */
 private fun buildEchoGsmJson(msg: GREToClientMessage): JsonObject {
     val gsm = msg.gameStateMessage
+    val stripSuffix = Regex("_[a-f0-9]{3,4}$")
     return buildJsonObject {
-        put("updateType", gsm.update.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))
+        put("updateType", gsm.update.name.replace(stripSuffix, ""))
         put("objects", buildJsonArray {
             for (obj in gsm.gameObjectsList) {
                 add(buildJsonObject {
                     put("instanceId", obj.instanceId)
-                    put("grpId", obj.grpId)
                     put("zoneId", obj.zoneId)
-                    put("type", obj.type.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))
-                    put("visibility", obj.visibility.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))
+                    put("type", obj.type.name.replace(stripSuffix, ""))
+                    put("visibility", obj.visibility.name.replace(stripSuffix, ""))
                     put("owner", obj.ownerSeatId)
                     put("controller", obj.controllerSeatId)
-                    if (obj.isTapped) put("isTapped", true)
-                    if (obj.hasPower()) put("power", obj.power.value)
-                    if (obj.hasToughness()) put("toughness", obj.toughness.value)
-                    put("cardTypes", buildJsonArray {
-                        obj.cardTypesList.forEach { add(JsonPrimitive(it.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))) }
-                    })
-                    put("subtypes", buildJsonArray {
-                        obj.subtypesList.forEach { add(JsonPrimitive(it.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))) }
-                    })
-                    put("uniqueAbilityCount", obj.uniqueAbilitiesCount)
                 })
             }
         })
@@ -260,7 +252,7 @@ private fun buildEchoGsmJson(msg: GREToClientMessage): JsonObject {
             for (ann in gsm.annotationsList) {
                 add(buildJsonObject {
                     put("types", buildJsonArray {
-                        ann.typeList.forEach { add(JsonPrimitive(it.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))) }
+                        ann.typeList.forEach { add(JsonPrimitive(it.name.replace(stripSuffix, ""))) }
                     })
                 })
             }
@@ -269,7 +261,7 @@ private fun buildEchoGsmJson(msg: GREToClientMessage): JsonObject {
             for (ann in gsm.persistentAnnotationsList) {
                 add(buildJsonObject {
                     put("types", buildJsonArray {
-                        ann.typeList.forEach { add(JsonPrimitive(it.name.replace(Regex("_[a-f0-9]{3,4}$"), ""))) }
+                        ann.typeList.forEach { add(JsonPrimitive(it.name.replace(stripSuffix, ""))) }
                     })
                 })
             }
