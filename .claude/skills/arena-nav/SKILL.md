@@ -92,6 +92,18 @@ Never batch commands blindly. One action, one check, next action.
 - **Targeting:** After drag, OCR shows "Choose any target". Click target coords, then 888,504 to confirm
 - **Modal choices (kicker, scry, surveil):** Handle the prompt, then click "Done"
 
+### Combat interactions (attackers & blockers)
+
+- **Blocker assignment is click-click, NOT drag.** Click your blocker creature, then click the attacking creature. Drag opens card preview instead.
+- **Interactive prompts (DeclareAttackers/Blockers) have a 15s bridge timeout.** The engine auto-passes if no response within 15s. Script combat assignments as fast sequences with `sleep 0.5` between clicks — do NOT OCR between each click.
+- **Fast block example:**
+  ```bash
+  # Click blocker, click attacker, submit — all under 15s
+  arena click <blocker_cx>,<blocker_cy> && sleep 0.5
+  arena click <attacker_cx>,<attacker_cy> && sleep 1
+  arena click 887,504   # "1 Blocker" submit button
+  ```
+
 ## In-Game Turn Cycle
 
 Our Forge engine gives priority at every phase stop — expect 5-10 button clicks per turn vs 1-2 in real Arena.
@@ -377,6 +389,17 @@ Kill everything: `just stop` → start new server → `arena launch`. Ghost matc
 
 **Restart server.** JVM holds old bytecode. `just stop` + rebuild + `just serve`.
 
+### Puzzle reinject
+
+`POST /api/inject-puzzle` hot-swaps the puzzle mid-game without server restart:
+```bash
+curl -s -X POST http://localhost:8090/api/inject-puzzle \
+  --data-binary @puzzles/my-puzzle.pzl -H "Content-Type: text/plain"
+```
+- Works when `gameOver=false` — resets board, keeps client connected
+- Click Pass (888,504) after reinject to sync the phase HUD (#108)
+- **Does NOT work after `gameOver=true`** — must restart server + start new match from lobby
+
 ## Deck Selection
 
 - "My Decks" may be collapsed → `arena click "My Decks"` to expand
@@ -425,6 +448,7 @@ None of these icons have OCR-readable text — use coord clicks only.
 | Modal/popup blocking | `arena click 480,300` (center dismiss) or `arena click "Okay" --retry 3` |
 | Stuck in-game (888,504 doesn't advance) | `arena board` → check actions. May need targeting or modal response |
 | "Waiting for Server..." | Server down — restart server, relaunch MTGA |
+| Login screen after server restart | Click password field, type `forge` (`osascript -e 'tell application "System Events" to keystroke "forge"'`), click "Log In". Sometimes auto-login works — check with `arena ocr` first |
 | Black screen | Check `logs/leyline.log` — don't click blindly |
 | Ghost match ("Resume" but no match) | `just stop` + restart + `arena launch` |
 | Wrong coords (clicks miss) | Check display: `system_profiler SPDisplaysDataType`. Use text clicks only as workaround |
