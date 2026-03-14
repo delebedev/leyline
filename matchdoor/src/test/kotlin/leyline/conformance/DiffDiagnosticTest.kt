@@ -1,13 +1,11 @@
 package leyline.conformance
 
 import forge.game.ability.AbilityKey
-import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.ForgeCardId
@@ -17,8 +15,8 @@ import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameStateType
-import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 import forge.game.zone.ZoneType as ForgeZoneType
+import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
 /**
  * Diagnostic tests tracing exact diff contents for each game action.
@@ -135,7 +133,11 @@ class DiffDiagnosticTest :
             }
 
             val aiResult = BundleBuilder.remoteActionDiff(
-                game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter,
+                game,
+                b,
+                ConformanceTestBase.TEST_MATCH_ID,
+                ConformanceTestBase.SEAT_ID,
+                counter,
             )
 
             val gsm = aiResult.gsm
