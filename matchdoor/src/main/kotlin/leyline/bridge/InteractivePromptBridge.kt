@@ -23,6 +23,14 @@ class InteractivePromptBridge(
     private val timeoutMs: Long = DEFAULT_TIMEOUT_MS,
     private val prioritySignal: PrioritySignal? = null,
 ) {
+    /**
+     * Stashed optional cost decision (kicker, buyback, etc.).
+     * Set by session layer (TargetingHandler) after client responds to CastingTimeOptionsReq.
+     * Consumed by [WebPlayerController.chooseOptionalCosts]. Indices into OptionalCostValue list.
+     * Null = no stash (auto-accept fallback). Empty list = decline all.
+     */
+    @Volatile
+    var stashedOptionalCostIndices: List<Int>? = null
     companion object {
         const val DEFAULT_TIMEOUT_MS = 30_000L
         private const val HISTORY_CAP = 100

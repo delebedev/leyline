@@ -31,11 +31,21 @@ class TargetingHandler(private val ops: SessionOps) {
     /** Saved state between SelectTargetsResp and SubmitTargetsReq. */
     data class PendingTargetSelection(val promptId: String, val selectedIndices: List<Int>)
 
+    /** Saved state for pending kicker/optional cost prompt — stashes the Cast action to replay after choice. */
+    data class PendingOptionalCost(
+        val pendingActionId: String,
+        val action: leyline.bridge.PlayerAction.CastSpell,
+        val costCtoIds: List<Int>,
+    )
+
     @Volatile
     private var pendingModal: PendingModal? = null
 
     @Volatile
     private var pendingTargetSelection: PendingTargetSelection? = null
+
+    @Volatile
+    private var pendingOptionalCost: PendingOptionalCost? = null
 
     /**
      * Handle SelectTargetsResp (phase 1): store selection, send echo-back re-prompt.
@@ -423,34 +433,170 @@ class TargetingHandler(private val ops: SessionOps) {
     }
 
     /**
-     * Handle CastingTimeOptionsResp: map client grpIds back to prompt indices
-     * and submit to the bridge to unblock the engine.
+     * Handle CastingTimeOptionsResp: dispatches to modal or kicker/optional cost handler.
      */
     fun onCastingTimeOptions(
         greMsg: ClientToGREMessage,
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
+        // Kicker/optional cost path: client responded to optional cost prompt
+        val optCost = pendingOptionalCost
+        if (optCost != null) {
+            onOptionalCostResponse(greMsg, bridge, optCost, autoPass)
+            return
+        }
+
+        // Modal path (existing)
         val modal = pendingModal
         if (modal == null) {
-            log.warn("TargetingHandler: CastingTimeOptionsResp but no pending modal")
+            log.warn("TargetingHandler: CastingTimeOptionsResp but no pending modal or optional cost")
             return
         }
 
         val resp = greMsg.castingTimeOptionsResp
         val chosenGrpIds = resp.castingTimeOptionResp.chooseModalResp.grpIdsList
 
-        // Map grpIds back to indices into the childGrpIds list
         val selectedIndices = chosenGrpIds.mapNotNull { grpId ->
             modal.childGrpIds.indexOf(grpId).takeIf { it >= 0 }
         }
 
-        log.info("TargetingHandler: CastingTimeOptionsResp grpIds={} → indices={}", chosenGrpIds, selectedIndices)
+        log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)
 
         bridge.promptBridge.submitResponse(modal.promptId, selectedIndices)
         pendingModal = null
         bridge.awaitPriority()
         autoPass(bridge)
+    }
+
+    /**
+     * Check if a Cast action targets a card with optional costs (kicker, buyback, etc.).
+     * If yes, sends CastingTimeOptionsReq to client and returns true (caller should NOT submit to engine).
+     * If no, returns false (caller should proceed normally).
+     */
+    fun checkOptionalCosts(
+        action: Action,
+        pendingActionId: String,
+        bridge: GameBridge,
+    ): Boolean {
+        val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return false
+        val game = bridge.getGame() ?: return false
+        val card = game.findById(forgeCardId.value) ?: return false
+
+        // Find the castable SpellAbility to check for optional costs
+        val sa = card.spellAbilities?.firstOrNull { it.isSpell && !it.isLandAbility } ?: return false
+        sa.setActivatingPlayer(bridge.getPlayer(SeatId(ops.seatId)) ?: return false)
+
+        val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
+        if (optionalCosts.isEmpty()) return false
+
+        log.info("TargetingHandler: card '{}' has {} optional costs — sending prompt", card.name, optionalCosts.size)
+
+        // Build CastingTimeOptionsReq with one entry per optional cost + Done
+        val instanceId = action.instanceId
+        val ctoReqBuilder = CastingTimeOptionsReq.newBuilder()
+        val costCtoIds = mutableListOf<Int>()
+
+        for ((i, cost) in optionalCosts.withIndex()) {
+            val ctoId = i + 1 // 1-based; 0 is reserved for Done
+            costCtoIds.add(ctoId)
+
+            // Map OptionalCost type to CastingTimeOptionType
+            val ctoType = when (cost.type) {
+                forge.game.spellability.OptionalCost.Kicker1,
+                forge.game.spellability.OptionalCost.Kicker2,
+                -> CastingTimeOptionType.Kicker
+                forge.game.spellability.OptionalCost.Buyback -> CastingTimeOptionType.AdditionalCost
+                forge.game.spellability.OptionalCost.Entwine -> CastingTimeOptionType.AdditionalCost
+                else -> CastingTimeOptionType.OptionalCost
+            }
+
+            // Find the abilityGrpId for this cost from card data
+            val cardData = bridge.cards.findByGrpId(action.grpId)
+            val abilityGrpId = cardData?.abilityIds?.getOrNull(
+                (cardData.keywordAbilityGrpIds.size) + i,
+            )?.first ?: 0
+
+            ctoReqBuilder.addCastingTimeOptionReq(
+                CastingTimeOptionReq.newBuilder()
+                    .setCtoId(ctoId)
+                    .setCastingTimeOptionType(ctoType)
+                    .setAffectedId(instanceId)
+                    .setAffectorId(instanceId)
+                    .setGrpId(abilityGrpId),
+            )
+        }
+
+        // Add Done option (ctoId=0, required)
+        ctoReqBuilder.addCastingTimeOptionReq(
+            CastingTimeOptionReq.newBuilder()
+                .setCtoId(0)
+                .setCastingTimeOptionType(CastingTimeOptionType.Done)
+                .setIsRequired(true),
+        )
+
+        // Stash the Cast action for replay after response
+        pendingOptionalCost = PendingOptionalCost(
+            pendingActionId = pendingActionId,
+            action = leyline.bridge.PlayerAction.CastSpell(forgeCardId),
+            costCtoIds = costCtoIds,
+        )
+
+        // Send prompt
+        val result = BundleBuilder.castingTimeOptionsBundle(
+            game,
+            bridge,
+            ops.matchId,
+            ops.seatId,
+            ops.counter,
+            ctoReqBuilder.build(),
+        )
+        Tap.outboundTemplate("CastingTimeOptionsReq (optional costs) seat=${ops.seatId} card=${card.name}")
+        ops.sendBundledGRE(result.messages)
+        return true
+    }
+
+    /**
+     * Handle CastingTimeOptionsResp for optional costs (kicker, buyback, etc.).
+     * Stores chosen cost indices, then submits the Cast action to the engine.
+     */
+    private fun onOptionalCostResponse(
+        greMsg: ClientToGREMessage,
+        bridge: GameBridge,
+        pending: PendingOptionalCost,
+        autoPass: (GameBridge) -> Unit,
+    ) {
+        pendingOptionalCost = null
+
+        // Check which optional costs the client chose
+        val resp = greMsg.castingTimeOptionsResp
+        val chosenCtoId = resp.castingTimeOptionResp?.ctoId ?: 0
+
+        // ctoId=0 means Done (declined all costs)
+        // ctoId>0 means accepted that cost
+        val accepted = chosenCtoId != 0 && chosenCtoId in pending.costCtoIds
+        val acceptedIndices = if (accepted) {
+            // For now, accept all costs up to the chosen one (single kicker = index 0)
+            listOf(chosenCtoId - 1) // 1-based ctoId → 0-based index
+        } else {
+            emptyList()
+        }
+
+        log.info("TargetingHandler: optional cost response ctoId={} accepted={} indices={}", chosenCtoId, accepted, acceptedIndices)
+
+        // Stash decision for WebPlayerController.chooseOptionalCosts to read
+        bridge.promptBridge.stashedOptionalCostIndices = acceptedIndices
+
+        // Now submit the Cast action to the engine
+        val actionBridge = bridge.actionBridge
+        val pendingAction = actionBridge.getPending()
+        if (pendingAction != null) {
+            actionBridge.submitAction(pendingAction.actionId, pending.action)
+            bridge.awaitPriority()
+            autoPass(bridge)
+        } else {
+            log.warn("TargetingHandler: optional cost response but no pending engine action")
+        }
     }
 
     private fun sendSelectTargetsReq(
