@@ -897,7 +897,13 @@ class GameBridge(
         for (player in game.players) {
             for (zone in allZones) {
                 for (card in player.getZone(zone).cards) {
-                    registrar.ensureCardRegisteredByName(card.name)
+                    // Use live card when rules are available (spellAbilities populated).
+                    // Fall back to by-name path for cards with null rules.
+                    if (card.rules != null) {
+                        registrar.ensureCardRegistered(card)
+                    } else {
+                        registrar.ensureCardRegisteredByName(card.name)
+                    }
                     ids.getOrAlloc(ForgeCardId(card.id))
                     registered++
                 }

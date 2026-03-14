@@ -150,8 +150,11 @@ class PuzzleCardRegistrar(
             if (subtype in subtypes) return listOf(abilityId to 0) to emptyMap()
         }
         val keywords = card.rules?.mainPart?.keywords?.toList() ?: emptyList()
-        val spellAbilityCount = maxOf(0, (card.spellAbilities?.size ?: 1) - 1)
-        val totalCount = maxOf(1, keywords.size + spellAbilityCount)
+        // Count non-mana activated abilities — matches the filter in ActionMapper and CardLookup.
+        // The old (spellAbilities.size - 1) heuristic undercounted planeswalkers and other
+        // multi-activated-ability cards.
+        val activatedCount = card.spellAbilities?.count { it.isActivatedAbility && !it.isManaAbility() } ?: 0
+        val totalCount = maxOf(1, keywords.size + activatedCount)
 
         val abilityIds = (0 until totalCount).map { nextAbilityGrpId.getAndIncrement() to 0 }
 
