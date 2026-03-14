@@ -26,6 +26,7 @@ private val INT_TYPES = setOf(
  *
  * Usage: proto-trace <id> [payloads-dir]
  */
+@Suppress("CyclomaticComplexMethod")
 fun main(args: Array<String>) {
     val targetId = args.firstOrNull()?.toIntOrNull()
     if (targetId == null) {

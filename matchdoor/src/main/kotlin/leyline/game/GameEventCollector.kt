@@ -76,13 +76,14 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
     override fun visit(ev: GameEventCardChangeZone) {
         val card = ev.card()
-        val from = ev.from().zoneType
-        val to = ev.to().zoneType
+        val from = ev.from()?.zoneType
+        val to = ev.to()?.zoneType ?: return
         val seat = seatOf(card.controller)
 
         // Emit the most specific variant possible based on zone pair.
-        // When seat is unavailable, fall back to generic ZoneChanged.
-        val event = if (seat != null) {
+        // When seat is unavailable or source zone is null (e.g. token entering
+        // Command zone from nowhere), fall back to generic ZoneChanged.
+        val event = if (seat != null && from != null) {
             when {
                 from == ZoneType.Battlefield && to == ZoneType.Graveyard ->
                     GameEvent.CardDestroyed(card.id, seat)
@@ -97,7 +98,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
                 else -> GameEvent.ZoneChanged(card.id, Zone.fromForge(from), Zone.fromForge(to))
             }
         } else {
-            GameEvent.ZoneChanged(card.id, Zone.fromForge(from), Zone.fromForge(to))
+            GameEvent.ZoneChanged(card.id, from?.let { Zone.fromForge(it) } ?: Zone.Other, Zone.fromForge(to))
         }
 
         // Clear cached P/T when a card leaves the battlefield so re-entering
