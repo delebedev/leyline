@@ -68,12 +68,17 @@ object ActionMapper {
 
             // Activate — non-mana activated abilities (only with legality checks)
             if (checkLegality) {
+                val cardData = bridge.cards.findByGrpId(grpId)
+                val keywordCount = cardData?.keywordAbilityGrpIds?.size ?: 0
+                var activateIndex = 0
                 for (ability in card.spellAbilities) {
                     ability.setActivatingPlayer(player)
                     if (!ability.isActivatedAbility) continue
                     if (ability.isManaAbility()) continue
-                    if (!ability.canPlay()) continue
-                    val cardData = bridge.cards.findByGrpId(grpId)
+                    if (!ability.canPlay()) {
+                        activateIndex++
+                        continue
+                    }
                     val actionBuilder = Action.newBuilder()
                         .setActionType(ActionType.Activate_add3)
                         .setInstanceId(instanceId)
@@ -81,10 +86,11 @@ object ActionMapper {
                         .setFacetId(instanceId)
                         .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
                     if (cardData != null) {
-                        // TODO: correlate loop index with abilityIds entries for multi-ability cards
-                        val abilityEntry = cardData.abilityIds.firstOrNull()
+                        val abilitySlot = keywordCount + activateIndex
+                        val abilityEntry = cardData.abilityIds.getOrNull(abilitySlot)
                         if (abilityEntry != null) actionBuilder.setAbilityGrpId(abilityEntry.first)
                     }
+                    activateIndex++
                     builder.addActions(actionBuilder)
                 }
             }
