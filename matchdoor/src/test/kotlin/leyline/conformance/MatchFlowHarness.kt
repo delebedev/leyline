@@ -372,17 +372,28 @@ class MatchFlowHarness(
     // --- Targeting helpers ---
 
     /**
-     * Select targets by instanceId for a pending SelectTargetsReq.
+     * Full two-phase target selection: SelectTargetsResp (phase 1) + SubmitTargetsReq (phase 2).
      *
-     * Submits immediately (our current flow). The client may follow up with
-     * SubmitTargetsReq which [TargetingHandler] acknowledges as a no-op.
+     * Convenience wrapper — sends both messages so existing tests don't need to change.
+     * Use [selectTargetsIterative] + [submitTargets] for phase-by-phase control.
      */
     fun selectTargets(targetInstanceIds: List<Int>) {
         session.onSelectTargets(selectTargetsResp(targets = targetInstanceIds))
         drainSink()
+        session.onSubmitTargets(submitTargetsReq())
+        drainSink()
     }
 
-    /** Send SubmitTargetsReq — the client's "Done" button. Acknowledged as no-op after [selectTargets]. */
+    /**
+     * Phase 1 only: send SelectTargetsResp without SubmitTargetsReq.
+     * Use to inspect the echo-back re-prompt before confirming.
+     */
+    fun selectTargetsIterative(targetInstanceIds: List<Int>) {
+        session.onSelectTargets(selectTargetsResp(targets = targetInstanceIds))
+        drainSink()
+    }
+
+    /** Phase 2: send SubmitTargetsReq — the client's "Done" button. */
     fun submitTargets() {
         session.onSubmitTargets(submitTargetsReq())
         drainSink()
