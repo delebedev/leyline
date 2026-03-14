@@ -418,13 +418,14 @@ class CombatFlowTest :
             h.passPriority() // advance to combat
             h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
-            // Toggle ON
+            // Toggle ON (XOR: not committed → committed)
             val onMsgs = h.toggleAttackers(listOf(attackerIid))
             val onReq = onMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
             onReq.attackersList.first().hasSelectedDamageRecipient().shouldBeTrue()
 
-            // Toggle OFF (empty selection)
-            val offMsgs = h.toggleAttackers(emptyList())
+            // Toggle OFF (XOR same ID: committed → deselected)
+            // Conformance: recording 2026-03-14_17-28-50, idx 160 (toggle committed attacker)
+            val offMsgs = h.toggleAttackers(listOf(attackerIid))
             val offReq = offMsgs.first { it.hasDeclareAttackersReq() }.declareAttackersReq
             offReq.attackersList.first().hasSelectedDamageRecipient().shouldBeFalse()
         }
@@ -439,8 +440,8 @@ class CombatFlowTest :
             // Toggle ON
             h.toggleAttackers(listOf(attackerIid))
 
-            // Toggle OFF (empty selection)
-            val echoMsgs = h.toggleAttackers(emptyList())
+            // Toggle OFF (XOR same ID → deselects)
+            val echoMsgs = h.toggleAttackers(listOf(attackerIid))
 
             val echoGsm = echoMsgs.firstOrNull { it.hasGameStateMessage() }
             echoGsm.shouldNotBeNull()
@@ -466,12 +467,13 @@ class CombatFlowTest :
             h.passPriority() // advance to combat
             h.allMessages.lastOrNull { it.hasDeclareAttackersReq() }.shouldNotBeNull()
 
-            // Toggle A on
+            // XOR toggle semantics (conformance: recording 2026-03-14_17-28-50)
+            // Toggle A on: {} XOR {A} → {A}
             h.toggleAttackers(listOf(iidA))
-            // Toggle A+B on
-            h.toggleAttackers(listOf(iidA, iidB))
-            // Toggle A off (only B remains)
+            // Toggle B on: {A} XOR {B} → {A, B}
             h.toggleAttackers(listOf(iidB))
+            // Toggle A off: {A, B} XOR {A} → {B}
+            h.toggleAttackers(listOf(iidA))
 
             // Submit with B only
             h.submitAttackers()

@@ -91,13 +91,27 @@ class CombatHandler(private val ops: SessionOps) {
         if (!isSubmit) {
             // Iterative update: DeclareAttackersResp — update tracked selection
             val resp = greMsg.declareAttackersResp
+            log.debug(
+                "CombatHandler: DeclareAttackersResp autoDeclare={} selectedCount={} selectedIds={}",
+                resp.autoDeclare,
+                resp.selectedAttackersCount,
+                resp.selectedAttackersList.map { it.attackerInstanceId },
+            )
             if (resp.autoDeclare) {
                 // "Attack All" — select all legal attackers
                 lastDeclaredAttackerIds = pendingLegalAttackers.toList()
                 log.info("CombatHandler: Attack All — selected all {} pending attackers", lastDeclaredAttackerIds.size)
             } else {
-                lastDeclaredAttackerIds = resp.selectedAttackersList.map { it.attackerInstanceId }
-                log.info("CombatHandler: iterative update — selected {}", lastDeclaredAttackerIds)
+                // XOR toggle: selectedAttackers contains the toggled creature(s).
+                // If already committed → deselect. If not committed → select.
+                // Conformance: recording 2026-03-14_17-28-50, idx 160/172/184.
+                val toggled = resp.selectedAttackersList.map { it.attackerInstanceId }
+                val current = lastDeclaredAttackerIds.toMutableSet()
+                for (id in toggled) {
+                    if (id in current) current.remove(id) else current.add(id)
+                }
+                lastDeclaredAttackerIds = current.toList()
+                log.info("CombatHandler: toggle {} → committed {}", toggled, lastDeclaredAttackerIds)
             }
             // Echo back GSM with creature object (no combat state) + DeclareAttackersReq.
             // Real server echo carries NO attackState — confirmed across 4 proxy recordings.
