@@ -7,6 +7,7 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import com.google.protobuf.util.JsonFormat
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -142,6 +143,10 @@ object RecordingDecoder {
         // GroupReq/GroupResp (surveil, scry, mulligan grouping prompts)
         val groupReq: GroupReqSummary? = null,
         val clientGroupResp: ClientGroupRespSummary? = null,
+        // Lossless prompt data — full proto JSON via JsonFormat.printer()
+        // Set for prompt messages (DeclareAttackers/Blockers Req/Resp, Submit*, GroupReq/Resp)
+        val promptType: String? = null,
+        val promptData: JsonElement? = null,
     )
 
     @Serializable
@@ -520,6 +525,18 @@ object RecordingDecoder {
                     groupType = resp.groupType.name.strip(),
                 )
             },
+            promptType = when {
+                gre.hasDeclareAttackersResp() -> "DeclareAttackersResp"
+                gre.hasDeclareBlockersResp() -> "DeclareBlockersResp"
+                gre.hasGroupResp() -> "GroupResp"
+                else -> null
+            },
+            promptData = when {
+                gre.hasDeclareAttackersResp() -> protoToJsonElement(gre.declareAttackersResp)
+                gre.hasDeclareBlockersResp() -> protoToJsonElement(gre.declareBlockersResp)
+                gre.hasGroupResp() -> protoToJsonElement(gre.groupResp)
+                else -> null
+            },
         )
     }
 
@@ -620,6 +637,20 @@ object RecordingDecoder {
             turnInfo = gsm?.takeIf { it.hasTurnInfo() }?.turnInfo?.let { summarizeTurn(it) },
             promptId = gre.takeIf { it.hasPrompt() && it.prompt.promptId != 0 }?.prompt?.promptId,
             systemSeatIds = gre.systemSeatIdsList.map { it.toInt() },
+            promptType = when {
+                gre.hasDeclareAttackersReq() -> "DeclareAttackersReq"
+                gre.hasDeclareBlockersReq() -> "DeclareBlockersReq"
+                gre.hasGroupReq() -> "GroupReq"
+                gre.hasSelectTargetsReq() -> "SelectTargetsReq"
+                else -> null
+            },
+            promptData = when {
+                gre.hasDeclareAttackersReq() -> protoToJsonElement(gre.declareAttackersReq)
+                gre.hasDeclareBlockersReq() -> protoToJsonElement(gre.declareBlockersReq)
+                gre.hasGroupReq() -> protoToJsonElement(gre.groupReq)
+                gre.hasSelectTargetsReq() -> protoToJsonElement(gre.selectTargetsReq)
+                else -> null
+            },
         )
     }
 
@@ -801,6 +832,15 @@ object RecordingDecoder {
             actions = resp.actionsList.map { summarizeAction(it, seatId = null) },
             autoPassPriority = resp.autoPassPriority.name.strip().takeIf { it != "None" },
         )
+    }
+
+    private val jsonPrinter: JsonFormat.Printer = JsonFormat.printer()
+        .omittingInsignificantWhitespace()
+        .preservingProtoFieldNames()
+
+    private fun protoToJsonElement(msg: com.google.protobuf.Message): JsonElement {
+        val jsonStr = jsonPrinter.print(msg)
+        return Json.parseToJsonElement(jsonStr)
     }
 
     private val json = Json {
