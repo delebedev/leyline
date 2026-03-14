@@ -64,52 +64,38 @@ class PlayLandFieldTest :
                 ids.toSet().size shouldBe ids.size
 
                 // ZoneTransfer annotation
-                val zt = gsm.annotationOrNull(AnnotationType.ZoneTransfer_af5a)
-                zt.shouldNotBeNull()
-                zt!!
+                val zt = gsm.annotationOrNull(AnnotationType.ZoneTransfer_af5a).shouldNotBeNull()
                 zt.affectedIdsList.shouldContain(newInstanceId)
-                val zoneSrc = zt.detail("zone_src")
-                zoneSrc.shouldNotBeNull()
-                zoneSrc!!.type shouldBe KeyValuePairValueType.Int32
+                val zoneSrc = zt.detail("zone_src").shouldNotBeNull()
+                zoneSrc.type shouldBe KeyValuePairValueType.Int32
                 zoneSrc.getValueInt32(0) shouldBe ZoneIds.P1_HAND
-                val zoneDest = zt.detail("zone_dest")
-                zoneDest.shouldNotBeNull()
-                zoneDest!!.type shouldBe KeyValuePairValueType.Int32
+                val zoneDest = zt.detail("zone_dest").shouldNotBeNull()
+                zoneDest.type shouldBe KeyValuePairValueType.Int32
                 zoneDest.getValueInt32(0) shouldBe ZoneIds.BATTLEFIELD
-                val category = zt.detail("category")
-                category.shouldNotBeNull()
                 @Suppress("EnumValuesSoftDeprecate")
-                category!!.type shouldBe KeyValuePairValueType.String
+                val category = zt.detail("category").shouldNotBeNull()
+                category.type shouldBe KeyValuePairValueType.String
                 category.getValueString(0) shouldBe "PlayLand"
 
                 // ObjectIdChanged
-                val oic = gsm.annotationOrNull(AnnotationType.ObjectIdChanged)
-                oic.shouldNotBeNull()
-                oic!!
+                val oic = gsm.annotationOrNull(AnnotationType.ObjectIdChanged).shouldNotBeNull()
                 oic.affectedIdsList.shouldContain(origInstanceId)
-                val origIdDetail = oic.detail("orig_id")
-                origIdDetail.shouldNotBeNull()
-                origIdDetail!!.type shouldBe KeyValuePairValueType.Int32
+                val origIdDetail = oic.detail("orig_id").shouldNotBeNull()
+                origIdDetail.type shouldBe KeyValuePairValueType.Int32
                 origIdDetail.getValueInt32(0) shouldBe origInstanceId
-                val newIdDetail = oic.detail("new_id")
-                newIdDetail.shouldNotBeNull()
-                newIdDetail!!.type shouldBe KeyValuePairValueType.Int32
+                val newIdDetail = oic.detail("new_id").shouldNotBeNull()
+                newIdDetail.type shouldBe KeyValuePairValueType.Int32
                 newIdDetail.getValueInt32(0) shouldBe newInstanceId
-                origInstanceId shouldNotBe newInstanceId
 
                 // UserActionTaken
-                val uat = gsm.annotationOrNull(AnnotationType.UserActionTaken)
-                uat.shouldNotBeNull()
-                uat!!
+                val uat = gsm.annotationOrNull(AnnotationType.UserActionTaken).shouldNotBeNull()
                 uat.affectorId.toInt() shouldBe 1
                 uat.affectedIdsList.shouldContain(newInstanceId)
-                val actionType = uat.detail("actionType")
-                actionType.shouldNotBeNull()
-                actionType!!.type shouldBe KeyValuePairValueType.Int32
+                val actionType = uat.detail("actionType").shouldNotBeNull()
+                actionType.type shouldBe KeyValuePairValueType.Int32
                 (actionType.valueInt32Count > 0).shouldBeTrue()
-                val abilityGrpId = uat.detail("abilityGrpId")
-                abilityGrpId.shouldNotBeNull()
-                abilityGrpId!!.type shouldBe KeyValuePairValueType.Int32
+                val abilityGrpId = uat.detail("abilityGrpId").shouldNotBeNull()
+                abilityGrpId.type shouldBe KeyValuePairValueType.Int32
 
                 // prevGameStateId
                 gsm.prevGameStateId.toInt() shouldNotBe 0
@@ -117,16 +103,16 @@ class PlayLandFieldTest :
 
                 // persistentAnnotations
                 (gsm.persistentAnnotationsCount > 0).shouldBeTrue()
-                val enteredZone = gsm.persistentAnnotationsList.firstOrNull {
-                    AnnotationType.EnteredZoneThisTurn in it.typeList
-                }
-                enteredZone.shouldNotBeNull()
-                enteredZone!!.affectedIdsList.shouldContain(newInstanceId)
+                val enteredZone = gsm.persistentAnnotationsList
+                    .firstOrNull { AnnotationType.EnteredZoneThisTurn in it.typeList }
+                    .shouldNotBeNull()
+                enteredZone.affectedIdsList.shouldContain(newInstanceId)
 
                 // land object on battlefield with abilities
-                val landObj = gsm.gameObjectsList.firstOrNull { it.instanceId == newInstanceId }
-                landObj.shouldNotBeNull()
-                landObj!!.zoneId shouldBe ZoneIds.BATTLEFIELD
+                val landObj = gsm.gameObjectsList
+                    .firstOrNull { it.instanceId == newInstanceId }
+                    .shouldNotBeNull()
+                landObj.zoneId shouldBe ZoneIds.BATTLEFIELD
                 landObj.uniqueAbilitiesCount shouldBeGreaterThan 0
 
                 // no Limbo objects in diff
@@ -134,9 +120,10 @@ class PlayLandFieldTest :
 
                 // old instance retired to Limbo zone
                 assertLimboContains(gsm, origInstanceId)
-                val newObj = gsm.gameObjectsList.firstOrNull { it.instanceId == newInstanceId }
-                newObj.shouldNotBeNull()
-                newObj!!.zoneId shouldBe ZoneIds.BATTLEFIELD
+                val newObj = gsm.gameObjectsList
+                    .firstOrNull { it.instanceId == newInstanceId }
+                    .shouldNotBeNull()
+                newObj.zoneId shouldBe ZoneIds.BATTLEFIELD
                 gsm.diffDeletedInstanceIdsList.contains(origInstanceId).shouldBeFalse()
             }
         }
@@ -162,24 +149,22 @@ class PlayLandFieldTest :
 
             assertSoftly {
                 // New instanceId on BF
-                val newObj = acc.objects[newInstanceId.value]
-                newObj.shouldNotBeNull()
-                newObj!!.zoneId shouldBe ZoneIds.BATTLEFIELD
+                val newObj = acc.objects[newInstanceId.value].shouldNotBeNull()
+                newObj.zoneId shouldBe ZoneIds.BATTLEFIELD
 
-                val handZone = acc.zones.values.firstOrNull {
-                    it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand && it.ownerSeatId == 1
-                }
-                handZone.shouldNotBeNull()
-                handZone!!.objectInstanceIdsList.contains(origInstanceId.value).shouldBeFalse()
+                val handZone = acc.zones.values
+                    .firstOrNull {
+                        it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand && it.ownerSeatId == 1
+                    }
+                    .shouldNotBeNull()
+                handZone.objectInstanceIdsList.contains(origInstanceId.value).shouldBeFalse()
 
                 // BF + Limbo zone checks
-                val bfZone = acc.zones[ZoneIds.BATTLEFIELD]
-                bfZone.shouldNotBeNull()
-                bfZone!!.objectInstanceIdsList.shouldContain(newInstanceId.value)
+                val bfZone = acc.zones[ZoneIds.BATTLEFIELD].shouldNotBeNull()
+                bfZone.objectInstanceIdsList.shouldContain(newInstanceId.value)
 
-                val limboZone = acc.zones[ZoneIds.LIMBO]
-                limboZone.shouldNotBeNull()
-                limboZone!!.objectInstanceIdsList.shouldContain(origInstanceId.value)
+                val limboZone = acc.zones[ZoneIds.LIMBO].shouldNotBeNull()
+                limboZone.objectInstanceIdsList.shouldContain(origInstanceId.value)
             }
 
             acc.assertConsistent("after play land")

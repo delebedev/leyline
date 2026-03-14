@@ -462,9 +462,23 @@ def _collect_ordered(obj, add_fn, key=None):
         add_fn(obj)
 
 
+# Object fields that are card-identity (vary per card, not protocol shape)
+_CARD_IDENTITY_KEYS = frozenset({
+    'grpId', 'power', 'toughness', 'subtypes', 'superTypes',
+    'cardTypes', 'uniqueAbilityCount', 'hasSummoningSickness',
+    'isTapped', 'viewers',
+})
+
+
 def _extract_conformance_gsm(frame):
+    """Extract protocol-structural fields from a GSM, stripping card identity."""
+    objects = []
+    for obj in frame.get('objects', []):
+        # Keep structural fields, drop card-specific ones
+        stripped = {k: v for k, v in obj.items() if k not in _CARD_IDENTITY_KEYS}
+        objects.append(stripped)
     return {
-        'objects': frame.get('objects', []),
+        'objects': objects,
         'annotations': frame.get('annotations', []),
         'persistentAnnotations': frame.get('persistentAnnotations', []),
         'updateType': frame.get('updateType'),
@@ -550,6 +564,9 @@ def diff_prompt_lifecycle(template, engine):
 
 def _diff_json_recursive(recording, engine, path, diffs):
     """Recursive JSON diff with path tracking."""
+    # Template $var_N is str, engine value is int — skip (unbound template var)
+    if isinstance(recording, str) and recording.startswith('$var_'):
+        return
     if type(recording) != type(engine):
         diffs.append({'path': path, 'type': 'type_mismatch', 'recording': recording, 'engine': engine})
         return
