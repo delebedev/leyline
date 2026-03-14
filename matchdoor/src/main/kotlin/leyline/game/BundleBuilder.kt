@@ -518,7 +518,7 @@ object BundleBuilder {
         }
 
         // Re-prompt with assigned blockers' attackerInstanceIds cleared
-        val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge, assignedBlockerIds = blockAssignments.keys)
+        val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge, blockerAssignments = blockAssignments)
         val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.declareBlockersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
