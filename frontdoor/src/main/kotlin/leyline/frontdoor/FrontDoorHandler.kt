@@ -8,7 +8,6 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import leyline.frontdoor.domain.CourseDeck
 import leyline.frontdoor.domain.CourseDeckSummary
@@ -273,28 +272,22 @@ class FrontDoorHandler(
                     deckService.delete(DeckId(req.deckId))
                     log.info("Front Door: Deck_DeleteDeck '{}'", req.deckId)
                 }
-                writer.send(ctx, txId, FdResponse.Json("{}"))
+                writer.send(ctx, txId, FdResponse.Json("Success"))
             }
 
             CmdType.DECK_UPSERT_V2.value -> {
                 requireJson(ctx, txId, json) { body ->
-                    val pid = playerId
-                    if (pid != null) {
-                        val deck = DeckWireBuilder.parseDeckUpdate(body, pid)
-                        if (deck != null) {
-                            deckService.save(deck)
-                            log.info("Front Door: Deck_UpsertDeckV2 saved '{}'", deck.name)
-                        } else {
-                            log.warn("Front Door: Deck_UpsertDeckV2 parse failed")
-                        }
+                    val savedDeck = DeckWireBuilder.parseDeckUpdate(body, playerId)
+                    val resp = if (savedDeck != null) {
+                        deckService.save(savedDeck)
+                        log.info("Front Door: Deck_UpsertDeckV2 saved '{}'", savedDeck.name)
+                        val summary = DeckWireBuilder.toV2Summary(savedDeck)
+                        buildJsonObject { put("Summary", summary) }
+                    } else {
+                        log.warn("Front Door: Deck_UpsertDeckV2 parse failed")
+                        buildJsonObject {}
                     }
-                    val summary = try {
-                        val obj = lenientJson.parseToJsonElement(body).jsonObject
-                        obj["Summary"]?.let { lenientJson.encodeToString(JsonObject.serializer(), it.jsonObject) }
-                    } catch (_: Exception) {
-                        null
-                    }
-                    writer.send(ctx, txId, FdResponse.Json(summary ?: "{}"))
+                    writer.send(ctx, txId, FdResponse.Json(lenientJson.encodeToString(JsonObject.serializer(), resp)))
                 }
             }
 
