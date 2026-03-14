@@ -27,8 +27,8 @@ class TargetingHandler(private val ops: SessionOps) {
     /** Saved state for pending modal prompt — maps response grpIds back to prompt indices. */
     data class PendingModal(val promptId: String, val childGrpIds: List<Int>)
 
-    /** Saved state for two-phase targeting — stores selection between SelectTargetsResp and SubmitTargetsReq. */
-    data class PendingTargetSelection(val promptId: String, val selectedIndices: List<Int>)
+    /** Saved state for targeting — tracks whether selection was already submitted to engine. */
+    data class PendingTargetSelection(val promptId: String, val selectedIndices: List<Int>, val submitted: Boolean = false)
 
     @Volatile
     private var pendingModal: PendingModal? = null
@@ -37,9 +37,12 @@ class TargetingHandler(private val ops: SessionOps) {
     private var pendingTargetSelection: PendingTargetSelection? = null
 
     /**
-     * Handle SelectTargetsResp (phase 1): map client instanceIds to prompt indices,
-     * store selection, send echo-back GSM + re-prompt SelectTargetsReq.
-     * Does NOT submit to engine — waits for [onSubmitTargets].
+     * Handle SelectTargetsResp: map client instanceIds to prompt indices and submit.
+     *
+     * The real server uses a two-phase protocol (SelectTargetsResp → echo → SubmitTargetsReq)
+     * but Arena's client also works with immediate submission. We submit immediately
+     * and store the result so [onSubmitTargets] can no-op gracefully if the client
+     * sends the follow-up SubmitTargetsReq.
      *
      * Player targets use seatId (1/2) as instanceId — these won't be in the card
      * instanceId registry, so we check for player refs first.
@@ -65,18 +68,31 @@ class TargetingHandler(private val ops: SessionOps) {
             pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
         }.filter { it >= 0 }
 
-        log.info("TargetingHandler: SelectTargetsResp indices={} (stored, awaiting SubmitTargetsReq)", selectedIndices)
+        log.info("TargetingHandler: SelectTargetsResp indices={}", selectedIndices)
 
-        // Store selection for phase 2
-        pendingTargetSelection = PendingTargetSelection(pendingPrompt.promptId, selectedIndices)
+        // Mark that we've already submitted — SubmitTargetsReq will no-op
+        pendingTargetSelection = PendingTargetSelection(pendingPrompt.promptId, selectedIndices, submitted = true)
 
-        // Send echo-back: actions-only GSM diff + re-prompt SelectTargetsReq
-        sendTargetEchoBack(bridge, pendingPrompt)
+        ops.sendBundledGRE(
+            listOf(
+                ops.makeGRE(GREMessageType.SubmitTargetsResp_695e, ops.counter.currentGsId(), ops.counter.nextMsgId()) {
+                    it.submitTargetsResp = SubmitTargetsResp.newBuilder().setResult(ResultCode.Success_a500).build()
+                },
+            ),
+        )
+
+        bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
+        bridge.awaitPriority()
+        autoPass(bridge)
     }
 
     /**
-     * Handle SubmitTargetsReq (phase 2): submit stored target selection to engine.
-     * No payload — uses selection stored by [onSelectTargets].
+     * Handle SubmitTargetsReq: client's "Done" button for targeting.
+     *
+     * In our flow, [onSelectTargets] already submitted to the engine.
+     * This handler acknowledges the message gracefully instead of dropping it
+     * as "unhandled". If we later implement full two-phase (echo-back re-prompt),
+     * this would trigger the actual engine submission.
      */
     fun onSubmitTargets(
         bridge: GameBridge,
@@ -89,8 +105,13 @@ class TargetingHandler(private val ops: SessionOps) {
         }
         pendingTargetSelection = null
 
-        log.info("TargetingHandler: SubmitTargetsReq — submitting indices={}", pending.selectedIndices)
+        if (pending.submitted) {
+            log.info("TargetingHandler: SubmitTargetsReq — already submitted, acknowledging")
+            return
+        }
 
+        // Future: full two-phase would submit here
+        log.info("TargetingHandler: SubmitTargetsReq — submitting indices={}", pending.selectedIndices)
         ops.sendBundledGRE(
             listOf(
                 ops.makeGRE(GREMessageType.SubmitTargetsResp_695e, ops.counter.currentGsId(), ops.counter.nextMsgId()) {
@@ -98,7 +119,6 @@ class TargetingHandler(private val ops: SessionOps) {
                 },
             ),
         )
-
         bridge.promptBridge.submitResponse(pending.promptId, pending.selectedIndices)
         bridge.awaitPriority()
         autoPass(bridge)
@@ -433,38 +453,6 @@ class TargetingHandler(private val ops: SessionOps) {
         pendingModal = null
         bridge.awaitPriority()
         autoPass(bridge)
-    }
-
-    /**
-     * Send echo-back after SelectTargetsResp: actions-only GSM diff + re-prompt SelectTargetsReq.
-     * Mirrors the real server behavior (wire spec: gsId advances, re-prompt shows selection as Unselect).
-     */
-    private fun sendTargetEchoBack(
-        bridge: GameBridge,
-        pendingPrompt: InteractivePromptBridge.PendingPrompt,
-    ) {
-        val game = bridge.getGame() ?: return
-
-        // Actions-only GSM diff (no zone/object changes)
-        val gsId = ops.counter.nextGsId()
-        val echoDiff = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.GameStateMessage_695e)
-            .addSystemSeatIds(ops.seatId)
-            .setMsgId(ops.counter.nextMsgId())
-            .setGameStateId(gsId)
-            .setGameStateMessage(
-                GameStateMessage.newBuilder()
-                    .setType(GameStateType.Diff)
-                    .setGameStateId(gsId)
-                    .setPrevGameStateId(gsId - 1),
-            )
-            .build()
-
-        // Re-prompt SelectTargetsReq (client sees selection reflected)
-        val rePrompt = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, pendingPrompt)
-
-        Tap.outboundTemplate("SelectTargetsReq echo seat=${ops.seatId}")
-        ops.sendBundledGRE(listOf(echoDiff) + rePrompt.messages)
     }
 
     private fun sendSelectTargetsReq(
