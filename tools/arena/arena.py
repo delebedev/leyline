@@ -1152,6 +1152,67 @@ def _find_hand_card(
     return None
 
 
+# Known modal dismiss coords (960-wide logical space)
+_MODAL_DONE = (480, 491)  # "Done" button on surveil/scry modals
+
+# OCR text patterns that indicate a dismissable modal
+_MODAL_PATTERNS = re.compile(r"(?i)\b(Surveil|Scry)\b")
+
+
+def _auto_dismiss_modal() -> None:
+    """Check for and dismiss known modals (surveil, scry) after a card play.
+
+    Waits briefly for modal to render, does a single OCR scan for known
+    modal text patterns. If found, clicks Done and reports.
+
+    This is a stopgap — the proper fix is tracking GREMessageType_GroupReq
+    in the scry tracker (GroupingContext_Surveil / GroupingContext_Scry),
+    which would detect modals without OCR. See cmd_land/cmd_attack_all
+    for the scry-first pattern this should eventually follow.
+    """
+    time.sleep(1.5)  # wait for modal animation to finish
+
+    img = "/tmp/arena/_modal_check.png"
+    Path(img).parent.mkdir(parents=True, exist_ok=True)
+
+    bounds = capture_window(img, hires=True)
+    if bounds is None:
+        return
+
+    code, stdout, _ = ocr(img)
+    _try_remove(img)
+
+    if code != 0 or not stdout.strip():
+        return
+
+    # Parse OCR output for modal indicators
+    try:
+        items = json.loads(stdout)
+    except json.JSONDecodeError:
+        return
+
+    modal_type = None
+    done_coord = None
+    for item in items:
+        text = item.get("text", "")
+        m = _MODAL_PATTERNS.search(text)
+        if m:
+            modal_type = m.group(1).title()
+        if text.strip().lower() == "done":
+            # Use the OCR-reported position, scaled to 960-wide
+            done_coord = _MODAL_DONE  # fallback to known coord
+
+    if modal_type and done_coord:
+        click_screen(*done_coord)
+        time.sleep(0.5)
+        print(f"  (auto-dismissed {modal_type})")
+    elif modal_type:
+        # Saw modal text but no Done button — try known coord anyway
+        click_screen(*_MODAL_DONE)
+        time.sleep(0.5)
+        print(f"  (auto-dismissed {modal_type}, inferred Done position)")
+
+
 def cmd_play(args: list[str]) -> None:
     """Play a card from hand by name.
 
@@ -1187,10 +1248,25 @@ def cmd_play(args: list[str]) -> None:
     print(f"Playing {card_name} (id={instance_id}) from ({cx},{cy})")
 
     ok = _verified_drag((cx, cy), drop_to, instance_id)
-    if ok:
-        print(f"✓ {card_name} played successfully")
-    else:
+    if not ok:
         die(f"✗ Failed to play {card_name} after 3 attempts")
+
+    print(f"✓ {card_name} played successfully")
+
+    # Auto-dismiss known modals that appear after playing a card.
+    # Currently handles: Surveil (Snarling Gorehound ETB etc.), Scry.
+    # These show a "Done" button when the player needs to confirm the
+    # top/bottom/graveyard ordering. For surveil 1, the default (keep on
+    # top) is fine — just click Done.
+    #
+    # Detection: wait briefly for modal to render, then OCR for "Done"
+    # or "Surveil"/"Scry" text. If found, click Done and report.
+    # If not found, move on — no modal appeared.
+    #
+    # Future: replace OCR check with scry GroupReq tracking (the real
+    # server sends GREMessageType_GroupReq with GroupingContext_Surveil).
+    # That would be instant and reliable. For now, OCR is good enough.
+    _auto_dismiss_modal()
 
 
 def cmd_land(args: list[str]) -> None:
