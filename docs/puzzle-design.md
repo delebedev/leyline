@@ -24,6 +24,21 @@ Forge AI evaluates trades individually, not collectively:
 
 Safe forced-attack creatures on Arena: `Juggernaut` (5/3, must attack).
 
+### AI Hand: Defensive Reliable, Offensive Unreliable
+
+AI won't cast spells it doesn't need. A pump spell in hand when AI already has lethal on board? AI ignores it. An extra creature when AI is already winning? AI may not bother.
+
+**Flip the threat.** Instead of "AI casts something, human reacts" (heuristic-dependent), make the human the aggressor: "human threatens lethal, AI *must* react or die." Defensive casts are reliable — AI always tries to not die.
+
+- **Offensive (unreliable):** AI has Giant Growth + attacking creature. AI already deals lethal without pump → never casts it.
+- **Defensive (reliable):** Human attacks for lethal. AI has Unsummon → AI *must* bounce or die → always casts it.
+
+When a puzzle needs AI to cast from hand, ensure the board makes that spell the AI's only path to survival.
+
+### Mono-Color When Possible
+
+Fewer colors = less noise. No color-screw risk, fewer lands to set up, cleaner board reads. The counterspell puzzle (Air Elemental + Cancel vs Unsummon) works as all-blue — one land type for both sides.
+
 ## Goal Selection
 
 | Goal | Tests | False positive risk |
