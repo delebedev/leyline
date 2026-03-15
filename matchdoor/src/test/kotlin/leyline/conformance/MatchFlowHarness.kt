@@ -5,6 +5,8 @@ import forge.game.zone.ZoneType
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
 import leyline.bridge.SeatId
+import leyline.config.AiConfig
+import leyline.config.MatchConfig
 import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
@@ -26,6 +28,7 @@ class MatchFlowHarness(
     private val seed: Long = 42L,
     private val deckList: String? = null,
     validating: Boolean = true,
+    private val matchConfig: MatchConfig = MatchConfig(ai = AiConfig(speed = 0.0)),
 ) {
 
     private val matchId = "test-match"
@@ -66,7 +69,7 @@ class MatchFlowHarness(
             paceDelayMs = 0,
         )
 
-        bridge = GameBridge(bridgeTimeoutMs = 5_000L, messageCounter = session.counter, cards = TestCardRegistry.repo)
+        bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = session.counter, cards = TestCardRegistry.repo)
         bridge.priorityWaitMs = 2_000L
         bridge.start(seed = seed, deckList = deckList)
 
@@ -125,7 +128,7 @@ class MatchFlowHarness(
             paceDelayMs = 0,
         )
 
-        bridge = GameBridge(bridgeTimeoutMs = 5_000L, messageCounter = session.counter, cards = TestCardRegistry.repo)
+        bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = session.counter, cards = TestCardRegistry.repo)
         bridge.priorityWaitMs = 2_000L
         bridge.startPuzzle(puzzle)
 

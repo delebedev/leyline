@@ -7,12 +7,12 @@ Description:AI attacks while human has Burst Lightning in hand. Auto-pass should
 
 [state]
 ActivePlayer=AI
-ActivePhase=Main1
+ActivePhase=COMBAT_DECLARE_ATTACKERS
 HumanLife=20
 AILife=20
 
 humanhand=Burst Lightning
 humanbattlefield=Mountain
 humanlibrary=Mountain;Mountain;Mountain
-aibattlefield=Raging Goblin|Haste;Mountain
+aibattlefield=Raging Goblin|Attacking|Tapped;Mountain
 ailibrary=Mountain;Mountain;Mountain
