@@ -59,7 +59,7 @@ object ActionMapper {
             if (!checkLegality && card.isTapped) continue
 
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            val grpId = bridge.cards.findGrpIdByName(card.name) ?: GameBridge.FALLBACK_GRPID
+            val grpId = ObjectMapper.resolveGrpId(card, bridge.cards)
 
             // ActivateMana — untapped permanents with mana abilities
             if (!card.isTapped && card.manaAbilities.isNotEmpty()) {
@@ -253,7 +253,7 @@ object ActionMapper {
                 val produced = sa.manaPart?.origProduced ?: continue
                 val manaColor = producedToManaColor(produced) ?: continue
                 val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-                val grpId = bridge.cards.findGrpIdByName(card.name) ?: GameBridge.FALLBACK_GRPID
+                val grpId = ObjectMapper.resolveGrpId(card, bridge.cards)
                 val abilityGrpId = bridge.cards.findByGrpId(grpId)?.abilityIds?.firstOrNull()?.first ?: 0
                 sources.add(ManaSource(card, instanceId, manaColor, abilityGrpId))
             }
