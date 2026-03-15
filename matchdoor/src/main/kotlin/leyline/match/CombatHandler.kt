@@ -53,9 +53,12 @@ class CombatHandler(private val ops: SessionOps) {
      * - [SEND_STATE] — informational: show the board, client has priority. Bypasses checkHumanActions.
      * - [CONTINUE] — nothing to do, fall through to action check.
      *
-     * **Bug pattern:** SEND_STATE bypasses checkHumanActions. If the human has only Pass actions
-     * when SEND_STATE fires, the client gets stuck showing "My Turn" with nothing meaningful to click.
-     * Use CONTINUE for phases where the human might not need to act and let checkHumanActions decide.
+     * **AI turn handling:** AutoPassEngine downgrades SEND_STATE to fall-through on AI turns.
+     * Real server never offers actions during AI combat phases (actionsCount=0 in GSMs).
+     * Offering Cast actions during AI combat makes the client stuck (no Pass button → 120s timeout).
+     *
+     * **Human turn guard:** SEND_STATE bypasses checkHumanActions. If the human has only Pass actions
+     * when SEND_STATE fires, AutoPassEngine downgrades to fall-through to avoid a stuck UI.
      */
     enum class Signal { STOP, SEND_STATE, CONTINUE }
 
