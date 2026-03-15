@@ -174,6 +174,46 @@ Why it works: Fireslinger (1/1) can't attack into Centaur Courser (3/3) — it d
 
 **Pattern: use enemy blockers to close off combat wins** when testing non-combat mechanics.
 
+## Pre-Flight: What Protocol Path Will This Hit?
+
+A puzzle can be perfectly designed and still hang if the mechanic under test routes through an unimplemented protocol path. The legend rule puzzle (two Isamaru, choose which to keep) was minimal, deterministic, one win path — but it exercised `SelectNReq` routing for SBA choices, which wasn't wired. Result: infinite re-prompt loop (#123).
+
+**Before writing a puzzle for a new mechanic, trace the protocol path it will take:**
+
+1. **What Forge method handles it?** Find the `GameAction`/`SpellAbility`/`PlayerController` method. Legend rule → `GameAction.handleLegendRule()` → `chooseSingleEntityForEffect()`.
+
+2. **What WebPlayerController override catches it?** That's where Forge blocks waiting for our response. Legend rule → `WebPlayerController.chooseSingleEntityForEffect()` → `PromptRequest(promptType="choose_cards")`.
+
+3. **How does TargetingHandler/MatchSession route that prompt?** Follow `checkPendingPrompt()` — does it match surveil/scry? Modal? candidateRefs? Auto-resolve? Legend rule had candidateRefs → routed to `SelectTargetsReq` (wrong — should be `SelectNReq`).
+
+4. **Is the outbound message type implemented?** Check `BundleBuilder` for the builder method. Check `MatchHandler` for the client response dispatch.
+
+Quick check: `just wire coverage` shows which message types are handled vs observed. `docs/catalog.yaml` shows mechanic status. If the mechanic's protocol path touches anything marked `missing` or `partial`, expect a hang or crash — which is still valuable (the puzzle found the bug), but know going in.
+
+**Puzzles that find protocol gaps are good.** The legend rule puzzle's value was discovering the `SelectTargetsReq` vs `SelectNReq` routing bug. But if the goal is to test a mechanic that *should* work end-to-end, trace the path first to avoid surprises.
+
+### Case Study: Legend Rule Puzzle
+
+The challenge: legend rule is an SBA (state-based action) — it happens automatically, not something you "cast." How do you build a Win puzzle around a passive rule?
+
+**Make the SBA the only path to victory.** The trick is to create a board where the player *can't win without* triggering the rule:
+
+```
+humanhand=Isamaru, Hound of Konda
+humanbattlefield=Isamaru, Hound of Konda|Tapped;Fervor;Plains;Plains
+AILife=2
+```
+
+- First Isamaru is `|Tapped` — can't attack, dead weight
+- Second Isamaru in hand — casting it triggers legend rule (choose which to keep)
+- Keep the fresh (untapped) copy, sacrifice the tapped one
+- Fervor grants haste — new Isamaru can attack immediately
+- AI at 2 life — Isamaru is 2/2, exact lethal
+
+7 cards total (Isamaru x2, Fervor, 2 Plains, 2 library padding). Every card has a job. No alternative win path — the tapped Isamaru can't attack, no other creatures, Fervor doesn't deal damage. The *only* way to win is: cast → legend rule → keep untapped → haste attack → lethal.
+
+**Pattern: test passive rules by making them the bottleneck.** Block all other win paths, then set up a board where the rule *must* fire for the player to win. Works for any SBA or triggered ability — toughness-based removal (enchant own creature with -X/-X to clear a blocker), sacrifice triggers, etc.
+
 ## Checklist
 
 Before committing a puzzle:
@@ -184,3 +224,4 @@ Before committing a puzzle:
 - [ ] Goal distinguishes "mechanic worked" from "nothing happened"
 - [ ] Life totals create clear pass/fail boundary
 - [ ] No unnecessary cards (lands, extra creatures, hand cards)
+- [ ] Trace the protocol path (see Pre-Flight above) — know what message types the mechanic will hit
