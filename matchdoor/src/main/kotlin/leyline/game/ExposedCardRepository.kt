@@ -74,13 +74,11 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
     // --- CardRepository ---
 
     override fun findByGrpId(grpId: Int): CardData? {
+        if (grpId == 0) return null
         dataCache[grpId]?.let { return it }
-        val data = queryCardData(grpId)
+        val data = queryCardData(grpId) ?: return null
         dataCache[grpId] = data
-        // Also cache the name if we got data
-        if (data != null) {
-            queryNameByGrpId(grpId)
-        }
+        queryNameByGrpId(grpId)
         return data
     }
 
