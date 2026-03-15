@@ -171,7 +171,9 @@ def capture_window(
     if not hires:
         # Resize to REFERENCE_WIDTH so OCR/detect coords = 960-space click coords.
         # On retina this halves from 2x; on non-retina 1920-wide this also scales.
-        run("sips", "--resampleWidth", str(REFERENCE_WIDTH), out_path, "--out", out_path)
+        run(
+            "sips", "--resampleWidth", str(REFERENCE_WIDTH), out_path, "--out", out_path
+        )
     return bounds
 
 
@@ -225,14 +227,19 @@ def _scry_state() -> dict | None:
         _scry_cache = data
         _scry_cache_ts = time.time()
         return data
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError, OSError):
+    except (
+        subprocess.TimeoutExpired,
+        json.JSONDecodeError,
+        FileNotFoundError,
+        OSError,
+    ):
         return None
 
 
 def _normalize_zone(zone_type: str) -> str:
     """Normalize scry zone names (ZoneType_Hand → Hand, ZoneType_Battlefield → Battlefield)."""
     if zone_type.startswith("ZoneType_"):
-        return zone_type[len("ZoneType_"):]
+        return zone_type[len("ZoneType_") :]
     return zone_type
 
 
@@ -325,9 +332,14 @@ def cmd_launch(args: list[str]) -> None:
     # HiDPI/4K monitors that report "UI Looks like: 1920 x 1080" are fine windowed.
     if not fullscreen:
         _, sips_out, _ = run(
-            "system_profiler", "SPDisplaysDataType",
+            "system_profiler",
+            "SPDisplaysDataType",
         )
-        native_1080p = "1920 x 1080" in sips_out and "Retina" not in sips_out and "UI Looks like" not in sips_out
+        native_1080p = (
+            "1920 x 1080" in sips_out
+            and "Retina" not in sips_out
+            and "UI Looks like" not in sips_out
+        )
         if native_1080p:
             fullscreen = True
 
@@ -401,7 +413,8 @@ def _cmd_ocr_hand() -> None:
         known_names = [
             e.get("cardName", "")
             for e in entries
-            if e.get("forgeZone") == "Hand" and e.get("ownerSeatId") == 1
+            if e.get("forgeZone") == "Hand"
+            and e.get("ownerSeatId") == 1
             and e.get("cardName")
         ]
 
@@ -435,19 +448,18 @@ def _cmd_ocr_hand() -> None:
     cap_h = int(h_m.group(1))
 
     crop_top = int(cap_h * _HAND_Y_RATIO)
-    strip_h = cap_h - crop_top
 
-    strip = f"{tmp}/strip.png"
-    run(
-        "sips", "--cropOffset", str(crop_top), "0",
-        "--cropToHeightWidth", str(strip_h), str(cap_w),
-        img, "--out", strip,
-    )
-    _try_remove(img)
+    # PIL crop + resize — sips --cropOffset silently fails on macOS
+    from PIL import Image
 
+    pil_img = Image.open(img)
+    strip_pil = pil_img.crop((0, crop_top, cap_w, cap_h))
     strip_2x = f"{tmp}/strip_2x.png"
-    run("sips", "--resampleWidth", str(cap_w * 2), strip, "--out", strip_2x)
-    _try_remove(strip)
+    strip_pil = strip_pil.resize((cap_w * 2, strip_pil.height * 2), Image.LANCZOS)
+    strip_pil.save(strip_2x)
+    pil_img.close()
+    strip_pil.close()
+    _try_remove(img)
 
     code, stdout, _ = ocr(strip_2x, "--min-confidence", "0.15")
     _try_remove(strip_2x)
@@ -463,15 +475,19 @@ def _cmd_ocr_hand() -> None:
     print(f"OCR detections ({len(items)}):")
     for item in items:
         cx_960 = int(item["cx"] * ocr_to_960)
-        print(f"  {item['text']:30s} cx={cx_960:4d}  conf={item.get('confidence', 0):.2f}")
+        print(
+            f"  {item['text']:30s} cx={cx_960:4d}  conf={item.get('confidence', 0):.2f}"
+        )
 
-    # Match against known names
+    # Match against known names (apply same x-range filter as _find_hand_card_ocr)
     matched: dict[str, tuple[float, int]] = {}  # name → (best_score, cx_960)
     for item in items:
+        cx_960 = int(item["cx"] * ocr_to_960)
+        if cx_960 < _HAND_X_MIN or cx_960 > _HAND_X_MAX:
+            continue
         for name in known_names:
             score = _fuzzy_card_match(item["text"], name)
             if score >= 0.4:
-                cx_960 = int(item["cx"] * ocr_to_960)
                 prev = matched.get(name)
                 if prev is None or score > prev[0]:
                     matched[name] = (score, cx_960)
@@ -836,6 +852,7 @@ def _hand_adjust(ocr_cx: int) -> tuple[int, int]:
     then computes arc y.
     """
     import math
+
     # Nudge cx: base shift + proportional pull toward center
     offset_ratio = (_HAND_X_CENTER - ocr_cx) / (_HAND_X_CENTER - _HAND_X_MIN)
     cx = ocr_cx + _HAND_CX_BASE_SHIFT + int(_HAND_CX_NUDGE * offset_ratio)
@@ -857,7 +874,12 @@ def _fuzzy_card_match(ocr_text: str, card_name: str) -> float:
     Handles partial OCR (truncated names), OCR errors (1-2 char diffs), and
     short names like "Plains" that appear as substrings of OCR noise.
     """
-    ot = ocr_text.lower().strip().replace("'", "").replace("\u2019", "")
+    # Strip punctuation artifacts from card frame rendering: parentheses, periods,
+    # brackets. OCR on type lines picks up "(Mountain." or "[Axgard Cavalry".
+    ot = ocr_text.lower().strip()
+    for ch in "''\u2019()[].,":
+        ot = ot.replace(ch, "")
+    ot = ot.strip()
     cn = card_name.lower().strip().replace("'", "").replace("\u2019", "")
 
     if not ot or not cn:
@@ -875,24 +897,47 @@ def _fuzzy_card_match(ocr_text: str, card_name: str) -> float:
     if ot in cn and len(ot) >= 3:
         return 0.7 * len(ot) / len(cn)
 
-    # Word-level: check if significant words from card name appear in OCR text
+    # Collect candidate scores from different strategies, return the best.
+    best = 0.0
+
+    # Word-level: check if significant words from card name appear in OCR text.
+    # Uses per-word Levenshtein (distance ≤ 1) to handle single-char OCR errors
+    # in multi-word names (e.g. "Dragon Podder" → "Dragon Fodder").
     cn_words = cn.split()
     ot_words = ot.split()
-    if len(cn_words) > 1:
-        hits = sum(1 for w in cn_words if len(w) > 2 and any(w in ow for ow in ot_words))
+    if len(cn_words) > 1 and len(ot_words) > 0:
+        hits = 0
+        for w in cn_words:
+            if len(w) <= 2:
+                continue
+            for ow in ot_words:
+                if w in ow or ow in w:
+                    hits += 1
+                    break
+                if _levenshtein(w, ow) <= 1:
+                    hits += 1
+                    break
         if hits > 0:
-            return 0.6 * hits / len(cn_words)
+            best = max(best, 0.6 * hits / len(cn_words))
 
     # Single-word names: check edit distance for short OCR errors
     if len(cn) <= 8 and len(ot) <= 12:
-        # Simple Levenshtein for short strings
         dist = _levenshtein(ot, cn)
         if dist <= 1:
-            return 0.8
-        if dist <= 2 and len(cn) >= 5:
-            return 0.5
+            best = max(best, 0.8)
+        elif dist <= 2 and len(cn) >= 5:
+            best = max(best, 0.5)
 
-    return 0.0
+    # Full-string Levenshtein for multi-word names with truncation + OCR errors
+    # (e.g. "Dragon Podde" → "Dragon Fodder", distance=2)
+    if abs(len(ot) - len(cn)) <= 3 and len(cn) >= 6:
+        dist = _levenshtein(ot, cn)
+        if dist <= 2:
+            best = max(best, 0.7)
+        elif dist <= 3 and len(cn) >= 10:
+            best = max(best, 0.5)
+
+    return best
 
 
 def _levenshtein(a: str, b: str) -> int:
@@ -905,7 +950,9 @@ def _levenshtein(a: str, b: str) -> int:
     for i, ca in enumerate(a):
         curr = [i + 1]
         for j, cb in enumerate(b):
-            curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (0 if ca == cb else 1)))
+            curr.append(
+                min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (0 if ca == cb else 1))
+            )
         prev = curr
     return prev[-1]
 
@@ -941,13 +988,12 @@ def _find_hand_card_ocr(
     # Crop hand strip: bottom portion of the screen, upscale 2x
     # PIL crop — sips --cropOffset silently fails on macOS
     from PIL import Image
+
     crop_top = int(cap_h * _HAND_Y_RATIO)
     pil_img = Image.open(img)
     strip_pil = pil_img.crop((0, crop_top, cap_w, cap_h))
     strip_2x = f"{tmp}/strip_2x.png"
-    strip_pil = strip_pil.resize(
-        (cap_w * 2, strip_pil.height * 2), Image.LANCZOS
-    )
+    strip_pil = strip_pil.resize((cap_w * 2, strip_pil.height * 2), Image.LANCZOS)
     strip_pil.save(strip_2x)
     pil_img.close()
     strip_pil.close()
