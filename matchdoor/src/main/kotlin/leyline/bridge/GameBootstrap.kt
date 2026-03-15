@@ -289,13 +289,22 @@ object GameBootstrap {
 
     /**
      * Finalize a pre-initialized game (puzzle/sandbox) for the game loop.
-     * Sets age to Play and positions at MAIN1. NOT used for constructed/commander
-     * — those go through [Match.startGame] via [GameLoopController.start].
+     * Sets age to Play and preserves the phase/player/turn set by
+     * [Puzzle.applyGameOnThread] (via `ActivePhase` in the .pzl file).
+     * Only defaults to MAIN1 if the puzzle didn't specify a phase.
+     *
+     * NOT used for constructed/commander — those go through
+     * [Match.startGame] via [GameLoopController.start].
      */
     fun finalizeForPuzzle(game: Game) {
         game.age = GameStage.Play
-        val activePlayer = game.players.first()
-        game.phaseHandler.devModeSet(PhaseType.MAIN1, activePlayer, false, 1)
+
+        // Puzzle.applyGameOnThread calls devModeSet with ActivePhase.
+        // Only default to MAIN1 if the puzzle didn't specify a phase.
+        if (game.phaseHandler.phase == null) {
+            val activePlayer = game.players.first()
+            game.phaseHandler.devModeSet(PhaseType.MAIN1, activePlayer, false, 1)
+        }
 
         game.updateTurnForView()
         game.updatePhaseForView()
