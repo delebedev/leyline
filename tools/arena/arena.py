@@ -2,7 +2,7 @@
 """
 Arena CLI — MTGA window automation.
 
-Commands: launch, capture, ocr, click, drag, play, state, errors, scene, where, navigate, wait, board, detect, issues
+Commands: launch, capture, ocr, click, drag, play, land, attack-all, state, errors, scene, where, navigate, wait, board, detect, issues
 Zero external deps. Shells out to native/click, native/ocr, native/window-bounds, peekaboo, sips.
 """
 
@@ -194,45 +194,83 @@ def fetch_api(path: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Scry fallback (Player.log parser — works without debug server)
+# Scry — direct import of Player.log parser (no subprocess)
 # ---------------------------------------------------------------------------
+
+# Add scry_lib to import path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scry"))
 
 _scry_cache: dict | None = None
 _scry_cache_ts: float = 0.0
-_SCRY_TTL = 1.0  # cache 1s — scry takes ~0.3s
+_SCRY_TTL = 1.0  # cache 1s
+_scry_resolver = None  # lazy CardResolver
+_scry_resolver_init = False
+_land_played_turn: int = -1  # turn number when we last played a land
+
+
+def _get_resolver():
+    """Lazy-init card name resolver (Arena SQLite DB)."""
+    global _scry_resolver, _scry_resolver_init
+    if _scry_resolver_init:
+        return _scry_resolver
+    _scry_resolver_init = True
+    try:
+        from scry_lib.cards import CardResolver, find_arena_db
+
+        db = find_arena_db()
+        if db:
+            _scry_resolver = CardResolver(db)
+    except Exception:
+        pass
+    return _scry_resolver
+
+
+def _scry_cache_clear() -> None:
+    """Invalidate scry cache so next _scry_state() call re-parses."""
+    global _scry_cache, _scry_cache_ts
+    _scry_cache = None
+    _scry_cache_ts = 0.0
 
 
 def _scry_state() -> dict | None:
-    """Run bin/scry state, return parsed JSON dict or None on failure.
+    """Parse Player.log via scry_lib, return state dict or None.
 
-    Cached for 1s to avoid hammering the subprocess during polling loops.
+    Cached for 1s to avoid re-parsing during polling loops.
     """
     global _scry_cache, _scry_cache_ts
     now = time.time()
     if _scry_cache is not None and now - _scry_cache_ts < _SCRY_TTL:
         return _scry_cache
 
-    scry_path = Path(PROJECT_DIR) / "bin" / "scry"
     try:
-        p = subprocess.run(
-            [str(scry_path), "state"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=PROJECT_DIR,
-        )
-        if p.returncode != 0 or not p.stdout.strip():
+        from scry_lib.errors import ClientError
+        from scry_lib.models import SceneChange
+        from scry_lib.parser import GREBlock, parse_log
+        from scry_lib.tail import find_last_full_offset, tail_log
+        from scry_lib.tracker import GameTracker
+
+        log_path = Path.home() / "Library/Logs/Wizards of the Coast/MTGA/Player.log"
+        if not log_path.exists():
             return None
-        data = json.loads(p.stdout)
+
+        offset = find_last_full_offset(log_path)
+        start = offset if offset is not None else 0
+        lines = list(tail_log(log_path, follow=False, start_offset=start))
+
+        tracker = GameTracker()
+        for event in parse_log(lines):
+            if isinstance(event, GREBlock):
+                tracker.feed(event)
+            elif isinstance(event, ClientError):
+                tracker.feed_error(event)
+            elif isinstance(event, SceneChange):
+                tracker.feed_scene(event)
+
+        data = tracker.to_dict(card_resolver=_get_resolver())
         _scry_cache = data
         _scry_cache_ts = time.time()
         return data
-    except (
-        subprocess.TimeoutExpired,
-        json.JSONDecodeError,
-        FileNotFoundError,
-        OSError,
-    ):
+    except Exception:
         return None
 
 
@@ -734,24 +772,31 @@ def _do_drag(fr: tuple[int, int], to: tuple[int, int]) -> None:
         die(f"drag failed: {stderr}")
 
 
+def _scry_hand_count() -> int | None:
+    """Get current hand card count from scry. Returns None if unavailable."""
+    _scry_cache_clear()
+    state = _scry_state()
+    if state is None:
+        return None
+    return len(state.get("hand", []))
+
+
 def _verified_drag(
     fr: tuple[int, int],
     to: tuple[int, int],
     instance_id: int | None = None,
     max_attempts: int = 3,
 ) -> bool:
-    """Drag with retry + verification via debug API zone change.
+    """Drag with retry + verification via scry hand count change.
 
-    If instance_id is provided, polls the debug API to confirm the card
-    left its original zone. Retries with jitter on failure.
+    Counts hand cards before and after drag. If count dropped, the card
+    was played successfully. Works in all server modes (local, proxy, replay).
+    Retries with jitter on failure.
     """
     import random
 
     for attempt in range(max_attempts):
-        # Get pre-drag zone if we have an instance to track
-        pre_zone = None
-        if instance_id is not None:
-            pre_zone = _get_card_zone(instance_id)
+        pre_count = _scry_hand_count()
 
         # Apply jitter on retries (±5px)
         jitter = 0 if attempt == 0 else random.randint(-5, 5)
@@ -759,14 +804,14 @@ def _verified_drag(
 
         _do_drag(src, to)
 
-        if instance_id is None:
+        if pre_count is None:
             return True  # no verification possible
 
-        # Poll for zone change (up to 2s)
-        for _ in range(10):
+        # Poll for hand count change (up to 3s — real server can be slower)
+        for _ in range(15):
             time.sleep(0.2)
-            new_zone = _get_card_zone(instance_id)
-            if new_zone != pre_zone:
+            post_count = _scry_hand_count()
+            if post_count is not None and post_count < pre_count:
                 return True
 
         if attempt < max_attempts - 1:
@@ -776,21 +821,10 @@ def _verified_drag(
 
 
 def _get_card_zone(instance_id: int) -> str | None:
-    """Get current zone for a card by instanceId.
+    """Get current zone for a card by instanceId via scry.
 
-    Tries debug API first, falls back to scry (Player.log parser).
+    Used by cmd_drag --verify. For arena play, prefer _scry_hand_count().
     """
-    # Primary: debug API
-    raw = fetch_api("/api/id-map?active=true")
-    if raw:
-        entries = json.loads(raw)
-        if isinstance(entries, dict):
-            entries = entries.get("data", [])
-        for e in entries:
-            if e.get("instanceId") == instance_id:
-                return e.get("forgeZone")
-
-    # Fallback: scry state
     state = _scry_state()
     if state is None:
         return None
@@ -1074,36 +1108,21 @@ def _find_hand_card(
 ) -> tuple[tuple[int, int], int] | None:
     """Find a hand card's screen coords and instanceId.
 
-    Uses debug API for card identity + zone-aware OCR / detection for screen position.
-    Falls back to scry (Player.log parser) when debug API is unavailable.
+    Uses scry (Player.log) for card identity + zone-aware OCR for screen position.
     Returns ((cx, cy), instanceId) or None.
     """
     hand_cards: list[dict] = []
 
-    # 1. Get hand — try debug API first, fall back to scry
-    raw = fetch_api("/api/id-map?active=true")
-    if raw:
-        entries = json.loads(raw)
-        if isinstance(entries, dict):
-            entries = entries.get("data", [])
-        hand_cards = [
-            e
-            for e in entries
-            if e.get("forgeZone") == "Hand" and e.get("ownerSeatId") == 1
-        ]
-
-    if not hand_cards:
-        # Fallback: scry state (debug API empty or unavailable)
-        state = _scry_state()
-        if state:
-            for card in state.get("hand", []):
-                # Normalize to same shape as debug API entries
-                hand_cards.append(
-                    {
-                        "instanceId": card.get("id"),
-                        "cardName": card.get("name", ""),
-                    }
-                )
+    # Get hand from scry — works in all server modes
+    state = _scry_state()
+    if state:
+        for card in state.get("hand", []):
+            hand_cards.append(
+                {
+                    "instanceId": card.get("id"),
+                    "cardName": card.get("name", ""),
+                }
+            )
 
     if not hand_cards:
         return None
@@ -1123,42 +1142,14 @@ def _find_hand_card(
     instance_id = target.get("instanceId", 0)
     known_names = [c.get("cardName") or "" for c in hand_cards if c.get("cardName")]
 
-    # 2. Try zone-aware OCR first (more reliable for rotated hand cards)
+    # 2. Try zone-aware OCR (crops hand strip, upscales, fuzzy-matches)
     ocr_pos = _find_hand_card_ocr(name, known_names)
     if ocr_pos is not None:
         return (ocr_pos, instance_id)
 
-    # 3. Fall back to detection model
-    dets = _board_detect()
-    hand_dets = sorted(
-        [d for d in dets if d["label"] == "hand-card" and d["cy"] > HAND_MIN_CY],
-        key=lambda d: d["cx"],
-    )
-
-    if not hand_dets:
-        # Fallback: estimate position from card count
-        count = len(hand_cards)
-        idx = next(
-            (i for i, c in enumerate(hand_cards) if c.get("instanceId") == instance_id),
-            0,
-        )
-        spacing = min(80, 400 // max(count, 1))
-        center_x = 480 - (count - 1) * spacing // 2 + idx * spacing
-        return (_hand_adjust(center_x), instance_id)
-
-    # 4. Match: if detection count == hand count, use index; otherwise best-effort
-    idx = next(
-        (i for i, c in enumerate(hand_cards) if c.get("instanceId") == instance_id),
-        0,
-    )
-    if len(hand_dets) == len(hand_cards) and idx < len(hand_dets):
-        det = hand_dets[idx]
-    elif idx < len(hand_dets):
-        det = hand_dets[idx]
-    else:
-        det = hand_dets[-1]  # last detection as fallback
-
-    return ((det["cx"], det["cy"]), instance_id)
+    # OCR couldn't find the card — honest failure.
+    # Don't guess positions from zone index (zone order ≠ visual order).
+    return None
 
 
 def cmd_play(args: list[str]) -> None:
@@ -1202,6 +1193,160 @@ def cmd_play(args: list[str]) -> None:
         die(f"✗ Failed to play {card_name} after 3 attempts")
 
 
+def cmd_land(args: list[str]) -> None:
+    """Play a land from hand (policy: picks first playable land).
+
+    Usage: arena land
+    Checks scry for playable lands (ActionType_Play without manaCost),
+    guards against double land play via turn tracking,
+    picks the first one, plays it via verified drag, reports result.
+    """
+    global _land_played_turn
+
+    # 1. Pre: read scry state
+    _scry_cache_clear()
+    state = _scry_state()
+    if state is None:
+        die("✗ scry unavailable")
+
+    turn = state.get("turn_info", {}).get("turn_number", -1)
+    hand = state.get("hand", [])
+    actions = state.get("actions", [])
+
+    if not hand:
+        die("✗ hand is empty")
+
+    # Guard: one land per turn
+    if turn > 0 and turn == _land_played_turn:
+        print("✗ already played a land this turn")
+        raise SystemExit(1)
+
+    # Find playable land: ActionType_Play + no manaCost + our seat + in hand
+    hand_ids = {c.get("id") for c in hand}
+    playable_land = None
+    for a in actions:
+        if a.get("seatId") != 1:
+            continue
+        if a.get("actionType") != "ActionType_Play":
+            continue
+        if a.get("manaCost"):
+            continue  # not a land (adventure, MDFC, etc.)
+        iid = a.get("instanceId")
+        if iid in hand_ids:
+            playable_land = a
+            break
+
+    if playable_land is None:
+        print("✗ no playable land in hand")
+        raise SystemExit(1)
+
+    land_name = playable_land.get("name", "Land")
+    instance_id = playable_land["instanceId"]
+
+    # 2. Act: find card on screen and drag
+    result = _find_hand_card(land_name)
+    if result is None:
+        die(f"✗ {land_name} in hand but OCR can't locate it")
+
+    (cx, cy), _ = result
+    print(f"Playing {land_name} (id={instance_id}) from ({cx},{cy})")
+
+    ok = _verified_drag((cx, cy), BATTLEFIELD_DROP, instance_id)
+    if not ok:
+        die(f"✗ failed to play {land_name} after 3 attempts")
+
+    # 3. Post: record and report
+    _land_played_turn = turn
+    _scry_cache_clear()
+    post = _scry_state()
+    if post:
+        post_hand = post.get("hand", [])
+        print(f"✓ {land_name} played (hand: {len(post_hand)} cards)")
+    else:
+        print(f"✓ {land_name} played")
+
+
+ACTION_BUTTON = (888, 504)  # Pass / Next / All Attack / confirm — all same zone
+
+
+def cmd_attack_all(args: list[str]) -> None:
+    """Attack with all available creatures.
+
+    Usage: arena attack-all
+    Clicks All Attack, confirms, waits for combat to resolve.
+    Reports opponent life change via scry.
+    """
+    # 1. Pre: verify we're in the right phase and active
+    _scry_cache_clear()
+    pre = _scry_state()
+    if pre is None:
+        die("✗ scry unavailable")
+
+    ti = pre.get("turn_info", {})
+    phase = ti.get("phase", "")
+    step = ti.get("step", "")
+    active = ti.get("active_player")
+    opp_life_pre = None
+    for p in pre.get("players", []):
+        if p.get("seat") == 2:
+            opp_life_pre = p.get("life")
+
+    in_attack = "Combat" in phase and "DeclareAttack" in (step or "")
+
+    if active != 1:
+        print("✗ not our turn")
+        raise SystemExit(1)
+    if not in_attack:
+        phase_label = phase.replace("Phase_", "")
+        if step:
+            phase_label += f"/{step.replace('Step_', '')}"
+        print(f"✗ not in DeclareAttack (current: {phase_label}), pass first")
+        raise SystemExit(1)
+
+    # 2. Act: click action button twice — All Attack + confirm
+    #    First click: "All Attack"
+    #    Second click: "N Attackers" confirm
+    #    Same coord for both (888,504).
+    pre_gsid = pre.get("game_state_id", 0)
+
+    click_screen(*ACTION_BUTTON)
+    time.sleep(1.5)
+    click_screen(*ACTION_BUTTON)
+
+    # 3. Post: wait for game state to advance, report result
+    #    Poll scry until game_state_id changes (combat resolved)
+    for _ in range(8):
+        time.sleep(1.0)
+        _scry_cache_clear()
+        post = _scry_state()
+        if post and post.get("game_state_id", 0) > pre_gsid + 2:
+            break
+    else:
+        post = _scry_state()
+
+    if post:
+        opp_life_post = None
+        for p in post.get("players", []):
+            if p.get("seat") == 2:
+                opp_life_post = p.get("life")
+        post_phase = post.get("turn_info", {}).get("phase", "")
+        post_step = post.get("turn_info", {}).get("step", "")
+
+        damage = ""
+        if opp_life_pre is not None and opp_life_post is not None:
+            dmg = opp_life_pre - opp_life_post
+            if dmg > 0:
+                damage = f", {dmg} damage"
+
+        phase_label = post_phase.replace("Phase_", "")
+        if post_step:
+            phase_label += f"/{post_step.replace('Step_', '')}"
+
+        print(f"✓ attacked{damage} (opp life: {opp_life_post}, now: {phase_label})")
+    else:
+        print("✓ attacked (scry unavailable for result)")
+
+
 def cmd_state(args: list[str]) -> None:
     state = fetch_api("/api/state")
     if state is None:
@@ -1219,7 +1364,7 @@ def cmd_errors(args: list[str]) -> None:
 
     scry = Path(PROJECT_DIR) / "bin" / "scry"
     result = subprocess.run(
-        [str(scry), "state", "--no-cards"], capture_output=True, text=True
+        [str(scry), "state", "--json", "--no-cards"], capture_output=True, text=True
     )
     print(result.stdout if result.stdout else "{}")
 
@@ -2177,6 +2322,8 @@ COMMANDS = {
     "move": cmd_move,
     "drag": cmd_drag,
     "play": cmd_play,
+    "land": cmd_land,
+    "attack-all": cmd_attack_all,
     "state": cmd_state,
     "errors": cmd_errors,
     "scene": cmd_scene,
@@ -2190,10 +2337,41 @@ COMMANDS = {
 }
 
 
+COMMAND_HELP = {
+    "launch": "Launch MTGA client (1920x1080 windowed)",
+    "capture": "Screenshot MTGA window. --out <path> --resolution <px>",
+    "ocr": "OCR screen text. --fmt (table) --find <text> --hand (zoomed hand strip)",
+    "click": "Click text or coords. <text|x,y> --retry N --double --right --exact",
+    "move": "Move mouse to coords. <x,y>",
+    "drag": "Drag between coords. <from> <to> [--verify <instanceId>]",
+    "play": "Play card from hand by name. <name> [--to x,y]",
+    "land": "Play first available land (policy: auto-pick, verified drag)",
+    "attack-all": "Attack with all creatures (All Attack + confirm)",
+    "state": "Show debug API game state (local mode only)",
+    "errors": "Show client errors from Player.log",
+    "scene": "Current lobby screen from Player.log",
+    "where": "Detect current screen (scene + OCR)",
+    "navigate": "Auto-navigate to screen. <Home|FindMatch|InGame|...>",
+    "wait": "Block until condition. text=<str> scene=<str> --timeout N",
+    "board": "Full board state (API + OCR). --no-ocr --no-detect",
+    "detect": "Run card detection model on current screen",
+    "issues": "Review session errors and failures",
+    "health": "Pre-flight health check (server, client, display)",
+}
+
+
 def main() -> None:
-    if len(sys.argv) < 2:
-        print("Usage: arena <command> [args...]", file=sys.stderr)
-        print("Commands: " + ", ".join(COMMANDS), file=sys.stderr)
+    if len(sys.argv) < 2 or sys.argv[1] in ("--help", "-h", "help"):
+        print("Usage: arena <command> [args...]")
+        print()
+        for cmd, desc in COMMAND_HELP.items():
+            print(f"  {cmd:12s} {desc}")
+        print()
+        print(
+            "Use 'arena <command> --help' for command-specific help (where supported)."
+        )
+        if len(sys.argv) >= 2 and sys.argv[1] in ("--help", "-h", "help"):
+            sys.exit(0)
         sys.exit(1)
 
     command = sys.argv[1]
