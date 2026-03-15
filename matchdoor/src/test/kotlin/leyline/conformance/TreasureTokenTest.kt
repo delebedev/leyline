@@ -3,13 +3,18 @@ package leyline.conformance
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
+import leyline.bridge.ForgeCardId
+import leyline.bridge.GameBootstrap
 import leyline.bridge.SeatId
 import leyline.game.StateMapper
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ObjectMapper
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
  * Treasure token grpId resolution — regression test for NPE crash.
@@ -20,6 +25,9 @@ import leyline.game.mapper.ObjectMapper
  * Fix: ActionMapper uses ObjectMapper.resolveGrpId (token-aware) instead
  * of findGrpIdByName (filters isToken=0). ExposedCardRepository guards
  * against null cache puts.
+ *
+ * Tests the full flow: cast Innkeeper → ETB Treasure → assert grpId →
+ * Treasure mana → cast Lightning Bolt → target opponent → win.
  */
 class TreasureTokenTest :
     FunSpec({
@@ -30,6 +38,28 @@ class TreasureTokenTest :
         afterEach {
             harness?.shutdown()
             harness = null
+        }
+
+        beforeSpec {
+            GameBootstrap.initializeCardDatabase(quiet = true)
+            TestCardRegistry.ensureRegistered()
+
+            // Wire up token mapping: Innkeeper → Treasure Token
+            // InMemoryCardRepository uses synthetic grpIds, so we register
+            // the Treasure Token and add tokenGrpIds mapping to the Innkeeper.
+            val repo = TestCardRegistry.repo
+            TestCardRegistry.ensureCardRegistered("Prosperous Innkeeper")
+            TestCardRegistry.ensureCardRegistered("Lightning Bolt")
+            TestCardRegistry.ensureCardRegistered("Centaur Courser")
+
+            val innkeeperGrpId = repo.findGrpIdByName("Prosperous Innkeeper")!!
+            val treasureGrpId = 300001
+            repo.register(treasureGrpId, "Treasure Token")
+            val innkeeperData = repo.findByGrpId(innkeeperGrpId)!!
+            repo.registerData(
+                innkeeperData.copy(tokenGrpIds = mapOf(0 to treasureGrpId)),
+                "Prosperous Innkeeper",
+            )
         }
 
         val puzzleText = """
@@ -53,38 +83,41 @@ class TreasureTokenTest :
             ailibrary=Mountain;Mountain;Mountain
         """.trimIndent()
 
-        test("Treasure token resolves to valid grpId after ETB creation") {
+        test("full treasure token flow: cast Innkeeper, ETB treasure, bolt for lethal") {
             val h = MatchFlowHarness(seed = 42L, validating = false)
             harness = h
             h.connectAndKeepPuzzleText(puzzleText)
+            val human = h.bridge.getPlayer(SeatId(1))!!
+            val ai = h.bridge.getPlayer(SeatId(2))!!
 
-            // Cast Prosperous Innkeeper (1G — two forests available)
+            // --- Preconditions ---
+            human.getZone(ZoneType.Hand).cards.map { it.name } shouldContain "Prosperous Innkeeper"
+            human.getZone(ZoneType.Hand).cards.map { it.name } shouldContain "Lightning Bolt"
+            human.getZone(ZoneType.Battlefield).cards.count { it.name == "Forest" } shouldBe 2
+            ai.life shouldBe 3
+
+            // --- Cast Prosperous Innkeeper (1G) ---
             h.castSpellByName("Prosperous Innkeeper").shouldBeTrue()
 
-            // Resolve — pass until stack is empty
+            // Pass until Treasure Token appears on battlefield (spell + ETB trigger resolve)
             repeat(10) {
-                if (h.isGameOver()) return@repeat
-                if (h.game().stackZone.isEmpty) return@repeat
+                if (human.getZone(ZoneType.Battlefield).cards.any { it.name == "Treasure Token" }) return@repeat
                 h.passPriority()
             }
 
-            // Treasure should exist somewhere — battlefield, graveyard, or exile.
-            // Even if the game advanced past combat, the token was created.
-            // The key test is that resolveGrpId doesn't crash.
-            val player = h.bridge.getPlayer(SeatId(1))!!
+            // --- Assert: Innkeeper + Treasure on battlefield ---
+            val bfNames = human.getZone(ZoneType.Battlefield).cards.map { it.name }
+            bfNames shouldContain "Prosperous Innkeeper"
+            bfNames shouldContain "Treasure Token"
 
-            // Find the treasure in ANY zone
-            val allCards = listOf(ZoneType.Battlefield, ZoneType.Graveyard, ZoneType.Exile)
-                .flatMap { player.getZone(it).cards }
-            val treasure = allCards.firstOrNull { it.name == "Treasure" && it.isToken }
+            val treasure = human.getZone(ZoneType.Battlefield).cards.first { it.name == "Treasure Token" }
+            treasure.isToken.shouldBeTrue()
 
-            // Regression: resolveGrpId must return non-zero for Treasure tokens
-            if (treasure != null) {
-                val grpId = ObjectMapper.resolveGrpId(treasure, h.bridge.cards)
-                grpId shouldBeGreaterThan 0
-            }
+            // --- Regression: Treasure grpId must resolve to non-zero ---
+            val treasureGrpId = ObjectMapper.resolveGrpId(treasure, h.bridge.cards)
+            treasureGrpId shouldBeGreaterThan 0
 
-            // Key assertion: buildFromGame must not crash (was NPE before fix)
+            // --- Regression: buildFromGame must not crash (was NPE) ---
             val gsm = StateMapper.buildFromGame(
                 h.game(),
                 1,
@@ -93,42 +126,37 @@ class TreasureTokenTest :
                 viewingSeatId = 1,
             )
             gsm.shouldNotBeNull()
+            val treasureObj = gsm.gameObjectsList.firstOrNull { it.grpId == treasureGrpId }
+            treasureObj.shouldNotBeNull()
 
-            // buildActions must not crash (was NPE in ActionMapper before fix)
+            // --- Regression: buildActions must not crash, Treasure has ActivateMana ---
             val actions = ActionMapper.buildActions(h.game(), 1, h.bridge)
-            actions.actionsCount shouldBeGreaterThan 0
-        }
+            val manaActions = actions.actionsList.filter { it.actionType == ActionType.ActivateMana }
+            manaActions.size shouldBeGreaterThan 0
 
-        test("Treasure token has ActivateMana action after creation") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
-            harness = h
-            h.connectAndKeepPuzzleText(puzzleText)
+            val treasureInstanceId = h.bridge.getOrAllocInstanceId(ForgeCardId(treasure.id)).value
+            val treasureMana = manaActions.firstOrNull { it.instanceId == treasureInstanceId }
+            treasureMana.shouldNotBeNull()
 
-            // Cast Innkeeper
-            h.castSpellByName("Prosperous Innkeeper").shouldBeTrue()
+            // Lightning Bolt should be castable
+            val castActions = actions.actionsList.filter { it.actionType == ActionType.Cast }
+            castActions.size shouldBe 1
 
-            // Resolve
+            // --- Cast Lightning Bolt (Treasure provides R) ---
+            h.castSpellByName("Lightning Bolt").shouldBeTrue()
+
+            // Target opponent (seatId 2)
+            h.selectTargets(listOf(2))
+
+            // Resolve bolt → lethal
             repeat(10) {
-                if (h.game().stackZone.isEmpty) return@repeat
+                if (h.isGameOver()) return@repeat
                 h.passPriority()
             }
 
-            // Treasure should be on battlefield (may have been sacrificed if game advanced)
-            val player = h.bridge.getPlayer(SeatId(1))!!
-            val treasure = player.getZone(ZoneType.Battlefield).cards
-                .firstOrNull { it.name == "Treasure" }
-
-            if (treasure != null) {
-                treasure.isToken.shouldBeTrue()
-
-                // Actions should include ActivateMana for the Treasure
-                val actions = ActionMapper.buildActions(h.game(), 1, h.bridge)
-                val manaActions = actions.actionsList.filter {
-                    it.actionType.name == "ActivateMana"
-                }
-                manaActions.size shouldBeGreaterThan 0
-            }
-            // If treasure was already sacrificed (auto-pass used it), the test still
-            // verifies that no crash occurred during the game flow.
+            // --- Assert: game over, human wins ---
+            h.isGameOver().shouldBeTrue()
+            human.hasWon().shouldBeTrue()
+            ai.life shouldBe 0
         }
     })
