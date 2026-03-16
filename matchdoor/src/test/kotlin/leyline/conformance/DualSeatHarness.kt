@@ -1,5 +1,7 @@
 package leyline.conformance
 
+import leyline.config.AiConfig
+import leyline.config.MatchConfig
 import leyline.game.GameBridge
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry
@@ -45,7 +47,11 @@ class DualSeatHarness(
         leyline.bridge.GameBootstrap.initializeCardDatabase(quiet = true)
         TestCardRegistry.ensureRegistered()
 
-        bridge = GameBridge(bridgeTimeoutMs = 5_000L, cards = TestCardRegistry.repo)
+        bridge = GameBridge(
+            bridgeTimeoutMs = 5_000L,
+            matchConfig = MatchConfig(ai = AiConfig(speed = 0.0)),
+            cards = TestCardRegistry.repo,
+        )
         bridge.priorityWaitMs = 2_000L
         bridge.startTwoPlayer(seed = seed, deckList1 = deckList1, deckList2 = deckList2)
 

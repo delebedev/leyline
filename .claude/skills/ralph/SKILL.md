@@ -161,12 +161,12 @@ If `wait text="Find Match"` fails, OCR to see where you are and navigate manuall
 
 **Core rule:** Scry once at start of your turn. Play everything you can. Pass. Scry at start of next turn. Do NOT scry between plays — if `arena play` prints `✓`, the card was played.
 
-**State tool:** `bin/scry state` — returns turn, phase, active_player, hand, actions (legal plays).
+**State tool:** `bin/scry state --json` — returns turn, phase, active_player, hand, actions (legal plays) as JSON.
 
 #### Your turn (active_player=1, Main1 or Main2)
 
 ```bash
-bin/scry state   # read hand + actions once
+bin/scry state --json   # read hand + actions once
 ```
 
 Then burst — play everything you can:
@@ -211,10 +211,10 @@ This sends "All Attack". Note: in Forge mode, "All Attack" may not respond — i
 **EXACTLY two clicks, no more:**
 ```bash
 bin/arena click 887,491 && sleep 1 && bin/arena click 890,510 && sleep 3
-bin/scry state   # check if it's our turn now
+bin/scry state --json   # check if it's our turn now
 ```
 
-If still active_player=2: `bin/arena click 888,504 && sleep 3 && bin/scry state`. Repeat until active_player=1.
+If still active_player=2: `bin/arena click 888,504 && sleep 3 && bin/scry state --json`. Repeat until active_player=1.
 
 **CRITICAL: Do NOT add extra 888,504 clicks after the two pass buttons. That passes YOUR Main1.**
 
@@ -231,7 +231,7 @@ A "wall" is anything that stops the game or degrades the experience:
 | Signal | How to detect | Priority |
 |--------|--------------|----------|
 | Client error/exception | `bin/arena errors` shows new errors | HIGH |
-| Stuck (gsId unchanged after 2 actions) | `bin/scry state` shows same gsId | HIGH |
+| Stuck (gsId unchanged after 2 actions) | `bin/scry state --json` shows same gsId | HIGH |
 | Server crash/exception | `logs/leyline.log` has ERROR/exception | HIGH |
 | Bridge timeout | Server log: "bridge timeout" | HIGH |
 | Wrong phase/stuck turn | Scry shows same turn for >30s | MEDIUM |

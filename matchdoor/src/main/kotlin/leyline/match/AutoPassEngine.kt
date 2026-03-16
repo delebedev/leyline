@@ -87,16 +87,26 @@ class AutoPassEngine(
             when (combatHandler.checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)) {
                 CombatHandler.Signal.STOP -> return
                 CombatHandler.Signal.SEND_STATE -> {
-                    // Safety net: only send state if human has meaningful actions.
-                    // SEND_STATE bypasses checkHumanActions, so without this guard
-                    // the client can get stuck showing "My Turn" with only Pass.
-                    val actions = BundleBuilder.buildActions(game, ops.seatId, bridge)
-                    if (!BundleBuilder.shouldAutoPass(actions)) {
-                        ops.sendRealGameState(bridge)
-                        return
+                    // AI turn: never offer actions — real server sends combat GSMs
+                    // with actionsCount=0. Sending Cast actions during AI combat
+                    // makes the client stuck (no Pass button), causing 120s timeout.
+                    // Pacing already ran inside checkCombatPhase; playback drain
+                    // provides the visual state update.
+                    if (isAiTurn) {
+                        log.debug("SEND_STATE downgraded: AI turn at {}, skipping action offer", phase)
+                        // fall through to action check / auto-pass
+                    } else {
+                        // Human turn: only send state if human has meaningful actions.
+                        // SEND_STATE bypasses checkHumanActions, so without this guard
+                        // the client can get stuck showing "My Turn" with only Pass.
+                        val actions = BundleBuilder.buildActions(game, ops.seatId, bridge)
+                        if (!BundleBuilder.shouldAutoPass(actions)) {
+                            ops.sendRealGameState(bridge)
+                            return
+                        }
+                        log.debug("SEND_STATE downgraded: only pass actions at {}", phase)
+                        // fall through to action check / auto-pass
                     }
-                    log.debug("SEND_STATE downgraded: only pass actions at {}", phase)
-                    // fall through to action check / auto-pass
                 }
                 CombatHandler.Signal.CONTINUE -> {} // fall through to action check
             }
