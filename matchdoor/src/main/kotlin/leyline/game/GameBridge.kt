@@ -184,58 +184,12 @@ class GameBridge(
     /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
     val effects = EffectTracker()
 
-    /** Monotonic annotation ID counter. Real server starts around 49; we start at 50. */
-    private var nextAnnotationId = INITIAL_ANNOTATION_ID
+    /** Annotation ID sequences + persistent annotation lifecycle (Attachment, Counter, LayeredEffect). */
+    val annotations = PersistentAnnotationStore()
 
-    override fun nextAnnotationId(): Int = nextAnnotationId++
+    override fun nextAnnotationId(): Int = annotations.nextAnnotationId()
 
-    /** Monotonic persistent annotation ID counter. Real server uses a separate sequence. */
-    private var nextPersistentAnnotationId = INITIAL_PERSISTENT_ANNOTATION_ID
-
-    override fun nextPersistentAnnotationId(): Int = nextPersistentAnnotationId++
-
-    // --- Persistent annotation store ---
-    // Persistent annotations (e.g. Attachment) carry forward across GSMs until explicitly deleted.
-
-    private val activePersistentAnnotations = mutableMapOf<Int, wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo>()
-    private val pendingPersistentDeletions = mutableListOf<Int>()
-
-    fun addPersistentAnnotation(ann: wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo) {
-        activePersistentAnnotations[ann.id] = ann
-    }
-
-    fun removePersistentAnnotation(id: Int) {
-        activePersistentAnnotations.remove(id)
-        pendingPersistentDeletions.add(id)
-    }
-
-    fun drainPersistentDeletions(): List<Int> =
-        pendingPersistentDeletions.toList().also { pendingPersistentDeletions.clear() }
-
-    fun getAllPersistentAnnotations(): List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo> =
-        activePersistentAnnotations.values.toList()
-
-    /** Find persistent annotation by type and aura instanceId in affectedIds. */
-    fun findPersistentAnnotationByAura(auraIid: Int): Int? =
-        activePersistentAnnotations.entries.firstOrNull { (_, ann) ->
-            ann.typeList.any { it == wotc.mtgo.gre.external.messaging.Messages.AnnotationType.Attachment } &&
-                ann.affectedIdsList.contains(auraIid)
-        }?.key
-
-    /** Find persistent Counter annotation for the same instanceId and counter_type. */
-    fun findPersistentCounter(instanceId: Int, counterType: Int): Int? =
-        activePersistentAnnotations.entries.firstOrNull { (_, ann) ->
-            ann.typeList.any { it == wotc.mtgo.gre.external.messaging.Messages.AnnotationType.Counter_803b } &&
-                ann.affectedIdsList.contains(instanceId) &&
-                ann.detailsList.any { it.key == "counter_type" && it.valueInt32Count > 0 && it.getValueInt32(0) == counterType }
-        }?.key
-
-    /** Find persistent LayeredEffect annotation by effect_id detail key. */
-    fun findPersistentEffectByEffectId(effectId: Int): Int? =
-        activePersistentAnnotations.entries.firstOrNull { (_, ann) ->
-            ann.typeList.any { it == wotc.mtgo.gre.external.messaging.Messages.AnnotationType.LayeredEffect } &&
-                ann.detailsList.any { it.key == "effect_id" && it.valueInt32Count > 0 && it.getValueInt32(0) == effectId }
-        }?.key
+    override fun nextPersistentAnnotationId(): Int = annotations.nextPersistentAnnotationId()
 
     // --- Interface implementations (IdMapping, PlayerLookup, ZoneTracking, etc.) ---
 
@@ -293,12 +247,6 @@ class GameBridge(
 4 Giant Growth
 32 Forest
 """
-
-        /** Annotation IDs start at 50 to avoid collision with persistent annotation IDs. */
-        private const val INITIAL_ANNOTATION_ID = 50
-
-        /** Persistent annotation IDs start at 1. */
-        private const val INITIAL_PERSISTENT_ANNOTATION_ID = 1
 
         /** Max time to wait for engine to reach mulligan after start/mull. */
         private const val MULLIGAN_WAIT_MS = 10_000L
@@ -778,10 +726,7 @@ class GameBridge(
         limbo.clear()
         diff.resetAll()
         effects.resetAll()
-        activePersistentAnnotations.clear()
-        pendingPersistentDeletions.clear()
-        nextAnnotationId = INITIAL_ANNOTATION_ID
-        nextPersistentAnnotationId = INITIAL_PERSISTENT_ANNOTATION_ID
+        annotations.resetAll()
 
         // Swap to InMemoryCardRepository backed by the client DB for real grpIds.
         // PuzzleCardRegistrar checks clientRepo first (real art), falls back to synthetic.
