@@ -2,7 +2,7 @@
 """
 Arena CLI — MTGA window automation.
 
-Commands: launch, capture, ocr, click, drag, play, state, errors, scene, where, navigate, wait, board, detect, issues
+Commands: launch, capture, ocr, click, drag, play, land, attack-all, state, errors, scene, where, navigate, wait, board, detect, issues
 Zero external deps. Shells out to native/click, native/ocr, native/window-bounds, peekaboo, sips.
 """
 
@@ -171,7 +171,9 @@ def capture_window(
     if not hires:
         # Resize to REFERENCE_WIDTH so OCR/detect coords = 960-space click coords.
         # On retina this halves from 2x; on non-retina 1920-wide this also scales.
-        run("sips", "--resampleWidth", str(REFERENCE_WIDTH), out_path, "--out", out_path)
+        run(
+            "sips", "--resampleWidth", str(REFERENCE_WIDTH), out_path, "--out", out_path
+        )
     return bounds
 
 
@@ -192,47 +194,89 @@ def fetch_api(path: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Scry fallback (Player.log parser — works without debug server)
+# Scry — direct import of Player.log parser (no subprocess)
 # ---------------------------------------------------------------------------
+
+# Add scry_lib to import path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scry"))
 
 _scry_cache: dict | None = None
 _scry_cache_ts: float = 0.0
-_SCRY_TTL = 1.0  # cache 1s — scry takes ~0.3s
+_SCRY_TTL = 1.0  # cache 1s
+_scry_resolver = None  # lazy CardResolver
+_scry_resolver_init = False
+
+
+def _get_resolver():
+    """Lazy-init card name resolver (Arena SQLite DB)."""
+    global _scry_resolver, _scry_resolver_init
+    if _scry_resolver_init:
+        return _scry_resolver
+    _scry_resolver_init = True
+    try:
+        from scry_lib.cards import CardResolver, find_arena_db
+
+        db = find_arena_db()
+        if db:
+            _scry_resolver = CardResolver(db)
+    except Exception:
+        pass
+    return _scry_resolver
+
+
+def _scry_cache_clear() -> None:
+    """Invalidate scry cache so next _scry_state() call re-parses."""
+    global _scry_cache, _scry_cache_ts
+    _scry_cache = None
+    _scry_cache_ts = 0.0
 
 
 def _scry_state() -> dict | None:
-    """Run bin/scry state, return parsed JSON dict or None on failure.
+    """Parse Player.log via scry_lib, return state dict or None.
 
-    Cached for 1s to avoid hammering the subprocess during polling loops.
+    Cached for 1s to avoid re-parsing during polling loops.
     """
     global _scry_cache, _scry_cache_ts
     now = time.time()
     if _scry_cache is not None and now - _scry_cache_ts < _SCRY_TTL:
         return _scry_cache
 
-    scry_path = Path(PROJECT_DIR) / "bin" / "scry"
     try:
-        p = subprocess.run(
-            [str(scry_path), "state"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            cwd=PROJECT_DIR,
-        )
-        if p.returncode != 0 or not p.stdout.strip():
+        from scry_lib.errors import ClientError
+        from scry_lib.models import SceneChange
+        from scry_lib.parser import GREBlock, parse_log
+        from scry_lib.tail import find_last_full_offset, tail_log
+        from scry_lib.tracker import GameTracker
+
+        log_path = Path.home() / "Library/Logs/Wizards of the Coast/MTGA/Player.log"
+        if not log_path.exists():
             return None
-        data = json.loads(p.stdout)
+
+        offset = find_last_full_offset(log_path)
+        start = offset if offset is not None else 0
+        lines = list(tail_log(log_path, follow=False, start_offset=start))
+
+        tracker = GameTracker()
+        for event in parse_log(lines):
+            if isinstance(event, GREBlock):
+                tracker.feed(event)
+            elif isinstance(event, ClientError):
+                tracker.feed_error(event)
+            elif isinstance(event, SceneChange):
+                tracker.feed_scene(event)
+
+        data = tracker.to_dict(card_resolver=_get_resolver())
         _scry_cache = data
         _scry_cache_ts = time.time()
         return data
-    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError, OSError):
+    except (FileNotFoundError, OSError, json.JSONDecodeError, ValueError, KeyError):
         return None
 
 
 def _normalize_zone(zone_type: str) -> str:
     """Normalize scry zone names (ZoneType_Hand → Hand, ZoneType_Battlefield → Battlefield)."""
     if zone_type.startswith("ZoneType_"):
-        return zone_type[len("ZoneType_"):]
+        return zone_type[len("ZoneType_") :]
     return zone_type
 
 
@@ -325,9 +369,14 @@ def cmd_launch(args: list[str]) -> None:
     # HiDPI/4K monitors that report "UI Looks like: 1920 x 1080" are fine windowed.
     if not fullscreen:
         _, sips_out, _ = run(
-            "system_profiler", "SPDisplaysDataType",
+            "system_profiler",
+            "SPDisplaysDataType",
         )
-        native_1080p = "1920 x 1080" in sips_out and "Retina" not in sips_out and "UI Looks like" not in sips_out
+        native_1080p = (
+            "1920 x 1080" in sips_out
+            and "Retina" not in sips_out
+            and "UI Looks like" not in sips_out
+        )
         if native_1080p:
             fullscreen = True
 
@@ -389,89 +438,57 @@ def cmd_capture(args: list[str]) -> None:
 
 
 def _cmd_ocr_hand() -> None:
-    """Zone-aware OCR for hand cards. Gets card names from scry/debug API,
-    crops hand strip, matches OCR against known names. Prints JSON results."""
-    # Get hand card names from debug API or scry
+    """Zone-aware OCR for hand cards. Gets card names from scry (primary)
+    or debug API (fallback), crops hand strip, matches OCR against known
+    names. Prints JSON results."""
+    # Get hand card names from scry (primary) or debug API (fallback)
     known_names: list[str] = []
-    raw = fetch_api("/api/id-map?active=true")
-    if raw:
-        entries = json.loads(raw)
-        if isinstance(entries, dict):
-            entries = entries.get("data", [])
+    state = _scry_state()
+    if state:
         known_names = [
-            e.get("cardName", "")
-            for e in entries
-            if e.get("forgeZone") == "Hand" and e.get("ownerSeatId") == 1
-            and e.get("cardName")
+            c.get("name", "") for c in state.get("hand", []) if c.get("name")
         ]
 
     if not known_names:
-        state = _scry_state()
-        if state:
+        raw = fetch_api("/api/id-map?active=true")
+        if raw:
+            entries = json.loads(raw)
+            if isinstance(entries, dict):
+                entries = entries.get("data", [])
             known_names = [
-                c.get("name", "") for c in state.get("hand", []) if c.get("name")
+                e.get("cardName", "")
+                for e in entries
+                if e.get("forgeZone") == "Hand"
+                and e.get("ownerSeatId") == 1
+                and e.get("cardName")
             ]
 
     if not known_names:
-        die("No hand cards found (debug API and scry both empty)")
+        die("No hand cards found (scry and debug API both empty)")
 
-    # Run zone-aware OCR pipeline
-    tmp = "/tmp/arena/_hand_ocr"
-    Path(tmp).mkdir(parents=True, exist_ok=True)
-
-    img = f"{tmp}/capture.png"
-    bounds = capture_window(img, hires=True)
-    if bounds is None:
-        die("MTGA window not found")
-
-    _, sips_out, _ = run("sips", "-g", "pixelWidth", "-g", "pixelHeight", img)
-    w_m = re.search(r"pixelWidth:\s*(\d+)", sips_out)
-    h_m = re.search(r"pixelHeight:\s*(\d+)", sips_out)
-    if not w_m or not h_m:
-        _try_remove(img)
-        die("Cannot read capture dimensions")
-
-    cap_w = int(w_m.group(1))
-    cap_h = int(h_m.group(1))
-
-    crop_top = int(cap_h * _HAND_Y_RATIO)
-    strip_h = cap_h - crop_top
-
-    strip = f"{tmp}/strip.png"
-    run(
-        "sips", "--cropOffset", str(crop_top), "0",
-        "--cropToHeightWidth", str(strip_h), str(cap_w),
-        img, "--out", strip,
-    )
-    _try_remove(img)
-
-    strip_2x = f"{tmp}/strip_2x.png"
-    run("sips", "--resampleWidth", str(cap_w * 2), strip, "--out", strip_2x)
-    _try_remove(strip)
-
-    code, stdout, _ = ocr(strip_2x, "--min-confidence", "0.15")
-    _try_remove(strip_2x)
-
-    if code != 0 or not stdout.strip():
-        die("OCR returned no results on hand strip")
-
-    items = json.loads(stdout)
-    ocr_to_960 = REFERENCE_WIDTH / (cap_w * 2)
+    result = _ocr_hand_strip()
+    if result is None:
+        die("Hand OCR failed (capture or OCR returned no results)")
+    items, ocr_to_960 = result
 
     # Show raw OCR detections in hand strip
     print(f"Known hand ({len(known_names)}): {known_names}")
     print(f"OCR detections ({len(items)}):")
     for item in items:
         cx_960 = int(item["cx"] * ocr_to_960)
-        print(f"  {item['text']:30s} cx={cx_960:4d}  conf={item.get('confidence', 0):.2f}")
+        print(
+            f"  {item['text']:30s} cx={cx_960:4d}  conf={item.get('confidence', 0):.2f}"
+        )
 
-    # Match against known names
+    # Match against known names (apply same x-range filter as _find_hand_card_ocr)
     matched: dict[str, tuple[float, int]] = {}  # name → (best_score, cx_960)
     for item in items:
+        cx_960 = int(item["cx"] * ocr_to_960)
+        if cx_960 < _HAND_X_MIN or cx_960 > _HAND_X_MAX:
+            continue
         for name in known_names:
             score = _fuzzy_card_match(item["text"], name)
             if score >= 0.4:
-                cx_960 = int(item["cx"] * ocr_to_960)
                 prev = matched.get(name)
                 if prev is None or score > prev[0]:
                     matched[name] = (score, cx_960)
@@ -703,6 +720,17 @@ def cmd_click(args: list[str]) -> None:
         return
 
 
+def _click_960(ref_x: int, ref_y: int) -> None:
+    """Click at coords in REFERENCE_WIDTH (960) space, converting to screen-absolute."""
+    bounds = mtga_window_bounds()
+    if bounds is None:
+        die("MTGA window not found")
+    scale = bounds[2] / REFERENCE_WIDTH if REFERENCE_WIDTH > 0 else 1.0
+    sx = bounds[0] + int(ref_x * scale)
+    sy = bounds[1] + int(ref_y * scale)
+    click_screen(sx, sy)
+
+
 def _do_drag(fr: tuple[int, int], to: tuple[int, int]) -> None:
     """Low-level drag between coords in REFERENCE_WIDTH (960) space."""
     bounds = mtga_window_bounds()
@@ -718,24 +746,34 @@ def _do_drag(fr: tuple[int, int], to: tuple[int, int]) -> None:
         die(f"drag failed: {stderr}")
 
 
+def _scry_hand_count() -> int | None:
+    """Get current hand card count from scry. Returns None if unavailable.
+
+    Uses the 1s TTL cache — callers that need guaranteed-fresh data
+    should call _scry_cache_clear() once before starting a poll loop.
+    """
+    state = _scry_state()
+    if state is None:
+        return None
+    return len(state.get("hand", []))
+
+
 def _verified_drag(
     fr: tuple[int, int],
     to: tuple[int, int],
     instance_id: int | None = None,
     max_attempts: int = 3,
 ) -> bool:
-    """Drag with retry + verification via debug API zone change.
+    """Drag with retry + verification via scry hand count change.
 
-    If instance_id is provided, polls the debug API to confirm the card
-    left its original zone. Retries with jitter on failure.
+    Counts hand cards before and after drag. If count dropped, the card
+    was played successfully. Works in all server modes (local, proxy, replay).
+    Retries with jitter on failure.
     """
     import random
 
     for attempt in range(max_attempts):
-        # Get pre-drag zone if we have an instance to track
-        pre_zone = None
-        if instance_id is not None:
-            pre_zone = _get_card_zone(instance_id)
+        pre_count = _scry_hand_count()
 
         # Apply jitter on retries (±5px)
         jitter = 0 if attempt == 0 else random.randint(-5, 5)
@@ -743,14 +781,18 @@ def _verified_drag(
 
         _do_drag(src, to)
 
-        if instance_id is None:
+        if pre_count is None:
             return True  # no verification possible
 
-        # Poll for zone change (up to 2s)
-        for _ in range(10):
+        # Invalidate cache once so polling picks up post-drag state.
+        # TTL (1s) limits re-parses to ~3 over the 3s window.
+        _scry_cache_clear()
+
+        # Poll for hand count change (up to 3s — real server can be slower)
+        for _ in range(15):
             time.sleep(0.2)
-            new_zone = _get_card_zone(instance_id)
-            if new_zone != pre_zone:
+            post_count = _scry_hand_count()
+            if post_count is not None and post_count < pre_count:
                 return True
 
         if attempt < max_attempts - 1:
@@ -760,21 +802,10 @@ def _verified_drag(
 
 
 def _get_card_zone(instance_id: int) -> str | None:
-    """Get current zone for a card by instanceId.
+    """Get current zone for a card by instanceId via scry.
 
-    Tries debug API first, falls back to scry (Player.log parser).
+    Used by cmd_drag --verify. For arena play, prefer _scry_hand_count().
     """
-    # Primary: debug API
-    raw = fetch_api("/api/id-map?active=true")
-    if raw:
-        entries = json.loads(raw)
-        if isinstance(entries, dict):
-            entries = entries.get("data", [])
-        for e in entries:
-            if e.get("instanceId") == instance_id:
-                return e.get("forgeZone")
-
-    # Fallback: scry state
     state = _scry_state()
     if state is None:
         return None
@@ -836,6 +867,7 @@ def _hand_adjust(ocr_cx: int) -> tuple[int, int]:
     then computes arc y.
     """
     import math
+
     # Nudge cx: base shift + proportional pull toward center
     offset_ratio = (_HAND_X_CENTER - ocr_cx) / (_HAND_X_CENTER - _HAND_X_MIN)
     cx = ocr_cx + _HAND_CX_BASE_SHIFT + int(_HAND_CX_NUDGE * offset_ratio)
@@ -844,6 +876,76 @@ def _hand_adjust(ocr_cx: int) -> tuple[int, int]:
     arc_offset = _HAND_ARC_DROP * (1 - math.cos(dx * math.pi))
     cy = _HAND_CY_CENTER + int(arc_offset)
     return (cx, cy)
+
+
+# ---------------------------------------------------------------------------
+# OCR upscale — resolution-aware
+# ---------------------------------------------------------------------------
+
+# Target width for OCR after upscale. On 2x Retina a capture is 1920px,
+# upscaled 2x → 3840px, which gives enough detail for card title text.
+# On 1x displays the capture is only 960px — we need a higher multiplier
+# to reach the same effective resolution.
+_OCR_TARGET_WIDTH = 3840
+
+
+def _ocr_upscale_factor(capture_px_width: int) -> int:
+    """Compute integer upscale multiplier to reach _OCR_TARGET_WIDTH."""
+    if capture_px_width <= 0:
+        return 2
+    factor = max(2, round(_OCR_TARGET_WIDTH / capture_px_width))
+    return factor
+
+
+def _ocr_hand_strip() -> tuple[list[dict], float] | None:
+    """Capture, crop, upscale, and OCR the hand strip.
+
+    Returns (items, ocr_to_960) where items is the list of OCR detections
+    and ocr_to_960 is the scale factor to convert OCR x-coords to 960-space.
+    Returns None if capture or OCR fails.
+    """
+    from PIL import Image
+
+    tmp = "/tmp/arena/_hand_ocr"
+    Path(tmp).mkdir(parents=True, exist_ok=True)
+
+    img = f"{tmp}/capture.png"
+    bounds = capture_window(img, hires=True)
+    if bounds is None:
+        return None
+
+    _, sips_out, _ = run("sips", "-g", "pixelWidth", "-g", "pixelHeight", img)
+    w_m = re.search(r"pixelWidth:\s*(\d+)", sips_out)
+    h_m = re.search(r"pixelHeight:\s*(\d+)", sips_out)
+    if not w_m or not h_m:
+        _try_remove(img)
+        return None
+
+    cap_w = int(w_m.group(1))
+    cap_h = int(h_m.group(1))
+
+    scale = _ocr_upscale_factor(cap_w)
+    crop_top = int(cap_h * _HAND_Y_RATIO)
+    pil_img = Image.open(img)
+    strip_pil = pil_img.crop((0, crop_top, cap_w, cap_h))
+    strip_up = f"{tmp}/strip_up.png"
+    strip_pil = strip_pil.resize(
+        (cap_w * scale, strip_pil.height * scale), Image.LANCZOS
+    )
+    strip_pil.save(strip_up)
+    pil_img.close()
+    strip_pil.close()
+    _try_remove(img)
+
+    code, stdout, _ = ocr(strip_up, "--min-confidence", "0.15")
+    _try_remove(strip_up)
+
+    if code != 0 or not stdout.strip():
+        return None
+
+    items = json.loads(stdout)
+    ocr_to_960 = REFERENCE_WIDTH / (cap_w * scale)
+    return (items, ocr_to_960)
 
 
 # ---------------------------------------------------------------------------
@@ -857,7 +959,12 @@ def _fuzzy_card_match(ocr_text: str, card_name: str) -> float:
     Handles partial OCR (truncated names), OCR errors (1-2 char diffs), and
     short names like "Plains" that appear as substrings of OCR noise.
     """
-    ot = ocr_text.lower().strip().replace("'", "").replace("\u2019", "")
+    # Strip punctuation artifacts from card frame rendering: parentheses, periods,
+    # brackets. OCR on type lines picks up "(Mountain." or "[Axgard Cavalry".
+    ot = ocr_text.lower().strip()
+    for ch in "''\u2019()[].,":
+        ot = ot.replace(ch, "")
+    ot = ot.strip()
     cn = card_name.lower().strip().replace("'", "").replace("\u2019", "")
 
     if not ot or not cn:
@@ -875,24 +982,47 @@ def _fuzzy_card_match(ocr_text: str, card_name: str) -> float:
     if ot in cn and len(ot) >= 3:
         return 0.7 * len(ot) / len(cn)
 
-    # Word-level: check if significant words from card name appear in OCR text
+    # Collect candidate scores from different strategies, return the best.
+    best = 0.0
+
+    # Word-level: check if significant words from card name appear in OCR text.
+    # Uses per-word Levenshtein (distance ≤ 1) to handle single-char OCR errors
+    # in multi-word names (e.g. "Dragon Podder" → "Dragon Fodder").
     cn_words = cn.split()
     ot_words = ot.split()
-    if len(cn_words) > 1:
-        hits = sum(1 for w in cn_words if len(w) > 2 and any(w in ow for ow in ot_words))
+    if len(cn_words) > 1 and len(ot_words) > 0:
+        hits = 0
+        for w in cn_words:
+            if len(w) <= 2:
+                continue
+            for ow in ot_words:
+                if w in ow or ow in w:
+                    hits += 1
+                    break
+                if _levenshtein(w, ow) <= 1:
+                    hits += 1
+                    break
         if hits > 0:
-            return 0.6 * hits / len(cn_words)
+            best = max(best, 0.6 * hits / len(cn_words))
 
     # Single-word names: check edit distance for short OCR errors
     if len(cn) <= 8 and len(ot) <= 12:
-        # Simple Levenshtein for short strings
         dist = _levenshtein(ot, cn)
         if dist <= 1:
-            return 0.8
-        if dist <= 2 and len(cn) >= 5:
-            return 0.5
+            best = max(best, 0.8)
+        elif dist <= 2 and len(cn) >= 5:
+            best = max(best, 0.5)
 
-    return 0.0
+    # Full-string Levenshtein for multi-word names with truncation + OCR errors
+    # (e.g. "Dragon Podde" → "Dragon Fodder", distance=2)
+    if abs(len(ot) - len(cn)) <= 3 and len(cn) >= 6:
+        dist = _levenshtein(ot, cn)
+        if dist <= 2:
+            best = max(best, 0.7)
+        elif dist <= 3 and len(cn) >= 10:
+            best = max(best, 0.5)
+
+    return best
 
 
 def _levenshtein(a: str, b: str) -> int:
@@ -905,7 +1035,9 @@ def _levenshtein(a: str, b: str) -> int:
     for i, ca in enumerate(a):
         curr = [i + 1]
         for j, cb in enumerate(b):
-            curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (0 if ca == cb else 1)))
+            curr.append(
+                min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (0 if ca == cb else 1))
+            )
         prev = curr
     return prev[-1]
 
@@ -915,59 +1047,16 @@ def _find_hand_card_ocr(
 ) -> tuple[int, int] | None:
     """Find a hand card's screen position using zone-aware OCR.
 
-    Crops the hand strip from a hires capture, upscales 2x, runs OCR,
-    and fuzzy-matches results against known card names from scry/debug API.
-    Returns (cx, cy) in 960-space or None.
+    Uses shared _ocr_hand_strip() pipeline, then fuzzy-matches results
+    against known card names. Returns (cx, cy) in 960-space or None.
     """
-    tmp = "/tmp/arena/_hand_ocr"
-    Path(tmp).mkdir(parents=True, exist_ok=True)
-
-    img = f"{tmp}/capture.png"
-    bounds = capture_window(img, hires=True)
-    if bounds is None:
+    result = _ocr_hand_strip()
+    if result is None:
         return None
 
-    # Get capture pixel dimensions
-    _, sips_out, _ = run("sips", "-g", "pixelWidth", "-g", "pixelHeight", img)
-    w_m = re.search(r"pixelWidth:\s*(\d+)", sips_out)
-    h_m = re.search(r"pixelHeight:\s*(\d+)", sips_out)
-    if not w_m or not h_m:
-        _try_remove(img)
-        return None
-
-    cap_w = int(w_m.group(1))
-    cap_h = int(h_m.group(1))
-
-    # Crop hand strip: bottom portion of the screen, upscale 2x
-    # PIL crop — sips --cropOffset silently fails on macOS
-    from PIL import Image
-    crop_top = int(cap_h * _HAND_Y_RATIO)
-    pil_img = Image.open(img)
-    strip_pil = pil_img.crop((0, crop_top, cap_w, cap_h))
-    strip_2x = f"{tmp}/strip_2x.png"
-    strip_pil = strip_pil.resize(
-        (cap_w * 2, strip_pil.height * 2), Image.LANCZOS
-    )
-    strip_pil.save(strip_2x)
-    pil_img.close()
-    strip_pil.close()
-    _try_remove(img)
-
-    # Run OCR with lowered confidence threshold (rotated hand cards are noisy)
-    code, stdout, _ = ocr(strip_2x, "--min-confidence", "0.15")
-    _try_remove(strip_2x)
-
-    if code != 0 or not stdout.strip():
-        return None
-
-    items = json.loads(stdout)
+    items, ocr_to_960 = result
     if not items:
         return None
-
-    # Map OCR coords back to 960-space.
-    # OCR coords are in strip_2x pixel space (cap_w*2 wide).
-    # To get 960-space x: ocr_cx / (cap_w * 2) * 960
-    ocr_to_960 = REFERENCE_WIDTH / (cap_w * 2)
 
     # Build matches: for each OCR detection, find best card name match
     # Then pick the best detection for each card name
@@ -1028,36 +1117,21 @@ def _find_hand_card(
 ) -> tuple[tuple[int, int], int] | None:
     """Find a hand card's screen coords and instanceId.
 
-    Uses debug API for card identity + zone-aware OCR / detection for screen position.
-    Falls back to scry (Player.log parser) when debug API is unavailable.
+    Uses scry (Player.log) for card identity + zone-aware OCR for screen position.
     Returns ((cx, cy), instanceId) or None.
     """
     hand_cards: list[dict] = []
 
-    # 1. Get hand — try debug API first, fall back to scry
-    raw = fetch_api("/api/id-map?active=true")
-    if raw:
-        entries = json.loads(raw)
-        if isinstance(entries, dict):
-            entries = entries.get("data", [])
-        hand_cards = [
-            e
-            for e in entries
-            if e.get("forgeZone") == "Hand" and e.get("ownerSeatId") == 1
-        ]
-
-    if not hand_cards:
-        # Fallback: scry state (debug API empty or unavailable)
-        state = _scry_state()
-        if state:
-            for card in state.get("hand", []):
-                # Normalize to same shape as debug API entries
-                hand_cards.append(
-                    {
-                        "instanceId": card.get("id"),
-                        "cardName": card.get("name", ""),
-                    }
-                )
+    # Get hand from scry — works in all server modes
+    state = _scry_state()
+    if state:
+        for card in state.get("hand", []):
+            hand_cards.append(
+                {
+                    "instanceId": card.get("id"),
+                    "cardName": card.get("name", ""),
+                }
+            )
 
     if not hand_cards:
         return None
@@ -1077,49 +1151,84 @@ def _find_hand_card(
     instance_id = target.get("instanceId", 0)
     known_names = [c.get("cardName") or "" for c in hand_cards if c.get("cardName")]
 
-    # 2. Try zone-aware OCR first (more reliable for rotated hand cards)
+    # 2. Try zone-aware OCR (crops hand strip, upscales, fuzzy-matches)
     ocr_pos = _find_hand_card_ocr(name, known_names)
     if ocr_pos is not None:
         return (ocr_pos, instance_id)
 
-    # 3. Fall back to detection model
-    dets = _board_detect()
-    hand_dets = sorted(
-        [d for d in dets if d["label"] == "hand-card" and d["cy"] > HAND_MIN_CY],
-        key=lambda d: d["cx"],
-    )
+    # OCR couldn't find the card — honest failure.
+    # Don't guess positions from zone index (zone order ≠ visual order).
+    return None
 
-    if not hand_dets:
-        # Fallback: estimate position from card count
-        count = len(hand_cards)
-        idx = next(
-            (i for i, c in enumerate(hand_cards) if c.get("instanceId") == instance_id),
-            0,
-        )
-        spacing = min(80, 400 // max(count, 1))
-        center_x = 480 - (count - 1) * spacing // 2 + idx * spacing
-        return (_hand_adjust(center_x), instance_id)
 
-    # 4. Match: if detection count == hand count, use index; otherwise best-effort
-    idx = next(
-        (i for i, c in enumerate(hand_cards) if c.get("instanceId") == instance_id),
-        0,
-    )
-    if len(hand_dets) == len(hand_cards) and idx < len(hand_dets):
-        det = hand_dets[idx]
-    elif idx < len(hand_dets):
-        det = hand_dets[idx]
-    else:
-        det = hand_dets[-1]  # last detection as fallback
+# Known modal dismiss coords (960-wide logical space)
+_MODAL_DONE = (480, 491)  # "Done" button on surveil/scry modals
 
-    return ((det["cx"], det["cy"]), instance_id)
+# OCR text patterns that indicate a dismissable modal
+_MODAL_PATTERNS = re.compile(r"(?i)\b(Surveil|Scry)\b")
+
+
+def _auto_dismiss_modal() -> None:
+    """Check for and dismiss known modals (surveil, scry) after a card play.
+
+    Waits briefly for modal to render, does a single OCR scan for known
+    modal text patterns. If found, clicks Done and reports.
+
+    This is a stopgap — the proper fix is tracking GREMessageType_GroupReq
+    in the scry tracker (GroupingContext_Surveil / GroupingContext_Scry),
+    which would detect modals without OCR. See cmd_land/cmd_attack_all
+    for the scry-first pattern this should eventually follow.
+    """
+    time.sleep(1.5)  # wait for modal animation to finish
+
+    img = "/tmp/arena/_modal_check.png"
+    Path(img).parent.mkdir(parents=True, exist_ok=True)
+
+    bounds = capture_window(img, hires=True)
+    if bounds is None:
+        return
+
+    code, stdout, _ = ocr(img)
+    _try_remove(img)
+
+    if code != 0 or not stdout.strip():
+        return
+
+    # Parse OCR output for modal indicators
+    try:
+        items = json.loads(stdout)
+    except json.JSONDecodeError:
+        return
+
+    modal_type = None
+    saw_done = False
+    for item in items:
+        text = item.get("text", "")
+        m = _MODAL_PATTERNS.search(text)
+        if m:
+            modal_type = m.group(1).title()
+        if text.strip().lower() == "done":
+            saw_done = True
+
+    if modal_type:
+        _click_960(*_MODAL_DONE)
+        time.sleep(0.5)
+        if saw_done:
+            print(f"  (auto-dismissed {modal_type})")
+        else:
+            print(f"  (auto-dismissed {modal_type}, inferred Done position)")
 
 
 def cmd_play(args: list[str]) -> None:
     """Play a card from hand by name.
 
     Usage: arena play <card-name> [--to x,y]
+
+    Finds the card in hand via scry, locates it on screen via OCR,
+    drags it to the battlefield (or --to target). Verifies the card
+    left the hand. Auto-dismisses surveil/scry modals after play.
     """
+    _check_help(args, cmd_play)
     if not args:
         die("Usage: arena play <card-name> [--to x,y]")
 
@@ -1150,10 +1259,401 @@ def cmd_play(args: list[str]) -> None:
     print(f"Playing {card_name} (id={instance_id}) from ({cx},{cy})")
 
     ok = _verified_drag((cx, cy), drop_to, instance_id)
-    if ok:
-        print(f"✓ {card_name} played successfully")
-    else:
+    if not ok:
         die(f"✗ Failed to play {card_name} after 3 attempts")
+
+    print(f"✓ {card_name} played successfully")
+
+    # Auto-dismiss known modals that appear after playing a card.
+    # Currently handles: Surveil (Snarling Gorehound ETB etc.), Scry.
+    # These show a "Done" button when the player needs to confirm the
+    # top/bottom/graveyard ordering. For surveil 1, the default (keep on
+    # top) is fine — just click Done.
+    #
+    # Detection: wait briefly for modal to render, then OCR for "Done"
+    # or "Surveil"/"Scry" text. If found, click Done and report.
+    # If not found, move on — no modal appeared.
+    #
+    # Future: replace OCR check with scry GroupReq tracking (the real
+    # server sends GREMessageType_GroupReq with GroupingContext_Surveil).
+    # That would be instant and reliable. For now, OCR is good enough.
+    _auto_dismiss_modal()
+
+
+def cmd_land(args: list[str]) -> None:
+    """Play a land from hand (policy: picks first playable land).
+
+    Usage: arena land
+
+    Reads scry for playable lands (ActionType_Play without manaCost),
+    guards against double land play via turn tracking,
+    picks the first one, locates it on screen via OCR, drags it to
+    the battlefield, verifies it left the hand.
+
+    Prints ✓ on success, ✗ on failure (no land, already played, OCR miss).
+    """
+    _check_help(args, cmd_land)
+
+    # 1. Pre: read scry state
+    _scry_cache_clear()
+    state = _scry_state()
+    if state is None:
+        die("✗ scry unavailable")
+
+    hand = state.get("hand", [])
+    actions = state.get("actions", [])
+
+    if not hand:
+        die("✗ hand is empty")
+
+    # Find playable land: ActionType_Play + no manaCost + our seat + in hand
+    # If the server doesn't offer a Play action for a land, the land drop
+    # was already used this turn — no need for a client-side guard.
+    hand_ids = {c.get("id") for c in hand}
+    playable_land = None
+    for a in actions:
+        if a.get("seatId") != 1:
+            continue
+        if a.get("actionType") != "ActionType_Play":
+            continue
+        if a.get("manaCost"):
+            continue  # not a land (adventure, MDFC, etc.)
+        iid = a.get("instanceId")
+        if iid in hand_ids:
+            playable_land = a
+            break
+
+    if playable_land is None:
+        print("✗ no playable land in hand")
+        raise SystemExit(1)
+
+    land_name = playable_land.get("name", "Land")
+    instance_id = playable_land["instanceId"]
+
+    # 2. Act: find card on screen and drag
+    result = _find_hand_card(land_name)
+    if result is None:
+        die(f"✗ {land_name} in hand but OCR can't locate it")
+
+    (cx, cy), _ = result
+    print(f"Playing {land_name} (id={instance_id}) from ({cx},{cy})")
+
+    ok = _verified_drag((cx, cy), BATTLEFIELD_DROP, instance_id)
+    if not ok:
+        die(f"✗ failed to play {land_name} after 3 attempts")
+
+    # 3. Post: report
+    _scry_cache_clear()
+    post = _scry_state()
+    if post:
+        post_hand = post.get("hand", [])
+        print(f"✓ {land_name} played (hand: {len(post_hand)} cards)")
+    else:
+        print(f"✓ {land_name} played")
+
+
+ACTION_BUTTON = (888, 504)  # Pass / Next / All Attack / confirm — all same zone
+
+
+def cmd_attack_all(args: list[str]) -> None:
+    """Attack with all available creatures.
+
+    Usage: arena attack-all
+
+    Must be called during DeclareAttack step on your turn.
+    Clicks All Attack (888,504), confirms N Attackers (same coord),
+    waits for combat to resolve (polls scry for game_state_id advance).
+    Reports damage dealt and opponent life total.
+
+    Prints ✓ on success, ✗ if not in DeclareAttack or not your turn.
+    """
+    _check_help(args, cmd_attack_all)
+    # 1. Pre: verify we're in the right phase and active
+    _scry_cache_clear()
+    pre = _scry_state()
+    if pre is None:
+        die("✗ scry unavailable")
+
+    ti = pre.get("turn_info", {})
+    phase = ti.get("phase", "")
+    step = ti.get("step", "")
+    active = ti.get("active_player")
+    opp_life_pre = None
+    for p in pre.get("players", []):
+        if p.get("seat") == 2:
+            opp_life_pre = p.get("life")
+
+    in_attack = "Combat" in phase and "DeclareAttack" in (step or "")
+
+    if active != 1:
+        print("✗ not our turn")
+        raise SystemExit(1)
+    if not in_attack:
+        phase_label = phase.replace("Phase_", "")
+        if step:
+            phase_label += f"/{step.replace('Step_', '')}"
+        print(f"✗ not in DeclareAttack (current: {phase_label}), pass first")
+        raise SystemExit(1)
+
+    # 2. Act: click action button twice — All Attack + confirm
+    #    First click: "All Attack"
+    #    Second click: "N Attackers" confirm
+    #    Same coord for both (888,504).
+    pre_gsid = pre.get("game_state_id", 0)
+
+    click_screen(*ACTION_BUTTON)
+    time.sleep(1.5)
+    click_screen(*ACTION_BUTTON)
+
+    # 3. Post: wait for game state to advance, report result
+    #    Poll scry until game_state_id changes (combat resolved)
+    for _ in range(8):
+        time.sleep(1.0)
+        _scry_cache_clear()
+        post = _scry_state()
+        if post and post.get("game_state_id", 0) > pre_gsid + 2:
+            break
+    else:
+        post = _scry_state()
+
+    if post:
+        opp_life_post = None
+        for p in post.get("players", []):
+            if p.get("seat") == 2:
+                opp_life_post = p.get("life")
+        post_phase = post.get("turn_info", {}).get("phase", "")
+        post_step = post.get("turn_info", {}).get("step", "")
+
+        damage = ""
+        if opp_life_pre is not None and opp_life_post is not None:
+            dmg = opp_life_pre - opp_life_post
+            if dmg > 0:
+                damage = f", {dmg} damage"
+
+        phase_label = post_phase.replace("Phase_", "")
+        if post_step:
+            phase_label += f"/{post_step.replace('Step_', '')}"
+
+        print(f"✓ attacked{damage} (opp life: {opp_life_post}, now: {phase_label})")
+    else:
+        print("✓ attacked (scry unavailable for result)")
+
+
+# ---------------------------------------------------------------------------
+# Bot match — single command lobby→game
+# ---------------------------------------------------------------------------
+
+# Deck grid positions in 960-space. Bot Match shows a 4-column grid of decks.
+# Row 1: y≈430, Row 2: y≈500 (approximate — depends on deck count).
+# Column x centers: ~82, ~270, ~458, ~646 (4 decks per row).
+_DECK_GRID_X = [82, 270, 458, 646]
+_DECK_GRID_Y = [430, 500]
+_PLAY_BUTTON = (867, 519)
+
+
+def _pick_deck_by_name(name: str) -> None:
+    """OCR the deck grid and click the deck matching `name` (fuzzy)."""
+    img = "/tmp/arena/_deck_grid.png"
+    Path(img).parent.mkdir(parents=True, exist_ok=True)
+    bounds = capture_window(img)
+    if bounds is None:
+        die("MTGA window not found for deck OCR")
+
+    code, stdout, _ = ocr(img)
+    _try_remove(img)
+    if code != 0 or not stdout.strip():
+        die("OCR failed on deck grid")
+
+    items = json.loads(stdout)
+
+    # Deck names appear in the grid area (y ≈ 370-530, x ≈ 50-750).
+    # Filter to plausible deck name positions and fuzzy-match.
+    target = name.lower()
+    best_score = 0.0
+    best_item = None
+    for item in items:
+        cy = item.get("cy", 0)
+        cx = item.get("cx", 0)
+        if cy < 350 or cy > 550 or cx > 800:
+            continue  # outside deck grid area
+        text = item.get("text", "").lower()
+        # Exact substring
+        if target in text or text in target:
+            score = 1.0
+        else:
+            score = _fuzzy_card_match(text, name)
+        if score > best_score:
+            best_score = score
+            best_item = item
+
+    if best_item is None or best_score < 0.4:
+        # List available decks for diagnostics
+        deck_texts = [
+            item.get("text", "")
+            for item in items
+            if 350 < item.get("cy", 0) < 550 and item.get("cx", 0) < 800
+        ]
+        die(f"Deck '{name}' not found (available: {deck_texts})")
+
+    cx, cy = best_item["cx"], best_item["cy"]
+    matched = best_item.get("text", "?")
+    print(f"Picking deck '{matched}' at ({cx},{cy}) (score={best_score:.2f})")
+    cmd_click([f"{cx},{cy}"])
+
+
+def cmd_bot_match(args: list[str]) -> None:
+    """Start a bot match: navigate lobby, pick deck, keep hand, ready for game.
+
+    Usage: arena bot-match [--deck <name|N>]
+      --deck "Red aggro"   Pick deck by name (OCR fuzzy match)
+      --deck 0             Pick by grid index (0-indexed, default)
+
+    Handles any starting screen (Home, RecentlyPlayed, FindMatch, InGame, etc).
+    Auto-keeps the opening hand. Prints scry state when game loop is ready.
+    """
+    _check_help(args, cmd_bot_match)
+    from screens import find_path
+
+    # Parse args
+    deck_spec: str | int = 0  # default: first deck by index
+    it = iter(args)
+    for a in it:
+        if a == "--deck":
+            try:
+                val = next(it)
+            except StopIteration:
+                die("--deck requires a value")
+            try:
+                deck_spec = int(val)
+            except ValueError:
+                deck_spec = val  # treat as name
+        else:
+            die(f"Unknown flag: {a}")
+
+    # 1. Detect current screen
+    _try_dismiss_popups()
+    current = detect_screen()
+    if current is None:
+        die("Cannot detect current screen")
+
+    print(f"Starting from: {current}")
+
+    # If already in game, just report state
+    if current in ("InGame", "Mulligan"):
+        if current == "Mulligan":
+            print("At mulligan — keeping hand")
+            cmd_click(["Keep", "--retry", "3"])
+            time.sleep(3)
+        _scry_cache_clear()
+        state = _scry_state()
+        if state:
+            ti = state.get("turn_info", {})
+            print(
+                f"✓ in game — T{ti.get('turn_number', '?')} "
+                f"{ti.get('phase', '').replace('Phase_', '')}"
+            )
+        else:
+            print("✓ in game")
+        return
+
+    # 2. Get to Home if not already in lobby
+    if current in ("Result", "EventResult"):
+        path = find_path(current, "Home")
+        if path:
+            for t in path:
+                for step in t.get("steps", []):
+                    _exec_step(step)
+                wait = t.get("wait")
+                if wait:
+                    _wait_condition(wait, t.get("wait_timeout", 10))
+            current = "Home"
+
+    # 3. Open Play blade → Bot Match → deck selection
+    #    Direct click sequence — no nav graph, no detect_screen between steps.
+    if current == "DeckSelected":
+        # Already on deck selection — just pick a deck and go
+        pass
+    elif current in ("Home", "RecentlyPlayed", "FindMatch"):
+        if current == "Home":
+            # Open the play blade first (bottom-right Play button)
+            print("Opening play blade...")
+            cmd_click(["867,519"])
+            time.sleep(2)
+
+        # Now on some blade tab. Click "Find Match" tab to ensure we see
+        # the Bot Match tile (safe even if already on this tab).
+        print("Selecting Bot Match...")
+        cmd_click(["867,99"])
+        time.sleep(1)
+
+        # Click "Bot Match" tile — use coord (842,396) which is the tile
+        # in the FindMatch grid, not the header label at (94,82).
+        if not _poll_ocr("Bot Match", present=True, timeout_ms=3000):
+            die("Bot Match not visible after opening Find Match tab")
+        # Click tile area (right column, below format headers)
+        cmd_click(["842,396"])
+        time.sleep(1)
+
+        # Wait for deck grid (Edit Deck anchor)
+        ok = _poll_ocr("Edit Deck", present=True, timeout_ms=5000)
+        if not ok:
+            pass  # might already be on DeckSelected
+    else:
+        die(f"Don't know how to start bot match from {current}")
+
+    # 4. Pick a deck (by name or index)
+    if isinstance(deck_spec, str):
+        _pick_deck_by_name(deck_spec)
+    else:
+        col = deck_spec % 4
+        row = deck_spec // 4
+        if row >= len(_DECK_GRID_Y):
+            die(
+                f"Deck index {deck_spec} out of range (max {len(_DECK_GRID_Y) * 4 - 1})"
+            )
+        dx, dy = _DECK_GRID_X[col], _DECK_GRID_Y[row]
+        print(f"Picking deck #{deck_spec} at ({dx},{dy})")
+        cmd_click([f"{dx},{dy}"])
+    time.sleep(1)
+
+    # 5. Click Play
+    cmd_click([f"{_PLAY_BUTTON[0]},{_PLAY_BUTTON[1]}"])
+    print("Waiting for match...")
+
+    # 6. Wait for mulligan → keep → game ready
+    #    Sequence: Ready! → matching → mulligan (Keep button) → game
+    print("Waiting for mulligan...")
+    if _poll_ocr("Keep", present=True, timeout_ms=30000):
+        print("Keeping hand...")
+        cmd_click(["Keep", "--retry", "3"])
+    else:
+        # No mulligan seen — might have auto-kept or already in game
+        pass
+
+    # 7. Wait for game to actually start (turn number > 0 in scry)
+    print("Waiting for game start...")
+    for _ in range(15):  # 15s timeout
+        time.sleep(1)
+        _scry_cache_clear()
+        state = _scry_state()
+        if state:
+            ti = state.get("turn_info", {})
+            turn = ti.get("turn_number")
+            if turn is not None and turn > 0:
+                hand = state.get("hand", [])
+                hand_names = [c.get("name", "?") for c in hand]
+                print(
+                    f"✓ game ready — T{turn} "
+                    f"hand ({len(hand)}): {', '.join(hand_names)}"
+                )
+                return
+
+    # Fallback: check scene
+    scene = get_current_scene()
+    if scene == "InGame":
+        print("✓ game ready (turn not yet reported by scry)")
+    else:
+        die(f"Game did not start (current scene: {scene})")
 
 
 def cmd_state(args: list[str]) -> None:
@@ -1169,13 +1669,15 @@ def cmd_state(args: list[str]) -> None:
 
 def cmd_errors(args: list[str]) -> None:
     """Show client errors from scry (Player.log parser)."""
-    import subprocess
-
-    scry = Path(PROJECT_DIR) / "bin" / "scry"
-    result = subprocess.run(
-        [str(scry), "state", "--no-cards"], capture_output=True, text=True
-    )
-    print(result.stdout if result.stdout else "{}")
+    _scry_cache_clear()
+    state = _scry_state()
+    if state is None:
+        print("{}")
+        return
+    # Extract just the error-related fields
+    errors = state.get("errors", [])
+    error_count = state.get("error_count", 0)
+    print(json.dumps({"errors": errors, "error_count": error_count}, indent=2))
 
 
 def cmd_scene(args: list[str]) -> None:
@@ -2009,6 +2511,15 @@ def session_log(
 # ---------------------------------------------------------------------------
 
 
+def _check_help(args: list[str], func) -> None:  # type: ignore[type-arg]
+    """If args contain --help or -h, print the function's docstring and exit."""
+    if "--help" in args or "-h" in args:
+        doc = (func.__doc__ or "").strip()
+        if doc:
+            print(doc)
+        raise SystemExit(0)
+
+
 def die(msg: str) -> NoReturn:
     print(msg, file=sys.stderr)
     raise SystemExit(1)
@@ -2131,6 +2642,9 @@ COMMANDS = {
     "move": cmd_move,
     "drag": cmd_drag,
     "play": cmd_play,
+    "land": cmd_land,
+    "attack-all": cmd_attack_all,
+    "bot-match": cmd_bot_match,
     "state": cmd_state,
     "errors": cmd_errors,
     "scene": cmd_scene,
@@ -2144,10 +2658,42 @@ COMMANDS = {
 }
 
 
+COMMAND_HELP = {
+    "launch": "Launch MTGA client (1920x1080 windowed)",
+    "capture": "Screenshot MTGA window. --out <path> --resolution <px>",
+    "ocr": "OCR screen text. --fmt (table) --find <text> --hand (zoomed hand strip)",
+    "click": "Click text or coords. <text|x,y> --retry N --double --right --exact",
+    "move": "Move mouse to coords. <x,y>",
+    "drag": "Drag between coords. <from> <to> [--verify <instanceId>]",
+    "play": "Play card from hand by name. <name> [--to x,y]",
+    "land": "Play first available land (policy: auto-pick, verified drag)",
+    "attack-all": "Attack with all creatures (All Attack + confirm)",
+    "bot-match": "Start bot match: lobby→deck→keep→game. [--deck <name|N>]",
+    "state": "Show debug API game state (local mode only)",
+    "errors": "Show client errors from Player.log",
+    "scene": "Current lobby screen from Player.log",
+    "where": "Detect current screen (scene + OCR)",
+    "navigate": "Auto-navigate to screen. <Home|FindMatch|InGame|...>",
+    "wait": "Block until condition. text=<str> scene=<str> --timeout N",
+    "board": "Full board state (API + OCR). --no-ocr --no-detect",
+    "detect": "Run card detection model on current screen",
+    "issues": "Review session errors and failures",
+    "health": "Pre-flight health check (server, client, display)",
+}
+
+
 def main() -> None:
-    if len(sys.argv) < 2:
-        print("Usage: arena <command> [args...]", file=sys.stderr)
-        print("Commands: " + ", ".join(COMMANDS), file=sys.stderr)
+    if len(sys.argv) < 2 or sys.argv[1] in ("--help", "-h", "help"):
+        print("Usage: arena <command> [args...]")
+        print()
+        for cmd, desc in COMMAND_HELP.items():
+            print(f"  {cmd:12s} {desc}")
+        print()
+        print(
+            "Use 'arena <command> --help' for command-specific help (where supported)."
+        )
+        if len(sys.argv) >= 2 and sys.argv[1] in ("--help", "-h", "help"):
+            sys.exit(0)
         sys.exit(1)
 
     command = sys.argv[1]

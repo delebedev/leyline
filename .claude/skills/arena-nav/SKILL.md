@@ -49,6 +49,8 @@ Never batch commands blindly. One action, one check, next action.
 | `arena issues` | Review session errors | `arena issues` |
 | `arena errors` | Client errors from Player.log | `arena errors` |
 
+Run `arena --help` for the full command list with flags.
+
 ## Coordinate System
 
 **All coords are in 960-wide logical space.** This is the MTGA window's macOS logical size on a 2x Retina display (1920 render ÷ 2 = 960 logical).

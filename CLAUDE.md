@@ -48,6 +48,16 @@ Other dirs: `bin/` (CLI tools), `docs/`, `forge/` (engine submodule), `gradle/`,
 
 `recordings/latest` points to the most recent session. Recordings are the primary source of truth for understanding what the real server sends — use `just wire` and `just tape` to inspect them.
 
+## Puzzle-Driven Dev
+
+Puzzles are the primary acceptance tool. `.pzl` files define exact board states — minimal cards, one win path, forced mechanics. The dev loop: write puzzle → run in MatchHarness (<5s cycles) → fix code → Arena playtest for visual proof.
+
+- **Files:** `puzzles/` (acceptance targets), `matchdoor/src/test/resources/puzzles/` (test fixtures)
+- **Run in Arena:** `just serve-puzzle puzzles/bolt-face.pzl`
+- **Run in tests:** `base.startPuzzleAtMain1(puzzleText)` (Kotest, ~0.09s)
+- **Validate cards:** `just puzzle-check <file>` — mandatory before commit (missing grpId = NPE)
+- **Docs:** `docs/puzzle-design.md` (authoring guide), `docs/puzzle-driven-dev.md` (workflow), `docs/puzzles.md` (architecture)
+
 ## Testing
 
 All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/nexus-tests.md` for tags, setup tiers, conventions, and per-module commands. Key rule: **scope tests to changed modules, don't run everything.**

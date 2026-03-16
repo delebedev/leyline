@@ -16,7 +16,7 @@ Record a short MP4 video of the MTGA window and upload it for embedding in GitHu
 
 ## Prerequisites
 
-- MTGA running and connected to leyline server (`just serve` or `just serve-proxy`)
+- MTGA running and connected to leyline server (`just serve` or `just serve-puzzle`)
 - `ffmpeg` installed (`brew install ffmpeg`)
 - Server up: `curl -s http://localhost:8090/api/state` returns JSON
 
@@ -25,26 +25,50 @@ Record a short MP4 video of the MTGA window and upload it for embedding in GitHu
 ### 1. Navigate to the right screen
 
 Use `arena ocr` to check current state. Navigate as needed:
-- For gameplay: start a bot match via Find Match flow
-- For sealed: join sealed event, open packs, build deck
+- For gameplay: lobby → Find Match → Bot Match → deck → Play
+- For puzzle: `just serve-puzzle puzzles/<name>.pzl` → lobby → Play
 - For a specific bug: follow the repro steps first
 
-### 2. Record
+### 2. Start recording
 
 ```bash
-just arena record --duration <seconds> --fps 5 --out /tmp/<name>.mp4
+ffmpeg -f avfoundation -framerate 30 -i "Capture screen 0" \
+  -c:v libx264 -preset ultrafast -crf 23 -y /tmp/<name>-raw.mp4 \
+  > /tmp/ffmpeg.log 2>&1 &
+echo "ffmpeg PID: $!"
 ```
 
-**Duration guide:**
-- Bug repro: 5-10s (just the failing moment)
-- Feature demo: 10-20s (show the flow)
-- Full lifecycle: 30s max (join → play → result)
+This captures the full screen. Recording runs in background while you play through the scenario.
 
-**Defaults:** 10s duration, 5fps, `/tmp/arena-repro.mp4`
+### 3. Play through the scenario
 
-The tool activates MTGA, captures via `screencapture -R` at the exact window rect, resizes to 960x568 logical, encodes H.264 MP4. Output is ~30KB/s, GitHub-embeddable.
+Run arena commands to drive gameplay. The recording captures everything live.
 
-### 3. Upload
+### 4. Stop recording
+
+Wait for the result/victory screen to fully render before stopping:
+
+```bash
+sleep 5   # let result screen animate
+kill -INT <ffmpeg_pid>
+sleep 2   # let ffmpeg finalize
+```
+
+**Don't stop too early** — wait for victory/defeat screen to render. Common mistake is killing ffmpeg right after `gameOver:true` before the client shows the result.
+
+### 5. Compress
+
+Raw capture is large (full screen, 30fps). Compress before upload:
+
+```bash
+ffmpeg -i /tmp/<name>-raw.mp4 \
+  -c:v libx264 -preset slow -crf 30 -vf "scale=1280:-2" -an \
+  -y /tmp/<name>.mp4 2>&1 | tail -3
+```
+
+Typical result: 50MB raw → 3MB compressed. Target <10MB for GitHub embeds.
+
+### 6. Upload
 
 ```bash
 ~/.claude/skills/screenshot-upload/upload.sh /tmp/<name>.mp4
@@ -52,7 +76,7 @@ The tool activates MTGA, captures via `screencapture -R` at the exact window rec
 
 Returns a public R2 URL.
 
-### 4. Embed
+### 7. Embed
 
 In PR/issue body or comment:
 
@@ -62,18 +86,10 @@ https://pub-ee18c3c0efd64ad5967c2972fae3edd3.r2.dev/<filename>.mp4
 
 GitHub renders MP4 URLs as inline video players — no special markup needed. Just paste the URL on its own line.
 
-### Optional: screenshot too
-
-For a static thumbnail alongside the video:
-
-```bash
-just arena capture --out /tmp/<name>.png
-~/.claude/skills/screenshot-upload/upload.sh /tmp/<name>.png
-```
-
 ## Tips
 
 - **Play actions during recording** — click through turns, play cards, trigger the feature. The recording is live, not a replay.
-- **5fps is fine** — card games don't need 30fps. Keeps file small (~150KB for 5s).
-- **Max 10MB** for GitHub embeds. At 5fps/crf28, that's ~5 minutes of footage.
-- **Screen must not be locked** — `arena-record` warns if screen saver is running.
+- **Playtest first, record second.** Confirm the puzzle/scenario works before starting ffmpeg. Don't waste a recording on a broken run.
+- **Full screen capture** — ffmpeg captures everything, not just the MTGA window. Keep other windows minimized.
+- **Max 10MB** for GitHub embeds. With crf 30 + scale 1280, that's several minutes of footage.
+- **No audio** — `-an` strips audio. Arena sound effects aren't useful for demos.
