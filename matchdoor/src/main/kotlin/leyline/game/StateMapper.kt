@@ -181,23 +181,24 @@ object StateMapper {
         annotations.addAll(effectTransient)
 
         // Store effect persistent annotations (LayeredEffect)
+        val store = bridge.annotations
         for (ann in effectPersistent) {
-            val numbered = ann.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
-            bridge.addPersistentAnnotation(numbered)
+            val numbered = ann.toBuilder().setId(store.nextPersistentAnnotationId()).build()
+            store.add(numbered)
         }
 
         // Remove persistent annotations for destroyed effects
         for (effect in effectDiff.destroyed) {
-            val annId = bridge.findPersistentEffectByEffectId(effect.syntheticId)
+            val annId = store.findByEffectId(effect.syntheticId)
             if (annId != null) {
-                bridge.removePersistentAnnotation(annId)
+                store.remove(annId)
             }
         }
 
-        // Store new persistent annotations in bridge for carry-forward across GSMs
+        // Store new persistent annotations for carry-forward across GSMs
         for (ann in persistentAnnotations) {
-            val numbered = ann.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
-            bridge.addPersistentAnnotation(numbered)
+            val numbered = ann.toBuilder().setId(store.nextPersistentAnnotationId()).build()
+            store.add(numbered)
         }
         for (ann in mechanicResult.persistent) {
             // Replace prior Counter annotation for the same instanceId + counter_type
@@ -206,25 +207,25 @@ object StateMapper {
                 val ctype = ann.detailsList.firstOrNull { it.key == "counter_type" }
                     ?.let { if (it.valueInt32Count > 0) it.getValueInt32(0) else null }
                 if (iid != null && ctype != null) {
-                    val oldId = bridge.findPersistentCounter(iid, ctype)
-                    if (oldId != null) bridge.removePersistentAnnotation(oldId)
+                    val oldId = store.findCounter(iid, ctype)
+                    if (oldId != null) store.remove(oldId)
                 }
             }
-            val numbered = ann.toBuilder().setId(bridge.nextPersistentAnnotationId()).build()
-            bridge.addPersistentAnnotation(numbered)
+            val numbered = ann.toBuilder().setId(store.nextPersistentAnnotationId()).build()
+            store.add(numbered)
         }
 
         // Handle detached auras — remove their Attachment persistent annotations
         for (forgeCardId in mechanicResult.detachedForgeCardIds) {
             val auraIid = bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
-            val annId = bridge.findPersistentAnnotationByAura(auraIid)
+            val annId = store.findByAura(auraIid)
             if (annId != null) {
-                bridge.removePersistentAnnotation(annId)
+                store.remove(annId)
             }
         }
 
-        // Use bridge's accumulated store (includes all prior + new persistent annotations)
-        val allPersistentAnnotations = bridge.getAllPersistentAnnotations()
+        // Use accumulated store (includes all prior + new persistent annotations)
+        val allPersistentAnnotations = store.getAll()
 
         val numberedAnnotations = annotations.map {
             it.toBuilder().setId(bridge.nextAnnotationId()).build()
@@ -329,7 +330,7 @@ object StateMapper {
             .addAllGameObjects(changedObjects)
             .addAllAnnotations(current.annotationsList)
             .addAllPersistentAnnotations(current.persistentAnnotationsList)
-            .addAllDiffDeletedPersistentAnnotationIds(bridge.drainPersistentDeletions())
+            .addAllDiffDeletedPersistentAnnotationIds(bridge.annotations.drainDeletions())
             .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(updateType)
             .setPrevGameStateId(prev.gameStateId)
