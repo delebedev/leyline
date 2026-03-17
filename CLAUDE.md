@@ -45,6 +45,7 @@ Other dirs: `bin/` (CLI tools), `docs/`, `forge/` (engine submodule), `gradle/`,
 - `client-errors.jsonl` — legacy client exceptions (now use `just scry state`)
 - `capture/frames/` — raw binary frames
 - `analysis.json` — post-session analysis output
+- `notes.md` — human observations (notable plays, conformance moments, deck context). **Always read this first when inspecting a session.**
 
 `recordings/latest` points to the most recent session. Recordings are the primary source of truth for understanding what the real server sends — use `just wire` and `just tape` to inspect them.
 
