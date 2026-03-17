@@ -58,25 +58,85 @@ class PersistentAnnotationStore {
     /** All currently active persistent annotations. */
     fun getAll(): List<AnnotationInfo> = active.values.toList()
 
-    // --- Typed queries ---
+    // --- Batch lifecycle ---
 
-    /** Find persistent Attachment annotation by aura instanceId in affectedIds. */
-    fun findByAura(auraIid: Int): Int? =
+    /**
+     * Apply all persistent annotation changes for a single GSM build.
+     *
+     * Handles the four mutation patterns in the correct order:
+     * 1. Effect lifecycle — add created, remove destroyed (by effectId)
+     * 2. Transfer-originated — zone-change persistent annotations (add)
+     * 3. Mechanic-originated — counters (upsert by key), attachments (add)
+     * 4. Detached auras — remove attachment annotations for unequipped/detached
+     *
+     * @param effectPersistent persistent annotations from [AnnotationPipeline.effectAnnotations]
+     * @param effectDiff created/destroyed effects for lifecycle management
+     * @param transferPersistent persistent annotations from zone transfers (Stage 2)
+     * @param mechanicResult mechanic annotations + detached aura IDs (Stage 4)
+     * @param resolveInstanceId maps forge card ID → client instanceId (for aura lookup)
+     */
+    fun applyBatch(
+        effectPersistent: List<AnnotationInfo>,
+        effectDiff: EffectTracker.DiffResult,
+        transferPersistent: List<AnnotationInfo>,
+        mechanicResult: AnnotationPipeline.MechanicAnnotationResult,
+        resolveInstanceId: (Int) -> Int,
+    ) {
+        // 1. Effect lifecycle: add created, remove destroyed
+        for (ann in effectPersistent) {
+            val numbered = ann.toBuilder().setId(nextPersistentAnnotationId()).build()
+            add(numbered)
+        }
+        for (effect in effectDiff.destroyed) {
+            val annId = findByEffectId(effect.syntheticId)
+            if (annId != null) remove(annId)
+        }
+
+        // 2. Transfer-originated persistent annotations
+        for (ann in transferPersistent) {
+            val numbered = ann.toBuilder().setId(nextPersistentAnnotationId()).build()
+            add(numbered)
+        }
+
+        // 3. Mechanic-originated: counters with upsert, everything else is straight add
+        for (ann in mechanicResult.persistent) {
+            if (ann.typeList.any { it == AnnotationType.Counter_803b }) {
+                val iid = ann.affectedIdsList.firstOrNull()
+                val ctype = ann.detailsList.firstOrNull { it.key == "counter_type" }
+                    ?.let { if (it.valueInt32Count > 0) it.getValueInt32(0) else null }
+                if (iid != null && ctype != null) {
+                    val oldId = findCounter(iid, ctype)
+                    if (oldId != null) remove(oldId)
+                }
+            }
+            val numbered = ann.toBuilder().setId(nextPersistentAnnotationId()).build()
+            add(numbered)
+        }
+
+        // 4. Detached auras: remove their Attachment persistent annotations
+        for (forgeCardId in mechanicResult.detachedForgeCardIds) {
+            val auraIid = resolveInstanceId(forgeCardId)
+            val annId = findByAura(auraIid)
+            if (annId != null) remove(annId)
+        }
+    }
+
+    // --- Typed queries (internal to batch lifecycle) ---
+
+    private fun findByAura(auraIid: Int): Int? =
         active.entries.firstOrNull { (_, ann) ->
             ann.typeList.any { it == AnnotationType.Attachment } &&
                 ann.affectedIdsList.contains(auraIid)
         }?.key
 
-    /** Find persistent Counter annotation for the same instanceId and counter_type. */
-    fun findCounter(instanceId: Int, counterType: Int): Int? =
+    private fun findCounter(instanceId: Int, counterType: Int): Int? =
         active.entries.firstOrNull { (_, ann) ->
             ann.typeList.any { it == AnnotationType.Counter_803b } &&
                 ann.affectedIdsList.contains(instanceId) &&
                 ann.detailsList.any { it.key == "counter_type" && it.valueInt32Count > 0 && it.getValueInt32(0) == counterType }
         }?.key
 
-    /** Find persistent LayeredEffect annotation by effect_id detail key. */
-    fun findByEffectId(effectId: Int): Int? =
+    private fun findByEffectId(effectId: Int): Int? =
         active.entries.firstOrNull { (_, ann) ->
             ann.typeList.any { it == AnnotationType.LayeredEffect } &&
                 ann.detailsList.any { it.key == "effect_id" && it.valueInt32Count > 0 && it.getValueInt32(0) == effectId }
