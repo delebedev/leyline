@@ -419,8 +419,8 @@ class GameBridge(
         // Create bridges for BOTH human seats
         ensureSeatBridges(2)
 
-        // PhaseStopProfile for two humans
-        phaseStopProfile = PhaseStopProfile.createDefaults(g.players[0].id, g.players[1].id)
+        // PhaseStopProfile for two humans — both get interactive stops (not AI defaults)
+        phaseStopProfile = PhaseStopProfile.createTwoPlayerDefaults(g.players[0].id, g.players[1].id)
 
         // Wire WebPlayerController for both seats
         for ((seatIdx, player) in g.players.withIndex()) {
