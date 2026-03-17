@@ -13,6 +13,7 @@ import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.Database
+import java.util.Base64
 
 private fun Application.testModule(store: AccountStore, tokens: TokenService) {
     install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
@@ -196,6 +197,28 @@ class AccountRoutesTest :
             testApp {
                 val resp = client.get("/profile")
                 resp.status shouldBe HttpStatusCode.Unauthorized
+            }
+        }
+
+        test("profile rejects JWT-shaped bearer that only exposes sub without passing token validation") {
+            testApp {
+                val loginResp = client.post("/auth/oauth/token") {
+                    setBody("grant_type=password&username=existing%40test.com&password=password123")
+                    contentType(ContentType.Application.FormUrlEncoded)
+                }
+                val personaId = """"persona_id":"([^"]+)"""".toRegex()
+                    .find(loginResp.bodyAsText())!!.groupValues[1]
+                val forgedPayload = Base64.getUrlEncoder()
+                    .withoutPadding()
+                    .encodeToString("""{"sub":"$personaId","wotc-ttyp":"access"}""".toByteArray())
+                val forgedToken = "xxx.$forgedPayload.yyy"
+
+                val resp = client.get("/profile") {
+                    header("Authorization", "Bearer $forgedToken")
+                }
+
+                resp.status shouldBe HttpStatusCode.Unauthorized
+                resp.bodyAsText() shouldContain "INVALID TOKEN"
             }
         }
 
