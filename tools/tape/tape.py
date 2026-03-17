@@ -71,6 +71,141 @@ def _java(*args):
     sys.exit(result.returncode)
 
 
+def _resolve_md_payloads(session_hint):
+    """Resolve a session hint to the MD payloads directory.
+
+    Checks seat subdirs first (new format), falls back to flat capture/payloads.
+    """
+    from sessions import resolve_session
+
+    recordings_dir = os.path.join(PROJECT_DIR, "recordings")
+    session_path = resolve_session(session_hint, recordings_dir)
+    if not session_path:
+        print(f"error: no session matching '{session_hint}'", file=sys.stderr)
+        sys.exit(1)
+
+    capture = os.path.join(session_path, "capture")
+
+    # New format: seat-N/md-payloads/
+    if os.path.isdir(capture):
+        for entry in sorted(os.listdir(capture)):
+            candidate = os.path.join(capture, entry, "md-payloads")
+            if entry.startswith("seat-") and os.path.isdir(candidate):
+                bins = [f for f in os.listdir(candidate) if f.endswith(".bin")]
+                if bins:
+                    return candidate
+
+    # Flat format: capture/payloads/
+    flat = os.path.join(capture, "payloads")
+    if os.path.isdir(flat):
+        bins = [f for f in os.listdir(flat) if f.endswith(".bin") and "MD" in f]
+        if bins:
+            return flat
+
+    print(f"error: no MD payloads found in session '{session_hint}'", file=sys.stderr)
+    sys.exit(1)
+
+
+def _resolve_session_path(session_hint):
+    """Resolve a session hint to its directory path."""
+    from sessions import resolve_session
+
+    recordings_dir = os.path.join(PROJECT_DIR, "recordings")
+    path = resolve_session(session_hint, recordings_dir)
+    if not path:
+        print(f"error: no session matching '{session_hint}'", file=sys.stderr)
+        sys.exit(1)
+    return path
+
+
+def _card_grpids(name):
+    """Look up card grpIds by name (partial LIKE match) from Arena's sqlite DB."""
+    import glob as globmod
+    import sqlite3
+
+    arena_db_dir = os.path.join(
+        os.environ.get("HOME", "/tmp"),
+        "Library/Application Support/com.wizards.mtga/Downloads/Raw",
+    )
+    dbs = globmod.glob(os.path.join(arena_db_dir, "Raw_CardDatabase_*.mtga"))
+    if not dbs:
+        print(f"error: Arena card DB not found in {arena_db_dir}", file=sys.stderr)
+        sys.exit(1)
+    db = dbs[0]
+    conn = sqlite3.connect(db)
+    rows = conn.execute(
+        "SELECT c.GrpId, l.Loc FROM Cards c "
+        "JOIN Localizations_enUS l ON c.TitleId = l.LocId "
+        "WHERE l.Formatted = 1 AND l.Loc LIKE ?",
+        (f"%{name}%",),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def _find_card(name, session_hint):
+    """Find card instanceIds in a session's md-frames.jsonl."""
+    import json
+
+    rows = _card_grpids(name)
+    if not rows:
+        print(f"No cards matching '{name}' in Arena DB")
+        return
+
+    grpids = {r[0] for r in rows}
+    card_name = rows[0][1]
+    print(f"Card: {card_name}  grpIds: {sorted(grpids)}")
+
+    session_path = _resolve_session_path(session_hint) if session_hint else os.path.join(PROJECT_DIR, "recordings", "latest")
+    jsonl = os.path.join(session_path, "md-frames.jsonl")
+    if not os.path.isfile(jsonl):
+        print(f"error: no md-frames.jsonl in {session_path}", file=sys.stderr)
+        sys.exit(1)
+
+    # Zone name lookup
+    zone_names = {}
+    instances = {}  # instanceId → {grpId, zones: [(gsId, zoneId)]}
+
+    for line in open(jsonl):
+        raw = line.strip()
+        # Quick pre-filter
+        if not any(str(gid) in raw for gid in grpids):
+            continue
+        obj = json.loads(raw)
+        gs_id = obj.get("gsId", 0)
+
+        # Learn zone names
+        for z in obj.get("zones", []):
+            zid = z.get("zoneId")
+            ztype = z.get("type", "")
+            if zid and ztype:
+                zone_names[zid] = ztype
+
+        for go in obj.get("objects", []):
+            if go.get("grpId") in grpids:
+                iid = go["instanceId"]
+                zid = go.get("zoneId", 0)
+                if iid not in instances:
+                    instances[iid] = {"grpId": go["grpId"], "zones": []}
+                zones = instances[iid]["zones"]
+                if not zones or zones[-1][1] != zid:
+                    zones.append((gs_id, zid))
+
+    if not instances:
+        print(f"Not found in session.")
+        return
+
+    print(f"\n{'instanceId':>12}  {'grpId':>6}  zone transitions")
+    print("-" * 60)
+    for iid in sorted(instances):
+        info = instances[iid]
+        transitions = " → ".join(
+            f"{zone_names.get(z, f'zone{z}')}(gs{gs})"
+            for gs, z in info["zones"]
+        )
+        print(f"{iid:>12}  {info['grpId']:>6}  {transitions}")
+
+
 def _run_python(script_name, *cli_args):
     """Run a sibling Python script."""
     script = os.path.join(TAPE_DIR, script_name)
@@ -240,7 +375,12 @@ def dispatch(args):
                 extra += ["--start", str(args.start)]
             if args.finish is not None:
                 extra += ["--finish", str(args.finish)]
-            _java("leyline.debug.TraceKt", args.id, args.dir or "", *extra)
+            trace_dir = args.dir or ""
+            if not trace_dir and args.session is not None:
+                trace_dir = _resolve_md_payloads(args.session)
+            _java("leyline.debug.TraceKt", args.id, trace_dir, *extra)
+        elif verb == "find-card":
+            _find_card(args.name, args.session)
         elif verb == "accumulate":
             extra = [args.output] if args.output else []
             if args.start is not None:
@@ -386,8 +526,13 @@ def main():
     p = ss.add_parser("trace", help="Trace an ID across payloads (--start/--finish)")
     p.add_argument("id")
     p.add_argument("dir", nargs="?", default="")
+    p.add_argument("-s", "--session", default=None, help="Session name or substring (resolves MD payloads automatically)")
     p.add_argument("--start", type=int, default=None, help="Only include turns >= N")
     p.add_argument("--finish", type=int, default=None, help="Only include turns <= N")
+
+    p = ss.add_parser("find-card", help="Find card instanceIds in a session by name")
+    p.add_argument("name", help="Card name (partial match)")
+    p.add_argument("-s", "--session", default=None, help="Session name or substring")
 
     p = ss.add_parser("decode-recording", help="Decode recording to JSONL")
     p.add_argument("dir")

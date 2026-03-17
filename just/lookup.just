@@ -37,7 +37,7 @@ card-grp name:
     db=$(echo "{{arena_db}}"/Raw_CardDatabase_*.mtga)
     if [ ! -f "$db" ]; then echo "Arena DB not found at {{arena_db}}" >&2; exit 1; fi
     escaped=$(echo "{{name}}" | sed "s/'/''/g")
-    sqlite3 "$db" "SELECT c.GrpId, l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE l.Formatted = 1 AND l.Loc = '$escaped';"
+    sqlite3 "$db" "SELECT c.GrpId, l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE l.Formatted = 1 AND l.Loc LIKE '%$escaped%';"
 
 # validate all card names in a .pzl puzzle file against Arena's card DB
 [group('lookup')]
