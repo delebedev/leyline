@@ -78,7 +78,7 @@ private fun cmdAnalyzeAll(args: List<String>) {
         if (analysis != null) {
             println(
                 "  ${sessionDir.name}: ${analysis.mechanicsExercised.size} mechanics, " +
-                    "${analysis.invariantViolations.size} violations, ${analysis.cardIndex.size} cards",
+                    "${analysis.annotationCoverage.totalDistinct} annotation types",
             )
             analyzed++
         }
@@ -101,23 +101,7 @@ private fun cmdViolations(args: List<String>) {
         return
     }
 
-    if (analysis.invariantViolations.isEmpty()) {
-        println("${sessionDir.name}: no invariant violations")
-        return
-    }
-
-    println("${sessionDir.name}: ${analysis.invariantViolations.size} violation(s)")
-    for (v in analysis.invariantViolations) {
-        println("  seq=${v.seq} gs=${v.gsId} [${v.check}] ${v.message}")
-    }
-
-    // Also show gsId chain violations
-    if (!analysis.gsidChain.valid) {
-        println("\ngsId chain violations:")
-        for (v in analysis.gsidChain.violations) {
-            println("  seq=${v.seq} [${v.check}] ${v.message}")
-        }
-    }
+    println("${sessionDir.name}: invariant reporting currently suppressed in analysis.json")
 }
 
 private fun cmdMechanics() {
@@ -178,17 +162,17 @@ private fun cmdFind(args: List<String>) {
     var hits = 0
     for (sessionDir in sessions) {
         val analysis = SessionAnalyzer.readAnalysis(sessionDir) ?: continue
-        val matches = analysis.cardIndex.filter {
-            it.name.contains(keyword, ignoreCase = true)
+        val matches = analysis.mechanicsExercised.filter {
+            it.type.contains(keyword, ignoreCase = true)
         }
         if (matches.isNotEmpty()) {
             hits++
             val mode = analysis.mode.padEnd(6)
-            println("${sessionDir.name}  $mode  T${analysis.turns}  ${matches.joinToString(", ") { "${it.name} (${it.grpId})" }}")
+            println("${sessionDir.name}  $mode  T${analysis.turns}  ${matches.joinToString(", ") { "${it.type} x${it.count}" }}")
         }
     }
     if (hits == 0) {
-        println("No sessions with cards matching '$keyword'. Run 'just rec-analyze-all --force' to rebuild card indexes.")
+        println("No sessions with mechanics matching '$keyword'.")
     } else {
         println("\n$hits session(s) found.")
     }
@@ -217,8 +201,7 @@ private fun printAnalysisSummary(analysis: SessionAnalyzer.Analysis) {
     println("Analysis: ${analysis.session}")
     println("  mode: ${analysis.mode}  termination: ${analysis.termination}")
     println("  turns: ${analysis.turns}  winner: ${analysis.winner}  duration: ${analysis.durationMs / 1000}s")
-    println("  gsId chain: ${if (analysis.gsidChain.valid) "valid" else "BROKEN"} (${analysis.gsidChain.length} GSMs)")
-    println("  violations: ${analysis.invariantViolations.size}")
+    println("  annotation coverage: ${analysis.annotationCoverage.totalDistinct} types")
     if (analysis.mechanicsExercised.isNotEmpty()) {
         println("  mechanics: ${analysis.mechanicsExercised.joinToString(", ") { "${it.type} x${it.count}" }}")
     }
