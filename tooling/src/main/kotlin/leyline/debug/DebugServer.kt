@@ -433,7 +433,7 @@ class DebugServer(
             respondJsonList(ex, "[]", null)
             return
         }
-        respondJsonList(ex, json.encodeToString(analysis.invariantViolations), null)
+        respondJsonList(ex, "[]", null)
     }
 
     private fun serveRecordingMechanics(ex: HttpExchange) {
