@@ -22,7 +22,6 @@
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun staticContent()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun storeStatus()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun telemetryAck()</ID>
-    <ID>ImplicitDefaultLocale:FrontDoorHandler.kt$FrontDoorHandler$String.format("%02x", frameType)</ID>
     <ID>LongMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
     <ID>LongParameterList:FrontDoorHandler.kt$FrontDoorHandler$( private val playerId: PlayerId, private val deckService: DeckService, private val playerService: PlayerService, private val matchmaking: MatchmakingService, private val collectionService: CollectionService, private val courseService: CourseService, private val draftService: DraftService, private val writer: FdResponseWriter, private val golden: GoldenData, private val onFdMessage: ((String, FdEnvelope.FdMessage) -&gt; Unit)? = null, private val coordinator: MatchCoordinator = MatchCoordinator.NOOP, private val matchmakingQueue: MatchmakingQueue? = null, )</ID>
     <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"clone-1","Name":"Imported Deck (4)","DeckTileId":55,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":200,"quantity":2}],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Cloned"}"""</ID>
@@ -30,15 +29,6 @@
     <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"Fav","DeckTileId":0,"Attributes":[{"name":"IsFavorite","value":"true"},{"name":"Format","value":"Standard"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""</ID>
     <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"My Deck","DeckTileId":99,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":100,"quantity":4}],"Sideboard":[],"CommandZone":[],"Companions":[],"CardSkins":[]},"ActionType":"CreatedNew"}"""</ID>
     <ID>MaxLineLength:LobbyStubs.kt$LobbyStubs$fun rankInfo()</ID>
-    <ID>UnusedParameter:CollectionService.kt$CollectionService$playerId: PlayerId?</ID>
     <ID>UnusedParameter:MatchmakingService.kt$MatchmakingService$playerId: PlayerId</ID>
-    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$// --- Request field numbers --- private const val REQ_TYPE = 1 // varint (RequestType)</ID>
-    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val ANY_VALUE = 2 // bytes field in google.protobuf.Any</ID>
-    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val REQ_JSON_PAYLOAD = 5 // bytes (JSON)</ID>
-    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val REQ_KEY = 3 // string</ID>
-    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val REQ_TRANS_ID = 2 // string</ID>
-    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$private const val TYPE_PREFIX = "type.googleapis.com/"</ID>
-    <ID>UnusedPrivateProperty:FdEnvelope.kt$FdEnvelope$val field4 = fields.firstOrNull { it.fieldNumber == 4 }</ID>
-    <ID>UseRequire:MatchmakingService.kt$MatchmakingService$throw IllegalArgumentException("Deck '${deck.name}' not legal in $forgeFormat: $problem")</ID>
   </CurrentIssues>
 </SmellBaseline>

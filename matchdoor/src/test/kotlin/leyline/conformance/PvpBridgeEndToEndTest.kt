@@ -67,8 +67,6 @@ class PvpBridgeEndToEndTest :
 
             // With seed 42, determine who goes first
             val seat1Player = b.getPlayer(SeatId(1))!!
-            val isHumanFirst = game.phaseHandler.playerTurn == seat1Player
-
             // Advance seat 1 to Main1 (seat 2 auto-passes through their priority stops)
             val main1 = advanceToSeat(b, 1, "MAIN1")
             main1.state.phase shouldBe "MAIN1"
@@ -105,7 +103,7 @@ class PvpBridgeEndToEndTest :
             // Spell on stack — pass priority to let it resolve (seat 2 auto-passes)
             val afterStack = awaitFreshPendingForSeat(b, 1, afterLand.actionId)!!
             b.actionBridge(1).submitAction(afterStack.actionId, PlayerAction.PassPriority)
-            val afterCast = awaitFreshPendingForSeat(b, 1, afterStack.actionId)!!
+            awaitFreshPendingForSeat(b, 1, afterStack.actionId)!!
 
             // Creature resolved onto battlefield
             seat1Player.getZone(ZoneType.Battlefield).cards

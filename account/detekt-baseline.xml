@@ -3,6 +3,5 @@
   <ManuallySuppressedIssues></ManuallySuppressedIssues>
   <CurrentIssues>
     <ID>MatchingDeclarationName:ErrorResponse.kt$AccountError</ID>
-    <ID>MayBeConst:TokenService.kt$TokenService.Companion$private val HEADER_NONE = """{"alg":"none","typ":"JWT"}"""</ID>
   </CurrentIssues>
 </SmellBaseline>

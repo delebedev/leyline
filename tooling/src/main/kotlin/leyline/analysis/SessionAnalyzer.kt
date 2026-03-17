@@ -61,12 +61,6 @@ object SessionAnalyzer {
         val totalDistinct: Int = 0,
     )
 
-    @Serializable
-    data class CardSeen(
-        val grpId: Int,
-        val name: String = "",
-    )
-
     /**
      * Analyze a session directory and write analysis.json.
      *
@@ -202,59 +196,6 @@ object SessionAnalyzer {
 
     // --- Private helpers ---
 
-    /**
-     * Build card index from all objects seen in the session.
-     * Uses [allMessages] (no seat filter) to catch both players' cards.
-     */
-    private fun buildCardIndex(messages: List<RecordingDecoder.DecodedMessage>): List<CardSeen> {
-        val grpIds = messages
-            .flatMap { it.objects }
-            .map { it.grpId }
-            .filter { it > 0 }
-            .distinct()
-            .sorted()
-        if (grpIds.isEmpty()) return emptyList()
-
-        val names = resolveCardNames(grpIds)
-        return grpIds.map { CardSeen(it, names[it] ?: "") }
-    }
-
-    /**
-     * Resolve grpIds to card names via Arena's local SQLite DB.
-     * Same DB and query pattern as `just card` in lookup.just.
-     * Returns empty map if DB not found (CI, no Arena installed).
-     */
-    private fun resolveCardNames(grpIds: List<Int>): Map<Int, String> {
-        val rawDir = File(
-            System.getenv("HOME") ?: "/tmp",
-            "Library/Application Support/com.wizards.mtga/Downloads/Raw",
-        )
-        val dbFile = rawDir.listFiles()
-            ?.firstOrNull { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
-            ?: return emptyMap()
-
-        val inClause = grpIds.joinToString(",")
-        val query = "SELECT c.GrpId, l.Loc FROM Cards c " +
-            "JOIN Localizations_enUS l ON c.TitleId = l.LocId " +
-            "WHERE c.GrpId IN ($inClause);"
-        return try {
-            val process = ProcessBuilder("sqlite3", dbFile.absolutePath, query)
-                .redirectErrorStream(true)
-                .start()
-            val output = process.inputStream.bufferedReader().readText()
-            process.waitFor()
-            output.lines()
-                .filter { it.contains("|") }
-                .associate {
-                    val parts = it.split("|", limit = 2)
-                    parts[0].toInt() to parts[1]
-                }
-        } catch (e: Exception) {
-            log.debug("Card name resolution failed: {}", e.message)
-            emptyMap()
-        }
-    }
-
     private fun detectWinner(messages: List<RecordingDecoder.DecodedMessage>): String {
         // Look for IntermissionReq (game over indicator)
         val hasIntermission = messages.any { it.hasIntermissionReq }
@@ -287,43 +228,10 @@ object SessionAnalyzer {
         return MechanicClassifier.classifyFromStrings(mechanics)
     }
 
-    /**
-     * Replay engine .bin files through protobuf parser to get actual GRE messages
-     * for invariant checking. Filters to seat 1 to avoid duplicates from mirror path.
-     */
-    private fun replayGREMessages(sourceDir: File, seatFilter: Int = 1): List<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage> {
-        if (!sourceDir.isDirectory) return emptyList()
-        val result = mutableListOf<wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage>()
-        val files = RecordingDecoder.listRecordingFiles(sourceDir).sortedBy { it.name }
-
-        for (file in files) {
-            try {
-                val bytes = file.readBytes()
-                val matchMsg = RecordingDecoder.parseMatchMessage(bytes) ?: continue
-                if (matchMsg.hasGreToClientEvent()) {
-                    for (gre in matchMsg.greToClientEvent.greToClientMessagesList) {
-                        val seats = gre.systemSeatIdsList.map { it.toInt() }
-                        if (seats.isNotEmpty() && seatFilter !in seats) continue
-                        result.add(gre)
-                    }
-                }
-            } catch (_: Exception) {
-                // Skip unparseable files
-            }
-        }
-        return result
-    }
-
-    private fun parseAnnotationType(typeName: String): Int? {
-        // Annotation type names are like "AnnotationType_CardPlayed_1234" — extract the number
-        val match = Regex("_(\\d+)$").find(typeName)
-        return match?.groupValues?.get(1)?.toIntOrNull()
-    }
-
     private fun findInterestingMoments(
         messages: List<RecordingDecoder.DecodedMessage>,
-        mechanics: List<MechanicClassifier.MechanicCount>,
-        sessionDir: File,
+        @Suppress("UnusedParameter") mechanics: List<MechanicClassifier.MechanicCount>,
+        @Suppress("UnusedParameter") sessionDir: File,
     ): List<InterestingMoment> {
         val moments = mutableListOf<InterestingMoment>()
         val manifest = readManifest()

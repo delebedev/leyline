@@ -17,8 +17,6 @@
     <ID>ReturnCount:GameFlowAnalyzer.kt$GameFlowAnalyzer$private fun isGameStartAt(i: Int): Boolean</ID>
     <ID>ReturnCount:RecordingCli.kt$fun main(args: Array&lt;String&gt;)</ID>
     <ID>SwallowedException:DebugServer.kt$DebugServer$e: IllegalStateException</ID>
-    <ID>UnusedParameter:SessionAnalyzer.kt$SessionAnalyzer$mechanics: List&lt;MechanicClassifier.MechanicCount&gt;</ID>
-    <ID>UnusedParameter:SessionAnalyzer.kt$SessionAnalyzer$sessionDir: File</ID>
     <ID>UnusedParameter:Trace.kt$field: FieldDescriptor</ID>
     <ID>UnusedPrivateMember:LeylinePaths.kt$private fun File.walkUpFind(pred: (File) -&gt; Boolean): File?</ID>
     <ID>UnusedPrivateProperty:RecordingInspector.kt$RecordingInspector$private val recordingsRoot = LeylinePaths.RECORDINGS</ID>

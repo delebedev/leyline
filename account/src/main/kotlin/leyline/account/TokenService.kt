@@ -121,7 +121,7 @@ class TokenService(
         val DEFAULT_ROLES = listOf("MDNALPHA")
         val DEBUG_ROLES = DEFAULT_ROLES + "MTGA_DEBUG"
 
-        private val HEADER_NONE = """{"alg":"none","typ":"JWT"}"""
+        private const val HEADER_NONE = """{"alg":"none","typ":"JWT"}"""
 
         private val CLAIM_EXP = """"exp"\s*:\s*(\d+)""".toRegex()
         private val CLAIM_SUB = """"sub"\s*:\s*"([^"]+)"""".toRegex()

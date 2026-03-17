@@ -9,7 +9,6 @@
     <ID>CyclomaticComplexMethod:AnnotationBuilder.kt$AnnotationBuilder$private fun zoneChangedCategory(ev: GameEvent.ZoneChanged): TransferCategory</ID>
     <ID>CyclomaticComplexMethod:AnnotationPipeline.kt$AnnotationPipeline$fun inferCategory(obj: GameObjectInfo, srcZone: Int, destZone: Int): TransferCategory</ID>
     <ID>CyclomaticComplexMethod:MatchSession.kt$MatchSession$override fun onPerformAction(greMsg: ClientToGREMessage)</ID>
-    <ID>CyclomaticComplexMethod:StateMapper.kt$StateMapper$fun buildFromGame( game: Game, gameStateId: Int, matchId: String, bridge: GameBridge, actions: ActionsAvailableReq? = null, updateType: GameStateUpdate = GameStateUpdate.SendAndRecord, viewingSeatId: Int = 0, ): GameStateMessage</ID>
     <ID>CyclomaticComplexMethod:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
     <ID>CyclomaticComplexMethod:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostRemoveCounter): PaymentDecision?</ID>
     <ID>CyclomaticComplexMethod:WebPlayerController.kt$WebPlayerController$override fun chooseSpellAbilityToPlay(): List&lt;SpellAbility&gt;?</ID>
@@ -63,7 +62,6 @@
     <ID>UnusedPrivateMember:GameBootstrap.kt$GameBootstrap$private fun addCardToZone(name: String, player: Player, zone: ZoneType): Card</ID>
     <ID>UnusedPrivateProperty:AiLandPlayOrderTest.kt$AiLandPlayOrderTest$val turn1Diffs = gsMessages .filter { it.gameStateMessage.turnInfo.turnNumber == 1 } .map { gre -&gt; val gsm = gre.gameStateMessage val cats = gsm.annotationsList .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) } .flatMap { ann -&gt; ann.detailsList.filter { it.key == "category" }.flatMap { it.valueStringList } } "gsId=${gsm.gameStateId} objs=${gsm.gameObjectsCount} cats=$cats" }</ID>
     <ID>UnusedPrivateProperty:AiTurnConformanceTest.kt$AiTurnConformanceTest$i</ID>
-    <ID>UnusedPrivateProperty:BlockerDeclarationTest.kt$BlockerDeclarationTest$i</ID>
     <ID>UnusedPrivateProperty:CardDataDeriver.kt$CardDataDeriver$private val log = LoggerFactory.getLogger(CardDataDeriver::class.java)</ID>
     <ID>UnusedPrivateProperty:CombatFlowTest.kt$CombatFlowTest$i</ID>
     <ID>UnusedPrivateProperty:DeclareBlockersDedupeTest.kt$DeclareBlockersDedupeTest$i</ID>
