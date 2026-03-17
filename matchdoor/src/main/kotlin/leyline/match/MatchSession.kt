@@ -327,13 +327,13 @@ class MatchSession(
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
     override fun onSelectTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
-        targetingHandler.onSelectTargets(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
+        targetingHandler.onSelectTargets(greMsg, bridge)
     }
 
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
     override fun onSubmitTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
-        targetingHandler.onSubmitTargets(bridge) { autoPassEngine.autoPassAndAdvance(it) }
+        targetingHandler.onSubmitTargets(bridge)
     }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */

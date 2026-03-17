@@ -38,6 +38,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Naming: `xxxBundle` → [BundleResult] (multi-message). Standalone helpers
  * ([queuedGameState], [edictalPass]) return single [GREToClientMessage].
  */
+@Suppress("LargeClass")
 object BundleBuilder {
 
     data class BundleResult(

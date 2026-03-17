@@ -603,6 +603,7 @@ object RecordingDecoder {
     /** Decode a single GREToClientMessage. */
     fun decodeGRE(gre: GREToClientMessage, index: Int, fileName: String): DecodedMessage {
         val gsm = if (gre.hasGameStateMessage()) gre.gameStateMessage else null
+        val groupReq = summarizeGroupReq(gre)
 
         return DecodedMessage(
             index = index,
@@ -632,41 +633,48 @@ object RecordingDecoder {
                 ?.castingTimeOptionsReq?.castingTimeOptionReqList
                 ?.map { summarizeCastingTimeOption(it) } ?: emptyList(),
             edictal = summarizeEdictal(gre),
-            groupReq = gre.takeIf { it.hasGroupReq() }?.groupReq?.let { req ->
-                GroupReqSummary(
-                    instanceIds = req.instanceIdsList.map { it.toInt() },
-                    groupSpecs = req.groupSpecsList.map { spec ->
-                        GroupSpecSummary(
-                            lowerBound = spec.lowerBound,
-                            upperBound = spec.upperBound,
-                            zoneType = spec.zoneType.name.strip(),
-                            subZoneType = spec.subZoneType.name.strip().takeIf { it != "None" },
-                        )
-                    },
-                    groupType = req.groupType.name.strip(),
-                    context = req.context.name.strip(),
-                    sourceId = req.sourceId,
-                )
-            },
+            groupReq = groupReq,
             players = gsm?.playersList?.map { summarizePlayer(it) } ?: emptyList(),
             turnInfo = gsm?.takeIf { it.hasTurnInfo() }?.turnInfo?.let { summarizeTurn(it) },
             promptId = gre.takeIf { it.hasPrompt() && it.prompt.promptId != 0 }?.prompt?.promptId,
             systemSeatIds = gre.systemSeatIdsList.map { it.toInt() },
-            promptType = when {
-                gre.hasDeclareAttackersReq() -> "DeclareAttackersReq"
-                gre.hasDeclareBlockersReq() -> "DeclareBlockersReq"
-                gre.hasGroupReq() -> "GroupReq"
-                gre.hasSelectTargetsReq() -> "SelectTargetsReq"
-                else -> null
-            },
-            promptData = when {
-                gre.hasDeclareAttackersReq() -> protoToJsonElement(gre.declareAttackersReq)
-                gre.hasDeclareBlockersReq() -> protoToJsonElement(gre.declareBlockersReq)
-                gre.hasGroupReq() -> protoToJsonElement(gre.groupReq)
-                gre.hasSelectTargetsReq() -> protoToJsonElement(gre.selectTargetsReq)
-                else -> null
-            },
+            promptType = summarizePromptType(gre),
+            promptData = summarizePromptData(gre),
         )
+    }
+
+    private fun summarizeGroupReq(gre: GREToClientMessage): GroupReqSummary? =
+        gre.takeIf { it.hasGroupReq() }?.groupReq?.let { req ->
+            GroupReqSummary(
+                instanceIds = req.instanceIdsList.map { it.toInt() },
+                groupSpecs = req.groupSpecsList.map { spec ->
+                    GroupSpecSummary(
+                        lowerBound = spec.lowerBound,
+                        upperBound = spec.upperBound,
+                        zoneType = spec.zoneType.name.strip(),
+                        subZoneType = spec.subZoneType.name.strip().takeIf { it != "None" },
+                    )
+                },
+                groupType = req.groupType.name.strip(),
+                context = req.context.name.strip(),
+                sourceId = req.sourceId,
+            )
+        }
+
+    private fun summarizePromptType(gre: GREToClientMessage): String? = when {
+        gre.hasDeclareAttackersReq() -> "DeclareAttackersReq"
+        gre.hasDeclareBlockersReq() -> "DeclareBlockersReq"
+        gre.hasGroupReq() -> "GroupReq"
+        gre.hasSelectTargetsReq() -> "SelectTargetsReq"
+        else -> null
+    }
+
+    private fun summarizePromptData(gre: GREToClientMessage): JsonElement? = when {
+        gre.hasDeclareAttackersReq() -> protoToJsonElement(gre.declareAttackersReq)
+        gre.hasDeclareBlockersReq() -> protoToJsonElement(gre.declareBlockersReq)
+        gre.hasGroupReq() -> protoToJsonElement(gre.groupReq)
+        gre.hasSelectTargetsReq() -> protoToJsonElement(gre.selectTargetsReq)
+        else -> null
     }
 
     private fun summarizeZone(z: ZoneInfo): ZoneSummary = ZoneSummary(

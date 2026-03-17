@@ -42,9 +42,7 @@ class MatchmakingService(
         val forgeFormat = EventRegistry.forgeFormatFor(eventName)
         if (forgeFormat != null && validateDeck != null) {
             val problem = validateDeck.invoke(deck.mainDeck, deck.sideboard, forgeFormat)
-            if (problem != null) {
-                throw IllegalArgumentException("Deck '${deck.name}' not legal in $forgeFormat: $problem")
-            }
+            require(problem == null) { "Deck '${deck.name}' not legal in $forgeFormat: $problem" }
             log.info("Deck '{}' validated for format {}", deck.name, forgeFormat)
         }
 
@@ -65,6 +63,6 @@ class MatchmakingService(
     )
 
     /** Convenience: delegates to [startMatch]. */
-    fun startAiMatch(playerId: PlayerId, deckId: DeckId, eventName: String = "AIBotMatch"): MatchInfo =
+    fun startAiMatch(@Suppress("UnusedParameter") playerId: PlayerId, deckId: DeckId, eventName: String = "AIBotMatch"): MatchInfo =
         startMatch(playerId, deckId, eventName)
 }

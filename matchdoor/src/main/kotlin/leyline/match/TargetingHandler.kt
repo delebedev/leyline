@@ -60,7 +60,6 @@ class TargetingHandler(private val ops: SessionOps) {
     fun onSelectTargets(
         greMsg: ClientToGREMessage,
         bridge: GameBridge,
-        autoPass: (GameBridge) -> Unit,
     ) {
         val resp = greMsg.selectTargetsResp
         val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: run {
@@ -108,7 +107,6 @@ class TargetingHandler(private val ops: SessionOps) {
      */
     fun onSubmitTargets(
         bridge: GameBridge,
-        autoPass: (GameBridge) -> Unit,
     ) {
         val pending = pendingTargetSelection
         if (pending == null) {
@@ -129,7 +127,6 @@ class TargetingHandler(private val ops: SessionOps) {
 
         bridge.promptBridge.submitResponse(pending.promptId, pending.selectedIndices)
         bridge.awaitPriority()
-        autoPass(bridge)
     }
 
     /**

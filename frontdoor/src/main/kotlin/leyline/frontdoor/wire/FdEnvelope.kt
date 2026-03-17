@@ -41,12 +41,6 @@ object FdEnvelope {
     private const val CMD_TRANS_ID = 2 // string
     private const val CMD_JSON_PAYLOAD = 4 // bytes (JSON)
 
-    // --- Request field numbers ---
-    private const val REQ_TYPE = 1 // varint (RequestType)
-    private const val REQ_TRANS_ID = 2 // string
-    private const val REQ_KEY = 3 // string
-    private const val REQ_JSON_PAYLOAD = 5 // bytes (JSON)
-
     // --- Response field numbers ---
     private const val RESP_TRANS_ID = 1 // string
     private const val RESP_JSON_PAYLOAD = 3 // bytes (JSON)
@@ -119,7 +113,6 @@ object FdEnvelope {
             // so field 1 is absent. Detect by: field 2 is UUID, field 4 is payload.
             field1 == null || (field1.wireType == WIRE_LENGTH_DELIMITED && !isLikelyUuid(field1.asString())) -> {
                 val field2 = fields.firstOrNull { it.fieldNumber == 2 }
-                val field4 = fields.firstOrNull { it.fieldNumber == 4 }
                 if (field2 != null && isLikelyUuid(field2.asString())) {
                     // Cmd with CmdType=0 (omitted default)
                     decodeCmd(fields, 0, isCompressed)
@@ -211,8 +204,6 @@ object FdEnvelope {
     // --- Response field 2 (protobuf_payload) ---
     private const val RESP_PROTO_PAYLOAD = 2 // bytes (protobuf Any)
     private const val ANY_TYPE_URL = 1 // string field in google.protobuf.Any
-    private const val ANY_VALUE = 2 // bytes field in google.protobuf.Any
-    private const val TYPE_PREFIX = "type.googleapis.com/"
 
     /**
      * Encode an empty Response envelope (S→C ack, no payload).

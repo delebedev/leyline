@@ -41,6 +41,7 @@ import leyline.frontdoor.wire.FdWireConstants
 import leyline.frontdoor.wire.PlayerWireBuilder
 import leyline.frontdoor.wire.StartHookBuilder
 import org.slf4j.LoggerFactory
+import java.util.Locale
 import java.util.UUID
 
 /**
@@ -109,7 +110,7 @@ class FrontDoorHandler(
             if (bytes.size < FdWireConstants.HEADER_SIZE) return
 
             val frameType = bytes[1]
-            log.debug("Front Door: frame type=0x{} size={}", String.format("%02x", frameType), bytes.size)
+            log.debug("Front Door: frame type=0x{} size={}", String.format(Locale.ROOT, "%02x", frameType), bytes.size)
 
             // Control frames
             if (frameType == FdWireConstants.TYPE_CTRL_INIT) {

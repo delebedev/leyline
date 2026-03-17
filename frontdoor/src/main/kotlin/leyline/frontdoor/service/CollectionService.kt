@@ -28,7 +28,7 @@ class CollectionService(
      * Returns the card collection for [playerId] as grpId → owned count.
      * Currently returns all non-token cards × 4 (full playset).
      */
-    fun getCollection(playerId: PlayerId?): Map<Int, Int> {
+    fun getCollection(@Suppress("UnusedParameter") playerId: PlayerId?): Map<Int, Int> {
         val grpIds = allGrpIds()
         if (grpIds.isEmpty()) {
             log.warn("Card DB returned no grpIds — collection will be empty")
