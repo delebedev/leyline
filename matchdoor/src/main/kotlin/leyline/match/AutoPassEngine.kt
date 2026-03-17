@@ -29,6 +29,9 @@ class AutoPassEngine(
 ) {
     private val log = LoggerFactory.getLogger(AutoPassEngine::class.java)
 
+    /** Control flow signal from [advanceOrWait]. */
+    private enum class LoopSignal { CONTINUE, EXIT }
+
     companion object {
         private const val MAX_ITERATIONS = 50
         private const val MAX_DECISIONS = 200
@@ -126,7 +129,10 @@ class AutoPassEngine(
             }
 
             // Auto-pass or wait
-            advanceOrWait(bridge, game, phase, isAiTurn) ?: return
+            when (advanceOrWait(bridge, game, phase, isAiTurn)) {
+                LoopSignal.EXIT -> return
+                LoopSignal.CONTINUE -> {} // next iteration
+            }
         }
 
         log.warn("autoPassAndAdvance: hit max iterations ({})", MAX_ITERATIONS)
@@ -206,10 +212,11 @@ class AutoPassEngine(
     }
 
     /**
-     * Submit auto-pass or wait for AI/engine. Returns Unit on success (loop continues),
-     * or null to signal the caller should return (game over / timeout).
+     * Submit auto-pass or wait for AI/engine. Returns [LoopSignal.CONTINUE] to
+     * keep iterating, or [LoopSignal.EXIT] when the caller should return
+     * (priority granted to client, game over, or timeout).
      */
-    private fun advanceOrWait(bridge: GameBridge, game: Game, phase: PhaseType?, isAiTurn: Boolean): Unit? {
+    private fun advanceOrWait(bridge: GameBridge, game: Game, phase: PhaseType?, isAiTurn: Boolean): LoopSignal {
         val pending = bridge.actionBridge.getPending()
         log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
 
@@ -221,7 +228,7 @@ class AutoPassEngine(
             if (isAiTurn && phase != null && autoPassState.hasOpponentStop(phase)) {
                 ops.traceEvent(MatchEventType.SEND_STATE, game, "opponentStop: ${phase.name}")
                 ops.sendRealGameState(bridge)
-                return null // exit loop — client will respond via onPerformAction
+                return LoopSignal.EXIT // client will respond via onPerformAction
             }
 
             ops.traceEvent(MatchEventType.AUTO_PASS, game, "human priority, pass-only")
@@ -242,18 +249,18 @@ class AutoPassEngine(
                 if (g != null && g.isGameOver) {
                     ops.traceEvent(MatchEventType.GAME_OVER, game, "game over during AI wait")
                     ops.sendGameOver()
-                    return null
+                    return LoopSignal.EXIT
                 }
                 ops.traceEvent(MatchEventType.AI_TURN_TIMEOUT, game, "AI turn timed out")
                 log.warn("autoPass: AI turn timed out, sending current state")
                 ops.sendRealGameState(bridge)
-                return null
+                return LoopSignal.EXIT
             }
         } else {
             ops.traceEvent(MatchEventType.PRIORITY_GRANT, game, "waiting for engine")
             log.warn("autoPass: no pending action, waiting for priority")
             bridge.awaitPriority()
         }
-        return Unit
+        return LoopSignal.CONTINUE
     }
 }
