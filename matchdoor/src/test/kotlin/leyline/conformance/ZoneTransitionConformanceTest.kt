@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import forge.game.ability.AbilityKey
+import forge.game.card.CardView
 import forge.game.card.CounterEnumType
 import forge.game.player.Player
 import forge.game.zone.ZoneType
@@ -191,7 +192,7 @@ class ZoneTransitionConformanceTest :
             val forgeCardId = creature.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
-                game.fireEvent(forge.game.event.GameEventCardSacrificed(creature))
+                game.fireEvent(forge.game.event.GameEventCardSacrificed(CardView.get(creature)))
                 game.action.moveToGraveyard(creature, null)
             }
             val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))

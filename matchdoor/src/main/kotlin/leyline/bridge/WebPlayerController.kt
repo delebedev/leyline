@@ -20,6 +20,7 @@ import forge.game.cost.CostPayment
 import forge.game.keyword.KeywordInterface
 import forge.game.mana.ManaConversionMatrix
 import forge.game.player.DelayedReveal
+import forge.game.player.PlaySpellAbility
 import forge.game.player.Player
 import forge.game.player.PlayerActionConfirmMode
 import forge.game.player.PlayerController.BinaryChoiceType
@@ -647,22 +648,21 @@ class WebPlayerController(
     override fun chooseCardsToDiscardUnlessType(
         min: Int,
         hand: CardCollectionView,
-        param: String,
+        param: Array<String>,
         sa: SpellAbility,
     ): CardCollectionView {
-        val splitTypes = param.split(",")
         val labels = hand.map { card ->
             val isMatchingType = card.isValid(
-                splitTypes.toTypedArray(),
+                param,
                 sa.activatingPlayer,
                 sa.hostCard,
                 sa,
             )
-            if (isMatchingType) "${card.name} (${splitTypes.joinToString("/")})" else card.name
+            if (isMatchingType) "${card.name} (${param.joinToString("/")})" else card.name
         }
         val request = PromptRequest(
             promptType = "choose_cards",
-            message = "Choose $min card(s) to discard (or pick a ${splitTypes.joinToString("/")} to reveal)",
+            message = "Choose $min card(s) to discard (or pick a ${param.joinToString("/")} to reveal)",
             options = labels,
             min = 1,
             max = min,
@@ -707,6 +707,22 @@ class WebPlayerController(
         source: Card,
         orString: String?,
     ): forge.game.cost.CostDecisionMakerBase = WebCostDecision(this, p, sa, effect, bridge, source, orString)
+
+    override fun getCostDecisionMaker(
+        player: Player,
+        ability: SpellAbility,
+        effect: Boolean,
+        prompt: String?,
+    ): forge.game.cost.CostDecisionMakerBase =
+        WebCostDecision(
+            this,
+            player,
+            ability,
+            effect,
+            bridge,
+            ability.hostCard,
+            PlaySpellAbility.getOrStringFromCost(ability, prompt),
+        )
 
     // -- Seam 2: Target Selection -----------------------------------------
     // Bridge-based interactive target selection.
@@ -825,6 +841,26 @@ class WebPlayerController(
         return ComputerUtilMana.payManaCost(toPay, sa, activator, effect)
     }
 
+    override fun payManaCost(
+        toPay: forge.card.mana.ManaCost,
+        costPartMana: forge.game.cost.CostPartMana,
+        sa: SpellAbility,
+        prompt: String?,
+        matrix: forge.game.mana.ManaConversionMatrix?,
+        effect: Boolean,
+    ): Boolean = PlaySpellAbility.payManaCost(this, toPay, costPartMana, sa, player, prompt, matrix, effect)
+
+    override fun applyManaToCost(
+        toPay: forge.game.mana.ManaCostBeingPaid,
+        ability: SpellAbility,
+        prompt: String?,
+        matrix: forge.game.mana.ManaConversionMatrix?,
+        effect: Boolean,
+    ): Boolean {
+        val safeMatrix = matrix ?: forge.game.mana.ManaConversionMatrix().also { it.restoreColorReplacements() }
+        return payManaInteractively(toPay, ability, player, safeMatrix, effect, prompt)
+    }
+
     // -- Seam 4a: Select card during cost resolution ----------------------
 
     override fun selectCardForCostDuringResolve(
@@ -864,6 +900,18 @@ class WebPlayerController(
         if (available.size < amount) return null
         val result = chooseCardsViaBridge(available, amount, amount, message)
         return if (result.size == amount) result else null
+    }
+
+    override fun chooseCardsForCost(
+        optionList: forge.game.card.CardCollectionView,
+        sa: SpellAbility,
+        cpl: forge.game.cost.CostPartWithList,
+        amount: Int,
+        isOptional: Boolean,
+        prompt: String,
+    ): forge.game.card.CardCollectionView {
+        val min = if (isOptional) 0 else amount
+        return chooseCardsViaBridge(optionList, min, amount, prompt)
     }
 
     // -- Seam 5: chooseNumberForKeywordCost ----------------------------------
@@ -963,7 +1011,7 @@ class WebPlayerController(
         sa.hostCard?.setSplitStateToPlayAbility(sa)
 
         val needsTargeting = sa.usesTargeting() && sa.targets.isEmpty()
-        val req = forge.player.HumanPlaySpellAbility(this, sa)
+        val req = PlaySpellAbility(this, sa)
         return req.playAbility(needsTargeting, false, false)
     }
 
@@ -1015,18 +1063,16 @@ class WebPlayerController(
         return mb.awaitKeepDecision(player.id, cardsToReturn)
     }
 
-    override fun tuckCardsViaMulligan(mulliganingPlayer: Player, cardsToReturn: Int): CardCollectionView {
+    override fun tuckCardsViaMulligan(hand: CardCollectionView, cardsToReturn: Int): CardCollectionView {
         if (cardsToReturn <= 0) return CardCollection()
         val mb = mulliganBridge ?: run {
             log.debug("tuckCardsViaMulligan: no bridge, auto-tuck {} for {}", cardsToReturn, player.name)
-            val hand = player.getZone(ZoneType.Hand).cards
             val toReturn = CardCollection()
             for (i in 0 until cardsToReturn.coerceAtMost(hand.size)) {
                 toReturn.add(hand[i])
             }
             return toReturn
         }
-        val hand = player.getCardsIn(ZoneType.Hand)
         val cards = mb.awaitTuckDecision(player.id, cardsToReturn, hand)
         return CardCollection(cards)
     }
@@ -1037,11 +1083,6 @@ class WebPlayerController(
         log.debug("chooseStartingPlayer: auto-choose self ({})", player.name)
         return player
     }
-
-    // -- Seam 5: confirmMulliganScry ------------------------------------------
-    // PCHuman uses InputConfirm (desktop-only, hangs on web).
-    // Scry is always beneficial after a mulligan, so auto-accept.
-    override fun confirmMulliganScry(p: Player): Boolean = true
 
     // ═══════════════════════════════════════════════════════════════════
     // Game-loop overrides (active only when actionBridge is set)

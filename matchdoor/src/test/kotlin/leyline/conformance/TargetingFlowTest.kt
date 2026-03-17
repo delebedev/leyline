@@ -42,38 +42,13 @@ class TargetingFlowTest :
         // --- Setup helpers ---
 
         fun setupForTargeting(): Int {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
+            val h = MatchFlowHarness(validating = false)
             harness = h
-            h.connectAndKeep()
-
-            h.installScriptedAi(
-                listOf(
-                    ScriptedAction.PlayLand("Forest"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.PassPriority,
-                    ScriptedAction.PlayLand("Forest"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.PassPriority,
-                    ScriptedAction.PlayLand("Forest"),
-                    ScriptedAction.DeclareNoAttackers,
-                    ScriptedAction.PassPriority,
-                ),
-            )
-
-            // Turn 1: play Forest, cast creature
-            h.playLand().shouldBeTrue()
-            h.castCreature().shouldBeTrue()
-            h.passPriority() // resolve creature
-
-            // Advance past turn 1 — may overshoot to turn 3, that's fine
-            h.passPriority()
-
-            // Play another land if we can (for mana)
-            h.playLand()
+            h.connectAndKeepPuzzle("puzzles/pump-spell.pzl")
 
             // Verify prerequisites (turn-agnostic)
             h.isAiTurn().shouldBeFalse()
-            h.turn() shouldBeGreaterThanOrEqualTo 2
+            h.turn() shouldBeGreaterThanOrEqualTo 1
 
             val creatures = h.humanBattlefieldCreatures()
             creatures.shouldNotBeEmpty()
@@ -91,6 +66,22 @@ class TargetingFlowTest :
             puzzleHarness = h
             h.connectAndKeepPuzzle("puzzles/bolt-face.pzl")
             return h
+        }
+
+        fun waitForBuffedCreature(h: MatchFlowHarness, creatureIid: Int): forge.game.card.Card {
+            repeat(6) {
+                val player = h.bridge.getPlayer(SeatId(1))!!
+                val creature = player.getZone(ForgeZoneType.Battlefield).cards
+                    .firstOrNull { h.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value == creatureIid }
+                if (creature != null && creature.netPower >= 4 && creature.netToughness >= 4) {
+                    return creature
+                }
+                h.passPriority()
+            }
+            val player = h.bridge.getPlayer(SeatId(1))!!
+            return player.getZone(ForgeZoneType.Battlefield).cards
+                .firstOrNull { h.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value == creatureIid }
+                ?: error("Target creature not found after Giant Growth")
         }
 
         test("targeted spell emits SelectTargetsReq") {
@@ -134,18 +125,12 @@ class TargetingFlowTest :
             val snap = h.messageSnapshot()
             h.selectTargets(listOf(creatureIid))
 
-            // After targeting, the spell is on the stack. Pass to resolve.
-            h.passPriority()
-
             val msgs = h.messagesSince(snap)
             val gsms = msgs.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
             gsms.shouldNotBeEmpty()
 
             // The creature should have updated power/toughness (+3/+3 from Giant Growth)
-            val player = h.bridge.getPlayer(SeatId(1))!!
-            val creature = player.getZone(ForgeZoneType.Battlefield).cards
-                .firstOrNull { h.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value == creatureIid }
-            creature.shouldNotBeNull()
+            val creature = waitForBuffedCreature(h, creatureIid)
             (creature.netPower >= 4).shouldBeTrue()
             (creature.netToughness >= 4).shouldBeTrue()
 
@@ -359,13 +344,9 @@ class TargetingFlowTest :
 
             // Select target and resolve
             h.selectTargets(listOf(creatureIid))
-            h.passPriority()
 
             // Creature should have +3/+3
-            val player = h.bridge.getPlayer(SeatId(1))!!
-            val creature = player.getZone(ForgeZoneType.Battlefield).cards
-                .firstOrNull { h.bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value == creatureIid }
-            creature.shouldNotBeNull()
+            val creature = waitForBuffedCreature(h, creatureIid)
             (creature.netPower >= 4).shouldBeTrue()
 
             h.accumulator.assertConsistent("after cancel + re-cast")

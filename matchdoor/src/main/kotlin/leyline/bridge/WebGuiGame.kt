@@ -4,7 +4,6 @@ import forge.LobbyPlayer
 import forge.ai.GameState
 import forge.game.GameEntityView
 import forge.game.GameView
-import forge.game.card.Card
 import forge.game.card.CardView
 import forge.game.event.GameEventSpellAbilityCast
 import forge.game.event.GameEventSpellRemovedFromStack
@@ -517,7 +516,8 @@ class WebGuiGame(
     override fun updateStack() {}
     override fun notifyStackAddition(event: GameEventSpellAbilityCast) {}
     override fun notifyStackRemoval(event: GameEventSpellRemovedFromStack) {}
-    override fun handleLandPlayed(land: Card) {}
+    override fun handleLandPlayed(land: CardView) {}
+    override fun handleGameEvent(event: forge.game.event.GameEvent) {}
     override fun tempShowZones(controller: PlayerView, zonesToUpdate: Iterable<PlayerZoneUpdate>): Iterable<PlayerZoneUpdate> = zonesToUpdate
     override fun hideZones(controller: PlayerView, zonesToUpdate: Iterable<PlayerZoneUpdate>) {}
     override fun updateZones(zonesToUpdate: Iterable<PlayerZoneUpdate>) {}
@@ -542,7 +542,8 @@ class WebGuiGame(
     override fun clearSelectables() {}
     override fun isSelecting(): Boolean = false
     override fun isGamePaused(): Boolean = false
-    override fun setgamePause(pause: Boolean) {}
+    override fun setGamePause(pause: Boolean) {}
+    override fun getGameSpeed(): PlaybackSpeed = PlaybackSpeed.NORMAL
     override fun setGameSpeed(gameSpeed: PlaybackSpeed) {}
     override fun getDayTime(): String = "day"
     override fun updateDayTime(daytime: String) {}

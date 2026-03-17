@@ -190,9 +190,9 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val card = ev.equipment()
         val seat = seatOf(card.controller) ?: return
         val newTarget = ev.newTarget()
-        if (newTarget != null && newTarget is forge.game.card.Card) {
+        if (newTarget != null) {
             queue.add(GameEvent.CardAttached(card.id, newTarget.id, seat))
-            log.debug("event: CardAttached card={} target={} seat={}", card.name, newTarget, seat)
+            log.debug("event: CardAttached card={} target={} seat={}", card.name, newTarget.name, seat)
         } else {
             queue.add(GameEvent.CardDetached(card.id, seat))
             log.debug("event: CardDetached card={} seat={}", card.name, seat)
@@ -216,9 +216,9 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     override fun visit(ev: GameEventCardStatsChanged) {
         for (card in ev.cards()) {
             val id = card.id
-            val newPower = card.getNetPower()
-            val newTough = card.getNetToughness()
-            val prev = lastPT.put(id, newPower to newTough)
+            val newPower = card.currentState.power
+            val newTough = card.currentState.toughness
+            val prev = lastPT.put(id, Pair(newPower, newTough))
             val oldPower = prev?.first ?: newPower
             val oldTough = prev?.second ?: newTough
             if (oldPower != newPower || oldTough != newTough) {
@@ -285,5 +285,10 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     private fun seatOf(player: forge.game.player.Player?): Int? {
         if (player == null) return null
         return if (player.lobbyPlayer is LobbyPlayerAi) 2 else 1
+    }
+
+    private fun seatOf(player: forge.game.player.PlayerView?): Int? {
+        if (player == null) return null
+        return if (player.isAI) 2 else 1
     }
 }

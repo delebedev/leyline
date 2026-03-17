@@ -1,7 +1,9 @@
 package leyline.game
 
+import forge.game.card.CardView
 import forge.game.card.CounterEnumType
 import forge.game.event.*
+import forge.game.player.PlayerView
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
@@ -66,7 +68,7 @@ class GameEventCollectorTest :
             collector.drainEvents()
 
             val land = game.humanPlayer.getZone(ZoneType.Hand).cards.first { it.isLand }
-            game.fireEvent(GameEventLandPlayed(game.humanPlayer, land))
+            game.fireEvent(GameEventLandPlayed(PlayerView.get(game.humanPlayer), CardView.get(land)))
 
             val events = collector.drainEvents()
             val lp = events.filterIsInstance<GameEvent.LandPlayed>()
@@ -278,7 +280,7 @@ class GameEventCollectorTest :
             val cards = game.humanPlayer.getZone(ZoneType.Battlefield).cards.filter { it.isCreature }
             val source = cards[0]
             val target = cards[1]
-            game.fireEvent(GameEventCardDamaged(target, source, 2, GameEventCardDamaged.DamageType.Normal))
+            game.fireEvent(GameEventCardDamaged(CardView.get(target), CardView.get(source), 2, GameEventCardDamaged.DamageType.Normal))
 
             val dmg = collector.drainEvents().filterIsInstance<GameEvent.DamageDealtToCard>()
             dmg.size shouldBe 1
@@ -295,7 +297,7 @@ class GameEventCollectorTest :
             collector.drainEvents()
 
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-            game.fireEvent(GameEventPlayerDamaged(game.humanPlayer, creature, 3, true, false))
+            game.fireEvent(GameEventPlayerDamaged(PlayerView.get(game.humanPlayer), CardView.get(creature), 3, true, false))
 
             val dmg = collector.drainEvents().filterIsInstance<GameEvent.DamageDealtToPlayer>()
             dmg.size shouldBe 1
@@ -331,7 +333,7 @@ class GameEventCollectorTest :
             collector.drainEvents()
 
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-            game.fireEvent(GameEventCardSacrificed(creature))
+            game.fireEvent(GameEventCardSacrificed(CardView.get(creature)))
 
             val sac = collector.drainEvents().filterIsInstance<GameEvent.CardSacrificed>()
             sac.size shouldBe 1
@@ -461,7 +463,7 @@ class GameEventCollectorTest :
             val collector = b.eventCollector!!
             collector.drainEvents()
 
-            game.fireEvent(GameEventScry(game.humanPlayer, 1, 2))
+            game.fireEvent(GameEventScry(PlayerView.get(game.humanPlayer), 1, 2))
 
             val scry = collector.drainEvents().filterIsInstance<GameEvent.Scry>()
             scry.size shouldBe 1
@@ -477,7 +479,7 @@ class GameEventCollectorTest :
             val collector = b.eventCollector!!
             collector.drainEvents()
 
-            game.fireEvent(GameEventSurveil(game.humanPlayer, 1, 3))
+            game.fireEvent(GameEventSurveil(PlayerView.get(game.humanPlayer), 1, 3))
 
             val sv = collector.drainEvents().filterIsInstance<GameEvent.Surveil>()
             sv.size shouldBe 1

@@ -150,6 +150,18 @@ object StateMapper {
             transferPersistent.addAll(persistent)
         }
 
+        val prevState = bridge.getPreviousState()
+        if (prevState != null) {
+            events.addAll(
+                synthesizeTappedEvents(
+                    previous = prevState,
+                    currentObjects = transferResult.patchedObjects,
+                    bridge = bridge,
+                    existingEvents = events,
+                ),
+            )
+        }
+
         // Stage 3: Combat damage annotations (must be added before numbering)
         annotations.addAll(AnnotationPipeline.combatAnnotations(game, bridge))
 
@@ -191,8 +203,6 @@ object StateMapper {
         }
 
         // prevGameStateId: reference prior state if one exists
-        val prevState = bridge.getPreviousState()
-
         val builder = GameStateMessage.newBuilder()
             .setType(GameStateType.Full)
             .setGameStateId(gameStateId)
@@ -346,6 +356,31 @@ object StateMapper {
             GameStateUpdate.SendAndRecord
         } else {
             GameStateUpdate.SendHiFi
+        }
+    }
+
+    private fun synthesizeTappedEvents(
+        previous: GameStateMessage,
+        currentObjects: List<GameObjectInfo>,
+        bridge: GameBridge,
+        existingEvents: List<GameEvent>,
+    ): List<GameEvent.CardTapped> {
+        val explicitTapIds = existingEvents.filterIsInstance<GameEvent.CardTapped>()
+            .mapTo(mutableSetOf()) { it.forgeCardId }
+        val previousObjects = previous.gameObjectsList.associateBy { it.instanceId }
+
+        return buildList {
+            for (obj in currentObjects) {
+                if (obj.zoneId != ZoneIds.BATTLEFIELD) continue
+                val prev = previousObjects[obj.instanceId] ?: continue
+                if (prev.zoneId != ZoneIds.BATTLEFIELD) continue
+                if (prev.isTapped == obj.isTapped) continue
+
+                val forgeCardId = bridge.getForgeCardId(InstanceId(obj.instanceId))?.value ?: continue
+                if (!explicitTapIds.add(forgeCardId)) continue
+
+                add(GameEvent.CardTapped(forgeCardId, obj.isTapped))
+            }
         }
     }
 
