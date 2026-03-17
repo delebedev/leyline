@@ -10,7 +10,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Step
 import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
 
 /**
- * Unit tests for [DiffSnapshotter.lastSentTurnInfo] — tracks the last
+ * Unit tests for client-seen turn info — tracks the last
  * TurnInfo sent to the client, used by [BundleBuilder.postAction] to
  * detect phase/step transitions for PhaseOrStepModified annotations.
  *
@@ -36,35 +36,35 @@ class LastSentTurnInfoTest :
 
         test("initially null") {
             val snap = DiffSnapshotter(InstanceIdRegistry())
-            snap.getLastSentTurnInfo().shouldBeNull()
+            snap.getClientSeenTurnInfo().shouldBeNull()
         }
 
         test("update from gsm extracts turn info") {
             val snap = DiffSnapshotter(InstanceIdRegistry())
             val ti = turnInfo(Phase.Main1_a549, Step.None_a2cb)
-            snap.updateLastSentTurnInfo(gsm(ti))
-            snap.getLastSentTurnInfo() shouldBe ti
+            snap.recordClientSeenTurnInfo(gsm(ti))
+            snap.getClientSeenTurnInfo() shouldBe ti
         }
 
         test("update from multiple gsms keeps last") {
             val snap = DiffSnapshotter(InstanceIdRegistry())
             val ti1 = turnInfo(Phase.Main1_a549, Step.None_a2cb)
             val ti2 = turnInfo(Phase.Combat_a549, Step.DeclareAttack_a2cb)
-            snap.updateLastSentTurnInfo(gsm(ti1, gsId = 1))
-            snap.updateLastSentTurnInfo(gsm(ti2, gsId = 2))
-            snap.getLastSentTurnInfo() shouldBe ti2
+            snap.recordClientSeenTurnInfo(gsm(ti1, gsId = 1))
+            snap.recordClientSeenTurnInfo(gsm(ti2, gsId = 2))
+            snap.getClientSeenTurnInfo() shouldBe ti2
         }
 
         test("gsm without turn info does not overwrite") {
             val snap = DiffSnapshotter(InstanceIdRegistry())
             val ti = turnInfo(Phase.Main1_a549, Step.None_a2cb)
-            snap.updateLastSentTurnInfo(gsm(ti))
+            snap.recordClientSeenTurnInfo(gsm(ti))
 
             // GSM with no turnInfo set
             val bare = GameStateMessage.newBuilder().setGameStateId(2).build()
-            snap.updateLastSentTurnInfo(bare)
+            snap.recordClientSeenTurnInfo(bare)
 
-            snap.getLastSentTurnInfo() shouldBe ti
+            snap.getClientSeenTurnInfo() shouldBe ti
         }
 
         test("phase changed detection") {
@@ -73,19 +73,19 @@ class LastSentTurnInfoTest :
             val tiCombat = turnInfo(Phase.Combat_a549, Step.BeginCombat_a2cb)
             val tiMain1Again = turnInfo(Phase.Main1_a549, Step.None_a2cb, turn = 1)
 
-            snap.updateLastSentTurnInfo(gsm(tiMain1))
+            snap.recordClientSeenTurnInfo(gsm(tiMain1))
 
             // Different phase → changed
-            snap.isPhaseChangedFromLastSent(tiCombat) shouldBe true
+            snap.isPhaseChangedFromClientSeen(tiCombat) shouldBe true
             // Same phase → not changed
-            snap.isPhaseChangedFromLastSent(tiMain1Again) shouldBe false
+            snap.isPhaseChangedFromClientSeen(tiMain1Again) shouldBe false
         }
 
         test("phase changed when last sent is null") {
             val snap = DiffSnapshotter(InstanceIdRegistry())
             val ti = turnInfo(Phase.Main1_a549, Step.None_a2cb)
             // When we have no prior info, we should detect a change (first state sent)
-            snap.isPhaseChangedFromLastSent(ti) shouldBe true
+            snap.isPhaseChangedFromClientSeen(ti) shouldBe true
         }
 
         test("step change within same phase detected") {
@@ -93,23 +93,23 @@ class LastSentTurnInfoTest :
             val tiAttackers = turnInfo(Phase.Combat_a549, Step.DeclareAttack_a2cb)
             val tiBlockers = turnInfo(Phase.Combat_a549, Step.DeclareBlock_a2cb)
 
-            snap.updateLastSentTurnInfo(gsm(tiAttackers))
-            snap.isPhaseChangedFromLastSent(tiBlockers) shouldBe true
+            snap.recordClientSeenTurnInfo(gsm(tiAttackers))
+            snap.isPhaseChangedFromClientSeen(tiBlockers) shouldBe true
         }
 
         test("independent from prev snapshot") {
             val snap = DiffSnapshotter(InstanceIdRegistry())
 
-            // Set prevSnapshot to Main1 (for diff computation)
+            // Set diff baseline to Main1 (for diff computation)
             val main1Gsm = gsm(turnInfo(Phase.Main1_a549, Step.None_a2cb))
-            snap.snapshotState(main1Gsm)
+            snap.snapshotDiffBaseline(main1Gsm)
 
-            // Set lastSentTurnInfo to Combat (what client last saw)
+            // Set client-seen turn info to Combat (what client last saw)
             val combatTi = turnInfo(Phase.Combat_a549, Step.BeginCombat_a2cb)
-            snap.updateLastSentTurnInfo(gsm(combatTi))
+            snap.recordClientSeenTurnInfo(gsm(combatTi))
 
             // They should be independent
-            snap.getPreviousState()?.turnInfo?.phase shouldBe Phase.Main1_a549
-            snap.getLastSentTurnInfo()?.phase shouldBe Phase.Combat_a549
+            snap.getDiffBaselineState()?.turnInfo?.phase shouldBe Phase.Main1_a549
+            snap.getClientSeenTurnInfo()?.phase shouldBe Phase.Combat_a549
         }
     })

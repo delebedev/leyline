@@ -54,22 +54,22 @@ interface ZoneTracking {
     fun getLimboInstanceIds(): List<InstanceId>
 }
 
-/** Full GameStateMessage snapshots for diff computation + client tracking. */
+/** Diff baselines + client-seen turn tracking. */
 interface StateSnapshot {
-    /** Store a full GSM snapshot for future diff computation. */
-    fun snapshotState(state: GameStateMessage)
+    /** Store a full GSM snapshot as the next diff baseline. */
+    fun snapshotDiffBaseline(state: GameStateMessage)
 
-    /** Previous snapshot (null before first state). */
-    fun getPreviousState(): GameStateMessage?
+    /** Current diff baseline (null before first state). */
+    fun getDiffBaselineState(): GameStateMessage?
 
-    /** Update the last TurnInfo sent to the client (for phase annotation decisions). */
-    fun updateLastSentTurnInfo(gsm: GameStateMessage)
+    /** Record TurnInfo from a GSM the client actually received. */
+    fun recordClientSeenTurnInfo(gsm: GameStateMessage)
 
     /**
      * True if [currentTurnInfo] represents a phase/step change from the last
      * state sent to the client. Also true when no prior state has been sent.
      */
-    fun isPhaseChangedFromLastSent(currentTurnInfo: TurnInfo): Boolean
+    fun isPhaseChangedFromClientSeen(currentTurnInfo: TurnInfo): Boolean
 }
 
 /** Monotonic annotation ID counters. */

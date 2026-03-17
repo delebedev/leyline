@@ -132,7 +132,7 @@ object StateMapper {
         // Stage 1: Detect zone transfers, realloc IDs, get patched objects/zones
         val events = bridge.drainEvents().toMutableList()
         // Drain reveal records from the prompt bridge (captured in WebPlayerController.reveal())
-        for (reveal in bridge.promptBridge.drainReveals()) {
+        for (reveal in bridge.drainReveals(viewingSeatId)) {
             events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
         }
         val transferResult = AnnotationPipeline.detectZoneTransfers(gameObjects, zones, bridge, events)
@@ -150,7 +150,7 @@ object StateMapper {
             transferPersistent.addAll(persistent)
         }
 
-        val prevState = bridge.getPreviousState()
+        val prevState = bridge.getDiffBaselineState()
         if (prevState != null) {
             events.addAll(
                 synthesizeTappedEvents(
@@ -252,12 +252,12 @@ object StateMapper {
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
     ): GameStateMessage {
-        val prev = bridge.getPreviousState()
+        val prev = bridge.getDiffBaselineState()
         if (prev == null) {
             // No baseline exists — fall back to Full, but snapshot it so the next
             // buildDiffFromGame call has a baseline and produces a real Diff.
             val full = buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId)
-            bridge.snapshotState(full)
+            bridge.snapshotDiffBaseline(full)
             return full
         }
 
@@ -324,7 +324,7 @@ object StateMapper {
         }
 
         // Update snapshot for next diff (reuse the full GSM already built above)
-        bridge.snapshotState(current)
+        bridge.snapshotDiffBaseline(current)
 
         val built = builder.build()
         if (built.gameStateId != 0 && built.gameStateId == built.prevGameStateId) {

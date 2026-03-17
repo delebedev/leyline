@@ -55,7 +55,7 @@ class EffectLifecycleTest :
 
             // Build full state — exercises snapshotBoosts + diffBoosts + effectAnnotations
             val gsm1 = StateMapper.buildFromGame(game, 1, "test", b)
-            b.snapshotState(gsm1)
+            b.snapshotDiffBaseline(gsm1)
 
             gsm1 shouldNotBe null
             gsm1.gameStateId shouldBe 1
@@ -90,16 +90,16 @@ class EffectLifecycleTest :
 
             // Take initial snapshot (gsId=1)
             val gsm1 = StateMapper.buildFromGame(game, 1, "test", b)
-            b.snapshotState(gsm1)
+            b.snapshotDiffBaseline(gsm1)
 
             // Cast Giant Growth targeting Swiftspear
             val pending = awaitFreshPending(b, null).shouldNotBeNull()
-            b.actionBridge.submitAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(giantGrowth.id)))
+            b.actionBridge(1).submitAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(giantGrowth.id)))
 
             // Engine prompts for target selection (mandatory=false for voluntary casts)
             val targetPrompt = awaitPrompt(b, timeoutMs = 5_000).shouldNotBeNull()
             targetPrompt.request.options.size shouldBe 1 // only Swiftspear
-            b.promptBridge.submitResponse(targetPrompt.promptId, listOf(0))
+            b.promptBridge(1).submitResponse(targetPrompt.promptId, listOf(0))
 
             // Pass priority until spell resolves — stop once stack is empty in MAIN1
             // (don't advance to combat or the +X/+X until end of turn effects expire)
@@ -109,7 +109,7 @@ class EffectLifecycleTest :
             while (passes < 20) {
                 val prompt = awaitPrompt(b, timeoutMs = 500)
                 if (prompt != null) {
-                    b.promptBridge.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
+                    b.promptBridge(1).submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
                     passes++
                     continue
                 }
@@ -117,7 +117,7 @@ class EffectLifecycleTest :
                 if (game.stack.size() > 0) stackWasNonEmpty = true
                 // Stop once stack empties after having items (spell resolved)
                 if (stackWasNonEmpty && game.stack.size() == 0) break
-                b.actionBridge.submitAction(next.actionId, PlayerAction.PassPriority)
+                b.actionBridge(1).submitAction(next.actionId, PlayerAction.PassPriority)
                 lastId = next.actionId
                 passes++
             }

@@ -10,8 +10,10 @@ import java.util.concurrent.ConcurrentHashMap
  * Two responsibilities:
  * 1. **Zone tracking** — records which zone each instanceId was last seen in,
  *    so [StateMapper.detectZoneTransfers] can detect zone changes.
- * 2. **State snapshots** — stores the previous [GameStateMessage] so diff builders
- *    can compute what changed (life totals, combat damage, etc.).
+ * 2. **Diff baseline** — stores the last [GameStateMessage] used as the diff baseline
+ *    so builders can compute what changed (life totals, combat damage, etc.).
+ * 3. **Client-seen turn info** — tracks the last [TurnInfo] actually sent to the
+ *    client so phase annotations aren't derived from the wrong baseline.
  *
  * Thread-safe: zone map uses [ConcurrentHashMap], snapshot is volatile.
  */
@@ -20,9 +22,9 @@ class DiffSnapshotter(private val idRegistry: InstanceIdRegistry) {
     /** Previous zone assignment per instanceId — for detecting zone transfers. */
     private val previousZones = ConcurrentHashMap<Int, Int>()
 
-    /** Previous full GameStateMessage — used to compute diffs. */
+    /** Full GameStateMessage used as the current diff baseline. */
     @Volatile
-    private var previousState: GameStateMessage? = null
+    private var diffBaselineState: GameStateMessage? = null
 
     /** Record current zone for an instance. Returns previous zone or null if new. */
     fun recordZone(instanceId: Int, zoneId: Int): Int? =
@@ -35,50 +37,50 @@ class DiffSnapshotter(private val idRegistry: InstanceIdRegistry) {
     fun allZones(): Map<Int, Int> = HashMap(previousZones)
 
     /** Store a full game state snapshot for future diff computation. */
-    fun snapshotState(state: GameStateMessage) {
-        previousState = state
+    fun snapshotDiffBaseline(state: GameStateMessage) {
+        diffBaselineState = state
     }
 
-    /** Get the previous snapshot (null before first state). */
-    fun getPreviousState(): GameStateMessage? = previousState
+    /** Get the current diff baseline (null before first state). */
+    fun getDiffBaselineState(): GameStateMessage? = diffBaselineState
 
-    /** Clear the previous snapshot (e.g. on game reset). */
+    /** Clear the diff baseline (e.g. on game reset). */
     fun clear() {
-        previousState = null
+        diffBaselineState = null
     }
 
-    /** Full reset — clear all tracked state (zones, snapshot, turn info). Used on puzzle hot-swap. */
+    /** Full reset — clear all tracked state (zones, diff baseline, turn info). Used on puzzle hot-swap. */
     fun resetAll() {
         previousZones.clear()
-        previousState = null
-        lastSentTurnInfo = null
+        diffBaselineState = null
+        clientSeenTurnInfo = null
     }
 
-    // --- Last-sent TurnInfo tracking ---
+    // --- Client-seen TurnInfo tracking ---
     //
-    // Separate from [previousState] (diff baseline). Tracks what the client
+    // Separate from [diffBaselineState]. Tracks what the client
     // actually received, so BundleBuilder can detect skipped-phase transitions.
 
     /** TurnInfo from the most recent GSM sent to the client. */
     @Volatile
-    private var lastSentTurnInfo: TurnInfo? = null
+    private var clientSeenTurnInfo: TurnInfo? = null
 
     /** Update from a GSM being sent to the client. Only overwrites if turnInfo is present. */
-    fun updateLastSentTurnInfo(gsm: GameStateMessage) {
+    fun recordClientSeenTurnInfo(gsm: GameStateMessage) {
         if (gsm.hasTurnInfo()) {
-            lastSentTurnInfo = gsm.turnInfo
+            clientSeenTurnInfo = gsm.turnInfo
         }
     }
 
     /** The TurnInfo the client last received (null before first state sent). */
-    fun getLastSentTurnInfo(): TurnInfo? = lastSentTurnInfo
+    fun getClientSeenTurnInfo(): TurnInfo? = clientSeenTurnInfo
 
     /**
      * True if [currentTurnInfo] represents a phase/step change from the last
      * sent state. Also true when no prior state has been sent (first message).
      */
-    fun isPhaseChangedFromLastSent(currentTurnInfo: TurnInfo): Boolean {
-        val last = lastSentTurnInfo ?: return true
+    fun isPhaseChangedFromClientSeen(currentTurnInfo: TurnInfo): Boolean {
+        val last = clientSeenTurnInfo ?: return true
         return last.phase != currentTurnInfo.phase || last.step != currentTurnInfo.step
     }
 }

@@ -56,7 +56,7 @@ class GameBridgeTest :
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
             if (land != null) {
                 val pending = awaitFreshPending(b, lastId) ?: error("No pending action available")
-                b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
+                b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
                 lastId = pending.actionId
                 awaitFreshPending(b, lastId)
             }
@@ -65,7 +65,7 @@ class GameBridgeTest :
             val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
             if (creature != null) {
                 val pending = awaitFreshPending(b, lastId) ?: error("No pending action available")
-                b.actionBridge.submitAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(creature.id)))
+                b.actionBridge(1).submitAction(pending.actionId, PlayerAction.CastSpell(ForgeCardId(creature.id)))
                 awaitFreshPending(b, pending.actionId)
             }
         }
@@ -77,7 +77,7 @@ class GameBridgeTest :
             while (passes < maxPasses) {
                 val pending = awaitFreshPending(b, lastId, timeoutMs = 5_000) ?: break
                 if (pending.state.phase == target) return
-                b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+                b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PassPriority)
                 lastId = pending.actionId
                 passes++
                 if (game.isGameOver) break
@@ -126,7 +126,7 @@ class GameBridgeTest :
             b.awaitPriority()
 
             // Engine should be at Main1 (or later) with a pending action
-            val pending = b.actionBridge.getPending()
+            val pending = b.actionBridge(1).getPending()
             pending.shouldNotBeNull()
 
             val game = b.getGame()!!
@@ -219,7 +219,7 @@ class GameBridgeTest :
             val pending = awaitFreshPending(b, null)
                 ?: error("No pending action available")
 
-            b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
+            b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
 
             val handAfter = player.getZone(ZoneType.Hand).size()
@@ -285,7 +285,7 @@ class GameBridgeTest :
             val player = b.getPlayer(SeatId(1))!!
             val landInHand = player.getZone(ZoneType.Hand).cards.first { it.isLand }
             val pending = awaitFreshPending(b, null)!!
-            b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
+            b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
 
             val result = BundleBuilder.postAction(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
@@ -413,7 +413,7 @@ class GameBridgeTest :
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
             if (land != null) {
                 val pending = awaitFreshPending(b, null) ?: return@xtest
-                b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
+                b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
                 awaitFreshPending(b, pending.actionId)
             }
 
@@ -497,7 +497,7 @@ class GameBridgeTest :
                 ?: error("No land in hand at seed 42")
             val pending = awaitFreshPending(b, null)
                 ?: error("No pending action available")
-            b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
+            b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
             awaitFreshPending(b, pending.actionId)
 
             // Build post-action state — should have ZoneTransfer annotation
@@ -577,8 +577,8 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
 
-            // No snapshotState call — previousState is null
-            b.getPreviousState().shouldBeNull()
+            // No diff baseline yet
+            b.getDiffBaselineState().shouldBeNull()
 
             val gs = StateMapper.buildDiffFromGame(game, 1, "test-match", b)
             gs.type shouldBe Messages.GameStateType.Full
@@ -600,13 +600,13 @@ class GameBridgeTest :
             // Play a land for mana
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
             val pending1 = awaitFreshPending(b, null) ?: error("No pending action available")
-            b.actionBridge.submitAction(pending1.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
+            b.actionBridge(1).submitAction(pending1.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
             awaitFreshPending(b, pending1.actionId)
 
             // Cast a creature
             val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: error("No creature in hand at seed 42")
             val pending2 = awaitFreshPending(b, pending1.actionId) ?: error("No pending action available")
-            b.actionBridge.submitAction(pending2.actionId, PlayerAction.CastSpell(ForgeCardId(creature.id)))
+            b.actionBridge(1).submitAction(pending2.actionId, PlayerAction.CastSpell(ForgeCardId(creature.id)))
             awaitFreshPending(b, pending2.actionId)
 
             // After casting, spell should be on stack (engine gives caster priority)
@@ -624,7 +624,7 @@ class GameBridgeTest :
             // No submitKeep — engine should auto-keep via MulliganBridge(autoKeep=true)
             b.awaitPriority()
 
-            val pending = b.actionBridge.getPending()
+            val pending = b.actionBridge(1).getPending()
             pending.shouldNotBeNull()
 
             val game = b.getGame()!!

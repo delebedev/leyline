@@ -148,7 +148,7 @@ class InstanceIdReallocTest :
                         ?: error("No land in hand for turn 2")
                     val origId2 = b.getOrAllocInstanceId(ForgeCardId(land2.id))
 
-                    b.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land2.id)))
+                    b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land2.id)))
                     awaitFreshPending(b, pending.actionId)
                     base.postAction(game, b, counter)
 
@@ -158,7 +158,7 @@ class InstanceIdReallocTest :
                     limbo.shouldContain(origId2)
                     return@test
                 }
-                b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+                b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PassPriority)
                 lastId = pending.actionId
             }
         }
