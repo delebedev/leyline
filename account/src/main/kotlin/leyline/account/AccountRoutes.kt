@@ -127,7 +127,6 @@ private fun Route.profileRoute(store: AccountStore, tokens: TokenService) {
             return@get call.respondError(AccountError.MISSING_AUTH)
         }
         val personaId = tokens.validateAccessToken(bearer)
-            ?: extractPersonaIdFromJwt(bearer)
         if (personaId == null) {
             return@get call.respondError(AccountError.INVALID_TOKEN)
         }
@@ -255,21 +254,6 @@ private fun parseFormEncoded(body: String): Map<String, String> {
             if (it.size == 2) it[0] to it[1] else it[0] to ""
         }
         java.net.URLDecoder.decode(k, "UTF-8") to java.net.URLDecoder.decode(v, "UTF-8")
-    }
-}
-
-/**
- * Extract persona ID (sub claim) from a JWT without full validation.
- * Used for profile lookups where the access token is passed as Bearer.
- */
-private fun extractPersonaIdFromJwt(jwt: String): String? {
-    val parts = jwt.split(".")
-    if (parts.size < 2) return null
-    return try {
-        val payload = java.util.Base64.getUrlDecoder().decode(parts[1]).toString(Charsets.UTF_8)
-        """"sub"\s*:\s*"([^"]+)"""".toRegex().find(payload)?.groupValues?.get(1)
-    } catch (_: Exception) {
-        null
     }
 }
 
