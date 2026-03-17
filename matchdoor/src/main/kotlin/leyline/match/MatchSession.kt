@@ -128,7 +128,7 @@ class MatchSession(
         sendBundle(result)
 
         // Seed state snapshot for subsequent diff computation.
-        bridge.snapshotState(StateMapper.buildFromGame(game, counter.currentGsId(), matchId, bridge))
+        bridge.snapshotDiffBaseline(StateMapper.buildFromGame(game, counter.currentGsId(), matchId, bridge))
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(bridge)
@@ -169,7 +169,7 @@ class MatchSession(
         // Seed state snapshot for subsequent diff computation.
         // The puzzle initial bundle already sent the Full GSM, so the bridge
         // needs a matching snapshot for the first Diff to be correct.
-        bridge.snapshotState(StateMapper.buildFromGame(game, counter.currentGsId(), matchId, bridge))
+        bridge.snapshotDiffBaseline(StateMapper.buildFromGame(game, counter.currentGsId(), matchId, bridge))
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(bridge)
@@ -180,6 +180,7 @@ class MatchSession(
      */
     override fun onPerformAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
+        val seatBridge = bridge.seat(seatId)
         log.info("MatchSession: onPerformAction enter gsId={} (current={})", greMsg.gameStateId, counter.currentGsId())
 
         // Reject stale actions — client may resend with outdated gameStateId
@@ -189,7 +190,7 @@ class MatchSession(
             return
         }
 
-        val pending = bridge.actionBridge.getPending() ?: run {
+        val pending = seatBridge.action.getPending() ?: run {
             log.warn("MatchSession: PerformActionResp but no pending action — recovering")
             autoPassEngine.autoPassAndAdvance(bridge)
             return
@@ -233,14 +234,14 @@ class MatchSession(
 
         when (action.actionType) {
             ActionType.Pass -> {
-                bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+                seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
             }
             ActionType.Play_add3 -> {
                 val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                 val submitted = if (forgeCardId != null) {
-                    bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PlayLand(forgeCardId))
+                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PlayLand(forgeCardId))
                 } else {
-                    bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
                 Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
             }
@@ -254,9 +255,9 @@ class MatchSession(
                 } else {
                     val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                     val submitted = if (forgeCardId != null) {
-                        bridge.actionBridge.submitAction(pending.actionId, PlayerAction.CastSpell(forgeCardId))
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(forgeCardId))
                     } else {
-                        bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                     }
                     Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
                 }
@@ -265,18 +266,18 @@ class MatchSession(
                 val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                 val abilityIndex = resolveAbilityIndex(action, bridge)
                 val submitted = if (forgeCardId != null) {
-                    bridge.actionBridge.submitAction(
+                    seatBridge.action.submitAction(
                         pending.actionId,
                         PlayerAction.ActivateAbility(forgeCardId, abilityIndex),
                     )
                 } else {
-                    bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
                 Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
             }
             else -> {
                 log.info("MatchSession: unhandled action type {}, passing", action.actionType)
-                bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+                seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
             }
         }
 
@@ -641,7 +642,7 @@ class MatchSession(
         if (bridge != null) {
             for (gre in messages) {
                 if (gre.hasGameStateMessage()) {
-                    bridge.updateLastSentTurnInfo(gre.gameStateMessage)
+                    bridge.recordClientSeenTurnInfo(gre.gameStateMessage)
                 }
             }
         }

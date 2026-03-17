@@ -31,7 +31,7 @@ class RevealAnnotationTest :
             val handCard = with(base) { game.humanPlayer.firstCardIn(ZoneType.Hand) }
 
             val gsm = base.captureAfterAction(b, game, counter) {
-                b.promptBridge.recordReveal(listOf(handCard.id), 1)
+                b.promptBridge(1).recordReveal(listOf(handCard.id), 1)
             }
 
             val instanceId = b.getOrAllocInstanceId(ForgeCardId(handCard.id))
@@ -49,7 +49,7 @@ class RevealAnnotationTest :
             val handCards = game.humanPlayer.getZone(ZoneType.Hand).cards.toList()
 
             val gsm = base.captureAfterAction(b, game, counter) {
-                b.promptBridge.recordReveal(handCards.map { it.id }, 1)
+                b.promptBridge(1).recordReveal(handCards.map { it.id }, 1)
             }
 
             val revealAnns = gsm.annotationsList.filter {
