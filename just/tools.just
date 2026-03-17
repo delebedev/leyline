@@ -1,13 +1,15 @@
 # Tool CLIs — catchall passthrough
 # Usage: just wire tail 5, just tape session list
 
-[group('tools')]
+[group('tools'), positional-arguments]
 wire *ARGS:
-    @python3 tools/wire/wire.py {{ARGS}}
+    #!/usr/bin/env bash
+    python3 tools/wire/wire.py "$@"
 
-[group('tools')]
+[group('tools'), positional-arguments]
 tape *ARGS:
-    @python3 tools/tape/tape.py {{ARGS}}
+    #!/usr/bin/env bash
+    python3 tools/tape/tape.py "$@"
 
 # all unique grpIds in a session → card names
 [group('tools')]
