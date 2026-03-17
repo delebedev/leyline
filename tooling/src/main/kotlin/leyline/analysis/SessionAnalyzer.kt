@@ -32,11 +32,13 @@ object SessionAnalyzer {
         val winner: String = "unknown",
         val durationMs: Long = 0,
         val mechanicsExercised: List<MechanicClassifier.MechanicCount> = emptyList(),
-        val invariantViolations: List<InvariantChecker.Violation> = emptyList(),
-        val gsidChain: GsIdChainResult = GsIdChainResult(),
+        // TODO: invariant checker has too many false positives (annotation_ref for transient
+        //  objects, annotation_seq for seat-filtered gaps). Suppressed until checker is smarter.
+        //  Re-enable when we can group by check type and filter known-noisy patterns.
+        // val invariantViolations: List<InvariantChecker.Violation> = emptyList(),
+        // val gsidChain: GsIdChainResult = GsIdChainResult(),
         val interestingMoments: List<InterestingMoment> = emptyList(),
         val annotationCoverage: AnnotationCoverage = AnnotationCoverage(),
-        val cardIndex: List<CardSeen> = emptyList(),
     )
 
     @Serializable
@@ -55,7 +57,7 @@ object SessionAnalyzer {
 
     @Serializable
     data class AnnotationCoverage(
-        val seen: List<Int> = emptyList(),
+        val seen: List<String> = emptyList(),
         val totalDistinct: Int = 0,
     )
 
@@ -95,12 +97,21 @@ object SessionAnalyzer {
         val modeFile = File(sessionDir, "mode.txt")
         val mode = if (modeFile.exists()) modeFile.readText().trim() else "unknown"
 
-        // Decode messages — prefer engine/ dumps, fall back to capture/payloads/
+        // Decode messages — prefer engine/ dumps, fall back to capture payloads
         val engineDir = File(sessionDir, "engine")
         val captureDir = File(sessionDir, "capture/payloads")
+        // New format: seat subdirs under capture/ (e.g. capture/seat-1/md-payloads/)
+        val seatPayloadDir = File(sessionDir, "capture").let { capture ->
+            capture.listFiles()
+                ?.filter { it.isDirectory && it.name.startsWith("seat-") }
+                ?.sortedBy { it.name }
+                ?.map { File(it, "md-payloads") }
+                ?.firstOrNull { it.isDirectory && RecordingDecoder.listRecordingFiles(it).isNotEmpty() }
+        }
         val sourceDir = when {
             engineDir.isDirectory && RecordingDecoder.listRecordingFiles(engineDir).isNotEmpty() -> engineDir
             captureDir.isDirectory && RecordingDecoder.listRecordingFiles(captureDir).isNotEmpty() -> captureDir
+            seatPayloadDir != null -> seatPayloadDir
             else -> null
         }
         // Filter to seat 1 (human player) — engine/ dumps contain both seat copies
@@ -132,19 +143,8 @@ object SessionAnalyzer {
         // Winner detection (from IntermissionReq presence or last game state)
         val winner = detectWinner(messages)
 
-        // --- Invariant checking via proto replay ---
-        val checker = InvariantChecker()
-        // Convert decoded messages back to GRE protos for invariant checking
-        val greMessages = replayGREMessages(sourceDir ?: engineDir)
-        greMessages.forEach { checker.process(it) }
-
-        // --- GsId chain validation ---
-        val gsIdViolations = InvariantChecker.validateGsIdChain(greMessages)
-        val gsIdChain = GsIdChainResult(
-            valid = gsIdViolations.isEmpty(),
-            length = greMessages.count { it.hasGameStateMessage() },
-            violations = gsIdViolations,
-        )
+        // TODO: invariant checking + gsId chain validation suppressed (too many false positives).
+        //  See Analysis data class for details. Re-enable when checker is smarter.
 
         // --- Mechanic classification from annotations ---
         val mechanics = classifyMechanics(messages)
@@ -152,21 +152,13 @@ object SessionAnalyzer {
         // --- Annotation coverage ---
         val allAnnotationTypes = messages
             .flatMap { it.annotations }
-            .flatMap { ann -> ann.types.mapNotNull { parseAnnotationType(it) } }
+            .flatMap { it.types }
             .distinct()
             .sorted()
         val annotationCoverage = AnnotationCoverage(
             seen = allAnnotationTypes,
             totalDistinct = allAnnotationTypes.size,
         )
-
-        // --- Card index (all seats — don't miss opponent's cards) ---
-        val allSeatMessages = if (sourceDir != null) {
-            RecordingDecoder.decodeDirectory(sourceDir, seatFilter = null)
-        } else {
-            emptyList()
-        }
-        val cardIndex = buildCardIndex(allSeatMessages)
 
         // --- Interesting moments ---
         val interestingMoments = findInterestingMoments(messages, mechanics, sessionDir)
@@ -179,17 +171,14 @@ object SessionAnalyzer {
             winner = winner,
             durationMs = durationMs,
             mechanicsExercised = mechanics,
-            invariantViolations = checker.violations,
-            gsidChain = gsIdChain,
             interestingMoments = interestingMoments,
             annotationCoverage = annotationCoverage,
-            cardIndex = cardIndex,
         )
 
         // Write analysis.json
         try {
             analysisFile.writeText(json.encodeToString(analysis))
-            log.info("Analysis written: {} ({} violations, {} mechanics)", analysisFile, checker.violations.size, mechanics.size)
+            log.info("Analysis written: {} ({} mechanics)", analysisFile, mechanics.size)
         } catch (e: Exception) {
             log.error("Failed to write analysis.json: {}", e.message)
         }
