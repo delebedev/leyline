@@ -105,11 +105,11 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 105 | HiddenInformation | -- | -- | -- | `ManaValue` | MISSING |
 | 106 | LoopCount | -- | -- | -- | (none) | MISSING |
 | 108 | SuppressedPowerAndToughness | -- | -- | -- | `power`, `toughness` | MISSING |
-| 110 | ColorProduction | -- | -- | -- | (none) | MISSING |
+| 110 | ColorProduction | `LandPlayed` | `AnnotationPipeline` | `colorProduction()` | `colors` (int32 bitmask) | WIRED |
 | 111 | CopyException | -- | -- | -- | `manaCost` | MISSING |
 | 113 | ModifiedCost | -- | -- | -- | (unknown) | MISSING |
 
-**Implemented: 31 types. Missing: 63+ types.**
+**Implemented: 32 types. Missing: 62+ types.**
 
 ## Table 2: Zone Transfer Categories
 

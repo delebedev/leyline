@@ -1,20 +1,12 @@
 {
-  "status": "FAIL",
+  "status": "PASS",
   "annotations": {
     "compared": 3,
     "diffs": []
   },
   "persistentAnnotations": {
     "compared": 2,
-    "diffs": [
-      {
-        "index": 1,
-        "type": "extra_recording",
-        "recording": [
-          "ColorProduction"
-        ]
-      }
-    ]
+    "diffs": []
   },
   "bindings": {
     "$var_1": 100,

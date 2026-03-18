@@ -155,7 +155,7 @@ class AnnotationShapeConformanceTest :
         }
 
         test("ColorProduction shape: {colors}") {
-            detailKeys(AnnotationBuilder.colorProduction(1, 1)) shouldBe setOf("colors")
+            detailKeys(AnnotationBuilder.colorProduction(1, listOf(1))) shouldBe setOf("colors")
         }
 
         test("TriggeringObject shape: {source_zone}") {
@@ -307,7 +307,7 @@ class AnnotationShapeConformanceTest :
             "PlayerSubmittedTargets" to detailKeys(AnnotationBuilder.playerSubmittedTargets(1)),
             "DamagedThisTurn" to detailKeys(AnnotationBuilder.damagedThisTurn(1)),
             "InstanceRevealedToOpponent" to detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1)),
-            "ColorProduction" to detailKeys(AnnotationBuilder.colorProduction(1, 1)),
+            "ColorProduction" to detailKeys(AnnotationBuilder.colorProduction(1, listOf(1))),
             "TriggeringObject" to detailKeys(AnnotationBuilder.triggeringObject(1, 27)),
             "TargetSpec" to detailKeys(AnnotationBuilder.targetSpec(1, 1, 1, 1, 1)),
             "PowerToughnessModCreated" to detailKeys(AnnotationBuilder.powerToughnessModCreated(1, 1, 1)),

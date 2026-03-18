@@ -304,7 +304,7 @@ private val OUR_BUILDERS: Map<String, Set<String>> by lazy {
         "Designation" to keysOf(AnnotationBuilder.designation(1, 19)),
         "LayeredEffect" to keysOf(AnnotationBuilder.layeredEffect(1, 7000, powerDelta = 1, toughnessDelta = 1)),
         // Tier 2 detail-carrying annotations
-        "ColorProduction" to keysOf(AnnotationBuilder.colorProduction(1, 4)),
+        "ColorProduction" to keysOf(AnnotationBuilder.colorProduction(1, listOf(4))),
         "TriggeringObject" to keysOf(AnnotationBuilder.triggeringObject(1, 27)),
         "TargetSpec" to keysOf(AnnotationBuilder.targetSpec(1, 1, 1, 1, 1)),
         "PowerToughnessModCreated" to keysOf(AnnotationBuilder.powerToughnessModCreated(1, 1, 1)),

@@ -285,8 +285,9 @@ class MatchSession(
         // Wait for engine to reach next priority stop
         bridge.awaitPriority()
 
-        // After a cast or activate, check for targeting prompt or intermediate stack state
-        if (isCastOrActivate && targetingHandler.handlePostCastPrompt(bridge)) return
+        // After a cast or activate, check for targeting prompt or intermediate stack state.
+        // Pass clientAutoResolve when the client opts in to auto-resolving stack effects (#92).
+        if (isCastOrActivate && targetingHandler.handlePostCastPrompt(bridge, autoPassState.shouldAutoPass())) return
 
         // After stack resolution: check for modal ETB prompt before sending state.
         // The engine may have fired a modal trigger (e.g. Charming Prince ETB)
