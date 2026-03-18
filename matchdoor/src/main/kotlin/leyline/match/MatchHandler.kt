@@ -232,7 +232,7 @@ class MatchHandler(
             // GroupResp routes to mulligan handler (London tuck) or session (surveil/scry).
             // During mulligan phase, route to mulligan handler; otherwise to session.
             ClientMessageType.GroupResp_097b -> {
-                if (s?.gameBridge?.promptBridge?.getPendingPrompt() != null) {
+                if (s?.gameBridge?.let { it.seat(seatId).prompt.getPendingPrompt() } != null) {
                     s.onGroupResp(greMsg)
                 } else {
                     mulliganHandler.onGroupResp(greMsg)

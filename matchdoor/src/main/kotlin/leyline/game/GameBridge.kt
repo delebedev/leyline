@@ -38,7 +38,7 @@ import java.util.Random
  * Internally composed of focused components:
  * - [InstanceIdRegistry] — Forge cardId ↔ client instanceId bimap
  * - [LimboTracker] — retired instanceId history
- * - [DiffSnapshotter] — zone tracking + state snapshots for diff computation
+ * - [DiffSnapshotter] — zone tracking + diff-baseline/client-seen snapshots
  *
  * Threading: [start] blocks the caller (~2-3s first call for card DB, <100ms after).
  * The engine thread blocks at mulligan via [leyline.bridge.MulliganBridge].
@@ -98,6 +98,15 @@ class GameBridge(
         )
     }
 
+    /** Small seat-scoped facade — keeps handlers off global seat-1 defaults. */
+    data class SeatBridges(
+        val action: GameActionBridge,
+        val prompt: InteractivePromptBridge,
+        val mulligan: MulliganBridge,
+    ) {
+        fun drainReveals(): List<InteractivePromptBridge.RevealRecord> = prompt.drainReveals()
+    }
+
     /** Parameterized accessor — throws if seat not populated. */
     fun actionBridge(seatId: Int): GameActionBridge =
         actionBridges[seatId] ?: error("No action bridge for seat $seatId")
@@ -110,11 +119,21 @@ class GameBridge(
     fun mulliganBridge(seatId: Int): MulliganBridge =
         mulliganBridges[seatId] ?: error("No mulligan bridge for seat $seatId")
 
-    /** Backward-compat: seat-1 action bridge (used by external callers). */
-    val actionBridge: GameActionBridge get() = actionBridge(1)
+    /** Seat-scoped facade — use in handlers instead of raw seat-1 aliases. */
+    fun seat(seatId: Int): SeatBridges =
+        SeatBridges(
+            action = actionBridge(seatId),
+            prompt = promptBridge(seatId),
+            mulligan = mulliganBridge(seatId),
+        )
 
-    /** Backward-compat: seat-1 prompt bridge (used by external callers). */
-    val promptBridge: InteractivePromptBridge get() = promptBridge(1)
+    /** Drain reveal queue(s) for a specific viewer; seat 0 drains all seats. */
+    fun drainReveals(viewingSeatId: Int): List<InteractivePromptBridge.RevealRecord> =
+        if (viewingSeatId == 0) {
+            promptBridges.toSortedMap().values.flatMap { it.drainReveals() }
+        } else {
+            seat(viewingSeatId).drainReveals()
+        }
 
     /**
      * Ensure action/prompt/mulligan bridges exist for seats 1..n.
@@ -178,7 +197,7 @@ class GameBridge(
     /** Retired instanceId history (Limbo zone). */
     val limbo = LimboTracker()
 
-    /** Zone tracking + state snapshots for diff computation. */
+    /** Zone tracking + diff baseline/client-seen state tracking. */
     val diff = DiffSnapshotter(ids)
 
     /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
@@ -219,20 +238,18 @@ class GameBridge(
 
     override fun getPreviousZone(instanceId: InstanceId): Int? = diff.getPreviousZone(instanceId.value)
 
-    override fun snapshotState(state: GameStateMessage) {
-        diff.snapshotState(state)
+    override fun snapshotDiffBaseline(state: GameStateMessage) {
+        diff.snapshotDiffBaseline(state)
     }
 
-    override fun getPreviousState(): GameStateMessage? = diff.getPreviousState()
+    override fun getDiffBaselineState(): GameStateMessage? = diff.getDiffBaselineState()
 
-    override fun updateLastSentTurnInfo(gsm: GameStateMessage) {
-        diff.updateLastSentTurnInfo(gsm)
+    override fun recordClientSeenTurnInfo(gsm: GameStateMessage) {
+        diff.recordClientSeenTurnInfo(gsm)
     }
 
-    override fun isPhaseChangedFromLastSent(currentTurnInfo: TurnInfo): Boolean =
-        diff.isPhaseChangedFromLastSent(currentTurnInfo)
-
-    fun clearPreviousState() = diff.clear()
+    override fun isPhaseChangedFromClientSeen(currentTurnInfo: TurnInfo): Boolean =
+        diff.isPhaseChangedFromClientSeen(currentTurnInfo)
 
     override fun drainEvents(): List<GameEvent> = eventCollector?.drainEvents() ?: emptyList()
 
@@ -340,8 +357,8 @@ class GameBridge(
             game = g,
             player = human,
             lobbyPlayer = human.lobbyPlayer,
-            bridge = this.promptBridge,
-            actionBridge = actionBridge,
+            bridge = promptBridge(1),
+            actionBridge = actionBridge(1),
             mulliganBridge = mulliganBridge(1),
             phaseStopProfile = phaseStopProfile,
         )
@@ -672,8 +689,8 @@ class GameBridge(
             game = g,
             player = human,
             lobbyPlayer = human.lobbyPlayer,
-            bridge = this.promptBridge,
-            actionBridge = actionBridge,
+            bridge = promptBridge(1),
+            actionBridge = actionBridge(1),
             mulliganBridge = mulliganBridge(1),
             phaseStopProfile = phaseStopProfile,
         )

@@ -65,11 +65,11 @@ object BundleBuilder {
         val actions = ActionMapper.buildActions(game, seatId, bridge)
 
         // Detect phase/step change vs last state sent to client.
-        // Uses lastSentTurnInfo (what client saw) instead of prevSnapshot (diff computation).
+        // Uses client-seen TurnInfo instead of the diff baseline.
         // This handles the case where PhaseStopProfile skips phases on the engine thread —
-        // prevSnapshot may already show the new phase, but the client hasn't seen it.
+        // the diff baseline may already show the new phase, but the client hasn't seen it.
         val gsWithPhaseAnnotation = if (gsBase.hasTurnInfo() &&
-            bridge.isPhaseChangedFromLastSent(gsBase.turnInfo)
+            bridge.isPhaseChangedFromClientSeen(gsBase.turnInfo)
         ) {
             val handler = game.phaseHandler
             val human = bridge.getPlayer(SeatId(1))

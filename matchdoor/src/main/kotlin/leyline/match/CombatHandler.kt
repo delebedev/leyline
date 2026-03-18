@@ -123,7 +123,8 @@ class CombatHandler(private val ops: SessionOps) {
         }
 
         // SubmitAttackersReq: finalize — use last known selection
-        val pending = bridge.actionBridge.getPending() ?: run {
+        val seatBridge = bridge.seat(ops.seatId)
+        val pending = seatBridge.action.getPending() ?: run {
             log.warn("CombatHandler: SubmitAttackersReq but no pending action — recovering")
             ops.sendRealGameState(bridge)
             return
@@ -162,7 +163,7 @@ class CombatHandler(private val ops: SessionOps) {
         val defenderPlayerId = game?.players
             ?.firstOrNull { it != humanPlayer }?.id
 
-        bridge.actionBridge.submitAction(
+        seatBridge.action.submitAction(
             pending.actionId,
             PlayerAction.DeclareAttackers(attackerCardIds, defender = defenderPlayerId?.let { Target.Player(ForgePlayerId(it)) }),
         )
@@ -181,7 +182,8 @@ class CombatHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val pending = bridge.actionBridge.getPending() ?: run {
+        val seatBridge = bridge.seat(ops.seatId)
+        val pending = seatBridge.action.getPending() ?: run {
             log.warn("CombatHandler: CancelAttackers but no pending action — recovering")
             ops.sendRealGameState(bridge)
             return
@@ -205,7 +207,7 @@ class CombatHandler(private val ops: SessionOps) {
         val defenderPlayerId = game?.players
             ?.firstOrNull { it != humanPlayer }?.id
 
-        bridge.actionBridge.submitAction(
+        seatBridge.action.submitAction(
             pending.actionId,
             PlayerAction.DeclareAttackers(emptyList(), defender = defenderPlayerId?.let { Target.Player(ForgePlayerId(it)) }),
         )
@@ -252,7 +254,8 @@ class CombatHandler(private val ops: SessionOps) {
         }
 
         // SubmitBlockersReq: finalize
-        val pending = bridge.actionBridge.getPending() ?: run {
+        val seatBridge = bridge.seat(ops.seatId)
+        val pending = seatBridge.action.getPending() ?: run {
             log.warn("CombatHandler: SubmitBlockersReq but no pending action — recovering")
             ops.sendRealGameState(bridge)
             return
@@ -279,7 +282,7 @@ class CombatHandler(private val ops: SessionOps) {
             ),
         )
 
-        bridge.actionBridge.submitAction(
+        seatBridge.action.submitAction(
             pending.actionId,
             PlayerAction.DeclareBlockers(blockAssignments),
         )
@@ -437,7 +440,7 @@ class CombatHandler(private val ops: SessionOps) {
         if (playback.hasPendingMessages()) {
             val batches = playback.drainQueue()
             for (batch in batches) {
-                ops.sendBundledGRE(batch) // sendBundledGRE updates lastSentTurnInfo
+                ops.sendBundledGRE(batch) // sendBundledGRE records client-seen turn info
             }
         }
     }

@@ -19,7 +19,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Two core methods:
  * - [buildFromGame]: Full [GameStateMessage] from live engine state (zones, objects,
  *   players, annotations via [AnnotationPipeline])
- * - [buildDiffFromGame]: Diff GSM containing only changes since the previous snapshot
+ * - [buildDiffFromGame]: Diff GSM containing only changes since the current diff baseline
  *
  * Lifecycle GSM factories (deal-hand, mulligan, transitions) live in [GsmBuilder].
  * Interactive request builders (targeting, combat) live in [RequestBuilder].
@@ -132,7 +132,7 @@ object StateMapper {
         // Stage 1: Detect zone transfers, realloc IDs, get patched objects/zones
         val events = bridge.drainEvents().toMutableList()
         // Drain reveal records from the prompt bridge (captured in WebPlayerController.reveal())
-        for (reveal in bridge.promptBridge.drainReveals()) {
+        for (reveal in bridge.drainReveals(viewingSeatId)) {
             events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
         }
         val transferResult = AnnotationPipeline.detectZoneTransfers(gameObjects, zones, bridge, events)
@@ -150,7 +150,7 @@ object StateMapper {
             transferPersistent.addAll(persistent)
         }
 
-        val prevState = bridge.getPreviousState()
+        val prevState = bridge.getDiffBaselineState()
         if (prevState != null) {
             events.addAll(
                 synthesizeTappedEvents(
@@ -239,8 +239,8 @@ object StateMapper {
 
     /**
      * Build a Diff [GameStateMessage] containing only zones/objects that changed
-     * since the previous snapshot. Falls back to Full if no previous state exists.
-     * Updates the bridge's snapshot after building so the next diff is relative
+     * since the current diff baseline. Falls back to Full if no baseline exists.
+     * Updates the bridge's diff baseline after building so the next diff is relative
      * to this state.
      */
     fun buildDiffFromGame(
@@ -252,12 +252,12 @@ object StateMapper {
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
     ): GameStateMessage {
-        val prev = bridge.getPreviousState()
+        val prev = bridge.getDiffBaselineState()
         if (prev == null) {
             // No baseline exists — fall back to Full, but snapshot it so the next
             // buildDiffFromGame call has a baseline and produces a real Diff.
             val full = buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId)
-            bridge.snapshotState(full)
+            bridge.snapshotDiffBaseline(full)
             return full
         }
 
@@ -324,7 +324,7 @@ object StateMapper {
         }
 
         // Update snapshot for next diff (reuse the full GSM already built above)
-        bridge.snapshotState(current)
+        bridge.snapshotDiffBaseline(current)
 
         val built = builder.build()
         if (built.gameStateId != 0 && built.gameStateId == built.prevGameStateId) {

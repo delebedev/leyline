@@ -62,7 +62,7 @@ class ActivateAbilityTest :
             pending.shouldNotBeNull()
 
             // Submit ActivateAbility — verifies MatchSession handler accepts it
-            val submitted = b.actionBridge.submitAction(
+            val submitted = b.actionBridge(1).submitAction(
                 pending.actionId,
                 PlayerAction.ActivateAbility(ForgeCardId(elf.id), 0),
             )

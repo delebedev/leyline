@@ -257,7 +257,7 @@ object AnnotationPipeline {
             }
         }
 
-        val prev = bridge.getPreviousState()
+        val prev = bridge.getDiffBaselineState()
         if (prev != null) {
             for (playerInfo in prev.playersList) {
                 val seat = playerInfo.systemSeatNumber

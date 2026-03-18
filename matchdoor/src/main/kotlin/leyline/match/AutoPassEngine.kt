@@ -152,7 +152,7 @@ class AutoPassEngine(
         val batches = playback.drainQueue()
         for ((idx, batch) in batches.withIndex()) {
             if (idx > 0) ops.paceDelay(1)
-            ops.sendBundledGRE(batch) // sendBundledGRE updates lastSentTurnInfo
+            ops.sendBundledGRE(batch) // sendBundledGRE records client-seen turn info
         }
         log.debug("drainPlayback: drained {} batches", batches.size)
         // Do NOT snapshot current engine state here — the playback diffs represent
@@ -217,7 +217,7 @@ class AutoPassEngine(
      * (priority granted to client, game over, or timeout).
      */
     private fun advanceOrWait(bridge: GameBridge, game: Game, phase: PhaseType?, isAiTurn: Boolean): LoopSignal {
-        val pending = bridge.actionBridge.getPending()
+        val pending = bridge.seat(ops.seatId).action.getPending()
         log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
 
         if (pending != null) {
@@ -239,7 +239,7 @@ class AutoPassEngine(
                 val edictal = BundleBuilder.edictalPass(ops.seatId, ops.counter)
                 ops.sendBundledGRE(edictal.messages)
             }
-            bridge.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+            bridge.seat(ops.seatId).action.submitAction(pending.actionId, PlayerAction.PassPriority)
             bridge.awaitPriority()
         } else if (isAiTurn) {
             ops.traceEvent(MatchEventType.AI_TURN_WAIT, game, "waiting for AI")

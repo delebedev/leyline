@@ -81,10 +81,10 @@ open class ConformanceTestBase {
             "Game should be at Main1 after advanceToMain1 (actual: ${game.phaseHandler.phase})"
         }
         b.snapshotFromGame(game, counter.currentGsId())
-        // Seed lastSentTurnInfo so postAction() doesn't inject a spurious
+        // Seed client-seen turn info so postAction() doesn't inject a spurious
         // PhaseOrStepModified on the first call. ConformanceTestBase bypasses
         // MatchSession (which normally updates this via sendBundledGRE).
-        b.updateLastSentTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
+        b.recordClientSeenTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
         return Triple(b, game, counter)
     }
 
@@ -116,7 +116,7 @@ open class ConformanceTestBase {
             "Puzzle game should be at Main1 (actual: ${game.phaseHandler.phase})"
         }
         b.snapshotFromGame(game, counter.currentGsId())
-        b.updateLastSentTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
+        b.recordClientSeenTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
         return Triple(b, game, counter)
     }
 
@@ -154,7 +154,7 @@ open class ConformanceTestBase {
         }
 
         b.snapshotFromGame(game, counter.currentGsId())
-        b.updateLastSentTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
+        b.recordClientSeenTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
         return Triple(b, game, counter)
     }
 
@@ -228,7 +228,7 @@ open class ConformanceTestBase {
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
         val pending = awaitFreshPending(b, null) ?: return null
         val action = PlayerAction.PlayLand(ForgeCardId(land.id))
-        b.actionBridge.submitAction(pending.actionId, action)
+        b.actionBridge(1).submitAction(pending.actionId, action)
         awaitFreshPending(b, pending.actionId)
         return action
     }
@@ -238,14 +238,14 @@ open class ConformanceTestBase {
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
         val pending = awaitFreshPending(b, null) ?: return null
         val action = PlayerAction.CastSpell(ForgeCardId(creature.id))
-        b.actionBridge.submitAction(pending.actionId, action)
+        b.actionBridge(1).submitAction(pending.actionId, action)
         awaitFreshPending(b, pending.actionId)
         return action
     }
 
     fun passPriority(b: GameBridge) {
         val pending = awaitFreshPending(b, null) ?: return
-        b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+        b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PassPriority)
         awaitFreshPending(b, pending.actionId)
     }
 
