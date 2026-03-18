@@ -285,20 +285,22 @@ def _replace_ids_deep(obj, id_map, key=None):
 # --- Prompt Lifecycle ---
 
 PROMPT_REQUEST_TYPES = {
-    'DeclareAttackersReq': 'DeclareAttackers',
-    'DeclareBlockersReq': 'DeclareBlockers',
-    'GroupReq': 'Group',
+    "DeclareAttackersReq": "DeclareAttackers",
+    "DeclareBlockersReq": "DeclareBlockers",
+    "GroupReq": "Group",
+    "SelectNReq": "SelectN",
 }
 
 PROMPT_SUBMIT_TYPES = {
-    'DeclareAttackers': 'SubmitAttackersReq',
-    'DeclareBlockers': 'SubmitBlockersReq',
+    "DeclareAttackers": "SubmitAttackersReq",
+    "DeclareBlockers": "SubmitBlockersReq",
 }
 
 PROMPT_RESPONSE_TYPES = {
-    'DeclareAttackers': 'DeclareAttackersResp',
-    'DeclareBlockers': 'DeclareBlockersResp',
-    'Group': 'GroupResp',
+    "DeclareAttackers": "DeclareAttackersResp",
+    "DeclareBlockers": "DeclareBlockersResp",
+    "Group": "GroupResp",
+    "SelectN": "SelectNResp",
 }
 
 # Inverse: request type name per category
@@ -311,14 +313,14 @@ def find_prompt_lifecycles(frames):
     i = 0
     while i < len(frames):
         frame = frames[i]
-        prompt_type = frame.get('promptType')
+        prompt_type = frame.get("promptType")
         if prompt_type not in PROMPT_REQUEST_TYPES:
             i += 1
             continue
         category = PROMPT_REQUEST_TYPES[prompt_type]
         lifecycle = extract_prompt_lifecycle(frames, i, category)
         lifecycles.setdefault(category, []).append(lifecycle)
-        i = lifecycle['end_index'] + 1
+        i = lifecycle["end_index"] + 1
     return lifecycles
 
 
@@ -329,24 +331,24 @@ def extract_prompt_lifecycle(frames, start_idx, category):
     req_type_name = _CAT_TO_REQ_TYPE.get(category)
 
     lifecycle = {
-        'category': category,
-        'start_index': start_idx,
-        'end_index': start_idx,
-        'initial_req': frames[start_idx],
-        'initial_gsms': [],
-        'rounds': [],
-        'submit': None,
-        'submit_resp': None,
-        'result_gsm': None,
+        "category": category,
+        "start_index": start_idx,
+        "end_index": start_idx,
+        "initial_req": frames[start_idx],
+        "initial_gsms": [],
+        "rounds": [],
+        "submit": None,
+        "submit_resp": None,
+        "result_gsm": None,
     }
 
     # Collect GSMs in the same gsId batch preceding the initial req
-    req_gs = frames[start_idx].get('gsId', 0)
+    req_gs = frames[start_idx].get("gsId", 0)
     j = start_idx - 1
     while j >= 0:
         f = frames[j]
-        if f.get('gsId') == req_gs and f.get('gsmType') in ('Diff', 'Full'):
-            lifecycle['initial_gsms'].insert(0, f)
+        if f.get("gsId") == req_gs and f.get("gsmType") in ("Diff", "Full"):
+            lifecycle["initial_gsms"].insert(0, f)
             j -= 1
         else:
             break
@@ -356,49 +358,49 @@ def extract_prompt_lifecycle(frames, start_idx, category):
 
     while i < len(frames):
         f = frames[i]
-        pt = f.get('promptType')
+        pt = f.get("promptType")
 
         # Client response
         if pt == resp_type:
             if current_round:
-                lifecycle['rounds'].append(current_round)
-            current_round = {'response': f, 'echo_gsms': [], 'echo_req': None}
-            lifecycle['end_index'] = i
+                lifecycle["rounds"].append(current_round)
+            current_round = {"response": f, "echo_gsms": [], "echo_req": None}
+            lifecycle["end_index"] = i
             i += 1
-            # GroupReq: single round, ends after response
-            if category == 'Group':
-                lifecycle['rounds'].append(current_round)
+            # Single-round prompts: ends after response (no submit phase)
+            if category in ("Group", "SelectN"):
+                lifecycle["rounds"].append(current_round)
                 current_round = None
                 # Consume result GSM if present
-                if i < len(frames) and frames[i].get('gsmType') in ('Diff', 'Full'):
-                    lifecycle['result_gsm'] = frames[i]
-                    lifecycle['end_index'] = i
+                if i < len(frames) and frames[i].get("gsmType") in ("Diff", "Full"):
+                    lifecycle["result_gsm"] = frames[i]
+                    lifecycle["end_index"] = i
                 break
             continue
 
         # Submit — ends lifecycle (DeclareAttackers/Blockers only)
         if submit_type and pt == submit_type:
             if current_round:
-                lifecycle['rounds'].append(current_round)
+                lifecycle["rounds"].append(current_round)
                 current_round = None
-            lifecycle['submit'] = f
-            lifecycle['end_index'] = i
+            lifecycle["submit"] = f
+            lifecycle["end_index"] = i
             if i + 1 < len(frames):
                 nxt = frames[i + 1]
-                if nxt.get('gsmType') in ('Diff', 'Full'):
-                    lifecycle['result_gsm'] = nxt
-                    lifecycle['end_index'] = i + 1
+                if nxt.get("gsmType") in ("Diff", "Full"):
+                    lifecycle["result_gsm"] = nxt
+                    lifecycle["end_index"] = i + 1
             break
 
         # GSM diff — part of echo round (only before echo_req is set)
-        if f.get('gsmType') in ('Diff', 'Full'):
-            if current_round is not None and current_round['echo_req'] is None:
-                current_round['echo_gsms'].append(f)
-                lifecycle['end_index'] = i
+        if f.get("gsmType") in ("Diff", "Full"):
+            if current_round is not None and current_round["echo_req"] is None:
+                current_round["echo_gsms"].append(f)
+                lifecycle["end_index"] = i
                 i += 1
                 continue
             # GSM after echo_req means the round is complete, this is post-combat
-            if current_round is not None and current_round['echo_req'] is not None:
+            if current_round is not None and current_round["echo_req"] is not None:
                 break
             # GSM before any response — skip (part of initial context)
             i += 1
@@ -407,8 +409,8 @@ def extract_prompt_lifecycle(frames, start_idx, category):
         # Server re-prompt of same type (echo req)
         if pt == req_type_name:
             if current_round is not None:
-                current_round['echo_req'] = f
-                lifecycle['end_index'] = i
+                current_round["echo_req"] = f
+                lifecycle["end_index"] = i
             i += 1
             continue
 
@@ -417,37 +419,55 @@ def extract_prompt_lifecycle(frames, start_idx, category):
             break
 
         # Unknown frame — advance
-        lifecycle['end_index'] = i
+        lifecycle["end_index"] = i
         i += 1
 
     if current_round:
-        lifecycle['rounds'].append(current_round)
+        lifecycle["rounds"].append(current_round)
 
     return lifecycle
 
 
 # --- Prompt Templatization ---
 
-_PROMPT_SKIP_KEYS = frozenset({
-    'playerSystemSeatId', 'player_system_seat_id',
-    'type',
-    'promptId', 'prompt_id',
-    'canSubmitAttackers', 'can_submit_attackers',
-    'hasRequirements', 'has_requirements',
-    'hasRestrictions', 'has_restrictions',
-    'mustAttack', 'must_attack',
-    'maxAttackers', 'max_attackers',
-    'isFacedown', 'is_facedown',
-    'alternativeGrpId', 'alternative_grp_id',
-    'grpId', 'grp_id',
-    'zoneType', 'zone_type',
-    'subZoneType', 'sub_zone_type',
-    'lowerBound', 'lower_bound',
-    'upperBound', 'upper_bound',
-    'groupType', 'group_type',
-    'context',
-    'count', 'color',
-})
+_PROMPT_SKIP_KEYS = frozenset(
+    {
+        "playerSystemSeatId",
+        "player_system_seat_id",
+        "type",
+        "promptId",
+        "prompt_id",
+        "canSubmitAttackers",
+        "can_submit_attackers",
+        "hasRequirements",
+        "has_requirements",
+        "hasRestrictions",
+        "has_restrictions",
+        "mustAttack",
+        "must_attack",
+        "maxAttackers",
+        "max_attackers",
+        "isFacedown",
+        "is_facedown",
+        "alternativeGrpId",
+        "alternative_grp_id",
+        "grpId",
+        "grp_id",
+        "zoneType",
+        "zone_type",
+        "subZoneType",
+        "sub_zone_type",
+        "lowerBound",
+        "lower_bound",
+        "upperBound",
+        "upper_bound",
+        "groupType",
+        "group_type",
+        "context",
+        "count",
+        "color",
+    }
+)
 
 
 def _collect_ordered(obj, add_fn, key=None):
@@ -463,25 +483,34 @@ def _collect_ordered(obj, add_fn, key=None):
 
 
 # Object fields that are card-identity (vary per card, not protocol shape)
-_CARD_IDENTITY_KEYS = frozenset({
-    'grpId', 'power', 'toughness', 'subtypes', 'superTypes',
-    'cardTypes', 'uniqueAbilityCount', 'hasSummoningSickness',
-    'isTapped', 'viewers',
-})
+_CARD_IDENTITY_KEYS = frozenset(
+    {
+        "grpId",
+        "power",
+        "toughness",
+        "subtypes",
+        "superTypes",
+        "cardTypes",
+        "uniqueAbilityCount",
+        "hasSummoningSickness",
+        "isTapped",
+        "viewers",
+    }
+)
 
 
 def _extract_conformance_gsm(frame):
     """Extract protocol-structural fields from a GSM, stripping card identity."""
     objects = []
-    for obj in frame.get('objects', []):
+    for obj in frame.get("objects", []):
         # Keep structural fields, drop card-specific ones
         stripped = {k: v for k, v in obj.items() if k not in _CARD_IDENTITY_KEYS}
         objects.append(stripped)
     return {
-        'objects': objects,
-        'annotations': frame.get('annotations', []),
-        'persistentAnnotations': frame.get('persistentAnnotations', []),
-        'updateType': frame.get('updateType'),
+        "objects": objects,
+        "annotations": frame.get("annotations", []),
+        "persistentAnnotations": frame.get("persistentAnnotations", []),
+        "updateType": frame.get("updateType"),
     }
 
 
@@ -498,106 +527,172 @@ def templatize_prompt_lifecycle(lifecycle, zone_ids=None):
             all_ids.append(val)
             seen.add(val)
 
-    _collect_ordered(lifecycle['initial_req'].get('promptData'), add_id)
-    for rnd in lifecycle.get('rounds', []):
-        _collect_ordered(rnd['response'].get('promptData'), add_id)
-        for gsm in rnd.get('echo_gsms', []):
-            for obj in gsm.get('objects', []):
-                add_id(obj.get('instanceId', 0))
-        if rnd.get('echo_req'):
-            _collect_ordered(rnd['echo_req'].get('promptData'), add_id)
+    _collect_ordered(lifecycle["initial_req"].get("promptData"), add_id)
+    for rnd in lifecycle.get("rounds", []):
+        _collect_ordered(rnd["response"].get("promptData"), add_id)
+        for gsm in rnd.get("echo_gsms", []):
+            for obj in gsm.get("objects", []):
+                add_id(obj.get("instanceId", 0))
+        if rnd.get("echo_req"):
+            _collect_ordered(rnd["echo_req"].get("promptData"), add_id)
 
     id_map = {orig: f"$var_{i}" for i, orig in enumerate(all_ids, 1)}
 
     result = {
-        'category': lifecycle['category'],
-        'initial_req_promptData': _replace_ids_deep(lifecycle['initial_req'].get('promptData'), id_map),
-        'rounds': [],
+        "category": lifecycle["category"],
+        "initial_req_promptData": _replace_ids_deep(
+            lifecycle["initial_req"].get("promptData"), id_map
+        ),
+        "rounds": [],
     }
-    for rnd in lifecycle.get('rounds', []):
+    for rnd in lifecycle.get("rounds", []):
         t_round = {
-            'response_promptData': _replace_ids_deep(rnd['response'].get('promptData'), id_map),
-            'echo_gsms': [_replace_ids_deep(_extract_conformance_gsm(g), id_map) for g in rnd.get('echo_gsms', [])],
+            "response_promptData": _replace_ids_deep(
+                rnd["response"].get("promptData"), id_map
+            ),
+            "echo_gsms": [
+                _replace_ids_deep(_extract_conformance_gsm(g), id_map)
+                for g in rnd.get("echo_gsms", [])
+            ],
         }
-        if rnd.get('echo_req'):
-            t_round['echo_req_promptData'] = _replace_ids_deep(rnd['echo_req'].get('promptData'), id_map)
-        result['rounds'].append(t_round)
-    if lifecycle.get('submit'):
-        result['submit_promptData'] = _replace_ids_deep(lifecycle['submit'].get('promptData'), id_map)
+        if rnd.get("echo_req"):
+            t_round["echo_req_promptData"] = _replace_ids_deep(
+                rnd["echo_req"].get("promptData"), id_map
+            )
+        result["rounds"].append(t_round)
+    if lifecycle.get("submit"):
+        result["submit_promptData"] = _replace_ids_deep(
+            lifecycle["submit"].get("promptData"), id_map
+        )
 
     return result, id_map
 
 
 # --- Prompt Diff ---
 
+
 def diff_prompt_lifecycle(template, engine):
     """Diff a templatized recording prompt lifecycle against engine output."""
     diffs = []
     _diff_json_recursive(
-        template.get('initial_req_promptData', {}),
-        engine.get('initial_req_promptData', {}),
-        'initial_req', diffs,
+        template.get("initial_req_promptData", {}),
+        engine.get("initial_req_promptData", {}),
+        "initial_req",
+        diffs,
     )
-    t_rounds = template.get('rounds', [])
-    e_rounds = engine.get('rounds', [])
+    t_rounds = template.get("rounds", [])
+    e_rounds = engine.get("rounds", [])
     for ri in range(max(len(t_rounds), len(e_rounds))):
         if ri >= len(t_rounds):
-            diffs.append({'path': f'rounds[{ri}]', 'type': 'extra_engine', 'engine': e_rounds[ri]})
+            diffs.append(
+                {
+                    "path": f"rounds[{ri}]",
+                    "type": "extra_engine",
+                    "engine": e_rounds[ri],
+                }
+            )
             continue
         if ri >= len(e_rounds):
-            diffs.append({'path': f'rounds[{ri}]', 'type': 'extra_recording', 'recording': t_rounds[ri]})
+            diffs.append(
+                {
+                    "path": f"rounds[{ri}]",
+                    "type": "extra_recording",
+                    "recording": t_rounds[ri],
+                }
+            )
             continue
         t_rnd, e_rnd = t_rounds[ri], e_rounds[ri]
-        if 'echo_req_promptData' in t_rnd or 'echo_req_promptData' in e_rnd:
+        if "echo_req_promptData" in t_rnd or "echo_req_promptData" in e_rnd:
             _diff_json_recursive(
-                t_rnd.get('echo_req_promptData', {}),
-                e_rnd.get('echo_req_promptData', {}),
-                f'rounds[{ri}].echo_req', diffs,
+                t_rnd.get("echo_req_promptData", {}),
+                e_rnd.get("echo_req_promptData", {}),
+                f"rounds[{ri}].echo_req",
+                diffs,
             )
-        t_gsms = t_rnd.get('echo_gsms', [])
-        e_gsms = e_rnd.get('echo_gsms', [])
+        t_gsms = t_rnd.get("echo_gsms", [])
+        e_gsms = e_rnd.get("echo_gsms", [])
         for gi in range(max(len(t_gsms), len(e_gsms))):
             if gi < len(t_gsms) and gi < len(e_gsms):
-                _diff_json_recursive(t_gsms[gi], e_gsms[gi], f'rounds[{ri}].echo_gsms[{gi}]', diffs)
+                _diff_json_recursive(
+                    t_gsms[gi], e_gsms[gi], f"rounds[{ri}].echo_gsms[{gi}]", diffs
+                )
     return diffs
 
 
 def _diff_json_recursive(recording, engine, path, diffs):
     """Recursive JSON diff with path tracking."""
     # Template $var_N is str, engine value is int — skip (unbound template var)
-    if isinstance(recording, str) and recording.startswith('$var_'):
+    if isinstance(recording, str) and recording.startswith("$var_"):
         return
     if type(recording) != type(engine):
-        diffs.append({'path': path, 'type': 'type_mismatch', 'recording': recording, 'engine': engine})
+        diffs.append(
+            {
+                "path": path,
+                "type": "type_mismatch",
+                "recording": recording,
+                "engine": engine,
+            }
+        )
         return
     if isinstance(recording, dict):
         for key in sorted(set(recording.keys()) | set(engine.keys())):
             r_val = recording.get(key)
             e_val = engine.get(key)
             if r_val is None and e_val is not None:
-                diffs.append({'path': f'{path}.{key}', 'type': 'missing_in_recording', 'engine': e_val})
+                diffs.append(
+                    {
+                        "path": f"{path}.{key}",
+                        "type": "missing_in_recording",
+                        "engine": e_val,
+                    }
+                )
             elif r_val is not None and e_val is None:
-                diffs.append({'path': f'{path}.{key}', 'type': 'missing_in_engine', 'recording': r_val})
+                diffs.append(
+                    {
+                        "path": f"{path}.{key}",
+                        "type": "missing_in_engine",
+                        "recording": r_val,
+                    }
+                )
             elif r_val != e_val:
-                _diff_json_recursive(r_val, e_val, f'{path}.{key}', diffs)
+                _diff_json_recursive(r_val, e_val, f"{path}.{key}", diffs)
     elif isinstance(recording, list):
         for i in range(max(len(recording), len(engine))):
             if i >= len(recording):
-                diffs.append({'path': f'{path}[{i}]', 'type': 'extra_engine', 'engine': engine[i]})
+                diffs.append(
+                    {
+                        "path": f"{path}[{i}]",
+                        "type": "extra_engine",
+                        "engine": engine[i],
+                    }
+                )
             elif i >= len(engine):
-                diffs.append({'path': f'{path}[{i}]', 'type': 'extra_recording', 'recording': recording[i]})
+                diffs.append(
+                    {
+                        "path": f"{path}[{i}]",
+                        "type": "extra_recording",
+                        "recording": recording[i],
+                    }
+                )
             elif recording[i] != engine[i]:
-                _diff_json_recursive(recording[i], engine[i], f'{path}[{i}]', diffs)
+                _diff_json_recursive(recording[i], engine[i], f"{path}[{i}]", diffs)
     else:
         if recording != engine:
-            if isinstance(recording, str) and recording.startswith('$var_'):
+            if isinstance(recording, str) and recording.startswith("$var_"):
                 return  # unbound template var — skip
-            diffs.append({'path': path, 'type': 'value_mismatch', 'recording': recording, 'engine': engine})
+            diffs.append(
+                {
+                    "path": path,
+                    "type": "value_mismatch",
+                    "recording": recording,
+                    "engine": engine,
+                }
+            )
 
 
 def _report_prompt_diffs(diffs, json_mode=False, golden_path=None):
     if json_mode:
-        print(json.dumps({'diffs': diffs, 'count': len(diffs)}, indent=2))
+        print(json.dumps({"diffs": diffs, "count": len(diffs)}, indent=2))
         return
     if not diffs:
         print("PASS — all prompt fields match recording")
@@ -605,23 +700,25 @@ def _report_prompt_diffs(diffs, json_mode=False, golden_path=None):
     print(f"FAIL — {len(diffs)} difference(s):")
     print()
     for d in diffs:
-        path = d.get('path', '?')
-        dtype = d.get('type', '?')
-        if dtype == 'missing_in_engine':
+        path = d.get("path", "?")
+        dtype = d.get("type", "?")
+        if dtype == "missing_in_engine":
             print(f"  {path}: MISSING in engine (recording: {d.get('recording')})")
-        elif dtype == 'missing_in_recording':
+        elif dtype == "missing_in_recording":
             print(f"  {path}: EXTRA in engine (engine: {d.get('engine')})")
-        elif dtype == 'value_mismatch':
+        elif dtype == "value_mismatch":
             print(f"  {path}: recording={d.get('recording')} engine={d.get('engine')}")
-        elif dtype == 'type_mismatch':
-            print(f"  {path}: type mismatch recording={type(d.get('recording')).__name__} engine={type(d.get('engine')).__name__}")
+        elif dtype == "type_mismatch":
+            print(
+                f"  {path}: type mismatch recording={type(d.get('recording')).__name__} engine={type(d.get('engine')).__name__}"
+            )
         else:
             print(f"  {path}: {dtype}")
     if golden_path:
         try:
             with open(golden_path) as f:
                 golden = json.loads(f.read())
-            golden_count = golden.get('count', 0)
+            golden_count = golden.get("count", 0)
             if len(diffs) > golden_count:
                 print(f"\nREGRESSION: {len(diffs)} diffs > golden {golden_count}")
                 sys.exit(2)
@@ -678,15 +775,19 @@ def cmd_list(args):
     if prompt_cats:
         print()
         for cat, lifecycles in sorted(prompt_cats.items()):
-            indices = [lc['start_index'] for lc in lifecycles]
-            round_counts = [len(lc['rounds']) for lc in lifecycles]
-            print(f"  {cat}: {len(lifecycles)} lifecycles at indices {indices} (rounds: {round_counts})")
+            indices = [lc["start_index"] for lc in lifecycles]
+            round_counts = [len(lc["rounds"]) for lc in lifecycles]
+            print(
+                f"  {cat}: {len(lifecycles)} lifecycles at indices {indices} (rounds: {round_counts})"
+            )
 
 
 def cmd_show(args):
     """Show a specific prompt lifecycle with full proto fields."""
     if not args:
-        print("Usage: segments.py show <category> [session] [--index N]", file=sys.stderr)
+        print(
+            "Usage: segments.py show <category> [session] [--index N]", file=sys.stderr
+        )
         sys.exit(1)
     category = args[0]
     session = None
@@ -703,11 +804,17 @@ def cmd_show(args):
     frames = load_frames(path)
     prompt_cats = find_prompt_lifecycles(frames)
     if category not in prompt_cats:
-        print(f"No {category} lifecycles found. Available: {list(prompt_cats.keys())}", file=sys.stderr)
+        print(
+            f"No {category} lifecycles found. Available: {list(prompt_cats.keys())}",
+            file=sys.stderr,
+        )
         sys.exit(1)
     lifecycles = prompt_cats[category]
     if target_index >= len(lifecycles):
-        print(f"Only {len(lifecycles)} lifecycles, index {target_index} out of range", file=sys.stderr)
+        print(
+            f"Only {len(lifecycles)} lifecycles, index {target_index} out of range",
+            file=sys.stderr,
+        )
         sys.exit(1)
     lc = lifecycles[target_index]
     print(f"# Session: {session_name(path)}")
@@ -716,19 +823,19 @@ def cmd_show(args):
     print(f"# Rounds: {len(lc['rounds'])}")
     print()
     print("=== Initial Request ===")
-    print(json.dumps(lc['initial_req'].get('promptData'), indent=2))
+    print(json.dumps(lc["initial_req"].get("promptData"), indent=2))
     print()
-    for ri, rnd in enumerate(lc['rounds']):
+    for ri, rnd in enumerate(lc["rounds"]):
         print(f"=== Round {ri} ===")
         print("--- Response (promptData) ---")
-        print(json.dumps(rnd['response'].get('promptData'), indent=2))
-        if rnd.get('echo_req'):
+        print(json.dumps(rnd["response"].get("promptData"), indent=2))
+        if rnd.get("echo_req"):
             print("--- Echo Request (promptData) ---")
-            print(json.dumps(rnd['echo_req'].get('promptData'), indent=2))
+            print(json.dumps(rnd["echo_req"].get("promptData"), indent=2))
         print()
-    if lc.get('submit'):
+    if lc.get("submit"):
         print("=== Submit ===")
-        print(json.dumps(lc['submit'].get('promptData'), indent=2))
+        print(json.dumps(lc["submit"].get("promptData"), indent=2))
 
 
 def cmd_extract(args):
@@ -761,7 +868,10 @@ def _template_prompt(frames, path, category, target_index):
         sys.exit(1)
     lifecycles = prompt_cats[category]
     if target_index >= len(lifecycles):
-        print(f"Only {len(lifecycles)} lifecycles, index {target_index} out of range", file=sys.stderr)
+        print(
+            f"Only {len(lifecycles)} lifecycles, index {target_index} out of range",
+            file=sys.stderr,
+        )
         sys.exit(1)
     lc = lifecycles[target_index]
     zone_ids = collect_zone_ids(frames)
@@ -802,7 +912,7 @@ def cmd_template(args):
     frames = load_frames(path)
 
     # Prompt lifecycle categories
-    if category in ('DeclareAttackers', 'DeclareBlockers', 'Group'):
+    if category in ("DeclareAttackers", "DeclareBlockers", "Group", "SelectN"):
         _template_prompt(frames, path, category, target_index)
         return
 
@@ -1205,7 +1315,7 @@ def cmd_diff(args):
         engine = json.loads(f.read())
 
     # Detect prompt lifecycle vs zone-transfer frame
-    if 'initial_req_promptData' in template:
+    if "initial_req_promptData" in template:
         diffs = diff_prompt_lifecycle(template, engine)
         _report_prompt_diffs(diffs, json_mode, golden_path)
         return
