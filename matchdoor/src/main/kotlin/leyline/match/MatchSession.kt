@@ -91,7 +91,8 @@ class MatchSession(
             }
             counter = bridgeCounter
         }
-        // Wire autoPassState to WebPlayerController so full control mode works
+        // Wire autoPassState to WebPlayerController so full control mode works.
+        // TODO(pvp): seat 2 needs its own WebPlayerController wiring once PvP control is enabled.
         bridge.humanController?.setAutoPassState(autoPassState)
     }
 
