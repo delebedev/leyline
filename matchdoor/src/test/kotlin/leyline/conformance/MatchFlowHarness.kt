@@ -193,6 +193,20 @@ class MatchFlowHarness(
     }
 
     /**
+     * Keep passing until [stopWhen] becomes true, the game ends, or [maxPasses] is hit.
+     *
+     * Returns true when [stopWhen] was observed before the pass budget ran out.
+     * Prefer this over fixed `repeat(N) { passPriority() }` loops in integration tests.
+     */
+    fun passUntil(maxPasses: Int = 20, stopWhen: MatchFlowHarness.() -> Boolean): Boolean {
+        repeat(maxPasses) {
+            if (stopWhen() || isGameOver()) return true
+            passPriority()
+        }
+        return stopWhen() || isGameOver()
+    }
+
+    /**
      * Keep passing until a target turn is reached (or game over / max iterations).
      *
      * TODO(multi-turn-overshoot): A single [passPriority] call triggers

@@ -59,10 +59,7 @@ class ActivatedAbilityPuzzleTest :
             h.selectTargets(listOf(2))
 
             // Resolve
-            repeat(10) {
-                if (h.isGameOver()) return@repeat
-                h.passPriority()
-            }
+            h.passUntil(maxPasses = 20) { isGameOver() || ai.life <= 0 }.shouldBeTrue()
 
             h.isGameOver().shouldBeTrue()
             human.hasWon().shouldBeTrue()
