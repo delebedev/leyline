@@ -608,6 +608,7 @@ object BundleBuilder {
         seatId: Int,
         counter: MessageCounter,
         req: SelectNReq,
+        isLegendRule: Boolean = false,
     ): BundleResult {
         val nextGs = counter.nextGsId()
 
@@ -618,7 +619,22 @@ object BundleBuilder {
 
         val msg2 = makeGRE(GREMessageType.SelectNreq, nextGs, seatId, counter.nextMsgId()) {
             it.selectNReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
+            if (isLegendRule) {
+                // Legend rule: promptId=72 + CardId param, no cancel allowed.
+                it.setPrompt(
+                    Prompt.newBuilder()
+                        .setPromptId(PromptIds.SELECT_N_LEGEND_RULE)
+                        .addParameters(
+                            PromptParameter.newBuilder()
+                                .setParameterName("CardId")
+                                .setType(ParameterType.Number),
+                        )
+                        .build(),
+                )
+                it.allowCancel = AllowCancel.No_a526
+            } else {
+                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
+            }
         }
 
         return BundleResult(listOf(msg1, msg2))

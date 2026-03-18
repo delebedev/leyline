@@ -115,6 +115,9 @@ class GameBridge(
     fun promptBridge(seatId: Int): InteractivePromptBridge =
         promptBridges[seatId] ?: error("No prompt bridge for seat $seatId")
 
+    /** All populated seat IDs (for iterating prompt bridges). */
+    fun allSeatIds(): Set<Int> = promptBridges.keys
+
     /** Parameterized accessor — throws if seat not populated. */
     fun mulliganBridge(seatId: Int): MulliganBridge =
         mulliganBridges[seatId] ?: error("No mulligan bridge for seat $seatId")

@@ -13,6 +13,12 @@ object PromptIds {
     const val GROUP_SURVEIL = 93
     const val GROUP_SCRY = 94
     const val SELECT_N = 1243
+
+    /** Legend rule "choose which to keep". */
+    const val SELECT_N_LEGEND_RULE = 72
+
+    /** sourceId on SelectNReq for legend rule. */
+    const val SELECT_N_LEGEND_RULE_SOURCE = 15168
     const val CASTING_TIME_OPTIONS = 38
     const val PAY_COSTS = 1244
 }

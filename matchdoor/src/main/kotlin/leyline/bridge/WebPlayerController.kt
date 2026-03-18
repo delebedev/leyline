@@ -9,6 +9,7 @@ import forge.game.Game
 import forge.game.GameEntity
 import forge.game.GameObject
 import forge.game.ability.AbilityUtils
+import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
@@ -312,9 +313,14 @@ class WebPlayerController(
         if (delayedReveal != null) reveal(delayedReveal)
         if (optionList.isEmpty()) return null
         if (optionList.size == 1 && !isOptional) return optionList.getFirst()
+
+        // Legend rule SBA: prompt the player to choose which legendary to keep.
+        // Real server sends SelectNReq (context=Resolution, min=1, max=1).
+        val isLegendRule = sa?.api == ApiType.InternalLegendaryRule
+
         val labels = optionList.map { it.entityLabel() }
         val request = PromptRequest(
-            promptType = "choose_cards",
+            promptType = if (isLegendRule) "legend_rule" else "choose_cards",
             message = title ?: "Choose one",
             options = labels,
             min = if (isOptional) 0 else 1,
@@ -324,10 +330,29 @@ class WebPlayerController(
         )
         val indices = bridge.requestChoice(request)
         val idx = indices.firstOrNull()
-        if (idx != null && idx in 0 until optionList.size) {
-            return optionList.get(idx)
+        val chosen = if (idx != null && idx in 0 until optionList.size) {
+            optionList.get(idx)
+        } else {
+            if (isOptional) null else optionList.getFirst()
         }
-        return if (isOptional) null else optionList.getFirst()
+
+        // Legend rule: mark all unchosen legendaries as victims for SBA_LegendRule annotation.
+        if (isLegendRule && chosen != null) {
+            val cards = optionList.filterIsInstance<Card>()
+            for (card in cards) {
+                if (card !== chosen) {
+                    bridge.legendRuleVictims.add(card.id)
+                }
+            }
+            log.info(
+                "legend rule: player chose {} (id={}), victims={}",
+                (chosen as? Card)?.name,
+                (chosen as? Card)?.id,
+                bridge.legendRuleVictims,
+            )
+        }
+
+        return chosen
     }
 
     // chooseSingleCardForZoneChange — inherited from PCHuman, which delegates

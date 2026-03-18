@@ -200,6 +200,28 @@ fun submitTargetsReq(): ClientToGREMessage =
     clientMessage(ClientMessageType.SubmitTargetsReq)
 
 // ---------------------------------------------------------------------------
+// SelectN — legend rule, "choose N" prompts
+// ---------------------------------------------------------------------------
+
+/**
+ * [SelectNResp] — respond to a SelectNReq with selected instanceIds.
+ *
+ * Used for legend rule (choose 1 to keep) and similar "choose N" prompts.
+ *
+ * ```kotlin
+ * selectNResp(ids = listOf(iid))
+ * ```
+ */
+fun selectNResp(ids: List<Int>): ClientToGREMessage =
+    clientMessage(ClientMessageType.SelectNresp) {
+        setSelectNResp(
+            SelectNResp.newBuilder().apply {
+                for (id in ids) addIds(id)
+            },
+        )
+    }
+
+// ---------------------------------------------------------------------------
 // Modal — CastingTimeOptionsResp
 // ---------------------------------------------------------------------------
 
