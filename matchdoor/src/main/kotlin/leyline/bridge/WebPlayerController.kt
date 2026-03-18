@@ -18,7 +18,6 @@ import forge.game.cost.Cost
 import forge.game.cost.CostPart
 import forge.game.cost.CostPayment
 import forge.game.keyword.KeywordInterface
-import forge.game.mana.ManaConversionMatrix
 import forge.game.player.DelayedReveal
 import forge.game.player.PlaySpellAbility
 import forge.game.player.Player
@@ -552,12 +551,9 @@ class WebPlayerController(
     }
 
     // -- Mana payment ------------------------------------------------------
-    // Seam 3: payManaCost is inherited from PCHuman, which calls
-    // HumanPlay.payManaCost() for the full ceremony (X cost tracking,
-    // CostAdjustment.adjust, offering/emerge sacrifice setup, mana
-    // color conversion, handleOfferingConvokeAndDelve). The actual
-    // "tap lands" step calls payManaInteractively() which is overridden
-    // below in the ADR-010 Seam overrides section (AI auto-pay for now).
+    // Upstream now routes cost payment through PlayerController.payManaCost /
+    // applyManaToCost. We override those newer entry points below and keep one
+    // auto-pay path instead of carrying older HumanPlay-era seams.
 
     // -- Convoke / Improvise -----------------------------------------------
     // PCHuman uses InputSelectCardsForConvokeOrImprovise (desktop-only, hangs).
@@ -634,12 +630,9 @@ class WebPlayerController(
     }
 
     // -- Pay cost to prevent effect ----------------------------------------
-    // Seam 4: payCostToPreventEffect is inherited from PCHuman, which calls
-    // HumanPlay.payCostDuringAbilityResolve(). That method now routes through
-    // seamed callbacks: selectCardForCostDuringResolve (overridden below),
-    // selectCardsForCostPart (overridden below), WebCostDecision (Seam 1),
-    // and payManaInteractively (Seam 3). Unlocks Propaganda, Rhystic Study,
-    // Echo, Cumulative Upkeep, Ghostly Prison, etc.
+    // payCostToPreventEffect is inherited from PCHuman. Upstream now resolves
+    // card-picking/mana payment for these flows through chooseCardsForCost and
+    // payManaCost/applyManaToCost, so the older extra seam callbacks are dead.
 
     // -- Discard unless type -----------------------------------------------
     // PCHuman uses InputSelectEntitiesFromList (desktop-only, hangs).
@@ -687,27 +680,11 @@ class WebPlayerController(
     // need a web-safe override.  Refs meeting 2026-02-08 Tier 1.
 
     // ═══════════════════════════════════════════════════════════════════
-    // ADR-010 Seam overrides
-    // Factory methods from PlayerControllerHuman, overridden for web.
+    // Active controller overrides on the current upstream surface.
     // ═══════════════════════════════════════════════════════════════════
 
-    // -- Seam 1: Cost Decision --------------------------------------------
+    // -- Cost Decision -----------------------------------------------------
     // WebCostDecision routes interactive cost choices through the bridge.
-
-    override fun createCostDecision(
-        p: Player,
-        sa: SpellAbility,
-        effect: Boolean,
-    ): forge.game.cost.CostDecisionMakerBase = WebCostDecision(this, p, sa, effect, bridge)
-
-    override fun createCostDecision(
-        p: Player,
-        sa: SpellAbility,
-        effect: Boolean,
-        source: Card,
-        orString: String?,
-    ): forge.game.cost.CostDecisionMakerBase = WebCostDecision(this, p, sa, effect, bridge, source, orString)
-
     override fun getCostDecisionMaker(
         player: Player,
         ability: SpellAbility,
@@ -724,7 +701,7 @@ class WebPlayerController(
             PlaySpellAbility.getOrStringFromCost(ability, prompt),
         )
 
-    // -- Seam 2: Target Selection -----------------------------------------
+    // -- Target Selection --------------------------------------------------
     // Bridge-based interactive target selection.
     // TargetSelection validates candidates and zones; this method handles
     // the user interaction portion.
@@ -825,22 +802,7 @@ class WebPlayerController(
         return forge.player.TargetSelectionResult(chosen, done)
     }
 
-    // -- Seam 3: Mana Payment ---------------------------------------------
-    // Use AI auto-payment for now (matches existing behavior).
-    // Later: interactive "tap these lands" via bridge.
-
-    override fun payManaInteractively(
-        toPay: forge.game.mana.ManaCostBeingPaid,
-        sa: SpellAbility,
-        activator: Player,
-        matrix: forge.game.mana.ManaConversionMatrix,
-        effect: Boolean,
-        prompt: String?,
-    ): Boolean {
-        log.debug("payManaInteractively [AI]: {} for {}", toPay, sa.hostCard?.name)
-        return ComputerUtilMana.payManaCost(toPay, sa, activator, effect)
-    }
-
+    // -- Mana Payment ------------------------------------------------------
     override fun payManaCost(
         toPay: forge.card.mana.ManaCost,
         costPartMana: forge.game.cost.CostPartMana,
@@ -857,49 +819,8 @@ class WebPlayerController(
         matrix: forge.game.mana.ManaConversionMatrix?,
         effect: Boolean,
     ): Boolean {
-        val safeMatrix = matrix ?: forge.game.mana.ManaConversionMatrix().also { it.restoreColorReplacements() }
-        return payManaInteractively(toPay, ability, player, safeMatrix, effect, prompt)
-    }
-
-    // -- Seam 4a: Select card during cost resolution ----------------------
-
-    override fun selectCardForCostDuringResolve(
-        message: String,
-        options: List<Card>,
-        mandatory: Boolean,
-    ): Card? {
-        if (options.isEmpty()) return null
-        if (options.size == 1 && mandatory) return options[0]
-
-        val labels = options.map { it.name }
-        val candidateRefs = options.mapIndexed { idx, card ->
-            PromptCandidateRefDto(idx, "card", card.id, card.zone?.zoneType?.name)
-        }
-        val request = PromptRequest(
-            promptType = "choose_cards",
-            message = message,
-            options = labels,
-            min = if (mandatory) 1 else 0,
-            max = 1,
-            defaultIndex = 0,
-            candidateRefs = candidateRefs,
-        )
-        val indices = bridge.requestChoice(request)
-        val idx = indices.firstOrNull() ?: return null
-        return options.getOrNull(idx)
-    }
-
-    // -- Seam 4b: Select cards for cost part ------------------------------
-
-    override fun selectCardsForCostPart(
-        message: String,
-        available: forge.game.card.CardCollectionView,
-        amount: Int,
-        sa: SpellAbility,
-    ): CardCollection? {
-        if (available.size < amount) return null
-        val result = chooseCardsViaBridge(available, amount, amount, message)
-        return if (result.size == amount) result else null
+        log.debug("applyManaToCost [AI]: {} for {}", toPay, ability.hostCard?.name)
+        return ComputerUtilMana.payManaCost(toPay, ability, player, effect)
     }
 
     override fun chooseCardsForCost(
@@ -981,9 +902,8 @@ class WebPlayerController(
     // PCHuman uses HumanPlay + HumanPlaySpellAbility (desktop Input classes)
 
     override fun playChosenSpellAbility(chosenSa: SpellAbility): Boolean {
-        // Seam 1: Use HumanPlaySpellAbility to get proper cost decisions via
-        // WebCostDecision (factory), rollback, splice, extra keyword costs, and
-        // mana conversion.
+        // Use the upstream PlaySpellAbility path so cost decisions, optional
+        // costs, rollback, splice, and mana conversion all stay centralized.
         //
         // Targets may be pre-set by chooseSpellAbilityToPlay() when the client
         // supplies them upfront (web UI path). When targets are NOT pre-set and
