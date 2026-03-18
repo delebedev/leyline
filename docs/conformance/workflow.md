@@ -42,6 +42,8 @@ Produce a wire spec (see `wire-spec-schema.md`):
 - What instanceId lifecycle events occur (ObjectIdChanged, realloc)
 - What persistent annotations are present
 
+**Seat choice:** Annotations are global — identical content regardless of receiving seat. Use `--seat 2` when seat 1 recording is unavailable or when the opponent's perspective has the cleaner segment. Only zone visibility differs (opponent hand is face-down). Prompts/requests (`ActionsAvailableReq`, `SelectNReq`) are seat-specific — only the acting player receives them.
+
 **Output:** Template JSON + written observations.
 
 **Why mandatory:** The surveil retro proved that scoping from engine behavior ("how does Forge do surveil?") instead of wire protocol ("what does the real server send?") wastes hours. 4 hours debugging vs 15 minutes of recording decode.
