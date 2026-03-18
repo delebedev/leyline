@@ -61,8 +61,9 @@ class TargetingHandler(private val ops: SessionOps) {
         greMsg: ClientToGREMessage,
         bridge: GameBridge,
     ) {
+        val seatBridge = bridge.seat(ops.seatId)
         val resp = greMsg.selectTargetsResp
-        val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: run {
+        val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: run {
             log.warn("TargetingHandler: SelectTargetsResp but no pending prompt")
             return
         }
@@ -107,6 +108,7 @@ class TargetingHandler(private val ops: SessionOps) {
      */
     fun onSubmitTargets(
         bridge: GameBridge,
+        autoPass: (GameBridge) -> Unit,
     ) {
         val pending = pendingTargetSelection
         if (pending == null) {
@@ -125,8 +127,9 @@ class TargetingHandler(private val ops: SessionOps) {
             ),
         )
 
-        bridge.promptBridge.submitResponse(pending.promptId, pending.selectedIndices)
+        bridge.seat(ops.seatId).prompt.submitResponse(pending.promptId, pending.selectedIndices)
         bridge.awaitPriority()
+        autoPass(bridge)
     }
 
     /**
@@ -138,8 +141,9 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
+        val seatBridge = bridge.seat(ops.seatId)
         val resp = greMsg.selectNResp
-        val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: run {
+        val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: run {
             log.warn("TargetingHandler: SelectNResp but no pending prompt")
             return
         }
@@ -152,7 +156,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
         log.info("TargetingHandler: SelectNResp indices={}", selectedIndices)
 
-        bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
+        seatBridge.prompt.submitResponse(pendingPrompt.promptId, selectedIndices)
         bridge.awaitPriority()
         autoPass(bridge)
     }
@@ -162,7 +166,7 @@ class TargetingHandler(private val ops: SessionOps) {
      * Returns true if handled (caller should return), false to continue normal flow.
      */
     fun handlePostCastPrompt(bridge: GameBridge): Boolean {
-        val pendingPrompt = bridge.promptBridge.getPendingPrompt()
+        val pendingPrompt = bridge.seat(ops.seatId).prompt.getPendingPrompt()
         if (pendingPrompt != null) {
             // Modal prompt (ETB trigger fires during resolution)
             if (pendingPrompt.request.promptType == "modal") {
@@ -211,7 +215,8 @@ class TargetingHandler(private val ops: SessionOps) {
      *   defaultIndex. Covers discard-to-hand-size at Cleanup and similar engine prompts.
      */
     fun checkPendingPrompt(bridge: GameBridge, game: Game): PromptResult {
-        val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: return PromptResult.NONE
+        val seatBridge = bridge.seat(ops.seatId)
+        val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
 
         // Surveil/scry prompts: check before candidateRefs — surveil now carries
         // candidateRefs for card identity, but should route to GroupReq not SelectTargetsReq.
@@ -249,7 +254,7 @@ class TargetingHandler(private val ops: SessionOps) {
             game,
             "auto-resolve prompt [${req.promptType}] default=${req.defaultIndex}",
         )
-        bridge.promptBridge.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+        seatBridge.prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
         bridge.awaitPriority()
         return PromptResult.AUTO_RESOLVED
     }
@@ -269,7 +274,8 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val pendingPrompt = bridge.promptBridge.getPendingPrompt() ?: run {
+        val seatBridge = bridge.seat(ops.seatId)
+        val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: run {
             log.warn("TargetingHandler: GroupResp but no pending prompt")
             return
         }
@@ -302,7 +308,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
         log.info("TargetingHandler: GroupResp → prompt indices={}", selectedIndices)
 
-        bridge.promptBridge.submitResponse(pendingPrompt.promptId, selectedIndices)
+        seatBridge.prompt.submitResponse(pendingPrompt.promptId, selectedIndices)
         bridge.awaitPriority()
 
         // Send intermediate state so the client sees the zone transfer
@@ -324,7 +330,8 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val pendingPrompt = bridge.promptBridge.getPendingPrompt()
+        val seatBridge = bridge.seat(ops.seatId)
+        val pendingPrompt = seatBridge.prompt.getPendingPrompt()
         if (pendingPrompt == null) {
             log.warn("TargetingHandler: CancelActionReq but no pending prompt")
             return
@@ -333,7 +340,7 @@ class TargetingHandler(private val ops: SessionOps) {
         log.info("TargetingHandler: CancelActionReq — submitting empty targets to unwind spell")
 
         // Submit empty list → engine sees no targets → spell fails → unwind
-        bridge.promptBridge.submitResponse(pendingPrompt.promptId, emptyList())
+        seatBridge.prompt.submitResponse(pendingPrompt.promptId, emptyList())
         bridge.awaitPriority()
         autoPass(bridge)
     }
@@ -460,7 +467,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
         log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)
 
-        bridge.promptBridge.submitResponse(modal.promptId, selectedIndices)
+        bridge.seat(ops.seatId).prompt.submitResponse(modal.promptId, selectedIndices)
         pendingModal = null
         bridge.awaitPriority()
         autoPass(bridge)
@@ -582,10 +589,11 @@ class TargetingHandler(private val ops: SessionOps) {
         log.info("TargetingHandler: optional cost response ctoId={} accepted={} indices={}", chosenCtoId, accepted, acceptedIndices)
 
         // Stash decision for WebPlayerController.chooseOptionalCosts to read
-        bridge.promptBridge.stashedOptionalCostIndices = acceptedIndices
+        val seatBridge = bridge.seat(ops.seatId)
+        seatBridge.prompt.stashedOptionalCostIndices = acceptedIndices
 
         // Now submit the Cast action to the engine
-        val actionBridge = bridge.actionBridge
+        val actionBridge = seatBridge.action
         val pendingAction = actionBridge.getPending()
         if (pendingAction != null) {
             actionBridge.submitAction(pendingAction.actionId, pending.action)
@@ -651,7 +659,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
         if (resolved.isEmpty()) {
             log.warn("TargetingHandler: surveil/scry but no cards resolved from candidateRefs (falling back to library top)")
-            bridge.promptBridge.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+            bridge.seat(ops.seatId).prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
             bridge.awaitPriority()
             return
         }
@@ -701,7 +709,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
     /** Submit default response and wait — used when modal lookup fails. */
     private fun autoResolvePrompt(bridge: GameBridge, prompt: InteractivePromptBridge.PendingPrompt) {
-        bridge.promptBridge.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
+        bridge.seat(ops.seatId).prompt.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
         bridge.awaitPriority()
     }
 }

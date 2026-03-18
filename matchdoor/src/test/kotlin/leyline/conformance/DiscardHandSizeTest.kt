@@ -92,7 +92,7 @@ class DiscardHandSizeTest :
             val gyAfter = player.getZone(ZoneType.Graveyard).size()
 
             // Verify the discard prompt was answered via the bridge
-            val discardPrompts = h.bridge.promptBridge.history
+            val discardPrompts = h.bridge.promptBridge(1).history
                 .filter { it.message.contains("iscard", ignoreCase = true) }
             discardPrompts.shouldNotBeEmpty()
             discardPrompts.all { it.outcome == InteractivePromptBridge.PromptOutcome.RESPONDED }.shouldBeTrue()

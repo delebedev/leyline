@@ -14,11 +14,11 @@ import leyline.bridge.PlayerAction
 
 /**
  * Convenience: build a full GSM snapshot from the live game and store it.
- * Production code passes pre-built GSMs to [GameBridge.snapshotState] directly;
+ * Production code passes pre-built GSMs to [GameBridge.snapshotDiffBaseline] directly;
  * this wrapper avoids boilerplate in tests.
  */
 fun GameBridge.snapshotFromGame(game: Game, gameStateId: Int = 0) {
-    snapshotState(StateMapper.buildFromGame(game, gameStateId, "", this))
+    snapshotDiffBaseline(StateMapper.buildFromGame(game, gameStateId, "", this))
 }
 
 /**
@@ -32,7 +32,7 @@ fun awaitFreshPending(
 ): GameActionBridge.PendingAction? {
     val deadline = System.currentTimeMillis() + timeoutMs
     while (System.currentTimeMillis() < deadline) {
-        val p = b.actionBridge.getPending()
+        val p = b.actionBridge(1).getPending()
         if (p != null && p.actionId != previousId && !p.future.isDone) return p
         Thread.sleep(50)
     }
@@ -56,7 +56,7 @@ fun awaitPrompt(
 ): InteractivePromptBridge.PendingPrompt? {
     val deadline = System.currentTimeMillis() + timeoutMs
     while (System.currentTimeMillis() < deadline) {
-        val p = b.promptBridge.getPendingPrompt()
+        val p = b.promptBridge(1).getPendingPrompt()
         if (p != null && !p.future.isDone) return p
         Thread.sleep(50)
     }
@@ -87,7 +87,7 @@ fun advanceTo(
         val pending = awaitFreshPending(b, lastId, timeoutMs)
             ?: error("Timed out waiting for priority (phase=${game.phaseHandler.phase}, turn=${game.phaseHandler.turn})")
         if (predicate(pending.state.phase, pending.state.turn)) return pending
-        b.actionBridge.submitAction(pending.actionId, PlayerAction.PassPriority)
+        b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PassPriority)
         lastId = pending.actionId
     }
     error("Max passes ($maxPasses) exceeded advancing to target phase (current: ${game.phaseHandler.phase}, turn ${game.phaseHandler.turn})")
