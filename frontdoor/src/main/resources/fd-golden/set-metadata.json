@@ -1,0 +1,1302 @@
+{
+  "sets": [
+    {
+      "code": "AA4",
+      "digitalOnly": 4,
+      "releaseTs": 1758616200,
+      "active": 1
+    },
+    {
+      "code": "VOW",
+      "collations": [
+        {
+          "code": "VOW",
+          "id": 100026
+        },
+        {
+          "code": "VOW_MYTHIC",
+          "id": 500026,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1636642800,
+      "active": 1
+    },
+    {
+      "code": "Y23",
+      "digitalOnly": 4,
+      "releaseTs": 1660575600,
+      "active": 1
+    },
+    {
+      "code": "AA1",
+      "digitalOnly": 4,
+      "releaseTs": 1755612000,
+      "active": 1
+    },
+    {
+      "code": "G18",
+      "releaseTs": -1,
+      "active": 1,
+      "parent": "M19"
+    },
+    {
+      "code": "Y26_ECL",
+      "collations": [
+        {
+          "code": "Y26_ECL",
+          "id": 400058,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 3,
+      "releaseTs": 1770130800,
+      "active": 1
+    },
+    {
+      "code": "EOE",
+      "collations": [
+        {
+          "code": "EOE",
+          "id": 100055
+        },
+        {
+          "code": "EOE_MYTHIC",
+          "id": 500055
+        }
+      ],
+      "digitalOnly": 2,
+      "releaseTs": 1753804800,
+      "active": 1,
+      "currentRelease": 1
+    },
+    {
+      "code": "BIG",
+      "digitalOnly": 1,
+      "releaseTs": -1,
+      "active": 1
+    },
+    {
+      "code": "PIO-PW",
+      "digitalOnly": 4,
+      "releaseTs": 1733846400,
+      "upcoming": 1,
+      "active": 1
+    },
+    {
+      "code": "Y26",
+      "digitalOnly": 3,
+      "releaseTs": 1770130800,
+      "active": 1
+    },
+    {
+      "code": "Y22_SNC",
+      "collations": [
+        {
+          "code": "Y22_SNC",
+          "id": 400028,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1654128000,
+      "active": 1
+    },
+    {
+      "code": "STA",
+      "releaseTs": -1,
+      "upcoming": 1,
+      "active": 1
+    },
+    {
+      "code": "EA1",
+      "releaseTs": 1658966400,
+      "active": 1
+    },
+    {
+      "code": "OM1",
+      "collations": [
+        {
+          "code": "OM1",
+          "id": 100056
+        },
+        {
+          "code": "OM1_MYTHIC",
+          "id": 500056
+        }
+      ],
+      "digitalOnly": 2,
+      "releaseTs": 1758643200,
+      "active": 1,
+      "currentRelease": 1,
+      "parent": "SPM"
+    },
+    {
+      "code": "MKM",
+      "collations": [
+        {
+          "code": "MKM",
+          "id": 100043
+        },
+        {
+          "code": "MKM_MYTHIC",
+          "id": 500043,
+          "rarity": "Mythic"
+        }
+      ],
+      "digitalOnly": 1,
+      "releaseTs": 1707235200,
+      "active": 1
+    },
+    {
+      "code": "BRR",
+      "releaseTs": -1,
+      "upcoming": 1,
+      "active": 1
+    },
+    {
+      "code": "OTJ",
+      "collations": [
+        {
+          "code": "OTJ",
+          "id": 100044
+        },
+        {
+          "code": "OTJ_MYTHIC",
+          "id": 500044,
+          "rarity": "Mythic"
+        }
+      ],
+      "digitalOnly": 1,
+      "releaseTs": 1713283200,
+      "active": 1
+    },
+    {
+      "code": "AHA3",
+      "releaseTs": 1590019200,
+      "active": 1
+    },
+    {
+      "code": "Y22_MID",
+      "collations": [
+        {
+          "code": "Y22_MID",
+          "id": 400025,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1639008000,
+      "active": 1
+    },
+    {
+      "code": "Y22_NEO",
+      "collations": [
+        {
+          "code": "Y22_NEO",
+          "id": 400027,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1647475200,
+      "active": 1
+    },
+    {
+      "code": "Y23_DMU",
+      "collations": [
+        {
+          "code": "Y23_DMU",
+          "id": 400030,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1665046800,
+      "active": 1
+    },
+    {
+      "code": "Y25_DFT",
+      "collations": [
+        {
+          "code": "Y25_DFT",
+          "id": 400052,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 3,
+      "releaseTs": 1741100400,
+      "active": 1
+    },
+    {
+      "code": "MID",
+      "collations": [
+        {
+          "code": "MID",
+          "id": 100025
+        },
+        {
+          "code": "MID_MYTHIC",
+          "id": 500025,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1631804400,
+      "active": 1
+    },
+    {
+      "code": "ECC",
+      "releaseTs": 1768953600,
+      "active": 1
+    },
+    {
+      "code": "ELD",
+      "collations": [
+        {
+          "code": "ELD",
+          "id": 100015
+        },
+        {
+          "code": "ELD_MYTHIC",
+          "id": 500015,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1569510000,
+      "active": 1
+    },
+    {
+      "code": "SIS",
+      "releaseTs": -1,
+      "upcoming": 1,
+      "active": 1
+    },
+    {
+      "code": "BLB",
+      "collations": [
+        {
+          "code": "BLB",
+          "id": 100046
+        },
+        {
+          "code": "BLB_MYTHIC",
+          "id": 500046
+        }
+      ],
+      "digitalOnly": 2,
+      "releaseTs": 1722351600,
+      "active": 1
+    },
+    {
+      "code": "Y24_LCI",
+      "collations": [
+        {
+          "code": "Y24_LCI",
+          "id": 400041,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1701792000,
+      "active": 1
+    },
+    {
+      "code": "IKO",
+      "collations": [
+        {
+          "code": "IKO",
+          "id": 100017
+        },
+        {
+          "code": "IKO_MYTHIC",
+          "id": 500017,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1587049200,
+      "active": 1
+    },
+    {
+      "code": "AKR",
+      "collations": [
+        {
+          "code": "AKR",
+          "id": 100019
+        }
+      ],
+      "releaseTs": 1597330800,
+      "active": 1
+    },
+    {
+      "code": "ANB",
+      "digitalOnly": 3,
+      "releaseTs": -1,
+      "active": 1,
+      "parent": "ANA"
+    },
+    {
+      "code": "Y25_TDM",
+      "collations": [
+        {
+          "code": "Y25_TDM",
+          "id": 400053,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 3,
+      "releaseTs": 1746489600,
+      "active": 1
+    },
+    {
+      "code": "AHA1",
+      "releaseTs": 1574294400,
+      "active": 1
+    },
+    {
+      "code": "GRN",
+      "collations": [
+        {
+          "code": "GRN",
+          "id": 100009
+        }
+      ],
+      "releaseTs": 1538751600,
+      "active": 1
+    },
+    {
+      "code": "PIO-DEVOTION",
+      "digitalOnly": 4,
+      "releaseTs": 1733846400,
+      "upcoming": 1,
+      "active": 1
+    },
+    {
+      "code": "OMB",
+      "digitalOnly": 2,
+      "releaseTs": 1758643200,
+      "upcoming": 1,
+      "active": 1,
+      "parent": "MAR"
+    },
+    {
+      "code": "LTR",
+      "collations": [
+        {
+          "code": "LTR",
+          "id": 100039
+        },
+        {
+          "code": "LTR_MYTHIC",
+          "id": 500039,
+          "rarity": "Mythic"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1687276800,
+      "active": 1
+    },
+    {
+      "code": "OTP",
+      "releaseTs": -1,
+      "upcoming": 1,
+      "active": 1
+    },
+    {
+      "code": "DSK",
+      "collations": [
+        {
+          "code": "DSK",
+          "id": 100047
+        },
+        {
+          "code": "DSK_MYTHIC",
+          "id": 500047
+        }
+      ],
+      "digitalOnly": 2,
+      "releaseTs": 1727193600,
+      "active": 1,
+      "currentRelease": 1
+    },
+    {
+      "code": "LCI",
+      "collations": [
+        {
+          "code": "LCI",
+          "id": 100041
+        },
+        {
+          "code": "LCI_MYTHIC",
+          "id": 500041,
+          "rarity": "Mythic"
+        }
+      ],
+      "digitalOnly": 1,
+      "releaseTs": 1699977600,
+      "active": 1
+    },
+    {
+      "code": "M3C",
+      "releaseTs": 1718118000,
+      "active": 1
+    },
+    {
+      "code": "Y25_EOE",
+      "collations": [
+        {
+          "code": "Y25_EOE",
+          "id": 400055,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 3,
+      "releaseTs": 1755615600,
+      "active": 1
+    },
+    {
+      "code": "M21",
+      "collations": [
+        {
+          "code": "M21",
+          "id": 100018
+        },
+        {
+          "code": "M21_MYTHIC",
+          "id": 500018,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1593097200,
+      "active": 1
+    },
+    {
+      "code": "KLR",
+      "collations": [
+        {
+          "code": "KLR",
+          "id": 100021
+        }
+      ],
+      "releaseTs": 1605193200,
+      "active": 1
+    },
+    {
+      "code": "J21",
+      "releaseTs": 1629990000,
+      "active": 1
+    },
+    {
+      "code": "EA3",
+      "releaseTs": 1689692400,
+      "active": 1
+    },
+    {
+      "code": "MUL",
+      "releaseTs": -1,
+      "active": 1
+    },
+    {
+      "code": "TDM",
+      "collations": [
+        {
+          "code": "TDM",
+          "id": 100053
+        },
+        {
+          "code": "TDM_MYTHIC",
+          "id": 500053
+        }
+      ],
+      "digitalOnly": 2,
+      "releaseTs": 1744070400,
+      "active": 1,
+      "currentRelease": 1
+    },
+    {
+      "code": "HBG",
+      "collations": [
+        {
+          "code": "HBG",
+          "id": 100029
+        },
+        {
+          "code": "HBG_MYTHIC",
+          "id": 500029,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1657206000,
+      "active": 1
+    },
+    {
+      "code": "Y25_BLB",
+      "collations": [
+        {
+          "code": "Y25_BLB",
+          "id": 400046,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 3,
+      "releaseTs": 1724166000,
+      "active": 1
+    },
+    {
+      "code": "AFR",
+      "collations": [
+        {
+          "code": "AFR",
+          "id": 100024
+        },
+        {
+          "code": "AFR_DRAFT",
+          "id": 200024,
+          "rarity": "Draft"
+        },
+        {
+          "code": "AFR_MYTHIC",
+          "id": 500024,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1625756400,
+      "active": 1
+    },
+    {
+      "code": "FIN",
+      "collations": [
+        {
+          "code": "FIN",
+          "id": 100054
+        },
+        {
+          "code": "FIN_MYTHIC",
+          "id": 500054
+        }
+      ],
+      "digitalOnly": 2,
+      "releaseTs": 1749513600,
+      "active": 1,
+      "currentRelease": 1
+    },
+    {
+      "code": "BLC",
+      "releaseTs": 1722351600,
+      "active": 1
+    },
+    {
+      "code": "FCA",
+      "digitalOnly": 2,
+      "releaseTs": 1749513600,
+      "upcoming": 1,
+      "active": 1
+    },
+    {
+      "code": "Y24_MKM",
+      "collations": [
+        {
+          "code": "Y24_MKM",
+          "id": 400043,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1709654400,
+      "active": 1
+    },
+    {
+      "code": "STX",
+      "collations": [
+        {
+          "code": "STX",
+          "id": 100023
+        },
+        {
+          "code": "STX_MYTHIC",
+          "id": 500023,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1618498800,
+      "active": 1
+    },
+    {
+      "code": "TLA",
+      "collations": [
+        {
+          "code": "TLA",
+          "id": 100057
+        },
+        {
+          "code": "TLA_MYTHIC",
+          "id": 500057
+        }
+      ],
+      "digitalOnly": 2,
+      "releaseTs": 1763481600,
+      "active": 1,
+      "currentRelease": 1
+    },
+    {
+      "code": "KHM",
+      "collations": [
+        {
+          "code": "KHM",
+          "id": 100022
+        },
+        {
+          "code": "KHM_MYTHIC",
+          "id": 500022,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1611849600,
+      "active": 1
+    },
+    {
+      "code": "EOC",
+      "releaseTs": -1,
+      "active": 1
+    },
+    {
+      "code": "XLN",
+      "collations": [
+        {
+          "code": "XLN",
+          "id": 100005
+        }
+      ],
+      "releaseTs": 1538233200,
+      "active": 1
+    },
+    {
+      "code": "ZNR",
+      "collations": [
+        {
+          "code": "ZNR",
+          "id": 100020
+        },
+        {
+          "code": "ZNR_MYTHIC",
+          "id": 500020,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1600333200,
+      "active": 1
+    },
+    {
+      "code": "M19",
+      "collations": [
+        {
+          "code": "M19",
+          "id": 100008
+        }
+      ],
+      "releaseTs": 1531494000,
+      "active": 1
+    },
+    {
+      "code": "Y25_DSK",
+      "collations": [
+        {
+          "code": "Y25_DSK",
+          "id": 400047,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 3,
+      "releaseTs": 1728950400,
+      "active": 1
+    },
+    {
+      "code": "FIC",
+      "digitalOnly": 2,
+      "releaseTs": 1749513600,
+      "upcoming": 1,
+      "active": 1
+    },
+    {
+      "code": "JMP",
+      "releaseTs": 1594911600,
+      "active": 1
+    },
+    {
+      "code": "KTK",
+      "collations": [
+        {
+          "code": "KTK",
+          "id": 100042
+        },
+        {
+          "code": "KTK_MYTHIC",
+          "id": 500042,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1702396800,
+      "active": 1
+    },
+    {
+      "code": "RIX",
+      "collations": [
+        {
+          "code": "RIX",
+          "id": 100006
+        }
+      ],
+      "releaseTs": 1516374000,
+      "active": 1
+    },
+    {
+      "code": "FDN",
+      "collations": [
+        {
+          "code": "FDN",
+          "id": 100048
+        },
+        {
+          "code": "FDN_MYTHIC",
+          "id": 500048
+        }
+      ],
+      "digitalOnly": 2,
+      "releaseTs": 1731427200,
+      "active": 1,
+      "currentRelease": 1
+    },
+    {
+      "code": "SNC",
+      "collations": [
+        {
+          "code": "SNC",
+          "id": 100028
+        },
+        {
+          "code": "SNC_MYTHIC",
+          "id": 500028,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1651158000,
+      "active": 1
+    },
+    {
+      "code": "SIR",
+      "collations": [
+        {
+          "code": "SIR",
+          "id": 100033
+        },
+        {
+          "code": "SIR_MYTHIC",
+          "id": 500033,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1679410800,
+      "active": 1
+    },
+    {
+      "code": "Y22",
+      "digitalOnly": 4,
+      "releaseTs": 1635865200,
+      "active": 1
+    },
+    {
+      "code": "Y25",
+      "digitalOnly": 3,
+      "releaseTs": 1724166000,
+      "active": 1
+    },
+    {
+      "code": "DRC",
+      "releaseTs": 1739289600,
+      "active": 1
+    },
+    {
+      "code": "EA2",
+      "releaseTs": 1670922000,
+      "active": 1
+    },
+    {
+      "code": "AHA2",
+      "releaseTs": 1583971200,
+      "active": 1
+    },
+    {
+      "code": "AHA6",
+      "releaseTs": 1658966400,
+      "active": 1
+    },
+    {
+      "code": "EOS",
+      "releaseTs": -1,
+      "upcoming": 1,
+      "active": 1
+    },
+    {
+      "code": "NEO",
+      "collations": [
+        {
+          "code": "NEO",
+          "id": 100027
+        },
+        {
+          "code": "NEO_MYTHIC",
+          "id": 500027,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1644505200,
+      "active": 1
+    },
+    {
+      "code": "Y24_WOE",
+      "collations": [
+        {
+          "code": "Y24_WOE",
+          "id": 400040,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1696950000,
+      "active": 1
+    },
+    {
+      "code": "ONE",
+      "collations": [
+        {
+          "code": "ONE",
+          "id": 100032
+        },
+        {
+          "code": "ONE_MYTHIC",
+          "id": 500032,
+          "rarity": "Mythic"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1675785600,
+      "active": 1
+    },
+    {
+      "code": "THB",
+      "collations": [
+        {
+          "code": "THB",
+          "id": 100016
+        },
+        {
+          "code": "THB_MYTHIC",
+          "id": 500016,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1579186800,
+      "active": 1
+    },
+    {
+      "code": "Y23_BRO",
+      "collations": [
+        {
+          "code": "Y23_BRO",
+          "id": 400031,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1670922000,
+      "active": 1
+    },
+    {
+      "code": "AA3",
+      "digitalOnly": 4,
+      "releaseTs": 1758616200,
+      "active": 1
+    },
+    {
+      "code": "TLE",
+      "releaseTs": 1763481600,
+      "upcoming": 1,
+      "active": 1
+    },
+    {
+      "code": "ECL",
+      "collations": [
+        {
+          "code": "ECL",
+          "id": 100058
+        },
+        {
+          "code": "ECL_MYTHIC",
+          "id": 500058
+        }
+      ],
+      "digitalOnly": 2,
+      "releaseTs": 1768924800,
+      "active": 1,
+      "currentRelease": 1
+    },
+    {
+      "code": "DMU",
+      "collations": [
+        {
+          "code": "DMU",
+          "id": 100030
+        },
+        {
+          "code": "DMU_MYTHIC",
+          "id": 500030,
+          "rarity": "Mythic"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1662044400,
+      "active": 1
+    },
+    {
+      "code": "Y23_ONE",
+      "collations": [
+        {
+          "code": "Y23_ONE",
+          "id": 400032,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1677600000,
+      "active": 1
+    },
+    {
+      "code": "WAR",
+      "collations": [
+        {
+          "code": "WAR",
+          "id": 100013
+        }
+      ],
+      "releaseTs": 1556118000,
+      "active": 1
+    },
+    {
+      "code": "BRO",
+      "collations": [
+        {
+          "code": "BRO",
+          "id": 100031
+        },
+        {
+          "code": "BRO_MYTHIC",
+          "id": 500031,
+          "rarity": "Mythic"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1668524400,
+      "active": 1
+    },
+    {
+      "code": "MAT",
+      "collations": [
+        {
+          "code": "MAT",
+          "id": 100038
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1683644400,
+      "active": 1
+    },
+    {
+      "code": "Y24_OTJ",
+      "collations": [
+        {
+          "code": "Y24_OTJ",
+          "id": 400044,
+          "rarity": "Alchemy"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1715094000,
+      "active": 1
+    },
+    {
+      "code": "DAR",
+      "collations": [
+        {
+          "code": "DAR",
+          "id": 100007
+        }
+      ],
+      "releaseTs": 1524841200,
+      "active": 1
+    },
+    {
+      "code": "AHA4",
+      "releaseTs": 1615420800,
+      "active": 1
+    },
+    {
+      "code": "MOM",
+      "collations": [
+        {
+          "code": "MOM",
+          "id": 100037
+        },
+        {
+          "code": "MOM_MYTHIC",
+          "id": 500037,
+          "rarity": "Mythic"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1682438400,
+      "active": 1
+    },
+    {
+      "code": "WOE",
+      "collations": [
+        {
+          "code": "WOE",
+          "id": 100040
+        },
+        {
+          "code": "WOE_MYTHIC",
+          "id": 500040,
+          "rarity": "Mythic"
+        }
+      ],
+      "digitalOnly": 1,
+      "releaseTs": 1693926000,
+      "active": 1
+    },
+    {
+      "code": "J25",
+      "digitalOnly": 2,
+      "releaseTs": 1731427200,
+      "active": 1
+    },
+    {
+      "code": "Y24",
+      "digitalOnly": 4,
+      "releaseTs": 1696950000,
+      "active": 1
+    },
+    {
+      "code": "AHA5",
+      "releaseTs": 1622073600,
+      "active": 1
+    },
+    {
+      "code": "PIO-SPELLS",
+      "digitalOnly": 4,
+      "releaseTs": 1733846400,
+      "upcoming": 1,
+      "active": 1
+    },
+    {
+      "code": "AHA7",
+      "releaseTs": 1689692400,
+      "active": 1
+    },
+    {
+      "code": "SPG",
+      "releaseTs": 1707235200,
+      "active": 1
+    },
+    {
+      "code": "WOT",
+      "digitalOnly": 2,
+      "releaseTs": -1,
+      "upcoming": 1,
+      "active": 1
+    },
+    {
+      "code": "MH3",
+      "collations": [
+        {
+          "code": "MH3",
+          "id": 100045
+        },
+        {
+          "code": "MH3_MYTHIC",
+          "id": 500045,
+          "rarity": "Mythic"
+        }
+      ],
+      "releaseTs": 1718118000,
+      "active": 1
+    },
+    {
+      "code": "RNA",
+      "collations": [
+        {
+          "code": "RNA",
+          "id": 100010
+        }
+      ],
+      "releaseTs": 1548428400,
+      "active": 1
+    },
+    {
+      "code": "M20",
+      "collations": [
+        {
+          "code": "M20",
+          "id": 100014
+        }
+      ],
+      "releaseTs": 1562079600,
+      "active": 1
+    },
+    {
+      "code": "DFT",
+      "collations": [
+        {
+          "code": "DFT",
+          "id": 100052
+        },
+        {
+          "code": "DFT_MYTHIC",
+          "id": 500052
+        }
+      ],
+      "digitalOnly": 2,
+      "releaseTs": 1739289600,
+      "active": 1,
+      "currentRelease": 1
+    },
+    {
+      "code": "PIO",
+      "collations": [
+        {
+          "code": "PIO",
+          "id": 100049
+        },
+        {
+          "code": "PIO_MYTHIC",
+          "id": 500049,
+          "rarity": "Mythic"
+        }
+      ],
+      "digitalOnly": 4,
+      "releaseTs": 1733846400,
+      "active": 1
+    },
+    {
+      "code": "TDC",
+      "releaseTs": 1744070400,
+      "active": 1
+    },
+    {
+      "code": "AA2",
+      "digitalOnly": 4,
+      "releaseTs": 1755612000,
+      "active": 1
+    }
+  ],
+  "setGroups": [
+    {
+      "groupName": "AllFilters",
+      "setCodes": [
+        "TMT",
+        "ECL",
+        "Y26_ECL",
+        "TLE",
+        "TLA",
+        "OMB",
+        "OM1",
+        "EOS",
+        "EOE",
+        "Y25_EOE",
+        "FIN",
+        "FCA",
+        "TDM",
+        "Y25_TDM",
+        "DFT",
+        "Y25_DFT",
+        "PIO",
+        "FDN",
+        "DSK",
+        "Y25_DSK",
+        "BLB",
+        "Y25_BLB",
+        "MH3",
+        "OTJ",
+        "Y24_OTJ",
+        "BIG",
+        "MKM",
+        "Y24_MKM",
+        "KTK",
+        "LCI",
+        "Y24_LCI",
+        "WOE",
+        "Y24_WOE",
+        "LTR",
+        "MOM",
+        "MAT",
+        "SIR",
+        "ONE",
+        "Y23_ONE",
+        "BRO",
+        "Y23_BRO",
+        "DMU",
+        "Y23_DMU",
+        "HBG",
+        "SNC",
+        "Y22_SNC",
+        "NEO",
+        "Y22_NEO",
+        "VOW",
+        "MID",
+        "Y22_MID",
+        "AFR",
+        "STX",
+        "KHM",
+        "KLR",
+        "ZNR",
+        "AKR",
+        "M21",
+        "IKO",
+        "THB",
+        "ELD",
+        "M20",
+        "WAR",
+        "RNA",
+        "GRN",
+        "M19",
+        "DAR",
+        "RIX",
+        "XLN",
+        "SPG",
+        "M3C",
+        "OTP",
+        "WOT",
+        "MUL",
+        "SIS",
+        "BRR",
+        "STA",
+        "EA3",
+        "EA2",
+        "EA1",
+        "AHA7",
+        "AHA6",
+        "AHA5",
+        "AHA4",
+        "AHA3",
+        "AHA2",
+        "AHA1",
+        "AA4",
+        "AA3",
+        "AA2",
+        "AA1",
+        "J25",
+        "J21",
+        "JMP",
+        "ANB"
+      ]
+    }
+  ]
+}
