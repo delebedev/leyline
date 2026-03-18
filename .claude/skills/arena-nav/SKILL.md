@@ -36,6 +36,9 @@ Never batch commands blindly. One action, one check, next action.
 |---------|---------|---------|
 | `arena ocr` | All text + coords on screen | `arena ocr --find "Play"` |
 | `arena click` | Click by text or coord | `arena click "Play" --retry 3` or `arena click 888,504` |
+| `arena clear-field` | Clear focused input | `arena clear-field` |
+| `arena paste` | Paste into focused input | `arena paste forge@local` |
+| `arena key` | Send a key press | `arena key tab` |
 | `arena drag` | Drag between coords | `arena drag 450,530 480,300` |
 | `arena play` | Play a card by name (verified) | `arena play "Grizzly Bears"` |
 | `arena wait` | Block until condition | `arena wait text="Keep" --timeout 10` |
@@ -68,7 +71,8 @@ Run `arena --help` for the full command list with flags.
 |---------|-------------------|-------|
 | Action button (Pass/Next/End Turn/All Attack) | 888,504 | Universal — all labels, same position |
 | Play button (start match) | 866,533 | Bottom-right, deck select / event lobby |
-| Cog/Settings icon | 940,42 | Top-right, no OCR text |
+| Cog/Settings icon (lobby) | 900,42 | Top-right, opens Options / Log Out |
+| Cog/Settings icon (in-game) | 940,42 | Top-right, opens Concede menu |
 | Result dismiss | 210,482 | Click 3x with 2s gaps |
 | Find Match tab | 867,112 | Right-side tab |
 | Bot Match sidebar | 842,410 | Right-side format list |
@@ -149,6 +153,7 @@ Available screens: `Home`, `FindMatch`, `DeckSelected`, `Events`, `EventLanding`
 | Home → Play blade | `arena click "Play" --retry 3` |
 | Play blade → FindMatch | `arena click "Find Match" --retry 3` |
 | FindMatch → Bot Match | `arena click "Bot Match" --retry 3` → click deck → `arena click 866,533` |
+| Home → Log Out | `arena click 900,42` → sleep 1 → `arena click "Log Out" --retry 3` |
 | InGame → Concede | `arena click 940,42` → sleep 1 → `arena click "Concede" --retry 3` |
 | Result → Home | `arena click 210,482` × 3 with 2s gaps |
 
@@ -365,6 +370,36 @@ arena click 210,482 && sleep 2 && arena click 210,482 && sleep 2 && arena click 
 arena wait text="Play" --timeout 10
 ```
 
+## Login / Logout
+
+Prefer the explicit field recipe over opaque typing macros.
+
+### Login
+
+```bash
+arena activate
+arena click 500,355                         # email row center
+arena clear-field
+arena paste forge@local
+arena click 500,385                         # password row center
+arena clear-field
+arena paste forge
+arena click 480,470                         # Log In
+```
+
+Notes:
+- `arena paste` is more reliable than `arena type` on the Unity login fields.
+- `arena clear-field` is best-effort. If stale chars survive, repeat once.
+- `arena login --email forge@local --password forge` exists, but the primitive recipe above is easier to debug.
+
+### Logout
+
+```bash
+arena click 900,42
+sleep 1
+arena click "Log Out" --retry 3
+```
+
 ## Server Setup
 
 ### Pre-flight (all must pass before automating)
@@ -459,7 +494,7 @@ None of these icons have OCR-readable text — use coord clicks only.
 | Modal/popup blocking | `arena click 480,300` (center dismiss) or `arena click "Okay" --retry 3` |
 | Stuck in-game (888,504 doesn't advance) | `arena board` → check actions. May need targeting or modal response |
 | "Waiting for Server..." | Server down — restart server, relaunch MTGA |
-| Login screen after server restart | Click password field, type `forge` (`osascript -e 'tell application "System Events" to keystroke "forge"'`), click "Log In". Sometimes auto-login works — check with `arena ocr` first |
+| Login screen after server restart | Use the explicit login recipe: click email row, `clear-field`, `paste forge@local`, click password row, `clear-field`, `paste forge`, click `480,470` |
 | Black screen | Check `logs/leyline.log` — don't click blindly |
 | Ghost match ("Resume" but no match) | `just stop` + restart + `arena launch` |
 | Wrong coords (clicks miss) | Check display: `system_profiler SPDisplaysDataType`. Use text clicks only as workaround |
