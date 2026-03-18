@@ -64,6 +64,68 @@ def run(*cmd: str, timeout: int = 30) -> tuple[int, str, str]:
         return 1, "", f"command not found: {cmd[0]}"
 
 
+def _applescript_quote(text: str) -> str:
+    return text.replace("\\", "\\\\").replace('"', '\\"')
+
+
+def _run_osascript(script: str) -> tuple[int, str, str]:
+    return run("osascript", "-e", script)
+
+
+def _send_keystroke(text: str) -> tuple[int, str, str]:
+    return _run_osascript(
+        f'tell application "System Events" to keystroke "{_applescript_quote(text)}"'
+    )
+
+
+def _send_keycode(code: int) -> tuple[int, str, str]:
+    return _run_osascript(
+        f'tell application "System Events" to key code {code}'
+    )
+
+
+def _send_command_a() -> tuple[int, str, str]:
+    return _run_osascript(
+        'tell application "System Events" to keystroke "a" using command down'
+    )
+
+
+def _send_command_v() -> tuple[int, str, str]:
+    return _run_osascript(
+        'tell application "System Events" to keystroke "v" using command down'
+    )
+
+
+def _copy_to_clipboard(text: str) -> tuple[int, str]:
+    try:
+        subprocess.run(
+            ["pbcopy"],
+            input=text,
+            text=True,
+            capture_output=True,
+            check=True,
+            cwd=PROJECT_DIR,
+        )
+        return 0, ""
+    except subprocess.CalledProcessError as e:
+        return e.returncode, e.stderr.strip()
+    except FileNotFoundError:
+        return 1, "command not found: pbcopy"
+
+
+def _type_text_slow(
+    text: str, delay_ms: int = 120, initial_delay_ms: int = 250
+) -> tuple[int, str]:
+    """Type text one character at a time with a small delay."""
+    time.sleep(initial_delay_ms / 1000)
+    for ch in text:
+        code, _, stderr = _send_keystroke(ch)
+        if code != 0:
+            return code, stderr or f"failed on character {ch!r}"
+        time.sleep(delay_ms / 1000)
+    return 0, ""
+
+
 def ocr(image_path: str, *extra_args: str) -> tuple[int, str, str]:
     return run(f"{NATIVE_DIR}/ocr", image_path, "--json", *extra_args)
 
@@ -631,6 +693,121 @@ def cmd_move(args: list[str]) -> None:
     if code != 0:
         die(f"move failed: {stderr}")
     print(f"moved to ({ref_x},{ref_y}) → screen ({sx},{sy})")
+
+
+def cmd_activate(args: list[str]) -> None:
+    """Activate MTGA window. Usage: arena activate"""
+    _activate_mtga()
+    print("activated MTGA")
+
+
+def cmd_type(args: list[str]) -> None:
+    """Type text into the focused control. Usage: arena type <text> [--delay-ms N]"""
+    if not args:
+        die("Usage: arena type <text> [--delay-ms N]")
+    delay_ms = 120
+    parts: list[str] = []
+    i = 0
+    while i < len(args):
+        if args[i] == "--delay-ms" and i + 1 < len(args):
+            delay_ms = int(args[i + 1])
+            i += 2
+        else:
+            parts.append(args[i])
+            i += 1
+    if not parts:
+        die("Usage: arena type <text> [--delay-ms N]")
+    _activate_mtga()
+    text = " ".join(parts)
+    code, stderr = _type_text_slow(text, delay_ms=delay_ms)
+    if code != 0:
+        die(stderr or "type failed")
+    print(f"typed {text!r} ({delay_ms}ms/char)")
+
+
+def cmd_paste(args: list[str]) -> None:
+    """Paste text into the focused control. Usage: arena paste <text> [--settle-ms N]"""
+    if not args:
+        die("Usage: arena paste <text> [--settle-ms N]")
+    settle_ms = 250
+    parts: list[str] = []
+    i = 0
+    while i < len(args):
+        if args[i] == "--settle-ms" and i + 1 < len(args):
+            settle_ms = int(args[i + 1])
+            i += 2
+        else:
+            parts.append(args[i])
+            i += 1
+    if not parts:
+        die("Usage: arena paste <text> [--settle-ms N]")
+    _activate_mtga()
+    text = " ".join(parts)
+    code, err = _copy_to_clipboard(text)
+    if code != 0:
+        die(err or "clipboard copy failed")
+    time.sleep(settle_ms / 1000)
+    code, _, stderr = _send_command_v()
+    if code != 0:
+        die(stderr or "paste failed")
+    print(f"pasted {text!r}")
+
+
+def cmd_key(args: list[str]) -> None:
+    """Send a key press. Usage: arena key <tab|enter|esc|delete|left|right|up|down|space|code:N>"""
+    if len(args) != 1:
+        die("Usage: arena key <tab|enter|esc|delete|left|right|up|down|space|code:N>")
+    name = args[0].lower()
+    keycodes = {
+        "tab": 48,
+        "enter": 36,
+        "return": 36,
+        "esc": 53,
+        "escape": 53,
+        "delete": 51,
+        "backspace": 51,
+        "left": 123,
+        "right": 124,
+        "down": 125,
+        "up": 126,
+        "space": 49,
+    }
+    if name.startswith("code:"):
+        try:
+            code_num = int(name.split(":", 1)[1])
+        except ValueError:
+            die("Usage: arena key <...|code:N>")
+    elif name.isdigit():
+        code_num = int(name)
+    else:
+        code_num = keycodes.get(name, -1)
+    if code_num < 0:
+        die("Usage: arena key <tab|enter|esc|delete|left|right|up|down|space|code:N>")
+    _activate_mtga()
+    code, _, stderr = _send_keycode(code_num)
+    if code != 0:
+        die(stderr or "key failed")
+    print(f"sent key {args[0]}")
+
+
+def cmd_clear_field(args: list[str]) -> None:
+    """Clear focused field with Cmd-A then Delete. Usage: arena clear-field"""
+    _activate_mtga()
+    code, _, stderr = _send_command_a()
+    if code != 0:
+        die(stderr or "clear-field select-all failed")
+    time.sleep(0.35)
+    code, _, stderr = _send_keycode(51)
+    if code != 0:
+        die(stderr or "clear-field delete failed")
+    # Unity login fields sometimes ignore Cmd-A. Follow with a short
+    # backspace burst so the field still ends up empty if only the caret moved.
+    for _ in range(24):
+        time.sleep(0.03)
+        code, _, stderr = _send_keycode(51)
+        if code != 0:
+            die(stderr or "clear-field delete burst failed")
+    print("cleared focused field")
 
 
 def cmd_click(args: list[str]) -> None:
@@ -1684,7 +1861,7 @@ def cmd_errors(args: list[str]) -> None:
 
 
 def cmd_login(args: list[str]) -> None:
-    """Log in to MTGA on the login screen via osascript keystrokes.
+    """Log in to MTGA on the login screen.
 
     Usage: arena login [--email <email>] [--password <pw>]
     Defaults: forge@local / forge (local dev account)
@@ -1706,34 +1883,50 @@ def cmd_login(args: list[str]) -> None:
     if scene != "Login":
         die(f"Not on login screen (scene={scene})")
 
-    # Click email field (coords from OCR: ~413,355)
-    click_screen(413, 355)
-    time.sleep(0.5)
-    # Select all + type email
-    run(
-        "osascript",
-        "-e",
-        'tell application "System Events" to keystroke "a" using command down',
-    )
-    time.sleep(0.2)
-    run("osascript", "-e", f'tell application "System Events" to keystroke "{email}"')
-    time.sleep(0.5)
-    # Tab to password
-    run("osascript", "-e", 'tell application "System Events" to keystroke tab')
-    time.sleep(0.3)
-    # Select all + type password
-    run(
-        "osascript",
-        "-e",
-        'tell application "System Events" to keystroke "a" using command down',
-    )
-    time.sleep(0.2)
-    run(
-        "osascript", "-e", f'tell application "System Events" to keystroke "{password}"'
-    )
-    time.sleep(0.5)
-    # Click Log In
-    click_screen(480, 470)
+    email_field = (500, 355)
+    password_field = (500, 385)
+    login_button = (480, 470)
+
+    def _focus_clear_paste(x: int, y: int, value: str) -> None:
+        global _last_activate
+        _last_activate = 0.0
+        click_screen(x, y)
+        time.sleep(0.4)
+        cmd_clear_field([])
+        time.sleep(0.2)
+        cmd_paste([value])
+        time.sleep(0.6)
+
+    def _wait_until(predicate, timeout_ms: int = 4000) -> bool:
+        deadline = time.time() + timeout_ms / 1000
+        while time.time() < deadline:
+            if predicate():
+                return True
+            time.sleep(0.3)
+        return False
+
+    def _login_done() -> bool:
+        code, out, _ = run("lsof", "-i", ":30010", "-sTCP:ESTABLISHED")
+        return code == 0 and "ESTABLISHED" in out
+
+    def _submit_with_password_fill() -> None:
+        _focus_clear_paste(*password_field, password)
+        global _last_activate
+        _last_activate = 0.0
+        click_screen(*login_button)
+
+    _focus_clear_paste(*email_field, email)
+    _submit_with_password_fill()
+    if _wait_until(_login_done, timeout_ms=6000):
+        print(f"Login submitted ({email})")
+        return
+
+    # MTGA login sometimes drops the first password fill on this machine.
+    # Retry the password row once before giving up.
+    _submit_with_password_fill()
+    if _wait_until(_login_done, timeout_ms=6000):
+        print(f"Login submitted ({email})")
+        return
     print(f"Login submitted ({email})")
 
 
@@ -2693,9 +2886,14 @@ def cmd_health(args: list[str]) -> None:
 
 COMMANDS = {
     "launch": cmd_launch,
+    "activate": cmd_activate,
     "login": cmd_login,
     "capture": cmd_capture,
     "ocr": cmd_ocr,
+    "type": cmd_type,
+    "paste": cmd_paste,
+    "key": cmd_key,
+    "clear-field": cmd_clear_field,
     "click": cmd_click,
     "move": cmd_move,
     "drag": cmd_drag,
@@ -2718,9 +2916,14 @@ COMMANDS = {
 
 COMMAND_HELP = {
     "launch": "Launch MTGA client (1920x1080 windowed)",
+    "activate": "Activate MTGA window",
     "login": "Log in on login screen. --email <e> --password <p> (default: forge@local/forge)",
     "capture": "Screenshot MTGA window. --out <path> --resolution <px>",
     "ocr": "OCR screen text. --fmt (table) --find <text> --hand (zoomed hand strip)",
+    "type": "Type text into the focused control",
+    "paste": "Paste text into the focused control",
+    "key": "Send a key press. <tab|enter|esc|delete|left|right|up|down|space|code:N>",
+    "clear-field": "Clear focused field with Cmd-A then Delete",
     "click": "Click text or coords. <text|x,y> --retry N --double --right --exact",
     "move": "Move mouse to coords. <x,y>",
     "drag": "Drag between coords. <from> <to> [--verify <instanceId>]",

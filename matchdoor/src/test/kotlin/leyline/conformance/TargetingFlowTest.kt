@@ -464,4 +464,56 @@ class TargetingFlowTest :
 
             h.isGameOver().shouldBeTrue()
         }
+
+        /**
+         * Regression test for #92: casting a non-targeted spell should NOT send
+         * ActionsAvailableReq while the spell is on the stack. The auto-pass engine
+         * should resolve the stack transparently — no "Resolve" button for the player.
+         *
+         * Before fix: handlePostCastPrompt() sent ActionsAvailableReq when stack
+         * was non-empty, causing spurious "Resolve" prompt after every spell cast.
+         */
+        test("cast creature does not prompt Resolve while on stack (#92)") {
+            val pzl = """
+                [metadata]
+                Name:Auto-resolve regression
+                Goal:Win
+                Turns:5
+                Difficulty:Easy
+
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Forest
+                humanhand=Llanowar Elves
+                humanlibrary=Forest;Forest;Forest;Forest;Forest
+                aibattlefield=Mountain
+                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+            """.trimIndent()
+            val h = MatchFlowHarness(validating = false)
+            puzzleHarness = h
+            h.connectAndKeepPuzzleText(pzl)
+
+            // Simulate real client settings: auto-resolve own stack effects
+            h.session.autoPassState.update(
+                SettingsMessage.newBuilder()
+                    .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
+                    .build(),
+            )
+
+            h.castCreature().shouldBeTrue()
+
+            // Creature should have auto-resolved to the battlefield in a single
+            // castCreature() call — no manual passPriority() needed. Before the
+            // fix, handlePostCastPrompt() sent ActionsAvailableReq (showing
+            // "Resolve" button) and returned, leaving the creature on the stack.
+            val creatures = h.humanBattlefieldCreatures()
+            creatures.any { it.second == "Llanowar Elves" }.shouldBeTrue()
+
+            // Stack should be empty (spell fully resolved)
+            h.game().stack.isEmpty.shouldBeTrue()
+        }
     })
