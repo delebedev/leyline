@@ -9,6 +9,7 @@ import forge.game.Game
 import forge.game.GameEntity
 import forge.game.GameObject
 import forge.game.ability.AbilityUtils
+import forge.game.ability.ApiType
 import forge.game.card.Card
 import forge.game.card.CardCollection
 import forge.game.card.CardCollectionView
@@ -312,6 +313,13 @@ class WebPlayerController(
         if (delayedReveal != null) reveal(delayedReveal)
         if (optionList.isEmpty()) return null
         if (optionList.size == 1 && !isOptional) return optionList.getFirst()
+
+        // Legend rule SBA: auto-resolve — keep the newest (real server doesn't prompt).
+        // The newest is the one with summoning sickness (just entered the battlefield).
+        if (sa?.api == ApiType.InternalLegendaryRule) {
+            return autoResolveLegendRule(optionList)
+        }
+
         val labels = optionList.map { it.entityLabel() }
         val request = PromptRequest(
             promptType = "choose_cards",
@@ -328,6 +336,41 @@ class WebPlayerController(
             return optionList.get(idx)
         }
         return if (isOptional) null else optionList.getFirst()
+    }
+
+    /**
+     * Auto-resolve legend rule: keep the newest legendary permanent.
+     *
+     * Real server auto-resolves (no interactive prompt), keeping the one that
+     * just entered the battlefield. Detected by summoning sickness flag —
+     * the newest card has `sickness=true`. Falls back to last in list.
+     *
+     * Also marks victims in [InteractivePromptBridge.legendRuleVictims] so
+     * [GameEventCollector] emits [GameEvent.LegendRuleDeath] (→ SBA_LegendRule
+     * transfer category) instead of generic CardDestroyed.
+     */
+    private fun <T : GameEntity> autoResolveLegendRule(optionList: FCollectionView<T>): T {
+        val cards = optionList.filterIsInstance<Card>()
+        // Find the newest: the one with summoning sickness (just entered)
+        val newest = cards.firstOrNull { it.isSick() }
+        val toKeep = newest ?: cards.lastOrNull()
+
+        // Mark all non-kept legendaries as legend rule victims
+        for (card in cards) {
+            if (card !== toKeep) {
+                bridge.legendRuleVictims.add(card.id)
+            }
+        }
+
+        log.info(
+            "legend rule auto-resolve: keeping {} (id={}), victims={}",
+            toKeep?.name,
+            toKeep?.id,
+            bridge.legendRuleVictims,
+        )
+
+        @Suppress("UNCHECKED_CAST")
+        return (toKeep as? T) ?: optionList.get(optionList.size - 1)
     }
 
     // chooseSingleCardForZoneChange — inherited from PCHuman, which delegates

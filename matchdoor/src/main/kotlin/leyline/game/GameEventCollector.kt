@@ -85,6 +85,8 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         // Command zone from nowhere), fall back to generic ZoneChanged.
         val event = if (seat != null && from != null) {
             when {
+                from == ZoneType.Battlefield && to == ZoneType.Graveyard && isLegendRuleVictim(card.id) ->
+                    GameEvent.LegendRuleDeath(card.id, seat)
                 from == ZoneType.Battlefield && to == ZoneType.Graveyard ->
                     GameEvent.CardDestroyed(card.id, seat)
                 from == ZoneType.Battlefield && (to == ZoneType.Hand || to == ZoneType.Library) ->
@@ -290,5 +292,21 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     private fun seatOf(player: forge.game.player.PlayerView?): Int? {
         if (player == null) return null
         return if (player.isAI) 2 else 1
+    }
+
+    /**
+     * Check if a card is marked as a legend rule SBA victim.
+     *
+     * [WebPlayerController.autoResolveLegendRule] populates
+     * [InteractivePromptBridge.legendRuleVictims] with forge card IDs of
+     * legendaries that will die. We check all seats' prompt bridges.
+     * Consuming on match (remove) so the flag doesn't leak to future SBAs.
+     */
+    private fun isLegendRuleVictim(forgeCardId: Int): Boolean {
+        for (seat in bridge.allSeatIds()) {
+            val victims = bridge.promptBridge(seat).legendRuleVictims
+            if (victims.remove(forgeCardId)) return true
+        }
+        return false
     }
 }
