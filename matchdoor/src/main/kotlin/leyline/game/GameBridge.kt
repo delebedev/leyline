@@ -100,7 +100,6 @@ class GameBridge(
 
     /** Small seat-scoped facade — keeps handlers off global seat-1 defaults. */
     data class SeatBridges(
-        val seatId: Int,
         val action: GameActionBridge,
         val prompt: InteractivePromptBridge,
         val mulligan: MulliganBridge,
@@ -123,7 +122,6 @@ class GameBridge(
     /** Seat-scoped facade — use in handlers instead of raw seat-1 aliases. */
     fun seat(seatId: Int): SeatBridges =
         SeatBridges(
-            seatId = seatId,
             action = actionBridge(seatId),
             prompt = promptBridge(seatId),
             mulligan = mulliganBridge(seatId),
@@ -252,8 +250,6 @@ class GameBridge(
 
     override fun isPhaseChangedFromClientSeen(currentTurnInfo: TurnInfo): Boolean =
         diff.isPhaseChangedFromClientSeen(currentTurnInfo)
-
-    fun clearPreviousState() = diff.clear()
 
     override fun drainEvents(): List<GameEvent> = eventCollector?.drainEvents() ?: emptyList()
 

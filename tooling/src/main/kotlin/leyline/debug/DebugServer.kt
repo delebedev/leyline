@@ -656,7 +656,7 @@ class DebugServer(
         session.sendBundledGRE(listOf(greGsm, greActions))
 
         // Update bridge snapshot so subsequent Diffs are computed against this Full
-        bridge.snapshotState(fullGsm)
+        bridge.snapshotDiffBaseline(fullGsm)
 
         val info = "Injected Full GSM gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
         log.info(info)
@@ -760,7 +760,7 @@ class DebugServer(
             .build()
 
         session.sendBundledGRE(listOf(greGsm, greActions))
-        bridge.snapshotState(gsmWithDeletes)
+        bridge.snapshotDiffBaseline(gsmWithDeletes)
 
         val meta = PuzzleSource.parseMetadata(if (body.isNotEmpty()) body else "")
         val label = if (fileParam != null) fileParam else meta.name

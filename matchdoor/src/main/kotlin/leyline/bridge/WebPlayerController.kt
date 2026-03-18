@@ -957,8 +957,8 @@ class WebPlayerController(
     /**
      * Choose optional additional costs (kicker, buyback, etc.).
      *
-     * Reads stashed decision from [GameBridge.stashedOptionalCostIndices], set by
-     * [TargetingHandler] after client responds to CastingTimeOptionsReq.
+     * Reads the stashed decision from [InteractivePromptBridge.stashedOptionalCostIndices],
+     * set by [TargetingHandler] after the client responds to CastingTimeOptionsReq.
      * Falls back to auto-accept if no stashed decision (e.g. MatchHarness tests).
      */
     override fun chooseOptionalCosts(

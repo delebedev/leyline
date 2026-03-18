@@ -636,7 +636,7 @@ class MatchSession(
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
         debugSink?.recordOutbound(messages, seatId)
         debugSink?.collectOutbound(messages, debugSink?.currentSeq() ?: 0)
-        // Track last-sent TurnInfo so BundleBuilder.postAction() can detect phase
+        // Track client-seen TurnInfo so BundleBuilder.postAction() can detect phase
         // transitions even when PhaseStopProfile causes the engine to skip phases.
         val bridge = gameBridge
         if (bridge != null) {
