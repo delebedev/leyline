@@ -105,6 +105,20 @@ just arena capture --out /tmp/step1.png
 
 Add gallery URL to PR comment as evidence.
 
+### Hot-swap puzzles (no restart)
+
+Once Arena is connected and in-game, swap to a different puzzle without restarting the server or Arena:
+
+```bash
+# By file path (from puzzles/ dir)
+curl -X POST http://localhost:8090/api/inject-puzzle?file=legend-rule
+
+# By inline .pzl content
+curl -X POST http://localhost:8090/api/inject-puzzle -d @puzzles/legend-rule.pzl
+```
+
+The client resets to the new board state immediately — no reconnect needed. Use this to iterate on puzzle design or re-run a scenario after a code fix (`just build` first, then inject).
+
 ## Conformance Assertions
 
 Beyond gameplay (WIN/LOSE), assert on message shape:
