@@ -335,7 +335,7 @@ class MatchSession(
     /** Handle SubmitTargetsReq — finalizes two-phase targeting. */
     override fun onSubmitTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
-        targetingHandler.onSubmitTargets(bridge)
+        targetingHandler.onSubmitTargets(bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /** Handle SelectNResp — delegates to [TargetingHandler]. */
