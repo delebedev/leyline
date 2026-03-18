@@ -137,7 +137,6 @@ class LegendRuleTest :
             // Keep the new (untapped) Isamaru
             val newIsamaruId = findUntappedIsamaru(h, legendaryIds)
                 ?: legendaryIds.last()
-            val sacrificedId = legendaryIds.first { it != newIsamaruId }
 
             h.respondToSelectN(listOf(newIsamaruId))
 
