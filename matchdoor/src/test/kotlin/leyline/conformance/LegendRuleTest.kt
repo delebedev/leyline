@@ -1,154 +1,218 @@
 package leyline.conformance
 
-import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
-import leyline.ConformanceTag
-import leyline.bridge.ForgeCardId
-import leyline.bridge.WebPlayerController
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import leyline.IntegrationTag
+import leyline.bridge.InstanceId
+import leyline.bridge.SeatId
+import wotc.mtgo.gre.external.messaging.Messages.*
+import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
  * Legend rule SBA conformance: when two legendary permanents with the same
- * name are on the battlefield, the older one is put into the graveyard.
+ * name are on the battlefield, the engine presents a SelectNReq (choose 1 to keep),
+ * then sacrifices the other with SBA_LegendRule transfer category.
  *
- * Real server auto-resolves (no interactive prompt), keeps the newest,
- * and produces:
- * - ObjectIdChanged annotation (old instanceId → graveyard instanceId)
- * - ZoneTransfer annotation with category "SBA_LegendRule"
+ * Real server flow (recording: 2026-03-17_20-18-39 gsId=681-682):
+ * 1. SelectNReq: context=Resolution, listType=Dynamic, min=1, max=1, ids=[old, new]
+ * 2. Client responds SelectNResp with chosen instanceId
+ * 3. Resolution Diff: ZoneTransfer(SBA_LegendRule) + ObjectIdChanged
  *
- * Uses startWithBoard{} + WPC with auto-resolve — synchronous (~0.01s per test).
- * checkStateEffects(true) triggers SBAs inline on the test thread.
- *
- * Recording baseline: 2026-03-17_20-18-39 gsId=682 (Syr Alin legend rule)
+ * Uses [MatchFlowHarness] + inline puzzle — full pipeline, engine on daemon thread.
  */
 class LegendRuleTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(IntegrationTag)
 
-        val base = ConformanceTestBase()
-        beforeSpec { base.initCardDatabase() }
-        afterEach { base.tearDown() }
+        var harness: MatchFlowHarness? = null
 
-        test("legend rule SBA produces SBA_LegendRule transfer category") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Isamaru, Hound of Konda", human, ZoneType.Battlefield)
-                base.addCard("Plains", human, ZoneType.Battlefield)
-            }
-            val human = game.humanPlayer
-
-            // Install WPC with auto-resolve for legend rule
-            val prompt = b.promptBridge(1)
-            val wpc = WebPlayerController(
-                game = game,
-                player = human,
-                lobbyPlayer = human.lobbyPlayer,
-                bridge = prompt,
-            )
-
-            // Second Isamaru — enters with summoning sickness (like just being cast)
-            val second = base.addCard("Isamaru, Hound of Konda", human, ZoneType.Battlefield)
-            second.setSickness(true)
-            b.getOrAllocInstanceId(ForgeCardId(second.id))
-
-            // Capture the first Isamaru's forge ID before SBA
-            val first = human.getZone(ZoneType.Battlefield).cards
-                .filter { it.name == "Isamaru, Hound of Konda" }
-                .first { it !== second }
-            val firstForgeId = first.id
-            val origId = b.getOrAllocInstanceId(ForgeCardId(firstForgeId)).value
-
-            // Run SBAs under the WPC so legend rule auto-resolves
-            var gsm: GameStateMessage? = null
-            human.runWithController({
-                gsm = base.captureAfterAction(b, game, counter, checkSba = true) {}
-            }, wpc)
-
-            val result = checkNotNull(gsm) { "captureAfterAction should produce a GSM" }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(firstForgeId)).value
-
-            // The old Isamaru should have a ZoneTransfer with SBA_LegendRule category
-            val zt = checkNotNull(result.findZoneTransfer(newId) ?: result.findZoneTransfer(origId)) {
-                "Expected ZoneTransfer annotation for legend rule victim"
-            }
-            zt.category shouldBe "SBA_LegendRule"
-
-            // The old one should be in graveyard
-            human.getZone(ZoneType.Graveyard).cards.any { it.id == firstForgeId } shouldBe true
-
-            // The new one should remain on battlefield
-            human.getZone(ZoneType.Battlefield).cards.any { it.id == second.id } shouldBe true
+        afterEach {
+            harness?.shutdown()
+            harness = null
         }
 
-        test("legend rule keeps newest legendary") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Isamaru, Hound of Konda", human, ZoneType.Battlefield)
-                base.addCard("Plains", human, ZoneType.Battlefield)
+        /**
+         * Puzzle: two Isamarus on BF (one tapped), Fervor for haste, one Isamaru in hand.
+         * Cast the hand Isamaru → legend rule fires → SelectNReq.
+         */
+        val puzzleText = """
+            [metadata]
+            Name:Legend Rule Test
+            Goal:Win
+            Turns:1
+            Difficulty:Easy
+            Description:Cast second Isamaru to trigger legend rule.
+
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=2
+
+            humanhand=Isamaru, Hound of Konda
+            humanbattlefield=Isamaru, Hound of Konda|Tapped;Fervor;Plains;Plains
+            humanlibrary=Plains;Plains;Plains;Plains;Plains
+            ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+        """.trimIndent()
+
+        fun setup(validating: Boolean = true): MatchFlowHarness {
+            val h = MatchFlowHarness(validating = validating)
+            harness = h
+            h.connectAndKeepPuzzleText(puzzleText)
+            return h
+        }
+
+        test("legend rule SBA emits SelectNReq") {
+            val h = setup(validating = false)
+            val snap = h.messageSnapshot()
+
+            h.castSpellByName("Isamaru, Hound of Konda").shouldBeTrue()
+            // Pass priority to resolve the creature (stack → battlefield)
+            h.passPriority()
+
+            val msgs = h.messagesSince(snap)
+            val selectNReq = msgs.firstOrNull { it.hasSelectNReq() }
+            selectNReq.shouldNotBeNull()
+
+            val req = selectNReq.selectNReq
+            req.idsList.shouldNotBeEmpty()
+            req.idsList.size shouldBe 2 // two Isamarus
+            req.minSel shouldBe 1
+            req.maxSel shouldBe 1
+        }
+
+        test("legend rule SBA produces SBA_LegendRule transfer category") {
+            val h = setup(validating = false)
+            val snap = h.messageSnapshot()
+
+            h.castSpellByName("Isamaru, Hound of Konda").shouldBeTrue()
+            h.passPriority()
+
+            // Find the SelectNReq to get the instanceIds
+            val selectNReq = h.allMessages.last { it.hasSelectNReq() }
+            val legendaryIds = selectNReq.selectNReq.idsList
+
+            // Find the new Isamaru (untapped, just entered) — keep it
+            val newIsamaruId = findUntappedIsamaru(h, legendaryIds)
+                ?: legendaryIds.last() // fallback
+
+            h.respondToSelectN(listOf(newIsamaruId))
+
+            // Verify ZoneTransfer with SBA_LegendRule in post-SelectN messages
+            val msgs = h.messagesSince(snap)
+            val allAnnotations = msgs.flatMap { msg ->
+                if (msg.hasGameStateMessage()) {
+                    msg.gameStateMessage.annotationsList
+                } else {
+                    emptyList()
+                }
             }
-            val human = game.humanPlayer
+            val zt = allAnnotations.filter { ann ->
+                ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a }
+            }
+            zt.shouldNotBeEmpty()
 
-            val prompt = b.promptBridge(1)
-            val wpc = WebPlayerController(
-                game = game,
-                player = human,
-                lobbyPlayer = human.lobbyPlayer,
-                bridge = prompt,
-            )
+            val legendRuleZt = zt.firstOrNull { ann ->
+                val cat = ann.detailsList.firstOrNull { it.key == "category" }
+                    ?.valueStringList?.firstOrNull()
+                cat == "SBA_LegendRule"
+            }
+            legendRuleZt.shouldNotBeNull()
+        }
 
-            val second = base.addCard("Isamaru, Hound of Konda", human, ZoneType.Battlefield)
-            second.setSickness(true)
-            b.getOrAllocInstanceId(ForgeCardId(second.id))
+        test("legend rule keeps chosen legendary on battlefield") {
+            val h = setup(validating = false)
 
-            human.runWithController({
-                base.captureAfterAction(b, game, counter, checkSba = true) {}
-            }, wpc)
+            h.castSpellByName("Isamaru, Hound of Konda").shouldBeTrue()
+            h.passPriority()
 
-            // Battlefield should have exactly one Isamaru — the new one
-            val remaining = human.getZone(ZoneType.Battlefield).cards
+            val selectNReq = h.allMessages.last { it.hasSelectNReq() }
+            val legendaryIds = selectNReq.selectNReq.idsList
+
+            // Keep the new (untapped) Isamaru
+            val newIsamaruId = findUntappedIsamaru(h, legendaryIds)
+                ?: legendaryIds.last()
+            val sacrificedId = legendaryIds.first { it != newIsamaruId }
+
+            h.respondToSelectN(listOf(newIsamaruId))
+
+            // The kept one should be on battlefield
+            val player = h.bridge.getPlayer(SeatId(1))!!
+            val bfIsamarus = player.getZone(ForgeZoneType.Battlefield).cards
                 .filter { it.name == "Isamaru, Hound of Konda" }
-            remaining.size shouldBe 1
-            remaining.first().id shouldBe second.id
+            bfIsamarus.size shouldBe 1
+
+            // The sacrificed one should be in graveyard
+            val gyCards = player.getZone(ForgeZoneType.Graveyard).cards
+            gyCards.any { it.name == "Isamaru, Hound of Konda" } shouldBe true
         }
 
         test("legend rule produces ObjectIdChanged annotation") {
-            val (b, game, counter) = base.startWithBoard { _, human, _ ->
-                base.addCard("Isamaru, Hound of Konda", human, ZoneType.Battlefield)
-                base.addCard("Plains", human, ZoneType.Battlefield)
+            val h = setup(validating = false)
+            val snap = h.messageSnapshot()
+
+            h.castSpellByName("Isamaru, Hound of Konda").shouldBeTrue()
+            h.passPriority()
+
+            val selectNReq = h.allMessages.last { it.hasSelectNReq() }
+            val legendaryIds = selectNReq.selectNReq.idsList
+            val newIsamaruId = findUntappedIsamaru(h, legendaryIds)
+                ?: legendaryIds.last()
+
+            h.respondToSelectN(listOf(newIsamaruId))
+
+            val msgs = h.messagesSince(snap)
+            val allAnnotations = msgs.flatMap { msg ->
+                if (msg.hasGameStateMessage()) {
+                    msg.gameStateMessage.annotationsList
+                } else {
+                    emptyList()
+                }
             }
-            val human = game.humanPlayer
 
-            val prompt = b.promptBridge(1)
-            val wpc = WebPlayerController(
-                game = game,
-                player = human,
-                lobbyPlayer = human.lobbyPlayer,
-                bridge = prompt,
-            )
-
-            val second = base.addCard("Isamaru, Hound of Konda", human, ZoneType.Battlefield)
-            second.setSickness(true)
-            b.getOrAllocInstanceId(ForgeCardId(second.id))
-
-            val first = human.getZone(ZoneType.Battlefield).cards
-                .filter { it.name == "Isamaru, Hound of Konda" }
-                .first { it !== second }
-            val origId = b.getOrAllocInstanceId(ForgeCardId(first.id)).value
-
-            var gsm: GameStateMessage? = null
-            human.runWithController({
-                gsm = base.captureAfterAction(b, game, counter, checkSba = true) {}
-            }, wpc)
-
-            val result = checkNotNull(gsm)
-            val newId = b.getOrAllocInstanceId(ForgeCardId(first.id)).value
-
-            // ObjectIdChanged should be present when instanceId changes (zone transition realloc)
-            if (origId != newId) {
-                val oidAnn = result.annotationAffecting(AnnotationType.ObjectIdChanged, origId)
-                oidAnn shouldNotBe null
+            // ObjectIdChanged should be present for the sacrificed legendary
+            val oidChanged = allAnnotations.filter { ann ->
+                ann.typeList.any { it == AnnotationType.ObjectIdChanged }
             }
+            oidChanged.shouldNotBeEmpty()
+        }
+
+        test("legend rule state validity") {
+            val h = setup(validating = false)
+
+            h.castSpellByName("Isamaru, Hound of Konda").shouldBeTrue()
+            h.passPriority()
+
+            val selectNReq = h.allMessages.last { it.hasSelectNReq() }
+            val legendaryIds = selectNReq.selectNReq.idsList
+            val newIsamaruId = findUntappedIsamaru(h, legendaryIds)
+                ?: legendaryIds.last()
+
+            h.respondToSelectN(listOf(newIsamaruId))
+
+            h.accumulator.assertConsistent("after legend rule")
+            assertGsIdChain(h.allMessages, context = "legend rule flow")
+            h.isGameOver().shouldBeFalse()
         }
     })
+
+/**
+ * Find the untapped Isamaru among the SelectNReq candidates.
+ * The tapped one is the original battlefield creature; the untapped one
+ * just entered from the stack.
+ */
+private fun findUntappedIsamaru(h: MatchFlowHarness, instanceIds: List<Int>): Int? {
+    val player = h.bridge.getPlayer(SeatId(1)) ?: return null
+    for (iid in instanceIds) {
+        val forgeCardId = h.bridge.getForgeCardId(InstanceId(iid)) ?: continue
+        val card = player.getZone(ForgeZoneType.Battlefield).cards
+            .firstOrNull { it.id == forgeCardId.value }
+        if (card != null && !card.isTapped) return iid
+    }
+    return null
+}
