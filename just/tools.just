@@ -4,12 +4,12 @@
 [group('tools'), positional-arguments]
 wire *ARGS:
     #!/usr/bin/env bash
-    python3 tools/wire/wire.py "$@"
+    uv run --project "{{project_dir}}" python tools/wire/wire.py "$@"
 
 [group('tools'), positional-arguments]
 tape *ARGS:
     #!/usr/bin/env bash
-    python3 tools/tape/tape.py "$@"
+    uv run --project "{{project_dir}}" python tools/tape/tape.py "$@"
 
 # all unique grpIds in a session → card names
 [group('tools')]
