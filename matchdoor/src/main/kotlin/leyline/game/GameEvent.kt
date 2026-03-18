@@ -121,6 +121,13 @@ sealed interface GameEvent {
     // These replace generic ZoneChanged for specific zone pairs, enabling
     // direct category mapping without the zoneChangedCategory() fallback.
 
+    /** A legendary permanent was put into graveyard by the legend rule SBA.
+     *  More specific than [CardDestroyed] — produces `SBA_LegendRule` category. */
+    data class LegendRuleDeath(
+        val forgeCardId: Int,
+        val seatId: Int,
+    ) : GameEvent
+
     /** A permanent was destroyed (BF→GY, not sacrifice). */
     data class CardDestroyed(
         val forgeCardId: Int,

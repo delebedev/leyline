@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicReference
@@ -31,6 +32,17 @@ class InteractivePromptBridge(
      */
     @Volatile
     var stashedOptionalCostIndices: List<Int>? = null
+
+    /**
+     * Forge card IDs of legendaries about to die to the legend rule SBA.
+     *
+     * Populated by [WebPlayerController.autoResolveLegendRule] before returning
+     * (while still on the engine thread). [GameEventCollector] checks this set
+     * during BF→GY zone transitions to emit [GameEvent.LegendRuleDeath] instead
+     * of [GameEvent.CardDestroyed]. Thread-safe — WPC writes on engine thread,
+     * collector reads on the same thread (events fire synchronously during SBA).
+     */
+    val legendRuleVictims: MutableSet<Int> = CopyOnWriteArraySet()
     companion object {
         const val DEFAULT_TIMEOUT_MS = 30_000L
         private const val HISTORY_CAP = 100

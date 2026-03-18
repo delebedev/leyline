@@ -75,6 +75,8 @@ object AnnotationBuilder {
                         return TransferCategory.Resolve
                     }
                 }
+                // Legend rule SBA — highest zone-specific priority (immediate return)
+                is GameEvent.LegendRuleDeath -> if (ev.forgeCardId == forgeCardId) return TransferCategory.SbaLegendRule
                 // Sacrifice flag — overrides Destroy when both fire for same card
                 is GameEvent.CardSacrificed -> if (ev.forgeCardId == forgeCardId) sacrificed = true
                 // Zone-specific events (emitted by enriched ZoneChanged handler)
