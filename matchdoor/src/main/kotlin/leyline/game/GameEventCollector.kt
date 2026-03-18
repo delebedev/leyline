@@ -57,7 +57,10 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
     override fun visit(ev: GameEventLandPlayed) {
         val seat = seatOf(ev.player()) ?: return
-        val colorBitmasks = computeColorBitmasks(ev.land())
+        val colorBitmasks = bridge.getGame()
+            ?.findById(ev.land().id)
+            ?.let(::computeColorBitmasks)
+            ?: emptyList()
         queue.add(GameEvent.LandPlayed(ev.land().id, seat, colorBitmasks))
         log.debug("event: LandPlayed card={} seat={} colors={}", ev.land().name, seat, colorBitmasks)
     }
