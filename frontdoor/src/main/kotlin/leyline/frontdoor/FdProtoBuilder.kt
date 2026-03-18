@@ -7,12 +7,7 @@ import kotlinx.serialization.json.Json
 
 private val json = Json { ignoreUnknownKeys = true }
 
-/**
- * Builds GetFormats and GetSets protobuf responses from hand-written JSON data.
- *
- * Replaces captured binary golden files with code-generated protobuf.
- * Field numbers match `Wizards.Arena.Models.Network.{GetFormatsResponse,SetMetadataResponse}`.
- */
+/** Builds GetFormats and GetSets protobuf responses from JSON data. */
 object FdProtoBuilder {
 
     private const val FORMATS_TYPE_URL =
