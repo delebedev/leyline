@@ -94,16 +94,22 @@ object AnnotationBuilder {
             }
         }
 
-        // CardSacrificed overrides any other zone category
-        if (sacrificed) return TransferCategory.Sacrifice
-
         // Zone-specific events take priority over generic ZoneChanged
-        if (zoneCategory != null) return zoneCategory
+        if (zoneCategory != null) {
+            // CardSacrificed overrides CardDestroyed (BF→GY) when both fire
+            return if (sacrificed && zoneCategory == TransferCategory.Destroy) {
+                TransferCategory.Sacrifice
+            } else {
+                zoneCategory
+            }
+        }
 
         // Fallback: generic ZoneChanged → zone-pair heuristic
-        if (generic != null) return zoneChangedCategory(generic)
-
-        return null
+        return when {
+            generic != null && sacrificed -> TransferCategory.Sacrifice
+            generic != null -> zoneChangedCategory(generic)
+            else -> null
+        }
     }
 
     /**
