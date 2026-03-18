@@ -44,11 +44,6 @@ class DiffSnapshotter(private val idRegistry: InstanceIdRegistry) {
     /** Get the current diff baseline (null before first state). */
     fun getDiffBaselineState(): GameStateMessage? = diffBaselineState
 
-    /** Clear the diff baseline (e.g. on game reset). */
-    fun clear() {
-        diffBaselineState = null
-    }
-
     /** Full reset — clear all tracked state (zones, diff baseline, turn info). Used on puzzle hot-swap. */
     fun resetAll() {
         previousZones.clear()
