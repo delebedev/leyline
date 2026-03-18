@@ -314,15 +314,14 @@ class WebPlayerController(
         if (optionList.isEmpty()) return null
         if (optionList.size == 1 && !isOptional) return optionList.getFirst()
 
-        // Legend rule SBA: auto-resolve — keep the newest (real server doesn't prompt).
-        // The newest is the one with summoning sickness (just entered the battlefield).
-        if (sa?.api == ApiType.InternalLegendaryRule) {
-            return autoResolveLegendRule(optionList)
-        }
+        // Legend rule SBA: prompt the player to choose which legendary to keep.
+        // Real server sends SelectNReq (context=Resolution, min=1, max=1).
+        // Recording baseline: 2026-03-17_20-18-39 gsId=681.
+        val isLegendRule = sa?.api == ApiType.InternalLegendaryRule
 
         val labels = optionList.map { it.entityLabel() }
         val request = PromptRequest(
-            promptType = "choose_cards",
+            promptType = if (isLegendRule) "legend_rule" else "choose_cards",
             message = title ?: "Choose one",
             options = labels,
             min = if (isOptional) 0 else 1,
@@ -332,45 +331,29 @@ class WebPlayerController(
         )
         val indices = bridge.requestChoice(request)
         val idx = indices.firstOrNull()
-        if (idx != null && idx in 0 until optionList.size) {
-            return optionList.get(idx)
+        val chosen = if (idx != null && idx in 0 until optionList.size) {
+            optionList.get(idx)
+        } else {
+            if (isOptional) null else optionList.getFirst()
         }
-        return if (isOptional) null else optionList.getFirst()
-    }
 
-    /**
-     * Auto-resolve legend rule: keep the newest legendary permanent.
-     *
-     * Real server auto-resolves (no interactive prompt), keeping the one that
-     * just entered the battlefield. Detected by summoning sickness flag —
-     * the newest card has `sickness=true`. Falls back to last in list.
-     *
-     * Also marks victims in [InteractivePromptBridge.legendRuleVictims] so
-     * [GameEventCollector] emits [GameEvent.LegendRuleDeath] (→ SBA_LegendRule
-     * transfer category) instead of generic CardDestroyed.
-     */
-    private fun <T : GameEntity> autoResolveLegendRule(optionList: FCollectionView<T>): T {
-        val cards = optionList.filterIsInstance<Card>()
-        // Find the newest: the one with summoning sickness (just entered)
-        val newest = cards.firstOrNull { it.isSick() }
-        val toKeep = newest ?: cards.lastOrNull()
-
-        // Mark all non-kept legendaries as legend rule victims
-        for (card in cards) {
-            if (card !== toKeep) {
-                bridge.legendRuleVictims.add(card.id)
+        // Legend rule: mark all unchosen legendaries as victims for SBA_LegendRule annotation.
+        if (isLegendRule && chosen != null) {
+            val cards = optionList.filterIsInstance<Card>()
+            for (card in cards) {
+                if (card !== chosen) {
+                    bridge.legendRuleVictims.add(card.id)
+                }
             }
+            log.info(
+                "legend rule: player chose {} (id={}), victims={}",
+                (chosen as? Card)?.name,
+                (chosen as? Card)?.id,
+                bridge.legendRuleVictims,
+            )
         }
 
-        log.info(
-            "legend rule auto-resolve: keeping {} (id={}), victims={}",
-            toKeep?.name,
-            toKeep?.id,
-            bridge.legendRuleVictims,
-        )
-
-        @Suppress("UNCHECKED_CAST")
-        return (toKeep as? T) ?: optionList.get(optionList.size - 1)
+        return chosen
     }
 
     // chooseSingleCardForZoneChange — inherited from PCHuman, which delegates

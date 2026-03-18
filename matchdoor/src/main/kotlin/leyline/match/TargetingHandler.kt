@@ -233,6 +233,14 @@ class TargetingHandler(private val ops: SessionOps) {
             return PromptResult.SENT_TO_CLIENT
         }
 
+        // Legend rule SBA → send SelectNReq (not SelectTargetsReq).
+        // Real server: context=Resolution, min=1, max=1. Recording: gsId=681.
+        if (pendingPrompt.request.promptType == "legend_rule") {
+            ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "legend_rule candidates=${pendingPrompt.request.candidateRefs.size}")
+            sendSelectNReq(bridge, pendingPrompt)
+            return PromptResult.SENT_TO_CLIENT
+        }
+
         if (pendingPrompt.request.candidateRefs.isNotEmpty()) {
             // Targeting prompt → send SelectTargetsReq to client
             ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
@@ -611,6 +619,17 @@ class TargetingHandler(private val ops: SessionOps) {
         val game = bridge.getGame() ?: return
         val result = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, pendingPrompt)
         Tap.outboundTemplate("SelectTargetsReq seat=${ops.seatId}")
+        ops.sendBundledGRE(result.messages)
+    }
+
+    private fun sendSelectNReq(
+        bridge: GameBridge,
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+    ) {
+        val game = bridge.getGame() ?: return
+        val req = BundleBuilder.buildSelectNReq(pendingPrompt, bridge)
+        val result = BundleBuilder.selectNBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, req)
+        Tap.outboundTemplate("SelectNReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
     }
 
