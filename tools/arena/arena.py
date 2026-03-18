@@ -281,6 +281,7 @@ def _normalize_zone(zone_type: str) -> str:
 
 
 _SCENE_RE = re.compile(r"\[UnityCrossThreadLogger\]Client\.SceneChange\s+(\{.+\})")
+_LOGIN_RE = re.compile(r"Wotc\.Mtga\.Login\.LoginScene")
 _CONNECT_RE = re.compile(r'"type"\s*:\s*"GREMessageType_ConnectResp"')
 _GAME_OVER_RE = re.compile(r'"gameOver"\s*:\s*true')
 _RESULT_RE = re.compile(r'"ResultType_WinLoss"')
@@ -315,6 +316,8 @@ def get_current_scene() -> str | None:
                     current = raw.get("toSceneName")
                 except (json.JSONDecodeError, ValueError):
                     continue
+            elif _LOGIN_RE.search(line):
+                current = "Login"
             elif _CONNECT_RE.search(line):
                 current = "InGame"
             elif _GAME_OVER_RE.search(line) or _RESULT_RE.search(line):
@@ -1680,6 +1683,60 @@ def cmd_errors(args: list[str]) -> None:
     print(json.dumps({"errors": errors, "error_count": error_count}, indent=2))
 
 
+def cmd_login(args: list[str]) -> None:
+    """Log in to MTGA on the login screen via osascript keystrokes.
+
+    Usage: arena login [--email <email>] [--password <pw>]
+    Defaults: forge@local / forge (local dev account)
+    """
+    email = "forge@local"
+    password = "forge"
+    i = 0
+    while i < len(args):
+        if args[i] == "--email" and i + 1 < len(args):
+            email = args[i + 1]
+            i += 2
+        elif args[i] == "--password" and i + 1 < len(args):
+            password = args[i + 1]
+            i += 2
+        else:
+            i += 1
+
+    scene = get_current_scene()
+    if scene != "Login":
+        die(f"Not on login screen (scene={scene})")
+
+    # Click email field (coords from OCR: ~413,355)
+    click_screen(413, 355)
+    time.sleep(0.5)
+    # Select all + type email
+    run(
+        "osascript",
+        "-e",
+        'tell application "System Events" to keystroke "a" using command down',
+    )
+    time.sleep(0.2)
+    run("osascript", "-e", f'tell application "System Events" to keystroke "{email}"')
+    time.sleep(0.5)
+    # Tab to password
+    run("osascript", "-e", 'tell application "System Events" to keystroke tab')
+    time.sleep(0.3)
+    # Select all + type password
+    run(
+        "osascript",
+        "-e",
+        'tell application "System Events" to keystroke "a" using command down',
+    )
+    time.sleep(0.2)
+    run(
+        "osascript", "-e", f'tell application "System Events" to keystroke "{password}"'
+    )
+    time.sleep(0.5)
+    # Click Log In
+    click_screen(480, 470)
+    print(f"Login submitted ({email})")
+
+
 def cmd_scene(args: list[str]) -> None:
     """Show current lobby screen from Player.log scene changes."""
     scene = get_current_scene()
@@ -2636,6 +2693,7 @@ def cmd_health(args: list[str]) -> None:
 
 COMMANDS = {
     "launch": cmd_launch,
+    "login": cmd_login,
     "capture": cmd_capture,
     "ocr": cmd_ocr,
     "click": cmd_click,
@@ -2660,6 +2718,7 @@ COMMANDS = {
 
 COMMAND_HELP = {
     "launch": "Launch MTGA client (1920x1080 windowed)",
+    "login": "Log in on login screen. --email <e> --password <p> (default: forge@local/forge)",
     "capture": "Screenshot MTGA window. --out <path> --resolution <px>",
     "ocr": "OCR screen text. --fmt (table) --find <text> --hand (zoomed hand strip)",
     "click": "Click text or coords. <text|x,y> --retry N --double --right --exact",

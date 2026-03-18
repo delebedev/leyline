@@ -25,5 +25,6 @@ enum class TransferCategory(val label: String) {
     Search("Search"),
     Put("Put"),
     Surveil("Surveil"),
+    SbaLegendRule("SBA_LegendRule"),
     ZoneTransfer("ZoneTransfer"),
 }

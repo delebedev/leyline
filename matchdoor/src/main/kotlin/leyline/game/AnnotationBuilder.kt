@@ -75,6 +75,8 @@ object AnnotationBuilder {
                         return TransferCategory.Resolve
                     }
                 }
+                // Legend rule SBA — highest zone-specific priority (immediate return)
+                is GameEvent.LegendRuleDeath -> if (ev.forgeCardId == forgeCardId) return TransferCategory.SbaLegendRule
                 // Sacrifice flag — overrides Destroy when both fire for same card
                 is GameEvent.CardSacrificed -> if (ev.forgeCardId == forgeCardId) sacrificed = true
                 // Zone-specific events (emitted by enriched ZoneChanged handler)
@@ -95,16 +97,19 @@ object AnnotationBuilder {
         // Zone-specific events take priority over generic ZoneChanged
         if (zoneCategory != null) {
             // CardSacrificed overrides CardDestroyed (BF→GY) when both fire
-            if (sacrificed && zoneCategory == TransferCategory.Destroy) return TransferCategory.Sacrifice
-            return zoneCategory
+            return if (sacrificed && zoneCategory == TransferCategory.Destroy) {
+                TransferCategory.Sacrifice
+            } else {
+                zoneCategory
+            }
         }
 
         // Fallback: generic ZoneChanged → zone-pair heuristic
-        if (generic != null) {
-            if (sacrificed) return TransferCategory.Sacrifice
-            return zoneChangedCategory(generic)
+        return when {
+            generic != null && sacrificed -> TransferCategory.Sacrifice
+            generic != null -> zoneChangedCategory(generic)
+            else -> null
         }
-        return null
     }
 
     /**

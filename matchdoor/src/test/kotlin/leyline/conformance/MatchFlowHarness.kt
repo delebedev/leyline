@@ -530,6 +530,18 @@ class MatchFlowHarness(
         return true
     }
 
+    // --- SelectN helpers ---
+
+    /**
+     * Respond to a SelectNReq (legend rule, "choose N" prompts) with selected instanceIds.
+     *
+     * @param selectedInstanceIds the instanceIds the player chose (e.g. the legendary to keep)
+     */
+    fun respondToSelectN(selectedInstanceIds: List<Int>) {
+        session.onSelectN(selectNResp(ids = selectedInstanceIds))
+        drainSink()
+    }
+
     // --- Modal helpers ---
 
     /** Respond to a CastingTimeOptionsReq (modal choice) with selected grpIds. */

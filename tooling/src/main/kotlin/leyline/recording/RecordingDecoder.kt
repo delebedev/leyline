@@ -666,6 +666,7 @@ object RecordingDecoder {
         gre.hasDeclareBlockersReq() -> "DeclareBlockersReq"
         gre.hasGroupReq() -> "GroupReq"
         gre.hasSelectTargetsReq() -> "SelectTargetsReq"
+        gre.hasSelectNReq() -> "SelectNReq"
         else -> null
     }
 
@@ -674,6 +675,7 @@ object RecordingDecoder {
         gre.hasDeclareBlockersReq() -> protoToJsonElement(gre.declareBlockersReq)
         gre.hasGroupReq() -> protoToJsonElement(gre.groupReq)
         gre.hasSelectTargetsReq() -> protoToJsonElement(gre.selectTargetsReq)
+        gre.hasSelectNReq() -> protoToJsonElement(gre.selectNReq)
         else -> null
     }
 

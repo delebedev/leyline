@@ -130,27 +130,39 @@ object RequestBuilder {
 
     /**
      * Build a [SelectNReq] from a pending prompt with candidateRefs.
-     * Used for "choose N cards" prompts (discard, sacrifice selection, etc.).
+     * Used for "choose N cards" prompts (discard, sacrifice, legend rule, etc.).
      *
      * Maps prompt candidate entity IDs to client instanceIds. The client
      * responds with SelectNResp containing selected instanceIds.
+     *
+     * Context/listType vary by prompt type:
+     * - `legend_rule`: context=Resolution, listType=Dynamic
+     * - `choose_cards` (discard): context=Discard, listType=Static
      */
     fun buildSelectNReq(
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
     ): SelectNReq {
+        val isLegendRule = prompt.request.promptType == "legend_rule"
         val builder = SelectNReq.newBuilder()
             .setMinSel(prompt.request.min)
             .setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
-            .setContext(SelectionContext.Discard_a163) // TODO: map promptType → context
-            .setListType(SelectionListType.Static)
+            .setContext(if (isLegendRule) SelectionContext.Resolution_a163 else SelectionContext.Discard_a163)
+            .setListType(if (isLegendRule) SelectionListType.Dynamic else SelectionListType.Static)
             .setIdType(IdType.InstanceId_ab2c)
             .setValidationType(SelectionValidationType.NonRepeatable)
         for (ref in prompt.request.candidateRefs) {
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
             builder.addIds(instanceId)
         }
-        builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+        if (isLegendRule) {
+            // Empty inner prompt; the real promptId goes on the outer GRE message.
+            builder.setPrompt(Prompt.newBuilder())
+            builder.setOptionContext(OptionContext.Resolution_a9d7)
+            builder.setSourceId(PromptIds.SELECT_N_LEGEND_RULE_SOURCE)
+        } else {
+            builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+        }
         return builder.build()
     }
 

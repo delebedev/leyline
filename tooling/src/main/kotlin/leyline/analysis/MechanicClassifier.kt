@@ -28,6 +28,7 @@ object MechanicClassifier {
         is GameEvent.LifeChanged -> "life_change"
         is GameEvent.AttackersDeclared -> "attackers_declared"
         is GameEvent.BlockersDeclared -> "blockers_declared"
+        is GameEvent.LegendRuleDeath -> "legend_rule"
         is GameEvent.CardDestroyed -> "destroy"
         is GameEvent.CardSacrificed -> "sacrifice"
         is GameEvent.CardBounced -> "bounce"
