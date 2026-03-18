@@ -108,6 +108,7 @@ class TargetingHandler(private val ops: SessionOps) {
      */
     fun onSubmitTargets(
         bridge: GameBridge,
+        autoPass: (GameBridge) -> Unit,
     ) {
         val pending = pendingTargetSelection
         if (pending == null) {
@@ -128,6 +129,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
         bridge.seat(ops.seatId).prompt.submitResponse(pending.promptId, pending.selectedIndices)
         bridge.awaitPriority()
+        autoPass(bridge)
     }
 
     /**
