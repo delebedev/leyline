@@ -155,7 +155,15 @@ object RequestBuilder {
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
             builder.addIds(instanceId)
         }
-        builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+        if (isLegendRule) {
+            // Recording gsId=681: empty inner prompt, optionContext=Resolution, sourceId=15168.
+            // The real promptId (72) goes on the outer GRE message, not here.
+            builder.setPrompt(Prompt.newBuilder())
+            builder.setOptionContext(OptionContext.Resolution_a9d7)
+            builder.setSourceId(PromptIds.SELECT_N_LEGEND_RULE_SOURCE)
+        } else {
+            builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+        }
         return builder.build()
     }
 
