@@ -19,7 +19,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Two core methods:
  * - [buildFromGame]: Full [GameStateMessage] from live engine state (zones, objects,
  *   players, annotations via [AnnotationPipeline])
- * - [buildDiffFromGame]: Diff GSM containing only changes since the previous snapshot
+ * - [buildDiffFromGame]: Diff GSM containing only changes since the current diff baseline
  *
  * Lifecycle GSM factories (deal-hand, mulligan, transitions) live in [GsmBuilder].
  * Interactive request builders (targeting, combat) live in [RequestBuilder].
@@ -239,8 +239,8 @@ object StateMapper {
 
     /**
      * Build a Diff [GameStateMessage] containing only zones/objects that changed
-     * since the previous snapshot. Falls back to Full if no previous state exists.
-     * Updates the bridge's snapshot after building so the next diff is relative
+     * since the current diff baseline. Falls back to Full if no baseline exists.
+     * Updates the bridge's diff baseline after building so the next diff is relative
      * to this state.
      */
     fun buildDiffFromGame(

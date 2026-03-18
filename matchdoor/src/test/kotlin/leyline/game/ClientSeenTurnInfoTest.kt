@@ -14,10 +14,10 @@ import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
  * TurnInfo sent to the client, used by [BundleBuilder.postAction] to
  * detect phase/step transitions for PhaseOrStepModified annotations.
  *
- * Separated from prevSnapshot (used for diff computation) so that
+ * Separated from the diff baseline (used for diff computation) so that
  * drainPlayback's snapshot updates don't clobber the annotation decision.
  */
-class LastSentTurnInfoTest :
+class ClientSeenTurnInfoTest :
     FunSpec({
 
         tags(UnitTag)
