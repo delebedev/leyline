@@ -620,7 +620,7 @@ object BundleBuilder {
         val msg2 = makeGRE(GREMessageType.SelectNreq, nextGs, seatId, counter.nextMsgId()) {
             it.selectNReq = req
             if (isLegendRule) {
-                // Recording 2026-03-17 gsId=681: promptId=72, param CardId, allowCancel=No.
+                // Legend rule: promptId=72 + CardId param, no cancel allowed.
                 it.setPrompt(
                     Prompt.newBuilder()
                         .setPromptId(PromptIds.SELECT_N_LEGEND_RULE)

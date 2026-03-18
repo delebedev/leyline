@@ -234,7 +234,6 @@ class TargetingHandler(private val ops: SessionOps) {
         }
 
         // Legend rule SBA → send SelectNReq (not SelectTargetsReq).
-        // Real server: context=Resolution, min=1, max=1. Recording: gsId=681.
         if (pendingPrompt.request.promptType == "legend_rule") {
             ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "legend_rule candidates=${pendingPrompt.request.candidateRefs.size}")
             sendSelectNReq(bridge, pendingPrompt)

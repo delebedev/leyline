@@ -316,7 +316,6 @@ class WebPlayerController(
 
         // Legend rule SBA: prompt the player to choose which legendary to keep.
         // Real server sends SelectNReq (context=Resolution, min=1, max=1).
-        // Recording baseline: 2026-03-17_20-18-39 gsId=681.
         val isLegendRule = sa?.api == ApiType.InternalLegendaryRule
 
         val labels = optionList.map { it.entityLabel() }
