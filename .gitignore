@@ -86,3 +86,6 @@ bin/models/
 # Autoplay session videos (large, ephemeral)
 docs/retro/autoplay/**/gameplay.mp4
 PROGRESS.md
+
+# Local issue sync (gh-issue-sync)
+.issues/
