@@ -12,7 +12,7 @@
 #   suppressed — deliberately disabled (cosmetic, causes client errors)
 #   n/a       — not applicable to Arena Standard/Pioneer
 #
-# Updated: 2026-03-09
+# Updated: 2026-03-19
 # Authoritative source for protocol-level detail: rosetta.md
 
 # ─── Client Infrastructure ───────────────────────────────────────────
@@ -288,8 +288,9 @@ spells:
     status: wired
     notes: >
       autoTapSolution provides one-click casting (greedy solver: colored first,
-      then generic). ~95% correct. Manual tap via ActivateMana as fallback.
-      ManaPaid annotation fires but has no detail keys (stub).
+      then generic). ~95% correct. Manual tap via ActivateMana works end-to-end
+      (taps permanent, produces mana, loops back for next action without
+      consuming priority). ManaPaid annotation fires but has no detail keys (stub).
 
   float-mana:
     status: missing
@@ -895,8 +896,8 @@ protocol-summary:
         game mechanics still work via the engine, just no visual flair.
 
   action-types:
-    implemented: 3  # Cast, Play, Pass (end-to-end)
-    partial: 1      # Activate (basic path works, multi-ability mapping incomplete)
+    implemented: 5  # Cast, Play, Pass, Activate, ActivateMana (end-to-end)
+    partial: 0
     total: 24
     notes: >
       Multi-face variants (10 types) deferred. FloatMana observed but not generated.
