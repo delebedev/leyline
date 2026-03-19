@@ -154,17 +154,17 @@ def _cmd_state(args: argparse.Namespace) -> None:
             print(f"error: log not found: {log_path}")
         return
 
-    from scry_lib.errors import ClientError
-    from scry_lib.models import SceneChange
-    from scry_lib.parser import GREBlock, parse_log
-    from scry_lib.tracker import GameTracker
+    from .errors import ClientError
+    from .models import SceneChange
+    from .parser import GREBlock, parse_log
+    from .tracker import GameTracker
 
     if args.no_catchup:
         # Parse entire file from beginning
         lines = log_path.read_text().splitlines()
     else:
         # Catchup: scan backward for last Full GSM, replay from there
-        from scry_lib.tail import find_last_full_offset, tail_log
+        from .tail import find_last_full_offset, tail_log
 
         offset = find_last_full_offset(log_path)
         start = offset if offset is not None else 0
@@ -181,7 +181,7 @@ def _cmd_state(args: argparse.Namespace) -> None:
 
     resolver = None
     if args.cards:
-        from scry_lib.cards import CardResolver, find_arena_db
+        from .cards import CardResolver, find_arena_db
 
         db = find_arena_db()
         if db:
@@ -202,8 +202,8 @@ def _cmd_stream(args: argparse.Namespace) -> None:
         print(f"error: log not found: {log_path}", file=sys.stderr)
         sys.exit(1)
 
-    from scry_lib.parser import parse_gre_blocks
-    from scry_lib.tail import tail_log
+    from .parser import parse_gre_blocks
+    from .tail import tail_log
 
     lines = tail_log(log_path, follow=args.follow, start_offset=0)
 
@@ -230,8 +230,8 @@ def _cmd_scene(args: argparse.Namespace) -> None:
         print(json.dumps({"error": f"log not found: {log_path}", "current": None}))
         return
 
-    from scry_lib.models import SceneChange
-    from scry_lib.parser import _SCENE_CHANGE_RE
+    from .models import SceneChange
+    from .parser import _SCENE_CHANGE_RE
 
     # Scan from end — we only need the last SceneChange line
     current: str | None = None
@@ -259,7 +259,7 @@ def _cmd_serve(args: argparse.Namespace) -> None:
         print(f"error: log not found: {log_path}", file=sys.stderr)
         sys.exit(1)
 
-    from scry_lib.server import run_server
+    from .server import run_server
 
     run_server(log_path, port=args.port)
 
@@ -333,10 +333,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    import os
-
-    # Ensure parent dir (tools/scry/) is on sys.path so scry_lib is importable
-    _parent = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    if _parent not in sys.path:
-        sys.path.insert(0, _parent)
     main()

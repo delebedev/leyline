@@ -5,7 +5,7 @@ requires-python = ">=3.11"
 [[package]]
 name = "leyline-tools"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "pillow" },
     { name = "pyobjc-framework-quartz", marker = "sys_platform == 'darwin'" },
