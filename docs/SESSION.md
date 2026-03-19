@@ -1,35 +1,24 @@
 # Last Session
 
-**Date:** 2026-03-17
-**Branch:** main
+**Date:** 2026-03-18
+**Branch:** `fd-golden-bin-to-json`
 
 ## What happened
-- Restructured memory: monolith MEMORY.md → 6 focused files + thin index
-- Built card tracing tooling: `find-card`, session-aware `trace`, partial name match in `card-grp`
-- Fixed justfile quoting for multi-word args (wire/tape recipes)
-- Trimmed SessionAnalyzer: removed cardIndex/violations/gsidChain, fixed annotationCoverage
-- Created `/recording-inspect` skill — interactive human-in-the-loop session analysis
-- Established `notes.md` per-session convention (gitignored)
-- Cleaned recordings: 476 → 20 sessions, saved ~500MB
-- Major docs triage: 175 → 87 files, extracted timeless content, trashed stale
-- Merged adr/ + decisions/ → decisions/ (numbered 001-006)
-- Consolidated 5 retros → retros/README.md
-- Trashed 65 completed/stale plans (kept 2 active: phase-precise-control, test-infra-review)
-- Updated `/handoff` skill template
+- Replaced captured binary golden files (`get-formats-response.bin` 292KB, `get-sets-response.bin` 46KB) with code-generated protobuf from hand-written JSON
+- `FdProtoBuilder` uses `protobuf-java` `UnknownFieldSet.mergeField()` to build proto at startup — `addField` replaces, `mergeField` appends for repeated fields
+- Key discovery: `GetFormatsResponse` field 2 (`formatGroups`) required — `EvergreenFormats`, `ConstructedSortOrder`, `BannedFormats`. Missing = client hang
+- Key discovery: `SetMetadataResponse` field 2 (`SetGroups`) — `AllFilters` group required for collection filter UI
+- Filed decompilation request + got results in `~/src/mtga-internals/docs/format-init-analysis.md`
+- Scrub checklist updated in `~/src/mtga-internals/docs/legal/leyline-scrub.md`
 
 ## Changed
-- `tools/tape/tape.py` — find-card, session-aware trace, MD payload resolver
-- `just/lookup.just` — partial match for card-grp
-- `just/tools.just` — positional-arguments for quoting
-- `tooling/.../SessionAnalyzer.kt` + `AnalysisCli.kt` + `DebugServer.kt`
-- `docs/` — 3 new extracts (engine-heuristics, md-frames-format, message-patterns), retros/README
-- `.claude/skills/recording-inspect/`, `.claude/skills/handoff/`
-- `CLAUDE.md` — notes.md in recordings section
+- `frontdoor/build.gradle.kts` — added `protobuf-java` dep
+- `FdProtoBuilder.kt` — new: JSON→proto builder (formats + sets + groups)
+- `format-metadata.json` — 21 formats, 5 shared set pools, 3 format groups
+- `set-metadata.json` — 109 sets, 1 set group (AllFilters)
+- `GoldenData.kt` — calls builder instead of loading .bin
 
 ## Open threads
-- `docs/index.md` needs update to reflect new structure
-- `docs/superpowers/` dir unchecked — may have stale content
-- `docs/meeting-notes/` unchecked
-- SessionAnalyzer `mode` always "unknown" for proxy sessions
-- Per-match recording split discussed but not implemented
-- Other agent's matchdoor changes still uncommitted
+- Branch not merged to main yet — needs PR
+- `StoreSetGroups` (47 entries) deferred — store UI cosmetic
+- `SetMetadataResponse` field 4 (`SetCollectionGroup`) not investigated
