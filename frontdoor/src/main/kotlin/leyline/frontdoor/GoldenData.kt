@@ -17,10 +17,10 @@ class GoldenData(
 ) {
     companion object {
         fun loadFromClasspath(): GoldenData = GoldenData(
-            // Format and set definitions — functional interoperability data (set codes, format names,
-            // collation IDs). Required for client deck validation UI. See docs/legal/POLICY.md.
-            getFormatsProto = loadResource("fd-golden/get-formats-response.bin"),
-            getSetsProto = loadResource("fd-golden/get-sets-response.bin"),
+            // Format and set definitions — built from hand-written JSON data via protobuf-java.
+            // Functional interoperability data (set codes, format names, collation IDs).
+            getFormatsProto = FdProtoBuilder.buildFormatsProto(),
+            getSetsProto = FdProtoBuilder.buildSetsProto(),
             graphDefinitionsJson = loadTextResource("fd-golden/graph-definitions.json"),
             designerMetadataJson = loadTextResource("fd-golden/designer-metadata.json"),
             graphStateResponses = mapOf(

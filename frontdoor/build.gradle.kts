@@ -22,6 +22,7 @@ dependencies {
     implementation(libs.sqlite.jdbc)
     implementation(libs.netty.handler)
     implementation(libs.logback.classic)
+    implementation(libs.protobuf.java)
 
     testImplementation(libs.kotest.runner)
     testImplementation(libs.kotest.assertions)

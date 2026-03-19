@@ -227,9 +227,9 @@ Missing: Pioneer, Modern, Pauper, Artisan, Singleton (all in Arena's client enum
 
 ### Front Door Serving
 
-All format/event data served as **golden files**:
-- `get-formats-response.bin` → CmdType 6 (protobuf)
-- `get-sets-response.bin` → CmdType 1521 (protobuf)
+Format/event data served from `frontdoor/src/main/resources/fd-golden/`:
+- `format-metadata.json` → CmdType 6 (built to protobuf by `FdProtoBuilder`)
+- `set-metadata.json` → CmdType 1521 (built to protobuf by `FdProtoBuilder`)
 - `play-blade-queue-config.json` → CmdType 1910 (JSON)
 - `active-events.json` → CmdType 624 (JSON)
 
