@@ -110,3 +110,9 @@ All tool CLIs run via just: `just wire ...`, `just tape ...`, `just arena ...`. 
 - **Arena CLI:** `just arena` — `click`, `ocr`, `wait`, `capture`, `state`, `issues`. Docs: `tools/arena/docs/cli.md`, `tools/arena/docs/nav.md`.
 - **Recording tools:** `just tape session list`, `just tape session show`, `just tape proto decode`, `just tape annotation ranges`. Docs: `tools/tape/docs/cli.md`.
 - **FD inspection:** `just wire tail`, `just wire search`, `just wire show`, `just wire flow`, `just wire coverage`. Run `just wire --help` for all commands.
+
+## Agent Policy
+
+- **Stop and re-plan.** If something goes sideways after 2 attempts, STOP. Explain what you tried and what's blocking. Don't silently change approach — state what you're changing and why.
+- **Autonomous bug fixing.** Given a bug report: just fix it. Read logs, find errors, write failing test, resolve. Zero hand-holding required from the user.
+- **Elegance balance.** For non-trivial changes, pause and ask "is there a more elegant way?" If a fix feels hacky, implement the clean solution. Skip this for simple, obvious fixes — don't over-engineer.
