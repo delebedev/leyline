@@ -606,10 +606,10 @@
       ],
       "singleton": 1,
       "formatType": 3,
-      "deckSize": [
-        59,
-        59
-      ],
+      "deckSize": {
+        "min": 59,
+        "max": 59
+      },
       "sideboardMax": 1,
       "rarityRestrictions": [
         {
@@ -633,10 +633,10 @@
       "name": "AllZeroes",
       "singleton": 2,
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "rarityRestrictions": [
         {
           "maxCopies": 250
@@ -659,10 +659,10 @@
       "name": "Sealed_Rebalanced",
       "singleton": 2,
       "formatType": 2,
-      "deckSize": [
-        40,
-        250
-      ],
+      "deckSize": {
+        "min": 40,
+        "max": 250
+      },
       "sideboardMax": 250,
       "field16": 1,
       "rarityRestrictions": [
@@ -690,10 +690,10 @@
         731627
       ],
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "sideboardMax": 15,
       "field16": 1
     },
@@ -773,10 +773,10 @@
         3179
       ],
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "sideboardMax": 15,
       "field16": 1
     },
@@ -785,10 +785,10 @@
       "pool": "historic",
       "singleton": 2,
       "formatType": 3,
-      "deckSize": [
-        40,
-        250
-      ],
+      "deckSize": {
+        "min": 40,
+        "max": 250
+      },
       "sideboardMax": 250,
       "rarityRestrictions": [
         {
@@ -813,10 +813,10 @@
       "pool": "historic",
       "singleton": 2,
       "formatType": 3,
-      "deckSize": [
-        40,
-        250
-      ],
+      "deckSize": {
+        "min": 40,
+        "max": 250
+      },
       "sideboardMax": 250,
       "field16": 1,
       "rarityRestrictions": [
@@ -841,10 +841,10 @@
       "name": "Alchemy",
       "pool": "alchemy",
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "sideboardMax": 15,
       "field16": 1
     },
@@ -852,10 +852,10 @@
       "name": "Draft",
       "singleton": 2,
       "formatType": 1,
-      "deckSize": [
-        40,
-        250
-      ],
+      "deckSize": {
+        "min": 40,
+        "max": 250
+      },
       "sideboardMax": 250,
       "rarityRestrictions": [
         {
@@ -952,10 +952,10 @@
         3179
       ],
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "sideboardMax": 15,
       "field16": 1
     },
@@ -997,20 +997,20 @@
         3179
       ],
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "sideboardMax": 15
     },
     {
       "name": "Timeless",
       "pool": "timeless",
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "sideboardMax": 15
     },
     {
@@ -1049,10 +1049,10 @@
       ],
       "singleton": 1,
       "formatType": 3,
-      "deckSize": [
-        99,
-        99
-      ],
+      "deckSize": {
+        "min": 99,
+        "max": 99
+      },
       "sideboardMax": 1,
       "field16": 1,
       "rarityRestrictions": [
@@ -1077,20 +1077,20 @@
       "name": "DirectGame",
       "pool": "historic",
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "sideboardMax": 15
     },
     {
       "name": "Draft_Rebalanced",
       "singleton": 2,
       "formatType": 1,
-      "deckSize": [
-        40,
-        250
-      ],
+      "deckSize": {
+        "min": 40,
+        "max": 250
+      },
       "sideboardMax": 250,
       "field16": 1,
       "rarityRestrictions": [
@@ -1128,20 +1128,20 @@
         928651
       ],
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "sideboardMax": 15
     },
     {
       "name": "Sealed",
       "singleton": 2,
       "formatType": 2,
-      "deckSize": [
-        40,
-        250
-      ],
+      "deckSize": {
+        "min": 40,
+        "max": 250
+      },
       "sideboardMax": 250,
       "rarityRestrictions": [
         {
@@ -1177,10 +1177,10 @@
         928651
       ],
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "sideboardMax": 15
     },
     {
@@ -1220,30 +1220,30 @@
         3179
       ],
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "sideboardMax": 15
     },
     {
       "name": "TraditionalTimeless",
       "pool": "timeless",
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "sideboardMax": 15
     },
     {
       "name": "DirectGameAlchemy",
       "pool": "historic",
       "formatType": 3,
-      "deckSize": [
-        60,
-        250
-      ],
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
       "sideboardMax": 15,
       "field16": 1
     }
@@ -1252,24 +1252,46 @@
     {
       "groupName": "ConstructedSortOrder",
       "formatNames": [
-        "Standard", "Alchemy", "Explorer", "Historic", "Timeless",
-        "Brawl", "HistoricBrawl",
-        "TraditionalStandard", "TraditionalAlchemy", "TraditionalExplorer",
-        "TraditionalHistoric", "TraditionalTimeless"
+        "Standard",
+        "Alchemy",
+        "Explorer",
+        "Historic",
+        "Timeless",
+        "Brawl",
+        "HistoricBrawl",
+        "TraditionalStandard",
+        "TraditionalAlchemy",
+        "TraditionalExplorer",
+        "TraditionalHistoric",
+        "TraditionalTimeless"
       ]
     },
     {
       "groupName": "EvergreenFormats",
       "formatNames": [
-        "Standard", "Alchemy", "Explorer", "Historic", "Timeless",
-        "Brawl", "HistoricBrawl",
-        "TraditionalStandard", "TraditionalAlchemy", "TraditionalExplorer",
-        "TraditionalHistoric", "TraditionalTimeless"
+        "Standard",
+        "Alchemy",
+        "Explorer",
+        "Historic",
+        "Timeless",
+        "Brawl",
+        "HistoricBrawl",
+        "TraditionalStandard",
+        "TraditionalAlchemy",
+        "TraditionalExplorer",
+        "TraditionalHistoric",
+        "TraditionalTimeless"
       ]
     },
     {
       "groupName": "BannedFormats",
-      "formatNames": ["Standard", "Alchemy", "Explorer", "Historic", "Timeless"]
+      "formatNames": [
+        "Standard",
+        "Alchemy",
+        "Explorer",
+        "Historic",
+        "Timeless"
+      ]
     }
   ]
 }

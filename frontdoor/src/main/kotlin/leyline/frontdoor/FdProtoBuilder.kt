@@ -31,12 +31,12 @@ object FdProtoBuilder {
             for (id in fmt.bannedCards) b.addVarint(5, id.toLong())
             fmt.singleton?.let { b.addVarint(10, it.toLong()) }
             fmt.formatType?.let { b.addVarint(11, it.toLong()) }
-            fmt.deckSize?.let { (min, max) ->
+            fmt.deckSize?.let { ds ->
                 b.addMessage(
                     12,
                     unknownFields {
-                        addVarint(1, min.toLong())
-                        addVarint(2, max.toLong())
+                        addVarint(1, ds.min.toLong())
+                        addVarint(2, ds.max.toLong())
                     },
                 )
             }
@@ -173,13 +173,16 @@ private data class FormatGroup(
 )
 
 @Serializable
+private data class DeckSizeRange(val min: Int, val max: Int)
+
+@Serializable
 private data class FormatEntry(
     val name: String,
     val pool: String? = null,
     val bannedCards: List<Int> = emptyList(),
     val singleton: Int? = null,
     val formatType: Int? = null,
-    val deckSize: List<Int>? = null,
+    val deckSize: DeckSizeRange? = null,
     val sideboardMax: Int? = null,
     val field16: Int? = null,
     val allowedCommanders: List<Int> = emptyList(),
