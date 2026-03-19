@@ -276,6 +276,18 @@ class MatchSession(
                 }
                 Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
             }
+            ActionType.ActivateMana -> {
+                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val submitted = if (forgeCardId != null) {
+                    seatBridge.action.submitAction(
+                        pending.actionId,
+                        PlayerAction.ActivateMana(forgeCardId),
+                    )
+                } else {
+                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
+                }
+                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
+            }
             else -> {
                 log.info("MatchSession: unhandled action type {}, passing", action.actionType)
                 seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
