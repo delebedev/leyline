@@ -61,7 +61,13 @@ Puzzles are the primary acceptance tool. `.pzl` files define exact board states 
 
 ## Testing
 
-All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/nexus-tests.md` for tags, setup tiers, conventions, and per-module commands. Key rule: **scope tests to changed modules, don't run everything.**
+All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/leyline-tests.md` for tags, setup tiers, conventions, and per-module commands.
+
+- **Default loop:** run module-scoped Gradle tasks or `just test-one <ClassName>`
+- **Pre-handoff / pre-push:** `just test-gate`
+- **Risky matchdoor/runtime changes:** `just test-integration`
+
+Key rule: **scope tests to changed modules, don't run everything.**
 
 ## Debugging
 
@@ -113,6 +119,7 @@ All tool CLIs run via just: `just wire ...`, `just tape ...`, `just arena ...`. 
 
 ## Agent Policy
 
+- **Never commit to main.** Feature work, bug fixes, refactors — always on a branch with a PR. Branch naming: `feat/<topic>`, `fix/<topic>`, `refactor/<topic>`. Batching disparate small fixes into one PR is fine; big features get their own branch.
 - **Stop and re-plan.** If something goes sideways after 2 attempts, STOP. Explain what you tried and what's blocking. Don't silently change approach — state what you're changing and why.
 - **Autonomous bug fixing.** Given a bug report: just fix it. Read logs, find errors, write failing test, resolve. Zero hand-holding required from the user.
 - **Elegance balance.** For non-trivial changes, pause and ask "is there a more elegant way?" If a fix feels hacky, implement the clean solution. Skip this for simple, obvious fixes — don't over-engineer.

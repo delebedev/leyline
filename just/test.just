@@ -1,11 +1,6 @@
 # Test recipes
 # Imported by justfile — all variables available from parent.
 
-# run all tests (all modules, all tiers)
-[group('test')]
-test:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:test :tooling:test :frontdoor:test :account:test
-
 # single test class (e.g. `just test-one ShouldStopEvaluatorTest`)
 [group('test')]
 test-one class:

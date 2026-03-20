@@ -567,7 +567,22 @@ class MatchFlowHarness(
         val human = bridge.getPlayer(SeatId(seatId)) ?: return false
         return game().phaseHandler.playerTurn != human
     }
-    fun isGameOver(): Boolean = game().isGameOver
+    fun isGameOver(): Boolean {
+        val game = bridge.getGame()
+        if (game != null) return game.isGameOver
+
+        if (allMessages.any {
+                it.hasGameStateMessage() &&
+                    it.gameStateMessage.hasGameInfo() &&
+                    it.gameStateMessage.gameInfo.stage == GameStage.GameOver
+            }) return true
+
+        return allRawMessages.any {
+            it.hasMatchGameRoomStateChangedEvent() &&
+                it.matchGameRoomStateChangedEvent.gameRoomInfo.stateType ==
+                MatchGameRoomStateType.MatchCompleted
+        }
+    }
     fun game(): Game = bridge.getGame()!!
     fun shutdown() = bridge.shutdown()
 

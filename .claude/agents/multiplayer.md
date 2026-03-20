@@ -76,10 +76,10 @@ Match lifecycle, per-seat bridge maps, MatchState enum, resource teardown, Famil
 
 ## Testing
 
-- **Unit/conformance tests:** `just test-matchdoor` (scoped to matchdoor module)
+- **Unit/conformance tests:** `./gradlew :matchdoor:testGate` (scoped to matchdoor module)
 - **Integration tests:** `just test-integration` (boots engine per test — slow, use for end-to-end)
 - **Conformance recordings:** compare output against real server recordings from both seats
-- Read `.claude/rules/nexus-tests.md` for test conventions (Kotest FunSpec, tags, setup tiers)
+- Read `.claude/rules/leyline-tests.md` for test conventions (Kotest FunSpec, tags, setup tiers)
 
 ## Workflow
 
@@ -87,5 +87,5 @@ Match lifecycle, per-seat bridge maps, MatchState enum, resource teardown, Famil
 2. Read the relevant plan doc before implementing
 3. Build: `just build` (never `gradle clean`)
 4. Format: `just fmt` after changes
-5. Test scoped to module: `just test-matchdoor`
+5. Test scoped to module: `./gradlew :matchdoor:testGate`
 6. Commit via `/commit` skill

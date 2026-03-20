@@ -176,7 +176,7 @@ Events with `bladeBehavior = null` (sealed, draft) appear on the **Events tab**,
 
 ```bash
 # Unit tests for the changed module
-just test-frontdoor
+./gradlew :frontdoor:test
 
 # Start local server, connect client, play through
 just serve
