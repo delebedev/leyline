@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -80,6 +81,59 @@ class TwoPhaseTargetingTest :
             h.submitTargets()
 
             // Resolve
+            repeat(10) {
+                if (h.isGameOver()) return@repeat
+                h.passPriority()
+            }
+
+            h.isGameOver().shouldBeTrue()
+            ai.life shouldBe 0
+        }
+
+        test("phase 1 does not resolve spell before submit") {
+            val pzl = """
+            [metadata]
+            Name:Bolt Two-Phase Gate
+            Goal:Win
+            Turns:1
+            Difficulty:Easy
+            Description:Selection alone must not resolve until submit.
+
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=3
+
+            humanhand=Lightning Bolt
+            humanbattlefield=Mountain
+            humanlibrary=Mountain
+            ailibrary=Mountain
+            """.trimIndent()
+
+            val h = MatchFlowHarness(seed = 42L, validating = false)
+            harness = h
+            h.connectAndKeepPuzzleText(pzl)
+
+            val ai = h.game().registeredPlayers.last()
+
+            h.castSpellByName("Lightning Bolt").shouldBeTrue()
+
+            val phase1Snap = h.messageSnapshot()
+            h.selectTargetsIterative(listOf(2))
+            val phase1Messages = h.messagesSince(phase1Snap)
+
+            ai.life shouldBe 3
+            h.isGameOver().shouldBeFalse()
+            phase1Messages.any { it.hasSubmitTargetsResp() }.shouldBeFalse()
+            phase1Messages.any { it.hasSelectTargetsReq() }.shouldBeTrue()
+
+            val phase2Snap = h.messageSnapshot()
+            h.submitTargets()
+            val phase2Messages = h.messagesSince(phase2Snap)
+
+            phase2Messages.any { it.hasSubmitTargetsResp() }.shouldBeTrue()
+
             repeat(10) {
                 if (h.isGameOver()) return@repeat
                 h.passPriority()
