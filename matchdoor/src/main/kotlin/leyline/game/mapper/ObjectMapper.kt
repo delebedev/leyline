@@ -2,7 +2,9 @@ package leyline.game.mapper
 
 import forge.game.Game
 import forge.game.card.Card
+import forge.game.player.Player
 import leyline.bridge.ForgeCardId
+import leyline.bridge.SeatId
 import leyline.game.CardProtoBuilder
 import leyline.game.CardRepository
 import leyline.game.GameBridge
@@ -138,8 +140,51 @@ object ObjectMapper {
         // Combat state
         val combat = game?.phaseHandler?.combat
         if (combat != null && type.isCreature) {
-            if (combat.isAttacking(card)) setAttackState(AttackState.Attacking)
-            if (combat.isBlocking(card)) setBlockState(BlockState.Blocking)
+            if (combat.isAttacking(card)) {
+                setAttackState(AttackState.Attacking)
+                // attackInfo: who is this creature attacking?
+                val defender = combat.getDefenderByAttacker(card)
+                if (defender != null) {
+                    val targetId = when (defender) {
+                        is Player -> {
+                            val p1 = bridge?.getPlayer(SeatId(1))
+                            when (defender.id) {
+                                p1?.id -> 1
+                                else -> 2
+                            }
+                        }
+                        is Card -> bridge?.getOrAllocInstanceId(ForgeCardId(defender.id))?.value ?: 0
+                        else -> 0
+                    }
+                    if (targetId > 0) {
+                        setAttackInfo(AttackInfo.newBuilder().setTargetId(targetId))
+                    }
+                }
+                // blockState on attacker: Blocked or Unblocked (after blocker declaration)
+                val band = combat.getBandOfAttacker(card)
+                if (band != null) {
+                    val blocked = band.isBlocked() // Boolean? — null=pre-blocker
+                    if (blocked == true) {
+                        setBlockState(BlockState.Blocked)
+                    } else if (blocked == false) {
+                        setBlockState(BlockState.Unblocked)
+                    }
+                }
+            }
+            if (combat.isBlocking(card)) {
+                setBlockState(BlockState.Blocking)
+                // blockInfo: which attackers is this creature blocking?
+                val attackers = combat.getAttackersBlockedBy(card)
+                if (attackers.isNotEmpty() && bridge != null) {
+                    setBlockInfo(
+                        BlockInfo.newBuilder().apply {
+                            for (atk in attackers) {
+                                addAttackerIds(bridge.getOrAllocInstanceId(ForgeCardId(atk.id)).value)
+                            }
+                        },
+                    )
+                }
+            }
         }
 
         return this
