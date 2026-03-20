@@ -571,11 +571,15 @@ class MatchFlowHarness(
         val game = bridge.getGame()
         if (game != null) return game.isGameOver
 
-        if (allMessages.any {
+        if (
+            allMessages.any {
                 it.hasGameStateMessage() &&
                     it.gameStateMessage.hasGameInfo() &&
                     it.gameStateMessage.gameInfo.stage == GameStage.GameOver
-            }) return true
+            }
+        ) {
+            return true
+        }
 
         return allRawMessages.any {
             it.hasMatchGameRoomStateChangedEvent() &&

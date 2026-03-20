@@ -11,6 +11,10 @@ class PhaseStopProfileTest :
 
         tags(UnitTag)
 
+        beforeSpec {
+            leyline.bridge.GameBootstrap.initializeCardDatabase(quiet = true)
+        }
+
         test("createDefaults — human has own-turn stops, AI has combat stops") {
             val profile = PhaseStopProfile.createDefaults(humanPlayerId = 1, aiPlayerId = 2)
 
@@ -52,6 +56,14 @@ class PhaseStopProfileTest :
             // Remove a default stop
             profile.setEnabled(1, PhaseType.MAIN1, false)
             profile.isEnabled(1, PhaseType.MAIN1) shouldBe false
+        }
+
+        test("setEnabled creates entry for new player") {
+            val profile = PhaseStopProfile.createDefaults(humanPlayerId = 1, aiPlayerId = 2)
+
+            profile.isEnabled(99, PhaseType.MAIN1) shouldBe false
+            profile.setEnabled(99, PhaseType.MAIN1, true)
+            profile.isEnabled(99, PhaseType.MAIN1) shouldBe true
         }
 
         test("unknown player ID returns false") {
