@@ -112,4 +112,57 @@ class KickerTest :
             human.hasLost().shouldBeFalse()
             ai.life shouldBe 0
         }
+
+        test("optional cost response gates targeting prompt") {
+            val pzl = """
+            [metadata]
+            Name:Kick Then Target
+            Goal:Win
+            Turns:1
+            Difficulty:Easy
+            Description:Optional-cost prompt must resolve before target selection prompt.
+
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=5
+
+            humanhand=Burst Lightning
+            humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
+            humanlibrary=Mountain
+            ailibrary=Mountain
+            """.trimIndent()
+
+            val h = MatchFlowHarness(seed = 42L, validating = false)
+            harness = h
+            h.connectAndKeepPuzzleText(pzl)
+
+            val castSnap = h.messageSnapshot()
+            h.castSpellByName("Burst Lightning").shouldBeTrue()
+            val castMessages = h.messagesSince(castSnap)
+
+            val ctoReqMsg = castMessages.firstOrNull { it.hasCastingTimeOptionsReq() }
+            ctoReqMsg.shouldNotBeNull()
+            castMessages.any { it.hasSelectTargetsReq() }.shouldBeFalse()
+
+            val doneOption = ctoReqMsg.castingTimeOptionsReq.castingTimeOptionReqList.first {
+                it.castingTimeOptionType == CastingTimeOptionType.Done
+            }
+
+            val targetSnap = h.messageSnapshot()
+            val doneResp = clientMessage(ClientMessageType.CastingTimeOptionsResp_097b) {
+                setCastingTimeOptionsResp(
+                    CastingTimeOptionsResp.newBuilder()
+                        .setCastingTimeOptionResp(
+                            CastingTimeOptionResp.newBuilder().setCtoId(doneOption.ctoId),
+                        ),
+                )
+            }
+            h.session.onCastingTimeOptions(doneResp)
+            h.drainSink()
+
+            val targetMessages = h.messagesSince(targetSnap)
+            targetMessages.any { it.hasSelectTargetsReq() }.shouldBeTrue()
+        }
     })
