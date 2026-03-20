@@ -218,64 +218,18 @@
   #id-table tr:hover { background: var(--bg3); }
   #id-table tr.highlight { background: rgba(233, 69, 96, 0.15); }
 
-  /* Client errors tab */
-  .ce-row {
-    border-left: 3px solid var(--red);
-    padding: 6px 10px;
-    margin-bottom: 2px;
-    border-radius: 0 4px 4px 0;
-    cursor: pointer;
-    transition: background 0.1s;
-  }
-  .ce-row:hover { background: var(--bg2); }
-  .ce-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .ce-type {
-    font-size: 10px;
-    font-weight: 700;
-    padding: 1px 6px;
-    border-radius: 3px;
+  /* Disconnected banner */
+  #disconnected-banner {
+    display: none;
     background: var(--red);
     color: #fff;
-  }
-  .ce-msg { color: var(--fg); font-size: 11px; }
-  .ce-meta { color: var(--fg2); font-size: 10px; opacity: 0.6; }
-  .ce-annot {
-    font-size: 10px;
-    padding: 1px 5px;
-    border-radius: 3px;
-    background: var(--bg3);
-    color: var(--orange);
-  }
-  .ce-stack {
-    margin-top: 4px;
-    padding: 6px 8px;
-    background: var(--bg2);
-    border-radius: 4px;
-    font-size: 10px;
-    line-height: 1.5;
-    color: var(--fg2);
-    white-space: pre-wrap;
-    word-break: break-all;
-    max-height: 300px;
-    overflow-y: auto;
-  }
-  .ce-badge {
-    display: inline-block;
-    min-width: 16px;
-    padding: 0 5px;
-    border-radius: 8px;
-    font-size: 10px;
-    font-weight: 700;
     text-align: center;
-    background: var(--red);
-    color: #fff;
-    margin-left: 4px;
+    padding: 6px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
   }
+  #disconnected-banner.visible { display: block; }
 
   /* Log panel */
   #log-panel {
@@ -568,12 +522,14 @@
   <button class="view-tab" :class="{ active: view === 'messages' }" @click="view = 'messages'">Messages</button>
   <button class="view-tab" :class="{ active: view === 'states' }" @click="view = 'states'">States</button>
   <button class="view-tab" :class="{ active: view === 'logs' }" @click="view = 'logs'">Logs</button>
-  <button class="view-tab" :class="{ active: view === 'errors' }" @click="view = 'errors'" style="position:relative">
-    Errors
-  </button>
   <button class="view-tab" :class="{ active: view === 'recordings' }" @click="view = 'recordings'; fetchRecordings()">Recordings</button>
   <button class="header-btn active-purple" :class="{ on: showIdPanel }" @click="showIdPanel = !showIdPanel; if (showIdPanel) fetchIdMap()">ID Map</button>
   <button class="header-btn" :class="{ paused }" @click="paused = !paused" x-text="paused ? 'Resume' : 'Pause'"></button>
+</div>
+
+<!-- Disconnected banner -->
+<div id="disconnected-banner" :class="{ visible: !_sseConnected }">
+  Server disconnected. Reconnecting...
 </div>
 
 <!-- Message filter bar -->
@@ -1110,15 +1066,6 @@
     </div>
   </div>
 
-  <!-- Client errors panel -->
-  <div id="timeline" x-show="view === 'errors'" x-cloak style="overflow-y:auto; flex:1; padding:8px;">
-    <div style="color:var(--fg2); padding:20px; text-align:center;">
-      Client error tracking moved to <b>scry</b>.<br>
-      CLI: <code>just scry state</code><br>
-      HTTP: <code>just scry serve</code> (port 8091, endpoints: /state, /errors)
-    </div>
-  </div>
-
   <!-- Logs panel -->
   <div id="log-panel" x-show="view === 'logs'" x-cloak>
     <template x-for="l in filteredLogs" :key="l.seq">
@@ -1307,16 +1254,20 @@ function debugApp() {
       this.connectSSE();
       this.poll();
       this.fetchRecordings();
-      this.fetchClientErrors();
     },
 
     connectSSE() {
+      this._sseRetryDelay = 1000;
+      this._startSSE();
+    },
+
+    _startSSE() {
       try {
         const es = new EventSource('/api/events');
         es.addEventListener('message', (ev) => {
           if (this.paused) return;
           const e = JSON.parse(ev.data);
-          if (e.seq <= this._lastSeq) return; // dedupe
+          if (e.seq <= this._lastSeq) return;
           this.entries.push(e);
           this._lastSeq = e.seq;
           if (this.entries.length > 1000) this.entries.splice(0, this.entries.length - 500);
@@ -1324,7 +1275,7 @@ function debugApp() {
         es.addEventListener('log', (ev) => {
           if (this.paused) return;
           const l = JSON.parse(ev.data);
-          if (l.seq <= this._lastLogSeq) return; // dedupe
+          if (l.seq <= this._lastLogSeq) return;
           this.logEntries.push(l);
           this._lastLogSeq = l.seq;
           if (this.logEntries.length > 5000) this.logEntries.splice(0, this.logEntries.length - 2000);
@@ -1332,7 +1283,7 @@ function debugApp() {
         es.addEventListener('priority', (ev) => {
           if (this.paused) return;
           const e = JSON.parse(ev.data);
-          if (e.seq <= this._lastEventSeq) return; // dedupe
+          if (e.seq <= this._lastEventSeq) return;
           this.priorityEvents.push(e);
           this._lastEventSeq = e.seq;
           if (this.priorityEvents.length > 1000) this.priorityEvents.splice(0, this.priorityEvents.length - 500);
@@ -1344,10 +1295,22 @@ function debugApp() {
           if (idx >= 0) this.gameStates[idx] = s;
           else this.gameStates.push(s);
         });
-        es.onopen = () => { this._sseConnected = true; };
-        es.onerror = () => { this._sseConnected = false; };
+        es.onopen = () => {
+          this._sseConnected = true;
+          this._sseRetryDelay = 1000;
+        };
+        es.onerror = () => {
+          this._sseConnected = false;
+          es.close();
+          const delay = Math.min(this._sseRetryDelay, 10000);
+          this._sseRetryDelay = delay * 1.5;
+          setTimeout(() => this._startSSE(), delay);
+        };
         this._sse = es;
-      } catch (_) { this._sseConnected = false; }
+      } catch (_) {
+        this._sseConnected = false;
+        setTimeout(() => this._startSSE(), this._sseRetryDelay);
+      }
     },
 
     // Polling — SSE handles incremental data; poll only for state header + id-map + game-states timeline
@@ -1415,11 +1378,6 @@ function debugApp() {
                 if (this.priorityEvents.length > 1000) this.priorityEvents.splice(0, this.priorityEvents.length - 500);
               }
             }
-          }
-
-          // Client errors — poll when on Errors tab or when SSE is down
-          if (this.view === 'errors' || !this._sseConnected) {
-            await this.fetchClientErrors();
           }
 
           if (this.showIdPanel) this.fetchIdMap();
