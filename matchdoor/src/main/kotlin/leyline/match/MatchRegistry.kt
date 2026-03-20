@@ -73,7 +73,7 @@ class MatchRegistry {
         recorder?.shutdown()
 
         val matchHandlers = handlers.remove(matchId)?.values.orEmpty()
-        val sessionEntries = sessions.remove(matchId)?.keys.orEmpty()
+        val sessionsRemoved = sessions.remove(matchId)?.size ?: 0
         val match = matches.remove(matchId)
 
         matchHandlers.forEach { it.detachAfterTeardown() }
@@ -89,7 +89,7 @@ class MatchRegistry {
             matchId,
             seatId,
             reason,
-            sessionEntries.size,
+            sessionsRemoved,
             matchHandlers.size,
             match != null || fallbackBridge != null,
         )
