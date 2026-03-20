@@ -143,14 +143,7 @@ class ScryETBFlowTest :
             val cardIds = groupReq.groupReq.instanceIdsList
             h.respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
-            val msgs = h.messagesSince(snap)
-            val allAnnotations = msgs.flatMap { msg ->
-                if (msg.hasGameStateMessage()) {
-                    msg.gameStateMessage.annotationsList
-                } else {
-                    emptyList()
-                }
-            }
+            val allAnnotations = h.annotationsSince(snap)
 
             // ResolutionStart + ResolutionComplete for the creature spell
             // Recording: affectorId=283 (Wall on stack), details grpid=75478
@@ -185,14 +178,7 @@ class ScryETBFlowTest :
         test("scry ETB emits GroupReq with Scry context and correct specs") {
             val h = setup()
             h.playLand().shouldBeTrue()
-            h.castSpellByName("Wall of Runes").shouldBeTrue()
-            h.passPriority() // resolve creature, ETB trigger fires
-
-            // GroupReq should appear for scry choice
-            val groupReq = h.allMessages.lastOrNull { it.hasGroupReq() }
-            groupReq.shouldNotBeNull()
-
-            val req = groupReq.groupReq
+            val req = h.castSpellUntilGroupReq("Wall of Runes")
             req.context shouldBe GroupingContext.Scry_a0f6
             req.instanceIdsList.shouldNotBeEmpty()
             req.groupSpecsList.size shouldBe 2
@@ -208,24 +194,13 @@ class ScryETBFlowTest :
         test("scry put on bottom produces Scry annotation with counts") {
             val h = setup()
             h.playLand().shouldBeTrue()
-            h.castSpellByName("Wall of Runes").shouldBeTrue()
-            h.passPriority()
-
-            val groupReq = h.allMessages.last { it.hasGroupReq() }
-            val cardIds = groupReq.groupReq.instanceIdsList
+            val cardIds = h.castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             val snap = h.messageSnapshot()
             // Put card on bottom (recording: player chose bottom)
             h.respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
-            val msgs = h.messagesSince(snap)
-            val allAnnotations = msgs.flatMap { msg ->
-                if (msg.hasGameStateMessage()) {
-                    msg.gameStateMessage.annotationsList
-                } else {
-                    emptyList()
-                }
-            }
+            val allAnnotations = h.annotationsSince(snap)
 
             // Scry annotation — engine shape: affectedIds=[seatId], topCount/bottomCount
             // Conformance gap: recording uses affectedIds=[cardId], bottomIds detail key.
@@ -253,11 +228,7 @@ class ScryETBFlowTest :
         test("scry keep on top does not move card") {
             val h = setup()
             h.playLand().shouldBeTrue()
-            h.castSpellByName("Wall of Runes").shouldBeTrue()
-            h.passPriority()
-
-            val groupReq = h.allMessages.last { it.hasGroupReq() }
-            val cardIds = groupReq.groupReq.instanceIdsList
+            val cardIds = h.castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             // Keep on top (empty bottom list)
             h.respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)
@@ -271,11 +242,7 @@ class ScryETBFlowTest :
         test("full scry flow state validity") {
             val h = setup()
             h.playLand().shouldBeTrue()
-            h.castSpellByName("Wall of Runes").shouldBeTrue()
-            h.passPriority()
-
-            val groupReq = h.allMessages.last { it.hasGroupReq() }
-            val cardIds = groupReq.groupReq.instanceIdsList
+            val cardIds = h.castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             h.respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
