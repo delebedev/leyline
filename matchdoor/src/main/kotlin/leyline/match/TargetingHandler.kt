@@ -286,7 +286,12 @@ class TargetingHandler(private val ops: SessionOps) {
         val groups = greMsg.groupResp.groupsList
         val req = pendingPrompt.request
 
-        val selectedIndices = if (req.promptType == "confirm" && req.options.size == 2) {
+        val selectedIndices = if (
+            (req.semantic == leyline.bridge.PromptSemantic.GroupingSurveil ||
+                req.semantic == leyline.bridge.PromptSemantic.GroupingScry) &&
+            req.max == 1 &&
+            req.options.size == 2
+        ) {
             // Single-card surveil/scry: "Top of library" (0) vs "Graveyard"/"Bottom" (1)
             // Group 1 (away zone) has the card → user chose "away" → index 1
             val awayGroup = if (groups.size >= 2) groups[1] else null
@@ -295,7 +300,10 @@ class TargetingHandler(private val ops: SessionOps) {
             } else {
                 listOf(0) // keep on top
             }
-        } else if (req.promptType == "choose_cards") {
+        } else if (
+            req.semantic == leyline.bridge.PromptSemantic.GroupingSurveil ||
+            req.semantic == leyline.bridge.PromptSemantic.GroupingScry
+        ) {
             // Multi-card surveil/scry: away group IDs → indices into options
             val awayIds = if (groups.size >= 2) groups[1].idsList else emptyList()
             awayIds.mapNotNull { iid ->
@@ -620,7 +628,7 @@ class TargetingHandler(private val ops: SessionOps) {
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ) {
         val game = bridge.getGame() ?: return
-        val isLegendRule = pendingPrompt.request.promptType == "legend_rule"
+        val isLegendRule = pendingPrompt.request.semantic == leyline.bridge.PromptSemantic.SelectNLegendRule
         val req = BundleBuilder.buildSelectNReq(pendingPrompt, bridge)
         val result = BundleBuilder.selectNBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, req, isLegendRule = isLegendRule)
         Tap.outboundTemplate("SelectNReq seat=${ops.seatId}")

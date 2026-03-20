@@ -326,7 +326,7 @@ class WebPlayerController(
 
         val labels = optionList.map { it.entityLabel() }
         val request = PromptRequest(
-            promptType = if (isLegendRule) "legend_rule" else "choose_cards",
+            promptType = "choose_cards",
             message = title ?: "Choose one",
             options = labels,
             min = if (isOptional) 0 else 1,
@@ -989,7 +989,7 @@ class WebPlayerController(
 
         val labels = possible.map { it.description ?: it.toString() }
         val request = PromptRequest(
-            promptType = "modal",
+            promptType = if (num == 1) "choose_one" else "choose_cards",
             message = "Choose mode for ${sa.hostCard.translatedName}",
             options = labels,
             min = min,
