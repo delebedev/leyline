@@ -215,7 +215,7 @@ object ObjectMapper {
             .setVisibility(Visibility.Public)
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(controllerSeatId)
-            .applyCardFields(card, bridge, game)
+            .applyCardFields(card, bridge, game = null) // echo objects carry no combat state
             .build()
     }
 
