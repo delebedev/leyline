@@ -568,14 +568,14 @@ class MatchFlowHarness(
         return game().phaseHandler.playerTurn != human
     }
     fun isGameOver(): Boolean {
-        bridge.getGame()?.let { return it.isGameOver }
+        val game = bridge.getGame()
+        if (game != null) return game.isGameOver
 
-        val sawGameOverGsm = allMessages.any {
-            it.hasGameStateMessage() &&
-                it.gameStateMessage.hasGameInfo() &&
-                it.gameStateMessage.gameInfo.stage == GameStage.GameOver
-        }
-        if (sawGameOverGsm) return true
+        if (allMessages.any {
+                it.hasGameStateMessage() &&
+                    it.gameStateMessage.hasGameInfo() &&
+                    it.gameStateMessage.gameInfo.stage == GameStage.GameOver
+            }) return true
 
         return allRawMessages.any {
             it.hasMatchGameRoomStateChangedEvent() &&
