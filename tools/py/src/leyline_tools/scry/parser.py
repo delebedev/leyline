@@ -97,8 +97,8 @@ def parse_log(lines: Iterable[str]) -> Iterator[GREBlock | ClientError | SceneCh
 
     Unified stream — processes GRE messages, exception lines, and navigation events.
     """
-    from scry_lib.errors import ClientError, parse_client_error
-    from scry_lib.models import SceneChange
+    from .errors import ClientError, parse_client_error
+    from .models import SceneChange
 
     it = iter(lines)
     for line in it:

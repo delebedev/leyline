@@ -3,11 +3,11 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 
-from scry_lib.accumulator import Accumulator
-from scry_lib.annotations import Annotation
-from scry_lib.errors import ClientError
-from scry_lib.models import GameState, SceneChange
-from scry_lib.parser import GREBlock
+from .accumulator import Accumulator
+from .annotations import Annotation
+from .errors import ClientError
+from .models import GameState, SceneChange
+from .parser import GREBlock
 
 
 @dataclass

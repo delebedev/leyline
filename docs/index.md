@@ -9,7 +9,7 @@ Quick links for debugging, reverse-engineering, and conformance workflows.
 | `tape` | `just tape` | Recording analysis, proto inspection, conformance | `tools/tape/docs/` |
 | `wire` | `just wire` | Front Door frame inspection | `tools/wire/docs/` |
 | `arena` | `just arena` | MTGA UI automation | `tools/arena/docs/` |
-| `scry` | `just scry` | Game state from Player.log | `tools/scry/docs/` |
+| `scry` | `just scry` | Game state from Player.log | `reading-player-logs.md` |
 
 Each tool has `--help` with examples. Docs co-located in `tools/<name>/docs/`.
 
@@ -49,6 +49,7 @@ Each tool has `--help` with examples. Docs co-located in `tools/<name>/docs/`.
 
 - `bridge-architecture.md` — GameActionBridge / InteractivePromptBridge design
 - `bridge-vision.md` — target architecture and direction
+- `python-tooling-refactor.md` — Python tooling package split + migration phases
 - `decisions/` — architectural decision records
 
 ## Game Modes

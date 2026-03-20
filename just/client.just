@@ -24,9 +24,9 @@ stop:
 # composable MTGA automation CLI
 [group('client')]
 arena *args: (_require classpath) check-java
-    @uv run --project "{{project_dir}}" python {{project_dir}}/tools/arena/arena.py {{args}}
+    @uv run --project "{{project_dir}}/tools/py" arena {{args}}
 
 # scry — Player.log state accumulator (current game state from client perspective)
 [group('client')]
 scry *args:
-    @uv run --project "{{project_dir}}" python {{project_dir}}/tools/scry/scry_lib/cli.py {{args}}
+    @uv run --project "{{project_dir}}/tools/py" scry {{args}}

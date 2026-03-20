@@ -5,7 +5,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-from scry_lib.tracker import GameTracker
+from .tracker import GameTracker
 
 
 def _make_server(
@@ -60,10 +60,10 @@ def run_server(log_path: Path, port: int = 8091) -> None:
     3. Spawns a daemon thread that tails the log and feeds the tracker
     4. Starts the HTTP server on 0.0.0.0:port (blocks the calling thread)
     """
-    from scry_lib.errors import ClientError
-    from scry_lib.models import SceneChange
-    from scry_lib.parser import GREBlock, parse_log
-    from scry_lib.tail import find_last_full_offset, tail_log
+    from .errors import ClientError
+    from .models import SceneChange
+    from .parser import GREBlock, parse_log
+    from .tail import find_last_full_offset, tail_log
 
     tracker = GameTracker()
     lock = threading.Lock()

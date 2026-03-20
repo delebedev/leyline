@@ -1,16 +1,11 @@
-"""Arena screen state machine — graph definition.
+"""Arena screen state machine data.
 
 Mirrors docs/arena-screens.yaml as Python data.
-Used by arena.py for screen detection and navigation.
+Used by arena navigation/detection.
 """
 
 from __future__ import annotations
 
-
-# --- Popup definitions ---
-# Popups are modal overlays that block the current screen.
-# Each popup: OCR anchors to detect it, dismiss steps to clear it.
-# Checked before/after every navigation transition.
 
 POPUPS: list[dict] = [
     {
@@ -43,23 +38,18 @@ POPUPS: list[dict] = [
     {
         "name": "GenericModal",
         "ocr_anchors": ["Okay"],
-        "ocr_reject": ["Banned"],  # BannedCards is a real screen, not a popup
+        "ocr_reject": ["Banned"],
         "dismiss": ['click "Okay" --retry 3', "sleep 1"],
     },
 ]
 
 
-# --- Screen definitions ---
-# Each screen: detection signals (scene from Player.log, OCR anchors)
-
 SCREENS: dict[str, dict] = {
-    # --- Lobby ---
     "Home": {
         "scene": "Home",
         "ocr_anchors": ["Play"],
         "ocr_reject": ["Keep", "Concede", "Find Match", "Recently Played"],
     },
-    # --- Play blade tabs (overlay on Home, scene stays "Home") ---
     "RecentlyPlayed": {
         "scene": "Home",
         "ocr_anchors": ["Recently Played"],
@@ -94,7 +84,6 @@ SCREENS: dict[str, dict] = {
         "scene": "SealedBoosterOpen",
         "ocr_require_any": ["Open", "Continue"],
     },
-    # --- Nav bar screens ---
     "Profile": {
         "scene": "Profile",
         "ocr_anchors": ["Profile"],
@@ -117,12 +106,10 @@ SCREENS: dict[str, dict] = {
     "Achievements": {
         "scene": "Achievements",
     },
-    # --- Draft ---
     "DraftPick": {
         "scene": None,
         "ocr_anchors": ["Confirm Pick"],
     },
-    # --- In-Game ---
     "BannedCards": {
         "scene": "Home",
         "ocr_anchors": ["Banned"],
@@ -156,12 +143,7 @@ SCREENS: dict[str, dict] = {
 }
 
 
-# --- Transitions ---
-# (from, to) -> action steps. Each step is an arena CLI command string.
-# "wait" is the confirmation condition. "wait_timeout" in seconds.
-
 TRANSITIONS: list[dict] = [
-    # --- Play blade: Home opens to RecentlyPlayed by default ---
     {
         "from": "Home",
         "to": "RecentlyPlayed",
@@ -169,7 +151,6 @@ TRANSITIONS: list[dict] = [
         "wait": 'text="Recently Played"',
         "wait_timeout": 5,
     },
-    # --- Tab switching within play blade ---
     {
         "from": "RecentlyPlayed",
         "to": "FindMatch",
@@ -212,19 +193,14 @@ TRANSITIONS: list[dict] = [
         "wait": 'text="Bot Match"',
         "wait_timeout": 5,
     },
-    # --- FindMatch → DeckSelected (click format, then deck appears) ---
     {
         "from": "FindMatch",
         "to": "DeckSelected",
-        "steps": [
-            'click "Bot Match" --retry 3',
-            "sleep 1",
-        ],
+        "steps": ['click "Bot Match" --retry 3', "sleep 1"],
         "wait": 'text="Edit Deck"',
         "wait_timeout": 5,
         "note": "Caller must click a deck thumbnail after this.",
     },
-    # --- Starting a game ---
     {
         "from": "RecentlyPlayed",
         "to": "InGame",
@@ -241,7 +217,6 @@ TRANSITIONS: list[dict] = [
         "wait_timeout": 10,
         "note": "Mulligan may or may not appear.",
     },
-    # --- In-game flow ---
     {
         "from": "InGame",
         "to": "ConcedMenu",
@@ -269,7 +244,6 @@ TRANSITIONS: list[dict] = [
         "wait": "scene=Home",
         "wait_timeout": 15,
     },
-    # --- Events → EventLanding (click event tile — coords vary) ---
     {
         "from": "Events",
         "to": "EventLanding",
@@ -278,7 +252,6 @@ TRANSITIONS: list[dict] = [
         "wait_timeout": 5,
         "note": "Clicks Sealed tile. For other events, caller must click the right tile.",
     },
-    # --- Events path (generic) ---
     {
         "from": "EventLanding",
         "to": "DeckBuilder",
@@ -307,7 +280,6 @@ TRANSITIONS: list[dict] = [
         "wait": "scene=InGame",
         "wait_timeout": 10,
     },
-    # --- Sealed flow ---
     {
         "from": "EventLanding",
         "to": "SealedBoosterOpen",
@@ -319,16 +291,11 @@ TRANSITIONS: list[dict] = [
     {
         "from": "SealedBoosterOpen",
         "to": "DeckBuilder",
-        "steps": [
-            "click 480,533",
-            "sleep 2",
-            "click 867,532",
-        ],
+        "steps": ["click 480,533", "sleep 2", "click 867,532"],
         "wait": "scene=DeckBuilder",
         "wait_timeout": 10,
         "note": "Open packs → rares reveal → Continue → DeckBuilder.",
     },
-    # --- Event result (defeat with Click to Continue) ---
     {
         "from": "ConcedMenu",
         "to": "EventResult",
@@ -344,7 +311,6 @@ TRANSITIONS: list[dict] = [
         "wait_timeout": 10,
         "note": "Click to Continue → back to event lobby with updated loss count.",
     },
-    # --- Event lobby back nav ---
     {
         "from": "EventLobby",
         "to": "Home",
@@ -352,7 +318,6 @@ TRANSITIONS: list[dict] = [
         "wait": "scene=Home",
         "wait_timeout": 5,
     },
-    # --- Back navigation (blade tabs → Home) ---
     {
         "from": "RecentlyPlayed",
         "to": "Home",
@@ -389,7 +354,6 @@ TRANSITIONS: list[dict] = [
         "wait": "scene=Home",
         "wait_timeout": 5,
     },
-    # --- Nav bar (all screens share the top nav) ---
     {
         "from": "Home",
         "to": "Profile",
@@ -460,7 +424,6 @@ TRANSITIONS: list[dict] = [
         "wait": "scene=Home",
         "wait_timeout": 5,
     },
-    # --- Popups ---
     {
         "from": "BannedCards",
         "to": "Home",
@@ -469,36 +432,3 @@ TRANSITIONS: list[dict] = [
         "wait_timeout": 10,
     },
 ]
-
-
-# --- Graph helpers ---
-
-
-def _build_adjacency() -> dict[str, list[dict]]:
-    adj: dict[str, list[dict]] = {}
-    for t in TRANSITIONS:
-        adj.setdefault(t["from"], []).append(t)
-    return adj
-
-
-_ADJ = _build_adjacency()
-
-
-def find_path(src: str, dst: str) -> list[dict] | None:
-    """BFS shortest path from src to dst. Returns list of transitions, or None."""
-    if src == dst:
-        return []
-    from collections import deque
-
-    queue: deque[tuple[str, list[dict]]] = deque([(src, [])])
-    visited = {src}
-    while queue:
-        node, path = queue.popleft()
-        for t in _ADJ.get(node, []):
-            target = t["to"]
-            if target == dst:
-                return path + [t]
-            if target not in visited:
-                visited.add(target)
-                queue.append((target, path + [t]))
-    return None

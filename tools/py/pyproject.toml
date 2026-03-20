@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "leyline-tools"
 version = "0.1.0"
@@ -8,5 +12,12 @@ dependencies = [
     "pyobjc-framework-quartz>=11.0; sys_platform == 'darwin'",
 ]
 
+[project.scripts]
+arena = "leyline_tools.arena.cli:main"
+scry = "leyline_tools.scry.cli:main"
+
 [tool.uv]
-package = false
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/leyline_tools"]

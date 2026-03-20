@@ -36,7 +36,7 @@ coverage:
         echo ""
         for xml in $xmls; do
             echo "--- $(echo $xml | sed 's|^\./||;s|/build/.*||') ---"
-            uv run --project "{{project_dir}}" python "{{project_dir}}/gradle/scripts/coverage-summary.py" "$xml"
+            uv run --project "{{project_dir}}/tools/py" python "{{project_dir}}/gradle/scripts/coverage-summary.py" "$xml"
             echo ""
         done
     else
@@ -77,7 +77,7 @@ conform category session="":
     echo ""
     echo "=== Step 2: Generate template from recording ==="
     session_arg="{{session}}"
-    uv run --project "{{project_dir}}" python tools/tape/segments.py template "{{category}}" ${session_arg:+"$session_arg"} > "$template_file"
+    uv run --project "{{project_dir}}/tools/py" python tools/tape/segments.py template "{{category}}" ${session_arg:+"$session_arg"} > "$template_file"
     echo "  → $template_file"
 
     echo ""
@@ -86,7 +86,7 @@ conform category session="":
     if [ -f "$golden_file" ]; then
         golden_flag="--golden $golden_file"
     fi
-    uv run --project "{{project_dir}}" python tools/tape/segments.py diff "$template_file" "$frame_file" $golden_flag
+    uv run --project "{{project_dir}}/tools/py" python tools/tape/segments.py diff "$template_file" "$frame_file" $golden_flag
 
 # capture golden diff result for a category (run after `just conform` succeeds)
 # Usage: just conform-golden PlayLand [session]
@@ -107,5 +107,5 @@ conform-golden category session="":
     fi
 
     # Exit 0 = PASS, 1 = known diffs (both valid for golden capture)
-    uv run --project "{{project_dir}}" python tools/tape/segments.py diff "$template_file" "$frame_file" --json > "$golden_file" || true
+    uv run --project "{{project_dir}}/tools/py" python tools/tape/segments.py diff "$template_file" "$frame_file" --json > "$golden_file" || true
     echo "Golden captured: $golden_file"
