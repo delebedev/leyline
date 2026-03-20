@@ -1,7 +1,7 @@
 package leyline.match
 
 import leyline.bridge.InteractivePromptBridge
-import leyline.bridge.PromptRequest
+import leyline.bridge.PromptSemantic
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 
 /**
@@ -43,14 +43,17 @@ sealed interface ClassifiedPrompt {
 object PromptClassifier {
     fun classify(pendingPrompt: InteractivePromptBridge.PendingPrompt): ClassifiedPrompt {
         val req = pendingPrompt.request
-        val groupingContext = detectGroupingContext(req)
-        if (groupingContext != null) {
-            return ClassifiedPrompt.Grouping(pendingPrompt, groupingContext)
-        }
-
         return when {
-            req.promptType == "modal" -> ClassifiedPrompt.ModalChoice(pendingPrompt)
-            req.promptType == "legend_rule" -> ClassifiedPrompt.SelectN(
+            req.semantic == PromptSemantic.GroupingSurveil -> {
+                ClassifiedPrompt.Grouping(pendingPrompt, GroupingContext.Surveil)
+            }
+
+            req.semantic == PromptSemantic.GroupingScry -> {
+                ClassifiedPrompt.Grouping(pendingPrompt, GroupingContext.Scry_a0f6)
+            }
+
+            req.semantic == PromptSemantic.ModalChoice -> ClassifiedPrompt.ModalChoice(pendingPrompt)
+            req.semantic == PromptSemantic.SelectNLegendRule -> ClassifiedPrompt.SelectN(
                 pendingPrompt,
                 ClassifiedPrompt.SelectN.Reason.LegendRule,
             )
@@ -58,11 +61,4 @@ object PromptClassifier {
             else -> ClassifiedPrompt.AutoResolve(pendingPrompt)
         }
     }
-
-    private fun detectGroupingContext(req: PromptRequest): GroupingContext? =
-        when {
-            req.message.startsWith("Surveil:") -> GroupingContext.Surveil
-            req.message.startsWith("Scry:") -> GroupingContext.Scry_a0f6
-            else -> null
-        }
 }

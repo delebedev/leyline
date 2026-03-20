@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.combat.CombatUtil
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InteractivePromptBridge
+import leyline.bridge.PromptSemantic
 import leyline.bridge.SeatId
 import leyline.game.mapper.PromptIds
 import org.slf4j.LoggerFactory
@@ -143,7 +144,7 @@ object RequestBuilder {
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
     ): SelectNReq {
-        val isLegendRule = prompt.request.promptType == "legend_rule"
+        val isLegendRule = prompt.request.semantic == PromptSemantic.SelectNLegendRule
         val builder = SelectNReq.newBuilder()
             .setMinSel(prompt.request.min)
             .setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))

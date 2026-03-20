@@ -7,6 +7,7 @@ import leyline.UnitTag
 import leyline.bridge.InteractivePromptBridge
 import leyline.bridge.PromptCandidateRefDto
 import leyline.bridge.PromptRequest
+import leyline.bridge.PromptSemantic
 import wotc.mtgo.gre.external.messaging.Messages.GroupingContext
 import java.util.concurrent.CompletableFuture
 
@@ -18,6 +19,7 @@ class PromptClassifierTest :
         fun classify(
             promptType: String,
             message: String,
+            semantic: PromptSemantic = PromptSemantic.Generic,
             candidateRefs: List<PromptCandidateRefDto> = emptyList(),
         ): ClassifiedPrompt {
             val prompt = InteractivePromptBridge.PendingPrompt(
@@ -26,6 +28,7 @@ class PromptClassifierTest :
                     promptType = promptType,
                     message = message,
                     options = listOf("A", "B"),
+                    semantic = semantic,
                     candidateRefs = candidateRefs,
                 ),
                 future = CompletableFuture(),
@@ -38,7 +41,8 @@ class PromptClassifierTest :
         test("surveil prompt classifies as grouping before generic targeting") {
             val result = classify(
                 promptType = "confirm",
-                message = "Surveil: look at the top card",
+                message = "anything",
+                semantic = PromptSemantic.GroupingSurveil,
                 candidateRefs = listOf(cardRef),
             ).shouldBeInstanceOf<ClassifiedPrompt.Grouping>()
 
@@ -48,7 +52,8 @@ class PromptClassifierTest :
         test("scry prompt classifies as grouping") {
             val result = classify(
                 promptType = "choose_cards",
-                message = "Scry: arrange the top cards",
+                message = "anything",
+                semantic = PromptSemantic.GroupingScry,
                 candidateRefs = listOf(cardRef),
             ).shouldBeInstanceOf<ClassifiedPrompt.Grouping>()
 
@@ -59,6 +64,7 @@ class PromptClassifierTest :
             classify(
                 promptType = "modal",
                 message = "Choose mode for Charming Prince",
+                semantic = PromptSemantic.ModalChoice,
             ).shouldBeInstanceOf<ClassifiedPrompt.ModalChoice>()
         }
 
@@ -66,6 +72,7 @@ class PromptClassifierTest :
             val result = classify(
                 promptType = "legend_rule",
                 message = "Choose one",
+                semantic = PromptSemantic.SelectNLegendRule,
                 candidateRefs = listOf(cardRef),
             ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
 
