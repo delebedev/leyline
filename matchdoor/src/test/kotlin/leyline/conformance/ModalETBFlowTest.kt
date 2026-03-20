@@ -63,19 +63,7 @@ class ModalETBFlowTest :
         test("modal ETB emits CastingTimeOptionsReq") {
             val h = setupModal()
             val trufflesnoutGrpId = TestCardRegistry.repo.findGrpIdByName("Trufflesnout")!!
-
-            val snap = h.messageSnapshot()
-            val cast = h.castSpellByName("Trufflesnout")
-            cast.shouldBeTrue()
-
-            // Pass priority to resolve Trufflesnout (stack → battlefield → ETB trigger)
-            h.passPriority()
-
-            val msgs = h.messagesSince(snap)
-            val ctoReq = msgs.firstOrNull { it.hasCastingTimeOptionsReq() }
-            ctoReq.shouldNotBeNull()
-
-            val req = ctoReq.castingTimeOptionsReq
+            val req = h.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
             req.castingTimeOptionReqCount shouldBe 1
 
             val option = req.getCastingTimeOptionReq(0)
@@ -98,8 +86,7 @@ class ModalETBFlowTest :
             val player = h.bridge.getPlayer(SeatId(1))!!
             val startLife = player.life
 
-            h.castSpellByName("Trufflesnout").shouldBeTrue()
-            h.passPriority()
+            h.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
 
             // Choose life gain mode (index 1 → lifeModeGrpId)
             h.respondModalChoice(listOf(lifeModeGrpId))
@@ -112,8 +99,7 @@ class ModalETBFlowTest :
         test("modal choice resolves +1/+1 counter") {
             val h = setupModal()
 
-            h.castSpellByName("Trufflesnout").shouldBeTrue()
-            h.passPriority()
+            h.castSpellUntilCastingTimeOptionsReq("Trufflesnout")
 
             // Choose counter mode (index 0 → counterModeGrpId)
             h.respondModalChoice(listOf(counterModeGrpId))

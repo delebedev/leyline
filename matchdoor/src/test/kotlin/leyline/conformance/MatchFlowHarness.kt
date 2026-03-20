@@ -519,6 +519,30 @@ class MatchFlowHarness(
             ?: error("Expected $promptName after casting $cardName")
     }
 
+    fun castSpellUntilGroupReq(
+        cardName: String,
+        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+    ): GroupReq =
+        castSpellUntil(cardName, promptName = "GroupReq", advanceAfterCast = advanceAfterCast) { msg ->
+            if (msg.hasGroupReq()) msg.groupReq else null
+        }
+
+    fun castSpellUntilSelectNReq(
+        cardName: String,
+        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+    ): SelectNReq =
+        castSpellUntil(cardName, promptName = "SelectNReq", advanceAfterCast = advanceAfterCast) { msg ->
+            if (msg.hasSelectNReq()) msg.selectNReq else null
+        }
+
+    fun castSpellUntilCastingTimeOptionsReq(
+        cardName: String,
+        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+    ): CastingTimeOptionsReq =
+        castSpellUntil(cardName, promptName = "CastingTimeOptionsReq", advanceAfterCast = advanceAfterCast) { msg ->
+            if (msg.hasCastingTimeOptionsReq()) msg.castingTimeOptionsReq else null
+        }
+
     /**
      * Activate a non-mana ability on a battlefield card by name and ability index.
      *
