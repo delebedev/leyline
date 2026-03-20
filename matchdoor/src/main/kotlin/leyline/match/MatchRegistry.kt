@@ -1,6 +1,7 @@
 package leyline.match
 
 import leyline.game.GameBridge
+import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -10,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Production: singleton instance. Tests: fresh per test.
  */
 class MatchRegistry {
+    private val log = LoggerFactory.getLogger(MatchRegistry::class.java)
 
     /** matchId -> shared Match. First seat creates, second reuses. */
     private val matches = ConcurrentHashMap<String, Match>()
@@ -45,12 +47,8 @@ class MatchRegistry {
      */
     fun evictStale(currentMatchId: String): List<Match> {
         val staleKeys = matches.keys.filter { it != currentMatchId }
-        val evicted = staleKeys.mapNotNull { matches.remove(it) }
-        staleKeys.forEach {
-            sessions.remove(it)
-            handlers.remove(it)
-        }
-        evicted.forEach { it.close() }
+        val evicted = staleKeys.mapNotNull { matches[it] }
+        staleKeys.forEach { teardownMatch(it, MatchTeardownReason.Disconnect) }
         return evicted
     }
 
@@ -62,6 +60,40 @@ class MatchRegistry {
         handlers[matchId]?.get(seatId)
 
     fun removeMatch(matchId: String): Match? = matches.remove(matchId)
+
+    fun teardownMatch(
+        matchId: String,
+        reason: MatchTeardownReason,
+        seatId: Int? = null,
+        recorder: MatchRecorder? = null,
+        fallbackBridge: GameBridge? = null,
+    ) {
+        log.info("MatchRegistry: teardown matchId={} seatId={} reason={}", matchId, seatId, reason)
+
+        recorder?.shutdown()
+
+        val matchHandlers = handlers.remove(matchId)?.values.orEmpty()
+        val sessionsRemoved = sessions.remove(matchId)?.size ?: 0
+        val match = matches.remove(matchId)
+
+        matchHandlers.forEach { it.detachAfterTeardown() }
+
+        if (match != null) {
+            match.close()
+        } else {
+            fallbackBridge?.shutdown()
+        }
+
+        log.info(
+            "MatchRegistry: teardown complete matchId={} seatId={} reason={} sessionsRemoved={} handlersRemoved={} matchClosed={}",
+            matchId,
+            seatId,
+            reason,
+            sessionsRemoved,
+            matchHandlers.size,
+            match != null || fallbackBridge != null,
+        )
+    }
 
     /** Snapshot of all active bridges (for debug panel). */
     fun activeBridges(): Map<String, GameBridge> =

@@ -374,10 +374,7 @@ class MatchSession(
         targetingHandler.onCancelAction(bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
-    /** Handle concede: send game-over sequence. Bridge stays alive (same as lethal path). */
-    // TODO: clean up bridge after game-over (both concede and lethal paths leak the engine
-    // thread until server restart). Needs a delayed cleanup — immediate shutdown breaks
-    // concede because the client sends messages after game-over that need a live session.
+    /** Handle concede: send game-over sequence, then route through centralized teardown. */
     override fun onConcede() = synchronized(sessionLock) {
         sendGameOver(ResultReason.Concede)
     }
@@ -615,8 +612,15 @@ class MatchSession(
         // Trigger post-game analysis
         recorder?.run {
             markGameOver()
-            shutdown()
         }
+
+        registry.teardownMatch(
+            matchId = matchId,
+            reason = if (reason == ResultReason.Concede) MatchTeardownReason.Concede else MatchTeardownReason.GameOver,
+            seatId = seatId,
+            recorder = recorder,
+            fallbackBridge = bridge,
+        )
     }
 
     // --- Low-level helpers ---

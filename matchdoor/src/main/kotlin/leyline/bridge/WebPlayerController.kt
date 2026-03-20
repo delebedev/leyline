@@ -141,6 +141,10 @@ class WebPlayerController(
     ): ImmutablePair<CardCollection, CardCollection> {
         if (topN.isEmpty()) return ImmutablePair.of(null, null)
         val refs = buildCandidateRefs(topN)
+        val groupingSemantic = when (label) {
+            "Surveil" -> PromptSemantic.GroupingSurveil
+            else -> PromptSemantic.GroupingScry
+        }
         if (topN.size == 1) {
             val request = PromptRequest(
                 promptType = "confirm",
@@ -149,6 +153,7 @@ class WebPlayerController(
                 min = 1,
                 max = 1,
                 defaultIndex = 0,
+                semantic = groupingSemantic,
                 candidateRefs = refs,
             )
             val result = bridge.requestChoice(request)
@@ -166,6 +171,7 @@ class WebPlayerController(
             min = 0,
             max = topN.size,
             defaultIndex = 0,
+            semantic = groupingSemantic,
             candidateRefs = refs,
         )
         val awayIndices = bridge.requestChoice(request)
@@ -320,12 +326,13 @@ class WebPlayerController(
 
         val labels = optionList.map { it.entityLabel() }
         val request = PromptRequest(
-            promptType = if (isLegendRule) "legend_rule" else "choose_cards",
+            promptType = "choose_cards",
             message = title ?: "Choose one",
             options = labels,
             min = if (isOptional) 0 else 1,
             max = 1,
             defaultIndex = 0,
+            semantic = if (isLegendRule) PromptSemantic.SelectNLegendRule else PromptSemantic.Generic,
             candidateRefs = buildCandidateRefs(optionList),
         )
         val indices = bridge.requestChoice(request)
@@ -982,12 +989,13 @@ class WebPlayerController(
 
         val labels = possible.map { it.description ?: it.toString() }
         val request = PromptRequest(
-            promptType = "modal",
+            promptType = if (num == 1) "choose_one" else "choose_cards",
             message = "Choose mode for ${sa.hostCard.translatedName}",
             options = labels,
             min = min,
             max = num,
             defaultIndex = 0,
+            semantic = PromptSemantic.ModalChoice,
             modalSourceCardName = sa.hostCard.name,
             sourceEntityId = sa.hostCard.id,
         )

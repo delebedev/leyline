@@ -7,14 +7,17 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
+import io.netty.channel.embedded.EmbeddedChannel
 import leyline.UnitTag
 import leyline.game.GameBridge
 import leyline.infra.ListMessageSink
 import leyline.match.FamiliarSession
 import leyline.match.Match
+import leyline.match.MatchHandler
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
 import leyline.match.MatchState
+import leyline.match.MatchTeardownReason
 
 class MatchRegistryTest :
     FunSpec({
@@ -165,5 +168,53 @@ class MatchRegistryTest :
             registry.getMatch("m1").shouldNotBeNull()
             m.close()
             registry.getMatch("m1").shouldBeNull()
+        }
+
+        test("teardownMatch removes match sessions and handlers together") {
+            val registry = MatchRegistry()
+            val match = registry.getOrCreateMatch("m1") { Match("m1", GameBridge()) }
+            val sink = ListMessageSink()
+            val session = MatchSession(seatId = 1, matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
+            val handler = MatchHandler(registry = registry)
+
+            registry.registerSession("m1", 1, session)
+            registry.registerHandler("m1", 1, handler)
+
+            registry.teardownMatch("m1", MatchTeardownReason.Disconnect)
+
+            match.state shouldBe MatchState.FINISHED
+            registry.getMatch("m1").shouldBeNull()
+            registry.getPeer("m1", 2).shouldBeNull()
+            registry.getHandler("m1", 1).shouldBeNull()
+        }
+
+        test("channelInactive tears down state and next session can recreate match") {
+            val registry = MatchRegistry()
+            val matchId = "forge-match-1"
+            val match = registry.getOrCreateMatch(matchId) { Match(matchId, GameBridge()) }
+            val sink = ListMessageSink()
+            val session = MatchSession(seatId = 1, matchId = matchId, sink = sink, registry = registry, paceDelayMs = 0)
+            session.connectBridge(match.bridge)
+
+            val handler = MatchHandler(registry = registry)
+            handler.session = session
+            registry.registerSession(matchId, 1, session)
+            registry.registerHandler(matchId, 1, handler)
+
+            EmbeddedChannel(handler).close()
+
+            match.state shouldBe MatchState.FINISHED
+            handler.session.shouldBeNull()
+            registry.getMatch(matchId).shouldBeNull()
+            registry.getHandler(matchId, 1).shouldBeNull()
+            registry.activeSession().shouldBeNull()
+
+            val recreated = registry.getOrCreateMatch(matchId) { Match(matchId, GameBridge()) }
+            val replacement = MatchSession(seatId = 1, matchId = matchId, sink = sink, registry = registry, paceDelayMs = 0)
+            registry.registerSession(matchId, 1, replacement)
+
+            recreated.state shouldBe MatchState.WAITING
+            registry.getMatch(matchId) shouldBeSameInstanceAs recreated
+            registry.activeSession() shouldBeSameInstanceAs replacement
         }
     })
