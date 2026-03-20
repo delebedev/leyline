@@ -501,6 +501,18 @@ class MatchFlowHarness(
     }
 
     /**
+     * Cast a spell and pass once to resolve it.
+     *
+     * Use only for spells that do not require an interactive client response
+     * (no targeting, grouping, modal, or SelectN prompt).
+     */
+    fun resolveSpell(cardName: String): Boolean {
+        if (!castSpellByName(cardName)) return false
+        passPriority()
+        return true
+    }
+
+    /**
      * Cast a spell, run any required follow-up advancement, and return the
      * latest prompt message matching [extract].
      *
@@ -601,6 +613,15 @@ class MatchFlowHarness(
     /** Get all messages since a snapshot point. */
     fun messagesSince(snapshot: Int): List<GREToClientMessage> =
         allMessages.subList(snapshot, allMessages.size).toList()
+
+    /** Get all game-state messages since a snapshot point. */
+    fun gameStateMessagesSince(snapshot: Int): List<GameStateMessage> =
+        messagesSince(snapshot)
+            .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+
+    /** Get all annotations from game-state messages since a snapshot point. */
+    fun annotationsSince(snapshot: Int): List<AnnotationInfo> =
+        gameStateMessagesSince(snapshot).flatMap { it.annotationsList }
 
     // --- State queries ---
 
