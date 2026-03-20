@@ -4,8 +4,8 @@ import copy
 from collections import OrderedDict
 from dataclasses import dataclass, field
 
-from scry_lib.annotations import Annotation
-from scry_lib.models import GameState, GameObject, Player, TurnInfo, Zone
+from .annotations import Annotation
+from .models import GameState, GameObject, Player, TurnInfo, Zone
 
 _MAX_HISTORY = 8
 
