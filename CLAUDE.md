@@ -61,7 +61,13 @@ Puzzles are the primary acceptance tool. `.pzl` files define exact board states 
 
 ## Testing
 
-All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/nexus-tests.md` for tags, setup tiers, conventions, and per-module commands. Key rule: **scope tests to changed modules, don't run everything.**
+All tests use **Kotest FunSpec** (JUnit Platform). See `.claude/rules/leyline-tests.md` for tags, setup tiers, conventions, and per-module commands.
+
+- **Default loop:** run module-scoped Gradle tasks or `just test-one <ClassName>`
+- **Pre-handoff / pre-push:** `just test-gate`
+- **Risky matchdoor/runtime changes:** `just test-integration`
+
+Key rule: **scope tests to changed modules, don't run everything.**
 
 ## Debugging
 
