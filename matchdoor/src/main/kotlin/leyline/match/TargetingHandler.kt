@@ -172,23 +172,26 @@ class TargetingHandler(private val ops: SessionOps) {
     fun handlePostCastPrompt(bridge: GameBridge, clientAutoResolve: Boolean = false): Boolean {
         val pendingPrompt = bridge.seat(ops.seatId).prompt.getPendingPrompt()
         if (pendingPrompt != null) {
-            // Modal prompt (ETB trigger fires during resolution)
-            if (pendingPrompt.request.promptType == "modal") {
-                val game = bridge.getGame() ?: return false
-                ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "post-cast modal: ${pendingPrompt.request.message}")
-                sendCastingTimeOptionsReq(bridge, pendingPrompt)
-                return true
-            }
-            // Targeting prompt
-            if (pendingPrompt.request.candidateRefs.isNotEmpty()) {
-                val game = bridge.getGame() ?: return false
-                ops.traceEvent(
-                    MatchEventType.TARGET_PROMPT,
-                    game,
-                    "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
-                )
-                sendSelectTargetsReq(bridge, pendingPrompt)
-                return true
+            when (val classified = PromptClassifier.classify(pendingPrompt)) {
+                is ClassifiedPrompt.ModalChoice -> {
+                    val game = bridge.getGame() ?: return false
+                    ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "post-cast modal: ${pendingPrompt.request.message}")
+                    sendCastingTimeOptionsReq(bridge, classified.pendingPrompt)
+                    return true
+                }
+
+                is ClassifiedPrompt.Targeting -> {
+                    val game = bridge.getGame() ?: return false
+                    ops.traceEvent(
+                        MatchEventType.TARGET_PROMPT,
+                        game,
+                        "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
+                    )
+                    sendSelectTargetsReq(bridge, classified.pendingPrompt)
+                    return true
+                }
+
+                else -> {}
             }
         }
         val g = bridge.getGame()
@@ -227,53 +230,55 @@ class TargetingHandler(private val ops: SessionOps) {
     fun checkPendingPrompt(bridge: GameBridge, game: Game): PromptResult {
         val seatBridge = bridge.seat(ops.seatId)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
+        val classified = PromptClassifier.classify(pendingPrompt)
 
-        // Surveil/scry prompts: check before candidateRefs — surveil now carries
-        // candidateRefs for card identity, but should route to GroupReq not SelectTargetsReq.
-        val groupingContext = detectSurveilScry(pendingPrompt.request)
-        if (groupingContext != null) {
-            sendGroupReqForSurveilScry(bridge, pendingPrompt, groupingContext)
-            return PromptResult.SENT_TO_CLIENT
+        return when (classified) {
+            is ClassifiedPrompt.Grouping -> {
+                sendGroupReqForSurveilScry(bridge, classified.pendingPrompt, classified.context)
+                PromptResult.SENT_TO_CLIENT
+            }
+
+            is ClassifiedPrompt.ModalChoice -> {
+                ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "modal: ${pendingPrompt.request.message}")
+                sendCastingTimeOptionsReq(bridge, classified.pendingPrompt)
+                PromptResult.SENT_TO_CLIENT
+            }
+
+            is ClassifiedPrompt.SelectN -> {
+                ops.traceEvent(
+                    MatchEventType.TARGET_PROMPT,
+                    game,
+                    "legend_rule candidates=${pendingPrompt.request.candidateRefs.size}",
+                )
+                sendSelectNReq(bridge, classified.pendingPrompt)
+                PromptResult.SENT_TO_CLIENT
+            }
+
+            is ClassifiedPrompt.Targeting -> {
+                ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
+                sendSelectTargetsReq(bridge, classified.pendingPrompt)
+                PromptResult.SENT_TO_CLIENT
+            }
+
+            is ClassifiedPrompt.AutoResolve -> {
+                val req = pendingPrompt.request
+                log.info(
+                    "TargetingHandler: auto-resolving non-targeting prompt [{}] \"{}\" opts={} default={}",
+                    req.promptType,
+                    req.message,
+                    req.options.size,
+                    req.defaultIndex,
+                )
+                ops.traceEvent(
+                    MatchEventType.AUTO_PASS,
+                    game,
+                    "auto-resolve prompt [${req.promptType}] default=${req.defaultIndex}",
+                )
+                seatBridge.prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+                bridge.awaitPriority()
+                PromptResult.AUTO_RESOLVED
+            }
         }
-
-        // Modal prompt → send CastingTimeOptionsReq to client
-        if (pendingPrompt.request.promptType == "modal") {
-            ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "modal: ${pendingPrompt.request.message}")
-            sendCastingTimeOptionsReq(bridge, pendingPrompt)
-            return PromptResult.SENT_TO_CLIENT
-        }
-
-        // Legend rule SBA → send SelectNReq (not SelectTargetsReq).
-        if (pendingPrompt.request.promptType == "legend_rule") {
-            ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "legend_rule candidates=${pendingPrompt.request.candidateRefs.size}")
-            sendSelectNReq(bridge, pendingPrompt)
-            return PromptResult.SENT_TO_CLIENT
-        }
-
-        if (pendingPrompt.request.candidateRefs.isNotEmpty()) {
-            // Targeting prompt → send SelectTargetsReq to client
-            ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
-            sendSelectTargetsReq(bridge, pendingPrompt)
-            return PromptResult.SENT_TO_CLIENT
-        }
-
-        // Non-targeting prompt → auto-resolve with default
-        val req = pendingPrompt.request
-        log.info(
-            "TargetingHandler: auto-resolving non-targeting prompt [{}] \"{}\" opts={} default={}",
-            req.promptType,
-            req.message,
-            req.options.size,
-            req.defaultIndex,
-        )
-        ops.traceEvent(
-            MatchEventType.AUTO_PASS,
-            game,
-            "auto-resolve prompt [${req.promptType}] default=${req.defaultIndex}",
-        )
-        seatBridge.prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
-        bridge.awaitPriority()
-        return PromptResult.AUTO_RESOLVED
     }
 
     /**
@@ -641,19 +646,6 @@ class TargetingHandler(private val ops: SessionOps) {
         val result = BundleBuilder.selectNBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, req, isLegendRule = isLegendRule)
         Tap.outboundTemplate("SelectNReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
-    }
-
-    /**
-     * Detect surveil/scry prompts by message prefix pattern.
-     * WebPlayerController uses "Surveil:" / "Scry:" prefixes in arrangeTopNCards.
-     */
-    private fun detectSurveilScry(req: leyline.bridge.PromptRequest): GroupingContext? {
-        val msg = req.message
-        return when {
-            msg.startsWith("Surveil:") -> GroupingContext.Surveil
-            msg.startsWith("Scry:") -> GroupingContext.Scry_a0f6
-            else -> null
-        }
     }
 
     /**
