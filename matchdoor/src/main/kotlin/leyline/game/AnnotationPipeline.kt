@@ -2,11 +2,11 @@ package leyline.game
 
 import forge.game.Game
 import forge.game.phase.PhaseType
+import forge.game.player.Player
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
 import leyline.game.mapper.ObjectMapper
-import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.ZoneIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -252,20 +252,65 @@ object AnnotationPipeline {
         if (combat.attackers.isEmpty()) return emptyList()
 
         val annotations = mutableListOf<AnnotationInfo>()
+        var playerDamageSeat: Int? = null
 
+        // --- Attacker damage ---
         for (attacker in combat.attackers) {
-            val iid = bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
-            val dmg = attacker.getTotalDamageDoneBy()
-            if (dmg > 0) {
-                annotations.add(AnnotationBuilder.damageDealt(iid, targetId = 0, dmg)) // TODO: fix in Task 2
-            }
-            // Mark attacker as damaged if it took damage from blockers
-            if (attacker.getDamage() > 0) {
-                annotations.add(AnnotationBuilder.damagedThisTurn(iid))
-            }
-            // Mark blockers that took damage from this attacker
-            // TODO: a blocker blocking multiple attackers may get duplicate annotations here
+            val attackerIid = bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
+            val totalDmg = attacker.getTotalDamageDoneBy()
+            if (totalDmg <= 0) continue
+
+            // Damage to blockers (per-target via blocker's assignedDamageMap)
             for (blocker in combat.getBlockers(attacker)) {
+                val dmgToBlocker = blocker.getAssignedDamageMap()[attacker] ?: 0
+                if (dmgToBlocker > 0) {
+                    val blockerIid = bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
+                    annotations.add(AnnotationBuilder.damageDealt(attackerIid, targetId = blockerIid, dmgToBlocker))
+                }
+            }
+
+            // Damage to player (unblocked, or trample excess)
+            val defender = combat.getDefenderByAttacker(attacker)
+            if (defender is Player) {
+                val dmgToBlockers = combat.getBlockers(attacker).sumOf { blocker ->
+                    blocker.getAssignedDamageMap()[attacker] ?: 0
+                }
+                val dmgToPlayer = totalDmg - dmgToBlockers
+                if (dmgToPlayer > 0) {
+                    val seat = resolvePlayerSeat(defender, bridge)
+                    if (seat != null) {
+                        annotations.add(AnnotationBuilder.damageDealt(attackerIid, targetId = seat, dmgToPlayer))
+                        playerDamageSeat = seat
+                    }
+                }
+            }
+        }
+
+        // --- Blocker → attacker damage ---
+        val emittedBlockers = mutableSetOf<Int>()
+        for (attacker in combat.attackers) {
+            for (blocker in combat.getBlockers(attacker)) {
+                if (blocker.id in emittedBlockers) continue
+                emittedBlockers.add(blocker.id)
+                val dmgToAttacker = attacker.getAssignedDamageMap()[blocker] ?: 0
+                if (dmgToAttacker > 0) {
+                    val blockerIid = bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
+                    val attackerIid = bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
+                    annotations.add(AnnotationBuilder.damageDealt(blockerIid, targetId = attackerIid, dmgToAttacker))
+                }
+            }
+        }
+
+        // --- DamagedThisTurn badges ---
+        val emittedDamagedBadges = mutableSetOf<Int>()
+        for (attacker in combat.attackers) {
+            val attackerIid = bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
+            if (attacker.getDamage() > 0) {
+                annotations.add(AnnotationBuilder.damagedThisTurn(attackerIid))
+            }
+            for (blocker in combat.getBlockers(attacker)) {
+                if (blocker.id in emittedDamagedBadges) continue
+                emittedDamagedBadges.add(blocker.id)
                 if (blocker.getDamage() > 0) {
                     val blockerIid = bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
                     annotations.add(AnnotationBuilder.damagedThisTurn(blockerIid))
@@ -273,6 +318,12 @@ object AnnotationPipeline {
             }
         }
 
+        // --- SyntheticEvent when player takes combat damage ---
+        if (playerDamageSeat != null) {
+            annotations.add(AnnotationBuilder.syntheticEvent(playerDamageSeat))
+        }
+
+        // --- ModifiedLife from baseline comparison ---
         val prev = bridge.getDiffBaselineState()
         if (prev != null) {
             for (playerInfo in prev.playersList) {
@@ -287,15 +338,20 @@ object AnnotationPipeline {
             }
         }
 
-        val human = bridge.getPlayer(SeatId(1))
-        val activeSeat = if (handler.playerTurn == human) 1 else 2
-        val protoPhase = PlayerMapper.mapPhase(handler.phase).number
-        val protoStep = PlayerMapper.mapStep(handler.phase).number
-        annotations.add(AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep))
-        // SyntheticEvent suppressed: real server sends it empty (no affectedIds/affectorId)
-        // but our client version's SyntheticEventAnnotationParser crashes on missing affectedId.
-        // Cosmetic-only (combat phase marker) — safe to omit.
+        // NOTE: PhaseOrStepModified NOT emitted here — BundleBuilder.priorityDiff()
+        // handles it via isPhaseChangedFromClientSeen(). Emitting here would duplicate.
+
         return annotations
+    }
+
+    private fun resolvePlayerSeat(player: Player, bridge: GameBridge): Int? {
+        val p1 = bridge.getPlayer(SeatId(1))
+        val p2 = bridge.getPlayer(SeatId(2))
+        return when (player.id) {
+            p1?.id -> 1
+            p2?.id -> 2
+            else -> null
+        }
     }
 
     /**
