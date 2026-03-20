@@ -365,10 +365,11 @@ object AnnotationBuilder {
             .build()
 
     /** Generic combat result marker. Client dispatches synthetic GameRulesEvent based on type. */
-    fun syntheticEvent(seatId: Int): AnnotationInfo =
+    fun syntheticEvent(attackerIid: Int, targetSeatId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.SyntheticEvent)
-            .addAffectedIds(seatId)
+            .setAffectorId(attackerIid)
+            .addAffectedIds(targetSeatId)
             .addDetails(uint32Detail("type", 1))
             .build()
 

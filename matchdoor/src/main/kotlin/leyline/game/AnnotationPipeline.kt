@@ -253,6 +253,7 @@ object AnnotationPipeline {
 
         val annotations = mutableListOf<AnnotationInfo>()
         var playerDamageSeat: Int? = null
+        var firstPlayerDamageAttackerIid: Int? = null
 
         // --- Attacker damage ---
         for (attacker in combat.attackers) {
@@ -281,6 +282,7 @@ object AnnotationPipeline {
                     if (seat != null) {
                         annotations.add(AnnotationBuilder.damageDealt(attackerIid, targetId = seat, dmgToPlayer))
                         playerDamageSeat = seat
+                        if (firstPlayerDamageAttackerIid == null) firstPlayerDamageAttackerIid = attackerIid
                     }
                 }
             }
@@ -319,8 +321,8 @@ object AnnotationPipeline {
         }
 
         // --- SyntheticEvent when player takes combat damage ---
-        if (playerDamageSeat != null) {
-            annotations.add(AnnotationBuilder.syntheticEvent(playerDamageSeat))
+        if (playerDamageSeat != null && firstPlayerDamageAttackerIid != null) {
+            annotations.add(AnnotationBuilder.syntheticEvent(firstPlayerDamageAttackerIid, playerDamageSeat))
         }
 
         // --- ModifiedLife from baseline comparison ---

@@ -119,7 +119,7 @@ class AnnotationShapeConformanceTest :
         }
 
         test("SyntheticEvent shape: {type}") {
-            val ann = AnnotationBuilder.syntheticEvent(1)
+            val ann = AnnotationBuilder.syntheticEvent(1, 1)
             detailKeys(ann) shouldBe setOf("type")
         }
 
@@ -289,7 +289,7 @@ class AnnotationShapeConformanceTest :
             "ModifiedToughness" to detailKeys(AnnotationBuilder.modifiedToughness(1)),
             "ModifiedPower" to detailKeys(AnnotationBuilder.modifiedPower(1)),
             "ModifiedLife" to detailKeys(AnnotationBuilder.modifiedLife(1, -3)),
-            "SyntheticEvent" to detailKeys(AnnotationBuilder.syntheticEvent(1)),
+            "SyntheticEvent" to detailKeys(AnnotationBuilder.syntheticEvent(1, 1)),
             "TokenCreated" to detailKeys(AnnotationBuilder.tokenCreated(1)),
             "AttachmentCreated" to detailKeys(AnnotationBuilder.attachmentCreated(1, 2)),
             "Attachment" to detailKeys(AnnotationBuilder.attachment(1, 2)),

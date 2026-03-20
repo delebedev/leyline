@@ -340,11 +340,11 @@ class AnnotationBuilderTest :
         // --- SyntheticEvent ---
 
         test("syntheticEventFields") {
-            val ann = AnnotationBuilder.syntheticEvent(seatId = 1)
+            val ann = AnnotationBuilder.syntheticEvent(attackerIid = 290, targetSeatId = 2)
             ann.typeList shouldContain AnnotationType.SyntheticEvent
-            ann.affectedIdsList shouldContain 1
+            ann.affectorId shouldBe 290
+            ann.affectedIdsList shouldBe listOf(2)
             val type = ann.detailsList.first { it.key == "type" }
-            type.type shouldBe KeyValuePairValueType.Uint32
             type.getValueUint32(0) shouldBe 1
         }
 
