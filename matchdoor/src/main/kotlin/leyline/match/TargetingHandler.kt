@@ -287,8 +287,10 @@ class TargetingHandler(private val ops: SessionOps) {
         val req = pendingPrompt.request
 
         val selectedIndices = if (
-            (req.semantic == leyline.bridge.PromptSemantic.GroupingSurveil ||
-                req.semantic == leyline.bridge.PromptSemantic.GroupingScry) &&
+            (
+                req.semantic == leyline.bridge.PromptSemantic.GroupingSurveil ||
+                    req.semantic == leyline.bridge.PromptSemantic.GroupingScry
+                ) &&
             req.max == 1 &&
             req.options.size == 2
         ) {
