@@ -2,6 +2,7 @@ package leyline.conformance
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
@@ -85,6 +86,9 @@ class GameEndTest :
             finalResult.matchCompletedReason shouldBe MatchCompletedReasonType.Success_a26d
             (finalResult.resultListCount > 0).shouldBeTrue()
             finalResult.getResultList(0).result shouldBe ResultType.WinLoss
+
+            h.registry.getMatch("test-match").shouldBeNull()
+            h.registry.getPeer("test-match", 1).shouldBeNull()
         }
 
         // DISABLED: multi-turn loop to reach lethal is slow and flaky — times out
