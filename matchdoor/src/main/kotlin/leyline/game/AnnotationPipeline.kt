@@ -1,8 +1,5 @@
 package leyline.game
 
-import forge.game.Game
-import forge.game.phase.PhaseType
-import forge.game.player.Player
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
@@ -240,84 +237,52 @@ object AnnotationPipeline {
      * **Pure function** given game state and previous player info.
      * No bridge mutation — only reads instanceId mappings.
      */
+    /**
+     * Stage 3: Generate combat damage annotations from events.
+     *
+     * Uses [GameEvent.DamageDealtToCard] and [GameEvent.DamageDealtToPlayer] events
+     * captured synchronously on the engine thread (before Forge clears combat state).
+     * The combat object's attackers list is empty by the time we build the GSM,
+     * so we cannot query it here.
+     */
     internal fun combatAnnotations(
-        game: Game,
+        events: List<GameEvent>,
         bridge: GameBridge,
     ): List<AnnotationInfo> {
-        val handler = game.phaseHandler
-        if (handler.phase != PhaseType.COMBAT_DAMAGE && handler.phase != PhaseType.COMBAT_FIRST_STRIKE_DAMAGE) {
-            return emptyList()
-        }
-        val combat = handler.combat ?: return emptyList()
-        if (combat.attackers.isEmpty()) return emptyList()
+        val cardDamage = events.filterIsInstance<GameEvent.DamageDealtToCard>()
+        val playerDamage = events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
+        if (cardDamage.isEmpty() && playerDamage.isEmpty()) return emptyList()
 
         val annotations = mutableListOf<AnnotationInfo>()
-        var playerDamageSeat: Int? = null
+
+        // --- DamageDealt: creature → creature ---
+        for (ev in cardDamage) {
+            val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.sourceForgeId)).value
+            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.targetForgeId)).value
+            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid, ev.amount))
+        }
+
+        // --- DamageDealt: creature → player ---
         var firstPlayerDamageAttackerIid: Int? = null
-
-        // --- Attacker damage ---
-        for (attacker in combat.attackers) {
-            val attackerIid = bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
-            val totalDmg = attacker.getTotalDamageDoneBy()
-            if (totalDmg <= 0) continue
-
-            // Damage to blockers (per-target via blocker's assignedDamageMap)
-            for (blocker in combat.getBlockers(attacker)) {
-                val dmgToBlocker = blocker.getAssignedDamageMap()[attacker] ?: 0
-                if (dmgToBlocker > 0) {
-                    val blockerIid = bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
-                    annotations.add(AnnotationBuilder.damageDealt(attackerIid, targetId = blockerIid, dmgToBlocker))
-                }
-            }
-
-            // Damage to player (unblocked, or trample excess)
-            val defender = combat.getDefenderByAttacker(attacker)
-            if (defender is Player) {
-                val dmgToBlockers = combat.getBlockers(attacker).sumOf { blocker ->
-                    blocker.getAssignedDamageMap()[attacker] ?: 0
-                }
-                val dmgToPlayer = totalDmg - dmgToBlockers
-                if (dmgToPlayer > 0) {
-                    val seat = resolvePlayerSeat(defender, bridge)
-                    if (seat != null) {
-                        annotations.add(AnnotationBuilder.damageDealt(attackerIid, targetId = seat, dmgToPlayer))
-                        playerDamageSeat = seat
-                        if (firstPlayerDamageAttackerIid == null) firstPlayerDamageAttackerIid = attackerIid
-                    }
-                }
-            }
+        var playerDamageSeat: Int? = null
+        for (ev in playerDamage) {
+            val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.sourceForgeId)).value
+            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId, ev.amount))
+            if (firstPlayerDamageAttackerIid == null) firstPlayerDamageAttackerIid = sourceIid
+            playerDamageSeat = ev.targetSeatId
         }
 
-        // --- Blocker → attacker damage ---
-        val emittedBlockers = mutableSetOf<Int>()
-        for (attacker in combat.attackers) {
-            for (blocker in combat.getBlockers(attacker)) {
-                if (blocker.id in emittedBlockers) continue
-                emittedBlockers.add(blocker.id)
-                val dmgToAttacker = attacker.getAssignedDamageMap()[blocker] ?: 0
-                if (dmgToAttacker > 0) {
-                    val blockerIid = bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
-                    val attackerIid = bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
-                    annotations.add(AnnotationBuilder.damageDealt(blockerIid, targetId = attackerIid, dmgToAttacker))
-                }
-            }
+        // --- DamagedThisTurn badges for all damage targets ---
+        val damagedCreatures = mutableSetOf<Int>()
+        for (ev in cardDamage) {
+            damagedCreatures.add(ev.targetForgeId)
+            damagedCreatures.add(ev.sourceForgeId) // source also took damage in mutual combat
         }
-
-        // --- DamagedThisTurn badges ---
-        val emittedDamagedBadges = mutableSetOf<Int>()
-        for (attacker in combat.attackers) {
-            val attackerIid = bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
-            if (attacker.getDamage() > 0) {
-                annotations.add(AnnotationBuilder.damagedThisTurn(attackerIid))
-            }
-            for (blocker in combat.getBlockers(attacker)) {
-                if (blocker.id in emittedDamagedBadges) continue
-                emittedDamagedBadges.add(blocker.id)
-                if (blocker.getDamage() > 0) {
-                    val blockerIid = bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
-                    annotations.add(AnnotationBuilder.damagedThisTurn(blockerIid))
-                }
-            }
+        // Only emit for creatures that actually have damage marked
+        // (sourceForgeId may not have taken damage — it dealt it)
+        for (ev in cardDamage) {
+            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.targetForgeId)).value
+            annotations.add(AnnotationBuilder.damagedThisTurn(targetIid))
         }
 
         // --- SyntheticEvent when player takes combat damage ---
@@ -340,20 +305,7 @@ object AnnotationPipeline {
             }
         }
 
-        // NOTE: PhaseOrStepModified NOT emitted here — BundleBuilder.priorityDiff()
-        // handles it via isPhaseChangedFromClientSeen(). Emitting here would duplicate.
-
         return annotations
-    }
-
-    private fun resolvePlayerSeat(player: Player, bridge: GameBridge): Int? {
-        val p1 = bridge.getPlayer(SeatId(1))
-        val p2 = bridge.getPlayer(SeatId(2))
-        return when (player.id) {
-            p1?.id -> 1
-            p2?.id -> 2
-            else -> null
-        }
     }
 
     /**

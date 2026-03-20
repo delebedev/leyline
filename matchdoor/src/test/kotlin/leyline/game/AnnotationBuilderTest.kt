@@ -302,7 +302,7 @@ class AnnotationBuilderTest :
             type.getValueUint32(0) shouldBe 1
 
             val markDamage = ann.detailsList.first { it.key == "markDamage" }
-            markDamage.getValueUint32(0) shouldBe 3
+            markDamage.getValueUint32(0) shouldBe 1
         }
 
         test("damageDealtNonCombat") {

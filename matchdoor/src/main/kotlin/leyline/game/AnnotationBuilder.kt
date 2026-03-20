@@ -315,9 +315,9 @@ object AnnotationBuilder {
     /**
      * Combat damage dealt by a creature. Client uses this for damage flash animation.
      * [type] = damage type: 1=combat, 0=non-combat (real server always sends this).
-     * [markDamage] = damage marked on the creature (usually equals [amount]).
+     * [markDamage] = always 1 in real server recordings (flag, not amount).
      */
-    fun damageDealt(sourceInstanceId: Int, targetId: Int, amount: Int, type: Int = 1, markDamage: Int = amount): AnnotationInfo =
+    fun damageDealt(sourceInstanceId: Int, targetId: Int, amount: Int, type: Int = 1, markDamage: Int = 1): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.DamageDealt_af5a)
             .setAffectorId(sourceInstanceId)

@@ -150,8 +150,8 @@ object StateMapper {
             transferPersistent.addAll(persistent)
         }
 
-        // Stage 3: Combat damage annotations (must be added before numbering)
-        annotations.addAll(AnnotationPipeline.combatAnnotations(game, bridge))
+        // Stage 3: Combat damage annotations (event-driven — events captured before Forge clears combat)
+        annotations.addAll(AnnotationPipeline.combatAnnotations(events, bridge))
 
         // Stage 4: Mechanic annotations (Group B: counters, shuffle, scry, tokens + Group A+: attachments)
         val mechanicResult = AnnotationPipeline.mechanicAnnotations(events) { forgeCardId ->
