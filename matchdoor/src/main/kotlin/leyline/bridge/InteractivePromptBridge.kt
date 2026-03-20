@@ -254,6 +254,14 @@ class InteractivePromptBridge(
 /**
  * Describes an interactive prompt the engine needs answered.
  */
+enum class PromptSemantic {
+    Generic,
+    GroupingSurveil,
+    GroupingScry,
+    ModalChoice,
+    SelectNLegendRule,
+}
+
 data class PromptRequest(
     val promptType: String,
     val message: String,
@@ -261,6 +269,7 @@ data class PromptRequest(
     val min: Int = 1,
     val max: Int = 1,
     val defaultIndex: Int = 0,
+    val semantic: PromptSemantic = PromptSemantic.Generic,
     val candidateRefs: List<PromptCandidateRefDto> = emptyList(),
     /** Source card entity ID for targeting prompts (spell or ability source). */
     val sourceEntityId: Int? = null,
