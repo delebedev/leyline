@@ -143,14 +143,7 @@ class ScryETBFlowTest :
             val cardIds = groupReq.groupReq.instanceIdsList
             h.respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
-            val msgs = h.messagesSince(snap)
-            val allAnnotations = msgs.flatMap { msg ->
-                if (msg.hasGameStateMessage()) {
-                    msg.gameStateMessage.annotationsList
-                } else {
-                    emptyList()
-                }
-            }
+            val allAnnotations = h.annotationsSince(snap)
 
             // ResolutionStart + ResolutionComplete for the creature spell
             // Recording: affectorId=283 (Wall on stack), details grpid=75478
@@ -207,14 +200,7 @@ class ScryETBFlowTest :
             // Put card on bottom (recording: player chose bottom)
             h.respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
-            val msgs = h.messagesSince(snap)
-            val allAnnotations = msgs.flatMap { msg ->
-                if (msg.hasGameStateMessage()) {
-                    msg.gameStateMessage.annotationsList
-                } else {
-                    emptyList()
-                }
-            }
+            val allAnnotations = h.annotationsSince(snap)
 
             // Scry annotation — engine shape: affectedIds=[seatId], topCount/bottomCount
             // Conformance gap: recording uses affectedIds=[cardId], bottomIds detail key.

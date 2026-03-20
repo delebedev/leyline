@@ -112,14 +112,7 @@ class SurveilFlowTest :
             h.respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Find ZoneTransfer annotation in post-GroupResp messages
-            val msgs = h.messagesSince(snap)
-            val allAnnotations = msgs.flatMap { msg ->
-                if (msg.hasGameStateMessage()) {
-                    msg.gameStateMessage.annotationsList
-                } else {
-                    emptyList()
-                }
-            }
+            val allAnnotations = h.annotationsSince(snap)
             val zt = allAnnotations.filter { ann ->
                 ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a }
             }
@@ -162,14 +155,7 @@ class SurveilFlowTest :
             // Keep on top — no zone transfer should occur for the surveiled card
             h.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
 
-            val msgs = h.messagesSince(snap)
-            val allAnnotations = msgs.flatMap { msg ->
-                if (msg.hasGameStateMessage()) {
-                    msg.gameStateMessage.annotationsList
-                } else {
-                    emptyList()
-                }
-            }
+            val allAnnotations = h.annotationsSince(snap)
             // No ZoneTransfer with Surveil category (card stayed in library)
             val surveilTransfers = allAnnotations.filter { ann ->
                 ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
