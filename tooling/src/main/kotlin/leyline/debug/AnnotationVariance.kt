@@ -275,7 +275,7 @@ private val OUR_BUILDERS: Map<String, Set<String>> by lazy {
         "TappedUntappedPermanent" to keysOf(AnnotationBuilder.tappedUntappedPermanent(1, 2)),
         "AbilityInstanceCreated" to keysOf(AnnotationBuilder.abilityInstanceCreated(1, 31)),
         "AbilityInstanceDeleted" to keysOf(AnnotationBuilder.abilityInstanceDeleted(1)),
-        "DamageDealt" to keysOf(AnnotationBuilder.damageDealt(1, 3)),
+        "DamageDealt" to keysOf(AnnotationBuilder.damageDealt(1, 2, 3)),
         "ModifiedLife" to keysOf(AnnotationBuilder.modifiedLife(1, -3)),
         "ModifiedPower" to keysOf(AnnotationBuilder.modifiedPower(1)),
         "ModifiedToughness" to keysOf(AnnotationBuilder.modifiedToughness(1)),

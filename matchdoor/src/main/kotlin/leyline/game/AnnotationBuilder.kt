@@ -317,10 +317,11 @@ object AnnotationBuilder {
      * [type] = damage type: 1=combat, 0=non-combat (real server always sends this).
      * [markDamage] = damage marked on the creature (usually equals [amount]).
      */
-    fun damageDealt(sourceInstanceId: Int, amount: Int, type: Int = 1, markDamage: Int = amount): AnnotationInfo =
+    fun damageDealt(sourceInstanceId: Int, targetId: Int, amount: Int, type: Int = 1, markDamage: Int = amount): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.DamageDealt_af5a)
-            .addAffectedIds(sourceInstanceId)
+            .setAffectorId(sourceInstanceId)
+            .addAffectedIds(targetId)
             .addDetails(uint32Detail("damage", amount))
             .addDetails(uint32Detail("type", type))
             .addDetails(uint32Detail("markDamage", markDamage))

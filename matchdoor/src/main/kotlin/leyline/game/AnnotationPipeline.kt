@@ -257,7 +257,7 @@ object AnnotationPipeline {
             val iid = bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
             val dmg = attacker.getTotalDamageDoneBy()
             if (dmg > 0) {
-                annotations.add(AnnotationBuilder.damageDealt(iid, dmg))
+                annotations.add(AnnotationBuilder.damageDealt(iid, targetId = 0, dmg)) // TODO: fix in Task 2
             }
             // Mark attacker as damaged if it took damage from blockers
             if (attacker.getDamage() > 0) {
