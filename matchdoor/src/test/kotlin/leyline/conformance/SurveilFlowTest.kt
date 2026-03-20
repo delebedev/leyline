@@ -42,19 +42,7 @@ class SurveilFlowTest :
 
         test("surveil ETB emits GroupReq") {
             val h = setupSurveil()
-
-            val snap = h.messageSnapshot()
-            val cast = h.castSpellByName("Wary Thespian")
-            cast.shouldBeTrue()
-
-            // Pass priority to resolve the creature (move from stack to battlefield)
-            h.passPriority()
-
-            val msgs = h.messagesSince(snap)
-            val groupReq = msgs.firstOrNull { it.hasGroupReq() }
-            groupReq.shouldNotBeNull()
-
-            val req = groupReq.groupReq
+            val req = h.castSpellUntilGroupReq("Wary Thespian")
             req.context shouldBe GroupingContext.Surveil
             req.instanceIdsList.shouldNotBeEmpty()
             req.groupSpecsList.size shouldBe 2
@@ -80,13 +68,7 @@ class SurveilFlowTest :
         // TODO: re-enable strict validation after fixing surveil zone transfer annotations (#66)
         test("surveil keep on top") {
             val h = setupSurveil(validating = false)
-
-            h.castSpellByName("Wary Thespian").shouldBeTrue()
-            h.passPriority()
-
-            // Find the GroupReq to get instanceIds
-            val groupReq = h.allMessages.last { it.hasGroupReq() }
-            val cardIds = groupReq.groupReq.instanceIdsList
+            val cardIds = h.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             // Respond: keep on top (empty away group)
             h.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
@@ -100,12 +82,7 @@ class SurveilFlowTest :
 
         test("surveil put in graveyard") {
             val h = setupSurveil(validating = false)
-
-            h.castSpellByName("Wary Thespian").shouldBeTrue()
-            h.passPriority()
-
-            val groupReq = h.allMessages.last { it.hasGroupReq() }
-            val cardIds = groupReq.groupReq.instanceIdsList
+            val cardIds = h.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             // Respond: put in graveyard (all cards go to away group)
             h.respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
@@ -129,25 +106,13 @@ class SurveilFlowTest :
         test("surveil to graveyard produces ZoneTransfer with Surveil category") {
             val h = setupSurveil(validating = false)
             val snap = h.messageSnapshot()
-
-            h.castSpellByName("Wary Thespian").shouldBeTrue()
-            h.passPriority()
-
-            val groupReq = h.allMessages.last { it.hasGroupReq() }
-            val cardIds = groupReq.groupReq.instanceIdsList
+            val cardIds = h.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             // Put card in graveyard
             h.respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Find ZoneTransfer annotation in post-GroupResp messages
-            val msgs = h.messagesSince(snap)
-            val allAnnotations = msgs.flatMap { msg ->
-                if (msg.hasGameStateMessage()) {
-                    msg.gameStateMessage.annotationsList
-                } else {
-                    emptyList()
-                }
-            }
+            val allAnnotations = h.annotationsSince(snap)
             val zt = allAnnotations.filter { ann ->
                 ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a }
             }
@@ -185,24 +150,12 @@ class SurveilFlowTest :
         test("surveil keep does not produce ZoneTransfer annotation") {
             val h = setupSurveil(validating = false)
             val snap = h.messageSnapshot()
-
-            h.castSpellByName("Wary Thespian").shouldBeTrue()
-            h.passPriority()
-
-            val groupReq = h.allMessages.last { it.hasGroupReq() }
-            val cardIds = groupReq.groupReq.instanceIdsList
+            val cardIds = h.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             // Keep on top — no zone transfer should occur for the surveiled card
             h.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
 
-            val msgs = h.messagesSince(snap)
-            val allAnnotations = msgs.flatMap { msg ->
-                if (msg.hasGameStateMessage()) {
-                    msg.gameStateMessage.annotationsList
-                } else {
-                    emptyList()
-                }
-            }
+            val allAnnotations = h.annotationsSince(snap)
             // No ZoneTransfer with Surveil category (card stayed in library)
             val surveilTransfers = allAnnotations.filter { ann ->
                 ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
@@ -213,12 +166,7 @@ class SurveilFlowTest :
 
         test("surveil state validity") {
             val h = setupSurveil(validating = false)
-
-            h.castSpellByName("Wary Thespian").shouldBeTrue()
-            h.passPriority()
-
-            val groupReq = h.allMessages.last { it.hasGroupReq() }
-            val cardIds = groupReq.groupReq.instanceIdsList
+            val cardIds = h.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             h.respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
 

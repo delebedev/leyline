@@ -501,6 +501,61 @@ class MatchFlowHarness(
     }
 
     /**
+     * Cast a spell and pass once to resolve it.
+     *
+     * Use only for spells that do not require an interactive client response
+     * (no targeting, grouping, modal, or SelectN prompt).
+     */
+    fun resolveSpell(cardName: String): Boolean {
+        if (!castSpellByName(cardName)) return false
+        passPriority()
+        return true
+    }
+
+    /**
+     * Cast a spell, run any required follow-up advancement, and return the
+     * latest prompt message matching [extract].
+     *
+     * Keeps flow tests focused on protocol assertions instead of the repeated
+     * cast -> advance -> scan message log sequence.
+     */
+    fun <T> castSpellUntil(
+        cardName: String,
+        promptName: String,
+        advanceAfterCast: MatchFlowHarness.() -> Unit = {},
+        extract: (GREToClientMessage) -> T?,
+    ): T {
+        check(castSpellByName(cardName)) { "Could not cast $cardName" }
+        advanceAfterCast()
+        return allMessages.asReversed().firstNotNullOfOrNull(extract)
+            ?: error("Expected $promptName after casting $cardName")
+    }
+
+    fun castSpellUntilGroupReq(
+        cardName: String,
+        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+    ): GroupReq =
+        castSpellUntil(cardName, promptName = "GroupReq", advanceAfterCast = advanceAfterCast) { msg ->
+            if (msg.hasGroupReq()) msg.groupReq else null
+        }
+
+    fun castSpellUntilSelectNReq(
+        cardName: String,
+        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+    ): SelectNReq =
+        castSpellUntil(cardName, promptName = "SelectNReq", advanceAfterCast = advanceAfterCast) { msg ->
+            if (msg.hasSelectNReq()) msg.selectNReq else null
+        }
+
+    fun castSpellUntilCastingTimeOptionsReq(
+        cardName: String,
+        advanceAfterCast: MatchFlowHarness.() -> Unit = { passPriority() },
+    ): CastingTimeOptionsReq =
+        castSpellUntil(cardName, promptName = "CastingTimeOptionsReq", advanceAfterCast = advanceAfterCast) { msg ->
+            if (msg.hasCastingTimeOptionsReq()) msg.castingTimeOptionsReq else null
+        }
+
+    /**
      * Activate a non-mana ability on a battlefield card by name and ability index.
      *
      * @param cardName name of the card on the battlefield
@@ -559,6 +614,15 @@ class MatchFlowHarness(
     fun messagesSince(snapshot: Int): List<GREToClientMessage> =
         allMessages.subList(snapshot, allMessages.size).toList()
 
+    /** Get all game-state messages since a snapshot point. */
+    fun gameStateMessagesSince(snapshot: Int): List<GameStateMessage> =
+        messagesSince(snapshot)
+            .mapNotNull { if (it.hasGameStateMessage()) it.gameStateMessage else null }
+
+    /** Get all annotations from game-state messages since a snapshot point. */
+    fun annotationsSince(snapshot: Int): List<AnnotationInfo> =
+        gameStateMessagesSince(snapshot).flatMap { it.annotationsList }
+
     // --- State queries ---
 
     fun phase(): String? = game().phaseHandler.phase?.name
@@ -571,11 +635,15 @@ class MatchFlowHarness(
         val game = bridge.getGame()
         if (game != null) return game.isGameOver
 
-        if (allMessages.any {
+        if (
+            allMessages.any {
                 it.hasGameStateMessage() &&
                     it.gameStateMessage.hasGameInfo() &&
                     it.gameStateMessage.gameInfo.stage == GameStage.GameOver
-            }) return true
+            }
+        ) {
+            return true
+        }
 
         return allRawMessages.any {
             it.hasMatchGameRoomStateChangedEvent() &&

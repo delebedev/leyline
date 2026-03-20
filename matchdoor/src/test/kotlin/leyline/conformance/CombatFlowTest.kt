@@ -61,9 +61,7 @@ class CombatFlowTest :
 
             // Turn 1: play Mountain, cast Raging Goblin (R)
             h.playLand().shouldBeTrue()
-            val cast = h.castSpellByName("Raging Goblin")
-            cast.shouldBeTrue()
-            h.passPriority() // resolve from stack → battlefield
+            h.resolveSpell("Raging Goblin").shouldBeTrue()
 
             // Still turn 1 — Raging Goblin has haste, can attack this turn
             h.turn() shouldBe 1
