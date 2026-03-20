@@ -25,27 +25,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class TargetingHandler(private val ops: SessionOps) {
     private val log = LoggerFactory.getLogger(TargetingHandler::class.java)
 
-    /** Saved state for pending modal prompt — maps response grpIds back to prompt indices. */
-    data class PendingModal(val promptId: String, val childGrpIds: List<Int>)
-
-    /** Saved state between SelectTargetsResp and SubmitTargetsReq. */
-    data class PendingTargetSelection(val promptId: String, val selectedIndices: List<Int>)
-
-    /** Saved state for pending kicker/optional cost prompt — stashes the Cast action to replay after choice. */
-    data class PendingOptionalCost(
-        val pendingActionId: String,
-        val action: leyline.bridge.PlayerAction.CastSpell,
-        val costCtoIds: List<Int>,
-    )
-
     @Volatile
-    private var pendingModal: PendingModal? = null
-
-    @Volatile
-    private var pendingTargetSelection: PendingTargetSelection? = null
-
-    @Volatile
-    private var pendingOptionalCost: PendingOptionalCost? = null
+    private var pendingInteraction: PendingClientInteraction? = null
 
     /**
      * Handle SelectTargetsResp (phase 1): store selection, send echo-back re-prompt.
@@ -80,7 +61,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
         log.info("TargetingHandler: SelectTargetsResp iids={} indices={} (awaiting SubmitTargetsReq)", selectedInstanceIds, selectedIndices)
 
-        pendingTargetSelection = PendingTargetSelection(pendingPrompt.promptId, selectedIndices)
+        pendingInteraction = PendingClientInteraction.TargetSelection(pendingPrompt.promptId, selectedIndices)
 
         // Echo-back: actions-only GSM diff + re-prompt with selection reflected
         val game = bridge.getGame() ?: return
@@ -110,12 +91,12 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val pending = pendingTargetSelection
+        val pending = pendingInteraction as? PendingClientInteraction.TargetSelection
         if (pending == null) {
-            log.warn("TargetingHandler: SubmitTargetsReq but no pending selection")
+            log.warn("TargetingHandler: SubmitTargetsReq but no pending target selection")
             return
         }
-        pendingTargetSelection = null
+        pendingInteraction = null
 
         log.info("TargetingHandler: SubmitTargetsReq — submitting indices={}", pending.selectedIndices)
 
@@ -451,7 +432,7 @@ class TargetingHandler(private val ops: SessionOps) {
             .build()
 
         // Save pending state for response mapping
-        pendingModal = PendingModal(pendingPrompt.promptId, modalInfo.childGrpIds)
+        pendingInteraction = PendingClientInteraction.ModalChoice(pendingPrompt.promptId, modalInfo.childGrpIds)
 
         val result = BundleBuilder.castingTimeOptionsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, ctoReq)
         Tap.outboundTemplate("CastingTimeOptionsReq seat=${ops.seatId} card=$cardName")
@@ -466,33 +447,33 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        // Kicker/optional cost path: client responded to optional cost prompt
-        val optCost = pendingOptionalCost
-        if (optCost != null) {
-            onOptionalCostResponse(greMsg, bridge, optCost, autoPass)
-            return
+        when (val pending = pendingInteraction) {
+            is PendingClientInteraction.OptionalCost -> {
+                pendingInteraction = null
+                onOptionalCostResponse(greMsg, bridge, pending, autoPass)
+                return
+            }
+
+            is PendingClientInteraction.ModalChoice -> {
+                val resp = greMsg.castingTimeOptionsResp
+                val chosenGrpIds = resp.castingTimeOptionResp.chooseModalResp.grpIdsList
+
+                val selectedIndices = chosenGrpIds.mapNotNull { grpId ->
+                    pending.childGrpIds.indexOf(grpId).takeIf { it >= 0 }
+                }
+
+                log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)
+
+                bridge.seat(ops.seatId).prompt.submitResponse(pending.promptId, selectedIndices)
+                pendingInteraction = null
+                bridge.awaitPriority()
+                autoPass(bridge)
+            }
+
+            else -> {
+                log.warn("TargetingHandler: CastingTimeOptionsResp but no pending modal or optional cost")
+            }
         }
-
-        // Modal path (existing)
-        val modal = pendingModal
-        if (modal == null) {
-            log.warn("TargetingHandler: CastingTimeOptionsResp but no pending modal or optional cost")
-            return
-        }
-
-        val resp = greMsg.castingTimeOptionsResp
-        val chosenGrpIds = resp.castingTimeOptionResp.chooseModalResp.grpIdsList
-
-        val selectedIndices = chosenGrpIds.mapNotNull { grpId ->
-            modal.childGrpIds.indexOf(grpId).takeIf { it >= 0 }
-        }
-
-        log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)
-
-        bridge.seat(ops.seatId).prompt.submitResponse(modal.promptId, selectedIndices)
-        pendingModal = null
-        bridge.awaitPriority()
-        autoPass(bridge)
     }
 
     /**
@@ -562,7 +543,7 @@ class TargetingHandler(private val ops: SessionOps) {
         )
 
         // Stash the Cast action for replay after response
-        pendingOptionalCost = PendingOptionalCost(
+        pendingInteraction = PendingClientInteraction.OptionalCost(
             pendingActionId = pendingActionId,
             action = leyline.bridge.PlayerAction.CastSpell(forgeCardId),
             costCtoIds = costCtoIds,
@@ -589,11 +570,9 @@ class TargetingHandler(private val ops: SessionOps) {
     private fun onOptionalCostResponse(
         greMsg: ClientToGREMessage,
         bridge: GameBridge,
-        pending: PendingOptionalCost,
+        pending: PendingClientInteraction.OptionalCost,
         autoPass: (GameBridge) -> Unit,
     ) {
-        pendingOptionalCost = null
-
         // Check which optional costs the client chose
         val resp = greMsg.castingTimeOptionsResp
         val chosenCtoId = resp.castingTimeOptionResp?.ctoId ?: 0
