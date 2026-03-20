@@ -320,17 +320,31 @@ class MatchHandler(
 
     override fun channelInactive(ctx: ChannelHandlerContext) {
         log.info("Match Door: client disconnected")
-        // Close recorder on disconnect (triggers analysis if game didn't end cleanly)
-        session?.recorder?.shutdown()
+        registry.teardownMatch(
+            matchId = matchId,
+            reason = MatchTeardownReason.Disconnect,
+            seatId = seatId,
+            recorder = session?.recorder,
+            fallbackBridge = session?.gameBridge,
+        )
         super.channelInactive(ctx)
     }
 
     override fun exceptionCaught(ctx: ChannelHandlerContext, cause: Throwable) {
         log.error("Match Door error: {}", cause.message, cause)
-        session?.recorder?.shutdown()
-        // Route through Match.close() for proper lifecycle transition + callback
-        registry.getMatch(matchId)?.close() ?: session?.gameBridge?.shutdown()
+        registry.teardownMatch(
+            matchId = matchId,
+            reason = MatchTeardownReason.Exception,
+            seatId = seatId,
+            recorder = session?.recorder,
+            fallbackBridge = session?.gameBridge,
+        )
         ctx.close()
+    }
+
+    internal fun detachAfterTeardown() {
+        session = null
+        nettyCtx = null
     }
 
     /**
