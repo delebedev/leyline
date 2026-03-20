@@ -78,11 +78,13 @@ class LegendRuleTest :
         test("SelectNReq shape matches wire spec") {
             val h = setup()
 
-            h.castSpellByName("Isamaru, Hound of Konda").shouldBeTrue()
-            h.passPriority()
-
-            val msg = h.allMessages.last { it.hasSelectNReq() }
-            val req = msg.selectNReq
+            val req = h.castSpellUntil(
+                "Isamaru, Hound of Konda",
+                promptName = "SelectNReq",
+                advanceAfterCast = { passPriority() },
+            ) { msg ->
+                if (msg.hasSelectNReq()) msg.selectNReq else null
+            }
 
             assertSoftly {
                 req.idsList.size shouldBe 2

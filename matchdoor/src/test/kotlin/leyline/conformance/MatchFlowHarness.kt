@@ -501,6 +501,25 @@ class MatchFlowHarness(
     }
 
     /**
+     * Cast a spell, run any required follow-up advancement, and return the
+     * latest prompt message matching [extract].
+     *
+     * Keeps flow tests focused on protocol assertions instead of the repeated
+     * cast -> advance -> scan message log sequence.
+     */
+    fun <T> castSpellUntil(
+        cardName: String,
+        promptName: String,
+        advanceAfterCast: MatchFlowHarness.() -> Unit = {},
+        extract: (GREToClientMessage) -> T?,
+    ): T {
+        check(castSpellByName(cardName)) { "Could not cast $cardName" }
+        advanceAfterCast()
+        return allMessages.asReversed().firstNotNullOfOrNull(extract)
+            ?: error("Expected $promptName after casting $cardName")
+    }
+
+    /**
      * Activate a non-mana ability on a battlefield card by name and ability index.
      *
      * @param cardName name of the card on the battlefield
