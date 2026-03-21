@@ -101,8 +101,8 @@ just seed-db                              # create data/player.db with starter d
 - Forge submodule must point to a commit that exists on remote. If `git submodule update` fails with "Unable to find current revision", the pinned commit was force-pushed away. Fix: `git -C forge checkout origin/master`.
 - TLS certs are auto-generated at server boot from the mitmproxy CA (`~/.mitmproxy/`). Hostnames are discovered from `/etc/hosts`. Certs regenerate automatically when hostnames change (Arena patch).
 - `data/` dir must exist before `just seed-db` — `mkdir -p data` if missing.
-- `deploy/services-proxy.conf` is gitignored — copy from mini: `scp mini:~/src/leyline/deploy/services-proxy.conf deploy/`.
-- `/etc/hosts` needs FD+MD → 127.0.0.1 for proxy mode (doorbell stays commented out). Compare with `ssh mini 'cat /etc/hosts'`.
+- `deploy/services-proxy.conf` is gitignored — create it locally from `app/main/resources/services.conf` when needed.
+- `/etc/hosts` needs FD+MD → 127.0.0.1 for proxy mode (doorbell stays commented out).
 
 ## Proto
 

@@ -57,7 +57,7 @@ Empirical estimates (degrees, negative = clockwise tilt):
 - 5 cards: [-14, -7, 0, 7, 14]
 - 8 cards: [-24, -17, -10, -3, 3, 10, 17, 24]
 
-Exact values need measurement from test images or Ghidra decompilation of `CardLayout_Hand` params (Radius, FitAngle, MaxDeltaAngle — baked in Unity prefab).
+Exact values need measurement from test images or direct client observation of `CardLayout_Hand` behavior.
 
 ### Matching strategy
 
