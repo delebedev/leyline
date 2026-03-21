@@ -1,6 +1,6 @@
 # Debug Panel & API
 
-Debug server on `:8090` (auto-starts with `just serve`). Panel: `nexus-debug.html`.
+Debug server on `:8090` (auto-starts with `just serve`). Opens the debug panel in the browser.
 
 ## Response format
 
@@ -12,7 +12,7 @@ All list endpoints return `{version:1, data:[...], cursor:N}`. Use `cursor` for 
 
 ## Cross-referencing
 
-Snapshots and priority events include `msgSeq` — the NexusDebugCollector sequence at capture time. Use to correlate between Messages and States tabs.
+Snapshots and priority events include `msgSeq` — the `DebugCollector` sequence at capture time. Use to correlate between Messages and States tabs.
 
 ## State timeline & diffs (`GameStateCollector`)
 
@@ -22,7 +22,7 @@ Snapshots and priority events include `msgSeq` — the NexusDebugCollector seque
 - `GET /api/instance-history?id=N` — zone history for a single instanceId
 - `GET /api/priority-events?since=N` — priority trace: auto-pass, combat/target prompts, AI waits
 
-## Protocol messages (`NexusDebugCollector`)
+## Protocol messages (`DebugCollector`)
 
 - `GET /api/messages?since=N` — ring buffer of inbound/outbound protocol messages
 - `GET /api/state` — current match state (phase, turn, active player)

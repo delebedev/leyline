@@ -1,6 +1,4 @@
-# Wire Format Spec
-
-> **Status:** Confirmed (2026-02-13)
+# Wire Format
 
 ## Transport Layer
 
@@ -22,7 +20,7 @@ Every message consists of:
 └────────────────────┴────────────────────────────┘
 ```
 
-### 6-Byte Header (confirmed)
+### 6-Byte Header
 
 ```
 Byte  0:   Version        = 0x04 (constant across all observed messages)
@@ -64,7 +62,7 @@ Observed at connection establishment and periodically during the session.
 
 The Front Door uses a **protobuf envelope with JSON string fields** — NOT `ClientToMatchServiceMessage`.
 
-**C→S envelope (confirmed):**
+**C→S envelope:**
 
 | Proto Field | Wire Type | Content |
 |-------------|-----------|---------|
@@ -72,7 +70,7 @@ The Front Door uses a **protobuf envelope with JSON string fields** — NOT `Cli
 | 2 | string | `transactionId` (UUID, 36 chars) |
 | 4 | string | JSON payload (the actual message) |
 
-**S→C envelope (confirmed):**
+**S→C envelope:**
 
 | Proto Field | Wire Type | Content |
 |-------------|-----------|---------|
@@ -149,20 +147,3 @@ const val FIELD_TRANSACTION_ID_SC = 1
 const val FIELD_PAYLOAD_SC = 3
 ```
 
----
-
-## What Changed from Initial Analysis
-
-The `-v` capture replaced non-printable bytes with `.` (0x2E), which made the header appear to be 10 opaque bytes. The `-x` hex capture revealed:
-
-| Property | Old (guess) | New (confirmed) |
-|----------|-------------|-----------------|
-| Header size | 10 bytes | **6 bytes** |
-| Length field offset | byte 4 | **byte 2** |
-| Byte order | big-endian | **little-endian** |
-| "10-byte header-only" messages | Header ack | **6-header + 4-byte nonce** (control frame) |
-| Ack pattern | Full header echo | **Same bytes, byte 1 flipped 0x12→0x13** |
-| FD C→S transactionId field | 4 | **2** |
-| FD C→S payload field | 5 | **4** |
-| FD S→C transactionId field | 4 | **1** |
-| FD S→C payload field | 5 | **3** |

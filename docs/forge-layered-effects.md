@@ -164,38 +164,6 @@ public record GameEventCardStatsChanged(Collection<Card> cards, boolean transfor
 - No before/after delta -- just "these cards' stats are now different"
 - The `transform` flag is effectively always false (disabled in constructor)
 
-## Diffing Strategy for the Bridge
-
-Given a Card object at two points in time, to detect P/T modifier changes:
-
-### What's directly observable:
-
-1. **boostPT table** (`getPTBoostTable()` returns `ImmutableTable` copy):
-   - Each `(timestamp, staticId)` cell is one active modifier
-   - Compare cell sets between snapshots to find new/removed modifiers
-   - `staticId != 0` -> continuous effect from `StaticAbility` with that id
-   - `staticId == 0` -> resolved spell effect (Pump/Animate)
-
-2. **newPT tables** (no public getter for immutable copy, but `getPTIterable()` gives all entries):
-   - SetPT overrides -- compare to detect "became a 3/3" effects appearing/disappearing
-
-3. **changedCardKeywords table** (`getChangedCardKeywords()` returns the mutable table):
-   - Each `(timestamp, staticId)` cell is one keyword modification
-   - `KeywordsChange` contains added/removed keyword lists
-
-4. **Counters** (`getCounters(CounterEnumType.P1P1)` etc.):
-   - Separate from effect system, directly queryable
-
-### What's NOT directly observable:
-
-- For resolved spells (staticId=0): no built-in way to trace timestamp -> source card
-- For continuous effects: must look up StaticAbility by id to find host card (possible via `StaticEffects.getEffects()` -> iterate -> match)
-- No individual "effect added/removed" events -- only bulk "stats changed" notification
-
-### Recommended approach:
-
-Snapshot `boostPT`, `newPT` tables, keyword tables, and counter counts at each priority pass. Diff the table cell keys `(timestamp, staticId)` to detect new/removed effects. For continuous effects, resolve staticId -> StaticAbility -> host card to attribute the source. For resolved spells, accept timestamp-only identity (sufficient for detecting new vs. existing).
-
 ## Key Files
 
 | File | Role |

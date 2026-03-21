@@ -1,5 +1,7 @@
 # ADR-003: Single-Owner MessageCounter
 
+> **Note:** This ADR uses the original class name "NexusGamePlayback" (now `GamePlayback`).
+
 ## Status
 Accepted
 

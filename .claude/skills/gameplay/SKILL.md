@@ -91,6 +91,19 @@ spell casting always follows mana curve regardless of mode.
 | Check errors | `arena errors` |
 | Navigate home | `arena navigate Home` |
 
+## Prompts (IMPORTANT)
+
+`arena turn` detects UI prompts and prints `PROMPT: <text>`. Handle these:
+
+- **"Discard a card"** → click a card in hand (rightmost), then `arena click 886,504` (Submit)
+- **"Explore"** → auto-dismissed after play. If stuck, `arena click 480,491` (Done)
+- **"Surveil" / "Scry"** → auto-dismissed after play. If stuck, `arena click 480,491` (Done)
+- **"Choose a target"** → click a creature on the battlefield. Pick opponent's if removing,
+  yours if buffing. When unsure, click the first creature you see.
+- **"Select"** → generic selection prompt. Click the highlighted option, then Submit.
+
+If you see a PROMPT line, handle it BEFORE trying to play more cards.
+
 ## Recovery
 
 - **"No actions available"** → `arena click 888,504` (pass). This is normal.
