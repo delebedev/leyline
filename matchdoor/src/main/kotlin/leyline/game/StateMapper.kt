@@ -50,6 +50,15 @@ object StateMapper {
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
 
+        // --- Gather: drain all queues and snapshot mutable state ---
+        val events = bridge.drainEvents().toMutableList()
+        for (reveal in bridge.drainReveals(viewingSeatId)) {
+            events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
+        }
+        val initEffectDiff = bridge.effects.emitInitEffectsOnce()
+        val boostSnapshot = bridge.snapshotBoosts()
+        val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
+
         val gameInfo = GameInfo.newBuilder()
             .setMatchID(matchId)
             .setGameNumber(1)
@@ -130,11 +139,6 @@ object StateMapper {
 
         // --- Three-stage annotation pipeline (delegated to AnnotationPipeline) ---
         // Stage 1: Detect zone transfers, realloc IDs, get patched objects/zones
-        val events = bridge.drainEvents().toMutableList()
-        // Drain reveal records from the prompt bridge (captured in WebPlayerController.reveal())
-        for (reveal in bridge.drainReveals(viewingSeatId)) {
-            events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
-        }
         val transferResult = AnnotationPipeline.detectZoneTransfers(gameObjects, zones, bridge, events)
         // Apply deferred tracking side effects
         for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
@@ -161,17 +165,13 @@ object StateMapper {
         annotations.addAll(mechanicResult.transient)
 
         // gsId=1 init effects: 3 effects created+destroyed immediately
-        val initDiff = bridge.effects.emitInitEffectsOnce()
-        if (initDiff.created.isNotEmpty()) {
-            val (initTransient, _) = AnnotationPipeline.effectAnnotations(initDiff)
+        if (initEffectDiff.created.isNotEmpty()) {
+            val (initTransient, _) = AnnotationPipeline.effectAnnotations(initEffectDiff)
             annotations.addAll(initTransient)
             // No persistent annotations stored — they're destroyed in the same GSM
         }
 
         // Stage 5: Layered effect lifecycle (P/T boost diffing)
-        val boostSnapshot = bridge.snapshotBoosts()
-        val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
-
         // Resolve sourceAbilityGRPID: instanceId → card keyword → abilityGrpId
         val sourceAbilityResolver = buildSourceAbilityResolver(game, bridge)
         val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
