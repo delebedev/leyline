@@ -109,8 +109,8 @@ class MulliganHandlerIntegrationTest :
         }
 
         test("choose starting player fans mulligan prompts to both seats") {
-            val (_, _, _, _, channels) = setupTwoSeatMulligan()
-            val (seat1Channel, seat2Channel) = channels
+            val setup = setupTwoSeatMulligan()
+            val (seat1Channel, seat2Channel) = setup.fifth
 
             val seat2Handler = seat2Channel.pipeline().get(MatchHandler::class.java)
             seat2Handler.mulliganHandler.onChooseStartingPlayer(seat2Handler)
@@ -131,8 +131,8 @@ class MulliganHandlerIntegrationTest :
         }
 
         test("mulligan resp redraws and lowers mulligan prompt card count") {
-            val (_, _, _, _, channels) = setupTwoSeatMulligan()
-            val (seat1Channel, seat2Channel) = channels
+            val setup = setupTwoSeatMulligan()
+            val (seat1Channel, seat2Channel) = setup.fifth
 
             val seat2Handler = seat2Channel.pipeline().get(MatchHandler::class.java)
             seat2Handler.mulliganHandler.onChooseStartingPlayer(seat2Handler)

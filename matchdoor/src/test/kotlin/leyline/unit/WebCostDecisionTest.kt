@@ -107,7 +107,7 @@ class WebCostDecisionTest :
             )
             method.isAccessible = true
             @Suppress("UNCHECKED_CAST")
-            return method.invoke(decision, "pick", cards, min, max, cancelAllowed) as CardCollection?
+            return method.invoke(decision, "pick", cards, min, max, cancelAllowed) as? CardCollection
         }
 
         test("selectCards returns null for empty cancelable choice") {
