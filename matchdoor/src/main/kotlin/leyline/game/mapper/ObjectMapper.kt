@@ -8,6 +8,7 @@ import leyline.bridge.SeatId
 import leyline.game.CardProtoBuilder
 import leyline.game.CardRepository
 import leyline.game.GameBridge
+import leyline.game.InMemoryCardRepository
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -226,12 +227,21 @@ object ObjectMapper {
         if (card.isToken) {
             return resolveTokenGrpId(card, cards) ?: run {
                 log.error("token grpId=0 for '{}' (forgeId={})", card.name, card.id)
+                failOnStrictRepo(cards, card.name)
                 GameBridge.FALLBACK_GRPID
             }
         }
         return cards.findGrpIdByName(card.name) ?: run {
             log.error("grpId=0 for card '{}' (forgeId={}): not in client card DB", card.name, card.id)
+            failOnStrictRepo(cards, card.name)
             GameBridge.FALLBACK_GRPID
+        }
+    }
+
+    /** In test mode (strict repo), grpId=0 is a hard failure — no silent fallback. */
+    private fun failOnStrictRepo(cards: CardRepository, name: String) {
+        if (cards is InMemoryCardRepository && cards.strict) {
+            error("Card '$name' resolved to grpId=0 — register it in TestCardRegistry or the test deck")
         }
     }
 

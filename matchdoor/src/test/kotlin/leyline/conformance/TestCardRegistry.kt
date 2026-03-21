@@ -16,8 +16,8 @@ import org.slf4j.LoggerFactory
 object TestCardRegistry {
     private val log = LoggerFactory.getLogger(TestCardRegistry::class.java)
 
-    /** Shared repository for all tests. */
-    val repo = InMemoryCardRepository()
+    /** Shared strict repository — throws on unregistered card lookup. */
+    val repo = InMemoryCardRepository(strict = true)
 
     /** Default deck card names (GameBridge.DEFAULT_DECK). */
     private val DEFAULT_DECK_CARDS = listOf(

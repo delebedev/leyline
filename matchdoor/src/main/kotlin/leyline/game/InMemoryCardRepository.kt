@@ -6,7 +6,11 @@ package leyline.game
  * Provides [register], [registerData], and [clear] for populating
  * card data without a client SQLite database.
  */
-class InMemoryCardRepository : CardRepository {
+class InMemoryCardRepository(
+    /** When true, [findGrpIdByName] throws on miss instead of returning null.
+     *  Catches silent grpId=0 fallback in tests. */
+    val strict: Boolean = false,
+) : CardRepository {
 
     private val cache = mutableMapOf<Int, CardData>()
     private val grpIdToName = mutableMapOf<Int, String>()
