@@ -51,14 +51,19 @@ class GoldenFieldCoverageTest :
         )
 
         val goldenDeclareAttackersReq = setOf(
-            "attackers[].attackerInstanceId", "attackers[].legalDamageRecipients[].playerSystemSeatId",
-            "attackers[].legalDamageRecipients[].type", "canSubmitAttackers",
-            "qualifiedAttackers[].attackerInstanceId", "qualifiedAttackers[].legalDamageRecipients[].playerSystemSeatId",
+            "attackers[].attackerInstanceId",
+            "attackers[].legalDamageRecipients[].playerSystemSeatId",
+            "attackers[].legalDamageRecipients[].type",
+            "canSubmitAttackers",
+            "qualifiedAttackers[].attackerInstanceId",
+            "qualifiedAttackers[].legalDamageRecipients[].playerSystemSeatId",
             "qualifiedAttackers[].legalDamageRecipients[].type",
         )
 
         val goldenDeclareBlockersReq = setOf(
-            "blockers[].attackerInstanceIds[]", "blockers[].blockerInstanceId", "blockers[].maxAttackers",
+            "blockers[].attackerInstanceIds[]",
+            "blockers[].blockerInstanceId",
+            "blockers[].maxAttackers",
         )
 
         val goldenActionsAvailableReq = setOf(
@@ -112,7 +117,8 @@ class GoldenFieldCoverageTest :
         )
 
         val goldenDieRollResultsResp = setOf(
-            "playerDieRolls[].rollValue", "playerDieRolls[].systemSeatId",
+            "playerDieRolls[].rollValue",
+            "playerDieRolls[].systemSeatId",
         )
 
         val goldenInitialGSM = setOf(
