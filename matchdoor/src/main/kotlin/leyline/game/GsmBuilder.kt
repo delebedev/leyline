@@ -15,8 +15,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * No bridge ref, no game ref — plain values.
  *
  * Created once per bundle call via [from], then threaded through
- * GSM builders that need seat/phase info. Replaces 6+ inline
- * derivations of activeSeat/prioritySeat/turnInfo/phaseAnnotation.
+ * GSM builders that need seat/phase info.
  */
 data class GsmFrame(
     val activeSeat: Int,

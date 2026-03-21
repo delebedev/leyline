@@ -14,8 +14,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * via [sendBundledGRE]. All action handlers are inherited no-ops from
  * [SessionOps] — the Familiar never drives game logic.
  *
- * Replaces the isFamiliar boolean gates that were scattered across
- * [MatchHandler]'s message dispatch.
+ * All action handlers are inherited no-ops from [SessionOps] —
+ * the type system enforces read-only behavior without boolean gates.
  */
 class FamiliarSession(
     override val seatId: Int,
