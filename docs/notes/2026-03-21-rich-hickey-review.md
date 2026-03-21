@@ -123,8 +123,8 @@ transfer detection. Extend to the whole pipeline.
 
 | # | Item | Priority | Status |
 |---|------|----------|--------|
-| 4 | MessageCounter: explicit sharing via construction | High | In progress |
-| 1 | buildFromGame: pure core + deferred effects | Medium | Backlog |
-| 3 | Annotation pipeline: compositional stages | Medium | Backlog |
+| 4 | MessageCounter: explicit sharing via construction | High | Done |
+| 1 | buildFromGame: gather/compute/apply phases | Medium | Done |
+| 3 | Annotation pipeline: detectZoneTransfers pure overload | Medium | Done |
 | 2 | GameBridge: split info/mechanism | Low | Backlog |
 | 5 | onPerformAction: decompose | Low | Backlog |
