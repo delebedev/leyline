@@ -378,7 +378,6 @@ object AnnotationPipeline {
     internal fun combatAnnotations(
         events: List<GameEvent>,
         bridge: GameBridge,
-        activeSeat: Int,
     ): CombatAnnotationResult {
         val prev = bridge.getDiffBaselineState()
         val previousLifeTotals = prev?.playersList
@@ -388,7 +387,6 @@ object AnnotationPipeline {
         }
         return combatAnnotations(
             events = events,
-            activeSeat = activeSeat,
             idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
             previousLifeTotals = previousLifeTotals,
             currentLifeTotals = currentLifeTotals,
@@ -405,7 +403,6 @@ object AnnotationPipeline {
      */
     internal fun combatAnnotations(
         events: List<GameEvent>,
-        activeSeat: Int,
         idResolver: (Int) -> Int,
         previousLifeTotals: Map<Int, Int>,
         currentLifeTotals: Map<Int, Int>,
@@ -416,9 +413,8 @@ object AnnotationPipeline {
 
         val annotations = mutableListOf<AnnotationInfo>()
 
-        // --- PhaseOrStepModified FIRST (real server ordering) ---
-        // phase=3 (Combat), step=7 (CombatDamage) — protocol constants
-        annotations.add(AnnotationBuilder.phaseOrStepModified(activeSeat, phase = 3, step = 7))
+        // PhaseOrStepModified is now emitted from GameEvent.PhaseChanged in Stage 2b.
+        // CombatDamage phase fires via GameEventTurnPhase before damage events.
 
         // --- DamageDealt: creature → creature ---
         for (ev in cardDamage) {
