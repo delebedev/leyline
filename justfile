@@ -227,14 +227,6 @@ serve-proxy: build check-java
     {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
 
-# replay mode (local FD, replay recorded bytes on MD)
-[group('serve')]
-serve-replay: build check-java
-    #!/usr/bin/env bash
-    set -euo pipefail
-    {{_cert_flags}}
-    {{_java}} leyline.LeylineMainKt $cert_flags --replay {{payloads}}
-
 # puzzle mode: serve with a specific .pzl file
 [group('serve')]
 serve-puzzle filename: build check-java

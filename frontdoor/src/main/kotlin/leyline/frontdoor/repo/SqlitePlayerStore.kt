@@ -193,6 +193,18 @@ class SqlitePlayerStore(private val database: Database) :
             }
     }
 
+    override fun firstPlayer(): Player? = transaction(database) {
+        Players.selectAll()
+            .limit(1)
+            .firstOrNull()
+            ?.let {
+                Player(
+                    id = PlayerId(it[Players.playerId]),
+                    screenName = it[Players.screenName],
+                )
+            }
+    }
+
     override fun getPreferences(id: PlayerId): Preferences? = transaction(database) {
         Players.selectAll()
             .where { Players.playerId eq id.value }

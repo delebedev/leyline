@@ -47,7 +47,6 @@ fun main(args: Array<String>) {
         keyFile = tls.second,
         upstreamFrontDoor = a["--proxy-fd"],
         upstreamMatchDoor = a["--proxy-md"],
-        replayDir = a["--replay"]?.let { File(it) },
         fdGoldenFile = fdGoldenFile,
         matchConfig = config,
         puzzleFile = puzzleFile,
@@ -66,7 +65,15 @@ fun main(args: Array<String>) {
         "jdbc:sqlite:${playerDbFile.absolutePath}",
         "org.sqlite.JDBC",
     )
-    val accountServer = buildAccountServer(a, isProxy, accountPort, tls, fdHost, accountDb)
+
+    // Read player ID from DB for local mode — AccountServer uses it to seed dev account.
+    val devPersonaId = if (!isProxy && playerDbFile.exists()) {
+        leyline.frontdoor.repo.SqlitePlayerStore(accountDb).firstPlayer()?.id?.value
+    } else {
+        null
+    }
+
+    val accountServer = buildAccountServer(a, isProxy, accountPort, tls, fdHost, accountDb, devPersonaId)
 
     installShutdownHook(accountServer, debugServer, mgmtServer, server)
     startAll(server, mgmtServer, debugServer, accountServer)
@@ -132,6 +139,7 @@ private fun buildAccountServer(
     tls: Pair<File?, File?>,
     fdHost: String,
     database: org.jetbrains.exposed.v1.jdbc.Database,
+    devPersonaId: String?,
 ): AccountServer {
     if (isProxy) {
         return AccountServer(
@@ -152,6 +160,7 @@ private fun buildAccountServer(
         keyFile = a["--account-key"]?.let { File(it) } ?: tls.second,
         fdHost = fdHost,
         database = database,
+        devPersonaId = devPersonaId,
     )
 }
 
@@ -196,11 +205,7 @@ private fun printBanner(
     accountServer: AccountServer,
     fdHost: String,
 ) {
-    val mode = when {
-        server.isReplay -> "replay"
-        server.isProxy -> "proxy"
-        else -> "local"
-    }
+    val mode = if (server.isProxy) "proxy" else "local"
     val puzzleSuffix = if (puzzleFile != null) " + puzzle" else ""
 
     println("Starting Leyline server ($mode$puzzleSuffix mode)...")

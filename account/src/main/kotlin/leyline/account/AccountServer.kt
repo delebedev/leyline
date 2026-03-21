@@ -32,6 +32,8 @@ class AccountServer(
     private val roles: List<String> = TokenService.DEFAULT_ROLES,
     private val upstreamAccount: String? = null,
     private val upstreamDoorbell: String? = null,
+    /** Persona ID from player.db — used to seed dev account on first start. */
+    private val devPersonaId: String? = null,
 ) {
     private val log = LoggerFactory.getLogger(AccountServer::class.java)
     private var engine: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
@@ -114,10 +116,12 @@ class AccountServer(
 
     private fun seedDevAccount() {
         if (isProxy) return
+        val personaId = devPersonaId ?: return
         if (store.isEmpty()) {
+            val accountId = "leyline-${personaId.take(8)}"
             val seeded = store.seed(
-                accountId = DEV_ACCOUNT_ID,
-                personaId = DEV_PERSONA_ID,
+                accountId = accountId,
+                personaId = personaId,
                 email = "forge@local",
                 displayName = "ForgePlayer#00001",
                 password = "forge",
@@ -131,10 +135,6 @@ class AccountServer(
     companion object {
         const val DEFAULT_UPSTREAM_ACCOUNT = "https://api.platform.wizards.com"
         const val DEFAULT_UPSTREAM_DOORBELL = "https://doorbellprod.w2.mtgarena.com"
-
-        /** Matches the hardcoded playerId in LeylineServer for dev seed continuity. */
-        const val DEV_PERSONA_ID = "9da3ee9f-0d6a-4b18-a3e0-c9e315d2475b"
-        const val DEV_ACCOUNT_ID = "leyline-dev-account-001"
 
         internal const val KEY_ALIAS = "leyline-account"
         internal const val KEY_STORE_PASSWORD = "leyline"
