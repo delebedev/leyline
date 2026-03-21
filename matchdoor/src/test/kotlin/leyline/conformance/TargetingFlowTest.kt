@@ -42,7 +42,7 @@ class TargetingFlowTest :
         // --- Setup helpers ---
 
         fun setupForTargeting(): Int {
-            val h = MatchFlowHarness(validating = false)
+            val h = MatchFlowHarness()
             harness = h
             h.connectAndKeepPuzzle("puzzles/pump-spell.pzl")
 
@@ -161,7 +161,7 @@ class TargetingFlowTest :
 
         test("targeting during combat") {
             // Use combat deck with haste creatures for turn-1 combat + Giant Growth
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK)
             harness = h
             h.connectAndKeep()
 
@@ -493,7 +493,7 @@ class TargetingFlowTest :
                 aibattlefield=Mountain
                 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
             """.trimIndent()
-            val h = MatchFlowHarness(validating = false)
+            val h = MatchFlowHarness()
             puzzleHarness = h
             h.connectAndKeepPuzzleText(pzl)
 

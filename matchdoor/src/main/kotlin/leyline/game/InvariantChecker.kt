@@ -328,26 +328,46 @@ class InvariantChecker {
         val annotations = gsm.annotationsList + gsm.persistentAnnotationsList
         if (annotations.isEmpty()) return
 
-        // Collect transient ability IDs created by AbilityInstanceCreated annotations.
-        // These are mana ability instance IDs that exist only within the annotation
-        // sequence (created then deleted in the same GSM) and don't appear as game objects.
-        val transientAbilityIds = annotations
-            .filter { it.typeList.any { t -> t == AnnotationType.AbilityInstanceCreated } }
-            .flatMap { it.affectedIdsList }
-            .toSet()
+        // Collect IDs from annotations that use non-object ID namespaces:
+        // - AbilityInstanceCreated: transient mana ability IDs (same-GSM lifecycle)
+        // - LayeredEffectCreated/Destroyed/LayeredEffect: synthetic effect IDs (7000+)
+        val transientIds = mutableSetOf<Int>()
+        for (ann in annotations) {
+            val hasTransientType = ann.typeList.any {
+                it == AnnotationType.AbilityInstanceCreated ||
+                    it == AnnotationType.LayeredEffectCreated ||
+                    it == AnnotationType.LayeredEffectDestroyed ||
+                    it == AnnotationType.LayeredEffect
+            }
+            if (hasTransientType) {
+                transientIds.addAll(ann.affectedIdsList)
+            }
+        }
 
         fun isKnown(id: Int) =
             accumulator.isKnownEntity(id) ||
-                id in transientAbilityIds ||
+                id in transientIds ||
                 id in batchIds ||
                 id in everSeenInstanceIds
+
+        // Collect all affectorIds — these reference "what caused this" (animation
+        // metadata) and may be ephemeral ability instances that never appear in a
+        // GSM (e.g. ETB triggers that resolve before any diff is built). Valid for
+        // cross-reference within the annotation context.
+        val allAffectorIds = mutableSetOf<Int>()
+        for (ann in annotations) {
+            if (ann.affectorId != 0) allAffectorIds.add(ann.affectorId)
+        }
 
         for (ann in annotations) {
             // ObjectIdChanged references old (replaced) instanceIds — skip entirely
             val isObjectIdChanged = ann.typeList.any { it == AnnotationType.ObjectIdChanged }
             if (isObjectIdChanged) continue
 
-            if (ann.affectorId != 0 && !isKnown(ann.affectorId)) {
+            // affectorId: accept known entities + any ID the pipeline declared as
+            // an affector in this GSM. Ephemeral ability IDs (stack triggers that
+            // resolve without an intermediate GSM) are valid pipeline-generated refs.
+            if (ann.affectorId != 0 && !isKnown(ann.affectorId) && ann.affectorId !in allAffectorIds) {
                 record(
                     gsId,
                     "annotation_ref",
@@ -355,6 +375,7 @@ class InvariantChecker {
                         "(type=${ann.typeList}, gsId=$gsId)",
                 )
             }
+            // affectedId: strict check — these reference actual game entities
             for (affected in ann.affectedIdsList) {
                 if (affected != 0 && !isKnown(affected)) {
                     record(

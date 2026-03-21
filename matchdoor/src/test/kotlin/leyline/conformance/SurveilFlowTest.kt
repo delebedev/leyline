@@ -67,7 +67,7 @@ class SurveilFlowTest :
 
         // TODO: re-enable strict validation after fixing surveil zone transfer annotations (#66)
         test("surveil keep on top") {
-            val h = setupSurveil(validating = false)
+            val h = setupSurveil()
             val cardIds = h.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             // Respond: keep on top (empty away group)
@@ -81,7 +81,7 @@ class SurveilFlowTest :
         }
 
         test("surveil put in graveyard") {
-            val h = setupSurveil(validating = false)
+            val h = setupSurveil()
             val cardIds = h.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             // Respond: put in graveyard (all cards go to away group)
@@ -104,7 +104,7 @@ class SurveilFlowTest :
         }
 
         test("surveil to graveyard produces ZoneTransfer with Surveil category") {
-            val h = setupSurveil(validating = false)
+            val h = setupSurveil()
             val snap = h.messageSnapshot()
             val cardIds = h.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
@@ -148,7 +148,7 @@ class SurveilFlowTest :
         }
 
         test("surveil keep does not produce ZoneTransfer annotation") {
-            val h = setupSurveil(validating = false)
+            val h = setupSurveil()
             val snap = h.messageSnapshot()
             val cardIds = h.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
@@ -165,7 +165,7 @@ class SurveilFlowTest :
         }
 
         test("surveil state validity") {
-            val h = setupSurveil(validating = false)
+            val h = setupSurveil()
             val cardIds = h.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             h.respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
