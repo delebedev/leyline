@@ -140,9 +140,6 @@ object StateMapper {
         // --- Three-stage annotation pipeline (delegated to AnnotationPipeline) ---
         // Stage 1: Detect zone transfers, realloc IDs, get patched objects/zones
         val transferResult = AnnotationPipeline.detectZoneTransfers(gameObjects, zones, bridge, events)
-        // Apply deferred tracking side effects
-        for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
-        for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(InstanceId(iid), zid)
 
         // Stage 2: Generate annotations from transfers (pure, no side effects)
         val actingSeat = if (handler.priorityPlayer == human) 1 else 2
@@ -177,7 +174,8 @@ object StateMapper {
         val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
         annotations.addAll(effectTransient)
 
-        // Apply all persistent annotation mutations in one batch
+        // Apply persistent annotations — must happen before getAll() below
+        // (persistent annotations are embedded in the GSM; cannot be deferred)
         bridge.annotations.applyBatch(
             effectPersistent = effectPersistent,
             effectDiff = effectDiff,
@@ -232,7 +230,16 @@ object StateMapper {
             }
         }
 
-        return builder.build()
+        val built = builder.build()
+
+        // --- Apply deferred tracking effects ---
+        // These update bridge state for the NEXT buildFromGame/buildDiffFromGame call.
+        // They do NOT feed back into the current GSM (patchedZones/patchedObjects already contain
+        // the limbo/zone patches produced inside detectZoneTransfers).
+        for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
+        for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(InstanceId(iid), zid)
+
+        return built
     }
 
     /**
