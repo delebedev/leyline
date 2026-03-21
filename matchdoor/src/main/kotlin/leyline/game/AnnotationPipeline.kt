@@ -57,6 +57,8 @@ object AnnotationPipeline {
         val manaAbilityInstanceId: Int,
         val color: Int,
         val abilityGrpId: Int,
+        /** InstanceId of the spell/ability this mana pays for (ManaPaid.affectedIds). */
+        val spellInstanceId: Int = 0,
     )
 
     data class AppliedTransfer(
@@ -218,6 +220,7 @@ object AnnotationPipeline {
                                 manaAbilityInstanceId = manaAbilityIid,
                                 color = mp.color,
                                 abilityGrpId = abilityGrpId,
+                                spellInstanceId = newId,
                             )
                         } ?: emptyList()
                 } else {
@@ -231,6 +234,91 @@ object AnnotationPipeline {
             } else {
                 zoneRecordings.add(obj.instanceId to obj.zoneId)
             }
+        }
+
+        // --- Post-pass: detect disappeared objects (token sacrifices) ---
+        // Tokens sacrificed for mana (Treasure) are cleaned up by SBAs before the state
+        // snapshot, making them invisible to the main transfer loop above. Detect them by
+        // comparing previousZones (battlefield) against current gameObjects.
+        val currentInstanceIds = patchedObjects.map { it.instanceId }.toSet()
+        val sacrificeEvents = events.filterIsInstance<GameEvent.CardSacrificed>()
+        val manaAbilityEvents = events.filterIsInstance<GameEvent.ManaAbilityActivated>()
+        val spellCastEvents = events.filterIsInstance<GameEvent.SpellCast>()
+
+        for ((instanceId, zoneId) in previousZones) {
+            if (zoneId != ZONE_BATTLEFIELD) continue
+            if (instanceId in currentInstanceIds) continue
+            // This instanceId was on the battlefield but is gone now.
+            val forgeCardIdValue = forgeIdLookup(instanceId) ?: continue
+            val sacrificeEv = sacrificeEvents.firstOrNull { it.forgeCardId == forgeCardIdValue } ?: continue
+
+            // It was sacrificed. Synthesize a transfer.
+            val realloc = idAllocator(forgeCardIdValue)
+            val origId = realloc.old.value
+            val newId = realloc.new.value
+            val ownerSeat = sacrificeEv.seatId
+            val destZone = if (ownerSeat == 1) ZONE_P1_GRAVEYARD else ZONE_P2_GRAVEYARD
+
+            // Check if this sacrifice was a mana ability (Treasure) paying for a spell.
+            val manaEv = manaAbilityEvents.firstOrNull { it.forgeCardId == forgeCardIdValue }
+            val manaPayments = if (manaEv != null) {
+                // Find the SpellCast that references this forgeCardId in its manaPayments.
+                val castEv = spellCastEvents.firstOrNull { sc ->
+                    sc.manaPayments.any { it.sourceForgeCardId == forgeCardIdValue }
+                }
+                if (castEv != null) {
+                    val spellIid = idLookup(castEv.forgeCardId).value
+                    val manaAbilityIid = idLookup(forgeCardIdValue + MANA_ABILITY_ID_OFFSET).value
+                    val mp = castEv.manaPayments.first { it.sourceForgeCardId == forgeCardIdValue }
+                    val abilityGrpId = manaAbilityGrpIdResolver(forgeCardIdValue)
+                    listOf(
+                        ManaPaymentRecord(
+                            landInstanceId = origId,
+                            manaAbilityInstanceId = manaAbilityIid,
+                            color = mp.color,
+                            abilityGrpId = abilityGrpId,
+                            spellInstanceId = spellIid,
+                        ),
+                    )
+                } else {
+                    emptyList()
+                }
+            } else {
+                emptyList()
+            }
+
+            // Remove this mana source from any CastSpell transfer's manaPayments to avoid duplication.
+            if (manaPayments.isNotEmpty()) {
+                for (i in transfers.indices) {
+                    val t = transfers[i]
+                    if (t.category == TransferCategory.CastSpell && t.manaPayments.any { it.landInstanceId == origId }) {
+                        transfers[i] = t.copy(
+                            manaPayments = t.manaPayments.filter { it.landInstanceId != origId },
+                        )
+                    }
+                }
+            }
+
+            log.debug("disappeared token: iid {} → {} category=Sacrifice manaPayments={}", origId, newId, manaPayments.size)
+
+            if (newId != origId) {
+                retiredIds.add(origId)
+                appendToZone(patchedZones, ZONE_LIMBO, origId)
+            }
+
+            transfers.add(
+                AppliedTransfer(
+                    origId = origId,
+                    newId = newId,
+                    category = TransferCategory.Sacrifice,
+                    srcZoneId = ZONE_BATTLEFIELD,
+                    destZoneId = destZone,
+                    grpId = 0, // Token is gone — no GameObjectInfo available
+                    ownerSeatId = ownerSeat,
+                    manaPayments = manaPayments,
+                ),
+            )
+            zoneRecordings.add(newId to destZone)
         }
 
         // Also record zones for instanceIds that appear only in zone objectInstanceIds
@@ -322,7 +410,61 @@ object AnnotationPipeline {
                 annotations.add(AnnotationBuilder.resolutionComplete(newId, grpId))
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, actingSeat))
             }
-            TransferCategory.Destroy, TransferCategory.Sacrifice, TransferCategory.Countered,
+            TransferCategory.Sacrifice -> {
+                if (transfer.manaPayments.isNotEmpty()) {
+                    // Sacrifice-for-mana: emit full mana bracket (Treasure tokens, etc.)
+                    for (mp in transfer.manaPayments) {
+                        annotations.add(
+                            AnnotationBuilder.abilityInstanceCreated(
+                                abilityInstanceId = mp.manaAbilityInstanceId,
+                                affectorId = origId,
+                                sourceZoneId = srcZone,
+                            ),
+                        )
+                        annotations.add(
+                            AnnotationBuilder.tappedUntappedPermanent(
+                                permanentId = origId,
+                                abilityId = mp.manaAbilityInstanceId,
+                            ),
+                        )
+                    }
+                    if (origId != newId) {
+                        annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
+                    }
+                    annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
+                    for ((i, mp) in transfer.manaPayments.withIndex()) {
+                        annotations.add(
+                            AnnotationBuilder.userActionTaken(
+                                instanceId = mp.manaAbilityInstanceId,
+                                seatId = actingSeat,
+                                actionType = 4,
+                                abilityGrpId = mp.abilityGrpId,
+                            ),
+                        )
+                        annotations.add(
+                            AnnotationBuilder.manaPaid(
+                                spellInstanceId = mp.spellInstanceId,
+                                landInstanceId = origId,
+                                manaId = i + MANA_ID_BASE,
+                                color = mp.color,
+                            ),
+                        )
+                        annotations.add(
+                            AnnotationBuilder.abilityInstanceDeleted(
+                                abilityInstanceId = mp.manaAbilityInstanceId,
+                                affectorId = origId,
+                            ),
+                        )
+                    }
+                } else {
+                    // Plain sacrifice (no mana production)
+                    if (origId != newId) {
+                        annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
+                    }
+                    annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId))
+                }
+            }
+            TransferCategory.Destroy, TransferCategory.Countered,
             TransferCategory.Bounce, TransferCategory.Draw, TransferCategory.Discard,
             TransferCategory.Mill, TransferCategory.Surveil, TransferCategory.Exile,
             TransferCategory.Return, TransferCategory.Search, TransferCategory.Put,
