@@ -45,7 +45,7 @@ Each tool has `--help` with examples. Docs co-located in `tools/<name>/docs/`.
 
 ## Architecture / Design
 
-- `bridge-architecture.md` — GameActionBridge / InteractivePromptBridge design
+- `bridge-threading.md` — two-thread model rules, snapshot timing, counter sync, test debugging
 - `bridge-vision.md` — target architecture and direction
 - `python-tooling-refactor.md` — Python tooling package split + migration phases
 - `decisions/` — architectural decision records
