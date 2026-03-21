@@ -11,6 +11,57 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
+ * Frozen snapshot of turn/phase/seat state for proto construction.
+ * No bridge ref, no game ref — plain values.
+ *
+ * Created once per bundle call via [from], then threaded through
+ * GSM builders that need seat/phase info. Replaces 6+ inline
+ * derivations of activeSeat/prioritySeat/turnInfo/phaseAnnotation.
+ */
+data class GsmFrame(
+    val activeSeat: Int,
+    val prioritySeat: Int,
+    val turnNumber: Int,
+    val phase: Phase,
+    val step: Step,
+) {
+    /** Build a [TurnInfo] proto from this frame's fields. */
+    fun turnInfo(): TurnInfo = TurnInfo.newBuilder()
+        .setPhase(phase)
+        .setStep(step)
+        .setTurnNumber(turnNumber)
+        .setActivePlayer(activeSeat)
+        .setPriorityPlayer(prioritySeat)
+        .setDecisionPlayer(prioritySeat)
+        .build()
+
+    /** Build a PhaseOrStepModified annotation, assigning an ID from [idSource]. */
+    fun phaseAnnotation(idSource: () -> Int): AnnotationInfo =
+        AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)
+            .toBuilder().setId(idSource()).build()
+
+    /** Build a PhaseOrStepModified using explicit phase/step values (e.g. from a GSM's turnInfo). */
+    fun phaseAnnotation(phase: Int, step: Int, idSource: () -> Int): AnnotationInfo =
+        AnnotationBuilder.phaseOrStepModified(activeSeat, phase, step)
+            .toBuilder().setId(idSource()).build()
+
+    companion object {
+        /** Snapshot current game state into a frame. */
+        fun from(game: forge.game.Game, bridge: GameBridge): GsmFrame {
+            val handler = game.phaseHandler
+            val human = bridge.getPlayer(SeatId(1))
+            return GsmFrame(
+                activeSeat = if (handler.playerTurn == human) 1 else 2,
+                prioritySeat = if (handler.priorityPlayer == human) 1 else 2,
+                turnNumber = handler.turn.coerceAtLeast(1),
+                phase = PlayerMapper.mapPhase(handler.phase),
+                step = PlayerMapper.mapStep(handler.phase),
+            )
+        }
+    }
+}
+
+/**
  * Lifecycle GameStateMessage factories — pre-game, mulligan, phase transition,
  * game-over, and utility GSMs.
  *
@@ -320,46 +371,24 @@ object GsmBuilder {
      * Optionally embeds actions (for the Main1 state).
      */
     fun buildTransitionState(
-        game: Game,
         gameStateId: Int,
         prevGameStateId: Int,
         matchId: String,
         bridge: GameBridge,
-        phase: Phase,
-        step: Step,
+        frame: GsmFrame,
         isStageTransition: Boolean = false,
         actions: ActionsAvailableReq? = null,
         actionSeatId: Int = 0,
     ): GameStateMessage {
-        val handler = game.phaseHandler
-        val human = bridge.getPlayer(SeatId(1))
-
-        val activeSeat = if (handler.playerTurn == human) 1 else 2
-        val prioritySeat = if (handler.priorityPlayer == human) 1 else 2
-
-        val turnInfo = TurnInfo.newBuilder()
-            .setPhase(phase)
-            .setStep(step)
-            .setTurnNumber(handler.turn.coerceAtLeast(1))
-            .setActivePlayer(activeSeat)
-            .setPriorityPlayer(prioritySeat)
-            .setDecisionPlayer(prioritySeat)
-
         val builder = GameStateMessage.newBuilder()
             .setType(GameStateType.Diff)
             .setGameStateId(gameStateId)
             .setPrevGameStateId(prevGameStateId)
-            .setTurnInfo(turnInfo)
+            .setTurnInfo(frame.turnInfo())
             .addPlayers(PlayerMapper.buildPlayerInfo(bridge.getPlayer(SeatId(1)), 1))
             .addPlayers(PlayerMapper.buildPlayerInfo(bridge.getPlayer(SeatId(2)), 2))
-            .addAnnotations(
-                AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)
-                    .toBuilder().setId(bridge.nextAnnotationId()).build(),
-            ) // phase change
-            .addAnnotations(
-                AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)
-                    .toBuilder().setId(bridge.nextAnnotationId()).build(),
-            ) // step change
+            .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() }) // phase change
+            .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() }) // step change
             .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(GameStateUpdate.SendHiFi)
 
@@ -376,7 +405,7 @@ object GsmBuilder {
         // Embed stripped-down actions when AAR follows.
         // actionSeatId = recipient seat (human), not necessarily the active player.
         if (actions != null) {
-            val embedSeat = if (actionSeatId != 0) actionSeatId else activeSeat
+            val embedSeat = if (actionSeatId != 0) actionSeatId else frame.activeSeat
             builder.setPendingMessageCount(1)
             for (action in actions.actionsList) {
                 builder.addActions(
@@ -408,21 +437,12 @@ object GsmBuilder {
     fun embedActions(
         gsm: GameStateMessage,
         actions: ActionsAvailableReq,
-        game: Game,
-        bridge: GameBridge,
+        frame: GsmFrame,
         recipientSeatId: Int = 0,
     ): GameStateMessage {
         val builder = gsm.toBuilder()
             .setPendingMessageCount(1)
-        // Actions are always attributed to the recipient (human) seat,
-        // not the active/priority player. Real server embeds the recipient's
-        // actions so the client knows what it can do regardless of whose turn it is.
-        val seatForActions = if (recipientSeatId != 0) {
-            recipientSeatId
-        } else {
-            val human = bridge.getPlayer(SeatId(1))
-            if (game.phaseHandler.priorityPlayer == human) 1 else 2
-        }
+        val seatForActions = if (recipientSeatId != 0) recipientSeatId else frame.prioritySeat
         for (action in actions.actionsList) {
             builder.addActions(
                 ActionInfo.newBuilder()
