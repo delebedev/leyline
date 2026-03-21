@@ -3,6 +3,7 @@ package leyline.game
 import com.google.common.eventbus.Subscribe
 import forge.ai.LobbyPlayerAi
 import forge.game.event.*
+import forge.game.event.GameEventManaAbilityActivated
 import forge.game.zone.ZoneType
 import leyline.game.mapper.PlayerMapper
 import org.slf4j.LoggerFactory
@@ -132,6 +133,13 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     override fun visit(ev: GameEventCardTapped) {
         queue.add(GameEvent.CardTapped(ev.card().id, ev.tapped()))
         log.debug("event: CardTapped card={} tapped={}", ev.card().name, ev.tapped())
+    }
+
+    override fun visit(ev: GameEventManaAbilityActivated) {
+        val card = ev.source()
+        val seat = seatOf(card.controller) ?: return
+        queue.add(GameEvent.ManaAbilityActivated(card.id, seat, ev.produced()))
+        log.debug("event: ManaAbilityActivated card={} seat={} produced={}", card.name, seat, ev.produced())
     }
 
     override fun visit(ev: GameEventCardDamaged) {

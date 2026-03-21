@@ -224,6 +224,15 @@ sealed interface GameEvent {
 
     // -- Group B: annotation-producing events --
 
+    /** A mana ability was activated and produced mana.
+     *  Wired from GameEventManaAbilityActivated (fires in AbilityManaPart.produceMana).
+     *  Used to attach mana-ability annotations to Sacrifice zone transfers (Treasure tokens). */
+    data class ManaAbilityActivated(
+        val forgeCardId: Int,
+        val seatId: Int,
+        val produced: String,
+    ) : GameEvent
+
     /** Counters added or removed on a card (+1/+1, loyalty, poison, stun, etc.). */
     data class CountersChanged(
         val forgeCardId: Int,
