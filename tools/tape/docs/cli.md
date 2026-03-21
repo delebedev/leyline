@@ -1,6 +1,6 @@
 # Recording CLI Reference
 
-Practical CLI for reading/comparing Arena proxy captures and nexus engine dumps.
+Practical CLI for reading/comparing Arena proxy captures and engine dumps.
 
 Use this for day-to-day questions:
 
@@ -11,21 +11,21 @@ Use this for day-to-day questions:
 ## Prerequisites
 
 ```bash
-cd forge-nexus
-just dev-build   # Kotlin-only, ~3-5s (use `just build` only after proto changes)
+cd leyline
+just build   # use after Kotlin/proto changes
 ```
 
 ## Recording Sources
 
 Recordings are **always-on** — every game is automatically recorded. No flags needed.
 
-- Persistent: `forge-nexus/recordings/<session>/` (project-local, gitignored)
+- Persistent: `recordings/<session>/` (project-local, gitignored)
 - Engine messages: `<session>/engine/*.bin` + `*.txt`
 - Paired event stream: `<session>/events.jsonl`
 - Post-game analysis: `<session>/analysis.json` (auto-generated on game end)
 - Proxy captures: `<session>/capture/payloads/` and `capture/frames/`
 - Session metadata: `<session>/mode.txt`
-- Symlink to latest: `forge-nexus/recordings/latest`
+- Symlink to latest: `recordings/latest`
 
 Decoder accepts:
 
