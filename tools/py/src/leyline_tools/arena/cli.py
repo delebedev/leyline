@@ -26,6 +26,7 @@ from .interaction import cmd_click, cmd_drag, cmd_move
 from .nav import cmd_navigate as _cmd_navigate, cmd_scene, cmd_wait, cmd_where
 from .session_log import session_log
 from .shell import run
+from .turn import cmd_turn
 
 
 def cmd_launch(args: list[str]) -> None:
@@ -119,6 +120,7 @@ COMMANDS = {
     "detect": cmd_detect,
     "issues": cmd_issues,
     "health": cmd_health,
+    "turn": cmd_turn,
 }
 
 
@@ -149,6 +151,7 @@ COMMAND_HELP = {
     "detect": "Run card detection model on current screen",
     "issues": "Review session errors and failures",
     "health": "Pre-flight health check (server, client, display)",
+    "turn": "Structured turn state for agent decision-making",
 }
 
 
