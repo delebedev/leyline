@@ -26,6 +26,9 @@ target
 /data/
 !/data/decks/
 
+# Card database files (read from user's MTGA install at runtime)
+*.mtga
+
 # macOS
 .DS_Store
 
