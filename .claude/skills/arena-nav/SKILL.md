@@ -413,7 +413,7 @@ lsof -i :30010 | grep ESTABLISHED             # MTGA connected
 ### Starting the server
 
 ```bash
-tmux new-session -d -s leyline 'cd /Users/denislebedev/src/leyline && just serve'
+tmux new-session -d -s leyline 'cd ~/src/leyline && just serve'
 # Check: tmux capture-pane -t leyline -p | tail -5
 # Kill: just stop
 ```

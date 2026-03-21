@@ -35,7 +35,7 @@ All 4 must pass before proceeding:
 3. `lsof -i :30010 | grep ESTABLISHED` → MTGA connected to localhost
 4. `ps aux | grep leyline | grep -o '\-\-proxy-[a-z]*'` → empty for local, `--proxy-fd`/`--proxy-md` for proxy
 
-If server is down: `tmux new-session -d -s leyline 'cd /Users/denislebedev/src/leyline && just serve'`
+If server is down: `tmux new-session -d -s leyline 'cd ~/src/leyline && just serve'`
 If client is down: `arena launch`
 If wrong mode: `just stop`, start correct mode, `arena launch`
 

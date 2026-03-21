@@ -295,22 +295,22 @@ For continuous effects from granted abilities (e.g., an Equipment's static +2/+2
 ## Key files
 
 ### Forge engine (read-only)
-- `/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/staticability/StaticAbility.java` — `getId()` (line 70), global counter `maxId` (line 54)
-- `/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/staticability/StaticAbilityContinuous.java` — `addPTBoost(..., stAb.getId())` (line 702)
-- `/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/ability/effects/PumpEffect.java` — `addPTBoost(a, d, timestamp, 0)` (line 62)
-- `/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/card/Card.java` — `boostPT` table (line 276), `addPTBoost()` (line 4603)
-- `/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/card/CardFactory.java` — `readCardFace()` ability ordering (lines 345-412)
-- `/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/card/CardState.java` — `abilities`, `triggers`, `staticAbilities` FCollections (lines 83-86)
-- `/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/keyword/KeywordInstance.java` — `createTraits()` expansion (lines 108-111)
-- `/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/CardTraitBase.java` — `getHostCard()`, `isIntrinsic()`, base for all traits
-- `/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/StaticEffect.java` — wraps `StaticAbility` when applied, carries `ability` reference + `timestamp`
-- `/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/StaticEffects.java` — `StaticAbility → StaticEffect` map (line 42)
+- `forge/forge-game/src/main/java/forge/game/staticability/StaticAbility.java` — `getId()` (line 70), global counter `maxId` (line 54)
+- `forge/forge-game/src/main/java/forge/game/staticability/StaticAbilityContinuous.java` — `addPTBoost(..., stAb.getId())` (line 702)
+- `forge/forge-game/src/main/java/forge/game/ability/effects/PumpEffect.java` — `addPTBoost(a, d, timestamp, 0)` (line 62)
+- `forge/forge-game/src/main/java/forge/game/card/Card.java` — `boostPT` table (line 276), `addPTBoost()` (line 4603)
+- `forge/forge-game/src/main/java/forge/game/card/CardFactory.java` — `readCardFace()` ability ordering (lines 345-412)
+- `forge/forge-game/src/main/java/forge/game/card/CardState.java` — `abilities`, `triggers`, `staticAbilities` FCollections (lines 83-86)
+- `forge/forge-game/src/main/java/forge/game/keyword/KeywordInstance.java` — `createTraits()` expansion (lines 108-111)
+- `forge/forge-game/src/main/java/forge/game/CardTraitBase.java` — `getHostCard()`, `isIntrinsic()`, base for all traits
+- `forge/forge-game/src/main/java/forge/game/StaticEffect.java` — wraps `StaticAbility` when applied, carries `ability` reference + `timestamp`
+- `forge/forge-game/src/main/java/forge/game/StaticEffects.java` — `StaticAbility → StaticEffect` map (line 42)
 
 ### Leyline bridge layer
-- `/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/game/CardData.kt` — `abilityIds: List<Pair<Int, Int>>`
-- `/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/game/EffectTracker.kt` — `BoostEntry(timestamp, staticId, ...)`, fingerprinting
-- `/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/game/AnnotationPipeline.kt` — `effectAnnotations()` builds LayeredEffect without sourceAbilityGRPID
-- `/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/game/mapper/ActionMapper.kt` — `.firstOrNull()` workaround throughout
-- `/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/match/MatchSession.kt` — `abilityIndex = 0` hardcode (line 251)
-- `/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/game/PuzzleCardRegistrar.kt` — synthetic ability ID assignment
-- `/Users/denislebedev/src/leyline/matchdoor/src/test/kotlin/leyline/conformance/CardDataDeriver.kt` — test-only ability derivation
+- `matchdoor/src/main/kotlin/leyline/game/CardData.kt` — `abilityIds: List<Pair<Int, Int>>`
+- `matchdoor/src/main/kotlin/leyline/game/EffectTracker.kt` — `BoostEntry(timestamp, staticId, ...)`, fingerprinting
+- `matchdoor/src/main/kotlin/leyline/game/AnnotationPipeline.kt` — `effectAnnotations()` builds LayeredEffect without sourceAbilityGRPID
+- `matchdoor/src/main/kotlin/leyline/game/mapper/ActionMapper.kt` — `.firstOrNull()` workaround throughout
+- `matchdoor/src/main/kotlin/leyline/match/MatchSession.kt` — `abilityIndex = 0` hardcode (line 251)
+- `matchdoor/src/main/kotlin/leyline/game/PuzzleCardRegistrar.kt` — synthetic ability ID assignment
+- `matchdoor/src/test/kotlin/leyline/conformance/CardDataDeriver.kt` — test-only ability derivation

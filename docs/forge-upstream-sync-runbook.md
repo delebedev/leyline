@@ -31,10 +31,10 @@ These are the pieces most likely to matter during upstream updates.
 
 Leyline expects Forge jars to be installed locally.
 
-- [build.gradle.kts](/Users/denislebedev/src/leyline/build.gradle.kts)
-- [matchdoor/build.gradle.kts](/Users/denislebedev/src/leyline/matchdoor/build.gradle.kts)
-- [justfile](/Users/denislebedev/src/leyline/justfile)
-- [forge/.mvn/maven.config](/Users/denislebedev/src/leyline/forge/.mvn/maven.config)
+- [build.gradle.kts](build.gradle.kts)
+- [matchdoor/build.gradle.kts](matchdoor/build.gradle.kts)
+- [justfile](justfile)
+- [forge/.mvn/maven.config](forge/.mvn/maven.config)
 
 Key invariant:
 
@@ -45,12 +45,12 @@ Key invariant:
 
 Leyline's headless bridge depends on `WebPlayerController` staying able to subclass and override desktop behavior cleanly.
 
-- [matchdoor/src/main/kotlin/leyline/bridge/WebPlayerController.kt](/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/bridge/WebPlayerController.kt)
-- [forge/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java](/Users/denislebedev/src/leyline/forge/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java)
-- [forge/forge-gui/src/main/java/forge/player/HumanPlay.java](/Users/denislebedev/src/leyline/forge/forge-gui/src/main/java/forge/player/HumanPlay.java)
-- [forge/forge-gui/src/main/java/forge/player/HumanPlaySpellAbility.java](/Users/denislebedev/src/leyline/forge/forge-gui/src/main/java/forge/player/HumanPlaySpellAbility.java)
-- [forge/forge-gui/src/main/java/forge/player/TargetSelection.java](/Users/denislebedev/src/leyline/forge/forge-gui/src/main/java/forge/player/TargetSelection.java)
-- [forge/forge-gui/src/main/java/forge/player/TargetSelectionResult.java](/Users/denislebedev/src/leyline/forge/forge-gui/src/main/java/forge/player/TargetSelectionResult.java)
+- [matchdoor/src/main/kotlin/leyline/bridge/WebPlayerController.kt](matchdoor/src/main/kotlin/leyline/bridge/WebPlayerController.kt)
+- [forge/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java](forge/forge-gui/src/main/java/forge/player/PlayerControllerHuman.java)
+- [forge/forge-gui/src/main/java/forge/player/HumanPlay.java](forge/forge-gui/src/main/java/forge/player/HumanPlay.java)
+- [forge/forge-gui/src/main/java/forge/player/HumanPlaySpellAbility.java](forge/forge-gui/src/main/java/forge/player/HumanPlaySpellAbility.java)
+- [forge/forge-gui/src/main/java/forge/player/TargetSelection.java](forge/forge-gui/src/main/java/forge/player/TargetSelection.java)
+- [forge/forge-gui/src/main/java/forge/player/TargetSelectionResult.java](forge/forge-gui/src/main/java/forge/player/TargetSelectionResult.java)
 
 What must remain true:
 
@@ -64,23 +64,23 @@ Upstream may replace the exact seam shape. That is fine if the capability still 
 
 Leyline depends on richer event info than stock upstream in a few places.
 
-- [forge/forge-game/src/main/java/forge/game/event/GameEventCardSurveiled.java](/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/event/GameEventCardSurveiled.java)
-- [forge/forge-game/src/main/java/forge/game/event/GameEventTokenCreated.java](/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/event/GameEventTokenCreated.java)
-- [forge/forge-game/src/main/java/forge/game/event/IGameEventVisitor.java](/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/event/IGameEventVisitor.java)
-- [forge/forge-game/src/main/java/forge/game/card/CardZoneTable.java](/Users/denislebedev/src/leyline/forge/forge-game/src/main/java/forge/game/card/CardZoneTable.java)
+- [forge/forge-game/src/main/java/forge/game/event/GameEventCardSurveiled.java](forge/forge-game/src/main/java/forge/game/event/GameEventCardSurveiled.java)
+- [forge/forge-game/src/main/java/forge/game/event/GameEventTokenCreated.java](forge/forge-game/src/main/java/forge/game/event/GameEventTokenCreated.java)
+- [forge/forge-game/src/main/java/forge/game/event/IGameEventVisitor.java](forge/forge-game/src/main/java/forge/game/event/IGameEventVisitor.java)
+- [forge/forge-game/src/main/java/forge/game/card/CardZoneTable.java](forge/forge-game/src/main/java/forge/game/card/CardZoneTable.java)
 
 Leyline consumers:
 
-- [matchdoor/src/main/kotlin/leyline/game/GameEvent.kt](/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/game/GameEvent.kt)
-- [matchdoor/src/main/kotlin/leyline/game/StateMapper.kt](/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/game/StateMapper.kt)
-- [matchdoor/src/main/kotlin/leyline/game/AnnotationBuilder.kt](/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/game/AnnotationBuilder.kt)
+- [matchdoor/src/main/kotlin/leyline/game/GameEvent.kt](matchdoor/src/main/kotlin/leyline/game/GameEvent.kt)
+- [matchdoor/src/main/kotlin/leyline/game/StateMapper.kt](matchdoor/src/main/kotlin/leyline/game/StateMapper.kt)
+- [matchdoor/src/main/kotlin/leyline/game/AnnotationBuilder.kt](matchdoor/src/main/kotlin/leyline/game/AnnotationBuilder.kt)
 
 If upstream changes event structure, re-check annotation fidelity first.
 
 ### 4. Testability / determinism helpers
 
-- [forge/forge-core/src/main/java/forge/util/MyRandom.java](/Users/denislebedev/src/leyline/forge/forge-core/src/main/java/forge/util/MyRandom.java)
-- [forge/forge-core/src/main/java/forge/card/CardDb.java](/Users/denislebedev/src/leyline/forge/forge-core/src/main/java/forge/card/CardDb.java)
+- [forge/forge-core/src/main/java/forge/util/MyRandom.java](forge/forge-core/src/main/java/forge/util/MyRandom.java)
+- [forge/forge-core/src/main/java/forge/card/CardDb.java](forge/forge-core/src/main/java/forge/card/CardDb.java)
 
 Why they matter:
 
@@ -150,11 +150,11 @@ When a Forge file conflicts, immediately map it to Leyline consumers before reso
 Examples:
 
 - `PlayerControllerHuman` / `HumanPlay*` conflict:
-  check [matchdoor/src/main/kotlin/leyline/bridge/WebPlayerController.kt](/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/bridge/WebPlayerController.kt)
+  check [matchdoor/src/main/kotlin/leyline/bridge/WebPlayerController.kt](matchdoor/src/main/kotlin/leyline/bridge/WebPlayerController.kt)
 - event conflict:
-  check [matchdoor/src/main/kotlin/leyline/game/GameEvent.kt](/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/game/GameEvent.kt)
+  check [matchdoor/src/main/kotlin/leyline/game/GameEvent.kt](matchdoor/src/main/kotlin/leyline/game/GameEvent.kt)
 - Maven/build conflict:
-  check [build.gradle.kts](/Users/denislebedev/src/leyline/build.gradle.kts), [matchdoor/build.gradle.kts](/Users/denislebedev/src/leyline/matchdoor/build.gradle.kts), [justfile](/Users/denislebedev/src/leyline/justfile)
+  check [build.gradle.kts](build.gradle.kts), [matchdoor/build.gradle.kts](matchdoor/build.gradle.kts), [justfile](justfile)
 
 ### 5. Install the merged engine into Leyline's local repo
 
@@ -238,23 +238,23 @@ Low conceptual risk. Keep if tests still need them.
 
 Bridge / engine boot:
 
-- [matchdoor/src/test/kotlin/leyline/game/GameBridgeTest.kt](/Users/denislebedev/src/leyline/matchdoor/src/test/kotlin/leyline/game/GameBridgeTest.kt)
-- [matchdoor/src/test/kotlin/leyline/protocol/HandshakeMessagesTest.kt](/Users/denislebedev/src/leyline/matchdoor/src/test/kotlin/leyline/protocol/HandshakeMessagesTest.kt)
-- [matchdoor/src/test/kotlin/leyline/bridge/GameActionBridgeTest.kt](/Users/denislebedev/src/leyline/matchdoor/src/test/kotlin/leyline/bridge/GameActionBridgeTest.kt)
+- [matchdoor/src/test/kotlin/leyline/game/GameBridgeTest.kt](matchdoor/src/test/kotlin/leyline/game/GameBridgeTest.kt)
+- [matchdoor/src/test/kotlin/leyline/protocol/HandshakeMessagesTest.kt](matchdoor/src/test/kotlin/leyline/protocol/HandshakeMessagesTest.kt)
+- [matchdoor/src/test/kotlin/leyline/bridge/GameActionBridgeTest.kt](matchdoor/src/test/kotlin/leyline/bridge/GameActionBridgeTest.kt)
 
 Event / annotation fidelity:
 
-- [matchdoor/src/test/kotlin/leyline/game/GameEventCollectorTest.kt](/Users/denislebedev/src/leyline/matchdoor/src/test/kotlin/leyline/game/GameEventCollectorTest.kt)
-- [matchdoor/src/test/kotlin/leyline/game/CategoryFromEventsTest.kt](/Users/denislebedev/src/leyline/matchdoor/src/test/kotlin/leyline/game/CategoryFromEventsTest.kt)
-- [matchdoor/src/test/kotlin/leyline/game/AnnotationPipelineTest.kt](/Users/denislebedev/src/leyline/matchdoor/src/test/kotlin/leyline/game/AnnotationPipelineTest.kt)
+- [matchdoor/src/test/kotlin/leyline/game/GameEventCollectorTest.kt](matchdoor/src/test/kotlin/leyline/game/GameEventCollectorTest.kt)
+- [matchdoor/src/test/kotlin/leyline/game/CategoryFromEventsTest.kt](matchdoor/src/test/kotlin/leyline/game/CategoryFromEventsTest.kt)
+- [matchdoor/src/test/kotlin/leyline/game/AnnotationPipelineTest.kt](matchdoor/src/test/kotlin/leyline/game/AnnotationPipelineTest.kt)
 
 End-to-end behavior:
 
-- [matchdoor/src/test/kotlin/leyline/conformance/CombatFlowTest.kt](/Users/denislebedev/src/leyline/matchdoor/src/test/kotlin/leyline/conformance/CombatFlowTest.kt)
-- [matchdoor/src/test/kotlin/leyline/conformance/TargetingFlowTest.kt](/Users/denislebedev/src/leyline/matchdoor/src/test/kotlin/leyline/conformance/TargetingFlowTest.kt)
-- [matchdoor/src/test/kotlin/leyline/conformance/SurveilFlowTest.kt](/Users/denislebedev/src/leyline/matchdoor/src/test/kotlin/leyline/conformance/SurveilFlowTest.kt)
-- [matchdoor/src/test/kotlin/leyline/conformance/TreasureTokenTest.kt](/Users/denislebedev/src/leyline/matchdoor/src/test/kotlin/leyline/conformance/TreasureTokenTest.kt)
-- [matchdoor/src/test/kotlin/leyline/conformance/PvpBridgeEndToEndTest.kt](/Users/denislebedev/src/leyline/matchdoor/src/test/kotlin/leyline/conformance/PvpBridgeEndToEndTest.kt)
+- [matchdoor/src/test/kotlin/leyline/conformance/CombatFlowTest.kt](matchdoor/src/test/kotlin/leyline/conformance/CombatFlowTest.kt)
+- [matchdoor/src/test/kotlin/leyline/conformance/TargetingFlowTest.kt](matchdoor/src/test/kotlin/leyline/conformance/TargetingFlowTest.kt)
+- [matchdoor/src/test/kotlin/leyline/conformance/SurveilFlowTest.kt](matchdoor/src/test/kotlin/leyline/conformance/SurveilFlowTest.kt)
+- [matchdoor/src/test/kotlin/leyline/conformance/TreasureTokenTest.kt](matchdoor/src/test/kotlin/leyline/conformance/TreasureTokenTest.kt)
+- [matchdoor/src/test/kotlin/leyline/conformance/PvpBridgeEndToEndTest.kt](matchdoor/src/test/kotlin/leyline/conformance/PvpBridgeEndToEndTest.kt)
 
 If a sync is risky in one of the preserve areas, run these explicitly even if the broad gate already passed.
 
@@ -265,7 +265,7 @@ Observed break patterns from the March 17, 2026 upstream sync:
 - Compile/API drift
   - Symptoms: Kotlin compile failures in `matchdoor`, event constructor mismatches, missing methods on Forge interfaces.
   - Typical cause: upstream moved GUI-side logic into `forge-game`, changed event payloads to `*View` types, or renamed `IGuiGame` methods.
-  - First check: [WebPlayerController.kt](/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/bridge/WebPlayerController.kt), [WebGuiGame.kt](/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/bridge/WebGuiGame.kt), [GameEventCollector.kt](/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/game/GameEventCollector.kt)
+  - First check: [WebPlayerController.kt](matchdoor/src/main/kotlin/leyline/bridge/WebPlayerController.kt), [WebGuiGame.kt](matchdoor/src/main/kotlin/leyline/bridge/WebGuiGame.kt), [GameEventCollector.kt](matchdoor/src/main/kotlin/leyline/game/GameEventCollector.kt)
 
 - Engine-thread runtime crash disguised as protocol regression
   - Symptoms: annotation/order tests fail for "missing" protocol data, but root cause is earlier engine failure.
@@ -275,13 +275,13 @@ Observed break patterns from the March 17, 2026 upstream sync:
 - Controller seam drift
   - Symptoms: web prompts stop appearing, mana payment or cost decisions silently route through desktop code, targeting path stops using bridge requests.
   - Typical cause: upstream starts calling different `PlayerController` methods than the old seam covered.
-  - First check: compare upstream call sites in `forge-game/.../PlaySpellAbility.java` against overrides in [WebPlayerController.kt](/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/bridge/WebPlayerController.kt)
+  - First check: compare upstream call sites in `forge-game/.../PlaySpellAbility.java` against overrides in [WebPlayerController.kt](matchdoor/src/main/kotlin/leyline/bridge/WebPlayerController.kt)
 
 - Event adapter drift
   - Symptoms: missing attachment/token/surveil annotations even though game state looks roughly right.
   - Typical cause: upstream changed event payload classes or view/entity shapes.
   - Concrete example: `GameEventCardAttachment` now carries `GameEntityView`; old collector logic expected concrete `Card`.
-  - First check: [GameEventCollector.kt](/Users/denislebedev/src/leyline/matchdoor/src/main/kotlin/leyline/game/GameEventCollector.kt), corresponding Forge `GameEvent*.java`
+  - First check: [GameEventCollector.kt](matchdoor/src/main/kotlin/leyline/game/GameEventCollector.kt), corresponding Forge `GameEvent*.java`
 
 - Test fragility from sequencing or deck assumptions
   - Symptoms: integration tests fail after update even though isolated engine behavior is valid.

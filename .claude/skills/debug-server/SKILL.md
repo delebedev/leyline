@@ -40,9 +40,9 @@ When the server-side debug API shows correct messages but the client UI is stuck
 
 ```bash
 # Find the relevant log line (e.g. last game-over message) and read lines after it
-grep -n "MatchCompleted\|GameOver\|IntermissionReq" "/Users/denislebedev/Library/Logs/Wizards Of The Coast/MTGA/Player.log" | tail -3
+grep -n "MatchCompleted\|GameOver\|IntermissionReq" ~/Library/Logs/Wizards\ Of\ The\ Coast/MTGA/Player.log | tail -3
 # Then read ~40 lines after that line number:
-sed -n '<LINE>,<LINE+40>p' "/Users/denislebedev/Library/Logs/Wizards Of The Coast/MTGA/Player.log"
+sed -n '<LINE>,<LINE+40>p' ~/Library/Logs/Wizards\ Of\ The\ Coast/MTGA/Player.log
 ```
 
 Common client-side crashes and what they mean:
@@ -54,4 +54,4 @@ Common client-side crashes and what they mean:
 
 - **Pagination:** list endpoints return `{version:1, data:[...], cursor:N}`. Pass `?since=<cursor>` for next page.
 - **msgSeq:** snapshots and priority events include `msgSeq` — use to correlate between protocol messages and state snapshots.
-- **Client-side logs:** `"/Users/denislebedev/Library/Logs/Wizards Of The Coast/MTGA/Player.log"`. Compare debug API output (what we sent) vs Player.log (what client received) to isolate serialization vs logic issues. See `docs/reading-player-logs.md` for extraction scripts.
+- **Client-side logs:** `~/Library/Logs/Wizards Of The Coast/MTGA/Player.log`. Compare debug API output (what we sent) vs Player.log (what client received) to isolate serialization vs logic issues. See `docs/reading-player-logs.md` for extraction scripts.
