@@ -48,6 +48,7 @@ object MechanicClassifier {
         is GameEvent.CardsRevealed -> "reveal"
         is GameEvent.CombatEnded -> "combat_end"
         is GameEvent.PowerToughnessChanged -> "pt_change"
+        is GameEvent.PhaseChanged -> "phase_change"
     }
 
     /**

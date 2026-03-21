@@ -4,6 +4,7 @@ import com.google.common.eventbus.Subscribe
 import forge.ai.LobbyPlayerAi
 import forge.game.event.*
 import forge.game.zone.ZoneType
+import leyline.game.mapper.PlayerMapper
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedQueue
@@ -289,6 +290,16 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     override fun visit(ev: GameEventCombatEnded) {
         queue.add(GameEvent.CombatEnded)
         log.debug("event: CombatEnded")
+    }
+
+    // -- Group D: phase/turn events --
+
+    override fun visit(ev: GameEventTurnPhase) {
+        val seat = seatOf(ev.playerTurn()) ?: return
+        val phase = PlayerMapper.mapPhase(ev.phase()).number
+        val step = PlayerMapper.mapStep(ev.phase()).number
+        queue.add(GameEvent.PhaseChanged(seat, phase, step))
+        log.debug("event: PhaseChanged seat={} phase={} step={}", seat, phase, step)
     }
 
     // -- helpers --
