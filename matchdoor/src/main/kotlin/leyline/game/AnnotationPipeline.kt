@@ -416,9 +416,8 @@ object AnnotationPipeline {
 
         val annotations = mutableListOf<AnnotationInfo>()
 
-        // --- PhaseOrStepModified FIRST (real server ordering) ---
-        // phase=3 (Combat), step=7 (CombatDamage) — protocol constants
-        annotations.add(AnnotationBuilder.phaseOrStepModified(activeSeat, phase = 3, step = 7))
+        // PhaseOrStepModified is now emitted from GameEvent.PhaseChanged in Stage 2b.
+        // CombatDamage phase fires via GameEventTurnPhase before damage events.
 
         // --- DamageDealt: creature → creature ---
         for (ev in cardDamage) {
