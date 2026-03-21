@@ -15,7 +15,7 @@ You are one iteration of an autonomous loop. Your job:
 
 State from previous iterations is in PROGRESS.md. Read it first.
 
-**Reference:** `~/src/mtga-internals/docs/autoplay/forge-mode-notes.md` has critical Forge-mode
+**Reference:** `tools/arena/docs/forge-mode-notes.md` has critical Forge-mode
 quirks (Stack/Resolve, combat, Main phase skipping, cards to avoid). Read it if you get stuck
 on gameplay mechanics.
 
