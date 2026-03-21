@@ -3,8 +3,7 @@
 Profile annotation detail keys across **all** proxy recordings to find
 mismatches, missing types, and optional fields that single golden tests can't catch.
 
-Companion to [golden-tests.md](golden-tests.md) (per-message field coverage)
-and [recording-cli.md](recording-cli.md) (game-level browsing).
+Companion to `GoldenFieldCoverageTest.kt` (per-message field coverage).
 
 ## Quick start
 

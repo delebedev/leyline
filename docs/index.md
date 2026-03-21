@@ -25,7 +25,6 @@ Each tool has `--help` with examples. Docs co-located in `tools/<name>/docs/`.
 - `recording-analysis-runbook.md` — end-to-end capture/analyze/golden workflow
 - `recording-triage-runbook.md` — new recordings → catalogue what's new → scope implementation
 - `annotation-variance.md` — annotation type variance profiler across all recordings
-- `golden-tests.md` — per-message golden field coverage tests
 - `reading-player-logs.md` — read client/player logs for transport/protocol context
 - `wire-format.md` — client frame + protobuf wire format details
 - `debug-api.md` — debug panel REST/SSE endpoint reference
