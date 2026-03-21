@@ -153,6 +153,8 @@ object StateMapper {
         annotations.addAll(combatResult.annotations)
 
         // Stage 4: Mechanic annotations (Group B: counters, shuffle, scry, tokens + Group A+: attachments)
+        // Suppress CardTapped for lands whose tap was already emitted in Stage 2's mana payment block.
+        // Invariant: one SpellCast per diff cycle (Forge resolves one action at a time).
         val manaPaidForgeCardIds = events
             .filterIsInstance<GameEvent.SpellCast>()
             .flatMap { it.manaPayments.map { mp -> mp.sourceForgeCardId } }

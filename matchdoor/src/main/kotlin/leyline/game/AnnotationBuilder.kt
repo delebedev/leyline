@@ -298,7 +298,7 @@ object AnnotationBuilder {
     fun abilityInstanceCreated(abilityInstanceId: Int, affectorId: Int = 0, sourceZoneId: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.AbilityInstanceCreated)
-            .also { if (affectorId != 0) it.setAffectorId(affectorId) }
+            .setAffectorId(affectorId)
             .addAffectedIds(abilityInstanceId)
             .addDetails(int32Detail("source_zone", sourceZoneId))
             .build()
@@ -313,7 +313,7 @@ object AnnotationBuilder {
     fun abilityInstanceDeleted(abilityInstanceId: Int, affectorId: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.AbilityInstanceDeleted)
-            .also { if (affectorId != 0) it.setAffectorId(affectorId) }
+            .setAffectorId(affectorId)
             .addAffectedIds(abilityInstanceId)
             .build()
 
