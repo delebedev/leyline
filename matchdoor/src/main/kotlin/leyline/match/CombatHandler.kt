@@ -308,6 +308,10 @@ class CombatHandler(private val ops: SessionOps) {
                 // New combat round — reset blocker-sent flag from previous combat.
                 pendingBlockersSent = false
                 if (isHumanTurn) {
+                    // Don't re-prompt if attackers already declared (post-declaration priority window)
+                    if (combat != null && combat.attackers.isNotEmpty()) {
+                        return Signal.CONTINUE
+                    }
                     val req = BundleBuilder.buildDeclareAttackersReq(game, ops.seatId, bridge)
                     if (req.attackersCount > 0) {
                         ops.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
@@ -340,17 +344,16 @@ class CombatHandler(private val ops: SessionOps) {
                 }
             }
             PhaseType.COMBAT_DAMAGE -> {
-                if (combat != null && combat.attackers.isNotEmpty()) {
-                    ops.traceEvent(MatchEventType.SEND_STATE, game, "combat damage")
-                    ops.paceDelay(2)
-                    return Signal.SEND_STATE
-                }
+                // Always send state at combat damage — Forge clears combat.attackers
+                // after dealing damage but before we get priority, so we can't guard on it.
+                ops.traceEvent(MatchEventType.SEND_STATE, game, "combat damage")
+                ops.paceDelay(2)
+                return Signal.SEND_STATE
             }
             PhaseType.COMBAT_END -> {
-                if (combat != null && combat.attackers.isNotEmpty()) {
-                    ops.traceEvent(MatchEventType.SEND_STATE, game, "combat end")
-                    return Signal.SEND_STATE
-                }
+                // Same: combat may be cleared by the time we check
+                ops.traceEvent(MatchEventType.SEND_STATE, game, "combat end")
+                return Signal.SEND_STATE
             }
             else -> {}
         }

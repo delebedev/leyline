@@ -1,12 +1,9 @@
 package leyline.game
 
-import forge.game.Game
-import forge.game.phase.PhaseType
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
 import leyline.game.mapper.ObjectMapper
-import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.ZoneIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -240,39 +237,70 @@ object AnnotationPipeline {
      * **Pure function** given game state and previous player info.
      * No bridge mutation — only reads instanceId mappings.
      */
+    /**
+     * Result of combat damage annotation generation.
+     * [hasCombatDamage] signals that turnInfo should be overridden to CombatDamage.
+     */
+    data class CombatAnnotationResult(
+        val annotations: List<AnnotationInfo>,
+        val hasCombatDamage: Boolean = false,
+    )
+
+    /**
+     * Stage 3: Generate combat damage annotations from events.
+     *
+     * Uses [GameEvent.DamageDealtToCard] and [GameEvent.DamageDealtToPlayer] events
+     * captured synchronously on the engine thread (before Forge clears combat state).
+     * The combat object's attackers list is empty by the time we build the GSM,
+     * so we cannot query it here.
+     *
+     * Annotation ordering matches real server: PhaseOrStepModified → DamageDealt(s)
+     * → SyntheticEvent → ModifiedLife → (ObjectIdChanged/ZoneTransfer handled by Stage 1).
+     */
     internal fun combatAnnotations(
-        game: Game,
+        events: List<GameEvent>,
         bridge: GameBridge,
-    ): List<AnnotationInfo> {
-        val handler = game.phaseHandler
-        if (handler.phase != PhaseType.COMBAT_DAMAGE && handler.phase != PhaseType.COMBAT_FIRST_STRIKE_DAMAGE) {
-            return emptyList()
-        }
-        val combat = handler.combat ?: return emptyList()
-        if (combat.attackers.isEmpty()) return emptyList()
+        activeSeat: Int,
+    ): CombatAnnotationResult {
+        val cardDamage = events.filterIsInstance<GameEvent.DamageDealtToCard>()
+        val playerDamage = events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
+        if (cardDamage.isEmpty() && playerDamage.isEmpty()) return CombatAnnotationResult(emptyList())
 
         val annotations = mutableListOf<AnnotationInfo>()
 
-        for (attacker in combat.attackers) {
-            val iid = bridge.getOrAllocInstanceId(ForgeCardId(attacker.id)).value
-            val dmg = attacker.getTotalDamageDoneBy()
-            if (dmg > 0) {
-                annotations.add(AnnotationBuilder.damageDealt(iid, dmg))
-            }
-            // Mark attacker as damaged if it took damage from blockers
-            if (attacker.getDamage() > 0) {
-                annotations.add(AnnotationBuilder.damagedThisTurn(iid))
-            }
-            // Mark blockers that took damage from this attacker
-            // TODO: a blocker blocking multiple attackers may get duplicate annotations here
-            for (blocker in combat.getBlockers(attacker)) {
-                if (blocker.getDamage() > 0) {
-                    val blockerIid = bridge.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
-                    annotations.add(AnnotationBuilder.damagedThisTurn(blockerIid))
-                }
-            }
+        // --- PhaseOrStepModified FIRST (real server ordering) ---
+        // phase=3 (Combat), step=7 (CombatDamage) — protocol constants
+        annotations.add(AnnotationBuilder.phaseOrStepModified(activeSeat, phase = 3, step = 7))
+
+        // --- DamageDealt: creature → creature ---
+        for (ev in cardDamage) {
+            val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.sourceForgeId)).value
+            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.targetForgeId)).value
+            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid, ev.amount))
         }
 
+        // --- DamageDealt: creature → player ---
+        var firstPlayerDamageAttackerIid: Int? = null
+        var playerDamageSeat: Int? = null
+        for (ev in playerDamage) {
+            val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.sourceForgeId)).value
+            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId, ev.amount))
+            if (firstPlayerDamageAttackerIid == null) firstPlayerDamageAttackerIid = sourceIid
+            playerDamageSeat = ev.targetSeatId
+        }
+
+        // --- DamagedThisTurn badges ---
+        for (ev in cardDamage) {
+            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.targetForgeId)).value
+            annotations.add(AnnotationBuilder.damagedThisTurn(targetIid))
+        }
+
+        // --- SyntheticEvent when player takes combat damage ---
+        if (playerDamageSeat != null && firstPlayerDamageAttackerIid != null) {
+            annotations.add(AnnotationBuilder.syntheticEvent(firstPlayerDamageAttackerIid, playerDamageSeat))
+        }
+
+        // --- ModifiedLife from baseline comparison ---
         val prev = bridge.getDiffBaselineState()
         if (prev != null) {
             for (playerInfo in prev.playersList) {
@@ -281,21 +309,15 @@ object AnnotationPipeline {
                 if (player != null) {
                     val delta = player.life - playerInfo.lifeTotal
                     if (delta != 0) {
-                        annotations.add(AnnotationBuilder.modifiedLife(seat, delta))
+                        annotations.add(
+                            AnnotationBuilder.modifiedLife(seat, delta, affectorId = firstPlayerDamageAttackerIid ?: 0),
+                        )
                     }
                 }
             }
         }
 
-        val human = bridge.getPlayer(SeatId(1))
-        val activeSeat = if (handler.playerTurn == human) 1 else 2
-        val protoPhase = PlayerMapper.mapPhase(handler.phase).number
-        val protoStep = PlayerMapper.mapStep(handler.phase).number
-        annotations.add(AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep))
-        // SyntheticEvent suppressed: real server sends it empty (no affectedIds/affectorId)
-        // but our client version's SyntheticEventAnnotationParser crashes on missing affectedId.
-        // Cosmetic-only (combat phase marker) — safe to omit.
-        return annotations
+        return CombatAnnotationResult(annotations, hasCombatDamage = true)
     }
 
     /**

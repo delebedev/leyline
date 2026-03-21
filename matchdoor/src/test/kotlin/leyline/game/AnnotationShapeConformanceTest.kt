@@ -34,7 +34,7 @@ class AnnotationShapeConformanceTest :
         // =======================================================================
 
         test("DamageDealt shape: {damage, type, markDamage} — matches golden combat-damage.bin gsId=126") {
-            val ann = AnnotationBuilder.damageDealt(sourceInstanceId = 1, amount = 3)
+            val ann = AnnotationBuilder.damageDealt(sourceInstanceId = 1, targetId = 2, amount = 3)
             detailKeys(ann) shouldBe setOf("damage", "type", "markDamage")
         }
 
@@ -119,7 +119,7 @@ class AnnotationShapeConformanceTest :
         }
 
         test("SyntheticEvent shape: {type}") {
-            val ann = AnnotationBuilder.syntheticEvent(1)
+            val ann = AnnotationBuilder.syntheticEvent(1, 1)
             detailKeys(ann) shouldBe setOf("type")
         }
 
@@ -285,11 +285,11 @@ class AnnotationShapeConformanceTest :
             "ResolutionComplete" to detailKeys(AnnotationBuilder.resolutionComplete(1, 1)),
             "ResolutionStart" to detailKeys(AnnotationBuilder.resolutionStart(1, 1)),
             "NewTurnStarted" to detailKeys(AnnotationBuilder.newTurnStarted(1)),
-            "DamageDealt" to detailKeys(AnnotationBuilder.damageDealt(1, 3)),
+            "DamageDealt" to detailKeys(AnnotationBuilder.damageDealt(1, 2, 3)),
             "ModifiedToughness" to detailKeys(AnnotationBuilder.modifiedToughness(1)),
             "ModifiedPower" to detailKeys(AnnotationBuilder.modifiedPower(1)),
             "ModifiedLife" to detailKeys(AnnotationBuilder.modifiedLife(1, -3)),
-            "SyntheticEvent" to detailKeys(AnnotationBuilder.syntheticEvent(1)),
+            "SyntheticEvent" to detailKeys(AnnotationBuilder.syntheticEvent(1, 1)),
             "TokenCreated" to detailKeys(AnnotationBuilder.tokenCreated(1)),
             "AttachmentCreated" to detailKeys(AnnotationBuilder.attachmentCreated(1, 2)),
             "Attachment" to detailKeys(AnnotationBuilder.attachment(1, 2)),

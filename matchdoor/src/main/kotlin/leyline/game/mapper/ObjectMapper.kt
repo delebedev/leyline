@@ -2,7 +2,9 @@ package leyline.game.mapper
 
 import forge.game.Game
 import forge.game.card.Card
+import forge.game.player.Player
 import leyline.bridge.ForgeCardId
+import leyline.bridge.SeatId
 import leyline.game.CardProtoBuilder
 import leyline.game.CardRepository
 import leyline.game.GameBridge
@@ -138,11 +140,57 @@ object ObjectMapper {
         // Combat state
         val combat = game?.phaseHandler?.combat
         if (combat != null && type.isCreature) {
-            if (combat.isAttacking(card)) setAttackState(AttackState.Attacking)
-            if (combat.isBlocking(card)) setBlockState(BlockState.Blocking)
+            applyCombatState(card, combat, bridge)
         }
 
         return this
+    }
+
+    /** Apply attackState/blockState, attackInfo/blockInfo to a creature in combat. */
+    private fun GameObjectInfo.Builder.applyCombatState(
+        card: Card,
+        combat: forge.game.combat.Combat,
+        bridge: GameBridge?,
+    ) {
+        if (combat.isAttacking(card)) {
+            setAttackState(AttackState.Attacking)
+            val defender = combat.getDefenderByAttacker(card)
+            if (defender != null) {
+                val targetId = when (defender) {
+                    is Player -> {
+                        val p1 = bridge?.getPlayer(SeatId(1))
+                        if (defender.id == p1?.id) 1 else 2
+                    }
+                    is Card -> bridge?.getOrAllocInstanceId(ForgeCardId(defender.id))?.value ?: 0
+                    else -> 0
+                }
+                if (targetId > 0) {
+                    setAttackInfo(AttackInfo.newBuilder().setTargetId(targetId))
+                }
+            }
+            val band = combat.getBandOfAttacker(card)
+            if (band != null) {
+                val blocked = band.isBlocked()
+                if (blocked == true) {
+                    setBlockState(BlockState.Blocked)
+                } else if (blocked == false) {
+                    setBlockState(BlockState.Unblocked)
+                }
+            }
+        }
+        if (combat.isBlocking(card)) {
+            setBlockState(BlockState.Blocking)
+            val attackers = combat.getAttackersBlockedBy(card)
+            if (attackers.isNotEmpty() && bridge != null) {
+                setBlockInfo(
+                    BlockInfo.newBuilder().apply {
+                        for (atk in attackers) {
+                            addAttackerIds(bridge.getOrAllocInstanceId(ForgeCardId(atk.id)).value)
+                        }
+                    },
+                )
+            }
+        }
     }
 
     /**
@@ -160,7 +208,6 @@ object ObjectMapper {
         ownerSeatId: Int,
         controllerSeatId: Int,
         bridge: GameBridge,
-        game: Game,
     ): GameObjectInfo {
         val grpId = resolveGrpId(card, bridge.cards)
         return bridge.cardProto.buildObjectInfo(grpId)
@@ -170,7 +217,7 @@ object ObjectMapper {
             .setVisibility(Visibility.Public)
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(controllerSeatId)
-            .applyCardFields(card, bridge, game)
+            .applyCardFields(card, bridge, game = null) // echo objects carry no combat state
             .build()
     }
 
