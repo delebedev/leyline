@@ -39,6 +39,14 @@ object AnnotationPipeline {
      * Produced by [detectZoneTransfers], consumed by [annotationsForTransfer].
      * All fields are plain ints/strings — no Forge engine references, independently testable.
      */
+    /** Pre-resolved mana payment: all IDs are client instanceIds, ready for annotation building. */
+    data class ManaPaymentRecord(
+        val landInstanceId: Int,
+        val manaAbilityInstanceId: Int,
+        val color: Int,
+        val abilityGrpId: Int,
+    )
+
     data class AppliedTransfer(
         val origId: Int,
         val newId: Int,
@@ -51,6 +59,8 @@ object AnnotationPipeline {
         val affectorId: Int = 0,
         /** Color bitmasks for land color production (1=W, 2=U, 4=B, 8=R, 16=G). */
         val colorBitmasks: List<Int> = emptyList(),
+        /** Resolved mana payments for CastSpell (one per land tapped). */
+        val manaPayments: List<ManaPaymentRecord> = emptyList(),
     )
 
     /**
@@ -225,9 +235,44 @@ object AnnotationPipeline {
             TransferCategory.CastSpell -> {
                 annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
-                annotations.add(AnnotationBuilder.abilityInstanceCreated(newId, sourceZoneId = srcZone))
-                annotations.add(AnnotationBuilder.manaPaid(newId, landInstanceId = 0)) // TODO(Task 4): pass real landInstanceId/manaId/color from mana payment data
-                annotations.add(AnnotationBuilder.abilityInstanceDeleted(newId))
+                // Per-land mana payment block (repeats for each land tapped)
+                for ((i, mp) in transfer.manaPayments.withIndex()) {
+                    annotations.add(
+                        AnnotationBuilder.abilityInstanceCreated(
+                            abilityInstanceId = mp.manaAbilityInstanceId,
+                            affectorId = mp.landInstanceId,
+                            sourceZoneId = ZONE_BATTLEFIELD,
+                        ),
+                    )
+                    annotations.add(
+                        AnnotationBuilder.tappedUntappedPermanent(
+                            permanentId = mp.landInstanceId,
+                            abilityId = mp.manaAbilityInstanceId,
+                        ),
+                    )
+                    annotations.add(
+                        AnnotationBuilder.userActionTaken(
+                            instanceId = mp.manaAbilityInstanceId,
+                            seatId = actingSeat,
+                            actionType = 4,
+                            abilityGrpId = mp.abilityGrpId,
+                        ),
+                    )
+                    annotations.add(
+                        AnnotationBuilder.manaPaid(
+                            spellInstanceId = newId,
+                            landInstanceId = mp.landInstanceId,
+                            manaId = i + 3,
+                            color = mp.color,
+                        ),
+                    )
+                    annotations.add(
+                        AnnotationBuilder.abilityInstanceDeleted(
+                            abilityInstanceId = mp.manaAbilityInstanceId,
+                            affectorId = mp.landInstanceId,
+                        ),
+                    )
+                }
                 annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
             }
             TransferCategory.Resolve -> {
