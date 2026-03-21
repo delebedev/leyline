@@ -97,8 +97,8 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
             when {
                 from == ZoneType.Battlefield && to == ZoneType.Graveyard && isLegendRuleVictim(card.id) ->
                     GameEvent.LegendRuleDeath(card.id, seat)
-                from == ZoneType.Battlefield && to == ZoneType.Graveyard ->
-                    GameEvent.CardDestroyed(card.id, seat)
+                // BF→GY without legend rule: fall through to ZoneChanged.
+                // CardDestroyed is emitted from GameEventCardDestroyed (with activator).
                 from == ZoneType.Battlefield && (to == ZoneType.Hand || to == ZoneType.Library) ->
                     GameEvent.CardBounced(card.id, seat)
                 to == ZoneType.Exile ->
@@ -194,6 +194,14 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val seat = seatOf(card.controller) ?: return
         queue.add(GameEvent.CardSacrificed(card.id, seat))
         log.debug("event: CardSacrificed card={} seat={}", card.name, seat)
+    }
+
+    override fun visit(ev: GameEventCardDestroyed) {
+        val card = ev.card() ?: return
+        val seat = seatOf(card.controller) ?: return
+        val sourceId = ev.activator()?.id
+        queue.add(GameEvent.CardDestroyed(card.id, seat, sourceId))
+        log.debug("event: CardDestroyed card={} seat={} source={}", card.name, seat, sourceId)
     }
 
     // -- Group A+: attachment events --

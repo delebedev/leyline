@@ -122,8 +122,9 @@ object AnnotationBuilder {
      */
     fun affectorSourceFromEvents(forgeCardId: Int, events: List<GameEvent>): Int? {
         for (ev in events) {
-            if (ev is GameEvent.CardSurveiled && ev.forgeCardId == forgeCardId) {
-                return ev.sourceForgeCardId
+            when {
+                ev is GameEvent.CardSurveiled && ev.forgeCardId == forgeCardId -> return ev.sourceForgeCardId
+                ev is GameEvent.CardDestroyed && ev.forgeCardId == forgeCardId -> return ev.sourceForgeCardId
             }
         }
         return null
