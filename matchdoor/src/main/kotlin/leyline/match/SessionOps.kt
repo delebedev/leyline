@@ -28,7 +28,7 @@ interface SessionOps {
     /** Session recorder — non-null when recording is enabled. */
     val recorder: MatchRecorder? get() = null
 
-    /** Wire the game bridge. No-op for read-only sessions. */
+    /** Wire the game bridge. Asserts counter identity for [MatchSession]. No-op for read-only sessions. */
     fun connectBridge(bridge: GameBridge) {}
 
     fun sendBundledGRE(messages: List<GREToClientMessage>)
