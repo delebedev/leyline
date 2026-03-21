@@ -124,7 +124,6 @@ object BundleBuilder {
         matchId: String,
         seatId: Int,
         counter: MessageCounter,
-        phaseChanged: Boolean = false,
         turnStarted: Boolean = false,
     ): BundleResult {
         val frame = GsmFrame.from(game, bridge)
@@ -142,20 +141,14 @@ object BundleBuilder {
         // Real server embeds human's potential actions during AI turn.
         val actions = ActionMapper.buildNaiveActions(seatId, bridge)
 
-        // Inject phase/turn annotations when applicable — must assign IDs to avoid
-        // mixed-id violations when gsBase already contains numbered zone-transfer annotations.
-        val gsWithAnnotations = if (phaseChanged || turnStarted) {
+        // Inject turn-start annotation when applicable. PhaseOrStepModified is now
+        // emitted event-driven in Stage 2b (inside buildDiffFromGame above).
+        val gsWithAnnotations = if (turnStarted) {
             gsBase.toBuilder().apply {
-                if (turnStarted) {
-                    addAnnotations(
-                        AnnotationBuilder.newTurnStarted(frame.activeSeat)
-                            .toBuilder().setId(bridge.nextAnnotationId()).build(),
-                    )
-                }
-                if (phaseChanged) {
-                    addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() })
-                    addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() })
-                }
+                addAnnotations(
+                    AnnotationBuilder.newTurnStarted(frame.activeSeat)
+                        .toBuilder().setId(bridge.nextAnnotationId()).build(),
+                )
             }.build()
         } else {
             gsBase

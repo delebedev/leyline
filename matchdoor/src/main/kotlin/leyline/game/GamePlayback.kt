@@ -73,7 +73,7 @@ class GamePlayback(
         val game = bridge.getGame() ?: return
         lastCapturedTurn = game.phaseHandler.turn
         lastCapturedPhase = game.phaseHandler.phase
-        captureAndPause(PHASE_DELAY, phaseChanged = true, turnStarted = true)
+        captureAndPause(PHASE_DELAY, turnStarted = true)
     }
 
     override fun visit(ev: GameEventTurnPhase) {
@@ -92,7 +92,7 @@ class GamePlayback(
             -> COMBAT_DELAY
             else -> PHASE_DELAY
         }
-        captureAndPause(delay, phaseChanged = true)
+        captureAndPause(delay)
     }
 
     override fun visit(ev: GameEventAttackersDeclared) {
@@ -128,7 +128,6 @@ class GamePlayback(
      */
     private fun captureAndPause(
         delayMs: Int,
-        phaseChanged: Boolean = false,
         turnStarted: Boolean = false,
     ) {
         val game = bridge.getGame() ?: return
@@ -140,7 +139,6 @@ class GamePlayback(
                 matchId,
                 seatId,
                 counter,
-                phaseChanged = phaseChanged,
                 turnStarted = turnStarted,
             )
 
