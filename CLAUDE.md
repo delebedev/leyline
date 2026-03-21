@@ -92,14 +92,14 @@ Fresh clone needs these steps in order:
 git submodule update --init --recursive   # forge + proto/upstream
 just install-forge                        # mvn install forge jars to forge/.m2-local/
 just build                                # gradle: proto-sync + compileKotlin + jar + writeClasspath
-just dev-setup                            # gen TLS certs (needs mitmproxy CA), patch Arena, macOS defaults
+just dev-setup                            # patch Arena client for localhost, macOS defaults
 just seed-db                              # create data/player.db with starter decks + player
 ```
 
 **Gotchas:**
 - `just build` runs `classes jar` — produces jars. But a **running server** holds old jars in memory. After code changes, restart the server (`just stop` + `just serve`) to pick up new classes. `just dev` auto-restarts on `.kt` changes.
 - Forge submodule must point to a commit that exists on remote. If `git submodule update` fails with "Unable to find current revision", the pinned commit was force-pushed away. Fix: `git -C forge checkout origin/master`.
-- `just gen-certs` needs hostnames from `Player.log`. If log is empty, pass them explicitly: `just gen-certs "frontdoor-mtga-production-<ver>.w2.mtgarena.com" "matchdoor-mtga-production-<ver>.w2.mtgarena.com"` (positional args, not `fd_host=`).
+- TLS certs are auto-generated at server boot from the mitmproxy CA (`~/.mitmproxy/`). Hostnames are discovered from `/etc/hosts`. Certs regenerate automatically when hostnames change (Arena patch).
 - `data/` dir must exist before `just seed-db` — `mkdir -p data` if missing.
 - `deploy/services-proxy.conf` is gitignored — copy from mini: `scp mini:~/src/leyline/deploy/services-proxy.conf deploy/`.
 - `/etc/hosts` needs FD+MD → 127.0.0.1 for proxy mode (doorbell stays commented out). Compare with `ssh mini 'cat /etc/hosts'`.
