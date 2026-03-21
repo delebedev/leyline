@@ -13,6 +13,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
+import leyline.IntegrationTag
 import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.game.GameBridge
