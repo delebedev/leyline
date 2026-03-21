@@ -142,136 +142,29 @@ object StateMapper {
         )
 
         // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
-        // Stage 1: Detect zone transfers, realloc IDs, get patched objects/zones
         val transferResult = AnnotationPipeline.detectZoneTransfers(gameObjects, zones, bridge, events)
-
-        // Stage 2: Generate annotations from transfers (pure, no side effects)
         val actingSeat = if (handler.priorityPlayer == human) 1 else 2
-        val annotations = mutableListOf<AnnotationInfo>()
-        val transferPersistent = mutableListOf<AnnotationInfo>()
-        for (transfer in transferResult.transfers) {
-            val (transient, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat)
-            annotations.addAll(transient)
-            transferPersistent.addAll(persistent)
-        }
+        val (annotations, transferPersistent, combatResult) =
+            computeAnnotations(events, transferResult, actingSeat, bridge)
 
-        // Stage 2b: Phase/step change annotations (event-driven from GameEventTurnPhase).
-        // Placed before combat (Stage 3) so PhaseOrStepModified precedes damage annotations.
-        for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
-            annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId, ev.phase, ev.step))
-        }
+        // Stages 4-5 + persistent computation
+        val remaining = computeRemainingAnnotations(
+            events, annotations, transferPersistent, initEffectDiff, effectDiff,
+            persistSnapshot, startPersistentId, startAnnotationId, game, bridge,
+        )
 
-        // Stage 3: Combat damage annotations (event-driven — events captured before Forge clears combat)
-        val combatResult = AnnotationPipeline.combatAnnotations(events, bridge)
-        annotations.addAll(combatResult.annotations)
-
-        // Stage 4: Mechanic annotations (Group B: counters, shuffle, scry, tokens + Group A+: attachments)
-        // Suppress CardTapped for lands whose tap was already emitted in Stage 2's mana payment block.
-        // Invariant: one SpellCast per diff cycle (Forge resolves one action at a time).
-        val castSpellManaForgeIds = events
-            .filterIsInstance<GameEvent.SpellCast>()
-            .flatMap { it.manaPayments.map { mp -> mp.sourceForgeCardId } }
-            .toSet()
-        val sacrificedManaForgeIds = events.filterIsInstance<GameEvent.ManaAbilityActivated>()
-            .filter { ma -> events.any { it is GameEvent.CardSacrificed && it.forgeCardId == ma.forgeCardId } }
-            .map { it.forgeCardId }
-            .toSet()
-        val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds
-        val mechanicResult = AnnotationPipeline.mechanicAnnotations(events, manaPaidForgeCardIds) { forgeCardId ->
-            bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
-        }
-        annotations.addAll(mechanicResult.transient)
-
-        // gsId=1 init effects: 3 effects created+destroyed immediately
-        if (initEffectDiff.created.isNotEmpty()) {
-            val (initTransient, _) = AnnotationPipeline.effectAnnotations(initEffectDiff)
-            annotations.addAll(initTransient)
-            // No persistent annotations stored — they're destroyed in the same GSM
-        }
-
-        // Stage 5: Layered effect lifecycle (P/T boost diffing)
-        // Resolve sourceAbilityGRPID: instanceId → card keyword → abilityGrpId
-        val battlefieldCards = game.players.flatMap { player ->
-            player.getZone(ForgeZoneType.Battlefield).cards.map { card ->
-                bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value to card.name
-            }
-        }
-        val sourceAbilityResolver = buildSourceAbilityResolver(battlefieldCards) { name ->
-            val grpId = bridge.cards.findGrpIdByName(name) ?: return@buildSourceAbilityResolver null
-            bridge.cards.findByGrpId(grpId)
-        }
-        val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
-        annotations.addAll(effectTransient)
-
-        // Pure persistent annotation computation (no bridge mutation)
-        val batch = PersistentAnnotationStore.computeBatch(
-            currentActive = persistSnapshot,
-            startPersistentId = startPersistentId,
-            effectPersistent = effectPersistent,
-            effectDiff = effectDiff,
-            transferPersistent = transferPersistent,
-            mechanicResult = mechanicResult,
-        ) { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value }
-
-        val allPersistentAnnotations = batch.allAnnotations
-
-        // Number transient annotations sequentially from snapshot
-        var annId = startAnnotationId
-        val numberedAnnotations = annotations.map {
-            it.toBuilder().setId(annId++).build()
-        }
-
-        // prevGameStateId: reference prior state if one exists
-        val prevState = bridge.getDiffBaselineState()
-        // Override turnInfo to CombatDamage when damage events fired
-        // (Forge advances past COMBAT_DAMAGE before we build the GSM)
-        val effectiveTurnInfo = if (combatResult.hasCombatDamage) {
-            frame.turnInfo().toBuilder().setPhase(Phase.Combat_a549).setStep(Step.CombatDamage_a2cb)
-        } else {
-            frame.turnInfo().toBuilder()
-        }
-
-        val builder = GameStateMessage.newBuilder()
-            .setType(GameStateType.Full)
-            .setGameStateId(gameStateId)
-            .setGameInfo(gameInfo)
-            .addAllTeams(listOf(team1.build(), team2.build()))
-            .setTurnInfo(effectiveTurnInfo)
-            .addAllPlayers(listOf(player1, player2))
-            .addAllZones(transferResult.patchedZones.sortedBy { it.zoneId })
-            .addAllGameObjects(transferResult.patchedObjects)
-            .addAllAnnotations(numberedAnnotations)
-            .addAllPersistentAnnotations(allPersistentAnnotations)
-            .addAllTimers(PlayerMapper.buildTimers())
-            .setUpdate(updateType)
-        if (prevState != null && prevState.gameStateId > 0) {
-            builder.setPrevGameStateId(prevState.gameStateId)
-        }
-
-        // Embed stripped-down actions in GSM (real server uses minimal format:
-        // Cast=instanceId+manaCost, Play=instanceId, ActivateMana=instanceId+abilityGrpId,
-        // no grpId/facetId/shouldStop/autoTapSolution, no actionId)
-        if (actions != null) {
-            val activeSeat = if (handler.priorityPlayer == human) 1 else 2
-            for (action in actions.actionsList) {
-                builder.addActions(
-                    ActionInfo.newBuilder()
-                        .setSeatId(activeSeat)
-                        .setAction(ActionMapper.stripActionForGsm(action)),
-                )
-            }
-        }
-
-        val built = builder.build()
+        // ═══ ASSEMBLE: build the GSM proto ═══
+        val built = assembleGsm(
+            gameStateId, gameInfo.build(), frame, transferResult, remaining,
+            combatResult, team1.build(), team2.build(), player1, player2,
+            updateType, actions, handler, human, bridge,
+        )
 
         // ═══ APPLY: deferred tracking effects (for next GSM) ═══
-        // These update bridge state for the NEXT buildFromGame/buildDiffFromGame call.
-        // They do NOT feed back into the current GSM (patchedZones/patchedObjects already contain
-        // the limbo/zone patches produced inside detectZoneTransfers).
         for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
         for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(InstanceId(iid), zid)
-        bridge.annotations.applyBatchResult(batch)
-        bridge.annotations.setAnnotationId(annId)
+        bridge.annotations.applyBatchResult(remaining.batch)
+        bridge.annotations.setAnnotationId(remaining.nextAnnotationId)
 
         val hasCastSpell = transferResult.transfers.any { it.category == TransferCategory.CastSpell }
         return BuildResult(built, hasCastSpell)
@@ -398,6 +291,157 @@ object StateMapper {
         } else {
             GameStateUpdate.SendHiFi
         }
+    }
+
+    /** Assemble the final GameStateMessage proto from computed components. */
+    @Suppress("LongParameterList")
+    private fun assembleGsm(
+        gameStateId: Int,
+        gameInfo: GameInfo,
+        frame: GsmFrame,
+        transferResult: AnnotationPipeline.TransferResult,
+        remaining: RemainingAnnotationsResult,
+        combatResult: AnnotationPipeline.CombatAnnotationResult,
+        team1: TeamInfo,
+        team2: TeamInfo,
+        player1: PlayerInfo,
+        player2: PlayerInfo,
+        updateType: GameStateUpdate,
+        actions: ActionsAvailableReq?,
+        handler: forge.game.phase.PhaseHandler,
+        human: forge.game.player.Player?,
+        bridge: GameBridge,
+    ): GameStateMessage {
+        val prevState = bridge.getDiffBaselineState()
+        val effectiveTurnInfo = if (combatResult.hasCombatDamage) {
+            frame.turnInfo().toBuilder().setPhase(Phase.Combat_a549).setStep(Step.CombatDamage_a2cb)
+        } else {
+            frame.turnInfo().toBuilder()
+        }
+
+        val builder = GameStateMessage.newBuilder()
+            .setType(GameStateType.Full)
+            .setGameStateId(gameStateId)
+            .setGameInfo(gameInfo)
+            .addAllTeams(listOf(team1, team2))
+            .setTurnInfo(effectiveTurnInfo)
+            .addAllPlayers(listOf(player1, player2))
+            .addAllZones(transferResult.patchedZones.sortedBy { it.zoneId })
+            .addAllGameObjects(transferResult.patchedObjects)
+            .addAllAnnotations(remaining.numbered)
+            .addAllPersistentAnnotations(remaining.persistent)
+            .addAllTimers(PlayerMapper.buildTimers())
+            .setUpdate(updateType)
+        if (prevState != null && prevState.gameStateId > 0) {
+            builder.setPrevGameStateId(prevState.gameStateId)
+        }
+
+        if (actions != null) {
+            val activeSeat = if (handler.priorityPlayer == human) 1 else 2
+            for (action in actions.actionsList) {
+                builder.addActions(
+                    ActionInfo.newBuilder()
+                        .setSeatId(activeSeat)
+                        .setAction(ActionMapper.stripActionForGsm(action)),
+                )
+            }
+        }
+        return builder.build()
+    }
+
+    /** Result of stages 4-5 + persistent annotation computation. */
+    private data class RemainingAnnotationsResult(
+        val numbered: List<AnnotationInfo>,
+        val persistent: List<AnnotationInfo>,
+        val batch: PersistentAnnotationStore.BatchResult,
+        val nextAnnotationId: Int,
+    )
+
+    /** Stages 4-5: mechanic + effect annotations, persistent computation, numbering. */
+    @Suppress("LongParameterList")
+    private fun computeRemainingAnnotations(
+        events: List<GameEvent>,
+        annotations: MutableList<AnnotationInfo>,
+        transferPersistent: List<AnnotationInfo>,
+        initEffectDiff: EffectTracker.DiffResult,
+        effectDiff: EffectTracker.DiffResult,
+        persistSnapshot: Map<Int, AnnotationInfo>,
+        startPersistentId: Int,
+        startAnnotationId: Int,
+        game: Game,
+        bridge: GameBridge,
+    ): RemainingAnnotationsResult {
+        val castSpellManaForgeIds = events
+            .filterIsInstance<GameEvent.SpellCast>()
+            .flatMap { it.manaPayments.map { mp -> mp.sourceForgeCardId } }
+            .toSet()
+        val sacrificedManaForgeIds = events.filterIsInstance<GameEvent.ManaAbilityActivated>()
+            .filter { ma -> events.any { it is GameEvent.CardSacrificed && it.forgeCardId == ma.forgeCardId } }
+            .map { it.forgeCardId }
+            .toSet()
+        val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds
+        val mechanicResult = AnnotationPipeline.mechanicAnnotations(events, manaPaidForgeCardIds) { forgeCardId ->
+            bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+        }
+        annotations.addAll(mechanicResult.transient)
+
+        if (initEffectDiff.created.isNotEmpty()) {
+            val (initTransient, _) = AnnotationPipeline.effectAnnotations(initEffectDiff)
+            annotations.addAll(initTransient)
+        }
+
+        val battlefieldCards = game.players.flatMap { player ->
+            player.getZone(ForgeZoneType.Battlefield).cards.map { card ->
+                bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value to card.name
+            }
+        }
+        val sourceAbilityResolver = buildSourceAbilityResolver(battlefieldCards) { name ->
+            val grpId = bridge.cards.findGrpIdByName(name) ?: return@buildSourceAbilityResolver null
+            bridge.cards.findByGrpId(grpId)
+        }
+        val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
+        annotations.addAll(effectTransient)
+
+        val batch = PersistentAnnotationStore.computeBatch(
+            currentActive = persistSnapshot,
+            startPersistentId = startPersistentId,
+            effectPersistent = effectPersistent,
+            effectDiff = effectDiff,
+            transferPersistent = transferPersistent,
+            mechanicResult = mechanicResult,
+        ) { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value }
+
+        var annId = startAnnotationId
+        val numbered = annotations.map { it.toBuilder().setId(annId++).build() }
+        return RemainingAnnotationsResult(numbered, batch.allAnnotations, batch, annId)
+    }
+
+    /** Stages 2-3 of the annotation pipeline: transfers → annotations + combat. */
+    private data class AnnotationPipelineResult(
+        val annotations: MutableList<AnnotationInfo>,
+        val transferPersistent: MutableList<AnnotationInfo>,
+        val combatResult: AnnotationPipeline.CombatAnnotationResult,
+    )
+
+    private fun computeAnnotations(
+        events: List<GameEvent>,
+        transferResult: AnnotationPipeline.TransferResult,
+        actingSeat: Int,
+        bridge: GameBridge,
+    ): AnnotationPipelineResult {
+        val annotations = mutableListOf<AnnotationInfo>()
+        val transferPersistent = mutableListOf<AnnotationInfo>()
+        for (transfer in transferResult.transfers) {
+            val (transient, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat)
+            annotations.addAll(transient)
+            transferPersistent.addAll(persistent)
+        }
+        for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
+            annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId, ev.phase, ev.step))
+        }
+        val combatResult = AnnotationPipeline.combatAnnotations(events, bridge)
+        annotations.addAll(combatResult.annotations)
+        return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }
 
     /** Keywords whose triggered/static abilities produce P/T boosts.

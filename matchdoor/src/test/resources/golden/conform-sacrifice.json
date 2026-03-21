@@ -4,6 +4,19 @@
     "compared": 16,
     "diffs": [
       {
+        "index": 1,
+        "type": "affectedIds_mismatch",
+        "annotation": [
+          "TappedUntappedPermanent"
+        ],
+        "recording": [
+          "$var_3"
+        ],
+        "engine": [
+          115
+        ]
+      },
+      {
         "index": 2,
         "type": "detail_mismatch",
         "annotation": [
@@ -12,19 +25,6 @@
         "key": "abilityGrpId",
         "recording": 176676,
         "engine": 0
-      },
-      {
-        "index": 3,
-        "type": "affectedIds_mismatch",
-        "annotation": [
-          "ManaPaid"
-        ],
-        "recording": [
-          "$var_5"
-        ],
-        "engine": [
-          117
-        ]
       },
       {
         "index": 3,
@@ -47,16 +47,6 @@
         "engine": 3
       },
       {
-        "index": 7,
-        "type": "detail_mismatch",
-        "annotation": [
-          "ObjectIdChanged"
-        ],
-        "key": "new_id",
-        "recording": 119,
-        "engine": 117
-      },
-      {
         "index": 8,
         "type": "detail_mismatch",
         "annotation": [
@@ -65,26 +55,6 @@
         "key": "zone_dest",
         "recording": 37,
         "engine": 33
-      },
-      {
-        "index": 9,
-        "type": "detail_mismatch",
-        "annotation": [
-          "UserActionTaken"
-        ],
-        "key": "abilityGrpId",
-        "recording": 183,
-        "engine": 0
-      },
-      {
-        "index": 9,
-        "type": "detail_mismatch",
-        "annotation": [
-          "UserActionTaken"
-        ],
-        "key": "actionType",
-        "recording": 4,
-        "engine": 1
       },
       {
         "index": 5,
@@ -98,6 +68,13 @@
         "type": "extra_recording",
         "recording": [
           "TappedUntappedPermanent"
+        ]
+      },
+      {
+        "index": 9,
+        "type": "extra_recording",
+        "recording": [
+          "UserActionTaken"
         ]
       },
       {
@@ -136,35 +113,21 @@
         ]
       },
       {
-        "index": 1,
-        "type": "extra_engine",
-        "engine": [
-          "ZoneTransfer"
-        ]
-      },
-      {
-        "index": 5,
-        "type": "extra_engine",
-        "engine": [
-          "ObjectIdChanged"
-        ]
-      },
-      {
-        "index": 10,
+        "index": 7,
         "type": "extra_engine",
         "engine": [
           "DamageDealt"
         ]
       },
       {
-        "index": 11,
+        "index": 8,
         "type": "extra_engine",
         "engine": [
           "SyntheticEvent"
         ]
       },
       {
-        "index": 12,
+        "index": 9,
         "type": "extra_engine",
         "engine": [
           "ModifiedLife"
@@ -232,9 +195,8 @@
   },
   "bindings": {
     "$var_4": 118,
-    "$var_3": 115,
-    "$var_6": 117,
-    "$var_1": 116,
+    "$var_1": 115,
+    "$var_5": 117,
     "$var_2": 119
   }
 }

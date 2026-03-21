@@ -1,17 +1,102 @@
 {
-  "status": "PASS",
+  "status": "FAIL",
   "annotations": {
     "compared": 8,
-    "diffs": []
+    "diffs": [
+      {
+        "index": 0,
+        "type": "detail_mismatch",
+        "annotation": [
+          "ObjectIdChanged"
+        ],
+        "key": "new_id",
+        "recording": "$var_2",
+        "engine": 122
+      },
+      {
+        "index": 1,
+        "type": "affectedIds_mismatch",
+        "annotation": [
+          "ZoneTransfer"
+        ],
+        "recording": [
+          "$var_2"
+        ],
+        "engine": [
+          122
+        ]
+      },
+      {
+        "index": 4,
+        "type": "detail_mismatch",
+        "annotation": [
+          "UserActionTaken"
+        ],
+        "key": "abilityGrpId",
+        "recording": 1002,
+        "engine": 0
+      },
+      {
+        "index": 4,
+        "type": "detail_mismatch",
+        "annotation": [
+          "UserActionTaken"
+        ],
+        "key": "actionType",
+        "recording": 4,
+        "engine": 1
+      },
+      {
+        "index": 2,
+        "type": "extra_recording",
+        "recording": [
+          "AbilityInstanceCreated"
+        ]
+      },
+      {
+        "index": 3,
+        "type": "extra_recording",
+        "recording": [
+          "TappedUntappedPermanent"
+        ]
+      },
+      {
+        "index": 5,
+        "type": "extra_recording",
+        "recording": [
+          "ManaPaid"
+        ]
+      },
+      {
+        "index": 6,
+        "type": "extra_recording",
+        "recording": [
+          "AbilityInstanceDeleted"
+        ]
+      },
+      {
+        "index": 7,
+        "type": "extra_recording",
+        "recording": [
+          "UserActionTaken"
+        ]
+      }
+    ]
   },
   "persistentAnnotations": {
     "compared": 1,
-    "diffs": []
+    "diffs": [
+      {
+        "index": 0,
+        "type": "extra_recording",
+        "recording": [
+          "EnteredZoneThisTurn"
+        ]
+      }
+    ]
   },
   "bindings": {
     "$var_1": 100,
-    "$var_2": 122,
-    "$var_4": 123,
-    "$var_3": 106
+    "$var_4": 122
   }
 }
