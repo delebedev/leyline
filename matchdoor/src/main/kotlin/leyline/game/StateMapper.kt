@@ -49,6 +49,7 @@ object StateMapper {
         val handler = game.phaseHandler
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
+        val frame = GsmFrame.from(game, bridge)
 
         // ═══ GATHER: drain queues, snapshot mutable state ═══
         val events = bridge.drainEvents().toMutableList()
@@ -69,14 +70,6 @@ object StateMapper {
             .setMatchState(MatchState.GameInProgress)
             .setMatchWinCondition(MatchWinCondition.SingleElimination)
             .setMulliganType(MulliganType.London)
-
-        val turnInfo = TurnInfo.newBuilder()
-            .setPhase(PlayerMapper.mapPhase(handler.phase))
-            .setStep(PlayerMapper.mapStep(handler.phase))
-            .setTurnNumber(handler.turn.coerceAtLeast(1))
-            .setActivePlayer(if (handler.playerTurn == human) 1 else 2)
-            .setPriorityPlayer(if (handler.priorityPlayer == human) 1 else 2)
-            .setDecisionPlayer(if (handler.priorityPlayer == human) 1 else 2)
 
         val player1 = PlayerMapper.buildPlayerInfo(human, 1)
         val player2 = PlayerMapper.buildPlayerInfo(ai, 2)
@@ -203,9 +196,9 @@ object StateMapper {
         // Override turnInfo to CombatDamage when damage events fired
         // (Forge advances past COMBAT_DAMAGE before we build the GSM)
         val effectiveTurnInfo = if (combatResult.hasCombatDamage) {
-            turnInfo.build().toBuilder().setPhase(Phase.Combat_a549).setStep(Step.CombatDamage_a2cb)
+            frame.turnInfo().toBuilder().setPhase(Phase.Combat_a549).setStep(Step.CombatDamage_a2cb)
         } else {
-            turnInfo
+            frame.turnInfo().toBuilder()
         }
 
         val builder = GameStateMessage.newBuilder()
