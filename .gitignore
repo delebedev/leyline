@@ -51,8 +51,9 @@ kls_database.db
 # Per-worktree Maven local repo
 .m2-local/
 
-# Claude Code local settings
+# Claude Code local settings & agent memory
 **/settings.local.json
+.claude/agent-memory/
 
 # Persistent game recordings — keep manifest tracked
 recordings/*
