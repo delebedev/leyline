@@ -2,10 +2,8 @@ package leyline.conformance
 
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.InteractivePromptBridge.PendingPrompt
 import leyline.bridge.PromptCandidateRefDto
@@ -20,16 +18,16 @@ import java.util.concurrent.CompletableFuture
 
 /**
  * Golden field coverage: compares field presence in our builder output
- * against real Arena server recordings.
+ * against hardcoded field sets extracted from real Arena server recordings.
  *
  * Each test:
- * 1. Parses a golden `.bin` (proxy capture) → extracts field paths
- * 2. Builds our proto via real builders + minimal board → extracts field paths
+ * 1. Defines the golden field set (from proxy capture)
+ * 2. Builds our proto via real builders + minimal board -> extracts field paths
  * 3. Diffs: `expectedMissing` documents known gaps, test fails on NEW gaps or FIXED gaps
  *
  * `expectedMissing` IS the living documentation of what we don't produce yet.
- * When a gap is fixed: remove from `expectedMissing` → test validates the fix.
- * When a new golden has unknown fields: test fails → forced triage.
+ * When a gap is fixed: remove from `expectedMissing` -> test validates the fix.
+ * When a new golden has unknown fields: test fails -> forced triage.
  */
 class GoldenFieldCoverageTest :
     FunSpec({
@@ -40,41 +38,120 @@ class GoldenFieldCoverageTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
+        // --- Arena field reference sets ---
+        // Source: Arena proxy recording 2026-02-28, documented in #142
+
+        val goldenSelectTargetsReqInner = setOf(
+            "abilityGrpId", "sourceId", "targets[].maxTargets", "targets[].minTargets",
+            "targets[].prompt.parameters[].numberValue", "targets[].prompt.parameters[].parameterName",
+            "targets[].prompt.parameters[].type", "targets[].prompt.promptId", "targets[].targetIdx",
+            "targets[].targetingAbilityGrpId", "targets[].targetingPlayer",
+            "targets[].targets[].highlight", "targets[].targets[].legalAction",
+            "targets[].targets[].targetInstanceId",
+        )
+
+        val goldenDeclareAttackersReq = setOf(
+            "attackers[].attackerInstanceId",
+            "attackers[].legalDamageRecipients[].playerSystemSeatId",
+            "attackers[].legalDamageRecipients[].type",
+            "canSubmitAttackers",
+            "qualifiedAttackers[].attackerInstanceId",
+            "qualifiedAttackers[].legalDamageRecipients[].playerSystemSeatId",
+            "qualifiedAttackers[].legalDamageRecipients[].type",
+        )
+
+        val goldenDeclareBlockersReq = setOf(
+            "blockers[].attackerInstanceIds[]",
+            "blockers[].blockerInstanceId",
+            "blockers[].maxAttackers",
+        )
+
+        val goldenActionsAvailableReq = setOf(
+            "actions[].actionType", "actions[].facetId", "actions[].grpId", "actions[].instanceId",
+            "actions[].manaCost[].color[]", "actions[].manaCost[].count", "actions[].shouldStop",
+            "inactiveActions[].actionType", "inactiveActions[].facetId", "inactiveActions[].grpId",
+            "inactiveActions[].instanceId", "inactiveActions[].manaCost[].color[]",
+            "inactiveActions[].manaCost[].count",
+        )
+
+        val goldenConnectResp = setOf(
+            "deckMessage.deckCards[]", "greChangelist", "greVersion.buildVersion", "greVersion.majorVersion",
+            "greVersion.minorVersion", "grpChangelist", "grpVersion.buildVersion", "grpVersion.majorVersion",
+            "grpVersion.minorVersion", "protoVer", "settings.autoOptionalPaymentCancellationSetting",
+            "settings.autoPassOption", "settings.autoTapStopsSetting", "settings.defaultAutoPassOption",
+            "settings.graveyardOrder", "settings.manaSelectionType", "settings.smartStopsSetting",
+            "settings.stackAutoPassOption", "settings.stops[].appliesTo", "settings.stops[].status",
+            "settings.stops[].stopType", "settings.transientStops[].appliesTo",
+            "settings.transientStops[].status", "settings.transientStops[].stopType",
+            "skins[].catalogId", "skins[].skinCode", "status",
+        )
+
+        val goldenMulliganReq = setOf(
+            "gameStateId", "msgId", "mulliganReq.mulliganType",
+            "prompt.parameters[].numberValue", "prompt.parameters[].parameterName",
+            "prompt.parameters[].type", "prompt.promptId", "systemSeatIds[]", "type",
+        )
+
+        val goldenGroupReq = setOf(
+            "allowCancel", "gameStateId", "groupReq.context", "groupReq.groupSpecs[].lowerBound",
+            "groupReq.groupSpecs[].subZoneType", "groupReq.groupSpecs[].upperBound",
+            "groupReq.groupSpecs[].zoneType", "groupReq.groupType", "groupReq.instanceIds[]",
+            "groupReq.sourceId", "msgId", "prompt.parameters[].parameterName",
+            "prompt.parameters[].type", "prompt.promptId", "systemSeatIds[]", "type",
+        )
+
+        val goldenSetSettingsResp = setOf(
+            "settings.autoOptionalPaymentCancellationSetting", "settings.autoPassOption",
+            "settings.autoSelectReplacementSetting", "settings.autoTapStopsSetting",
+            "settings.defaultAutoPassOption", "settings.graveyardOrder", "settings.manaSelectionType",
+            "settings.smartStopsSetting", "settings.stackAutoPassOption", "settings.stops[].appliesTo",
+            "settings.stops[].status", "settings.stops[].stopType", "settings.transientStops[].appliesTo",
+            "settings.transientStops[].status", "settings.transientStops[].stopType",
+        )
+
+        val goldenIntermissionReq = setOf(
+            "intermissionPrompt.parameters[].numberValue", "intermissionPrompt.parameters[].parameterName",
+            "intermissionPrompt.parameters[].type", "intermissionPrompt.promptId",
+            "options[].optionPrompt.promptId", "options[].responseType", "result.reason",
+            "result.result", "result.scope", "result.winningTeamId",
+        )
+
+        val goldenDieRollResultsResp = setOf(
+            "playerDieRolls[].rollValue",
+            "playerDieRolls[].systemSeatId",
+        )
+
+        val goldenInitialGSM = setOf(
+            "diffDeletedInstanceIds[]", "gameInfo.deckConstraintInfo.maxDeckSize",
+            "gameInfo.deckConstraintInfo.maxSideboardSize", "gameInfo.deckConstraintInfo.minDeckSize",
+            "gameInfo.gameNumber", "gameInfo.matchID", "gameInfo.matchState", "gameInfo.matchWinCondition",
+            "gameInfo.maxPipCount", "gameInfo.maxTimeoutCount", "gameInfo.mulliganType", "gameInfo.stage",
+            "gameInfo.superFormat", "gameInfo.timeoutDurationSec", "gameInfo.type", "gameInfo.variant",
+            "gameStateId", "pendingMessageCount", "players[].controllerSeatId", "players[].controllerType",
+            "players[].lifeTotal", "players[].maxHandSize", "players[].pendingMessageType",
+            "players[].startingLifeTotal", "players[].status", "players[].systemSeatNumber",
+            "players[].teamId", "players[].timerIds[]", "teams[].id", "teams[].playerIds[]",
+            "teams[].status", "timers[].behavior", "timers[].durationSec", "timers[].elapsedMs",
+            "timers[].running", "timers[].timerId", "timers[].type", "timers[].warningThresholdSec",
+            "turnInfo.decisionPlayer", "type", "update", "zones[].objectInstanceIds[]",
+            "zones[].ownerSeatId", "zones[].type", "zones[].viewers[]", "zones[].visibility",
+            "zones[].zoneId",
+        )
+
+        val goldenSelectTargetsReqWrapper = setOf(
+            "allowCancel", "allowUndo", "gameStateId", "msgId", "prompt.promptId",
+            "selectTargetsReq.abilityGrpId", "selectTargetsReq.sourceId",
+            "selectTargetsReq.targets[].maxTargets", "selectTargetsReq.targets[].minTargets",
+            "selectTargetsReq.targets[].prompt.parameters[].numberValue",
+            "selectTargetsReq.targets[].prompt.parameters[].parameterName",
+            "selectTargetsReq.targets[].prompt.parameters[].type",
+            "selectTargetsReq.targets[].prompt.promptId", "selectTargetsReq.targets[].targetIdx",
+            "selectTargetsReq.targets[].targetingAbilityGrpId", "selectTargetsReq.targets[].targetingPlayer",
+            "selectTargetsReq.targets[].targets[].highlight", "selectTargetsReq.targets[].targets[].legalAction",
+            "selectTargetsReq.targets[].targets[].targetInstanceId", "systemSeatIds[]", "type",
+        )
+
         // --- Helpers ---
-
-        fun loadGoldenGRE(resource: String, type: GREMessageType): GREToClientMessage {
-            val bytes = javaClass.classLoader.getResourceAsStream("golden/$resource")?.readBytes()
-                ?: error("Golden not found: golden/$resource")
-            val payload = MatchServiceToClientMessage.parseFrom(bytes)
-            return payload.greToClientEvent.greToClientMessagesList
-                .firstOrNull { it.type == type }
-                ?: error("No $type in golden/$resource")
-        }
-
-        fun loadGoldenGSM(resource: String, gsId: Int): GameStateMessage {
-            val bytes = javaClass.classLoader.getResourceAsStream("golden/$resource")?.readBytes()
-                ?: error("Golden not found: golden/$resource")
-            val payload = MatchServiceToClientMessage.parseFrom(bytes)
-            return payload.greToClientEvent.greToClientMessagesList
-                .filter { it.type == GREMessageType.GameStateMessage_695e }
-                .map { it.gameStateMessage }
-                .firstOrNull { it.gameStateId == gsId }
-                ?: error("No GSM with gsId=$gsId in golden/$resource")
-        }
-
-        fun annotationDetailKeys(gsm: GameStateMessage): Map<String, Set<String>> {
-            val result = mutableMapOf<String, MutableSet<String>>()
-            for (ann in gsm.annotationsList) {
-                for (type in ann.typeList) {
-                    val shortName = type.name.replace(Regex("_[a-f0-9]{4}$"), "")
-                    val keys = result.getOrPut(shortName) { mutableSetOf() }
-                    for (detail in ann.detailsList) {
-                        keys.add(detail.key)
-                    }
-                }
-            }
-            return result
-        }
 
         fun assertFieldCoverage(
             label: String,
@@ -101,8 +178,7 @@ class GoldenFieldCoverageTest :
         // --- SelectTargetsReq ---
 
         test("SelectTargetsReq field coverage vs real server") {
-            val goldenGRE = loadGoldenGRE("select-targets-req.bin", GREMessageType.SelectTargetsReq_695e)
-            val goldenFields = FieldPathExtractor.extract(goldenGRE.selectTargetsReq)
+            val goldenFields = goldenSelectTargetsReqInner
 
             val (b, _, _) = base.startWithBoard { game, human, ai ->
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
@@ -148,8 +224,7 @@ class GoldenFieldCoverageTest :
         // --- DeclareAttackersReq ---
 
         test("DeclareAttackersReq field coverage vs real server") {
-            val goldenGRE = loadGoldenGRE("declare-attackers-req.bin", GREMessageType.DeclareAttackersReq_695e)
-            val goldenFields = FieldPathExtractor.extract(goldenGRE.declareAttackersReq)
+            val goldenFields = goldenDeclareAttackersReq
 
             val (b, game, _) = base.startWithBoard { g, human, _ ->
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
@@ -170,8 +245,7 @@ class GoldenFieldCoverageTest :
         //  and buildDeclareBlockersReq produces empty output. Needs proper combat
         //  initialization or a MatchFlowHarness-based test with real combat.
         xtest("DeclareBlockersReq field coverage vs real server") {
-            val goldenGRE = loadGoldenGRE("declare-blockers-req.bin", GREMessageType.DeclareBlockersReq_695e)
-            val goldenFields = FieldPathExtractor.extract(goldenGRE.declareBlockersReq)
+            val goldenFields = goldenDeclareBlockersReq
 
             val (b, game, _) = base.startWithBoard { g, human, ai ->
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
@@ -191,8 +265,7 @@ class GoldenFieldCoverageTest :
         // --- ActionsAvailableReq ---
 
         test("ActionsAvailableReq field coverage vs real server") {
-            val goldenGRE = loadGoldenGRE("actions-available-req.bin", GREMessageType.ActionsAvailableReq_695e)
-            val goldenFields = FieldPathExtractor.extract(goldenGRE.actionsAvailableReq)
+            val goldenFields = goldenActionsAvailableReq
 
             val (b, game, _) = base.startWithBoard { _, human, _ ->
                 base.addCard("Plains", human, ZoneType.Hand)
@@ -234,8 +307,7 @@ class GoldenFieldCoverageTest :
         // --- GRE wrapper fields ---
 
         test("SelectTargetsReq GRE wrapper field coverage") {
-            val goldenGRE = loadGoldenGRE("select-targets-req.bin", GREMessageType.SelectTargetsReq_695e)
-            val goldenFields = FieldPathExtractor.extract(goldenGRE)
+            val goldenFields = goldenSelectTargetsReqWrapper
 
             val (b, game, counter) = base.startWithBoard { g, human, ai ->
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
@@ -277,8 +349,7 @@ class GoldenFieldCoverageTest :
         // --- ConnectResp ---
 
         test("ConnectResp field coverage vs real server") {
-            val goldenGRE = loadGoldenGRE("initial-bundle.bin", GREMessageType.ConnectResp_695e)
-            val goldenFields = FieldPathExtractor.extract(goldenGRE.connectResp)
+            val goldenFields = goldenConnectResp
 
             val (b, _, _) = base.startWithBoard { _, _, _ -> }
             val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(1))
@@ -301,8 +372,7 @@ class GoldenFieldCoverageTest :
         // --- DieRollResultsResp ---
 
         test("DieRollResultsResp field coverage vs real server") {
-            val goldenGRE = loadGoldenGRE("initial-bundle.bin", GREMessageType.DieRollResultsResp_695e)
-            val goldenFields = FieldPathExtractor.extract(goldenGRE.dieRollResultsResp)
+            val goldenFields = goldenDieRollResultsResp
 
             val (b, _, _) = base.startWithBoard { _, _, _ -> }
             val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(1))
@@ -317,8 +387,7 @@ class GoldenFieldCoverageTest :
         // --- Initial Full GameStateMessage ---
 
         test("Initial Full GSM field coverage vs real server") {
-            val goldenGRE = loadGoldenGRE("initial-bundle.bin", GREMessageType.GameStateMessage_695e)
-            val goldenFields = FieldPathExtractor.extract(goldenGRE.gameStateMessage)
+            val goldenFields = goldenInitialGSM
 
             val (b, _, _) = base.startWithBoard { _, _, _ -> }
             val deck = GsmBuilder.buildDeckMessage(b.getDeckGrpIds(1))
@@ -343,8 +412,7 @@ class GoldenFieldCoverageTest :
         // --- MulliganReq ---
 
         test("MulliganReq field coverage vs real server") {
-            val goldenGRE = loadGoldenGRE("mulligan-req.bin", GREMessageType.MulliganReq_aa0d)
-            val goldenFields = FieldPathExtractor.extract(goldenGRE)
+            val goldenFields = goldenMulliganReq
 
             val ours = GsmBuilder.buildMulliganReq(msgId = 9, gameStateId = 2, seatId = 1)
             val ourFields = FieldPathExtractor.extract(ours)
@@ -355,8 +423,7 @@ class GoldenFieldCoverageTest :
         // --- GroupReq ---
 
         test("GroupReq field coverage vs real server (London mulligan tuck)") {
-            val goldenGRE = loadGoldenGRE("group-req-london-mulligan.bin", GREMessageType.GroupReq_695e)
-            val goldenFields = FieldPathExtractor.extract(goldenGRE)
+            val goldenFields = goldenGroupReq
 
             val handInstanceIds = listOf(407, 408, 409, 410, 411, 412, 413)
             val ours = GsmBuilder.buildGroupReq(
@@ -374,10 +441,34 @@ class GoldenFieldCoverageTest :
         // --- SetSettingsResp ---
 
         test("SetSettingsResp field coverage vs real server") {
-            val goldenGRE = loadGoldenGRE("set-settings-resp.bin", GREMessageType.SetSettingsResp_695e)
-            val goldenFields = FieldPathExtractor.extract(goldenGRE.setSettingsResp)
+            val goldenFields = goldenSetSettingsResp
 
-            val clientSettings = goldenGRE.setSettingsResp.settings
+            // Build a settings message that covers all golden fields
+            // (including autoSelectReplacementSetting which the real server sets)
+            val clientSettings = SettingsMessage.newBuilder()
+                .addStops(
+                    Stop.newBuilder()
+                        .setStopType(StopType.PrecombatMainPhase)
+                        .setAppliesTo(SettingScope.Team_ac6e)
+                        .setStatus(SettingStatus.Set),
+                )
+                .addTransientStops(
+                    Stop.newBuilder()
+                        .setStopType(StopType.PrecombatMainPhase)
+                        .setAppliesTo(SettingScope.Team_ac6e)
+                        .setStatus(SettingStatus.Clear_a3fe),
+                )
+                .setAutoPassOption(AutoPassOption.ResolveMyStackEffects)
+                .setGraveyardOrder(OrderingType.OrderArbitraryAlways)
+                .setManaSelectionType(ManaSelectionType.Auto_a88a)
+                .setDefaultAutoPassOption(AutoPassOption.ResolveMyStackEffects)
+                .setSmartStopsSetting(SmartStopsSetting.Enable_a188)
+                .setAutoTapStopsSetting(AutoTapStopsSetting.Enable_ac12)
+                .setAutoOptionalPaymentCancellationSetting(Setting.Enable_a20a)
+                .setStackAutoPassOption(AutoPassOption.Clear_a465)
+                .setAutoSelectReplacementSetting(Setting.Enable_a20a)
+                .build()
+
             val (msg, _) = HandshakeMessages.settingsResp(1, 6, 1, clientSettings)
             val oursGRE = msg.greToClientEvent.greToClientMessagesList
                 .first { it.type == GREMessageType.SetSettingsResp_695e }
@@ -389,8 +480,7 @@ class GoldenFieldCoverageTest :
         // --- IntermissionReq ---
 
         test("IntermissionReq field coverage vs real server") {
-            val goldenGRE = loadGoldenGRE("intermission-req.bin", GREMessageType.IntermissionReq_695e)
-            val goldenFields = FieldPathExtractor.extract(goldenGRE.intermissionReq)
+            val goldenFields = goldenIntermissionReq
 
             val (b, _, counter) = base.startWithBoard { _, _, _ -> }
             val result = BundleBuilder.gameOverBundle(
@@ -407,46 +497,5 @@ class GoldenFieldCoverageTest :
             assertFieldCoverage("IntermissionReq", goldenFields, ourFields, emptySet(), emptySet())
         }
 
-        // =======================================================================
-        // Annotation shape reference tests
-        // =======================================================================
-
-        test("stack resolution annotation shape") {
-            val gsm = loadGoldenGSM("stack-resolve.bin", 68)
-            val keys = annotationDetailKeys(gsm)
-
-            keys["ResolutionStart"] shouldBe setOf("grpid")
-            keys["ResolutionComplete"] shouldBe setOf("grpid")
-            keys["ZoneTransfer"] shouldBe setOf("zone_src", "zone_dest", "category")
-        }
-
-        test("combat damage annotation shape") {
-            val gsm = loadGoldenGSM("combat-damage.bin", 126)
-            val keys = annotationDetailKeys(gsm)
-
-            keys["DamageDealt"] shouldBe setOf("damage", "type", "markDamage")
-
-            val sbaTransfer = gsm.annotationsList
-                .filter { AnnotationType.ZoneTransfer_af5a in it.typeList }
-                .flatMap { ann -> ann.detailsList.filter { it.key == "category" }.map { it.getValueString(0) } }
-            ("SBA_Damage" in sbaTransfer).shouldBeTrue()
-
-            keys["ObjectIdChanged"] shouldBe setOf("orig_id", "new_id")
-            keys["PhaseOrStepModified"] shouldBe setOf("phase", "step")
-        }
-
-        test("cast spell annotation shape") {
-            val gsm = loadGoldenGSM("stack-resolve.bin", 66)
-            val keys = annotationDetailKeys(gsm)
-
-            val castTransfer = gsm.annotationsList
-                .filter { AnnotationType.ZoneTransfer_af5a in it.typeList }
-                .flatMap { ann -> ann.detailsList.filter { it.key == "category" }.map { it.getValueString(0) } }
-            ("CastSpell" in castTransfer).shouldBeTrue()
-
-            keys["ManaPaid"] shouldBe setOf("id", "color")
-            keys["TappedUntappedPermanent"] shouldBe setOf("tapped")
-            keys["UserActionTaken"] shouldBe setOf("actionType", "abilityGrpId")
-            keys["AbilityInstanceCreated"] shouldBe setOf("source_zone")
-        }
+        // Annotation shape tests removed — fully covered by AnnotationShapeConformanceTest
     })
