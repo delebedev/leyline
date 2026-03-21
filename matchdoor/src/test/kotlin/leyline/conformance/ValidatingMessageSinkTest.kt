@@ -323,6 +323,73 @@ class ValidatingMessageSinkTest :
             }.message!!.lowercase() shouldContain "violation"
         }
 
+        // --- Batch-aware annotation ref check ---
+
+        test("Batch send: annotation referencing object from earlier message in same batch is valid") {
+            val sink = lenientSink()
+
+            // Seed with a Full GSM so the checker has baseline state
+            val fullGsm = gsm(gsId = 1, type = GameStateType.Full)
+            sink.send(listOf(greMessage(msgId = 1, gsm = fullGsm)))
+
+            // Batch: message 1 introduces object 42 via a Diff, message 2 has
+            // an annotation referencing 42 as affectedId. Within a single send()
+            // call, the checker should defer annotation ref checks until all
+            // messages are accumulated — so 42 is known when the check runs.
+            val diff1 = GameStateMessage.newBuilder()
+                .setGameStateId(2)
+                .setPrevGameStateId(1)
+                .setType(GameStateType.Diff)
+                .addGameObjects(GameObjectInfo.newBuilder().setInstanceId(42))
+                .build()
+            val diff2 = GameStateMessage.newBuilder()
+                .setGameStateId(3)
+                .setPrevGameStateId(2)
+                .setType(GameStateType.Diff)
+                .addAnnotations(
+                    AnnotationInfo.newBuilder()
+                        .setId(1)
+                        .addType(AnnotationType.ZoneTransfer_af5a)
+                        .addAffectedIds(42),
+                )
+                .build()
+
+            sink.send(listOf(greMessage(msgId = 2, gsm = diff1), greMessage(msgId = 3, gsm = diff2)))
+
+            sink.violations.shouldBeEmpty()
+        }
+
+        test("Annotation referencing previously-seen-then-deleted object is valid") {
+            val sink = lenientSink()
+
+            // Object 42 appears in Full GSM, then gets deleted in a Diff.
+            // An annotation in the same Diff references 42 — valid because
+            // everSeenInstanceIds tracks all IDs across the checker's lifetime.
+            val fullGsm = GameStateMessage.newBuilder()
+                .setGameStateId(1)
+                .setType(GameStateType.Full)
+                .addGameObjects(GameObjectInfo.newBuilder().setInstanceId(42))
+                .build()
+            sink.send(listOf(greMessage(msgId = 1, gsm = fullGsm)))
+
+            val diff = GameStateMessage.newBuilder()
+                .setGameStateId(2)
+                .setPrevGameStateId(1)
+                .setType(GameStateType.Diff)
+                .addDiffDeletedInstanceIds(42)
+                .addAnnotations(
+                    AnnotationInfo.newBuilder()
+                        .setId(1)
+                        .addType(AnnotationType.ZoneTransfer_af5a)
+                        .addAffectedIds(42),
+                )
+                .build()
+
+            sink.send(listOf(greMessage(msgId = 2, gsm = diff)))
+
+            sink.violations.shouldBeEmpty()
+        }
+
         // --- seedFull ---
 
         test("seedFull populates gsId tracking so subsequent diffs validate correctly") {

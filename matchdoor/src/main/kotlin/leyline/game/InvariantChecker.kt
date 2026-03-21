@@ -350,31 +350,16 @@ class InvariantChecker {
                 id in batchIds ||
                 id in everSeenInstanceIds
 
-        // Collect all affectorIds — these reference "what caused this" (animation
-        // metadata) and may be ephemeral ability instances that never appear in a
-        // GSM (e.g. ETB triggers that resolve before any diff is built). Valid for
-        // cross-reference within the annotation context.
-        val allAffectorIds = mutableSetOf<Int>()
-        for (ann in annotations) {
-            if (ann.affectorId != 0) allAffectorIds.add(ann.affectorId)
-        }
-
         for (ann in annotations) {
             // ObjectIdChanged references old (replaced) instanceIds — skip entirely
             val isObjectIdChanged = ann.typeList.any { it == AnnotationType.ObjectIdChanged }
             if (isObjectIdChanged) continue
 
-            // affectorId: accept known entities + any ID the pipeline declared as
-            // an affector in this GSM. Ephemeral ability IDs (stack triggers that
-            // resolve without an intermediate GSM) are valid pipeline-generated refs.
-            if (ann.affectorId != 0 && !isKnown(ann.affectorId) && ann.affectorId !in allAffectorIds) {
-                record(
-                    gsId,
-                    "annotation_ref",
-                    "annotation ${ann.id}: affectorId ${ann.affectorId} unresolvable " +
-                        "(type=${ann.typeList}, gsId=$gsId)",
-                )
-            }
+            // affectorId validation skipped — these reference "what caused this"
+            // (animation source) and may be ephemeral ability instances that never
+            // appear in a GSM (e.g. ETB triggers that resolve before any diff is
+            // built). Low structural risk; affectedId validation catches real bugs.
+
             // affectedId: strict check — these reference actual game entities
             for (affected in ann.affectedIdsList) {
                 if (affected != 0 && !isKnown(affected)) {
