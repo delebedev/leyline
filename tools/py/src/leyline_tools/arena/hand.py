@@ -291,4 +291,31 @@ def _find_hand_card(name: str) -> tuple[tuple[int, int], int] | None:
     ocr_pos = _find_hand_card_ocr(name, known_names)
     if ocr_pos is not None:
         return (ocr_pos, instance_id)
-    return None
+
+    # Fallback: detection model (hand-card bounding boxes)
+    from .board import _board_detect
+
+    idx = next(
+        (i for i, c in enumerate(hand_cards) if c.get("instanceId") == instance_id),
+        0,
+    )
+    dets = _board_detect()
+    hand_dets = sorted(
+        [d for d in dets if d["label"] == "hand-card" and d["cy"] > HAND_MIN_CY],
+        key=lambda d: d["cx"],
+    )
+
+    if hand_dets:
+        if len(hand_dets) == len(hand_cards) and idx < len(hand_dets):
+            det = hand_dets[idx]
+        elif idx < len(hand_dets):
+            det = hand_dets[idx]
+        else:
+            det = hand_dets[-1]
+        return ((det["cx"], det["cy"]), instance_id)
+
+    # Last resort: estimate position from card count
+    count = len(hand_cards)
+    spacing = min(80, 400 // max(count, 1))
+    center_x = 480 - (count - 1) * spacing // 2 + idx * spacing
+    return (_hand_adjust(center_x), instance_id)

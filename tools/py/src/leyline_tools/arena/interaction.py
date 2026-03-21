@@ -153,23 +153,27 @@ def _verified_drag(
     instance_id: int | None = None,
     max_attempts: int = 3,
 ) -> bool:
+    """Drag with retry + verification via scry zone change."""
     import random
 
     for attempt in range(max_attempts):
-        pre_count = _scry_hand_count()
+        pre_zone = None
+        if instance_id is not None:
+            pre_zone = _get_card_zone(instance_id)
+
         jitter = 0 if attempt == 0 else random.randint(-5, 5)
         src = (fr[0] + jitter, fr[1] + jitter)
 
         _do_drag(src, to)
 
-        if pre_count is None:
+        if instance_id is None:
             return True
 
-        _scry_cache_clear()
         for _ in range(15):
-            time.sleep(0.2)
-            post_count = _scry_hand_count()
-            if post_count is not None and post_count < pre_count:
+            time.sleep(0.3)
+            _scry_cache_clear()
+            new_zone = _get_card_zone(instance_id)
+            if new_zone != pre_zone:
                 return True
 
         if attempt < max_attempts - 1:
