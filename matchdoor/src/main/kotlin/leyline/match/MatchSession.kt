@@ -71,16 +71,17 @@ class MatchSession(
     /**
      * Wire the game bridge (called by [MatchHandler] after bridge creation).
      *
-     * The session and bridge must share the same [MessageCounter] instance —
-     * passed at construction time to both. This ensures the engine thread
-     * (GamePlayback) and this session produce monotonically increasing
-     * gsId/msgId sequences without runtime sync.
+     * Normally the session and bridge share the same [MessageCounter] — passed
+     * at construction time via the `existingCounter` lookup in [MatchHandler].
+     * When both connections arrive simultaneously (race between human + Familiar),
+     * the match may not exist yet during session creation, causing a counter
+     * mismatch. In that case, adopt the bridge's counter (same as PvP seat 2).
      */
     override fun connectBridge(bridge: GameBridge): Unit = synchronized(sessionLock) {
         gameBridge = bridge
-        check(bridge.messageCounter === counter) {
-            "Counter mismatch: session and bridge must share the same MessageCounter instance. " +
-                "Pass the counter at construction time to both."
+        if (bridge.messageCounter !== counter) {
+            log.debug("connectBridge: adopting bridge counter (race: session created before match)")
+            counter = bridge.messageCounter
         }
         bridge.humanController?.setAutoPassState(autoPassState)
     }
