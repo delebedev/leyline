@@ -101,3 +101,40 @@ Before fix: ~50% drag failure. After: 0%. Bounds cache was the whole problem.
 - Prompt handling (discard/explore) not yet tested in live game
 - Battlefield controller split still missing from scry
 - Subagent session log coverage gap
+
+---
+
+## 2026-03-21 — Forge local server testing (2 games)
+
+### Context
+Same fixes, tested against `just serve` (local forge engine) instead of proxy to real server.
+
+### Results
+
+**Game 1 — Green stompy, attack mode**
+- Played to T6. Life 17-20. Barkhide Troll + Pelt Collector on board.
+- Attacked T4 (3 dmg) and T6.
+- `arena land` returned error but land appeared on battlefield — false negative.
+
+**Game 2 — Red/Goblin, attack mode**
+- Played to T6. Life 18-20. 5 creatures on board.
+- Same land drag false-negative pattern.
+- Forge auto-advanced turns and auto-cast some cards.
+
+### Forge-specific findings
+
+| Issue | Cause | Impact |
+|-------|-------|--------|
+| `arena land` reports failure but land resolves | Forge processes play faster than scry verification polls | False error, agent thinks play failed |
+| Forge auto-advances phases | Engine skips empty priority windows | Turn numbers jump (T1→T4), agent misses windows |
+| Forge auto-plays cards | AI engine acts on human seat in some cases | Agent's `arena play` races with engine |
+
+**Root cause:** Forge resolves actions synchronously and fast. The verified drag polls
+scry at 300ms intervals looking for zone change, but forge has already processed the
+action and moved to the next phase. Scry sees the NEW state (card on battlefield) but
+the zone-change check may compare against a stale pre-state that was already overwritten.
+
+### Implications
+- Real server: bounds fix solved drag failures completely (0% error)
+- Forge server: drag verification needs longer/faster polling or forge-aware timing
+- These are separate code paths — real server fix doesn't break forge, forge needs its own tuning
