@@ -114,7 +114,7 @@ class TokenService(
     private fun nowSeconds(): Long = System.currentTimeMillis() / 1000
 
     companion object {
-        const val DEFAULT_CLIENT_ID = "N8QFG8NEBJ5T35FB"
+        const val DEFAULT_CLIENT_ID = "leyline"
         const val ACCESS_EXPIRY_SECONDS = 960L // 16 minutes (matches real server)
         const val REFRESH_EXPIRY_SECONDS = 14 * 24 * 3600L // 14 days
 
