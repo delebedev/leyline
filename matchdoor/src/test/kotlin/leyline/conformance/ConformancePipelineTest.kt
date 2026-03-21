@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -12,6 +13,8 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import leyline.IntegrationTag
+import leyline.bridge.GameBootstrap
+import leyline.bridge.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
 
@@ -35,6 +38,25 @@ class ConformancePipelineTest :
         val outputDir = File("build/conformance").also { it.mkdirs() }
 
         var harness: MatchFlowHarness? = null
+
+        beforeSpec {
+            GameBootstrap.initializeCardDatabase(quiet = true)
+            TestCardRegistry.ensureRegistered()
+            TestCardRegistry.ensureCardRegistered("Prosperous Innkeeper")
+            TestCardRegistry.ensureCardRegistered("Lightning Bolt")
+            TestCardRegistry.ensureCardRegistered("Centaur Courser")
+
+            // Wire Treasure Token grpId mapping onto Innkeeper (mirrors TreasureTokenTest setup)
+            val repo = TestCardRegistry.repo
+            val innkeeperGrpId = repo.findGrpIdByName("Prosperous Innkeeper")!!
+            val treasureGrpId = 300001
+            repo.register(treasureGrpId, "Treasure Token")
+            val innkeeperData = repo.findByGrpId(innkeeperGrpId)!!
+            repo.registerData(
+                innkeeperData.copy(tokenGrpIds = mapOf(0 to treasureGrpId)),
+                "Prosperous Innkeeper",
+            )
+        }
 
         afterEach {
             harness?.shutdown()
@@ -249,6 +271,136 @@ class ConformancePipelineTest :
             val prettyJson = Json { prettyPrint = true }
             File(outputDir, "declare-blockers-lifecycle.json")
                 .writeText(prettyJson.encodeToString(JsonElement.serializer(), lifecycle))
+        }
+
+        test("Sacrifice segment: Treasure sacrifice produces annotation structure") {
+            val h = MatchFlowHarness(validating = false)
+            harness = h
+
+            h.connectAndKeepPuzzleText(
+                """
+                [metadata]
+                Name:Conformance Sacrifice
+                Goal:Win
+                Turns:3
+                Difficulty:Tutorial
+                Description:Pipeline test — Treasure sacrifice for mana
+
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=3
+
+                humanhand=Prosperous Innkeeper;Lightning Bolt
+                humanbattlefield=Forest;Forest
+                humanlibrary=Forest;Forest;Forest
+                aibattlefield=Centaur Courser
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+            )
+
+            val human = h.bridge.getPlayer(SeatId(1))!!
+
+            // Cast Prosperous Innkeeper (1G) — two Forests cover the cost
+            h.castSpellByName("Prosperous Innkeeper").shouldBeTrue()
+
+            // Pass priority until Treasure Token lands on battlefield
+            repeat(10) {
+                if (human.getZone(ZoneType.Battlefield).cards.any { it.name == "Treasure Token" }) return@repeat
+                h.passPriority()
+            }
+
+            // Snapshot before casting the bolt (Treasure sacrifice is the interesting segment)
+            val snap = h.messageSnapshot()
+
+            // Cast Lightning Bolt — Treasure provides R via sacrifice.
+            // Treasure sacrifice (mana cost payment) fires during the cast action;
+            // the GSM diff is emitted synchronously in drainSink().
+            h.castSpellByName("Lightning Bolt").shouldBeTrue()
+
+            // Target opponent (seatId 2) — completes the targeting prompt
+            h.selectTargets(listOf(2))
+
+            // Pass to resolve Bolt so all GSMs (including any deferred sacrifice diffs) are emitted
+            repeat(5) {
+                if (h.isGameOver()) return@repeat
+                h.passPriority()
+            }
+
+            val msgs = h.messagesSince(snap)
+
+            val allAnnotations = msgs.flatMap { msg ->
+                if (msg.hasGameStateMessage()) {
+                    msg.gameStateMessage.annotationsList
+                } else {
+                    emptyList()
+                }
+            }
+            allAnnotations.shouldNotBeEmpty()
+
+            // Baseline capture: document current engine output for Treasure sacrifice.
+            // The Treasure token is sacrificed during mana cost payment for Lightning Bolt.
+            //
+            // Current state (pre-fix):
+            // - ZoneTransfer annotation IS produced (token moves BF→GY)
+            // - "Sacrifice" category is NOT stamped (gap vs real server)
+            // - Missing vs real server: AbilityInstanceCreated/Deleted, TappedUntapped,
+            //   ManaPaid, UserActionTaken(actionType=4)
+            //
+            // After fix (issue #119): extractByCategory(msgs, "Sacrifice") should return non-null.
+            val sacrificeFrame = AnnotationSerializer.extractByCategory(msgs, "Sacrifice")
+            // sacrificeFrame is null pre-fix — document the gap rather than asserting presence.
+            // We assert there IS a ZoneTransfer annotation (the transfer happens, just uncategorized).
+            val zoneTransferPresent = msgs.any { msg ->
+                msg.hasGameStateMessage() &&
+                    msg.gameStateMessage.annotationsList.any { ann ->
+                        ann.typeList.any { it.name.startsWith("ZoneTransfer") }
+                    }
+            }
+            zoneTransferPresent.shouldBeTrue()
+
+            // Write current output for Python-side diff (sacrifice-frame.json = best available frame)
+            val frameToWrite = sacrificeFrame ?: run {
+                // Pre-fix fallback: write the GSM containing ZoneTransfer as the baseline
+                val gsmWithTransfer = msgs.firstOrNull { msg ->
+                    msg.hasGameStateMessage() &&
+                        msg.gameStateMessage.annotationsList.any { ann ->
+                            ann.typeList.any { it.name.startsWith("ZoneTransfer") }
+                        }
+                }
+                gsmWithTransfer?.let { msg ->
+                    val gsm = msg.gameStateMessage
+                    mapOf(
+                        "gsId" to gsm.gameStateId,
+                        "gsmType" to gsm.type.name,
+                        "note" to "pre-fix baseline: ZoneTransfer present but Sacrifice category missing",
+                        "annotations" to gsm.annotationsList.map { ann ->
+                            mapOf(
+                                "types" to ann.typeList.map { it.name },
+                                "details" to ann.detailsList.associate { d ->
+                                    d.key to (d.valueStringList.toList().ifEmpty { d.valueInt32List.toList() })
+                                },
+                            )
+                        },
+                    )
+                }
+            }
+            frameToWrite.shouldNotBeNull()
+
+            File(outputDir, "sacrifice-frame.json").writeText(
+                buildString {
+                    append("{\n")
+                    val entries = frameToWrite.entries.toList()
+                    for ((i, entry) in entries.withIndex()) {
+                        append("  \"${entry.key}\": ")
+                        append(serializeValue(entry.value))
+                        if (i < entries.size - 1) append(",")
+                        append("\n")
+                    }
+                    append("}")
+                },
+            )
         }
 
         test("DeclareAttackers prompt lifecycle capture") {
