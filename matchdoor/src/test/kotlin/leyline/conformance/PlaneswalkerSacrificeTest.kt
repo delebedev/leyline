@@ -46,7 +46,7 @@ class PlaneswalkerSacrificeTest :
             ailibrary=Mountain
             """.trimIndent()
 
-            val h = MatchFlowHarness(seed = 42L, validating = false)
+            val h = MatchFlowHarness(seed = 42L)
             harness = h
             h.connectAndKeepPuzzleText(pzl)
 

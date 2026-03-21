@@ -33,7 +33,7 @@ class AiLandPlayOrderTest :
         }
 
         test("AI land play has dedicated diff with PlayLand annotation") {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK)
             harness = h
             h.connectAndKeep()
 
@@ -111,7 +111,7 @@ class AiLandPlayOrderTest :
         }
 
         test("AI goes first land play not discarded") {
-            val h = MatchFlowHarness(seed = 2L, deckList = COMBAT_DECK, validating = false)
+            val h = MatchFlowHarness(seed = 2L, deckList = COMBAT_DECK)
             harness = h
             h.connectAndKeep()
 
@@ -145,7 +145,7 @@ class AiLandPlayOrderTest :
         }
 
         test("CastSpell diff does not contain PlayLand annotation") {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK)
             harness = h
             h.connectAndKeep()
 

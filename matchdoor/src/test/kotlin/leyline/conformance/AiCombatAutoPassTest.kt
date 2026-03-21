@@ -69,7 +69,7 @@ class AiCombatAutoPassTest :
                 ailibrary=Mountain;Mountain;Mountain
             """.trimIndent()
 
-            val h = MatchFlowHarness(validating = false)
+            val h = MatchFlowHarness()
             harness = h
 
             // Time the combat resolution (excluding card DB init).

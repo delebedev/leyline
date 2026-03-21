@@ -40,7 +40,7 @@ class ModalETBFlowTest :
         }
 
         fun setupModal(): MatchFlowHarness {
-            val h = MatchFlowHarness(validating = false)
+            val h = MatchFlowHarness()
             harness = h
 
             // connectAndKeepPuzzle initializes Forge card DB + registers cards

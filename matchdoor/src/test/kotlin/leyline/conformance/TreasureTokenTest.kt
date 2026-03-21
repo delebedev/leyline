@@ -84,7 +84,7 @@ class TreasureTokenTest :
         """.trimIndent()
 
         test("full treasure token flow: cast Innkeeper, ETB treasure, bolt for lethal") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
+            val h = MatchFlowHarness(seed = 42L)
             harness = h
             h.connectAndKeepPuzzleText(puzzleText)
             val human = h.bridge.getPlayer(SeatId(1))!!

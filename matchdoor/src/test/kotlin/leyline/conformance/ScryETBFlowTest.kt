@@ -43,7 +43,7 @@ class ScryETBFlowTest :
         }
 
         fun setup(): MatchFlowHarness {
-            val h = MatchFlowHarness(validating = false)
+            val h = MatchFlowHarness()
             harness = h
             h.connectAndKeepPuzzle("puzzles/scry-etb.pzl")
             return h

@@ -29,7 +29,7 @@ class GameEndTest :
         }
 
         test("concede produces MatchCompleted") {
-            val h = MatchFlowHarness(seed = 42L, validating = false)
+            val h = MatchFlowHarness(seed = 42L)
             harness = h
             h.connectAndKeep()
 
@@ -97,7 +97,6 @@ class GameEndTest :
             val h = MatchFlowHarness(
                 seed = 42L,
                 deckList = COMBAT_DECK,
-                validating = false,
             )
             harness = h
             h.connectAndKeep()

@@ -33,13 +33,10 @@ class ValidatingMessageSink(
 
     override fun send(messages: List<GREToClientMessage>) {
         val beforeCount = checker.violations.size
-        for (msg in messages) {
-            checker.process(msg)
-            // Check for new violations after each message
-            while (checker.violations.size > beforeCount + violations.size) {
-                val v = checker.violations[beforeCount + violations.size]
-                record(v.message)
-            }
+        checker.processBatch(messages)
+        while (checker.violations.size > beforeCount + violations.size) {
+            val v = checker.violations[beforeCount + violations.size]
+            record(v.message)
         }
         inner.send(messages)
     }

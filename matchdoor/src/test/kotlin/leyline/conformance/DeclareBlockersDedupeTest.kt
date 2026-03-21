@@ -30,7 +30,7 @@ class DeclareBlockersDedupeTest :
         }
 
         test("no duplicate blockers req") {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK)
             harness = h
             h.connectAndKeep()
 

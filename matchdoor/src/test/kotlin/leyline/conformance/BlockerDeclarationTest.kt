@@ -41,7 +41,7 @@ class BlockerDeclarationTest :
          * Returns pair of (humanBlockerInstanceId, aiAttackerInstanceId).
          */
         fun setupAiAttacksHumanCanBlock(): Pair<Int, Int> {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK)
             harness = h
             h.connectAndKeep()
 

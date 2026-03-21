@@ -27,6 +27,7 @@ class InvariantChecker {
 
     private val accumulator = RuntimeAccumulator()
     private val seenGsIds = mutableSetOf<Int>()
+    private val everSeenInstanceIds = mutableSetOf<Int>()
     private var highWaterGsId = 0
     private var highWaterMsgId = 0
     private var pendingCountdown = 0
@@ -39,6 +40,45 @@ class InvariantChecker {
 
     /** Process a single GRE message through all invariant checks. */
     fun process(msg: GREToClientMessage) {
+        processCore(msg)
+        if (msg.hasGameStateMessage()) {
+            checkAnnotationReferentialIntegrity(msg.gameStateMessage)
+        }
+    }
+
+    /** Process a list of GRE messages. */
+    fun processAll(messages: List<GREToClientMessage>) {
+        messages.forEach { process(it) }
+    }
+
+    /**
+     * Process a batch of GRE messages with deferred annotation ref checks.
+     *
+     * Accumulates all messages first, collecting every instanceId that appeared
+     * at any point during the batch (including objects later deleted by
+     * diffDeletedInstanceIds). This avoids false positives when annotations
+     * reference IDs that were transient within the batch — created by one
+     * message's zone transfer and deleted by the next (e.g. hidden-zone moves).
+     */
+    fun processBatch(messages: List<GREToClientMessage>) {
+        val gsmsToCheck = mutableListOf<GameStateMessage>()
+        val batchIds = mutableSetOf<Int>()
+        for (msg in messages) {
+            processCore(msg)
+            if (msg.hasGameStateMessage()) {
+                val gsm = msg.gameStateMessage
+                gsmsToCheck.add(gsm)
+                gsm.gameObjectsList.forEach { batchIds.add(it.instanceId) }
+                gsm.diffDeletedInstanceIdsList.forEach { batchIds.add(it) }
+            }
+        }
+        for (gsm in gsmsToCheck) {
+            checkAnnotationReferentialIntegrity(gsm, batchIds)
+        }
+    }
+
+    /** Core processing: all checks except annotation referential integrity. */
+    private fun processCore(msg: GREToClientMessage) {
         messageIndex++
         val gsId = if (msg.hasGameStateMessage()) msg.gameStateMessage.gameStateId else 0
 
@@ -53,6 +93,16 @@ class InvariantChecker {
             checkPendingMessageCountContract(gsm)
         }
 
+        // Track all instanceIds before accumulator processes (deletes may remove them).
+        // Includes zone member IDs — objects in hidden zones don't appear in
+        // gameObjectsList but are referenced by zone membership and annotations.
+        if (msg.hasGameStateMessage()) {
+            val gsm = msg.gameStateMessage
+            gsm.gameObjectsList.forEach { everSeenInstanceIds.add(it.instanceId) }
+            gsm.diffDeletedInstanceIdsList.forEach { everSeenInstanceIds.add(it) }
+            gsm.zonesList.forEach { z -> z.objectInstanceIdsList.forEach { everSeenInstanceIds.add(it) } }
+        }
+
         accumulator.process(msg)
 
         if (msg.hasActionsAvailableReq()) {
@@ -60,18 +110,14 @@ class InvariantChecker {
         }
         if (msg.hasGameStateMessage()) {
             checkZoneObjectConsistency(gsId)
-            checkAnnotationReferentialIntegrity(msg.gameStateMessage)
         }
-    }
-
-    /** Process a list of GRE messages. */
-    fun processAll(messages: List<GREToClientMessage>) {
-        messages.forEach { process(it) }
     }
 
     /** Seed with a Full GSM baseline (e.g. handshake). */
     fun seedFull(gsm: GameStateMessage) {
         accumulator.seedFull(gsm)
+        gsm.gameObjectsList.forEach { everSeenInstanceIds.add(it.instanceId) }
+        gsm.zonesList.forEach { z -> z.objectInstanceIdsList.forEach { everSeenInstanceIds.add(it) } }
         val gsId = gsm.gameStateId
         seenGsIds.add(gsId)
         if (gsId > highWaterGsId) highWaterGsId = gsId
@@ -274,7 +320,10 @@ class InvariantChecker {
      * (origId) that may have been deleted in this or a prior GSM, or may
      * reference objects from hidden zones (library) that were never visible.
      */
-    private fun checkAnnotationReferentialIntegrity(gsm: GameStateMessage) {
+    private fun checkAnnotationReferentialIntegrity(
+        gsm: GameStateMessage,
+        batchIds: Set<Int> = emptySet(),
+    ) {
         val gsId = gsm.gameStateId
         val annotations = gsm.annotationsList + gsm.persistentAnnotationsList
         if (annotations.isEmpty()) return
@@ -287,7 +336,11 @@ class InvariantChecker {
             .flatMap { it.affectedIdsList }
             .toSet()
 
-        fun isKnown(id: Int) = accumulator.isKnownEntity(id) || id in transientAbilityIds
+        fun isKnown(id: Int) =
+            accumulator.isKnownEntity(id) ||
+                id in transientAbilityIds ||
+                id in batchIds ||
+                id in everSeenInstanceIds
 
         for (ann in annotations) {
             // ObjectIdChanged references old (replaced) instanceIds — skip entirely

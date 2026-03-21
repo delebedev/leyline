@@ -44,7 +44,7 @@ class CombatFlowTest :
         // --- Setup helpers ---
 
         fun setupSingleAttacker(): Int {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK)
             harness = h
             h.connectAndKeep()
 
@@ -73,7 +73,7 @@ class CombatFlowTest :
         }
 
         fun setupMultipleAttackers(): List<Int> {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK)
             harness = h
             h.connectAndKeep()
 
@@ -116,7 +116,7 @@ class CombatFlowTest :
         }
 
         fun setupWithAiBlocker(): Int {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK)
             harness = h
             h.connectAndKeep()
 
@@ -326,7 +326,7 @@ class CombatFlowTest :
 
         test("combat death produces zone transfer") {
             // Use non-validating harness: combat zone transfers produce transient instanceId gaps
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK)
             harness = h
             h.connectAndKeep()
 

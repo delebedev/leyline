@@ -42,7 +42,7 @@ class ConformancePipelineTest :
         }
 
         test("PlayLand segment: engine produces matching annotation structure") {
-            val h = MatchFlowHarness(validating = false)
+            val h = MatchFlowHarness()
             harness = h
 
             // Use inline puzzle matching the recording's PlayLand segment:
@@ -109,7 +109,7 @@ class ConformancePipelineTest :
         }
 
         test("CastSpell segment: creature cast produces matching annotation structure") {
-            val h = MatchFlowHarness(validating = false)
+            val h = MatchFlowHarness()
             harness = h
 
             // Recording: Wall of Runes (1U) cast from hand to stack.
@@ -171,7 +171,7 @@ class ConformancePipelineTest :
             // Puzzle: AI starts with Juggernaut (must-attack) on battlefield.
             // Human has two Centaur Coursers as potential blockers.
             // AI's turn → Juggernaut attacks → DeclareBlockersReq sent to human.
-            val h = MatchFlowHarness(validating = false)
+            val h = MatchFlowHarness()
             harness = h
             h.connectAndKeepPuzzleText(
                 """
@@ -252,7 +252,7 @@ class ConformancePipelineTest :
         }
 
         test("DeclareAttackers prompt lifecycle capture") {
-            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK)
             harness = h
             h.connectAndKeep()
 
