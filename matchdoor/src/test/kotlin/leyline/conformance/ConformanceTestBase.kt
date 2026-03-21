@@ -81,10 +81,6 @@ open class ConformanceTestBase {
             "Game should be at Main1 after advanceToMain1 (actual: ${game.phaseHandler.phase})"
         }
         b.snapshotFromGame(game, counter.currentGsId())
-        // Seed client-seen turn info so postAction() doesn't inject a spurious
-        // PhaseOrStepModified on the first call. ConformanceTestBase bypasses
-        // MatchSession (which normally updates this via sendBundledGRE).
-        b.recordClientSeenTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
         return Triple(b, game, counter)
     }
 
@@ -116,7 +112,6 @@ open class ConformanceTestBase {
             "Puzzle game should be at Main1 (actual: ${game.phaseHandler.phase})"
         }
         b.snapshotFromGame(game, counter.currentGsId())
-        b.recordClientSeenTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
         return Triple(b, game, counter)
     }
 
@@ -154,7 +149,6 @@ open class ConformanceTestBase {
         }
 
         b.snapshotFromGame(game, counter.currentGsId())
-        b.recordClientSeenTurnInfo(StateMapper.buildFromGame(game, counter.currentGsId(), TEST_MATCH_ID, b))
         return Triple(b, game, counter)
     }
 

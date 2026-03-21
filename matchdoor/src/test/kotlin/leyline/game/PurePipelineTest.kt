@@ -197,7 +197,6 @@ class PurePipelineTest :
         test("combatAnnotations returns empty when no damage events") {
             val result = AnnotationPipeline.combatAnnotations(
                 events = emptyList(),
-                activeSeat = 1,
                 idResolver = { it + 1000 },
                 previousLifeTotals = emptyMap(),
                 currentLifeTotals = emptyMap(),
@@ -207,13 +206,13 @@ class PurePipelineTest :
             result.hasCombatDamage shouldBe false
         }
 
-        // Test 2: creature-to-creature damage → PhaseOrStepModified + DamageDealt
+        // Test 2: creature-to-creature damage → DamageDealt
+        // (PhaseOrStepModified is now emitted event-driven in Stage 2b, not by combatAnnotations)
         test("combatAnnotations produces DamageDealt for creature-to-creature") {
             val events = listOf(GameEvent.DamageDealtToCard(sourceForgeId = 10, targetForgeId = 20, amount = 3))
 
             val result = AnnotationPipeline.combatAnnotations(
                 events = events,
-                activeSeat = 1,
                 idResolver = { it + 1000 },
                 previousLifeTotals = emptyMap(),
                 currentLifeTotals = emptyMap(),
@@ -221,9 +220,9 @@ class PurePipelineTest :
 
             result.hasCombatDamage shouldBe true
 
-            // PhaseOrStepModified must come first
+            // DamageDealt is now first (PhaseOrStepModified handled elsewhere)
             val firstType = result.annotations.first().getType(0)
-            firstType shouldBe AnnotationType.PhaseOrStepModified
+            firstType shouldBe AnnotationType.DamageDealt_af5a
 
             // DamageDealt annotation with target iid = 20 + 1000 = 1020
             val damageAnnotation = result.annotations.first { it.getType(0) == AnnotationType.DamageDealt_af5a }
@@ -238,7 +237,6 @@ class PurePipelineTest :
 
             val result = AnnotationPipeline.combatAnnotations(
                 events = events,
-                activeSeat = 1,
                 idResolver = { it + 1000 },
                 previousLifeTotals = mapOf(1 to 20, 2 to 20),
                 currentLifeTotals = mapOf(1 to 20, 2 to 15),
@@ -254,7 +252,6 @@ class PurePipelineTest :
 
             val result = AnnotationPipeline.combatAnnotations(
                 events = events,
-                activeSeat = 1,
                 idResolver = { it + 1000 },
                 previousLifeTotals = emptyMap(),
                 currentLifeTotals = emptyMap(),
