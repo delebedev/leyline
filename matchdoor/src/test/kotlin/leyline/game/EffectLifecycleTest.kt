@@ -54,14 +54,14 @@ class EffectLifecycleTest :
             val game = b.getGame()!!
 
             // Build full state — exercises snapshotBoosts + diffBoosts + effectAnnotations
-            val gsm1 = StateMapper.buildFromGame(game, 1, "test", b)
+            val gsm1 = StateMapper.buildFromGame(game, 1, "test", b).gsm
             b.snapshotDiffBaseline(gsm1)
 
             gsm1 shouldNotBe null
             gsm1.gameStateId shouldBe 1
 
             // Build a diff — should not crash even with no state changes
-            val gsm2 = StateMapper.buildDiffFromGame(game, 2, "test", b)
+            val gsm2 = StateMapper.buildDiffFromGame(game, 2, "test", b).gsm
             gsm2 shouldNotBe null
             gsm2.gameStateId shouldBe 2
 
@@ -89,7 +89,7 @@ class EffectLifecycleTest :
             val swiftspearIid = b.getOrAllocInstanceId(ForgeCardId(swiftspear.id)).value
 
             // Take initial snapshot (gsId=1)
-            val gsm1 = StateMapper.buildFromGame(game, 1, "test", b)
+            val gsm1 = StateMapper.buildFromGame(game, 1, "test", b).gsm
             b.snapshotDiffBaseline(gsm1)
 
             // Cast Giant Growth targeting Swiftspear
@@ -127,7 +127,7 @@ class EffectLifecycleTest :
             swiftspear.netToughness shouldBeGreaterThan 2
 
             // Build full GSM to capture all annotations including effects
-            val gsm2 = StateMapper.buildFromGame(game, 2, "test", b)
+            val gsm2 = StateMapper.buildFromGame(game, 2, "test", b).gsm
 
             val allTransient = gsm2.annotationsList
             val allPersistent = gsm2.persistentAnnotationsList

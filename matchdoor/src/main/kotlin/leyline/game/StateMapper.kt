@@ -28,6 +28,13 @@ import forge.game.zone.ZoneType as ForgeZoneType
 object StateMapper {
     private val log = LoggerFactory.getLogger(StateMapper::class.java)
 
+    /** Result of [buildFromGame] — GSM plus metadata for message framing. */
+    data class BuildResult(
+        val gsm: GameStateMessage,
+        /** True if a CastSpell zone transfer was detected (triggers QueuedGSM split). */
+        val hasCastSpell: Boolean = false,
+    )
+
     /**
      * Build a full [GameStateMessage] from live Forge [forge.game.Game] state.
      * Reads zones, players, phase info from the engine and maps cards
@@ -45,7 +52,7 @@ object StateMapper {
         actions: ActionsAvailableReq? = null,
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
-    ): GameStateMessage {
+    ): BuildResult {
         val handler = game.phaseHandler
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
@@ -266,7 +273,8 @@ object StateMapper {
         bridge.annotations.applyBatchResult(batch)
         bridge.annotations.setAnnotationId(annId)
 
-        return built
+        val hasCastSpell = transferResult.transfers.any { it.category == TransferCategory.CastSpell }
+        return BuildResult(built, hasCastSpell)
     }
 
     /**
@@ -283,20 +291,21 @@ object StateMapper {
         actions: ActionsAvailableReq? = null,
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
-    ): GameStateMessage {
+    ): BuildResult {
         val prev = bridge.getDiffBaselineState()
         if (prev == null) {
             // No baseline exists — fall back to Full, but snapshot it so the next
             // buildDiffFromGame call has a baseline and produces a real Diff.
-            val full = buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId)
-            bridge.snapshotDiffBaseline(full)
-            return full
+            val result = buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId)
+            bridge.snapshotDiffBaseline(result.gsm)
+            return result
         }
 
         // Build current full state (for comparison + to seed next diff).
         // Pass actions=null to avoid redundant action embedding (we embed below).
         // Use viewingSeatId=0 for the comparison base (needs all objects for accurate diff).
-        val current = buildFromGame(game, gameStateId, matchId, bridge)
+        val fullResult = buildFromGame(game, gameStateId, matchId, bridge)
+        val current = fullResult.gsm
 
         // Compute changed zones (by objectInstanceIds)
         val prevZoneMap = prev.zonesList.associateBy { it.zoneId }
@@ -369,7 +378,7 @@ object StateMapper {
                 Thread.currentThread().stackTrace[2].let { "${it.className.substringAfterLast('.')}.${it.methodName}:${it.lineNumber}" },
             )
         }
-        return built
+        return BuildResult(built, fullResult.hasCastSpell)
     }
 
     /**

@@ -362,7 +362,7 @@ object HandshakeMessages {
             matchId = matchId,
             bridge = bridge,
             viewingSeatId = seatId,
-        ).toBuilder()
+        ).gsm.toBuilder()
             .setPendingMessageCount(1) // ActionsAvailableReq follows
             .build()
 

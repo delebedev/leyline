@@ -119,7 +119,7 @@ class MatchSession(
         sendBundle(result)
 
         // Seed state snapshot for subsequent diff computation.
-        bridge.snapshotDiffBaseline(StateMapper.buildFromGame(game, counter.currentGsId(), matchId, bridge))
+        bridge.snapshotDiffBaseline(StateMapper.buildFromGame(game, counter.currentGsId(), matchId, bridge).gsm)
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(bridge)
@@ -160,7 +160,7 @@ class MatchSession(
         // Seed state snapshot for subsequent diff computation.
         // The puzzle initial bundle already sent the Full GSM, so the bridge
         // needs a matching snapshot for the first Diff to be correct.
-        bridge.snapshotDiffBaseline(StateMapper.buildFromGame(game, counter.currentGsId(), matchId, bridge))
+        bridge.snapshotDiffBaseline(StateMapper.buildFromGame(game, counter.currentGsId(), matchId, bridge).gsm)
 
         // Auto-pass through phases where human has no real actions
         autoPassEngine.autoPassAndAdvance(bridge)

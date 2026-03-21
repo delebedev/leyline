@@ -290,7 +290,7 @@ open class ConformanceTestBase {
         b: GameBridge,
         gsId: Int,
     ): GameStateMessage =
-        StateMapper.buildFromGame(game, gsId, TEST_MATCH_ID, b, viewingSeatId = SEAT_ID)
+        StateMapper.buildFromGame(game, gsId, TEST_MATCH_ID, b, viewingSeatId = SEAT_ID).gsm
 
     /** Play a land and capture the resulting GSM. */
     fun playLandAndCapture(): GameStateMessage? {

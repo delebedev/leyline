@@ -126,7 +126,7 @@ class TreasureTokenTest :
                 "test-treasure",
                 h.bridge,
                 viewingSeatId = 1,
-            )
+            ).gsm
             gsm.shouldNotBeNull()
             val treasureObj = gsm.gameObjectsList.firstOrNull { it.grpId == treasureGrpId }
             treasureObj.shouldNotBeNull()
