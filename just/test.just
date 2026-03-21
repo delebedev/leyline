@@ -9,7 +9,7 @@ test-one class:
 # pre-commit gate: unit + conformance + fmt check (all modules)
 [group('test')]
 test-gate:
-    cd "{{project_dir}}" && ./gradlew spotlessCheck :matchdoor:testGate :tooling:testGate :frontdoor:test :account:test
+    cd "{{project_dir}}" && ./gradlew spotlessCheck detekt :matchdoor:testGate :tooling:testGate :frontdoor:test :account:test
 
 # matchdoor integration tests (boots engine per fork — run after risky matchdoor changes)
 [group('test')]
