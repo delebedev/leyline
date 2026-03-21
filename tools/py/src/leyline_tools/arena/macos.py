@@ -9,7 +9,7 @@ from .shell import run
 
 _cached_bounds: tuple[int, int, int, int] | None = None
 _cached_bounds_ts: float = 0.0
-_BOUNDS_TTL = 5.0
+_BOUNDS_TTL = 1.0
 _last_activate: float = 0.0
 _ACTIVATE_DEDUP = 2.0
 

@@ -16,7 +16,7 @@ BATTLEFIELD_DROP = (480, 300)
 ACTION_BUTTON = (888, 504)
 
 _MODAL_DONE = (480, 491)
-_MODAL_PATTERNS = re.compile(r"(?i)\b(Surveil|Scry)\b")
+_MODAL_PATTERNS = re.compile(r"(?i)\b(Surveil|Scry|Explore|Discard)\b")
 
 
 def _auto_dismiss_modal() -> None:
@@ -40,6 +40,7 @@ def _auto_dismiss_modal() -> None:
 
     modal_type = None
     saw_done = False
+    saw_submit = False
     for item in items:
         text = item.get("text", "")
         m = _MODAL_PATTERNS.search(text)
@@ -47,14 +48,18 @@ def _auto_dismiss_modal() -> None:
             modal_type = m.group(1).title()
         if text.strip().lower() == "done":
             saw_done = True
+        if text.strip().lower().startswith("submit"):
+            saw_submit = True
 
     if modal_type:
-        _click_960(*_MODAL_DONE)
-        time.sleep(0.5)
-        if saw_done:
-            print(f"  (auto-dismissed {modal_type})")
+        if saw_submit:
+            # Discard/selection prompts use Submit button (top-right action area)
+            _click_960(*ACTION_BUTTON)
         else:
-            print(f"  (auto-dismissed {modal_type}, inferred Done position)")
+            _click_960(*_MODAL_DONE)
+        time.sleep(0.5)
+        btn = "Submit" if saw_submit else ("Done" if saw_done else "inferred")
+        print(f"  (auto-dismissed {modal_type} via {btn})")
 
 
 def cmd_play(args: list[str]) -> None:
