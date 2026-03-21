@@ -282,9 +282,7 @@ class CombatFlowTest :
             // Advance to combat
             h.passPriority()
 
-            // Declare attack, then snapshot BEFORE passing through combat
             h.declareAttackers(listOf(attackerIid))
-            val snapshot = h.messageSnapshot()
 
             // Pass through combat — damage happens during these passes
             val startTurn = h.turn()

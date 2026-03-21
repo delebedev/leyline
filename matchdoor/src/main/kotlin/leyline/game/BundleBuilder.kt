@@ -408,7 +408,6 @@ object BundleBuilder {
                     ownerSeatId = seatId,
                     controllerSeatId = seatId,
                     bridge = bridge,
-                    game = game,
                 ),
             )
         }
@@ -505,7 +504,6 @@ object BundleBuilder {
                     ownerSeatId = seatId,
                     controllerSeatId = seatId,
                     bridge = bridge,
-                    game = game,
                 ),
             )
         }
