@@ -34,10 +34,10 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 29 | TurnPermanent | -- | -- | -- | (none) | MISSING |
 | 30 | DynamicAbility | -- | -- | -- | `cost`, `grpid`, `base_grpid`, `action_cost_string` | MISSING |
 | 31 | ObjectsSelected | -- | -- | -- | (none) | MISSING |
-| 34 | ManaPaid | `GameEventSpellAbilityCast` | `SpellCast` | `manaPaid()` | `id`, `color`, `affectorId` | Implemented (full conformance) |
+| 34 | ManaPaid | `GameEventSpellAbilityCast` | `SpellCast` | `manaPaid()` | `id`, `color`, `affectorId` | Implemented — emitted for CastSpell (per-land) and mana-sacrifice (Treasure). `affectorId`=land/token instanceId. |
 | 35 | TokenCreated | `GameEventTokenCreated` | `TokenCreated` | `tokenCreated()` | affected ids | Implemented |
-| 36 | AbilityInstanceCreated | `GameEventSpellAbilityCast` | `SpellCast` | `abilityInstanceCreated()` | affected ids | Implemented |
-| 37 | AbilityInstanceDeleted | `GameEventSpellResolved` / `GameEventSpellRemovedFromStack` | `SpellResolved` | `abilityInstanceDeleted()` | affected ids | Implemented |
+| 36 | AbilityInstanceCreated | `GameEventSpellAbilityCast` | `SpellCast` | `abilityInstanceCreated()` | affected ids | Implemented — also emitted for mana-sacrifice (Treasure: opens the ability bracket). |
+| 37 | AbilityInstanceDeleted | `GameEventSpellResolved` / `GameEventSpellRemovedFromStack` | `SpellResolved` | `abilityInstanceDeleted()` | affected ids | Implemented — also emitted for mana-sacrifice (Treasure: closes the ability bracket). |
 | 38 | DisplayCardUnderCard | -- | -- | -- | `Disable`, `DisplayUnderObjects` | MISSING |
 | 39 | AbilityWordActive | -- | -- | -- | `AbilityWordName`, `value`, `colors`, `AbilityGrpId` | MISSING |
 | 40 | LinkInfo | -- | -- | -- | `LinkType`, `Choice_Value` | MISSING |
@@ -72,7 +72,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 70 | AttachmentCreated | `GameEventCardAttachment` | `CardAttached` | `attachmentCreated()` | affector/affected ids | Implemented |
 | 71 | PowerToughnessModCreated | `GameEventCardStatsChanged` | `PowerToughnessChanged` | `powerToughnessModCreated()` | `power`, `toughness` | Implemented |
 | 72 | SyntheticEvent | -- | -- | `syntheticEvent()` | `type` | Implemented |
-| 73 | UserActionTaken | -- | -- | `userActionTaken()` | `actionType`, `abilityGrpId` | Implemented |
+| 73 | UserActionTaken | -- | -- | `userActionTaken()` | `actionType`, `abilityGrpId` | Implemented — actionType=4 (ActivateMana) emitted for mana-sacrifice (Treasure) in addition to land taps. |
 | 74 | DelayedTriggerAffectees | -- | -- | -- | `abilityGrpId`, `removesFromZone` | MISSING |
 | 75 | InstanceRevealedToOpponent | -- | -- | -- | (none) | MISSING |
 | 77 | ReplacementEffectApplied | -- | -- | -- | `grpid`, `IsDamageReplacement` | MISSING |

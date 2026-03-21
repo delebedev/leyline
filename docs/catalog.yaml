@@ -321,6 +321,10 @@ spells:
       consuming priority). ManaPaid annotation carries affectorId (land),
       id (payment counter), and color (bitmask). Per-land mana payment block
       emits AIC/TUP/UAT-mana/ManaPaid/AID sequence matching real server.
+      Treasure sacrifice for mana emits the same bracket (AIC/TUP/OIC/
+      ZoneTransfer-Sacrifice/UAT-actionType4/ManaPaid/AID) — full conformance.
+      Known gap: abilityGrpId=0 instead of 183 (Treasure tap-for-mana ability)
+      pending AbilityRegistry (#160).
 
   float-mana:
     status: missing
@@ -467,9 +471,12 @@ permanents:
       mapping in CardDb. InvestigateEffect uses empty fallback (per-player loop).
       Treasure token grpId = 94178 (confirmed 2026-03-22). TokenCreated affectorId =
       trigger ability instance iid (not source permanent). TokenDeleted affectorId =
-      post-ObjectIdChanged iid of the token. Sacrifice: category="Sacrifice" ZoneTransfer
-      to GY, then TokenDeleted in same GSM. Mana from Treasure: color in ManaPaid
-      details reflects player's chosen color (any-color mana source).
+      post-ObjectIdChanged iid of the token. Sacrifice for mana: emits full mana-ability
+      bracket (AbilityInstanceCreated/TappedUntappedPermanent/ObjectIdChanged/
+      ZoneTransfer-Sacrifice/UserActionTaken-actionType4/ManaPaid/
+      AbilityInstanceDeleted). SBA-cleaned tokens detected via disappeared-object
+      post-pass. Known gap: abilityGrpId=0 (needs AbilityRegistry #160).
+      Mana color in ManaPaid reflects player's chosen color (any-color source).
 
   face-down:
     status: missing
@@ -907,7 +914,7 @@ protocol-summary:
 
   annotation-tiers:
     # ── Core: needed for most games, absence breaks UX ──────────────
-    # 28 types. We have 28 working, 6 missing.
+    # 28 types. We have 27 working, 5 missing.
     core:
       have:
         - ZoneTransfer (1)          # every card move
@@ -936,10 +943,10 @@ protocol-summary:
         - RevealedCardDeleted (60)  # card un-revealed
         - PowerToughnessModCreated (71)  # buff animation trigger
         - DamagedThisTurn (90)      # persistent badge on damaged creatures
+        - ManaPaid (34)             # id/color/affectorId; emitted for CastSpell and mana-sacrifice (Treasure)
       missing:
         - AddAbility (9)            # "gains flying/haste/etc" — no keyword badge update
         - ControllerChanged (15)    # steal effects (Claim, Agent) — permanent doesn't move
-        - ManaPaid (34)             # now has id/color/affectorId — conformance matched
         - CardRevealed (47)         # tutors, impulse draw — no reveal animation
         - PlayerSelectingTargets (92)  # targeting arrows during cast
         - PlayerSubmittedTargets (93)  # targeting arrows confirmed
