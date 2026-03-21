@@ -38,11 +38,10 @@ Each tool has `--help` with examples. Docs co-located in `tools/<name>/docs/`.
 
 ## Gameplay Semantics
 
-- `action-format.md` — normalized action payload format
-- `action-types.md` — action type catalog
+- `actions.md` — action proto shape, ActionType enum, field requirements
+- `message-patterns.md` — GRE message sequences, routing, combat flow, prompts
 - `priority-loop.md` — Forge engine priority state machine (ASCII diagram + PhaseHandler internals)
 - `priority-system-analysis.md` — two-layer priority system analysis (engine + session)
-- `combat-protocol.md` — combat request/response sequence
 - `annotation-field-notes.md` — per-type annotation investigation notes
 
 ## Architecture / Design
