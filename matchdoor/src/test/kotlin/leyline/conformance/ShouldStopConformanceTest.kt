@@ -1,61 +1,39 @@
 package leyline.conformance
 
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.game.mapper.ShouldStopEvaluator
-import wotc.mtgo.gre.external.messaging.Messages.*
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 /**
- * Validates [ShouldStopEvaluator] against real Arena ActionsAvailableReq
- * messages captured from proxy recordings.
+ * Validates [ShouldStopEvaluator] against expected shouldStop values
+ * observed in real Arena ActionsAvailableReq messages.
  *
- * Each golden `.bin` is a raw [MatchServiceToClientMessage] containing a GRE
- * bundle with an [ActionsAvailableReq]. The test extracts every action and
- * asserts our evaluator matches the real shouldStop value.
+ * Source: Arena proxy recording 2026-02-28, documented in #142
  */
 class ShouldStopConformanceTest :
     FunSpec({
 
         tags(ConformanceTag)
 
-        fun loadAAR(resource: String): ActionsAvailableReq {
-            val bytes = javaClass.classLoader.getResourceAsStream("golden/$resource")?.readBytes()
-                ?: error("Golden not found: golden/$resource")
-            val payload = MatchServiceToClientMessage.parseFrom(bytes)
-            return payload.greToClientEvent.greToClientMessagesList
-                .first { it.type == GREMessageType.ActionsAvailableReq_695e }
-                .actionsAvailableReq
-        }
+        // ActionType -> expected shouldStop from real Arena server
+        val expectedShouldStop = mapOf(
+            // shouldStop = true
+            ActionType.Cast to true,
+            ActionType.CastLeftRoom to true,
+            ActionType.CastRightRoom to true,
+            ActionType.Activate_add3 to true,
+            ActionType.Play_add3 to true,
+            // shouldStop = false
+            ActionType.ActivateMana to false,
+            ActionType.Pass to false,
+            ActionType.FloatMana to false,
+        )
 
-        fun assertShouldStop(label: String, aar: ActionsAvailableReq) {
-            aar.actionsList.shouldNotBeEmpty()
-            val mismatches = mutableListOf<String>()
-            for (action in aar.actionsList) {
-                val expected = ShouldStopEvaluator.shouldStop(action.actionType)
-                if (expected != action.shouldStop) {
-                    mismatches.add(
-                        "${action.actionType.name}: evaluator=$expected, arena=${action.shouldStop}" +
-                            " (instanceId=${action.instanceId}, grpId=${action.grpId})",
-                    )
-                }
+        for ((actionType, expected) in expectedShouldStop) {
+            test("shouldStop(${actionType.name}) = $expected") {
+                ShouldStopEvaluator.shouldStop(actionType) shouldBe expected
             }
-            mismatches shouldBe emptyList<String>()
-        }
-
-        test("diverse main phase — Cast + Play + Activate + ActivateMana + Pass + FloatMana") {
-            val aar = loadAAR("aar-diverse-main-phase.bin")
-            assertShouldStop("diverse", aar)
-        }
-
-        test("activate-only — Activate + ActivateMana + Pass + FloatMana") {
-            val aar = loadAAR("aar-activate-only.bin")
-            assertShouldStop("activate-only", aar)
-        }
-
-        test("minimal — Activate + Pass") {
-            val aar = loadAAR("aar-minimal-activate-pass.bin")
-            assertShouldStop("minimal", aar)
         }
     })
