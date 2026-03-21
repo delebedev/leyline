@@ -65,33 +65,11 @@ object BundleBuilder {
         val gsBase = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
         val actions = ActionMapper.buildActions(game, seatId, bridge)
 
-        // Detect phase/step change vs last state sent to client.
-        // Uses client-seen TurnInfo instead of the diff baseline.
-        // This handles the case where PhaseStopProfile skips phases on the engine thread —
-        // the diff baseline may already show the new phase, but the client hasn't seen it.
-        // Skip if GSM already has PhaseOrStepModified (e.g. from combatAnnotations)
-        val alreadyHasPhaseAnnotation = gsBase.annotationsList.any { ann ->
-            ann.typeList.any { it == AnnotationType.PhaseOrStepModified }
-        }
-        // Use GSM's turnInfo for phase/step — buildFromGame may override to CombatDamage
-        val gsWithPhaseAnnotation = if (!alreadyHasPhaseAnnotation &&
-            gsBase.hasTurnInfo() &&
-            bridge.isPhaseChangedFromClientSeen(gsBase.turnInfo)
-        ) {
-            gsBase.toBuilder()
-                .addAnnotations(
-                    frame.phaseAnnotation(
-                        gsBase.turnInfo.phase.number,
-                        gsBase.turnInfo.step.number,
-                    ) { bridge.nextAnnotationId() },
-                )
-                .build()
-        } else {
-            gsBase
-        }
+        // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
+        // in StateMapper Stage 2b — no injection needed here.
 
         // Re-embed stripped actions into the GSM
-        val gs = GsmBuilder.embedActions(gsWithPhaseAnnotation, actions, frame, recipientSeatId = seatId)
+        val gs = GsmBuilder.embedActions(gsBase, actions, frame, recipientSeatId = seatId)
 
         val messages = listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
@@ -146,7 +124,6 @@ object BundleBuilder {
         matchId: String,
         seatId: Int,
         counter: MessageCounter,
-        phaseChanged: Boolean = false,
         turnStarted: Boolean = false,
     ): BundleResult {
         val frame = GsmFrame.from(game, bridge)
@@ -164,20 +141,14 @@ object BundleBuilder {
         // Real server embeds human's potential actions during AI turn.
         val actions = ActionMapper.buildNaiveActions(seatId, bridge)
 
-        // Inject phase/turn annotations when applicable — must assign IDs to avoid
-        // mixed-id violations when gsBase already contains numbered zone-transfer annotations.
-        val gsWithAnnotations = if (phaseChanged || turnStarted) {
+        // Inject turn-start annotation when applicable. PhaseOrStepModified is now
+        // emitted event-driven in Stage 2b (inside buildDiffFromGame above).
+        val gsWithAnnotations = if (turnStarted) {
             gsBase.toBuilder().apply {
-                if (turnStarted) {
-                    addAnnotations(
-                        AnnotationBuilder.newTurnStarted(frame.activeSeat)
-                            .toBuilder().setId(bridge.nextAnnotationId()).build(),
-                    )
-                }
-                if (phaseChanged) {
-                    addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() })
-                    addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() })
-                }
+                addAnnotations(
+                    AnnotationBuilder.newTurnStarted(frame.activeSeat)
+                        .toBuilder().setId(bridge.nextAnnotationId()).build(),
+                )
             }.build()
         } else {
             gsBase

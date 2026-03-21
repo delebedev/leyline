@@ -39,11 +39,6 @@ data class GsmFrame(
         AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)
             .toBuilder().setId(idSource()).build()
 
-    /** Build a PhaseOrStepModified using explicit phase/step values (e.g. from a GSM's turnInfo). */
-    fun phaseAnnotation(phase: Int, step: Int, idSource: () -> Int): AnnotationInfo =
-        AnnotationBuilder.phaseOrStepModified(activeSeat, phase, step)
-            .toBuilder().setId(idSource()).build()
-
     companion object {
         /** Snapshot current game state into a frame. */
         fun from(game: forge.game.Game, bridge: GameBridge): GsmFrame {

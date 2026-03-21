@@ -272,4 +272,14 @@ sealed interface GameEvent {
 
     /** Combat phase ended — signal to clear combat state. */
     data object CombatEnded : GameEvent
+
+    // -- Group D: phase/turn events --
+
+    /** Phase or step changed. Wired from GameEventTurnPhase.
+     *  [phase] and [step] are proto enum ordinals (Phase/Step from messages.proto). */
+    data class PhaseChanged(
+        val seatId: Int,
+        val phase: Int,
+        val step: Int,
+    ) : GameEvent
 }

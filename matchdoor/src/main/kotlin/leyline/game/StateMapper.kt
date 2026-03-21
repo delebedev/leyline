@@ -148,8 +148,14 @@ object StateMapper {
             transferPersistent.addAll(persistent)
         }
 
+        // Stage 2b: Phase/step change annotations (event-driven from GameEventTurnPhase).
+        // Placed before combat (Stage 3) so PhaseOrStepModified precedes damage annotations.
+        for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
+            annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId, ev.phase, ev.step))
+        }
+
         // Stage 3: Combat damage annotations (event-driven — events captured before Forge clears combat)
-        val combatResult = AnnotationPipeline.combatAnnotations(events, bridge, actingSeat)
+        val combatResult = AnnotationPipeline.combatAnnotations(events, bridge)
         annotations.addAll(combatResult.annotations)
 
         // Stage 4: Mechanic annotations (Group B: counters, shuffle, scry, tokens + Group A+: attachments)
