@@ -5,7 +5,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -17,6 +16,7 @@ import leyline.game.StateMapper
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ObjectMapper
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
  * Treasure token grpId resolution — regression test for NPE crash.

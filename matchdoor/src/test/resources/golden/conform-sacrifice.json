@@ -1,0 +1,229 @@
+{
+  "status": "FAIL",
+  "annotations": {
+    "compared": 16,
+    "diffs": [
+      {
+        "index": 0,
+        "type": "type_mismatch",
+        "recording": [
+          "AbilityInstanceCreated"
+        ],
+        "engine": [
+          "ObjectIdChanged"
+        ]
+      },
+      {
+        "index": 1,
+        "type": "type_mismatch",
+        "recording": [
+          "TappedUntappedPermanent"
+        ],
+        "engine": [
+          "ZoneTransfer"
+        ]
+      },
+      {
+        "index": 2,
+        "type": "detail_mismatch",
+        "annotation": [
+          "UserActionTaken"
+        ],
+        "key": "abilityGrpId",
+        "recording": 176676,
+        "engine": 0
+      },
+      {
+        "index": 2,
+        "type": "detail_mismatch",
+        "annotation": [
+          "UserActionTaken"
+        ],
+        "key": "actionType",
+        "recording": 4,
+        "engine": 1
+      },
+      {
+        "index": 3,
+        "type": "type_mismatch",
+        "recording": [
+          "ManaPaid"
+        ],
+        "engine": [
+          "AbilityInstanceCreated"
+        ]
+      },
+      {
+        "index": 4,
+        "type": "type_mismatch",
+        "recording": [
+          "AbilityInstanceDeleted"
+        ],
+        "engine": [
+          "TappedUntappedPermanent"
+        ]
+      },
+      {
+        "index": 5,
+        "type": "type_mismatch",
+        "recording": [
+          "AbilityInstanceCreated"
+        ],
+        "engine": [
+          "ObjectIdChanged"
+        ]
+      },
+      {
+        "index": 6,
+        "type": "type_mismatch",
+        "recording": [
+          "TappedUntappedPermanent"
+        ],
+        "engine": [
+          "ZoneTransfer"
+        ]
+      },
+      {
+        "index": 7,
+        "type": "type_mismatch",
+        "recording": [
+          "ObjectIdChanged"
+        ],
+        "engine": [
+          "UserActionTaken"
+        ]
+      },
+      {
+        "index": 8,
+        "type": "type_mismatch",
+        "recording": [
+          "ZoneTransfer"
+        ],
+        "engine": [
+          "ManaPaid"
+        ]
+      },
+      {
+        "index": 9,
+        "type": "type_mismatch",
+        "recording": [
+          "UserActionTaken"
+        ],
+        "engine": [
+          "AbilityInstanceDeleted"
+        ]
+      },
+      {
+        "index": 10,
+        "type": "type_mismatch",
+        "recording": [
+          "ManaPaid"
+        ],
+        "engine": [
+          "DamageDealt"
+        ]
+      },
+      {
+        "index": 11,
+        "type": "type_mismatch",
+        "recording": [
+          "AbilityInstanceDeleted"
+        ],
+        "engine": [
+          "SyntheticEvent"
+        ]
+      },
+      {
+        "index": 12,
+        "type": "type_mismatch",
+        "recording": [
+          "UserActionTaken"
+        ],
+        "engine": [
+          "ModifiedLife"
+        ]
+      },
+      {
+        "index": 13,
+        "type": "type_mismatch",
+        "recording": [
+          "AbilityInstanceCreated"
+        ],
+        "engine": [
+          "TokenDeleted"
+        ]
+      },
+      {
+        "index": 14,
+        "type": "extra_recording",
+        "recording": [
+          "AbilityInstanceCreated"
+        ]
+      },
+      {
+        "index": 15,
+        "type": "extra_recording",
+        "recording": [
+          "TokenDeleted"
+        ]
+      }
+    ]
+  },
+  "persistentAnnotations": {
+    "compared": 4,
+    "diffs": [
+      {
+        "index": 0,
+        "type": "affectedIds_mismatch",
+        "annotation": [
+          "EnteredZoneThisTurn"
+        ],
+        "recording": [
+          "$var_7",
+          "$var_11",
+          "$var_12"
+        ],
+        "engine": [
+          112
+        ]
+      },
+      {
+        "index": 1,
+        "type": "affectedIds_mismatch",
+        "annotation": [
+          "EnteredZoneThisTurn"
+        ],
+        "recording": [
+          "$var_2",
+          "$var_44",
+          "$var_45",
+          "$var_46",
+          "$var_47"
+        ],
+        "engine": [
+          112
+        ]
+      },
+      {
+        "index": 2,
+        "type": "type_mismatch",
+        "recording": [
+          "TriggeringObject"
+        ],
+        "engine": [
+          "EnteredZoneThisTurn"
+        ]
+      },
+      {
+        "index": 3,
+        "type": "extra_recording",
+        "recording": [
+          "TriggeringObject"
+        ]
+      }
+    ]
+  },
+  "bindings": {
+    "$var_4": 117
+  }
+}

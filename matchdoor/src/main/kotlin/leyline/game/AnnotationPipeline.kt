@@ -270,7 +270,13 @@ object AnnotationPipeline {
             if (stillOnBattlefield) {
                 // Remove from patchedObjects — it should not appear as a battlefield object.
                 val idx = patchedObjects.indexOfFirst { it.instanceId == instanceId }
-                resolvedGrpId = if (idx >= 0) { val g = patchedObjects[idx].grpId; patchedObjects.removeAt(idx); g } else 0
+                resolvedGrpId = if (idx >= 0) {
+                    val g = patchedObjects[idx].grpId
+                    patchedObjects.removeAt(idx)
+                    g
+                } else {
+                    0
+                }
                 // Remove from battlefield zone, add to destination zone.
                 removeFromZone(patchedZones, ZONE_BATTLEFIELD, instanceId)
                 appendToZone(patchedZones, destZone, newId)
