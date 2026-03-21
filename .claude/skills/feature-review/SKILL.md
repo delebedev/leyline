@@ -83,6 +83,7 @@ Don't say "needs more tests" — say which type is missing and what scenario it 
 - Types/classes in wrong package
 - Leaked state (maps never cleaned up, resources not closed)
 - Naming clarity
+- **Migration comments** — comments that describe what changed ("replaces X", "was previously Y", "instead of the old Z") rather than what the code does. These are commit-message content, not code documentation. Flag for removal.
 
 #### 3g. Documentation hygiene
 

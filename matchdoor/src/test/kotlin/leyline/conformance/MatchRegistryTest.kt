@@ -193,7 +193,7 @@ class MatchRegistryTest :
             val matchId = "forge-match-1"
             val match = registry.getOrCreateMatch(matchId) { Match(matchId, GameBridge()) }
             val sink = ListMessageSink()
-            val session = MatchSession(seatId = 1, matchId = matchId, sink = sink, registry = registry, paceDelayMs = 0)
+            val session = MatchSession(seatId = 1, matchId = matchId, sink = sink, registry = registry, paceDelayMs = 0, counter = match.bridge.messageCounter)
             session.connectBridge(match.bridge)
 
             val handler = MatchHandler(registry = registry)

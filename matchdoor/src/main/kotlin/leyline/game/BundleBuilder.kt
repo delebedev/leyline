@@ -57,6 +57,7 @@ object BundleBuilder {
         seatId: Int,
         counter: MessageCounter,
     ): BundleResult {
+        val frame = GsmFrame.from(game, bridge)
         val nextGs = counter.nextGsId()
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
@@ -72,20 +73,17 @@ object BundleBuilder {
         val alreadyHasPhaseAnnotation = gsBase.annotationsList.any { ann ->
             ann.typeList.any { it == AnnotationType.PhaseOrStepModified }
         }
+        // Use GSM's turnInfo for phase/step — buildFromGame may override to CombatDamage
         val gsWithPhaseAnnotation = if (!alreadyHasPhaseAnnotation &&
             gsBase.hasTurnInfo() &&
             bridge.isPhaseChangedFromClientSeen(gsBase.turnInfo)
         ) {
-            val handler = game.phaseHandler
-            val human = bridge.getPlayer(SeatId(1))
-            val activeSeat = if (handler.playerTurn == human) 1 else 2
             gsBase.toBuilder()
                 .addAnnotations(
-                    AnnotationBuilder.phaseOrStepModified(
-                        activeSeat,
+                    frame.phaseAnnotation(
                         gsBase.turnInfo.phase.number,
                         gsBase.turnInfo.step.number,
-                    ).toBuilder().setId(bridge.nextAnnotationId()).build(),
+                    ) { bridge.nextAnnotationId() },
                 )
                 .build()
         } else {
@@ -93,7 +91,7 @@ object BundleBuilder {
         }
 
         // Re-embed stripped actions into the GSM
-        val gs = GsmBuilder.embedActions(gsWithPhaseAnnotation, actions, game, bridge, recipientSeatId = seatId)
+        val gs = GsmBuilder.embedActions(gsWithPhaseAnnotation, actions, frame, recipientSeatId = seatId)
 
         val messages = listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
@@ -151,9 +149,7 @@ object BundleBuilder {
         phaseChanged: Boolean = false,
         turnStarted: Boolean = false,
     ): BundleResult {
-        val handler = game.phaseHandler
-        val human = bridge.getPlayer(SeatId(1))
-        val activeSeat = if (handler.playerTurn == human) 1 else 2
+        val frame = GsmFrame.from(game, bridge)
         val nextGs = counter.nextGsId()
         // Build state first (triggers instanceId realloc), then actions with new IDs
         val gsBase = StateMapper.buildDiffFromGame(
@@ -171,24 +167,16 @@ object BundleBuilder {
         // Inject phase/turn annotations when applicable — must assign IDs to avoid
         // mixed-id violations when gsBase already contains numbered zone-transfer annotations.
         val gsWithAnnotations = if (phaseChanged || turnStarted) {
-            val protoPhase = PlayerMapper.mapPhase(handler.phase).number
-            val protoStep = PlayerMapper.mapStep(handler.phase).number
             gsBase.toBuilder().apply {
                 if (turnStarted) {
                     addAnnotations(
-                        AnnotationBuilder.newTurnStarted(activeSeat)
+                        AnnotationBuilder.newTurnStarted(frame.activeSeat)
                             .toBuilder().setId(bridge.nextAnnotationId()).build(),
                     )
                 }
                 if (phaseChanged) {
-                    addAnnotations(
-                        AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep)
-                            .toBuilder().setId(bridge.nextAnnotationId()).build(),
-                    )
-                    addAnnotations(
-                        AnnotationBuilder.phaseOrStepModified(activeSeat, protoPhase, protoStep)
-                            .toBuilder().setId(bridge.nextAnnotationId()).build(),
-                    )
+                    addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() })
+                    addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() })
                 }
             }.build()
         } else {
@@ -269,35 +257,19 @@ object BundleBuilder {
         val prevGs = counter.currentGsId()
         val nextGs = counter.nextGsId()
 
-        val phase = PlayerMapper.mapPhase(game.phaseHandler.phase)
-        val step = PlayerMapper.mapStep(game.phaseHandler.phase)
+        val frame = GsmFrame.from(game, bridge)
         // Naive actions: always show human's full hand (Cast/Play) regardless of phase.
         // Real server embeds Cast/Play actions regardless of current phase (cosmetic only;
         // actual priority gating uses ActionsAvailableReq sent when human gets priority).
         val actions = ActionMapper.buildNaiveActions(seatId, bridge)
-        val handler = game.phaseHandler
-        val human = bridge.getPlayer(SeatId(1))
-        val activeSeat = if (handler.playerTurn == human) 1 else 2
-        val prioritySeat = if (handler.priorityPlayer == human) 1 else 2
-
-        // Shared turnInfo for all diffs
-        val turnInfo = TurnInfo.newBuilder()
-            .setPhase(phase)
-            .setStep(step)
-            .setTurnNumber(handler.turn.coerceAtLeast(1))
-            .setActivePlayer(activeSeat)
-            .setPriorityPlayer(prioritySeat)
-            .setDecisionPlayer(prioritySeat)
 
         // Message 1: SendHiFi with 2x PhaseOrStepModified + gameInfo
         val gs1 = GsmBuilder.buildTransitionState(
-            game,
             nextGs,
             prevGameStateId = prevGs,
             matchId,
             bridge,
-            phase,
-            step,
+            frame,
             isStageTransition = true,
             actions = actions,
             actionSeatId = seatId,
@@ -313,7 +285,7 @@ object BundleBuilder {
             .setType(GameStateType.Diff)
             .setGameStateId(echoGs)
             .setPrevGameStateId(msg1GsId)
-            .setTurnInfo(turnInfo)
+            .setTurnInfo(frame.turnInfo())
             .setUpdate(GameStateUpdate.SendHiFi)
         embedActions(echoBuilder, actions, seatId, pending = false)
         val msg2 = makeGRE(GREMessageType.GameStateMessage_695e, echoGs, seatId, counter.nextMsgId()) {
@@ -326,11 +298,8 @@ object BundleBuilder {
             .setType(GameStateType.Diff)
             .setGameStateId(commitGs)
             .setPrevGameStateId(echoGs)
-            .setTurnInfo(turnInfo)
-            .addAnnotations(
-                AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)
-                    .toBuilder().setId(bridge.nextAnnotationId()).build(),
-            )
+            .setTurnInfo(frame.turnInfo())
+            .addAnnotations(frame.phaseAnnotation { bridge.nextAnnotationId() })
             .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(GameStateUpdate.SendAndRecord)
         embedActions(commitBuilder, actions, seatId)

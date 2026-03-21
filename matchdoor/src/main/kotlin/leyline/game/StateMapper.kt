@@ -49,7 +49,21 @@ object StateMapper {
         val handler = game.phaseHandler
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
+        val frame = GsmFrame.from(game, bridge)
 
+        // ═══ GATHER: drain queues, snapshot mutable state ═══
+        val events = bridge.drainEvents().toMutableList()
+        for (reveal in bridge.drainReveals(viewingSeatId)) {
+            events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
+        }
+        val initEffectDiff = bridge.effects.emitInitEffectsOnce()
+        val boostSnapshot = bridge.snapshotBoosts()
+        val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
+        val persistSnapshot = bridge.annotations.snapshot()
+        val startPersistentId = bridge.annotations.currentPersistentId()
+        val startAnnotationId = bridge.annotations.currentAnnotationId()
+
+        // ═══ MAP: engine state → proto objects ═══
         val gameInfo = GameInfo.newBuilder()
             .setMatchID(matchId)
             .setGameNumber(1)
@@ -59,14 +73,6 @@ object StateMapper {
             .setMatchState(MatchState.GameInProgress)
             .setMatchWinCondition(MatchWinCondition.SingleElimination)
             .setMulliganType(MulliganType.London)
-
-        val turnInfo = TurnInfo.newBuilder()
-            .setPhase(PlayerMapper.mapPhase(handler.phase))
-            .setStep(PlayerMapper.mapStep(handler.phase))
-            .setTurnNumber(handler.turn.coerceAtLeast(1))
-            .setActivePlayer(if (handler.playerTurn == human) 1 else 2)
-            .setPriorityPlayer(if (handler.priorityPlayer == human) 1 else 2)
-            .setDecisionPlayer(if (handler.priorityPlayer == human) 1 else 2)
 
         val player1 = PlayerMapper.buildPlayerInfo(human, 1)
         val player2 = PlayerMapper.buildPlayerInfo(ai, 2)
@@ -128,17 +134,9 @@ object StateMapper {
             zones.size,
         )
 
-        // --- Three-stage annotation pipeline (delegated to AnnotationPipeline) ---
+        // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
         // Stage 1: Detect zone transfers, realloc IDs, get patched objects/zones
-        val events = bridge.drainEvents().toMutableList()
-        // Drain reveal records from the prompt bridge (captured in WebPlayerController.reveal())
-        for (reveal in bridge.drainReveals(viewingSeatId)) {
-            events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
-        }
         val transferResult = AnnotationPipeline.detectZoneTransfers(gameObjects, zones, bridge, events)
-        // Apply deferred tracking side effects
-        for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
-        for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(InstanceId(iid), zid)
 
         // Stage 2: Generate annotations from transfers (pure, no side effects)
         val actingSeat = if (handler.priorityPlayer == human) 1 else 2
@@ -161,34 +159,42 @@ object StateMapper {
         annotations.addAll(mechanicResult.transient)
 
         // gsId=1 init effects: 3 effects created+destroyed immediately
-        val initDiff = bridge.effects.emitInitEffectsOnce()
-        if (initDiff.created.isNotEmpty()) {
-            val (initTransient, _) = AnnotationPipeline.effectAnnotations(initDiff)
+        if (initEffectDiff.created.isNotEmpty()) {
+            val (initTransient, _) = AnnotationPipeline.effectAnnotations(initEffectDiff)
             annotations.addAll(initTransient)
             // No persistent annotations stored — they're destroyed in the same GSM
         }
 
         // Stage 5: Layered effect lifecycle (P/T boost diffing)
-        val boostSnapshot = bridge.snapshotBoosts()
-        val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
-
         // Resolve sourceAbilityGRPID: instanceId → card keyword → abilityGrpId
-        val sourceAbilityResolver = buildSourceAbilityResolver(game, bridge)
+        val battlefieldCards = game.players.flatMap { player ->
+            player.getZone(ForgeZoneType.Battlefield).cards.map { card ->
+                bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value to card.name
+            }
+        }
+        val sourceAbilityResolver = buildSourceAbilityResolver(battlefieldCards) { name ->
+            val grpId = bridge.cards.findGrpIdByName(name) ?: return@buildSourceAbilityResolver null
+            bridge.cards.findByGrpId(grpId)
+        }
         val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
         annotations.addAll(effectTransient)
 
-        // Apply all persistent annotation mutations in one batch
-        bridge.annotations.applyBatch(
+        // Pure persistent annotation computation (no bridge mutation)
+        val batch = PersistentAnnotationStore.computeBatch(
+            currentActive = persistSnapshot,
+            startPersistentId = startPersistentId,
             effectPersistent = effectPersistent,
             effectDiff = effectDiff,
             transferPersistent = transferPersistent,
             mechanicResult = mechanicResult,
         ) { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value }
 
-        val allPersistentAnnotations = bridge.annotations.getAll()
+        val allPersistentAnnotations = batch.allAnnotations
 
+        // Number transient annotations sequentially from snapshot
+        var annId = startAnnotationId
         val numberedAnnotations = annotations.map {
-            it.toBuilder().setId(bridge.nextAnnotationId()).build()
+            it.toBuilder().setId(annId++).build()
         }
 
         // prevGameStateId: reference prior state if one exists
@@ -196,9 +202,9 @@ object StateMapper {
         // Override turnInfo to CombatDamage when damage events fired
         // (Forge advances past COMBAT_DAMAGE before we build the GSM)
         val effectiveTurnInfo = if (combatResult.hasCombatDamage) {
-            turnInfo.build().toBuilder().setPhase(Phase.Combat_a549).setStep(Step.CombatDamage_a2cb)
+            frame.turnInfo().toBuilder().setPhase(Phase.Combat_a549).setStep(Step.CombatDamage_a2cb)
         } else {
-            turnInfo
+            frame.turnInfo().toBuilder()
         }
 
         val builder = GameStateMessage.newBuilder()
@@ -232,7 +238,18 @@ object StateMapper {
             }
         }
 
-        return builder.build()
+        val built = builder.build()
+
+        // ═══ APPLY: deferred tracking effects (for next GSM) ═══
+        // These update bridge state for the NEXT buildFromGame/buildDiffFromGame call.
+        // They do NOT feed back into the current GSM (patchedZones/patchedObjects already contain
+        // the limbo/zone patches produced inside detectZoneTransfers).
+        for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
+        for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(InstanceId(iid), zid)
+        bridge.annotations.applyBatchResult(batch)
+        bridge.annotations.setAnnotationId(annId)
+
+        return built
     }
 
     /**
@@ -366,20 +383,15 @@ object StateMapper {
      * Build a resolver: cardInstanceId → sourceAbilityGRPID.
      * Scans battlefield once, then checks each card for P/T-boost keywords.
      */
-    private fun buildSourceAbilityResolver(game: Game, bridge: GameBridge): (Int) -> Int? {
-        // Build instanceId → card name map from battlefield (same cards snapshotBoosts iterates)
-        val instanceIdToName = mutableMapOf<Int, String>()
-        for (player in game.players) {
-            for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-                val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-                instanceIdToName[instanceId] = card.name
-            }
-        }
+    private fun buildSourceAbilityResolver(
+        battlefieldCards: List<Pair<Int, String>>,
+        cardDataLookup: (String) -> CardData?,
+    ): (Int) -> Int? {
+        val instanceIdToName = battlefieldCards.toMap()
 
         return resolver@{ instanceId ->
             val name = instanceIdToName[instanceId] ?: return@resolver null
-            val grpId = bridge.cards.findGrpIdByName(name) ?: return@resolver null
-            val cardData = bridge.cards.findByGrpId(grpId) ?: return@resolver null
+            val cardData = cardDataLookup(name) ?: return@resolver null
             for (keyword in PT_BOOST_KEYWORDS) {
                 cardData.keywordAbilityGrpIds[keyword]?.let { return@resolver it }
             }

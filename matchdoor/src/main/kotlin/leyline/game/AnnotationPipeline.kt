@@ -79,12 +79,41 @@ object AnnotationPipeline {
      * Does not mutate [gameObjects] or [zones]. Calls [IdMapping.reallocInstanceId]
      * for ID allocation but defers tracking side effects (retireToLimbo, recordZone)
      * to the caller via the result.
+     *
+     * Delegates to the pure overload, adapting [GameBridge] calls to function parameters.
      */
     internal fun detectZoneTransfers(
         gameObjects: List<GameObjectInfo>,
         zones: List<ZoneInfo>,
         bridge: GameBridge,
         events: List<GameEvent>,
+    ): TransferResult = detectZoneTransfers(
+        gameObjects = gameObjects,
+        zones = zones,
+        events = events,
+        previousZones = bridge.diff.allZones(),
+        forgeIdLookup = { iid -> bridge.getForgeCardId(InstanceId(iid))?.value },
+        idAllocator = { forgeCardId -> bridge.reallocInstanceId(ForgeCardId(forgeCardId)) },
+        idLookup = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)) },
+    )
+
+    /**
+     * Stage 1: Detect zone transfers — pure overload.
+     * Takes function parameters instead of [GameBridge] for independent testability.
+     *
+     * Returns a [TransferResult] with patched copies of objects/zones.
+     * Does not mutate [gameObjects] or [zones]. Uses [idAllocator]
+     * for ID allocation but defers tracking side effects (retireToLimbo, recordZone)
+     * to the caller via the result.
+     */
+    internal fun detectZoneTransfers(
+        gameObjects: List<GameObjectInfo>,
+        zones: List<ZoneInfo>,
+        events: List<GameEvent>,
+        previousZones: Map<Int, Int>,
+        forgeIdLookup: (Int) -> Int?,
+        idAllocator: (Int) -> InstanceIdRegistry.IdReallocation,
+        idLookup: (Int) -> InstanceId,
     ): TransferResult {
         val patchedObjects = gameObjects.toMutableList()
         val patchedZones = zones.toMutableList()
@@ -94,19 +123,19 @@ object AnnotationPipeline {
 
         for (i in patchedObjects.indices) {
             val obj = patchedObjects[i]
-            val prevZone = bridge.getPreviousZone(InstanceId(obj.instanceId))
+            val prevZone = previousZones[obj.instanceId]
             if (prevZone != null && prevZone != obj.zoneId) {
-                val forgeCardId = bridge.getForgeCardId(InstanceId(obj.instanceId))
-                val category = if (forgeCardId != null && events.isNotEmpty()) {
-                    AnnotationBuilder.categoryFromEvents(forgeCardId.value, events)
+                val forgeCardIdValue = forgeIdLookup(obj.instanceId)
+                val category = if (forgeCardIdValue != null && events.isNotEmpty()) {
+                    AnnotationBuilder.categoryFromEvents(forgeCardIdValue, events)
                         ?: inferCategory(obj, prevZone, obj.zoneId)
                 } else {
                     inferCategory(obj, prevZone, obj.zoneId)
                 }
                 // Allocate new instanceId for zone transfer (real server does this).
                 // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
-                val realloc = if (category != TransferCategory.Resolve && forgeCardId != null) {
-                    bridge.reallocInstanceId(forgeCardId)
+                val realloc = if (category != TransferCategory.Resolve && forgeCardIdValue != null) {
+                    idAllocator(forgeCardIdValue)
                 } else {
                     InstanceIdRegistry.IdReallocation(InstanceId(obj.instanceId), InstanceId(obj.instanceId))
                 }
@@ -123,10 +152,10 @@ object AnnotationPipeline {
                 // Resolve affectorId: the ability instance that caused this transfer.
                 // For surveil (and future mechanics), the source card's ability on the
                 // stack has instanceId = getOrAlloc(sourceForgeCardId + STACK_ABILITY_ID_OFFSET).
-                val affectorId = if (forgeCardId != null && events.isNotEmpty()) {
-                    val sourceForgeId = AnnotationBuilder.affectorSourceFromEvents(forgeCardId.value, events)
+                val affectorId = if (forgeCardIdValue != null && events.isNotEmpty()) {
+                    val sourceForgeId = AnnotationBuilder.affectorSourceFromEvents(forgeCardIdValue, events)
                     if (sourceForgeId != null) {
-                        bridge.getOrAllocInstanceId(ForgeCardId(sourceForgeId + ObjectMapper.STACK_ABILITY_ID_OFFSET)).value
+                        idLookup(sourceForgeId + ObjectMapper.STACK_ABILITY_ID_OFFSET).value
                     } else {
                         0
                     }
@@ -135,9 +164,9 @@ object AnnotationPipeline {
                 }
 
                 // Extract color bitmasks from LandPlayed event for ColorProduction annotation.
-                val colorBitmasks = if (category == TransferCategory.PlayLand && forgeCardId != null) {
+                val colorBitmasks = if (category == TransferCategory.PlayLand && forgeCardIdValue != null) {
                     events.filterIsInstance<GameEvent.LandPlayed>()
-                        .firstOrNull { it.forgeCardId == forgeCardId.value }
+                        .firstOrNull { it.forgeCardId == forgeCardIdValue }
                         ?.colorBitmasks ?: emptyList()
                 } else {
                     emptyList()
@@ -256,11 +285,43 @@ object AnnotationPipeline {
      *
      * Annotation ordering matches real server: PhaseOrStepModified → DamageDealt(s)
      * → SyntheticEvent → ModifiedLife → (ObjectIdChanged/ZoneTransfer handled by Stage 1).
+     *
+     * Delegates to the pure overload, adapting [GameBridge] calls to function parameters.
      */
     internal fun combatAnnotations(
         events: List<GameEvent>,
         bridge: GameBridge,
         activeSeat: Int,
+    ): CombatAnnotationResult {
+        val prev = bridge.getDiffBaselineState()
+        val previousLifeTotals = prev?.playersList
+            ?.associate { it.systemSeatNumber to it.lifeTotal } ?: emptyMap()
+        val currentLifeTotals = previousLifeTotals.keys.associateWith { seat ->
+            bridge.getPlayer(SeatId(seat))?.life ?: 0
+        }
+        return combatAnnotations(
+            events = events,
+            activeSeat = activeSeat,
+            idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
+            previousLifeTotals = previousLifeTotals,
+            currentLifeTotals = currentLifeTotals,
+        )
+    }
+
+    /**
+     * Stage 3: Generate combat damage annotations — pure overload.
+     * Takes function parameters instead of [GameBridge] for independent testability.
+     *
+     * [idResolver] maps forgeCardId → instanceId.
+     * [previousLifeTotals] is seatId → life total from previous GSM baseline.
+     * [currentLifeTotals] is seatId → current life total from engine.
+     */
+    internal fun combatAnnotations(
+        events: List<GameEvent>,
+        activeSeat: Int,
+        idResolver: (Int) -> Int,
+        previousLifeTotals: Map<Int, Int>,
+        currentLifeTotals: Map<Int, Int>,
     ): CombatAnnotationResult {
         val cardDamage = events.filterIsInstance<GameEvent.DamageDealtToCard>()
         val playerDamage = events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
@@ -274,8 +335,8 @@ object AnnotationPipeline {
 
         // --- DamageDealt: creature → creature ---
         for (ev in cardDamage) {
-            val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.sourceForgeId)).value
-            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.targetForgeId)).value
+            val sourceIid = idResolver(ev.sourceForgeId)
+            val targetIid = idResolver(ev.targetForgeId)
             annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid, ev.amount))
         }
 
@@ -283,7 +344,7 @@ object AnnotationPipeline {
         var firstPlayerDamageAttackerIid: Int? = null
         var playerDamageSeat: Int? = null
         for (ev in playerDamage) {
-            val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.sourceForgeId)).value
+            val sourceIid = idResolver(ev.sourceForgeId)
             annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId, ev.amount))
             if (firstPlayerDamageAttackerIid == null) firstPlayerDamageAttackerIid = sourceIid
             playerDamageSeat = ev.targetSeatId
@@ -291,7 +352,7 @@ object AnnotationPipeline {
 
         // --- DamagedThisTurn badges ---
         for (ev in cardDamage) {
-            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.targetForgeId)).value
+            val targetIid = idResolver(ev.targetForgeId)
             annotations.add(AnnotationBuilder.damagedThisTurn(targetIid))
         }
 
@@ -301,19 +362,11 @@ object AnnotationPipeline {
         }
 
         // --- ModifiedLife from baseline comparison ---
-        val prev = bridge.getDiffBaselineState()
-        if (prev != null) {
-            for (playerInfo in prev.playersList) {
-                val seat = playerInfo.systemSeatNumber
-                val player = bridge.getPlayer(SeatId(seat))
-                if (player != null) {
-                    val delta = player.life - playerInfo.lifeTotal
-                    if (delta != 0) {
-                        annotations.add(
-                            AnnotationBuilder.modifiedLife(seat, delta, affectorId = firstPlayerDamageAttackerIid ?: 0),
-                        )
-                    }
-                }
+        for ((seat, prevLife) in previousLifeTotals) {
+            val currentLife = currentLifeTotals[seat] ?: continue
+            val delta = currentLife - prevLife
+            if (delta != 0) {
+                annotations.add(AnnotationBuilder.modifiedLife(seat, delta, affectorId = firstPlayerDamageAttackerIid ?: 0))
             }
         }
 

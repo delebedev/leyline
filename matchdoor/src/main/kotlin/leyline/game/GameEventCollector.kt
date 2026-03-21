@@ -13,8 +13,7 @@ import java.util.concurrent.ConcurrentLinkedQueue
  * [GameEvent] objects into protocol-oriented [GameEvent] instances.
  *
  * Events accumulate in a thread-safe queue. The annotation builder drains
- * them via [drainEvents] when building a state diff — this replaces the
- * zone-pair heuristic in [StateMapper.inferCategory].
+ * them via [drainEvents] when building a state diff.
  *
  * Threading: events fire synchronously on the engine thread. Queue access
  * is via [ConcurrentLinkedQueue] so the Netty/handler thread can drain safely.
