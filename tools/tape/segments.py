@@ -1127,24 +1127,117 @@ def _ann_type_key(ann):
     return (types, category, action_type)
 
 
-def _match_annotations(recording_anns, engine_anns):
+def _build_id_anchors(template_anns, engine_anns):
     """
-    Match recording annotations to engine annotations by type.
+    Build ID anchors from ObjectIdChanged annotations.
 
-    Uses greedy matching: for each recording annotation, find the first unmatched
-    engine annotation with the same type key. Returns list of (rec_idx, eng_idx)
-    pairs, plus lists of unmatched indices on each side.
+    ObjectIdChanged is unambiguous: one per moved card, with orig_id → new_id.
+    Match them by position within the ObjectIdChanged subset, then extract
+    the mapping from engine IDs to template $var_N.
+
+    Returns {engine_id: template_id} for both orig_id and new_id values.
     """
+    anchors = {}  # engine_id (int) -> template_id (str or int)
+
+    t_oics = [(i, a) for i, a in enumerate(template_anns)
+              if "ObjectIdChanged" in [_clean_type(t) for t in a.get("types", a.get("type", []))]]
+    e_oics = [(i, a) for i, a in enumerate(engine_anns)
+              if "ObjectIdChanged" in [_clean_type(t) for t in a.get("types", a.get("type", []))]]
+
+    for (_, t_ann), (_, e_ann) in zip(t_oics, e_oics):
+        t_details = t_ann.get("details", {})
+        e_details = e_ann.get("details", {})
+        for key in ("orig_id", "new_id"):
+            t_val = t_details.get(key)
+            e_val = e_details.get(key)
+            if t_val is not None and e_val is not None:
+                # Handle list values (detail values are often [val])
+                if isinstance(t_val, list):
+                    t_val = t_val[0] if t_val else None
+                if isinstance(e_val, list):
+                    e_val = e_val[0] if e_val else None
+                if t_val is not None and e_val is not None:
+                    anchors[e_val] = t_val
+
+        # Also anchor affectedIds
+        for t_id, e_id in zip(t_ann.get("affectedIds", []), e_ann.get("affectedIds", [])):
+            anchors[e_id] = t_id
+
+    return anchors
+
+
+def _ids_overlap(r_ann, e_ann, anchors):
+    """
+    Check if a recording annotation and engine annotation reference the same card,
+    using ID anchors from ObjectIdChanged to translate between ID spaces.
+
+    Returns True if any affectedId or affectorId matches through the anchor mapping.
+    """
+    r_affected = set(r_ann.get("affectedIds", []))
+    e_affected = set(e_ann.get("affectedIds", []))
+    r_affector = r_ann.get("affectorId")
+    e_affector = e_ann.get("affectorId")
+
+    # Translate engine IDs to template ID space via anchors
+    e_translated = set()
+    for eid in e_affected:
+        e_translated.add(anchors.get(eid, eid))
+    if e_affector:
+        e_affector_translated = anchors.get(e_affector, e_affector)
+    else:
+        e_affector_translated = None
+
+    # Check overlap
+    if r_affected & e_translated:
+        return True
+    if r_affector and e_affector_translated and r_affector == e_affector_translated:
+        return True
+    return False
+
+
+def _match_annotations(recording_anns, engine_anns, anchors=None):
+    """
+    Match recording annotations to engine annotations by type + ID anchoring.
+
+    Two-pass matching:
+    1. For same-type annotations that appear multiple times, use ID anchors
+       (from ObjectIdChanged) to pick the correct instance.
+    2. Fall back to greedy type matching for annotations without ID overlap.
+
+    Returns list of (rec_idx, eng_idx) pairs, plus lists of unmatched indices.
+    """
+    if anchors is None:
+        anchors = {}
+
     used_engine = set()
     matches = []  # (rec_idx, eng_idx)
 
-    # Build engine index by type key for O(n) lookup
+    # Build engine index by type key
     engine_by_key = {}  # type_key -> [idx, ...]
     for i, ann in enumerate(engine_anns):
         key = _ann_type_key(ann)
         engine_by_key.setdefault(key, []).append(i)
 
+    # Pass 1: match by type key + ID overlap (anchored matching)
     for r_idx, r_ann in enumerate(recording_anns):
+        r_key = _ann_type_key(r_ann)
+        candidates = engine_by_key.get(r_key, [])
+        if len(candidates) <= 1 or not anchors:
+            continue  # Only need anchoring for ambiguous same-type matches
+        for e_idx in candidates:
+            if e_idx in used_engine:
+                continue
+            if _ids_overlap(r_ann, engine_anns[e_idx], anchors):
+                matches.append((r_idx, e_idx))
+                used_engine.add(e_idx)
+                break
+
+    matched_rec = {m[0] for m in matches}
+
+    # Pass 2: greedy type match for remaining unmatched
+    for r_idx, r_ann in enumerate(recording_anns):
+        if r_idx in matched_rec:
+            continue
         r_key = _ann_type_key(r_ann)
         candidates = engine_by_key.get(r_key, [])
         matched = False
@@ -1155,7 +1248,7 @@ def _match_annotations(recording_anns, engine_anns):
                 matched = True
                 break
         if not matched:
-            # Try relaxed match: types only (ignore category/actionType)
+            # Relaxed: types only (ignore category/actionType)
             r_types = r_key[0]
             for e_idx, e_ann in enumerate(engine_anns):
                 if e_idx in used_engine:
@@ -1167,7 +1260,6 @@ def _match_annotations(recording_anns, engine_anns):
                 if r_types == e_types:
                     matches.append((r_idx, e_idx))
                     used_engine.add(e_idx)
-                    matched = True
                     break
 
     unmatched_rec = [
@@ -1181,13 +1273,18 @@ def bind_ids(template_anns, engine_anns):
     """
     Bind engine instance IDs to template $var_N variables by structural matching.
 
-    Matches annotations by type (not position), then maps engine IDs to template
-    vars using affectedIds and detail values (orig_id, new_id).
+    Two-phase: (1) anchor from ObjectIdChanged (unambiguous), (2) match remaining
+    annotations using anchors to distinguish same-type annotations for different cards.
 
     Returns {engine_id: "$var_N"} binding map.
     """
     bindings = {}  # engine_id -> $var_N
-    matches, _, _ = _match_annotations(template_anns, engine_anns)
+
+    # Phase 1: build anchors from ObjectIdChanged (unambiguous ID mapping)
+    anchors = _build_id_anchors(template_anns, engine_anns)
+
+    # Phase 2: match annotations using anchors for disambiguation
+    matches, _, _ = _match_annotations(template_anns, engine_anns, anchors)
 
     for t_idx, e_idx in matches:
         t_ann = template_anns[t_idx]
@@ -1252,8 +1349,10 @@ def diff_annotations(recording_anns, engine_anns, bindings):
     Returns list of diff entries: {type, field, recording, engine}.
     """
     diffs = []
+    # Build anchors for ID-aware matching
+    anchors = _build_id_anchors(recording_anns, engine_anns)
     matches, unmatched_rec, unmatched_eng = _match_annotations(
-        recording_anns, engine_anns
+        recording_anns, engine_anns, anchors
     )
 
     # Diff matched pairs
