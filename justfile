@@ -4,7 +4,6 @@ import 'just/java.just'
 import 'just/lookup.just'
 import 'just/proto.just'
 import 'just/client.just'
-import 'just/certs.just'
 import 'just/tools.just'
 import 'just/test.just'
 
@@ -136,14 +135,8 @@ _audio_dir := _streaming / "Audio/GeneratedSoundBanks/Mac"
 dev-setup:
     #!/usr/bin/env bash
     set -euo pipefail
-    # 1. Generate TLS certs if missing (UnityTls validates FD/MD certs)
-    if [ ! -f "{{_cert}}" ]; then
-        echo "==> Generating TLS certs..."
-        just gen-certs
-    else
-        echo "==> Certs exist: {{certs}}"
-    fi
-    # 2. Copy localhost services.conf into Arena
+    echo "==> TLS certs auto-generated at server boot (mitmproxy CA required)"
+    # 1. Copy localhost services.conf into Arena
     streaming="{{_streaming}}"
     if [ ! -d "$streaming" ]; then
         echo "Error: MTGA not found at {{_mtga_path}}"
