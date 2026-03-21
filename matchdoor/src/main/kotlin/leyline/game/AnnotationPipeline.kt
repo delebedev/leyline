@@ -285,11 +285,43 @@ object AnnotationPipeline {
      *
      * Annotation ordering matches real server: PhaseOrStepModified → DamageDealt(s)
      * → SyntheticEvent → ModifiedLife → (ObjectIdChanged/ZoneTransfer handled by Stage 1).
+     *
+     * Delegates to the pure overload, adapting [GameBridge] calls to function parameters.
      */
     internal fun combatAnnotations(
         events: List<GameEvent>,
         bridge: GameBridge,
         activeSeat: Int,
+    ): CombatAnnotationResult {
+        val prev = bridge.getDiffBaselineState()
+        val previousLifeTotals = prev?.playersList
+            ?.associate { it.systemSeatNumber to it.lifeTotal } ?: emptyMap()
+        val currentLifeTotals = previousLifeTotals.keys.associateWith { seat ->
+            bridge.getPlayer(SeatId(seat))?.life ?: 0
+        }
+        return combatAnnotations(
+            events = events,
+            activeSeat = activeSeat,
+            idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
+            previousLifeTotals = previousLifeTotals,
+            currentLifeTotals = currentLifeTotals,
+        )
+    }
+
+    /**
+     * Stage 3: Generate combat damage annotations — pure overload.
+     * Takes function parameters instead of [GameBridge] for independent testability.
+     *
+     * [idResolver] maps forgeCardId → instanceId.
+     * [previousLifeTotals] is seatId → life total from previous GSM baseline.
+     * [currentLifeTotals] is seatId → current life total from engine.
+     */
+    internal fun combatAnnotations(
+        events: List<GameEvent>,
+        activeSeat: Int,
+        idResolver: (Int) -> Int,
+        previousLifeTotals: Map<Int, Int>,
+        currentLifeTotals: Map<Int, Int>,
     ): CombatAnnotationResult {
         val cardDamage = events.filterIsInstance<GameEvent.DamageDealtToCard>()
         val playerDamage = events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
@@ -303,8 +335,8 @@ object AnnotationPipeline {
 
         // --- DamageDealt: creature → creature ---
         for (ev in cardDamage) {
-            val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.sourceForgeId)).value
-            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.targetForgeId)).value
+            val sourceIid = idResolver(ev.sourceForgeId)
+            val targetIid = idResolver(ev.targetForgeId)
             annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid, ev.amount))
         }
 
@@ -312,7 +344,7 @@ object AnnotationPipeline {
         var firstPlayerDamageAttackerIid: Int? = null
         var playerDamageSeat: Int? = null
         for (ev in playerDamage) {
-            val sourceIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.sourceForgeId)).value
+            val sourceIid = idResolver(ev.sourceForgeId)
             annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId, ev.amount))
             if (firstPlayerDamageAttackerIid == null) firstPlayerDamageAttackerIid = sourceIid
             playerDamageSeat = ev.targetSeatId
@@ -320,7 +352,7 @@ object AnnotationPipeline {
 
         // --- DamagedThisTurn badges ---
         for (ev in cardDamage) {
-            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.targetForgeId)).value
+            val targetIid = idResolver(ev.targetForgeId)
             annotations.add(AnnotationBuilder.damagedThisTurn(targetIid))
         }
 
@@ -330,19 +362,11 @@ object AnnotationPipeline {
         }
 
         // --- ModifiedLife from baseline comparison ---
-        val prev = bridge.getDiffBaselineState()
-        if (prev != null) {
-            for (playerInfo in prev.playersList) {
-                val seat = playerInfo.systemSeatNumber
-                val player = bridge.getPlayer(SeatId(seat))
-                if (player != null) {
-                    val delta = player.life - playerInfo.lifeTotal
-                    if (delta != 0) {
-                        annotations.add(
-                            AnnotationBuilder.modifiedLife(seat, delta, affectorId = firstPlayerDamageAttackerIid ?: 0),
-                        )
-                    }
-                }
+        for ((seat, prevLife) in previousLifeTotals) {
+            val currentLife = currentLifeTotals[seat] ?: continue
+            val delta = currentLife - prevLife
+            if (delta != 0) {
+                annotations.add(AnnotationBuilder.modifiedLife(seat, delta, affectorId = firstPlayerDamageAttackerIid ?: 0))
             }
         }
 
