@@ -399,11 +399,10 @@ class GameBridgeTest :
 
         // --- Game loop contract tests ---
 
-        // TODO: flaky after forge submodule update — investigate separately
-        xtest("cast action has abilityGrpId and mana cost") {
-            val b = GameBridge()
+        test("cast action has abilityGrpId and mana cost") {
+            val b = GameBridge(cards = TestCardRegistry.repo)
             bridge = b
-            b.start(seed = 42L)
+            b.start(seed = 42L, deckList = CAST_ACTION_DECK)
             b.submitKeep(1)
             advanceToMain1(b)
 
@@ -412,7 +411,7 @@ class GameBridgeTest :
             val player = b.getPlayer(SeatId(1))!!
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
             if (land != null) {
-                val pending = awaitFreshPending(b, null) ?: return@xtest
+                val pending = awaitFreshPending(b, null) ?: return@test
                 b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
                 awaitFreshPending(b, pending.actionId)
             }
@@ -652,3 +651,12 @@ class GameBridgeTest :
             (gs.turnInfo.turnNumber >= 1).shouldBeTrue()
         }
     })
+
+/** 1-mana creatures + lands with known grpIds — for action shape tests. */
+private const val CAST_ACTION_DECK = """
+20 Raging Goblin
+4 Llanowar Elves
+4 Giant Growth
+16 Mountain
+16 Forest
+"""
