@@ -378,7 +378,6 @@ object AnnotationPipeline {
     internal fun combatAnnotations(
         events: List<GameEvent>,
         bridge: GameBridge,
-        activeSeat: Int,
     ): CombatAnnotationResult {
         val prev = bridge.getDiffBaselineState()
         val previousLifeTotals = prev?.playersList
@@ -388,7 +387,6 @@ object AnnotationPipeline {
         }
         return combatAnnotations(
             events = events,
-            activeSeat = activeSeat,
             idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
             previousLifeTotals = previousLifeTotals,
             currentLifeTotals = currentLifeTotals,
@@ -405,7 +403,6 @@ object AnnotationPipeline {
      */
     internal fun combatAnnotations(
         events: List<GameEvent>,
-        activeSeat: Int,
         idResolver: (Int) -> Int,
         previousLifeTotals: Map<Int, Int>,
         currentLifeTotals: Map<Int, Int>,

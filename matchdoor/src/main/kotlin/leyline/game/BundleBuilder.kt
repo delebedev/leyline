@@ -65,33 +65,11 @@ object BundleBuilder {
         val gsBase = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
         val actions = ActionMapper.buildActions(game, seatId, bridge)
 
-        // Detect phase/step change vs last state sent to client.
-        // Uses client-seen TurnInfo instead of the diff baseline.
-        // This handles the case where PhaseStopProfile skips phases on the engine thread —
-        // the diff baseline may already show the new phase, but the client hasn't seen it.
-        // Skip if GSM already has PhaseOrStepModified (e.g. from combatAnnotations)
-        val alreadyHasPhaseAnnotation = gsBase.annotationsList.any { ann ->
-            ann.typeList.any { it == AnnotationType.PhaseOrStepModified }
-        }
-        // Use GSM's turnInfo for phase/step — buildFromGame may override to CombatDamage
-        val gsWithPhaseAnnotation = if (!alreadyHasPhaseAnnotation &&
-            gsBase.hasTurnInfo() &&
-            bridge.isPhaseChangedFromClientSeen(gsBase.turnInfo)
-        ) {
-            gsBase.toBuilder()
-                .addAnnotations(
-                    frame.phaseAnnotation(
-                        gsBase.turnInfo.phase.number,
-                        gsBase.turnInfo.step.number,
-                    ) { bridge.nextAnnotationId() },
-                )
-                .build()
-        } else {
-            gsBase
-        }
+        // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
+        // in StateMapper Stage 2b — no injection needed here.
 
         // Re-embed stripped actions into the GSM
-        val gs = GsmBuilder.embedActions(gsWithPhaseAnnotation, actions, frame, recipientSeatId = seatId)
+        val gs = GsmBuilder.embedActions(gsBase, actions, frame, recipientSeatId = seatId)
 
         val messages = listOf(
             makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {

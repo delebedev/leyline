@@ -24,7 +24,6 @@ import leyline.bridge.WebPlayerController
 import leyline.config.MatchConfig
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
-import wotc.mtgo.gre.external.messaging.Messages.TurnInfo
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
 
@@ -246,13 +245,6 @@ class GameBridge(
     }
 
     override fun getDiffBaselineState(): GameStateMessage? = diff.getDiffBaselineState()
-
-    override fun recordClientSeenTurnInfo(gsm: GameStateMessage) {
-        diff.recordClientSeenTurnInfo(gsm)
-    }
-
-    override fun isPhaseChangedFromClientSeen(currentTurnInfo: TurnInfo): Boolean =
-        diff.isPhaseChangedFromClientSeen(currentTurnInfo)
 
     override fun drainEvents(): List<GameEvent> = eventCollector?.drainEvents() ?: emptyList()
 

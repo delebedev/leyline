@@ -155,7 +155,7 @@ object StateMapper {
         }
 
         // Stage 3: Combat damage annotations (event-driven — events captured before Forge clears combat)
-        val combatResult = AnnotationPipeline.combatAnnotations(events, bridge, actingSeat)
+        val combatResult = AnnotationPipeline.combatAnnotations(events, bridge)
         annotations.addAll(combatResult.annotations)
 
         // Stage 4: Mechanic annotations (Group B: counters, shuffle, scry, tokens + Group A+: attachments)
