@@ -55,9 +55,8 @@ kls_database.db
 **/settings.local.json
 .claude/agent-memory/
 
-# Persistent game recordings — keep manifest tracked
-recordings/*
-!recordings/manifest.json
+# Persistent game recordings (runtime artifacts from proxy sessions)
+/recordings/
 
 # Generated proto (from submodule + rename-map.sed)
 app/main/proto/messages.proto
@@ -80,11 +79,7 @@ deploy/services-proxy.conf
 matchdoor/engine/*.bin
 matchdoor/engine/*.txt
 
-# Override global gitignore — bin/ contains our CLI tools
-!bin/
-
 # ML models (large, regenerable from leyline-vision)
-bin/models/
 *.mlmodel
 
 # Autoplay session videos (large, ephemeral)

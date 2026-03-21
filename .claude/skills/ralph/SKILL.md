@@ -55,7 +55,7 @@ what's already been investigated.
 
 ## Phase 1: Pre-flight
 
-The outer `bin/ralph` runner handles most of this automatically. But if you're running manually
+The outer ralph runner handles most of this automatically. But if you're running manually
 (or the runner skipped checks with `--continue`), verify each of these. **Every check has been
 learned the hard way — don't skip any.**
 
@@ -72,8 +72,8 @@ black screen. The server, networking, even CGEvent clicks all work fine — but 
 surface produces zero frames.
 
 **Symptoms:** MTGA window frame visible (title bar says "MTGA"), content area solid black,
-`bin/arena ocr` returns only `[{"text": "MTGA", ...}]`, server logs look completely normal,
-`bin/arena scene` correctly reports "Home".
+`just arena ocr` returns only `[{"text": "MTGA", ...}]`, server logs look completely normal,
+`just arena scene` correctly reports "Home".
 
 **Fix:** SSH as the console user, or switch the console user via Fast User Switching.
 
@@ -97,14 +97,14 @@ doesn't recover — it initialized the swap chain while the display was on and n
 can't present frames.
 
 ```bash
-pkill -f MTGA; sleep 5; bin/arena launch
+pkill -f MTGA; sleep 5; just arena launch
 ```
 
 ### 3. Render verification
 
 After wake/launch, confirm MTGA is actually rendering:
 ```bash
-bin/arena ocr --fmt
+just arena ocr --fmt
 ```
 
 A healthy Home screen has 5+ OCR elements (deck names, "Play", event titles, etc.).
@@ -128,10 +128,10 @@ sleep 10
 ### 5. MTGA connected
 
 ```bash
-bin/arena where
+just arena where
 ```
 
-If not connected: `bin/arena launch` and wait 15-20s for full lobby load. The FD handshake
+If not connected: `just arena launch` and wait 15-20s for full lobby load. The FD handshake
 (auth → golden data → events → cards) takes 5-10s, then the Unity scene transition to Home
 takes another 5-10s.
 
@@ -144,15 +144,15 @@ Start a bot match and play until something breaks.
 Proven sequence from v10 autoplay prompt (21 batches of testing):
 
 ```bash
-bin/arena click 40,25 && sleep 2                              # dismiss any overlay
-bin/arena click "Play" --retry 3
-bin/arena wait text="Find Match" --timeout 10
-bin/arena click 867,112 && sleep 1                            # Find Match tab
-bin/arena click "Bot Match" --retry 3 && sleep 1
-bin/arena click 82,455 && sleep 1                             # first deck in list
-bin/arena click 867,516                                       # Play button
-bin/arena wait text="Keep" --timeout 30                       # mulligan screen
-bin/arena click "Keep" --retry 3 && sleep 5                   # keep hand, wait for game
+just arena click 40,25 && sleep 2                              # dismiss any overlay
+just arena click "Play" --retry 3
+just arena wait text="Find Match" --timeout 10
+just arena click 867,112 && sleep 1                            # Find Match tab
+just arena click "Bot Match" --retry 3 && sleep 1
+just arena click 82,455 && sleep 1                             # first deck in list
+just arena click 867,516                                       # Play button
+just arena wait text="Keep" --timeout 30                       # mulligan screen
+just arena click "Keep" --retry 3 && sleep 5                   # keep hand, wait for game
 ```
 
 If `wait text="Find Match"` fails, OCR to see where you are and navigate manually.
@@ -161,35 +161,35 @@ If `wait text="Find Match"` fails, OCR to see where you are and navigate manuall
 
 **Core rule:** Scry once at start of your turn. Play everything you can. Pass. Scry at start of next turn. Do NOT scry between plays — if `arena play` prints `✓`, the card was played.
 
-**State tool:** `bin/scry state --json` — returns turn, phase, active_player, hand, actions (legal plays) as JSON.
+**State tool:** `just scry state --json` — returns turn, phase, active_player, hand, actions (legal plays) as JSON.
 
 #### Your turn (active_player=1, Main1 or Main2)
 
 ```bash
-bin/scry state --json   # read hand + actions once
+just scry state --json   # read hand + actions once
 ```
 
 Then burst — play everything you can:
 
 ```bash
 # 1. Play a land (if ActionType_Play in actions)
-bin/arena play "<land name>" && sleep 2
+just arena play "<land name>" && sleep 2
 # Lands play directly in Forge mode — no Resolve needed.
 # arena play may timeout on zone-change verification for lands — ignore, check scry.
 
 # 2. Drain mana — cast ALL spells, cheapest first
 # IMPORTANT: each spell goes on Stack in Forge mode (#92).
 # After each arena play, click 888,504 TWICE (Resolve + Pass):
-bin/arena play "<cheapest spell>" && sleep 2
-bin/arena click 888,504 && sleep 1   # Resolve off stack
-bin/arena click 888,504 && sleep 1   # Pass priority
-bin/arena play "<next cheapest>" && sleep 2
-bin/arena click 888,504 && sleep 1   # Resolve
-bin/arena click 888,504 && sleep 1   # Pass
+just arena play "<cheapest spell>" && sleep 2
+just arena click 888,504 && sleep 1   # Resolve off stack
+just arena click 888,504 && sleep 1   # Pass priority
+just arena play "<next cheapest>" && sleep 2
+just arena click 888,504 && sleep 1   # Resolve
+just arena click 888,504 && sleep 1   # Pass
 # ... repeat per spell until no more ActionType_Cast in actions
 
 # 3. Pass to combat
-bin/arena click 888,504 && sleep 1 && bin/arena click 888,504 && sleep 2
+just arena click 888,504 && sleep 1 && just arena click 888,504 && sleep 2
 ```
 
 **Why the Resolve clicks?** Issue #92 — `handlePostCastPrompt()` sends `ActionsAvailableReq`
@@ -201,7 +201,7 @@ If `arena play` prints `✗` or fails: skip that card, try the next one. Don't s
 #### Combat (Phase_Combat, active_player=1)
 
 ```bash
-bin/arena click 889,504 && sleep 1 && bin/arena click 889,504 && sleep 3
+just arena click 889,504 && sleep 1 && just arena click 889,504 && sleep 3
 ```
 
 This sends "All Attack". Note: in Forge mode, "All Attack" may not respond — if so, skip combat.
@@ -210,18 +210,18 @@ This sends "All Attack". Note: in Forge mode, "All Attack" may not respond — i
 
 **EXACTLY two clicks, no more:**
 ```bash
-bin/arena click 887,491 && sleep 1 && bin/arena click 890,510 && sleep 3
-bin/scry state --json   # check if it's our turn now
+just arena click 887,491 && sleep 1 && just arena click 890,510 && sleep 3
+just scry state --json   # check if it's our turn now
 ```
 
-If still active_player=2: `bin/arena click 888,504 && sleep 3 && bin/scry state --json`. Repeat until active_player=1.
+If still active_player=2: `just arena click 888,504 && sleep 3 && just scry state --json`. Repeat until active_player=1.
 
 **CRITICAL: Do NOT add extra 888,504 clicks after the two pass buttons. That passes YOUR Main1.**
 
 #### Discard (Phase_Ending, hand > 7)
 
 ```bash
-bin/arena click 400,500 && sleep 1 && bin/arena click 888,489 && sleep 2
+just arena click 400,500 && sleep 1 && just arena click 888,489 && sleep 2
 ```
 
 ### Detect a wall
@@ -230,12 +230,12 @@ A "wall" is anything that stops the game or degrades the experience:
 
 | Signal | How to detect | Priority |
 |--------|--------------|----------|
-| Client error/exception | `bin/arena errors` shows new errors | HIGH |
-| Stuck (gsId unchanged after 2 actions) | `bin/scry state --json` shows same gsId | HIGH |
+| Client error/exception | `just arena errors` shows new errors | HIGH |
+| Stuck (gsId unchanged after 2 actions) | `just scry state --json` shows same gsId | HIGH |
 | Server crash/exception | `logs/leyline.log` has ERROR/exception | HIGH |
 | Bridge timeout | Server log: "bridge timeout" | HIGH |
 | Wrong phase/stuck turn | Scry shows same turn for >30s | MEDIUM |
-| Game completes but with warnings | `bin/arena errors` has warnings | LOW |
+| Game completes but with warnings | `just arena errors` has warnings | LOW |
 
 **Stuck 3 times → CONCEDE and move to diagnose.**
 
@@ -255,10 +255,10 @@ You hit a wall. Now figure out why.
 
 ```bash
 # Capture evidence
-bin/arena errors > /tmp/ralph-errors.txt 2>/dev/null
+just arena errors > /tmp/ralph-errors.txt 2>/dev/null
 curl -s http://localhost:8090/api/state > /tmp/ralph-state.json 2>/dev/null
 tail -50 logs/leyline.log > /tmp/ralph-server-log.txt 2>/dev/null
-bin/arena ocr > /tmp/ralph-ocr.json 2>/dev/null
+just arena ocr > /tmp/ralph-ocr.json 2>/dev/null
 ```
 
 Read the error/log. Trace it to source code. Common patterns:
@@ -339,7 +339,7 @@ If the wall is still there, your fix was wrong. Revert and defer.
 
 Quick checks:
 ```bash
-bin/arena errors                    # no new client errors
+just arena errors                    # no new client errors
 curl -s http://localhost:8090/api/state > /dev/null   # server alive
 ```
 
@@ -401,10 +401,10 @@ Before exiting, make sure:
 ## Concede recipe
 
 ```bash
-bin/arena click 940,42 && sleep 1
-bin/arena click "Concede" --retry 3
-bin/arena wait text="Defeat" --timeout 10
-bin/arena click 480,300 && sleep 2 && bin/arena click 480,300 && sleep 2 && bin/arena click 480,300
+just arena click 940,42 && sleep 1
+just arena click "Concede" --retry 3
+just arena wait text="Defeat" --timeout 10
+just arena click 480,300 && sleep 2 && just arena click 480,300 && sleep 2 && just arena click 480,300
 ```
 
 ## Coords quick reference
@@ -421,11 +421,11 @@ bin/arena click 480,300 && sleep 2 && bin/arena click 480,300 && sleep 2 && bin/
 
 | Stuck state | Recovery |
 |-------------|----------|
-| Unknown screen | `bin/arena where` → `bin/arena navigate Home` |
-| Modal blocking | `bin/arena click 480,300` (center dismiss) |
+| Unknown screen | `just arena where` → `just arena navigate Home` |
+| Modal blocking | `just arena click 480,300` (center dismiss) |
 | Server down | `just build && just serve` in tmux |
-| MTGA disconnected | `bin/arena launch`, wait 15s |
-| Ghost match ("Resume") | `just stop` + restart + `bin/arena launch` |
-| Can't find deck | `bin/arena ocr --fmt` to discover deck names |
+| MTGA disconnected | `just arena launch`, wait 15s |
+| Ghost match ("Resume") | `just stop` + restart + `just arena launch` |
+| Can't find deck | `just arena ocr --fmt` to discover deck names |
 | Black screen | Display sleeping — see Phase 1 display check |
-| Connection Lost dialog | `bin/arena click "Reconnect" --retry 3` |
+| Connection Lost dialog | `just arena click "Reconnect" --retry 3` |
