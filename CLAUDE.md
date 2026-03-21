@@ -117,6 +117,16 @@ All tool CLIs run via just: `just wire ...`, `just tape ...`, `just arena ...`. 
 - **Recording tools:** `just tape session list`, `just tape session show`, `just tape proto decode`, `just tape annotation ranges`. Docs: `tools/tape/docs/cli.md`.
 - **FD inspection:** `just wire tail`, `just wire search`, `just wire show`, `just wire flow`, `just wire coverage`. Run `just wire --help` for all commands.
 
+## Public Repo — Content Rules
+
+This is an open-source repo. Every commit is public. Follow these rules:
+
+- **No captured WotC data.** Never commit server responses, recordings, card database files, or proxy captures. Golden files must be hand-written. Test fixtures must use synthetic data.
+- **No `mtga-internals` references.** That repo is private. Don't link to it, quote paths from it, or reference its docs.
+- **No personal infra details.** No hardcoded IPs, hostnames (`mini`, `klava`), or absolute paths (`/Users/...`). Use `~/` or relative paths.
+- **Tone: local playtesting tool.** Use "reimplemented protocol" not "reverse-engineered". Use "local server" not "private server". Frame proxy mode as development tooling, not interception.
+- **Interop data is fine.** grpIds, set codes, format names, CmdType numbers, loc keys — these are functional protocol identifiers required for compatibility.
+
 ## Agent Policy
 
 - **Never commit to main.** Feature work, bug fixes, refactors — always on a branch with a PR. Branch naming: `feat/<topic>`, `fix/<topic>`, `refactor/<topic>`. Batching disparate small fixes into one PR is fine; big features get their own branch.
