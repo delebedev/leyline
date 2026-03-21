@@ -67,8 +67,14 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     override fun visit(ev: GameEventSpellAbilityCast) {
         val card = ev.sa().hostCard ?: return
         val seat = seatOf(card.controller) ?: return
-        queue.add(GameEvent.SpellCast(card.id, seat))
-        log.debug("event: SpellCast card={} seat={}", card.name, seat)
+        val payments = ev.manaPayments().map { mp ->
+            GameEvent.ManaPayment(
+                sourceForgeCardId = mp.sourceCardId(),
+                color = mp.color().toInt() and 0xFF,
+            )
+        }
+        queue.add(GameEvent.SpellCast(card.id, seat, payments))
+        log.debug("event: SpellCast card={} seat={} manaPayments={}", card.name, seat, payments.size)
     }
 
     override fun visit(ev: GameEventSpellResolved) {

@@ -61,10 +61,17 @@ sealed interface GameEvent {
         val colorBitmasks: List<Int> = emptyList(),
     ) : GameEvent
 
+    /** One mana globe spent to pay for a spell. */
+    data class ManaPayment(
+        val sourceForgeCardId: Int,
+        val color: Int,
+    )
+
     /** A spell or ability was cast (hand/battlefield → stack). */
     data class SpellCast(
         val forgeCardId: Int,
         val seatId: Int,
+        val manaPayments: List<ManaPayment> = emptyList(),
     ) : GameEvent
 
     /** A spell or ability finished resolving (stack → battlefield/graveyard/exile). */
