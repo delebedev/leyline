@@ -5,9 +5,14 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * Shared atomic counter for GRE gsId/msgId sequencing (ADR-003).
  *
- * One instance is shared between the session thread (Netty I/O) and the engine
- * thread (game daemon). Both call [nextMsgId]/[nextGsId] on the same atomics —
- * no duplicates, no sync points.
+ * One instance is created at session setup and passed to both [MatchSession]
+ * and [GameBridge] at construction time. The session thread (Netty I/O) and
+ * the engine thread (game daemon) both call [nextMsgId]/[nextGsId] on the
+ * same atomics — monotonically increasing, no duplicates, no runtime sync.
+ *
+ * The client requires gsIds to increase monotonically across the interleaved
+ * message stream. A single shared counter is the correct coordination
+ * primitive — partitioned ranges would break ordering.
  *
  * @param initialGsId starting gameStateId (handshake advances before game start)
  * @param initialMsgId starting msgId (handshake advances before game start)

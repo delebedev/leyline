@@ -88,6 +88,7 @@ class MulliganHandlerIntegrationTest :
                 sink = sink1,
                 registry = registry,
                 paceDelayMs = 0,
+                counter = localBridge.messageCounter,
             )
             val seat2 = MatchSession(
                 seatId = 2,
@@ -95,6 +96,7 @@ class MulliganHandlerIntegrationTest :
                 sink = ListMessageSink(),
                 registry = registry,
                 paceDelayMs = 0,
+                counter = localBridge.messageCounter,
             )
             seat1.connectBridge(localBridge)
             seat2.connectBridge(localBridge)

@@ -230,6 +230,7 @@ class PuzzleBridgeTest :
                 sink = sink1,
                 registry = registry,
                 paceDelayMs = 0,
+                counter = b.messageCounter,
             )
             session1.connectBridge(b)
             registry.registerSession(matchId, 1, session1)
@@ -246,6 +247,7 @@ class PuzzleBridgeTest :
                 sink = sink2,
                 registry = registry,
                 paceDelayMs = 0,
+                counter = b.messageCounter,
             )
             session2.connectBridge(b)
             registry.registerSession(matchId, 2, session2)
