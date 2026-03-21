@@ -258,16 +258,19 @@ object AnnotationBuilder {
 
     /**
      * Mana was spent to pay for a spell/ability.
+     * [spellInstanceId] = the spell/ability instance that consumed the mana (affectedIds).
+     * [landInstanceId] = the land (or mana source) that produced the mana (affectorId).
      * [manaId] = mana payment tracking ID (real server assigns sequentially).
-     * [color] = mana color string ("White", "Blue", "Black", "Red", "Green", "Colorless").
-     * When mana tracking is not available, pass defaults (0, "").
+     * [color] = mana color as int bitmask (e.g. 2 = blue), matching the recording wire format.
+     * When mana tracking is not available, pass defaults (0, 0, 0).
      */
-    fun manaPaid(instanceId: Int, manaId: Int = 0, color: String = ""): AnnotationInfo =
+    fun manaPaid(spellInstanceId: Int, landInstanceId: Int, manaId: Int = 0, color: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ManaPaid)
-            .addAffectedIds(instanceId)
+            .setAffectorId(landInstanceId)
+            .addAffectedIds(spellInstanceId)
             .addDetails(int32Detail("id", manaId))
-            .addDetails(typedStringDetail("color", color))
+            .addDetails(int32Detail("color", color))
             .build()
 
     /**
@@ -286,21 +289,32 @@ object AnnotationBuilder {
 
     /**
      * Ability instance created on the stack.
+     * [abilityInstanceId] = the ability/spell instance being created (affectedIds).
+     * [affectorId] = the land or permanent that triggered this ability creation (e.g. tapping a land for mana).
+     *   Pass 0 when not applicable (e.g. casting a spell from hand).
      * [sourceZoneId] = zone the ability/spell came from (e.g. Hand=31).
      * Real server always sends this; client may use it for animation origin.
      */
-    fun abilityInstanceCreated(instanceId: Int, sourceZoneId: Int = 0): AnnotationInfo =
+    fun abilityInstanceCreated(abilityInstanceId: Int, affectorId: Int = 0, sourceZoneId: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.AbilityInstanceCreated)
-            .addAffectedIds(instanceId)
+            .also { if (affectorId != 0) it.setAffectorId(affectorId) }
+            .addAffectedIds(abilityInstanceId)
             .addDetails(int32Detail("source_zone", sourceZoneId))
             .build()
 
-    /** Ability instance deleted (e.g. hand's play ability consumed after casting). */
-    fun abilityInstanceDeleted(instanceId: Int): AnnotationInfo =
+    /**
+     * Ability instance deleted (e.g. hand's play ability consumed after casting,
+     * or a mana ability instance cleared after payment).
+     * [abilityInstanceId] = the ability/spell instance being removed (affectedIds).
+     * [affectorId] = the permanent that owns the ability, when applicable (e.g. tapped land).
+     *   Pass 0 when not applicable.
+     */
+    fun abilityInstanceDeleted(abilityInstanceId: Int, affectorId: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.AbilityInstanceDeleted)
-            .addAffectedIds(instanceId)
+            .also { if (affectorId != 0) it.setAffectorId(affectorId) }
+            .addAffectedIds(abilityInstanceId)
             .build()
 
     /** Spell/ability done resolving. Client uses this to finalize stack→battlefield move. */

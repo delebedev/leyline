@@ -39,12 +39,12 @@ class AnnotationShapeConformanceTest :
         }
 
         test("ManaPaid shape: {id, color} — matches golden stack-resolve.bin gsId=66") {
-            val ann = AnnotationBuilder.manaPaid(instanceId = 1, manaId = 1, color = "Green")
+            val ann = AnnotationBuilder.manaPaid(spellInstanceId = 1, landInstanceId = 2, manaId = 1, color = 4)
             detailKeys(ann) shouldBe setOf("id", "color")
         }
 
         test("AbilityInstanceCreated shape: {source_zone} — matches golden stack-resolve.bin gsId=66") {
-            val ann = AnnotationBuilder.abilityInstanceCreated(instanceId = 1, sourceZoneId = 31)
+            val ann = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 1, sourceZoneId = 31)
             detailKeys(ann) shouldBe setOf("source_zone")
         }
 
@@ -279,9 +279,9 @@ class AnnotationShapeConformanceTest :
             "UserActionTaken" to detailKeys(AnnotationBuilder.userActionTaken(1, 1, 1, 0)),
             "ObjectIdChanged" to detailKeys(AnnotationBuilder.objectIdChanged(1, 2)),
             "TappedUntappedPermanent" to detailKeys(AnnotationBuilder.tappedUntappedPermanent(1, 2)),
-            "AbilityInstanceCreated" to detailKeys(AnnotationBuilder.abilityInstanceCreated(1, 31)),
+            "AbilityInstanceCreated" to detailKeys(AnnotationBuilder.abilityInstanceCreated(1, sourceZoneId = 31)),
             "AbilityInstanceDeleted" to detailKeys(AnnotationBuilder.abilityInstanceDeleted(1)),
-            "ManaPaid" to detailKeys(AnnotationBuilder.manaPaid(1, 1, "Green")),
+            "ManaPaid" to detailKeys(AnnotationBuilder.manaPaid(spellInstanceId = 1, landInstanceId = 2, manaId = 1, color = 4)),
             "ResolutionComplete" to detailKeys(AnnotationBuilder.resolutionComplete(1, 1)),
             "ResolutionStart" to detailKeys(AnnotationBuilder.resolutionStart(1, 1)),
             "NewTurnStarted" to detailKeys(AnnotationBuilder.newTurnStarted(1)),
