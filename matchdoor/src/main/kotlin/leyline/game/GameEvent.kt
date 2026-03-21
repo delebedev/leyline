@@ -138,10 +138,12 @@ sealed interface GameEvent {
         val seatId: Int,
     ) : GameEvent
 
-    /** A permanent was destroyed (BF→GY, not sacrifice). */
+    /** A permanent was destroyed (BF→GY, not sacrifice).
+     *  [sourceForgeCardId] = host card of the ability that caused the destruction (for affectorId). */
     data class CardDestroyed(
         val forgeCardId: Int,
         val seatId: Int,
+        val sourceForgeCardId: Int? = null,
     ) : GameEvent
 
     /** A permanent was sacrificed (BF→GY via sacrifice effect). */

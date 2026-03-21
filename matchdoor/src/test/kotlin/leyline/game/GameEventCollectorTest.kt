@@ -132,7 +132,7 @@ class GameEventCollectorTest :
 
         // -- CardChangeZone: specific variants --
 
-        test("BF to GY emits CardDestroyed") {
+        test("BF to GY via zone change emits ZoneChanged (CardDestroyed comes from dedicated event)") {
             val (b, game, _) = base.startWithBoard { _, human, _ ->
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
             }
@@ -145,10 +145,30 @@ class GameEventCollectorTest :
             game.fireEvent(GameEventCardChangeZone(creature, bf, gy))
 
             val events = collector.drainEvents()
+            // BF→GY via zone change now produces ZoneChanged (not CardDestroyed)
+            val zoneChanges = events.filterIsInstance<GameEvent.ZoneChanged>()
+            zoneChanges.size shouldBe 1
+            zoneChanges[0].forgeCardId shouldBe creature.id
+        }
+
+        test("GameEventCardDestroyed emits CardDestroyed with source") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                base.addCard("Lightning Bolt", human, ZoneType.Hand)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
+
+            val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
+            val bolt = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
+            game.fireEvent(GameEventCardDestroyed(creature, bolt))
+
+            val events = collector.drainEvents()
             val destroyed = events.filterIsInstance<GameEvent.CardDestroyed>()
             destroyed.size shouldBe 1
             destroyed[0].forgeCardId shouldBe creature.id
             destroyed[0].seatId shouldBe 1
+            destroyed[0].sourceForgeCardId shouldBe bolt.id
         }
 
         test("BF to Hand emits CardBounced") {
