@@ -1112,26 +1112,86 @@ def _resolve_hand_cards(frames, seg_index, hand_ids):
 # --- Binding + Diff ---
 
 
+def _clean_type(t):
+    """Strip proto-generated suffixes for comparison."""
+    return t.replace("_af5a", "").replace("_a0f6", "").replace("_a2cb", "")
+
+
+def _ann_type_key(ann):
+    """Canonical type key for matching: cleaned types + distinguishing details."""
+    types = tuple(_clean_type(t) for t in ann.get("types", ann.get("type", [])))
+    details = ann.get("details", {})
+    # Include category and actionType to distinguish same-type annotations
+    category = details.get("category")
+    action_type = details.get("actionType")
+    return (types, category, action_type)
+
+
+def _match_annotations(recording_anns, engine_anns):
+    """
+    Match recording annotations to engine annotations by type.
+
+    Uses greedy matching: for each recording annotation, find the first unmatched
+    engine annotation with the same type key. Returns list of (rec_idx, eng_idx)
+    pairs, plus lists of unmatched indices on each side.
+    """
+    used_engine = set()
+    matches = []  # (rec_idx, eng_idx)
+
+    # Build engine index by type key for O(n) lookup
+    engine_by_key = {}  # type_key -> [idx, ...]
+    for i, ann in enumerate(engine_anns):
+        key = _ann_type_key(ann)
+        engine_by_key.setdefault(key, []).append(i)
+
+    for r_idx, r_ann in enumerate(recording_anns):
+        r_key = _ann_type_key(r_ann)
+        candidates = engine_by_key.get(r_key, [])
+        matched = False
+        for e_idx in candidates:
+            if e_idx not in used_engine:
+                matches.append((r_idx, e_idx))
+                used_engine.add(e_idx)
+                matched = True
+                break
+        if not matched:
+            # Try relaxed match: types only (ignore category/actionType)
+            r_types = r_key[0]
+            for e_idx, e_ann in enumerate(engine_anns):
+                if e_idx in used_engine:
+                    continue
+                e_types = tuple(
+                    _clean_type(t)
+                    for t in e_ann.get("types", e_ann.get("type", []))
+                )
+                if r_types == e_types:
+                    matches.append((r_idx, e_idx))
+                    used_engine.add(e_idx)
+                    matched = True
+                    break
+
+    unmatched_rec = [
+        i for i in range(len(recording_anns)) if i not in {m[0] for m in matches}
+    ]
+    unmatched_eng = [i for i in range(len(engine_anns)) if i not in used_engine]
+    return matches, unmatched_rec, unmatched_eng
+
+
 def bind_ids(template_anns, engine_anns):
     """
     Bind engine instance IDs to template $var_N variables by structural matching.
 
-    Matches annotations by type + position, then maps engine IDs to template vars
-    using affectedIds and detail values (orig_id, new_id).
+    Matches annotations by type (not position), then maps engine IDs to template
+    vars using affectedIds and detail values (orig_id, new_id).
 
     Returns {engine_id: "$var_N"} binding map.
     """
     bindings = {}  # engine_id -> $var_N
+    matches, _, _ = _match_annotations(template_anns, engine_anns)
 
-    for t_ann, e_ann in zip(template_anns, engine_anns):
-        t_types = t_ann.get("types", [])
-        e_types = e_ann.get("types", [])
-
-        # Types must match (ignoring proto suffixes)
-        t_clean = [t.replace("_af5a", "").replace("_a0f6", "") for t in t_types]
-        e_clean = [e.replace("_af5a", "").replace("_a0f6", "") for e in e_types]
-        if t_clean != e_clean:
-            continue
+    for t_idx, e_idx in matches:
+        t_ann = template_anns[t_idx]
+        e_ann = engine_anns[e_idx]
 
         # Bind affectedIds
         t_affected = t_ann.get("affectedIds", [])
@@ -1184,53 +1244,24 @@ def _hydrate_deep(obj, reverse_bindings):
 def diff_annotations(recording_anns, engine_anns, bindings):
     """
     Compare recording annotations (hydrated template) against engine annotations.
-    Reports structural differences.
+
+    Uses structural matching by type (not positional zip). Each recording annotation
+    is matched to the best unmatched engine annotation with the same type key.
+    Unmatched annotations on either side are reported as extra_recording / extra_engine.
 
     Returns list of diff entries: {type, field, recording, engine}.
     """
     diffs = []
-    max_len = max(len(recording_anns), len(engine_anns))
+    matches, unmatched_rec, unmatched_eng = _match_annotations(
+        recording_anns, engine_anns
+    )
 
-    for i in range(max_len):
-        if i >= len(recording_anns):
-            diffs.append(
-                {
-                    "index": i,
-                    "type": "extra_engine",
-                    "engine": engine_anns[i].get("types", []),
-                }
-            )
-            continue
-        if i >= len(engine_anns):
-            diffs.append(
-                {
-                    "index": i,
-                    "type": "extra_recording",
-                    "recording": recording_anns[i].get("types", []),
-                }
-            )
-            continue
+    # Diff matched pairs
+    for r_idx, e_idx in matches:
+        r_ann = recording_anns[r_idx]
+        e_ann = engine_anns[e_idx]
 
-        r_ann = recording_anns[i]
-        e_ann = engine_anns[i]
-
-        # Compare types (strip proto suffixes)
-        r_types = [
-            t.replace("_af5a", "").replace("_a0f6", "") for t in r_ann.get("types", [])
-        ]
-        e_types = [
-            t.replace("_af5a", "").replace("_a0f6", "") for t in e_ann.get("types", [])
-        ]
-        if r_types != e_types:
-            diffs.append(
-                {
-                    "index": i,
-                    "type": "type_mismatch",
-                    "recording": r_types,
-                    "engine": e_types,
-                }
-            )
-            continue
+        r_types = [_clean_type(t) for t in r_ann.get("types", [])]
 
         # Compare affectedIds
         r_affected = r_ann.get("affectedIds", [])
@@ -1238,7 +1269,7 @@ def diff_annotations(recording_anns, engine_anns, bindings):
         if r_affected != e_affected:
             diffs.append(
                 {
-                    "index": i,
+                    "index": r_idx,
                     "type": "affectedIds_mismatch",
                     "annotation": r_types,
                     "recording": r_affected,
@@ -1256,7 +1287,7 @@ def diff_annotations(recording_anns, engine_anns, bindings):
             if r_val != e_val:
                 diffs.append(
                     {
-                        "index": i,
+                        "index": r_idx,
                         "type": "detail_mismatch",
                         "annotation": r_types,
                         "key": key,
@@ -1264,6 +1295,20 @@ def diff_annotations(recording_anns, engine_anns, bindings):
                         "engine": e_val,
                     }
                 )
+
+    # Unmatched recording annotations (we're missing these)
+    for r_idx in unmatched_rec:
+        r_ann = recording_anns[r_idx]
+        r_types = [_clean_type(t) for t in r_ann.get("types", [])]
+        diffs.append(
+            {"index": r_idx, "type": "extra_recording", "recording": r_types}
+        )
+
+    # Unmatched engine annotations (we emit these but recording doesn't)
+    for e_idx in unmatched_eng:
+        e_ann = engine_anns[e_idx]
+        e_types = [_clean_type(t) for t in e_ann.get("types", [])]
+        diffs.append({"index": e_idx, "type": "extra_engine", "engine": e_types})
 
     return diffs
 

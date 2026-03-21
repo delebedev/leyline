@@ -4,26 +4,6 @@
     "compared": 16,
     "diffs": [
       {
-        "index": 0,
-        "type": "type_mismatch",
-        "recording": [
-          "AbilityInstanceCreated"
-        ],
-        "engine": [
-          "ObjectIdChanged"
-        ]
-      },
-      {
-        "index": 1,
-        "type": "type_mismatch",
-        "recording": [
-          "TappedUntappedPermanent"
-        ],
-        "engine": [
-          "ZoneTransfer"
-        ]
-      },
-      {
         "index": 2,
         "type": "detail_mismatch",
         "annotation": [
@@ -34,7 +14,70 @@
         "engine": 0
       },
       {
-        "index": 2,
+        "index": 3,
+        "type": "affectedIds_mismatch",
+        "annotation": [
+          "ManaPaid"
+        ],
+        "recording": [
+          "$var_5"
+        ],
+        "engine": [
+          117
+        ]
+      },
+      {
+        "index": 3,
+        "type": "detail_mismatch",
+        "annotation": [
+          "ManaPaid"
+        ],
+        "key": "color",
+        "recording": 2,
+        "engine": 8
+      },
+      {
+        "index": 3,
+        "type": "detail_mismatch",
+        "annotation": [
+          "ManaPaid"
+        ],
+        "key": "id",
+        "recording": 310,
+        "engine": 3
+      },
+      {
+        "index": 7,
+        "type": "detail_mismatch",
+        "annotation": [
+          "ObjectIdChanged"
+        ],
+        "key": "new_id",
+        "recording": 119,
+        "engine": 117
+      },
+      {
+        "index": 8,
+        "type": "detail_mismatch",
+        "annotation": [
+          "ZoneTransfer"
+        ],
+        "key": "zone_dest",
+        "recording": 37,
+        "engine": 33
+      },
+      {
+        "index": 9,
+        "type": "detail_mismatch",
+        "annotation": [
+          "UserActionTaken"
+        ],
+        "key": "abilityGrpId",
+        "recording": 183,
+        "engine": 0
+      },
+      {
+        "index": 9,
         "type": "detail_mismatch",
         "annotation": [
           "UserActionTaken"
@@ -44,113 +87,45 @@
         "engine": 1
       },
       {
-        "index": 3,
-        "type": "type_mismatch",
-        "recording": [
-          "ManaPaid"
-        ],
-        "engine": [
-          "AbilityInstanceCreated"
-        ]
-      },
-      {
-        "index": 4,
-        "type": "type_mismatch",
-        "recording": [
-          "AbilityInstanceDeleted"
-        ],
-        "engine": [
-          "TappedUntappedPermanent"
-        ]
-      },
-      {
         "index": 5,
-        "type": "type_mismatch",
+        "type": "extra_recording",
         "recording": [
           "AbilityInstanceCreated"
-        ],
-        "engine": [
-          "ObjectIdChanged"
         ]
       },
       {
         "index": 6,
-        "type": "type_mismatch",
+        "type": "extra_recording",
         "recording": [
           "TappedUntappedPermanent"
-        ],
-        "engine": [
-          "ZoneTransfer"
-        ]
-      },
-      {
-        "index": 7,
-        "type": "type_mismatch",
-        "recording": [
-          "ObjectIdChanged"
-        ],
-        "engine": [
-          "UserActionTaken"
-        ]
-      },
-      {
-        "index": 8,
-        "type": "type_mismatch",
-        "recording": [
-          "ZoneTransfer"
-        ],
-        "engine": [
-          "ManaPaid"
-        ]
-      },
-      {
-        "index": 9,
-        "type": "type_mismatch",
-        "recording": [
-          "UserActionTaken"
-        ],
-        "engine": [
-          "AbilityInstanceDeleted"
         ]
       },
       {
         "index": 10,
-        "type": "type_mismatch",
+        "type": "extra_recording",
         "recording": [
           "ManaPaid"
-        ],
-        "engine": [
-          "DamageDealt"
         ]
       },
       {
         "index": 11,
-        "type": "type_mismatch",
+        "type": "extra_recording",
         "recording": [
           "AbilityInstanceDeleted"
-        ],
-        "engine": [
-          "SyntheticEvent"
         ]
       },
       {
         "index": 12,
-        "type": "type_mismatch",
+        "type": "extra_recording",
         "recording": [
           "UserActionTaken"
-        ],
-        "engine": [
-          "ModifiedLife"
         ]
       },
       {
         "index": 13,
-        "type": "type_mismatch",
+        "type": "extra_recording",
         "recording": [
           "AbilityInstanceCreated"
-        ],
-        "engine": [
-          "TokenDeleted"
         ]
       },
       {
@@ -161,10 +136,38 @@
         ]
       },
       {
-        "index": 15,
-        "type": "extra_recording",
-        "recording": [
-          "TokenDeleted"
+        "index": 1,
+        "type": "extra_engine",
+        "engine": [
+          "ZoneTransfer"
+        ]
+      },
+      {
+        "index": 5,
+        "type": "extra_engine",
+        "engine": [
+          "ObjectIdChanged"
+        ]
+      },
+      {
+        "index": 10,
+        "type": "extra_engine",
+        "engine": [
+          "DamageDealt"
+        ]
+      },
+      {
+        "index": 11,
+        "type": "extra_engine",
+        "engine": [
+          "SyntheticEvent"
+        ]
+      },
+      {
+        "index": 12,
+        "type": "extra_engine",
+        "engine": [
+          "ModifiedLife"
         ]
       }
     ]
@@ -194,7 +197,7 @@
           "EnteredZoneThisTurn"
         ],
         "recording": [
-          "$var_2",
+          119,
           "$var_44",
           "$var_45",
           "$var_46",
@@ -206,12 +209,9 @@
       },
       {
         "index": 2,
-        "type": "type_mismatch",
+        "type": "extra_recording",
         "recording": [
           "TriggeringObject"
-        ],
-        "engine": [
-          "EnteredZoneThisTurn"
         ]
       },
       {
@@ -220,10 +220,21 @@
         "recording": [
           "TriggeringObject"
         ]
+      },
+      {
+        "index": 2,
+        "type": "extra_engine",
+        "engine": [
+          "EnteredZoneThisTurn"
+        ]
       }
     ]
   },
   "bindings": {
-    "$var_4": 117
+    "$var_4": 118,
+    "$var_3": 115,
+    "$var_6": 117,
+    "$var_1": 116,
+    "$var_2": 119
   }
 }
