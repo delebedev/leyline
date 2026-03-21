@@ -15,7 +15,7 @@ Gap analysis from Rosetta + catalog cross-referenced against recent work.
 |-----|--------|------------|-------|
 | **MDFC (CastMdfc/PlayMdfc)** | ~20% of Standard cards. Neither face playable. | Medium | Action type routing + face selection UI (CastingTimeOptionsReq?) |
 | **AddAbility (ann 9)** | "Gains flying/haste/etc" — keyword badge never updates on client. Affects anthems, equipment, auras granting keywords. | Medium | Need Forge event wiring. No GameEvent exists for granted abilities. |
-| **ControllerChanged (ann 15)** | Steal effects (Claim, Agent type cards). Permanent doesn't visually move to new controller. | Medium | GameEventPlayerControl fires but unwired to nexus events. |
+| **ControllerChanged (ann 15)** | Steal effects (Claim, Agent type cards). Permanent doesn't visually move to new controller. | Medium | GameEventPlayerControl fires but unwired to leyline events. |
 | **OrderReq (GRE 17)** | Multi-card scry/surveil ordering. Currently auto-resolved server-side — wrong for scry 2+. | Low-medium | Bridge code exists (WebPlayerController), needs GRE message wiring to client. |
 
 ## Tier 2 — Common mechanics, degraded UX

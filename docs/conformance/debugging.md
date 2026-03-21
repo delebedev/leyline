@@ -32,7 +32,7 @@ Common failure: annotation references the old instanceId after realloc, or Limbo
 - Gaps cause the client to request resync (or silently drop state).
 - `BundleBuilder` methods return `nextGsId` — always propagate it. Don't reuse or skip.
 
-Common failure: two code paths increment `gameStateId` independently (e.g. `postAction` + `aiActionDiff` racing). Check `MatchSession.gameStateId` and `NexusGamePlayback.seedCounters()`.
+Common failure: two code paths increment `gameStateId` independently (e.g. `postAction` + `aiActionDiff` racing). Check `MatchSession.gameStateId` and `MessageCounter` ownership.
 
 ## Action instanceId consistency
 

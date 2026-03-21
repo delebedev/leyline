@@ -287,7 +287,7 @@ Forge uses a single `PhaseType` enum covering both phases and steps. Arena uses 
 **Notes**:
 - Arena step 11 (FirstStrikeDamage) is out of sequence in the enum but slots between DeclareBlock (6) and CombatDamage (7) in gameplay.
 - Forge's `COMBAT_FIRST_STRIKE_DAMAGE` only occurs when a creature with first/double strike is in combat.
-- Arena sends `PhaseOrStepModified` annotations with both phase# and step# on every transition; forge-nexus produces these in `phaseTransitionDiff` and `aiActionDiff`.
+- Arena sends `PhaseOrStepModified` annotations with both phase# and step# on every transition; leyline produces these in `phaseTransitionDiff` and `aiActionDiff`.
 
 ## Table 8: GameObjectType
 

@@ -16,7 +16,7 @@ java ... leyline.LeylineMainKt --proxy-fd <ip> --puzzle path/to/puzzle.pzl
 
 The `--puzzle` flag forces puzzle mode for **all** client connections regardless of their matchId. Deck validation is skipped.
 
-Test puzzles live in `src/test/resources/puzzles/`. Simplest: `WEB_TEST_00.pzl` (1 Mountain, 1 Lightning Bolt, AI at 3 life).
+Test puzzles live in `matchdoor/src/test/resources/puzzles/`. Simplest: `WEB_TEST_00.pzl` (1 Mountain, 1 Lightning Bolt, AI at 3 life).
 
 ## Protocol: Puzzle vs Constructed
 
@@ -45,8 +45,8 @@ The client sees `stage=Play` in the first GSM and enters the turn loop directly.
 ### Startup Flow
 
 ```
-NexusMain (--puzzle flag)
-  → NexusServer(puzzleFile=...)
+LeylineMain (--puzzle flag)
+  → LeylineServer(puzzleFile=...)
     → MatchHandler(puzzleFile=...)
 
 On client ConnectReq:
@@ -72,8 +72,8 @@ On client ConnectReq:
 
 | File | Role |
 |------|------|
-| `NexusMain.kt` | CLI `--puzzle` parsing, skips deck validation |
-| `NexusServer.kt` | Threads `puzzleFile` to MatchHandler |
+| `LeylineMain.kt` | CLI `--puzzle` parsing, skips deck validation |
+| `LeylineServer.kt` | Threads `puzzleFile` to MatchHandler |
 | `MatchHandler.kt` | Puzzle detection, bridge creation, initial bundle |
 | `MatchSession.kt` | `onPuzzleStart()` — seeds snapshot, enters game loop |
 | `GameBridge.kt` | `startPuzzle()`, `applyPuzzleSafely()`, `registerPuzzleCards()` |
@@ -100,7 +100,7 @@ After puzzle application, `registerPuzzleCards()` iterates all cards in all zone
 
 ## Puzzle Application (Reflection)
 
-`Puzzle.applyGameOnThread()` is a protected method on the superclass. Both forge-web and forge-nexus call it via reflection:
+`Puzzle.applyGameOnThread()` is a protected method on the superclass. Leyline calls it via reflection:
 
 ```kotlin
 val method = puzzle.javaClass.superclass.getDeclaredMethod("applyGameOnThread", Game::class.java)
@@ -108,7 +108,7 @@ method.isAccessible = true
 method.invoke(puzzle, game)
 ```
 
-During application, the engine may fire SBAs or triggers that need controller responses. Temp `WebPlayerController`s with `autoKeep=true` and `timeoutMs=0` are installed on human-controlled players for the duration of the call (`runWithTempControllers` pattern, copied from forge-web's `runWithWebControllers`).
+During application, the engine may fire SBAs or triggers that need controller responses. Temp `WebPlayerController`s with `autoKeep=true` and `timeoutMs=0` are installed on human-controlled players for the duration of the call (`runWithTempControllers` pattern).
 
 ## Localization Init
 
@@ -178,7 +178,7 @@ Life:3
 
 - **`PuzzleBridgeTest.kt`** — 16 integration tests covering: puzzle game creation, state application, card registration, life totals, zone contents, actions available, Full GSM output, multiple puzzle files
 - **`PuzzleSourceTest.kt`** — 4 tests (2 unit for metadata parsing, 2 integration for full puzzle loading)
-- **Test puzzles** — `src/test/resources/puzzles/`: `WEB_TEST_00`, `WEB_TEST_01`, `WEB_TEST_02` (from forge-gui), `simple-attack`, `custom-life`, `lands-only`
+- **Test puzzles** — `matchdoor/src/test/resources/puzzles/`: `WEB_TEST_00`, `WEB_TEST_01`, `WEB_TEST_02` (from forge-gui), `simple-attack`, `custom-life`, `lands-only`
 
 ## Limitations
 

@@ -9,7 +9,6 @@ and [recording-cli.md](recording-cli.md) (game-level browsing).
 ## Quick start
 
 ```bash
-cd forge-nexus
 just proto-annotation-variance
 ```
 

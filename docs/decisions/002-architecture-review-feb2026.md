@@ -1,11 +1,13 @@
 # ADR-002: Architecture Review — Feb 2026
 
+> **Note:** This ADR uses the original project names "forge-nexus" (now "leyline/matchdoor") and "forge-web" (the bridge classes now live in `matchdoor/bridge/`).
+
 ## Status
 Accepted (review findings)
 
 ## Summary
 
-Full architectural review of forge-nexus at ~14.5K LOC, 65 source files, 63 test files. The forge-web reuse strategy is sound. Six structural improvements would make the architecture 10x easier to build upon.
+Full architectural review of leyline at ~14.5K LOC, 65 source files, 63 test files. The bridge reuse strategy is sound. Six structural improvements would make the architecture 10x easier to build upon.
 
 ## What Works Well
 

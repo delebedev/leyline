@@ -66,17 +66,17 @@ Key things to extract:
 - **State machine transitions** — valid module progressions
 - **Ordering constraints** — e.g. ActiveEventsV2 must resolve before GetCoursesV2
 
-## 4. Check forge-web for engine reuse
+## 4. Check Forge engine for reuse
 
-`~/src/forge-web` may already have the feature working against Forge's engine. Check for:
+Forge's engine (in the `forge/` submodule) may already have the feature working. Check for:
 
 - **Pack generation**: `UnOpenedProduct`, booster templates, `FModel.getMagicDb().getBoosters()`
 - **Deck building**: `SealedDeckBuilder`, `LimitedDeckEvaluator`, `DeckFormat.Limited`
-- **Session management**: existing session/lifecycle patterns
+- **Session management**: existing session/lifecycle patterns in `matchdoor/bridge/`
 
 ```bash
-# Find relevant forge-web code
-grep -rl 'Sealed\|Booster\|UnOpenedProduct' ~/src/forge-web/forge-web/src/
+# Find relevant bridge/engine code
+grep -rl 'Sealed\|Booster\|UnOpenedProduct' matchdoor/src/
 ```
 
 Reuse Forge's game logic (pack gen, deck validation, AI deck building). Don't reimplement card pools or rarity distribution — that's engine authority (principle 7).

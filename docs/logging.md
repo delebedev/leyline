@@ -1,17 +1,14 @@
 # Logging
 
-SLF4J + Logback across forge-nexus and forge-web. No Kotlin wrappers — raw SLF4J is fine.
+SLF4J + Logback across leyline. No Kotlin wrappers — raw SLF4J is fine.
 
 ## Logback Configs
 
 | File | Context | Root | Notes |
 |------|---------|------|-------|
-| `nexus/src/test/resources/logback-test.xml` | Tests | WARN | Bridge loggers at ERROR (timeout spam) |
-| `nexus/src/main/resources/logback.xml` | Server | INFO | `forge.web` at DEBUG, Sentry WARN+, DebugPanel appender |
-| `nexus/src/main/resources/logback-cli.xml` | CLI tools | ERROR | Minimal — just tool output |
-| `web/src/test/resources/logback-test.xml` | Tests | WARN | Same philosophy as nexus |
-| `web/src/main/resources/logback.xml` | Server | INFO | `forge.web` at DEBUG, Sentry WARN+ |
-| `web/src/main/resources/logback-fuzz.xml` | Fuzz | OFF | Total silence |
+| `matchdoor/src/test/resources/logback-test.xml` | Tests | WARN | Bridge loggers at ERROR (timeout spam) |
+| `app/src/main/resources/logback.xml` | Server | INFO | `leyline` at DEBUG, Sentry WARN+, DebugPanel appender |
+| `app/src/main/resources/logback-cli.xml` | CLI tools | ERROR | Minimal — just tool output |
 | `forge-gui/src/main/resources/logback.xml` | Desktop | ALL | Upstream — don't touch |
 
 **Test logback takes priority** on test classpath. The test config controls what you see during `just test-*`.
@@ -41,13 +38,13 @@ These fire per game action and will spam at DEBUG. Keep them at DEBUG — that's
 |--------|-----------|------------|
 | `GameEventCollector` | Game event | 16 debug |
 | `AnnotationPipeline` | Zone transfer / mechanic | 12 debug |
-| `NexusTap` | Protocol message | 9 debug |
+| `ProtocolTap` | Protocol message | 9 debug |
 | `FrontDoorService` | FD command | 8 debug |
 | `WebPlayerController` | Player choice | 9 debug |
 
 ## Test Logback Overrides
 
-`nexus/src/test/resources/logback-test.xml` suppresses specific loggers:
+`matchdoor/src/test/resources/logback-test.xml` suppresses specific loggers:
 
 ```xml
 <!-- Bridge timeouts are expected in tests (auto-pass on unhandled phases) -->
@@ -94,7 +91,7 @@ These are upstream — don't fix. Harmless (4 lines total, once per JVM).
 
 ## Sentry Integration
 
-`logback.xml` (both nexus and web) forward WARN+ to Sentry via `SentryAppender`. Set `SENTRY_DSN` env var to enable. No-op when unset.
+`app/src/main/resources/logback.xml` forwards WARN+ to Sentry via `SentryAppender`. Set `SENTRY_DSN` env var to enable. No-op when unset.
 
 This means: every WARN you add will appear in error reporting in prod. Don't use WARN for expected conditions — use INFO or DEBUG.
 
