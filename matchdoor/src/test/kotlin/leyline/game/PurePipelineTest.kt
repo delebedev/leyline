@@ -1,0 +1,190 @@
+package leyline.game
+
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.shouldBe
+import leyline.UnitTag
+import leyline.bridge.InstanceId
+import leyline.game.mapper.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
+import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
+import wotc.mtgo.gre.external.messaging.Messages.ZoneType
+
+/**
+ * Pure unit tests for [AnnotationPipeline.detectZoneTransfers] — the overload
+ * that takes function parameters instead of [GameBridge].
+ *
+ * No game engine, no bridge, no card DB. Each test constructs
+ * [GameObjectInfo] + [ZoneInfo] data directly via proto builders.
+ */
+class PurePipelineTest :
+    FunSpec({
+
+        tags(UnitTag)
+
+        fun gameObject(
+            instanceId: Int,
+            grpId: Int,
+            zoneId: Int,
+            ownerSeatId: Int,
+        ): GameObjectInfo =
+            GameObjectInfo.newBuilder()
+                .setInstanceId(instanceId)
+                .setGrpId(grpId)
+                .setZoneId(zoneId)
+                .setOwnerSeatId(ownerSeatId)
+                .build()
+
+        fun zone(
+            zoneId: Int,
+            type: ZoneType,
+            vararg objectInstanceIds: Int,
+        ): ZoneInfo =
+            ZoneInfo.newBuilder()
+                .setZoneId(zoneId)
+                .setType(type)
+                .also { b -> objectInstanceIds.forEach { b.addObjectInstanceIds(it) } }
+                .build()
+
+        // -----------------------------------------------------------------------
+        // Test 1: hand-to-battlefield — PlayLand
+        // -----------------------------------------------------------------------
+
+        test("detectZoneTransfers finds hand-to-battlefield transfer") {
+            val obj = gameObject(instanceId = 100, grpId = 12345, zoneId = ZoneIds.BATTLEFIELD, ownerSeatId = 1)
+            val zones = listOf(
+                zone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 100),
+                zone(ZoneIds.LIMBO, ZoneType.Limbo),
+            )
+            val events = listOf(GameEvent.LandPlayed(forgeCardId = 42, seatId = 1))
+            val previousZones = mapOf(100 to ZoneIds.P1_HAND)
+
+            val result = AnnotationPipeline.detectZoneTransfers(
+                gameObjects = listOf(obj),
+                zones = zones,
+                events = events,
+                previousZones = previousZones,
+                forgeIdLookup = { if (it == 100) 42 else null },
+                idAllocator = { InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                idLookup = { InstanceId(it + 1000) },
+            )
+
+            result.transfers.size shouldBe 1
+            val transfer = result.transfers[0]
+            transfer.category shouldBe TransferCategory.PlayLand
+            transfer.origId shouldBe 100
+            transfer.newId shouldBe 200
+            result.retiredIds shouldBe listOf(100)
+        }
+
+        // -----------------------------------------------------------------------
+        // Test 2: hand-to-stack — CastSpell
+        // -----------------------------------------------------------------------
+
+        test("detectZoneTransfers finds hand-to-stack cast") {
+            val obj = gameObject(instanceId = 100, grpId = 12345, zoneId = ZoneIds.STACK, ownerSeatId = 1)
+            val zones = listOf(
+                zone(ZoneIds.STACK, ZoneType.Stack, 100),
+                zone(ZoneIds.LIMBO, ZoneType.Limbo),
+            )
+            val events = listOf(GameEvent.SpellCast(forgeCardId = 42, seatId = 1))
+            val previousZones = mapOf(100 to ZoneIds.P1_HAND)
+
+            val result = AnnotationPipeline.detectZoneTransfers(
+                gameObjects = listOf(obj),
+                zones = zones,
+                events = events,
+                previousZones = previousZones,
+                forgeIdLookup = { if (it == 100) 42 else null },
+                idAllocator = { InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                idLookup = { InstanceId(it + 1000) },
+            )
+
+            result.transfers.size shouldBe 1
+            result.transfers[0].category shouldBe TransferCategory.CastSpell
+        }
+
+        // -----------------------------------------------------------------------
+        // Test 3: stack-to-battlefield Resolve — keeps same instanceId
+        // -----------------------------------------------------------------------
+
+        test("detectZoneTransfers Resolve keeps same instanceId") {
+            val obj = gameObject(instanceId = 100, grpId = 12345, zoneId = ZoneIds.BATTLEFIELD, ownerSeatId = 1)
+            val zones = listOf(
+                zone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 100),
+                zone(ZoneIds.LIMBO, ZoneType.Limbo),
+            )
+            val events = listOf(GameEvent.SpellResolved(forgeCardId = 42, hasFizzled = false))
+            val previousZones = mapOf(100 to ZoneIds.STACK)
+
+            val result = AnnotationPipeline.detectZoneTransfers(
+                gameObjects = listOf(obj),
+                zones = zones,
+                events = events,
+                previousZones = previousZones,
+                forgeIdLookup = { if (it == 100) 42 else null },
+                idAllocator = { error("should not realloc for Resolve") },
+                idLookup = { InstanceId(it + 1000) },
+            )
+
+            result.transfers.size shouldBe 1
+            val transfer = result.transfers[0]
+            transfer.category shouldBe TransferCategory.Resolve
+            transfer.origId shouldBe 100
+            transfer.newId shouldBe 100
+            result.retiredIds.shouldBeEmpty()
+        }
+
+        // -----------------------------------------------------------------------
+        // Test 4: battlefield-to-graveyard with CardDestroyed — Destroy
+        // -----------------------------------------------------------------------
+
+        test("detectZoneTransfers battlefield-to-graveyard with CardDestroyed") {
+            val obj = gameObject(instanceId = 100, grpId = 12345, zoneId = ZoneIds.P1_GRAVEYARD, ownerSeatId = 1)
+            val zones = listOf(
+                zone(ZoneIds.P1_GRAVEYARD, ZoneType.Graveyard, 100),
+                zone(ZoneIds.LIMBO, ZoneType.Limbo),
+            )
+            val events = listOf(GameEvent.CardDestroyed(forgeCardId = 42, seatId = 1))
+            val previousZones = mapOf(100 to ZoneIds.BATTLEFIELD)
+
+            val result = AnnotationPipeline.detectZoneTransfers(
+                gameObjects = listOf(obj),
+                zones = zones,
+                events = events,
+                previousZones = previousZones,
+                forgeIdLookup = { if (it == 100) 42 else null },
+                idAllocator = { InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                idLookup = { InstanceId(it + 1000) },
+            )
+
+            result.transfers.size shouldBe 1
+            result.transfers[0].category shouldBe TransferCategory.Destroy
+        }
+
+        // -----------------------------------------------------------------------
+        // Test 5: no zone change — empty result
+        // -----------------------------------------------------------------------
+
+        test("detectZoneTransfers returns empty when no zone change") {
+            val obj = gameObject(instanceId = 100, grpId = 12345, zoneId = ZoneIds.BATTLEFIELD, ownerSeatId = 1)
+            val zones = listOf(
+                zone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 100),
+                zone(ZoneIds.LIMBO, ZoneType.Limbo),
+            )
+            val previousZones = mapOf(100 to ZoneIds.BATTLEFIELD)
+
+            val result = AnnotationPipeline.detectZoneTransfers(
+                gameObjects = listOf(obj),
+                zones = zones,
+                events = emptyList(),
+                previousZones = previousZones,
+                forgeIdLookup = { if (it == 100) 42 else null },
+                idAllocator = { error("should not realloc") },
+                idLookup = { InstanceId(it + 1000) },
+            )
+
+            result.transfers.shouldBeEmpty()
+            result.retiredIds.shouldBeEmpty()
+        }
+    })
