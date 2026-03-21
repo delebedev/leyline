@@ -1,110 +1,17 @@
 {
-  "status": "FAIL",
+  "status": "PASS",
   "annotations": {
     "compared": 8,
-    "diffs": [
-      {
-        "index": 0,
-        "type": "detail_mismatch",
-        "annotation": [
-          "ObjectIdChanged"
-        ],
-        "key": "new_id",
-        "recording": "$var_2",
-        "engine": 122
-      },
-      {
-        "index": 1,
-        "type": "affectedIds_mismatch",
-        "annotation": [
-          "ZoneTransfer"
-        ],
-        "recording": [
-          "$var_2"
-        ],
-        "engine": [
-          122
-        ]
-      },
-      {
-        "index": 2,
-        "type": "detail_mismatch",
-        "annotation": [
-          "AbilityInstanceCreated"
-        ],
-        "key": "source_zone",
-        "recording": 28,
-        "engine": 31
-      },
-      {
-        "index": 3,
-        "type": "type_mismatch",
-        "recording": [
-          "TappedUntappedPermanent"
-        ],
-        "engine": [
-          "ManaPaid"
-        ]
-      },
-      {
-        "index": 4,
-        "type": "type_mismatch",
-        "recording": [
-          "UserActionTaken"
-        ],
-        "engine": [
-          "AbilityInstanceDeleted"
-        ]
-      },
-      {
-        "index": 5,
-        "type": "type_mismatch",
-        "recording": [
-          "ManaPaid"
-        ],
-        "engine": [
-          "UserActionTaken"
-        ]
-      },
-      {
-        "index": 6,
-        "type": "type_mismatch",
-        "recording": [
-          "AbilityInstanceDeleted"
-        ],
-        "engine": [
-          "TappedUntappedPermanent"
-        ]
-      },
-      {
-        "index": 7,
-        "type": "extra_recording",
-        "recording": [
-          "UserActionTaken"
-        ]
-      }
-    ]
+    "diffs": []
   },
   "persistentAnnotations": {
     "compared": 1,
-    "diffs": [
-      {
-        "index": 0,
-        "type": "affectedIds_mismatch",
-        "annotation": [
-          "EnteredZoneThisTurn"
-        ],
-        "recording": [
-          "$var_2"
-        ],
-        "engine": [
-          122
-        ]
-      }
-    ]
+    "diffs": []
   },
   "bindings": {
     "$var_1": 100,
-    "$var_4": 122
+    "$var_2": 122,
+    "$var_4": 123,
+    "$var_3": 106
   }
 }

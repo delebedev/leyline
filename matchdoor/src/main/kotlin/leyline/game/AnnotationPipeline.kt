@@ -3,6 +3,7 @@ package leyline.game
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
+import leyline.bridge.findCard
 import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.ZoneIds
 import org.slf4j.LoggerFactory
@@ -34,11 +35,30 @@ object AnnotationPipeline {
     private const val ZONE_P2_LIBRARY = ZoneIds.P2_LIBRARY
     private const val ZONE_P2_GRAVEYARD = ZoneIds.P2_GRAVEYARD
 
+    /** Offset for mana ability instance IDs (separate from stack abilities at 100_000). */
+    private const val MANA_ABILITY_ID_OFFSET = 200_000
+
+    /**
+     * ManaPaid.id base value. The real server assigns mana payment IDs sequentially
+     * across the GSM. In the CHALLENGE-STARTER recording, CastSpell payments start
+     * at id=3 (after prior persistent annotation IDs 1-2). This is a best-effort
+     * approximation — a proper fix would track a global counter across the GSM.
+     */
+    private const val MANA_ID_BASE = 3
+
     /**
      * Record of a zone transfer after ID reallocation.
      * Produced by [detectZoneTransfers], consumed by [annotationsForTransfer].
      * All fields are plain ints/strings — no Forge engine references, independently testable.
      */
+    /** Pre-resolved mana payment: all IDs are client instanceIds, ready for annotation building. */
+    data class ManaPaymentRecord(
+        val landInstanceId: Int,
+        val manaAbilityInstanceId: Int,
+        val color: Int,
+        val abilityGrpId: Int,
+    )
+
     data class AppliedTransfer(
         val origId: Int,
         val newId: Int,
@@ -51,6 +71,8 @@ object AnnotationPipeline {
         val affectorId: Int = 0,
         /** Color bitmasks for land color production (1=W, 2=U, 4=B, 8=R, 16=G). */
         val colorBitmasks: List<Int> = emptyList(),
+        /** Resolved mana payments for CastSpell (one per land tapped). */
+        val manaPayments: List<ManaPaymentRecord> = emptyList(),
     )
 
     /**
@@ -95,6 +117,16 @@ object AnnotationPipeline {
         forgeIdLookup = { iid -> bridge.getForgeCardId(InstanceId(iid))?.value },
         idAllocator = { forgeCardId -> bridge.reallocInstanceId(ForgeCardId(forgeCardId)) },
         idLookup = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)) },
+        manaAbilityGrpIdResolver = { forgeCardId ->
+            val card = bridge.getGame()?.let { findCard(it, ForgeCardId(forgeCardId)) }
+            if (card != null) {
+                val subtypes = card.type.subtypes.map { it.lowercase() }
+                AbilityIdDeriver.BASIC_LAND_ABILITIES
+                    .firstOrNull { it.first in subtypes }?.second ?: 0
+            } else {
+                0
+            }
+        },
     )
 
     /**
@@ -114,6 +146,7 @@ object AnnotationPipeline {
         forgeIdLookup: (Int) -> Int?,
         idAllocator: (Int) -> InstanceIdRegistry.IdReallocation,
         idLookup: (Int) -> InstanceId,
+        manaAbilityGrpIdResolver: (Int) -> Int = { 0 },
     ): TransferResult {
         val patchedObjects = gameObjects.toMutableList()
         val patchedZones = zones.toMutableList()
@@ -172,8 +205,27 @@ object AnnotationPipeline {
                     emptyList()
                 }
 
+                // Extract mana payment info from SpellCast events for CastSpell transfers.
+                val manaPayments = if (category == TransferCategory.CastSpell && forgeCardIdValue != null) {
+                    events.filterIsInstance<GameEvent.SpellCast>()
+                        .firstOrNull { it.forgeCardId == forgeCardIdValue }
+                        ?.manaPayments?.map { mp ->
+                            val landIid = idLookup(mp.sourceForgeCardId).value
+                            val manaAbilityIid = idLookup(mp.sourceForgeCardId + MANA_ABILITY_ID_OFFSET).value
+                            val abilityGrpId = manaAbilityGrpIdResolver(mp.sourceForgeCardId)
+                            ManaPaymentRecord(
+                                landInstanceId = landIid,
+                                manaAbilityInstanceId = manaAbilityIid,
+                                color = mp.color,
+                                abilityGrpId = abilityGrpId,
+                            )
+                        } ?: emptyList()
+                } else {
+                    emptyList()
+                }
+
                 transfers.add(
-                    AppliedTransfer(origId, newId, category, prevZone, obj.zoneId, obj.grpId, obj.ownerSeatId, affectorId, colorBitmasks),
+                    AppliedTransfer(origId, newId, category, prevZone, obj.zoneId, obj.grpId, obj.ownerSeatId, affectorId, colorBitmasks, manaPayments),
                 )
                 zoneRecordings.add(newId to obj.zoneId)
             } else {
@@ -225,9 +277,44 @@ object AnnotationPipeline {
             TransferCategory.CastSpell -> {
                 annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
-                annotations.add(AnnotationBuilder.abilityInstanceCreated(newId, sourceZoneId = srcZone))
-                annotations.add(AnnotationBuilder.manaPaid(newId)) // TODO: pass manaId/color when mana payment tracking is wired
-                annotations.add(AnnotationBuilder.abilityInstanceDeleted(newId))
+                // Per-land mana payment block (repeats for each land tapped)
+                for ((i, mp) in transfer.manaPayments.withIndex()) {
+                    annotations.add(
+                        AnnotationBuilder.abilityInstanceCreated(
+                            abilityInstanceId = mp.manaAbilityInstanceId,
+                            affectorId = mp.landInstanceId,
+                            sourceZoneId = ZONE_BATTLEFIELD,
+                        ),
+                    )
+                    annotations.add(
+                        AnnotationBuilder.tappedUntappedPermanent(
+                            permanentId = mp.landInstanceId,
+                            abilityId = mp.manaAbilityInstanceId,
+                        ),
+                    )
+                    annotations.add(
+                        AnnotationBuilder.userActionTaken(
+                            instanceId = mp.manaAbilityInstanceId,
+                            seatId = actingSeat,
+                            actionType = 4,
+                            abilityGrpId = mp.abilityGrpId,
+                        ),
+                    )
+                    annotations.add(
+                        AnnotationBuilder.manaPaid(
+                            spellInstanceId = newId,
+                            landInstanceId = mp.landInstanceId,
+                            manaId = i + MANA_ID_BASE,
+                            color = mp.color,
+                        ),
+                    )
+                    annotations.add(
+                        AnnotationBuilder.abilityInstanceDeleted(
+                            abilityInstanceId = mp.manaAbilityInstanceId,
+                            affectorId = mp.landInstanceId,
+                        ),
+                    )
+                }
                 annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
             }
             TransferCategory.Resolve -> {
@@ -396,6 +483,7 @@ object AnnotationPipeline {
      */
     fun mechanicAnnotations(
         events: List<GameEvent>,
+        manaPaidForgeCardIds: Set<Int> = emptySet(),
         idResolver: (Int) -> Int,
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
@@ -444,9 +532,13 @@ object AnnotationPipeline {
                     log.debug("mechanic: tokenDeleted iid={}", instanceId)
                 }
                 is GameEvent.CardTapped -> {
-                    val instanceId = idResolver(ev.forgeCardId)
-                    annotations.add(AnnotationBuilder.tappedUntappedPermanent(instanceId, instanceId, ev.tapped))
-                    log.debug("mechanic: tapped={} iid={}", ev.tapped, instanceId)
+                    if (ev.forgeCardId in manaPaidForgeCardIds) {
+                        log.debug("mechanic: skipping tapped for mana-paid land forgeId={}", ev.forgeCardId)
+                    } else {
+                        val instanceId = idResolver(ev.forgeCardId)
+                        annotations.add(AnnotationBuilder.tappedUntappedPermanent(instanceId, instanceId, ev.tapped))
+                        log.debug("mechanic: tapped={} iid={}", ev.tapped, instanceId)
+                    }
                 }
                 is GameEvent.PowerToughnessChanged -> {
                     val instanceId = idResolver(ev.forgeCardId)

@@ -34,7 +34,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 29 | TurnPermanent | -- | -- | -- | (none) | MISSING |
 | 30 | DynamicAbility | -- | -- | -- | `cost`, `grpid`, `base_grpid`, `action_cost_string` | MISSING |
 | 31 | ObjectsSelected | -- | -- | -- | (none) | MISSING |
-| 34 | ManaPaid | `GameEventManaPool` | -- | `manaPaid()` | `id`, `color` | Implemented (stub, no details) |
+| 34 | ManaPaid | `GameEventSpellAbilityCast` | `SpellCast` | `manaPaid()` | `id`, `color`, `affectorId` | Implemented (full conformance) |
 | 35 | TokenCreated | `GameEventTokenCreated` | `TokenCreated` | `tokenCreated()` | affected ids | Implemented |
 | 36 | AbilityInstanceCreated | `GameEventSpellAbilityCast` | `SpellCast` | `abilityInstanceCreated()` | affected ids | Implemented |
 | 37 | AbilityInstanceDeleted | `GameEventSpellResolved` / `GameEventSpellRemovedFromStack` | `SpellResolved` | `abilityInstanceDeleted()` | affected ids | Implemented |

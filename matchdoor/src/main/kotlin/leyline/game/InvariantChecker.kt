@@ -279,12 +279,22 @@ class InvariantChecker {
         val annotations = gsm.annotationsList + gsm.persistentAnnotationsList
         if (annotations.isEmpty()) return
 
+        // Collect transient ability IDs created by AbilityInstanceCreated annotations.
+        // These are mana ability instance IDs that exist only within the annotation
+        // sequence (created then deleted in the same GSM) and don't appear as game objects.
+        val transientAbilityIds = annotations
+            .filter { it.typeList.any { t -> t == AnnotationType.AbilityInstanceCreated } }
+            .flatMap { it.affectedIdsList }
+            .toSet()
+
+        fun isKnown(id: Int) = accumulator.isKnownEntity(id) || id in transientAbilityIds
+
         for (ann in annotations) {
             // ObjectIdChanged references old (replaced) instanceIds — skip entirely
             val isObjectIdChanged = ann.typeList.any { it == AnnotationType.ObjectIdChanged }
             if (isObjectIdChanged) continue
 
-            if (ann.affectorId != 0 && !accumulator.isKnownEntity(ann.affectorId)) {
+            if (ann.affectorId != 0 && !isKnown(ann.affectorId)) {
                 record(
                     gsId,
                     "annotation_ref",
@@ -293,7 +303,7 @@ class InvariantChecker {
                 )
             }
             for (affected in ann.affectedIdsList) {
-                if (affected != 0 && !accumulator.isKnownEntity(affected)) {
+                if (affected != 0 && !isKnown(affected)) {
                     record(
                         gsId,
                         "annotation_ref",

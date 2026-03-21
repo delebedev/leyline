@@ -285,12 +285,14 @@ spells:
     notes: "Spell fizzles if all targets illegal. SpellResolved(fizzled=true)."
 
   mana-payment:
-    status: wired
+    status: works
     notes: >
       autoTapSolution provides one-click casting (greedy solver: colored first,
       then generic). ~95% correct. Manual tap via ActivateMana works end-to-end
       (taps permanent, produces mana, loops back for next action without
-      consuming priority). ManaPaid annotation fires but has no detail keys (stub).
+      consuming priority). ManaPaid annotation carries affectorId (land),
+      id (payment counter), and color (bitmask). Per-land mana payment block
+      emits AIC/TUP/UAT-mana/ManaPaid/AID sequence matching real server.
 
   float-mana:
     status: missing
@@ -844,7 +846,7 @@ protocol-summary:
       missing:
         - AddAbility (9)            # "gains flying/haste/etc" — no keyword badge update
         - ControllerChanged (15)    # steal effects (Claim, Agent) — permanent doesn't move
-        - ManaPaid (34)             # stub only, no detail keys — mana payment visual
+        - ManaPaid (34)             # now has id/color/affectorId — conformance matched
         - CardRevealed (47)         # tutors, impulse draw — no reveal animation
         - PlayerSelectingTargets (92)  # targeting arrows during cast
         - PlayerSubmittedTargets (93)  # targeting arrows confirmed

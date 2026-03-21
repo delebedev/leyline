@@ -191,27 +191,27 @@ class AnnotationBuilderTest :
         // --- ManaPaid ---
 
         test("manaPaidFields") {
-            val ann = AnnotationBuilder.manaPaid(instanceId = 600, manaId = 5, color = "Green")
+            val ann = AnnotationBuilder.manaPaid(spellInstanceId = 600, landInstanceId = 42, manaId = 5, color = 4)
             ann.typeList shouldContain AnnotationType.ManaPaid
             ann.affectedIdsList shouldContain 600
-            ann.affectorId shouldBe 0
+            ann.affectorId shouldBe 42
 
             val id = ann.detailsList.first { it.key == "id" }
             id.type shouldBe KeyValuePairValueType.Int32
             id.getValueInt32(0) shouldBe 5
 
             val color = ann.detailsList.first { it.key == "color" }
-            color.type shouldBe KeyValuePairValueType.String
-            color.getValueString(0) shouldBe "Green"
+            color.type shouldBe KeyValuePairValueType.Int32
+            color.getValueInt32(0) shouldBe 4
         }
 
         test("manaPaidDefaults") {
-            val ann = AnnotationBuilder.manaPaid(instanceId = 600)
-            // Defaults: manaId=0, color=""
+            val ann = AnnotationBuilder.manaPaid(spellInstanceId = 600, landInstanceId = 0)
+            // Defaults: manaId=0, color=0
             val id = ann.detailsList.first { it.key == "id" }
             id.getValueInt32(0) shouldBe 0
             val color = ann.detailsList.first { it.key == "color" }
-            color.getValueString(0) shouldBe ""
+            color.getValueInt32(0) shouldBe 0
         }
 
         // --- TappedUntappedPermanent ---
@@ -240,7 +240,7 @@ class AnnotationBuilderTest :
         // --- AbilityInstanceCreated ---
 
         test("abilityInstanceCreatedFields") {
-            val ann = AnnotationBuilder.abilityInstanceCreated(instanceId = 900, sourceZoneId = 31)
+            val ann = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900, sourceZoneId = 31)
             ann.typeList shouldContain AnnotationType.AbilityInstanceCreated
             ann.affectedIdsList shouldContain 900
             ann.affectorId shouldBe 0
@@ -250,8 +250,14 @@ class AnnotationBuilderTest :
             srcZone.getValueInt32(0) shouldBe 31
         }
 
+        test("abilityInstanceCreatedWithAffectorId") {
+            val ann = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900, affectorId = 42, sourceZoneId = 31)
+            ann.affectorId shouldBe 42
+            ann.affectedIdsList shouldContain 900
+        }
+
         test("abilityInstanceCreatedDefaultZone") {
-            val ann = AnnotationBuilder.abilityInstanceCreated(instanceId = 900)
+            val ann = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900)
             val srcZone = ann.detailsList.first { it.key == "source_zone" }
             srcZone.getValueInt32(0) shouldBe 0
         }
@@ -259,10 +265,16 @@ class AnnotationBuilderTest :
         // --- AbilityInstanceDeleted ---
 
         test("abilityInstanceDeletedFields") {
-            val ann = AnnotationBuilder.abilityInstanceDeleted(instanceId = 900)
+            val ann = AnnotationBuilder.abilityInstanceDeleted(abilityInstanceId = 900)
             ann.typeList shouldContain AnnotationType.AbilityInstanceDeleted
             ann.affectedIdsList shouldContain 900
             ann.affectorId shouldBe 0
+        }
+
+        test("abilityInstanceDeletedWithAffectorId") {
+            val ann = AnnotationBuilder.abilityInstanceDeleted(abilityInstanceId = 900, affectorId = 42)
+            ann.affectorId shouldBe 42
+            ann.affectedIdsList shouldContain 900
         }
 
         // --- EnteredZoneThisTurn ---

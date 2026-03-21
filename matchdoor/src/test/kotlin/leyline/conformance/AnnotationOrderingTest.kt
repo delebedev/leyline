@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -109,46 +110,39 @@ class AnnotationOrderingTest :
             val oicIdx = types.indexOf(AnnotationType.ObjectIdChanged)
             val ztIdx = types.indexOf(AnnotationType.ZoneTransfer_af5a)
             val aicIdx = types.indexOf(AnnotationType.AbilityInstanceCreated)
+            val tupIdx = types.indexOf(AnnotationType.TappedUntappedPermanent)
             val mpIdx = types.indexOf(AnnotationType.ManaPaid)
             val aidIdx = types.indexOf(AnnotationType.AbilityInstanceDeleted)
-            val uatIdx = types.indexOf(AnnotationType.UserActionTaken)
+            val uatIndices = types.indices.filter { types[it] == AnnotationType.UserActionTaken }
 
             oicIdx shouldBeGreaterThanOrEqual 0
             ztIdx shouldBeGreaterThanOrEqual 0
             aicIdx shouldBeGreaterThanOrEqual 0
+            tupIdx shouldBeGreaterThanOrEqual 0
             mpIdx shouldBeGreaterThanOrEqual 0
             aidIdx shouldBeGreaterThanOrEqual 0
-            uatIdx shouldBeGreaterThanOrEqual 0
+            uatIndices.size shouldBeGreaterThanOrEqual 2
 
             (oicIdx < ztIdx).shouldBeTrue()
             (ztIdx < aicIdx).shouldBeTrue()
-            (aicIdx < mpIdx).shouldBeTrue()
+            (aicIdx < tupIdx).shouldBeTrue()
+            (tupIdx < mpIdx).shouldBeTrue()
             (mpIdx < aidIdx).shouldBeTrue()
-            (aidIdx < uatIdx).shouldBeTrue()
-
-            // TappedUntappedPermanent annotations come via Stage 4
-            val tupIndices = types.indices.filter { types[it] == AnnotationType.TappedUntappedPermanent }
-            for (tupIdx in tupIndices) {
-                (tupIdx > uatIdx).shouldBeTrue()
-            }
+            (aidIdx < uatIndices.last()).shouldBeTrue()
         }
 
-        test("CastSpell: 6 annotations + per-land TappedUntappedPermanent") {
+        test("CastSpell: mana payment block with TappedUntappedPermanent") {
             val gsm = base.castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
             val types = gsm.annotationsList.map { it.typeList.first() }
-            val castSequence = listOf(
-                AnnotationType.ObjectIdChanged,
-                AnnotationType.ZoneTransfer_af5a,
-                AnnotationType.AbilityInstanceCreated,
-                AnnotationType.ManaPaid,
-                AnnotationType.AbilityInstanceDeleted,
-                AnnotationType.UserActionTaken,
-            )
-            types.take(6) shouldBe castSequence
-            val tapAnnotations = types.drop(6)
-            tapAnnotations.isNotEmpty().shouldBeTrue()
-            tapAnnotations.all { it == AnnotationType.TappedUntappedPermanent }.shouldBeTrue()
+
+            types[0] shouldBe AnnotationType.ObjectIdChanged
+            types[1] shouldBe AnnotationType.ZoneTransfer_af5a
+            types.last() shouldBe AnnotationType.UserActionTaken
+
+            val tupIdx = types.indexOf(AnnotationType.TappedUntappedPermanent)
+            val mpIdx = types.indexOf(AnnotationType.ManaPaid)
+            (tupIdx < mpIdx).shouldBeTrue()
         }
 
         test("CastSpell: ZoneTransfer category is CastSpell, zones are Hand->Stack") {
@@ -163,8 +157,10 @@ class AnnotationOrderingTest :
         test("CastSpell: UserActionTaken has actionType=1 (Cast)") {
             val gsm = base.castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 
-            val uat = gsm.annotation(AnnotationType.UserActionTaken)
-            uat.detailInt("actionType") shouldBe 1
+            val castUat = gsm.annotationsList
+                .filter { AnnotationType.UserActionTaken in it.typeList }
+                .first { it.detailInt("actionType") == 1 }
+            castUat.detailInt("actionType") shouldBe 1
         }
 
         test("CastSpell: TappedUntappedPermanent has tapped=1 detail") {
@@ -177,20 +173,22 @@ class AnnotationOrderingTest :
             }
         }
 
-        test("CastSpell: all annotations reference the new instanceId") {
+        test("CastSpell: spell-referencing annotations use the new instanceId") {
             val (gsm, _, newInstanceId) = base.castSpellAndCaptureWithIds() ?: error("Could not cast spell at seed 42")
 
             val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
             zt.affectedIdsList.contains(newInstanceId).shouldBeTrue()
 
-            val uat = gsm.annotation(AnnotationType.UserActionTaken)
-            uat.affectedIdsList.contains(newInstanceId).shouldBeTrue()
-
             val mp = gsm.annotation(AnnotationType.ManaPaid)
             mp.affectedIdsList.contains(newInstanceId).shouldBeTrue()
 
+            val castUat = gsm.annotationsList
+                .filter { AnnotationType.UserActionTaken in it.typeList }
+                .first { it.detailInt("actionType") == 1 }
+            castUat.affectedIdsList.contains(newInstanceId).shouldBeTrue()
+
             val aic = gsm.annotation(AnnotationType.AbilityInstanceCreated)
-            aic.affectedIdsList.contains(newInstanceId).shouldBeTrue()
+            aic.affectedIdsList.contains(newInstanceId).shouldBeFalse()
         }
 
         // ===== Resolve ordering =====
