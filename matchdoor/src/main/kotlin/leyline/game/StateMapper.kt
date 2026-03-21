@@ -171,7 +171,15 @@ object StateMapper {
 
         // Stage 5: Layered effect lifecycle (P/T boost diffing)
         // Resolve sourceAbilityGRPID: instanceId → card keyword → abilityGrpId
-        val sourceAbilityResolver = buildSourceAbilityResolver(game, bridge)
+        val battlefieldCards = game.players.flatMap { player ->
+            player.getZone(ForgeZoneType.Battlefield).cards.map { card ->
+                bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value to card.name
+            }
+        }
+        val sourceAbilityResolver = buildSourceAbilityResolver(battlefieldCards) { name ->
+            val grpId = bridge.cards.findGrpIdByName(name) ?: return@buildSourceAbilityResolver null
+            bridge.cards.findByGrpId(grpId)
+        }
         val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
         annotations.addAll(effectTransient)
 
@@ -374,20 +382,15 @@ object StateMapper {
      * Build a resolver: cardInstanceId → sourceAbilityGRPID.
      * Scans battlefield once, then checks each card for P/T-boost keywords.
      */
-    private fun buildSourceAbilityResolver(game: Game, bridge: GameBridge): (Int) -> Int? {
-        // Build instanceId → card name map from battlefield (same cards snapshotBoosts iterates)
-        val instanceIdToName = mutableMapOf<Int, String>()
-        for (player in game.players) {
-            for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
-                val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-                instanceIdToName[instanceId] = card.name
-            }
-        }
+    private fun buildSourceAbilityResolver(
+        battlefieldCards: List<Pair<Int, String>>,
+        cardDataLookup: (String) -> CardData?,
+    ): (Int) -> Int? {
+        val instanceIdToName = battlefieldCards.toMap()
 
         return resolver@{ instanceId ->
             val name = instanceIdToName[instanceId] ?: return@resolver null
-            val grpId = bridge.cards.findGrpIdByName(name) ?: return@resolver null
-            val cardData = bridge.cards.findByGrpId(grpId) ?: return@resolver null
+            val cardData = cardDataLookup(name) ?: return@resolver null
             for (keyword in PT_BOOST_KEYWORDS) {
                 cardData.keywordAbilityGrpIds[keyword]?.let { return@resolver it }
             }
