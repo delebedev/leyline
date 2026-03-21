@@ -104,7 +104,7 @@ sudo sed -i '' \
 sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder 2>/dev/null
 ```
 
-Also update any old version references in `/etc/hosts` (both `127.0.0.1` and commented-out `100.73.207.103` lines) to the new version string.
+Also update any old version references in `/etc/hosts` (both `127.0.0.1` and any commented-out remote IP lines) to the new version string.
 
 ### 8. Build, start serve-proxy, verify lobby
 
