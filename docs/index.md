@@ -1,6 +1,6 @@
 # Leyline Docs Index
 
-Quick links for debugging, reverse-engineering, and conformance workflows.
+Quick links for debugging, protocol analysis, and conformance workflows.
 
 ## Developer Tools
 

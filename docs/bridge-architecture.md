@@ -6,7 +6,7 @@
 
 ## Goal
 
-Let the MTGA client render games powered by Forge's rules engine. Two Arena clients connect to a Forge-backed private server — no WotC infrastructure involved.
+Let the MTGA client render games powered by Forge's rules engine. Two Arena clients connect to a Forge-backed local server — no WotC infrastructure involved.
 
 ## Key Reuse Insight
 

@@ -1,6 +1,6 @@
 # Forge Priority Loop State Machine
 
-> Reference for debugging game-loop issues. Eliminates reverse-engineering
+> Reference for debugging game-loop issues. Eliminates guesswork
 > from traces — read this first, then instrument the specific transition.
 >
 > Source: `forge-game/.../phase/PhaseHandler.java` (lines 1035-1183)

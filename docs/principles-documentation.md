@@ -1,7 +1,7 @@
 # Documentation Principles
 
 Five rules for documenting a codebase that bridges a complex engine to a
-reverse-engineered protocol.
+reimplemented protocol.
 
 ## 1. Rationale at the seam
 
