@@ -1674,6 +1674,196 @@ def cmd_zones(args):
     sys.exit(1)
 
 
+def extract_interaction_window(frames, anchor_idx):
+    """
+    Extract the interaction window around a frame index.
+
+    Returns all GSM frames from the anchor backwards to the previous
+    ActionsAvailableReq (or start), and forward to the next ActionsAvailableReq
+    (or end). This captures the full message sequence for one game action.
+    """
+    gsm_frames = []
+
+    # Backward: find the start of this interaction (previous ActionsAvailableReq or start)
+    start = anchor_idx
+    for i in range(anchor_idx - 1, -1, -1):
+        f = frames[i]
+        if f.get("greType") in ("ActionsAvailableReq", "ActionsAvailableReq_695e"):
+            start = i + 1
+            break
+
+    # Forward: find the end (next ActionsAvailableReq or end)
+    end = len(frames)
+    for i in range(anchor_idx + 1, len(frames)):
+        f = frames[i]
+        if f.get("greType") in ("ActionsAvailableReq", "ActionsAvailableReq_695e"):
+            end = i
+            break
+
+    for i in range(start, end):
+        f = frames[i]
+        # Only include GSM-bearing frames
+        if f.get("annotations") is not None or f.get("gsId") is not None:
+            gsm_frames.append(f)
+
+    return gsm_frames
+
+
+def _gsm_fingerprint(gsm):
+    """Fingerprint a GSM by its annotation type set."""
+    types = set()
+    for ann in gsm.get("annotations", []):
+        for t in ann.get("type", ann.get("types", [])):
+            types.add(_clean_type(t))
+    return frozenset(types)
+
+
+def match_sequences(recording_gsms, engine_gsms):
+    """
+    Match recording GSMs to engine GSMs by annotation fingerprint overlap.
+
+    Returns list of (rec_idx, eng_idx, overlap_score) matches,
+    plus unmatched indices on each side.
+    """
+    used_engine = set()
+    matches = []
+
+    for r_idx, r_gsm in enumerate(recording_gsms):
+        r_fp = _gsm_fingerprint(r_gsm)
+        if not r_fp:
+            continue  # skip empty GSMs
+
+        best_idx = None
+        best_score = 0
+        for e_idx, e_gsm in enumerate(engine_gsms):
+            if e_idx in used_engine:
+                continue
+            e_fp = _gsm_fingerprint(e_gsm)
+            overlap = len(r_fp & e_fp)
+            if overlap > best_score:
+                best_score = overlap
+                best_idx = e_idx
+
+        if best_idx is not None and best_score > 0:
+            matches.append((r_idx, best_idx, best_score))
+            used_engine.add(best_idx)
+
+    unmatched_rec = [i for i in range(len(recording_gsms))
+                     if i not in {m[0] for m in matches}
+                     and _gsm_fingerprint(recording_gsms[i])]
+    unmatched_eng = [i for i in range(len(engine_gsms))
+                     if i not in used_engine
+                     and _gsm_fingerprint(engine_gsms[i])]
+    return matches, unmatched_rec, unmatched_eng
+
+
+def cmd_seqdiff(args):
+    """
+    Sequence diff: compare a recording interaction window against engine output.
+
+    Usage: md-segments.py seqdiff <category> <engine-sequence.json> [session]
+
+    Extracts the interaction window around the category's anchor frame from the
+    recording, matches each recording GSM to the best engine GSM by annotation
+    fingerprint, then diffs each matched pair.
+    """
+    if len(args) < 2:
+        print("Usage: md-segments.py seqdiff <category> <engine-sequence.json> [session]",
+              file=sys.stderr)
+        sys.exit(1)
+
+    category = args[0]
+    engine_path = args[1]
+    session = args[2] if len(args) > 2 else None
+
+    # Load engine sequence
+    engine_gsms = json.load(open(engine_path))
+
+    # Load recording and find the anchor frame
+    path = find_md_jsonl(session)
+    frames = load_frames(path)
+    segments = find_segments_by_category(frames, category)
+    if not segments:
+        print(f"No {category} segments found", file=sys.stderr)
+        sys.exit(1)
+
+    # Use the segment's prev_frame + main frame as a tight 2-GSM window
+    segment = segments[0]
+    rec_gsms = []
+    prev = segment.get("prev_frame")
+    if prev and prev.get("annotations"):
+        rec_gsms.append(prev)
+    if segment.get("frame", {}).get("annotations"):
+        rec_gsms.append(segment["frame"])
+    elif segment.get("annotations"):
+        rec_gsms.append(segment)
+
+    print(f"Recording: {len(rec_gsms)} GSMs in interaction window (segment index {segment['index']})")
+    for i, gsm in enumerate(rec_gsms):
+        fp = sorted(_gsm_fingerprint(gsm))
+        greType = gsm.get("greType", "?")[:25]
+        print(f"  [{i}] gsId={gsm.get('gsId','?'):>4} {greType:25s} anns={len(gsm.get('annotations',[]))} types={fp[:5]}")
+
+    print(f"\nEngine: {len(engine_gsms)} GSMs")
+    for i, gsm in enumerate(engine_gsms):
+        fp = sorted(_gsm_fingerprint(gsm))
+        greType = gsm.get("greType", "?")[:25]
+        print(f"  [{i}] gsId={gsm.get('gsId','?'):>4} {greType:25s} anns={len(gsm.get('annotations',[]))} types={fp[:5]}")
+
+    # Match GSMs
+    matches, unmatched_rec, unmatched_eng = match_sequences(rec_gsms, engine_gsms)
+
+    print(f"\n=== Sequence matching: {len(matches)} pairs, {len(unmatched_rec)} unmatched rec, {len(unmatched_eng)} unmatched eng ===")
+
+    total_diffs = 0
+    for r_idx, e_idx, score in matches:
+        r_gsm = rec_gsms[r_idx]
+        e_gsm = engine_gsms[e_idx]
+        r_anns = r_gsm.get("annotations", [])
+        e_anns = e_gsm.get("annotations", [])
+
+        # Templatize the recording GSM before diffing
+        zone_ids = collect_zone_ids([r_gsm])
+        t_frame, _ = templatize_frame(r_gsm, zone_ids)
+        t_anns = t_frame.get("annotations", [])
+
+        # Bind + diff within this GSM pair
+        bindings = bind_ids(t_anns, e_anns)
+        hydrated = hydrate_template({"annotations": t_anns}, bindings)
+        h_anns = hydrated.get("annotations", [])
+        diffs = diff_annotations(h_anns, e_anns, bindings)
+
+        greType_r = r_gsm.get("greType", "?")[:25]
+        greType_e = e_gsm.get("greType", "?")[:25]
+        status = "PASS" if not diffs else f"FAIL ({len(diffs)} diffs)"
+        print(f"\n  rec[{r_idx}] {greType_r} ↔ eng[{e_idx}] {greType_e}: {status}")
+        if diffs:
+            for d in diffs:
+                print(f"    [{d.get('index','')}] {d['type']}: ", end="")
+                if d["type"] == "detail_mismatch":
+                    print(f"{d.get('annotation','')} key={d.get('key','')} rec={d.get('recording','')} eng={d.get('engine','')}")
+                elif d["type"] in ("extra_recording", "extra_engine"):
+                    side = d.get("recording") or d.get("engine")
+                    print(f"{side}")
+                else:
+                    print(json.dumps(d))
+            total_diffs += len(diffs)
+
+    for r_idx in unmatched_rec:
+        gsm = rec_gsms[r_idx]
+        fp = sorted(_gsm_fingerprint(gsm))
+        print(f"\n  rec[{r_idx}] UNMATCHED: gsId={gsm.get('gsId','?')} anns={len(gsm.get('annotations',[]))} types={fp}")
+        total_diffs += 1
+
+    for e_idx in unmatched_eng:
+        gsm = engine_gsms[e_idx]
+        fp = sorted(_gsm_fingerprint(gsm))
+        print(f"\n  eng[{e_idx}] UNMATCHED: gsId={gsm.get('gsId','?')} anns={len(gsm.get('annotations',[]))} types={fp}")
+        total_diffs += 1
+
+    print(f"\n=== Total: {total_diffs} differences across {len(matches)} matched GSM pairs ===")
+
+
 COMMANDS = {
     "list": cmd_list,
     "show": cmd_show,
@@ -1681,6 +1871,7 @@ COMMANDS = {
     "template": cmd_template,
     "puzzle": cmd_puzzle,
     "diff": cmd_diff,
+    "seqdiff": cmd_seqdiff,
     "annotations": cmd_annotations,
     "zones": cmd_zones,
 }

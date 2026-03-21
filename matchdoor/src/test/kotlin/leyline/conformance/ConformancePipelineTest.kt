@@ -329,7 +329,7 @@ class ConformancePipelineTest :
             }
             allAnnotations.shouldNotBeEmpty()
 
-            // Extract the Sacrifice frame
+            // Extract the Sacrifice frame (single-frame, backward compat)
             val frame = AnnotationSerializer.extractByCategory(msgs, "Sacrifice")
             frame.shouldNotBeNull()
 
@@ -346,6 +346,10 @@ class ConformancePipelineTest :
                     append("}")
                 },
             )
+
+            // Sequence output: ALL GSMs for sequence comparison (lever #1)
+            File(outputDir, "sacrifice-sequence.json")
+                .writeText(AnnotationSerializer.toSequenceJson(msgs))
         }
 
         test("DeclareAttackers prompt lifecycle capture") {
