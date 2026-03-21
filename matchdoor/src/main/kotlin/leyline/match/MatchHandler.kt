@@ -189,6 +189,10 @@ class MatchHandler(
 
                 if (puzzleHandler.isPuzzleMatch(matchId)) {
                     sendRoomState(ctx)
+                    if (s is FamiliarSession) {
+                        log.info("Match Door: puzzle mode, familiar (seat {}) connected — no-op", seatId)
+                        return
+                    }
                     val ms = s as? MatchSession
                         ?: error("Puzzle mode requires MatchSession (seat 1), got ${s?.javaClass?.simpleName} for seat $seatId")
                     puzzleHandler.onPuzzleConnect(ctx, ms, matchId, seatId)
