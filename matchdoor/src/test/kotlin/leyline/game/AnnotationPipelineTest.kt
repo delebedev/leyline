@@ -92,7 +92,7 @@ class AnnotationPipelineTest :
 
         // --- annotationsForTransfer: CastSpell ---
 
-        test("castSpellProducesSixAnnotations") {
+        test("castSpell with one mana payment produces 8 annotations") {
             val transfer = AnnotationPipeline.AppliedTransfer(
                 origId = 100,
                 newId = 200,
@@ -101,20 +101,79 @@ class AnnotationPipelineTest :
                 destZoneId = ZoneIds.STACK,
                 grpId = 67890,
                 ownerSeatId = 1,
+                manaPayments = listOf(
+                    AnnotationPipeline.ManaPaymentRecord(
+                        landInstanceId = 300,
+                        manaAbilityInstanceId = 400,
+                        color = 2,
+                        abilityGrpId = 1002,
+                    ),
+                ),
             )
             val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-            annotations.size shouldBe 6
+            annotations.size shouldBe 8
             annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
             annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
             annotations[2].typeList.first() shouldBe AnnotationType.AbilityInstanceCreated
-            annotations[3].typeList.first() shouldBe AnnotationType.ManaPaid
-            annotations[4].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted
-            annotations[5].typeList.first() shouldBe AnnotationType.UserActionTaken
+            annotations[3].typeList.first() shouldBe AnnotationType.TappedUntappedPermanent
+            annotations[4].typeList.first() shouldBe AnnotationType.UserActionTaken
+            annotations[5].typeList.first() shouldBe AnnotationType.ManaPaid
+            annotations[6].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted
+            annotations[7].typeList.first() shouldBe AnnotationType.UserActionTaken
+
+            // AIC details
+            annotations[2].affectorId shouldBe 300
+            annotations[2].affectedIdsList shouldContain 400
+            annotations[2].detailsList.first { it.key == "source_zone" }.getValueInt32(0) shouldBe ZoneIds.BATTLEFIELD
+
+            // TUP
+            annotations[3].affectorId shouldBe 400
+            annotations[3].affectedIdsList shouldContain 300
+
+            // UAT mana
+            annotations[4].detailsList.first { it.key == "actionType" }.getValueInt32(0) shouldBe 4
+            annotations[4].detailsList.first { it.key == "abilityGrpId" }.getValueInt32(0) shouldBe 1002
+            annotations[4].affectedIdsList shouldContain 400
+
+            // ManaPaid
+            annotations[5].affectorId shouldBe 300
+            annotations[5].affectedIdsList shouldContain 200
+            annotations[5].detailsList.first { it.key == "color" }.getValueInt32(0) shouldBe 2
+
+            // AID
+            annotations[6].affectorId shouldBe 300
+            annotations[6].affectedIdsList shouldContain 400
+
+            // UAT cast
+            annotations[7].detailsList.first { it.key == "actionType" }.getValueInt32(0) shouldBe 1
+            annotations[7].affectedIdsList shouldContain 200
 
             // Stack gets EnteredZoneThisTurn (recording confirms)
             persistent.size shouldBe 1
             persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
+        }
+
+        test("castSpell with zero mana payments produces 3 annotations") {
+            val transfer = AnnotationPipeline.AppliedTransfer(
+                origId = 100,
+                newId = 200,
+                category = TransferCategory.CastSpell,
+                srcZoneId = ZoneIds.P1_HAND,
+                destZoneId = ZoneIds.STACK,
+                grpId = 67890,
+                ownerSeatId = 1,
+                manaPayments = emptyList(),
+            )
+            val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+
+            annotations.size shouldBe 3
+            annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
+            annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+            annotations[2].typeList.first() shouldBe AnnotationType.UserActionTaken
+            annotations[2].detailsList.first { it.key == "actionType" }.getValueInt32(0) shouldBe 1
+
+            persistent.size shouldBe 1
         }
 
         test("castSpellUserActionIsCast") {
@@ -129,7 +188,8 @@ class AnnotationPipelineTest :
             )
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-            val actionType = annotations[5].detailsList.first { it.key == "actionType" }
+            val castUat = annotations.last()
+            val actionType = castUat.detailsList.first { it.key == "actionType" }
             actionType.getValueInt32(0) shouldBe 1
         }
 
@@ -251,7 +311,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.CountersChanged(forgeCardId = 42, counterType = "+1/+1", oldCount = 0, newCount = 2),
             )
-            val result = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+            val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
 
             result.transient.size shouldBe 1
             result.transient[0].typeList shouldContain AnnotationType.CounterAdded
@@ -276,7 +336,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.CountersChanged(forgeCardId = 42, counterType = "LOYAL", oldCount = 5, newCount = 2),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.CounterRemoved
@@ -288,7 +348,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 3, newCount = 3),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
             annotations.shouldBeEmpty()
         }
 
@@ -299,7 +359,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.LibraryShuffled(seatId = 1),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.Shuffle
@@ -312,7 +372,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.Scry(seatId = 2, topCount = 1, bottomCount = 2),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.Scry_af5a
@@ -328,7 +388,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.Surveil(seatId = 1, toLibrary = 1, toGraveyard = 1),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.Scry_af5a
@@ -340,7 +400,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.TokenCreated(forgeCardId = 99, seatId = 1),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.TokenCreated
@@ -353,7 +413,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.TokenDestroyed(forgeCardId = 88, seatId = 1),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.TokenDeleted
@@ -367,7 +427,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.PowerToughnessChanged(forgeCardId = 50, oldPower = 2, newPower = 4, oldToughness = 3, newToughness = 5),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 3
             annotations[0].typeList shouldContain AnnotationType.ModifiedPower
@@ -384,7 +444,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.PowerToughnessChanged(forgeCardId = 50, oldPower = 2, newPower = 5, oldToughness = 3, newToughness = 3),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 2
             annotations[0].typeList shouldContain AnnotationType.ModifiedPower
@@ -395,7 +455,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.PowerToughnessChanged(forgeCardId = 50, oldPower = 2, newPower = 2, oldToughness = 3, newToughness = 1),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 2
             annotations[0].typeList shouldContain AnnotationType.ModifiedToughness
@@ -408,7 +468,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.CardAttached(forgeCardId = 55, targetForgeId = 66, seatId = 1),
             )
-            val result = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+            val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
 
             // Transient: AttachmentCreated
             result.transient.size shouldBe 1
@@ -429,7 +489,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.CardDetached(forgeCardId = 60, seatId = 1),
             )
-            val result = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+            val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
             result.detachedForgeCardIds shouldBe listOf(60)
         }
 
@@ -439,7 +499,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.CardDetached(forgeCardId = 60, seatId = 1),
             )
-            val result = AnnotationPipeline.mechanicAnnotations(events, ::testResolver)
+            val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
             val annotations = result.transient
 
             annotations.size shouldBe 1
@@ -456,7 +516,7 @@ class AnnotationPipelineTest :
                 GameEvent.CardDestroyed(forgeCardId = 2, seatId = 1),
                 GameEvent.DamageDealtToPlayer(sourceForgeId = 4, targetSeatId = 1, amount = 3, combat = true),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
             annotations.shouldBeEmpty()
         }
 
@@ -466,7 +526,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.CardTapped(forgeCardId = 70, tapped = true),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.TappedUntappedPermanent
@@ -479,7 +539,7 @@ class AnnotationPipelineTest :
             val events = listOf(
                 GameEvent.CardTapped(forgeCardId = 71, tapped = false),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.TappedUntappedPermanent
@@ -494,7 +554,7 @@ class AnnotationPipelineTest :
                 GameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 0, newCount = 1),
                 GameEvent.Scry(seatId = 1, topCount = 2, bottomCount = 0),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, ::testResolver).transient
+            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
             annotations.size shouldBe 2
             annotations[0].typeList shouldContain AnnotationType.CounterAdded
             annotations[1].typeList shouldContain AnnotationType.Scry_af5a
