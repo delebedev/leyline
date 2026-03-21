@@ -1,5 +1,7 @@
 # ADR-001: Per-Action AI State Streaming via EventBus
 
+> **Note:** This ADR uses the original class name "NexusGamePlayback" (now `GamePlayback`) and "forge-nexus" (now "leyline/matchdoor").
+
 ## Status
 Accepted
 

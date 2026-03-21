@@ -1,6 +1,6 @@
 # Client Card Database (SQLite)
 
-The client ships a SQLite database with card definitions, abilities, localized text, and linkage metadata. forge-nexus reads it via `CardDb.kt`.
+The client ships a SQLite database with card definitions, abilities, localized text, and linkage metadata. Leyline reads it via `CardDb.kt`.
 
 **Path:** `~/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga`
 

@@ -21,7 +21,7 @@ Key engine areas:
 
 Output:
 - `docs/forge-internals.md` — architecture, patterns, key abstractions
-- `docs/` — topic-specific engine docs (priority-loop, combat-protocol, etc.)
+- `docs/` — topic-specific engine docs (priority, actions, message-patterns, etc.)
 
 Focus on behavior observable from the bridge layer — how the engine presents choices, handles priority, resolves spells, manages zones. This directly feeds engine-bridge work.
 

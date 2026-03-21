@@ -21,35 +21,30 @@ Each tool has `--help` with examples. Docs co-located in `tools/<name>/docs/`.
 
 ## Recording / Protocol Debug
 
-- `../tools/tape/docs/cli.md` — recording CLI reference (moved to tape)
-- `recording-analysis-runbook.md` — end-to-end capture/analyze/golden workflow
-- `recording-triage-runbook.md` — new recordings → catalogue what's new → scope implementation
 - `annotation-variance.md` — annotation type variance profiler across all recordings
-- `golden-tests.md` — per-message golden field coverage tests
 - `reading-player-logs.md` — read client/player logs for transport/protocol context
 - `wire-format.md` — client frame + protobuf wire format details
 - `debug-api.md` — debug panel REST/SSE endpoint reference
+- `../tools/tape/docs/cli.md` — recording CLI reference
 
 ## Playbooks
 
 - `playbooks/annotation-investigation-playbook.md` — trace unknown annotation type end-to-end
 - `playbooks/card-lookup-playbook.md` — grpId/abilityId → card name, investigation workflows
 - `playbooks/priority-debugging-playbook.md` — two-layer priority model, stuck states, frozen games
+- `playbooks/fd-payload-playbook.md` — FD protocol traffic analysis with `wire` tool
+- `playbooks/new-fd-feature-playbook.md` — end-to-end playbook for adding a new Front Door feature
+- `playbooks/event-discovery-playbook.md` — discover new MTGA event format screen flows
 
 ## Gameplay Semantics
 
-- `action-format.md` — normalized action payload format
-- `action-types.md` — action type catalog
-- `priority-loop.md` — Forge engine priority state machine (ASCII diagram + PhaseHandler internals)
-- `priority-system-analysis.md` — two-layer priority system analysis (engine + session)
-- `combat-protocol.md` — combat request/response sequence
-- `annotation-field-notes.md` — per-type annotation investigation notes
+- `actions.md` — action proto shape, ActionType enum, field requirements
+- `message-patterns.md` — GRE message sequences, routing, combat flow, prompts
+- `priority.md` — Forge engine priority state machine + Arena client priority protocol
 
 ## Architecture / Design
 
-- `bridge-architecture.md` — GameActionBridge / InteractivePromptBridge design
-- `bridge-vision.md` — target architecture and direction
-- `python-tooling-refactor.md` — Python tooling package split + migration phases
+- `bridge-threading.md` — two-thread model rules, snapshot timing, counter sync, test debugging
 - `decisions/` — architectural decision records
 
 ## Game Modes
@@ -61,6 +56,3 @@ Each tool has `--help` with examples. Docs co-located in `tools/<name>/docs/`.
 - [GitHub Issues](https://github.com/delebedev/leyline/issues) — bugs and tasks
 - [Project Board](https://github.com/users/delebedev/projects/1) — roadmap
 
-## Retro
-
-- `retro/` — archived session retrospectives
