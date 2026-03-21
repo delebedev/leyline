@@ -59,6 +59,9 @@ object StateMapper {
         val initEffectDiff = bridge.effects.emitInitEffectsOnce()
         val boostSnapshot = bridge.snapshotBoosts()
         val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
+        val persistSnapshot = bridge.annotations.snapshot()
+        val startPersistentId = bridge.annotations.currentPersistentId()
+        val startAnnotationId = bridge.annotations.currentAnnotationId()
 
         // ═══ MAP: engine state → proto objects ═══
         val gameInfo = GameInfo.newBuilder()
@@ -176,19 +179,22 @@ object StateMapper {
         val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
         annotations.addAll(effectTransient)
 
-        // Apply persistent annotations — must happen before getAll() below
-        // (persistent annotations are embedded in the GSM; cannot be deferred)
-        bridge.annotations.applyBatch(
+        // Pure persistent annotation computation (no bridge mutation)
+        val batch = PersistentAnnotationStore.computeBatch(
+            currentActive = persistSnapshot,
+            startPersistentId = startPersistentId,
             effectPersistent = effectPersistent,
             effectDiff = effectDiff,
             transferPersistent = transferPersistent,
             mechanicResult = mechanicResult,
         ) { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value }
 
-        val allPersistentAnnotations = bridge.annotations.getAll()
+        val allPersistentAnnotations = batch.allAnnotations
 
+        // Number transient annotations sequentially from snapshot
+        var annId = startAnnotationId
         val numberedAnnotations = annotations.map {
-            it.toBuilder().setId(bridge.nextAnnotationId()).build()
+            it.toBuilder().setId(annId++).build()
         }
 
         // prevGameStateId: reference prior state if one exists
@@ -240,6 +246,8 @@ object StateMapper {
         // the limbo/zone patches produced inside detectZoneTransfers).
         for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
         for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(InstanceId(iid), zid)
+        bridge.annotations.applyBatchResult(batch)
+        bridge.annotations.setAnnotationId(annId)
 
         return built
     }
