@@ -85,11 +85,19 @@ private fun loadConfig(a: Map<String, String>, isProxy: Boolean): MatchConfig {
 }
 
 private fun resolveTls(a: Map<String, String>): Pair<File?, File?> {
+    // Explicit CLI/env args take priority
     val envCert = System.getenv("LEYLINE_CERT_PATH")?.let { File(it) }?.takeIf { it.exists() }
     val envKey = System.getenv("LEYLINE_KEY_PATH")?.let { File(it) }?.takeIf { it.exists() }
     val cert = a["--cert"]?.let { File(it) } ?: envCert
     val key = a["--key"]?.let { File(it) } ?: envKey
-    return cert to key
+    if (cert != null && key != null) return cert to key
+
+    // Auto-generate (or reuse existing) mitmproxy-signed certs
+    val certsDir = File(
+        System.getenv("LEYLINE_CERTS")
+            ?: "${System.getProperty("user.home")}/.local/share/leyline/certs",
+    )
+    return leyline.infra.TlsHelper.ensureCerts(certsDir) ?: (null to null)
 }
 
 private fun openCardRepo(a: Map<String, String>): ExposedCardRepository {

@@ -55,12 +55,15 @@ fd_ip        := env("LEYLINE_FD_IP", "<new-fd-ip>")
 md_ip        := env("LEYLINE_MD_IP", "<new-md-ip>")
 ```
 
-### 4. Regen certs
+### 4. TLS certs
+
+Certs are auto-generated at server boot. Delete old certs so the server regenerates with new hostnames:
 
 ```bash
-just gen-certs "frontdoor-mtga-production-<new-version>.w2.mtgarena.com" \
-               "matchdoor-mtga-production-<new-version>.w2.mtgarena.com"
+trash ~/.local/share/leyline/certs
 ```
+
+The server reads hostnames from `/etc/hosts` and generates mitmproxy-CA-signed certs on next boot.
 
 ### 5. Comment out /etc/hosts + remove services.conf (let Arena talk to real servers)
 
