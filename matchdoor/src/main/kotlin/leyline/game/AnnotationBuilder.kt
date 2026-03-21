@@ -315,21 +315,23 @@ object AnnotationBuilder {
     /**
      * Combat damage dealt by a creature. Client uses this for damage flash animation.
      * [type] = damage type: 1=combat, 0=non-combat (real server always sends this).
-     * [markDamage] = damage marked on the creature (usually equals [amount]).
+     * [markDamage] = always 1 in real server recordings (flag, not amount).
      */
-    fun damageDealt(sourceInstanceId: Int, amount: Int, type: Int = 1, markDamage: Int = amount): AnnotationInfo =
+    fun damageDealt(sourceInstanceId: Int, targetId: Int, amount: Int, type: Int = 1, markDamage: Int = 1): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.DamageDealt_af5a)
-            .addAffectedIds(sourceInstanceId)
+            .setAffectorId(sourceInstanceId)
+            .addAffectedIds(targetId)
             .addDetails(uint32Detail("damage", amount))
             .addDetails(uint32Detail("type", type))
             .addDetails(uint32Detail("markDamage", markDamage))
             .build()
 
     /** Player life total changed. Client uses this for life counter animation. */
-    fun modifiedLife(playerSeatId: Int, lifeDelta: Int): AnnotationInfo =
+    fun modifiedLife(playerSeatId: Int, lifeDelta: Int, affectorId: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ModifiedLife)
+            .apply { if (affectorId != 0) setAffectorId(affectorId) }
             .addAffectedIds(playerSeatId)
             .addDetails(int32Detail("life", lifeDelta))
             .build()
@@ -364,10 +366,11 @@ object AnnotationBuilder {
             .build()
 
     /** Generic combat result marker. Client dispatches synthetic GameRulesEvent based on type. */
-    fun syntheticEvent(seatId: Int): AnnotationInfo =
+    fun syntheticEvent(attackerIid: Int, targetSeatId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.SyntheticEvent)
-            .addAffectedIds(seatId)
+            .setAffectorId(attackerIid)
+            .addAffectedIds(targetSeatId)
             .addDetails(uint32Detail("type", 1))
             .build()
 

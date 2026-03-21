@@ -150,8 +150,9 @@ object StateMapper {
             transferPersistent.addAll(persistent)
         }
 
-        // Stage 3: Combat damage annotations (must be added before numbering)
-        annotations.addAll(AnnotationPipeline.combatAnnotations(game, bridge))
+        // Stage 3: Combat damage annotations (event-driven — events captured before Forge clears combat)
+        val combatResult = AnnotationPipeline.combatAnnotations(events, bridge, actingSeat)
+        annotations.addAll(combatResult.annotations)
 
         // Stage 4: Mechanic annotations (Group B: counters, shuffle, scry, tokens + Group A+: attachments)
         val mechanicResult = AnnotationPipeline.mechanicAnnotations(events) { forgeCardId ->
@@ -192,12 +193,20 @@ object StateMapper {
 
         // prevGameStateId: reference prior state if one exists
         val prevState = bridge.getDiffBaselineState()
+        // Override turnInfo to CombatDamage when damage events fired
+        // (Forge advances past COMBAT_DAMAGE before we build the GSM)
+        val effectiveTurnInfo = if (combatResult.hasCombatDamage) {
+            turnInfo.build().toBuilder().setPhase(Phase.Combat_a549).setStep(Step.CombatDamage_a2cb)
+        } else {
+            turnInfo
+        }
+
         val builder = GameStateMessage.newBuilder()
             .setType(GameStateType.Full)
             .setGameStateId(gameStateId)
             .setGameInfo(gameInfo)
             .addAllTeams(listOf(team1.build(), team2.build()))
-            .setTurnInfo(turnInfo)
+            .setTurnInfo(effectiveTurnInfo)
             .addAllPlayers(listOf(player1, player2))
             .addAllZones(transferResult.patchedZones.sortedBy { it.zoneId })
             .addAllGameObjects(transferResult.patchedObjects)

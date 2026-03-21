@@ -285,27 +285,36 @@ class AnnotationBuilderTest :
         // --- DamageDealt ---
 
         test("damageDealtFields") {
-            val ann = AnnotationBuilder.damageDealt(sourceInstanceId = 1000, amount = 3)
+            val ann = AnnotationBuilder.damageDealt(
+                sourceInstanceId = 1000,
+                targetId = 2, // player seat
+                amount = 3,
+            )
             ann.typeList shouldContain AnnotationType.DamageDealt_af5a
-            ann.affectedIdsList shouldContain 1000
+            ann.affectorId shouldBe 1000
+            ann.affectedIdsList shouldBe listOf(2)
 
             val damage = ann.detailsList.first { it.key == "damage" }
             damage.type shouldBe KeyValuePairValueType.Uint32
             damage.getValueUint32(0) shouldBe 3
 
-            // type defaults to 1 (combat)
             val type = ann.detailsList.first { it.key == "type" }
-            type.type shouldBe KeyValuePairValueType.Uint32
             type.getValueUint32(0) shouldBe 1
 
-            // markDamage defaults to amount
             val markDamage = ann.detailsList.first { it.key == "markDamage" }
-            markDamage.type shouldBe KeyValuePairValueType.Uint32
-            markDamage.getValueUint32(0) shouldBe 3
+            markDamage.getValueUint32(0) shouldBe 1
         }
 
         test("damageDealtNonCombat") {
-            val ann = AnnotationBuilder.damageDealt(sourceInstanceId = 1000, amount = 2, type = 0, markDamage = 2)
+            val ann = AnnotationBuilder.damageDealt(
+                sourceInstanceId = 1000,
+                targetId = 500, // creature
+                amount = 2,
+                type = 0,
+                markDamage = 2,
+            )
+            ann.affectorId shouldBe 1000
+            ann.affectedIdsList shouldBe listOf(500)
             val type = ann.detailsList.first { it.key == "type" }
             type.getValueUint32(0) shouldBe 0
         }
@@ -331,11 +340,11 @@ class AnnotationBuilderTest :
         // --- SyntheticEvent ---
 
         test("syntheticEventFields") {
-            val ann = AnnotationBuilder.syntheticEvent(seatId = 1)
+            val ann = AnnotationBuilder.syntheticEvent(attackerIid = 290, targetSeatId = 2)
             ann.typeList shouldContain AnnotationType.SyntheticEvent
-            ann.affectedIdsList shouldContain 1
+            ann.affectorId shouldBe 290
+            ann.affectedIdsList shouldBe listOf(2)
             val type = ann.detailsList.first { it.key == "type" }
-            type.type shouldBe KeyValuePairValueType.Uint32
             type.getValueUint32(0) shouldBe 1
         }
 

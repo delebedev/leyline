@@ -314,6 +314,14 @@ def dispatch(args):
                 args.effect_id,
             )
 
+    # --- gsm ---
+    if noun == "gsm":
+        from gsm import cmd_filter
+
+        if verb == "filter":
+            cmd_filter(args)
+        return
+
     # --- segment ---
     if noun == "segment":
         if verb == "list":
@@ -575,6 +583,11 @@ def main():
     p.add_argument("session")
     p.add_argument("type")
     p.add_argument("effect_id", nargs="?", default="")
+
+    # --- gsm ---
+    from gsm import build_parser as build_gsm_parser
+
+    build_gsm_parser(subs)
 
     # --- segment ---
     s = subs.add_parser("segment", help="Conformance segment mining")

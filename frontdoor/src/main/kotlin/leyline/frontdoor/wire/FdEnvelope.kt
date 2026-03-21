@@ -36,6 +36,8 @@ object FdWireConstants {
  */
 object FdEnvelope {
 
+    private val BATTLEFIELDS = listOf("FDN", "DSK", "BLB", "OTJ", "MKM", "WOE", "FIN")
+
     // --- Cmd field numbers ---
     private const val CMD_TYPE = 1 // varint (CmdType enum)
     private const val CMD_TRANS_ID = 2 // string
@@ -441,7 +443,7 @@ object FdEnvelope {
                 put("EventId", eventId)
                 put("MatchType", matchType)
                 put("MatchTypeInternal", matchTypeInternal)
-                put("Battlefield", "FDN")
+                put("Battlefield", BATTLEFIELDS.random())
                 put("YourSeat", yourSeat)
                 putJsonArray("PlayerInfos") {
                     for (p in players) {

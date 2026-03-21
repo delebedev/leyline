@@ -275,6 +275,55 @@ class CombatFlowTest :
             h.accumulator.assertConsistent("after combat damage")
         }
 
+        test("combat damage GSM has correct phase and annotation shape") {
+            val attackerIid = setupSingleAttacker()
+            val h = harness!!
+
+            // Advance to combat
+            h.passPriority()
+
+            h.declareAttackers(listOf(attackerIid))
+
+            // Pass through combat — damage happens during these passes
+            val startTurn = h.turn()
+            h.passThroughCombat(startTurn)
+
+            // Also capture messages from post-combat (turn advance triggers GSM build)
+            // Search ALL messages, not just since snapshot — damage GSM may precede turn advance
+            val allGsms = h.allMessages
+                .filter { it.hasGameStateMessage() }
+                .map { it.gameStateMessage }
+            val damageGsm = allGsms.firstOrNull { gsm ->
+                gsm.annotationsList.any { ann ->
+                    ann.typeList.any { it == AnnotationType.DamageDealt_af5a }
+                }
+            }
+            damageGsm.shouldNotBeNull()
+
+            // turnInfo must report CombatDamage phase (not Main2)
+            damageGsm.turnInfo.phase shouldBe Phase.Combat_a549
+            damageGsm.turnInfo.step shouldBe Step.CombatDamage_a2cb
+
+            // Annotation ordering: PhaseOrStepModified first
+            val annTypes = damageGsm.annotationsList.map { ann -> ann.typeList.first() }
+            annTypes.first() shouldBe AnnotationType.PhaseOrStepModified
+
+            // DamageDealt has correct affectorId (attacker) and affectedIds (target seat)
+            val dmgAnn = damageGsm.annotationsList.first { ann ->
+                ann.typeList.any { it == AnnotationType.DamageDealt_af5a }
+            }
+            dmgAnn.affectorId shouldBe attackerIid
+            dmgAnn.affectedIdsList shouldBe listOf(2) // AI seat
+
+            // ModifiedLife has affectorId set (not 0)
+            val lifeAnn = damageGsm.annotationsList.firstOrNull { ann ->
+                ann.typeList.any { it == AnnotationType.ModifiedLife }
+            }
+            if (lifeAnn != null) {
+                (lifeAnn.affectorId > 0).shouldBeTrue()
+            }
+        }
+
         test("combat death produces zone transfer") {
             // Use non-validating harness: combat zone transfers produce transient instanceId gaps
             val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
