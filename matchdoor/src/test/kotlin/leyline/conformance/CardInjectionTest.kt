@@ -9,6 +9,7 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
+import leyline.IntegrationTag
 import leyline.bridge.InstanceId
 import leyline.game.StateMapper
 import wotc.mtgo.gre.external.messaging.Messages.CardType
@@ -24,13 +25,11 @@ import wotc.mtgo.gre.external.messaging.Messages.CardType
 class CardInjectionTest :
     FunSpec({
 
-        tags(ConformanceTag)
-
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("injected Serra Angel appears in GSM with correct metadata") {
+        test("injected Serra Angel appears in GSM with correct metadata").config(tags = setOf(ConformanceTag)) {
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Serra Angel", ZoneType.Battlefield, sick = false)
 
@@ -53,7 +52,7 @@ class CardInjectionTest :
             acc.assertConsistent("after Serra Angel injection")
         }
 
-        test("injected creature to hand is visible in hand zone") {
+        test("injected creature to hand is visible in hand zone").config(tags = setOf(ConformanceTag)) {
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Lightning Bolt", ZoneType.Hand)
 
@@ -65,7 +64,7 @@ class CardInjectionTest :
             handZone.objectInstanceIdsList.shouldContain(injected.instanceId)
         }
 
-        test("CardDataDeriver produces consistent grpIds for same card name") {
+        test("CardDataDeriver produces consistent grpIds for same card name").config(tags = setOf(ConformanceTag)) {
             val (b, _, _) = base.startWithBoard { _, _, _ -> }
 
             val first = TestCardInjector.inject(b, 1, "Grizzly Bears", ZoneType.Battlefield)
@@ -86,7 +85,7 @@ class CardInjectionTest :
             b.cards.findGrpIdByName("Lightning Bolt").shouldNotBeNull()
         }
 
-        test("injected land enters tapped when requested") {
+        test("injected land enters tapped when requested").config(tags = setOf(ConformanceTag)) {
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Plains", ZoneType.Battlefield, tapped = true)
 
@@ -95,6 +94,3 @@ class CardInjectionTest :
             obj.cardTypesList.shouldContain(CardType.Land_a80b)
         }
     })
-
-/** Tag object for integration tests within a conformance spec. */
-object IntegrationTag : io.kotest.core.Tag()

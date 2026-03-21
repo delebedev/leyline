@@ -17,6 +17,8 @@ test-integration:
     cd "{{project_dir}}" && ./gradlew :matchdoor:testIntegration
 
 # JaCoCo coverage report (per-module, merged summary)
+# Integration coverage: run `just test-integration` first — jacocoTestReport
+# merges all .exec files, so integration data is included automatically.
 [group('test')]
 coverage:
     #!/usr/bin/env bash

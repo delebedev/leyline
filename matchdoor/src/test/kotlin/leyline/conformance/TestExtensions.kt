@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.comparables.shouldBeGreaterThan
@@ -66,12 +67,12 @@ fun GameStateMessage.annotationOrNull(type: AnnotationType): AnnotationInfo? =
 fun ClientAccumulator.assertConsistent(context: String = "") {
     val suffix = if (context.isNotEmpty()) " ($context)" else ""
     val missingActions = actionInstanceIdsMissingFromObjects()
-    missingActions.shouldBeEmpty().let {
-        if (missingActions.isNotEmpty()) error("Action instanceIds missing from objects$suffix: $missingActions")
+    withClue("Action instanceIds missing from objects$suffix: $missingActions") {
+        missingActions.shouldBeEmpty()
     }
     val missingZoneObjs = zoneObjectsMissingFromObjects()
-    missingZoneObjs.shouldBeEmpty().let {
-        if (missingZoneObjs.isNotEmpty()) error("Zone objects missing from objects$suffix: $missingZoneObjs")
+    withClue("Zone objects missing from objects$suffix: $missingZoneObjs") {
+        missingZoneObjs.shouldBeEmpty()
     }
 }
 
