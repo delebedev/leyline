@@ -10,6 +10,7 @@ import forge.game.spellability.LandAbility
 import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.bridge.chooseCastAbility
+import leyline.game.CardData
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -39,11 +40,8 @@ object ActionMapper {
         buildActionList(seatId, bridge, checkLegality = false)
 
     /**
-     * Shared action list builder.
-     *
-     * @param checkLegality true → full legality checks (canPlayLand, canPayManaCost,
-     *   activated ability canPlay, autoTapSolution, inactive land actions).
-     *   false → naive mode (everything playable, no autoTap, no Activate abilities).
+     * Shared action list builder — bridge-backed overload.
+     * Delegates to the pure overload with function params extracted from [bridge].
      */
     internal fun buildActionList(
         seatId: Int,
@@ -51,6 +49,37 @@ object ActionMapper {
         checkLegality: Boolean,
     ): ActionsAvailableReq {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return passOnlyActions()
+        return buildActionList(
+            player = player,
+            seatId = seatId,
+            checkLegality = checkLegality,
+            idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
+            grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, bridge.cards) },
+            cardDataLookup = { grpId -> bridge.cards.findByGrpId(grpId) },
+        )
+    }
+
+    /**
+     * Shared action list builder — pure overload with function params.
+     *
+     * @param player Forge player for the seat.
+     * @param seatId Arena seat identifier (for logging).
+     * @param checkLegality true → full legality checks (canPlayLand, canPayManaCost,
+     *   activated ability canPlay, autoTapSolution, inactive land actions).
+     *   false → naive mode (everything playable, no autoTap, no Activate abilities).
+     * @param idResolver forgeCardId → instanceId.
+     * @param grpIdResolver card → grpId (handles both battlefield and hand cards).
+     * @param cardDataLookup grpId → CardData (nullable).
+     */
+    @Suppress("LongMethod", "CyclomaticComplexMethod") // inherent complexity — action types × legality modes
+    internal fun buildActionList(
+        player: Player,
+        seatId: Int,
+        checkLegality: Boolean,
+        idResolver: (Int) -> Int,
+        grpIdResolver: (Card) -> Int,
+        cardDataLookup: (Int) -> CardData?,
+    ): ActionsAvailableReq {
         val builder = ActionsAvailableReq.newBuilder()
 
         // Battlefield permanents: ActivateMana + Activate
@@ -58,17 +87,17 @@ object ActionMapper {
             // Naive mode only cares about ActivateMana — skip tapped cards entirely
             if (!checkLegality && card.isTapped) continue
 
-            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            val grpId = ObjectMapper.resolveGrpId(card, bridge.cards)
+            val instanceId = idResolver(card.id)
+            val grpId = grpIdResolver(card)
 
             // ActivateMana — untapped permanents with mana abilities
             if (!card.isTapped && card.manaAbilities.isNotEmpty()) {
-                builder.addActions(buildActivateManaAction(card, instanceId, grpId, bridge))
+                builder.addActions(buildActivateManaAction(card, instanceId, grpId, cardDataLookup))
             }
 
             // Activate — non-mana activated abilities (only with legality checks)
             if (checkLegality) {
-                val cardData = bridge.cards.findByGrpId(grpId)
+                val cardData = cardDataLookup(grpId)
                 val keywordCount = cardData?.keywordAbilityGrpIds?.size ?: 0
                 var activateIndex = 0
                 for (ability in card.spellAbilities) {
@@ -101,8 +130,8 @@ object ActionMapper {
 
         // Lands: playable → actions, not playable → inactiveActions (legality only)
         for (card in CardLists.filter(handCards, CardPredicates.LANDS)) {
-            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            val grpId = bridge.cards.findGrpIdByName(card.name) ?: GameBridge.FALLBACK_GRPID
+            val instanceId = idResolver(card.id)
+            val grpId = grpIdResolver(card)
             val canPlay = if (checkLegality) {
                 val landAbility = LandAbility(card, card.currentState)
                 landAbility.activatingPlayer = player
@@ -142,15 +171,15 @@ object ActionMapper {
                 }
                 if (!canPay) continue
             }
-            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            val grpId = bridge.cards.findGrpIdByName(card.name) ?: GameBridge.FALLBACK_GRPID
+            val instanceId = idResolver(card.id)
+            val grpId = grpIdResolver(card)
             val actionBuilder = Action.newBuilder()
                 .setActionType(ActionType.Cast)
                 .setInstanceId(instanceId)
                 .setGrpId(grpId)
                 .setFacetId(instanceId)
                 .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
-            val cardData = bridge.cards.findByGrpId(grpId)
+            val cardData = cardDataLookup(grpId)
             if (cardData != null) {
                 for ((color, count) in cardData.manaCost) {
                     actionBuilder.addManaCost(
@@ -158,7 +187,7 @@ object ActionMapper {
                     )
                 }
                 if (checkLegality) {
-                    val autoTap = buildAutoTapSolution(cardData.manaCost, player, bridge)
+                    val autoTap = buildAutoTapSolution(cardData.manaCost, player, idResolver, grpIdResolver, cardDataLookup)
                     if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
                 }
             }
@@ -184,8 +213,13 @@ object ActionMapper {
     }
 
     /** Build an ActivateMana action for an untapped permanent with mana abilities. */
-    private fun buildActivateManaAction(card: Card, instanceId: Int, grpId: Int, bridge: GameBridge): Action {
-        val cardData = bridge.cards.findByGrpId(grpId)
+    private fun buildActivateManaAction(
+        card: Card,
+        instanceId: Int,
+        grpId: Int,
+        cardDataLookup: (Int) -> CardData?,
+    ): Action {
+        val cardData = cardDataLookup(grpId)
         val abilityGrpId = cardData?.abilityIds?.firstOrNull()?.first ?: 0
         val sa = card.manaAbilities.first()
         val produced = sa.manaPart?.origProduced ?: ""
@@ -234,10 +268,13 @@ object ActionMapper {
      * Greedy auto-tap solver: maps mana cost requirements to untapped mana sources.
      * Returns null if no complete solution found (spell still castable via manual tap).
      */
+    @Suppress("CyclomaticComplexMethod") // greedy matching has inherent branching
     private fun buildAutoTapSolution(
         manaCost: List<Pair<ManaColor, Int>>,
         player: Player,
-        bridge: GameBridge,
+        idResolver: (Int) -> Int,
+        grpIdResolver: (Card) -> Int,
+        cardDataLookup: (Int) -> CardData?,
     ): AutoTapSolution? {
         if (manaCost.isEmpty()) return null
 
@@ -252,9 +289,9 @@ object ActionMapper {
                 if (!sa.canPlay()) continue
                 val produced = sa.manaPart?.origProduced ?: continue
                 val manaColor = producedToManaColor(produced) ?: continue
-                val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-                val grpId = ObjectMapper.resolveGrpId(card, bridge.cards)
-                val abilityGrpId = bridge.cards.findByGrpId(grpId)?.abilityIds?.firstOrNull()?.first ?: 0
+                val instanceId = idResolver(card.id)
+                val grpId = grpIdResolver(card)
+                val abilityGrpId = cardDataLookup(grpId)?.abilityIds?.firstOrNull()?.first ?: 0
                 sources.add(ManaSource(card, instanceId, manaColor, abilityGrpId))
             }
         }
