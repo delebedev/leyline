@@ -586,6 +586,18 @@ class MatchSession(
         val losingPlayerSeatId = if (humanWon) 2 else 1
         val lossReason = if (reason == ResultReason.Concede) 3 else 0
 
+        // If there are pending events (e.g. mana-ability sacrifice during resolution),
+        // build a final diff GSM to emit those annotations before the game-over bundle.
+        // This mirrors the real server, which sends a resolution GSM before GameComplete.
+        if (bridge != null && bridge.hasPendingEvents()) {
+            val game = bridge.getGame()
+            if (game != null) {
+                val resolutionBundle = BundleBuilder.stateOnlyDiff(game, bridge, matchId, seatId, counter)
+                sendBundledGRE(resolutionBundle.messages)
+                log.debug("sendGameOver: flushed {} pending events in pre-game-over diff", resolutionBundle.messages.size)
+            }
+        }
+
         val result = BundleBuilder.gameOverBundle(
             winningTeam,
             matchId,

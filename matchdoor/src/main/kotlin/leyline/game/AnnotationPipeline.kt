@@ -247,10 +247,17 @@ object AnnotationPipeline {
 
         for ((instanceId, zoneId) in previousZones) {
             if (zoneId != ZONE_BATTLEFIELD) continue
-            if (instanceId in currentInstanceIds) continue
-            // This instanceId was on the battlefield but is gone now.
+            // This instanceId was on the battlefield. Check if it was sacrificed.
+            // Normal case: token was cleaned up by SBAs → not in currentInstanceIds.
+            // Cost-payment case: token is still in gameObjects (SBAs haven't run yet)
+            //   but a CardSacrificed event fired. Handle both via the sacrifice event check.
             val forgeCardIdValue = forgeIdLookup(instanceId) ?: continue
             val sacrificeEv = sacrificeEvents.firstOrNull { it.forgeCardId == forgeCardIdValue } ?: continue
+
+            // If still present in gameObjects and still on the battlefield, it hasn't been
+            // removed from zones yet (SBAs haven't run). We synthesize the transfer and
+            // strip the object from patchedObjects/patchedZones so the client sees it leave.
+            val stillOnBattlefield = instanceId in currentInstanceIds
 
             // It was sacrificed. Synthesize a transfer.
             val realloc = idAllocator(forgeCardIdValue)
@@ -258,6 +265,18 @@ object AnnotationPipeline {
             val newId = realloc.new.value
             val ownerSeat = sacrificeEv.seatId
             val destZone = if (ownerSeat == 1) ZONE_P1_GRAVEYARD else ZONE_P2_GRAVEYARD
+
+            val resolvedGrpId: Int
+            if (stillOnBattlefield) {
+                // Remove from patchedObjects — it should not appear as a battlefield object.
+                val idx = patchedObjects.indexOfFirst { it.instanceId == instanceId }
+                resolvedGrpId = if (idx >= 0) { val g = patchedObjects[idx].grpId; patchedObjects.removeAt(idx); g } else 0
+                // Remove from battlefield zone, add to destination zone.
+                removeFromZone(patchedZones, ZONE_BATTLEFIELD, instanceId)
+                appendToZone(patchedZones, destZone, newId)
+            } else {
+                resolvedGrpId = 0 // Token already gone — no GameObjectInfo available
+            }
 
             // Check if this sacrifice was a mana ability (Treasure) paying for a spell.
             val manaEv = manaAbilityEvents.firstOrNull { it.forgeCardId == forgeCardIdValue }
@@ -313,7 +332,7 @@ object AnnotationPipeline {
                     category = TransferCategory.Sacrifice,
                     srcZoneId = ZONE_BATTLEFIELD,
                     destZoneId = destZone,
-                    grpId = 0, // Token is gone — no GameObjectInfo available
+                    grpId = resolvedGrpId,
                     ownerSeatId = ownerSeat,
                     manaPayments = manaPayments,
                 ),
@@ -837,5 +856,17 @@ object AnnotationPipeline {
         val idx = zones.indexOfFirst { it.zoneId == zoneId }
         if (idx < 0) return
         zones[idx] = zones[idx].toBuilder().addObjectInstanceIds(instanceId).build()
+    }
+
+    /** Remove an instanceId from a zone's objectInstanceIds list (no-op if not found). */
+    private fun removeFromZone(zones: MutableList<ZoneInfo>, zoneId: Int, instanceId: Int) {
+        val idx = zones.indexOfFirst { it.zoneId == zoneId }
+        if (idx < 0) return
+        val zone = zones[idx]
+        val ids = zone.objectInstanceIdsList.filter { it != instanceId }
+        zones[idx] = zone.toBuilder()
+            .clearObjectInstanceIds()
+            .addAllObjectInstanceIds(ids)
+            .build()
     }
 }
