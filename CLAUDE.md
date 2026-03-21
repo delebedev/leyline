@@ -122,7 +122,7 @@ All tool CLIs run via just: `just wire ...`, `just tape ...`, `just arena ...`. 
 This is an open-source repo. Every commit is public. Follow these rules:
 
 - **No captured WotC data.** Never commit server responses, recordings, card database files, or proxy captures. Golden files must be hand-written. Test fixtures must use synthetic data.
-- **No `mtga-internals` references.** That repo is private. Don't link to it, quote paths from it, or reference its docs.
+- **No private research repo references.** Don't link to, quote paths from, or reference external private repos.
 - **No personal infra details.** No hardcoded IPs, hostnames (`mini`, `klava`), or absolute paths (`/Users/...`). Use `~/` or relative paths.
 - **Tone: local playtesting tool.** Use "reimplemented protocol" not "reverse-engineered". Use "local server" not "private server". Frame proxy mode as development tooling, not interception.
 - **Interop data is fine.** grpIds, set codes, format names, CmdType numbers, loc keys — these are functional protocol identifiers required for compatibility.
