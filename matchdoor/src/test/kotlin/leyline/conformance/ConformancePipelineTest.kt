@@ -318,11 +318,10 @@ class ConformancePipelineTest :
             // Forge must sacrifice the Treasure to produce R.
             val snap = h.messageSnapshot()
             h.castSpellByName("Lightning Bolt").shouldBeTrue()
-            // Target the opponent (seat 2) — required for Lightning Bolt to resolve
+            // Target the opponent (seat 2)
             h.selectTargets(listOf(2))
-
-            // Pass to resolve
-            repeat(5) { h.passPriority() }
+            // Don't resolve — Sacrifice annotations fire during cast, not resolution.
+            // Resolving adds phase transitions and combat damage to the frame.
 
             val msgs = h.messagesSince(snap)
             val allAnnotations = msgs.flatMap { msg ->
