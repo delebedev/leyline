@@ -2,8 +2,38 @@
 
 from __future__ import annotations
 
-from .common import check_help, die
+import json
+import re
+
+from .common import check_help, die, try_remove
+from .macos import capture_window, ocr
 from .scry_bridge import _scry_cache_clear, _scry_state
+
+_PROMPT_PATTERNS = re.compile(
+    r"(?i)\b(Discard a card|Choose a target|Select|Explore|Surveil|Scry)\b"
+)
+
+
+def _detect_prompt() -> str | None:
+    """Quick OCR check for active UI prompts (discard, explore, target, etc.)."""
+    img = "/tmp/arena/_turn_prompt.png"
+    bounds = capture_window(img)
+    if bounds is None:
+        return None
+    code, stdout, _ = ocr(img)
+    try_remove(img)
+    if code != 0 or not stdout.strip():
+        return None
+    try:
+        items = json.loads(stdout)
+    except json.JSONDecodeError:
+        return None
+    for item in items:
+        text = item.get("text", "")
+        m = _PROMPT_PATTERNS.search(text)
+        if m:
+            return text.strip()
+    return None
 
 
 def cmd_turn(args: list[str]) -> None:
@@ -90,3 +120,8 @@ def cmd_turn(args: list[str]) -> None:
 
     if bf_ours:
         print(f"Battlefield: {', '.join(bf_ours)}")
+
+    # Detect UI prompts via quick OCR scan
+    prompt = _detect_prompt()
+    if prompt:
+        print(f"PROMPT: {prompt}")
