@@ -4,6 +4,7 @@ import com.google.common.eventbus.Subscribe
 import forge.ai.LobbyPlayerAi
 import forge.game.event.*
 import forge.game.event.GameEventManaAbilityActivated
+import forge.game.event.GameEventSpellMovedToStack
 import forge.game.zone.ZoneType
 import leyline.game.mapper.PlayerMapper
 import org.slf4j.LoggerFactory
@@ -77,6 +78,13 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         }
         queue.add(GameEvent.SpellCast(card.id, seat, payments))
         log.debug("event: SpellCast card={} seat={} manaPayments={}", card.name, seat, payments.size)
+    }
+
+    override fun visit(ev: GameEventSpellMovedToStack) {
+        val card = ev.card()
+        val seat = seatOf(card.controller) ?: return
+        queue.add(GameEvent.SpellMovedToStack(card.id, seat))
+        log.debug("event: SpellMovedToStack card={} seat={}", card.name, seat)
     }
 
     override fun visit(ev: GameEventSpellResolved) {

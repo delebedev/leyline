@@ -74,6 +74,14 @@ sealed interface GameEvent {
         val manaPayments: List<ManaPayment> = emptyList(),
     ) : GameEvent
 
+    /** A spell was placed on the stack before costs were paid.
+     *  Signals that this GSM should be split into QueuedGSM triplet.
+     *  Wired from GameEventSpellMovedToStack. */
+    data class SpellMovedToStack(
+        val forgeCardId: Int,
+        val seatId: Int,
+    ) : GameEvent
+
     /** A spell or ability finished resolving (stack → battlefield/graveyard/exile). */
     data class SpellResolved(
         val forgeCardId: Int,
