@@ -16,7 +16,7 @@ After an Arena patch changes server hostnames/IPs, I discover the new endpoints 
 
 - **services.conf (Arena's):** `/Users/Shared/Epic Games/MagicTheGathering/MTGA.app/Contents/Resources/Data/StreamingAssets/services.conf`
 - **services.conf (leyline proxy):** `deploy/services-proxy.conf`
-- **Player.log:** `/Users/denis/Library/Logs/Wizards Of The Coast/MTGA/Player.log`
+- **Player.log:** `~/Library/Logs/Wizards Of The Coast/MTGA/Player.log`
 
 ## Automated flow
 
