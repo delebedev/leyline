@@ -6,6 +6,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.InstanceId
 import leyline.game.mapper.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
@@ -186,5 +187,80 @@ class PurePipelineTest :
 
             result.transfers.shouldBeEmpty()
             result.retiredIds.shouldBeEmpty()
+        }
+
+        // -----------------------------------------------------------------------
+        // combatAnnotations — pure overload tests
+        // -----------------------------------------------------------------------
+
+        // Test 1: no damage events → empty result
+        test("combatAnnotations returns empty when no damage events") {
+            val result = AnnotationPipeline.combatAnnotations(
+                events = emptyList(),
+                activeSeat = 1,
+                idResolver = { it + 1000 },
+                previousLifeTotals = emptyMap(),
+                currentLifeTotals = emptyMap(),
+            )
+
+            result.annotations.shouldBeEmpty()
+            result.hasCombatDamage shouldBe false
+        }
+
+        // Test 2: creature-to-creature damage → PhaseOrStepModified + DamageDealt
+        test("combatAnnotations produces DamageDealt for creature-to-creature") {
+            val events = listOf(GameEvent.DamageDealtToCard(sourceForgeId = 10, targetForgeId = 20, amount = 3))
+
+            val result = AnnotationPipeline.combatAnnotations(
+                events = events,
+                activeSeat = 1,
+                idResolver = { it + 1000 },
+                previousLifeTotals = emptyMap(),
+                currentLifeTotals = emptyMap(),
+            )
+
+            result.hasCombatDamage shouldBe true
+
+            // PhaseOrStepModified must come first
+            val firstType = result.annotations.first().getType(0)
+            firstType shouldBe AnnotationType.PhaseOrStepModified
+
+            // DamageDealt annotation with target iid = 20 + 1000 = 1020
+            val damageAnnotation = result.annotations.first { it.getType(0) == AnnotationType.DamageDealt_af5a }
+            damageAnnotation.affectedIdsList.contains(1020) shouldBe true
+        }
+
+        // Test 3: creature-to-player damage + life change → ModifiedLife for seat 2
+        test("combatAnnotations produces ModifiedLife when life changes") {
+            val events = listOf(
+                GameEvent.DamageDealtToPlayer(sourceForgeId = 10, targetSeatId = 2, amount = 5, combat = true),
+            )
+
+            val result = AnnotationPipeline.combatAnnotations(
+                events = events,
+                activeSeat = 1,
+                idResolver = { it + 1000 },
+                previousLifeTotals = mapOf(1 to 20, 2 to 20),
+                currentLifeTotals = mapOf(1 to 20, 2 to 15),
+            )
+
+            val lifeAnnotation = result.annotations.first { it.getType(0) == AnnotationType.ModifiedLife }
+            lifeAnnotation.affectedIdsList.contains(2) shouldBe true
+        }
+
+        // Test 4: non-combat events only → empty result
+        test("combatAnnotations returns empty for non-combat events only") {
+            val events = listOf(GameEvent.LandPlayed(forgeCardId = 42, seatId = 1))
+
+            val result = AnnotationPipeline.combatAnnotations(
+                events = events,
+                activeSeat = 1,
+                idResolver = { it + 1000 },
+                previousLifeTotals = emptyMap(),
+                currentLifeTotals = emptyMap(),
+            )
+
+            result.annotations.shouldBeEmpty()
+            result.hasCombatDamage shouldBe false
         }
     })
