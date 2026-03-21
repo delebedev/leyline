@@ -690,6 +690,86 @@ class AnnotationPipelineTest :
             category.getValueString(0) shouldBe "Sacrifice"
         }
 
+        test("Sacrifice with mana payment emits full mana-ability bracket") {
+            val transfer = AnnotationPipeline.AppliedTransfer(
+                origId = 100,
+                newId = 200,
+                category = TransferCategory.Sacrifice,
+                srcZoneId = ZoneIds.BATTLEFIELD,
+                destZoneId = ZoneIds.P1_GRAVEYARD,
+                grpId = 95104, // Treasure token
+                ownerSeatId = 1,
+                manaPayments = listOf(
+                    AnnotationPipeline.ManaPaymentRecord(
+                        landInstanceId = 100,
+                        manaAbilityInstanceId = 200100,
+                        color = 8, // Red
+                        abilityGrpId = 183,
+                        spellInstanceId = 300,
+                    ),
+                ),
+            )
+            val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+
+            annotations.size shouldBe 7
+            annotations[0].typeList.first() shouldBe AnnotationType.AbilityInstanceCreated
+            annotations[1].typeList.first() shouldBe AnnotationType.TappedUntappedPermanent
+            annotations[2].typeList.first() shouldBe AnnotationType.ObjectIdChanged
+            annotations[3].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+            annotations[4].typeList.first() shouldBe AnnotationType.UserActionTaken
+            annotations[5].typeList.first() shouldBe AnnotationType.ManaPaid
+            annotations[6].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted
+
+            // ManaPaid: affectorId = land (origId=100), affectedIds contains spellInstanceId
+            annotations[5].affectorId shouldBe 100
+            annotations[5].affectedIdsList shouldContain 300
+        }
+
+        test("Sacrifice without mana payment emits standard annotations") {
+            val transfer = AnnotationPipeline.AppliedTransfer(
+                origId = 100,
+                newId = 200,
+                category = TransferCategory.Sacrifice,
+                srcZoneId = ZoneIds.BATTLEFIELD,
+                destZoneId = ZoneIds.P1_GRAVEYARD,
+                grpId = 95104,
+                ownerSeatId = 1,
+                manaPayments = emptyList(),
+            )
+            val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+
+            annotations.size shouldBe 2
+            annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
+            annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+        }
+
+        test("Sacrifice with mana payment has correct UserActionTaken fields") {
+            val transfer = AnnotationPipeline.AppliedTransfer(
+                origId = 100,
+                newId = 200,
+                category = TransferCategory.Sacrifice,
+                srcZoneId = ZoneIds.BATTLEFIELD,
+                destZoneId = ZoneIds.P1_GRAVEYARD,
+                grpId = 95104,
+                ownerSeatId = 1,
+                manaPayments = listOf(
+                    AnnotationPipeline.ManaPaymentRecord(
+                        landInstanceId = 100,
+                        manaAbilityInstanceId = 200100,
+                        color = 8,
+                        abilityGrpId = 183,
+                        spellInstanceId = 300,
+                    ),
+                ),
+            )
+            val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+
+            val uat = annotations[4]
+            uat.typeList.first() shouldBe AnnotationType.UserActionTaken
+            uat.detailsList.first { it.key == "actionType" }.getValueInt32(0) shouldBe 4
+            uat.detailsList.first { it.key == "abilityGrpId" }.getValueInt32(0) shouldBe 183
+        }
+
         test("bounceProducesAnnotations") {
             val transfer = AnnotationPipeline.AppliedTransfer(
                 origId = 100,
