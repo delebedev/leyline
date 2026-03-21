@@ -7,6 +7,8 @@ import leyline.analysis.MechanicClassifier
 import leyline.analysis.SessionAnalyzer
 import leyline.game.GameEvent
 import leyline.match.MatchRecorder
+import leyline.recording.GREToDecoded
+import leyline.recording.RecordingDecoder
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.BufferedWriter
@@ -52,6 +54,15 @@ class SessionRecorder(
         BufferedWriter(FileWriter(File(sessionDir, "events.jsonl"), true))
     } catch (e: Exception) {
         log.error("Failed to create JSONL writer: {}", e.message)
+        null
+    }
+
+    /** md-frames.jsonl — same format as proxy recordings, enables `tape gsm filter` on engine output. */
+    private val mdFrameSeq = AtomicInteger(0)
+    private val mdWriter: BufferedWriter? = try {
+        BufferedWriter(FileWriter(File(sessionDir, "md-frames.jsonl"), true))
+    } catch (e: Exception) {
+        log.error("Failed to create md-frames.jsonl writer: {}", e.message)
         null
     }
 
@@ -158,6 +169,9 @@ class SessionRecorder(
                 zoneIds = if (gre.hasGameStateMessage()) gre.gameStateMessage.zonesList.map { it.zoneId } else emptyList(),
             )
             writeLine(json.encodeToString(entry))
+
+            // md-frames.jsonl — full decoded GSM in recording-compatible format
+            writeMdFrame(gre)
         }
     }
 
@@ -246,6 +260,10 @@ class SessionRecorder(
             writer?.flush()
             writer?.close()
         } catch (_: Exception) {}
+        try {
+            mdWriter?.flush()
+            mdWriter?.close()
+        } catch (_: Exception) {}
 
         if (triggerAnalysis) {
             val termination = if (gameOverReceived) "game_over" else "disconnect"
@@ -276,6 +294,19 @@ class SessionRecorder(
             }
         } catch (e: Exception) {
             log.warn("JSONL write failed: {}", e.message)
+        }
+    }
+
+    private fun writeMdFrame(gre: GREToClientMessage) {
+        if (mdWriter == null) return
+        try {
+            val decoded = GREToDecoded.convert(gre, mdFrameSeq.incrementAndGet())
+            val line = RecordingDecoder.toJsonLine(decoded)
+            mdWriter.write(line)
+            mdWriter.newLine()
+            mdWriter.flush()
+        } catch (e: Exception) {
+            log.warn("md-frames write failed: {}", e.message)
         }
     }
 

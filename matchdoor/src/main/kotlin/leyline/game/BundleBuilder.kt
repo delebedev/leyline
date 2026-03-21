@@ -68,7 +68,12 @@ object BundleBuilder {
         // Uses client-seen TurnInfo instead of the diff baseline.
         // This handles the case where PhaseStopProfile skips phases on the engine thread —
         // the diff baseline may already show the new phase, but the client hasn't seen it.
-        val gsWithPhaseAnnotation = if (gsBase.hasTurnInfo() &&
+        // Skip if GSM already has PhaseOrStepModified (e.g. from combatAnnotations)
+        val alreadyHasPhaseAnnotation = gsBase.annotationsList.any { ann ->
+            ann.typeList.any { it == AnnotationType.PhaseOrStepModified }
+        }
+        val gsWithPhaseAnnotation = if (!alreadyHasPhaseAnnotation &&
+            gsBase.hasTurnInfo() &&
             bridge.isPhaseChangedFromClientSeen(gsBase.turnInfo)
         ) {
             val handler = game.phaseHandler

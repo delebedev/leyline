@@ -238,22 +238,39 @@ object AnnotationPipeline {
      * No bridge mutation — only reads instanceId mappings.
      */
     /**
+     * Result of combat damage annotation generation.
+     * [hasCombatDamage] signals that turnInfo should be overridden to CombatDamage.
+     */
+    data class CombatAnnotationResult(
+        val annotations: List<AnnotationInfo>,
+        val hasCombatDamage: Boolean = false,
+    )
+
+    /**
      * Stage 3: Generate combat damage annotations from events.
      *
      * Uses [GameEvent.DamageDealtToCard] and [GameEvent.DamageDealtToPlayer] events
      * captured synchronously on the engine thread (before Forge clears combat state).
      * The combat object's attackers list is empty by the time we build the GSM,
      * so we cannot query it here.
+     *
+     * Annotation ordering matches real server: PhaseOrStepModified → DamageDealt(s)
+     * → SyntheticEvent → ModifiedLife → (ObjectIdChanged/ZoneTransfer handled by Stage 1).
      */
     internal fun combatAnnotations(
         events: List<GameEvent>,
         bridge: GameBridge,
-    ): List<AnnotationInfo> {
+        activeSeat: Int,
+    ): CombatAnnotationResult {
         val cardDamage = events.filterIsInstance<GameEvent.DamageDealtToCard>()
         val playerDamage = events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
-        if (cardDamage.isEmpty() && playerDamage.isEmpty()) return emptyList()
+        if (cardDamage.isEmpty() && playerDamage.isEmpty()) return CombatAnnotationResult(emptyList())
 
         val annotations = mutableListOf<AnnotationInfo>()
+
+        // --- PhaseOrStepModified FIRST (real server ordering) ---
+        // phase=3 (Combat), step=7 (CombatDamage) — protocol constants
+        annotations.add(AnnotationBuilder.phaseOrStepModified(activeSeat, phase = 3, step = 7))
 
         // --- DamageDealt: creature → creature ---
         for (ev in cardDamage) {
@@ -272,14 +289,7 @@ object AnnotationPipeline {
             playerDamageSeat = ev.targetSeatId
         }
 
-        // --- DamagedThisTurn badges for all damage targets ---
-        val damagedCreatures = mutableSetOf<Int>()
-        for (ev in cardDamage) {
-            damagedCreatures.add(ev.targetForgeId)
-            damagedCreatures.add(ev.sourceForgeId) // source also took damage in mutual combat
-        }
-        // Only emit for creatures that actually have damage marked
-        // (sourceForgeId may not have taken damage — it dealt it)
+        // --- DamagedThisTurn badges ---
         for (ev in cardDamage) {
             val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(ev.targetForgeId)).value
             annotations.add(AnnotationBuilder.damagedThisTurn(targetIid))
@@ -299,13 +309,15 @@ object AnnotationPipeline {
                 if (player != null) {
                     val delta = player.life - playerInfo.lifeTotal
                     if (delta != 0) {
-                        annotations.add(AnnotationBuilder.modifiedLife(seat, delta))
+                        annotations.add(
+                            AnnotationBuilder.modifiedLife(seat, delta, affectorId = firstPlayerDamageAttackerIid ?: 0),
+                        )
                     }
                 }
             }
         }
 
-        return annotations
+        return CombatAnnotationResult(annotations, hasCombatDamage = true)
     }
 
     /**

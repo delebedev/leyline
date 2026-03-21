@@ -328,9 +328,10 @@ object AnnotationBuilder {
             .build()
 
     /** Player life total changed. Client uses this for life counter animation. */
-    fun modifiedLife(playerSeatId: Int, lifeDelta: Int): AnnotationInfo =
+    fun modifiedLife(playerSeatId: Int, lifeDelta: Int, affectorId: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ModifiedLife)
+            .apply { if (affectorId != 0) setAffectorId(affectorId) }
             .addAffectedIds(playerSeatId)
             .addDetails(int32Detail("life", lifeDelta))
             .build()
