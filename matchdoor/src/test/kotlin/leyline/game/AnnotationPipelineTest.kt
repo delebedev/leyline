@@ -92,7 +92,7 @@ class AnnotationPipelineTest :
 
         // --- annotationsForTransfer: CastSpell ---
 
-        test("castSpellProducesSixAnnotations") {
+        test("castSpell with one mana payment produces 8 annotations") {
             val transfer = AnnotationPipeline.AppliedTransfer(
                 origId = 100,
                 newId = 200,
@@ -101,20 +101,79 @@ class AnnotationPipelineTest :
                 destZoneId = ZoneIds.STACK,
                 grpId = 67890,
                 ownerSeatId = 1,
+                manaPayments = listOf(
+                    AnnotationPipeline.ManaPaymentRecord(
+                        landInstanceId = 300,
+                        manaAbilityInstanceId = 400,
+                        color = 2,
+                        abilityGrpId = 1002,
+                    ),
+                ),
             )
             val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-            annotations.size shouldBe 6
+            annotations.size shouldBe 8
             annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
             annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
             annotations[2].typeList.first() shouldBe AnnotationType.AbilityInstanceCreated
-            annotations[3].typeList.first() shouldBe AnnotationType.ManaPaid
-            annotations[4].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted
-            annotations[5].typeList.first() shouldBe AnnotationType.UserActionTaken
+            annotations[3].typeList.first() shouldBe AnnotationType.TappedUntappedPermanent
+            annotations[4].typeList.first() shouldBe AnnotationType.UserActionTaken
+            annotations[5].typeList.first() shouldBe AnnotationType.ManaPaid
+            annotations[6].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted
+            annotations[7].typeList.first() shouldBe AnnotationType.UserActionTaken
+
+            // AIC details
+            annotations[2].affectorId shouldBe 300
+            annotations[2].affectedIdsList shouldContain 400
+            annotations[2].detailsList.first { it.key == "source_zone" }.getValueInt32(0) shouldBe ZoneIds.BATTLEFIELD
+
+            // TUP
+            annotations[3].affectorId shouldBe 400
+            annotations[3].affectedIdsList shouldContain 300
+
+            // UAT mana
+            annotations[4].detailsList.first { it.key == "actionType" }.getValueInt32(0) shouldBe 4
+            annotations[4].detailsList.first { it.key == "abilityGrpId" }.getValueInt32(0) shouldBe 1002
+            annotations[4].affectedIdsList shouldContain 400
+
+            // ManaPaid
+            annotations[5].affectorId shouldBe 300
+            annotations[5].affectedIdsList shouldContain 200
+            annotations[5].detailsList.first { it.key == "color" }.getValueInt32(0) shouldBe 2
+
+            // AID
+            annotations[6].affectorId shouldBe 300
+            annotations[6].affectedIdsList shouldContain 400
+
+            // UAT cast
+            annotations[7].detailsList.first { it.key == "actionType" }.getValueInt32(0) shouldBe 1
+            annotations[7].affectedIdsList shouldContain 200
 
             // Stack gets EnteredZoneThisTurn (recording confirms)
             persistent.size shouldBe 1
             persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
+        }
+
+        test("castSpell with zero mana payments produces 3 annotations") {
+            val transfer = AnnotationPipeline.AppliedTransfer(
+                origId = 100,
+                newId = 200,
+                category = TransferCategory.CastSpell,
+                srcZoneId = ZoneIds.P1_HAND,
+                destZoneId = ZoneIds.STACK,
+                grpId = 67890,
+                ownerSeatId = 1,
+                manaPayments = emptyList(),
+            )
+            val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+
+            annotations.size shouldBe 3
+            annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
+            annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+            annotations[2].typeList.first() shouldBe AnnotationType.UserActionTaken
+            annotations[2].detailsList.first { it.key == "actionType" }.getValueInt32(0) shouldBe 1
+
+            persistent.size shouldBe 1
         }
 
         test("castSpellUserActionIsCast") {
@@ -129,7 +188,8 @@ class AnnotationPipelineTest :
             )
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-            val actionType = annotations[5].detailsList.first { it.key == "actionType" }
+            val castUat = annotations.last()
+            val actionType = castUat.detailsList.first { it.key == "actionType" }
             actionType.getValueInt32(0) shouldBe 1
         }
 
