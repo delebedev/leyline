@@ -1,41 +1,4 @@
-# Git
-.git
-.gitignore
-.gitmodules
-.github/
-
-# IDE / editor
-.idea/
-*.iml
-.vscode/
-.claude/
-
-# Build artifacts
-build/
-target/
-forge/**/target/
-forge/.m2-local/
-
-# OS
-.DS_Store
-
-# Not needed in image
-docs/
-plans/
-recordings/
-tools/
-scripts/
-buildscripts/
-just/
-justfile
-deploy/setup.sh
-deploy/services.conf
-*.md
-
-# Proto upstream submodule (we only need the processed output)
-proto/upstream/.git
-
-# Forge media (large, not needed at runtime)
+# Forge media (large, not needed at runtime — COPY forge/forge-gui/res/ pulls the rest)
 forge/forge-gui/res/adventure/
 forge/forge-gui/res/skins/
 forge/forge-gui/res/music/
@@ -44,16 +7,3 @@ forge/forge-gui/res/pic/
 forge/forge-gui/res/sound/
 forge/forge-gui/res/token_images/
 forge/forge-gui/res/achievement/
-
-# Forge modules not needed for leyline build
-forge/forge-gui-desktop/src/
-forge/forge-gui-mobile/src/
-forge/forge-gui-mobile-dev/src/
-forge/forge-gui-android/src/
-forge/forge-gui-ios/src/
-forge/forge-installer/src/
-forge/forge-lda/src/
-forge/adventure-editor/src/
-forge/forge-web/src/
-forge/forge-web-ui/
-forge/forge-nexus/src/
