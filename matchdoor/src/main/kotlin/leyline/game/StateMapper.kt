@@ -50,7 +50,7 @@ object StateMapper {
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
 
-        // --- Gather: drain all queues and snapshot mutable state ---
+        // ═══ GATHER: drain queues, snapshot mutable state ═══
         val events = bridge.drainEvents().toMutableList()
         for (reveal in bridge.drainReveals(viewingSeatId)) {
             events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
@@ -59,6 +59,7 @@ object StateMapper {
         val boostSnapshot = bridge.snapshotBoosts()
         val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
 
+        // ═══ MAP: engine state → proto objects ═══
         val gameInfo = GameInfo.newBuilder()
             .setMatchID(matchId)
             .setGameNumber(1)
@@ -137,7 +138,7 @@ object StateMapper {
             zones.size,
         )
 
-        // --- Three-stage annotation pipeline (delegated to AnnotationPipeline) ---
+        // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
         // Stage 1: Detect zone transfers, realloc IDs, get patched objects/zones
         val transferResult = AnnotationPipeline.detectZoneTransfers(gameObjects, zones, bridge, events)
 
@@ -232,7 +233,7 @@ object StateMapper {
 
         val built = builder.build()
 
-        // --- Apply deferred tracking effects ---
+        // ═══ APPLY: deferred tracking effects (for next GSM) ═══
         // These update bridge state for the NEXT buildFromGame/buildDiffFromGame call.
         // They do NOT feed back into the current GSM (patchedZones/patchedObjects already contain
         // the limbo/zone patches produced inside detectZoneTransfers).
