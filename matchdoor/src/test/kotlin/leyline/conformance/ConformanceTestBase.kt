@@ -319,16 +319,24 @@ open class ConformanceTestBase {
     }
 
     /**
-     * Cast a creature spell and capture the on-stack GSM.
-     * Plays a land first for mana.
+     * Cast a creature spell and capture the full bundle.
+     * Plays a land first for mana. With CastSpell split, this returns the
+     * QueuedGSM triplet + ActionsAvailableReq.
      */
-    fun castSpellAndCapture(): GameStateMessage? {
+    fun castSpellBundle(): BundleBuilder.BundleResult? {
         val (b, game, counter) = startGameAtMain1()
         playLand(b) ?: return null
         b.snapshotFromGame(game)
         castCreature(b) ?: return null
-        return postAction(game, b, counter).gsmOrNull
+        return postAction(game, b, counter)
     }
+
+    /**
+     * Cast a creature spell and capture the on-stack GSM.
+     * Plays a land first for mana. Returns merged GSM with all annotations
+     * from the QueuedGSM triplet combined.
+     */
+    fun castSpellAndCapture(): GameStateMessage? = castSpellBundle()?.mergedGsm
 
     /**
      * Cast a creature and capture GSM + pre/post instanceIds.
@@ -345,7 +353,8 @@ open class ConformanceTestBase {
         val forgeCardId = creature.id
 
         castCreature(b) ?: return null
-        val gsm = postAction(game, b, counter).gsmOrNull ?: return null
+        // Use mergedGsm to combine QueuedGSM triplet annotations into one GSM
+        val gsm = postAction(game, b, counter).mergedGsm
         val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
 
         return Triple(gsm, origInstanceId, newInstanceId)

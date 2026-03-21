@@ -62,24 +62,46 @@ object BundleBuilder {
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
-        val gsBase = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId).gsm
+        val result = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
         val actions = ActionMapper.buildActions(game, seatId, bridge)
 
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
         // in StateMapper Stage 2b — no injection needed here.
 
         // Re-embed stripped actions into the GSM
-        val gs = GsmBuilder.embedActions(gsBase, actions, frame, recipientSeatId = seatId)
+        val gs = GsmBuilder.embedActions(result.gsm, actions, frame, recipientSeatId = seatId)
 
-        val messages = listOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
-                it.gameStateMessage = gs
-            },
-            makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, seatId, counter.nextMsgId()) {
-                it.actionsAvailableReq = actions
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
-            },
-        )
+        // Split CastSpell into QueuedGSM triplet when detected
+        val split = if (result.hasCastSpell) splitCastSpellGsm(gs, counter) else null
+
+        val messages = if (split != null) {
+            val (queued1, queued2, main) = split
+            listOf(
+                makeGRE(GREMessageType.QueuedGameStateMessage, queued1.gameStateId, seatId, counter.nextMsgId()) {
+                    it.gameStateMessage = queued1
+                },
+                makeGRE(GREMessageType.QueuedGameStateMessage, queued2.gameStateId, seatId, counter.nextMsgId()) {
+                    it.gameStateMessage = queued2
+                },
+                makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, seatId, counter.nextMsgId()) {
+                    it.gameStateMessage = main
+                },
+                makeGRE(GREMessageType.ActionsAvailableReq_695e, main.gameStateId, seatId, counter.nextMsgId()) {
+                    it.actionsAvailableReq = actions
+                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                },
+            )
+        } else {
+            listOf(
+                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+                    it.gameStateMessage = gs
+                },
+                makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, seatId, counter.nextMsgId()) {
+                    it.actionsAvailableReq = actions
+                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
+                },
+            )
+        }
 
         return BundleResult(messages)
     }
@@ -99,13 +121,31 @@ object BundleBuilder {
         val nextGs = counter.nextGsId()
 
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
-        val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId).gsm
+        val result = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
 
-        val messages = listOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
-                it.gameStateMessage = gs
-            },
-        )
+        // Split CastSpell into QueuedGSM triplet when detected
+        val split = if (result.hasCastSpell) splitCastSpellGsm(result.gsm, counter) else null
+
+        val messages = if (split != null) {
+            val (queued1, queued2, main) = split
+            listOf(
+                makeGRE(GREMessageType.QueuedGameStateMessage, queued1.gameStateId, seatId, counter.nextMsgId()) {
+                    it.gameStateMessage = queued1
+                },
+                makeGRE(GREMessageType.QueuedGameStateMessage, queued2.gameStateId, seatId, counter.nextMsgId()) {
+                    it.gameStateMessage = queued2
+                },
+                makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, seatId, counter.nextMsgId()) {
+                    it.gameStateMessage = main
+                },
+            )
+        } else {
+            listOf(
+                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+                    it.gameStateMessage = result.gsm
+                },
+            )
+        }
 
         return BundleResult(messages)
     }
@@ -853,6 +893,89 @@ object BundleBuilder {
             it.timerStateMessage = timer
         }
         return BundleResult(listOf(msg))
+    }
+
+    /**
+     * Split a CastSpell GSM into the real server's QueuedGSM triplet.
+     *
+     * Extracts CastSpell-related annotations (ObjectIdChanged for the spell,
+     * ZoneTransfer(CastSpell), UserActionTaken(actionType=1)) into a queued GSM.
+     * Remaining annotations go into the main GSM.
+     *
+     * Returns null if no CastSpell ZoneTransfer found.
+     */
+    private fun splitCastSpellGsm(
+        gsm: GameStateMessage,
+        counter: MessageCounter,
+    ): Triple<GameStateMessage, GameStateMessage, GameStateMessage>? {
+        // 1. Find the ZoneTransfer(CastSpell) annotation
+        val ztAnn = gsm.annotationsList.firstOrNull { ann ->
+            ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
+                ann.detailsList.any { it.key == "category" && it.valueStringList.contains("CastSpell") }
+        } ?: return null
+
+        // 2. Get the spell's instanceId from affectedIds[0]
+        val spellInstanceId = ztAnn.affectedIdsList.firstOrNull() ?: return null
+
+        // 3. Collect the CastSpell group
+        val castGroup = mutableListOf<AnnotationInfo>()
+        val remaining = mutableListOf<AnnotationInfo>()
+
+        for (ann in gsm.annotationsList) {
+            val isZoneTransfer = ann === ztAnn
+            val isObjectIdChanged = ann.typeList.any { it == AnnotationType.ObjectIdChanged } &&
+                ann.detailsList.any { it.key == "new_id" && it.valueInt32Count > 0 && it.getValueInt32(0) == spellInstanceId }
+            val isUserActionCast = ann.typeList.any { it == AnnotationType.UserActionTaken } &&
+                ann.detailsList.any { it.key == "actionType" && it.valueInt32Count > 0 && it.getValueInt32(0) == 1 } &&
+                ann.affectedIdsList.contains(spellInstanceId)
+
+            if (isZoneTransfer || isObjectIdChanged || isUserActionCast) {
+                castGroup.add(ann)
+            } else {
+                remaining.add(ann)
+            }
+        }
+
+        // 4. Build three GSMs with renumbered annotation IDs.
+        // Each split GSM gets its own sequential annotation IDs starting from the
+        // original first ID, matching real server behavior where each message has
+        // independently numbered annotations.
+        val baseId = gsm.annotationsList.minOfOrNull { it.id } ?: 1
+
+        // queued1: castGroup annotations, NO persistent, keeps original gsId
+        val queued1 = gsm.toBuilder()
+            .clearAnnotations()
+            .addAllAnnotations(renumberAnnotations(castGroup, baseId))
+            .clearPersistentAnnotations()
+            .build()
+
+        // queued2: empty checkpoint, same zones/objects but 0 annotations
+        val queued2GsId = counter.nextGsId()
+        val queued2 = gsm.toBuilder()
+            .clearAnnotations()
+            .clearPersistentAnnotations()
+            .setGameStateId(queued2GsId)
+            .setPrevGameStateId(gsm.gameStateId)
+            .build()
+
+        // main: remaining annotations + all persistent
+        val mainGsId = counter.nextGsId()
+        val main = gsm.toBuilder()
+            .clearAnnotations()
+            .addAllAnnotations(renumberAnnotations(remaining, baseId))
+            .setGameStateId(mainGsId)
+            .setPrevGameStateId(queued2GsId)
+            .build()
+
+        return Triple(queued1, queued2, main)
+    }
+
+    /** Renumber annotation IDs to be sequential starting from [startId]. */
+    private fun renumberAnnotations(
+        annotations: List<AnnotationInfo>,
+        startId: Int,
+    ): List<AnnotationInfo> = annotations.mapIndexed { index, ann ->
+        ann.toBuilder().setId(startId + index).build()
     }
 
     /** Build a single GRE message. */

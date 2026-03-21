@@ -19,6 +19,24 @@ val BundleBuilder.BundleResult.gsm: GameStateMessage
 val BundleBuilder.BundleResult.gsmOrNull: GameStateMessage?
     get() = messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage
 
+/**
+ * Merge all GSMs in a bundle into a single GSM with combined annotations.
+ * Uses the last GSM as the base (has persistent annotations), prepends
+ * annotations from earlier GSMs. For CastSpell triplets this reconstructs
+ * the full annotation sequence: queued1 annotations + main annotations.
+ */
+val BundleBuilder.BundleResult.mergedGsm: GameStateMessage
+    get() {
+        val gsms = messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+        require(gsms.isNotEmpty()) { "No GSMs in bundle" }
+        val allAnnotations = gsms.flatMap { it.annotationsList }
+        val base = gsms.last()
+        return base.toBuilder()
+            .clearAnnotations()
+            .addAllAnnotations(allAnnotations)
+            .build()
+    }
+
 /** Extract the ActionsAvailableReq from a bundle result. */
 val BundleBuilder.BundleResult.aar: ActionsAvailableReq
     get() = messages.first { it.hasActionsAvailableReq() }.actionsAvailableReq
