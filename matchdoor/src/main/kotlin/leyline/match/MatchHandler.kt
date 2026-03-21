@@ -14,6 +14,7 @@ import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.CardRepository
 import leyline.game.GameBridge
 import leyline.game.GsmBuilder
+import leyline.game.MessageCounter
 import leyline.infra.NettyMessageSink
 import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
@@ -135,12 +136,14 @@ class MatchHandler(
             log.info("Match Door: detected seatId={}", seatId)
             nettyCtx = ctx
 
-            // Create session + sink + recorder
-            // Seat 2 (Familiar) sink skips ProtoDump to avoid duplicate .bin files
+            // Create session + sink + recorder.
+            // If a match already exists (PvP seat 2 joining), share its counter
+            // so session and bridge use the same MessageCounter from the start.
             val sink = NettyMessageSink(ctx, dumpEnabled = !isFamiliar)
             val rec = recorderFactory?.invoke()
+            val existingCounter = registry.getMatch(matchId)?.bridge?.messageCounter
             val s: SessionOps = if (isFamiliar) {
-                FamiliarSession(seatId, matchId, sink)
+                FamiliarSession(seatId, matchId, sink, counter = existingCounter ?: MessageCounter())
             } else {
                 MatchSession(
                     seatId,
@@ -150,6 +153,7 @@ class MatchHandler(
                     recorder = rec,
                     debugSink = debugSink,
                     coordinator = coordinator,
+                    counter = existingCounter ?: MessageCounter(),
                 ).also { it.playerId = clientId.removeSuffix("_Familiar") }
             }
             session = s

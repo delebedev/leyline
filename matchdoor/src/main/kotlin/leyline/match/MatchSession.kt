@@ -71,28 +71,17 @@ class MatchSession(
     /**
      * Wire the game bridge (called by [MatchHandler] after bridge creation).
      *
-     * When the bridge was created by a different seat (seat 2 creates, seat 1
-     * reuses), the bridge's [MessageCounter] is a different instance from this
-     * session's counter. Handshake messages already advanced this session's
-     * counter, so we sync the bridge's counter up to our values, then adopt
-     * it as our own — ensuring the engine thread (GamePlayback) and this
-     * session share a single counter.
+     * The session and bridge must share the same [MessageCounter] instance —
+     * passed at construction time to both. This ensures the engine thread
+     * (GamePlayback) and this session produce monotonically increasing
+     * gsId/msgId sequences without runtime sync.
      */
     override fun connectBridge(bridge: GameBridge): Unit = synchronized(sessionLock) {
         gameBridge = bridge
-        val bridgeCounter = bridge.messageCounter
-        if (bridgeCounter !== counter) {
-            // Advance bridge counter to at least where our handshake left off
-            if (counter.currentGsId() > bridgeCounter.currentGsId()) {
-                bridgeCounter.setGsId(counter.currentGsId())
-            }
-            if (counter.currentMsgId() > bridgeCounter.currentMsgId()) {
-                bridgeCounter.setMsgId(counter.currentMsgId())
-            }
-            counter = bridgeCounter
+        check(bridge.messageCounter === counter) {
+            "Counter mismatch: session and bridge must share the same MessageCounter instance. " +
+                "Pass the counter at construction time to both."
         }
-        // Wire autoPassState to WebPlayerController so full control mode works.
-        // TODO(pvp): seat 2 needs its own WebPlayerController wiring once PvP control is enabled.
         bridge.humanController?.setAutoPassState(autoPassState)
     }
 
