@@ -120,7 +120,27 @@ Review commit messages for:
 
 **Flag if:** >2 fix commits for the same feature (suggests incomplete work landed). Don't flag if fixes address review feedback.
 
-#### 2g. Uncommitted changes
+#### 2g. Visual proof for gameplay changes
+
+If the branch touches matchdoor gameplay code AND adds/modifies puzzles or test harness flows:
+
+```bash
+git diff --name-only main...HEAD | grep -qE 'matchdoor/src/main/.*(match|game|bridge)' && \
+git diff --name-only main...HEAD | grep -qE '\.pzl|MatchFlowHarness|FlowTest'
+```
+
+**If interactive** (Arena available, user present): suggest running `video-demo` skill to capture a short playtest clip and attach to the PR.
+
+**If non-interactive** (autonomous agent, no display): add a TODO checkbox to the PR body instead of blocking:
+
+```markdown
+## Visual proof
+- [ ] Arena playtest video needed (run `video-demo` when available)
+```
+
+**Skip if:** pure refactor, test-only changes, or non-gameplay matchdoor work (proto sync, builder cleanup).
+
+#### 2h. Uncommitted changes
 
 ```bash
 git status --porcelain
@@ -128,7 +148,7 @@ git status --porcelain
 
 **Flag if:** uncommitted changes exist that look related to the feature.
 
-#### 2h. Branch freshness
+#### 2i. Branch freshness
 
 ```bash
 git fetch origin main --quiet
@@ -149,6 +169,7 @@ Pre-flight checks:
   [x] Plan cleanup — design doc archived
   [x] Docs freshness — KDoc on new MatchHandler entry point, CLAUDE.md cookbook updated
   [x] Commit story — 5 commits, clean progression
+  [ ] Visual proof — gameplay change, video TODO added to PR body
   [x] Clean working tree
   [x] Branch fresh (2 behind main)
 ```
