@@ -2,13 +2,11 @@
 
 Open-source local game server that connects the real Arena client to [Forge](https://github.com/Card-Forge/forge)'s rules engine.
 
-<!-- TODO: GIF of Arena match running against leyline -->
-
 > **Alpha.** Core game loop works — creatures, spells, combat, puzzles. Lots still broken. APIs change. [What works →](docs/catalog.yaml)
 
 ## Design philosophy
 
-**Recording is the spec.** Real server sessions are the source of truth for protocol conformance. Capture, diff, close gaps.
+**Recording is the spec.** Real sessions are the source of truth for protocol conformance. Observe, diff, close gaps.
 
 **Minimal engine changes.** Leyline plugs into Forge's existing bridge layer — `CompletableFuture` interfaces that block the engine thread at each decision point. The fork adds a handful of event hooks and controller seams; the rules engine is untouched.
 
