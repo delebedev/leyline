@@ -273,28 +273,31 @@ class ConformancePipelineTest :
                 .writeText(prettyJson.encodeToString(JsonElement.serializer(), lifecycle))
         }
 
-        test("Sacrifice segment: Treasure sacrifice produces annotation structure") {
+        test("Sacrifice segment: land + Treasure mana produces recording-matched annotations") {
             val h = MatchFlowHarness(validating = false)
             harness = h
 
+            // Mirrors TreasureTokenTest: cast Innkeeper (1G) with Forest+Forest, get Treasure ETB,
+            // then cast Lightning Bolt (R) using only the Treasure for mana (Forests already tapped).
+            // Snapshot is taken just before the Bolt cast so Sacrifice annotations land in the window.
             h.connectAndKeepPuzzleText(
                 """
                 [metadata]
                 Name:Conformance Sacrifice
                 Goal:Win
-                Turns:3
+                Turns:5
                 Difficulty:Tutorial
-                Description:Pipeline test — Treasure sacrifice for mana
+                Description:Pipeline test — Treasure sacrifice for mana (mirrors TreasureTokenTest)
 
                 [state]
                 ActivePlayer=Human
                 ActivePhase=Main1
                 HumanLife=20
-                AILife=3
+                AILife=20
 
                 humanhand=Prosperous Innkeeper;Lightning Bolt
                 humanbattlefield=Forest;Forest
-                humanlibrary=Forest;Forest;Forest
+                humanlibrary=Island;Island;Island;Island;Island
                 aibattlefield=Centaur Courser
                 ailibrary=Mountain;Mountain;Mountain
                 """.trimIndent(),
@@ -302,96 +305,39 @@ class ConformancePipelineTest :
 
             val human = h.bridge.getPlayer(SeatId(1))!!
 
-            // Cast Prosperous Innkeeper (1G) — two Forests cover the cost
+            // Cast Prosperous Innkeeper (1G) — taps both Forests
             h.castSpellByName("Prosperous Innkeeper").shouldBeTrue()
 
-            // Pass priority until Treasure Token lands on battlefield
-            repeat(10) {
-                if (human.getZone(ZoneType.Battlefield).cards.any { it.name == "Treasure Token" }) return@repeat
-                h.passPriority()
+            // Pass priority until Treasure Token lands on battlefield.
+            // Stop immediately to avoid advancing past Main1 (untapping Forests).
+            h.passUntil(maxPasses = 10) {
+                human.getZone(ZoneType.Battlefield).cards.any { it.name == "Treasure Token" }
             }
 
-            // Snapshot before casting the bolt (Treasure sacrifice is the interesting segment)
+            // Snapshot before casting Lightning Bolt (R) — only Treasure available (Forests tapped).
+            // Forge must sacrifice the Treasure to produce R.
             val snap = h.messageSnapshot()
-
-            // Cast Lightning Bolt — Treasure provides R via sacrifice.
-            // Treasure sacrifice (mana cost payment) fires during the cast action;
-            // the GSM diff is emitted synchronously in drainSink().
             h.castSpellByName("Lightning Bolt").shouldBeTrue()
-
-            // Target opponent (seatId 2) — completes the targeting prompt
+            // Target the opponent (seat 2) — required for Lightning Bolt to resolve
             h.selectTargets(listOf(2))
 
-            // Pass to resolve Bolt so all GSMs (including any deferred sacrifice diffs) are emitted
-            repeat(5) {
-                if (h.isGameOver()) return@repeat
-                h.passPriority()
-            }
+            // Pass to resolve
+            repeat(5) { h.passPriority() }
 
             val msgs = h.messagesSince(snap)
-
             val allAnnotations = msgs.flatMap { msg ->
-                if (msg.hasGameStateMessage()) {
-                    msg.gameStateMessage.annotationsList
-                } else {
-                    emptyList()
-                }
+                if (msg.hasGameStateMessage()) msg.gameStateMessage.annotationsList else emptyList()
             }
             allAnnotations.shouldNotBeEmpty()
 
-            // Baseline capture: document current engine output for Treasure sacrifice.
-            // The Treasure token is sacrificed during mana cost payment for Lightning Bolt.
-            //
-            // Current state (pre-fix):
-            // - ZoneTransfer annotation IS produced (token moves BF→GY)
-            // - "Sacrifice" category is NOT stamped (gap vs real server)
-            // - Missing vs real server: AbilityInstanceCreated/Deleted, TappedUntapped,
-            //   ManaPaid, UserActionTaken(actionType=4)
-            //
-            // After fix (issue #119): extractByCategory(msgs, "Sacrifice") should return non-null.
-            val sacrificeFrame = AnnotationSerializer.extractByCategory(msgs, "Sacrifice")
-            // sacrificeFrame is null pre-fix — document the gap rather than asserting presence.
-            // We assert there IS a ZoneTransfer annotation (the transfer happens, just uncategorized).
-            val zoneTransferPresent = msgs.any { msg ->
-                msg.hasGameStateMessage() &&
-                    msg.gameStateMessage.annotationsList.any { ann ->
-                        ann.typeList.any { it.name.startsWith("ZoneTransfer") }
-                    }
-            }
-            zoneTransferPresent.shouldBeTrue()
-
-            // Write current output for Python-side diff (sacrifice-frame.json = best available frame)
-            val frameToWrite = sacrificeFrame ?: run {
-                // Pre-fix fallback: write the GSM containing ZoneTransfer as the baseline
-                val gsmWithTransfer = msgs.firstOrNull { msg ->
-                    msg.hasGameStateMessage() &&
-                        msg.gameStateMessage.annotationsList.any { ann ->
-                            ann.typeList.any { it.name.startsWith("ZoneTransfer") }
-                        }
-                }
-                gsmWithTransfer?.let { msg ->
-                    val gsm = msg.gameStateMessage
-                    mapOf(
-                        "gsId" to gsm.gameStateId,
-                        "gsmType" to gsm.type.name,
-                        "note" to "pre-fix baseline: ZoneTransfer present but Sacrifice category missing",
-                        "annotations" to gsm.annotationsList.map { ann ->
-                            mapOf(
-                                "types" to ann.typeList.map { it.name },
-                                "details" to ann.detailsList.associate { d ->
-                                    d.key to (d.valueStringList.toList().ifEmpty { d.valueInt32List.toList() })
-                                },
-                            )
-                        },
-                    )
-                }
-            }
-            frameToWrite.shouldNotBeNull()
+            // Extract the Sacrifice frame
+            val frame = AnnotationSerializer.extractByCategory(msgs, "Sacrifice")
+            frame.shouldNotBeNull()
 
             File(outputDir, "sacrifice-frame.json").writeText(
                 buildString {
                     append("{\n")
-                    val entries = frameToWrite.entries.toList()
+                    val entries = frame.entries.toList()
                     for ((i, entry) in entries.withIndex()) {
                         append("  \"${entry.key}\": ")
                         append(serializeValue(entry.value))
