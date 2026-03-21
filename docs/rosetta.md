@@ -178,9 +178,9 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 |------:|------------------|---------------------|-------------------|--------|
 | 0 | None | -- | -- | -- |
 | 1 | Cast | `onPerformAction` | `PlayerAction.CastSpell(forgeCardId)` | Implemented |
-| 2 | Activate | `onPerformAction` | -- | MISSING (logged, falls back to PassPriority) |
+| 2 | Activate | `onPerformAction` | `PlayerAction.ActivateAbility(forgeCardId, abilityIndex)` | Implemented |
 | 3 | Play | `onPerformAction` | `PlayerAction.PlayLand(forgeCardId)` | Implemented |
-| 4 | ActivateMana | -- | -- | MISSING |
+| 4 | ActivateMana | `onPerformAction` | `PlayerAction.ActivateMana(forgeCardId)` | Implemented |
 | 5 | Pass | `onPerformAction` | `PlayerAction.PassPriority` | Implemented |
 | 6 | ActivateTest | -- | -- | MISSING |
 | 7 | Special | -- | -- | MISSING |
