@@ -40,7 +40,9 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 
 **Three-stage diff pipeline:** (1) `detectZoneTransfers` → `TransferResult` — realloc instanceIds, return patched objects/zones + deferred retirements/zone recordings. (2) `annotationsForTransfer` — pure function, proto annotations per transfer. (3) `combatAnnotations` — damage/life/phase annotations. All numbered after assembly.
 
-**Pipeline purity:** `buildFromGame` follows gather/compute/apply phases. Annotation pipeline stages (`detectZoneTransfers`, `combatAnnotations`, `mechanicAnnotations`, `effectAnnotations`) have pure overloads taking function params (`idResolver`, `previousZones`, `lifeTotals`) instead of `GameBridge`. A delegating bridge-param overload wraps each for backward compat. Test new annotation logic with constructed data via `PurePipelineTest` (~0.01s), not engine startup (~3s). See `docs/notes/2026-03-21-rich-hickey-review.md` for design rationale.
+**Pipeline purity:** `buildFromGame` follows gather/compute/apply phases. The COMPUTE section has zero `bridge.*` mutations — all annotation pipeline stages (`detectZoneTransfers`, `combatAnnotations`, `mechanicAnnotations`, `effectAnnotations`, `computeBatch`) are pure functions taking function params (`idResolver`, `previousZones`, `lifeTotals`) instead of `GameBridge`. A delegating bridge-param overload wraps each for backward compat. Test new annotation logic with constructed data via `PurePipelineTest` (~0.01s), not engine startup (~3s). See `docs/notes/2026-03-21-rich-hickey-review.md` for design rationale.
+
+**Diff strategy: snapshot-compare, not incremental tracking.** `buildDiffFromGame` rebuilds a full GSM from engine state and compares it against the previous baseline (proto equality). This is O(all objects) per diff (~50 cards, <1ms) but eliminates an entire class of bugs: no dirty flags to forget, no change lists to keep in sync with engine state. The engine is opaque (Forge doesn't expose change sets), so the alternative would be a parallel bookkeeping system — two sources of truth that can diverge. Snapshot-compare is correct by construction.
 
 ## Cookbook
 
