@@ -136,7 +136,14 @@ class AutoPassEngine(
         }
 
         log.warn("autoPassAndAdvance: hit max iterations ({})", MAX_ITERATIONS)
-        ops.sendRealGameState(bridge)
+        val game2 = bridge.getGame()
+        val human2 = game2?.let { bridge.getPlayer(SeatId(ops.seatId)) }
+        val stillAiTurn = human2 != null && game2.phaseHandler.playerTurn != human2
+        if (stillAiTurn) {
+            log.debug("max-iterations: AI turn, suppressing ActionsAvailableReq")
+        } else {
+            ops.sendRealGameState(bridge)
+        }
     }
 
     /**
@@ -252,8 +259,7 @@ class AutoPassEngine(
                     return LoopSignal.EXIT
                 }
                 ops.traceEvent(MatchEventType.AI_TURN_TIMEOUT, game, "AI turn timed out")
-                log.warn("autoPass: AI turn timed out, sending current state")
-                ops.sendRealGameState(bridge)
+                log.warn("autoPass: AI turn timed out, suppressing ActionsAvailableReq")
                 return LoopSignal.EXIT
             }
         } else {
