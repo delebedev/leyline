@@ -85,6 +85,7 @@ matchdoor/engine/*.txt
 # Autoplay session videos (large, ephemeral)
 docs/retro/autoplay/**/gameplay.mp4
 PROGRESS.md
+RALPH.md
 
 # Local issue sync (gh-issue-sync)
 .issues/
