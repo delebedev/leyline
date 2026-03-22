@@ -3,7 +3,6 @@ package leyline.conformance
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldNotBeEmpty
 import leyline.ConformanceTag
 import leyline.bridge.InteractivePromptBridge.PendingPrompt
 import leyline.bridge.PromptCandidateRefDto
@@ -240,23 +239,46 @@ class GoldenFieldCoverageTest :
 
         // --- DeclareBlockersReq ---
 
-        // Blocked: devModeSet doesn't initialize Combat object — needs MatchFlowHarness rewrite (#207)
-        xtest("DeclareBlockersReq field coverage vs real server") {
+        test("DeclareBlockersReq field coverage vs real server").config(tags = setOf(leyline.IntegrationTag)) {
             val goldenFields = goldenDeclareBlockersReq
 
-            val (b, game, _) = base.startWithBoard { g, human, ai ->
-                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                val attacker = base.addCard("Llanowar Elves", ai, ZoneType.Battlefield)
-                g.phaseHandler.devModeSet(forge.game.phase.PhaseType.COMBAT_DECLARE_BLOCKERS, ai)
-                g.combat?.addAttacker(attacker, human)
+            // Need a real Combat object — use MatchFlowHarness to reach declare blockers.
+            // Human has a creature, AI attacks → human gets DeclareBlockersReq.
+            val h = MatchFlowHarness(seed = 42L, deckList = COMBAT_DECK, validating = false)
+            try {
+                h.connectAndKeep()
+                h.installScriptedAi(
+                    listOf(
+                        ScriptedAction.PlayLand("Mountain"),
+                        ScriptedAction.CastSpell("Raging Goblin"),
+                        ScriptedAction.Attack(listOf("Raging Goblin")),
+                        ScriptedAction.PassPriority,
+                    ),
+                )
+
+                // Human turn 1: play land, cast creature (potential blocker)
+                h.playLand()
+                h.castSpellByName("Raging Goblin")
+                h.passPriority()
+
+                // Skip human combat, let AI turn run (land + cast + attack)
+                if (h.allMessages.any { it.hasDeclareAttackersReq() }) {
+                    h.declareNoAttackers()
+                }
+                if (!h.allMessages.any { it.hasDeclareBlockersReq() }) {
+                    leyline.game.advanceToPhase(h.bridge, "COMBAT_DECLARE_BLOCKERS")
+                    h.triggerAutoPass()
+                    h.drainSink()
+                }
+
+                val blockReq = h.allMessages.last { it.hasDeclareBlockersReq() }.declareBlockersReq
+                val ourFields = FieldPathExtractor.extract(blockReq)
+
+                val expectedMissing = emptySet<String>()
+                assertFieldCoverage("DeclareBlockersReq", goldenFields, ourFields, expectedMissing)
+            } finally {
+                h.shutdown()
             }
-            val ours = RequestBuilder.buildDeclareBlockersReq(game, 1, b)
-            val ourFields = FieldPathExtractor.extract(ours)
-
-            val expectedMissing = setOf("manaCost")
-
-            ourFields.shouldNotBeEmpty()
-            assertFieldCoverage("DeclareBlockersReq", goldenFields, ourFields, expectedMissing)
         }
 
         // --- ActionsAvailableReq ---
