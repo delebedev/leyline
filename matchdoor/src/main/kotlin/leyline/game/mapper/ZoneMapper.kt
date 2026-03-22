@@ -68,7 +68,9 @@ object ZoneMapper {
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             libBuilder.addObjectInstanceIds(instanceId)
             if (revealLib) {
-                gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, libZoneId, seatId, bridge, Visibility.Private))
+                val obj = ObjectMapper.buildCardObject(card, instanceId, libZoneId, seatId, bridge, Visibility.Private)
+                    .toBuilder().addViewers(seatId).build()
+                gameObjects.add(obj)
             }
         }
         zones.add(libBuilder.build())
