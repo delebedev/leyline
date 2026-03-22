@@ -194,7 +194,12 @@ class MatchHandler(
                         return
                     }
                     val ms = s as? MatchSession
-                        ?: error("Puzzle mode requires MatchSession (seat 1), got ${s?.javaClass?.simpleName} for seat $seatId")
+                    if (ms == null) {
+                        // Seat 2 (FamiliarSession) in puzzle mode — ignore silently.
+                        // Arena always opens two MD connections; puzzle only uses seat 1.
+                        log.info("Match Door: puzzle mode ignoring seat {} ({})", seatId, s?.javaClass?.simpleName)
+                        return
+                    }
                     puzzleHandler.onPuzzleConnect(ctx, ms, matchId, seatId)
                 } else {
                     // Constructed mode: normal flow

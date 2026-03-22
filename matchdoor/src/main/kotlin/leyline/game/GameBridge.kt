@@ -840,11 +840,18 @@ class GameBridge(
      * where rules are guaranteed loaded.
      */
     private fun registerPuzzleCards(game: Game) {
+        val originalCards = cards
         val repo = cards as? InMemoryCardRepository ?: run {
-            log.warn("GameBridge: puzzle card registration requires InMemoryCardRepository")
-            return
+            // Arena puzzle mode: cards is ExposedCardRepository (real DB).
+            // Swap to InMemoryCardRepository and use the real DB as clientRepo
+            // so PuzzleCardRegistrar can look up real grpIds for art/text.
+            val inMemory = InMemoryCardRepository()
+            cards = inMemory
+            cardProto = CardProtoBuilder(inMemory)
+            log.info("GameBridge: puzzle mode swapped to InMemoryCardRepository (clientRepo={})", originalCards::class.simpleName)
+            inMemory
         }
-        val registrar = PuzzleCardRegistrar(repo, clientRepo = puzzleClientRepo)
+        val registrar = PuzzleCardRegistrar(repo, clientRepo = puzzleClientRepo ?: originalCards.takeUnless { it === repo })
         val allZones = listOf(
             ZoneType.Hand,
             ZoneType.Battlefield,
