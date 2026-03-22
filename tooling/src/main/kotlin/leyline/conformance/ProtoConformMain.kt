@@ -15,6 +15,7 @@ import java.io.File
  *   conform-proto SearchReq 2026-03-21_22-05-00
  *   conform-proto GameStateMessage 2026-03-21_22-05-00 --gsid 52
  */
+@Suppress("CyclomaticComplexMethod", "LongMethod", "NestedBlockDepth") // CLI entry point — linear arg dispatch
 fun main(args: Array<String>) {
     if (args.size < 2) {
         println("Usage: conform-proto <greType> <session> [--gsid N] [--index N] [--engine <dir>] [--seat N]")

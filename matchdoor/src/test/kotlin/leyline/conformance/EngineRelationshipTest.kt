@@ -63,7 +63,7 @@ class EngineRelationshipTest :
                         GreToClientEvent.newBuilder().addGreToClientMessages(msg),
                     )
                     .build()
-                outDir.resolve("${String.format("%09d", i + 1)}_MD_S-C_MATCH_DATA.bin")
+                outDir.resolve("${String.format(java.util.Locale.US, "%09d", i + 1)}_MD_S-C_MATCH_DATA.bin")
                     .writeBytes(wrapper.toByteArray())
             }
 

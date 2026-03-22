@@ -180,7 +180,7 @@ object ProtoDiffer {
 
     // ── diff ─────────────────────────────────────────────────────────────────
 
-    @Suppress("UnusedParameter") // seatMap reserved for future seat normalization
+    @Suppress("UnusedParameter", "CyclomaticComplexMethod") // seatMap reserved; complexity from recursive walk dispatch
     fun diff(
         recording: GREToClientMessage,
         engine: GREToClientMessage,

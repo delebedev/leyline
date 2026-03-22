@@ -61,6 +61,7 @@ object FieldVarianceProfiler {
         )
     }
 
+    @Suppress("UnusedParameter") // totalCount reserved for future SIZED heuristic
     private fun classifyVariance(
         fieldName: String,
         distinct: Set<String>,
