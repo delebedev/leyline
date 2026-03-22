@@ -40,9 +40,9 @@ class CaptureSink(
         const val CAPTURE_MAX_PAYLOAD = 8_388_608 // 8 MB
     }
 
-    private val payloadDir = LeylinePaths.CAPTURE_PAYLOADS
-    private val frameDir = LeylinePaths.CAPTURE_FRAMES
-    private val fdJsonlFile = File(LeylinePaths.CAPTURE_ROOT, "fd-frames.jsonl")
+    private val payloadDir: File get() = LeylinePaths.CAPTURE_PAYLOADS
+    private val frameDir: File get() = LeylinePaths.CAPTURE_FRAMES
+    private val fdJsonlFile: File get() = File(LeylinePaths.CAPTURE_ROOT, "fd-frames.jsonl")
 
     /** MD frames route to seat-labeled subdirs when [mdLabel] is set, else fall back to flat layout. */
     private val mdFrameDir: File
@@ -59,6 +59,17 @@ class CaptureSink(
             payloadDir
         }
     private var fdJsonlWriter: PrintWriter? = null
+
+    /** Flush current session data and reset state for a new session. */
+    fun rotate() {
+        synchronized(lock) {
+            flushMdFrames()
+            fdJsonlWriter?.close()
+            fdJsonlWriter = null
+            seq.set(0)
+            pending.clear()
+        }
+    }
 
     private val jsonFmt = Json { encodeDefaults = true }
 

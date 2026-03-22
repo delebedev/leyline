@@ -34,31 +34,47 @@ private fun File.walkUpFind(pred: (File) -> Boolean): File? {
  * ```
  */
 object LeylinePaths {
-    val sessionTag: String = LocalDateTime.now()
-        .format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
+    @Volatile
+    var sessionTag: String = newSessionTag()
+        private set
 
     /** Project-local recordings root (persistent, gitignored). */
     val RECORDINGS: File = detectRecordingsRoot()
 
-    val SESSION_DIR: File = File(RECORDINGS, sessionTag)
-    val ENGINE_DUMP: File = File(SESSION_DIR, "engine")
-    val CAPTURE_ROOT: File = File(SESSION_DIR, "capture")
-    val CAPTURE_PAYLOADS: File = File(CAPTURE_ROOT, "payloads")
-    val CAPTURE_FRAMES: File = File(CAPTURE_ROOT, "frames")
-    val FD_FRAMES_JSONL: File = File(CAPTURE_ROOT, "fd-frames.jsonl")
-    val WAS_FRAMES_JSONL: File = File(SESSION_DIR, "was-frames.jsonl")
-    val EVENTS_JSONL: File = File(SESSION_DIR, "events.jsonl")
-    val ANALYSIS_JSON: File = File(SESSION_DIR, "analysis.json")
-    val MODE_TXT: File = File(SESSION_DIR, "mode.txt")
+    val SESSION_DIR: File get() = File(RECORDINGS, sessionTag)
+    val ENGINE_DUMP: File get() = File(SESSION_DIR, "engine")
+    val CAPTURE_ROOT: File get() = File(SESSION_DIR, "capture")
+    val CAPTURE_PAYLOADS: File get() = File(CAPTURE_ROOT, "payloads")
+    val CAPTURE_FRAMES: File get() = File(CAPTURE_ROOT, "frames")
+    val FD_FRAMES_JSONL: File get() = File(CAPTURE_ROOT, "fd-frames.jsonl")
+    val WAS_FRAMES_JSONL: File get() = File(SESSION_DIR, "was-frames.jsonl")
+    val EVENTS_JSONL: File get() = File(SESSION_DIR, "events.jsonl")
+    val ANALYSIS_JSON: File get() = File(SESSION_DIR, "analysis.json")
+    val MODE_TXT: File get() = File(SESSION_DIR, "mode.txt")
     val MANIFEST_JSON: File = File(RECORDINGS, "manifest.json")
 
-    /** Symlink latest session for quick access. */
-    val LATEST: File = File(RECORDINGS, "latest").also { link ->
+    private fun newSessionTag(): String =
+        LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"))
+
+    /** Rotate to a fresh session directory and update the latest symlink. */
+    fun rotateSession() {
+        sessionTag = newSessionTag()
+        updateLatestLink()
+    }
+
+    /** Create session dir and update latest symlink for the current session. */
+    fun updateLatestLink() {
         SESSION_DIR.mkdirs()
+        val link = File(RECORDINGS, "latest")
         link.delete()
         try {
             java.nio.file.Files.createSymbolicLink(link.toPath(), SESSION_DIR.toPath())
         } catch (_: Exception) {}
+    }
+
+    // Initialize on first load
+    init {
+        updateLatestLink()
     }
 
     /**
