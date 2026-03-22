@@ -13,10 +13,10 @@ import java.io.File
 object RecordingParser {
 
     /**
-     * Parse a single MatchServiceToClientMessage payload, extract GRE fingerprints.
+     * Parse a single MatchServiceToClientMessage payload, return raw GRE messages.
      * @param seatFilter if non-null, only include messages addressed to this seat
      */
-    fun parsePayload(bytes: ByteArray, seatFilter: Int? = null): List<StructuralFingerprint> {
+    fun parseToGRE(bytes: ByteArray, seatFilter: Int? = null): List<GREToClientMessage> {
         val msg = try {
             MatchServiceToClientMessage.parseFrom(bytes)
         } catch (_: Exception) {
@@ -28,8 +28,14 @@ object RecordingParser {
                 val seatIds = gre.systemSeatIdsList.map { it.toInt() }
                 seatFilter == null || seatIds.isEmpty() || seatFilter in seatIds
             }
-            .map { StructuralFingerprint.fromGRE(it) }
     }
+
+    /**
+     * Parse a single MatchServiceToClientMessage payload, extract GRE fingerprints.
+     * @param seatFilter if non-null, only include messages addressed to this seat
+     */
+    fun parsePayload(bytes: ByteArray, seatFilter: Int? = null): List<StructuralFingerprint> =
+        parseToGRE(bytes, seatFilter).map { StructuralFingerprint.fromGRE(it) }
 
     /**
      * Parse all .bin files in a directory, return fingerprints in file-name order.
