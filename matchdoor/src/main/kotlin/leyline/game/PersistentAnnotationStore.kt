@@ -120,7 +120,7 @@ class PersistentAnnotationStore {
         private fun findByAura(active: Map<Int, AnnotationInfo>, auraIid: Int): Int? =
             active.entries.firstOrNull { (_, ann) ->
                 ann.typeList.any { it == AnnotationType.Attachment } &&
-                    ann.affectedIdsList.contains(auraIid)
+                    ann.affectorId == auraIid
             }?.key
     }
 

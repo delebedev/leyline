@@ -452,8 +452,8 @@ class AnnotationBuilderTest :
         test("attachmentCreatedFields") {
             val ann = AnnotationBuilder.attachmentCreated(auraIid = 1500, targetIid = 1600)
             ann.typeList shouldContain AnnotationType.AttachmentCreated
-            ann.affectorId shouldBe 0
-            ann.affectedIdsList shouldBe listOf(1500, 1600)
+            ann.affectorId shouldBe 1500
+            ann.affectedIdsList shouldBe listOf(1600)
         }
 
         // --- Attachment (Group A+ persistent) ---
@@ -461,8 +461,8 @@ class AnnotationBuilderTest :
         test("attachmentFields") {
             val ann = AnnotationBuilder.attachment(auraIid = 1500, targetIid = 1600)
             ann.typeList shouldContain AnnotationType.Attachment
-            ann.affectorId shouldBe 0
-            ann.affectedIdsList shouldBe listOf(1500, 1600)
+            ann.affectorId shouldBe 1500
+            ann.affectedIdsList shouldBe listOf(1600)
         }
 
         // --- Scry (Group B) ---
@@ -755,8 +755,9 @@ class AnnotationBuilderTest :
         // --- DisplayCardUnderCard (Tier 2) ---
 
         test("displayCardUnderCardFields") {
-            val ann = AnnotationBuilder.displayCardUnderCard(instanceId = 304)
+            val ann = AnnotationBuilder.displayCardUnderCard(affectorId = 200, instanceId = 304)
             ann.typeList shouldContain AnnotationType.DisplayCardUnderCard
+            ann.affectorId shouldBe 200
             ann.affectedIdsList shouldContain 304
             ann.detailsList.first { it.key == "Disable" }.getValueInt32(0) shouldBe 0
             ann.detailsList.first { it.key == "TemporaryZoneTransfer" }.getValueInt32(0) shouldBe 1

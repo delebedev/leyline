@@ -51,15 +51,15 @@ class AttachmentAnnotationTest :
                 AnnotationType.AttachmentCreated in it.typeList
             }
             attachCreated.shouldNotBeNull()
-            attachCreated.affectedIdsList shouldBe listOf(auraIid, creatureIid)
-            attachCreated.affectorId shouldBe 0
+            attachCreated.affectedIdsList shouldBe listOf(creatureIid)
+            attachCreated.affectorId shouldBe auraIid
 
             val attachPersistent = gsm.persistentAnnotationsList.firstOrNull {
                 AnnotationType.Attachment in it.typeList
             }
             attachPersistent.shouldNotBeNull()
-            attachPersistent.affectedIdsList shouldBe listOf(auraIid, creatureIid)
-            attachPersistent.affectorId shouldBe 0
+            attachPersistent.affectedIdsList shouldBe listOf(creatureIid)
+            attachPersistent.affectorId shouldBe auraIid
             attachPersistent.id shouldBeGreaterThan 0
         }
 

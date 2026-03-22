@@ -172,7 +172,7 @@ class AnnotationShapeConformanceTest :
         }
 
         test("DisplayCardUnderCard shape: {Disable, TemporaryZoneTransfer}") {
-            detailKeys(AnnotationBuilder.displayCardUnderCard(1)) shouldBe setOf("Disable", "TemporaryZoneTransfer")
+            detailKeys(AnnotationBuilder.displayCardUnderCard(affectorId = 0, instanceId = 1)) shouldBe setOf("Disable", "TemporaryZoneTransfer")
         }
 
         test("PredictedDirectDamage shape: {value}") {
@@ -311,7 +311,7 @@ class AnnotationShapeConformanceTest :
             "TriggeringObject" to detailKeys(AnnotationBuilder.triggeringObject(1, 27)),
             "TargetSpec" to detailKeys(AnnotationBuilder.targetSpec(1, 1, 1, 1, 1)),
             "PowerToughnessModCreated" to detailKeys(AnnotationBuilder.powerToughnessModCreated(1, 1, 1)),
-            "DisplayCardUnderCard" to detailKeys(AnnotationBuilder.displayCardUnderCard(1)),
+            "DisplayCardUnderCard" to detailKeys(AnnotationBuilder.displayCardUnderCard(affectorId = 0, instanceId = 1)),
             "PredictedDirectDamage" to detailKeys(AnnotationBuilder.predictedDirectDamage(1, 1)),
         )
 
