@@ -20,6 +20,7 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
  *
  * Extracted from [StateMapper] for independent testability.
  */
+@Suppress("LargeClass")
 object AnnotationPipeline {
     private val log = LoggerFactory.getLogger(AnnotationPipeline::class.java)
 
@@ -483,6 +484,10 @@ object AnnotationPipeline {
         val persistent: List<AnnotationInfo>,
         /** Forge card IDs of auras/equipment that were detached this GSM. */
         val detachedForgeCardIds: List<Int> = emptyList(),
+        /** Forge card IDs of permanents that left the battlefield this GSM.
+         *  Used by [PersistentAnnotationStore.computeBatch] to clean up
+         *  [AnnotationType.DisplayCardUnderCard] persistent annotations. */
+        val exileSourceLeftPlayForgeCardIds: List<Int> = emptyList(),
     )
 
     /**
@@ -495,6 +500,7 @@ object AnnotationPipeline {
      * **Pure function** — uses [idResolver] to map forgeCardId → instanceId.
      * Returns [MechanicAnnotationResult] with both transient and persistent annotations.
      */
+    @Suppress("CyclomaticComplexMethod", "LongMethod")
     fun mechanicAnnotations(
         events: List<GameEvent>,
         manaPaidForgeCardIds: Set<Int> = emptySet(),
@@ -503,6 +509,7 @@ object AnnotationPipeline {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
         val detachedForgeCardIds = mutableListOf<Int>()
+        val exileSourceLeftPlayForgeCardIds = mutableListOf<Int>()
         for (ev in events) {
             when (ev) {
                 is GameEvent.CountersChanged -> {
@@ -590,10 +597,26 @@ object AnnotationPipeline {
                         log.debug("mechanic: revealedCardCreated iid={} seat={}", instanceId, ev.ownerSeatId)
                     }
                 }
-                else -> {} // Zone-transfer events handled in Stages 1-2, combat in Stage 3
+                is GameEvent.CardExiled -> {
+                    val sourceId = ev.sourceForgeCardId
+                    if (sourceId != null) {
+                        val sourceIid = idResolver(sourceId)
+                        val exiledIid = idResolver(ev.forgeCardId)
+                        persistent.add(AnnotationBuilder.displayCardUnderCard(affectorId = sourceIid, instanceId = exiledIid))
+                        log.debug("mechanic: displayCardUnderCard source={} exiled={}", sourceIid, exiledIid)
+                    }
+                }
+                // Track permanents leaving battlefield for DisplayCardUnderCard cleanup
+                is GameEvent.CardDestroyed -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
+                is GameEvent.CardSacrificed -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
+                is GameEvent.CardBounced -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
+                is GameEvent.ZoneChanged -> {
+                    if (ev.from == Zone.Battlefield) exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
+                }
+                else -> {} // Remaining zone-transfer events handled in Stages 1-2, combat in Stage 3
             }
         }
-        return MechanicAnnotationResult(annotations, persistent, detachedForgeCardIds)
+        return MechanicAnnotationResult(annotations, persistent, detachedForgeCardIds, exileSourceLeftPlayForgeCardIds)
     }
 
     /** Infer category for a zone transfer annotation from zone IDs. */

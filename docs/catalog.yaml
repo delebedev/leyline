@@ -651,6 +651,13 @@ zones:
     status: wired
     notes: "Public. Exile transfer category implemented."
 
+  exile-under-permanent:
+    status: wired
+    notes: >
+      DisplayCardUnderCard (type 38) persistent annotation emitted when a card is
+      exiled under a permanent (Banishing Light, Stasis Snare, Sheltered by Ghosts).
+      Cleaned up when source permanent leaves battlefield. See #199.
+
   command:
     status: partial
     notes: "Used for puzzle goals. Not fully mapped for Commander/emblem use."

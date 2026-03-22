@@ -409,7 +409,9 @@ object StateMapper {
             effectDiff = effectDiff,
             transferPersistent = transferPersistent,
             mechanicResult = mechanicResult,
-        ) { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value }
+            resolveInstanceId = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
+            resolveForgeCardId = { iid -> bridge.getForgeCardId(iid) },
+        )
 
         var annId = startAnnotationId
         val numbered = annotations.map { it.toBuilder().setId(annId++).build() }

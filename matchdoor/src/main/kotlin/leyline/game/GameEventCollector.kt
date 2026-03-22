@@ -111,8 +111,10 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
                 // CardDestroyed is emitted from GameEventCardDestroyed (with activator).
                 from == ZoneType.Battlefield && (to == ZoneType.Hand || to == ZoneType.Library) ->
                     GameEvent.CardBounced(card.id, seat)
-                to == ZoneType.Exile ->
-                    GameEvent.CardExiled(card.id, seat)
+                to == ZoneType.Exile -> {
+                    val sourceId = card.exiledWith?.id
+                    GameEvent.CardExiled(card.id, seat, sourceId)
+                }
                 from == ZoneType.Hand && to == ZoneType.Graveyard ->
                     GameEvent.CardDiscarded(card.id, seat)
                 from == ZoneType.Library && to == ZoneType.Graveyard ->

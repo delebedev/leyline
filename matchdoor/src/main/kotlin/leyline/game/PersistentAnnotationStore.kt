@@ -1,5 +1,7 @@
 package leyline.game
 
+import leyline.bridge.ForgeCardId
+import leyline.bridge.InstanceId
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -36,6 +38,11 @@ class PersistentAnnotationStore {
         /**
          * Pure batch computation — same logic as [applyBatch] but operates on
          * an immutable snapshot and returns the result instead of mutating state.
+         *
+         * @param resolveForgeCardId reverse-resolves instanceId → forgeCardId.
+         *   Used by step 5 to match DisplayCardUnderCard annotations whose
+         *   affectorId may have been reallocated by a zone transfer. The registry
+         *   retains mappings for retired iids, so this works even after reallocation.
          */
         fun computeBatch(
             currentActive: Map<Int, AnnotationInfo>,
@@ -45,6 +52,7 @@ class PersistentAnnotationStore {
             transferPersistent: List<AnnotationInfo>,
             mechanicResult: AnnotationPipeline.MechanicAnnotationResult,
             resolveInstanceId: (Int) -> Int,
+            resolveForgeCardId: (InstanceId) -> ForgeCardId? = { null },
         ): BatchResult {
             val active = currentActive.toMutableMap()
             val deletions = mutableListOf<Int>()
@@ -97,6 +105,19 @@ class PersistentAnnotationStore {
                 }
             }
 
+            // 5. Exile source left play — remove DisplayCardUnderCard
+            //    Reverse lookup: scan annotations, resolve affectorId back to forgeCardId,
+            //    check membership. This handles iid reallocation from zone transfers —
+            //    the annotation's affectorId is the OLD iid, but resolveForgeCardId
+            //    works for retired iids via the registry's retained mappings.
+            val leftPlayForgeIds = mechanicResult.exileSourceLeftPlayForgeCardIds.toSet()
+            if (leftPlayForgeIds.isNotEmpty()) {
+                for (annId in findExileSourcesLeavingPlay(active, leftPlayForgeIds, resolveForgeCardId)) {
+                    active.remove(annId)
+                    deletions.add(annId)
+                }
+            }
+
             return BatchResult(active.values.toList(), deletions, nextId)
         }
 
@@ -122,6 +143,22 @@ class PersistentAnnotationStore {
                 ann.typeList.any { it == AnnotationType.Attachment } &&
                     ann.affectorId == auraIid
             }?.key
+
+        /**
+         * Find DisplayCardUnderCard annotations whose exile source (affectorId)
+         * maps back to a forgeCardId that left the battlefield.
+         */
+        private fun findExileSourcesLeavingPlay(
+            active: Map<Int, AnnotationInfo>,
+            leftPlayForgeIds: Set<Int>,
+            resolveForgeCardId: (InstanceId) -> ForgeCardId?,
+        ): List<Int> =
+            active.entries
+                .filter { (_, ann) ->
+                    ann.typeList.any { it == AnnotationType.DisplayCardUnderCard } &&
+                        resolveForgeCardId(InstanceId(ann.affectorId))?.value in leftPlayForgeIds
+                }
+                .map { it.key }
     }
 
     // --- Monotonic ID counters ---
@@ -187,11 +224,12 @@ class PersistentAnnotationStore {
     /**
      * Apply all persistent annotation changes for a single GSM build.
      *
-     * Handles the four mutation patterns in the correct order:
+     * Handles the five mutation patterns in the correct order:
      * 1. Effect lifecycle — add created, remove destroyed (by effectId)
      * 2. Transfer-originated — zone-change persistent annotations (add)
      * 3. Mechanic-originated — counters (upsert by key), attachments (add)
      * 4. Detached auras — remove attachment annotations for unequipped/detached
+     * 5. Exile source left play — remove DisplayCardUnderCard (by reverse iid lookup)
      *
      * @param effectPersistent persistent annotations from [AnnotationPipeline.effectAnnotations]
      * @param effectDiff created/destroyed effects for lifecycle management
