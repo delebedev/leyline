@@ -226,9 +226,7 @@ object ActionMapper {
         val cardData = cardDataLookup(grpId)
         val sa = card.manaAbilities.first()
         val registry = abilityRegistryLookup(card, cardData)
-        val abilityGrpId = registry?.forSpellAbility(sa.id)
-            ?: cardData?.abilityIds?.firstOrNull()?.first
-            ?: 0
+        val abilityGrpId = registry?.forSpellAbility(sa.id) ?: 0
         val produced = sa.manaPart?.origProduced ?: ""
         val manaColor = producedToManaColor(produced) ?: ManaColor.Generic
 
@@ -301,9 +299,7 @@ object ActionMapper {
                 val grpId = grpIdResolver(card)
                 val cardData = cardDataLookup(grpId)
                 val registry = abilityRegistryLookup(card, cardData)
-                val abilityGrpId = registry?.forSpellAbility(sa.id)
-                    ?: cardData?.abilityIds?.firstOrNull()?.first
-                    ?: 0
+                val abilityGrpId = registry?.forSpellAbility(sa.id) ?: 0
                 sources.add(ManaSource(card, instanceId, manaColor, abilityGrpId))
             }
         }
