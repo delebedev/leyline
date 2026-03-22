@@ -1,0 +1,18 @@
+[metadata]
+Name:Library Search Lethal
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Cast Sylvan Ranger to search for Mountain, play it, then Lava Axe for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=5
+
+humanhand=Sylvan Ranger;Lava Axe
+humanbattlefield=Forest;Forest;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Forest
+aibattlefield=Forest;Forest
+ailibrary=Forest

@@ -214,6 +214,45 @@ AILife=2
 
 **Pattern: test passive rules by making them the bottleneck.** Block all other win paths, then set up a board where the rule *must* fire for the player to win. Works for any SBA or triggered ability — toughness-based removal (enchant own creature with -X/-X to clear a blocker), sacrifice triggers, etc.
 
+## Template: Mechanic-as-Enabler (Library Search)
+
+```ini
+[metadata]
+Name:Library Search Lethal
+Goal:Win
+Turns:1
+Difficulty:Medium
+Description:Cast Sylvan Ranger to search for Mountain, play it, then Lava Axe for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=5
+
+humanhand=Sylvan Ranger;Lava Axe
+humanbattlefield=Forest;Forest;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Forest
+aibattlefield=Forest;Forest
+ailibrary=Forest
+```
+
+**Pattern: mechanic enables mana for lethal.** The mechanic under test isn't the kill — it's the *enabler*. Player has 4 Mountains + 2 Forests (6 mana). Lava Axe costs 4R (needs 5 Mountains). Without the search, player is 1 Mountain short and can't win.
+
+Win path: Sylvan Ranger (1G) → ETB search → find Mountain → play Mountain → 5 Mountains available → Lava Axe (4R) → 5 damage → lethal.
+
+**Why Turns:1.** Everything happens in one turn. If it can't win in 1 turn, the puzzle fails — which is exactly the signal. A stall during SearchReq (engine blocks waiting for a response we never send) produces TIMEOUT, not LOSE. Clean failure mode separation:
+
+| Outcome | Meaning |
+|---------|---------|
+| WIN | Search + land play + spell all worked |
+| TIMEOUT | SearchReq not implemented (engine hangs on prompt) |
+| LOSE (turn limit) | Search resolved but land didn't arrive or mana didn't work |
+
+**Why not test search in isolation.** A puzzle that just searches and survives only proves the ETB trigger doesn't crash. By chaining search → land → spell → lethal, we verify the *result* of the search (card actually in hand, playable, produces mana). If the search "succeeds" but returns the wrong card or doesn't add it to hand, Lava Axe can't be cast and the puzzle fails.
+
+**Protocol path:** Sylvan Ranger ETB → `chooseSingleEntityForEffect()` → `SearchReq` (GRE type 44) → `SearchResp` → ZoneTransfer(Library→Hand, category `Put`). SearchReq is not implemented (#169) — this puzzle will TIMEOUT until it is. That's the acceptance test.
+
 ## Checklist
 
 Before committing a puzzle:
