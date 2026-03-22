@@ -43,67 +43,78 @@ class AbilityRegistry private constructor(
             if (abilityIds.isEmpty()) return EMPTY
 
             val fallbackGrpId = abilityIds[0].first
-
             val saMap = mutableMapOf<Int, Int>()
             val staticMap = mutableMapOf<Int, Int>()
             val triggerMap = mutableMapOf<Int, Int>()
 
-            // --- Phase 1: Keywords (first N slots) ---
+            val keywordCount = mapKeywords(card, abilityIds, saMap, staticMap, triggerMap)
+            mapActivatedAbilities(card, abilityIds, keywordCount, saMap)
+            mapManaAbilities(card, fallbackGrpId, saMap)
+            mapUnclaimedIntrinsics(card, fallbackGrpId, staticMap, triggerMap)
+
+            return AbilityRegistry(saMap, staticMap, triggerMap)
+        }
+
+        /** Phase 1: Keywords occupy the first N slots. Returns keyword count. */
+        private fun mapKeywords(
+            card: Card,
+            abilityIds: List<Pair<Int, Int>>,
+            saMap: MutableMap<Int, Int>,
+            staticMap: MutableMap<Int, Int>,
+            triggerMap: MutableMap<Int, Int>,
+        ): Int {
             val keywordStrings = card.rules?.mainPart?.keywords?.toList() ?: emptyList()
             val liveKeywords = card.getKeywords() ?: emptyList()
-
-            // Match each keyword string from rules to its live KeywordInterface objects.
-            // Multiple KeywordInterface can share the same Keyword enum (e.g., Protection from X, Y).
-            // Track which live keywords we've already claimed.
             val claimed = mutableSetOf<KeywordInterface>()
 
             for ((slotIdx, kwText) in keywordStrings.withIndex()) {
                 if (slotIdx >= abilityIds.size) break
                 val grpId = abilityIds[slotIdx].first
-
-                // Find live keywords matching this rules text.
-                // KeywordInterface.getOriginal() returns the full text like "Flying" or "Bushido 2".
                 val matching = liveKeywords.filter { kw ->
                     kw !in claimed && kw.isIntrinsic && matchesKeywordText(kw, kwText)
                 }
-
                 for (kw in matching) {
                     claimed.add(kw)
-                    // Register sub-traits: abilities (SpellAbility), triggers, statics
-                    for (sa in kw.abilities) {
-                        saMap[sa.id] = grpId
-                    }
-                    for (trig in kw.triggers) {
-                        triggerMap[trig.id] = grpId
-                    }
-                    for (st in kw.staticAbilities) {
-                        staticMap[st.id] = grpId
-                    }
+                    for (sa in kw.abilities) saMap[sa.id] = grpId
+                    for (trig in kw.triggers) triggerMap[trig.id] = grpId
+                    for (st in kw.staticAbilities) staticMap[st.id] = grpId
                 }
             }
+            return keywordStrings.size
+        }
 
-            // --- Phase 2: Non-mana activated abilities (slots after keywords) ---
-            val activatedSlotStart = keywordStrings.size
-            var activatedIdx = 0
+        /** Phase 2: Non-mana activated abilities in slots after keywords. */
+        private fun mapActivatedAbilities(
+            card: Card,
+            abilityIds: List<Pair<Int, Int>>,
+            keywordCount: Int,
+            saMap: MutableMap<Int, Int>,
+        ) {
+            var idx = 0
             for (sa in card.spellAbilities ?: emptyList()) {
                 if (!sa.isActivatedAbility || sa.isManaAbility()) continue
                 if (!sa.isIntrinsic) continue
-
-                val slotIdx = activatedSlotStart + activatedIdx
-                if (slotIdx < abilityIds.size) {
-                    saMap[sa.id] = abilityIds[slotIdx].first
-                }
-                activatedIdx++
+                val slotIdx = keywordCount + idx
+                if (slotIdx < abilityIds.size) saMap[sa.id] = abilityIds[slotIdx].first
+                idx++
             }
+        }
 
-            // --- Phase 3: Mana abilities → slot 0 fallback ---
+        /** Phase 3: Mana abilities fall back to slot 0. */
+        private fun mapManaAbilities(card: Card, fallbackGrpId: Int, saMap: MutableMap<Int, Int>) {
             for (sa in card.spellAbilities ?: emptyList()) {
-                if (!sa.isManaAbility()) continue
-                if (!sa.isIntrinsic) continue
+                if (!sa.isManaAbility() || !sa.isIntrinsic) continue
                 saMap.putIfAbsent(sa.id, fallbackGrpId)
             }
+        }
 
-            // --- Phase 4: Unclaimed intrinsic statics and triggers → slot 0 ---
+        /** Phase 4: Unclaimed intrinsic statics and triggers fall back to slot 0. */
+        private fun mapUnclaimedIntrinsics(
+            card: Card,
+            fallbackGrpId: Int,
+            staticMap: MutableMap<Int, Int>,
+            triggerMap: MutableMap<Int, Int>,
+        ) {
             for (st in card.staticAbilities ?: emptyList()) {
                 if (!st.isIntrinsic) continue
                 staticMap.putIfAbsent(st.id, fallbackGrpId)
@@ -112,21 +123,10 @@ class AbilityRegistry private constructor(
                 if (!trig.isIntrinsic) continue
                 triggerMap.putIfAbsent(trig.id, fallbackGrpId)
             }
-
-            return AbilityRegistry(saMap, staticMap, triggerMap)
         }
 
-        /**
-         * Match a live [KeywordInterface] to a rules keyword text string.
-         *
-         * Rules keywords are full text like "Flying", "Bushido 2", "Protection from red".
-         * We compare against [KeywordInterface.getOriginal] which stores the same format.
-         */
         private fun matchesKeywordText(kw: KeywordInterface, rulesText: String): Boolean {
-            // Direct match on original text (most keywords)
             if (kw.original.equals(rulesText, ignoreCase = true)) return true
-            // Fallback: match by keyword enum display name prefix
-            // Handles cases where rules text has extra params
             val kwName = kw.keyword.toString()
             return rulesText.startsWith(kwName, ignoreCase = true)
         }
