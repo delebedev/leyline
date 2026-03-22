@@ -91,61 +91,42 @@ class GameEndTest :
             h.registry.getPeer("test-match", 1).shouldBeNull()
         }
 
-        // Blocked: needs puzzle-based rewrite — multi-turn loop times out at 120s (#206)
-        xtest("lethal damage produces MatchCompleted room state") {
-            val h = MatchFlowHarness(
-                seed = 42L,
-                deckList = COMBAT_DECK,
-                validating = false,
-            )
+        test("lethal damage produces MatchCompleted room state") {
+            // Puzzle: 3 haste creatures vs AI at 3 life — attack all = lethal
+            val pzl = """
+                [metadata]
+                Name:Lethal Attack
+                Goal:Win
+                Turns:1
+                Difficulty:Easy
+                Description:Attack with 3 Raging Goblins for lethal.
+
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=3
+
+                humanbattlefield=Mountain;Mountain;Mountain;Raging Goblin;Raging Goblin;Raging Goblin
+                humanhand=Mountain
+                humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+            """.trimIndent()
+
+            val h = MatchFlowHarness(seed = 42L, validating = false)
             harness = h
-            h.connectAndKeep()
+            h.connectAndKeepPuzzleText(pzl)
 
-            // AI: passive — play lands, never attack, always pass
-            h.installScriptedAi(
-                List(60) { i ->
-                    when (i % 3) {
-                        0 -> ScriptedAction.PlayLand("Mountain")
-                        1 -> ScriptedAction.DeclareNoAttackers
-                        else -> ScriptedAction.PassPriority
-                    }
-                },
-            )
+            // Advance to combat
+            val startTurn = h.turn()
+            h.passPriority()
 
-            // Turn 1: play Mountain + cast Raging Goblin
-            h.playLand().shouldBeTrue()
-            h.castSpellByName("Raging Goblin").shouldBeTrue()
-            h.passPriority() // resolve
+            // Attack all
+            h.declareAllAttackers()
+            h.submitAttackers()
 
-            // Game loop: each human turn, play a land + cast another Raging Goblin + attack all
-            var lastDaReqSnap = 0
-            repeat(500) {
-                if (h.isGameOver()) return@repeat
-
-                h.passPriority()
-                if (h.isGameOver()) return@repeat
-
-                // On human turns, try to play land + cast another goblin
-                if (!h.isAiTurn() && !h.isGameOver()) {
-                    h.playLand()
-                    if (h.castSpellByName("Raging Goblin")) {
-                        h.passPriority() // resolve
-                    }
-                }
-
-                if (h.isGameOver()) return@repeat
-
-                // Check for new DeclareAttackersReq
-                val newMsgs = h.messagesSince(lastDaReqSnap)
-                val daReq = newMsgs.lastOrNull { it.hasDeclareAttackersReq() }
-                if (daReq != null) {
-                    lastDaReqSnap = h.messageSnapshot()
-                    val eligible = daReq.declareAttackersReq.attackersList.map { it.attackerInstanceId }
-                    if (eligible.isNotEmpty()) {
-                        h.declareAttackers(eligible)
-                    }
-                }
-            }
+            // Pass through remaining combat phases
+            h.passThroughCombat(startTurn)
 
             h.isGameOver().shouldBeTrue()
 
@@ -158,14 +139,13 @@ class GameEndTest :
             }
             matchCompleted.shouldNotBeNull()
 
-            // Verify IntermissionReq was sent with correct fields
+            // Verify IntermissionReq with correct fields
             val intermission = checkNotNull(h.allMessages.firstOrNull { it.hasIntermissionReq() }) {
                 "Should have IntermissionReq after lethal damage"
             }
             val req = intermission.intermissionReq
             req.result.reason shouldBe ResultReason.Game_ae0a
 
-            // IntermissionReq should have options + intermissionPrompt
             (req.optionsCount >= 2).shouldBeTrue()
             req.hasIntermissionPrompt().shouldBeTrue()
             req.intermissionPrompt.promptId shouldBe PromptIds.MATCH_RESULT_WIN_LOSS
