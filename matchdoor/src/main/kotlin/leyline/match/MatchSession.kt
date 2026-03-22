@@ -307,6 +307,11 @@ class MatchSession(
                         if (g.stack.isEmpty) {
                             log.info("MatchSession: stack resolved, sending intermediate resolution state")
                             sendRealGameState(bridge)
+                            if (g.isGameOver) {
+                                log.info("MatchSession: game over after stack resolution")
+                                sendGameOver()
+                                return
+                            }
                             return
                         }
                     }
