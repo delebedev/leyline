@@ -10,6 +10,7 @@ import leyline.bridge.SeatId
 import leyline.bridge.Target
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
+import leyline.game.RequestBuilder
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
@@ -334,8 +335,14 @@ class CombatHandler(private val ops: SessionOps) {
                     // Drain any pending playback messages — the engine thread may have
                     // captured AI actions between the last drain and now.
                     drainPendingPlayback(bridge)
+                    val req = RequestBuilder.buildDeclareBlockersReq(game, ops.seatId, bridge)
+                    if (req.blockersCount == 0) {
+                        log.info("CombatHandler: zero legal blockers, auto-submitting empty declaration")
+                        autoSubmitNoBlockers(bridge)
+                        return Signal.CONTINUE
+                    }
                     ops.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
-                    sendDeclareBlockersReq(bridge)
+                    sendDeclareBlockersReq(bridge, req)
                     return Signal.STOP
                 } else if (isHumanTurn && combat != null && combat.attackers.isNotEmpty()) {
                     ops.traceEvent(MatchEventType.SEND_STATE, game, "AI blocking result")
@@ -421,13 +428,24 @@ class CombatHandler(private val ops: SessionOps) {
         ops.sendBundledGRE(result.messages)
     }
 
-    private fun sendDeclareBlockersReq(bridge: GameBridge) {
+    private fun sendDeclareBlockersReq(bridge: GameBridge, req: DeclareBlockersReq? = null) {
         val game = bridge.getGame() ?: return
-        val result = BundleBuilder.declareBlockersBundle(game, bridge, ops.matchId, ops.seatId, ops.counter)
+        val result = BundleBuilder.declareBlockersBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, req)
 
         pendingBlockersSent = true
         Tap.outboundTemplate("DeclareBlockersReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
+    }
+
+    private fun autoSubmitNoBlockers(bridge: GameBridge) {
+        val pending = bridge.seat(ops.seatId).action.getPending() ?: run {
+            log.warn("CombatHandler: zero blockers but no pending action — waiting for recovery")
+            bridge.awaitPriority()
+            return
+        }
+        lastDeclaredBlockAssignments.clear()
+        bridge.seat(ops.seatId).action.submitAction(pending.actionId, PlayerAction.DeclareBlockers(emptyMap()))
+        bridge.awaitPriority()
     }
 
     /**

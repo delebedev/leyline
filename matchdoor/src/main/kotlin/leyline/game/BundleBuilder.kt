@@ -527,6 +527,7 @@ object BundleBuilder {
         matchId: String,
         seatId: Int,
         counter: MessageCounter,
+        req: DeclareBlockersReq? = null,
     ): BundleResult {
         val nextGs = counter.nextGsId()
 
@@ -536,9 +537,9 @@ object BundleBuilder {
             it.gameStateMessage = gs
         }
 
-        val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge)
+        val builtReq = req ?: RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge)
         val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, seatId, counter.nextMsgId()) {
-            it.declareBlockersReq = req
+            it.declareBlockersReq = builtReq
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
         }
 

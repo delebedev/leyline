@@ -1,0 +1,17 @@
+[metadata]
+Name:Zero Blockers AI Attack
+Goal:Win
+Turns:10
+Difficulty:Tutorial
+Description:Pass the turn with no creatures. AI should attack into an empty board so we can verify declare-blockers UX when zero blockers exist.
+
+[state]
+ActivePlayer=AI
+ActivePhase=Main1
+HumanLife=5
+AILife=20
+
+humanbattlefield=Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain;Mountain;Forest;Hurloon Minotaur;Centaur Courser;Raging Goblin
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
