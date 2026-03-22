@@ -71,8 +71,12 @@ object BundleBuilder {
         // Re-embed stripped actions into the GSM
         val gs = GsmBuilder.embedActions(result.gsm, actions, frame, recipientSeatId = seatId)
 
-        // Split CastSpell into QueuedGSM triplet when detected
-        val split = if (result.hasCastSpell) splitCastSpellGsm(gs, counter) else null
+        // QueuedGSM split disabled: recording analysis shows QueuedGSM is only sent to
+        // the non-caster seat (opponent's deferred copy during targeting). The caster
+        // always gets regular GameStateMessage. See docs/conformance/queued-gsm-findings.md.
+        // Keep infrastructure for PvP — enable when recipientSeat != casterSeat.
+        @Suppress("UnusedPrivateProperty")
+        val split: Triple<GameStateMessage, GameStateMessage, GameStateMessage>? = null
 
         val messages = if (split != null) {
             val (queued1, queued2, main) = split
@@ -123,8 +127,9 @@ object BundleBuilder {
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
         val result = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId)
 
-        // Split CastSpell into QueuedGSM triplet when detected
-        val split = if (result.hasCastSpell) splitCastSpellGsm(result.gsm, counter) else null
+        // QueuedGSM split disabled (see postAction comment above).
+        @Suppress("UnusedPrivateProperty")
+        val split: Triple<GameStateMessage, GameStateMessage, GameStateMessage>? = null
 
         val messages = if (split != null) {
             val (queued1, queued2, main) = split
@@ -903,7 +908,11 @@ object BundleBuilder {
      * Remaining annotations go into the main GSM.
      *
      * Returns null if no CastSpell ZoneTransfer found.
+     *
+     * Currently unused — disabled pending PvP where the non-caster seat
+     * receives QueuedGSM. See docs/conformance/queued-gsm-findings.md.
      */
+    @Suppress("UnusedPrivateMember")
     private fun splitCastSpellGsm(
         gsm: GameStateMessage,
         counter: MessageCounter,

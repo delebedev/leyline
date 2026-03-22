@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
@@ -103,31 +104,25 @@ class AnnotationOrderingTest :
         // ===== CastSpell ordering =====
 
         test("CastSpell annotation order") {
-            val bundle = base.castSpellBundle() ?: error("Could not cast spell at seed 42")
-            val gsms = bundle.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
-            gsms.size shouldBe 3 // QueuedGSM triplet: cast group, empty, mana+main
+            // Single GSM: CastSpell + mana bracket all in one message.
+            // QueuedGSM split disabled — only applies to non-caster seat (PvP).
+            val gsm = base.castSpellAndCapture() ?: error("Could not cast spell at seed 42")
+            val types = gsm.annotationsList.map { it.typeList.first() }
 
-            // queued1: OIC + ZT + UAT(Cast)
-            val q1Types = gsms[0].annotationsList.map { it.typeList.first() }
-            q1Types.size shouldBe 3
-            q1Types[0] shouldBe AnnotationType.ObjectIdChanged
-            q1Types[1] shouldBe AnnotationType.ZoneTransfer_af5a
-            q1Types[2] shouldBe AnnotationType.UserActionTaken
+            // Must contain OIC, ZT(CastSpell), mana bracket, UAT(Cast)
+            types shouldContain AnnotationType.ObjectIdChanged
+            types shouldContain AnnotationType.ZoneTransfer_af5a
+            types shouldContain AnnotationType.AbilityInstanceCreated
+            types shouldContain AnnotationType.TappedUntappedPermanent
+            types shouldContain AnnotationType.ManaPaid
+            types shouldContain AnnotationType.AbilityInstanceDeleted
+            types shouldContain AnnotationType.UserActionTaken
 
-            // queued2: empty checkpoint
-            gsms[1].annotationsList.shouldBeEmpty()
-
-            // main: mana bracket (AIC, TUP, UAT(4), ManaPaid, AID)
-            val mainTypes = gsms[2].annotationsList.map { it.typeList.first() }
-            val aicIdx = mainTypes.indexOf(AnnotationType.AbilityInstanceCreated)
-            val tupIdx = mainTypes.indexOf(AnnotationType.TappedUntappedPermanent)
-            val mpIdx = mainTypes.indexOf(AnnotationType.ManaPaid)
-            val aidIdx = mainTypes.indexOf(AnnotationType.AbilityInstanceDeleted)
-
-            aicIdx shouldBeGreaterThanOrEqual 0
-            tupIdx shouldBeGreaterThanOrEqual 0
-            mpIdx shouldBeGreaterThanOrEqual 0
-            aidIdx shouldBeGreaterThanOrEqual 0
+            // Mana bracket ordering: AIC < TUP < ManaPaid < AID
+            val aicIdx = types.indexOf(AnnotationType.AbilityInstanceCreated)
+            val tupIdx = types.indexOf(AnnotationType.TappedUntappedPermanent)
+            val mpIdx = types.indexOf(AnnotationType.ManaPaid)
+            val aidIdx = types.indexOf(AnnotationType.AbilityInstanceDeleted)
 
             (aicIdx < tupIdx).shouldBeTrue()
             (tupIdx < mpIdx).shouldBeTrue()
@@ -135,19 +130,12 @@ class AnnotationOrderingTest :
         }
 
         test("CastSpell: mana payment block with TappedUntappedPermanent") {
-            val bundle = base.castSpellBundle() ?: error("Could not cast spell at seed 42")
-            val gsms = bundle.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }
+            val gsm = base.castSpellAndCapture() ?: error("Could not cast spell at seed 42")
+            val types = gsm.annotationsList.map { it.typeList.first() }
 
-            // queued1: cast group
-            val q1Types = gsms[0].annotationsList.map { it.typeList.first() }
-            q1Types[0] shouldBe AnnotationType.ObjectIdChanged
-            q1Types[1] shouldBe AnnotationType.ZoneTransfer_af5a
-            q1Types[2] shouldBe AnnotationType.UserActionTaken
-
-            // main: mana bracket — TUP before ManaPaid
-            val mainTypes = gsms[2].annotationsList.map { it.typeList.first() }
-            val tupIdx = mainTypes.indexOf(AnnotationType.TappedUntappedPermanent)
-            val mpIdx = mainTypes.indexOf(AnnotationType.ManaPaid)
+            // TUP before ManaPaid
+            val tupIdx = types.indexOf(AnnotationType.TappedUntappedPermanent)
+            val mpIdx = types.indexOf(AnnotationType.ManaPaid)
             (tupIdx < mpIdx).shouldBeTrue()
         }
 

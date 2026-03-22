@@ -128,6 +128,8 @@ class ConformancePipelineTest :
                 append("}")
             }
             File(outputDir, "playland-frame.json").writeText(frameJson)
+            File(outputDir, "playland-sequence.json")
+                .writeText(AnnotationSerializer.toSequenceJson(msgs))
         }
 
         test("CastSpell segment: creature cast produces matching annotation structure") {
@@ -188,6 +190,8 @@ class ConformancePipelineTest :
                     append("}")
                 },
             )
+            File(outputDir, "castspell-sequence.json")
+                .writeText(AnnotationSerializer.toSequenceJson(msgs))
         }
         test("DeclareBlockers prompt lifecycle capture") {
             // Puzzle: AI starts with Juggernaut (must-attack) on battlefield.
