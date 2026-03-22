@@ -1,5 +1,7 @@
 # Recording Is the Spec
 
+> **Current workflow:** See [`how-we-conform.md`](how-we-conform.md) for the active conformance tooling and commands. This document describes the original Python-based pipeline architecture. The principles and protocol findings below remain valid; the command-level workflow has been superseded by the proto-native pipeline (`RecordingFrameLoader` + `ProtoDiffer` + Observatory).
+
 Conformance pipeline for verifying leyline's protocol output against real Arena server recordings.
 
 ## Principles

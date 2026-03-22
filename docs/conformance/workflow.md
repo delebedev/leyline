@@ -1,5 +1,7 @@
 # Diagnose-Fix-Verify Workflow
 
+> **Quick reference:** See [`how-we-conform.md`](how-we-conform.md) for the current tooling commands. Phase 0 ground-truth extraction now uses `just conform-proto` (raw proto) instead of `just tape segment template` (lossy JSON). The diagnostic phases and citation schema below remain valid.
+
 Agent-friendly pipeline for protocol/annotation bugs. Every claim is citation-backed, every fix is verified against recordings, every verification has a regression gate.
 
 ## When to use
