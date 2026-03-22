@@ -260,6 +260,7 @@ enum class PromptSemantic {
     GroupingScry,
     ModalChoice,
     SelectNLegendRule,
+    Search,
 }
 
 data class PromptRequest(

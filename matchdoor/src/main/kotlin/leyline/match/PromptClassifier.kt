@@ -35,6 +35,10 @@ sealed interface ClassifiedPrompt {
         override val pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ) : ClassifiedPrompt
 
+    data class Search(
+        override val pendingPrompt: InteractivePromptBridge.PendingPrompt,
+    ) : ClassifiedPrompt
+
     data class AutoResolve(
         override val pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ) : ClassifiedPrompt
@@ -57,6 +61,7 @@ object PromptClassifier {
                 pendingPrompt,
                 ClassifiedPrompt.SelectN.Reason.LegendRule,
             )
+            req.semantic == PromptSemantic.Search -> ClassifiedPrompt.Search(pendingPrompt)
             req.candidateRefs.isNotEmpty() -> ClassifiedPrompt.Targeting(pendingPrompt)
             else -> ClassifiedPrompt.AutoResolve(pendingPrompt)
         }

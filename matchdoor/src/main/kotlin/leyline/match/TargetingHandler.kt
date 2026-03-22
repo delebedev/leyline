@@ -241,6 +241,21 @@ class TargetingHandler(private val ops: SessionOps) {
                 PromptResult.SENT_TO_CLIENT
             }
 
+            is ClassifiedPrompt.Search -> {
+                // TODO(Task 3): send SearchReq to client; for now auto-resolve from library.
+                val req = pendingPrompt.request
+                log.info(
+                    "TargetingHandler: search prompt [{}] \"{}\" opts={} — SearchReq not yet implemented, auto-resolving",
+                    req.promptType,
+                    req.message,
+                    req.options.size,
+                )
+                ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "search candidates=${req.options.size}")
+                seatBridge.prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+                bridge.awaitPriority()
+                PromptResult.AUTO_RESOLVED
+            }
+
             is ClassifiedPrompt.AutoResolve -> {
                 val req = pendingPrompt.request
                 log.info(
