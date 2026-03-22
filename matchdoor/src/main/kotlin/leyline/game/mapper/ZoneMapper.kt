@@ -58,13 +58,18 @@ object ZoneMapper {
         }
         zones.add(handBuilder.build())
 
-        // Library — instance IDs only (hidden)
+        // Library — instance IDs always; full GameObjectInfo only during search (revealLibraryForSeat).
+        val revealLib = bridge.revealLibraryForSeat == seatId
         val lib = player.getZone(ForgeZoneType.Library)
         val libBuilder = ZoneInfo.newBuilder()
             .setZoneId(libZoneId).setType(ZoneType.Library)
             .setOwnerSeatId(seatId).setVisibility(Visibility.Hidden)
         for (card in lib.cards) {
-            libBuilder.addObjectInstanceIds(bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value)
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            libBuilder.addObjectInstanceIds(instanceId)
+            if (revealLib) {
+                gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, libZoneId, seatId, bridge, Visibility.Private))
+            }
         }
         zones.add(libBuilder.build())
 

@@ -653,6 +653,12 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ) {
+        // Reveal library contents so the client can populate the search picker.
+        // The GSM sent by sendRealGameState will include full card objects for the library.
+        bridge.revealLibraryForSeat = ops.seatId
+        ops.sendRealGameState(bridge)
+        bridge.revealLibraryForSeat = null
+
         val msgId = ops.counter.nextMsgId()
         val gsId = ops.counter.currentGsId()
         val msg = BundleBuilder.buildSearchReq(msgId, gsId, ops.seatId)
