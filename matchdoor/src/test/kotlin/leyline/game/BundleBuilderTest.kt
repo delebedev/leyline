@@ -31,6 +31,10 @@ class BundleBuilderTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
+        /** Create a BundleBuilder for pure proto tests (no game state needed). */
+        fun pureBB(seatId: Int = 1, matchId: String = "test-match") =
+            BundleBuilder(GameBridge(), matchId, seatId)
+
         // --- Unit tests (pure proto, no game) ---
 
         test("queuedGameState wraps GSM with type 51") {
@@ -39,7 +43,8 @@ class BundleBuilderTest :
                 .setGameStateId(42)
                 .build()
 
-            val msg = BundleBuilder.queuedGameState(gs, 2, MessageCounter(initialGsId = 42, initialMsgId = 9))
+            val msg = BundleBuilder(GameBridge(), "test-match", 2)
+                .queuedGameState(gs, MessageCounter(initialGsId = 42, initialMsgId = 9))
 
             msg.type shouldBe GREMessageType.QueuedGameStateMessage
             msg.hasGameStateMessage().shouldBeTrue()
@@ -48,7 +53,7 @@ class BundleBuilderTest :
 
         test("edictalPass sends server-forced Pass action") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
-            val result = BundleBuilder.edictalPass(seatId = 1, counter = counter)
+            val result = pureBB().edictalPass(counter = counter)
 
             result.messages.size shouldBe 1
             val msg = result.messages[0]
@@ -64,10 +69,8 @@ class BundleBuilderTest :
 
         test("gameOverBundle produces 3 GSM diffs + IntermissionReq") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
-            val result = BundleBuilder.gameOverBundle(
+            val result = pureBB().gameOverBundle(
                 winningTeam = 1,
-                matchId = "test-match",
-                seatId = 1,
                 counter = counter,
                 losingPlayerSeatId = 2,
                 lossReason = 0,
@@ -105,10 +108,8 @@ class BundleBuilderTest :
 
         test("gameOverBundle gsIds are strictly ascending") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
-            val result = BundleBuilder.gameOverBundle(
+            val result = pureBB().gameOverBundle(
                 winningTeam = 1,
-                matchId = "test-match",
-                seatId = 1,
                 counter = counter,
             )
 
@@ -124,10 +125,8 @@ class BundleBuilderTest :
 
         test("gameOverBundle prevGameStateId chains correctly") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
-            val result = BundleBuilder.gameOverBundle(
+            val result = pureBB().gameOverBundle(
                 winningTeam = 2,
-                matchId = "test-match",
-                seatId = 1,
                 counter = counter,
             )
 
@@ -140,10 +139,8 @@ class BundleBuilderTest :
 
         test("gameOverBundle with Concede reason") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 0)
-            val result = BundleBuilder.gameOverBundle(
+            val result = pureBB().gameOverBundle(
                 winningTeam = 1,
-                matchId = "test-match",
-                seatId = 1,
                 counter = counter,
                 reason = Messages.ResultReason.Concede,
                 losingPlayerSeatId = 2,
@@ -160,7 +157,7 @@ class BundleBuilderTest :
         test("declareAttackersBundle shape") {
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
 
-            val result = BundleBuilder.declareAttackersBundle(game, b, ConformanceTestBase.TEST_MATCH_ID, 1, counter)
+            val result = base.bundleBuilder(b).declareAttackersBundle(game, counter)
 
             result.messages.size shouldBe 2
             result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
@@ -171,7 +168,7 @@ class BundleBuilderTest :
         test("declareBlockersBundle shape") {
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
 
-            val result = BundleBuilder.declareBlockersBundle(game, b, ConformanceTestBase.TEST_MATCH_ID, 1, counter)
+            val result = base.bundleBuilder(b).declareBlockersBundle(game, counter)
 
             result.messages.size shouldBe 2
             result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
@@ -197,7 +194,7 @@ class BundleBuilderTest :
                 ),
                 future = java.util.concurrent.CompletableFuture(),
             )
-            val result = BundleBuilder.selectTargetsBundle(game, b, ConformanceTestBase.TEST_MATCH_ID, 1, counter, prompt)
+            val result = base.bundleBuilder(b).selectTargetsBundle(game, counter, prompt)
 
             result.messages.size shouldBe 2
             result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
@@ -217,7 +214,7 @@ class BundleBuilderTest :
             val allIds = creatures.map { b.getOrAllocInstanceId(ForgeCardId(it.id)).value }
             val selectedIds = listOf(allIds.first())
 
-            val result = BundleBuilder.echoAttackersBundle(game, b, 1, counter, selectedIds, allIds)
+            val result = base.bundleBuilder(b).echoAttackersBundle(game, counter, selectedIds, allIds)
 
             result.messages.size shouldBe 2
             result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
@@ -250,7 +247,7 @@ class BundleBuilderTest :
             val blockerId = b.getOrAllocInstanceId(ForgeCardId(blocker.id)).value
             val blockAssignments = mapOf(blockerId to 999)
 
-            val result = BundleBuilder.echoBlockersBundle(game, b, 1, counter, blockAssignments)
+            val result = base.bundleBuilder(b).echoBlockersBundle(game, counter, blockAssignments)
 
             result.messages.size shouldBe 2
             result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
@@ -277,7 +274,7 @@ class BundleBuilderTest :
                 .setMinSel(1)
                 .setMaxSel(1)
                 .build()
-            val result = BundleBuilder.selectNBundle(game, b, ConformanceTestBase.TEST_MATCH_ID, 1, counter, req)
+            val result = base.bundleBuilder(b).selectNBundle(game, counter, req)
 
             result.messages.size shouldBe 2
             result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e
@@ -289,7 +286,7 @@ class BundleBuilderTest :
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
 
             val req = Messages.PayCostsReq.newBuilder().build()
-            val result = BundleBuilder.payCostsBundle(game, b, ConformanceTestBase.TEST_MATCH_ID, 1, counter, req)
+            val result = base.bundleBuilder(b).payCostsBundle(game, counter, req)
 
             result.messages.size shouldBe 2
             result.messages[0].type shouldBe GREMessageType.GameStateMessage_695e

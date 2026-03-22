@@ -10,7 +10,6 @@ import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.ForgeCardId
-import leyline.game.BundleBuilder
 import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -41,7 +40,7 @@ class AttachmentAnnotationTest :
             b.snapshotFromGame(game, counter.currentGsId())
             game.fireEvent(GameEventCardAttachment(auraCard, null, creature))
 
-            val result = BundleBuilder.stateOnlyDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
+            val result = base.bundleBuilder(b).stateOnlyDiff(game, counter)
             val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
             val auraIid = b.getOrAllocInstanceId(ForgeCardId(auraCard.id)).value
@@ -76,7 +75,7 @@ class AttachmentAnnotationTest :
             b.snapshotFromGame(game, counter.currentGsId())
             game.fireEvent(GameEventCardAttachment(auraCard, creature, null))
 
-            val result = BundleBuilder.stateOnlyDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
+            val result = base.bundleBuilder(b).stateOnlyDiff(game, counter)
             val gsm = result.gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
             gsm.annotationsList.firstOrNull {

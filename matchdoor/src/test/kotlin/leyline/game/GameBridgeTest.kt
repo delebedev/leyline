@@ -238,7 +238,7 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
+            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(game, MessageCounter(initialGsId = 10, initialMsgId = 0))
             val messages = result.messages
 
             // Bundle has exactly 5 GRE messages
@@ -289,7 +289,7 @@ class GameBridgeTest :
             b.actionBridge(1).submitAction(pending.actionId, PlayerAction.PlayLand(ForgeCardId(landInHand.id)))
             awaitFreshPending(b, pending.actionId)
 
-            val result = BundleBuilder.postAction(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
+            val result = BundleBuilder(b, "test-match", 1).postAction(game, MessageCounter(initialGsId = 10, initialMsgId = 0))
             val gs = result.messages.first().gameStateMessage
             val actions = result.messages.last().actionsAvailableReq
 
@@ -363,7 +363,7 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
+            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(game, MessageCounter(initialGsId = 10, initialMsgId = 0))
 
             result.messages.size shouldBe 5
 
@@ -466,7 +466,7 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val result = BundleBuilder.phaseTransitionDiff(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
+            val result = BundleBuilder(b, "test-match", 1).phaseTransitionDiff(game, MessageCounter(initialGsId = 10, initialMsgId = 0))
 
             var prevGsId = 0
             for (msg in result.messages) {
@@ -568,7 +568,7 @@ class GameBridgeTest :
             // Seed snapshot — subsequent buildDiffFromGame should produce Diff
             b.snapshotFromGame(game)
 
-            val result = BundleBuilder.postAction(game, b, "test-match", 1, MessageCounter(initialGsId = 10, initialMsgId = 0))
+            val result = BundleBuilder(b, "test-match", 1).postAction(game, MessageCounter(initialGsId = 10, initialMsgId = 0))
             val gs = result.messages.first().gameStateMessage
 
             gs.type shouldBe Messages.GameStateType.Diff

@@ -39,7 +39,11 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * ([queuedGameState], [edictalPass]) return single [GREToClientMessage].
  */
 @Suppress("LargeClass")
-object BundleBuilder {
+class BundleBuilder(
+    private val bridge: GameBridge,
+    private val matchId: String,
+    val seatId: Int,
+) {
 
     data class BundleResult(
         val messages: List<GREToClientMessage>,
@@ -52,9 +56,6 @@ object BundleBuilder {
      */
     fun postAction(
         game: Game,
-        bridge: GameBridge,
-        matchId: String,
-        seatId: Int,
         counter: MessageCounter,
     ): BundleResult {
         val frame = GsmFrame.from(game, bridge)
@@ -81,26 +82,26 @@ object BundleBuilder {
         val messages = if (split != null) {
             val (queued1, queued2, main) = split
             listOf(
-                makeGRE(GREMessageType.QueuedGameStateMessage, queued1.gameStateId, seatId, counter.nextMsgId()) {
+                makeGRE(GREMessageType.QueuedGameStateMessage, queued1.gameStateId, counter.nextMsgId()) {
                     it.gameStateMessage = queued1
                 },
-                makeGRE(GREMessageType.QueuedGameStateMessage, queued2.gameStateId, seatId, counter.nextMsgId()) {
+                makeGRE(GREMessageType.QueuedGameStateMessage, queued2.gameStateId, counter.nextMsgId()) {
                     it.gameStateMessage = queued2
                 },
-                makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, seatId, counter.nextMsgId()) {
+                makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, counter.nextMsgId()) {
                     it.gameStateMessage = main
                 },
-                makeGRE(GREMessageType.ActionsAvailableReq_695e, main.gameStateId, seatId, counter.nextMsgId()) {
+                makeGRE(GREMessageType.ActionsAvailableReq_695e, main.gameStateId, counter.nextMsgId()) {
                     it.actionsAvailableReq = actions
                     it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                 },
             )
         } else {
             listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                     it.gameStateMessage = gs
                 },
-                makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, seatId, counter.nextMsgId()) {
+                makeGRE(GREMessageType.ActionsAvailableReq_695e, nextGs, counter.nextMsgId()) {
                     it.actionsAvailableReq = actions
                     it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
                 },
@@ -117,9 +118,6 @@ object BundleBuilder {
      */
     fun stateOnlyDiff(
         game: Game,
-        bridge: GameBridge,
-        matchId: String,
-        seatId: Int,
         counter: MessageCounter,
     ): BundleResult {
         val nextGs = counter.nextGsId()
@@ -134,19 +132,19 @@ object BundleBuilder {
         val messages = if (split != null) {
             val (queued1, queued2, main) = split
             listOf(
-                makeGRE(GREMessageType.QueuedGameStateMessage, queued1.gameStateId, seatId, counter.nextMsgId()) {
+                makeGRE(GREMessageType.QueuedGameStateMessage, queued1.gameStateId, counter.nextMsgId()) {
                     it.gameStateMessage = queued1
                 },
-                makeGRE(GREMessageType.QueuedGameStateMessage, queued2.gameStateId, seatId, counter.nextMsgId()) {
+                makeGRE(GREMessageType.QueuedGameStateMessage, queued2.gameStateId, counter.nextMsgId()) {
                     it.gameStateMessage = queued2
                 },
-                makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, seatId, counter.nextMsgId()) {
+                makeGRE(GREMessageType.GameStateMessage_695e, main.gameStateId, counter.nextMsgId()) {
                     it.gameStateMessage = main
                 },
             )
         } else {
             listOf(
-                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+                makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                     it.gameStateMessage = result.gsm
                 },
             )
@@ -165,9 +163,6 @@ object BundleBuilder {
      */
     fun remoteActionDiff(
         game: Game,
-        bridge: GameBridge,
-        matchId: String,
-        seatId: Int,
         counter: MessageCounter,
         turnStarted: Boolean = false,
     ): BundleResult {
@@ -210,7 +205,7 @@ object BundleBuilder {
         }
 
         val messages = listOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
                 it.gameStateMessage = gs.build()
             },
         )
@@ -233,29 +228,27 @@ object BundleBuilder {
      * 2. **Session-side** (this) — checks the proto action list we already
      *    built. Covers opponent-turn priority and any case the engine-side
      *    skip didn't fire. No redundant Game queries needed.
+     *
+     * Stateless — lives in [Companion] so callers don't need an instance.
      */
-    fun shouldAutoPass(actions: ActionsAvailableReq): Boolean =
-        actions.actionsList.all { !ShouldStopEvaluator.shouldStop(it.actionType) }
 
     // --- Request builders (delegate to RequestBuilder) ---
     // MatchSession uses these instead of calling RequestBuilder directly,
     // keeping RequestBuilder as an internal dependency of the bundle layer.
 
     /** Build playable actions for a seat (with legality checks). */
-    fun buildActions(game: Game, seatId: Int, bridge: GameBridge): ActionsAvailableReq =
+    fun buildActions(game: Game): ActionsAvailableReq =
         ActionMapper.buildActions(game, seatId, bridge)
 
     /** Build a [SelectNReq] from a pending "choose cards" prompt. */
     fun buildSelectNReq(
         prompt: leyline.bridge.InteractivePromptBridge.PendingPrompt,
-        bridge: GameBridge,
     ): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge)
 
     /** Build a [SearchReq] GRE message with populated inner fields for library search. */
     fun buildSearchReq(
         msgId: Int,
         gsId: Int,
-        seatId: Int,
         sourceInstanceId: Int,
         libraryZoneId: Int,
         allLibraryIds: List<Int>,
@@ -292,7 +285,7 @@ object BundleBuilder {
     }
 
     /** Build a [DeclareAttackersReq] listing legal attackers. */
-    fun buildDeclareAttackersReq(game: Game, seatId: Int, bridge: GameBridge): DeclareAttackersReq =
+    fun buildDeclareAttackersReq(game: Game): DeclareAttackersReq =
         RequestBuilder.buildDeclareAttackersReq(game, seatId, bridge)
 
     /**
@@ -305,9 +298,6 @@ object BundleBuilder {
      */
     fun phaseTransitionDiff(
         game: Game,
-        bridge: GameBridge,
-        matchId: String,
-        seatId: Int,
         counter: MessageCounter,
     ): BundleResult {
         val prevGs = counter.currentGsId()
@@ -330,7 +320,7 @@ object BundleBuilder {
             actions = actions,
             actionSeatId = seatId,
         )
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs1
         }
 
@@ -344,7 +334,7 @@ object BundleBuilder {
             .setTurnInfo(frame.turnInfo())
             .setUpdate(GameStateUpdate.SendHiFi)
         embedActions(echoBuilder, actions, seatId, pending = false)
-        val msg2 = makeGRE(GREMessageType.GameStateMessage_695e, echoGs, seatId, counter.nextMsgId()) {
+        val msg2 = makeGRE(GREMessageType.GameStateMessage_695e, echoGs, counter.nextMsgId()) {
             it.gameStateMessage = echoBuilder.build()
         }
 
@@ -359,17 +349,17 @@ object BundleBuilder {
             .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(GameStateUpdate.SendAndRecord)
         embedActions(commitBuilder, actions, seatId)
-        val msg3 = makeGRE(GREMessageType.GameStateMessage_695e, commitGs, seatId, counter.nextMsgId()) {
+        val msg3 = makeGRE(GREMessageType.GameStateMessage_695e, commitGs, counter.nextMsgId()) {
             it.gameStateMessage = commitBuilder.build()
         }
 
         // Message 4: PromptReq (promptId=37)
-        val msg4 = makeGRE(GREMessageType.PromptReq, commitGs, seatId, counter.nextMsgId()) {
+        val msg4 = makeGRE(GREMessageType.PromptReq, commitGs, counter.nextMsgId()) {
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.STARTING_PLAYER).build())
         }
 
         // Message 5: ActionsAvailableReq (promptId=2)
-        val msg5 = makeGRE(GREMessageType.ActionsAvailableReq_695e, commitGs, seatId, counter.nextMsgId()) {
+        val msg5 = makeGRE(GREMessageType.ActionsAvailableReq_695e, commitGs, counter.nextMsgId()) {
             it.actionsAvailableReq = actions
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PASS_PRIORITY).build())
         }
@@ -408,8 +398,6 @@ object BundleBuilder {
     @Suppress("UnusedParameter")
     fun echoAttackersBundle(
         game: Game,
-        bridge: GameBridge,
-        seatId: Int,
         counter: MessageCounter,
         selectedAttackerIds: List<Int>,
         allLegalAttackerIds: List<Int>,
@@ -449,7 +437,7 @@ object BundleBuilder {
             .setUpdate(GameStateUpdate.SendAndRecord)
         embedActions(gsmBuilder, actions, seatId, pending = false)
 
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gsmBuilder.build()
         }
 
@@ -459,7 +447,7 @@ object BundleBuilder {
             bridge,
             committedAttackerIds = selectedAttackerIds.toSet(),
         )
-        val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, counter.nextMsgId()) {
             it.declareAttackersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
         }
@@ -472,9 +460,6 @@ object BundleBuilder {
      */
     fun declareAttackersBundle(
         game: Game,
-        bridge: GameBridge,
-        matchId: String,
-        seatId: Int,
         counter: MessageCounter,
         prebuiltReq: DeclareAttackersReq? = null,
     ): BundleResult {
@@ -482,12 +467,12 @@ object BundleBuilder {
 
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId).gsm
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
 
         val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(game, seatId, bridge)
-        val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, counter.nextMsgId()) {
             it.declareAttackersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
         }
@@ -504,8 +489,6 @@ object BundleBuilder {
      */
     fun echoBlockersBundle(
         game: Game,
-        bridge: GameBridge,
-        seatId: Int,
         counter: MessageCounter,
         blockAssignments: Map<Int, Int>, // blockerInstanceId → attackerInstanceId
     ): BundleResult {
@@ -544,13 +527,13 @@ object BundleBuilder {
             .setUpdate(GameStateUpdate.SendAndRecord)
         embedActions(gsmBuilder, actions, seatId, pending = false)
 
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gsmBuilder.build()
         }
 
         // Re-prompt with assigned blockers' attackerInstanceIds cleared
         val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge, blockerAssignments = blockAssignments)
-        val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, counter.nextMsgId()) {
             it.declareBlockersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
         }
@@ -563,21 +546,18 @@ object BundleBuilder {
      */
     fun declareBlockersBundle(
         game: Game,
-        bridge: GameBridge,
-        matchId: String,
-        seatId: Int,
         counter: MessageCounter,
     ): BundleResult {
         val nextGs = counter.nextGsId()
 
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId).gsm
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
 
         val req = RequestBuilder.buildDeclareBlockersReq(game, seatId, bridge)
-        val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg2 = makeGRE(GREMessageType.DeclareBlockersReq_695e, nextGs, counter.nextMsgId()) {
             it.declareBlockersReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.ORDER_BLOCKERS).build())
         }
@@ -599,9 +579,6 @@ object BundleBuilder {
      */
     fun selectTargetsBundle(
         game: Game,
-        bridge: GameBridge,
-        matchId: String,
-        seatId: Int,
         counter: MessageCounter,
         prompt: leyline.bridge.InteractivePromptBridge.PendingPrompt,
     ): BundleResult {
@@ -609,13 +586,13 @@ object BundleBuilder {
 
         // Build diff first — triggers instanceId reallocs for zone transfers
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId).gsm
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
 
         // Build SelectTargetsReq AFTER diff so sourceId uses post-realloc instanceIds
         val req = RequestBuilder.buildSelectTargetsReq(prompt, bridge, seatId)
-        val msg2 = makeGRE(GREMessageType.SelectTargetsReq_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg2 = makeGRE(GREMessageType.SelectTargetsReq_695e, nextGs, counter.nextMsgId()) {
             it.selectTargetsReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
             it.allowCancel = AllowCancel.Abort
@@ -631,9 +608,6 @@ object BundleBuilder {
      */
     fun selectNBundle(
         game: Game,
-        bridge: GameBridge,
-        matchId: String,
-        seatId: Int,
         counter: MessageCounter,
         req: SelectNReq,
         isLegendRule: Boolean = false,
@@ -641,11 +615,11 @@ object BundleBuilder {
         val nextGs = counter.nextGsId()
 
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId).gsm
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
 
-        val msg2 = makeGRE(GREMessageType.SelectNreq, nextGs, seatId, counter.nextMsgId()) {
+        val msg2 = makeGRE(GREMessageType.SelectNreq, nextGs, counter.nextMsgId()) {
             it.selectNReq = req
             if (isLegendRule) {
                 // Legend rule: promptId=72 + CardId param, no cancel allowed.
@@ -678,20 +652,17 @@ object BundleBuilder {
      */
     fun castingTimeOptionsBundle(
         game: Game,
-        bridge: GameBridge,
-        matchId: String,
-        seatId: Int,
         counter: MessageCounter,
         req: CastingTimeOptionsReq,
     ): BundleResult {
         val nextGs = counter.nextGsId()
 
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId).gsm
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
 
-        val msg2 = makeGRE(GREMessageType.CastingTimeOptionsReq_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg2 = makeGRE(GREMessageType.CastingTimeOptionsReq_695e, nextGs, counter.nextMsgId()) {
             it.castingTimeOptionsReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.CASTING_TIME_OPTIONS).build())
             it.allowCancel = AllowCancel.Abort
@@ -713,20 +684,17 @@ object BundleBuilder {
      */
     fun payCostsBundle(
         game: Game,
-        bridge: GameBridge,
-        matchId: String,
-        seatId: Int,
         counter: MessageCounter,
         req: PayCostsReq,
     ): BundleResult {
         val nextGs = counter.nextGsId()
 
         val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId).gsm
-        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
 
-        val msg2 = makeGRE(GREMessageType.PayCostsReq_695e, nextGs, seatId, counter.nextMsgId()) {
+        val msg2 = makeGRE(GREMessageType.PayCostsReq_695e, nextGs, counter.nextMsgId()) {
             it.payCostsReq = req
             it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.PAY_COSTS).build())
         }
@@ -739,9 +707,8 @@ object BundleBuilder {
      */
     fun queuedGameState(
         gameState: GameStateMessage,
-        seatId: Int,
         counter: MessageCounter,
-    ): GREToClientMessage = makeGRE(GREMessageType.QueuedGameStateMessage, counter.currentGsId(), seatId, counter.nextMsgId()) {
+    ): GREToClientMessage = makeGRE(GREMessageType.QueuedGameStateMessage, counter.currentGsId(), counter.nextMsgId()) {
         it.gameStateMessage = gameState
     }
 
@@ -749,7 +716,7 @@ object BundleBuilder {
      * Server-forced pass (EdictalMessage). Tells the client "I'm passing priority for seat X".
      * Breaks the client out of autoPassPriority mode so it re-renders action buttons.
      */
-    fun edictalPass(seatId: Int, counter: MessageCounter): BundleResult {
+    fun edictalPass(counter: MessageCounter): BundleResult {
         val edictal = EdictalMessage.newBuilder()
             .setEdictMessage(
                 ClientToGREMessage.newBuilder()
@@ -761,7 +728,7 @@ object BundleBuilder {
                     ),
             )
             .build()
-        val msg = makeGRE(GREMessageType.EdictalMessage_695e, counter.currentGsId(), seatId, counter.nextMsgId()) {
+        val msg = makeGRE(GREMessageType.EdictalMessage_695e, counter.currentGsId(), counter.nextMsgId()) {
             it.edictalMessage = edictal
         }
         return BundleResult(listOf(msg))
@@ -784,13 +751,10 @@ object BundleBuilder {
      */
     fun gameOverBundle(
         winningTeam: Int,
-        matchId: String,
-        seatId: Int,
         counter: MessageCounter,
         reason: ResultReason = ResultReason.Game_ae0a,
         losingPlayerSeatId: Int = 0,
         lossReason: Int = 0,
-        bridge: GameBridge? = null,
     ): BundleResult {
         val prevGsId = counter.currentGsId()
         val losingTeam = if (winningTeam == 1) 2 else 1
@@ -834,7 +798,7 @@ object BundleBuilder {
         // Teams with PendingLoss for losing team
         gs1.addTeams(TeamInfo.newBuilder().setId(losingTeam).addPlayerIds(losingPlayerSeatId).setStatus(TeamStatus.PendingLoss_a458))
         // Players: loser with full state (lifeTotal, maxHandSize, etc.) + PendingLoss status
-        val loserPlayer = bridge?.getPlayer(SeatId(losingPlayerSeatId))
+        val loserPlayer = bridge.getPlayer(SeatId(losingPlayerSeatId))
         val loserInfo = PlayerMapper.buildPlayerInfo(loserPlayer, losingPlayerSeatId).toBuilder()
             .setStatus(PlayerStatus.PendingLoss_a1c6)
         gs1.addPlayers(loserInfo)
@@ -865,13 +829,13 @@ object BundleBuilder {
             .setUpdate(GameStateUpdate.SendAndRecord)
 
         val messages = mutableListOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, gs1Id, seatId, counter.nextMsgId()) { it.gameStateMessage = gs1.build() },
-            makeGRE(GREMessageType.GameStateMessage_695e, gs2Id, seatId, counter.nextMsgId()) { it.gameStateMessage = gs2.build() },
-            makeGRE(GREMessageType.GameStateMessage_695e, gs3Id, seatId, counter.nextMsgId()) { it.gameStateMessage = gs3.build() },
+            makeGRE(GREMessageType.GameStateMessage_695e, gs1Id, counter.nextMsgId()) { it.gameStateMessage = gs1.build() },
+            makeGRE(GREMessageType.GameStateMessage_695e, gs2Id, counter.nextMsgId()) { it.gameStateMessage = gs2.build() },
+            makeGRE(GREMessageType.GameStateMessage_695e, gs3Id, counter.nextMsgId()) { it.gameStateMessage = gs3.build() },
         )
 
         messages.add(
-            makeGRE(GREMessageType.IntermissionReq_695e, gs3Id, seatId, counter.nextMsgId()) {
+            makeGRE(GREMessageType.IntermissionReq_695e, gs3Id, counter.nextMsgId()) {
                 it.intermissionReq = IntermissionReq.newBuilder()
                     .setResult(
                         ResultSpec.newBuilder()
@@ -911,17 +875,17 @@ object BundleBuilder {
      * Timer start: sends [TimerStateMessage] (GRE type 56) with Decision timer running.
      * Real Arena sends this on priority grant — client shows rope countdown.
      */
-    fun timerStart(seatId: Int, counter: MessageCounter, durationSec: Int = 30): BundleResult =
-        buildTimerBundle(seatId, counter, running = true, durationSec = durationSec)
+    fun timerStart(counter: MessageCounter, durationSec: Int = 30): BundleResult =
+        buildTimerBundle(counter, running = true, durationSec = durationSec)
 
     /**
      * Timer stop: sends [TimerStateMessage] with running=false.
      * Sent when client responds to an action (pass/cast/play).
      */
-    fun timerStop(seatId: Int, counter: MessageCounter, durationSec: Int = 30): BundleResult =
-        buildTimerBundle(seatId, counter, running = false, durationSec = durationSec)
+    fun timerStop(counter: MessageCounter, durationSec: Int = 30): BundleResult =
+        buildTimerBundle(counter, running = false, durationSec = durationSec)
 
-    private fun buildTimerBundle(seatId: Int, counter: MessageCounter, running: Boolean, durationSec: Int): BundleResult {
+    private fun buildTimerBundle(counter: MessageCounter, running: Boolean, durationSec: Int): BundleResult {
         val timer = TimerStateMessage.newBuilder()
             .setSeatId(seatId)
             .addTimers(
@@ -934,7 +898,7 @@ object BundleBuilder {
                     .setBehavior(TimerBehavior.Timeout_a3cd),
             )
             .build()
-        val msg = makeGRE(GREMessageType.TimerStateMessage_695e, counter.currentGsId(), seatId, counter.nextMsgId()) {
+        val msg = makeGRE(GREMessageType.TimerStateMessage_695e, counter.currentGsId(), counter.nextMsgId()) {
             it.timerStateMessage = timer
         }
         return BundleResult(listOf(msg))
@@ -1031,7 +995,6 @@ object BundleBuilder {
     private fun makeGRE(
         type: GREMessageType,
         gsId: Int,
-        seatId: Int,
         msgId: Int,
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage {
@@ -1039,5 +1002,14 @@ object BundleBuilder {
             .setType(type).setMsgId(msgId).setGameStateId(gsId).addSystemSeatIds(seatId)
         configure(gre)
         return gre.build()
+    }
+
+    companion object {
+        /**
+         * Pure function — no instance state needed. Checks if the only action
+         * available is Pass (no Cast, Play, Activate).
+         */
+        fun shouldAutoPass(actions: ActionsAvailableReq): Boolean =
+            actions.actionsList.all { !ShouldStopEvaluator.shouldStop(it.actionType) }
     }
 }

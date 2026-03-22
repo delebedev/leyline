@@ -9,7 +9,6 @@ import leyline.bridge.InteractivePromptBridge.PendingPrompt
 import leyline.bridge.PromptCandidateRefDto
 import leyline.bridge.PromptRequest
 import leyline.bridge.SeatId
-import leyline.game.BundleBuilder
 import leyline.game.GsmBuilder
 import leyline.game.RequestBuilder
 import leyline.protocol.HandshakeMessages
@@ -269,7 +268,7 @@ class GoldenFieldCoverageTest :
                 base.addCard("Grizzly Bears", human, ZoneType.Hand)
                 base.addCard("Forest", human, ZoneType.Battlefield)
             }
-            val ours = BundleBuilder.buildActions(game, 1, b)
+            val ours = base.bundleBuilder(b).buildActions(game)
             val ourFields = FieldPathExtractor.extract(ours)
 
             val expectedMissing = setOf(
@@ -327,7 +326,7 @@ class GoldenFieldCoverageTest :
                 ),
                 future = CompletableFuture(),
             )
-            val result = BundleBuilder.selectTargetsBundle(game, b, ConformanceTestBase.TEST_MATCH_ID, 1, counter, prompt)
+            val result = base.bundleBuilder(b).selectTargetsBundle(game, counter, prompt)
             val oursGRE = result.messages.first { it.type == GREMessageType.SelectTargetsReq_695e }
             val ourFields = FieldPathExtractor.extract(oursGRE)
 
@@ -480,13 +479,10 @@ class GoldenFieldCoverageTest :
             val goldenFields = goldenIntermissionReq
 
             val (b, _, counter) = base.startWithBoard { _, _, _ -> }
-            val result = BundleBuilder.gameOverBundle(
+            val result = base.bundleBuilder(b).gameOverBundle(
                 winningTeam = 1,
-                matchId = ConformanceTestBase.TEST_MATCH_ID,
-                seatId = 1,
                 counter = counter,
                 losingPlayerSeatId = 2,
-                bridge = b,
             )
             val oursGRE = result.messages.first { it.type == GREMessageType.IntermissionReq_695e }
             val ourFields = FieldPathExtractor.extract(oursGRE.intermissionReq)

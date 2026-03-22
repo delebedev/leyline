@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import leyline.game.BundleBuilder
+import leyline.game.GameBridge
 import leyline.game.mapper.PromptIds
 import wotc.mtgo.gre.external.messaging.Messages.AllowFailToFind
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
@@ -15,10 +16,9 @@ class SearchReqTest :
     FunSpec({
 
         test("buildSearchReq populates inner SearchReq fields") {
-            val msg = BundleBuilder.buildSearchReq(
+            val msg = BundleBuilder(GameBridge(), "test-match", 1).buildSearchReq(
                 msgId = 42,
                 gsId = 10,
-                seatId = 1,
                 sourceInstanceId = 290,
                 libraryZoneId = 32,
                 allLibraryIds = listOf(100, 101, 102),

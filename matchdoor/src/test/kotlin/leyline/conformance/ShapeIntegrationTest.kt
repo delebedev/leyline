@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.game.BundleBuilder
+import leyline.game.GameBridge
 import leyline.game.MessageCounter
 
 /**
@@ -30,7 +31,7 @@ class ShapeIntegrationTest :
                 base.addCard("Forest", human, ZoneType.Battlefield)
             }
 
-            val result = BundleBuilder.remoteActionDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
+            val result = base.bundleBuilder(b).remoteActionDiff(game, counter)
             val captured = base.fingerprint(result.messages)
 
             captured.size shouldBe 1
@@ -43,7 +44,7 @@ class ShapeIntegrationTest :
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
             }
 
-            val result = BundleBuilder.declareAttackersBundle(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
+            val result = base.bundleBuilder(b).declareAttackersBundle(game, counter)
             val captured = base.fingerprint(result.messages)
 
             captured.size shouldBe 2
@@ -53,7 +54,7 @@ class ShapeIntegrationTest :
         }
 
         test("edictalPass produces single EdictalMessage") {
-            val result = BundleBuilder.edictalPass(1, MessageCounter(initialGsId = 10, initialMsgId = 0))
+            val result = BundleBuilder(GameBridge(), "test-match", 1).edictalPass(MessageCounter(initialGsId = 10, initialMsgId = 0))
             val captured = base.fingerprint(result.messages)
 
             captured.size shouldBe 1

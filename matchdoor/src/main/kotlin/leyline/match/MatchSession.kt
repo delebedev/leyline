@@ -54,6 +54,9 @@ class MatchSession(
     override var gameBridge: GameBridge? = null
         private set
 
+    override var bundleBuilder: BundleBuilder? = null
+        private set
+
     /** Client player ID — set by MatchHandler after auth, used in MatchCompleted room state. */
     var playerId: String = "forge-player-1"
 
@@ -79,6 +82,7 @@ class MatchSession(
      */
     override fun connectBridge(bridge: GameBridge): Unit = synchronized(sessionLock) {
         gameBridge = bridge
+        bundleBuilder = BundleBuilder(bridge, matchId, seatId)
         if (bridge.messageCounter !== counter) {
             log.debug("connectBridge: adopting bridge counter (race: session created before match)")
             counter = bridge.messageCounter
@@ -115,7 +119,8 @@ class MatchSession(
         // phaseTransitionDiff after AI diffs — uses the shared counter which is
         // now past whatever the engine allocated. gsIds are higher than AI diffs
         // but the prevGsId chain is valid (references last AI diff's gsId).
-        val result = BundleBuilder.phaseTransitionDiff(game, bridge, matchId, seatId, counter)
+        val bb = bundleBuilder!!
+        val result = bb.phaseTransitionDiff(game, counter)
         sendBundle(result)
 
         // Seed state snapshot for subsequent diff computation.
@@ -202,7 +207,7 @@ class MatchSession(
 
         // Stop decision timer — client responded
         if (bridge.matchConfig.game.timer) {
-            val timerStop = BundleBuilder.timerStop(seatId, counter)
+            val timerStop = bundleBuilder!!.timerStop(counter)
             sendBundledGRE(timerStop.messages)
         }
 
@@ -554,12 +559,13 @@ class MatchSession(
             return
         }
 
-        val result = BundleBuilder.postAction(game, bridge, matchId, seatId, counter)
+        val bb = bundleBuilder!!
+        val result = bb.postAction(game, counter)
         sendBundle(result)
 
         // Decision timer — client shows rope countdown while waiting for action
         if (bridge.matchConfig.game.timer) {
-            val timer = BundleBuilder.timerStart(seatId, counter)
+            val timer = bb.timerStart(counter)
             sendBundledGRE(timer.messages)
         }
     }
@@ -596,24 +602,22 @@ class MatchSession(
         // If there are pending events (e.g. mana-ability sacrifice during resolution),
         // build a final diff GSM to emit those annotations before the game-over bundle.
         // This mirrors the real server, which sends a resolution GSM before GameComplete.
-        if (bridge != null && bridge.hasPendingEvents()) {
+        val bb = bundleBuilder
+        if (bridge != null && bb != null && bridge.hasPendingEvents()) {
             val game = bridge.getGame()
             if (game != null) {
-                val resolutionBundle = BundleBuilder.stateOnlyDiff(game, bridge, matchId, seatId, counter)
+                val resolutionBundle = bb.stateOnlyDiff(game, counter)
                 sendBundledGRE(resolutionBundle.messages)
                 log.debug("sendGameOver: flushed {} pending events in pre-game-over diff", resolutionBundle.messages.size)
             }
         }
 
-        val result = BundleBuilder.gameOverBundle(
+        val result = bb!!.gameOverBundle(
             winningTeam,
-            matchId,
-            seatId,
             counter,
             reason = reason,
             losingPlayerSeatId = losingPlayerSeatId,
             lossReason = lossReason,
-            bridge = bridge,
         )
         sendBundledGRE(result.messages)
         log.info("MatchSession: sent game-over GRE sequence (winner=team{}, reason={})", winningTeam, reason)

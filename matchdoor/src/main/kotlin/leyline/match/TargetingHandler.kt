@@ -188,7 +188,7 @@ class TargetingHandler(private val ops: SessionOps) {
             // When auto-resolve is active and the player has no meaningful responses
             // (only Pass), skip the prompt — let autoPassAndAdvance() handle stack
             // resolution transparently, matching the real server (#92).
-            if (clientAutoResolve && BundleBuilder.shouldAutoPass(BundleBuilder.buildActions(g, ops.seatId, bridge))) {
+            if (clientAutoResolve && BundleBuilder.shouldAutoPass(ops.bundleBuilder!!.buildActions(g))) {
                 return false
             }
             ops.sendRealGameState(bridge)
@@ -509,7 +509,7 @@ class TargetingHandler(private val ops: SessionOps) {
         // Save pending state for response mapping
         pendingInteraction = PendingClientInteraction.ModalChoice(pendingPrompt.promptId, modalInfo.childGrpIds)
 
-        val result = BundleBuilder.castingTimeOptionsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, ctoReq)
+        val result = ops.bundleBuilder!!.castingTimeOptionsBundle(game, ops.counter, ctoReq)
         Tap.outboundTemplate("CastingTimeOptionsReq seat=${ops.seatId} card=$cardName")
         ops.sendBundledGRE(result.messages)
     }
@@ -625,11 +625,8 @@ class TargetingHandler(private val ops: SessionOps) {
         )
 
         // Send prompt
-        val result = BundleBuilder.castingTimeOptionsBundle(
+        val result = ops.bundleBuilder!!.castingTimeOptionsBundle(
             game,
-            bridge,
-            ops.matchId,
-            ops.seatId,
             ops.counter,
             ctoReqBuilder.build(),
         )
@@ -715,10 +712,9 @@ class TargetingHandler(private val ops: SessionOps) {
 
         val msgId = ops.counter.nextMsgId()
         val gsId = ops.counter.currentGsId()
-        val msg = BundleBuilder.buildSearchReq(
+        val msg = ops.bundleBuilder!!.buildSearchReq(
             msgId = msgId,
             gsId = gsId,
-            seatId = ops.seatId,
             sourceInstanceId = sourceId,
             libraryZoneId = libZoneId,
             allLibraryIds = allLibIds,
@@ -741,7 +737,7 @@ class TargetingHandler(private val ops: SessionOps) {
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ) {
         val game = bridge.getGame() ?: return
-        val result = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, pendingPrompt)
+        val result = ops.bundleBuilder!!.selectTargetsBundle(game, ops.counter, pendingPrompt)
         Tap.outboundTemplate("SelectTargetsReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
     }
@@ -752,12 +748,10 @@ class TargetingHandler(private val ops: SessionOps) {
         reason: ClassifiedPrompt.SelectN.Reason,
     ) {
         val game = bridge.getGame() ?: return
-        val req = BundleBuilder.buildSelectNReq(pendingPrompt, bridge)
-        val result = BundleBuilder.selectNBundle(
+        val bb = ops.bundleBuilder!!
+        val req = bb.buildSelectNReq(pendingPrompt)
+        val result = bb.selectNBundle(
             game,
-            bridge,
-            ops.matchId,
-            ops.seatId,
             ops.counter,
             req,
             isLegendRule = reason == ClassifiedPrompt.SelectN.Reason.LegendRule,
