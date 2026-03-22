@@ -55,14 +55,17 @@ object RecordingFrameLoader {
 ```
 
 Resolution logic:
-- `recordings/<session>/capture/seat-<N>/md-payloads/` for seat-specific frames
+- Try `recordings/<session>/capture/seat-<N>/md-payloads/` first (seat-specific layout)
+- Fall back to `recordings/<session>/capture/<mdLabel>/md-payloads/` (flat layout from older captures)
 - Filter to `*S-C*.bin` files (server-to-client only)
 - Parse each as `MatchServiceToClientMessage`, extract `greToClientEvent.greToClientMessagesList`
 - Return in filename sort order
 
-Reuses `RecordingParser.parsePayload` parsing logic but returns `GREToClientMessage` instead of `StructuralFingerprint`.
+Factor out shared parsing logic from `RecordingParser.parsePayload` into a `parseToGRE()` helper. Both `RecordingParser` (returns fingerprints) and `RecordingFrameLoader` (returns raw GRE messages) call it.
 
-~50 LOC.
+~60 LOC.
+
+**Scope:** Server-to-client messages only (`GREToClientMessage`). Client-to-server messages (`PerformActionResp`, etc.) are out of scope for V1 — the current conformance pain is about what we *send*, not what we *receive*. Future extension.
 
 ### 2. ProtoDiffer
 
@@ -75,14 +78,22 @@ object ProtoDiffer {
     fun diff(
         recording: GREToClientMessage,
         engine: GREToClientMessage,
-        seatMap: Map<Int, Int> = mapOf(2 to 1, 1 to 2),
+        seatMap: Map<Int, Int> = emptyMap(),
     ): DiffResult
 
     fun diffSequence(
         recording: List<GREToClientMessage>,
         engine: List<GREToClientMessage>,
-        seatMap: Map<Int, Int> = mapOf(2 to 1, 1 to 2),
+        seatMap: Map<Int, Int> = emptyMap(),
     ): SequenceDiffResult
+}
+
+data class SequenceDiffResult(
+    val paired: List<Pair<Int, DiffResult>>,  // (recording frame index, diff)
+    val unmatchedRecording: List<Int>,          // recording frames with no engine match
+    val unmatchedEngine: List<Int>,             // engine messages with no recording match
+) {
+    fun report(): String
 }
 
 data class DiffResult(
@@ -112,7 +123,19 @@ Both sides have instance IDs that differ (recording used IDs 220-290, engine use
 
 **Seat normalization:**
 
-Apply `seatMap` to: `ownerSeatId`, `controllerSeatId`, `viewers`, `systemSeatIds`, `seatId` in turn info, zone IDs (offset by seat: P1_HAND=31 vs P2_HAND=35). Zone ID remapping: `zoneId → zoneId ± 4` based on seat swap.
+Apply `seatMap` to: `ownerSeatId`, `controllerSeatId`, `viewers`, `systemSeatIds`, `seatId` in turn info.
+
+Zone ID remapping uses an explicit lookup table (not arithmetic):
+```
+P1_HAND(31) ↔ P2_HAND(35)
+P1_LIBRARY(32) ↔ P2_LIBRARY(36)
+P1_GRAVEYARD(33) ↔ P2_GRAVEYARD(37)
+P1_SIDEBOARD(34) ↔ P2_SIDEBOARD(38)
+REVEALED_P1(18) ↔ REVEALED_P2(19)
+```
+Shared zones (BATTLEFIELD=28, STACK=27, EXILE=29, LIMBO=30, etc.) are unchanged.
+
+**V1 simplification:** Since all current testing is 1vAI where both recording and engine use seat1=human, seat normalization is deferred. The `seatMap` parameter exists in the API but defaults to identity. Add real seat remapping when PvP conformance testing starts.
 
 **Skip list:**
 
@@ -120,11 +143,28 @@ These fields always differ and carry no conformance signal:
 - `gameStateId`, `prevGameStateId`, `msgId` — counters
 - `matchId`, `timestamp`, `transactionId` — session metadata
 
+**Repeated field alignment:**
+
+Repeated fields fall into two categories:
+
+- **Ordered sequences** (zones list, prompt parameters): align by index.
+- **Unordered sets** (annotations, gameObjects, objectInstanceIds): align by key.
+
+Alignment keys per repeated type:
+- `gameObjects` → normalized `instanceId` ordinal
+- `annotations` / `persistentAnnotations` → `types` set (the annotation type list, e.g. `[ZoneTransfer]`). If multiple annotations share the same type set, break ties by `affectorId` ordinal.
+- `zones` → `(zoneType, ownerSeatId)` composite key
+- `uniqueAbilities` → positional (ordered)
+- `details` (KeyValuePair list) → `key` string
+- `systemSeatIds`, `viewers`, `objectInstanceIds` → sort both sides, compare as sets
+
+This is the hardest part of the differ. Get it wrong and every diff is noisy. Start with key-based matching for the known types above; fall back to index alignment for unknown repeated fields.
+
 **Recursive walk:**
 
-Use protobuf reflection (`Message.getAllFields()`) to walk both messages. For repeated fields, align by index. For nested messages, recurse. For primitives, compare after normalization.
+Use protobuf reflection (`Message.getAllFields()`) to walk both messages. For nested messages (including `oneof` variants like `gameStateMessage` vs `searchReq`), recurse. For primitives, compare after normalization. Wrong `oneof` case (e.g. recording has `searchReq`, engine has `gameStateMessage`) is reported as a structural mismatch at the message level, not field-level.
 
-~200-250 LOC.
+~250-300 LOC.
 
 ### 3. `just conform-proto` command
 
@@ -143,11 +183,12 @@ Steps:
 1. `RecordingFrameLoader.loadByType(session, type)` — get recording messages
 2. Filter by `--gsid` or `--index` if specified
 3. Print recording message summary (greType, gsId, key fields)
-4. If `--engine <dir>` specified: load engine output from dump dir, diff
-5. If `--puzzle <file>` specified: run puzzle, capture output, diff
-6. Otherwise: just decode and print — "what does the real server send?"
+4. If `--engine <dir>` specified: load engine `.bin` dump dir, diff via `ProtoDiffer`
+5. Otherwise: just decode and print — "what does the real server send?"
 
 The "just decode" mode is immediately useful even before the differ. It replaces `protoc --decode` with something that understands the message structure and prints it readably.
+
+**No `--puzzle` mode in CLI.** Running a puzzle requires matchdoor test infrastructure — pulling that into the tooling CLI would create a `tooling → matchdoor-test` dependency. Instead, puzzle-vs-recording diffing lives in test code (`ConformancePipelineTest`), which already has access to `MatchFlowHarness`. The CLI operates on pre-dumped `.bin` directories only.
 
 ~100 LOC for the main class + just recipe.
 
@@ -182,17 +223,28 @@ The "just decode" mode is immediately useful even before the differ. It replaces
   - Extra field → reported in `extra`
   - Value mismatch → reported in `mismatched`
   - ID normalization: same structure, different IDs → empty diff
-  - Seat normalization: seat 1 vs seat 2 → empty diff after remap
+  - Repeated field alignment: annotations in different order → empty diff (matched by type key)
+  - Nested mismatch: annotation detail value differs → full field path reported (e.g. `gameStateMessage.annotations[ZoneTransfer].details.category`)
+  - Skip list: `gameStateId`/`msgId` differences → not reported
+  - Wrong oneof case: recording has `searchReq`, engine has `gameStateMessage` → structural mismatch
 
 ### ProtoConformMain
-- Integration test (local only, needs recording)
-- Manual verification: `just conform-proto SearchReq <session>` prints readable output
+- Smoke test: argument parsing + decode mode doesn't crash on a test `.bin` resource
+- Integration test (local only, needs recording): `just conform-proto SearchReq <session>` prints readable output
 
 ## Execution order
 
-1. `RecordingFrameLoader` + tests — foundation, ~50 LOC
-2. `ProtoDiffer` + tests — core logic, ~250 LOC
+**PR 1 — new pipeline (purely additive, no existing code modified):**
+1. `RecordingFrameLoader` + shared `parseToGRE()` helper + tests — foundation, ~60 LOC
+2. `ProtoDiffer` + tests — core logic, ~300 LOC
 3. `ProtoConformMain` + just recipe — CLI entry point, ~100 LOC
-4. Wire into existing `ConformancePipelineTest` — replace JSON intermediary
 
-Total: ~400-500 LOC new code.
+**PR 2 — wire into tests (modifies existing code, separate review):**
+4. Update `ConformancePipelineTest` to use `ProtoDiffer` directly
+5. Deprecate `AnnotationSerializer.kt` JSON output path
+
+Total: ~460 LOC new code (PR 1), ~50 LOC changed (PR 2).
+
+### ID normalization: canonical walk order
+
+To ensure encounter-order ID assignment is deterministic, the walker visits fields in proto field-number order (which `getAllFields()` returns by default). Within repeated fields, elements are visited in their natural order. This means both sides must produce objects/annotations in the same structural order for ordinal assignment to align — which is exactly the signal we want to test. If the engine emits annotations in a different order than the recording, ordinals diverge, and the diff catches it.
