@@ -58,7 +58,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 55 | RemainingSelections | -- | -- | -- | (none) | MISSING |
 | 56 | Shuffle | `GameEventShuffle` | `LibraryShuffled` | `shuffle()` | `OldIds`, `NewIds` | Implemented (no detail keys) |
 | 57 | CoinFlip | `GameEventFlipCoin` | -- | -- | `CoinFlipResult` | MISSING |
-| 58 | ChoiceResult | -- | -- | -- | `Choice_Value`, `Choice_Options`, `Choice_Domain` | MISSING |
+| 58 | ChoiceResult | -- | -- | -- | `Choice_Value`, `Choice_Sentiment`, `Choice_Domain` (sometimes) | MISSING |
 | 59 | RevealedCardCreated | -- | -- | `revealedCardCreated()` | affected ids | Implemented |
 | 60 | RevealedCardDeleted | -- | -- | `revealedCardDeleted()` | affected ids | Implemented |
 | 61 | SuspendLike | -- | -- | -- | `abilityGrpid` | MISSING |
@@ -127,8 +127,8 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 17 | Destroy | Battlefield → GY | `Destroy` | `CardDestroyed` (enriched zone handler) | Implemented |
 | 18 | Sacrifice | Battlefield → GY | `Sacrifice` | `CardSacrificed` | Implemented |
 | 19 | Put | Any → Any | `Put` | (not zone-pair inferred; requires dedicated event) | Partial |
-| 20 | ZeroToughness | Battlefield → GY | -- | -- | MISSING (falls back to `ZoneTransfer`) |
-| 21 | Damage | Battlefield → GY | -- | -- | MISSING (falls back to `ZoneTransfer`) |
+| 20 | ZeroToughness | Battlefield → GY | -- | -- | MISSING (falls back to `Destroy`). Real server category string: `"SBA_ZeroToughness"` |
+| 21 | Damage | Battlefield → GY | -- | -- | MISSING (falls back to `Destroy`). Real server category string: `"SBA_Damage"` |
 | 22 | IllegalAttachment | Battlefield → GY | -- | -- | MISSING |
 | 23 | UnattachedAura | Battlefield → GY | -- | -- | MISSING |
 | 24 | ZeroLoyalty | Battlefield → GY | -- | -- | MISSING |
