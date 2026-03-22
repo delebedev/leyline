@@ -21,14 +21,13 @@ import java.io.File
 /**
  * Conformance pipeline: engine run → JSON dump → Python binding + diff.
  *
- * These tests exercise the automated conformance pipeline:
- * 1. Load a puzzle (auto-generated from recording segment)
- * 2. Perform the target action (playLand, castSpell, etc.)
- * 3. Serialize engine output to recording-compatible JSON
- * 4. Write to build/conformance/ for Python-side binding + diff
+ * **DEPRECATED:** This is the legacy JSON-based pipeline. New conformance work should use
+ * the proto-native observatory: `just segment-variance`, `just segment-relationships`,
+ * `just conform-proto --profile`. See `docs/conformance/how-we-conform.md`.
  *
- * The Python side (md-segments.py bind/diff) reads these files and compares
- * against templatized recording segments.
+ * These tests still run and provide value (annotation detail value comparison),
+ * but should not be extended. New mechanics should use [EngineRelationshipTest]
+ * and the relationship catalog instead.
  */
 class ConformancePipelineTest :
     FunSpec({
