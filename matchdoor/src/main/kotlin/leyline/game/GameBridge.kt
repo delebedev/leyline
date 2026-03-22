@@ -250,6 +250,10 @@ class GameBridge(
 
     override fun getDiffBaselineState(): GameStateMessage? = diff.getDiffBaselineState()
 
+    /** Clear the diff baseline — forces next buildDiffFromGame to produce a Full GSM.
+     *  Used after library search to remove revealed card objects from the baseline. */
+    fun clearDiffBaseline() = diff.clearBaseline()
+
     override fun drainEvents(): List<GameEvent> = eventCollector?.drainEvents() ?: emptyList()
 
     /** True if there are Forge events queued but not yet drained into a GSM. */
