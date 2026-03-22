@@ -102,6 +102,7 @@ object ProtoDiffer {
      * Repeated fields that should be aligned by key, not by index.
      * null value = custom alignment logic (see compareRepeated).
      */
+    @Suppress("UnusedPrivateProperty") // used via reflection-like field name lookup
     private val KEYED_REPEATED = mapOf(
         "gameObjects" to "instanceId",
         "annotations" to null, // align by type set
@@ -176,6 +177,7 @@ object ProtoDiffer {
 
     // ── diff ─────────────────────────────────────────────────────────────────
 
+    @Suppress("UnusedParameter") // seatMap reserved for future seat normalization
     fun diff(
         recording: GREToClientMessage,
         engine: GREToClientMessage,
@@ -247,7 +249,7 @@ object ProtoDiffer {
 
     // ── repeated field alignment ─────────────────────────────────────────────
 
-    @Suppress("UNCHECKED_CAST")
+    @Suppress("UNCHECKED_CAST", "LongParameterList")
     private fun compareRepeated(
         field: FieldDescriptor,
         recVal: Any,

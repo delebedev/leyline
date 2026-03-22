@@ -43,7 +43,7 @@ class SearchReqConformanceTest :
             // Cast Sylvan Ranger → stack
             h.castSpellByName("Sylvan Ranger") shouldBe true
             // Pass priority → resolve → ETB trigger → search
-            val snap = h.messageSnapshot()
+            h.messageSnapshot() // snapshot baseline before pass
             h.passPriority()
 
             // Search prompt is handled by TargetingHandler after ETB resolves
@@ -80,7 +80,7 @@ class SearchReqConformanceTest :
                     GreToClientEvent.newBuilder().addGreToClientMessages(msg),
                 )
                 .build()
-            dir.resolve("${String.format("%09d", index)}_MD_S-C_MATCH_DATA.bin")
+            dir.resolve("${String.format(java.util.Locale.US, "%09d", index)}_MD_S-C_MATCH_DATA.bin")
                 .writeBytes(wrapper.toByteArray())
         }
     }

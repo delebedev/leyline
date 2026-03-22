@@ -150,6 +150,7 @@ class TargetingHandler(private val ops: SessionOps) {
      *   "resolve my stack effects" — skips the stack prompt when the player has
      *   no meaningful responses, matching real server behavior (#92).
      */
+    @Suppress("ReturnCount")
     fun handlePostCastPrompt(bridge: GameBridge, clientAutoResolve: Boolean = false): Boolean {
         val pendingPrompt = bridge.seat(ops.seatId).prompt.getPendingPrompt()
         if (pendingPrompt != null) {

@@ -93,6 +93,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         log.debug("event: SpellResolved card={} fizzled={}", card.name, ev.hasFizzled())
     }
 
+    @Suppress("CyclomaticComplexMethod") // zone-change routing inherently branchy
     override fun visit(ev: GameEventCardChangeZone) {
         val card = ev.card()
         val from = ev.from()?.zoneType
