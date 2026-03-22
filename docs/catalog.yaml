@@ -213,6 +213,15 @@ spells:
     notes: >
       Casts and resolves. Equipment attachment annotations fire on equip.
       Client shows visual link between equipment and equipped creature.
+      Equip ability: abilityGrpId 1268, goes to stack as Ability object (grpId=1268),
+      uses SelectTargetsReq/SubmitTargetsReq for target selection (promptId 1010).
+      Mana payment via UserActionTaken/ManaPaid inline (no PayCostsReq for equip cost).
+      Re-equip: old Attachment pAnn deleted when host dies; LayeredEffect pAnn id
+      persists but affectedIds updated to new host. New Attachment pAnn gets fresh id.
+      Triggered abilities on equipment (e.g. "deal combat damage → create token") have
+      their own separate grpId (e.g. Goldvein Pick trigger = 116799); AbilityInstanceCreated
+      affectorId = equipment iid; TriggeringObject affectorId = trigger ability iid,
+      affectedIds = attacking creature. Confirmed 2026-03-22 via Goldvein Pick (grpId 93966).
 
   cast-planeswalker:
     status: wired
@@ -238,7 +247,14 @@ spells:
 
   cast-adventure:
     status: missing
-    notes: "CastAdventure action type not implemented."
+    notes: >
+      Five gaps: (1) ActionMapper never emits CastAdventure action for adventure-capable hand cards.
+      (2) MatchSession has no CastAdventure arm — falls to PassPriority.
+      (3) AnnotationPipeline.inferCategory: exile→stack falls to ZoneTransfer, should be CastSpell.
+      (4) ObjectMapper always emits type=Card; adventure objects on stack/exile need type=Adventure(10).
+      (5) DisplayCardUnderCard annotation (type 38) not wired — visual only, not blocking.
+      Spec: docs/plans/2026-03-21-adventure-wire-spec.md.
+      Recording gap: no adventure cast observed in 2026-03-21_21-22-14 — need new proxy recording.
 
   cast-split:
     status: missing
@@ -255,6 +271,18 @@ spells:
   cast-foretell:
     status: missing
     notes: "CastOmen action type not implemented."
+
+  library-search:
+    status: missing
+    notes: >
+      SearchReq (GRE type 44) / SearchResp handshake not implemented.
+      Engine resolves chooseSingleCard internally but client gets no search UI.
+      For human player searching, game would stall. Transfer category wrong:
+      Library→Hand search should use Put (19) not Draw (10). RevealedCard
+      proxy objects and zone-19 (Revealed) update not emitted. InstanceRevealedToOpponent
+      (type 75) persistent annotation missing — opponent won't see revealed card.
+      Wire spec: docs/plans/2026-03-21-library-search-wire-spec.md.
+      Recording: 2026-03-21_22-05-00, Bushwhack (93928), gsId 52-54.
 
   modal-etb:
     status: wired
@@ -437,6 +465,11 @@ permanents:
       fires with correct instanceId. TokenDeleted (41) emitted when tokens leave
       battlefield. Token grpId resolved via source card's AbilityIdToLinkedTokenGrpId
       mapping in CardDb. InvestigateEffect uses empty fallback (per-player loop).
+      Treasure token grpId = 94178 (confirmed 2026-03-22). TokenCreated affectorId =
+      trigger ability instance iid (not source permanent). TokenDeleted affectorId =
+      post-ObjectIdChanged iid of the token. Sacrifice: category="Sacrifice" ZoneTransfer
+      to GY, then TokenDeleted in same GSM. Mana from Treasure: color in ManaPaid
+      details reflects player's chosen color (any-color mana source).
 
   face-down:
     status: missing
@@ -525,6 +558,30 @@ keywords:
       Engine handles. RegeneratePending/PermanentRegenerated annotations (99/100)
       missing — client won't show regen shield visual.
 
+  threshold:
+    status: missing
+    notes: >
+      Engine applies the continuous +1/+1 and deathtouch correctly (Forge handles it).
+      Wire gap: AbilityWordActive (proto type 39) persistent annotation never emitted.
+      This annotation tracks { threshold: 7, value: <GY count>, AbilityGrpId, AbilityWordName }
+      and updates every diff. When value >= threshold, two persistent LayeredEffect annotations
+      must be added: [ModifiedToughness, ModifiedPower, LayeredEffect] (effect_id=7002) and
+      [AddAbility, LayeredEffect] (effect_id=7003, UniqueAbilityId=222 for deathtouch).
+      The LayeredEffectCreated transient fires at ETB to pre-announce effect slots.
+      Without AbilityWordActive, the client's threshold UI counter and conditional highlights
+      are absent. Stat changes (p/t, ability count) still show correctly via object diff.
+      Wire spec: docs/plans/2026-03-21-threshold-wire-spec.md
+      Recording: recordings/2026-03-21_23-30-58/ (Dreadwing Scavenger grpId 93831, iid 295)
+
+  loot:
+    status: partial
+    notes: >
+      Engine fires draw+discard correctly. Draw and discard are delivered in separate gsId diffs:
+      draw arrives first (ObjectIdChanged + ZoneTransfer category="Draw"), then discard
+      (ObjectIdChanged + ZoneTransfer category="Discard" + ResolutionComplete + AbilityInstanceDeleted).
+      No known gaps in annotation shape. Wire confirmed: recordings/2026-03-21_23-30-58/
+      (Dreadwing Scavenger grpId 93831, loot trigger grpId 189406).
+
 
 # ─── State-Based Actions ─────────────────────────────────────────────
 
@@ -565,7 +622,9 @@ zones:
 
   library:
     status: wired
-    notes: "Hidden zone. Draw works. Scry annotation implemented."
+    notes: >
+      Hidden zone. Draw works. Scry annotation implemented. Library search
+      (tutor/fetch effects) is not wired — see spells.library-search.
 
   graveyard:
     status: wired
@@ -592,8 +651,11 @@ zones:
   revealed:
     status: partial
     notes: >
-      Revealed zone (18/19) exists. InteractivePromptBridge.drainReveals()
-      captures reveals. CardRevealed annotation (47) missing.
+      Revealed zone (18/19) exists in zone list but always empty — proxy RevealedCard objects
+      not synthesized. RevealedCardCreated (59) fires correctly via drainReveals().
+      RevealedCardDeleted (60) defined but never called — proxy cleanup missing.
+      InstanceRevealedToOpponent (75) persistent annotation not wired.
+      CardRevealed (47) missing. Wire spec: docs/plans/2026-03-21-explore-wire-spec.md.
 
   sideboard:
     status: wired
@@ -640,8 +702,12 @@ zone-transfers:
     notes: "Battlefield → Graveyard (via effect). Category 18."
 
   discard:
-    status: wired
-    notes: "Hand → Graveyard. Category 11."
+    status: partial
+    notes: >
+      Hand → Graveyard. Category "Discard". ZoneTransfer annotation correct.
+      Bug: SelectNReq (discard prompt) uses wrong context=Discard_a163/listType=Static —
+      wire shows context=Resolution_a163/listType=Dynamic/optionContext=Resolution_a9d7.
+      See docs/plans/2026-03-21-discard-wire-spec.md. Flag for engine-bridge agent.
 
   exile:
     status: wired
@@ -670,6 +736,10 @@ zone-transfers:
     notes: >
       Library → Battlefield. Category 14.
       Zone-pair heuristic (Library→BF). Library→Hand stays Draw.
+      Wire confirmed (2026-03-21): search-to-hand uses Put (19), not Search or Draw.
+      Search category (14) is specifically for Library→Battlefield (ramp effects).
+      Tutor/fetch-to-hand effects must emit Put (19) — requires a distinct event type
+      to separate from draw.
 
   put:
     status: wired
@@ -687,11 +757,18 @@ zone-transfers:
 
   zero-toughness:
     status: missing
-    notes: "Battlefield → Graveyard (0 toughness SBA). Category 20. Falls back to Destroy animation."
+    notes: >
+      Battlefield → Graveyard (0 toughness SBA). Category 20. Real server category string:
+      "SBA_ZeroToughness" (not "ZeroToughness"). Falls back to Destroy animation. Observed
+      in recordings/2026-03-21_22-31-46-game3 from Tragic Banshee (93786) ETB -1/-1.
+      See docs/plans/2026-03-21-sba-zerotoughness-wire-spec.md.
 
   damage:
     status: missing
-    notes: "Battlefield → Graveyard (lethal damage SBA). Category 21. Falls back to Destroy animation."
+    notes: >
+      Battlefield → Graveyard (lethal damage SBA). Category 21. Real server category string:
+      "SBA_Damage" (not "Damage"). Falls back to Destroy animation. Observed x10 in
+      recordings/2026-03-21_22-31-46-game3 from combat damage deaths.
 
   zero-loyalty:
     status: missing
@@ -743,8 +820,12 @@ visual-fidelity:
     status: suppressed
     notes: >
       Shuffle annotations suppressed — client crashes without OldIds/NewIds
-      detail keys. Need pre/post library instanceId lists from engine.
-      Purely cosmetic.
+      detail keys. Wire confirmed (2026-03-21, Bushwhack search): OldIds =
+      pre-shuffle library instanceIds, NewIds = post-shuffle instanceIds (full
+      reassignment, same count). affectorId = resolving spell instanceId,
+      affectedIds = [seatId]. Data must be captured around GameEventShuffle:
+      snapshot library instanceIds before and after shuffle fires.
+      Purely cosmetic — card movements are correct without it.
 
   buff-debuff-overlay:
     status: wired
@@ -769,6 +850,11 @@ visual-fidelity:
     notes: >
       AttachmentCreated + persistent Attachment annotations fire on equip/enchant.
       Client renders visual link between equipment/aura and target permanent.
+      Wire shape (confirmed for both equipment and aura, 2026-03-22):
+      AttachmentCreated: affectorId=permanentIid, affectedIds=[hostIid].
+      Persistent Attachment: same shape. No "both in affectedIds" pattern.
+      ModifiedToughness+ModifiedPower+LayeredEffect pAnn co-fires with Attachment
+      for stat-modifying equipment (same affectorId/affectedIds, effect_id in details).
 
   targeting-arrows:
     status: missing
@@ -785,8 +871,15 @@ visual-fidelity:
     notes: "Disabled in PlayerMapper — client rendering rules unclear."
 
   scry:
-    status: wired
-    notes: "Scry annotation (65) fires with topCount/bottomCount."
+    status: wired-broken
+    notes: >
+      Scry annotation (65) fires but with wrong detail keys and affectedIds.
+      Wire: details.topIds="?" (string sentinel), details.bottomIds=[instanceIds...],
+      affectedIds=[scried card instanceIds], affectorId=ability instanceId.
+      Current code emits topCount/bottomCount (wrong keys) and affectedIds=seatId (wrong).
+      GroupReq (context=Scry) only sent for human-controlled scry; AI scry resolves
+      server-side with no GroupReq — only the Scry annotation appears.
+      See docs/plans/2026-03-21-scry2-wire-spec.md.
 
   damage-numbers:
     status: wired

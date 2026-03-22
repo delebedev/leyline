@@ -1,7 +1,7 @@
 ## ChoiceResult — field note
 
 **Status:** NOT IMPLEMENTED
-**Instances:** 5 across 2 sessions
+**Instances:** 8 across 4 sessions (7 prior + 1 new from 2026-03-21_22-31-46)
 **Proto type:** AnnotationType.ChoiceResult = 58
 **Field:** annotations (transient)
 
@@ -13,8 +13,8 @@ Fires when a player completes a forced or prompted choice — selecting which pe
 
 | Key | Always/Sometimes | Values seen | Meaning |
 |-----|-----------------|-------------|---------|
-| Choice_Value | Always | 477, 492, 29 | instanceId (or low-range ID) of the chosen object |
-| Choice_Sentiment | Always | 1, 2 | 1 = voluntary choice; 2 = unknown (possibly forced/random) |
+| Choice_Value | Always | 477, 492, 29, 353 | instanceId (or low-range ID) of the chosen object |
+| Choice_Sentiment | Always | 1, 2 | 1 seen on all sacrifice/discard choices; 2 seen only on ETB self-choice (Multiversal Passage). Semantics unclear — may be cost/benefit polarity or prompt type |
 | Choice_Domain | Sometimes (20%) | 9 | Category of the choice; value 9 observed with Multiversal Passage land type selection |
 
 ### Cards observed
@@ -24,6 +24,8 @@ Fires when a player completes a forced or prompted choice — selecting which pe
 | Sheoldred's Edict | 83808 | Opponent sacrifices a creature; chose instance 477 | 2026-03-01_11-33-28 gsId=70 |
 | Liliana of the Veil (-2) | 82149 | Target player sacrifices a creature; chose instance 492 | 2026-03-01_11-33-28 gsId=149 |
 | Multiversal Passage | ~97998 | As-enters ETB choice: choose a basic land type (instance 29) | 2026-03-06_22-37-41 gsId=25 |
+| Vampire Gourmand (via Vampiric Rites) | 93787 | Sac outlet activation: chose Reassembling Skeleton (instance 353) from [Cackling Prowler, Reassembling Skeleton]. affectedIds=[1] (seat id of chooser). No Choice_Domain. | 2026-03-21_22-31-46-game3 gsId=309 |
+| Perforating Artist (punisher trigger) | 93837 | Opponent chose to sacrifice (instance 309) rather than lose 3 life. affectorId=301 (Perforating Artist), affectedIds=[2] (opponent seat — the one being punished). ChoiceResult only on sac path; lose-life path emits no ChoiceResult. | 2026-03-21_22-31-46 gsId=187 |
 
 ### Lifecycle
 
@@ -47,7 +49,9 @@ The two seat copies of a GSM carry the same ChoiceResult (seats [1] and [2] both
 
 **Difficulty:** Medium
 
-Intercept the moment a sacrifice/discard choice is finalized in Forge's input system (the `InteractivePromptBridge` response path). The chosen card is known at that point — emit a transient ChoiceResult annotation before the zone transfer.
+Intercept in `MatchSession.onSelectN()` after receiving `SelectNresp`. The `SelectNreq` carries `sourceId` (the permanent driving the choice); store it when the prompt is issued, retrieve it on response. Emit ChoiceResult as the first annotation in the GSM batch, before ObjectIdChanged and ZoneTransfer.
+
+Key distinction: `affectorId` must be the **source permanent** (e.g. Vampire Gourmand, instanceId 354), NOT the ability instance on the stack (instanceId 365). The SelectNreq `sourceId` field maps directly to this. `affectedIds` is always `[seatId]` of the player who made the choice, not an instanceId.
 
 For ETB modal choices (Multiversal Passage land type), the hook is harder — Forge's as-enters choices go through `SpellAbility` parameter handling, not a unified choice event. `Choice_Domain` may categorize the type of prompt (land type selection = 9) but more recordings needed to map the domain enum.
 
@@ -58,6 +62,7 @@ For ETB modal choices (Multiversal Passage land type), the hook is harder — Fo
 - Full `Choice_Domain` enum: what other values exist? Does 9 specifically mean "land type"?
 - `Choice_Sentiment=2` on the Multiversal Passage instance — why different from the sacrifice instances? Is 2 "self-benefiting choice" vs 1 "targeted by opponent's effect"?
 - Does `Choice_Value=29` refer to instanceId 29 (a land or basic land type token)? Low instanceIds in this session appear to be the initial objects — need to trace the opening full GSM.
+- Punisher "discard" path — not observed in any session. Expected: ChoiceResult fires (like sac), `Choice_Value` = discarded card instanceId.
 
 ---
 

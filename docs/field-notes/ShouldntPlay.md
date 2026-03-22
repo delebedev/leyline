@@ -1,7 +1,7 @@
 ## ShouldntPlay — field note
 
 **Status:** NOT IMPLEMENTED
-**Instances:** 15 across 1 session
+**Instances:** 15 across 1 session + 4 (Legendary) in 2026-03-21_22-05-00
 **Proto type:** AnnotationType.ShouldntPlay
 **Field:** annotations (transient — fires in the `annotations` array, never `persistentAnnotations`)
 
@@ -15,9 +15,10 @@ This annotation is **advisory/cosmetic** — it has no enforcement effect. The p
 
 | Key | Always/Sometimes | Values seen | Meaning |
 |-----|-----------------|-------------|---------|
-| Reason | Always | `EntersTapped` | Why the card shouldn't be played. Only value observed in recordings. |
+| Reason | Always | `EntersTapped`, `Legendary` | Why the card shouldn't be played. |
 
-`EntersTapped` means: if you play this land now, it will enter the battlefield tapped and not be available for mana this turn.
+- `EntersTapped`: if you play this land now, it will enter tapped and not produce mana this turn.
+- `Legendary`: you already control a legendary permanent with the same name — playing this copy would trigger the legend rule (sacrifice one).
 
 ### Cards observed
 
@@ -54,23 +55,43 @@ No systematic co-occurrences identified. It fires standalone within the `annotat
 
 ### Wiring assessment
 
-**Difficulty:** Easy-Medium
+**Difficulty:** Easy-Medium (EntersTapped) / Medium (Legendary)
 
-The `EntersTapped` case is the only observed reason. The logic is:
+#### EntersTapped
+
 1. At each main-phase priority point, scan cards in hand
 2. If a card is a land with an ETB tapped clause, emit `ShouldntPlay` with `Reason=EntersTapped`
+3. Send to the **hand-owner's seat**
+4. Fires at **every** main-phase priority point while the condition holds
 
-Forge knows whether a land enters tapped (the `etbTapped` mechanic in Forge's keyword/ability system). The hook point is the `GameStateMessage` builder — during the "player has priority in main phase" serialization, scan the hand.
+Forge knows whether a land enters tapped via `KeywordAbility.ENTERS_TAPPED` or checking for a replacement effect. Hook: `GameStateMessage` builder, "player has priority in main phase" serialization.
+
+#### Legendary
+
+1. At each main-phase priority point (phase entry or stack-clear), scan the active player's hand
+2. For each hand card that shares a name with a legendary permanent they control on battlefield, emit `ShouldntPlay` with `Reason=Legendary`
+3. Send to the **opponent's seat** (not the hand-owner — opposite of EntersTapped)
+4. Fires on **phase entry + stack-clear events**, not every priority point
+5. `affectorId` = the battlefield legendary; `affectedIds` = [the hand card]
+
+Full wiring analysis: `docs/plans/2026-03-21-shouldntplay-legendary-wire-spec.md`.
 
 **Gaps:**
 - Forge's "enters tapped" detection: `KeywordAbility.ENTERS_TAPPED` or checking for a replacement effect. Need to confirm the API.
-- Unknown reasons: are there other `Reason` values besides `EntersTapped`? Not observed yet. Possible values: `SorcerySpeed`, `ConditionNotMet`, `NotMainPhase`, `LandLimitReached`. Would need more recordings.
-- Whether it fires for the non-active player's hand (opponent's perspective): yes, confirmed from iid=229 (opponent's card).
+- Other reasons: possible values `SorcerySpeed`, `ConditionNotMet`, `NotMainPhase`, `LandLimitReached`. Would need more recordings.
+- Whether it fires for the non-active player's hand (opponent's perspective): yes, confirmed from iid=229 (opponent's card) for EntersTapped case.
 
 This is purely cosmetic — missing it does not affect gameplay correctness, but it does affect the UX hint that tells players a land is a "bad" play.
+
+### Legendary — Seat Routing Note
+
+`EntersTapped` fires in the **hand-owner's stream**. `Legendary` fires in the **opponent's stream**. This is confirmed from `2026-03-21_22-05-00`: all 4 `ShouldntPlay(Legendary)` messages have `systemSeatIds=[2]` (sent to seat 2 = opponent of the player holding the second copy).
+
+The `affectedId` for `Legendary` is a **private card** from the opponent's perspective — they receive the annotation but cannot see the grpId. The annotation appears to inform the client that the opponent holds a card they shouldn't play, though the practical UX effect on the opponent's side is unclear.
 
 ### Open questions
 
 - Why does Formidable Speaker (a creature) trigger `ShouldntPlay` with `EntersTapped`? Does it have an ETB tapped ability not visible in the basic card data?
 - Are there other `Reason` values? If `SorcerySpeed` exists (you're in opponent's turn, hand holds a sorcery), that would have higher UX value.
 - Does it fire during the opponent's main phase for lands in the active player's hand? (i.e. "you can play this land on your turn, but it would enter tapped")
+- For `Legendary`: does the annotation also fire in the hand-owner's own stream (not observed yet)? Possible that the server only sends it to one seat.

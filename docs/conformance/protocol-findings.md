@@ -81,6 +81,29 @@ Server must send all three for correct display:
 | DieRoll | DieRollResults | DieRollEvent |
 | ReplacementEffectApplied | Applied tracking | ReplacementEffectAppliedEvent |
 
+## Adventure mechanic — protocol shape (inferred, unconfirmed)
+
+From rosetta + Forge source analysis (2026-03-21). No adventure cast observed in proxy recordings yet.
+
+**Object type for adventure cards:**
+- On stack (adventure half): `type = Adventure (10)`, grpId = adventure grpId (e.g. 86969)
+- In exile after resolution: `type = Adventure (10)`, grpId = adventure grpId (still secondary face)
+- On stack (creature cast from exile): `type = Card (0)`, grpId = creature grpId (e.g. 86968)
+
+**Action types:**
+- Hand → cast adventure half: `CastAdventure (16)`, grpId = adventure grpId
+- Exile → cast creature half: `Cast (11)` (standard), grpId = creature grpId
+
+**Zone transfer categories — open questions:**
+- Hand → stack (adventure cast): category label unknown — likely `"CastAdventure"` but may reuse `"CastSpell"`
+- Stack → exile (adventure resolves): `"Resolve"` (standard resolution path)
+- Exile → stack (creature cast): currently falls to `"ZoneTransfer"` — should be `"CastSpell"`
+
+**Annotations specific to adventure:**
+- `DisplayCardUnderCard (38)` fires when card exiles as adventure — tells client to render card thumbnail under exile pile. Details: `Disable: 0`, `TemporaryZoneTransfer: 1`. Not yet wired.
+
+**Needs live recording to confirm:** category label strings, exact ObjectType values, whether `DisplayCardUnderCard` fires on adventure exile vs other exiles.
+
 ## Source
 
 Distilled from `docs/archive/2026-03-08-annotation-variance-report.md` (59 sessions, 67 types, 12420 annotation instances). Run `just proto-annotation-variance` for current per-type status.
