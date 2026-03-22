@@ -223,9 +223,11 @@ def _run_python(script_name, *cli_args):
 def dispatch(args):
     """Route to Python or Kotlin implementation."""
     noun = args.noun
-    verb = args.verb
+    verb = getattr(args, "verb", None)
 
-    if verb is None:
+    # Verb-less nouns (standalone commands)
+    verbless = {"gre-types"}
+    if verb is None and noun not in verbless:
         print(
             f"tape {noun}: specify a verb. Use 'tape {noun} --help'",
             file=sys.stderr,
@@ -423,6 +425,11 @@ def dispatch(args):
             )
             sys.exit(1)
 
+    # --- gre-types ---
+    if noun == "gre-types":
+        extra = ["--unhandled"] if getattr(args, "unhandled", False) else []
+        _java("leyline.analysis.AnalysisCliKt", "gre-types", *extra)
+
     # --- fd ---
     if noun == "fd":
         if verb == "decode":
@@ -459,6 +466,7 @@ def main():
               annotation  Annotation ID analysis and variance
               segment     Conformance segment mining
               conform     Closed-loop conformance comparison
+              gre-types   Cross-session GRE message type coverage
               fd          Front Door raw frame decoding
 
             examples:
@@ -634,6 +642,10 @@ def main():
     p.add_argument("--golden", help="Compare against golden file; exit 2 on regression")
 
     ss.add_parser("index", help="Overall conformance score")
+
+    # --- gre-types ---
+    s = subs.add_parser("gre-types", help="Cross-session GRE message type coverage (Kotlin)")
+    s.add_argument("--unhandled", action="store_true", help="Show only unimplemented types")
 
     # --- fd ---
     s = subs.add_parser("fd", help="FD raw frame decoding (Kotlin)")

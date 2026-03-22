@@ -1,6 +1,7 @@
 package leyline.analysis
 
 import leyline.LeylinePaths
+import leyline.recording.RecordingDecoder
 import leyline.recording.RecordingInspector
 import java.io.File
 import kotlin.system.exitProcess
@@ -15,7 +16,8 @@ fun main(args: Array<String>) {
     if (args.isEmpty()) {
         System.err.println(
             "Usage: analyze <session> [--force] | analyze-all | find <keyword> | " +
-                "annotation-contract <session> <type> [effectId] | violations [session] | mechanics | latest",
+                "annotation-contract <session> <type> [effectId] | violations [session] | " +
+                "mechanics | latest | gre-types [--unhandled]",
         )
         exitProcess(1)
     }
@@ -28,6 +30,7 @@ fun main(args: Array<String>) {
         "violations" -> cmdViolations(args.drop(1))
         "mechanics" -> cmdMechanics()
         "latest" -> cmdLatest()
+        "gre-types" -> cmdGreTypes(args.drop(1))
         else -> {
             System.err.println("Unknown command: ${args[0]}")
             exitProcess(1)
@@ -195,6 +198,117 @@ private fun cmdAnnotationContract(args: List<String>) {
     }
 
     print(AnnotationContract.format(result))
+}
+
+// GRE types we currently handle — both inbound (client→server dispatch in MatchHandler)
+// and outbound (server→client types we produce). Stripped proto names (no _XXXX suffix).
+private val HANDLED_GRE_TYPES = setOf(
+    // S→C: types our server produces
+    "GameStateMessage",
+    "ActionsAvailableReq",
+    "MulliganReq",
+    "DeclareAttackersReq",
+    "DeclareBlockersReq",
+    "SelectTargetsReq",
+    "SelectNReq",
+    "GroupReq",
+    "CastingTimeOptionsReq",
+    "ConnectResp",
+    "TimerStateMessage",
+    "IntermissionReq",
+    // C→S: types MatchHandler dispatches
+    "ConnectReq",
+    "ChooseStartingPlayerResp",
+    "MulliganResp",
+    "GroupResp",
+    "SetSettingsReq",
+    "ConcedeReq",
+    "PerformActionResp",
+    "DeclareAttackersResp",
+    "SubmitAttackersReq",
+    "DeclareBlockersResp",
+    "SubmitBlockersReq",
+    "SelectTargetsResp",
+    "SubmitTargetsReq",
+    "CancelActionReq",
+    "SelectNresp",
+    "CastingTimeOptionsResp",
+    "CheckpointReq",
+    "Uimessage",
+)
+
+private fun cmdGreTypes(args: List<String>) {
+    val unhandledOnly = "--unhandled" in args
+    val root = LeylinePaths.RECORDINGS
+    if (!root.isDirectory) {
+        println("No recordings directory found at ${root.absolutePath}")
+        return
+    }
+
+    val sessions = root.listFiles()
+        ?.filter { it.isDirectory && it.name != "latest" }
+        ?.sortedByDescending { it.name }
+        ?: emptyList()
+
+    // type → (totalCount, sessionNames)
+    val stats = mutableMapOf<String, Pair<Int, MutableSet<String>>>()
+
+    for (sessionDir in sessions) {
+        val sourceDir = resolveSourceDir(sessionDir) ?: continue
+        val messages = try {
+            RecordingDecoder.decodeDirectory(sourceDir)
+        } catch (e: Exception) {
+            System.err.println("  skip ${sessionDir.name}: ${e.message}")
+            continue
+        }
+        for (msg in messages) {
+            val type = msg.greType
+            val (count, sessionSet) = stats.getOrPut(type) { 0 to mutableSetOf() }
+            stats[type] = (count + 1) to sessionSet.also { it.add(sessionDir.name) }
+        }
+    }
+
+    if (stats.isEmpty()) {
+        println("No GRE messages found across recordings.")
+        return
+    }
+
+    val entries = stats.entries
+        .map { (type, pair) -> Triple(type, pair.first, pair.second.size) }
+        .let { list -> if (unhandledOnly) list.filter { it.first !in HANDLED_GRE_TYPES } else list }
+        .sortedByDescending { it.second }
+
+    if (entries.isEmpty()) {
+        println("All GRE types are handled!")
+        return
+    }
+
+    val typeWidth = maxOf(28, entries.maxOf { it.first.length } + 2)
+    println("%-${typeWidth}s %6s %8s %7s".format("GRE Type", "Count", "Sessions", "Handled"))
+    for ((type, count, sessionCount) in entries) {
+        val handledStr = if (type in HANDLED_GRE_TYPES) "yes" else "NO"
+        println("%-${typeWidth}s %6d %8d %7s".format(type, count, sessionCount, handledStr))
+    }
+    println("\n${entries.size} type(s), ${sessions.size} session(s) scanned")
+}
+
+/** Resolve the best source directory for decoding a session's MD payloads. */
+private fun resolveSourceDir(sessionDir: File): File? {
+    val engineDir = File(sessionDir, "engine")
+    if (engineDir.isDirectory && RecordingDecoder.listRecordingFiles(engineDir).isNotEmpty()) {
+        return engineDir
+    }
+    val captureDir = File(sessionDir, "capture/payloads")
+    if (captureDir.isDirectory && RecordingDecoder.listRecordingFiles(captureDir).isNotEmpty()) {
+        return captureDir
+    }
+    // New format: seat subdirs
+    val capture = File(sessionDir, "capture")
+    return capture.listFiles()
+        ?.filter { it.isDirectory && it.name.startsWith("seat-") }
+        ?.sortedBy { it.name }
+        ?.map { File(it, "md-payloads") }
+        ?.firstOrNull { it.isDirectory && RecordingDecoder.listRecordingFiles(it).isNotEmpty() }
 }
 
 private fun printAnalysisSummary(analysis: SessionAnalyzer.Analysis) {
