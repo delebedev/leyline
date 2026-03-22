@@ -166,10 +166,14 @@ sealed interface GameEvent {
         val seatId: Int,
     ) : GameEvent
 
-    /** A card was exiled (any zone → Exile). */
+    /** A card was exiled (any zone → Exile).
+     *  [sourceForgeCardId] = the permanent that exiled this card (from Card.exiledWith),
+     *  present only for "exile-under-permanent" effects (Banishing Light, Stasis Snare, etc.).
+     *  When set, triggers [AnnotationBuilder.displayCardUnderCard] persistent annotation. */
     data class CardExiled(
         val forgeCardId: Int,
         val seatId: Int,
+        val sourceForgeCardId: Int? = null,
     ) : GameEvent
 
     /** A card was discarded (Hand→GY). */
