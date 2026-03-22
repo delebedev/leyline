@@ -28,6 +28,10 @@ import java.util.concurrent.ConcurrentLinkedQueue
  *
  * @param bridge used only to resolve Player → seatId (never mutated)
  */
+/** Wrapper making event drain's single-use nature visible in the type system. */
+@JvmInline
+value class DrainedEvents(val events: List<GameEvent>)
+
 class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Base<Unit>() {
 
     private val log = LoggerFactory.getLogger(GameEventCollector::class.java)
@@ -38,11 +42,13 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     private val lastPT = ConcurrentHashMap<Int, Pair<Int, Int>>()
 
     /** Drain all queued events since last drain. Returns events in firing order. */
-    fun drainEvents(): List<GameEvent> = buildList {
-        while (true) {
-            add(queue.poll() ?: break)
-        }
-    }
+    fun drainEvents(): DrainedEvents = DrainedEvents(
+        buildList {
+            while (true) {
+                add(queue.poll() ?: break)
+            }
+        },
+    )
 
     /** Peek at queued events without draining (for tests). */
     fun peekEvents(): List<GameEvent> = queue.toList()

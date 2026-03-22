@@ -7,9 +7,7 @@ import leyline.bridge.InteractivePromptBridge
 import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
-import leyline.game.GsmBuilder
 import leyline.game.RequestBuilder
-import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.ZoneIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -65,14 +63,8 @@ class TargetingHandler(private val ops: SessionOps) {
 
         // Echo-back: actions-only GSM diff + re-prompt with selection reflected
         val game = bridge.getGame() ?: return
-        val gsId = ops.counter.nextGsId()
-        val echoDiff = ops.makeGRE(GREMessageType.GameStateMessage_695e, gsId, ops.counter.nextMsgId()) {
-            it.gameStateMessage = GameStateMessage.newBuilder()
-                .setType(GameStateType.Diff)
-                .setGameStateId(gsId)
-                .setPrevGameStateId(gsId - 1)
-                .build()
-        }
+        val echoDiff = ops.bundleBuilder!!.buildEchoDiffGsm(ops.counter)
+        val gsId = ops.counter.currentGsId()
         val rePrompt = RequestBuilder.buildSelectTargetsRePrompt(pendingPrompt, bridge, selectedInstanceIds, ops.seatId)
         val rePromptMsg = ops.makeGRE(GREMessageType.SelectTargetsReq_695e, gsId, ops.counter.nextMsgId()) {
             it.selectTargetsReq = rePrompt
@@ -188,7 +180,7 @@ class TargetingHandler(private val ops: SessionOps) {
             // When auto-resolve is active and the player has no meaningful responses
             // (only Pass), skip the prompt — let autoPassAndAdvance() handle stack
             // resolution transparently, matching the real server (#92).
-            if (clientAutoResolve && BundleBuilder.shouldAutoPass(BundleBuilder.buildActions(g, ops.seatId, bridge))) {
+            if (clientAutoResolve && BundleBuilder.shouldAutoPass(ops.bundleBuilder!!.buildActions(g))) {
                 return false
             }
             ops.sendRealGameState(bridge)
@@ -483,33 +475,19 @@ class TargetingHandler(private val ops: SessionOps) {
             0
         }
 
-        // Build ModalReq
-        val modalReq = ModalReq.newBuilder()
-            .setAbilityGrpId(modalInfo.parentGrpId)
-            .setMinSel(req.min)
-            .setMaxSel(req.max)
-        for (childGrpId in modalInfo.childGrpIds) {
-            modalReq.addModalOptions(ModalOption.newBuilder().setGrpId(childGrpId))
-        }
-
-        // Build CastingTimeOptionsReq
-        val ctoReq = CastingTimeOptionsReq.newBuilder()
-            .addCastingTimeOptionReq(
-                CastingTimeOptionReq.newBuilder()
-                    .setCtoId(1)
-                    .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4)
-                    .setAffectedId(sourceInstanceId)
-                    .setAffectorId(sourceInstanceId)
-                    .setGrpId(cardGrpId)
-                    .setIsRequired(true)
-                    .setModalReq(modalReq),
-            )
-            .build()
+        val ctoReq = ops.bundleBuilder!!.buildModalCastingTimeOptionsReq(
+            parentGrpId = modalInfo.parentGrpId,
+            childGrpIds = modalInfo.childGrpIds,
+            minSel = req.min,
+            maxSel = req.max,
+            sourceInstanceId = sourceInstanceId,
+            cardGrpId = cardGrpId,
+        )
 
         // Save pending state for response mapping
         pendingInteraction = PendingClientInteraction.ModalChoice(pendingPrompt.promptId, modalInfo.childGrpIds)
 
-        val result = BundleBuilder.castingTimeOptionsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, ctoReq)
+        val result = ops.bundleBuilder!!.castingTimeOptionsBundle(game, ops.counter, ctoReq)
         Tap.outboundTemplate("CastingTimeOptionsReq seat=${ops.seatId} card=$cardName")
         ops.sendBundledGRE(result.messages)
     }
@@ -574,16 +552,9 @@ class TargetingHandler(private val ops: SessionOps) {
 
         log.info("TargetingHandler: card '{}' has {} optional costs — sending prompt", card.name, optionalCosts.size)
 
-        // Build CastingTimeOptionsReq with one entry per optional cost + Done
-        val instanceId = action.instanceId
-        val ctoReqBuilder = CastingTimeOptionsReq.newBuilder()
-        val costCtoIds = mutableListOf<Int>()
-
-        for ((i, cost) in optionalCosts.withIndex()) {
-            val ctoId = i + 1 // 1-based; 0 is reserved for Done
-            costCtoIds.add(ctoId)
-
-            // Map OptionalCost type to CastingTimeOptionType
+        // Map each optional cost to (CastingTimeOptionType, abilityGrpId)
+        val cardData = bridge.cards.findByGrpId(action.grpId)
+        val costEntries = optionalCosts.mapIndexed { i, cost ->
             val ctoType = when (cost.type) {
                 forge.game.spellability.OptionalCost.Kicker1,
                 forge.game.spellability.OptionalCost.Kicker2,
@@ -592,29 +563,15 @@ class TargetingHandler(private val ops: SessionOps) {
                 forge.game.spellability.OptionalCost.Entwine -> CastingTimeOptionType.AdditionalCost
                 else -> CastingTimeOptionType.OptionalCost
             }
-
-            // Find the abilityGrpId for this cost from card data
-            val cardData = bridge.cards.findByGrpId(action.grpId)
             val abilityGrpId = cardData?.abilityIds?.getOrNull(
                 (cardData.keywordAbilityGrpIds.size) + i,
             )?.first ?: 0
-
-            ctoReqBuilder.addCastingTimeOptionReq(
-                CastingTimeOptionReq.newBuilder()
-                    .setCtoId(ctoId)
-                    .setCastingTimeOptionType(ctoType)
-                    .setAffectedId(instanceId)
-                    .setAffectorId(instanceId)
-                    .setGrpId(abilityGrpId),
-            )
+            Pair(ctoType, abilityGrpId)
         }
 
-        // Add Done option (ctoId=0, required)
-        ctoReqBuilder.addCastingTimeOptionReq(
-            CastingTimeOptionReq.newBuilder()
-                .setCtoId(0)
-                .setCastingTimeOptionType(CastingTimeOptionType.Done)
-                .setIsRequired(true),
+        val (ctoReq, costCtoIds) = ops.bundleBuilder!!.buildOptionalCostCastingTimeOptionsReq(
+            instanceId = action.instanceId,
+            optionalCosts = costEntries,
         )
 
         // Stash the Cast action for replay after response
@@ -625,13 +582,10 @@ class TargetingHandler(private val ops: SessionOps) {
         )
 
         // Send prompt
-        val result = BundleBuilder.castingTimeOptionsBundle(
+        val result = ops.bundleBuilder!!.castingTimeOptionsBundle(
             game,
-            bridge,
-            ops.matchId,
-            ops.seatId,
             ops.counter,
-            ctoReqBuilder.build(),
+            ctoReq,
         )
         Tap.outboundTemplate("CastingTimeOptionsReq (optional costs) seat=${ops.seatId} card=${card.name}")
         ops.sendBundledGRE(result.messages)
@@ -686,9 +640,7 @@ class TargetingHandler(private val ops: SessionOps) {
     ) {
         // Reveal library contents so the client can populate the search picker.
         // The GSM sent by sendRealGameState will include full card objects for the library.
-        bridge.revealLibraryForSeat = ops.seatId
-        ops.sendRealGameState(bridge)
-        bridge.revealLibraryForSeat = null
+        ops.sendRealGameState(bridge, revealForSeat = ops.seatId)
 
         // Extract search parameters from the Forge prompt.
         val req = pendingPrompt.request
@@ -715,10 +667,9 @@ class TargetingHandler(private val ops: SessionOps) {
 
         val msgId = ops.counter.nextMsgId()
         val gsId = ops.counter.currentGsId()
-        val msg = BundleBuilder.buildSearchReq(
+        val msg = ops.bundleBuilder!!.buildSearchReq(
             msgId = msgId,
             gsId = gsId,
-            seatId = ops.seatId,
             sourceInstanceId = sourceId,
             libraryZoneId = libZoneId,
             allLibraryIds = allLibIds,
@@ -741,7 +692,7 @@ class TargetingHandler(private val ops: SessionOps) {
         pendingPrompt: InteractivePromptBridge.PendingPrompt,
     ) {
         val game = bridge.getGame() ?: return
-        val result = BundleBuilder.selectTargetsBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, pendingPrompt)
+        val result = ops.bundleBuilder!!.selectTargetsBundle(game, ops.counter, pendingPrompt)
         Tap.outboundTemplate("SelectTargetsReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
     }
@@ -752,12 +703,10 @@ class TargetingHandler(private val ops: SessionOps) {
         reason: ClassifiedPrompt.SelectN.Reason,
     ) {
         val game = bridge.getGame() ?: return
-        val req = BundleBuilder.buildSelectNReq(pendingPrompt, bridge)
-        val result = BundleBuilder.selectNBundle(
+        val bb = ops.bundleBuilder!!
+        val req = bb.buildSelectNReq(pendingPrompt)
+        val result = bb.selectNBundle(
             game,
-            bridge,
-            ops.matchId,
-            ops.seatId,
             ops.counter,
             req,
             isLegendRule = reason == ClassifiedPrompt.SelectN.Reason.LegendRule,
@@ -813,37 +762,9 @@ class TargetingHandler(private val ops: SessionOps) {
         log.info("TargetingHandler: sending GroupReq for {} cards={}", contextLabel, cardInstanceIds)
         ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "$contextLabel GroupReq cards=${cardInstanceIds.size}")
 
-        // Build GSM diff that reveals card objects (Private + viewer) so client shows face-up
-        val libZoneId = if (ops.seatId == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
-        val revealedObjects = topCards.map { card ->
-            ObjectMapper.buildCardObject(card, bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value, libZoneId, ops.seatId, bridge, Visibility.Private)
-                .toBuilder().addViewers(ops.seatId).build()
-        }
-        val gsId = ops.counter.nextGsId()
-        val revealDiff = GREToClientMessage.newBuilder()
-            .setType(GREMessageType.GameStateMessage_695e)
-            .addSystemSeatIds(ops.seatId)
-            .setMsgId(ops.counter.nextMsgId())
-            .setGameStateId(gsId)
-            .setGameStateMessage(
-                GameStateMessage.newBuilder()
-                    .setType(GameStateType.Diff)
-                    .setGameStateId(gsId)
-                    .setPrevGameStateId(gsId - 1)
-                    .addAllGameObjects(revealedObjects),
-            )
-            .build()
-
-        val groupReq = GsmBuilder.buildSurveilScryGroupReq(
-            msgId = ops.counter.nextMsgId(),
-            gameStateId = gsId,
-            seatId = ops.seatId,
-            cardInstanceIds = cardInstanceIds,
-            context = context,
-            sourceInstanceId = sourceId,
-        )
+        val result = ops.bundleBuilder!!.surveilScryBundle(topCards, cardInstanceIds, sourceId, context, ops.counter)
         Tap.outboundTemplate("GroupReq($contextLabel) seat=${ops.seatId}")
-        ops.sendBundledGRE(listOf(revealDiff, groupReq))
+        ops.sendBundledGRE(result.messages)
     }
 
     /** Submit default response and wait — used when modal lookup fails. */

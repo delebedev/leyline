@@ -194,9 +194,9 @@ object AnnotationBuilder {
             if (aff != 0) setAffectorId(aff)
         }
         .addAffectedIds(instanceId)
-        .addDetails(int32Detail("zone_src", srcZoneId))
-        .addDetails(int32Detail("zone_dest", destZoneId))
-        .addDetails(typedStringDetail("category", category))
+        .addDetails(int32Detail(DetailKeys.ZONE_SRC, srcZoneId))
+        .addDetails(int32Detail(DetailKeys.ZONE_DEST, destZoneId))
+        .addDetails(typedStringDetail(DetailKeys.CATEGORY, category))
         .build()
 
     /** Spell/ability begins resolving. Client uses this to start resolution animation. */
@@ -205,7 +205,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.ResolutionStart)
             .setAffectorId(instanceId)
             .addAffectedIds(instanceId)
-            .addDetails(uint32Detail("grpid", grpId))
+            .addDetails(uint32Detail(DetailKeys.GRPID, grpId))
             .build()
 
     /** A new turn started. Client uses this to reset turn-scoped state.
@@ -223,8 +223,8 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.PhaseOrStepModified)
             .addAffectedIds(activeSeat)
-            .addDetails(int32Detail("phase", phase))
-            .addDetails(int32Detail("step", step))
+            .addDetails(int32Detail(DetailKeys.PHASE, phase))
+            .addDetails(int32Detail(DetailKeys.STEP, step))
             .build()
 
     /** Card's instanceId changed (e.g. zone move creates new object).
@@ -234,8 +234,8 @@ object AnnotationBuilder {
             .addType(AnnotationType.ObjectIdChanged)
             .apply { if (affectorId != 0) setAffectorId(affectorId) }
             .addAffectedIds(origId)
-            .addDetails(int32Detail("orig_id", origId))
-            .addDetails(int32Detail("new_id", newId))
+            .addDetails(int32Detail(DetailKeys.ORIG_ID, origId))
+            .addDetails(int32Detail(DetailKeys.NEW_ID, newId))
             .build()
 
     /**
@@ -254,8 +254,8 @@ object AnnotationBuilder {
             .addType(AnnotationType.UserActionTaken)
             .setAffectorId(seatId)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail("actionType", actionType))
-            .addDetails(int32Detail("abilityGrpId", abilityGrpId))
+            .addDetails(int32Detail(DetailKeys.ACTION_TYPE, actionType))
+            .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId))
             .build()
 
     /**
@@ -271,8 +271,8 @@ object AnnotationBuilder {
             .addType(AnnotationType.ManaPaid)
             .setAffectorId(landInstanceId)
             .addAffectedIds(spellInstanceId)
-            .addDetails(int32Detail("id", manaId))
-            .addDetails(int32Detail("color", color))
+            .addDetails(int32Detail(DetailKeys.ID, manaId))
+            .addDetails(int32Detail(DetailKeys.COLOR, color))
             .build()
 
     /**
@@ -286,7 +286,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.TappedUntappedPermanent)
             .setAffectorId(abilityId)
             .addAffectedIds(permanentId)
-            .addDetails(uint32Detail("tapped", if (tapped) 1 else 0))
+            .addDetails(uint32Detail(DetailKeys.TAPPED, if (tapped) 1 else 0))
             .build()
 
     /**
@@ -302,7 +302,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.AbilityInstanceCreated)
             .setAffectorId(affectorId)
             .addAffectedIds(abilityInstanceId)
-            .addDetails(int32Detail("source_zone", sourceZoneId))
+            .addDetails(int32Detail(DetailKeys.SOURCE_ZONE, sourceZoneId))
             .build()
 
     /**
@@ -325,7 +325,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.ResolutionComplete)
             .setAffectorId(instanceId)
             .addAffectedIds(instanceId)
-            .addDetails(uint32Detail("grpid", grpId))
+            .addDetails(uint32Detail(DetailKeys.GRPID, grpId))
             .build()
 
     /**
@@ -338,9 +338,9 @@ object AnnotationBuilder {
             .addType(AnnotationType.DamageDealt_af5a)
             .setAffectorId(sourceInstanceId)
             .addAffectedIds(targetId)
-            .addDetails(uint32Detail("damage", amount))
-            .addDetails(uint32Detail("type", type))
-            .addDetails(uint32Detail("markDamage", markDamage))
+            .addDetails(uint32Detail(DetailKeys.DAMAGE, amount))
+            .addDetails(uint32Detail(DetailKeys.TYPE, type))
+            .addDetails(uint32Detail(DetailKeys.MARK_DAMAGE, markDamage))
             .build()
 
     /** Player life total changed. Client uses this for life counter animation. */
@@ -349,7 +349,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.ModifiedLife)
             .apply { if (affectorId != 0) setAffectorId(affectorId) }
             .addAffectedIds(playerSeatId)
-            .addDetails(int32Detail("life", lifeDelta))
+            .addDetails(int32Detail(DetailKeys.LIFE, lifeDelta))
             .build()
 
     /** Card's power changed. State parser — P/T values from gameObject fields, not annotation.
@@ -378,7 +378,7 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.LossOfGame_af5a)
             .addAffectedIds(affectedPlayerSeatId)
-            .addDetails(int32Detail("reason", reason))
+            .addDetails(int32Detail(DetailKeys.REASON, reason))
             .build()
 
     /** Generic combat result marker. Client dispatches synthetic GameRulesEvent based on type. */
@@ -387,7 +387,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.SyntheticEvent)
             .setAffectorId(attackerIid)
             .addAffectedIds(targetSeatId)
-            .addDetails(uint32Detail("type", 1))
+            .addDetails(uint32Detail(DetailKeys.TYPE, 1))
             .build()
 
     /** Persistent annotation: card entered a zone this turn. Client uses for summoning sickness, ETB display. */
@@ -470,8 +470,8 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.CounterAdded)
             .addAffectedIds(instanceId)
-            .addDetails(typedStringDetail("counter_type", counterType))
-            .addDetails(int32Detail("transaction_amount", amount))
+            .addDetails(typedStringDetail(DetailKeys.COUNTER_TYPE, counterType))
+            .addDetails(int32Detail(DetailKeys.TRANSACTION_AMOUNT, amount))
             .build()
 
     /** Counter removed from a permanent. Arena type 17 (CounterRemoved). */
@@ -479,8 +479,8 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.CounterRemoved)
             .addAffectedIds(instanceId)
-            .addDetails(typedStringDetail("counter_type", counterType))
-            .addDetails(int32Detail("transaction_amount", amount))
+            .addDetails(typedStringDetail(DetailKeys.COUNTER_TYPE, counterType))
+            .addDetails(int32Detail(DetailKeys.TRANSACTION_AMOUNT, amount))
             .build()
 
     /** Library shuffled. Arena type 56 (Shuffle). */
@@ -495,8 +495,8 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.Scry_af5a)
             .addAffectedIds(seatId)
-            .addDetails(int32Detail("topCount", topCount))
-            .addDetails(int32Detail("bottomCount", bottomCount))
+            .addDetails(int32Detail(DetailKeys.TOP_COUNT, topCount))
+            .addDetails(int32Detail(DetailKeys.BOTTOM_COUNT, bottomCount))
             .build()
 
     // -- Tier 1 state annotations --
@@ -509,8 +509,8 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.Counter_803b)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail("count", count))
-            .addDetails(int32Detail("counter_type", counterType))
+            .addDetails(int32Detail(DetailKeys.COUNT, count))
+            .addDetails(int32Detail(DetailKeys.COUNTER_TYPE, counterType))
             .build()
 
     /** Map Forge counter type name to proto CounterType numeric value.
@@ -548,10 +548,10 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.AddAbility_af5a)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail("grpid", grpId))
-            .addDetails(int32Detail("effect_id", effectId))
-            .addDetails(int32Detail("UniqueAbilityId", uniqueAbilityId))
-            .addDetails(int32Detail("originalAbilityObjectZcid", originalAbilityObjectZcid))
+            .addDetails(int32Detail(DetailKeys.GRPID, grpId))
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId))
+            .addDetails(int32Detail(DetailKeys.UNIQUE_ABILITY_ID, uniqueAbilityId))
+            .addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, originalAbilityObjectZcid))
             .build()
 
     /** Ability removed by effect. Arena type 23 (RemoveAbility).
@@ -560,7 +560,7 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.RemoveAbility)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail("effect_id", effectId))
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId))
             .build()
 
     /** Per-ability use tracking. Arena type 82 (AbilityExhausted).
@@ -574,9 +574,9 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.AbilityExhausted)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail("AbilityGrpId", abilityGrpId))
-            .addDetails(int32Detail("UsesRemaining", usesRemaining))
-            .addDetails(int32Detail("UniqueAbilityId", uniqueAbilityId))
+            .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId))
+            .addDetails(int32Detail(DetailKeys.USES_REMAINING, usesRemaining))
+            .addDetails(int32Detail(DetailKeys.UNIQUE_ABILITY_ID, uniqueAbilityId))
             .build()
 
     /** Designation gained (Monarch, City's Blessing, Initiative). Arena type 46 (GainDesignation).
@@ -586,7 +586,7 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.GainDesignation)
             .addAffectedIds(seatId)
-            .addDetails(int32Detail("DesignationType", designationType))
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
             .build()
 
     /** Designation state (persistent). Arena type 45 (Designation).
@@ -597,7 +597,7 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.Designation)
             .addAffectedIds(seatId)
-            .addDetails(int32Detail("DesignationType", designationType))
+            .addDetails(int32Detail(DetailKeys.DESIGNATION_TYPE, designationType))
             .build()
 
     /** Layered effect creation event (buff/debuff started). Arena type 18 (LayeredEffectCreated).
@@ -638,9 +638,9 @@ object AnnotationBuilder {
         builder.addType(AnnotationType.LayeredEffect)
         builder.addAffectedIds(instanceId)
         if (affectorId != 0) builder.affectorId = affectorId
-        builder.addDetails(int32Detail("effect_id", effectId))
+        builder.addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId))
         if (sourceAbilityGrpId != null) {
-            builder.addDetails(int32Detail("sourceAbilityGRPID", sourceAbilityGrpId))
+            builder.addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId))
         }
         return builder.build()
     }
@@ -655,7 +655,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.ColorProduction)
             .setAffectorId(instanceId)
             .addAffectedIds(instanceId)
-            .addDetails(int32ListDetail("colors", colors))
+            .addDetails(int32ListDetail(DetailKeys.COLORS, colors))
             .build()
 
     /** Which object triggered an ability + source zone. Arena type 32 (TriggeringObject).
@@ -664,7 +664,7 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.TriggeringObject)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail("source_zone", sourceZone))
+            .addDetails(int32Detail(DetailKeys.SOURCE_ZONE, sourceZone))
             .build()
 
     /** Target specification for spells/abilities. Arena type 26 (TargetSpec).
@@ -679,10 +679,10 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.TargetSpec)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail("abilityGrpId", abilityGrpId))
-            .addDetails(int32Detail("index", index))
-            .addDetails(int32Detail("promptId", promptId))
-            .addDetails(int32Detail("promptParameters", promptParameters))
+            .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId))
+            .addDetails(int32Detail(DetailKeys.INDEX, index))
+            .addDetails(int32Detail(DetailKeys.PROMPT_ID, promptId))
+            .addDetails(int32Detail(DetailKeys.PROMPT_PARAMETERS, promptParameters))
             .build()
 
     /** P/T modification event (buff animation). Arena type 71 (PowerToughnessModCreated).
@@ -693,8 +693,8 @@ object AnnotationBuilder {
             .addType(AnnotationType.PowerToughnessModCreated)
             .addAffectedIds(instanceId)
             .apply { if (affectorId != 0) setAffectorId(affectorId) }
-            .addDetails(int32Detail("power", power))
-            .addDetails(int32Detail("toughness", toughness))
+            .addDetails(int32Detail(DetailKeys.POWER, power))
+            .addDetails(int32Detail(DetailKeys.TOUGHNESS, toughness))
             .build()
 
     /** Card displayed under another card (exile-under-permanent, imprint, adventure exile).
@@ -705,8 +705,8 @@ object AnnotationBuilder {
             .addType(AnnotationType.DisplayCardUnderCard)
             .setAffectorId(affectorId)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail("Disable", disable))
-            .addDetails(int32Detail("TemporaryZoneTransfer", temporaryZoneTransfer))
+            .addDetails(int32Detail(DetailKeys.DISABLE, disable))
+            .addDetails(int32Detail(DetailKeys.TEMPORARY_ZONE_TRANSFER, temporaryZoneTransfer))
             .build()
 
     /** Predicted direct damage preview text. Arena type 66 (PredictedDirectDamage).
@@ -715,7 +715,7 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.PredictedDirectDamage)
             .addAffectedIds(instanceId)
-            .addDetails(int32Detail("value", value))
+            .addDetails(int32Detail(DetailKeys.VALUE, value))
             .build()
 
     // -- Tier 2 detail-less annotations --

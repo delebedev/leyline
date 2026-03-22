@@ -51,10 +51,10 @@ class GameEventCollectorTest :
 
             // Fire a simple event
             game.fireEvent(GameEventShuffle(game.humanPlayer))
-            val events1 = collector.drainEvents()
+            val events1 = collector.drainEvents().events
             events1.shouldNotBeEmpty()
 
-            val events2 = collector.drainEvents()
+            val events2 = collector.drainEvents().events
             events2.shouldBeEmpty()
         }
 
@@ -70,7 +70,7 @@ class GameEventCollectorTest :
             val land = game.humanPlayer.getZone(ZoneType.Hand).cards.first { it.isLand }
             game.fireEvent(GameEventLandPlayed(PlayerView.get(game.humanPlayer), CardView.get(land)))
 
-            val events = collector.drainEvents()
+            val events = collector.drainEvents().events
             val lp = events.filterIsInstance<GameEvent.LandPlayed>()
             lp.size shouldBe 1
             lp[0].forgeCardId shouldBe land.id
@@ -89,7 +89,7 @@ class GameEventCollectorTest :
             val spell = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
             game.fireEvent(GameEventSpellAbilityCast(spell.firstSpellAbility, null, 0))
 
-            val events = collector.drainEvents()
+            val events = collector.drainEvents().events
             val sc = events.filterIsInstance<GameEvent.SpellCast>()
             sc.size shouldBe 1
             sc[0].forgeCardId shouldBe spell.id
@@ -108,7 +108,7 @@ class GameEventCollectorTest :
             val spell = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
             game.fireEvent(GameEventSpellResolved(spell.firstSpellAbility, false))
 
-            val events = collector.drainEvents()
+            val events = collector.drainEvents().events
             val sr = events.filterIsInstance<GameEvent.SpellResolved>()
             sr.size shouldBe 1
             sr[0].forgeCardId shouldBe spell.id
@@ -125,7 +125,7 @@ class GameEventCollectorTest :
             val spell = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
             game.fireEvent(GameEventSpellResolved(spell.firstSpellAbility, true))
 
-            val sr = collector.drainEvents().filterIsInstance<GameEvent.SpellResolved>()
+            val sr = collector.drainEvents().events.filterIsInstance<GameEvent.SpellResolved>()
             sr.size shouldBe 1
             sr[0].hasFizzled.shouldBeTrue()
         }
@@ -144,7 +144,7 @@ class GameEventCollectorTest :
             val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
             game.fireEvent(GameEventCardChangeZone(creature, bf, gy))
 
-            val events = collector.drainEvents()
+            val events = collector.drainEvents().events
             // BF→GY via zone change now produces ZoneChanged (not CardDestroyed)
             val zoneChanges = events.filterIsInstance<GameEvent.ZoneChanged>()
             zoneChanges.size shouldBe 1
@@ -163,7 +163,7 @@ class GameEventCollectorTest :
             val bolt = game.humanPlayer.getZone(ZoneType.Hand).cards.first()
             game.fireEvent(GameEventCardDestroyed(creature, bolt))
 
-            val events = collector.drainEvents()
+            val events = collector.drainEvents().events
             val destroyed = events.filterIsInstance<GameEvent.CardDestroyed>()
             destroyed.size shouldBe 1
             destroyed[0].forgeCardId shouldBe creature.id
@@ -183,7 +183,7 @@ class GameEventCollectorTest :
             val hand = game.humanPlayer.getZone(ZoneType.Hand)
             game.fireEvent(GameEventCardChangeZone(creature, bf, hand))
 
-            val bounced = collector.drainEvents().filterIsInstance<GameEvent.CardBounced>()
+            val bounced = collector.drainEvents().events.filterIsInstance<GameEvent.CardBounced>()
             bounced.size shouldBe 1
             bounced[0].forgeCardId shouldBe creature.id
         }
@@ -200,7 +200,7 @@ class GameEventCollectorTest :
             val exile = game.humanPlayer.getZone(ZoneType.Exile)
             game.fireEvent(GameEventCardChangeZone(creature, bf, exile))
 
-            val exiled = collector.drainEvents().filterIsInstance<GameEvent.CardExiled>()
+            val exiled = collector.drainEvents().events.filterIsInstance<GameEvent.CardExiled>()
             exiled.size shouldBe 1
         }
 
@@ -216,7 +216,7 @@ class GameEventCollectorTest :
             val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
             game.fireEvent(GameEventCardChangeZone(card, hand, gy))
 
-            val discarded = collector.drainEvents().filterIsInstance<GameEvent.CardDiscarded>()
+            val discarded = collector.drainEvents().events.filterIsInstance<GameEvent.CardDiscarded>()
             discarded.size shouldBe 1
         }
 
@@ -232,7 +232,7 @@ class GameEventCollectorTest :
             val gy = game.humanPlayer.getZone(ZoneType.Graveyard)
             game.fireEvent(GameEventCardChangeZone(card, lib, gy))
 
-            val milled = collector.drainEvents().filterIsInstance<GameEvent.CardMilled>()
+            val milled = collector.drainEvents().events.filterIsInstance<GameEvent.CardMilled>()
             milled.size shouldBe 1
         }
 
@@ -248,7 +248,7 @@ class GameEventCollectorTest :
             val lib = game.humanPlayer.getZone(ZoneType.Library)
             game.fireEvent(GameEventCardChangeZone(card, gy, lib))
 
-            val zc = collector.drainEvents().filterIsInstance<GameEvent.ZoneChanged>()
+            val zc = collector.drainEvents().events.filterIsInstance<GameEvent.ZoneChanged>()
             zc.size shouldBe 1
             zc[0].from shouldBe Zone.Graveyard
             zc[0].to shouldBe Zone.Library
@@ -266,7 +266,7 @@ class GameEventCollectorTest :
             val land = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first()
             game.fireEvent(GameEventCardTapped(land, true))
 
-            val tapped = collector.drainEvents().filterIsInstance<GameEvent.CardTapped>()
+            val tapped = collector.drainEvents().events.filterIsInstance<GameEvent.CardTapped>()
             tapped.size shouldBe 1
             tapped[0].forgeCardId shouldBe land.id
             tapped[0].tapped.shouldBeTrue()
@@ -282,7 +282,7 @@ class GameEventCollectorTest :
             val land = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first()
             game.fireEvent(GameEventCardTapped(land, false))
 
-            val tapped = collector.drainEvents().filterIsInstance<GameEvent.CardTapped>()
+            val tapped = collector.drainEvents().events.filterIsInstance<GameEvent.CardTapped>()
             tapped.size shouldBe 1
             tapped[0].tapped.shouldBeFalse()
         }
@@ -302,7 +302,7 @@ class GameEventCollectorTest :
             val target = cards[1]
             game.fireEvent(GameEventCardDamaged(CardView.get(target), CardView.get(source), 2, GameEventCardDamaged.DamageType.Normal))
 
-            val dmg = collector.drainEvents().filterIsInstance<GameEvent.DamageDealtToCard>()
+            val dmg = collector.drainEvents().events.filterIsInstance<GameEvent.DamageDealtToCard>()
             dmg.size shouldBe 1
             dmg[0].sourceForgeId shouldBe source.id
             dmg[0].targetForgeId shouldBe target.id
@@ -319,7 +319,7 @@ class GameEventCollectorTest :
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             game.fireEvent(GameEventPlayerDamaged(PlayerView.get(game.humanPlayer), CardView.get(creature), 3, true, false))
 
-            val dmg = collector.drainEvents().filterIsInstance<GameEvent.DamageDealtToPlayer>()
+            val dmg = collector.drainEvents().events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
             dmg.size shouldBe 1
             dmg[0].sourceForgeId shouldBe creature.id
             dmg[0].targetSeatId shouldBe 1
@@ -336,7 +336,7 @@ class GameEventCollectorTest :
 
             game.fireEvent(GameEventPlayerLivesChanged(game.humanPlayer, 20, 17))
 
-            val lc = collector.drainEvents().filterIsInstance<GameEvent.LifeChanged>()
+            val lc = collector.drainEvents().events.filterIsInstance<GameEvent.LifeChanged>()
             lc.size shouldBe 1
             lc[0].seatId shouldBe 1
             lc[0].oldLife shouldBe 20
@@ -355,7 +355,7 @@ class GameEventCollectorTest :
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             game.fireEvent(GameEventCardSacrificed(CardView.get(creature)))
 
-            val sac = collector.drainEvents().filterIsInstance<GameEvent.CardSacrificed>()
+            val sac = collector.drainEvents().events.filterIsInstance<GameEvent.CardSacrificed>()
             sac.size shouldBe 1
             sac[0].forgeCardId shouldBe creature.id
             sac[0].seatId shouldBe 1
@@ -376,7 +376,7 @@ class GameEventCollectorTest :
             val creature = cards.first { it.isCreature }
             game.fireEvent(GameEventCardAttachment(aura, null, creature))
 
-            val attached = collector.drainEvents().filterIsInstance<GameEvent.CardAttached>()
+            val attached = collector.drainEvents().events.filterIsInstance<GameEvent.CardAttached>()
             attached.size shouldBe 1
             attached[0].forgeCardId shouldBe aura.id
             attached[0].targetForgeId shouldBe creature.id
@@ -394,7 +394,7 @@ class GameEventCollectorTest :
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             game.fireEvent(GameEventCardAttachment(aura, creature, null))
 
-            val detached = collector.drainEvents().filterIsInstance<GameEvent.CardDetached>()
+            val detached = collector.drainEvents().events.filterIsInstance<GameEvent.CardDetached>()
             detached.size shouldBe 1
             detached[0].forgeCardId shouldBe aura.id
         }
@@ -411,7 +411,7 @@ class GameEventCollectorTest :
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             game.fireEvent(GameEventCardCounters(creature, CounterEnumType.P1P1, 0, 2))
 
-            val cc = collector.drainEvents().filterIsInstance<GameEvent.CountersChanged>()
+            val cc = collector.drainEvents().events.filterIsInstance<GameEvent.CountersChanged>()
             cc.size shouldBe 1
             cc[0].forgeCardId shouldBe creature.id
             cc[0].counterType shouldBe "+1/+1"
@@ -438,7 +438,7 @@ class GameEventCollectorTest :
             creature.setBasePower(creature.getNetPower() + 2)
             game.fireEvent(GameEventCardStatsChanged(creature))
 
-            val pt = collector.drainEvents().filterIsInstance<GameEvent.PowerToughnessChanged>()
+            val pt = collector.drainEvents().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
             pt.size shouldBe 1
             pt[0].forgeCardId shouldBe creature.id
             pt[0].newPower shouldBe creature.getNetPower()
@@ -458,7 +458,7 @@ class GameEventCollectorTest :
             collector.drainEvents()
             game.fireEvent(GameEventCardStatsChanged(creature))
 
-            val pt = collector.drainEvents().filterIsInstance<GameEvent.PowerToughnessChanged>()
+            val pt = collector.drainEvents().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
             pt.shouldBeEmpty()
         }
 
@@ -471,7 +471,7 @@ class GameEventCollectorTest :
 
             game.fireEvent(GameEventShuffle(game.humanPlayer))
 
-            val sh = collector.drainEvents().filterIsInstance<GameEvent.LibraryShuffled>()
+            val sh = collector.drainEvents().events.filterIsInstance<GameEvent.LibraryShuffled>()
             sh.size shouldBe 1
             sh[0].seatId shouldBe 1
         }
@@ -485,7 +485,7 @@ class GameEventCollectorTest :
 
             game.fireEvent(GameEventScry(PlayerView.get(game.humanPlayer), 1, 2))
 
-            val scry = collector.drainEvents().filterIsInstance<GameEvent.Scry>()
+            val scry = collector.drainEvents().events.filterIsInstance<GameEvent.Scry>()
             scry.size shouldBe 1
             scry[0].seatId shouldBe 1
             scry[0].topCount shouldBe 1
@@ -501,7 +501,7 @@ class GameEventCollectorTest :
 
             game.fireEvent(GameEventSurveil(PlayerView.get(game.humanPlayer), 1, 3))
 
-            val sv = collector.drainEvents().filterIsInstance<GameEvent.Surveil>()
+            val sv = collector.drainEvents().events.filterIsInstance<GameEvent.Surveil>()
             sv.size shouldBe 1
             sv[0].seatId shouldBe 1
             sv[0].toLibrary shouldBe 1
@@ -517,7 +517,7 @@ class GameEventCollectorTest :
 
             game.fireEvent(GameEventCombatEnded(listOf(), listOf()))
 
-            val ce = collector.drainEvents().filterIsInstance<GameEvent.CombatEnded>()
+            val ce = collector.drainEvents().events.filterIsInstance<GameEvent.CombatEnded>()
             ce.size shouldBe 1
         }
 
@@ -530,7 +530,7 @@ class GameEventCollectorTest :
 
             game.fireEvent(GameEventShuffle(game.aiPlayer))
 
-            val sh = collector.drainEvents().filterIsInstance<GameEvent.LibraryShuffled>()
+            val sh = collector.drainEvents().events.filterIsInstance<GameEvent.LibraryShuffled>()
             sh.size shouldBe 1
             sh[0].seatId shouldBe 2
         }
@@ -559,7 +559,7 @@ class GameEventCollectorTest :
             // Re-enter: P/T event should not compare against old cached value
             game.fireEvent(GameEventCardChangeZone(creature, gy, bf))
             game.fireEvent(GameEventCardStatsChanged(creature))
-            val pt = collector.drainEvents().filterIsInstance<GameEvent.PowerToughnessChanged>()
+            val pt = collector.drainEvents().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
             pt.shouldBeEmpty()
         }
     })

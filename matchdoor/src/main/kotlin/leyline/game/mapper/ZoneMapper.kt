@@ -27,6 +27,7 @@ object ZoneMapper {
      * Add hand, library, and graveyard zones for a player.
      * Hand includes GameObjectInfo only for the viewing seat (opponent sees face-down).
      */
+    @Suppress("detekt:LongParameterList")
     internal fun addPlayerZones(
         game: Game,
         player: Player?,
@@ -38,6 +39,7 @@ object ZoneMapper {
         libZoneId: Int,
         gyZoneId: Int,
         viewingSeatId: Int = 0,
+        revealForSeat: Int? = null,
     ) {
         if (player == null) return
 
@@ -58,8 +60,8 @@ object ZoneMapper {
         }
         zones.add(handBuilder.build())
 
-        // Library — instance IDs always; full GameObjectInfo only during search (revealLibraryForSeat).
-        val revealLib = bridge.revealLibraryForSeat == seatId
+        // Library — instance IDs always; full GameObjectInfo only during search (revealForSeat).
+        val revealLib = revealForSeat == seatId
         val lib = player.getZone(ForgeZoneType.Library)
         val libBuilder = ZoneInfo.newBuilder()
             .setZoneId(libZoneId).setType(ZoneType.Library)

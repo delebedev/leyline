@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import kotlinx.serialization.Serializable
+import leyline.game.DetailKeys
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -74,7 +75,7 @@ data class StructuralFingerprint(
                         annotationTypes.add(t.name.stripSuffix())
                     }
                     for (detail in ann.detailsList) {
-                        if (detail.key == "category" && detail.valueStringCount > 0) {
+                        if (detail.key == DetailKeys.CATEGORY && detail.valueStringCount > 0) {
                             annotationCategories.add(detail.getValueString(0))
                         }
                     }

@@ -102,7 +102,8 @@ class AutoPassEngine(
                         // Human turn: only send state if human has meaningful actions.
                         // SEND_STATE bypasses checkHumanActions, so without this guard
                         // the client can get stuck showing "My Turn" with only Pass.
-                        val actions = BundleBuilder.buildActions(game, ops.seatId, bridge)
+                        val bb = ops.bundleBuilder!!
+                        val actions = bb.buildActions(game)
                         if (!BundleBuilder.shouldAutoPass(actions)) {
                             ops.sendRealGameState(bridge)
                             return
@@ -122,7 +123,7 @@ class AutoPassEngine(
             }
 
             // Action check — prompt human if meaningful actions exist
-            val decision = checkHumanActions(bridge, game, isAiTurn)
+            val decision = checkHumanActions(game, isAiTurn)
             if (decision is PriorityDecision.Grant) {
                 ops.sendRealGameState(bridge)
                 return
@@ -176,11 +177,11 @@ class AutoPassEngine(
      * Check if human has meaningful actions. Returns [PriorityDecision.Grant]
      * if state should be sent, [PriorityDecision.Skip] otherwise.
      */
-    private fun checkHumanActions(bridge: GameBridge, game: Game, isAiTurn: Boolean): PriorityDecision {
+    private fun checkHumanActions(game: Game, isAiTurn: Boolean): PriorityDecision {
         if (isAiTurn) {
             return PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
         }
-        val actions = BundleBuilder.buildActions(game, ops.seatId, bridge)
+        val actions = ops.bundleBuilder!!.buildActions(game)
 
         // Full control: always grant priority (never auto-pass on session side)
         if (autoPassState.isFullControl) {
@@ -245,7 +246,7 @@ class AutoPassEngine(
             // sends edictal passes during AI turn. Sending them interrupts the
             // client's animation pipeline (enters post-pass "waiting" state).
             if (!isAiTurn) {
-                val edictal = BundleBuilder.edictalPass(ops.seatId, ops.counter)
+                val edictal = ops.bundleBuilder!!.edictalPass(ops.counter)
                 ops.sendBundledGRE(edictal.messages)
             }
             bridge.seat(ops.seatId).action.submitAction(pending.actionId, PlayerAction.PassPriority)

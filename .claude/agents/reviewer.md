@@ -98,6 +98,22 @@ Process:
 
 5. **Lead with strengths.** What's well-done in the change? Then findings.
 
+## Evaluating architectural refactors
+
+When the change is a refactoring or architectural improvement, apply these questions in addition to the standard review. Skip this section for feature work or bug fixes.
+
+**Conformance surface:** can you now reason about what a message looks like by reading fewer files? Count the files needed to trace a single GSM emission before vs after. If the number went down, it's a real improvement.
+
+**Test tier shift:** did the refactoring enable tests at a faster tier? More `startWithBoard` (0.01s, pure data) and fewer `connectAndKeep` (3s, full engine) = more tractable codebase. Check if new tests were added at the appropriate tier.
+
+**Change cost:** does adding the next similar thing (annotation type, action handler, zone transition) require fewer coordinated changes across fewer files? If the refactoring doesn't reduce future change cost, question whether it earned its complexity.
+
+**Implicit contracts eliminated:** did any ordering dependency, call sequence, or "you must also update X" relationship become a compile-time guarantee or runtime assertion? Each one eliminated is a silent failure mode removed.
+
+**The real test:** pick an open issue that touches the refactored area. Is it now easier to plan and implement? If you can't articulate how, the refactoring may be ceremony.
+
+**What to flag:** refactorings that add abstraction layers without reducing any of the above. New types that don't carry invariants. Wrappers that just reduce parameter counts without enabling new testability.
+
 ## Output format
 
 ```

@@ -25,6 +25,9 @@ interface SessionOps {
     /** Game bridge — non-null for [MatchSession], null for [FamiliarSession]. */
     val gameBridge: GameBridge? get() = null
 
+    /** Bundle builder — non-null after [connectBridge], null for [FamiliarSession]. */
+    val bundleBuilder: BundleBuilder? get() = null
+
     /** Session recorder — non-null when recording is enabled. */
     val recorder: MatchRecorder? get() = null
 
@@ -32,7 +35,7 @@ interface SessionOps {
     fun connectBridge(bridge: GameBridge) {}
 
     fun sendBundledGRE(messages: List<GREToClientMessage>)
-    fun sendRealGameState(bridge: GameBridge)
+    fun sendRealGameState(bridge: GameBridge, revealForSeat: Int? = null)
     fun sendBundle(result: BundleBuilder.BundleResult)
     fun sendGameOver(reason: ResultReason = ResultReason.Game_ae0a)
     fun traceEvent(type: MatchEventType, game: Game, detail: String)

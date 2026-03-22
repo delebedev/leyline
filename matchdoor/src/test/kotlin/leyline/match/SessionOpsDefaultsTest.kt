@@ -20,7 +20,7 @@ class SessionOpsDefaultsTest :
             override var counter = MessageCounter()
 
             override fun sendBundledGRE(messages: List<GREToClientMessage>) {}
-            override fun sendRealGameState(bridge: GameBridge) {}
+            override fun sendRealGameState(bridge: GameBridge, revealForSeat: Int?) {}
             override fun sendBundle(result: BundleBuilder.BundleResult) {}
             override fun sendGameOver(reason: ResultReason) {}
             override fun traceEvent(type: MatchEventType, game: Game, detail: String) {}

@@ -51,7 +51,7 @@ class PersistentAnnotationStore {
             effectDiff: EffectTracker.DiffResult,
             transferPersistent: List<AnnotationInfo>,
             mechanicResult: AnnotationPipeline.MechanicAnnotationResult,
-            resolveInstanceId: (Int) -> Int,
+            resolveInstanceId: (ForgeCardId) -> InstanceId,
             resolveForgeCardId: (InstanceId) -> ForgeCardId? = { null },
         ): BatchResult {
             val active = currentActive.toMutableMap()
@@ -81,7 +81,7 @@ class PersistentAnnotationStore {
             for (ann in mechanicResult.persistent) {
                 if (ann.typeList.any { it == AnnotationType.Counter_803b }) {
                     val iid = ann.affectedIdsList.firstOrNull()
-                    val ctype = ann.detailsList.firstOrNull { it.key == "counter_type" }
+                    val ctype = ann.detailsList.firstOrNull { it.key == DetailKeys.COUNTER_TYPE }
                         ?.let { if (it.valueInt32Count > 0) it.getValueInt32(0) else null }
                     if (iid != null && ctype != null) {
                         val oldId = findCounter(active, iid, ctype)
@@ -97,7 +97,7 @@ class PersistentAnnotationStore {
 
             // 4. Detached auras
             for (forgeCardId in mechanicResult.detachedForgeCardIds) {
-                val auraIid = resolveInstanceId(forgeCardId)
+                val auraIid = resolveInstanceId(ForgeCardId(forgeCardId)).value
                 val annId = findByAura(active, auraIid)
                 if (annId != null) {
                     active.remove(annId)
@@ -125,7 +125,7 @@ class PersistentAnnotationStore {
             active.entries.firstOrNull { (_, ann) ->
                 ann.typeList.any { it == AnnotationType.LayeredEffect } &&
                     ann.detailsList.any {
-                        it.key == "effect_id" && it.valueInt32Count > 0 && it.getValueInt32(0) == effectId
+                        it.key == DetailKeys.EFFECT_ID && it.valueInt32Count > 0 && it.getValueInt32(0) == effectId
                     }
             }?.key
 
@@ -134,7 +134,7 @@ class PersistentAnnotationStore {
                 ann.typeList.any { it == AnnotationType.Counter_803b } &&
                     ann.affectedIdsList.contains(instanceId) &&
                     ann.detailsList.any {
-                        it.key == "counter_type" && it.valueInt32Count > 0 && it.getValueInt32(0) == counterType
+                        it.key == DetailKeys.COUNTER_TYPE && it.valueInt32Count > 0 && it.getValueInt32(0) == counterType
                     }
             }?.key
 

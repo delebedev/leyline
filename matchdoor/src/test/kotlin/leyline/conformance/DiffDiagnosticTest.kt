@@ -10,7 +10,6 @@ import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
-import leyline.game.BundleBuilder
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -132,11 +131,8 @@ class DiffDiagnosticTest :
                 game.action.moveToPlay(land, null, AbilityKey.newMap())
             }
 
-            val aiResult = BundleBuilder.remoteActionDiff(
+            val aiResult = base.bundleBuilder(b).remoteActionDiff(
                 game,
-                b,
-                ConformanceTestBase.TEST_MATCH_ID,
-                ConformanceTestBase.SEAT_ID,
                 counter,
             )
 

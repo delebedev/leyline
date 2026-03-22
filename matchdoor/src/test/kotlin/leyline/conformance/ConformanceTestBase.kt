@@ -188,13 +188,17 @@ open class ConformanceTestBase {
 
     // ----- Capture helpers -----
 
+    /** Create a [BundleBuilder] with standard test constants. */
+    fun bundleBuilder(b: GameBridge): BundleBuilder =
+        BundleBuilder(b, TEST_MATCH_ID, SEAT_ID)
+
     /** Build a stateOnlyDiff and return the GSM. Fails if no GSM produced. */
     fun stateOnlyDiff(
         game: Game,
         b: GameBridge,
         counter: MessageCounter,
     ): GameStateMessage =
-        BundleBuilder.stateOnlyDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
+        bundleBuilder(b).stateOnlyDiff(game, counter)
             .gsmOrNull ?: error("stateOnlyDiff returned no GSM")
 
     /**
@@ -271,7 +275,7 @@ open class ConformanceTestBase {
         b: GameBridge,
         counter: MessageCounter,
     ): BundleBuilder.BundleResult =
-        BundleBuilder.postAction(game, b, TEST_MATCH_ID, SEAT_ID, counter)
+        bundleBuilder(b).postAction(game, counter)
 
     /** Build a gameStart bundle (phaseTransitionDiff) with standard test constants. */
     fun gameStart(
@@ -279,7 +283,7 @@ open class ConformanceTestBase {
         b: GameBridge,
         counter: MessageCounter,
     ): BundleBuilder.BundleResult =
-        BundleBuilder.phaseTransitionDiff(game, b, TEST_MATCH_ID, SEAT_ID, counter)
+        bundleBuilder(b).phaseTransitionDiff(game, counter)
 
     /**
      * Build a Full state GSM simulating the handshake baseline.

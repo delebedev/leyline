@@ -55,15 +55,14 @@ class LibrarySearchConformanceTest :
 
             // Simulate what TargetingHandler.sendSearchReq does:
             // reveal library for seat 1, then build a GSM
-            bridge.revealLibraryForSeat = 1
             val gsm = StateMapper.buildFromGame(
                 game,
                 counter.nextGsId(),
                 ConformanceTestBase.TEST_MATCH_ID,
                 bridge,
                 viewingSeatId = 1,
+                revealForSeat = 1,
             ).gsm
-            bridge.revealLibraryForSeat = null
 
             // Find library objects (seat 1 library = zone 32)
             val libraryObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.P1_LIBRARY }
@@ -134,15 +133,14 @@ class LibrarySearchConformanceTest :
 
             val (bridge, game, counter) = base.startPuzzleAtMain1(puzzleText)
 
-            bridge.revealLibraryForSeat = 1
             val gsm = StateMapper.buildFromGame(
                 game,
                 counter.nextGsId(),
                 ConformanceTestBase.TEST_MATCH_ID,
                 bridge,
                 viewingSeatId = 1,
+                revealForSeat = 1,
             ).gsm
-            bridge.revealLibraryForSeat = null
 
             val libraryObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.P1_LIBRARY }
 

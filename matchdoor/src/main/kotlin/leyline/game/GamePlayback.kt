@@ -37,6 +37,8 @@ class GamePlayback(
     private val delayMultiplier: Double = 1.0,
 ) : IGameEventVisitor.Base<Unit>() {
 
+    private val bundleBuilder = BundleBuilder(bridge, matchId, seatId)
+
     private val log = LoggerFactory.getLogger(GamePlayback::class.java)
 
     /** Dedup: last turn+phase captured by TurnBegan, so TurnPhase can skip the duplicate. */
@@ -133,11 +135,8 @@ class GamePlayback(
         val game = bridge.getGame() ?: return
 
         try {
-            val result = BundleBuilder.remoteActionDiff(
+            val result = bundleBuilder.remoteActionDiff(
                 game,
-                bridge,
-                matchId,
-                seatId,
                 counter,
                 turnStarted = turnStarted,
             )

@@ -7,7 +7,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
-import leyline.game.BundleBuilder
 
 /**
  * Validates gsId chain **semantics** beyond structural invariants.
@@ -34,7 +33,7 @@ class GsIdChainTest :
                 base.addCard("Plains", human, ZoneType.Hand)
             }
 
-            val result = BundleBuilder.remoteActionDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
+            val result = base.bundleBuilder(b).remoteActionDiff(game, counter)
             result.messages.size shouldBe 1
             result.messages[0].gameStateMessage.pendingMessageCount shouldBe 0
         }
@@ -59,7 +58,7 @@ class GsIdChainTest :
                 base.addCard("Plains", human, ZoneType.Hand)
             }
 
-            val result = BundleBuilder.phaseTransitionDiff(game, b, ConformanceTestBase.TEST_MATCH_ID, ConformanceTestBase.SEAT_ID, counter)
+            val result = base.bundleBuilder(b).phaseTransitionDiff(game, counter)
             result.messages.size shouldBe 5
 
             val gsms = result.messages.filter { it.hasGameStateMessage() }.map { it.gameStateMessage }

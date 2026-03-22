@@ -74,5 +74,5 @@ interface AnnotationIds {
 /** Drain queued game events for annotation building. */
 interface EventDrain {
     /** Drain all queued events since last drain. Empty if no events. */
-    fun drainEvents(): List<GameEvent>
+    fun drainEvents(): DrainedEvents
 }

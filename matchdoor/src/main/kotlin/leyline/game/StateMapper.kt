@@ -1,7 +1,6 @@
 package leyline.game
 
 import forge.game.Game
-import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
 import leyline.bridge.findCard
@@ -53,6 +52,7 @@ object StateMapper {
         actions: ActionsAvailableReq? = null,
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
+        revealForSeat: Int? = null,
     ): BuildResult {
         val handler = game.phaseHandler
         val human = bridge.getPlayer(SeatId(1))
@@ -60,7 +60,7 @@ object StateMapper {
         val frame = GsmFrame.from(game, bridge)
 
         // ═══ GATHER: drain queues, snapshot mutable state ═══
-        val events = bridge.drainEvents().toMutableList()
+        val events = bridge.drainEvents().events.toMutableList()
         for (reveal in bridge.drainReveals(viewingSeatId)) {
             events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
         }
@@ -114,14 +114,14 @@ object StateMapper {
         // Player 1 zones
         ZoneMapper.addPlayerZones(
             game, human, 1, bridge, zones, gameObjects,
-            ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, viewingSeatId,
+            ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, viewingSeatId, revealForSeat,
         )
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P1_SIDEBOARD, ZoneType.Sideboard, 1))
 
         // Player 2 zones
         ZoneMapper.addPlayerZones(
             game, ai, 2, bridge, zones, gameObjects,
-            ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, viewingSeatId,
+            ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, viewingSeatId, revealForSeat,
         )
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P2_SIDEBOARD, ZoneType.Sideboard, 2))
 
@@ -185,12 +185,13 @@ object StateMapper {
         actions: ActionsAvailableReq? = null,
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
+        revealForSeat: Int? = null,
     ): BuildResult {
         val prev = bridge.getDiffBaselineState()
         if (prev == null) {
             // No baseline exists — fall back to Full, but snapshot it so the next
             // buildDiffFromGame call has a baseline and produces a real Diff.
-            val result = buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId)
+            val result = buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat)
             bridge.snapshotDiffBaseline(result.gsm)
             return result
         }
@@ -198,7 +199,7 @@ object StateMapper {
         // Build current full state (for comparison + to seed next diff).
         // Pass actions=null to avoid redundant action embedding (we embed below).
         // Use viewingSeatId=0 for the comparison base (needs all objects for accurate diff).
-        val fullResult = buildFromGame(game, gameStateId, matchId, bridge)
+        val fullResult = buildFromGame(game, gameStateId, matchId, bridge, revealForSeat = revealForSeat)
         val current = fullResult.gsm
 
         // Compute changed zones (by objectInstanceIds)
@@ -380,8 +381,8 @@ object StateMapper {
             .map { it.forgeCardId }
             .toSet()
         val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds
-        val mechanicResult = AnnotationPipeline.mechanicAnnotations(events, manaPaidForgeCardIds) { forgeCardId ->
-            bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+        val mechanicResult = AnnotationPipeline.mechanicAnnotations(events, manaPaidForgeCardIds) { fid ->
+            bridge.getOrAllocInstanceId(fid)
         }
         annotations.addAll(mechanicResult.transient)
 
@@ -401,7 +402,7 @@ object StateMapper {
             effectDiff = effectDiff,
             transferPersistent = transferPersistent,
             mechanicResult = mechanicResult,
-            resolveInstanceId = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
+            resolveInstanceId = { fid -> bridge.getOrAllocInstanceId(fid) },
             resolveForgeCardId = { iid -> bridge.getForgeCardId(iid) },
         )
 
@@ -454,10 +455,10 @@ object StateMapper {
      */
     private fun buildSourceAbilityResolver(
         bridge: GameBridge,
-    ): (Int, Long) -> Int? {
+    ): (InstanceId, Long) -> Int? {
         val game = bridge.getGame() ?: return { _, _ -> null }
         return resolver@{ instanceId, staticId ->
-            val forgeCardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@resolver null
+            val forgeCardId = bridge.getForgeCardId(instanceId) ?: return@resolver null
             val card = findCard(game, forgeCardId) ?: return@resolver null
             val grpId = bridge.cards.findGrpIdByName(card.name) ?: return@resolver null
             val cardData = bridge.cards.findByGrpId(grpId) ?: return@resolver null

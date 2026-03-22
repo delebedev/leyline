@@ -67,10 +67,6 @@ class GameBridge(
     EventDrain {
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
 
-    /** When set, library contents for this seat are included as Private objects in GSM diffs.
-     *  Used during library search to populate the client's search picker. */
-    @Volatile var revealLibraryForSeat: Int? = null
-
     private var game: Game? = null
     private val players: MutableMap<Int, Player> = mutableMapOf()
     private var loopController: GameLoopController? = null
@@ -259,7 +255,7 @@ class GameBridge(
      *  Used after library search to remove revealed card objects from the baseline. */
     fun clearDiffBaseline() = diff.clearBaseline()
 
-    override fun drainEvents(): List<GameEvent> = eventCollector?.drainEvents() ?: emptyList()
+    override fun drainEvents(): DrainedEvents = eventCollector?.drainEvents() ?: DrainedEvents(emptyList())
 
     /** True if there are Forge events queued but not yet drained into a GSM. */
     fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false

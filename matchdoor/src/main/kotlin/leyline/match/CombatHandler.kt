@@ -8,7 +8,6 @@ import leyline.bridge.InstanceId
 import leyline.bridge.PlayerAction
 import leyline.bridge.SeatId
 import leyline.bridge.Target
-import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -312,7 +311,7 @@ class CombatHandler(private val ops: SessionOps) {
                     if (combat != null && combat.attackers.isNotEmpty()) {
                         return Signal.CONTINUE
                     }
-                    val req = BundleBuilder.buildDeclareAttackersReq(game, ops.seatId, bridge)
+                    val req = ops.bundleBuilder!!.buildDeclareAttackersReq(game)
                     if (req.attackersCount > 0) {
                         ops.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
                         sendDeclareAttackersReq(bridge, req)
@@ -368,10 +367,8 @@ class CombatHandler(private val ops: SessionOps) {
      */
     private fun sendAttackerEchoBack(bridge: GameBridge) {
         val game = bridge.getGame() ?: return
-        val result = BundleBuilder.echoAttackersBundle(
+        val result = ops.bundleBuilder!!.echoAttackersBundle(
             game,
-            bridge,
-            ops.seatId,
             ops.counter,
             selectedAttackerIds = lastDeclaredAttackerIds,
             allLegalAttackerIds = pendingLegalAttackers,
@@ -390,7 +387,7 @@ class CombatHandler(private val ops: SessionOps) {
         resetSelection: Boolean = true,
     ) {
         val game = bridge.getGame() ?: return
-        val result = BundleBuilder.declareAttackersBundle(game, bridge, ops.matchId, ops.seatId, ops.counter, req)
+        val result = ops.bundleBuilder!!.declareAttackersBundle(game, ops.counter, req)
 
         val builtReq = result.messages.firstOrNull { it.hasDeclareAttackersReq() }?.declareAttackersReq
         pendingLegalAttackers = builtReq?.attackersList?.map { it.attackerInstanceId } ?: emptyList()
@@ -410,10 +407,8 @@ class CombatHandler(private val ops: SessionOps) {
      */
     private fun sendBlockerEchoBack(bridge: GameBridge) {
         val game = bridge.getGame() ?: return
-        val result = BundleBuilder.echoBlockersBundle(
+        val result = ops.bundleBuilder!!.echoBlockersBundle(
             game,
-            bridge,
-            ops.seatId,
             ops.counter,
             blockAssignments = lastDeclaredBlockAssignments.toMap(),
         )
@@ -423,7 +418,7 @@ class CombatHandler(private val ops: SessionOps) {
 
     private fun sendDeclareBlockersReq(bridge: GameBridge) {
         val game = bridge.getGame() ?: return
-        val result = BundleBuilder.declareBlockersBundle(game, bridge, ops.matchId, ops.seatId, ops.counter)
+        val result = ops.bundleBuilder!!.declareBlockersBundle(game, ops.counter)
 
         pendingBlockersSent = true
         Tap.outboundTemplate("DeclareBlockersReq seat=${ops.seatId}")

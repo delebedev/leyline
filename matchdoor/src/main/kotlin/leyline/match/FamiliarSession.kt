@@ -28,7 +28,7 @@ class FamiliarSession(
         sink.send(messages)
     }
 
-    override fun sendRealGameState(bridge: GameBridge) {}
+    override fun sendRealGameState(bridge: GameBridge, revealForSeat: Int?) {}
     override fun sendBundle(result: BundleBuilder.BundleResult) {}
     override fun sendGameOver(reason: ResultReason) {}
     override fun traceEvent(type: MatchEventType, game: Game, detail: String) {}
