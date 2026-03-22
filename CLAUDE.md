@@ -86,13 +86,24 @@ See `docs/architecture.md` for diagrams. See `matchdoor/CLAUDE.md` for engine ad
 
 ## Build Setup (from scratch)
 
-Fresh clone needs these steps in order:
+One command gets you from fresh clone to runnable tests:
 
+```bash
+just bootstrap    # submodules → forge install → build → seed DB
+```
+
+This handles: git submodule init, maven install of forge engine, gradle proto-sync + compile + jars, and database seeding. Prerequisite: `mvn` in PATH (`brew install maven`). Safe to re-run — skips forge install if already up to date.
+
+**For Arena client connection** (optional, not needed for tests):
+```bash
+just dev-setup    # patch MTGA for localhost + macOS defaults
+```
+
+**Individual steps** (when bootstrap isn't enough or you need to debug):
 ```bash
 git submodule update --init --recursive   # forge + proto/upstream
 just install-forge                        # mvn install forge jars to forge/.m2-local/
 just build                                # gradle: proto-sync + compileKotlin + jar + writeClasspath
-just dev-setup                            # patch Arena client for localhost, macOS defaults
 just seed-db                              # create data/player.db with starter decks + player
 ```
 
@@ -100,7 +111,6 @@ just seed-db                              # create data/player.db with starter d
 - `just build` runs `classes jar` — produces jars. But a **running server** holds old jars in memory. After code changes, restart the server (`just stop` + `just serve`) to pick up new classes. `just dev` auto-restarts on `.kt` changes.
 - Forge submodule must point to a commit that exists on remote. If `git submodule update` fails with "Unable to find current revision", the pinned commit was force-pushed away. Fix: `git -C forge checkout origin/master`.
 - TLS certs are auto-generated at server boot from the mitmproxy CA (`~/.mitmproxy/`). Hostnames are discovered from `/etc/hosts`. Certs regenerate automatically when hostnames change (Arena patch).
-- `data/` dir must exist before `just seed-db` — `mkdir -p data` if missing.
 - `deploy/services-proxy.conf` is gitignored — create it locally from `deploy/services-proxy.example.conf` and fill private proxy creds when needed. `just serve-proxy` now fails fast if the file is missing or still uses the example credential values.
 - `/etc/hosts` needs FD+MD → 127.0.0.1 for proxy mode (doorbell stays commented out).
 

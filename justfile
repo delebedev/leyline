@@ -175,6 +175,58 @@ dev-teardown:
     echo "==> macOS defaults cleared"
     echo "Dev teardown complete. Arena restored to stock."
 
+# --- Bootstrap ---
+
+# one-command setup: submodules → forge install → build → seed DB
+[group('setup')]
+bootstrap:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{project_dir}}"
+
+    echo "==> Checking prerequisites..."
+    # Git submodules
+    if [ ! -f forge/pom.xml ]; then
+        echo "    Initializing git submodules..."
+        git submodule update --init --recursive
+    else
+        echo "    Submodules OK"
+    fi
+
+    # Maven (needed for install-forge)
+    if ! command -v mvn &>/dev/null; then
+        echo "Error: maven not found. Install: brew install maven" >&2
+        exit 1
+    fi
+
+    # Install forge (skip if already up to date)
+    current_forge=$(cd forge && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml)
+    installed_forge=""
+    if [ -f .upstream-installed ]; then
+        installed_forge=$(cat .upstream-installed)
+    fi
+    if [ "$current_forge" = "$installed_forge" ]; then
+        echo "==> Forge already installed ($(echo "$current_forge" | head -c 8))"
+    else
+        echo "==> Installing forge engine..."
+        just install-forge
+    fi
+
+    # Build (proto sync + compile + jars + classpath)
+    echo "==> Building..."
+    just build
+
+    # Seed DB
+    mkdir -p data
+    echo "==> Seeding database..."
+    just seed-db
+
+    echo ""
+    echo "Bootstrap complete. You can now:"
+    echo "  just test-gate     # run tests"
+    echo "  just serve         # start server (needs MTGA + dev-setup)"
+    echo "  just dev           # compile + serve + watch"
+
 # --- Data ---
 
 # one-time: seed player.db from golden captures + starter decks
