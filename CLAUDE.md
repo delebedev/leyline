@@ -143,3 +143,4 @@ This is an open-source repo. Every commit is public. Follow these rules:
 - **Stop and re-plan.** If something goes sideways after 2 attempts, STOP. Explain what you tried and what's blocking. Don't silently change approach — state what you're changing and why.
 - **Autonomous bug fixing.** Given a bug report: just fix it. Read logs, find errors, write failing test, resolve. Zero hand-holding required from the user.
 - **Elegance balance.** For non-trivial changes, pause and ask "is there a more elegant way?" If a fix feels hacky, implement the clean solution. Skip this for simple, obvious fixes — don't over-engineer.
+- **Ralph PRs get labeled.** When creating PRs inside a ralph-loop session, add `--label ralph` to `gh pr create`.
