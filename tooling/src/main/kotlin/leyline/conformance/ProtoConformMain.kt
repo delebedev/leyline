@@ -110,7 +110,7 @@ fun main(args: Array<String>) {
             else -> {
                 println("  Recording frame ${rec.frameIndex}  Engine frame ${eng.frameIndex}")
                 val result = ProtoDiffer.diff(rec.message, eng.message)
-                println(result.report())
+                println(result.report(verbose = true))
             }
         }
         println()

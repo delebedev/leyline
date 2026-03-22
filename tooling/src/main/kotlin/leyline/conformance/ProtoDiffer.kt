@@ -34,21 +34,27 @@ object ProtoDiffer {
         val extra: List<FieldPath>,
         val mismatched: List<FieldMismatch>,
         val matched: Int,
+        /** All fields that were visited and compared (for audit). */
+        val matchedPaths: List<FieldPath> = emptyList(),
     ) {
         fun isEmpty(): Boolean = missing.isEmpty() && extra.isEmpty() && mismatched.isEmpty()
 
-        fun report(): String = buildString {
+        fun report(verbose: Boolean = false): String = buildString {
             if (isEmpty()) {
                 appendLine("MATCH — no differences found ($matched fields matched)")
-                return@buildString
+            } else {
+                appendLine(
+                    "DIFF — ${missing.size} missing, ${extra.size} extra, " +
+                        "${mismatched.size} mismatched ($matched matched)",
+                )
+                for (m in missing) appendLine("  - MISSING: $m")
+                for (e in extra) appendLine("  + EXTRA: $e")
+                for (mm in mismatched) appendLine("  ~ MISMATCH: ${mm.path} expected=${mm.expected} actual=${mm.actual}")
             }
-            appendLine(
-                "DIFF — ${missing.size} missing, ${extra.size} extra, " +
-                    "${mismatched.size} mismatched ($matched matched)",
-            )
-            for (m in missing) appendLine("  - MISSING: $m")
-            for (e in extra) appendLine("  + EXTRA: $e")
-            for (mm in mismatched) appendLine("  ~ MISMATCH: ${mm.path} expected=${mm.expected} actual=${mm.actual}")
+            if (verbose && matchedPaths.isNotEmpty()) {
+                appendLine("Matched fields:")
+                for (p in matchedPaths) appendLine("  ✓ $p")
+            }
         }
     }
 
@@ -180,6 +186,7 @@ object ProtoDiffer {
         val missing = mutableListOf<FieldPath>()
         val extra = mutableListOf<FieldPath>()
         val mismatched = mutableListOf<FieldMismatch>()
+        val matchedPaths = mutableListOf<FieldPath>()
         var matched = 0
 
         fun walk(rec: Message, eng: Message, path: FieldPath) {
@@ -212,7 +219,10 @@ object ProtoDiffer {
                     field.isRepeated -> compareRepeated(
                         field, recVal, engVal, recIds, engIds,
                         childPath, missing, extra, mismatched,
-                        { matched++ },
+                        {
+                            matched++
+                            matchedPaths.add(childPath)
+                        },
                         ::walk,
                     )
                     recVal is Message && engVal is Message -> walk(recVal, engVal, childPath)
@@ -222,6 +232,7 @@ object ProtoDiffer {
                         if (normRec == null) continue
                         if (normRec == normEng) {
                             matched++
+                            matchedPaths.add(childPath)
                         } else {
                             mismatched.add(FieldMismatch(childPath, normRec, normEng))
                         }
@@ -231,7 +242,7 @@ object ProtoDiffer {
         }
 
         walk(recording, engine, FieldPath.ROOT)
-        return DiffResult(missing, extra, mismatched, matched)
+        return DiffResult(missing, extra, mismatched, matched, matchedPaths)
     }
 
     // ── repeated field alignment ─────────────────────────────────────────────
