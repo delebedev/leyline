@@ -28,6 +28,17 @@ sealed class Relationship(open val category: String) {
         override val category: String,
         val annotationType: String,
     ) : Relationship(category)
+
+    /**
+     * affectorId on an annotation type is always zero or always non-zero
+     * within a segment category. Auto-derived from recording variance.
+     */
+    data class AffectorIdRule(
+        override val category: String,
+        val annotationType: String,
+        /** true = affectorId must be non-zero, false = must be zero */
+        val mustBeNonZero: Boolean,
+    ) : Relationship(category)
 }
 
 data class ValidationResult(

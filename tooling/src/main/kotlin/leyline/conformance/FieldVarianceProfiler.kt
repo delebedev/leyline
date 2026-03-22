@@ -169,6 +169,50 @@ object FieldVarianceProfiler {
             }.toMap()
     }
 
+    /**
+     * Derive affectorId invariants from segment instances.
+     *
+     * For each (annotationType, category) pair, checks whether affectorId is
+     * always zero, always non-zero, or mixed. Returns [Relationship.AffectorIdRule]
+     * for the 100%-hold cases with sufficient data (N≥10, sessions≥3).
+     */
+    fun deriveAffectorIdRules(
+        segmentsByCategory: Map<String, List<Segment>>,
+        minInstances: Int = 10,
+        minSessions: Int = 3,
+    ): List<Relationship.AffectorIdRule> {
+        data class Stats(var zero: Int = 0, var nonZero: Int = 0, val sessions: MutableSet<String> = mutableSetOf())
+
+        val stats = mutableMapOf<String, Stats>() // "type|category" -> stats
+
+        for ((category, segments) in segmentsByCategory) {
+            for (segment in segments) {
+                if (!segment.message.hasGameStateMessage()) continue
+                val gsm = segment.message.gameStateMessage
+                for (ann in gsm.annotationsList + gsm.persistentAnnotationsList) {
+                    for (type in ann.typeList) {
+                        val typeName = type.name.replace(PROTO_SUFFIX, "")
+                        val key = "$typeName|$category"
+                        val s = stats.getOrPut(key) { Stats() }
+                        if (ann.affectorId == 0) s.zero++ else s.nonZero++
+                        s.sessions.add(segment.session)
+                    }
+                }
+            }
+        }
+
+        return stats.mapNotNull { (key, s) ->
+            val total = s.zero + s.nonZero
+            if (total < minInstances || s.sessions.size < minSessions) return@mapNotNull null
+            val (typeName, category) = key.split("|", limit = 2)
+            when {
+                s.nonZero == 0 -> Relationship.AffectorIdRule(category, typeName, mustBeNonZero = false)
+                s.zero == 0 -> Relationship.AffectorIdRule(category, typeName, mustBeNonZero = true)
+                else -> null // mixed — not an invariant
+            }
+        }
+    }
+
     private fun emptyProfile(category: String) =
         SegmentProfile(category, 0, 0, Confidence.TENTATIVE, emptyMap(), emptyMap())
 }

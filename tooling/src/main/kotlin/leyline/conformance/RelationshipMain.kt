@@ -26,18 +26,28 @@ fun main(args: Array<String>) {
         SegmentDetector.scanAll(seat = 0)
     }
 
-    val patterns =
+    // Hand-written catalog patterns
+    val catalogPatterns =
         if (category != null) {
             RelationshipCatalog.forCategory(category)
         } else {
             RelationshipCatalog.patterns
         }
 
+    // Auto-derived affectorId rules from recording variance
+    val grouped = SegmentDetector.groupByCategory(allSegments)
+    val derivedRules = FieldVarianceProfiler.deriveAffectorIdRules(grouped)
+    val filteredDerived = if (category != null) derivedRules.filter { it.category == category } else derivedRules
+
+    val patterns = catalogPatterns + filteredDerived
+
     if (patterns.isEmpty()) {
         println("No patterns defined${if (category != null) " for $category" else ""}.")
         println("Available categories: ${RelationshipCatalog.patterns.map { it.category }.toSet().sorted()}")
         return
     }
+
+    println("Patterns: ${catalogPatterns.size} hand-written + ${filteredDerived.size} auto-derived (affectorId)")
 
     val results = RelationshipValidator.validateAll(patterns, allSegments)
 
@@ -109,4 +119,5 @@ private fun patternLabel(r: Relationship): String =
         is Relationship.NonEmpty -> "[${r.category}] NonEmpty: ${r.path}"
         is Relationship.ValueIn -> "[${r.category}] ValueIn: ${r.path} ∈ ${r.values}"
         is Relationship.Equals -> "[${r.category}] Equals: ${r.a} == ${r.b}"
+        is Relationship.AffectorIdRule -> "[${r.category}] affectorId on ${r.annotationType}: ${if (r.mustBeNonZero) "must be non-zero" else "must be zero"}"
     }

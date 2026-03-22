@@ -48,7 +48,31 @@ object RelationshipValidator {
             is Relationship.NonEmpty -> checkNonEmpty(pattern, segment)
             is Relationship.ValueIn -> checkValueIn(pattern, segment)
             is Relationship.Equals -> checkEquals(pattern, segment)
+            is Relationship.AffectorIdRule -> checkAffectorIdRule(pattern, segment)
         }
+
+    private fun checkAffectorIdRule(pattern: Relationship.AffectorIdRule, segment: Segment): String? {
+        if (!segment.message.hasGameStateMessage()) return "no gameStateMessage"
+        val gsm = segment.message.gameStateMessage
+        val allAnnotations = gsm.annotationsList + gsm.persistentAnnotationsList
+
+        for (ann in allAnnotations) {
+            val matchesType = ann.typeList.any { it.name.replace(PROTO_SUFFIX, "") == pattern.annotationType }
+            if (!matchesType) continue
+
+            val isZero = ann.affectorId == 0
+            return if (pattern.mustBeNonZero && isZero) {
+                "affectorId=0 on ${pattern.annotationType} (expected non-zero)"
+            } else if (!pattern.mustBeNonZero && !isZero) {
+                "affectorId=${ann.affectorId} on ${pattern.annotationType} (expected 0)"
+            } else {
+                null // holds
+            }
+        }
+        // Annotation type not present — not a violation of the affectorId rule
+        // (AlwaysPresent is a separate check)
+        return null
+    }
 
     private fun checkAlwaysPresent(pattern: Relationship.AlwaysPresent, segment: Segment): String? {
         if (!segment.message.hasGameStateMessage()) return "no gameStateMessage"
