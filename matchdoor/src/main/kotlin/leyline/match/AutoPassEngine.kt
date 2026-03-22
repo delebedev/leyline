@@ -123,7 +123,7 @@ class AutoPassEngine(
             }
 
             // Action check — prompt human if meaningful actions exist
-            val decision = checkHumanActions(bridge, game, isAiTurn)
+            val decision = checkHumanActions(game, isAiTurn)
             if (decision is PriorityDecision.Grant) {
                 ops.sendRealGameState(bridge)
                 return
@@ -177,7 +177,7 @@ class AutoPassEngine(
      * Check if human has meaningful actions. Returns [PriorityDecision.Grant]
      * if state should be sent, [PriorityDecision.Skip] otherwise.
      */
-    private fun checkHumanActions(bridge: GameBridge, game: Game, isAiTurn: Boolean): PriorityDecision {
+    private fun checkHumanActions(game: Game, isAiTurn: Boolean): PriorityDecision {
         if (isAiTurn) {
             return PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
         }

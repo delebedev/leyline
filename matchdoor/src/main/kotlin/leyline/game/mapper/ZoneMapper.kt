@@ -27,6 +27,7 @@ object ZoneMapper {
      * Add hand, library, and graveyard zones for a player.
      * Hand includes GameObjectInfo only for the viewing seat (opponent sees face-down).
      */
+    @Suppress("detekt:LongParameterList")
     internal fun addPlayerZones(
         game: Game,
         player: Player?,

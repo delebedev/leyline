@@ -65,7 +65,15 @@ class BundleBuilder(
         val updateType = StateMapper.resolveUpdateType(game, bridge, seatId)
         // Build state first (without actions) — triggers instanceId realloc on zone transfers.
         // Then build actions so they reference the new (post-move) instanceIds.
-        val result = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = updateType, viewingSeatId = seatId, revealForSeat = revealForSeat)
+        val result = StateMapper.buildDiffFromGame(
+            game,
+            nextGs,
+            matchId,
+            bridge,
+            updateType = updateType,
+            viewingSeatId = seatId,
+            revealForSeat = revealForSeat,
+        )
         val actions = ActionMapper.buildActions(game, seatId, bridge)
 
         // PhaseOrStepModified is now emitted event-driven from GameEvent.PhaseChanged
