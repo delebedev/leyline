@@ -659,12 +659,50 @@ class TargetingHandler(private val ops: SessionOps) {
         ops.sendRealGameState(bridge)
         bridge.revealLibraryForSeat = null
 
+        // Extract search parameters from the Forge prompt.
+        val req = pendingPrompt.request
+        val player = bridge.getPlayer(SeatId(ops.seatId))
+        val library = player?.getZone(forge.game.zone.ZoneType.Library)
+        val libZoneId = if (ops.seatId == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
+
+        // All library card instanceIds
+        val allLibIds = library?.cards?.map {
+            bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value
+        } ?: emptyList()
+
+        // Valid search targets from candidateRefs (cards matching "basic land" filter)
+        val validIds = req.candidateRefs.map { ref ->
+            bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
+        }
+
+        // Source spell instanceId — from the spell on stack, or first stack card
+        val sourceId = req.sourceEntityId?.let {
+            bridge.getOrAllocInstanceId(ForgeCardId(it)).value
+        } ?: bridge.getGame()?.stack?.firstOrNull()?.let {
+            bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value
+        } ?: 0
+
         val msgId = ops.counter.nextMsgId()
         val gsId = ops.counter.currentGsId()
-        val msg = BundleBuilder.buildSearchReq(msgId, gsId, ops.seatId)
+        val msg = BundleBuilder.buildSearchReq(
+            msgId = msgId,
+            gsId = gsId,
+            seatId = ops.seatId,
+            sourceInstanceId = sourceId,
+            libraryZoneId = libZoneId,
+            allLibraryIds = allLibIds,
+            validTargetIds = validIds,
+            maxFind = req.max,
+            allowFailToFind = req.min == 0,
+        )
         ops.sendBundledGRE(listOf(msg))
         pendingInteraction = PendingClientInteraction.Search(pendingPrompt.promptId)
-        log.info("SearchReq sent, awaiting SearchResp")
+        log.info(
+            "SearchReq sent: lib={} valid={} source={}, awaiting SearchResp",
+            allLibIds.size,
+            validIds.size,
+            sourceId,
+        )
     }
 
     private fun sendSelectTargetsReq(

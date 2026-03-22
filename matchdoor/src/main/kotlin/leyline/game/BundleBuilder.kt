@@ -251,15 +251,45 @@ object BundleBuilder {
         bridge: GameBridge,
     ): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge)
 
-    /** Build a [SearchReq] GRE message — empty-proto handshake for library search. */
-    fun buildSearchReq(msgId: Int, gsId: Int, seatId: Int): GREToClientMessage = GREToClientMessage.newBuilder()
-        .setType(GREMessageType.SearchReq_695e)
-        .setMsgId(msgId)
-        .setGameStateId(gsId)
-        .addSystemSeatIds(seatId)
-        .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SEARCH))
-        .setSearchReq(SearchReq.getDefaultInstance())
-        .build()
+    /** Build a [SearchReq] GRE message with populated inner fields for library search. */
+    fun buildSearchReq(
+        msgId: Int,
+        gsId: Int,
+        seatId: Int,
+        sourceInstanceId: Int,
+        libraryZoneId: Int,
+        allLibraryIds: List<Int>,
+        validTargetIds: List<Int>,
+        maxFind: Int = 1,
+        allowFailToFind: Boolean = true,
+    ): GREToClientMessage {
+        val searchReq = SearchReq.newBuilder()
+            .setMaxFind(maxFind)
+            .addZonesToSearch(libraryZoneId)
+            .addAllItemsToSearch(allLibraryIds)
+            .addAllItemsSought(validTargetIds)
+            .setSourceId(sourceInstanceId)
+        if (allowFailToFind) {
+            searchReq.setAllowFailToFind(AllowFailToFind.Any)
+        }
+        return GREToClientMessage.newBuilder()
+            .setType(GREMessageType.SearchReq_695e)
+            .setMsgId(msgId)
+            .setGameStateId(gsId)
+            .addSystemSeatIds(seatId)
+            .setPrompt(
+                Prompt.newBuilder()
+                    .setPromptId(PromptIds.SEARCH)
+                    .addParameters(
+                        PromptParameter.newBuilder()
+                            .setParameterName("CardId")
+                            .setType(ParameterType.Number)
+                            .setNumberValue(sourceInstanceId),
+                    ),
+            )
+            .setSearchReq(searchReq)
+            .build()
+    }
 
     /** Build a [DeclareAttackersReq] listing legal attackers. */
     fun buildDeclareAttackersReq(game: Game, seatId: Int, bridge: GameBridge): DeclareAttackersReq =
