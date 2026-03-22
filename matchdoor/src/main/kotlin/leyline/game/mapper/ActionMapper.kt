@@ -57,7 +57,7 @@ object ActionMapper {
             idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
             grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, bridge.cards) },
             cardDataLookup = { grpId -> bridge.cards.findByGrpId(grpId) },
-            abilityRegistryLookup = { forgeCardId -> bridge.abilityRegistryFor(forgeCardId) },
+            abilityRegistryLookup = { card, cardData -> bridge.abilityRegistryFor(card, cardData) },
         )
     }
 
@@ -81,7 +81,7 @@ object ActionMapper {
         idResolver: (Int) -> Int,
         grpIdResolver: (Card) -> Int,
         cardDataLookup: (Int) -> CardData?,
-        abilityRegistryLookup: (Int) -> AbilityRegistry? = { null },
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry? = { _, _ -> null },
     ): ActionsAvailableReq {
         val builder = ActionsAvailableReq.newBuilder()
 
@@ -221,11 +221,11 @@ object ActionMapper {
         instanceId: Int,
         grpId: Int,
         cardDataLookup: (Int) -> CardData?,
-        abilityRegistryLookup: (Int) -> AbilityRegistry?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): Action {
         val cardData = cardDataLookup(grpId)
         val sa = card.manaAbilities.first()
-        val registry = abilityRegistryLookup(card.id)
+        val registry = abilityRegistryLookup(card, cardData)
         val abilityGrpId = registry?.forSpellAbility(sa.id)
             ?: cardData?.abilityIds?.firstOrNull()?.first
             ?: 0
@@ -282,7 +282,7 @@ object ActionMapper {
         idResolver: (Int) -> Int,
         grpIdResolver: (Card) -> Int,
         cardDataLookup: (Int) -> CardData?,
-        abilityRegistryLookup: (Int) -> AbilityRegistry?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ): AutoTapSolution? {
         if (manaCost.isEmpty()) return null
 
@@ -299,9 +299,10 @@ object ActionMapper {
                 val manaColor = producedToManaColor(produced) ?: continue
                 val instanceId = idResolver(card.id)
                 val grpId = grpIdResolver(card)
-                val registry = abilityRegistryLookup(card.id)
+                val cardData = cardDataLookup(grpId)
+                val registry = abilityRegistryLookup(card, cardData)
                 val abilityGrpId = registry?.forSpellAbility(sa.id)
-                    ?: cardDataLookup(grpId)?.abilityIds?.firstOrNull()?.first
+                    ?: cardData?.abilityIds?.firstOrNull()?.first
                     ?: 0
                 sources.add(ManaSource(card, instanceId, manaColor, abilityGrpId))
             }

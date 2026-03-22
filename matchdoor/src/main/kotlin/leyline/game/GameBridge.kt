@@ -3,6 +3,7 @@ package leyline.game
 import forge.ai.LobbyPlayerAi
 import forge.game.Game
 import forge.game.GameType
+import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import forge.gamemodes.puzzle.Puzzle
@@ -516,8 +517,17 @@ class GameBridge(
 
     override fun getPlayer(seatId: SeatId): Player? = players[seatId.value]
 
-    /** Look up the [AbilityRegistry] for a Forge card by its engine-internal id. */
-    fun abilityRegistryFor(forgeCardId: Int): AbilityRegistry? = abilityRegistries[forgeCardId]
+    /**
+     * Look up or lazily build the [AbilityRegistry] for a Forge card.
+     *
+     * Pre-populated for puzzle cards via [registerPuzzleCards]. For all other
+     * game types (constructed, tokens, zone transfers), built on first access
+     * from the live [card] + [cardData].
+     */
+    fun abilityRegistryFor(card: Card, cardData: CardData?): AbilityRegistry? {
+        if (cardData == null) return null
+        return abilityRegistries.computeIfAbsent(card.id) { AbilityRegistry.build(card, cardData) }
+    }
 
     /** Populate seat map by registration order (seat 1 = first, seat 2 = second). */
     private fun populateSeatMap(g: Game) {

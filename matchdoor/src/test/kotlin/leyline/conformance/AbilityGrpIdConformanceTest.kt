@@ -6,7 +6,6 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
-import leyline.game.AbilityRegistry
 import leyline.game.mapper.ActionMapper
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -36,8 +35,7 @@ class AbilityGrpIdConformanceTest :
                 val cardData = CardDataDeriver.fromForgeCard(card)
                 TestCardRegistry.repo.registerData(cardData, cardName)
 
-                // Build AbilityRegistry — maps Forge SA ids to abilityGrpId slots
-                b.abilityRegistries[card.id] = AbilityRegistry.build(card, cardData)
+                // AbilityRegistry is lazily built by GameBridge.abilityRegistryFor on first access
 
                 // Build actions for seat 1
                 val actions = ActionMapper.buildActions(game, 1, b)
