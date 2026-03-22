@@ -659,12 +659,14 @@ object AnnotationPipeline {
      * Pure function — converts diff results to proto annotations.
      * Returns (transient, persistent) matching the pipeline convention.
      *
-     * [sourceAbilityResolver] maps cardInstanceId → sourceAbilityGRPID (nullable).
+     * [sourceAbilityResolver] maps (cardInstanceId, staticId) → sourceAbilityGRPID.
+     * The staticId is the Forge StaticAbility ID from the boost table — enables
+     * per-ability resolution via AbilityRegistry (not just keyword heuristics).
      * Used to drive ability-specific VFX (e.g. Prowess glow).
      */
     fun effectAnnotations(
         diff: EffectTracker.DiffResult,
-        sourceAbilityResolver: ((Int) -> Int?)? = null,
+        sourceAbilityResolver: ((Int, Long) -> Int?)? = null,
     ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
         if (diff.created.isEmpty() && diff.destroyed.isEmpty()) {
             return emptyList<AnnotationInfo>() to emptyList()
@@ -674,7 +676,10 @@ object AnnotationPipeline {
         val persistent = mutableListOf<AnnotationInfo>()
 
         for (effect in diff.created) {
-            val sourceAbilityGrpId = sourceAbilityResolver?.invoke(effect.cardInstanceId)
+            val sourceAbilityGrpId = sourceAbilityResolver?.invoke(
+                effect.cardInstanceId,
+                effect.fingerprint.staticId,
+            )
 
             // Transient: LayeredEffectCreated with affectorId = card instance
             transient.add(

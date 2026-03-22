@@ -43,6 +43,13 @@ ailibrary=<AI's library>
 
 ## Rules for good puzzles
 
+### Planeswalkers on battlefield need explicit loyalty
+Forge doesn't auto-set starting loyalty for pre-placed permanents. Without counters, SBA immediately kills them (0 loyalty).
+```
+humanbattlefield=Liliana, Death's Majesty|Counters:LOYALTY=5
+```
+**Simpler alternative:** put the planeswalker in hand and cast it — Forge handles ETB loyalty correctly.
+
 ### Card names must be exact Forge names
 - Use full English names: `Llanowar Elves`, `Lightning Bolt`, `Grizzly Bears`
 - Check `just card-grp "<name>"` if unsure — card must exist in Forge

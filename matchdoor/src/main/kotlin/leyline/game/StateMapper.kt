@@ -4,6 +4,7 @@ import forge.game.Game
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
+import leyline.bridge.findCard
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.ZoneIds
@@ -150,7 +151,7 @@ object StateMapper {
         // Stages 4-5 + persistent computation
         val remaining = computeRemainingAnnotations(
             events, annotations, transferPersistent, initEffectDiff, effectDiff,
-            persistSnapshot, startPersistentId, startAnnotationId, game, bridge,
+            persistSnapshot, startPersistentId, startAnnotationId, bridge,
         )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
@@ -368,7 +369,6 @@ object StateMapper {
         persistSnapshot: Map<Int, AnnotationInfo>,
         startPersistentId: Int,
         startAnnotationId: Int,
-        game: Game,
         bridge: GameBridge,
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds = events
@@ -390,15 +390,7 @@ object StateMapper {
             annotations.addAll(initTransient)
         }
 
-        val battlefieldCards = game.players.flatMap { player ->
-            player.getZone(ForgeZoneType.Battlefield).cards.map { card ->
-                bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value to card.name
-            }
-        }
-        val sourceAbilityResolver = buildSourceAbilityResolver(battlefieldCards) { name ->
-            val grpId = bridge.cards.findGrpIdByName(name) ?: return@buildSourceAbilityResolver null
-            bridge.cards.findByGrpId(grpId)
-        }
+        val sourceAbilityResolver = buildSourceAbilityResolver(bridge)
         val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
         annotations.addAll(effectTransient)
 
@@ -446,26 +438,57 @@ object StateMapper {
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }
 
-    /** Keywords whose triggered/static abilities produce P/T boosts.
-     *  Only Prowess for now — battle cry, lord anthems, and other continuous
-     *  P/T effects don't yet carry sourceAbilityGRPID. Extend as needed. */
+    /** Keywords whose triggered/resolved effects produce P/T boosts with staticId=0. */
     private val PT_BOOST_KEYWORDS = setOf("PROWESS")
 
     /**
-     * Build a resolver: cardInstanceId → sourceAbilityGRPID.
-     * Scans battlefield once, then checks each card for P/T-boost keywords.
+     * Build a resolver: (cardInstanceId, staticId) → sourceAbilityGRPID.
+     *
+     * Two resolution paths:
+     * - **staticId > 0**: continuous effect from a StaticAbility — use [AbilityRegistry]
+     *   to look up the specific ability. Falls back to keyword parent tracing for
+     *   non-intrinsic temporaries.
+     * - **staticId == 0**: resolved spell/trigger pump (e.g. Prowess) — falls back to
+     *   [CardData.keywordAbilityGrpIds] heuristic since Forge doesn't tag these with
+     *   a source ability ID.
      */
     private fun buildSourceAbilityResolver(
-        battlefieldCards: List<Pair<Int, String>>,
-        cardDataLookup: (String) -> CardData?,
-    ): (Int) -> Int? {
-        val instanceIdToName = battlefieldCards.toMap()
+        bridge: GameBridge,
+    ): (Int, Long) -> Int? {
+        val game = bridge.getGame() ?: return { _, _ -> null }
+        return resolver@{ instanceId, staticId ->
+            val forgeCardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@resolver null
+            val card = findCard(game, forgeCardId) ?: return@resolver null
+            val grpId = bridge.cards.findGrpIdByName(card.name) ?: return@resolver null
+            val cardData = bridge.cards.findByGrpId(grpId) ?: return@resolver null
 
-        return resolver@{ instanceId ->
-            val name = instanceIdToName[instanceId] ?: return@resolver null
-            val cardData = cardDataLookup(name) ?: return@resolver null
-            for (keyword in PT_BOOST_KEYWORDS) {
-                cardData.keywordAbilityGrpIds[keyword]?.let { return@resolver it }
+            // Resolved pump effects (Prowess, Giant Growth): staticId = 0
+            // Fall back to keyword heuristic — best we can do without Forge tagging
+            if (staticId == 0L) {
+                for (keyword in PT_BOOST_KEYWORDS) {
+                    cardData.keywordAbilityGrpIds[keyword]?.let { return@resolver it }
+                }
+                return@resolver null
+            }
+
+            if (staticId > Int.MAX_VALUE) return@resolver null
+
+            // Continuous effects: use AbilityRegistry for precise lookup
+            val registry = bridge.abilityRegistryFor(card, cardData) ?: return@resolver null
+            registry.forStaticAbility(staticId.toInt())?.let { return@resolver it }
+
+            // Keyword fallback: temporary statics from keyword triggers
+            // trace back to parent keyword via Forge's StaticAbility.getKeyword()
+            val sourceStatic = card.staticAbilities?.firstOrNull { it.id == staticId.toInt() }
+            val parentKeyword = sourceStatic?.keyword ?: return@resolver null
+            for (sa in parentKeyword.abilities) {
+                registry.forSpellAbility(sa.id)?.let { return@resolver it }
+            }
+            for (trig in parentKeyword.triggers) {
+                registry.forTrigger(trig.id)?.let { return@resolver it }
+            }
+            for (st in parentKeyword.staticAbilities) {
+                registry.forStaticAbility(st.id)?.let { return@resolver it }
             }
             null
         }

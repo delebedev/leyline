@@ -671,6 +671,51 @@ class AnnotationPipelineTest :
             persistentTough[0].typeList.none { it == AnnotationType.ModifiedPower } shouldBe true
         }
 
+        test("effectAnnotations resolves sourceAbilityGrpId via staticId") {
+            val staticId = 42L
+            val created = listOf(
+                EffectTracker.TrackedEffect(
+                    syntheticId = 7010,
+                    fingerprint = EffectTracker.EffectFingerprint(100, 1L, staticId),
+                    powerDelta = 1,
+                    toughnessDelta = 1,
+                ),
+            )
+            val diff = EffectTracker.DiffResult(created, emptyList())
+
+            val resolver: (Int, Long) -> Int? = { _, sid ->
+                if (sid == staticId) 99999 else null
+            }
+
+            val (_, persistent) = AnnotationPipeline.effectAnnotations(diff, resolver)
+
+            persistent.size shouldBe 1
+            val sourceDetail = persistent[0].detailsList.first { it.key == "sourceAbilityGRPID" }
+            sourceDetail.getValueInt32(0) shouldBe 99999
+        }
+
+        test("effectAnnotations omits sourceAbilityGrpId when resolver returns null") {
+            val created = listOf(
+                EffectTracker.TrackedEffect(
+                    syntheticId = 7011,
+                    fingerprint = EffectTracker.EffectFingerprint(100, 1L, 0L),
+                    powerDelta = 2,
+                    toughnessDelta = 0,
+                ),
+            )
+            val diff = EffectTracker.DiffResult(created, emptyList())
+
+            // Resolver returns null for staticId=0 (SpellAbility effects)
+            val resolver: (Int, Long) -> Int? = { _, sid ->
+                if (sid == 0L) null else 99999
+            }
+
+            val (_, persistent) = AnnotationPipeline.effectAnnotations(diff, resolver)
+
+            persistent.size shouldBe 1
+            persistent[0].detailsList.none { it.key == "sourceAbilityGRPID" } shouldBe true
+        }
+
         // --- annotationsForTransfer: new zone-specific categories ---
 
         test("destroyProducesAnnotations") {

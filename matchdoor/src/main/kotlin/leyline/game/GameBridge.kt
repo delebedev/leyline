@@ -3,6 +3,7 @@ package leyline.game
 import forge.ai.LobbyPlayerAi
 import forge.game.Game
 import forge.game.GameType
+import forge.game.card.Card
 import forge.game.player.Player
 import forge.game.zone.ZoneType
 import forge.gamemodes.puzzle.Puzzle
@@ -26,6 +27,7 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Bridges the client protocol to a real Forge [forge.game.Game] engine.
@@ -86,6 +88,9 @@ class GameBridge(
     }
 
     // --- Per-seat bridge maps ---
+
+    /** Forge cardId → AbilityRegistry for multi-ability abilityGrpId resolution. */
+    private val abilityRegistries = ConcurrentHashMap<Int, AbilityRegistry>()
 
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
@@ -512,6 +517,18 @@ class GameBridge(
 
     override fun getPlayer(seatId: SeatId): Player? = players[seatId.value]
 
+    /**
+     * Look up or lazily build the [AbilityRegistry] for a Forge card.
+     *
+     * Pre-populated for puzzle cards via [registerPuzzleCards]. For all other
+     * game types (constructed, tokens, zone transfers), built on first access
+     * from the live [card] + [cardData].
+     */
+    fun abilityRegistryFor(card: Card, cardData: CardData?): AbilityRegistry? {
+        if (cardData == null) return null
+        return abilityRegistries.computeIfAbsent(card.id) { AbilityRegistry.build(card, cardData) }
+    }
+
     /** Populate seat map by registration order (seat 1 = first, seat 2 = second). */
     private fun populateSeatMap(g: Game) {
         g.players.forEachIndexed { index, player -> players[index + 1] = player }
@@ -880,6 +897,9 @@ class GameBridge(
                     // Fall back to by-name path for cards with null rules.
                     if (card.rules != null) {
                         registrar.ensureCardRegistered(card)
+                        // Pre-populate ability registry for puzzle cards
+                        val cardData = cards.findByGrpId(cards.findGrpIdByName(card.name) ?: 0)
+                        abilityRegistryFor(card, cardData)
                     } else {
                         registrar.ensureCardRegisteredByName(card.name)
                     }
