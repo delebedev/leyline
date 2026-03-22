@@ -68,6 +68,7 @@ app/main/proto/messages.proto
 
 !.claude/
 .claude/CLAUDE.md
+.claude/worktrees/
 
 # Contains creds
 deploy/services-proxy.conf
