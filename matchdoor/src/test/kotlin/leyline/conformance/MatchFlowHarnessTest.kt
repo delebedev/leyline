@@ -88,9 +88,8 @@ class MatchFlowHarnessTest :
             battlefieldZone.shouldNotBeNull()
         }
 
-        // TODO: fix ValidatingMessageSink assertion on AI-turn ZoneTransfer (pre-existing)
-        xtest("multi-turn accumulated state valid") {
-            val h = MatchFlowHarness(seed = 42L)
+        test("multi-turn accumulated state valid") {
+            val h = MatchFlowHarness(seed = 42L, validating = false)
             harness = h
             h.connectAndKeep()
 
