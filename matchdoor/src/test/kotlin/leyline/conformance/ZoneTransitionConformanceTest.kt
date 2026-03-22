@@ -52,7 +52,7 @@ class ZoneTransitionConformanceTest :
                 AnnotationType.ObjectIdChanged in it.typeList &&
                     it.detailsList.any { d -> d.key == "orig_id" && d.getValueInt32(0) == origId }
             } ?: return null
-            val newId = ann.detailsList.first { it.key == "new_id" }.getValueInt32(0)
+            val newId = ann.detailInt("new_id")
             return origId to newId
         }
 

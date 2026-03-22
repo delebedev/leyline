@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -43,16 +44,14 @@ class SurveilFlowTest :
         test("surveil ETB emits GroupReq") {
             val h = setupSurveil()
             val req = h.castSpellUntilGroupReq("Wary Thespian")
-            req.context shouldBe GroupingContext.Surveil
-            req.instanceIdsList.shouldNotBeEmpty()
-            req.groupSpecsList.size shouldBe 2
-
-            // First spec: Library/Top (keep)
-            req.groupSpecsList[0].zoneType shouldBe ZoneType.Library
-            req.groupSpecsList[0].subZoneType shouldBe SubZoneType.Top
-
-            // Second spec: Graveyard (away)
-            req.groupSpecsList[1].zoneType shouldBe ZoneType.Graveyard
+            assertSoftly {
+                req.context shouldBe GroupingContext.Surveil
+                req.instanceIdsList.shouldNotBeEmpty()
+                req.groupSpecsList.size shouldBe 2
+                req.groupSpecsList[0].zoneType shouldBe ZoneType.Library
+                req.groupSpecsList[0].subZoneType shouldBe SubZoneType.Top
+                req.groupSpecsList[1].zoneType shouldBe ZoneType.Graveyard
+            }
 
             // The revealed card must be the actual surveil target (Grizzly Bears),
             // not the next card in library. This catches the bug where the engine
@@ -127,10 +126,7 @@ class SurveilFlowTest :
             }
             surveilZt.shouldNotBeNull()
 
-            val category = surveilZt.detailsList
-                .firstOrNull { it.key == "category" }
-                ?.valueStringList?.firstOrNull()
-            category shouldBe "Surveil"
+            surveilZt.detailString("category") shouldBe "Surveil"
 
             // affectorId must be set — real server sets it to the ability instance
             // that caused the surveil (Wary Thespian's ETB trigger on the stack).

@@ -2,12 +2,15 @@ package leyline.game
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.Phase
 import wotc.mtgo.gre.external.messaging.Messages.Step
 
 class GsmFrameTest :
     FunSpec({
+
+        tags(UnitTag)
 
         test("turnInfo builds correct proto from frame fields") {
             val frame = GsmFrame(

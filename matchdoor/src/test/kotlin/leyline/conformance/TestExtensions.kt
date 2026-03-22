@@ -154,6 +154,20 @@ fun assertGsIdChain(
     dupMsgIds.shouldBeEmpty()
 }
 
+// ----- Tier 1: GRE message filtering by transfer category -----
+
+/**
+ * Find the first GRE message containing a ZoneTransfer annotation with the given category.
+ */
+fun List<GREToClientMessage>.firstWithTransferCategory(category: String): GREToClientMessage? =
+    firstOrNull { gre ->
+        gre.hasGameStateMessage() &&
+            gre.gameStateMessage.annotationsList.any { ann ->
+                AnnotationType.ZoneTransfer_af5a in ann.typeList &&
+                    ann.detail("category")?.getValueString(0) == category
+            }
+    }
+
 // ----- Tier 1: Annotation lookup by type + affected instanceId -----
 
 /** Find annotation by type that affects a specific instanceId. */
@@ -176,9 +190,9 @@ data class ZoneTransferInfo(
 fun GameStateMessage.findZoneTransfer(instanceId: Int): ZoneTransferInfo? {
     val ann = annotationAffecting(AnnotationType.ZoneTransfer_af5a, instanceId) ?: return null
     return ZoneTransferInfo(
-        category = ann.detailsList.firstOrNull { it.key == "category" }?.getValueString(0) ?: "",
-        zoneSrc = ann.detailsList.firstOrNull { it.key == "zone_src" }?.getValueInt32(0) ?: -1,
-        zoneDest = ann.detailsList.firstOrNull { it.key == "zone_dest" }?.getValueInt32(0) ?: -1,
+        category = ann.detail("category")?.getValueString(0) ?: "",
+        zoneSrc = ann.detail("zone_src")?.getValueInt32(0) ?: -1,
+        zoneDest = ann.detail("zone_dest")?.getValueInt32(0) ?: -1,
     )
 }
 

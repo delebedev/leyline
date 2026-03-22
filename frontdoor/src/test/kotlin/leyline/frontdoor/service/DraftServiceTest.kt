@@ -4,12 +4,15 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import leyline.frontdoor.FdTag
 import leyline.frontdoor.domain.DraftStatus
 import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.InMemoryDraftSessionRepository
 
 class DraftServiceTest :
     FunSpec({
+
+        tags(FdTag)
 
         val playerId = PlayerId("test-player")
         val eventName = "QuickDraft_ECL_20260223"

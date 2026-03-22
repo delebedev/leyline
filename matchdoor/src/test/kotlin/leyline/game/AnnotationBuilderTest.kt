@@ -1,12 +1,15 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.conformance.detailInt
+import leyline.conformance.detailString
+import leyline.conformance.detailUint
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
 
 class AnnotationBuilderTest :
     FunSpec({
@@ -21,13 +24,11 @@ class AnnotationBuilderTest :
                 category = "PlayLand",
             )
             ann.typeList shouldContain AnnotationType.ZoneTransfer_af5a
-            // zone_src/zone_dest use Int32 type (matches real recordings)
-            val zoneSrc = ann.detailsList.first { it.key == "zone_src" }
-            zoneSrc.getValueInt32(0) shouldBe 31
-            val zoneDest = ann.detailsList.first { it.key == "zone_dest" }
-            zoneDest.getValueInt32(0) shouldBe 28
-            val category = ann.detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "PlayLand"
+            assertSoftly {
+                ann.detailInt("zone_src") shouldBe 31
+                ann.detailInt("zone_dest") shouldBe 28
+                ann.detailString("category") shouldBe "PlayLand"
+            }
             ann.affectedIdsList shouldContain 100
         }
 
@@ -38,12 +39,11 @@ class AnnotationBuilderTest :
                 destZoneId = 27, // Stack
                 category = "CastSpell",
             )
-            val zoneSrc = ann.detailsList.first { it.key == "zone_src" }
-            zoneSrc.getValueInt32(0) shouldBe 31
-            val zoneDest = ann.detailsList.first { it.key == "zone_dest" }
-            zoneDest.getValueInt32(0) shouldBe 27
-            val category = ann.detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "CastSpell"
+            assertSoftly {
+                ann.detailInt("zone_src") shouldBe 31
+                ann.detailInt("zone_dest") shouldBe 27
+                ann.detailString("category") shouldBe "CastSpell"
+            }
         }
 
         test("zoneTransferWithActingSeat") {
@@ -75,13 +75,10 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.ObjectIdChanged
             ann.affectedIdsList shouldContain 100
 
-            val origDetail = ann.detailsList.first { it.key == "orig_id" }
-            origDetail.type shouldBe KeyValuePairValueType.Int32
-            origDetail.getValueInt32(0) shouldBe 100
-
-            val newDetail = ann.detailsList.first { it.key == "new_id" }
-            newDetail.type shouldBe KeyValuePairValueType.Int32
-            newDetail.getValueInt32(0) shouldBe 150
+            assertSoftly {
+                ann.detailInt("orig_id") shouldBe 100
+                ann.detailInt("new_id") shouldBe 150
+            }
         }
 
         test("objectIdChangedNoAffectorId") {
@@ -135,19 +132,15 @@ class AnnotationBuilderTest :
             ann.affectorId shouldBe 1
             ann.affectedIdsList shouldContain 300
 
-            val actionType = ann.detailsList.first { it.key == "actionType" }
-            actionType.type shouldBe KeyValuePairValueType.Int32
-            actionType.getValueInt32(0) shouldBe 3
-
-            val abilityGrpId = ann.detailsList.first { it.key == "abilityGrpId" }
-            abilityGrpId.type shouldBe KeyValuePairValueType.Int32
-            abilityGrpId.getValueInt32(0) shouldBe 0
+            assertSoftly {
+                ann.detailInt("actionType") shouldBe 3
+                ann.detailInt("abilityGrpId") shouldBe 0
+            }
         }
 
         test("userActionTakenCastType") {
             val ann = AnnotationBuilder.userActionTaken(instanceId = 400, seatId = 2, actionType = 1)
-            val actionType = ann.detailsList.first { it.key == "actionType" }
-            actionType.getValueInt32(0) shouldBe 1
+            ann.detailInt("actionType") shouldBe 1
             ann.affectorId shouldBe 2
         }
 
@@ -159,9 +152,7 @@ class AnnotationBuilderTest :
             ann.affectorId shouldBe 500
             ann.affectedIdsList shouldContain 500
 
-            val grpid = ann.detailsList.first { it.key == "grpid" }
-            grpid.type shouldBe KeyValuePairValueType.Uint32
-            grpid.getValueUint32(0) shouldBe 12345
+            ann.detailUint("grpid") shouldBe 12345
         }
 
         // --- ResolutionComplete ---
@@ -172,9 +163,7 @@ class AnnotationBuilderTest :
             ann.affectorId shouldBe 500
             ann.affectedIdsList shouldContain 500
 
-            val grpid = ann.detailsList.first { it.key == "grpid" }
-            grpid.type shouldBe KeyValuePairValueType.Uint32
-            grpid.getValueUint32(0) shouldBe 12345
+            ann.detailUint("grpid") shouldBe 12345
         }
 
         // --- PhaseOrStepModified ---
@@ -196,22 +185,19 @@ class AnnotationBuilderTest :
             ann.affectedIdsList shouldContain 600
             ann.affectorId shouldBe 42
 
-            val id = ann.detailsList.first { it.key == "id" }
-            id.type shouldBe KeyValuePairValueType.Int32
-            id.getValueInt32(0) shouldBe 5
-
-            val color = ann.detailsList.first { it.key == "color" }
-            color.type shouldBe KeyValuePairValueType.Int32
-            color.getValueInt32(0) shouldBe 4
+            assertSoftly {
+                ann.detailInt("id") shouldBe 5
+                ann.detailInt("color") shouldBe 4
+            }
         }
 
         test("manaPaidDefaults") {
             val ann = AnnotationBuilder.manaPaid(spellInstanceId = 600, landInstanceId = 0)
-            // Defaults: manaId=0, color=0
-            val id = ann.detailsList.first { it.key == "id" }
-            id.getValueInt32(0) shouldBe 0
-            val color = ann.detailsList.first { it.key == "color" }
-            color.getValueInt32(0) shouldBe 0
+            assertSoftly {
+                // Defaults: manaId=0, color=0
+                ann.detailInt("id") shouldBe 0
+                ann.detailInt("color") shouldBe 0
+            }
         }
 
         // --- TappedUntappedPermanent ---
@@ -222,9 +208,7 @@ class AnnotationBuilderTest :
             ann.affectorId shouldBe 800
             ann.affectedIdsList shouldContain 700
 
-            val tapped = ann.detailsList.first { it.key == "tapped" }
-            tapped.type shouldBe KeyValuePairValueType.Uint32
-            tapped.getValueUint32(0) shouldBe 1
+            ann.detailUint("tapped") shouldBe 1
         }
 
         test("tappedUntappedPermanentUntapVariant") {
@@ -233,8 +217,7 @@ class AnnotationBuilderTest :
             ann.affectorId shouldBe 800
             ann.affectedIdsList shouldContain 700
 
-            val tapped = ann.detailsList.first { it.key == "tapped" }
-            tapped.getValueUint32(0) shouldBe 0
+            ann.detailUint("tapped") shouldBe 0
         }
 
         // --- AbilityInstanceCreated ---
@@ -245,9 +228,7 @@ class AnnotationBuilderTest :
             ann.affectedIdsList shouldContain 900
             ann.affectorId shouldBe 0
 
-            val srcZone = ann.detailsList.first { it.key == "source_zone" }
-            srcZone.type shouldBe KeyValuePairValueType.Int32
-            srcZone.getValueInt32(0) shouldBe 31
+            ann.detailInt("source_zone") shouldBe 31
         }
 
         test("abilityInstanceCreatedWithAffectorId") {
@@ -258,8 +239,7 @@ class AnnotationBuilderTest :
 
         test("abilityInstanceCreatedDefaultZone") {
             val ann = AnnotationBuilder.abilityInstanceCreated(abilityInstanceId = 900)
-            val srcZone = ann.detailsList.first { it.key == "source_zone" }
-            srcZone.getValueInt32(0) shouldBe 0
+            ann.detailInt("source_zone") shouldBe 0
         }
 
         // --- AbilityInstanceDeleted ---
@@ -306,15 +286,11 @@ class AnnotationBuilderTest :
             ann.affectorId shouldBe 1000
             ann.affectedIdsList shouldBe listOf(2)
 
-            val damage = ann.detailsList.first { it.key == "damage" }
-            damage.type shouldBe KeyValuePairValueType.Uint32
-            damage.getValueUint32(0) shouldBe 3
-
-            val type = ann.detailsList.first { it.key == "type" }
-            type.getValueUint32(0) shouldBe 1
-
-            val markDamage = ann.detailsList.first { it.key == "markDamage" }
-            markDamage.getValueUint32(0) shouldBe 1
+            assertSoftly {
+                ann.detailUint("damage") shouldBe 3
+                ann.detailUint("type") shouldBe 1
+                ann.detailUint("markDamage") shouldBe 1
+            }
         }
 
         test("damageDealtNonCombat") {
@@ -327,8 +303,7 @@ class AnnotationBuilderTest :
             )
             ann.affectorId shouldBe 1000
             ann.affectedIdsList shouldBe listOf(500)
-            val type = ann.detailsList.first { it.key == "type" }
-            type.getValueUint32(0) shouldBe 0
+            ann.detailUint("type") shouldBe 0
         }
 
         // --- ModifiedLife ---
@@ -338,15 +313,12 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.ModifiedLife
             ann.affectedIdsList shouldContain 1
 
-            val life = ann.detailsList.first { it.key == "life" }
-            life.type shouldBe KeyValuePairValueType.Int32
-            life.getValueInt32(0) shouldBe 3
+            ann.detailInt("life") shouldBe 3
         }
 
         test("modifiedLifeNegativeDelta") {
             val ann = AnnotationBuilder.modifiedLife(playerSeatId = 2, lifeDelta = -5)
-            val life = ann.detailsList.first { it.key == "life" }
-            life.getValueInt32(0) shouldBe -5
+            ann.detailInt("life") shouldBe -5
         }
 
         // --- SyntheticEvent ---
@@ -356,8 +328,7 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.SyntheticEvent
             ann.affectorId shouldBe 290
             ann.affectedIdsList shouldBe listOf(2)
-            val type = ann.detailsList.first { it.key == "type" }
-            type.getValueUint32(0) shouldBe 1
+            ann.detailUint("type") shouldBe 1
         }
 
         // --- TokenCreated (Group B) ---
@@ -388,13 +359,10 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.CounterAdded
             ann.affectedIdsList shouldContain 100
 
-            val type = ann.detailsList.first { it.key == "counter_type" }
-            type.type shouldBe KeyValuePairValueType.String
-            type.getValueString(0) shouldBe "P1P1"
-
-            val txn = ann.detailsList.first { it.key == "transaction_amount" }
-            txn.type shouldBe KeyValuePairValueType.Int32
-            txn.getValueInt32(0) shouldBe 2
+            assertSoftly {
+                ann.detailString("counter_type") shouldBe "P1P1"
+                ann.detailInt("transaction_amount") shouldBe 2
+            }
         }
 
         // --- CounterRemoved (Group B) ---
@@ -404,11 +372,10 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.CounterRemoved
             ann.affectedIdsList shouldContain 200
 
-            val type = ann.detailsList.first { it.key == "counter_type" }
-            type.getValueString(0) shouldBe "LOYALTY"
-
-            val txn = ann.detailsList.first { it.key == "transaction_amount" }
-            txn.getValueInt32(0) shouldBe 3
+            assertSoftly {
+                ann.detailString("counter_type") shouldBe "LOYALTY"
+                ann.detailInt("transaction_amount") shouldBe 3
+            }
         }
 
         // --- Shuffle (Group B) ---
@@ -472,12 +439,10 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.Scry_af5a
             ann.affectedIdsList shouldContain 1
 
-            val top = ann.detailsList.first { it.key == "topCount" }
-            top.type shouldBe KeyValuePairValueType.Int32
-            top.getValueInt32(0) shouldBe 2
-
-            val bottom = ann.detailsList.first { it.key == "bottomCount" }
-            bottom.getValueInt32(0) shouldBe 1
+            assertSoftly {
+                ann.detailInt("topCount") shouldBe 2
+                ann.detailInt("bottomCount") shouldBe 1
+            }
         }
 
         // --- Counter State (Tier 1) ---
@@ -486,11 +451,10 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.counter(instanceId = 100, counterType = 1, count = 1)
             ann.typeList shouldContain AnnotationType.Counter_803b
             ann.affectedIdsList shouldContain 100
-            val count = ann.detailsList.first { it.key == "count" }
-            count.type shouldBe KeyValuePairValueType.Int32
-            count.getValueInt32(0) shouldBe 1
-            val type = ann.detailsList.first { it.key == "counter_type" }
-            type.getValueInt32(0) shouldBe 1
+            assertSoftly {
+                ann.detailInt("count") shouldBe 1
+                ann.detailInt("counter_type") shouldBe 1
+            }
         }
 
         test("counterTypeIdMapsForgeNames") {
@@ -520,10 +484,12 @@ class AnnotationBuilderTest :
             )
             ann.typeList shouldContain AnnotationType.AddAbility_af5a
             ann.affectedIdsList shouldContain 100
-            ann.detailsList.first { it.key == "grpid" }.getValueInt32(0) shouldBe 6
-            ann.detailsList.first { it.key == "effect_id" }.getValueInt32(0) shouldBe 7005
-            ann.detailsList.first { it.key == "UniqueAbilityId" }.getValueInt32(0) shouldBe 217
-            ann.detailsList.first { it.key == "originalAbilityObjectZcid" }.getValueInt32(0) shouldBe 372
+            assertSoftly {
+                ann.detailInt("grpid") shouldBe 6
+                ann.detailInt("effect_id") shouldBe 7005
+                ann.detailInt("UniqueAbilityId") shouldBe 217
+                ann.detailInt("originalAbilityObjectZcid") shouldBe 372
+            }
         }
 
         // --- RemoveAbility (Tier 1) ---
@@ -532,7 +498,7 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.removeAbility(instanceId = 200, effectId = 7003)
             ann.typeList shouldContain AnnotationType.RemoveAbility
             ann.affectedIdsList shouldContain 200
-            ann.detailsList.first { it.key == "effect_id" }.getValueInt32(0) shouldBe 7003
+            ann.detailInt("effect_id") shouldBe 7003
             ann.detailsCount shouldBe 1
         }
 
@@ -547,9 +513,11 @@ class AnnotationBuilderTest :
             )
             ann.typeList shouldContain AnnotationType.AbilityExhausted
             ann.affectedIdsList shouldContain 294
-            ann.detailsList.first { it.key == "AbilityGrpId" }.getValueInt32(0) shouldBe 137955
-            ann.detailsList.first { it.key == "UsesRemaining" }.getValueInt32(0) shouldBe 0
-            ann.detailsList.first { it.key == "UniqueAbilityId" }.getValueInt32(0) shouldBe 205
+            assertSoftly {
+                ann.detailInt("AbilityGrpId") shouldBe 137955
+                ann.detailInt("UsesRemaining") shouldBe 0
+                ann.detailInt("UniqueAbilityId") shouldBe 205
+            }
         }
 
         // --- GainDesignation (Tier 1) ---
@@ -558,7 +526,7 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.gainDesignation(seatId = 1, designationType = 19)
             ann.typeList shouldContain AnnotationType.GainDesignation
             ann.affectedIdsList shouldContain 1
-            ann.detailsList.first { it.key == "DesignationType" }.getValueInt32(0) shouldBe 19
+            ann.detailInt("DesignationType") shouldBe 19
         }
 
         // --- Designation (Tier 1 stub) ---
@@ -567,7 +535,7 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.designation(seatId = 1, designationType = 19)
             ann.typeList shouldContain AnnotationType.Designation
             ann.affectedIdsList shouldContain 1
-            ann.detailsList.first { it.key == "DesignationType" }.getValueInt32(0) shouldBe 19
+            ann.detailInt("DesignationType") shouldBe 19
         }
 
         // --- LayeredEffect (Tier 1 stub) ---
@@ -576,7 +544,7 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.layeredEffect(instanceId = 289, effectId = 7004)
             ann.typeList shouldContain AnnotationType.LayeredEffect
             ann.affectedIdsList shouldContain 289
-            ann.detailsList.first { it.key == "effect_id" }.getValueInt32(0) shouldBe 7004
+            ann.detailInt("effect_id") shouldBe 7004
         }
 
         // --- LayeredEffectCreated ---
@@ -611,8 +579,7 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.LayeredEffect
             ann.affectedIdsList shouldBe listOf(100)
             ann.affectorId shouldBe 100
-            val effectIdDetail = ann.detailsList.first { it.key == "effect_id" }
-            effectIdDetail.getValueInt32(0) shouldBe 7005
+            ann.detailInt("effect_id") shouldBe 7005
             // No LayeredEffectType for P/T buffs (real server only uses it for CopyObject)
             ann.detailsList.none { it.key == "LayeredEffectType" } shouldBe true
         }
@@ -638,8 +605,7 @@ class AnnotationBuilderTest :
                 powerDelta = 1,
                 toughnessDelta = 1,
             )
-            val detail = ann.detailsList.first { it.key == "sourceAbilityGRPID" }
-            detail.getValueInt32(0) shouldBe 137
+            ann.detailInt("sourceAbilityGRPID") shouldBe 137
         }
 
         test("powerToughnessModCreated has affectorId and detail keys") {
@@ -652,8 +618,10 @@ class AnnotationBuilderTest :
             ann.typeList shouldBe listOf(AnnotationType.PowerToughnessModCreated)
             ann.affectedIdsList shouldBe listOf(335)
             ann.affectorId shouldBe 340
-            ann.detailsList.first { it.key == "power" }.getValueInt32(0) shouldBe 1
-            ann.detailsList.first { it.key == "toughness" }.getValueInt32(0) shouldBe 1
+            assertSoftly {
+                ann.detailInt("power") shouldBe 1
+                ann.detailInt("toughness") shouldBe 1
+            }
         }
 
         // --- Detail-less Tier 2 ---
@@ -700,9 +668,7 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.ColorProduction
             ann.affectorId shouldBe 279
             ann.affectedIdsList shouldContain 279
-            val colors = ann.detailsList.first { it.key == "colors" }
-            colors.type shouldBe KeyValuePairValueType.Int32
-            colors.getValueInt32(0) shouldBe 4
+            ann.detailInt("colors") shouldBe 4
         }
 
         test("colorProductionMultiColor") {
@@ -721,7 +687,7 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.triggeringObject(instanceId = 294, sourceZone = 27)
             ann.typeList shouldContain AnnotationType.TriggeringObject
             ann.affectedIdsList shouldContain 294
-            ann.detailsList.first { it.key == "source_zone" }.getValueInt32(0) shouldBe 27
+            ann.detailInt("source_zone") shouldBe 27
         }
 
         // --- TargetSpec (Tier 2) ---
@@ -736,10 +702,12 @@ class AnnotationBuilderTest :
             )
             ann.typeList shouldContain AnnotationType.TargetSpec
             ann.affectedIdsList shouldContain 293
-            ann.detailsList.first { it.key == "abilityGrpId" }.getValueInt32(0) shouldBe 176387
-            ann.detailsList.first { it.key == "index" }.getValueInt32(0) shouldBe 1
-            ann.detailsList.first { it.key == "promptId" }.getValueInt32(0) shouldBe 1330
-            ann.detailsList.first { it.key == "promptParameters" }.getValueInt32(0) shouldBe 303
+            assertSoftly {
+                ann.detailInt("abilityGrpId") shouldBe 176387
+                ann.detailInt("index") shouldBe 1
+                ann.detailInt("promptId") shouldBe 1330
+                ann.detailInt("promptParameters") shouldBe 303
+            }
         }
 
         // --- PowerToughnessModCreated (Tier 2) ---
@@ -748,8 +716,10 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.powerToughnessModCreated(instanceId = 335, power = 1, toughness = 1)
             ann.typeList shouldContain AnnotationType.PowerToughnessModCreated
             ann.affectedIdsList shouldContain 335
-            ann.detailsList.first { it.key == "power" }.getValueInt32(0) shouldBe 1
-            ann.detailsList.first { it.key == "toughness" }.getValueInt32(0) shouldBe 1
+            assertSoftly {
+                ann.detailInt("power") shouldBe 1
+                ann.detailInt("toughness") shouldBe 1
+            }
         }
 
         // --- DisplayCardUnderCard (Tier 2) ---
@@ -759,8 +729,10 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.DisplayCardUnderCard
             ann.affectorId shouldBe 200
             ann.affectedIdsList shouldContain 304
-            ann.detailsList.first { it.key == "Disable" }.getValueInt32(0) shouldBe 0
-            ann.detailsList.first { it.key == "TemporaryZoneTransfer" }.getValueInt32(0) shouldBe 1
+            assertSoftly {
+                ann.detailInt("Disable") shouldBe 0
+                ann.detailInt("TemporaryZoneTransfer") shouldBe 1
+            }
         }
 
         // --- PredictedDirectDamage (Tier 2) ---
@@ -769,6 +741,6 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.predictedDirectDamage(instanceId = 336, value = 2)
             ann.typeList shouldContain AnnotationType.PredictedDirectDamage
             ann.affectedIdsList shouldContain 336
-            ann.detailsList.first { it.key == "value" }.getValueInt32(0) shouldBe 2
+            ann.detailInt("value") shouldBe 2
         }
     })

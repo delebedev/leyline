@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
@@ -106,6 +107,7 @@ class TreasureTokenTest :
                 if (human.getZone(ZoneType.Battlefield).cards.any { it.name == "Treasure Token" }) return@repeat
                 h.passPriority()
             }
+            human.getZone(ZoneType.Battlefield).cards.any { it.name == "Treasure Token" }.shouldBeTrue()
 
             // --- Assert: Innkeeper + Treasure on battlefield ---
             val bfNames = human.getZone(ZoneType.Battlefield).cards.map { it.name }
@@ -155,6 +157,7 @@ class TreasureTokenTest :
                 if (h.isGameOver()) return@repeat
                 h.passPriority()
             }
+            h.isGameOver().shouldBeTrue()
 
             // --- Assert: Sacrifice ZoneTransfer + mana-ability bracket annotations exist ---
             // Treasure sacrifice fires during bolt resolution (Forge auto-pays mana at resolution
@@ -173,10 +176,12 @@ class TreasureTokenTest :
             // Mana-ability bracket annotation types must be present
             // (AbilityInstanceCreated etc. also appear for Forest taps during Innkeeper cast)
             val types = allAnnotations.flatMap { it.typeList }.toSet()
-            types shouldContain AnnotationType.AbilityInstanceCreated
-            types shouldContain AnnotationType.TappedUntappedPermanent
-            types shouldContain AnnotationType.ManaPaid
-            types shouldContain AnnotationType.AbilityInstanceDeleted
+            assertSoftly {
+                types shouldContain AnnotationType.AbilityInstanceCreated
+                types shouldContain AnnotationType.TappedUntappedPermanent
+                types shouldContain AnnotationType.ManaPaid
+                types shouldContain AnnotationType.AbilityInstanceDeleted
+            }
 
             // UserActionTaken with actionType=4 (ActivateMana) must exist
             val manaActivateAnnotations = allAnnotations.filter { ann ->

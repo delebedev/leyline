@@ -6,6 +6,7 @@ import io.kotest.matchers.string.shouldContain
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import leyline.frontdoor.FdTag
 import leyline.frontdoor.domain.DraftSession
 import leyline.frontdoor.domain.DraftSessionId
 import leyline.frontdoor.domain.DraftStatus
@@ -13,6 +14,8 @@ import leyline.frontdoor.domain.PlayerId
 
 class DraftWireBuilderTest :
     FunSpec({
+
+        tags(FdTag)
 
         val session = DraftSession(
             id = DraftSessionId("test-id"),

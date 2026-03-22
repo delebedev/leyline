@@ -18,6 +18,7 @@ import leyline.bridge.SeatId
 import leyline.config.GameConfig
 import leyline.config.MatchConfig
 import leyline.conformance.TestCardRegistry
+import leyline.conformance.detailString
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages
@@ -507,8 +508,7 @@ class GameBridgeTest :
             }
             zoneTransfers.shouldNotBeEmpty()
             val ann = zoneTransfers.first()
-            val category = ann.detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "PlayLand"
+            ann.detailString("category") shouldBe "PlayLand"
         }
 
         // --- AI combat visibility tests ---
@@ -526,14 +526,23 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
             advanceToPhase(b, "MAIN1", maxPasses = 80)
-            if (game.isGameOver) return@test
+            if (game.isGameOver) {
+                println("SKIP: game over before reaching main1")
+                return@test
+            }
 
             val ai = b.getPlayer(SeatId(2))!!
             val aiCreatures = ai.getZone(ZoneType.Battlefield).cards.filter { it.isCreature }
-            if (aiCreatures.isEmpty()) return@test
+            if (aiCreatures.isEmpty()) {
+                println("SKIP: no AI creatures on battlefield")
+                return@test
+            }
 
             advanceToPhase(b, "COMBAT_DECLARE_ATTACKERS", maxPasses = 80)
-            if (game.isGameOver || game.phaseHandler.phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return@test
+            if (game.isGameOver || game.phaseHandler.phase != PhaseType.COMBAT_DECLARE_ATTACKERS) {
+                println("SKIP: game over or wrong phase for combat test")
+                return@test
+            }
 
             val gs = StateMapper.buildFromGame(game, 1, "test-match", b).gsm
             val combat = game.phaseHandler.combat

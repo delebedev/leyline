@@ -8,6 +8,8 @@ import io.kotest.matchers.shouldBe
 class FdProtoBuilderTest :
     FunSpec({
 
+        tags(FdTag)
+
         test("buildFormatsProto produces valid Any-wrapped proto with formats and groups") {
             val bytes = FdProtoBuilder.buildFormatsProto()
             val any = UnknownFieldSet.parseFrom(bytes)

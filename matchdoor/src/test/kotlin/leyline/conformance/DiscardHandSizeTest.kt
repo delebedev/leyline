@@ -36,7 +36,7 @@ class DiscardHandSizeTest :
             harness = null
         }
 
-        // TODO: fix ValidatingMessageSink assertion on AI-turn ZoneTransfer (pre-existing)
+        // Blocked: ValidatingMessageSink assertion on AI-turn ZoneTransfer (#205)
         xtest("multi-turn with lands does not hang") {
             val h = MatchFlowHarness(seed = 42L)
             harness = h
@@ -51,7 +51,7 @@ class DiscardHandSizeTest :
             h.isGameOver().shouldBeFalse()
         }
 
-        // TODO: fix ValidatingMessageSink assertion on AI-turn ZoneTransfer (pre-existing)
+        // Blocked: ValidatingMessageSink assertion on AI-turn ZoneTransfer (#205)
         xtest("no land plays triggers discard") {
             val h = MatchFlowHarness(seed = 42L)
             harness = h
@@ -68,7 +68,7 @@ class DiscardHandSizeTest :
             h.isGameOver().shouldBeFalse()
         }
 
-        // TODO: fix ValidatingMessageSink assertion on AI-turn ZoneTransfer (pre-existing)
+        // Blocked: ValidatingMessageSink assertion on AI-turn ZoneTransfer (#205)
         xtest("discarded card moves to graveyard") {
             val h = MatchFlowHarness(seed = 42L)
             harness = h

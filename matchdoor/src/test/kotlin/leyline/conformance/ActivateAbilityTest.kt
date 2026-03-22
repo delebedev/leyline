@@ -86,7 +86,7 @@ class ActivateAbilityTest :
             val mage = player.getZone(ZoneType.Battlefield).cards
                 .firstOrNull { it.name == "Jade Mage" }
             if (mage == null) {
-                // If we couldn't get Jade Mage on BF with this seed, skip gracefully
+                println("SKIP: Jade Mage not on battlefield — seed-dependent setup")
                 return@test
             }
 

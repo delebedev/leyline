@@ -91,8 +91,7 @@ class GameEndTest :
             h.registry.getPeer("test-match", 1).shouldBeNull()
         }
 
-        // DISABLED: multi-turn loop to reach lethal is slow and flaky — times out
-        // at 120s. Needs puzzle-based rewrite.
+        // Blocked: needs puzzle-based rewrite — multi-turn loop times out at 120s (#206)
         xtest("lethal damage produces MatchCompleted room state") {
             val h = MatchFlowHarness(
                 seed = 42L,

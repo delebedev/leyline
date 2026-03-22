@@ -77,6 +77,9 @@ class FooTest : FunSpec({
 - **`assertSoftly` for multi-field shape checks.** When one setup produces one GSM and you check N facets, wrap in `assertSoftly {}` — reports all failures, not just the first. Hard gates (e.g. "annotations exist at all") go before the `assertSoftly` block.
 - **One test per distinct board setup.** Don't mix Activate checks (needs Gingerbrute) into a Cast test (needs creature + mana). Different board = different test.
 - **Category assertions mandatory** on zone transfer tests. `zt.shouldNotBeNull()` alone is lax — always check `zt.category shouldBe "..."`.
+- **Bail-out loops need terminal assertions.** `repeat(N) { if (cond) return@repeat; passPriority() }` silently passes if the condition never holds. Always assert the condition after the loop, or use `passUntil` / `passThroughCombat` which fail on exhaustion.
+- **Use helpers, not raw proto access.** `ann.detailInt("zone_src")` not `ann.detailsList.first { it.key == "zone_src" }.getValueInt32(0)`. Check `TestExtensions.kt` before writing inline lookups. If a pattern appears 2+ times and no helper exists, propose one.
+- **Tests should read like specs.** If a test is noisy — repeated setup, verbose assertion chains, inline filter/map gymnastics — extract a helper that names the intent. `shouldHaveZoneTransfer(from, to, category)` beats 5 lines of filtering + asserting.
 
 ## Assertions & helpers
 
