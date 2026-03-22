@@ -87,8 +87,8 @@ class PvpBridgeEndToEndTest :
                 .any { it.id == land.id }.shouldBeTrue()
 
             // Both seat views see the land
-            val gsm1 = StateMapper.buildFromGame(game, 1, "test", b, viewingSeatId = 1)
-            val gsm2 = StateMapper.buildFromGame(game, 2, "test", b, viewingSeatId = 2)
+            val gsm1 = StateMapper.buildFromGame(game, 1, "test", b, viewingSeatId = 1).gsm
+            val gsm2 = StateMapper.buildFromGame(game, 2, "test", b, viewingSeatId = 2).gsm
             val landIid = b.getOrAllocInstanceId(landForgeId).value
             gsm1.gameObjectsList.any { it.instanceId == landIid }.shouldBeTrue()
             gsm2.gameObjectsList.any { it.instanceId == landIid }.shouldBeTrue()
@@ -110,8 +110,8 @@ class PvpBridgeEndToEndTest :
                 .any { it.id == creature.id }.shouldBeTrue()
 
             // Both seats see it
-            val gsmCast1 = StateMapper.buildFromGame(game, 3, "test", b, viewingSeatId = 1)
-            val gsmCast2 = StateMapper.buildFromGame(game, 4, "test", b, viewingSeatId = 2)
+            val gsmCast1 = StateMapper.buildFromGame(game, 3, "test", b, viewingSeatId = 1).gsm
+            val gsmCast2 = StateMapper.buildFromGame(game, 4, "test", b, viewingSeatId = 2).gsm
             val creatureIid = b.getOrAllocInstanceId(creatureForgeId).value
             gsmCast1.gameObjectsList.any { it.instanceId == creatureIid }.shouldBeTrue()
             gsmCast2.gameObjectsList.any { it.instanceId == creatureIid }.shouldBeTrue()

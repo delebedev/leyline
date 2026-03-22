@@ -248,6 +248,9 @@ class GameBridge(
 
     override fun drainEvents(): List<GameEvent> = eventCollector?.drainEvents() ?: emptyList()
 
+    /** True if there are Forge events queued but not yet drained into a GSM. */
+    fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false
+
     companion object {
         /** Fallback grpId for cards not in client DB (renders face-down). */
         const val FALLBACK_GRPID = 0

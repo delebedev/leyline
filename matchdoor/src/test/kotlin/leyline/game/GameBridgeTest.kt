@@ -441,7 +441,7 @@ class GameBridgeTest :
 
             val game = b.getGame()!!
             val actions = ActionMapper.buildActions(game, 1, b)
-            val gs = StateMapper.buildFromGame(game, 1, "test-match", b, actions)
+            val gs = StateMapper.buildFromGame(game, 1, "test-match", b, actions).gsm
 
             (gs.actionsCount > 0).shouldBeTrue()
             for (actionInfo in gs.actionsList) {
@@ -489,7 +489,7 @@ class GameBridgeTest :
             val game = b.getGame()!!
 
             // Build initial state to seed previousZones
-            StateMapper.buildFromGame(game, 1, "test-match", b)
+            StateMapper.buildFromGame(game, 1, "test-match", b).gsm
 
             // Play a land
             val player = b.getPlayer(SeatId(1))!!
@@ -501,7 +501,7 @@ class GameBridgeTest :
             awaitFreshPending(b, pending.actionId)
 
             // Build post-action state — should have ZoneTransfer annotation
-            val gs = StateMapper.buildFromGame(game, 2, "test-match", b)
+            val gs = StateMapper.buildFromGame(game, 2, "test-match", b).gsm
             val zoneTransfers = gs.annotationsList.filter {
                 it.typeList.contains(Messages.AnnotationType.ZoneTransfer_af5a)
             }
@@ -535,7 +535,7 @@ class GameBridgeTest :
             advanceToPhase(b, "COMBAT_DECLARE_ATTACKERS", maxPasses = 80)
             if (game.isGameOver || game.phaseHandler.phase != PhaseType.COMBAT_DECLARE_ATTACKERS) return@test
 
-            val gs = StateMapper.buildFromGame(game, 1, "test-match", b)
+            val gs = StateMapper.buildFromGame(game, 1, "test-match", b).gsm
             val combat = game.phaseHandler.combat
             if (combat != null && combat.attackers.isNotEmpty()) {
                 val attacking = gs.gameObjectsList.filter {
@@ -580,7 +580,7 @@ class GameBridgeTest :
             // No diff baseline yet
             b.getDiffBaselineState().shouldBeNull()
 
-            val gs = StateMapper.buildDiffFromGame(game, 1, "test-match", b)
+            val gs = StateMapper.buildDiffFromGame(game, 1, "test-match", b).gsm
             gs.type shouldBe Messages.GameStateType.Full
             (gs.zonesCount > 0).shouldBeTrue()
         }
@@ -644,7 +644,7 @@ class GameBridgeTest :
             b.awaitPriority()
 
             val game = b.getGame()!!
-            val gs = StateMapper.buildFromGame(game, 1, "test-match", b)
+            val gs = StateMapper.buildFromGame(game, 1, "test-match", b).gsm
 
             (gs.zonesCount > 0).shouldBeTrue()
             (gs.gameObjectsCount > 0).shouldBeTrue()

@@ -57,6 +57,8 @@ object AnnotationPipeline {
         val manaAbilityInstanceId: Int,
         val color: Int,
         val abilityGrpId: Int,
+        /** InstanceId of the spell/ability this mana pays for (ManaPaid.affectedIds). */
+        val spellInstanceId: Int = 0,
     )
 
     data class AppliedTransfer(
@@ -218,6 +220,7 @@ object AnnotationPipeline {
                                 manaAbilityInstanceId = manaAbilityIid,
                                 color = mp.color,
                                 abilityGrpId = abilityGrpId,
+                                spellInstanceId = newId,
                             )
                         } ?: emptyList()
                 } else {
@@ -232,6 +235,13 @@ object AnnotationPipeline {
                 zoneRecordings.add(obj.instanceId to obj.zoneId)
             }
         }
+
+        // Post-pass: detect token sacrifices invisible to the main loop.
+        detectDisappearedSacrifices(
+            events, previousZones, patchedObjects, patchedZones,
+            transfers, retiredIds, zoneRecordings,
+            forgeIdLookup, idAllocator, idLookup, manaAbilityGrpIdResolver,
+        )
 
         // Also record zones for instanceIds that appear only in zone objectInstanceIds
         // but not in gameObjects (e.g. library cards — hidden, no GameObjectInfo).
@@ -322,7 +332,15 @@ object AnnotationPipeline {
                 annotations.add(AnnotationBuilder.resolutionComplete(newId, grpId))
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, actingSeat))
             }
-            TransferCategory.Destroy, TransferCategory.Sacrifice, TransferCategory.Countered,
+            TransferCategory.Sacrifice -> {
+                if (transfer.manaPayments.isNotEmpty()) {
+                    emitManaSacrificeBracket(annotations, transfer, actingSeat)
+                } else {
+                    if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
+                    annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId))
+                }
+            }
+            TransferCategory.Destroy, TransferCategory.Countered,
             TransferCategory.Bounce, TransferCategory.Draw, TransferCategory.Discard,
             TransferCategory.Mill, TransferCategory.Surveil, TransferCategory.Exile,
             TransferCategory.Return, TransferCategory.Search, TransferCategory.Put,
@@ -674,6 +692,150 @@ object AnnotationPipeline {
 
     // --- helpers ---
 
+    /**
+     * Detect token sacrifices invisible to the main transfer loop.
+     *
+     * Tokens sacrificed for mana (Treasure) are cleaned up by SBAs before the state
+     * snapshot, making them invisible to zone-change detection. We find them by comparing
+     * previousZones (battlefield) against current gameObjects. Also handles the case where
+     * the token is still present (SBAs haven't run yet) but a CardSacrificed event fired.
+     */
+    @Suppress("LongParameterList")
+    private fun detectDisappearedSacrifices(
+        events: List<GameEvent>,
+        previousZones: Map<Int, Int>,
+        patchedObjects: MutableList<GameObjectInfo>,
+        patchedZones: MutableList<ZoneInfo>,
+        transfers: MutableList<AppliedTransfer>,
+        retiredIds: MutableList<Int>,
+        zoneRecordings: MutableList<Pair<Int, Int>>,
+        forgeIdLookup: (Int) -> Int?,
+        idAllocator: (Int) -> InstanceIdRegistry.IdReallocation,
+        idLookup: (Int) -> InstanceId,
+        manaAbilityGrpIdResolver: (Int) -> Int,
+    ) {
+        val currentInstanceIds = patchedObjects.map { it.instanceId }.toSet()
+        val sacrificeEvents = events.filterIsInstance<GameEvent.CardSacrificed>()
+        if (sacrificeEvents.isEmpty()) return
+        val manaAbilityEvents = events.filterIsInstance<GameEvent.ManaAbilityActivated>()
+        val spellCastEvents = events.filterIsInstance<GameEvent.SpellCast>()
+        // Skip instanceIds already processed by the main transfer loop to avoid
+        // double-processing regular (non-token) sacrifices that are still in gameObjects.
+        val mainLoopOrigIds = transfers.map { it.origId }.toSet()
+
+        for ((instanceId, zoneId) in previousZones) {
+            if (zoneId != ZONE_BATTLEFIELD) continue
+            if (instanceId in mainLoopOrigIds) continue
+            val forgeCardIdValue = forgeIdLookup(instanceId) ?: continue
+            val sacrificeEv = sacrificeEvents.firstOrNull { it.forgeCardId == forgeCardIdValue } ?: continue
+
+            val stillOnBattlefield = instanceId in currentInstanceIds
+            val realloc = idAllocator(forgeCardIdValue)
+            val origId = realloc.old.value
+            val newId = realloc.new.value
+            val ownerSeat = sacrificeEv.seatId
+            val destZone = if (ownerSeat == 1) ZONE_P1_GRAVEYARD else ZONE_P2_GRAVEYARD
+
+            // If still in gameObjects, strip it so the client sees it leave.
+            val resolvedGrpId = if (stillOnBattlefield) {
+                val idx = patchedObjects.indexOfFirst { it.instanceId == instanceId }
+                val grp = if (idx >= 0) {
+                    val g = patchedObjects[idx].grpId
+                    patchedObjects.removeAt(idx)
+                    g
+                } else {
+                    0
+                }
+                removeFromZone(patchedZones, ZONE_BATTLEFIELD, instanceId)
+                appendToZone(patchedZones, destZone, newId)
+                grp
+            } else {
+                0
+            }
+
+            val manaPayments = buildManaSacrificePayments(
+                forgeCardIdValue,
+                origId,
+                manaAbilityEvents,
+                spellCastEvents,
+                idLookup,
+                manaAbilityGrpIdResolver,
+            )
+
+            // Remove this mana source from CastSpell transfers to avoid duplication.
+            if (manaPayments.isNotEmpty()) {
+                for (i in transfers.indices) {
+                    val t = transfers[i]
+                    if (t.category == TransferCategory.CastSpell && t.manaPayments.any { it.landInstanceId == origId }) {
+                        transfers[i] = t.copy(manaPayments = t.manaPayments.filter { it.landInstanceId != origId })
+                    }
+                }
+            }
+
+            if (newId != origId) {
+                retiredIds.add(origId)
+                appendToZone(patchedZones, ZONE_LIMBO, origId)
+            }
+
+            transfers.add(
+                AppliedTransfer(origId, newId, TransferCategory.Sacrifice, ZONE_BATTLEFIELD, destZone, resolvedGrpId, ownerSeat, manaPayments = manaPayments),
+            )
+            zoneRecordings.add(newId to destZone)
+            log.debug("disappeared token: iid {} → {} category=Sacrifice manaPayments={}", origId, newId, manaPayments.size)
+        }
+    }
+
+    /**
+     * Emit the full mana-ability annotation bracket for a sacrifice-for-mana transfer.
+     * Matches real server sequence: AbilityInstanceCreated → TappedUntapped →
+     * ObjectIdChanged → ZoneTransfer(Sacrifice) → UserActionTaken(4) → ManaPaid →
+     * AbilityInstanceDeleted.
+     */
+    private fun emitManaSacrificeBracket(
+        annotations: MutableList<AnnotationInfo>,
+        transfer: AppliedTransfer,
+        actingSeat: Int,
+    ) {
+        val origId = transfer.origId
+        val newId = transfer.newId
+        for (mp in transfer.manaPayments) {
+            annotations.add(AnnotationBuilder.abilityInstanceCreated(mp.manaAbilityInstanceId, origId, transfer.srcZoneId))
+            annotations.add(AnnotationBuilder.tappedUntappedPermanent(origId, mp.manaAbilityInstanceId))
+        }
+        if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
+        annotations.add(AnnotationBuilder.zoneTransfer(newId, transfer.srcZoneId, transfer.destZoneId, transfer.category.label))
+        for ((i, mp) in transfer.manaPayments.withIndex()) {
+            annotations.add(AnnotationBuilder.userActionTaken(mp.manaAbilityInstanceId, actingSeat, actionType = 4, abilityGrpId = mp.abilityGrpId))
+            annotations.add(AnnotationBuilder.manaPaid(mp.spellInstanceId, origId, i + MANA_ID_BASE, mp.color))
+            annotations.add(AnnotationBuilder.abilityInstanceDeleted(mp.manaAbilityInstanceId, origId))
+        }
+    }
+
+    /** Build mana payment records for a sacrifice that activated a mana ability. */
+    private fun buildManaSacrificePayments(
+        forgeCardId: Int,
+        origId: Int,
+        manaAbilityEvents: List<GameEvent.ManaAbilityActivated>,
+        spellCastEvents: List<GameEvent.SpellCast>,
+        idLookup: (Int) -> InstanceId,
+        manaAbilityGrpIdResolver: (Int) -> Int,
+    ): List<ManaPaymentRecord> {
+        if (manaAbilityEvents.none { it.forgeCardId == forgeCardId }) return emptyList()
+        val castEv = spellCastEvents.firstOrNull { sc ->
+            sc.manaPayments.any { it.sourceForgeCardId == forgeCardId }
+        } ?: return emptyList()
+        val mp = castEv.manaPayments.first { it.sourceForgeCardId == forgeCardId }
+        return listOf(
+            ManaPaymentRecord(
+                landInstanceId = origId,
+                manaAbilityInstanceId = idLookup(forgeCardId + MANA_ABILITY_ID_OFFSET).value,
+                color = mp.color,
+                abilityGrpId = manaAbilityGrpIdResolver(forgeCardId),
+                spellInstanceId = idLookup(castEv.forgeCardId).value,
+            ),
+        )
+    }
+
     /** Replace oldId with newId in a zone's objectInstanceIds list (after instanceId realloc). */
     private fun patchZoneInstanceId(zones: MutableList<ZoneInfo>, zoneId: Int, oldId: Int, newId: Int) {
         val idx = zones.indexOfFirst { it.zoneId == zoneId }
@@ -695,5 +857,17 @@ object AnnotationPipeline {
         val idx = zones.indexOfFirst { it.zoneId == zoneId }
         if (idx < 0) return
         zones[idx] = zones[idx].toBuilder().addObjectInstanceIds(instanceId).build()
+    }
+
+    /** Remove an instanceId from a zone's objectInstanceIds list (no-op if not found). */
+    private fun removeFromZone(zones: MutableList<ZoneInfo>, zoneId: Int, instanceId: Int) {
+        val idx = zones.indexOfFirst { it.zoneId == zoneId }
+        if (idx < 0) return
+        val zone = zones[idx]
+        val ids = zone.objectInstanceIdsList.filter { it != instanceId }
+        zones[idx] = zone.toBuilder()
+            .clearObjectInstanceIds()
+            .addAllObjectInstanceIds(ids)
+            .build()
     }
 }

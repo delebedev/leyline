@@ -18,7 +18,7 @@ import leyline.bridge.PlayerAction
  * this wrapper avoids boilerplate in tests.
  */
 fun GameBridge.snapshotFromGame(game: Game, gameStateId: Int = 0) {
-    snapshotDiffBaseline(StateMapper.buildFromGame(game, gameStateId, "", this))
+    snapshotDiffBaseline(StateMapper.buildFromGame(game, gameStateId, "", this).gsm)
 }
 
 /**

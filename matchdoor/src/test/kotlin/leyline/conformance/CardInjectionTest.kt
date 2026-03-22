@@ -33,7 +33,7 @@ class CardInjectionTest :
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Serra Angel", ZoneType.Battlefield, sick = false)
 
-            val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1)
+            val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1).gsm
             val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected card should appear in gameObjectsList" }
             obj.grpId shouldBe injected.grpId
             obj.cardTypesList.shouldContain(CardType.Creature)
@@ -56,7 +56,7 @@ class CardInjectionTest :
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Lightning Bolt", ZoneType.Hand)
 
-            val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1)
+            val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1).gsm
             val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected card should appear in gameObjectsList" }
             obj.cardTypesList.shouldContain(CardType.Instant)
 
@@ -89,7 +89,7 @@ class CardInjectionTest :
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
             val injected = TestCardInjector.inject(b, 1, "Plains", ZoneType.Battlefield, tapped = true)
 
-            val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1)
+            val gsm = StateMapper.buildFromGame(game, counter.nextGsId(), "test", b, viewingSeatId = 1).gsm
             val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected land should appear in gameObjectsList" }
             obj.cardTypesList.shouldContain(CardType.Land_a80b)
         }

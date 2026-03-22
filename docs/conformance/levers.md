@@ -6,6 +6,21 @@ Current state: the pipeline compares annotation shapes in single GSM frames, man
 
 ---
 
+## Status (2026-03-21)
+
+**Done:**
+- **#4 partially** — structural binder (type-based matching, not positional zip) + ObjectIdChanged anchoring. In `tools/tape/segments.py`.
+- **#6 partially** — golden baselines with regression detection. `just conform` / `just conform-golden` pipeline works. Not yet wired into `test-gate` CI.
+- **QueuedGSM split** — CastSpell GSMs now emit the real server's QueuedGSM triplet (not a lever, but enables conformance of message types).
+
+**Findings from #119 (Treasure sacrifice conformance):**
+- Single-frame comparison (#1) is the binding constraint. Our engine bundles CastSpell + mana brackets + sacrifice + phase transitions + combat into one GSM. The recording splits across 3+ GSMs. `extractByCategory("Sacrifice")` grabs the whole GSM, producing cross-GSM noise that neither #4 nor #5 can fix.
+- Recording-matched puzzles (#5) don't help without #1 — even identical cards produce cross-GSM diffs because the engine's GSM boundaries differ from the recording's.
+- The structural binder (#4) eliminates type_mismatch noise but can't help when annotations are genuinely in different GSMs.
+- **Conclusion: #1 (sequence comparison) is the critical path.** Without it, conformance diffs are dominated by GSM-boundary noise, not annotation-content gaps.
+
+---
+
 ## 1. Sequence comparison (unit of comparison is wrong)
 
 **What:** The pipeline compares ONE GSM frame — the frame containing the ZoneTransfer annotation for a given category. Real conformance is a *message sequence*: `ActionsAvailableReq → cast → GSM(stack) → GSM(priority flip) → GSM(resolve)`. Single-frame comparison catches annotation bugs but is structurally blind to message-flow bugs (#92, #93).
@@ -24,6 +39,8 @@ Current state: the pipeline compares annotation shapes in single GSM frames, man
 **How — diff side:** Replace `bind_ids(template_anns, engine_anns)` (single-frame zip) with sequence alignment. Pair recording messages to engine messages by structure (GRE type + annotation fingerprint), then diff each pair. Proper sequence diff (LCS/edit-distance on message fingerprints), not positional zip. Extra/missing messages surface as insertions/deletions in the alignment.
 
 **Unlocks:** Catches the entire class of bugs where the right annotations are sent but in the wrong message, at the wrong time, or with wrong surrounding messages. This is where #92 and #93 live — and likely many undiscovered bugs.
+
+**2026-03-21 note:** This is now the #1 priority. The QueuedGSM split (CastSpell triplet) makes GSM boundaries conformant, but the single-frame comparison can't verify it. The Sacrifice conformance diffs (30) are almost entirely GSM-boundary noise. Sequence comparison would match our QueuedGSM against the recording's QueuedGSM, our main GSM against the recording's main GSM, and eliminate the cross-GSM false diffs.
 
 ---
 
@@ -80,6 +97,8 @@ Current state: the pipeline compares annotation shapes in single GSM frames, man
 
 **Unlocks:** The pipeline works for complex mechanics (combat, ability chains, multi-spell turns) without false diffs from ordering differences. Required before sequence comparison (#1) works on anything beyond simple single-card interactions.
 
+**2026-03-21 note:** Partially done. Structural binder (type-based matching) + ObjectIdChanged anchoring implemented in `tools/tape/segments.py`. Anchoring didn't reduce current diff counts because the remaining diffs are cross-GSM (different GSM boundaries), not same-type confusion. Will pay off when sequence comparison (#1) brings same-type annotations from different GSMs into the same comparison window.
+
 ---
 
 ## 5. Lossless object tracking (puzzle generation is lossy)
@@ -95,6 +114,8 @@ Current state: the pipeline compares annotation shapes in single GSM frames, man
 **How — card name resolution:** Combine with `just card <grpId>` lookups (or a prebuilt grpId→name table from the Arena card DB). The tracker provides grpIds, the card DB provides Forge-compatible names for puzzle files.
 
 **Unlocks:** Any segment in any recording becomes puzzle-generatable automatically. Currently, puzzle generation is reliable only for early-game segments. This makes the full recording catalogue usable as conformance test sources.
+
+**2026-03-21 note:** Attempted for Treasure sacrifice — hand-wrote a recording-matched puzzle. Didn't reduce diffs because the cross-GSM boundary problem dominates. The puzzle itself works fine; the comparison pipeline can't leverage it without #1 (sequence comparison). Still valuable for scaling once #1 is in place.
 
 ---
 

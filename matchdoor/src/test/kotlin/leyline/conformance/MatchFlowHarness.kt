@@ -83,7 +83,7 @@ class MatchFlowHarness(
         // buildFromGame calls would race on drainEvents/nextAnnotationId.
         val game = bridge.getGame()
         if (game != null) {
-            val fullGsm = StateMapper.buildFromGame(game, 0, matchId, bridge, viewingSeatId = seatId)
+            val fullGsm = StateMapper.buildFromGame(game, 0, matchId, bridge, viewingSeatId = seatId).gsm
             accumulator.seedFull(fullGsm)
             validatingSink?.seedFull(fullGsm)
         }
@@ -143,7 +143,7 @@ class MatchFlowHarness(
 
         val game = bridge.getGame()
         if (game != null) {
-            val fullGsm = StateMapper.buildFromGame(game, 0, matchId, bridge, viewingSeatId = seatId)
+            val fullGsm = StateMapper.buildFromGame(game, 0, matchId, bridge, viewingSeatId = seatId).gsm
             accumulator.seedFull(fullGsm)
             validatingSink?.seedFull(fullGsm)
         }

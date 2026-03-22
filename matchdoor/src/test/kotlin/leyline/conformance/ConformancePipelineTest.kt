@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -12,6 +13,8 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import leyline.IntegrationTag
+import leyline.bridge.GameBootstrap
+import leyline.bridge.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
 
@@ -35,6 +38,25 @@ class ConformancePipelineTest :
         val outputDir = File("build/conformance").also { it.mkdirs() }
 
         var harness: MatchFlowHarness? = null
+
+        beforeSpec {
+            GameBootstrap.initializeCardDatabase(quiet = true)
+            TestCardRegistry.ensureRegistered()
+            TestCardRegistry.ensureCardRegistered("Prosperous Innkeeper")
+            TestCardRegistry.ensureCardRegistered("Lightning Bolt")
+            TestCardRegistry.ensureCardRegistered("Centaur Courser")
+
+            // Wire Treasure Token grpId mapping onto Innkeeper (mirrors TreasureTokenTest setup)
+            val repo = TestCardRegistry.repo
+            val innkeeperGrpId = repo.findGrpIdByName("Prosperous Innkeeper")!!
+            val treasureGrpId = 300001
+            repo.register(treasureGrpId, "Treasure Token")
+            val innkeeperData = repo.findByGrpId(innkeeperGrpId)!!
+            repo.registerData(
+                innkeeperData.copy(tokenGrpIds = mapOf(0 to treasureGrpId)),
+                "Prosperous Innkeeper",
+            )
+        }
 
         afterEach {
             harness?.shutdown()
@@ -106,6 +128,8 @@ class ConformancePipelineTest :
                 append("}")
             }
             File(outputDir, "playland-frame.json").writeText(frameJson)
+            File(outputDir, "playland-sequence.json")
+                .writeText(AnnotationSerializer.toSequenceJson(msgs))
         }
 
         test("CastSpell segment: creature cast produces matching annotation structure") {
@@ -166,6 +190,8 @@ class ConformancePipelineTest :
                     append("}")
                 },
             )
+            File(outputDir, "castspell-sequence.json")
+                .writeText(AnnotationSerializer.toSequenceJson(msgs))
         }
         test("DeclareBlockers prompt lifecycle capture") {
             // Puzzle: AI starts with Juggernaut (must-attack) on battlefield.
@@ -249,6 +275,85 @@ class ConformancePipelineTest :
             val prettyJson = Json { prettyPrint = true }
             File(outputDir, "declare-blockers-lifecycle.json")
                 .writeText(prettyJson.encodeToString(JsonElement.serializer(), lifecycle))
+        }
+
+        test("Sacrifice segment: land + Treasure mana produces recording-matched annotations") {
+            val h = MatchFlowHarness(validating = false)
+            harness = h
+
+            // Mirrors TreasureTokenTest: cast Innkeeper (1G) with Forest+Forest, get Treasure ETB,
+            // then cast Lightning Bolt (R) using only the Treasure for mana (Forests already tapped).
+            // Snapshot is taken just before the Bolt cast so Sacrifice annotations land in the window.
+            h.connectAndKeepPuzzleText(
+                """
+                [metadata]
+                Name:Conformance Sacrifice
+                Goal:Win
+                Turns:5
+                Difficulty:Tutorial
+                Description:Pipeline test — Treasure sacrifice for mana (mirrors TreasureTokenTest)
+
+                [state]
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
+
+                humanhand=Prosperous Innkeeper;Lightning Bolt
+                humanbattlefield=Forest;Forest
+                humanlibrary=Island;Island;Island;Island;Island
+                aibattlefield=Centaur Courser
+                ailibrary=Mountain;Mountain;Mountain
+                """.trimIndent(),
+            )
+
+            val human = h.bridge.getPlayer(SeatId(1))!!
+
+            // Cast Prosperous Innkeeper (1G) — taps both Forests
+            h.castSpellByName("Prosperous Innkeeper").shouldBeTrue()
+
+            // Pass priority until Treasure Token lands on battlefield.
+            // Stop immediately to avoid advancing past Main1 (untapping Forests).
+            h.passUntil(maxPasses = 10) {
+                human.getZone(ZoneType.Battlefield).cards.any { it.name == "Treasure Token" }
+            }
+
+            // Snapshot before casting Lightning Bolt (R) — only Treasure available (Forests tapped).
+            // Forge must sacrifice the Treasure to produce R.
+            val snap = h.messageSnapshot()
+            h.castSpellByName("Lightning Bolt").shouldBeTrue()
+            // Target the opponent (seat 2)
+            h.selectTargets(listOf(2))
+            // Don't resolve — Sacrifice annotations fire during cast, not resolution.
+            // Resolving adds phase transitions and combat damage to the frame.
+
+            val msgs = h.messagesSince(snap)
+            val allAnnotations = msgs.flatMap { msg ->
+                if (msg.hasGameStateMessage()) msg.gameStateMessage.annotationsList else emptyList()
+            }
+            allAnnotations.shouldNotBeEmpty()
+
+            // Extract the Sacrifice frame (single-frame, backward compat)
+            val frame = AnnotationSerializer.extractByCategory(msgs, "Sacrifice")
+            frame.shouldNotBeNull()
+
+            File(outputDir, "sacrifice-frame.json").writeText(
+                buildString {
+                    append("{\n")
+                    val entries = frame.entries.toList()
+                    for ((i, entry) in entries.withIndex()) {
+                        append("  \"${entry.key}\": ")
+                        append(serializeValue(entry.value))
+                        if (i < entries.size - 1) append(",")
+                        append("\n")
+                    }
+                    append("}")
+                },
+            )
+
+            // Sequence output: ALL GSMs for sequence comparison (lever #1)
+            File(outputDir, "sacrifice-sequence.json")
+                .writeText(AnnotationSerializer.toSequenceJson(msgs))
         }
 
         test("DeclareAttackers prompt lifecycle capture") {

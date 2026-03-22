@@ -633,7 +633,7 @@ class DebugServer(
             bridge,
             updateType = GameStateUpdate.SendAndRecord,
             viewingSeatId = session.seatId,
-        )
+        ).gsm
 
         val greGsm = GREToClientMessage.newBuilder()
             .setType(GREMessageType.GameStateMessage_695e)
@@ -733,7 +733,7 @@ class DebugServer(
             bridge,
             updateType = GameStateUpdate.SendAndRecord,
             viewingSeatId = session.seatId,
-        )
+        ).gsm
 
         // Add diffDeletedInstanceIds so the client purges cached objects from the old puzzle
         val gsmWithDeletes = if (deletedIds.isNotEmpty()) {

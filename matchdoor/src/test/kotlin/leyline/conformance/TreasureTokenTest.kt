@@ -4,6 +4,7 @@ import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -15,6 +16,7 @@ import leyline.game.StateMapper
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ObjectMapper
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
  * Treasure token grpId resolution — regression test for NPE crash.
@@ -124,7 +126,7 @@ class TreasureTokenTest :
                 "test-treasure",
                 h.bridge,
                 viewingSeatId = 1,
-            )
+            ).gsm
             gsm.shouldNotBeNull()
             val treasureObj = gsm.gameObjectsList.firstOrNull { it.grpId == treasureGrpId }
             treasureObj.shouldNotBeNull()
@@ -142,7 +144,7 @@ class TreasureTokenTest :
             val castActions = actions.actionsList.filter { it.actionType == ActionType.Cast }
             castActions.size shouldBe 1
 
-            // --- Cast Lightning Bolt (Treasure provides R) ---
+            // --- Cast Lightning Bolt (Treasure provides R via auto-pay) ---
             h.castSpellByName("Lightning Bolt").shouldBeTrue()
 
             // Target opponent (seatId 2)
@@ -153,6 +155,35 @@ class TreasureTokenTest :
                 if (h.isGameOver()) return@repeat
                 h.passPriority()
             }
+
+            // --- Assert: Sacrifice ZoneTransfer + mana-ability bracket annotations exist ---
+            // Treasure sacrifice fires during bolt resolution (Forge auto-pays mana at resolution
+            // time). The pre-game-over diff in sendGameOver() drains these events into a GSM.
+            val allAnnotations = h.allMessages
+                .filter { it.hasGameStateMessage() }
+                .flatMap { it.gameStateMessage.annotationsList }
+
+            // Sacrifice ZoneTransfer must exist (Treasure consumed for mana)
+            val sacrificeTransfer = allAnnotations.filter { ann ->
+                ann.typeList.any { it.name.startsWith("ZoneTransfer") } &&
+                    ann.detailsList.any { d -> d.key == "category" && "Sacrifice" in d.valueStringList }
+            }
+            sacrificeTransfer.shouldNotBeEmpty()
+
+            // Mana-ability bracket annotation types must be present
+            // (AbilityInstanceCreated etc. also appear for Forest taps during Innkeeper cast)
+            val types = allAnnotations.flatMap { it.typeList }.toSet()
+            types shouldContain AnnotationType.AbilityInstanceCreated
+            types shouldContain AnnotationType.TappedUntappedPermanent
+            types shouldContain AnnotationType.ManaPaid
+            types shouldContain AnnotationType.AbilityInstanceDeleted
+
+            // UserActionTaken with actionType=4 (ActivateMana) must exist
+            val manaActivateAnnotations = allAnnotations.filter { ann ->
+                AnnotationType.UserActionTaken in ann.typeList &&
+                    ann.detailsList.any { d -> d.key == "actionType" && d.getValueInt32(0) == 4 }
+            }
+            manaActivateAnnotations.shouldNotBeEmpty()
 
             // --- Assert: game over, human wins ---
             h.isGameOver().shouldBeTrue()

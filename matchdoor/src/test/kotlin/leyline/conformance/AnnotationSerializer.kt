@@ -103,6 +103,31 @@ object AnnotationSerializer {
         return null
     }
 
+    /**
+     * Serialize a message sequence to JSON array — one entry per GSM.
+     * Includes greType so the Python-side sequence diff can distinguish
+     * QueuedGameStateMessage from GameStateMessage.
+     */
+    fun toSequenceJson(messages: List<GREToClientMessage>): String {
+        val frames = mutableListOf<Map<String, Any>>()
+        for (msg in messages) {
+            if (!msg.hasGameStateMessage()) continue
+            val gsm = msg.gameStateMessage
+            frames.add(
+                mapOf(
+                    "gsId" to gsm.gameStateId,
+                    "prevGsId" to gsm.prevGameStateId,
+                    "greType" to msg.type.name.replace(Regex("_[a-f0-9]{4}$"), ""),
+                    "gsmType" to gsm.type.name.replace(Regex("_[a-f0-9]{4}$"), ""),
+                    "updateType" to gsm.update.name.replace(Regex("_[a-f0-9]{4}$"), ""),
+                    "annotations" to gsm.annotationsList.map { serializeAnnotation(it) },
+                    "persistentAnnotations" to gsm.persistentAnnotationsList.map { serializeAnnotation(it) },
+                ),
+            )
+        }
+        return toJson(frames)
+    }
+
     private fun serializeAnnotation(ann: AnnotationInfo): Map<String, Any> {
         val m = mutableMapOf<String, Any>()
         m["id"] = ann.id
