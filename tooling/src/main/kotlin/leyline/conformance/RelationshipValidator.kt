@@ -56,21 +56,22 @@ object RelationshipValidator {
         val gsm = segment.message.gameStateMessage
         val allAnnotations = gsm.annotationsList + gsm.persistentAnnotationsList
 
+        // Check ALL matching annotations, not just the first — a segment may have
+        // the same type in both annotations and persistentAnnotations.
+        var foundAny = false
         for (ann in allAnnotations) {
             val matchesType = ann.typeList.any { it.name.replace(PROTO_SUFFIX, "") == pattern.annotationType }
             if (!matchesType) continue
+            foundAny = true
 
             val isZero = ann.affectorId == 0
-            return if (pattern.mustBeNonZero && isZero) {
-                "affectorId=0 on ${pattern.annotationType} (expected non-zero)"
+            if (pattern.mustBeNonZero && isZero) {
+                return "affectorId=0 on ${pattern.annotationType} (expected non-zero)"
             } else if (!pattern.mustBeNonZero && !isZero) {
-                "affectorId=${ann.affectorId} on ${pattern.annotationType} (expected 0)"
-            } else {
-                null // holds
+                return "affectorId=${ann.affectorId} on ${pattern.annotationType} (expected 0)"
             }
         }
-        // Annotation type not present — not a violation of the affectorId rule
-        // (AlwaysPresent is a separate check)
+        // Not present = not a violation (AlwaysPresent is a separate check)
         return null
     }
 

@@ -74,7 +74,7 @@ just conform-proto <Type> <session> --engine <dir> --profile
 
 The relationship validator checks:
 - Hand-written catalog (structural rules like "CastSpell always has ObjectIdChanged")
-- Auto-derived affectorId rules (93 invariants computed from recording data)
+- Auto-derived affectorId rules (computed fresh from available recordings — count scales with data)
 
 ### 4. Grow the catalog
 

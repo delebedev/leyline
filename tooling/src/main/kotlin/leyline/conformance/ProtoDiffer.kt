@@ -469,8 +469,9 @@ object ProtoDiffer {
         fun compositeKey(msg: Message, idMap: Map<Int, Int>): String =
             "${typeKey(msg)}|${affectorKey(msg, idMap)}"
 
-        val recByKey = recMsgs.associateBy { compositeKey(it, recIds) }
-        val engByKey = engMsgs.associateBy { compositeKey(it, engIds) }
+        // groupBy to handle duplicate keys (e.g. multi-type annotations with same type+affectorId)
+        val recByKey = recMsgs.groupBy { compositeKey(it, recIds) }.mapValues { it.value.first() }
+        val engByKey = engMsgs.groupBy { compositeKey(it, engIds) }.mapValues { it.value.first() }
 
         val allKeys = (recByKey.keys + engByKey.keys).toSortedSet()
         for (key in allKeys) {
