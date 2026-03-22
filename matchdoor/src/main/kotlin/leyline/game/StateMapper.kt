@@ -4,6 +4,7 @@ import forge.game.Game
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
+import leyline.bridge.findCard
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.ZoneIds
@@ -390,15 +391,7 @@ object StateMapper {
             annotations.addAll(initTransient)
         }
 
-        val battlefieldCards = game.players.flatMap { player ->
-            player.getZone(ForgeZoneType.Battlefield).cards.map { card ->
-                bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value to card.name
-            }
-        }
-        val sourceAbilityResolver = buildSourceAbilityResolver(battlefieldCards) { name ->
-            val grpId = bridge.cards.findGrpIdByName(name) ?: return@buildSourceAbilityResolver null
-            bridge.cards.findByGrpId(grpId)
-        }
+        val sourceAbilityResolver = buildSourceAbilityResolver(bridge)
         val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
         annotations.addAll(effectTransient)
 
@@ -446,28 +439,28 @@ object StateMapper {
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }
 
-    /** Keywords whose triggered/static abilities produce P/T boosts.
-     *  Only Prowess for now — battle cry, lord anthems, and other continuous
-     *  P/T effects don't yet carry sourceAbilityGRPID. Extend as needed. */
-    private val PT_BOOST_KEYWORDS = setOf("PROWESS")
-
     /**
-     * Build a resolver: cardInstanceId → sourceAbilityGRPID.
-     * Scans battlefield once, then checks each card for P/T-boost keywords.
+     * Build a resolver: (cardInstanceId, staticId) → sourceAbilityGRPID.
+     *
+     * Uses [AbilityRegistry] to look up the abilityGrpId for the specific
+     * StaticAbility that produced the effect. This replaces the old keyword-only
+     * heuristic and handles any StaticAbility-sourced effect (lords, auras, Prowess).
+     *
+     * SpellAbility-sourced effects (Giant Growth, loyalty abilities) pass staticId=0
+     * from Forge, so those won't resolve — see #160 follow-up.
      */
     private fun buildSourceAbilityResolver(
-        battlefieldCards: List<Pair<Int, String>>,
-        cardDataLookup: (String) -> CardData?,
-    ): (Int) -> Int? {
-        val instanceIdToName = battlefieldCards.toMap()
-
-        return resolver@{ instanceId ->
-            val name = instanceIdToName[instanceId] ?: return@resolver null
-            val cardData = cardDataLookup(name) ?: return@resolver null
-            for (keyword in PT_BOOST_KEYWORDS) {
-                cardData.keywordAbilityGrpIds[keyword]?.let { return@resolver it }
-            }
-            null
+        bridge: GameBridge,
+    ): (Int, Long) -> Int? {
+        val game = bridge.getGame() ?: return { _, _ -> null }
+        return resolver@{ instanceId, staticId ->
+            if (staticId == 0L) return@resolver null
+            val forgeCardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@resolver null
+            val card = findCard(game, forgeCardId) ?: return@resolver null
+            val grpId = bridge.cards.findGrpIdByName(card.name) ?: return@resolver null
+            val cardData = bridge.cards.findByGrpId(grpId) ?: return@resolver null
+            val registry = bridge.abilityRegistryFor(card, cardData) ?: return@resolver null
+            registry.forStaticAbility(staticId.toInt())
         }
     }
 }
