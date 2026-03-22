@@ -91,15 +91,15 @@ class ExileUnderCardPuzzleTest :
                 .filter { it.typeList.any { t -> t == AnnotationType.DisplayCardUnderCard } }
 
             underCardAnns.size shouldBe 1
-            // affectedIds uses the exiled card's instanceId (may differ from
-            // the pre-exile bearsIid due to zone-transfer reallocation)
-            underCardAnns[0].affectedIdsCount shouldBe 1
-
-            // --- Phase 2: Cast Disenchant to destroy Banishing Light ---
+            // Resolve Banishing Light iid (on battlefield, stable at this point)
             val human = h.game().registeredPlayers.first()
             val banishing = human.getZone(ZoneType.Battlefield).cards
                 .first { it.name == "Banishing Light" }
             val banishingIid = h.bridge.getOrAllocInstanceId(ForgeCardId(banishing.id)).value
+            underCardAnns[0].affectorId shouldBe banishingIid
+            underCardAnns[0].affectedIdsCount shouldBe 1
+
+            // --- Phase 2: Cast Disenchant to destroy Banishing Light ---
 
             val snap2 = h.messageSnapshot()
             h.castSpellByName("Disenchant").shouldBeTrue()

@@ -510,15 +510,17 @@ class AnnotationPipelineTest :
 
         // -- Mixed events --
 
-        test("mechanicAnnotationsIgnoresZoneTransferEvents") {
+        test("zoneTransferEventsProduceNoTransientButTrackCleanup") {
             val events = listOf(
                 GameEvent.ZoneChanged(forgeCardId = 1, from = Zone.Hand, to = Zone.Battlefield),
                 GameEvent.LandPlayed(forgeCardId = 1, seatId = 1),
                 GameEvent.CardDestroyed(forgeCardId = 2, seatId = 1),
                 GameEvent.DamageDealtToPlayer(sourceForgeId = 4, targetSeatId = 1, amount = 3, combat = true),
             )
-            val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
-            annotations.shouldBeEmpty()
+            val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
+            result.transient.shouldBeEmpty()
+            // CardDestroyed tracks for DisplayCardUnderCard cleanup
+            result.exileSourceLeftPlayForgeCardIds shouldBe listOf(2)
         }
 
         // -- CardTapped --
