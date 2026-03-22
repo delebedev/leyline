@@ -719,9 +719,13 @@ object AnnotationPipeline {
         if (sacrificeEvents.isEmpty()) return
         val manaAbilityEvents = events.filterIsInstance<GameEvent.ManaAbilityActivated>()
         val spellCastEvents = events.filterIsInstance<GameEvent.SpellCast>()
+        // Skip instanceIds already processed by the main transfer loop to avoid
+        // double-processing regular (non-token) sacrifices that are still in gameObjects.
+        val mainLoopOrigIds = transfers.map { it.origId }.toSet()
 
         for ((instanceId, zoneId) in previousZones) {
             if (zoneId != ZONE_BATTLEFIELD) continue
+            if (instanceId in mainLoopOrigIds) continue
             val forgeCardIdValue = forgeIdLookup(instanceId) ?: continue
             val sacrificeEv = sacrificeEvents.firstOrNull { it.forgeCardId == forgeCardIdValue } ?: continue
 
