@@ -65,10 +65,22 @@ object LeylinePaths {
     /** Create session dir and update latest symlink for the current session. */
     fun updateLatestLink() {
         SESSION_DIR.mkdirs()
-        val link = File(RECORDINGS, "latest")
-        link.delete()
+        createLatestSymlink(RECORDINGS, sessionTag)
+    }
+
+    /** Create a relative `latest` symlink in [recordingsDir] pointing to [tag]. */
+    internal fun createLatestSymlink(recordingsDir: File, tag: String) {
+        val link = File(recordingsDir, "latest").toPath()
         try {
-            java.nio.file.Files.createSymbolicLink(link.toPath(), SESSION_DIR.toPath())
+            // Remove existing link/dir — deleteIfExists handles symlinks;
+            // if it's a non-symlink directory (legacy bug), delete it too.
+            if (java.nio.file.Files.isSymbolicLink(link)) {
+                java.nio.file.Files.deleteIfExists(link)
+            } else if (java.nio.file.Files.isDirectory(link)) {
+                link.toFile().deleteRecursively()
+            }
+            // Use relative target so the symlink works when the repo moves.
+            java.nio.file.Files.createSymbolicLink(link, java.nio.file.Path.of(tag))
         } catch (_: Exception) {}
     }
 
