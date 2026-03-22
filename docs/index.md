@@ -17,6 +17,7 @@ Each tool has `--help` with examples. Docs co-located in `tools/<name>/docs/`.
 
 - `catalog.yaml` — mechanic catalog: what works, what's wired, what's missing
 - `rosetta.md` — Arena protocol ↔ Forge engine ↔ leyline code translation table
+- `systems-map.md` — GRE message coverage, system-level gaps, priority tiers
 - `architecture.md` — package wiring, server layout, wire protocol, bridge threading, match lifecycle
 
 ## Recording / Protocol Debug
