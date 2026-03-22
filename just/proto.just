@@ -123,3 +123,9 @@ conform-proto *args: (_require classpath) check-java
 segment-variance *args: (_require classpath) check-java
     @{{_cli}} leyline.conformance.SegmentVarianceMainKt {{args}}
 
+# relationship validation: check structural invariants against recordings
+# Usage: just segment-relationships [CastSpell]
+[group('proto')]
+segment-relationships *args: (_require classpath) check-java
+    @{{_cli}} leyline.conformance.RelationshipMainKt {{args}}
+

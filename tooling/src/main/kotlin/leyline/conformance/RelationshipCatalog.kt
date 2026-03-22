@@ -15,7 +15,7 @@ object RelationshipCatalog {
             Relationship.AlwaysPresent("CastSpell", "ZoneTransfer"),
             Relationship.ValueIn("CastSpell", "annotations[ZoneTransfer].details.zone_dest", setOf("27")),
             Relationship.ValueIn("CastSpell", "annotations[ZoneTransfer].details.category", setOf("CastSpell")),
-            Relationship.NonEmpty("CastSpell", "gameObjects"),
+            Relationship.NonEmpty("CastSpell", "gameStateMessage.gameObjects"),
 
             // --- PlayLand ---
             Relationship.AlwaysPresent("PlayLand", "ObjectIdChanged"),
