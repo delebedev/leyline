@@ -324,6 +324,16 @@ class WebPlayerController(
         // Real server sends SelectNReq (context=Resolution, min=1, max=1).
         val isLegendRule = sa?.api == ApiType.InternalLegendaryRule
 
+        // Library search: ChangeZone effects (tutors) or any prompt that reveals
+        // a hidden zone via DelayedReveal (library contents shown to searching player).
+        val isSearch = sa?.api == ApiType.ChangeZone || delayedReveal != null
+
+        val semantic = when {
+            isLegendRule -> PromptSemantic.SelectNLegendRule
+            isSearch -> PromptSemantic.Search
+            else -> PromptSemantic.Generic
+        }
+
         val labels = optionList.map { it.entityLabel() }
         val request = PromptRequest(
             promptType = "choose_cards",
@@ -332,7 +342,7 @@ class WebPlayerController(
             min = if (isOptional) 0 else 1,
             max = 1,
             defaultIndex = 0,
-            semantic = if (isLegendRule) PromptSemantic.SelectNLegendRule else PromptSemantic.Generic,
+            semantic = semantic,
             candidateRefs = buildCandidateRefs(optionList),
         )
         val indices = bridge.requestChoice(request)
@@ -341,6 +351,12 @@ class WebPlayerController(
             optionList.get(idx)
         } else {
             if (isOptional) null else optionList.getFirst()
+        }
+
+        // Search: mark chosen card so GameEventCollector emits CardSearchedToHand (Put category).
+        if (isSearch && chosen is Card) {
+            bridge.searchedToHandCards.add(chosen.id)
+            log.debug("search to hand: marked card {} (id={})", chosen.name, chosen.id)
         }
 
         // Legend rule: mark all unchosen legendaries as victims for SBA_LegendRule annotation.

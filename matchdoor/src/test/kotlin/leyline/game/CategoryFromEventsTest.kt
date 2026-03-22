@@ -415,6 +415,31 @@ class CategoryFromEventsTest :
             TransferCategory.Surveil.label shouldBe "Surveil"
         }
 
+        // -- Search to hand --
+
+        test("search to hand uses Put category") {
+            val events = listOf(GameEvent.CardSearchedToHand(forgeCardId = 1, sourceForgeCardId = 2))
+            AnnotationBuilder.categoryFromEvents(1, events) shouldBe TransferCategory.Put
+        }
+
+        test("searchToHandOverridesLibraryToHandDraw") {
+            // CardSearchedToHand overrides generic ZoneChanged(Library→Hand) which would give Draw
+            val events = listOf(
+                GameEvent.CardSearchedToHand(forgeCardId = 55, sourceForgeCardId = 10),
+                GameEvent.ZoneChanged(forgeCardId = 55, from = Zone.Library, to = Zone.Hand),
+            )
+            AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Put
+        }
+
+        test("searchToHandDoesNotAffectOtherCard") {
+            val events = listOf(
+                GameEvent.CardSearchedToHand(forgeCardId = 55, sourceForgeCardId = 10),
+                GameEvent.ZoneChanged(forgeCardId = 99, from = Zone.Library, to = Zone.Hand),
+            )
+            AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Put
+            AnnotationBuilder.categoryFromEvents(99, events) shouldBe TransferCategory.Draw
+        }
+
         // -- affectorSourceFromEvents --
 
         test("affectorSourceReturnsSurveilSourceCard") {

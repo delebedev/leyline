@@ -41,6 +41,11 @@ class DiffSnapshotter(private val idRegistry: InstanceIdRegistry) {
     /** Get the current diff baseline (null before first state). */
     fun getDiffBaselineState(): GameStateMessage? = diffBaselineState
 
+    /** Clear diff baseline — next buildDiffFromGame produces a Full GSM. */
+    fun clearBaseline() {
+        diffBaselineState = null
+    }
+
     /** Full reset — clear all tracked state (zones, diff baseline). Used on puzzle hot-swap. */
     fun resetAll() {
         previousZones.clear()

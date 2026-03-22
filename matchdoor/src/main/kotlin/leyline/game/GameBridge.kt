@@ -65,6 +65,10 @@ class GameBridge(
     EventDrain {
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
 
+    /** When set, library contents for this seat are included as Private objects in GSM diffs.
+     *  Used during library search to populate the client's search picker. */
+    @Volatile var revealLibraryForSeat: Int? = null
+
     private var game: Game? = null
     private val players: MutableMap<Int, Player> = mutableMapOf()
     private var loopController: GameLoopController? = null
@@ -245,6 +249,10 @@ class GameBridge(
     }
 
     override fun getDiffBaselineState(): GameStateMessage? = diff.getDiffBaselineState()
+
+    /** Clear the diff baseline — forces next buildDiffFromGame to produce a Full GSM.
+     *  Used after library search to remove revealed card objects from the baseline. */
+    fun clearDiffBaseline() = diff.clearBaseline()
 
     override fun drainEvents(): List<GameEvent> = eventCollector?.drainEvents() ?: emptyList()
 
@@ -840,11 +848,18 @@ class GameBridge(
      * where rules are guaranteed loaded.
      */
     private fun registerPuzzleCards(game: Game) {
+        val originalCards = cards
         val repo = cards as? InMemoryCardRepository ?: run {
-            log.warn("GameBridge: puzzle card registration requires InMemoryCardRepository")
-            return
+            // Arena puzzle mode: cards is ExposedCardRepository (real DB).
+            // Swap to InMemoryCardRepository and use the real DB as clientRepo
+            // so PuzzleCardRegistrar can look up real grpIds for art/text.
+            val inMemory = InMemoryCardRepository()
+            cards = inMemory
+            cardProto = CardProtoBuilder(inMemory)
+            log.info("GameBridge: puzzle mode swapped to InMemoryCardRepository (clientRepo={})", originalCards::class.simpleName)
+            inMemory
         }
-        val registrar = PuzzleCardRegistrar(repo, clientRepo = puzzleClientRepo)
+        val registrar = PuzzleCardRegistrar(repo, clientRepo = puzzleClientRepo ?: originalCards.takeUnless { it === repo })
         val allZones = listOf(
             ZoneType.Hand,
             ZoneType.Battlefield,

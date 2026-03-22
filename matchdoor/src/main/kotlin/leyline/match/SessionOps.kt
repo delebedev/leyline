@@ -75,6 +75,9 @@ interface SessionOps {
     /** Handle CastingTimeOptionsResp. Default no-op for read-only sessions. */
     fun onCastingTimeOptions(greMsg: ClientToGREMessage) {}
 
+    /** Handle SearchResp. Default no-op for read-only sessions. */
+    fun onSearch(greMsg: ClientToGREMessage) {}
+
     /** Handle concession. Default no-op for read-only sessions. */
     fun onConcede() {}
 

@@ -21,4 +21,5 @@ object PromptIds {
     const val SELECT_N_LEGEND_RULE_SOURCE = 15168
     const val CASTING_TIME_OPTIONS = 38
     const val PAY_COSTS = 1244
+    const val SEARCH = 1065
 }

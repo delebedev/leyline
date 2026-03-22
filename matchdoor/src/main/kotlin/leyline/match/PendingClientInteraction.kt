@@ -24,4 +24,8 @@ sealed interface PendingClientInteraction {
         val action: PlayerAction.CastSpell,
         val costCtoIds: List<Int>,
     ) : PendingClientInteraction
+
+    data class Search(
+        val promptId: String,
+    ) : PendingClientInteraction
 }

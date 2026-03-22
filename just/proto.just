@@ -111,3 +111,9 @@ proto-priority dir: (_require classpath) check-java
 proto-annotation-variance *args: (_require classpath) check-java
     @{{_cli}} leyline.debug.AnnotationVarianceKt {{args}}
 
+# decode + diff raw proto recording frames (lossless — no JSON intermediary)
+# Usage: just conform-proto SearchReq 2026-03-21_22-05-00 [--gsid 52]
+[group('proto')]
+conform-proto *args: (_require classpath) check-java
+    @{{_cli}} leyline.conformance.ProtoConformMainKt {{args}}
+

@@ -150,6 +150,7 @@ class TargetingHandler(private val ops: SessionOps) {
      *   "resolve my stack effects" — skips the stack prompt when the player has
      *   no meaningful responses, matching real server behavior (#92).
      */
+    @Suppress("ReturnCount")
     fun handlePostCastPrompt(bridge: GameBridge, clientAutoResolve: Boolean = false): Boolean {
         val pendingPrompt = bridge.seat(ops.seatId).prompt.getPendingPrompt()
         if (pendingPrompt != null) {
@@ -169,6 +170,13 @@ class TargetingHandler(private val ops: SessionOps) {
                         "cast-target targets=${pendingPrompt.request.candidateRefs.size}",
                     )
                     sendSelectTargetsReq(bridge, classified.pendingPrompt)
+                    return true
+                }
+
+                is ClassifiedPrompt.Search -> {
+                    val game = bridge.getGame() ?: return false
+                    ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "post-cast search")
+                    sendSearchReq(bridge, classified.pendingPrompt)
                     return true
                 }
 
@@ -238,6 +246,12 @@ class TargetingHandler(private val ops: SessionOps) {
             is ClassifiedPrompt.Targeting -> {
                 ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "targets=${pendingPrompt.request.candidateRefs.size}")
                 sendSelectTargetsReq(bridge, classified.pendingPrompt)
+                PromptResult.SENT_TO_CLIENT
+            }
+
+            is ClassifiedPrompt.Search -> {
+                ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "search: ${pendingPrompt.request.message}")
+                sendSearchReq(bridge, classified.pendingPrompt)
                 PromptResult.SENT_TO_CLIENT
             }
 
@@ -350,6 +364,62 @@ class TargetingHandler(private val ops: SessionOps) {
         // Submit empty list → engine sees no targets → spell fails → unwind
         seatBridge.prompt.submitResponse(pendingPrompt.promptId, emptyList())
         bridge.awaitPriority()
+        autoPass(bridge)
+    }
+
+    /**
+     * Handle SearchResp: resolve the pending search prompt with the client's choice.
+     *
+     * @param itemsFound instanceIds the client selected (from SearchResp.itemsFound).
+     *        Empty = player declined ("fail to find").
+     */
+    fun onSearchResp(
+        bridge: GameBridge,
+        itemsFound: List<Int>,
+        autoPass: (GameBridge) -> Unit,
+    ) {
+        val pending = pendingInteraction as? PendingClientInteraction.Search ?: run {
+            log.warn("SearchResp received but no search pending")
+            return
+        }
+        pendingInteraction = null
+
+        val seatBridge = bridge.seat(ops.seatId)
+        val prompt = seatBridge.prompt.getPendingPrompt()
+        if (prompt != null && prompt.promptId == pending.promptId) {
+            val responseIndex = if (itemsFound.isEmpty()) {
+                // Declined — submit index past the last option (= "none")
+                log.info("SearchResp: player declined (fail to find)")
+                prompt.request.options.size
+            } else {
+                // Map instanceId back to prompt option index via candidateRefs
+                // TODO: multi-pick support — currently only maps first selected card.
+                //  Future spells with maxFind > 1 will silently ignore subsequent picks.
+                val chosenInstanceId = itemsFound.first()
+                val forgeCardId = bridge.getForgeCardId(InstanceId(chosenInstanceId))
+                val idx = if (forgeCardId != null) {
+                    prompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
+                } else {
+                    -1
+                }
+                if (idx >= 0) {
+                    log.info("SearchResp: player chose instanceId={} → prompt index {}", chosenInstanceId, idx)
+                    idx
+                } else {
+                    log.warn("SearchResp: instanceId={} not found in candidates, using default", chosenInstanceId)
+                    prompt.request.defaultIndex
+                }
+            }
+            seatBridge.prompt.submitResponse(pending.promptId, listOf(responseIndex))
+            bridge.awaitPriority()
+        }
+        // Reset diff baseline — the previous baseline includes revealed library
+        // objects that should now be hidden. Without reset, the diff won't delete
+        // them and the client keeps showing the library face-up.
+        // Real server handles this via Shuffle (OldIds→NewIds), which we don't
+        // implement yet (#42). This is the workaround.
+        bridge.clearDiffBaseline()
+        ops.sendRealGameState(bridge)
         autoPass(bridge)
     }
 
@@ -608,6 +678,62 @@ class TargetingHandler(private val ops: SessionOps) {
         } else {
             log.warn("TargetingHandler: optional cost response but no pending engine action")
         }
+    }
+
+    private fun sendSearchReq(
+        bridge: GameBridge,
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+    ) {
+        // Reveal library contents so the client can populate the search picker.
+        // The GSM sent by sendRealGameState will include full card objects for the library.
+        bridge.revealLibraryForSeat = ops.seatId
+        ops.sendRealGameState(bridge)
+        bridge.revealLibraryForSeat = null
+
+        // Extract search parameters from the Forge prompt.
+        val req = pendingPrompt.request
+        val player = bridge.getPlayer(SeatId(ops.seatId))
+        val library = player?.getZone(forge.game.zone.ZoneType.Library)
+        val libZoneId = if (ops.seatId == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
+
+        // All library card instanceIds
+        val allLibIds = library?.cards?.map {
+            bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value
+        } ?: emptyList()
+
+        // Valid search targets from candidateRefs (cards matching "basic land" filter)
+        val validIds = req.candidateRefs.map { ref ->
+            bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
+        }
+
+        // Source spell instanceId — from the spell on stack, or first stack card
+        val sourceId = req.sourceEntityId?.let {
+            bridge.getOrAllocInstanceId(ForgeCardId(it)).value
+        } ?: bridge.getGame()?.stack?.firstOrNull()?.let {
+            bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value
+        } ?: 0
+
+        val msgId = ops.counter.nextMsgId()
+        val gsId = ops.counter.currentGsId()
+        val msg = BundleBuilder.buildSearchReq(
+            msgId = msgId,
+            gsId = gsId,
+            seatId = ops.seatId,
+            sourceInstanceId = sourceId,
+            libraryZoneId = libZoneId,
+            allLibraryIds = allLibIds,
+            validTargetIds = validIds,
+            maxFind = req.max,
+            allowFailToFind = req.min == 0,
+        )
+        ops.sendBundledGRE(listOf(msg))
+        pendingInteraction = PendingClientInteraction.Search(pendingPrompt.promptId)
+        log.info(
+            "SearchReq sent: lib={} valid={} source={}, awaiting SearchResp",
+            allLibIds.size,
+            validIds.size,
+            sourceId,
+        )
     }
 
     private fun sendSelectTargetsReq(

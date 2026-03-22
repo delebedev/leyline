@@ -86,6 +86,7 @@ object AnnotationBuilder {
                 is GameEvent.CardDiscarded -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Discard
                 is GameEvent.CardMilled -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Mill
                 is GameEvent.CardSurveiled -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Surveil
+                is GameEvent.CardSearchedToHand -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Put
                 is GameEvent.SpellCountered -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Countered
                 // Generic zone change — fallback, infer category from zone pair
                 is GameEvent.ZoneChanged -> if (ev.forgeCardId == forgeCardId) generic = ev
