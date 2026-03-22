@@ -311,7 +311,7 @@ private val OUR_BUILDERS: Map<String, Set<String>> by lazy {
         "TriggeringObject" to keysOf(AnnotationBuilder.triggeringObject(1, 27)),
         "TargetSpec" to keysOf(AnnotationBuilder.targetSpec(1, 1, 1, 1, 1)),
         "PowerToughnessModCreated" to keysOf(AnnotationBuilder.powerToughnessModCreated(1, 1, 1)),
-        "DisplayCardUnderCard" to keysOf(AnnotationBuilder.displayCardUnderCard(1)),
+        "DisplayCardUnderCard" to keysOf(AnnotationBuilder.displayCardUnderCard(affectorId = 0, instanceId = 1)),
         "PredictedDirectDamage" to keysOf(AnnotationBuilder.predictedDirectDamage(1, 2)),
         // Tier 2 detail-less annotations
         "LayeredEffectDestroyed" to keysOf(AnnotationBuilder.layeredEffectDestroyed(1)),

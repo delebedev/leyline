@@ -474,15 +474,15 @@ class AnnotationPipelineTest :
             result.transient.size shouldBe 1
             val created = result.transient[0]
             created.typeList shouldContain AnnotationType.AttachmentCreated
-            created.affectorId shouldBe 0
-            created.affectedIdsList shouldBe listOf(testResolver(55), testResolver(66))
+            created.affectorId shouldBe testResolver(55)
+            created.affectedIdsList shouldBe listOf(testResolver(66))
 
             // Persistent: Attachment
             result.persistent.size shouldBe 1
             val attach = result.persistent[0]
             attach.typeList shouldContain AnnotationType.Attachment
-            attach.affectorId shouldBe 0
-            attach.affectedIdsList shouldBe listOf(testResolver(55), testResolver(66))
+            attach.affectorId shouldBe testResolver(55)
+            attach.affectedIdsList shouldBe listOf(testResolver(66))
         }
 
         test("detachReturnsDetachedForgeCardId") {

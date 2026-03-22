@@ -686,6 +686,10 @@ class GameBridge(
         // need synthetic grpIds and instanceId mappings for proto output.
         registerPuzzleCards(g)
 
+        // Seed persistent Attachment annotations for pre-attached cards (equipment/auras).
+        // No CardAttached events fire for cards that start attached — seed from engine state.
+        seedAttachmentAnnotations(g)
+
         // Wire WebPlayerController for seat 1 (human) — same as constructed
         // but no mulligan bridge needed (autoKeep=true, unused).
         val human = g.players.first { it.lobbyPlayer !is LobbyPlayerAi }
@@ -885,6 +889,25 @@ class GameBridge(
             }
         }
         log.info("GameBridge: registered {} puzzle cards in CardRepository + InstanceIdRegistry", registered)
+    }
+
+    /**
+     * Seed persistent [AnnotationType.Attachment] annotations for cards that start
+     * pre-attached in a puzzle. No [GameEventCardAttachment] fires for these — the
+     * attachment relationship exists only in Forge's [Card.attachedTo] field.
+     */
+    private fun seedAttachmentAnnotations(game: Game) {
+        for (player in game.players) {
+            for (card in player.getZone(ZoneType.Battlefield).cards) {
+                val target = card.attachedTo ?: continue
+                val auraIid = ids.getOrAlloc(ForgeCardId(card.id)).value
+                val targetIid = ids.getOrAlloc(ForgeCardId(target.id)).value
+                val ann = AnnotationBuilder.attachment(auraIid, targetIid)
+                    .toBuilder().setId(annotations.nextPersistentAnnotationId()).build()
+                annotations.add(ann)
+                log.debug("seedAttachment: {} (iid={}) → {} (iid={})", card.name, auraIid, target.name, targetIid)
+            }
+        }
     }
 
     /**

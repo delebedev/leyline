@@ -402,21 +402,21 @@ object AnnotationBuilder {
 
     /** Transient: Aura/Equipment attached to target. Arena type 70 (AttachmentCreated).
      *  [auraIid] = the aura/equipment instanceId, [targetIid] = the enchanted/equipped permanent.
-     *  Real server shape: no affectorId, affectedIds=[aura, target]. */
+     *  Wire shape: affectorId=auraIid, affectedIds=[targetIid]. */
     fun attachmentCreated(auraIid: Int, targetIid: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.AttachmentCreated)
-            .addAffectedIds(auraIid)
+            .setAffectorId(auraIid)
             .addAffectedIds(targetIid)
             .build()
 
     /** Persistent: Ongoing attachment relationship. Arena type 20 (Attachment).
      *  [auraIid] = the aura/equipment instanceId, [targetIid] = the enchanted/equipped permanent.
-     *  Real server shape: no affectorId, affectedIds=[aura, target]. */
+     *  Wire shape: affectorId=auraIid, affectedIds=[targetIid]. */
     fun attachment(auraIid: Int, targetIid: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.Attachment)
-            .addAffectedIds(auraIid)
+            .setAffectorId(auraIid)
             .addAffectedIds(targetIid)
             .build()
 
@@ -697,11 +697,13 @@ object AnnotationBuilder {
             .addDetails(int32Detail("toughness", toughness))
             .build()
 
-    /** Card displayed under another card (imprint, adventure exile). Arena type 38 (DisplayCardUnderCard).
-     *  Real card: grp:75479 (session 11-50-40). */
-    fun displayCardUnderCard(instanceId: Int, disable: Int = 0, temporaryZoneTransfer: Int = 1): AnnotationInfo =
+    /** Card displayed under another card (exile-under-permanent, imprint, adventure exile).
+     *  Arena type 38 (DisplayCardUnderCard). Persistent while source permanent remains.
+     *  Wire shape: affectorId=sourcePermanentIid, affectedIds=[exiledCardIid]. */
+    fun displayCardUnderCard(affectorId: Int, instanceId: Int, disable: Int = 0, temporaryZoneTransfer: Int = 1): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.DisplayCardUnderCard)
+            .setAffectorId(affectorId)
             .addAffectedIds(instanceId)
             .addDetails(int32Detail("Disable", disable))
             .addDetails(int32Detail("TemporaryZoneTransfer", temporaryZoneTransfer))
