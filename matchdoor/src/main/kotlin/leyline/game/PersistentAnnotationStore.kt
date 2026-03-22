@@ -36,8 +36,8 @@ class PersistentAnnotationStore {
         const val INITIAL_PERSISTENT_ANNOTATION_ID = 1
 
         /**
-         * Pure batch computation — same logic as [applyBatch] but operates on
-         * an immutable snapshot and returns the result instead of mutating state.
+         * Pure batch computation — operates on an immutable snapshot and
+         * returns the result. Caller applies via [applyBatchResult].
          *
          * @param resolveForgeCardId reverse-resolves instanceId → forgeCardId.
          *   Used by step 5 to match DisplayCardUnderCard annotations whose
@@ -217,43 +217,6 @@ class PersistentAnnotationStore {
         active.putAll(result.allAnnotations.associateBy { it.id })
         nextPersistentAnnotationId = result.nextPersistentId
         for (id in result.deletedIds) pendingDeletions.add(id)
-    }
-
-    // --- Batch lifecycle ---
-
-    /**
-     * Apply all persistent annotation changes for a single GSM build.
-     *
-     * Handles the five mutation patterns in the correct order:
-     * 1. Effect lifecycle — add created, remove destroyed (by effectId)
-     * 2. Transfer-originated — zone-change persistent annotations (add)
-     * 3. Mechanic-originated — counters (upsert by key), attachments (add)
-     * 4. Detached auras — remove attachment annotations for unequipped/detached
-     * 5. Exile source left play — remove DisplayCardUnderCard (by reverse iid lookup)
-     *
-     * @param effectPersistent persistent annotations from [AnnotationPipeline.effectAnnotations]
-     * @param effectDiff created/destroyed effects for lifecycle management
-     * @param transferPersistent persistent annotations from zone transfers (Stage 2)
-     * @param mechanicResult mechanic annotations + detached aura IDs (Stage 4)
-     * @param resolveInstanceId maps forge card ID → client instanceId (for aura lookup)
-     */
-    fun applyBatch(
-        effectPersistent: List<AnnotationInfo>,
-        effectDiff: EffectTracker.DiffResult,
-        transferPersistent: List<AnnotationInfo>,
-        mechanicResult: AnnotationPipeline.MechanicAnnotationResult,
-        resolveInstanceId: (Int) -> Int,
-    ) {
-        val result = computeBatch(
-            currentActive = active.toMap(),
-            startPersistentId = nextPersistentAnnotationId,
-            effectPersistent = effectPersistent,
-            effectDiff = effectDiff,
-            transferPersistent = transferPersistent,
-            mechanicResult = mechanicResult,
-            resolveInstanceId = resolveInstanceId,
-        )
-        applyBatchResult(result)
     }
 
     /** Clear all state — persistent annotations, pending deletions, and ID counters. */

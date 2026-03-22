@@ -597,6 +597,12 @@ object AnnotationPipeline {
                         log.debug("mechanic: revealedCardCreated iid={} seat={}", instanceId, ev.ownerSeatId)
                     }
                 }
+                // Track permanents leaving battlefield for DisplayCardUnderCard cleanup.
+                // CardExiled is safe to add unconditionally — findExileSourcesLeavingPlay
+                // only matches cards that were an exile source (affectorId), not exiled cards.
+                is GameEvent.CardDestroyed -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
+                is GameEvent.CardSacrificed -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
+                is GameEvent.CardBounced -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
                 is GameEvent.CardExiled -> {
                     val sourceId = ev.sourceForgeCardId
                     if (sourceId != null) {
@@ -605,11 +611,9 @@ object AnnotationPipeline {
                         persistent.add(AnnotationBuilder.displayCardUnderCard(affectorId = sourceIid, instanceId = exiledIid))
                         log.debug("mechanic: displayCardUnderCard source={} exiled={}", sourceIid, exiledIid)
                     }
+                    exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
                 }
-                // Track permanents leaving battlefield for DisplayCardUnderCard cleanup
-                is GameEvent.CardDestroyed -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
-                is GameEvent.CardSacrificed -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
-                is GameEvent.CardBounced -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
+                is GameEvent.LegendRuleDeath -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
                 is GameEvent.ZoneChanged -> {
                     if (ev.from == Zone.Battlefield) exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
                 }
