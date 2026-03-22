@@ -3,6 +3,9 @@ package leyline.conformance
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
+ * **DEPRECATED:** Use [ProtoDiffer] for direct proto comparison instead of
+ * serializing to JSON. See `docs/conformance/how-we-conform.md`.
+ *
  * Serialize proto annotations to the same flat JSON format used by
  * recording decoder (md-frames.jsonl). Enables Python-side comparison
  * between recording templates and engine output.

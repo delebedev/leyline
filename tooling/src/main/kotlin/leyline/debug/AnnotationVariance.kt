@@ -32,12 +32,15 @@ fun main(args: Array<String>) {
         return
     }
 
-    // Discover proxy capture directories
+    // Discover proxy capture directories (both old flat layout and new seat-specific layout)
     val captureDirs = recordingsDir.listFiles()
         ?.filter { it.isDirectory }
         ?.mapNotNull { sessionDir ->
             val payloads = File(sessionDir, "capture/payloads")
-            if (payloads.isDirectory) sessionDir to payloads else null
+            if (payloads.isDirectory) return@mapNotNull sessionDir to payloads
+            val seatPayloads = File(sessionDir, "capture/seat-1/md-payloads")
+            if (seatPayloads.isDirectory) return@mapNotNull sessionDir to seatPayloads
+            null
         }
         ?.sortedBy { it.first.name }
         ?: emptyList()

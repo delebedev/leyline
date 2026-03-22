@@ -15,6 +15,7 @@ import java.io.File
  *   conform-proto SearchReq 2026-03-21_22-05-00
  *   conform-proto GameStateMessage 2026-03-21_22-05-00 --gsid 52
  */
+@Suppress("CyclomaticComplexMethod", "LongMethod", "NestedBlockDepth") // CLI entry point — linear arg dispatch
 fun main(args: Array<String>) {
     if (args.size < 2) {
         println("Usage: conform-proto <greType> <session> [--gsid N] [--index N] [--engine <dir>] [--seat N]")
@@ -30,10 +31,11 @@ fun main(args: Array<String>) {
     val session = args[1]
     val argList = args.drop(2)
 
-    val gsId = flagInt(argList, "--gsid")
-    val index = flagInt(argList, "--index")
-    val engineDir = flagValue(argList, "--engine")?.let { File(it) }
-    val seat = flagInt(argList, "--seat") ?: 1
+    val gsId = ConformanceConstants.flagInt(argList, "--gsid")
+    val index = ConformanceConstants.flagInt(argList, "--index")
+    val engineDir = ConformanceConstants.flagValue(argList, "--engine")?.let { File(it) }
+    val seat = ConformanceConstants.flagInt(argList, "--seat") ?: 1
+    val useProfile = "--profile" in argList
 
     // Resolve GREMessageType by prefix match
     val greType = GREMessageType.values().firstOrNull { it.name.startsWith(greTypeName, ignoreCase = true) }
@@ -70,6 +72,34 @@ fun main(args: Array<String>) {
             println(frame.message.toString())
             println()
         }
+        // Profile mode without engine: show relationship results against recording frames
+        if (useProfile) {
+            val detectedSegments = SegmentDetector.detect(allFrames, session)
+            val category = detectedSegments.firstOrNull()?.category
+            if (category != null) {
+                val allSegments = SegmentDetector.scanAll(seat = seat)
+                val categorySegments = allSegments.filter { it.category == category }
+                val profile = FieldVarianceProfiler.profile(categorySegments)
+                println("Profile: $category — ${profile.instanceCount} instances [${profile.confidence}]")
+                println()
+                val patterns = RelationshipCatalog.forCategory(category)
+                if (patterns.isNotEmpty()) {
+                    println("Relationship results (against recording frames):")
+                    val results = RelationshipValidator.validateAll(patterns, detectedSegments)
+                    for (r in results) {
+                        val symbol = when (r.status) {
+                            ValidationStatus.HOLDS -> "✓"
+                            ValidationStatus.MOSTLY_HOLDS -> "?"
+                            ValidationStatus.VIOLATED -> "✗"
+                            ValidationStatus.NO_DATA -> "-"
+                            ValidationStatus.UNRESOLVABLE -> "!"
+                        }
+                        println("  $symbol ${r.pattern}  ${r.holds}/${r.total}")
+                        for (ex in r.exceptions.take(3)) println("      ${ex.detail}")
+                    }
+                }
+            }
+        }
         return
     }
 
@@ -98,6 +128,30 @@ fun main(args: Array<String>) {
         return
     }
 
+    // Compute profile if requested
+    val profile: SegmentProfile? = if (useProfile) {
+        val firstFrame = allFrames.firstOrNull()
+        if (firstFrame != null) {
+            val detectedSegments = SegmentDetector.detect(listOf(firstFrame), session)
+            val category = detectedSegments.firstOrNull()?.category
+            if (category != null) {
+                println("Profile mode: category=$category")
+                val allSegments = SegmentDetector.scanAll(seat = seat)
+                val categorySegments = allSegments.filter { it.category == category }
+                println("Profile instances: ${categorySegments.size} across ${categorySegments.map { it.session }.toSet().size} sessions")
+                println()
+                FieldVarianceProfiler.profile(categorySegments)
+            } else {
+                println("Profile mode: could not detect category from recording frame (no ZoneTransfer or standalone type)")
+                null
+            }
+        } else {
+            null
+        }
+    } else {
+        null
+    }
+
     // Pair frames by position and diff
     val maxLen = maxOf(allFrames.size, engineFrames.size)
     for (i in 0 until maxLen) {
@@ -109,17 +163,10 @@ fun main(args: Array<String>) {
             eng == null -> println("  Recording frame ${rec.frameIndex}: present  Engine: (none)")
             else -> {
                 println("  Recording frame ${rec.frameIndex}  Engine frame ${eng.frameIndex}")
-                val result = ProtoDiffer.diff(rec.message, eng.message)
+                val result = ProtoDiffer.diff(rec.message, eng.message, profile)
                 println(result.report(verbose = true))
             }
         }
         println()
     }
 }
-
-private fun flagValue(args: List<String>, flag: String): String? {
-    val idx = args.indexOf(flag)
-    return if (idx >= 0 && idx + 1 < args.size) args[idx + 1] else null
-}
-
-private fun flagInt(args: List<String>, flag: String): Int? = flagValue(args, flag)?.toIntOrNull()

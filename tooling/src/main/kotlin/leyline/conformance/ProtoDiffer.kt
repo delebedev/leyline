@@ -36,6 +36,8 @@ object ProtoDiffer {
         val matched: Int,
         /** All fields that were visited and compared (for audit). */
         val matchedPaths: List<FieldPath> = emptyList(),
+        /** Relationship pattern results when profile-aware diff was used. */
+        val relationshipResults: List<ValidationResult> = emptyList(),
     ) {
         fun isEmpty(): Boolean = missing.isEmpty() && extra.isEmpty() && mismatched.isEmpty()
 
@@ -54,6 +56,23 @@ object ProtoDiffer {
             if (verbose && matchedPaths.isNotEmpty()) {
                 appendLine("Matched fields:")
                 for (p in matchedPaths) appendLine("  ✓ $p")
+            }
+            if (relationshipResults.isNotEmpty()) {
+                appendLine()
+                appendLine("Relationship results:")
+                for (r in relationshipResults) {
+                    val statusSymbol = when (r.status) {
+                        ValidationStatus.HOLDS -> "✓"
+                        ValidationStatus.MOSTLY_HOLDS -> "?"
+                        ValidationStatus.VIOLATED -> "✗"
+                        ValidationStatus.NO_DATA -> "-"
+                        ValidationStatus.UNRESOLVABLE -> "!"
+                    }
+                    appendLine("  $statusSymbol ${r.pattern}")
+                    for (ex in r.exceptions.take(3)) {
+                        appendLine("      ${ex.detail}")
+                    }
+                }
             }
         }
     }
@@ -79,24 +98,8 @@ object ProtoDiffer {
         }
     }
 
-    /** Fields that always differ between recording and engine — skip during diff. */
-    private val SKIP_FIELDS = setOf(
-        "gameStateId",
-        "prevGameStateId",
-        "msgId",
-        "matchID",
-        "timestamp",
-        "transactionId",
-        "requestId",
-    )
-
-    /** Field names that carry instance IDs — values are normalized to ordinals. */
-    private val ID_FIELDS = setOf(
-        "instanceId", "affectorId", "affectedIds", "objectInstanceIds",
-        "sourceId", "itemsToSearch", "itemsSought", "targetInstanceId",
-        "attackerInstanceId", "blockerInstanceId", "attackerIds",
-        "targetId", "parentId", "orig_id", "new_id",
-    )
+    private val SKIP_FIELDS get() = ConformanceConstants.SKIP_FIELDS
+    private val ID_FIELDS get() = ConformanceConstants.ID_FIELDS
 
     /**
      * Repeated fields that should be aligned by key, not by index.
@@ -177,10 +180,11 @@ object ProtoDiffer {
 
     // ── diff ─────────────────────────────────────────────────────────────────
 
-    @Suppress("UnusedParameter") // seatMap reserved for future seat normalization
+    @Suppress("UnusedParameter", "CyclomaticComplexMethod") // seatMap reserved; complexity from recursive walk dispatch
     fun diff(
         recording: GREToClientMessage,
         engine: GREToClientMessage,
+        profile: SegmentProfile? = null,
         seatMap: Map<Int, Int> = emptyMap(),
     ): DiffResult {
         val recIds = collectIds(recording)
@@ -199,6 +203,12 @@ object ProtoDiffer {
             for ((field, _) in recFields) {
                 if (field.name in SKIP_FIELDS) continue
                 if (field !in engFields) {
+                    // Profile-aware: skip if field is optional (frequency < 1.0)
+                    if (profile != null) {
+                        val childPath = path.child(field.name)
+                        val fp = profile.fieldProfiles[childPath.toString()]
+                        if (fp != null && fp.frequency < 1.0) continue
+                    }
                     missing.add(path.child(field.name))
                 }
             }
@@ -217,26 +227,73 @@ object ProtoDiffer {
                 val engVal = engFields[field] ?: continue // already reported as missing
 
                 val childPath = path.child(field.name)
+                val fieldProfileVariance = profile?.fieldProfiles?.get(childPath.toString())?.variance
+
                 when {
-                    field.isRepeated -> compareRepeated(
-                        field, recVal, engVal, recIds, engIds,
-                        childPath, missing, extra, mismatched,
-                        {
-                            matched++
-                            matchedPaths.add(childPath)
-                        },
-                        ::walk,
-                    )
+                    field.isRepeated -> {
+                        // Profile-aware: SIZED fields — just check non-empty
+                        if (fieldProfileVariance == ValueVariance.SIZED) {
+                            @Suppress("UNCHECKED_CAST")
+                            val engList = engVal as List<Any>
+                            if (engList.isEmpty()) {
+                                mismatched.add(FieldMismatch(childPath, "non-empty", "empty"))
+                            } else {
+                                matched++
+                                matchedPaths.add(childPath)
+                            }
+                        } else {
+                            compareRepeated(
+                                field, recVal, engVal, recIds, engIds,
+                                childPath, missing, extra, mismatched,
+                                {
+                                    matched++
+                                    matchedPaths.add(childPath)
+                                },
+                                ::walk,
+                                fieldProfileVariance,
+                                profile,
+                            )
+                        }
+                    }
                     recVal is Message && engVal is Message -> walk(recVal, engVal, childPath)
                     else -> {
                         val normRec = normalizeValue(recVal, recIds, field.name)
                         val normEng = normalizeValue(engVal, engIds, field.name)
                         if (normRec == null) continue
-                        if (normRec == normEng) {
-                            matched++
-                            matchedPaths.add(childPath)
-                        } else {
-                            mismatched.add(FieldMismatch(childPath, normRec, normEng))
+                        when (fieldProfileVariance) {
+                            ValueVariance.RANGED -> {
+                                // Don't compare exact values — just count as matched
+                                matched++
+                                matchedPaths.add(childPath)
+                            }
+                            ValueVariance.ENUM -> {
+                                // Engine value must be in observed samples
+                                val samples = profile!!.fieldProfiles[childPath.toString()]!!.samples
+                                if (normEng.toString() in samples) {
+                                    matched++
+                                    matchedPaths.add(childPath)
+                                } else {
+                                    mismatched.add(FieldMismatch(childPath, samples, normEng))
+                                }
+                            }
+                            ValueVariance.ID -> {
+                                // ID: normalize and check present/non-zero (existing normalization handles this)
+                                if (normRec == normEng) {
+                                    matched++
+                                    matchedPaths.add(childPath)
+                                } else {
+                                    mismatched.add(FieldMismatch(childPath, normRec, normEng))
+                                }
+                            }
+                            else -> {
+                                // CONSTANT or null (no profile) — exact match
+                                if (normRec == normEng) {
+                                    matched++
+                                    matchedPaths.add(childPath)
+                                } else {
+                                    mismatched.add(FieldMismatch(childPath, normRec, normEng))
+                                }
+                            }
                         }
                     }
                 }
@@ -244,7 +301,17 @@ object ProtoDiffer {
         }
 
         walk(recording, engine, FieldPath.ROOT)
-        return DiffResult(missing, extra, mismatched, matched, matchedPaths)
+
+        // Profile-aware: validate relationships against the engine message
+        val relationshipResults = if (profile != null) {
+            val engineSegment = Segment(profile.category, engine, "engine", 0, engine.gameStateId)
+            val patterns = RelationshipCatalog.forCategory(profile.category)
+            patterns.map { RelationshipValidator.validate(it, listOf(engineSegment)) }
+        } else {
+            emptyList()
+        }
+
+        return DiffResult(missing, extra, mismatched, matched, matchedPaths, relationshipResults)
     }
 
     // ── repeated field alignment ─────────────────────────────────────────────
@@ -262,12 +329,23 @@ object ProtoDiffer {
         mismatched: MutableList<FieldMismatch>,
         countMatch: () -> Unit,
         walk: (Message, Message, FieldPath) -> Unit,
+        fieldProfileVariance: ValueVariance? = null,
+        profile: SegmentProfile? = null,
     ) {
         val recList = recVal as List<Any>
         val engList = engVal as List<Any>
 
-        // Set fields: normalize, sort, compare
+        // Set fields: normalize, sort, compare — but skip with profile if SIZED or ID variance
         if (field.name in SET_FIELDS) {
+            if (profile != null && fieldProfileVariance in setOf(ValueVariance.SIZED, ValueVariance.ID)) {
+                // Just check non-empty
+                if (engList.isEmpty()) {
+                    mismatched.add(FieldMismatch(path, "non-empty", "empty"))
+                } else {
+                    countMatch()
+                }
+                return
+            }
             val recSorted = recList.map { normalizeValue(it, recIds, field.name) }.sortedBy { it.toString() }
             val engSorted = engList.map { normalizeValue(it, engIds, field.name) }.sortedBy { it.toString() }
             if (recSorted != engSorted) {
@@ -391,8 +469,9 @@ object ProtoDiffer {
         fun compositeKey(msg: Message, idMap: Map<Int, Int>): String =
             "${typeKey(msg)}|${affectorKey(msg, idMap)}"
 
-        val recByKey = recMsgs.associateBy { compositeKey(it, recIds) }
-        val engByKey = engMsgs.associateBy { compositeKey(it, engIds) }
+        // groupBy to handle duplicate keys (e.g. multi-type annotations with same type+affectorId)
+        val recByKey = recMsgs.groupBy { compositeKey(it, recIds) }.mapValues { it.value.first() }
+        val engByKey = engMsgs.groupBy { compositeKey(it, engIds) }.mapValues { it.value.first() }
 
         val allKeys = (recByKey.keys + engByKey.keys).toSortedSet()
         for (key in allKeys) {

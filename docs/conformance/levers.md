@@ -6,12 +6,17 @@ Current state: the pipeline compares annotation shapes in single GSM frames, man
 
 ---
 
-## Status (2026-03-21)
+## Status (2026-03-22)
 
 **Done:**
 - **#4 partially** — structural binder (type-based matching, not positional zip) + ObjectIdChanged anchoring. In `tools/tape/segments.py`.
 - **#6 partially** — golden baselines with regression detection. `just conform` / `just conform-golden` pipeline works. Not yet wired into `test-gate` CI.
 - **QueuedGSM split** — CastSpell GSMs now emit the real server's QueuedGSM triplet (not a lever, but enables conformance of message types).
+
+**In progress (2026-03-22):**
+- **#2 closed-loop tests** — `RecordingFrameLoader` + `ProtoDiffer` provide single-runtime Kotlin conformance. `just conform-proto` decodes raw proto losslessly. Branch: `feat/conformance-observatory`.
+- **#6 regression signal** — Conformance Observatory: `SegmentVarianceProfiler` (field variance from recordings), `RelationshipValidator` (72 structural invariants — 40 hand-written + 32 auto-derived). `just segment-variance`, `just segment-relationships` CLIs. Branch: `feat/conformance-observatory`.
+- **See [`how-we-conform.md`](how-we-conform.md)** for the current tooling reference.
 
 **Findings from #119 (Treasure sacrifice conformance):**
 - Single-frame comparison (#1) is the binding constraint. Our engine bundles CastSpell + mana brackets + sacrifice + phase transitions + combat into one GSM. The recording splits across 3+ GSMs. `extractByCategory("Sacrifice")` grabs the whole GSM, producing cross-GSM noise that neither #4 nor #5 can fix.
