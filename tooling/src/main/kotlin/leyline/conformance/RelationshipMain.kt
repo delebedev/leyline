@@ -9,9 +9,22 @@ package leyline.conformance
  * With category: validate patterns for that category only.
  */
 fun main(args: Array<String>) {
-    val category = args.firstOrNull { !it.startsWith("--") }
+    val category = args.firstOrNull { !it.startsWith("--") && flagValue(args.toList(), "--engine") != it }
+    val engineDir = flagValue(args.toList(), "--engine")
 
-    val allSegments = SegmentDetector.scanAll(seat = 0)
+    // Load segments from engine dir or from recordings
+    val allSegments = if (engineDir != null) {
+        val dir = java.io.File(engineDir)
+        if (!dir.isDirectory) {
+            System.err.println("Engine dir not found: $engineDir")
+            return
+        }
+        val frames = RecordingFrameLoader.loadFromDir(dir, seatFilter = null)
+        println("Engine frames: ${frames.size} from $engineDir")
+        SegmentDetector.detect(frames, "engine")
+    } else {
+        SegmentDetector.scanAll(seat = 0)
+    }
 
     val patterns =
         if (category != null) {
@@ -83,6 +96,11 @@ fun main(args: Array<String>) {
             println("  - ${patternLabel(r.pattern)}")
         }
     }
+}
+
+private fun flagValue(args: List<String>, flag: String): String? {
+    val idx = args.indexOf(flag)
+    return if (idx >= 0 && idx + 1 < args.size) args[idx + 1] else null
 }
 
 private fun patternLabel(r: Relationship): String =
