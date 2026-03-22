@@ -216,6 +216,18 @@ serve-replay-stub golden="": build check-java
 serve-proxy: build check-java
     #!/usr/bin/env bash
     set -euo pipefail
+    local_proxy_conf="{{project_dir}}/deploy/services-proxy.conf"
+    if [ ! -f "$local_proxy_conf" ]; then
+        echo "Missing $local_proxy_conf" >&2
+        echo "Create it from deploy/services-proxy.example.conf and fill local proxy creds." >&2
+        exit 1
+    fi
+    if grep -q '"accountSystemId": "leyline"' "$local_proxy_conf" && \
+       grep -q '"accountSystemSecret": "forge-secret"' "$local_proxy_conf"; then
+        echo "Refusing to start proxy with template credential values in $local_proxy_conf" >&2
+        echo "Fill local proxy creds first." >&2
+        exit 1
+    fi
     cp "{{project_dir}}/deploy/services-proxy.conf" "{{_streaming}}/services.conf"
     {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
