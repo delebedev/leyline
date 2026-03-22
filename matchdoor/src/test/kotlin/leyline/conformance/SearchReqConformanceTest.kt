@@ -46,8 +46,8 @@ class SearchReqConformanceTest :
             h.messageSnapshot() // snapshot baseline before pass
             h.passPriority()
 
-            // Search prompt is handled by TargetingHandler after ETB resolves
-            // Give it a moment to process, then drain
+            // Search prompt is handled by TargetingHandler after ETB resolves.
+            // TODO: replace sleep with deterministic drain/await — flaky under load.
             Thread.sleep(500)
             h.drainSink()
 
@@ -70,7 +70,6 @@ class SearchReqConformanceTest :
             }
 
             println("Wrote ${1 + allGsms.size} engine frames to ${outDir.path}/")
-            println("Diff: just conform-proto SearchReq 2026-03-21_22-05-00 --seat 0 --engine ${outDir.path}/")
         }
     }) {
     companion object {

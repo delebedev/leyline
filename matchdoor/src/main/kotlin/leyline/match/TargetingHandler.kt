@@ -393,6 +393,8 @@ class TargetingHandler(private val ops: SessionOps) {
                 prompt.request.options.size
             } else {
                 // Map instanceId back to prompt option index via candidateRefs
+                // TODO: multi-pick support — currently only maps first selected card.
+                //  Future spells with maxFind > 1 will silently ignore subsequent picks.
                 val chosenInstanceId = itemsFound.first()
                 val forgeCardId = bridge.getForgeCardId(InstanceId(chosenInstanceId))
                 val idx = if (forgeCardId != null) {
