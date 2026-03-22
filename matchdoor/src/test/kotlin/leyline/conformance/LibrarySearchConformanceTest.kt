@@ -5,7 +5,10 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.game.StateMapper
 import leyline.game.mapper.ZoneIds
-import wotc.mtgo.gre.external.messaging.Messages.*
+import wotc.mtgo.gre.external.messaging.Messages.CardType
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
+import wotc.mtgo.gre.external.messaging.Messages.SuperType
+import wotc.mtgo.gre.external.messaging.Messages.Visibility
 
 /**
  * Conformance test: library card objects during search.
@@ -59,7 +62,7 @@ class LibrarySearchConformanceTest :
                 ConformanceTestBase.TEST_MATCH_ID,
                 bridge,
                 viewingSeatId = 1,
-            )
+            ).gsm
             bridge.revealLibraryForSeat = null
 
             // Find library objects (seat 1 library = zone 32)
@@ -138,7 +141,7 @@ class LibrarySearchConformanceTest :
                 ConformanceTestBase.TEST_MATCH_ID,
                 bridge,
                 viewingSeatId = 1,
-            )
+            ).gsm
             bridge.revealLibraryForSeat = null
 
             val libraryObjects = gsm.gameObjectsList.filter { it.zoneId == ZoneIds.P1_LIBRARY }

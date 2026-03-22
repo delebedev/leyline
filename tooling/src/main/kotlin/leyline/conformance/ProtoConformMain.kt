@@ -80,7 +80,7 @@ fun main(args: Array<String>) {
         return
     }
 
-    val engineFrames = RecordingFrameLoader.loadFromDir(engineDir, seat)
+    val engineFrames = RecordingFrameLoader.loadFromDir(engineDir, seatFilter = null)
         .filter { it.message.type == greType }
         .let { frames ->
             if (gsId != null) frames.filter { it.message.gameStateId == gsId } else frames
