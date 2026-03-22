@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -7,6 +8,9 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
+import leyline.conformance.detailInt
+import leyline.conformance.detailString
+import leyline.conformance.detailUint
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -47,14 +51,15 @@ class AnnotationPipelineTest :
             )
             val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-            annotations.size shouldBe 3
-            annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
-            annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-            annotations[2].typeList.first() shouldBe AnnotationType.UserActionTaken
+            assertSoftly {
+                annotations.size shouldBe 3
+                annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
+                annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+                annotations[2].typeList.first() shouldBe AnnotationType.UserActionTaken
+            }
 
             // UserActionTaken should have actionType=3 (Play)
-            val actionType = annotations[2].detailsList.first { it.key == "actionType" }
-            actionType.getValueInt32(0) shouldBe 3
+            annotations[2].detailInt("actionType") shouldBe 3
         }
 
         test("playLandHasCorrectIds") {
@@ -113,41 +118,49 @@ class AnnotationPipelineTest :
             )
             val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-            annotations.size shouldBe 8
-            annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
-            annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-            annotations[2].typeList.first() shouldBe AnnotationType.AbilityInstanceCreated
-            annotations[3].typeList.first() shouldBe AnnotationType.TappedUntappedPermanent
-            annotations[4].typeList.first() shouldBe AnnotationType.UserActionTaken
-            annotations[5].typeList.first() shouldBe AnnotationType.ManaPaid
-            annotations[6].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted
-            annotations[7].typeList.first() shouldBe AnnotationType.UserActionTaken
+            assertSoftly {
+                annotations.size shouldBe 8
+                annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
+                annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+                annotations[2].typeList.first() shouldBe AnnotationType.AbilityInstanceCreated
+                annotations[3].typeList.first() shouldBe AnnotationType.TappedUntappedPermanent
+                annotations[4].typeList.first() shouldBe AnnotationType.UserActionTaken
+                annotations[5].typeList.first() shouldBe AnnotationType.ManaPaid
+                annotations[6].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted
+                annotations[7].typeList.first() shouldBe AnnotationType.UserActionTaken
+            }
 
             // AIC details
-            annotations[2].affectorId shouldBe 300
-            annotations[2].affectedIdsList shouldContain 400
-            annotations[2].detailsList.first { it.key == "source_zone" }.getValueInt32(0) shouldBe ZoneIds.BATTLEFIELD
+            assertSoftly {
+                annotations[2].affectorId shouldBe 300
+                annotations[2].affectedIdsList shouldContain 400
+                annotations[2].detailInt("source_zone") shouldBe ZoneIds.BATTLEFIELD
+            }
 
             // TUP
             annotations[3].affectorId shouldBe 400
             annotations[3].affectedIdsList shouldContain 300
 
             // UAT mana
-            annotations[4].detailsList.first { it.key == "actionType" }.getValueInt32(0) shouldBe 4
-            annotations[4].detailsList.first { it.key == "abilityGrpId" }.getValueInt32(0) shouldBe 1002
-            annotations[4].affectedIdsList shouldContain 400
+            assertSoftly {
+                annotations[4].detailInt("actionType") shouldBe 4
+                annotations[4].detailInt("abilityGrpId") shouldBe 1002
+                annotations[4].affectedIdsList shouldContain 400
+            }
 
             // ManaPaid
-            annotations[5].affectorId shouldBe 300
-            annotations[5].affectedIdsList shouldContain 200
-            annotations[5].detailsList.first { it.key == "color" }.getValueInt32(0) shouldBe 2
+            assertSoftly {
+                annotations[5].affectorId shouldBe 300
+                annotations[5].affectedIdsList shouldContain 200
+                annotations[5].detailInt("color") shouldBe 2
+            }
 
             // AID
             annotations[6].affectorId shouldBe 300
             annotations[6].affectedIdsList shouldContain 400
 
             // UAT cast
-            annotations[7].detailsList.first { it.key == "actionType" }.getValueInt32(0) shouldBe 1
+            annotations[7].detailInt("actionType") shouldBe 1
             annotations[7].affectedIdsList shouldContain 200
 
             // Stack gets EnteredZoneThisTurn (recording confirms)
@@ -168,11 +181,13 @@ class AnnotationPipelineTest :
             )
             val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-            annotations.size shouldBe 3
-            annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
-            annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-            annotations[2].typeList.first() shouldBe AnnotationType.UserActionTaken
-            annotations[2].detailsList.first { it.key == "actionType" }.getValueInt32(0) shouldBe 1
+            assertSoftly {
+                annotations.size shouldBe 3
+                annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
+                annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+                annotations[2].typeList.first() shouldBe AnnotationType.UserActionTaken
+                annotations[2].detailInt("actionType") shouldBe 1
+            }
 
             persistent.size shouldBe 1
         }
@@ -189,9 +204,7 @@ class AnnotationPipelineTest :
             )
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-            val castUat = annotations.last()
-            val actionType = castUat.detailsList.first { it.key == "actionType" }
-            actionType.getValueInt32(0) shouldBe 1
+            annotations.last().detailInt("actionType") shouldBe 1
         }
 
         // --- annotationsForTransfer: Resolve ---
@@ -208,10 +221,12 @@ class AnnotationPipelineTest :
             )
             val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-            annotations.size shouldBe 3
-            annotations[0].typeList.first() shouldBe AnnotationType.ResolutionStart
-            annotations[1].typeList.first() shouldBe AnnotationType.ResolutionComplete
-            annotations[2].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+            assertSoftly {
+                annotations.size shouldBe 3
+                annotations[0].typeList.first() shouldBe AnnotationType.ResolutionStart
+                annotations[1].typeList.first() shouldBe AnnotationType.ResolutionComplete
+                annotations[2].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+            }
 
             // Lands on battlefield — persistent annotation
             persistent.size shouldBe 1
@@ -245,8 +260,7 @@ class AnnotationPipelineTest :
             )
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-            val grpid = annotations[0].detailsList.first { it.key == "grpid" }
-            grpid.getValueUint32(0) shouldBe 67890
+            annotations[0].detailUint("grpid") shouldBe 67890
         }
 
         // --- Edge cases ---
@@ -314,22 +328,21 @@ class AnnotationPipelineTest :
             )
             val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
 
-            result.transient.size shouldBe 1
-            result.transient[0].typeList shouldContain AnnotationType.CounterAdded
-            result.transient[0].affectedIdsList shouldContain 1042
-
-            val counterType = result.transient[0].detailsList.first { it.key == "counter_type" }
-            counterType.getValueString(0) shouldBe "+1/+1"
-            val txnAmount = result.transient[0].detailsList.first { it.key == "transaction_amount" }
-            txnAmount.getValueInt32(0) shouldBe 2
+            assertSoftly {
+                result.transient.size shouldBe 1
+                result.transient[0].typeList shouldContain AnnotationType.CounterAdded
+                result.transient[0].affectedIdsList shouldContain 1042
+                result.transient[0].detailString("counter_type") shouldBe "+1/+1"
+                result.transient[0].detailInt("transaction_amount") shouldBe 2
+            }
 
             // Persistent: Counter state annotation with current count and correct enum value
-            result.persistent.size shouldBe 1
-            result.persistent[0].typeList shouldContain AnnotationType.Counter_803b
-            val count = result.persistent[0].detailsList.first { it.key == "count" }
-            count.getValueInt32(0) shouldBe 2
-            val persistentType = result.persistent[0].detailsList.first { it.key == "counter_type" }
-            persistentType.getValueInt32(0) shouldBe 1 // P1P1 = 1
+            assertSoftly {
+                result.persistent.size shouldBe 1
+                result.persistent[0].typeList shouldContain AnnotationType.Counter_803b
+                result.persistent[0].detailInt("count") shouldBe 2
+                result.persistent[0].detailInt("counter_type") shouldBe 1 // P1P1 = 1
+            }
         }
 
         test("counterRemovedAnnotation") {
@@ -341,8 +354,7 @@ class AnnotationPipelineTest :
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.CounterRemoved
-            val txnAmount = annotations[0].detailsList.first { it.key == "transaction_amount" }
-            txnAmount.getValueInt32(0) shouldBe 3
+            annotations[0].detailInt("transaction_amount") shouldBe 3
         }
 
         test("counterUnchangedSkipped") {
@@ -377,10 +389,8 @@ class AnnotationPipelineTest :
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.Scry_af5a
-            val top = annotations[0].detailsList.first { it.key == "topCount" }
-            top.getValueInt32(0) shouldBe 1
-            val bottom = annotations[0].detailsList.first { it.key == "bottomCount" }
-            bottom.getValueInt32(0) shouldBe 2
+            annotations[0].detailInt("topCount") shouldBe 1
+            annotations[0].detailInt("bottomCount") shouldBe 2
         }
 
         // -- Surveil --
@@ -430,15 +440,15 @@ class AnnotationPipelineTest :
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
-            annotations.size shouldBe 3
-            annotations[0].typeList shouldContain AnnotationType.ModifiedPower
-            annotations[0].affectedIdsList shouldContain 1050
-            annotations[0].detailsCount shouldBe 0
-
-            annotations[1].typeList shouldContain AnnotationType.ModifiedToughness
-            annotations[1].detailsCount shouldBe 0
-
-            annotations[2].typeList shouldContain AnnotationType.PowerToughnessModCreated
+            assertSoftly {
+                annotations.size shouldBe 3
+                annotations[0].typeList shouldContain AnnotationType.ModifiedPower
+                annotations[0].affectedIdsList shouldContain 1050
+                annotations[0].detailsCount shouldBe 0
+                annotations[1].typeList shouldContain AnnotationType.ModifiedToughness
+                annotations[1].detailsCount shouldBe 0
+                annotations[2].typeList shouldContain AnnotationType.PowerToughnessModCreated
+            }
         }
 
         test("powerOnlyChangedOneAnnotation") {
@@ -472,18 +482,22 @@ class AnnotationPipelineTest :
             val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
 
             // Transient: AttachmentCreated
-            result.transient.size shouldBe 1
             val created = result.transient[0]
-            created.typeList shouldContain AnnotationType.AttachmentCreated
-            created.affectorId shouldBe testResolver(55)
-            created.affectedIdsList shouldBe listOf(testResolver(66))
+            assertSoftly {
+                result.transient.size shouldBe 1
+                created.typeList shouldContain AnnotationType.AttachmentCreated
+                created.affectorId shouldBe testResolver(55)
+                created.affectedIdsList shouldBe listOf(testResolver(66))
+            }
 
             // Persistent: Attachment
-            result.persistent.size shouldBe 1
             val attach = result.persistent[0]
-            attach.typeList shouldContain AnnotationType.Attachment
-            attach.affectorId shouldBe testResolver(55)
-            attach.affectedIdsList shouldBe listOf(testResolver(66))
+            assertSoftly {
+                result.persistent.size shouldBe 1
+                attach.typeList shouldContain AnnotationType.Attachment
+                attach.affectorId shouldBe testResolver(55)
+                attach.affectedIdsList shouldBe listOf(testResolver(66))
+            }
         }
 
         test("detachReturnsDetachedForgeCardId") {
@@ -534,8 +548,7 @@ class AnnotationPipelineTest :
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.TappedUntappedPermanent
             annotations[0].affectedIdsList shouldContain testResolver(70)
-            val tapped = annotations[0].detailsList.first { it.key == "tapped" }
-            tapped.getValueUint32(0) shouldBe 1
+            annotations[0].detailUint("tapped") shouldBe 1
         }
 
         test("cardUntappedProducesAnnotation") {
@@ -546,8 +559,7 @@ class AnnotationPipelineTest :
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.TappedUntappedPermanent
-            val tapped = annotations[0].detailsList.first { it.key == "tapped" }
-            tapped.getValueUint32(0) shouldBe 0
+            annotations[0].detailUint("tapped") shouldBe 0
         }
 
         test("mechanicAnnotationsMultipleEvents") {
@@ -579,20 +591,23 @@ class AnnotationPipelineTest :
             val (transient, persistent) = AnnotationPipeline.effectAnnotations(diff)
 
             // Transient: LayeredEffectCreated + PowerToughnessModCreated companion
-            transient.size shouldBe 2
-            transient[0].typeList.first() shouldBe AnnotationType.LayeredEffectCreated
-            transient[0].affectedIdsList shouldBe listOf(7005)
-            transient[1].typeList.first() shouldBe AnnotationType.PowerToughnessModCreated
-            transient[1].affectedIdsList shouldBe listOf(100)
-            transient[1].affectorId shouldBe 100
-            transient[1].detailsList.first { it.key == "power" }.getValueInt32(0) shouldBe 3
-            transient[1].detailsList.first { it.key == "toughness" }.getValueInt32(0) shouldBe 3
+            assertSoftly {
+                transient.size shouldBe 2
+                transient[0].typeList.first() shouldBe AnnotationType.LayeredEffectCreated
+                transient[0].affectedIdsList shouldBe listOf(7005)
+                transient[1].typeList.first() shouldBe AnnotationType.PowerToughnessModCreated
+                transient[1].affectedIdsList shouldBe listOf(100)
+                transient[1].affectorId shouldBe 100
+                transient[1].detailInt("power") shouldBe 3
+                transient[1].detailInt("toughness") shouldBe 3
+            }
 
-            persistent.size shouldBe 1
-            persistent[0].typeList shouldContain AnnotationType.LayeredEffect
-            persistent[0].affectedIdsList shouldBe listOf(100)
-            val effectIdDetail = persistent[0].detailsList.first { it.key == "effect_id" }
-            effectIdDetail.getValueInt32(0) shouldBe 7005
+            assertSoftly {
+                persistent.size shouldBe 1
+                persistent[0].typeList shouldContain AnnotationType.LayeredEffect
+                persistent[0].affectedIdsList shouldBe listOf(100)
+                persistent[0].detailInt("effect_id") shouldBe 7005
+            }
         }
 
         test("effectAnnotations emits Destroyed for removed boost") {
@@ -673,8 +688,7 @@ class AnnotationPipelineTest :
             annotations.size shouldBe 2
             annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
             annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-            val category = annotations[1].detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Destroy"
+            annotations[1].detailString("category") shouldBe "Destroy"
             persistent.shouldBeEmpty()
         }
 
@@ -689,8 +703,7 @@ class AnnotationPipelineTest :
                 ownerSeatId = 1,
             )
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
-            val category = annotations.last().detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Sacrifice"
+            annotations.last().detailString("category") shouldBe "Sacrifice"
         }
 
         test("Sacrifice with mana payment emits full mana-ability bracket") {
@@ -714,14 +727,16 @@ class AnnotationPipelineTest :
             )
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-            annotations.size shouldBe 7
-            annotations[0].typeList.first() shouldBe AnnotationType.AbilityInstanceCreated
-            annotations[1].typeList.first() shouldBe AnnotationType.TappedUntappedPermanent
-            annotations[2].typeList.first() shouldBe AnnotationType.ObjectIdChanged
-            annotations[3].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-            annotations[4].typeList.first() shouldBe AnnotationType.UserActionTaken
-            annotations[5].typeList.first() shouldBe AnnotationType.ManaPaid
-            annotations[6].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted
+            assertSoftly {
+                annotations.size shouldBe 7
+                annotations[0].typeList.first() shouldBe AnnotationType.AbilityInstanceCreated
+                annotations[1].typeList.first() shouldBe AnnotationType.TappedUntappedPermanent
+                annotations[2].typeList.first() shouldBe AnnotationType.ObjectIdChanged
+                annotations[3].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+                annotations[4].typeList.first() shouldBe AnnotationType.UserActionTaken
+                annotations[5].typeList.first() shouldBe AnnotationType.ManaPaid
+                annotations[6].typeList.first() shouldBe AnnotationType.AbilityInstanceDeleted
+            }
 
             // ManaPaid: affectorId = land (origId=100), affectedIds contains spellInstanceId
             annotations[5].affectorId shouldBe 100
@@ -768,9 +783,11 @@ class AnnotationPipelineTest :
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
             val uat = annotations[4]
-            uat.typeList.first() shouldBe AnnotationType.UserActionTaken
-            uat.detailsList.first { it.key == "actionType" }.getValueInt32(0) shouldBe 4
-            uat.detailsList.first { it.key == "abilityGrpId" }.getValueInt32(0) shouldBe 183
+            assertSoftly {
+                uat.typeList.first() shouldBe AnnotationType.UserActionTaken
+                uat.detailInt("actionType") shouldBe 4
+                uat.detailInt("abilityGrpId") shouldBe 183
+            }
         }
 
         test("bounceProducesAnnotations") {
@@ -784,8 +801,7 @@ class AnnotationPipelineTest :
                 ownerSeatId = 1,
             )
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
-            val category = annotations.last().detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Bounce"
+            annotations.last().detailString("category") shouldBe "Bounce"
         }
 
         test("exileProducesAnnotations") {
@@ -799,8 +815,7 @@ class AnnotationPipelineTest :
                 ownerSeatId = 1,
             )
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
-            val category = annotations.last().detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Exile"
+            annotations.last().detailString("category") shouldBe "Exile"
         }
 
         test("discardProducesAnnotations") {
@@ -814,8 +829,7 @@ class AnnotationPipelineTest :
                 ownerSeatId = 1,
             )
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
-            val category = annotations.last().detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Discard"
+            annotations.last().detailString("category") shouldBe "Discard"
         }
 
         test("drawProducesAnnotations") {
@@ -829,8 +843,7 @@ class AnnotationPipelineTest :
                 ownerSeatId = 1,
             )
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
-            val category = annotations.last().detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Draw"
+            annotations.last().detailString("category") shouldBe "Draw"
         }
 
         test("millProducesAnnotations") {
@@ -844,8 +857,7 @@ class AnnotationPipelineTest :
                 ownerSeatId = 1,
             )
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
-            val category = annotations.last().detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Mill"
+            annotations.last().detailString("category") shouldBe "Mill"
         }
 
         test("surveilProducesAnnotationsWithAffectorId") {
@@ -865,17 +877,20 @@ class AnnotationPipelineTest :
 
             // ObjectIdChanged carries affectorId
             val oidChanged = annotations[0]
-            oidChanged.typeList.first() shouldBe AnnotationType.ObjectIdChanged
-            oidChanged.affectorId shouldBe abilityInstanceId
-            oidChanged.affectedIdsList shouldContain 100
+            assertSoftly {
+                oidChanged.typeList.first() shouldBe AnnotationType.ObjectIdChanged
+                oidChanged.affectorId shouldBe abilityInstanceId
+                oidChanged.affectedIdsList shouldContain 100
+            }
 
             // ZoneTransfer carries affectorId and category
             val zt = annotations[1]
-            zt.typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-            zt.affectorId shouldBe abilityInstanceId
-            zt.affectedIdsList shouldContain 200
-            val category = zt.detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Surveil"
+            assertSoftly {
+                zt.typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
+                zt.affectorId shouldBe abilityInstanceId
+                zt.affectedIdsList shouldContain 200
+                zt.detailString("category") shouldBe "Surveil"
+            }
         }
 
         test("surveilWithoutAffectorIdHasZeroAffector") {
@@ -906,8 +921,7 @@ class AnnotationPipelineTest :
                 ownerSeatId = 1,
             )
             val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
-            val category = annotations.last().detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Countered"
+            annotations.last().detailString("category") shouldBe "Countered"
         }
 
         // --- annotationsForTransfer: Return ---
@@ -927,8 +941,7 @@ class AnnotationPipelineTest :
             annotations.size shouldBe 2
             annotations[0].typeList.first() shouldBe AnnotationType.ObjectIdChanged
             annotations[1].typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-            val category = annotations[1].detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Return"
+            annotations[1].detailString("category") shouldBe "Return"
             persistent.size shouldBe 1
         }
 
@@ -944,8 +957,7 @@ class AnnotationPipelineTest :
             )
             val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
-            val category = annotations.last().detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Return"
+            annotations.last().detailString("category") shouldBe "Return"
             persistent.shouldBeEmpty()
         }
 
@@ -964,8 +976,7 @@ class AnnotationPipelineTest :
             val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
             annotations.size shouldBe 2
-            val category = annotations[1].detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Search"
+            annotations[1].detailString("category") shouldBe "Search"
             persistent.size shouldBe 1
         }
 
@@ -984,8 +995,7 @@ class AnnotationPipelineTest :
             val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
 
             annotations.size shouldBe 2
-            val category = annotations[1].detailsList.first { it.key == "category" }
-            category.getValueString(0) shouldBe "Put"
+            annotations[1].detailString("category") shouldBe "Put"
             persistent.shouldBeEmpty()
         }
 

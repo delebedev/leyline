@@ -1,11 +1,13 @@
 package leyline.conformance
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -53,20 +55,10 @@ class AiLandPlayOrderTest :
             val gsMessages = h.allMessages.filter { it.hasGameStateMessage() }
 
             // Find the PlayLand diff: a GSM with ZoneTransfer annotation category="PlayLand"
-            val playLandMsg = gsMessages.firstOrNull { gre ->
-                gre.gameStateMessage.annotationsList.any { ann ->
-                    ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
-                        ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("PlayLand") }
-                }
-            }
+            val playLandMsg = gsMessages.firstWithTransferCategory("PlayLand")
 
             // Find the CastSpell diff: a GSM with ZoneTransfer annotation category="CastSpell"
-            val castSpellMsg = gsMessages.firstOrNull { gre ->
-                gre.gameStateMessage.annotationsList.any { ann ->
-                    ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
-                        ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("CastSpell") }
-                }
-            }
+            val castSpellMsg = gsMessages.firstWithTransferCategory("CastSpell")
 
             playLandMsg.shouldNotBeNull()
             castSpellMsg.shouldNotBeNull()
@@ -86,16 +78,17 @@ class AiLandPlayOrderTest :
                 ann.typeList.firstOrNull()
             }
 
-            annTypes shouldContain AnnotationType.ObjectIdChanged
-            annTypes shouldContain AnnotationType.ZoneTransfer_af5a
-            annTypes shouldContain AnnotationType.UserActionTaken
+            assertSoftly {
+                annTypes shouldContain AnnotationType.ObjectIdChanged
+                annTypes shouldContain AnnotationType.ZoneTransfer_af5a
+                annTypes shouldContain AnnotationType.UserActionTaken
+            }
 
             // UserActionTaken should have actionType=3 (Play)
             val userAction = playLandGsm.annotationsList.first {
                 it.typeList.contains(AnnotationType.UserActionTaken)
             }
-            val actionTypeDetail = checkNotNull(userAction.detailsList.firstOrNull { it.key == "actionType" }) { "UserActionTaken should have actionType detail" }
-            actionTypeDetail.valueInt32List shouldContain 3
+            userAction.detailInt("actionType") shouldBe 3
 
             // PlayLand diff should contain a land object on the battlefield
             val landObj = playLandGsm.gameObjectsList.firstOrNull { obj ->
@@ -136,8 +129,8 @@ class AiLandPlayOrderTest :
                 val gsm = gre.gameStateMessage
                 gsm.turnInfo.turnNumber == 1 &&
                     gsm.annotationsList.any { ann ->
-                        ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
-                            ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("PlayLand") }
+                        AnnotationType.ZoneTransfer_af5a in ann.typeList &&
+                            ann.detail("category")?.getValueString(0) == "PlayLand"
                     }
             }
 
@@ -163,19 +156,14 @@ class AiLandPlayOrderTest :
 
             val gsMessages = h.allMessages.filter { it.hasGameStateMessage() }
 
-            val castSpellMsg = gsMessages.firstOrNull { gre ->
-                gre.gameStateMessage.annotationsList.any { ann ->
-                    ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
-                        ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("CastSpell") }
-                }
-            }
+            val castSpellMsg = gsMessages.firstWithTransferCategory("CastSpell")
 
             castSpellMsg.shouldNotBeNull()
 
             // CastSpell diff must NOT also contain a PlayLand ZoneTransfer annotation
             val hasPlayLandAnnotation = castSpellMsg.gameStateMessage.annotationsList.any { ann ->
-                ann.typeList.contains(AnnotationType.ZoneTransfer_af5a) &&
-                    ann.detailsList.any { d -> d.key == "category" && d.valueStringList.contains("PlayLand") }
+                AnnotationType.ZoneTransfer_af5a in ann.typeList &&
+                    ann.detail("category")?.getValueString(0) == "PlayLand"
             }
             hasPlayLandAnnotation.shouldBeFalse()
         }

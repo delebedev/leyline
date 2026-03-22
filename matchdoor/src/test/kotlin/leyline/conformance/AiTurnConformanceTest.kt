@@ -47,7 +47,10 @@ class AiTurnConformanceTest :
 
             val batches = playback.drainQueue()
 
-            if (batches.isEmpty()) return@test
+            if (batches.isEmpty()) {
+                println("SKIP: no AI playback batches drained")
+                return@test
+            }
 
             // All messages should be GameStateMessage (no ActionsAvailableReq)
             val allMessages = batches.flatten()
@@ -87,7 +90,10 @@ class AiTurnConformanceTest :
             }
 
             val batches = allBatches
-            if (batches.isEmpty()) return@test
+            if (batches.isEmpty()) {
+                println("SKIP: no AI playback batches drained")
+                return@test
+            }
 
             val allGsms = batches.flatten()
                 .filter { it.hasGameStateMessage() }

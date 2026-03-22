@@ -2,6 +2,7 @@ package leyline.conformance
 
 import io.kotest.assertions.fail
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import leyline.IntegrationTag
@@ -67,6 +68,7 @@ class AiTurnNoAarTest :
                 if (h.isGameOver() || h.turn() > startTurn) return@repeat
                 h.passPriority()
             }
+            (h.isGameOver() || h.turn() > startTurn).shouldBeTrue()
 
             // Filter: only AARs sent while activePlayer was AI (seat 2).
             // The turn eventually transitions to the human — AARs for the

@@ -75,19 +75,19 @@ git diff --name-only main...HEAD | grep -q 'matchdoor/src/main/' && {
 
 #### 2d. Plan cleanup
 
-Check for implementation plans that were used during this branch's work:
+Check for implementation plans that drove this branch's work:
 
 ```bash
-# Plans in docs/
-git diff --name-only main...HEAD | grep -iE 'plan|design'
+# Plans touched by this branch
+git diff --name-only main...HEAD | grep -E '^docs/plans/'
 
-# Check if any plan files reference completed work
-ls docs/*plan* docs/*design* 2>/dev/null
+# Plans that might reference this branch's topic
+ls docs/plans/ 2>/dev/null
 ```
 
-If a plan drove this branch's work: mark completed items, archive the plan (move to `docs/archive/` or add `Status: implemented` header), or delete if fully consumed. Plans left as "todo" after the feature ships are confusing.
+If a plan drove this work: mark completed items, add `Status: implemented` header, or delete if fully consumed. Stale "todo" items after the feature ships are confusing.
 
-**Flag if:** a plan file was added or modified in this branch but still has unchecked items that the branch actually implements.
+**Flag if:** a plan file was modified in this branch but still has unchecked items the branch actually implements.
 
 #### 2e. Documentation freshness
 
@@ -157,7 +157,21 @@ git rev-list --count HEAD..origin/main
 
 **Flag if:** branch is >10 commits behind main. Suggest rebase/merge.
 
-### 3. Report findings
+### 3. Cross-issue enrichment
+
+Before creating the PR, review what you learned during this branch's work:
+
+```bash
+gh issue list -R delebedev/leyline --state open --limit 100 --json number,title
+```
+
+Ask yourself: **did this work surface anything relevant to other open issues?** Protocol details, edge cases, architectural patterns, broken assumptions. If yes, comment on those issues now — context is perishable.
+
+```bash
+gh issue comment <N> -R delebedev/leyline --body "Discovered while working on #<this-PR's-issue>: <what you found>"
+```
+
+### 4. Report findings
 
 Present findings as a checklist:
 
@@ -165,30 +179,34 @@ Present findings as a checklist:
 Pre-flight checks:
   [x] Issue linkage — closes #122
   [x] Test coverage — matchdoor tests added
-  [ ] Catalog update — matchdoor changed but catalog.yaml not updated
+  [ ] Catalog update — matchdoor changed but catalog not updated
   [x] Plan cleanup — design doc archived
-  [x] Docs freshness — KDoc on new MatchHandler entry point, CLAUDE.md cookbook updated
+  [x] Docs freshness — KDoc on new entry points
   [x] Commit story — 5 commits, clean progression
-  [ ] Visual proof — gameplay change, video TODO added to PR body
+  [ ] Visual proof — gameplay change, video TODO added
   [x] Clean working tree
   [x] Branch fresh (2 behind main)
 ```
 
 If any check fails, ask: "Want me to fix these before creating the PR, or proceed as-is?"
 
-### 4. Create the PR
+### 5. Create the PR
 
 Build PR body from branch analysis:
 
 ```bash
 gh pr create --title "<type>(scope): concise title" --body "$(cat <<'EOF'
 ## Summary
-<bullet points derived from commit log — what changed and why>
+<bullet points — what changed and why, not restated commit messages>
 
-<issue link if found: Closes #N>
+<Closes #N or Refs #N>
 
 ## Test plan
-<what tests were added/changed, how to verify>
+<what tests cover, how to verify>
+
+## Learnings
+<1-3 bullets: what worked well, what you'd do differently, anything
+ discovered that's relevant beyond this PR. Skip if genuinely nothing.>
 
 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
@@ -202,17 +220,18 @@ EOF
 
 **Body rules:**
 - Summary from commit analysis, not restated commit messages
-- Link issues with `Closes #N` (if fix/feat) or `Refs #N` (if partial)
-- Test plan section describing what's covered
+- Link issues with `Closes #N` (fix/feat) or `Refs #N` (partial)
+- Test plan: what's covered and how
+- Learnings: process observations, not implementation details. What would make the next similar PR faster/better? Skip the section entirely if nothing worth noting.
 - Mention modules touched if >2
 
-### 5. Post-create
+### 6. Post-create
 
 ```bash
 gh pr view --json url --jq '.url'
 ```
 
-Return the PR URL.
+Print the pre-flight checklist summary + PR URL together so it's all visible at a glance.
 
 ## What this is NOT
 

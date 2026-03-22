@@ -8,8 +8,8 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -240,8 +240,8 @@ class AnnotationOrderingTest :
             rs.affectorId shouldBe rs.getAffectedIds(0)
 
             val grpid = rs.detail("grpid")
-            grpid shouldNotBe null
-            (grpid!!.getValueUint32(0) >= 0).shouldBeTrue()
+            grpid.shouldNotBeNull()
+            (grpid.getValueUint32(0) >= 0).shouldBeTrue()
         }
 
         test("Resolve: ResolutionComplete matches ResolutionStart") {
@@ -302,7 +302,7 @@ class AnnotationOrderingTest :
             val entered = gsm.persistentAnnotationsList.firstOrNull {
                 AnnotationType.EnteredZoneThisTurn in it.typeList
             }
-            entered shouldNotBe null
-            entered!!.affectorId shouldBe ZoneIds.BATTLEFIELD
+            entered.shouldNotBeNull()
+            entered.affectorId shouldBe ZoneIds.BATTLEFIELD
         }
     })

@@ -89,6 +89,7 @@ class PlaneswalkerSacrificeTest :
                 if (h.phase() == "COMBAT_DECLARE_ATTACKERS") return@repeat
                 h.passPriority()
             }
+            (h.isGameOver() || h.phase() == "COMBAT_DECLARE_ATTACKERS").shouldBeTrue()
 
             val bearsIid = h.humanBattlefieldCreatures()
                 .first { it.second == "Grizzly Bears" }.first

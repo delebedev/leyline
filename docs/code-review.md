@@ -1,20 +1,49 @@
 # Code Review Checklist
 
-## Tests
+What matters in this project, in order.
 
-- **No duplicate helpers.** Private helper appearing in 2+ test files → extract to `ConformanceTestBase` or `TestExtensions.kt`.
-- **Use existing extensions.** Check `TestExtensions.kt` before writing inline annotation/zone/object lookups (e.g. `annotationOrNull`, `findZoneTransfer`, `annotationAffecting`).
+## Real bugs first
+
+Logic errors, double-processing, null paths, leaked state, resources not cleaned up. Specific line, what breaks, suggested fix. Everything else is secondary.
+
+## Test quality — right abstraction level
+
+The most common miss. Ask: **is the test checking the right thing?**
+
+- Checking 15 specific field values = fragile. Checking "valid zone transfer with right category" = durable.
+- Vacuous passes (assertion never reached, empty collection iterated) are worse than no test.
+- Missing negative tests: invalid input, retry, already-complete state.
+- Wrong tier: pure builder logic via full game loop = slow. Use `startWithBoard{}` for board-level, unit for pure functions.
+
+### Test patterns
+
 - **`checkNotNull` over `assertNotNull + !!`.** `assertNotNull` returns void, doesn't smart-cast. Use `checkNotNull(x) { "msg" }` or `?: fail("msg")`.
-- **Prefer `assertNull` over `assertTrue(x == null)`.** Same for `assertFalse(x == null)` → `assertNotNull`.
-- **Minimize board setup boilerplate.** Use base class helpers: `stateOnlyDiff()`, `captureAfterAction()`, `Player.firstCreature()`, `Player.firstCardIn()`.
-- **No dead variables.** Unused `val origId = ...` etc. Delete or use.
-- **Test at the fastest tier.** Pure proto/builder logic → `unit`. Needs Game but not game loop → `conformance` + `startWithBoard{}`. Needs cast/resolve/AI → `integration`.
-- **Every test class has a group.** Ungrouped tests are invisible to all named targets.
+- **`assertNull` over `assertTrue(x == null)`.** Same for `assertFalse(x == null)` → `assertNotNull`.
+- **`assertSoftly`** for multi-field assertions — see all failures, not just the first.
+- **One test per board setup.** Don't reuse a board for unrelated assertions.
+- **Every test class has a group.** Ungrouped tests are invisible to named targets.
+- **No duplicate helpers.** Private helper in 2+ files → extract to `ConformanceTestBase` or `TestExtensions.kt`.
+- **Use existing extensions.** Check `TestExtensions.kt` before writing inline lookups.
+- **No dead variables.** Unused `val origId = ...` — delete or use.
+
+## Separation of concerns
+
+- `matchdoor/bridge/` — Forge coupling lives here, nowhere else
+- `matchdoor/game/` — protocol translation (annotations, state mapping, builders)
+- `matchdoor/match/` — orchestration (combat, targeting, mulligan)
+- `frontdoor/` — zero game engine coupling
+
+Flag protocol details leaking into game logic, bridge concerns outside bridge/, frontdoor importing matchdoor.
 
 ## Golden field coverage
 
-- **Builder changes → check golden tests.** Any PR touching `RequestBuilder`, `BundleBuilder`, `GsmBuilder`, `HandshakeMessages`, `StateMapper`, `AnnotationBuilder`, or `ActionMapper` should run `just test-one GoldenFieldCoverageTest`. If a field is added/removed, the golden test will fail with `NEW EXTRAS` or `REMOVED EXTRAS` — the PR must update `expectedMissing`/`expectedExtra` sets with an explaining comment.
-- **Don't silently add fields.** If a builder change adds new fields to a proto message, golden tests catch it. This is intentional — extras may confuse the client or waste bandwidth. Triage: is the field needed? Document in `expectedExtra` if it's a deliberate UX addition (e.g. `manaPaymentOptions`).
-- **Don't silently fix gaps.** If a builder change fills in a previously-missing field, golden tests catch it via `FIXED GAPS`. Remove the field from `expectedMissing` — this is a good thing, and the test validates the fix.
-- **New message type → add golden test.** When implementing a new GRE message builder (e.g. `GroupReq` for mulligan), add a golden test from a hand-written or builder-generated fixture that captures the required fields. Never copy payloads directly from `recordings/` into tracked golden files.
-- **Comments on expectedMissing/expectedExtra are mandatory.** Each entry must explain *why* the gap or extra exists. Bare sets with no comments are not acceptable — they defeat the purpose of living documentation.
+- **Builder changes → run golden tests.** Any PR touching `RequestBuilder`, `BundleBuilder`, `GsmBuilder`, `HandshakeMessages`, `StateMapper`, `AnnotationBuilder`, or `ActionMapper` should run `just test-one GoldenFieldCoverageTest`.
+- **`NEW EXTRAS` / `REMOVED EXTRAS`** — update `expectedMissing`/`expectedExtra` sets.
+- **Comments on expected sets are mandatory.** Each entry explains *why*. Bare sets are not acceptable.
+- **New message type → add golden test.** Hand-written fixture, never copied from recordings.
+
+## Public repo rules
+
+- No server responses, recording data, or card database content in tracked files
+- No private infra (IPs, hostnames, absolute paths)
+- No credentials in any form

@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
@@ -69,10 +70,8 @@ class ScryETBFlowTest :
                 ann.typeList.any { it == AnnotationType.ObjectIdChanged }
             }
             oic.shouldNotBeNull()
-            val origId = oic.detailsList.firstOrNull { it.key == "orig_id" }
-            origId.shouldNotBeNull()
-            val newId = oic.detailsList.firstOrNull { it.key == "new_id" }
-            newId.shouldNotBeNull()
+            oic.detail("orig_id").shouldNotBeNull()
+            oic.detail("new_id").shouldNotBeNull()
 
             // ZoneTransfer with PlayLand category (recording: zone_src=31, zone_dest=28)
             val zt = allAnnotations.firstOrNull { ann ->
@@ -119,7 +118,7 @@ class ScryETBFlowTest :
                 ann.typeList.any { it == AnnotationType.TappedUntappedPermanent }
             }
             tap.shouldNotBeNull()
-            tap.detailsList.firstOrNull { it.key == "tapped" }.shouldNotBeNull()
+            tap.detail("tapped").shouldNotBeNull()
 
             // ManaPaid (recording: Island → Wall of Runes, color=2 blue)
             val manaPaid = allAnnotations.firstOrNull { ann ->
@@ -172,23 +171,27 @@ class ScryETBFlowTest :
                 ann.typeList.any { it == AnnotationType.AbilityInstanceCreated }
             }
             triggerCreated.shouldNotBeNull()
-            triggerCreated.detailsList.firstOrNull { it.key == "source_zone" }.shouldNotBeNull()
+            triggerCreated.detail("source_zone").shouldNotBeNull()
         }
 
         test("scry ETB emits GroupReq with Scry context and correct specs") {
             val h = setup()
             h.playLand().shouldBeTrue()
             val req = h.castSpellUntilGroupReq("Wall of Runes")
-            req.context shouldBe GroupingContext.Scry_a0f6
-            req.instanceIdsList.shouldNotBeEmpty()
-            req.groupSpecsList.size shouldBe 2
+            assertSoftly {
+                req.context shouldBe GroupingContext.Scry_a0f6
+                req.instanceIdsList.shouldNotBeEmpty()
+                req.groupSpecsList.size shouldBe 2
+            }
 
             // Recording: [{upperBound:1, zoneType:Library, subZoneType:Top},
             //             {upperBound:1, zoneType:Library, subZoneType:Bottom}]
-            req.groupSpecsList[0].zoneType shouldBe ZoneType.Library
-            req.groupSpecsList[0].subZoneType shouldBe SubZoneType.Top
-            req.groupSpecsList[1].zoneType shouldBe ZoneType.Library
-            req.groupSpecsList[1].subZoneType shouldBe SubZoneType.Bottom
+            assertSoftly {
+                req.groupSpecsList[0].zoneType shouldBe ZoneType.Library
+                req.groupSpecsList[0].subZoneType shouldBe SubZoneType.Top
+                req.groupSpecsList[1].zoneType shouldBe ZoneType.Library
+                req.groupSpecsList[1].subZoneType shouldBe SubZoneType.Bottom
+            }
         }
 
         test("scry put on bottom produces Scry annotation with counts") {
@@ -210,8 +213,7 @@ class ScryETBFlowTest :
             }
             scryAnn.shouldNotBeNull()
             scryAnn.affectedIdsList.shouldNotBeEmpty()
-            val bottomCount = scryAnn.detailsList.firstOrNull { it.key == "bottomCount" }
-            bottomCount.shouldNotBeNull()
+            scryAnn.detail("bottomCount").shouldNotBeNull()
 
             // ResolutionStart + ResolutionComplete for the creature spell
             val resStart = allAnnotations.firstOrNull { ann ->

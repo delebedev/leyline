@@ -240,10 +240,7 @@ class GoldenFieldCoverageTest :
 
         // --- DeclareBlockersReq ---
 
-        // TODO: combat setup incomplete — devModeSet to COMBAT_DECLARE_BLOCKERS
-        //  doesn't initialize Forge's Combat object, so addAttacker returns null
-        //  and buildDeclareBlockersReq produces empty output. Needs proper combat
-        //  initialization or a MatchFlowHarness-based test with real combat.
+        // Blocked: devModeSet doesn't initialize Combat object — needs MatchFlowHarness rewrite (#207)
         xtest("DeclareBlockersReq field coverage vs real server") {
             val goldenFields = goldenDeclareBlockersReq
 

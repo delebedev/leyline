@@ -5,7 +5,7 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
-import leyline.ConformanceTag
+import leyline.IntegrationTag
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
@@ -25,7 +25,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class AiFirstTurnShapeTest :
     FunSpec({
 
-        tags(ConformanceTag)
+        tags(IntegrationTag)
 
         var harness: MatchFlowHarness? = null
         afterEach {
@@ -99,7 +99,10 @@ class AiFirstTurnShapeTest :
                 }
                 .map { it.gameStateMessage }
 
-            if (aiTurnGsms.isEmpty()) return@test
+            if (aiTurnGsms.isEmpty()) {
+                println("SKIP: no AI-turn GSMs with actions produced")
+                return@test
+            }
 
             val wrongSeatActions = aiTurnGsms.flatMap { gsm ->
                 gsm.actionsList.filter { it.seatId == 2 }
