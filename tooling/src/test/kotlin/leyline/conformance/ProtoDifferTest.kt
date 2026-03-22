@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -125,6 +126,24 @@ class ProtoDifferTest :
 
             val result = ProtoDiffer.diff(msg1, msg2)
             result.missing.any { it.toString().contains("isTapped") } shouldBe true
+        }
+
+        test("integration: SearchReq from recording has populated inner fields") {
+            val session = "2026-03-21_22-05-00"
+            if (!java.io.File("recordings/$session").exists()) return@test
+
+            val searchReqs = RecordingFrameLoader.loadByType(
+                session,
+                GREMessageType.SearchReq_695e,
+                seat = 1,
+            )
+            searchReqs.size shouldBe 1
+
+            val req = searchReqs[0].message
+            req.searchReq.maxFind shouldBe 1
+            req.searchReq.zonesToSearchList.shouldNotBeEmpty()
+            req.searchReq.itemsToSearchList.shouldNotBeEmpty()
+            req.searchReq.itemsSoughtList.shouldNotBeEmpty()
         }
 
         test("annotations in different order produce empty diff") {
