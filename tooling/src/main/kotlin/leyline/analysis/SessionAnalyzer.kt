@@ -102,16 +102,30 @@ object SessionAnalyzer {
                 ?.map { File(it, "md-payloads") }
                 ?.firstOrNull { it.isDirectory && RecordingDecoder.listRecordingFiles(it).isNotEmpty() }
         }
+        val isEngineSource: Boolean
         val sourceDir = when {
-            engineDir.isDirectory && RecordingDecoder.listRecordingFiles(engineDir).isNotEmpty() -> engineDir
-            captureDir.isDirectory && RecordingDecoder.listRecordingFiles(captureDir).isNotEmpty() -> captureDir
-            seatPayloadDir != null -> seatPayloadDir
-            else -> null
+            engineDir.isDirectory && RecordingDecoder.listRecordingFiles(engineDir).isNotEmpty() -> {
+                isEngineSource = true
+                engineDir
+            }
+            captureDir.isDirectory && RecordingDecoder.listRecordingFiles(captureDir).isNotEmpty() -> {
+                isEngineSource = false
+                captureDir
+            }
+            seatPayloadDir != null -> {
+                isEngineSource = false
+                seatPayloadDir
+            }
+            else -> {
+                isEngineSource = false
+                null
+            }
         }
-        // Filter to seat 1 (human player) — engine/ dumps contain both seat copies
-        // (primary send + mirrorToFamiliar) so seatFilter=null would double-count gsIds
+        // Only filter by seat for engine/ dumps (both seats mixed together).
+        // Seat dirs and capture/payloads are already per-seat — filtering would
+        // drop messages when the human is assigned to seat 2 (PvP games).
         val messages = if (sourceDir != null) {
-            RecordingDecoder.decodeDirectory(sourceDir, seatFilter = 1)
+            RecordingDecoder.decodeDirectory(sourceDir, seatFilter = if (isEngineSource) 1 else null)
         } else {
             emptyList()
         }

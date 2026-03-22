@@ -10,6 +10,7 @@ import io.netty.handler.codec.protobuf.ProtobufEncoder
 import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.SelfSignedCertificate
+import leyline.LeylinePaths
 import leyline.bridge.DeckConverter
 import leyline.bridge.DeckLoader
 import leyline.bridge.FormatService
@@ -311,9 +312,17 @@ class LeylineServer(
 
         val mdSinks = arrayOf(captureSinkSeat1, captureSinkSeat2)
         matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor-Proxy") { ch ->
-            // TODO: seat detection is connection-order based — first MD connection = seat-1, second = seat-2.
-            // Precise seat identification requires auth-based routing (not yet implemented).
-            val idx = mdConnectionCount.getAndIncrement().coerceAtMost(mdSinks.lastIndex)
+            val count = mdConnectionCount.getAndIncrement()
+            // Each game opens 2 MD connections (one per seat).
+            // 3rd+ connection = new game — rotate session.
+            if (count >= 2 && count % 2 == 0) {
+                log.info("New match detected (MD connection #{}), rotating session", count + 1)
+                captureSinkSeat1.rotate()
+                captureSinkSeat2.rotate()
+                captureSink.rotate()
+                LeylinePaths.rotateSession()
+            }
+            val idx = (count % 2).coerceAtMost(mdSinks.lastIndex)
             ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, mdHost, matchDoorPort, "MD", mdSinks[idx]))
         }
         log.info("Client Match Door (proxy → {}:{}) listening on :{}", mdHost, matchDoorPort, matchDoorPort)
