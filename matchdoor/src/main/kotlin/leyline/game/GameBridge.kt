@@ -259,7 +259,7 @@ class GameBridge(
      *  Used after library search to remove revealed card objects from the baseline. */
     fun clearDiffBaseline() = diff.clearBaseline()
 
-    override fun drainEvents(): List<GameEvent> = eventCollector?.drainEvents() ?: emptyList()
+    override fun drainEvents(): DrainedEvents = eventCollector?.drainEvents() ?: DrainedEvents(emptyList())
 
     /** True if there are Forge events queued but not yet drained into a GSM. */
     fun hasPendingEvents(): Boolean = eventCollector?.hasEvents() ?: false

@@ -59,7 +59,7 @@ object StateMapper {
         val frame = GsmFrame.from(game, bridge)
 
         // ═══ GATHER: drain queues, snapshot mutable state ═══
-        val events = bridge.drainEvents().toMutableList()
+        val events = bridge.drainEvents().events.toMutableList()
         for (reveal in bridge.drainReveals(viewingSeatId)) {
             events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
         }
