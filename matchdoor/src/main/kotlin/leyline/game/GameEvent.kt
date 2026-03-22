@@ -186,6 +186,7 @@ sealed interface GameEvent {
     data class CardMilled(
         val forgeCardId: Int,
         val seatId: Int,
+        val sourceForgeCardId: Int? = null,
     ) : GameEvent
 
     /** A card was moved Library→Hand via a search effect (tutor, ChangeZone).

@@ -449,9 +449,16 @@ class CategoryFromEventsTest :
             AnnotationBuilder.affectorSourceFromEvents(55, events) shouldBe 42
         }
 
-        test("affectorSourceReturnsNullForNonSurveil") {
+        test("affectorSourceReturnsMillSourceCard") {
             val events = listOf(
-                GameEvent.CardMilled(forgeCardId = 55, seatId = 1),
+                GameEvent.CardMilled(forgeCardId = 55, seatId = 1, sourceForgeCardId = 42),
+            )
+            AnnotationBuilder.affectorSourceFromEvents(55, events) shouldBe 42
+        }
+
+        test("affectorSourceReturnsNullWhenMillHasNoSource") {
+            val events = listOf(
+                GameEvent.CardMilled(forgeCardId = 55, seatId = 1, sourceForgeCardId = null),
             )
             AnnotationBuilder.affectorSourceFromEvents(55, events).shouldBeNull()
         }
