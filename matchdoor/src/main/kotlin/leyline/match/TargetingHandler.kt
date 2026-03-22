@@ -367,13 +367,14 @@ class TargetingHandler(private val ops: SessionOps) {
     }
 
     /**
-     * Handle SearchResp: auto-resolve the pending search prompt.
+     * Handle SearchResp: resolve the pending search prompt with the client's choice.
      *
-     * SearchResp is a pure handshake — the engine already has the card selected.
-     * We just submit the default choice and advance.
+     * @param itemsFound instanceIds the client selected (from SearchResp.itemsFound).
+     *        Empty = player declined ("fail to find").
      */
     fun onSearchResp(
         bridge: GameBridge,
+        itemsFound: List<Int>,
         autoPass: (GameBridge) -> Unit,
     ) {
         val pending = pendingInteraction as? PendingClientInteraction.Search ?: run {
@@ -385,7 +386,28 @@ class TargetingHandler(private val ops: SessionOps) {
         val seatBridge = bridge.seat(ops.seatId)
         val prompt = seatBridge.prompt.getPendingPrompt()
         if (prompt != null && prompt.promptId == pending.promptId) {
-            seatBridge.prompt.submitResponse(pending.promptId, listOf(prompt.request.defaultIndex))
+            val responseIndex = if (itemsFound.isEmpty()) {
+                // Declined — submit index past the last option (= "none")
+                log.info("SearchResp: player declined (fail to find)")
+                prompt.request.options.size
+            } else {
+                // Map instanceId back to prompt option index via candidateRefs
+                val chosenInstanceId = itemsFound.first()
+                val forgeCardId = bridge.getForgeCardId(InstanceId(chosenInstanceId))
+                val idx = if (forgeCardId != null) {
+                    prompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
+                } else {
+                    -1
+                }
+                if (idx >= 0) {
+                    log.info("SearchResp: player chose instanceId={} → prompt index {}", chosenInstanceId, idx)
+                    idx
+                } else {
+                    log.warn("SearchResp: instanceId={} not found in candidates, using default", chosenInstanceId)
+                    prompt.request.defaultIndex
+                }
+            }
+            seatBridge.prompt.submitResponse(pending.promptId, listOf(responseIndex))
             bridge.awaitPriority()
         }
         ops.sendRealGameState(bridge)

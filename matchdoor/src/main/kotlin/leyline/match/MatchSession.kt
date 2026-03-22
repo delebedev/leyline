@@ -362,7 +362,8 @@ class MatchSession(
     /** Handle SearchResp — delegates to [TargetingHandler]. */
     override fun onSearch(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val bridge = gameBridge ?: return
-        targetingHandler.onSearchResp(bridge) { autoPassEngine.autoPassAndAdvance(it) }
+        val itemsFound = greMsg.searchResp?.itemsFoundList ?: emptyList()
+        targetingHandler.onSearchResp(bridge, itemsFound) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /**
