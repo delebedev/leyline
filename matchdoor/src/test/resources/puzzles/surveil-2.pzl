@@ -1,0 +1,17 @@
+[metadata]
+Name:Surveil 2
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast Sterling Hound (ETB surveil 2) to test multi-card surveil.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Sterling Hound
+humanbattlefield=Plains;Plains;Plains
+humanlibrary=Mountain;Forest;Island;Swamp;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
