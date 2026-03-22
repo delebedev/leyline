@@ -19,10 +19,15 @@ object RecordingFrameLoader {
         val message: GREToClientMessage,
     )
 
-    /** Load all S-C GRE messages from a session, in frame order. */
+    /**
+     * Load all S-C GRE messages from a session, in frame order.
+     * @param seat seat perspective (1 or 2). Use 0 for no seat filter (all messages from seat-1 payloads).
+     */
     fun load(session: String, seat: Int = 1): List<IndexedGREMessage> {
-        val payloadsDir = resolvePayloadsDir(session, seat) ?: return emptyList()
-        return loadFromDir(payloadsDir, seat)
+        val dirSeat = if (seat == 0) 1 else seat
+        val filterSeat = if (seat == 0) null else seat
+        val payloadsDir = resolvePayloadsDir(session, dirSeat) ?: return emptyList()
+        return loadFromDir(payloadsDir, filterSeat)
     }
 
     /** Load and filter to a specific [GREMessageType]. */
