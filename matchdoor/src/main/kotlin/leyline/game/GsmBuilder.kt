@@ -193,7 +193,7 @@ object GsmBuilder {
             .setMsgId(msgId)
             .setGameStateId(gameStateId)
             .setPrompt(
-                Prompt.newBuilder().setPromptId(PromptIds.GROUP_LONDON_MULLIGAN)
+                Prompt.newBuilder().setPromptId(PromptIds.GROUP_SCRY)
                     .addParameters(
                         PromptParameter.newBuilder()
                             .setParameterName("CardId")

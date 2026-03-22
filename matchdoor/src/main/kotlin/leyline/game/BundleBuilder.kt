@@ -461,7 +461,7 @@ object BundleBuilder {
         )
         val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.declareAttackersReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
         }
 
         return BundleResult(listOf(msg1, msg2))
@@ -489,7 +489,7 @@ object BundleBuilder {
         val req = prebuiltReq ?: RequestBuilder.buildDeclareAttackersReq(game, seatId, bridge)
         val msg2 = makeGRE(GREMessageType.DeclareAttackersReq_695e, nextGs, seatId, counter.nextMsgId()) {
             it.declareAttackersReq = req
-            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_TARGETS).build())
+            it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DECLARE_ATTACKERS).build())
         }
 
         return BundleResult(listOf(msg1, msg2))
