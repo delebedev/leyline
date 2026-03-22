@@ -37,7 +37,6 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
 
       - name: Setup Maven
         uses: stCarolas/setup-maven@v5
@@ -115,7 +114,6 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
 
       - name: Setup Maven
         uses: stCarolas/setup-maven@v5
