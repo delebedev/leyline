@@ -553,14 +553,14 @@ class MatchSession(
     /**
      * Build and send current game state + available actions from the live Forge engine.
      */
-    override fun sendRealGameState(bridge: GameBridge) {
+    override fun sendRealGameState(bridge: GameBridge, revealForSeat: Int?) {
         val game = bridge.getGame() ?: run {
             log.warn("MatchSession: sendRealGameState but game is null")
             return
         }
 
         val bb = bundleBuilder!!
-        val result = bb.postAction(game, counter)
+        val result = bb.postAction(game, counter, revealForSeat)
         sendBundle(result)
 
         // Decision timer — client shows rope countdown while waiting for action

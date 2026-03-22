@@ -640,9 +640,7 @@ class TargetingHandler(private val ops: SessionOps) {
     ) {
         // Reveal library contents so the client can populate the search picker.
         // The GSM sent by sendRealGameState will include full card objects for the library.
-        bridge.revealLibraryForSeat = ops.seatId
-        ops.sendRealGameState(bridge)
-        bridge.revealLibraryForSeat = null
+        ops.sendRealGameState(bridge, revealForSeat = ops.seatId)
 
         // Extract search parameters from the Forge prompt.
         val req = pendingPrompt.request

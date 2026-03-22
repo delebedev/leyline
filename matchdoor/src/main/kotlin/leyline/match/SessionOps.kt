@@ -35,7 +35,7 @@ interface SessionOps {
     fun connectBridge(bridge: GameBridge) {}
 
     fun sendBundledGRE(messages: List<GREToClientMessage>)
-    fun sendRealGameState(bridge: GameBridge)
+    fun sendRealGameState(bridge: GameBridge, revealForSeat: Int? = null)
     fun sendBundle(result: BundleBuilder.BundleResult)
     fun sendGameOver(reason: ResultReason = ResultReason.Game_ae0a)
     fun traceEvent(type: MatchEventType, game: Game, detail: String)

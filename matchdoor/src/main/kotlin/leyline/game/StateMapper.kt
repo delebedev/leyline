@@ -52,6 +52,7 @@ object StateMapper {
         actions: ActionsAvailableReq? = null,
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
+        revealForSeat: Int? = null,
     ): BuildResult {
         val handler = game.phaseHandler
         val human = bridge.getPlayer(SeatId(1))
@@ -113,14 +114,14 @@ object StateMapper {
         // Player 1 zones
         ZoneMapper.addPlayerZones(
             game, human, 1, bridge, zones, gameObjects,
-            ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, viewingSeatId,
+            ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, viewingSeatId, revealForSeat,
         )
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P1_SIDEBOARD, ZoneType.Sideboard, 1))
 
         // Player 2 zones
         ZoneMapper.addPlayerZones(
             game, ai, 2, bridge, zones, gameObjects,
-            ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, viewingSeatId,
+            ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, viewingSeatId, revealForSeat,
         )
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P2_SIDEBOARD, ZoneType.Sideboard, 2))
 
@@ -184,12 +185,13 @@ object StateMapper {
         actions: ActionsAvailableReq? = null,
         updateType: GameStateUpdate = GameStateUpdate.SendAndRecord,
         viewingSeatId: Int = 0,
+        revealForSeat: Int? = null,
     ): BuildResult {
         val prev = bridge.getDiffBaselineState()
         if (prev == null) {
             // No baseline exists — fall back to Full, but snapshot it so the next
             // buildDiffFromGame call has a baseline and produces a real Diff.
-            val result = buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId)
+            val result = buildFromGame(game, gameStateId, matchId, bridge, actions, updateType, viewingSeatId, revealForSeat)
             bridge.snapshotDiffBaseline(result.gsm)
             return result
         }
@@ -197,7 +199,7 @@ object StateMapper {
         // Build current full state (for comparison + to seed next diff).
         // Pass actions=null to avoid redundant action embedding (we embed below).
         // Use viewingSeatId=0 for the comparison base (needs all objects for accurate diff).
-        val fullResult = buildFromGame(game, gameStateId, matchId, bridge)
+        val fullResult = buildFromGame(game, gameStateId, matchId, bridge, revealForSeat = revealForSeat)
         val current = fullResult.gsm
 
         // Compute changed zones (by objectInstanceIds)

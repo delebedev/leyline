@@ -67,10 +67,6 @@ class GameBridge(
     EventDrain {
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
 
-    /** When set, library contents for this seat are included as Private objects in GSM diffs.
-     *  Used during library search to populate the client's search picker. */
-    @Volatile var revealLibraryForSeat: Int? = null
-
     private var game: Game? = null
     private val players: MutableMap<Int, Player> = mutableMapOf()
     private var loopController: GameLoopController? = null
