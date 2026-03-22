@@ -184,6 +184,14 @@ sealed interface GameEvent {
         val seatId: Int,
     ) : GameEvent
 
+    /** A card was moved Library→Hand via a search effect (tutor, ChangeZone).
+     *  Produces [TransferCategory.Put] instead of [TransferCategory.Draw].
+     *  [sourceForgeCardId] = host card of the search ability (for affectorId). */
+    data class CardSearchedToHand(
+        val forgeCardId: Int,
+        val sourceForgeCardId: Int? = null,
+    ) : GameEvent
+
     /** A card was surveiled to graveyard (Library→GY via surveil).
      *  [sourceForgeCardId] = host card of the ability that caused the surveil
      *  (e.g. Wary Thespian). Used to resolve the ability's instanceId for affectorId. */

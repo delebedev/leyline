@@ -43,6 +43,18 @@ class InteractivePromptBridge(
      * collector reads on the same thread (events fire synchronously during SBA).
      */
     val legendRuleVictims: MutableSet<Int> = CopyOnWriteArraySet()
+
+    /**
+     * Forge card IDs of cards moved Library→Hand via a search effect (ChangeZone tutor).
+     *
+     * Populated by [WebPlayerController.chooseSingleEntityForEffect] when semantic=Search
+     * and the chosen entity is a Card. [GameEventCollector] checks this set during
+     * Library→Hand zone transitions to emit [GameEvent.CardSearchedToHand] instead of
+     * [GameEvent.ZoneChanged], yielding [TransferCategory.Put] instead of [TransferCategory.Draw].
+     * Thread-safe — WPC writes on engine thread; collector reads on the same thread.
+     */
+    val searchedToHandCards: MutableSet<Int> = CopyOnWriteArraySet()
+
     companion object {
         const val DEFAULT_TIMEOUT_MS = 30_000L
         private const val HISTORY_CAP = 100

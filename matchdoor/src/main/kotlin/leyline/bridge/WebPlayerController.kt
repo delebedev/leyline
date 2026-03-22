@@ -353,6 +353,12 @@ class WebPlayerController(
             if (isOptional) null else optionList.getFirst()
         }
 
+        // Search: mark chosen card so GameEventCollector emits CardSearchedToHand (Put category).
+        if (isSearch && chosen is Card) {
+            bridge.searchedToHandCards.add(chosen.id)
+            log.debug("search to hand: marked card {} (id={})", chosen.name, chosen.id)
+        }
+
         // Legend rule: mark all unchosen legendaries as victims for SBA_LegendRule annotation.
         if (isLegendRule && chosen != null) {
             val cards = optionList.filterIsInstance<Card>()
