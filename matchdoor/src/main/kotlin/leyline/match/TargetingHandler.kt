@@ -172,6 +172,13 @@ class TargetingHandler(private val ops: SessionOps) {
                     return true
                 }
 
+                is ClassifiedPrompt.Search -> {
+                    val game = bridge.getGame() ?: return false
+                    ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "post-cast search")
+                    sendSearchReq(bridge, classified.pendingPrompt)
+                    return true
+                }
+
                 else -> {}
             }
         }
@@ -242,18 +249,9 @@ class TargetingHandler(private val ops: SessionOps) {
             }
 
             is ClassifiedPrompt.Search -> {
-                // TODO(Task 3): send SearchReq to client; for now auto-resolve from library.
-                val req = pendingPrompt.request
-                log.info(
-                    "TargetingHandler: search prompt [{}] \"{}\" opts={} — SearchReq not yet implemented, auto-resolving",
-                    req.promptType,
-                    req.message,
-                    req.options.size,
-                )
-                ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "search candidates=${req.options.size}")
-                seatBridge.prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
-                bridge.awaitPriority()
-                PromptResult.AUTO_RESOLVED
+                ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "search: ${pendingPrompt.request.message}")
+                sendSearchReq(bridge, classified.pendingPrompt)
+                PromptResult.SENT_TO_CLIENT
             }
 
             is ClassifiedPrompt.AutoResolve -> {
@@ -365,6 +363,32 @@ class TargetingHandler(private val ops: SessionOps) {
         // Submit empty list → engine sees no targets → spell fails → unwind
         seatBridge.prompt.submitResponse(pendingPrompt.promptId, emptyList())
         bridge.awaitPriority()
+        autoPass(bridge)
+    }
+
+    /**
+     * Handle SearchResp: auto-resolve the pending search prompt.
+     *
+     * SearchResp is a pure handshake — the engine already has the card selected.
+     * We just submit the default choice and advance.
+     */
+    fun onSearchResp(
+        bridge: GameBridge,
+        autoPass: (GameBridge) -> Unit,
+    ) {
+        val pending = pendingInteraction as? PendingClientInteraction.Search ?: run {
+            log.warn("SearchResp received but no search pending")
+            return
+        }
+        pendingInteraction = null
+
+        val seatBridge = bridge.seat(ops.seatId)
+        val prompt = seatBridge.prompt.getPendingPrompt()
+        if (prompt != null && prompt.promptId == pending.promptId) {
+            seatBridge.prompt.submitResponse(pending.promptId, listOf(prompt.request.defaultIndex))
+            bridge.awaitPriority()
+        }
+        ops.sendRealGameState(bridge)
         autoPass(bridge)
     }
 
@@ -623,6 +647,18 @@ class TargetingHandler(private val ops: SessionOps) {
         } else {
             log.warn("TargetingHandler: optional cost response but no pending engine action")
         }
+    }
+
+    private fun sendSearchReq(
+        bridge: GameBridge,
+        pendingPrompt: InteractivePromptBridge.PendingPrompt,
+    ) {
+        val msgId = ops.counter.nextMsgId()
+        val gsId = ops.counter.currentGsId()
+        val msg = BundleBuilder.buildSearchReq(msgId, gsId, ops.seatId)
+        ops.sendBundledGRE(listOf(msg))
+        pendingInteraction = PendingClientInteraction.Search(pendingPrompt.promptId)
+        log.info("SearchReq sent, awaiting SearchResp")
     }
 
     private fun sendSelectTargetsReq(

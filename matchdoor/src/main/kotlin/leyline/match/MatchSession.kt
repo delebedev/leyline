@@ -359,6 +359,12 @@ class MatchSession(
         targetingHandler.onCastingTimeOptions(greMsg, bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
+    /** Handle SearchResp — delegates to [TargetingHandler]. */
+    override fun onSearch(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+        val bridge = gameBridge ?: return
+        targetingHandler.onSearchResp(bridge) { autoPassEngine.autoPassAndAdvance(it) }
+    }
+
     /**
      * Handle CancelActionReq — player cancelled targeting (backed out of spell cast).
      *

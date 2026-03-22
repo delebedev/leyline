@@ -251,6 +251,16 @@ object BundleBuilder {
         bridge: GameBridge,
     ): SelectNReq = RequestBuilder.buildSelectNReq(prompt, bridge)
 
+    /** Build a [SearchReq] GRE message — empty-proto handshake for library search. */
+    fun buildSearchReq(msgId: Int, gsId: Int, seatId: Int): GREToClientMessage = GREToClientMessage.newBuilder()
+        .setType(GREMessageType.SearchReq_695e)
+        .setMsgId(msgId)
+        .setGameStateId(gsId)
+        .addSystemSeatIds(seatId)
+        .setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SEARCH))
+        .setSearchReq(SearchReq.getDefaultInstance())
+        .build()
+
     /** Build a [DeclareAttackersReq] listing legal attackers. */
     fun buildDeclareAttackersReq(game: Game, seatId: Int, bridge: GameBridge): DeclareAttackersReq =
         RequestBuilder.buildDeclareAttackersReq(game, seatId, bridge)
