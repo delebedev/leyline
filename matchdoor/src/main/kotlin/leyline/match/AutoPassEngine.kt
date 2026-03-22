@@ -135,8 +135,10 @@ class AutoPassEngine(
             }
         }
 
-        log.warn("autoPassAndAdvance: hit max iterations ({})", MAX_ITERATIONS)
         val game2 = bridge.getGame()
+        val phase2 = game2?.phaseHandler?.phase?.name ?: "?"
+        val turn2 = game2?.phaseHandler?.turn ?: -1
+        log.warn("autoPassAndAdvance: hit max iterations ({}) at phase={} turn={}", MAX_ITERATIONS, phase2, turn2)
         val human2 = game2?.let { bridge.getPlayer(SeatId(ops.seatId)) }
         val stillAiTurn = human2 != null && game2.phaseHandler.playerTurn != human2
         if (stillAiTurn) {

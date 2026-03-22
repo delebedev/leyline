@@ -3,6 +3,7 @@ package leyline.conformance
 import io.kotest.assertions.fail
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import leyline.IntegrationTag
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -72,7 +73,7 @@ class AiTurnNoAarTest :
             // human's turn are legitimate and expected.
             val aiTurnMessages = h.messagesSince(snapshotBefore)
             val aiTurnAars = mutableListOf<Int>()
-            var lastActivePlayer = 2 // puzzle starts on AI turn
+            var lastActivePlayer = 2 // AI is always seat 2 in 1vAI matches; puzzle starts on AI turn
             for (msg in aiTurnMessages) {
                 if (msg.hasGameStateMessage() && msg.gameStateMessage.hasTurnInfo()) {
                     lastActivePlayer = msg.gameStateMessage.turnInfo.activePlayer
@@ -130,7 +131,8 @@ class AiTurnNoAarTest :
             // After declareNoBlockers, phases should progress forward:
             // Combat → Main2 → Ending → (next turn) Beginning.
             // Beginning in a LATER turn is expected — only flag if same turn.
-            val combatTurn = gsms.firstOrNull()?.turnInfo?.turnNumber ?: return@test
+            gsms.shouldNotBeEmpty()
+            val combatTurn = gsms.first().turnInfo.turnNumber
             val sameTurnGsms = gsms.filter { it.turnInfo.turnNumber == combatTurn }
             for (gsm in sameTurnGsms) {
                 val phase = gsm.turnInfo.phase
