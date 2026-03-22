@@ -117,3 +117,9 @@ proto-annotation-variance *args: (_require classpath) check-java
 conform-proto *args: (_require classpath) check-java
     @{{_cli}} leyline.conformance.ProtoConformMainKt {{args}}
 
+# segment variance: field presence/variance per mechanic across recordings
+# Usage: just segment-variance [CastSpell] [--session 2026-03-21_22-05-00]
+[group('proto')]
+segment-variance *args: (_require classpath) check-java
+    @{{_cli}} leyline.conformance.SegmentVarianceMainKt {{args}}
+
