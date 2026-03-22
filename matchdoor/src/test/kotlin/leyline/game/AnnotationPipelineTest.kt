@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
+import leyline.bridge.InstanceId
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
 import leyline.conformance.detailUint
@@ -35,7 +36,7 @@ class AnnotationPipelineTest :
         }
 
         /** Identity resolver for unit tests — forgeCardId maps to forgeCardId + 1000. */
-        fun testResolver(forgeCardId: Int): Int = forgeCardId + 1000
+        fun testResolver(forgeCardId: ForgeCardId): InstanceId = InstanceId(forgeCardId.value + 1000)
 
         // --- annotationsForTransfer: PlayLand ---
 
@@ -486,8 +487,8 @@ class AnnotationPipelineTest :
             assertSoftly {
                 result.transient.size shouldBe 1
                 created.typeList shouldContain AnnotationType.AttachmentCreated
-                created.affectorId shouldBe testResolver(55)
-                created.affectedIdsList shouldBe listOf(testResolver(66))
+                created.affectorId shouldBe testResolver(ForgeCardId(55)).value
+                created.affectedIdsList shouldBe listOf(testResolver(ForgeCardId(66)).value)
             }
 
             // Persistent: Attachment
@@ -495,8 +496,8 @@ class AnnotationPipelineTest :
             assertSoftly {
                 result.persistent.size shouldBe 1
                 attach.typeList shouldContain AnnotationType.Attachment
-                attach.affectorId shouldBe testResolver(55)
-                attach.affectedIdsList shouldBe listOf(testResolver(66))
+                attach.affectorId shouldBe testResolver(ForgeCardId(55)).value
+                attach.affectedIdsList shouldBe listOf(testResolver(ForgeCardId(66)).value)
             }
         }
 
@@ -519,7 +520,7 @@ class AnnotationPipelineTest :
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.RemoveAttachment
-            annotations[0].affectedIdsList shouldContain testResolver(60)
+            annotations[0].affectedIdsList shouldContain testResolver(ForgeCardId(60)).value
         }
 
         // -- Mixed events --
@@ -547,7 +548,7 @@ class AnnotationPipelineTest :
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.TappedUntappedPermanent
-            annotations[0].affectedIdsList shouldContain testResolver(70)
+            annotations[0].affectedIdsList shouldContain testResolver(ForgeCardId(70)).value
             annotations[0].detailUint("tapped") shouldBe 1
         }
 
@@ -683,7 +684,7 @@ class AnnotationPipelineTest :
             )
             val diff = EffectTracker.DiffResult(created, emptyList())
 
-            val resolver: (Int, Long) -> Int? = { _, sid ->
+            val resolver: (InstanceId, Long) -> Int? = { _, sid ->
                 if (sid == staticId) 99999 else null
             }
 
@@ -706,7 +707,7 @@ class AnnotationPipelineTest :
             val diff = EffectTracker.DiffResult(created, emptyList())
 
             // Resolver returns null for staticId=0 (SpellAbility effects)
-            val resolver: (Int, Long) -> Int? = { _, sid ->
+            val resolver: (InstanceId, Long) -> Int? = { _, sid ->
                 if (sid == 0L) null else 99999
             }
 
@@ -1056,8 +1057,8 @@ class AnnotationPipelineTest :
             result.persistent.size shouldBe 1
             val ann = result.persistent[0]
             ann.typeList shouldContain AnnotationType.DisplayCardUnderCard
-            ann.affectorId shouldBe testResolver(90)
-            ann.affectedIdsList shouldBe listOf(testResolver(80))
+            ann.affectorId shouldBe testResolver(ForgeCardId(90)).value
+            ann.affectedIdsList shouldBe listOf(testResolver(ForgeCardId(80)).value)
             val tmpZone = ann.detailsList.first { it.key == "TemporaryZoneTransfer" }
             tmpZone.getValueInt32(0) shouldBe 1
         }
@@ -1095,7 +1096,7 @@ class AnnotationPipelineTest :
                 effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
                 transferPersistent = emptyList(),
                 mechanicResult = mechanicResult,
-                resolveInstanceId = ::testResolver,
+                resolveInstanceId = { fid -> InstanceId(fid.value + 1000) },
                 // Reverse lookup: iid 1090 → forgeCardId 90 (inverse of testResolver)
                 resolveForgeCardId = { iid -> ForgeCardId(iid.value - 1000) },
             )
@@ -1125,7 +1126,7 @@ class AnnotationPipelineTest :
                 effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
                 transferPersistent = emptyList(),
                 mechanicResult = mechanicResult,
-                resolveInstanceId = { it + 1000 },
+                resolveInstanceId = { fid -> InstanceId(fid.value + 1000) },
                 resolveForgeCardId = { iid -> forgeCardIdMap[iid.value]?.let { ForgeCardId(it) } },
             )
             result.allAnnotations.shouldBeEmpty()

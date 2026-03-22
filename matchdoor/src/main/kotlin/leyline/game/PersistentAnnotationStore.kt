@@ -51,7 +51,7 @@ class PersistentAnnotationStore {
             effectDiff: EffectTracker.DiffResult,
             transferPersistent: List<AnnotationInfo>,
             mechanicResult: AnnotationPipeline.MechanicAnnotationResult,
-            resolveInstanceId: (Int) -> Int,
+            resolveInstanceId: (ForgeCardId) -> InstanceId,
             resolveForgeCardId: (InstanceId) -> ForgeCardId? = { null },
         ): BatchResult {
             val active = currentActive.toMutableMap()
@@ -97,7 +97,7 @@ class PersistentAnnotationStore {
 
             // 4. Detached auras
             for (forgeCardId in mechanicResult.detachedForgeCardIds) {
-                val auraIid = resolveInstanceId(forgeCardId)
+                val auraIid = resolveInstanceId(ForgeCardId(forgeCardId)).value
                 val annId = findByAura(active, auraIid)
                 if (annId != null) {
                     active.remove(annId)

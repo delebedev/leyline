@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -65,9 +66,9 @@ class PurePipelineTest :
                 zones = zones,
                 events = events,
                 previousZones = previousZones,
-                forgeIdLookup = { if (it == 100) 42 else null },
-                idAllocator = { InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
-                idLookup = { InstanceId(it + 1000) },
+                forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                idLookup = { fid -> InstanceId(fid.value + 1000) },
             )
 
             result.transfers.size shouldBe 1
@@ -96,9 +97,9 @@ class PurePipelineTest :
                 zones = zones,
                 events = events,
                 previousZones = previousZones,
-                forgeIdLookup = { if (it == 100) 42 else null },
-                idAllocator = { InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
-                idLookup = { InstanceId(it + 1000) },
+                forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                idLookup = { fid -> InstanceId(fid.value + 1000) },
             )
 
             result.transfers.size shouldBe 1
@@ -123,9 +124,9 @@ class PurePipelineTest :
                 zones = zones,
                 events = events,
                 previousZones = previousZones,
-                forgeIdLookup = { if (it == 100) 42 else null },
-                idAllocator = { error("should not realloc for Resolve") },
-                idLookup = { InstanceId(it + 1000) },
+                forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                idAllocator = { _ -> error("should not realloc for Resolve") },
+                idLookup = { fid -> InstanceId(fid.value + 1000) },
             )
 
             result.transfers.size shouldBe 1
@@ -154,9 +155,9 @@ class PurePipelineTest :
                 zones = zones,
                 events = events,
                 previousZones = previousZones,
-                forgeIdLookup = { if (it == 100) 42 else null },
-                idAllocator = { InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
-                idLookup = { InstanceId(it + 1000) },
+                forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                idAllocator = { _ -> InstanceIdRegistry.IdReallocation(InstanceId(100), InstanceId(200)) },
+                idLookup = { fid -> InstanceId(fid.value + 1000) },
             )
 
             result.transfers.size shouldBe 1
@@ -180,9 +181,9 @@ class PurePipelineTest :
                 zones = zones,
                 events = emptyList(),
                 previousZones = previousZones,
-                forgeIdLookup = { if (it == 100) 42 else null },
-                idAllocator = { error("should not realloc") },
-                idLookup = { InstanceId(it + 1000) },
+                forgeIdLookup = { if (it.value == 100) ForgeCardId(42) else null },
+                idAllocator = { _ -> error("should not realloc") },
+                idLookup = { fid -> InstanceId(fid.value + 1000) },
             )
 
             result.transfers.shouldBeEmpty()
@@ -197,7 +198,7 @@ class PurePipelineTest :
         test("combatAnnotations returns empty when no damage events") {
             val result = AnnotationPipeline.combatAnnotations(
                 events = emptyList(),
-                idResolver = { it + 1000 },
+                idResolver = { fid -> InstanceId(fid.value + 1000) },
                 previousLifeTotals = emptyMap(),
                 currentLifeTotals = emptyMap(),
             )
@@ -213,7 +214,7 @@ class PurePipelineTest :
 
             val result = AnnotationPipeline.combatAnnotations(
                 events = events,
-                idResolver = { it + 1000 },
+                idResolver = { fid -> InstanceId(fid.value + 1000) },
                 previousLifeTotals = emptyMap(),
                 currentLifeTotals = emptyMap(),
             )
@@ -237,7 +238,7 @@ class PurePipelineTest :
 
             val result = AnnotationPipeline.combatAnnotations(
                 events = events,
-                idResolver = { it + 1000 },
+                idResolver = { fid -> InstanceId(fid.value + 1000) },
                 previousLifeTotals = mapOf(1 to 20, 2 to 20),
                 currentLifeTotals = mapOf(1 to 20, 2 to 15),
             )
@@ -252,7 +253,7 @@ class PurePipelineTest :
 
             val result = AnnotationPipeline.combatAnnotations(
                 events = events,
-                idResolver = { it + 1000 },
+                idResolver = { fid -> InstanceId(fid.value + 1000) },
                 previousLifeTotals = emptyMap(),
                 currentLifeTotals = emptyMap(),
             )

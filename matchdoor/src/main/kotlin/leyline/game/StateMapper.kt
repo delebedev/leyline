@@ -1,7 +1,6 @@
 package leyline.game
 
 import forge.game.Game
-import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
 import leyline.bridge.findCard
@@ -380,8 +379,8 @@ object StateMapper {
             .map { it.forgeCardId }
             .toSet()
         val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds
-        val mechanicResult = AnnotationPipeline.mechanicAnnotations(events, manaPaidForgeCardIds) { forgeCardId ->
-            bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+        val mechanicResult = AnnotationPipeline.mechanicAnnotations(events, manaPaidForgeCardIds) { fid ->
+            bridge.getOrAllocInstanceId(fid)
         }
         annotations.addAll(mechanicResult.transient)
 
@@ -401,7 +400,7 @@ object StateMapper {
             effectDiff = effectDiff,
             transferPersistent = transferPersistent,
             mechanicResult = mechanicResult,
-            resolveInstanceId = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
+            resolveInstanceId = { fid -> bridge.getOrAllocInstanceId(fid) },
             resolveForgeCardId = { iid -> bridge.getForgeCardId(iid) },
         )
 
@@ -454,10 +453,10 @@ object StateMapper {
      */
     private fun buildSourceAbilityResolver(
         bridge: GameBridge,
-    ): (Int, Long) -> Int? {
+    ): (InstanceId, Long) -> Int? {
         val game = bridge.getGame() ?: return { _, _ -> null }
         return resolver@{ instanceId, staticId ->
-            val forgeCardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@resolver null
+            val forgeCardId = bridge.getForgeCardId(instanceId) ?: return@resolver null
             val card = findCard(game, forgeCardId) ?: return@resolver null
             val grpId = bridge.cards.findGrpIdByName(card.name) ?: return@resolver null
             val cardData = bridge.cards.findByGrpId(grpId) ?: return@resolver null
