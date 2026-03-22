@@ -10,6 +10,7 @@ import forge.game.spellability.LandAbility
 import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.bridge.chooseCastAbility
+import leyline.game.AbilityRegistry
 import leyline.game.CardData
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
@@ -56,6 +57,7 @@ object ActionMapper {
             idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
             grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, bridge.cards) },
             cardDataLookup = { grpId -> bridge.cards.findByGrpId(grpId) },
+            abilityRegistryLookup = { forgeCardId -> bridge.abilityRegistryFor(forgeCardId) },
         )
     }
 
@@ -79,6 +81,7 @@ object ActionMapper {
         idResolver: (Int) -> Int,
         grpIdResolver: (Card) -> Int,
         cardDataLookup: (Int) -> CardData?,
+        abilityRegistryLookup: (Int) -> AbilityRegistry? = { null },
     ): ActionsAvailableReq {
         val builder = ActionsAvailableReq.newBuilder()
 
@@ -92,7 +95,7 @@ object ActionMapper {
 
             // ActivateMana — untapped permanents with mana abilities
             if (!card.isTapped && card.manaAbilities.isNotEmpty()) {
-                builder.addActions(buildActivateManaAction(card, instanceId, grpId, cardDataLookup))
+                builder.addActions(buildActivateManaAction(card, instanceId, grpId, cardDataLookup, abilityRegistryLookup))
             }
 
             // Activate — non-mana activated abilities (only with legality checks)
@@ -187,7 +190,7 @@ object ActionMapper {
                     )
                 }
                 if (checkLegality) {
-                    val autoTap = buildAutoTapSolution(cardData.manaCost, player, idResolver, grpIdResolver, cardDataLookup)
+                    val autoTap = buildAutoTapSolution(cardData.manaCost, player, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup)
                     if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
                 }
             }
@@ -218,10 +221,14 @@ object ActionMapper {
         instanceId: Int,
         grpId: Int,
         cardDataLookup: (Int) -> CardData?,
+        abilityRegistryLookup: (Int) -> AbilityRegistry?,
     ): Action {
         val cardData = cardDataLookup(grpId)
-        val abilityGrpId = cardData?.abilityIds?.firstOrNull()?.first ?: 0
         val sa = card.manaAbilities.first()
+        val registry = abilityRegistryLookup(card.id)
+        val abilityGrpId = registry?.forSpellAbility(sa.id)
+            ?: cardData?.abilityIds?.firstOrNull()?.first
+            ?: 0
         val produced = sa.manaPart?.origProduced ?: ""
         val manaColor = producedToManaColor(produced) ?: ManaColor.Generic
 
@@ -275,6 +282,7 @@ object ActionMapper {
         idResolver: (Int) -> Int,
         grpIdResolver: (Card) -> Int,
         cardDataLookup: (Int) -> CardData?,
+        abilityRegistryLookup: (Int) -> AbilityRegistry?,
     ): AutoTapSolution? {
         if (manaCost.isEmpty()) return null
 
@@ -291,7 +299,10 @@ object ActionMapper {
                 val manaColor = producedToManaColor(produced) ?: continue
                 val instanceId = idResolver(card.id)
                 val grpId = grpIdResolver(card)
-                val abilityGrpId = cardDataLookup(grpId)?.abilityIds?.firstOrNull()?.first ?: 0
+                val registry = abilityRegistryLookup(card.id)
+                val abilityGrpId = registry?.forSpellAbility(sa.id)
+                    ?: cardDataLookup(grpId)?.abilityIds?.firstOrNull()?.first
+                    ?: 0
                 sources.add(ManaSource(card, instanceId, manaColor, abilityGrpId))
             }
         }

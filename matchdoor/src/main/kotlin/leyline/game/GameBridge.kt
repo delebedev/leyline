@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.lang.reflect.InvocationTargetException
 import java.util.Random
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Bridges the client protocol to a real Forge [forge.game.Game] engine.
@@ -86,6 +87,9 @@ class GameBridge(
     }
 
     // --- Per-seat bridge maps ---
+
+    /** Forge cardId → AbilityRegistry for multi-ability abilityGrpId resolution. */
+    val abilityRegistries = ConcurrentHashMap<Int, AbilityRegistry>()
 
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
@@ -512,6 +516,9 @@ class GameBridge(
 
     override fun getPlayer(seatId: SeatId): Player? = players[seatId.value]
 
+    /** Look up the [AbilityRegistry] for a Forge card by its engine-internal id. */
+    fun abilityRegistryFor(forgeCardId: Int): AbilityRegistry? = abilityRegistries[forgeCardId]
+
     /** Populate seat map by registration order (seat 1 = first, seat 2 = second). */
     private fun populateSeatMap(g: Game) {
         g.players.forEachIndexed { index, player -> players[index + 1] = player }
@@ -880,6 +887,11 @@ class GameBridge(
                     // Fall back to by-name path for cards with null rules.
                     if (card.rules != null) {
                         registrar.ensureCardRegistered(card)
+                        // Build ability registry for multi-ability resolution
+                        val cardData = cards.findByGrpId(cards.findGrpIdByName(card.name) ?: 0)
+                        if (cardData != null) {
+                            abilityRegistries[card.id] = AbilityRegistry.build(card, cardData)
+                        }
                     } else {
                         registrar.ensureCardRegisteredByName(card.name)
                     }
