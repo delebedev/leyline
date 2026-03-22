@@ -960,7 +960,7 @@ object BundleBuilder {
         // 1. Find the ZoneTransfer(CastSpell) annotation
         val ztAnn = gsm.annotationsList.firstOrNull { ann ->
             ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
-                ann.detailsList.any { it.key == "category" && it.valueStringList.contains("CastSpell") }
+                ann.detailsList.any { it.key == DetailKeys.CATEGORY && it.valueStringList.contains("CastSpell") }
         } ?: return null
 
         // 2. Get the spell's instanceId from affectedIds[0]
@@ -973,9 +973,9 @@ object BundleBuilder {
         for (ann in gsm.annotationsList) {
             val isZoneTransfer = ann === ztAnn
             val isObjectIdChanged = ann.typeList.any { it == AnnotationType.ObjectIdChanged } &&
-                ann.detailsList.any { it.key == "new_id" && it.valueInt32Count > 0 && it.getValueInt32(0) == spellInstanceId }
+                ann.detailsList.any { it.key == DetailKeys.NEW_ID && it.valueInt32Count > 0 && it.getValueInt32(0) == spellInstanceId }
             val isUserActionCast = ann.typeList.any { it == AnnotationType.UserActionTaken } &&
-                ann.detailsList.any { it.key == "actionType" && it.valueInt32Count > 0 && it.getValueInt32(0) == 1 } &&
+                ann.detailsList.any { it.key == DetailKeys.ACTION_TYPE && it.valueInt32Count > 0 && it.getValueInt32(0) == 1 } &&
                 ann.affectedIdsList.contains(spellInstanceId)
 
             if (isZoneTransfer || isObjectIdChanged || isUserActionCast) {
