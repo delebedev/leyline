@@ -1,9 +1,10 @@
 package leyline.conformance
 
+import io.kotest.assertions.fail
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import leyline.IntegrationTag
-import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
+import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
  * Regression test for #93: AI turn must never send ActionsAvailableReq.
@@ -81,5 +82,61 @@ class AiTurnNoAarTest :
                 }
             }
             aiTurnAars.shouldBeEmpty()
+        }
+
+        test("turnInfo phase correct at AAR during AI combat") {
+            // Reuse AiCombatAutoPassTest scenario: AI attacks, human declares
+            // no blockers, combat advances. Verify turnInfo in all GSMs
+            // never shows a stale phase.
+            val puzzleText = """
+                [metadata]
+                Name:AI Combat Phase Check
+                Goal:Win
+                Turns:3
+                Difficulty:Easy
+                Description:Verify turnInfo phase during AI combat
+
+                [state]
+                ActivePlayer=AI
+                ActivePhase=COMBAT_DECLARE_ATTACKERS
+                HumanLife=20
+                AILife=20
+
+                humanbattlefield=Mountain
+                humanlibrary=Mountain;Mountain;Mountain
+                aibattlefield=Raging Goblin|Attacking|Tapped;Mountain
+                ailibrary=Mountain;Mountain;Mountain
+            """.trimIndent()
+
+            val h = MatchFlowHarness(validating = false)
+            harness = h
+            h.connectAndKeepPuzzleText(puzzleText)
+
+            // Snapshot AFTER puzzle setup completes (handshake sends
+            // phase transition diffs from Beginning → Main1 → Combat).
+            // We only care about GSMs produced during actual combat flow.
+            val snap = h.messageSnapshot()
+            h.declareNoBlockers()
+            h.passThroughCombat()
+
+            val msgs = h.messagesSince(snap)
+
+            // All GSMs produced after blockers declaration should have
+            // Combat phase or later — never Beginning or Main1.
+            val gsms = msgs.filter { it.hasGameStateMessage() }
+                .map { it.gameStateMessage }
+                .filter { it.hasTurnInfo() && it.turnInfo.activePlayer == 2 }
+
+            // After declareNoBlockers, phases should progress forward:
+            // Combat → Main2 → Ending → (next turn) Beginning.
+            // Beginning in a LATER turn is expected — only flag if same turn.
+            val combatTurn = gsms.firstOrNull()?.turnInfo?.turnNumber ?: return@test
+            val sameTurnGsms = gsms.filter { it.turnInfo.turnNumber == combatTurn }
+            for (gsm in sameTurnGsms) {
+                val phase = gsm.turnInfo.phase
+                if (phase == Phase.Beginning_a549 || phase == Phase.Main1_a549) {
+                    fail("Stale phase during AI combat turn $combatTurn: $phase")
+                }
+            }
         }
     })
