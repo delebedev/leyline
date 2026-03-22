@@ -98,24 +98,8 @@ object ProtoDiffer {
         }
     }
 
-    /** Fields that always differ between recording and engine — skip during diff. */
-    private val SKIP_FIELDS = setOf(
-        "gameStateId",
-        "prevGameStateId",
-        "msgId",
-        "matchID",
-        "timestamp",
-        "transactionId",
-        "requestId",
-    )
-
-    /** Field names that carry instance IDs — values are normalized to ordinals. */
-    private val ID_FIELDS = setOf(
-        "instanceId", "affectorId", "affectedIds", "objectInstanceIds",
-        "sourceId", "itemsToSearch", "itemsSought", "targetInstanceId",
-        "attackerInstanceId", "blockerInstanceId", "attackerIds",
-        "targetId", "parentId", "orig_id", "new_id",
-    )
+    private val SKIP_FIELDS get() = ConformanceConstants.SKIP_FIELDS
+    private val ID_FIELDS get() = ConformanceConstants.ID_FIELDS
 
     /**
      * Repeated fields that should be aligned by key, not by index.

@@ -10,26 +10,9 @@ import com.google.protobuf.Message
  */
 object FieldVarianceProfiler {
 
-    private val PROTO_SUFFIX = Regex("_[a-f0-9]{3,4}$")
-
-    /** Fields to skip — session-specific metadata, not protocol-meaningful. */
-    private val SKIP_FIELDS = setOf(
-        "gameStateId",
-        "prevGameStateId",
-        "msgId",
-        "matchID",
-        "timestamp",
-        "transactionId",
-        "requestId",
-    )
-
-    /** Fields known to carry instance IDs. */
-    private val ID_FIELDS = setOf(
-        "instanceId", "affectorId", "affectedIds", "objectInstanceIds",
-        "sourceId", "itemsToSearch", "itemsSought", "targetInstanceId",
-        "attackerInstanceId", "blockerInstanceId", "attackerIds",
-        "targetId", "parentId",
-    )
+    private val PROTO_SUFFIX get() = ConformanceConstants.PROTO_SUFFIX
+    private val SKIP_FIELDS get() = ConformanceConstants.SKIP_FIELDS
+    private val ID_FIELDS get() = ConformanceConstants.ID_FIELDS
 
     fun profile(segments: List<Segment>): SegmentProfile {
         if (segments.isEmpty()) return emptyProfile("Empty")

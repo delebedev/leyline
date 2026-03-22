@@ -29,7 +29,7 @@ object SegmentDetector {
             GREMessageType.MulliganReq_aa0d,
         )
 
-    private val PROTO_SUFFIX = Regex("_[a-f0-9]{3,4}$")
+    private val PROTO_SUFFIX get() = ConformanceConstants.PROTO_SUFFIX
 
     /** Detect all segments in a list of recording frames. */
     fun detect(

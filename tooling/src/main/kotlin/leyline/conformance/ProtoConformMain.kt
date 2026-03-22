@@ -30,10 +30,10 @@ fun main(args: Array<String>) {
     val session = args[1]
     val argList = args.drop(2)
 
-    val gsId = flagInt(argList, "--gsid")
-    val index = flagInt(argList, "--index")
-    val engineDir = flagValue(argList, "--engine")?.let { File(it) }
-    val seat = flagInt(argList, "--seat") ?: 1
+    val gsId = ConformanceConstants.flagInt(argList, "--gsid")
+    val index = ConformanceConstants.flagInt(argList, "--index")
+    val engineDir = ConformanceConstants.flagValue(argList, "--engine")?.let { File(it) }
+    val seat = ConformanceConstants.flagInt(argList, "--seat") ?: 1
     val useProfile = "--profile" in argList
 
     // Resolve GREMessageType by prefix match
@@ -169,10 +169,3 @@ fun main(args: Array<String>) {
         println()
     }
 }
-
-private fun flagValue(args: List<String>, flag: String): String? {
-    val idx = args.indexOf(flag)
-    return if (idx >= 0 && idx + 1 < args.size) args[idx + 1] else null
-}
-
-private fun flagInt(args: List<String>, flag: String): Int? = flagValue(args, flag)?.toIntOrNull()

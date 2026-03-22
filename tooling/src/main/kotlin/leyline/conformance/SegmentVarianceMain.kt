@@ -10,7 +10,7 @@ package leyline.conformance
  */
 fun main(args: Array<String>) {
     val category = args.firstOrNull { !it.startsWith("--") }
-    val sessionFlag = flagValue(args.toList(), "--session")
+    val sessionFlag = ConformanceConstants.flagValue(args.toList(), "--session")
 
     // Detect all segments
     val allSegments =
@@ -115,12 +115,4 @@ private fun printProfile(p: SegmentProfile) {
             println("    %-45s %s samples: %s".format(path, fp.variance, fp.samples))
         }
     }
-}
-
-private fun flagValue(
-    args: List<String>,
-    flag: String,
-): String? {
-    val idx = args.indexOf(flag)
-    return if (idx >= 0 && idx + 1 < args.size) args[idx + 1] else null
 }

@@ -11,7 +11,7 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairInfo
  */
 object RelationshipValidator {
 
-    private val PROTO_SUFFIX = Regex("_[a-f0-9]{3,4}$")
+    private val PROTO_SUFFIX get() = ConformanceConstants.PROTO_SUFFIX
 
     fun validate(pattern: Relationship, segments: List<Segment>): ValidationResult {
         var holds = 0

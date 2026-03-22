@@ -9,8 +9,8 @@ package leyline.conformance
  * With category: validate patterns for that category only.
  */
 fun main(args: Array<String>) {
-    val category = args.firstOrNull { !it.startsWith("--") && flagValue(args.toList(), "--engine") != it }
-    val engineDir = flagValue(args.toList(), "--engine")
+    val category = args.firstOrNull { !it.startsWith("--") && ConformanceConstants.flagValue(args.toList(), "--engine") != it }
+    val engineDir = ConformanceConstants.flagValue(args.toList(), "--engine")
 
     // Load segments from engine dir or from recordings
     val allSegments = if (engineDir != null) {
@@ -106,11 +106,6 @@ fun main(args: Array<String>) {
             println("  - ${patternLabel(r.pattern)}")
         }
     }
-}
-
-private fun flagValue(args: List<String>, flag: String): String? {
-    val idx = args.indexOf(flag)
-    return if (idx >= 0 && idx + 1 < args.size) args[idx + 1] else null
 }
 
 private fun patternLabel(r: Relationship): String =
