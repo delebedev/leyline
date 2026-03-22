@@ -5,9 +5,15 @@ description: Autonomous issue-grinding loop. Scores open GitHub issues by feasib
 
 # Ralph: Issue Grinder
 
-You are an autonomous work session. Your job: grind through GitHub issues, making as much progress as possible before the session ends.
+You are an autonomous work session. Your job: grind through GitHub issues, making as much progress as possible.
 
-**Mental model:** You are a dispatcher + worker in one. You pick the highest-value issue you can make progress on, work it, log the result, pick the next one. Repeat until you've exhausted your runway.
+**This skill is designed to run inside a ralph-loop.** Each iteration, the stop hook re-injects this prompt. You see your own file changes and git history from previous iterations. Work one issue per iteration, commit, then exit cleanly. The loop brings you back.
+
+**To start:** `/ralph-loop /ralph --max-iterations 10 --completion-promise 'queue empty'`
+
+**Iteration awareness:** Check `git log --oneline -5` and PROGRESS.md to see what you already did. Don't redo work. Each iteration = one issue.
+
+**Completion:** When all feasible issues in the queue are done (or deferred), output `<promise>queue empty</promise>`. Do NOT output this if there's still work to do.
 
 ## Phase 0: Orient
 
@@ -202,32 +208,26 @@ After each issue, append to PROGRESS.md:
 | ABANDONED | Burned budget without converging — token waste |
 | DIED | Unexpected error in ralph itself |
 
-## Phase 4: Loop or Wrap
+## Phase 4: Exit or Complete
 
-**Loop back to Phase 2** if:
-- There are more issues in the queue
-- You're still making progress (not spinning)
-- Session feels like it has runway
+**Each iteration handles ONE issue, then exits.** The ralph-loop stop hook brings you back for the next one. This gives you a clean context each iteration.
 
-**Wrap up** if:
-- You've done 3+ issues and the last one was hard
-- You're seeing diminishing returns
-- Something feels off (tests flaky, build broken, unclear state)
+### After working an issue:
 
-### Wrap sequence
+1. Commit your changes (if any code changed)
+2. Log telemetry to PROGRESS.md
+3. Push the branch: `git push -u origin "ralph/$(date +%Y-%m-%d)" 2>/dev/null || git push`
+4. Exit cleanly — the stop hook will re-inject this prompt for the next iteration
 
-1. Create PR(s):
+### When the queue is empty:
 
-**Batching rules:**
-- Small/mechanical fixes (fix mode, <3 files): batch into one PR on session branch
-- Non-trivial items (implement mode, multi-file): own PR from own branch
-- Research: no PR, output is issue comments
-- Tooling: batches with fixes unless substantial
+All feasible issues done or deferred. Time to wrap up.
+
+1. Create PR:
 
 ```bash
-git push -u origin "ralph/$(date +%Y-%m-%d)"
-gh pr create -R delebedev/leyline --title "ralph: <date> session" --body "$(cat <<'EOF'
-## Ralph session — <date>
+gh pr create -R delebedev/leyline --title "ralph: $(date +%Y-%m-%d) session" --body "$(cat <<'EOF'
+## Ralph session
 
 | Issue | Mode | Outcome | What changed |
 |-------|------|---------|-------------|
@@ -235,10 +235,15 @@ gh pr create -R delebedev/leyline --title "ralph: <date> session" --body "$(cat 
 | #M | research | PROGRESSED | description |
 
 ### Session telemetry
-N attempted, N fixed, N deferred. ~Nk tokens. ~Nm.
+N attempted, N fixed, N deferred.
 EOF
 )"
 ```
+
+**Batching rules:**
+- Small/mechanical fixes (fix mode, <3 files): batch into one PR on session branch
+- Non-trivial items (implement mode, multi-file): own PR from own branch
+- Research: no PR, output is issue comments
 
 2. Append session summary to PROGRESS.md:
 
@@ -252,10 +257,9 @@ EOF
 
 **Totals:** N attempted, N fixed, N deferred. ~Nk tokens. ~Nm.
 **Efficiency:** N% fix rate. ~Nk tokens/fix.
-**PR:** #N (or "multiple" with links)
 ```
 
-3. Commit PROGRESS.md update, push.
+3. Output: `<promise>queue empty</promise>`
 
 ## Context Orientation
 
