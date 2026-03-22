@@ -1,6 +1,8 @@
 package leyline.conformance
 
+import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Message
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
  * Field-by-field diff of two protobuf messages with instance ID normalization.
@@ -72,7 +74,7 @@ object ProtoDiffer {
     }
 
     /** Fields that always differ between recording and engine — skip during diff. */
-    val SKIP_FIELDS = setOf(
+    private val SKIP_FIELDS = setOf(
         "gameStateId",
         "prevGameStateId",
         "msgId",
@@ -83,7 +85,7 @@ object ProtoDiffer {
     )
 
     /** Field names that carry instance IDs — values are normalized to ordinals. */
-    val ID_FIELDS = setOf(
+    private val ID_FIELDS = setOf(
         "instanceId", "affectorId", "affectedIds", "objectInstanceIds",
         "sourceId", "itemsToSearch", "itemsSought", "targetInstanceId",
         "attackerInstanceId", "blockerInstanceId", "attackerIds",
@@ -92,9 +94,9 @@ object ProtoDiffer {
 
     /**
      * Repeated fields that should be aligned by key, not by index.
-     * null value = custom alignment logic.
+     * null value = custom alignment logic (see compareRepeated).
      */
-    val KEYED_REPEATED = mapOf(
+    private val KEYED_REPEATED = mapOf(
         "gameObjects" to "instanceId",
         "annotations" to null, // align by type set
         "persistentAnnotations" to null, // align by type set
@@ -103,7 +105,7 @@ object ProtoDiffer {
     )
 
     /** Repeated fields that should be compared as sorted sets. */
-    val SET_FIELDS = setOf(
+    private val SET_FIELDS = setOf(
         "systemSeatIds",
         "viewers",
         "objectInstanceIds",
@@ -112,4 +114,336 @@ object ProtoDiffer {
         "itemsToSearch",
         "itemsSought",
     )
+
+    // ── ID normalization ─────────────────────────────────────────────────────
+
+    /**
+     * Collects instance IDs in encounter order from a proto message.
+     * Returns a map from raw ID to ordinal (1, 2, ...).
+     */
+    internal fun collectIds(msg: Message): Map<Int, Int> {
+        val ids = linkedMapOf<Int, Int>()
+        var ordinal = 1
+
+        fun visit(message: Message) {
+            for ((field, value) in message.allFields) {
+                val isIdField = field.name in ID_FIELDS
+                when {
+                    field.isRepeated -> {
+                        @Suppress("UNCHECKED_CAST")
+                        val list = value as List<Any>
+                        for (item in list) {
+                            when {
+                                item is Message -> visit(item)
+                                isIdField && item is Number -> {
+                                    val id = item.toInt()
+                                    if (id != 0 && id !in ids) ids[id] = ordinal++
+                                }
+                            }
+                        }
+                    }
+                    value is Message -> visit(value)
+                    isIdField && value is Number -> {
+                        val id = value.toInt()
+                        if (id != 0 && id !in ids) ids[id] = ordinal++
+                    }
+                }
+            }
+        }
+
+        visit(msg)
+        return ids
+    }
+
+    /**
+     * Normalize a value: replace instance IDs with ordinals, skip metadata fields.
+     * Returns null as a sentinel meaning "skip this field entirely".
+     */
+    internal fun normalizeValue(value: Any, idMap: Map<Int, Int>, fieldName: String): Any? {
+        if (fieldName in SKIP_FIELDS) return null
+        if (fieldName in ID_FIELDS && value is Number) {
+            val id = value.toInt()
+            return idMap[id] ?: id
+        }
+        return value
+    }
+
+    // ── diff ─────────────────────────────────────────────────────────────────
+
+    fun diff(
+        recording: GREToClientMessage,
+        engine: GREToClientMessage,
+        seatMap: Map<Int, Int> = emptyMap(),
+    ): DiffResult {
+        val recIds = collectIds(recording)
+        val engIds = collectIds(engine)
+        val missing = mutableListOf<FieldPath>()
+        val extra = mutableListOf<FieldPath>()
+        val mismatched = mutableListOf<FieldMismatch>()
+        var matched = 0
+
+        fun walk(rec: Message, eng: Message, path: FieldPath) {
+            val recFields = rec.allFields
+            val engFields = eng.allFields
+
+            // Fields in recording but not engine
+            for ((field, _) in recFields) {
+                if (field.name in SKIP_FIELDS) continue
+                if (field !in engFields) {
+                    missing.add(path.child(field.name))
+                }
+            }
+
+            // Fields in engine but not recording
+            for ((field, _) in engFields) {
+                if (field.name in SKIP_FIELDS) continue
+                if (field !in recFields) {
+                    extra.add(path.child(field.name))
+                }
+            }
+
+            // Compare shared fields
+            for ((field, recVal) in recFields) {
+                if (field.name in SKIP_FIELDS) continue
+                val engVal = engFields[field] ?: continue // already reported as missing
+
+                val childPath = path.child(field.name)
+                when {
+                    field.isRepeated -> compareRepeated(
+                        field, recVal, engVal, recIds, engIds,
+                        childPath, missing, extra, mismatched,
+                        { matched++ },
+                        ::walk,
+                    )
+                    recVal is Message && engVal is Message -> walk(recVal, engVal, childPath)
+                    else -> {
+                        val normRec = normalizeValue(recVal, recIds, field.name)
+                        val normEng = normalizeValue(engVal, engIds, field.name)
+                        if (normRec == null) continue
+                        if (normRec == normEng) {
+                            matched++
+                        } else {
+                            mismatched.add(FieldMismatch(childPath, normRec, normEng))
+                        }
+                    }
+                }
+            }
+        }
+
+        walk(recording, engine, FieldPath.ROOT)
+        return DiffResult(missing, extra, mismatched, matched)
+    }
+
+    // ── repeated field alignment ─────────────────────────────────────────────
+
+    @Suppress("UNCHECKED_CAST")
+    private fun compareRepeated(
+        field: FieldDescriptor,
+        recVal: Any,
+        engVal: Any,
+        recIds: Map<Int, Int>,
+        engIds: Map<Int, Int>,
+        path: FieldPath,
+        missing: MutableList<FieldPath>,
+        extra: MutableList<FieldPath>,
+        mismatched: MutableList<FieldMismatch>,
+        countMatch: () -> Unit,
+        walk: (Message, Message, FieldPath) -> Unit,
+    ) {
+        val recList = recVal as List<Any>
+        val engList = engVal as List<Any>
+
+        // Set fields: normalize, sort, compare
+        if (field.name in SET_FIELDS) {
+            val recSorted = recList.map { normalizeValue(it, recIds, field.name) }.sortedBy { it.toString() }
+            val engSorted = engList.map { normalizeValue(it, engIds, field.name) }.sortedBy { it.toString() }
+            if (recSorted != engSorted) {
+                mismatched.add(FieldMismatch(path, recSorted, engSorted))
+            } else {
+                countMatch()
+            }
+            return
+        }
+
+        // Message lists: key-based or index alignment
+        if (recList.firstOrNull() is Message || engList.firstOrNull() is Message) {
+            val recMsgs = recList as List<Message>
+            val engMsgs = engList as List<Message>
+
+            when (field.name) {
+                "gameObjects" -> alignByField(
+                    recMsgs, engMsgs, "instanceId",
+                    { v -> (recIds[v] ?: v).toString() },
+                    { v -> (engIds[v] ?: v).toString() },
+                    path, missing, extra, walk,
+                )
+                "annotations", "persistentAnnotations" -> alignByAnnotationType(
+                    recMsgs,
+                    engMsgs,
+                    recIds,
+                    engIds,
+                    path,
+                    missing,
+                    extra,
+                    walk,
+                )
+                "zones" -> alignByZoneKey(
+                    recMsgs,
+                    engMsgs,
+                    path,
+                    missing,
+                    extra,
+                    walk,
+                )
+                "details" -> alignByField(
+                    recMsgs, engMsgs, "key",
+                    { v -> v.toString() },
+                    { v -> v.toString() },
+                    path, missing, extra, walk,
+                )
+                else -> alignByIndex(recMsgs, engMsgs, path, missing, extra, walk)
+            }
+            return
+        }
+
+        // Primitive lists: direct comparison after normalization
+        val recNorm = recList.map { normalizeValue(it, recIds, field.name) }
+        val engNorm = engList.map { normalizeValue(it, engIds, field.name) }
+        if (recNorm != engNorm) {
+            mismatched.add(FieldMismatch(path, recNorm, engNorm))
+        } else {
+            countMatch()
+        }
+    }
+
+    /** Align two message lists by the string value of a named field. */
+    private fun alignByField(
+        recMsgs: List<Message>,
+        engMsgs: List<Message>,
+        fieldName: String,
+        recKeyOf: (Any) -> String,
+        engKeyOf: (Any) -> String,
+        path: FieldPath,
+        missing: MutableList<FieldPath>,
+        extra: MutableList<FieldPath>,
+        walk: (Message, Message, FieldPath) -> Unit,
+    ) {
+        fun keyOf(msg: Message, keyFn: (Any) -> String): String {
+            val fd = msg.descriptorForType.findFieldByName(fieldName) ?: return msg.toString()
+            val v = msg.getField(fd)
+            return keyFn(v)
+        }
+
+        val recByKey = recMsgs.associateBy { keyOf(it, recKeyOf) }
+        val engByKey = engMsgs.associateBy { keyOf(it, engKeyOf) }
+
+        val allKeys = recByKey.keys + engByKey.keys
+        for (key in allKeys.toSortedSet()) {
+            val childPath = path.child("[$key]")
+            val rec = recByKey[key]
+            val eng = engByKey[key]
+            when {
+                rec == null -> extra.add(childPath)
+                eng == null -> missing.add(childPath)
+                else -> walk(rec, eng, childPath)
+            }
+        }
+    }
+
+    /** Align annotations by their type set. Ties broken by normalized affectorId. */
+    private fun alignByAnnotationType(
+        recMsgs: List<Message>,
+        engMsgs: List<Message>,
+        recIds: Map<Int, Int>,
+        engIds: Map<Int, Int>,
+        path: FieldPath,
+        missing: MutableList<FieldPath>,
+        extra: MutableList<FieldPath>,
+        walk: (Message, Message, FieldPath) -> Unit,
+    ) {
+        fun typeKey(msg: Message): String {
+            val fd = msg.descriptorForType.findFieldByName("type") ?: return ""
+
+            @Suppress("UNCHECKED_CAST")
+            val types = msg.getField(fd) as List<Any>
+            return types.sortedBy { it.toString() }.joinToString(",") { it.toString() }
+        }
+
+        fun affectorKey(msg: Message, idMap: Map<Int, Int>): String {
+            val fd = msg.descriptorForType.findFieldByName("affectorId") ?: return "0"
+            val v = msg.getField(fd) as? Number ?: return "0"
+            return (idMap[v.toInt()] ?: v.toInt()).toString()
+        }
+
+        fun compositeKey(msg: Message, idMap: Map<Int, Int>): String =
+            "${typeKey(msg)}|${affectorKey(msg, idMap)}"
+
+        val recByKey = recMsgs.associateBy { compositeKey(it, recIds) }
+        val engByKey = engMsgs.associateBy { compositeKey(it, engIds) }
+
+        val allKeys = (recByKey.keys + engByKey.keys).toSortedSet()
+        for (key in allKeys) {
+            val childPath = path.child("[$key]")
+            val rec = recByKey[key]
+            val eng = engByKey[key]
+            when {
+                rec == null -> extra.add(childPath)
+                eng == null -> missing.add(childPath)
+                else -> walk(rec, eng, childPath)
+            }
+        }
+    }
+
+    /** Align zones by (type, ownerSeatId) composite key. */
+    private fun alignByZoneKey(
+        recMsgs: List<Message>,
+        engMsgs: List<Message>,
+        path: FieldPath,
+        missing: MutableList<FieldPath>,
+        extra: MutableList<FieldPath>,
+        walk: (Message, Message, FieldPath) -> Unit,
+    ) {
+        fun zoneKey(msg: Message): String {
+            val typeFd = msg.descriptorForType.findFieldByName("type")
+            val ownerFd = msg.descriptorForType.findFieldByName("ownerSeatId")
+            val type = if (typeFd != null) msg.getField(typeFd).toString() else "?"
+            val owner = if (ownerFd != null) msg.getField(ownerFd).toString() else "0"
+            return "$type|$owner"
+        }
+
+        val recByKey = recMsgs.associateBy { zoneKey(it) }
+        val engByKey = engMsgs.associateBy { zoneKey(it) }
+
+        val allKeys = (recByKey.keys + engByKey.keys).toSortedSet()
+        for (key in allKeys) {
+            val childPath = path.child("[$key]")
+            val rec = recByKey[key]
+            val eng = engByKey[key]
+            when {
+                rec == null -> extra.add(childPath)
+                eng == null -> missing.add(childPath)
+                else -> walk(rec, eng, childPath)
+            }
+        }
+    }
+
+    /** Fallback: align by index. */
+    private fun alignByIndex(
+        recMsgs: List<Message>,
+        engMsgs: List<Message>,
+        path: FieldPath,
+        missing: MutableList<FieldPath>,
+        extra: MutableList<FieldPath>,
+        walk: (Message, Message, FieldPath) -> Unit,
+    ) {
+        val maxLen = maxOf(recMsgs.size, engMsgs.size)
+        for (i in 0 until maxLen) {
+            val childPath = path.child("[$i]")
+            when {
+                i >= recMsgs.size -> extra.add(childPath)
+                i >= engMsgs.size -> missing.add(childPath)
+                else -> walk(recMsgs[i], engMsgs[i], childPath)
+            }
+        }
+    }
 }
