@@ -88,3 +88,4 @@ PROGRESS.md
 
 # Local issue sync (gh-issue-sync)
 .issues/
+node_modules/
