@@ -151,7 +151,7 @@ object StateMapper {
         // Stages 4-5 + persistent computation
         val remaining = computeRemainingAnnotations(
             events, annotations, transferPersistent, initEffectDiff, effectDiff,
-            persistSnapshot, startPersistentId, startAnnotationId, game, bridge,
+            persistSnapshot, startPersistentId, startAnnotationId, bridge,
         )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
@@ -369,7 +369,6 @@ object StateMapper {
         persistSnapshot: Map<Int, AnnotationInfo>,
         startPersistentId: Int,
         startAnnotationId: Int,
-        game: Game,
         bridge: GameBridge,
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds = events
@@ -439,28 +438,59 @@ object StateMapper {
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }
 
+    /** Keywords whose triggered/resolved effects produce P/T boosts with staticId=0. */
+    private val PT_BOOST_KEYWORDS = setOf("PROWESS")
+
     /**
      * Build a resolver: (cardInstanceId, staticId) → sourceAbilityGRPID.
      *
-     * Uses [AbilityRegistry] to look up the abilityGrpId for the specific
-     * StaticAbility that produced the effect. This replaces the old keyword-only
-     * heuristic and handles any StaticAbility-sourced effect (lords, auras, Prowess).
-     *
-     * SpellAbility-sourced effects (Giant Growth, loyalty abilities) pass staticId=0
-     * from Forge, so those won't resolve — see #160 follow-up.
+     * Two resolution paths:
+     * - **staticId > 0**: continuous effect from a StaticAbility — use [AbilityRegistry]
+     *   to look up the specific ability. Falls back to keyword parent tracing for
+     *   non-intrinsic temporaries.
+     * - **staticId == 0**: resolved spell/trigger pump (e.g. Prowess) — falls back to
+     *   [CardData.keywordAbilityGrpIds] heuristic since Forge doesn't tag these with
+     *   a source ability ID.
      */
     private fun buildSourceAbilityResolver(
         bridge: GameBridge,
     ): (Int, Long) -> Int? {
         val game = bridge.getGame() ?: return { _, _ -> null }
         return resolver@{ instanceId, staticId ->
-            if (staticId == 0L) return@resolver null
             val forgeCardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@resolver null
             val card = findCard(game, forgeCardId) ?: return@resolver null
             val grpId = bridge.cards.findGrpIdByName(card.name) ?: return@resolver null
             val cardData = bridge.cards.findByGrpId(grpId) ?: return@resolver null
+
+            // Resolved pump effects (Prowess, Giant Growth): staticId = 0
+            // Fall back to keyword heuristic — best we can do without Forge tagging
+            if (staticId == 0L) {
+                for (keyword in PT_BOOST_KEYWORDS) {
+                    cardData.keywordAbilityGrpIds[keyword]?.let { return@resolver it }
+                }
+                return@resolver null
+            }
+
+            if (staticId > Int.MAX_VALUE) return@resolver null
+
+            // Continuous effects: use AbilityRegistry for precise lookup
             val registry = bridge.abilityRegistryFor(card, cardData) ?: return@resolver null
-            registry.forStaticAbility(staticId.toInt())
+            registry.forStaticAbility(staticId.toInt())?.let { return@resolver it }
+
+            // Keyword fallback: temporary statics from keyword triggers
+            // trace back to parent keyword via Forge's StaticAbility.getKeyword()
+            val sourceStatic = card.staticAbilities?.firstOrNull { it.id == staticId.toInt() }
+            val parentKeyword = sourceStatic?.keyword ?: return@resolver null
+            for (sa in parentKeyword.abilities) {
+                registry.forSpellAbility(sa.id)?.let { return@resolver it }
+            }
+            for (trig in parentKeyword.triggers) {
+                registry.forTrigger(trig.id)?.let { return@resolver it }
+            }
+            for (st in parentKeyword.staticAbilities) {
+                registry.forStaticAbility(st.id)?.let { return@resolver it }
+            }
+            null
         }
     }
 }

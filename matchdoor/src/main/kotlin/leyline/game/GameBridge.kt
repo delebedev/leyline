@@ -90,7 +90,7 @@ class GameBridge(
     // --- Per-seat bridge maps ---
 
     /** Forge cardId → AbilityRegistry for multi-ability abilityGrpId resolution. */
-    val abilityRegistries = ConcurrentHashMap<Int, AbilityRegistry>()
+    private val abilityRegistries = ConcurrentHashMap<Int, AbilityRegistry>()
 
     private val actionBridges = mutableMapOf<Int, GameActionBridge>()
     private val promptBridges = mutableMapOf<Int, InteractivePromptBridge>()
@@ -897,11 +897,9 @@ class GameBridge(
                     // Fall back to by-name path for cards with null rules.
                     if (card.rules != null) {
                         registrar.ensureCardRegistered(card)
-                        // Build ability registry for multi-ability resolution
+                        // Pre-populate ability registry for puzzle cards
                         val cardData = cards.findByGrpId(cards.findGrpIdByName(card.name) ?: 0)
-                        if (cardData != null) {
-                            abilityRegistries[card.id] = AbilityRegistry.build(card, cardData)
-                        }
+                        abilityRegistryFor(card, cardData)
                     } else {
                         registrar.ensureCardRegisteredByName(card.name)
                     }

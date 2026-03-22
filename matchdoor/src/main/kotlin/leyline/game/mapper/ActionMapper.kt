@@ -101,28 +101,20 @@ object ActionMapper {
             // Activate — non-mana activated abilities (only with legality checks)
             if (checkLegality) {
                 val cardData = cardDataLookup(grpId)
-                val keywordCount = cardData?.keywordAbilityGrpIds?.size ?: 0
-                var activateIndex = 0
                 for (ability in card.spellAbilities) {
                     ability.setActivatingPlayer(player)
                     if (!ability.isActivatedAbility) continue
                     if (ability.isManaAbility()) continue
-                    if (!ability.canPlay()) {
-                        activateIndex++
-                        continue
-                    }
+                    if (!ability.canPlay()) continue
                     val actionBuilder = Action.newBuilder()
                         .setActionType(ActionType.Activate_add3)
                         .setInstanceId(instanceId)
                         .setGrpId(grpId)
                         .setFacetId(instanceId)
                         .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
-                    if (cardData != null) {
-                        val abilitySlot = keywordCount + activateIndex
-                        val abilityEntry = cardData.abilityIds.getOrNull(abilitySlot)
-                        if (abilityEntry != null) actionBuilder.setAbilityGrpId(abilityEntry.first)
-                    }
-                    activateIndex++
+                    val registry = abilityRegistryLookup(card, cardData)
+                    val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
+                    if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
                     builder.addActions(actionBuilder)
                 }
             }

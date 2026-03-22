@@ -3,7 +3,7 @@ Name:Liliana Loyalty Abilities
 Goal:Win
 Turns:5
 Difficulty:Easy
-Description:Test planeswalker loyalty ability activation — multiple distinct abilityGrpIds.
+Description:Cast planeswalker from hand, then activate loyalty abilities to test abilityGrpId resolution.
 
 [state]
 ActivePlayer=Human
