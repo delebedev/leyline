@@ -1,6 +1,7 @@
 package leyline.game
 
 import forge.game.Game
+import forge.game.card.Card
 import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.game.mapper.ActionMapper
@@ -989,6 +990,145 @@ class BundleBuilder(
         startId: Int,
     ): List<AnnotationInfo> = annotations.mapIndexed { index, ann ->
         ann.toBuilder().setId(startId + index).build()
+    }
+
+    /**
+     * Build a [ModalReq] + [CastingTimeOptionsReq] proto for a modal prompt.
+     *
+     * Pure proto construction — caller handles card lookup, fallback, and pending state.
+     *
+     * @param parentGrpId the abilityGrpId of the modal ability
+     * @param childGrpIds the grpIds for each modal option
+     * @param minSel minimum number of modes to select
+     * @param maxSel maximum number of modes to select
+     * @param sourceInstanceId the instanceId of the source card
+     * @param cardGrpId the grpId of the card
+     */
+    fun buildModalCastingTimeOptionsReq(
+        parentGrpId: Int,
+        childGrpIds: List<Int>,
+        minSel: Int,
+        maxSel: Int,
+        sourceInstanceId: Int,
+        cardGrpId: Int,
+    ): CastingTimeOptionsReq {
+        val modalReq = ModalReq.newBuilder()
+            .setAbilityGrpId(parentGrpId)
+            .setMinSel(minSel)
+            .setMaxSel(maxSel)
+        for (childGrpId in childGrpIds) {
+            modalReq.addModalOptions(ModalOption.newBuilder().setGrpId(childGrpId))
+        }
+        return CastingTimeOptionsReq.newBuilder()
+            .addCastingTimeOptionReq(
+                CastingTimeOptionReq.newBuilder()
+                    .setCtoId(1)
+                    .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4)
+                    .setAffectedId(sourceInstanceId)
+                    .setAffectorId(sourceInstanceId)
+                    .setGrpId(cardGrpId)
+                    .setIsRequired(true)
+                    .setModalReq(modalReq),
+            )
+            .build()
+    }
+
+    /**
+     * Build a [CastingTimeOptionsReq] for optional costs (kicker, buyback, etc.).
+     *
+     * Pure proto construction — caller handles SpellAbility lookup and pending state.
+     *
+     * @param instanceId the instanceId of the card being cast
+     * @param optionalCosts list of (ctoType, abilityGrpId) for each optional cost
+     * @return pair of (CastingTimeOptionsReq, costCtoIds)
+     */
+    fun buildOptionalCostCastingTimeOptionsReq(
+        instanceId: Int,
+        optionalCosts: List<Pair<CastingTimeOptionType, Int>>,
+    ): Pair<CastingTimeOptionsReq, List<Int>> {
+        val ctoReqBuilder = CastingTimeOptionsReq.newBuilder()
+        val costCtoIds = mutableListOf<Int>()
+        for ((i, cost) in optionalCosts.withIndex()) {
+            val ctoId = i + 1
+            costCtoIds.add(ctoId)
+            ctoReqBuilder.addCastingTimeOptionReq(
+                CastingTimeOptionReq.newBuilder()
+                    .setCtoId(ctoId)
+                    .setCastingTimeOptionType(cost.first)
+                    .setAffectedId(instanceId)
+                    .setAffectorId(instanceId)
+                    .setGrpId(cost.second),
+            )
+        }
+        ctoReqBuilder.addCastingTimeOptionReq(
+            CastingTimeOptionReq.newBuilder()
+                .setCtoId(0)
+                .setCastingTimeOptionType(CastingTimeOptionType.Done)
+                .setIsRequired(true),
+        )
+        return Pair(ctoReqBuilder.build(), costCtoIds)
+    }
+
+    /**
+     * Build an actions-only echo diff GSM (empty Diff with just gsId chain).
+     * Used for select-targets echo-back where the client needs a GSM before the re-prompt.
+     */
+    fun buildEchoDiffGsm(
+        counter: MessageCounter,
+    ): GREToClientMessage {
+        val gsId = counter.nextGsId()
+        return makeGRE(GREMessageType.GameStateMessage_695e, gsId, counter.nextMsgId()) {
+            it.gameStateMessage = GameStateMessage.newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(gsId)
+                .setPrevGameStateId(gsId - 1)
+                .build()
+        }
+    }
+
+    /**
+     * Surveil/scry bundle: reveal diff (card objects with Private visibility) + GroupReq.
+     *
+     * Builds a GSM diff that exposes library top card(s) as `visibility=Private, viewers=[seatId]`
+     * so the client shows them face-up in the surveil/scry modal, followed by a GroupReq.
+     *
+     * @param topCards the cards being surveilled/scryed
+     * @param cardInstanceIds instanceIds corresponding to [topCards]
+     * @param sourceId instanceId of the triggering spell
+     * @param context whether this is surveil or scry
+     * @param counter message counter for sequencing
+     */
+    fun surveilScryBundle(
+        topCards: List<Card>,
+        cardInstanceIds: List<Int>,
+        sourceId: Int,
+        context: GroupingContext,
+        counter: MessageCounter,
+    ): BundleResult {
+        val libZoneId = if (seatId == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
+        val revealedObjects = topCards.map { card ->
+            ObjectMapper.buildCardObject(card, bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value, libZoneId, seatId, bridge, Visibility.Private)
+                .toBuilder().addViewers(seatId).build()
+        }
+        val gsId = counter.nextGsId()
+        val revealDiff = makeGRE(GREMessageType.GameStateMessage_695e, gsId, counter.nextMsgId()) {
+            it.gameStateMessage = GameStateMessage.newBuilder()
+                .setType(GameStateType.Diff)
+                .setGameStateId(gsId)
+                .setPrevGameStateId(gsId - 1)
+                .addAllGameObjects(revealedObjects)
+                .build()
+        }
+
+        val groupReq = GsmBuilder.buildSurveilScryGroupReq(
+            msgId = counter.nextMsgId(),
+            gameStateId = gsId,
+            seatId = seatId,
+            cardInstanceIds = cardInstanceIds,
+            context = context,
+            sourceInstanceId = sourceId,
+        )
+        return BundleResult(listOf(revealDiff, groupReq))
     }
 
     /** Build a single GRE message. */
