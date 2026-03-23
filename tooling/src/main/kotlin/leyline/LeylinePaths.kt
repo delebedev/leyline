@@ -92,15 +92,23 @@ object LeylinePaths {
     /**
      * Detect project-local recordings root.
      *
-     * Looks for a `recordings/` directory in CWD (standalone repo layout).
-     * Falls back to `/tmp/arena-recordings` as last resort.
+     * Walks up from CWD looking for the project root (identified by
+     * `settings.gradle.kts`). Falls back to `/tmp/arena-recordings`.
+     *
+     * Gradle sets CWD to the subproject dir (e.g. `tooling/`), so checking
+     * for `src/` would incorrectly match and create `tooling/recordings/`.
      */
     private fun detectRecordingsRoot(): File {
         val cwd = File(System.getProperty("user.dir", ".")).absoluteFile
 
-        // Standalone repo: CWD is the project root
-        if (File(cwd, "recordings").isDirectory || File(cwd, "src").isDirectory) {
-            return File(cwd, "recordings")
+        // Find project root by settings.gradle.kts marker
+        val projectRoot = if (File(cwd, "settings.gradle.kts").isFile) {
+            cwd
+        } else {
+            cwd.walkUpFind { File(it, "settings.gradle.kts").isFile }
+        }
+        if (projectRoot != null) {
+            return File(projectRoot, "recordings")
         }
 
         // Last resort — /tmp/ (ephemeral)
