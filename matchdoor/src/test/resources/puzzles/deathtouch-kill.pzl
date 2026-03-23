@@ -1,0 +1,37 @@
+# Design Narrative
+# Mechanic: Deathtouch — any combat damage from a deathtouch creature destroys
+#   the damaged creature, regardless of toughness.
+# Forcing: Juggernaut (5/3, must attack) threatens lethal to human at 3 life.
+#   Only path to survival is blocking with Typhoid Rats (1/1 deathtouch).
+#   Deathtouch makes 1 damage lethal to Juggernaut despite 3 toughness.
+#   No spells, no alternative plays — block or die.
+# AI behavior: Juggernaut has "must attack" rules text — zero AI choice.
+#   No AI hand cards, no other AI creatures. Fully deterministic.
+# Failure modes:
+#   WIN   = deathtouch worked, Juggernaut died, human survived
+#   LOSE (human died) = deathtouch didn't fire, 5 damage got through unblocked
+#   LOSE (turn limit) = impossible — Juggernaut must attack
+#   TIMEOUT = combat phase wiring broken (DeclareBlockersReq not sent)
+# Card roles:
+#   Typhoid Rats — 1/1 deathtouch blocker, the test subject
+#   Juggernaut — 5/3 must-attack creature, forces the combat interaction
+# Protocol path: DeclareAttackersReq, DeclareBlockersReq, combat damage SBA.
+#   All combat paths are wired.
+
+[metadata]
+Name:Deathtouch Kills Giant
+Goal:Survive
+Turns:2
+Difficulty:Easy
+Description:Block Juggernaut with Typhoid Rats. Deathtouch kills it despite 3 toughness. Survive or die.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=3
+AILife=20
+
+humanbattlefield=Typhoid Rats
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp
+aibattlefield=Juggernaut
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
