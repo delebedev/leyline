@@ -193,13 +193,16 @@ Input: the full .pzl file content (including # narrative comments)
 
 ## Step 5: Findings Log
 
-After judge evaluation (any verdict), append an entry to `docs/puzzle-findings.md`:
+After judge evaluation (any verdict), append an entry to `docs/puzzle-findings.md`.
+
+**Token tracking:** Each agent dispatch result includes `total_tokens` in its metadata. After each judge round, note the token count. Sum all rounds for the total. This is the caller's responsibility — the judge doesn't know its own cost.
 
 ```markdown
 ## YYYY-MM-DD — <puzzle-filename>.pzl
 
 Score: N/15 (Focus:N Determinism:N Signal:N Minimality:N Documentation:N)
 Verdict: <verdict> (round N)
+Tokens: judge=Nk, rounds=N, total_agent=Nk
 
 Round 1 issues:
 - <issue from judge>
