@@ -190,7 +190,7 @@ Create `docs/puzzle-findings.md` with header explaining the format. Entries appe
 
 Run the judge on 3-5 existing puzzles to calibrate scoring:
 - `legend-rule.pzl` (should score 13-15)
-- `bolt-face.pzl` (should score 12-14)
+- `bolt-face.pzl` (should score 10-13 — minimal but no narrative, Documentation=1 caps the ceiling)
 - `fdn-keyword-combat.pzl` (should score 7-9, multi-purpose stress test)
 - `lands-only.pzl` (should score 5-7 — degenerate: no mechanic, unwinnable, but minimal by default)
 - `prowess-buff.pzl` (should score 6-8, missing fields + nondeterministic)
