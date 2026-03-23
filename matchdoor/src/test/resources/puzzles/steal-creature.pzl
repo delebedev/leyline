@@ -1,0 +1,16 @@
+[metadata]
+Name:Steal Test - Act of Treason
+Goal:Win
+Turns:1
+Difficulty:Tutorial
+Description:Cast Act of Treason on opponent's creature, attack with it for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=4
+
+humanhand=Act of Treason
+humanbattlefield=Mountain;Mountain;Mountain
+aibattlefield=Grizzly Bears

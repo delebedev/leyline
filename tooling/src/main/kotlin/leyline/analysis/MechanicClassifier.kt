@@ -52,6 +52,7 @@ object MechanicClassifier {
         is GameEvent.PhaseChanged -> "phase_change"
         is GameEvent.ManaAbilityActivated -> "mana_ability"
         is GameEvent.SpellMovedToStack -> "spell_moved_to_stack"
+        is GameEvent.ControllerChanged -> "controller_change"
     }
 
     /**

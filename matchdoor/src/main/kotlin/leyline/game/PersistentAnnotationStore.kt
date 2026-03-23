@@ -26,6 +26,8 @@ class PersistentAnnotationStore {
         val deletedIds: List<Int>,
         /** Counter value after numbering all new persistent annotations. */
         val nextPersistentId: Int,
+        /** Effect IDs from controller-change reverts — caller emits LayeredEffectDestroyed for each. */
+        val revertedEffectIds: List<Int> = emptyList(),
     )
 
     companion object {
@@ -56,6 +58,7 @@ class PersistentAnnotationStore {
         ): BatchResult {
             val active = currentActive.toMutableMap()
             val deletions = mutableListOf<Int>()
+            val revertedEffectIds = mutableListOf<Int>()
             var nextId = startPersistentId
 
             // 1. Effect lifecycle
@@ -118,7 +121,26 @@ class PersistentAnnotationStore {
                 }
             }
 
-            return BatchResult(active.values.toList(), deletions, nextId)
+            // 6. Controller-change revert — remove CC+LayeredEffect persistent annotations
+            //    and emit LayeredEffectDestroyed for the associated effect_id.
+            for (forgeCardId in mechanicResult.controllerRevertedForgeCardIds) {
+                val cardIid = resolveInstanceId(ForgeCardId(forgeCardId)).value
+                val annId = findControllerChanged(active, cardIid)
+                if (annId != null) {
+                    val ann = active[annId]
+                    active.remove(annId)
+                    deletions.add(annId)
+                    // Extract effect_id for LayeredEffectDestroyed emission
+                    val effectId = ann?.detailsList
+                        ?.firstOrNull { it.key == DetailKeys.EFFECT_ID && it.valueInt32Count > 0 }
+                        ?.getValueInt32(0)
+                    if (effectId != null) {
+                        revertedEffectIds.add(effectId)
+                    }
+                }
+            }
+
+            return BatchResult(active.values.toList(), deletions, nextId, revertedEffectIds)
         }
 
         private fun findByEffectId(active: Map<Int, AnnotationInfo>, effectId: Int): Int? =
@@ -136,6 +158,13 @@ class PersistentAnnotationStore {
                     ann.detailsList.any {
                         it.key == DetailKeys.COUNTER_TYPE && it.valueInt32Count > 0 && it.getValueInt32(0) == counterType
                     }
+            }?.key
+
+        private fun findControllerChanged(active: Map<Int, AnnotationInfo>, cardIid: Int): Int? =
+            active.entries.firstOrNull { (_, ann) ->
+                ann.typeList.any { it == AnnotationType.ControllerChanged } &&
+                    ann.typeList.any { it == AnnotationType.LayeredEffect } &&
+                    ann.affectedIdsList.contains(cardIid)
             }?.key
 
         private fun findByAura(active: Map<Int, AnnotationInfo>, auraIid: Int): Int? =
@@ -195,6 +224,22 @@ class PersistentAnnotationStore {
     /** All currently active persistent annotations. */
     fun getAll(): List<AnnotationInfo> = active.values.toList()
 
+    /** Forge card IDs of permanents currently under stolen control (have ControllerChanged+LayeredEffect pAnn). */
+    private val activeSteals = mutableSetOf<Int>()
+
+    /** Set of forge card IDs currently under stolen control. Used by pipeline to detect reverts. */
+    fun activeStealForgeCardIds(): Set<Int> = activeSteals.toSet()
+
+    /** Record a steal effect for tracking. Called after computeBatch when new steals are created. */
+    fun addSteals(forgeCardIds: Collection<Int>) {
+        activeSteals.addAll(forgeCardIds)
+    }
+
+    /** Remove steal tracking for reverted cards. */
+    fun removeSteals(forgeCardIds: Collection<Int>) {
+        activeSteals.removeAll(forgeCardIds.toSet())
+    }
+
     // --- Snapshot / ID accessors ---
 
     /** Immutable snapshot of current active persistent annotations. */
@@ -223,6 +268,7 @@ class PersistentAnnotationStore {
     fun resetAll() {
         active.clear()
         pendingDeletions.clear()
+        activeSteals.clear()
         nextAnnotationId = INITIAL_ANNOTATION_ID
         nextPersistentAnnotationId = INITIAL_PERSISTENT_ANNOTATION_ID
     }

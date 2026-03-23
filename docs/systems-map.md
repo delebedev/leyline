@@ -85,7 +85,7 @@ Others not observed and likely niche: GatherReq (50), SelectNGroupReq (40), Sele
 4. **SelectReplacementReq** — choose between replacement effects. Shocklands, ETB choices.
 5. **DistributionReq** — distribute damage/counters among targets.
 6. **NumericInputReq** — X-cost spells.
-7. **ControllerChanged annotation** (type 15) — steal effects don't move permanents visually.
+7. ~~**ControllerChanged annotation** (type 15)~~ — implemented (#210). Transient + persistent annotations wired. Haste grant pAnn deferred to #200.
 8. **Scry annotation detail keys** — wrong format (topCount vs topIds).
 
 ### Tier 3 — Polish

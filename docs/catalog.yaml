@@ -493,8 +493,13 @@ permanents:
       fires but not wired to nexus events.
 
   controller-change:
-    status: missing
-    notes: "ControllerChanged annotation (15) not implemented."
+    status: wired
+    notes: >
+      ControllerChanged annotation (type 15) emitted for steal/threaten effects.
+      Transient: affectorId=spell, affectedIds=[stolen creature], no details.
+      Persistent: [ControllerChanged, LayeredEffect] with effect_id, persists while steal active.
+      LayeredEffectCreated on steal, LayeredEffectDestroyed on revert.
+      Haste grant pAnn (AddAbility grpid=9) deferred to #200.
 
   color-change:
     status: missing
