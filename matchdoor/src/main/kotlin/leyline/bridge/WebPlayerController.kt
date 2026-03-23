@@ -70,7 +70,10 @@ class WebPlayerController(
      * Completed by [CombatHandler.onAssignDamage] when the client responds.
      *
      * Uses a dedicated [CompletableFuture] instead of [GameActionBridge] to avoid
-     * the auto-pass loop racing to auto-pass the pending action.
+     * the auto-pass loop racing to auto-pass the pending action. Future engine-
+     * initiated prompts (DistributionReq, NumericInputReq, SelectReplacementReq,
+     * OptionalActionMessage, OrderReq) may benefit from the same approach if
+     * they hit similar timing issues with the action bridge.
      */
     @Volatile var pendingDamageAssignment: DamageAssignmentPrompt? = null
 
