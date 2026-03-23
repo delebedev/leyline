@@ -1,12 +1,12 @@
 <?xml version="1.0" ?>
 <SmellBaseline>
-  <ManuallySuppressedIssues></ManuallySuppressedIssues>
-  <CurrentIssues>
+  <ManuallySuppressedIssues>
+    <!-- CardsBlob mirrors MTG Arena JSON wire format; PascalCase field names are intentional -->
     <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val CommandZone: List&lt;CardEntry&gt; = emptyList()</ID>
     <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val Companions: List&lt;CardEntry&gt; = emptyList()</ID>
     <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val MainDeck: List&lt;CardEntry&gt; = emptyList()</ID>
     <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val Sideboard: List&lt;CardEntry&gt; = emptyList()</ID>
-    <ID>CyclomaticComplexMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
+    <!-- Protocol stubs: functions intentionally return fixed empty payloads for unimplemented Arena endpoints -->
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun activeMatches()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun boosters()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun cosmetics()</ID>
@@ -22,13 +22,19 @@
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun staticContent()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun storeStatus()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun telemetryAck()</ID>
-    <ID>LongMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
-    <ID>LongParameterList:FrontDoorHandler.kt$FrontDoorHandler$( private val playerId: PlayerId, private val deckService: DeckService, private val playerService: PlayerService, private val matchmaking: MatchmakingService, private val collectionService: CollectionService, private val courseService: CourseService, private val draftService: DraftService, private val writer: FdResponseWriter, private val golden: GoldenData, private val onFdMessage: ((String, FdEnvelope.FdMessage) -&gt; Unit)? = null, private val coordinator: MatchCoordinator = MatchCoordinator.NOOP, private val matchmakingQueue: MatchmakingQueue? = null, )</ID>
+    <!-- MaxLineLength: JSON strings in test assertions; extraction adds no value -->
     <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"clone-1","Name":"Imported Deck (4)","DeckTileId":55,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":200,"quantity":2}],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Cloned"}"""</ID>
     <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"Explorer Deck","DeckTileId":0,"Attributes":[{"name":"Format","value":"Explorer"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""</ID>
     <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"Fav","DeckTileId":0,"Attributes":[{"name":"IsFavorite","value":"true"},{"name":"Format","value":"Standard"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""</ID>
     <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"My Deck","DeckTileId":99,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":100,"quantity":4}],"Sideboard":[],"CommandZone":[],"Companions":[],"CardSkins":[]},"ActionType":"CreatedNew"}"""</ID>
     <ID>MaxLineLength:LobbyStubs.kt$LobbyStubs$fun rankInfo()</ID>
+  </ManuallySuppressedIssues>
+  <CurrentIssues>
+    <!-- Dispatch table: complexity is inherent to the protocol command set -->
+    <ID>CyclomaticComplexMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
+    <ID>LongMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
+    <!-- Constructor injection; extract config object in future refactor -->
+    <ID>LongParameterList:FrontDoorHandler.kt$FrontDoorHandler$( private val playerId: PlayerId, private val deckService: DeckService, private val playerService: PlayerService, private val matchmaking: MatchmakingService, private val collectionService: CollectionService, private val courseService: CourseService, private val draftService: DraftService, private val writer: FdResponseWriter, private val golden: GoldenData, private val onFdMessage: ((String, FdEnvelope.FdMessage) -&gt; Unit)? = null, private val coordinator: MatchCoordinator = MatchCoordinator.NOOP, private val matchmakingQueue: MatchmakingQueue? = null, )</ID>
     <ID>UnusedParameter:MatchmakingService.kt$MatchmakingService$playerId: PlayerId</ID>
   </CurrentIssues>
 </SmellBaseline>

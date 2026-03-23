@@ -27,7 +27,6 @@ class GameLoopController(
     private val actionBridges: Collection<GameActionBridge> = emptyList(),
     private val promptBridges: Collection<InteractivePromptBridge> = emptyList(),
     private val mulliganBridges: Collection<MulliganBridge> = emptyList(),
-    private val onStateChanged: (() -> Unit)? = null,
     private val prioritySignal: PrioritySignal? = null,
 ) {
     companion object {

@@ -17,6 +17,7 @@ class RecordingInspector(
     private val cardNameLookup: ((Int) -> String?)? = null,
 ) {
 
+    @Suppress("UnusedPrivateProperty")
     private val recordingsRoot = LeylinePaths.RECORDINGS
 
     @Serializable

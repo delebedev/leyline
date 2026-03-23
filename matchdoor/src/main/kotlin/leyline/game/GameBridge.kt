@@ -818,6 +818,7 @@ class GameBridge(
      * Installs temp [WebPlayerController]s with autoKeep/zero-timeout during
      * application to handle any SBAs or triggers that fire during setup.
      */
+    @Suppress("SwallowedException") // InvocationTargetException.targetException forwarded as cause
     private fun applyPuzzleSafely(puzzle: Puzzle, game: Game) {
         val method = puzzle.javaClass.superclass.getDeclaredMethod("applyGameOnThread", Game::class.java)
         method.isAccessible = true
@@ -825,7 +826,7 @@ class GameBridge(
             try {
                 method.invoke(puzzle, game)
             } catch (e: InvocationTargetException) {
-                throw RuntimeException("Puzzle application failed", e.targetException)
+                throw IllegalStateException("Puzzle application failed", e.targetException)
             }
         }
     }

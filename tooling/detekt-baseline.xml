@@ -1,24 +1,30 @@
 <?xml version="1.0" ?>
 <SmellBaseline>
-  <ManuallySuppressedIssues></ManuallySuppressedIssues>
-  <CurrentIssues>
+  <ManuallySuppressedIssues>
+    <!-- Protocol/CLI dispatch: branching inherent to command-line argument handling and GRE message set -->
     <ID>CyclomaticComplexMethod:AnnotationVariance.kt$fun main(args: Array&lt;String&gt;)</ID>
     <ID>CyclomaticComplexMethod:DecodeFdCapture.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <ID>CyclomaticComplexMethod:RecordingCli.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <ID>CyclomaticComplexMethod:Trace.kt$private fun checkRenames( greMessages: List&lt;com.google.protobuf.Message&gt;, targets: MutableSet&lt;Int&gt;, ): List&lt;Pair&lt;Int, Int&gt;&gt;</ID>
+    <!-- Analysis logic: inherent branching in timeline/classifier algorithms -->
     <ID>CyclomaticComplexMethod:GameFlowAnalyzer.kt$GameFlowAnalyzer$private fun groupIntoTimeline(segments: List&lt;Segment&gt;): Analysis</ID>
     <ID>CyclomaticComplexMethod:MechanicClassifier.kt$MechanicClassifier$fun classify(event: GameEvent): String</ID>
     <ID>CyclomaticComplexMethod:PriorityTimeline.kt$PriorityTimeline$fun analyze(messages: List&lt;DecodedMessage&gt;, cards: CardRepository? = null): Analysis</ID>
-    <ID>CyclomaticComplexMethod:RecordingCli.kt$fun main(args: Array&lt;String&gt;)</ID>
-    <ID>CyclomaticComplexMethod:Trace.kt$private fun checkRenames( greMessages: List&lt;com.google.protobuf.Message&gt;, targets: MutableSet&lt;Int&gt;, ): List&lt;Pair&lt;Int, Int&gt;&gt;</ID>
-    <ID>LongMethod:RecordingCli.kt$fun main(args: Array&lt;String&gt;)</ID>
-    <ID>LongParameterList:SemanticTimelineTest.kt$SemanticTimelineTest$( index: Int = 0, greType: String = "GameStateMessage", gsId: Int = 0, prevGsId: Int? = null, updateType: String? = null, annotations: List&lt;AnnotationSummary&gt; = emptyList(), zones: List&lt;ZoneSummary&gt; = emptyList(), turnInfo: TurnInfoSummary? = null, hasActionsAvailableReq: Boolean = false, hasIntermissionReq: Boolean = false, promptId: Int? = null, actions: List&lt;RecordingDecoder.ActionSummary&gt; = emptyList(), )</ID>
-    <ID>MaxLineLength:DecodeCapture.kt$println(" reservedPlayers=${info.gameRoomConfig.reservedPlayersList.map { "${it.playerName}(seat=${it.systemSeatId},bot=${it.isBotPlayer})" }}")</ID>
-    <ID>MaxLineLength:DecodeCapture.kt$println(" turnInfo: phase=${gs.turnInfo.phase} step=${gs.turnInfo.step} turn=${gs.turnInfo.turnNumber} active=${gs.turnInfo.activePlayer}")</ID>
-    <ID>NestedBlockDepth:DecodeCapture.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <!-- ReturnCount: early returns in analysis/CLI functions improve readability -->
     <ID>ReturnCount:GameFlowAnalyzer.kt$GameFlowAnalyzer$private fun isGameStartAt(i: Int): Boolean</ID>
     <ID>ReturnCount:RecordingCli.kt$fun main(args: Array&lt;String&gt;)</ID>
-    <ID>SwallowedException:DebugServer.kt$DebugServer$e: IllegalStateException</ID>
+    <!-- MaxLineLength: debug print statements; wrapping hurts readability -->
+    <ID>MaxLineLength:DecodeCapture.kt$println(" reservedPlayers=${info.gameRoomConfig.reservedPlayersList.map { "${it.playerName}(seat=${it.systemSeatId},bot=${it.isBotPlayer})" }}")</ID>
+    <ID>MaxLineLength:DecodeCapture.kt$println(" turnInfo: phase=${gs.turnInfo.phase} step=${gs.turnInfo.step} turn=${gs.turnInfo.turnNumber} active=${gs.turnInfo.activePlayer}")</ID>
+    <!-- Nested decode logic: inherent structure for binary proto parsing -->
+    <ID>NestedBlockDepth:DecodeCapture.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <!-- UnusedParameter: proto reflection API requires FieldDescriptor param in signature -->
     <ID>UnusedParameter:Trace.kt$field: FieldDescriptor</ID>
-    <ID>UnusedPrivateMember:LeylinePaths.kt$private fun File.walkUpFind(pred: (File) -&gt; Boolean): File?</ID>
-    <ID>UnusedPrivateProperty:RecordingInspector.kt$RecordingInspector$private val recordingsRoot = LeylinePaths.RECORDINGS</ID>
+  </ManuallySuppressedIssues>
+  <CurrentIssues>
+    <!-- Needs refactor: RecordingCli.main is too long; extract subcommand handlers -->
+    <ID>LongMethod:RecordingCli.kt$fun main(args: Array&lt;String&gt;)</ID>
+    <!-- Needs refactor: introduce data class for SemanticTimeline test params -->
+    <ID>LongParameterList:SemanticTimelineTest.kt$SemanticTimelineTest$( index: Int = 0, greType: String = "GameStateMessage", gsId: Int = 0, prevGsId: Int? = null, updateType: String? = null, annotations: List&lt;AnnotationSummary&gt; = emptyList(), zones: List&lt;ZoneSummary&gt; = emptyList(), turnInfo: TurnInfoSummary? = null, hasActionsAvailableReq: Boolean = false, hasIntermissionReq: Boolean = false, promptId: Int? = null, actions: List&lt;RecordingDecoder.ActionSummary&gt; = emptyList(), )</ID>
   </CurrentIssues>
 </SmellBaseline>

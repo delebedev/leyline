@@ -165,6 +165,7 @@ class GoldenFieldCoverageTest :
             val newExtras = extra - expectedExtra
             val removedExtras = expectedExtra - extra
 
+            @Suppress("UnusedPrivateProperty")
             val diff = FieldPathExtractor.formatDiff(golden, ours, expectedMissing)
 
             newGaps.shouldBeEmpty()

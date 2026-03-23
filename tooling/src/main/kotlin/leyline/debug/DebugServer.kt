@@ -703,6 +703,7 @@ class DebugServer(
                 if (pzlFile.exists()) {
                     PuzzleSource.loadFromFile(pzlFile.absolutePath)
                 } else {
+                    @Suppress("SwallowedException") // resource-not-found → 404, exception carries no useful info
                     try {
                         PuzzleSource.loadFromResource("puzzles/$fileParam.pzl")
                     } catch (e: IllegalStateException) {

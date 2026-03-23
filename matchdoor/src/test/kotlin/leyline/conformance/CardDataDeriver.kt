@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * Synthetic grpIds start at 200000 (well above real Arena grpIds which reach ~100000+).
  */
 object CardDataDeriver {
+    @Suppress("UnusedPrivateProperty")
     private val log = LoggerFactory.getLogger(CardDataDeriver::class.java)
 
     private val nextGrpId = AtomicInteger(200000)

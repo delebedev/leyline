@@ -7,11 +7,8 @@ import forge.game.GameRules
 import forge.game.GameStage
 import forge.game.GameType
 import forge.game.Match
-import forge.game.card.Card
 import forge.game.phase.PhaseType
-import forge.game.player.Player
 import forge.game.player.RegisteredPlayer
-import forge.game.zone.ZoneType
 import forge.gui.GuiBase
 import forge.gui.interfaces.IGuiGame
 import forge.localinstance.properties.ForgePreferences.FPref
@@ -353,20 +350,6 @@ object GameBootstrap {
             null
         }
         cardDatabaseInitialized = true
-    }
-
-    private fun addCardToZone(name: String, player: Player, zone: ZoneType): Card {
-        val paperCard = FModel.getMagicDb().commonCards.getCard(name)
-            ?: run {
-                forge.StaticData.instance().attemptToLoadCard(name)
-                FModel.getMagicDb().commonCards.getCard(name)
-            }
-            ?: error("Card not found: $name")
-
-        val card = Card.fromPaperCard(paperCard, player)
-        card.setGameTimestamp(player.game.nextTimestamp)
-        player.getZone(zone).add(card)
-        return card
     }
 
     private fun resolveAssetsDir(): Path =
