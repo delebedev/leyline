@@ -251,6 +251,9 @@ def dispatch(args):
             return cmd_latest()
         if verb == "find":
             return cmd_find(args.keyword)
+        if verb == "cards":
+            from cards import cmd_cards
+            return cmd_cards(getattr(args, "session", None))
 
         # Kotlin-backed session commands
         if verb == "actions":
@@ -499,6 +502,11 @@ def main():
     )
 
     ss.add_parser("latest", help="Print path to most recent session")
+
+    p = ss.add_parser("cards", help="Card manifest (names + abilities from Arena DB)")
+    p.add_argument(
+        "session", nargs="?", help="Session name/substring (default: latest)"
+    )
 
     p = ss.add_parser("find", help="Search keyword across sessions")
     p.add_argument("keyword")

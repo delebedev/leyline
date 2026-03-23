@@ -811,7 +811,13 @@ zone-transfers:
 
   unattached-aura:
     status: missing
-    notes: "Battlefield → Graveyard (aura not attached). Category 23. Falls back to Destroy animation."
+    notes: >
+      Battlefield → Graveyard (aura falls off when enchanted permanent leaves BF). ZoneTransfer category
+      "SBA_UnattachedAura". First recorded in 2026-03-22_23-20-47 (River's Favor fell off when stolen
+      creature died). Wire: LayeredEffectDestroyed for the aura's effect fires first, then
+      ObjectIdChanged + ZoneTransfer(SBA_UnattachedAura) for the aura. affectorId absent (consistent
+      with all SBA categories). Fires in same diff as the SBA_Damage/SBA_ZeroToughness that killed the
+      enchanted creature. See #170 for full segment wire.
 
   # ── N/A ───────────────────────────────────────────────────────────
 
