@@ -210,7 +210,11 @@ class GameBridge(
     /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
     val effects = EffectTracker()
 
-    /** Annotation ID sequences + persistent annotation lifecycle (Attachment, Counter, LayeredEffect). */
+    /**
+     * Annotation ID sequences + persistent annotation lifecycle.
+     * See [PersistentAnnotationStore] class KDoc for the full lifecycle
+     * (create/carry-forward/replace/delete/drain) and ordering invariants.
+     */
     val annotations = PersistentAnnotationStore()
 
     override fun nextAnnotationId(): Int = annotations.nextAnnotationId()

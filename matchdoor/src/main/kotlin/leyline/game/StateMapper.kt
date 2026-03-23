@@ -67,6 +67,8 @@ object StateMapper {
         val initEffectDiff = bridge.effects.emitInitEffectsOnce()
         val boostSnapshot = bridge.snapshotBoosts()
         val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
+        // Snapshot persistent state BEFORE compute — computeBatch is pure over this snapshot.
+        // See PersistentAnnotationStore class KDoc for lifecycle and ordering invariants.
         val persistSnapshot = bridge.annotations.snapshot()
         val startPersistentId = bridge.annotations.currentPersistentId()
         val startAnnotationId = bridge.annotations.currentAnnotationId()
@@ -162,6 +164,8 @@ object StateMapper {
         )
 
         // ═══ APPLY: deferred tracking effects (for next GSM) ═══
+        // Must run AFTER assembleGsm — the GSM already embedded batch.allAnnotations.
+        // applyBatchResult replaces the live store so the next buildFromGame sees updated state.
         for (id in transferResult.retiredIds) bridge.retireToLimbo(InstanceId(id))
         for ((iid, zid) in transferResult.zoneRecordings) bridge.recordZone(InstanceId(iid), zid)
         bridge.annotations.applyBatchResult(remaining.batch)
