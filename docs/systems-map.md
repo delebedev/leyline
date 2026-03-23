@@ -31,7 +31,7 @@ Each system is a contract between server and client — a player-facing interact
 
 27 server→client request types documented in the protocol. Coverage status:
 
-### Implemented (19 of 27)
+### Implemented (20 of 27)
 
 | GRE Type | Value | Notes |
 |----------|------:|-------|
@@ -54,13 +54,13 @@ Each system is a contract between server and client — a player-facing interact
 | PromptReq | 18 | |
 | DieRollResultsResp | 38 | |
 | UIMessage | 52 | No-op sink |
+| AssignDamageReq | 30 | Multi-blocker/trample damage distribution |
 
-### Not Implemented (8 of 27)
+### Not Implemented (7 of 27)
 
 | GRE Type | Value | What it does | Protocol examples? | Impact |
 |----------|------:|-------------|:------------------:|--------|
 | **PayCostsReq** | 36 | Composite cost payment UI (mana + convoke + delve). Wraps ActionsAvailableReq + SelectNReq + EffectCostReq + AutoTapActionsReq | Yes — observed frequently | UX — auto-tap handles it engine-side today |
-| **AssignDamageReq** | 30 | Manual combat damage distribution across multiple blockers ([#197]) | Yes — observed | Functional — blocks asymmetric damage |
 | **OptionalActionMessage** | 45 | "You may..." triggered ability prompts | Yes — few examples | Functional — some triggers |
 | **SelectReplacementReq** | 39 | Choose between replacement effects (shocklands, ETB choices) | Not yet observed | Functional — ETB choices |
 | **DistributionReq** | 42 | Distribute N among targets (damage, counters) | Not yet observed | Functional — Walking Ballista, etc. |
@@ -81,7 +81,7 @@ Others not observed and likely niche: GatherReq (50), SelectNGroupReq (40), Sele
 
 ### Tier 2 — Degrades gameplay noticeably
 
-3. **AssignDamageReq** ([#197]) — manual combat damage distribution. Multi-blocker trample scenarios.
+3. ~~**AssignDamageReq** ([#197])~~ — **Implemented.** Manual damage distribution for multi-blocker/trample. Auto-assign fallback.
 4. **SelectReplacementReq** — choose between replacement effects. Shocklands, ETB choices.
 5. **DistributionReq** — distribute damage/counters among targets.
 6. **NumericInputReq** — X-cost spells.

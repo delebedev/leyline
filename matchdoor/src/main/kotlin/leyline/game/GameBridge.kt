@@ -570,6 +570,10 @@ class GameBridge(
                 Thread.sleep(SETTLE_MS)
                 return true
             }
+            if (humanController?.pendingDamageAssignment != null) {
+                Thread.sleep(SETTLE_MS)
+                return true
+            }
 
             val remaining = deadline - System.currentTimeMillis()
             if (remaining <= 0) {

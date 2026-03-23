@@ -156,6 +156,40 @@ fun submitBlockersReq(seatId: Int = 1): ClientToGREMessage =
     }
 
 // ---------------------------------------------------------------------------
+// Damage Assignment
+// ---------------------------------------------------------------------------
+
+/**
+ * [AssignDamageResp] — respond to an AssignDamageReq with filled damage assignments.
+ *
+ * @param assigners list of (attackerInstanceId, assignments) where assignments is
+ *                  a list of (blockerInstanceId, assignedDamage) pairs
+ */
+fun assignDamageResp(
+    assigners: List<Pair<Int, List<Pair<Int, Int>>>>,
+): ClientToGREMessage = clientMessage(ClientMessageType.AssignDamageResp_097b) {
+    setAssignDamageResp(
+        AssignDamageResp.newBuilder().apply {
+            for ((attackerIid, assignments) in assigners) {
+                addAssigners(
+                    DamageAssigner.newBuilder()
+                        .setInstanceId(attackerIid)
+                        .apply {
+                            for ((targetIid, damage) in assignments) {
+                                addAssignments(
+                                    DamageAssignment.newBuilder()
+                                        .setInstanceId(targetIid)
+                                        .setAssignedDamage(damage),
+                                )
+                            }
+                        },
+                )
+            }
+        },
+    )
+}
+
+// ---------------------------------------------------------------------------
 // Targeting
 // ---------------------------------------------------------------------------
 

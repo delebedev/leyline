@@ -2,12 +2,15 @@ package leyline.match
 
 import forge.game.Game
 import forge.game.phase.PhaseType
+import forge.game.player.Player
 import leyline.bridge.ForgeCardId
 import leyline.bridge.ForgePlayerId
 import leyline.bridge.InstanceId
 import leyline.bridge.PlayerAction
 import leyline.bridge.SeatId
 import leyline.bridge.Target
+import leyline.bridge.WebPlayerController
+import leyline.bridge.findCard
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -343,8 +346,6 @@ class CombatHandler(private val ops: SessionOps) {
                 }
             }
             PhaseType.COMBAT_DAMAGE -> {
-                // Always send state at combat damage — Forge clears combat.attackers
-                // after dealing damage but before we get priority, so we can't guard on it.
                 ops.traceEvent(MatchEventType.SEND_STATE, game, "combat damage")
                 ops.paceDelay(2)
                 return Signal.SEND_STATE
@@ -357,6 +358,180 @@ class CombatHandler(private val ops: SessionOps) {
             else -> {}
         }
         return Signal.CONTINUE
+    }
+
+    // --- Damage assignment ---
+
+    /**
+     * Check if the engine is blocked waiting for manual damage assignment.
+     *
+     * Called from [AutoPassEngine.autoPassAndAdvance] between combat phase
+     * handling and interactive prompt checks. Uses the dedicated
+     * [DamageAssignmentPrompt] future on [WebPlayerController] — NOT the
+     * [GameActionBridge] — so the auto-pass loop cannot interfere.
+     *
+     * @return true if AssignDamageReq was sent (caller should exit the loop)
+     */
+    fun checkPendingDamageAssignment(bridge: GameBridge): Boolean {
+        val wpc = bridge.humanController ?: return false
+        val prompt = wpc.pendingDamageAssignment ?: return false
+        val game = bridge.getGame() ?: return false
+
+        log.info("CombatHandler: damage assignment pending for {} (damage={})", prompt.attacker.name, prompt.damageDealt)
+        sendAssignDamageReq(bridge, game, prompt)
+        return true
+    }
+
+    /**
+     * Handle AssignDamageResp from client.
+     *
+     * Parses the response, completes the [DamageAssignmentPrompt] future on
+     * [WebPlayerController] so the engine thread unblocks with the damage map.
+     * For batched responses with multiple assigners, caches subsequent
+     * attacker maps on WPC for the engine's per-attacker loop.
+     */
+    fun onAssignDamage(
+        greMsg: ClientToGREMessage,
+        bridge: GameBridge,
+        autoPass: (GameBridge) -> Unit,
+    ) {
+        val resp = greMsg.assignDamageResp
+        val wpc = bridge.humanController ?: run {
+            log.warn("CombatHandler: no humanController for damage assignment")
+            return
+        }
+        val prompt = wpc.pendingDamageAssignment ?: run {
+            log.warn("CombatHandler: AssignDamageResp but no pending damage assignment")
+            ops.sendRealGameState(bridge)
+            return
+        }
+        val game = bridge.getGame() ?: return
+
+        // Parse all assigners. First assigner completes the blocking future;
+        // subsequent assigners are cached for Forge's per-attacker loop.
+        var firstMap: MutableMap<forge.game.card.Card?, Int>? = null
+
+        for (assigner in resp.assignersList) {
+            val attackerForgeId = bridge.getForgeCardId(InstanceId(assigner.instanceId))
+            if (attackerForgeId == null) {
+                log.warn("CombatHandler: unknown attacker instanceId={}", assigner.instanceId)
+                continue
+            }
+
+            val damageMap = mutableMapOf<forge.game.card.Card?, Int>()
+            for (assignment in assigner.assignmentsList) {
+                val blockerForgeId = bridge.getForgeCardId(InstanceId(assignment.instanceId))
+                if (blockerForgeId != null) {
+                    val card = findCard(game, blockerForgeId)
+                    if (card != null) damageMap[card] = assignment.assignedDamage
+                } else if (assignment.assignedDamage > 0) {
+                    // Defender (player) — null key in Forge's damage map
+                    damageMap[null] = assignment.assignedDamage
+                }
+            }
+
+            if (firstMap == null) {
+                firstMap = damageMap
+            } else {
+                // Cache for subsequent per-attacker calls
+                wpc.damageAssignCache[attackerForgeId.value] = damageMap
+            }
+        }
+
+        log.info(
+            "CombatHandler: AssignDamageResp assigners={} cached={}",
+            resp.assignersCount,
+            wpc.damageAssignCache.size,
+        )
+
+        // Send confirmation
+        ops.sendBundledGRE(
+            listOf(
+                ops.makeGRE(GREMessageType.AssignDamageConfirmation_695e, ops.counter.currentGsId(), ops.counter.nextMsgId()) {
+                    it.assignDamageConfirmation = AssignDamageConfirmation.newBuilder()
+                        .setResult(ResultCode.Success_a500).build()
+                },
+            ),
+        )
+
+        // Complete the future — engine thread unblocks in WPC.assignCombatDamage
+        if (firstMap != null) {
+            prompt.future.complete(firstMap)
+        } else {
+            log.warn("CombatHandler: no assigners in response, completing with empty map")
+            prompt.future.complete(mutableMapOf())
+        }
+        bridge.awaitPriority()
+        autoPass(bridge)
+    }
+
+    /**
+     * Build and send a batched AssignDamageReq from the pending
+     * [DamageAssignmentPrompt] context.
+     */
+    private fun sendAssignDamageReq(
+        bridge: GameBridge,
+        game: Game,
+        prompt: WebPlayerController.DamageAssignmentPrompt,
+    ) {
+        val humanPlayer = bridge.getPlayer(SeatId(ops.seatId)) ?: return
+
+        val attackerIid = bridge.getOrAllocInstanceId(ForgeCardId(prompt.attacker.id))
+        val assignments = mutableListOf<DamageAssignment>()
+
+        for (blocker in prompt.blockers) {
+            val blockerIid = bridge.getOrAllocInstanceId(ForgeCardId(blocker.id))
+            val lethal = if (prompt.hasDeathtouch) 1 else maxOf(0, blocker.netToughness - blocker.damage)
+            assignments.add(
+                DamageAssignment.newBuilder()
+                    .setInstanceId(blockerIid.value)
+                    .setMinDamage(lethal)
+                    .setMaxDamage(prompt.damageDealt)
+                    .build(),
+            )
+        }
+
+        // Trample: add defender slot
+        if (prompt.hasTrample && prompt.defender != null) {
+            val defenderIid = if (prompt.defender is Player) {
+                val opponentSeatId = if (prompt.defender == humanPlayer) 1 else 2
+                opponentSeatId
+            } else {
+                (prompt.defender as? forge.game.card.Card)
+                    ?.let { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value } ?: 0
+            }
+            val minTrample = maxOf(
+                0,
+                prompt.damageDealt - prompt.blockers.sumOf { b ->
+                    if (prompt.hasDeathtouch) 1 else maxOf(0, b.netToughness - b.damage)
+                },
+            )
+            assignments.add(
+                DamageAssignment.newBuilder()
+                    .setInstanceId(defenderIid)
+                    .setMinDamage(minTrample)
+                    .setMaxDamage(prompt.damageDealt)
+                    .build(),
+            )
+        }
+
+        val assigner = DamageAssigner.newBuilder()
+            .setInstanceId(attackerIid.value)
+            .setTotalDamage(prompt.damageDealt)
+            .addAllAssignments(assignments)
+            .setCanIgnoreBlockers(prompt.hasTrample)
+            .build()
+
+        log.info("CombatHandler: AssignDamageReq attacker={} assignments={}", prompt.attacker.name, assignments.size)
+
+        val req = AssignDamageReq.newBuilder().addDamageAssigners(assigner).build()
+        ops.sendBundledGRE(
+            listOf(
+                ops.makeGRE(GREMessageType.AssignDamageReq_695e, ops.counter.currentGsId(), ops.counter.nextMsgId()) {
+                    it.assignDamageReq = req
+                },
+            ),
+        )
     }
 
     // --- Sending helpers ---

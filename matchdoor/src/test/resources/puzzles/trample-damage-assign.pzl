@@ -1,0 +1,17 @@
+[metadata]
+Name:Trample Damage Assignment
+Goal:Win
+Turns:10
+Difficulty:Tutorial
+Description:5/5 trampler with haste blocked by two 2/2 bears. Player must assign damage: min 2 to each bear, 1 trample to opponent. AILife=1 so trample is lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=1
+
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain;Charging Monstrosaur
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+aibattlefield=Forest;Forest;Grizzly Bears;Runeclaw Bear
+ailibrary=Forest;Forest;Forest;Forest;Forest

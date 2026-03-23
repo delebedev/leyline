@@ -81,6 +81,9 @@ interface SessionOps {
     /** Handle SearchResp. Default no-op for read-only sessions. */
     fun onSearch(greMsg: ClientToGREMessage) {}
 
+    /** Handle AssignDamageResp. Default no-op for read-only sessions. */
+    fun onAssignDamage(greMsg: ClientToGREMessage) {}
+
     /** Handle concession. Default no-op for read-only sessions. */
     fun onConcede() {}
 
