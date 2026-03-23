@@ -299,6 +299,15 @@ sealed interface GameEvent {
         val ownerSeatId: Int,
     ) : GameEvent
 
+    /** A permanent's controller changed (steal effect or revert).
+     *  Fires both on steal (Claim the Firstborn) and on revert (end of turn).
+     *  [sourceForgeCardId] resolved later from events list (affectorSourceFromEvents pattern). */
+    data class ControllerChanged(
+        val forgeCardId: Int,
+        val oldControllerSeatId: Int,
+        val newControllerSeatId: Int,
+    ) : GameEvent
+
     // -- Group C: combat enrichment --
 
     /** Combat phase ended — signal to clear combat state. */

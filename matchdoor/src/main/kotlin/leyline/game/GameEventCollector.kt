@@ -320,6 +320,14 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         }
     }
 
+    override fun visit(ev: GameEventControllerChanged) {
+        val card = ev.card()
+        val oldSeat = seatOf(ev.oldController()) ?: return
+        val newSeat = seatOf(ev.newController()) ?: return
+        queue.add(GameEvent.ControllerChanged(card.id, oldSeat, newSeat))
+        log.debug("event: ControllerChanged card={} {} -> {}", card.name, oldSeat, newSeat)
+    }
+
     // -- Group C: combat enrichment --
 
     override fun visit(ev: GameEventCombatEnded) {

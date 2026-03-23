@@ -718,6 +718,29 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.VALUE, value))
             .build()
 
+    // -- Controller change annotations --
+
+    /** Transient: controller changed event. Arena type 15 (ControllerChanged).
+     *  Wire shape: affectorId = spell/ability instance, affectedIds = [stolen permanent].
+     *  No details field. */
+    fun controllerChanged(affectorId: Int, instanceId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.ControllerChanged)
+            .setAffectorId(affectorId)
+            .addAffectedIds(instanceId)
+            .build()
+
+    /** Persistent: controller change continuous effect. Types: [ControllerChanged, LayeredEffect].
+     *  Details: effect_id. Persists while steal is active; removed on expiry. */
+    fun controllerChangedEffect(affectorId: Int, instanceId: Int, effectId: Int): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.ControllerChanged)
+            .addType(AnnotationType.LayeredEffect)
+            .setAffectorId(affectorId)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId))
+            .build()
+
     // -- Tier 2 detail-less annotations --
 
     /** Layered effect ended (continuous effect removed). Arena type 19. */

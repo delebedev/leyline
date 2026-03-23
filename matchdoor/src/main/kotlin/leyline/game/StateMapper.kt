@@ -381,9 +381,13 @@ object StateMapper {
             .map { it.forgeCardId }
             .toSet()
         val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds
-        val mechanicResult = AnnotationPipeline.mechanicAnnotations(events, manaPaidForgeCardIds) { fid ->
-            bridge.getOrAllocInstanceId(fid)
-        }
+        val mechanicResult = AnnotationPipeline.mechanicAnnotations(
+            events,
+            manaPaidForgeCardIds,
+            idResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
+            effectIdAllocator = { bridge.effects.nextEffectId() },
+            activeStealForgeCardIds = bridge.annotations.activeStealForgeCardIds(),
+        )
         annotations.addAll(mechanicResult.transient)
 
         if (initEffectDiff.created.isNotEmpty()) {
@@ -405,6 +409,15 @@ object StateMapper {
             resolveInstanceId = { fid -> bridge.getOrAllocInstanceId(fid) },
             resolveForgeCardId = { iid -> bridge.getForgeCardId(iid) },
         )
+
+        // Emit LayeredEffectDestroyed for reverted steals
+        for (effectId in batch.revertedEffectIds) {
+            annotations.add(AnnotationBuilder.layeredEffectDestroyed(effectId))
+        }
+
+        // Track steal lifecycle
+        bridge.annotations.addSteals(mechanicResult.controllerChangedEffects.map { it.forgeCardId })
+        bridge.annotations.removeSteals(mechanicResult.controllerRevertedForgeCardIds)
 
         var annId = startAnnotationId
         val numbered = annotations.map { it.toBuilder().setId(annId++).build() }

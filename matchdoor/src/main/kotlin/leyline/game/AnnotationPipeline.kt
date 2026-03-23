@@ -489,7 +489,19 @@ object AnnotationPipeline {
          *  Used by [PersistentAnnotationStore.computeBatch] to clean up
          *  [AnnotationType.DisplayCardUnderCard] persistent annotations. */
         val exileSourceLeftPlayForgeCardIds: List<Int> = emptyList(),
-    )
+        /** Controller-change effects created this GSM (for persistent tracking). */
+        val controllerChangedEffects: List<ControllerChangedEffect> = emptyList(),
+        /** Forge card IDs of permanents whose control reverted this GSM. */
+        val controllerRevertedForgeCardIds: List<Int> = emptyList(),
+    ) {
+        /** Tracks an active controller-change effect for persistent annotation lifecycle. */
+        data class ControllerChangedEffect(
+            val forgeCardId: Int,
+            val effectId: Int,
+            val affectorInstanceId: Int,
+            val stolenInstanceId: Int,
+        )
+    }
 
     /**
      * Stage 4: Generate standalone annotations for mechanic events (Group B + A+).
@@ -506,11 +518,15 @@ object AnnotationPipeline {
         events: List<GameEvent>,
         manaPaidForgeCardIds: Set<Int> = emptySet(),
         idResolver: (ForgeCardId) -> InstanceId,
+        effectIdAllocator: () -> Int = { 0 },
+        activeStealForgeCardIds: Set<Int> = emptySet(),
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
         val detachedForgeCardIds = mutableListOf<Int>()
         val exileSourceLeftPlayForgeCardIds = mutableListOf<Int>()
+        val controllerChangedEffects = mutableListOf<MechanicAnnotationResult.ControllerChangedEffect>()
+        val controllerRevertedForgeCardIds = mutableListOf<Int>()
         for (ev in events) {
             when (ev) {
                 is GameEvent.CountersChanged -> {
@@ -614,6 +630,47 @@ object AnnotationPipeline {
                     }
                     exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
                 }
+                is GameEvent.ControllerChanged -> {
+                    val cardIid = idResolver(ForgeCardId(ev.forgeCardId)).value
+                    val isRevert = ev.forgeCardId in activeStealForgeCardIds
+
+                    if (isRevert) {
+                        // Control reverted — signal cleanup of existing CC persistent annotation
+                        controllerRevertedForgeCardIds.add(ev.forgeCardId)
+                        log.debug(
+                            "mechanic: controllerChanged revert iid={} {}->{}",
+                            cardIid,
+                            ev.oldControllerSeatId,
+                            ev.newControllerSeatId,
+                        )
+                    } else {
+                        // New steal: emit transient + persistent + track effect.
+                        // Walk events backward from this ControllerChanged to find the nearest
+                        // preceding SpellResolved — handles multiple spells in one GSM.
+                        val evIndex = events.indexOf(ev)
+                        val spellResolved = events.subList(0, evIndex)
+                            .filterIsInstance<GameEvent.SpellResolved>()
+                            .lastOrNull()
+                        val affectorIid = if (spellResolved != null) {
+                            idResolver(ForgeCardId(spellResolved.forgeCardId)).value
+                        } else {
+                            0
+                        }
+                        val effectId = effectIdAllocator()
+                        annotations.add(AnnotationBuilder.layeredEffectCreated(effectId, affectorIid))
+                        annotations.add(AnnotationBuilder.controllerChanged(affectorIid, cardIid))
+                        persistent.add(AnnotationBuilder.controllerChangedEffect(affectorIid, cardIid, effectId))
+                        controllerChangedEffects.add(MechanicAnnotationResult.ControllerChangedEffect(ev.forgeCardId, effectId, affectorIid, cardIid))
+                        log.debug(
+                            "mechanic: controllerChanged steal iid={} affector={} effectId={} {}->{}",
+                            cardIid,
+                            affectorIid,
+                            effectId,
+                            ev.oldControllerSeatId,
+                            ev.newControllerSeatId,
+                        )
+                    }
+                }
                 is GameEvent.LegendRuleDeath -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
                 is GameEvent.ZoneChanged -> {
                     if (ev.from == Zone.Battlefield) exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
@@ -621,7 +678,14 @@ object AnnotationPipeline {
                 else -> {} // Remaining zone-transfer events handled in Stages 1-2, combat in Stage 3
             }
         }
-        return MechanicAnnotationResult(annotations, persistent, detachedForgeCardIds, exileSourceLeftPlayForgeCardIds)
+        return MechanicAnnotationResult(
+            annotations,
+            persistent,
+            detachedForgeCardIds,
+            exileSourceLeftPlayForgeCardIds,
+            controllerChangedEffects,
+            controllerRevertedForgeCardIds,
+        )
     }
 
     /** Infer category for a zone transfer annotation from zone IDs. */
