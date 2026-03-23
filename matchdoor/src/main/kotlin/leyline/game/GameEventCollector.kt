@@ -13,20 +13,61 @@ import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
  * Subscribes to the Forge engine's Guava EventBus and converts rich Java
- * [GameEvent] objects into protocol-oriented [GameEvent] instances.
+ * [GameEvent][forge.game.event.GameEvent] objects into protocol-oriented
+ * [GameEvent] sealed variants.
  *
- * Events accumulate in a thread-safe queue. The annotation builder drains
- * them via [drainEvents] when building a state diff.
+ * ## Drain contract
  *
- * Threading: events fire synchronously on the engine thread. Queue access
- * is via [ConcurrentLinkedQueue] so the Netty/handler thread can drain safely.
+ * Events accumulate in a thread-safe [ConcurrentLinkedQueue]. [drainEvents]
+ * atomically empties the queue and returns events in firing order, wrapped in
+ * [DrainedEvents] to make single-use visible in the type system.
+ *
+ * **Drain exactly once per GSM build.** [StateMapper.buildFromGame] drains in
+ * the GATHER phase. Double-draining silently loses events — the second drain
+ * returns an empty list with no error. The [DrainedEvents] wrapper prevents
+ * accidental re-drain of the same result but cannot prevent calling
+ * [drainEvents] twice on the collector itself.
+ *
+ * ## Event ordering
+ *
+ * Events fire in Forge engine execution order, which may differ from the
+ * annotation ordering the client expects. The downstream annotation pipeline
+ * ([AnnotationBuilder.categoryFromEvents]) re-prioritizes: specific events
+ * (LandPlayed, CardSacrificed) take precedence over generic ZoneChanged when
+ * both fire for the same card in the same GSM.
+ *
+ * ## Cross-class flag consumption
+ *
+ * Two helper methods consume single-use flags set by
+ * [WebPlayerController][leyline.bridge.WebPlayerController] on the
+ * [InteractivePromptBridge][leyline.bridge.InteractivePromptBridge]:
+ *
+ * - [isSearchedToHand]: consumes `searchedToHandCards` flag → emits
+ *   [GameEvent.CardSearchedToHand] instead of generic ZoneChanged for
+ *   Library→Hand tutors. Set by WPC's `chooseSingleEntityForEffect`.
+ *
+ * - [isLegendRuleVictim]: consumes `legendRuleVictims` flag → emits
+ *   [GameEvent.LegendRuleDeath] instead of generic ZoneChanged for
+ *   BF→GY legend rule deaths. Set by WPC's `chooseSingleEntityForEffect`.
+ *
+ * Both flags are written and consumed on the engine thread (events fire
+ * synchronously during the engine operation that triggered the zone change).
+ * Consumption removes the flag so it doesn't leak to subsequent zone events.
+ *
+ * ## Threading
+ *
+ * Events fire synchronously on the engine thread. Queue access is via
+ * [ConcurrentLinkedQueue] so the Netty/handler thread can drain safely,
+ * though in practice [drainEvents] is always called from the engine thread
+ * via [StateMapper].
  *
  * **Adding new mechanics:** When upstream Forge events lack the granularity we need
  * (per-card IDs, zone-pair specificity), add a new event to our fork rather than
  * retroactively correlating events here. See [GameEventCardSurveiled] for the pattern:
  * fire per-card from `Player.surveil()`, handle with a simple visit override.
  *
- * @param bridge used only to resolve Player → seatId (never mutated)
+ * @param bridge used only to resolve Player → seatId and access prompt bridge flags
+ *   (never mutated beyond flag consumption)
  */
 /** Wrapper making event drain's single-use nature visible in the type system. */
 @JvmInline
@@ -41,7 +82,13 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     /** Last-seen P/T per card ID — used to detect deltas on GameEventCardStatsChanged. */
     private val lastPT = ConcurrentHashMap<Int, Pair<Int, Int>>()
 
-    /** Drain all queued events since last drain. Returns events in firing order. */
+    /**
+     * Drain all queued events since last drain. Returns events in engine firing order.
+     *
+     * **Call exactly once per GSM build** — second call returns empty (events are gone).
+     * [StateMapper.buildFromGame] calls this in the GATHER phase before any annotation
+     * pipeline stages run.
+     */
     fun drainEvents(): DrainedEvents = DrainedEvents(
         buildList {
             while (true) {
