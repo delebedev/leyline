@@ -85,6 +85,47 @@ class ControllerChangedPipelineTest :
             }
         }
 
+        test("steal without SpellResolved uses affectorId=0") {
+            val events = listOf(
+                GameEvent.ControllerChanged(forgeCardId = 42, oldControllerSeatId = 2, newControllerSeatId = 1),
+            )
+            val result = AnnotationPipeline.mechanicAnnotations(
+                events,
+                idResolver = ::testResolver,
+                effectIdAllocator = ::testEffectAllocator,
+            )
+
+            assertSoftly {
+                result.transient shouldHaveSize 2
+                // ControllerChanged transient has affectorId=0 (no spell found)
+                result.transient[1].affectorId shouldBe 0
+                result.persistent shouldHaveSize 1
+                result.persistent[0].affectorId shouldBe 0
+            }
+        }
+
+        test("multiple spells: affector matches nearest preceding SpellResolved") {
+            val events = listOf(
+                GameEvent.SpellResolved(forgeCardId = 10, hasFizzled = false),
+                GameEvent.ControllerChanged(forgeCardId = 42, oldControllerSeatId = 2, newControllerSeatId = 1),
+                GameEvent.SpellResolved(forgeCardId = 20, hasFizzled = false),
+                GameEvent.ControllerChanged(forgeCardId = 43, oldControllerSeatId = 2, newControllerSeatId = 1),
+            )
+            val result = AnnotationPipeline.mechanicAnnotations(
+                events,
+                idResolver = ::testResolver,
+                effectIdAllocator = ::testEffectAllocator,
+            )
+
+            assertSoftly {
+                result.controllerChangedEffects shouldHaveSize 2
+                // First steal affector = spell 10 (iid 1010)
+                result.controllerChangedEffects[0].affectorInstanceId shouldBe 1010
+                // Second steal affector = spell 20 (iid 1020)
+                result.controllerChangedEffects[1].affectorInstanceId shouldBe 1020
+            }
+        }
+
         test("effect_id monotonically increases across steals") {
             val events = listOf(
                 GameEvent.SpellResolved(forgeCardId = 10, hasFizzled = false),

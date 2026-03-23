@@ -480,14 +480,6 @@ object AnnotationPipeline {
      * Result of Stage 4 mechanic annotation generation.
      * Separates transient (numbered per-GSM) from persistent (stable IDs) annotations.
      */
-    /** Tracks an active controller-change effect for persistent annotation lifecycle. */
-    data class ControllerChangedEffect(
-        val forgeCardId: Int,
-        val effectId: Int,
-        val affectorInstanceId: Int,
-        val stolenInstanceId: Int,
-    )
-
     data class MechanicAnnotationResult(
         val transient: List<AnnotationInfo>,
         val persistent: List<AnnotationInfo>,
@@ -501,7 +493,15 @@ object AnnotationPipeline {
         val controllerChangedEffects: List<ControllerChangedEffect> = emptyList(),
         /** Forge card IDs of permanents whose control reverted this GSM. */
         val controllerRevertedForgeCardIds: List<Int> = emptyList(),
-    )
+    ) {
+        /** Tracks an active controller-change effect for persistent annotation lifecycle. */
+        data class ControllerChangedEffect(
+            val forgeCardId: Int,
+            val effectId: Int,
+            val affectorInstanceId: Int,
+            val stolenInstanceId: Int,
+        )
+    }
 
     /**
      * Stage 4: Generate standalone annotations for mechanic events (Group B + A+).
@@ -525,7 +525,7 @@ object AnnotationPipeline {
         val persistent = mutableListOf<AnnotationInfo>()
         val detachedForgeCardIds = mutableListOf<Int>()
         val exileSourceLeftPlayForgeCardIds = mutableListOf<Int>()
-        val controllerChangedEffects = mutableListOf<ControllerChangedEffect>()
+        val controllerChangedEffects = mutableListOf<MechanicAnnotationResult.ControllerChangedEffect>()
         val controllerRevertedForgeCardIds = mutableListOf<Int>()
         for (ev in events) {
             when (ev) {
@@ -644,8 +644,13 @@ object AnnotationPipeline {
                             ev.newControllerSeatId,
                         )
                     } else {
-                        // New steal: emit transient + persistent + track effect
-                        val spellResolved = events.filterIsInstance<GameEvent.SpellResolved>().lastOrNull()
+                        // New steal: emit transient + persistent + track effect.
+                        // Walk events backward from this ControllerChanged to find the nearest
+                        // preceding SpellResolved — handles multiple spells in one GSM.
+                        val evIndex = events.indexOf(ev)
+                        val spellResolved = events.subList(0, evIndex)
+                            .filterIsInstance<GameEvent.SpellResolved>()
+                            .lastOrNull()
                         val affectorIid = if (spellResolved != null) {
                             idResolver(ForgeCardId(spellResolved.forgeCardId)).value
                         } else {
@@ -655,7 +660,7 @@ object AnnotationPipeline {
                         annotations.add(AnnotationBuilder.layeredEffectCreated(effectId, affectorIid))
                         annotations.add(AnnotationBuilder.controllerChanged(affectorIid, cardIid))
                         persistent.add(AnnotationBuilder.controllerChangedEffect(affectorIid, cardIid, effectId))
-                        controllerChangedEffects.add(ControllerChangedEffect(ev.forgeCardId, effectId, affectorIid, cardIid))
+                        controllerChangedEffects.add(MechanicAnnotationResult.ControllerChangedEffect(ev.forgeCardId, effectId, affectorIid, cardIid))
                         log.debug(
                             "mechanic: controllerChanged steal iid={} affector={} effectId={} {}->{}",
                             cardIid,
