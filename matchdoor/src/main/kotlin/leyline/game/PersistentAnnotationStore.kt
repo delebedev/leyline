@@ -9,9 +9,52 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * Manages persistent and transient annotation ID sequences, plus the
  * persistent annotation lifecycle (carry-forward across GSMs).
  *
- * Persistent annotations (Attachment, Counter, LayeredEffect, etc.) are
- * added when a mechanic starts and removed when it ends. They appear in
- * every GSM until explicitly deleted via [remove] → [drainDeletions].
+ * ## Lifecycle
+ *
+ * Persistent annotations represent ongoing game state visible to the client:
+ * attachments, counters, layered effects, controller changes, exile-under-card,
+ * and entered-zone-this-turn markers. Each appears in every GSM's
+ * `persistentAnnotations` field until explicitly removed.
+ *
+ * **Create:** New persistent annotations originate from four sources, processed
+ * in [computeBatch] in this order:
+ *   1. **Effect lifecycle** — [EffectTracker] creates/destroys LayeredEffect pAnns
+ *   2. **Transfer-originated** — zone transfers produce EnteredZoneThisTurn pAnns
+ *   3. **Mechanic-originated** — counters (upsert: old deleted, new created),
+ *      attachments, DisplayCardUnderCard, ControllerChanged+LayeredEffect
+ *   4. **Cleanup** — detached auras, exile sources leaving play, controller reverts
+ *
+ * **Carry forward:** [computeBatch] starts from the current [snapshot] — all
+ * existing pAnns survive unless a step explicitly removes them. The snapshot
+ * is taken *before* the COMPUTE phase in [StateMapper.buildFromGame], so the
+ * batch sees the previous GSM's state.
+ *
+ * **Replace-on-update:** Counters use upsert semantics — when a counter of
+ * the same type on the same instanceId already exists, the old pAnn is deleted
+ * and a new one created with a fresh ID and updated value.
+ *
+ * **Delete:** Removal happens within [computeBatch] for four reasons:
+ *   - Effect destroyed (LayeredEffect pAnn matched by effect_id)
+ *   - Counter upsert (old counter replaced by new)
+ *   - Aura detached (Attachment pAnn matched by affectorId)
+ *   - Exile source left play (DisplayCardUnderCard matched by reverse forgeCardId lookup)
+ *   - Controller reverted (ControllerChanged+LayeredEffect matched by affectedIds)
+ *
+ * **Drain:** [drainDeletions] returns IDs deleted since last drain, for the
+ * GSM's `diffDeletedPersistentAnnotationIds` field. Called once per GSM in
+ * [StateMapper.buildDiffFromGame]. The drain-then-clear pattern means each
+ * deletion ID appears in exactly one GSM.
+ *
+ * ## ID allocation
+ *
+ * Two independent monotonic counters: transient IDs start at [INITIAL_ANNOTATION_ID]
+ * (50), persistent IDs start at [INITIAL_PERSISTENT_ANNOTATION_ID] (1). The gap
+ * avoids collisions — transient annotations are numbered after persistent ones
+ * are assigned IDs in [computeBatch].
+ *
+ * ## Threading
+ *
+ * All access is single-threaded (engine thread via StateMapper). No synchronization.
  *
  * Composed into [GameBridge] alongside [InstanceIdRegistry], [LimboTracker],
  * [DiffSnapshotter], and [EffectTracker].
@@ -40,6 +83,17 @@ class PersistentAnnotationStore {
         /**
          * Pure batch computation — operates on an immutable snapshot and
          * returns the result. Caller applies via [applyBatchResult].
+         *
+         * **Ordering invariant:** Steps 1-6 execute in fixed order. Effects (1)
+         * before transfers (2) before mechanics (3) because a counter upsert in
+         * step 3 must not collide with a LayeredEffect ID allocated in step 1.
+         * Cleanup steps (4-6) run last so they see the full set of newly added
+         * pAnns — e.g. step 4 (detach) can remove an Attachment just created
+         * in step 3 if the aura was simultaneously destroyed.
+         *
+         * **Snapshot timing:** [currentActive] must be a snapshot taken *before*
+         * the annotation pipeline runs. [StateMapper.buildFromGame] captures it
+         * in the GATHER phase so the COMPUTE phase (which calls this) is pure.
          *
          * @param resolveForgeCardId reverse-resolves instanceId → forgeCardId.
          *   Used by step 5 to match DisplayCardUnderCard annotations whose
@@ -217,7 +271,14 @@ class PersistentAnnotationStore {
         pendingDeletions.add(id)
     }
 
-    /** Drain and return IDs deleted since last drain (for diffDeletedPersistentAnnotationIds). */
+    /**
+     * Drain and return IDs deleted since last drain (for diffDeletedPersistentAnnotationIds).
+     *
+     * Called once per Diff GSM in [StateMapper.buildDiffFromGame]. Each deletion
+     * ID appears in exactly one GSM — calling twice without intervening mutations
+     * returns empty. For Full GSMs, deletions are embedded via [computeBatch]'s
+     * [BatchResult.deletedIds] instead.
+     */
     fun drainDeletions(): List<Int> =
         pendingDeletions.toList().also { pendingDeletions.clear() }
 
@@ -256,7 +317,14 @@ class PersistentAnnotationStore {
         nextAnnotationId = value
     }
 
-    /** Apply a pre-computed batch result to the live store. */
+    /**
+     * Apply a pre-computed batch result to the live store.
+     *
+     * **Must be called in the APPLY phase** (after GSM assembly), not during
+     * COMPUTE. The GSM embeds [BatchResult.allAnnotations] directly — applying
+     * before assembly would double-count. [StateMapper.buildFromGame] enforces
+     * this: GATHER → COMPUTE → ASSEMBLE → APPLY.
+     */
     fun applyBatchResult(result: BatchResult) {
         active.clear()
         active.putAll(result.allAnnotations.associateBy { it.id })
