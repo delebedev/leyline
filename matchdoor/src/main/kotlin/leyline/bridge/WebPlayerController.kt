@@ -44,6 +44,59 @@ import org.slf4j.LoggerFactory
  * bridge-based implementations. The ~130 methods that use pure getGui() calls
  * work automatically through [WebGuiGame].
  *
+ * ## Threading model
+ *
+ * **Every override runs on the Forge engine thread.** The engine calls these
+ * methods synchronously during game loop execution. Methods that need client
+ * input block the engine thread via [InteractivePromptBridge.requestChoice]
+ * (`CompletableFuture.get()`). The Netty I/O thread unblocks by completing
+ * the future. This means:
+ *
+ * - A missing or broken override → engine thread blocks forever (timeout)
+ * - A slow override → entire game loop stalls (no other priority stops fire)
+ * - [notifyStateChanged] must be called *before* [GameActionBridge.awaitAction]
+ *   so the client sees updated state before being asked for a decision
+ *
+ * ## Key methods
+ *
+ * - [chooseSpellAbilityToPlay]: **The engine's main game loop entry point.**
+ *   Called repeatedly by Forge's game loop at each priority window. Returns
+ *   null = pass priority, non-null = play the spell. Calls [notifyStateChanged]
+ *   → [GameActionBridge.awaitAction] to block until the client responds.
+ *
+ * - [playChosenSpellAbility]: Resolves the chosen spell through Forge's
+ *   [PlaySpellAbility] path (costs, targets, mana). **Cannot use
+ *   [InteractivePromptBridge] for optional cost decisions here** — the engine
+ *   thread is already blocked in this call, and auto-pass can't run until the
+ *   engine returns. Auto-accepts optional costs instead.
+ *
+ * - [declareAttackers] / [declareBlockers]: Same pattern as
+ *   [chooseSpellAbilityToPlay] — notify → await → translate → submit.
+ *
+ * ## Cross-class flag contracts
+ *
+ * Several overrides set flags on [InteractivePromptBridge] that are consumed
+ * by [GameEventCollector][leyline.game.GameEventCollector] to disambiguate
+ * zone-change events. All writes and reads happen on the engine thread:
+ *
+ * - **searchedToHandCards:** Set in [chooseSingleEntityForEffect] when a
+ *   search effect (tutor) moves a card Library→Hand. Consumed (and removed)
+ *   by [GameEventCollector.isSearchedToHand] during the subsequent
+ *   `GameEventCardChangeZone` — produces [TransferCategory.Put] instead of Draw.
+ *
+ * - **legendRuleVictims:** Set in [chooseSingleEntityForEffect] when resolving
+ *   the legend rule SBA. Consumed by [GameEventCollector.isLegendRuleVictim]
+ *   during the subsequent `GameEventCardChangeZone` — produces
+ *   [TransferCategory.SBA_LegendRule] instead of generic Destroy.
+ *
+ * - **stashedOptionalCostIndices:** Set by [TargetingHandler] after the
+ *   client responds to CastingTimeOptionsReq. Consumed (and nulled) by
+ *   [chooseOptionalCosts] during spell resolution.
+ *
+ * These flags are single-use: consumed on first match, then removed/nulled.
+ * If a flag is not consumed (e.g. the zone change never fires), it persists
+ * until the next match or is harmlessly ignored.
+ *
  * See ADR-007 for architecture details.
  */
 class WebPlayerController(
@@ -1060,6 +1113,13 @@ class WebPlayerController(
 
     private var lastSeenTurn: Int = -1
 
+    /**
+     * Engine's main game loop entry point — called at every priority window.
+     *
+     * Flow: [notifyStateChanged] (sends GSM to client) → [GameActionBridge.awaitAction]
+     * (blocks engine thread) → translate client response → return spell or null (pass).
+     * Mana abilities loop without re-passing priority (they don't use the stack).
+     */
     override fun chooseSpellAbilityToPlay(): List<SpellAbility>? {
         val ab = actionBridge ?: return super.chooseSpellAbilityToPlay()
 
