@@ -42,9 +42,7 @@ object DeckLoader {
             parsed += count
         }
 
-        if (parsed == 0) {
-            throw IllegalArgumentException("No valid cards found in decklist")
-        }
+        require(parsed > 0) { "No valid cards found in decklist" }
         return deck
     }
 

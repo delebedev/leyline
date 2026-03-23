@@ -4,6 +4,7 @@ import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
+@Suppress("UnusedPrivateMember") // used as extension function below
 private fun File.walkUpFind(pred: (File) -> Boolean): File? {
     var dir = parentFile
     while (dir != null) {

@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory
  * Requires card database initialization before [resolve]/[validateDeck].
  */
 object FormatService {
+    @Suppress("UnusedPrivateProperty")
     private val log = LoggerFactory.getLogger(FormatService::class.java)
 
     /**

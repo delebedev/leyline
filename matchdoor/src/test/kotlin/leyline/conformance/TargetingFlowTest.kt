@@ -238,6 +238,8 @@ class TargetingFlowTest :
 
             // Check for ZoneTransfer annotation (Stack→GY for the instant)
             val msgs = h.messagesSince(snap)
+
+            @Suppress("UnusedPrivateProperty") // diagnostic; kept for debugging zone transfer issues
             val allAnnotations = msgs
                 .filter { it.hasGameStateMessage() }
                 .flatMap { it.gameStateMessage.annotationsList }

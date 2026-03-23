@@ -212,6 +212,7 @@ class InteractivePromptBridge(
             record(request, PromptOutcome.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
             fallback
         } catch (ex: Exception) {
+            log.error("Prompt failed with exception, using default", ex)
             val fallback = listOf(request.defaultIndex)
             record(request, PromptOutcome.ERROR, fallback, System.currentTimeMillis() - startMs)
             fallback
@@ -251,7 +252,7 @@ class InteractivePromptBridge(
             result = pending.get()
             result != null
         }
-        return result ?: throw IllegalStateException("No prompt within ${timeoutMs}ms")
+        return checkNotNull(result) { "No prompt within ${timeoutMs}ms" }
     }
 
     /**

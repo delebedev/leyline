@@ -59,6 +59,7 @@ class DeclareBlockersDedupeTest :
             // AI script runs: plays land, casts creature, attacks.
             var sawBlockerReq = false
             val preLoopSnap = h.messageSnapshot()
+            @Suppress("UnusedPrivateProperty")
             for (i in 0 until 50) {
                 if (h.isGameOver()) break
                 val snap = h.messageSnapshot()

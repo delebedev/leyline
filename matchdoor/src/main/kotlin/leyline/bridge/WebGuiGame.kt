@@ -76,7 +76,7 @@ class WebGuiGame(
     ): Boolean = confirm(null, "$title: $message", defaultYes, listOf(yesText, noText))
 
     override fun <T : Any?> one(message: String, choices: List<T>): T {
-        if (choices.isEmpty()) throw IllegalArgumentException("one() called with empty list")
+        require(choices.isNotEmpty()) { "one() called with empty list" }
         if (choices.size == 1) return choices[0]
         val labels = choices.map { it?.toString() ?: "(none)" }
         val request = PromptRequest(
@@ -93,7 +93,7 @@ class WebGuiGame(
     }
 
     override fun <T : Any?> one(message: String, choices: List<T>, display: FSerializableFunction<T, String>?): T {
-        if (choices.isEmpty()) throw IllegalArgumentException("one() called with empty list")
+        require(choices.isNotEmpty()) { "one() called with empty list" }
         if (choices.size == 1) return choices[0]
         val labels = choices.map { display?.apply(it) ?: it?.toString() ?: "(none)" }
         val request = PromptRequest(

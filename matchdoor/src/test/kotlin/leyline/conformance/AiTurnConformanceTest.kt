@@ -40,6 +40,7 @@ class AiTurnConformanceTest :
 
             // Pass through the rest of the human's turn until AI gets priority
             val maxPasses = 30
+            @Suppress("UnusedPrivateProperty")
             for (i in 0 until maxPasses) {
                 base.passPriority(b)
                 if (playback.hasPendingMessages()) break
@@ -77,6 +78,7 @@ class AiTurnConformanceTest :
 
             val allBatches = mutableListOf<List<GREToClientMessage>>()
             val maxPasses = 100
+            @Suppress("UnusedPrivateProperty")
             for (i in 0 until maxPasses) {
                 base.passPriority(b)
                 if (playback.hasPendingMessages()) {

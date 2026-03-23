@@ -228,11 +228,10 @@ class InvariantChecker {
     }
 
     private fun checkPendingMessageCountContract(gsm: GameStateMessage) {
-        val isSendAndRecord = gsm.update == GameStateUpdate.SendAndRecord
-
         // TODO: too strict — our phaseTransitionDiff sets pendingMessageCount=1
         // but AI action diffs can arrive before the expected follow-up.
         // Revisit once the diff pipeline guarantees correct pending counts.
+        // val isSendAndRecord = gsm.update == GameStateUpdate.SendAndRecord
         // if (pendingCountdown > 0 && isSendAndRecord) {
         //     record(
         //         gsm.gameStateId,

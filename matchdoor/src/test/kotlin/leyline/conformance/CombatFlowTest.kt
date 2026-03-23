@@ -227,6 +227,7 @@ class CombatFlowTest :
             // Keep passing until we see DeclareAttackersReq
             val snap = h.messageSnapshot()
             var sawAttackReq = false
+            @Suppress("UnusedPrivateProperty")
             for (i in 0 until 15) {
                 if (h.isGameOver()) break
                 val recent = h.messagesSince(snap)

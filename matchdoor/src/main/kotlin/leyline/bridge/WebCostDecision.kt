@@ -41,6 +41,7 @@ class WebCostDecision(
 ) : CostDecisionMakerBase(p, effect, sa, source) {
 
     companion object {
+        @Suppress("UnusedPrivateProperty")
         private val log = LoggerFactory.getLogger(WebCostDecision::class.java)
     }
 

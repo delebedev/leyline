@@ -31,6 +31,8 @@ class GamePlaybackTest :
 
         test("Shared MessageCounter is used by playback — no local atomics") {
             val counter = MessageCounter(initialGsId = 10, initialMsgId = 20)
+
+            @Suppress("UnusedPrivateProperty")
             val pb = createMinimalPlayback(counter)
 
             counter.currentGsId() shouldBe 10

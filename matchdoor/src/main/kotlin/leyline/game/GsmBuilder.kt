@@ -64,6 +64,7 @@ data class GsmFrame(
  * [StateMapper.buildDiffFromGame] (the stateful diff pipeline).
  */
 object GsmBuilder {
+    @Suppress("UnusedPrivateProperty")
     private val log = LoggerFactory.getLogger(GsmBuilder::class.java)
 
     /**

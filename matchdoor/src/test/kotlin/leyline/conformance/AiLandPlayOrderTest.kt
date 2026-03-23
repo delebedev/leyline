@@ -114,6 +114,7 @@ class AiLandPlayOrderTest :
             val gsMessages = h.allMessages.filter { it.hasGameStateMessage() }
 
             // Summarize turn 1 diffs for diagnosis
+            @Suppress("UnusedPrivateProperty")
             val turn1Diffs = gsMessages
                 .filter { it.gameStateMessage.turnInfo.turnNumber == 1 }
                 .map { gre ->
