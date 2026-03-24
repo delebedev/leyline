@@ -12,7 +12,7 @@
 #   suppressed — deliberately disabled (cosmetic, causes client errors)
 #   n/a       — not applicable to Arena Standard/Pioneer
 #
-# Updated: 2026-03-19
+# Updated: 2026-03-22
 # Authoritative source for protocol-level detail: rosetta.md
 
 # ─── Client Infrastructure ───────────────────────────────────────────
@@ -178,10 +178,10 @@ game-flow:
     notes: "Active player draws. Draw annotation fires."
 
   cleanup-discard:
-    status: partial
+    status: wired
     notes: >
       Engine forces discard to hand size. Hand overflow prompt was stalling
-      (fixed 2026-02-21) but discard interaction may still be rough.
+      (fixed 2026-02-21). DiscardHandSizeTest re-enabled (3 tests, PR #214).
 
 
 # ─── Spells & Stack ──────────────────────────────────────────────────
@@ -297,12 +297,16 @@ spells:
       Surveil mechanic end-to-end. GameEventSurveil → Surveil game event.
       CardSurveiled enriched zone event fires with Surveil transfer category.
       Scry annotation (65) reused for the look-at-top visual.
+      Multi-card surveil (2+) fixed — GroupResp card lookup used game.findById
+      instead of player.allCards for zoneless cards (PR #219).
 
   stack-resolution:
     status: wired
     notes: >
       LIFO resolution. ResolutionStart/ResolutionComplete annotations fire.
-      AbilityInstanceCreated/Deleted track stack objects.
+      AbilityInstanceCreated/Deleted track stack objects. Game-over detection
+      after stack resolution fixed — bolt for lethal now sends MatchCompleted
+      (PR #221, was #122).
 
   counterspell:
     status: wired
@@ -352,7 +356,9 @@ combat:
     notes: >
       DeclareBlockersReq sent to defending player. Iterative toggle with
       echo-back GSM (provisional blockState). Root cause of regression fixed
-      (passPriority was intercepting blocker pending). OrderBlockersReq
+      (passPriority was intercepting blocker pending). Zero-blocker auto-advance:
+      when defending player has no creatures, skips DeclareBlockersReq and
+      auto-submits empty declaration (PR #217). OrderBlockersReq
       (multi-blocker ordering) not implemented.
 
   combat-damage:
@@ -724,12 +730,11 @@ zone-transfers:
     notes: "Battlefield → Graveyard (via effect). Category 18."
 
   discard:
-    status: partial
+    status: wired
     notes: >
       Hand → Graveyard. Category "Discard". ZoneTransfer annotation correct.
-      Bug: SelectNReq (discard prompt) uses wrong context=Discard_a163/listType=Static —
-      wire shows context=Resolution_a163/listType=Dynamic/optionContext=Resolution_a9d7.
-      See docs/plans/2026-03-21-discard-wire-spec.md. Flag for engine-bridge agent.
+      SelectNReq fields fixed: context=Resolution, listType=Dynamic,
+      optionContext=Resolution — matches wire (PR #215).
 
   exile:
     status: wired
@@ -745,7 +750,9 @@ zone-transfers:
 
   mill:
     status: wired
-    notes: "Library → Graveyard (same owner). Category 33."
+    notes: >
+      Library → Graveyard (same owner). Category 33.
+      affectorId now populated from stack source (PR #218).
 
   return:
     status: wired
