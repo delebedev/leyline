@@ -302,6 +302,7 @@ class CombatHandler(private val ops: SessionOps) {
      * Check combat phases and send appropriate prompts or state.
      * Called from the auto-pass loop.
      */
+    @Suppress("ReturnCount")
     fun checkCombatPhase(
         bridge: GameBridge,
         game: Game,

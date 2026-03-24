@@ -118,7 +118,6 @@ class AiTurnNoAarTest :
 
             // With zero-blocker auto-skip, combat resolves during onPuzzleStart.
             // All combat GSMs are already captured. Use the full message history.
-            val snap = h.messageSnapshot()
             val msgs = h.messagesSince(0)
 
             // All GSMs during AI combat should have combat phase or later — never
