@@ -170,8 +170,10 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
                 }
                 from == ZoneType.Hand && to == ZoneType.Graveyard ->
                     GameEvent.CardDiscarded(card.id, seat)
-                from == ZoneType.Library && to == ZoneType.Graveyard ->
-                    GameEvent.CardMilled(card.id, seat)
+                from == ZoneType.Library && to == ZoneType.Graveyard -> {
+                    val sourceId = bridge.getGame()?.stack?.peek()?.spellAbility?.hostCard?.id
+                    GameEvent.CardMilled(card.id, seat, sourceId)
+                }
                 from == ZoneType.Library && to == ZoneType.Hand && isSearchedToHand(card.id) ->
                     GameEvent.CardSearchedToHand(card.id)
                 else -> GameEvent.ZoneChanged(card.id, Zone.fromForge(from), Zone.fromForge(to))
