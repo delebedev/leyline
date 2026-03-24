@@ -12,6 +12,7 @@ import leyline.bridge.Target
 import leyline.bridge.WebPlayerController
 import leyline.bridge.findCard
 import leyline.game.GameBridge
+import leyline.game.RequestBuilder
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
@@ -342,7 +343,17 @@ class CombatHandler(private val ops: SessionOps) {
                     // captured AI actions between the last drain and now.
                     drainPendingPlayback(bridge)
                     ops.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareBlockers attackers=${combat.attackers.size}")
-                    sendDeclareBlockersReq(bridge)
+                    val skipBlockers = sendDeclareBlockersReq(bridge)
+                    if (skipBlockers) {
+                        // Zero legal blockers — submit empty declaration and advance
+                        val seatBridge = bridge.seat(ops.seatId)
+                        val pending = seatBridge.action.getPending()
+                        if (pending != null) {
+                            seatBridge.action.submitAction(pending.actionId, PlayerAction.DeclareBlockers(emptyMap()))
+                            bridge.awaitPriority()
+                        }
+                        return Signal.SEND_STATE
+                    }
                     return Signal.STOP
                 } else if (isHumanTurn && combat != null && combat.attackers.isNotEmpty()) {
                     ops.traceEvent(MatchEventType.SEND_STATE, game, "AI blocking result")
@@ -602,13 +613,21 @@ class CombatHandler(private val ops: SessionOps) {
         ops.sendBundledGRE(result.messages)
     }
 
-    private fun sendDeclareBlockersReq(bridge: GameBridge) {
-        val game = bridge.getGame() ?: return
-        val result = ops.bundleBuilder!!.declareBlockersBundle(game, ops.counter)
+    private fun sendDeclareBlockersReq(bridge: GameBridge): Boolean {
+        val game = bridge.getGame() ?: return false
+        val req = RequestBuilder.buildDeclareBlockersReq(game, ops.seatId, bridge)
 
+        if (req.blockersCount == 0) {
+            log.info("CombatHandler: zero legal blockers — auto-submitting empty declaration")
+            pendingBlockersSent = true
+            return true // caller should auto-advance
+        }
+
+        val result = ops.bundleBuilder!!.declareBlockersBundle(game, ops.counter)
         pendingBlockersSent = true
         Tap.outboundTemplate("DeclareBlockersReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
+        return false
     }
 
     /**

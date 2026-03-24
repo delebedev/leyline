@@ -88,9 +88,10 @@ class AiTurnNoAarTest :
         }
 
         test("turnInfo phase correct at AAR during AI combat") {
-            // Reuse AiCombatAutoPassTest scenario: AI attacks, human declares
-            // no blockers, combat advances. Verify turnInfo in all GSMs
-            // never shows a stale phase.
+            // AI attacks with Raging Goblin, human has no creatures.
+            // Zero-blocker auto-skip resolves combat during onPuzzleStart.
+            // Verify turnInfo in all GSMs from the full session never shows
+            // a stale phase during the AI's combat turn.
             val puzzleText = """
                 [metadata]
                 Name:AI Combat Phase Check
@@ -115,24 +116,18 @@ class AiTurnNoAarTest :
             harness = h
             h.connectAndKeepPuzzleText(puzzleText)
 
-            // Snapshot AFTER puzzle setup completes (handshake sends
-            // phase transition diffs from Beginning → Main1 → Combat).
-            // We only care about GSMs produced during actual combat flow.
+            // With zero-blocker auto-skip, combat resolves during onPuzzleStart.
+            // All combat GSMs are already captured. Use the full message history.
             val snap = h.messageSnapshot()
-            h.declareNoBlockers()
-            h.passThroughCombat()
+            val msgs = h.messagesSince(0)
 
-            val msgs = h.messagesSince(snap)
-
-            // All GSMs produced after blockers declaration should have
-            // Combat phase or later — never Beginning or Main1.
+            // All GSMs during AI combat should have combat phase or later — never
+            // Beginning or Main1.
             val gsms = msgs.filter { it.hasGameStateMessage() }
                 .map { it.gameStateMessage }
                 .filter { it.hasTurnInfo() && it.turnInfo.activePlayer == 2 }
 
-            // After declareNoBlockers, phases should progress forward:
-            // Combat → Main2 → Ending → (next turn) Beginning.
-            // Beginning in a LATER turn is expected — only flag if same turn.
+            // Filter to the combat turn only. Beginning in a LATER turn is expected.
             gsms.shouldNotBeEmpty()
             val combatTurn = gsms.first().turnInfo.turnNumber
             val sameTurnGsms = gsms.filter { it.turnInfo.turnNumber == combatTurn }

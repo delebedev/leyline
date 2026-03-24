@@ -43,11 +43,11 @@ class AiCombatAutoPassTest :
             //
             // Flow: onPuzzleStart → autoPassAndAdvance → checkCombatPhase at
             // DECLARE_ATTACKERS (AI turn, attackers present) → SEND_STATE downgraded
-            // → engine advances to DECLARE_BLOCKERS → DeclareBlockersReq sent to
-            // human → STOP. Test responds with declareNoBlockers, then combat
-            // advances through COMBAT_DAMAGE and COMBAT_END where the fix must
-            // downgrade SEND_STATE on AI turns — otherwise the client gets stuck
-            // (no Pass button → 120s timeout).
+            // → engine advances to DECLARE_BLOCKERS → zero legal blockers detected
+            // → empty declaration auto-submitted → combat advances through
+            // COMBAT_DAMAGE and COMBAT_END where the fix must downgrade SEND_STATE
+            // on AI turns — otherwise the client gets stuck (no Pass button →
+            // 120s timeout).
             val puzzleText = """
                 [metadata]
                 Name:AI Combat AutoPass
@@ -72,27 +72,18 @@ class AiCombatAutoPassTest :
             val h = MatchFlowHarness(validating = false)
             harness = h
 
-            // Time the combat resolution (excluding card DB init).
-            // Before the fix: bridge timeout fires at 5s per combat phase
-            // (COMBAT_DAMAGE + COMBAT_END = 10s minimum).
-            // After the fix: completes in < 1s.
-            h.connectAndKeepPuzzleText(puzzleText)
+            // Time the full puzzle connect — with zero-blocker auto-skip, combat
+            // resolves entirely during onPuzzleStart. Before the fix, AI combat
+            // phases would timeout at 5s each.
             val startTime = System.currentTimeMillis()
-
-            // onPuzzleStart stopped at DeclareBlockersReq — human must respond.
-            // Decline to block so combat advances through DAMAGE → END.
-            h.declareNoBlockers()
-
-            // Pass through remaining combat phases into human's turn.
-            h.passThroughCombat()
-
+            h.connectAndKeepPuzzleText(puzzleText)
             val elapsed = System.currentTimeMillis() - startTime
 
             val humanPlayer = h.bridge.getPlayer(SeatId(1))!!
 
-            // If the bug were present, elapsed would be >= 5000ms (bridge timeout).
-            // With the fix, it should complete in well under 4 seconds.
-            elapsed.toInt() shouldBeLessThan 4000
+            // If the bug were present, elapsed would be >= 10000ms (multiple bridge timeouts).
+            // With the fix, it should complete well under 8 seconds (includes card DB init).
+            elapsed.toInt() shouldBeLessThan 8000
 
             // Positive assertion: combat damage was dealt.
             // Raging Goblin (1/1) attacked unblocked → human took 1 damage.
