@@ -51,6 +51,9 @@ kls_database.db
 # Per-worktree Maven local repo
 .m2-local/
 
+# Forge submodule install stamp (written by `just install-forge`)
+.upstream-installed
+
 # Claude Code local settings & agent memory
 **/settings.local.json
 .claude/agent-memory/
