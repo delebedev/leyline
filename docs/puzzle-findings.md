@@ -46,3 +46,20 @@ No issues requiring revision. Minor note: libraries over-padded (5 vs minimum 1)
 
 Final card count: 2 non-land (Typhoid Rats, Juggernaut)
 Mechanic tested: deathtouch — 1 damage from deathtouch creature kills any toughness
+
+## 2026-03-24 — dfc-transform-activate.pzl
+
+Score: 14/15 (Focus:3 Determinism:3 Signal:3 Minimality:3 Documentation:2)
+Verdict: PASS (round 2)
+Tokens: judge=23k+23k, rounds=2, total_agent=46k
+
+Round 1 issues:
+- Documentation: Protocol path didn't trace Revealing Eye's transform trigger (RevealHand/ChooseCard/Discard prompts)
+
+Round 2 issues:
+- Documentation: TIMEOUT sub-modes not reflected back in failure modes section (minor)
+
+Resolution: Added full transform trigger protocol trace. Split TIMEOUT into TIMEOUT-A (activation) and TIMEOUT-B (trigger).
+
+Final card count: 5 total, 1 non-land (Concealing Curtains)
+Mechanic tested: activated-ability DFC transform — in-place grpId mutation (#191)
