@@ -8,6 +8,7 @@ import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
+import leyline.config.GameConfig
 import leyline.config.MatchConfig
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry
@@ -71,7 +72,7 @@ class PuzzleHandlerTest :
             val session = MatchSession(seatId = 1, matchId = "puzzle-bolt-face", sink = sink, registry = registry, paceDelayMs = 0)
             val temp = tempPuzzleFile("bundle")
             try {
-                val handler = PuzzleHandler(temp, MatchConfig(), TestCardRegistry.repo, registry)
+                val handler = PuzzleHandler(MatchConfig(game = GameConfig(puzzle = temp.absolutePath)), TestCardRegistry.repo, registry)
                 val (channel, ctx) = channelCtx()
 
                 val bridge = handler.onPuzzleConnect(ctx, session, "puzzle-bolt-face", 1)
@@ -93,7 +94,7 @@ class PuzzleHandlerTest :
             val registry = MatchRegistry()
             val temp = tempPuzzleFile("reuse")
             try {
-                val handler = PuzzleHandler(temp, MatchConfig(), TestCardRegistry.repo, registry)
+                val handler = PuzzleHandler(MatchConfig(game = GameConfig(puzzle = temp.absolutePath)), TestCardRegistry.repo, registry)
 
                 val sink1 = ListMessageSink()
                 val session1 = MatchSession(seatId = 1, matchId = "puzzle-lands-only", sink = sink1, registry = registry, paceDelayMs = 0)
@@ -117,7 +118,7 @@ class PuzzleHandlerTest :
             }
         }
 
-        test("cli puzzle file takes precedence over match id lookup") {
+        test("configured puzzle file loads for routed sparky puzzle matches") {
             val temp = File.createTempFile("leyline-puzzle-", ".pzl")
             temp.writeText(
                 """
@@ -144,12 +145,16 @@ class PuzzleHandlerTest :
             try {
                 val registry = MatchRegistry()
                 val sink = ListMessageSink()
-                val session = MatchSession(seatId = 1, matchId = "plain-match-id", sink = sink, registry = registry, paceDelayMs = 0)
-                val handler = PuzzleHandler(temp, MatchConfig(), TestCardRegistry.repo, registry)
+                val session = MatchSession(seatId = 1, matchId = "puzzle-cli-puzzle", sink = sink, registry = registry, paceDelayMs = 0)
+                val handler = PuzzleHandler(
+                    MatchConfig(game = GameConfig(puzzle = temp.absolutePath)),
+                    TestCardRegistry.repo,
+                    registry,
+                )
                 val (channel, ctx) = channelCtx()
 
-                handler.isPuzzleMatch("plain-match-id").shouldBeTrue()
-                val bridge = handler.onPuzzleConnect(ctx, session, "plain-match-id", 1)
+                handler.isPuzzleMatch("puzzle-cli-puzzle").shouldBeTrue()
+                val bridge = handler.onPuzzleConnect(ctx, session, "puzzle-cli-puzzle", 1)
 
                 outbound(channel).flatMap(::greMessages).map { it.type } shouldContain GREMessageType.ActionsAvailableReq_695e
                 bridge.isPuzzle.shouldBeTrue()

@@ -46,6 +46,7 @@ import leyline.protocol.ClientHeaderStripper
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import java.io.File
+import java.util.UUID
 
 /**
  * Client-compatible TLS TCP server — the single entry point for all three operating modes
@@ -71,8 +72,6 @@ class LeylineServer(
     val fdGoldenFile: File? = null,
     /** Playtest configuration (decks, seed, die roll, AI speed). */
     val matchConfig: MatchConfig = MatchConfig(),
-    /** Puzzle mode: if set, load this .pzl file for all client connections. */
-    val puzzleFile: File? = null,
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
     private val externalHost: String = "localhost",
     /** Card data repository — passed to MatchHandler for grpId↔name lookups. */
@@ -177,7 +176,13 @@ class LeylineServer(
             draftPackGen.generate(setCode)
         }
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
-        val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort, validateDeck = validateDeck)
+        val matchmakingService = MatchmakingService(
+            store,
+            externalHost,
+            matchDoorPort,
+            validateDeck = validateDeck,
+            matchIdFactory = ::createMatchId,
+        )
         val writer = FdResponseWriter(onFdMessage = fdCollector::record)
         val golden = GoldenData.loadFromClasspath()
 
@@ -238,7 +243,6 @@ class LeylineServer(
                 "handler",
                 MatchHandler(
                     matchConfig = matchConfig,
-                    puzzleFile = puzzleFile,
                     coordinator = coordinator,
                     cards = cardRepo,
                     debugSink = DebugSinkAdapter(debugCollector, gameStateCollector),
@@ -249,6 +253,14 @@ class LeylineServer(
             )
         }
         log.info("Client Match Door (local) listening on :{}", matchDoorPort)
+    }
+
+    private fun createMatchId(eventName: String): String {
+        val puzzle = matchConfig.game.puzzle
+        if (puzzle != null && eventName == "SparkyStarterDeckDuel") {
+            return "puzzle-${File(puzzle).nameWithoutExtension}"
+        }
+        return UUID.randomUUID().toString()
     }
 
     private fun startReplay(fdSsl: SslContext, mdSsl: SslContext) {

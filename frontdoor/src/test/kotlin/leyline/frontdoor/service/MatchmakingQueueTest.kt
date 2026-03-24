@@ -83,6 +83,13 @@ class MatchmakingQueueTest :
             queue.hasWaiting().shouldBeFalse()
         }
 
+        test("synthetic opponent preserves precomputed match id") {
+            val queue = MatchmakingQueue(syntheticOpponent = true)
+            val result = queue.pair(PairingEntry("Alice", matchId = "puzzle-bolt-face") { _, _ -> })
+            val paired = result.shouldBeInstanceOf<PairResult.Paired>()
+            paired.matchId shouldBe "puzzle-bolt-face"
+        }
+
         test("synthetic opponent — real pair still works if someone waiting") {
             val queue = MatchmakingQueue(syntheticOpponent = true)
             // If someone is already waiting, real pairing takes priority

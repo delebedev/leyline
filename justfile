@@ -292,15 +292,6 @@ serve-replay: build check-java
     {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags --replay {{payloads}}
 
-# puzzle mode: serve with a specific .pzl file
-[group('serve')]
-serve-puzzle filename: build check-java
-    #!/usr/bin/env bash
-    set -euo pipefail
-    {{_cert_flags}}
-    {{_java}} leyline.LeylineMainKt $cert_flags --puzzle "{{filename}}"
-
-
 # --- Docker ---
 
 # build Docker image for local use

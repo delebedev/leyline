@@ -393,7 +393,7 @@ final_screen: (OCR summary)
 |------|---------|----------|
 | Local (Forge engine) | `just serve` | Gameplay bugs, mechanic testing |
 | Proxy (passthrough + recording) | `just serve-proxy` | Protocol conformance, recording |
-| Puzzle | `just serve-puzzle <file>` | Specific board state testing |
+| Puzzle | `just serve` + `game.puzzle` config | Specific board state testing |
 | Replay | `just serve-replay` | Replay recorded sessions |
 
 After mode switch: `just stop` → restart → `arena launch`. Ghost matches from previous mode break event browser.
@@ -401,7 +401,8 @@ After mode switch: `just stop` → restart → `arena launch`. Ghost matches fro
 ## Puzzle Playtesting
 
 ```bash
-just serve-puzzle puzzles/bolt-face.pzl       # loads specific board state
+# edit leyline.toml: [game].puzzle = "puzzles/bolt-face.pzl"
+just serve                                      # loads specific board state via Sparky
 ```
 
 - Puzzles skip mulligan — goes straight to game board.

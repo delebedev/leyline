@@ -360,6 +360,7 @@ class FrontDoorHandler(
                                 val info = MatchInfo(matchId, matchmaking.matchDoorHost, matchmaking.matchDoorPort, evName)
                                 sendMatchCreated(ctx, info, yourSeat)
                             },
+                            matchId = matchmaking.createMatchId(evName),
                         )
                         when (val result = matchmakingQueue.pair(entry)) {
                             is PairResult.Waiting -> log.info("Front Door: {} entered queue", playerId.value)

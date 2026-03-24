@@ -20,7 +20,6 @@ import leyline.protocol.HandshakeMessages
 import leyline.protocol.ProtoDump
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
-import java.io.File
 
 /**
  * Netty adapter for the Match Door (port 30003) — two-phase message flow.
@@ -35,8 +34,6 @@ import java.io.File
 class MatchHandler(
     private val registry: MatchRegistry = defaultRegistry,
     private val matchConfig: MatchConfig = MatchConfig(),
-    /** CLI --puzzle override: forces puzzle mode for all connections. */
-    private val puzzleFile: File? = null,
     /** Cross-BC coordinator — deck/event selection, deck resolution, match results. */
     private val coordinator: MatchCoordinator? = null,
     /** Card data repository — used for grpId→name in deck conversion. */
@@ -72,7 +69,7 @@ class MatchHandler(
     )
 
     /** Puzzle mode delegate — detection, loading, initial bundle. */
-    private val puzzleHandler = PuzzleHandler(puzzleFile, matchConfig, cards, registry)
+    private val puzzleHandler = PuzzleHandler(matchConfig, cards, registry)
 
     companion object {
         val defaultRegistry = MatchRegistry()

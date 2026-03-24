@@ -5,16 +5,15 @@ Forge `.pzl` puzzles played through the client. Pre-built board states — no mu
 ## Quick Start
 
 ```bash
-just serve-puzzle path/to/puzzle.pzl
+# edit leyline.toml: [game].puzzle = "puzzles/bolt-face.pzl"
+just serve
 ```
 
-Or with explicit CLI flag:
+Then in Arena: Play → Bot Match (Sparky) → choose deck → Play.
 
-```bash
-java ... leyline.LeylineMainKt --proxy-fd <ip> --puzzle path/to/puzzle.pzl
-```
+`game.puzzle` only affects Sparky challenge matches. Normal queues and direct matches stay constructed.
 
-The `--puzzle` flag forces puzzle mode for **all** client connections regardless of their matchId. Deck validation is skipped.
+You can still hot-swap with `/api/inject-puzzle` after the game starts.
 
 Test puzzles live in `matchdoor/src/test/resources/puzzles/`. Simplest: `WEB_TEST_00.pzl` (1 Mountain, 1 Lightning Bolt, AI at 3 life).
 
@@ -45,15 +44,15 @@ The client sees `stage=Play` in the first GSM and enters the turn loop directly.
 ### Startup Flow
 
 ```
-LeylineMain (--puzzle flag)
-  → LeylineServer(puzzleFile=...)
-    → MatchHandler(puzzleFile=...)
+leyline.toml [game].puzzle = "puzzles/bolt-face.pzl"
+  → just serve
+  → FrontDoor MatchCreated for SparkyStarterDeckDuel uses matchId "puzzle-bolt-face"
 
 On client ConnectReq:
-  MatchHandler.isPuzzleMatch()          // true if --puzzle set OR matchId starts with "puzzle-"
+  MatchHandler.isPuzzleMatch()          // true if matchId starts with "puzzle-"
   MatchHandler.loadPuzzleForMatch()     // loads .pzl, needs localization init first
     → GameBootstrap.initializeLocalization()
-    → PuzzleSource.loadFromFile()       // PuzzleIO.parsePuzzleSections → Puzzle object
+    → PuzzleSource.loadFromFile(config path or puzzles/<name>.pzl)
   GameBridge.startPuzzle(puzzle)
     → GameBootstrap.initializeCardDatabase()
     → GameBootstrap.createPuzzleGame()  // empty decks, startingHand=0, GameType.Puzzle
@@ -72,8 +71,8 @@ On client ConnectReq:
 
 | File | Role |
 |------|------|
-| `LeylineMain.kt` | CLI `--puzzle` parsing, skips deck validation |
-| `LeylineServer.kt` | Threads `puzzleFile` to MatchHandler |
+| `leyline.toml` | `game.puzzle` selects puzzle file for Sparky routing |
+| `LeylineServer.kt` | Routes SparkyStarterDeckDuel to `puzzle-<name>` match IDs |
 | `MatchHandler.kt` | Puzzle detection, bridge creation, initial bundle |
 | `MatchSession.kt` | `onPuzzleStart()` — seeds snapshot, enters game loop |
 | `GameBridge.kt` | `startPuzzle()`, `applyPuzzleSafely()`, `registerPuzzleCards()` |
@@ -128,7 +127,7 @@ Puzzle mode affects several MatchHandler code paths:
 | `PerformActionResp` | Normal action handling | Same (no difference) |
 | All combat/targeting | Normal | Same |
 
-Detection: `isPuzzleMatch()` returns true if `puzzleFile != null` (CLI override) OR `matchId.startsWith("puzzle-")` (convention).
+Detection: `isPuzzleMatch()` returns true when Front Door routed the match with a `puzzle-` match ID.
 
 ## Goal Types
 
@@ -182,7 +181,7 @@ Life:3
 
 ## Limitations
 
-- **No puzzle selection UI** — puzzles loaded via CLI flag only. No in-client browser.
+- **No puzzle selection UI** — set `game.puzzle` in config, then launch Sparky. No in-client browser.
 - **No goal display** — the Puzzle Goal enforcement card exists in the Command zone but the client has no UI for it.
 - **No turn-limit timer** — Forge engine tracks turns but there's no visual countdown.
 - **Seat 2 (Familiar) support deferred** — only seat 1 (human) connection is wired. Familiar connects but doesn't receive puzzle-specific state.

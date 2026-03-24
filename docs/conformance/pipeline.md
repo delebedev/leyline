@@ -80,7 +80,7 @@ The puzzle reproduces the recording's board state at the segment start. Not the 
 
 ### Step 4: Run engine
 
-Load the puzzle in leyline (`just serve-puzzle` or `ConformanceTestBase.startPuzzleAtMain1`), execute the same action sequence as the recording segment, capture leyline's output messages.
+Load the puzzle in leyline (`just serve` with `game.puzzle` set, or `ConformanceTestBase.startPuzzleAtMain1`), execute the same action sequence as the recording segment, capture leyline's output messages.
 
 ### Step 5: Bind IDs
 
