@@ -343,6 +343,12 @@ class MatchSession(
         combatHandler.onDeclareBlockers(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
+    /** Handle AssignDamageResp — delegates to [CombatHandler]. */
+    override fun onAssignDamage(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+        val ctx = resolveContext() ?: return
+        combatHandler.onAssignDamage(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+    }
+
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
     override fun onSelectTargets(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val ctx = resolveContext() ?: return

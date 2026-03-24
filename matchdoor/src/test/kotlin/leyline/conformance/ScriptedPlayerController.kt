@@ -33,6 +33,9 @@ sealed interface ScriptedAction {
 
     /** Declare no blockers. */
     data object DeclareNoBlockers : ScriptedAction
+
+    /** Block specific attackers: blockerName → attackerName. */
+    data class Block(val assignments: Map<String, String>) : ScriptedAction
 }
 
 /**
@@ -141,7 +144,29 @@ class ScriptedPlayerController(
         when (action) {
             is ScriptedAction.DeclareNoBlockers -> {
                 nextAction()
-                // Do nothing — no blockers declared
+            }
+            is ScriptedAction.Block -> {
+                nextAction()
+                val bf = defender.getZone(ZoneType.Battlefield)
+                for ((blockerName, attackerName) in action.assignments) {
+                    val blocker = bf.cards.firstOrNull {
+                        it.name.equals(blockerName, ignoreCase = true) && it.isCreature
+                    }
+                    val attacker = combat.attackers.firstOrNull {
+                        it.name.equals(attackerName, ignoreCase = true)
+                    }
+                    if (blocker != null && attacker != null) {
+                        combat.addBlocker(attacker, blocker)
+                    } else {
+                        log.warn(
+                            "Script: Block({} → {}) — not found (blocker={}, attacker={})",
+                            blockerName,
+                            attackerName,
+                            blocker?.name,
+                            attacker?.name,
+                        )
+                    }
+                }
             }
             else -> {
                 super.declareBlockers(defender, combat)

@@ -18,6 +18,7 @@ import forge.game.combat.CombatUtil
 import forge.game.cost.Cost
 import forge.game.cost.CostPart
 import forge.game.cost.CostPayment
+import forge.game.keyword.Keyword
 import forge.game.keyword.KeywordInterface
 import forge.game.player.DelayedReveal
 import forge.game.player.PlaySpellAbility
@@ -114,6 +115,33 @@ class WebPlayerController(
 
     @Volatile
     private var autoPassState: ClientAutoPassState? = autoPassState
+
+    /**
+     * Pending damage assignment prompt. Set by [assignCombatDamage] when the engine
+     * needs manual damage distribution. The auto-pass loop detects this via
+     * [CombatHandler.checkPendingDamageAssignment] and sends AssignDamageReq.
+     * Completed by [CombatHandler.onAssignDamage] when the client responds.
+     *
+     * Uses a dedicated [CompletableFuture] instead of [GameActionBridge] to avoid
+     * the auto-pass loop racing to auto-pass the pending action. Future engine-
+     * initiated prompts (DistributionReq, NumericInputReq, SelectReplacementReq,
+     * OptionalActionMessage, OrderReq) may benefit from the same approach if
+     * they hit similar timing issues with the action bridge.
+     */
+    @Volatile var pendingDamageAssignment: DamageAssignmentPrompt? = null
+
+    /** Cache for batched responses — subsequent attackers in Forge's per-attacker loop. */
+    val damageAssignCache: MutableMap<Int, MutableMap<Card?, Int>> = mutableMapOf()
+
+    data class DamageAssignmentPrompt(
+        val attacker: Card,
+        val blockers: CardCollectionView,
+        val damageDealt: Int,
+        val defender: GameEntity?,
+        val hasDeathtouch: Boolean,
+        val hasTrample: Boolean,
+        val future: java.util.concurrent.CompletableFuture<MutableMap<Card?, Int>>,
+    )
 
     /** Set client auto-pass state (called by MatchSession after bridge connection). */
     fun setAutoPassState(state: ClientAutoPassState) {
@@ -1255,6 +1283,98 @@ class WebPlayerController(
             }
             is PlayerAction.PassPriority -> {}
             else -> {}
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Static application confirmations
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Auto-decline "assign damage as though unblocked" for trample creatures.
+     * The real Arena server never sends this prompt — it always uses
+     * AssignDamageReq for manual damage distribution. Forge's desktop UI
+     * offers this as a convenience shortcut, but we suppress it to match
+     * Arena behavior.
+     */
+    override fun confirmStaticApplication(
+        hostCard: Card,
+        mode: PlayerActionConfirmMode,
+        message: String,
+        logic: String?,
+    ): Boolean {
+        if (mode == PlayerActionConfirmMode.AlternativeDamageAssignment) {
+            log.info("confirmStaticApplication: auto-declining AlternativeDamageAssignment for {}", hostCard.name)
+            return false
+        }
+        return super.confirmStaticApplication(hostCard, mode, message, logic ?: "")
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // Combat damage assignment
+    // ═══════════════════════════════════════════════════════════════════
+
+    override fun assignCombatDamage(
+        attacker: Card,
+        blockers: CardCollectionView,
+        remaining: CardCollectionView?,
+        damageDealt: Int,
+        defender: GameEntity?,
+        overrideOrder: Boolean,
+    ): MutableMap<Card?, Int>? {
+        // Check cache — CombatHandler may have pre-filled from a batched response
+        val cached = damageAssignCache.remove(attacker.id)
+        if (cached != null) {
+            log.info("assignCombatDamage: cache hit for {} (id={})", attacker.name, attacker.id)
+            return cached
+        }
+
+        // Single blocker + no trample → auto-assign, no UI needed
+        val needsManualAssign = blockers.size > 1 ||
+            (attacker.hasKeyword(Keyword.TRAMPLE) && defender != null)
+        if (!needsManualAssign) {
+            return super.assignCombatDamage(attacker, blockers, remaining, damageDealt, defender, overrideOrder)
+        }
+
+        // Clear stale cache entries from a previous damage step
+        damageAssignCache.clear()
+
+        log.info(
+            "assignCombatDamage: prompting for {} (id={}, damage={}, blockers={})",
+            attacker.name,
+            attacker.id,
+            damageDealt,
+            blockers.size,
+        )
+
+        // Block the engine thread on a dedicated future. The auto-pass loop
+        // detects this via CombatHandler.checkPendingDamageAssignment and
+        // sends AssignDamageReq. CombatHandler.onAssignDamage completes the future.
+        val future = java.util.concurrent.CompletableFuture<MutableMap<Card?, Int>>()
+        pendingDamageAssignment = DamageAssignmentPrompt(
+            attacker = attacker,
+            blockers = blockers,
+            damageDealt = damageDealt,
+            defender = defender,
+            hasDeathtouch = attacker.hasKeyword(Keyword.DEATHTOUCH),
+            hasTrample = attacker.hasKeyword(Keyword.TRAMPLE),
+            future = future,
+        )
+        // Signal priority so awaitPriority() detects us
+        actionBridge?.prioritySignal?.signal()
+
+        return try {
+            val timeout = actionBridge?.getTimeoutMs() ?: 5_000L
+            future.get(timeout, java.util.concurrent.TimeUnit.MILLISECONDS)
+        } catch (_: java.util.concurrent.TimeoutException) {
+            log.warn("assignCombatDamage: timed out, auto-assigning for {}", attacker.name)
+            super.assignCombatDamage(attacker, blockers, remaining, damageDealt, defender, overrideOrder)
+        } catch (ex: Exception) {
+            log.warn("assignCombatDamage: error {}, auto-assigning", ex.message)
+            super.assignCombatDamage(attacker, blockers, remaining, damageDealt, defender, overrideOrder)
+        } finally {
+            pendingDamageAssignment = null
+            damageAssignCache.clear()
         }
     }
 

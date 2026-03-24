@@ -427,8 +427,11 @@ targeting:
       not implemented — these are optional persistent arrow annotations.
 
   damage-assignment:
-    status: missing
-    notes: "AssignDamageReq (type 30) not sent. Damage auto-distributed."
+    status: partial
+    notes: >
+      AssignDamageReq (type 30) sent for multi-blocker/trample. Single-phase
+      Req/Resp/Confirmation. Auto-assign fallback on timeout. Missing: OrderReq
+      for blocker ordering, auto-assign setting.
 
 
 # ─── Permanents & State ──────────────────────────────────────────────

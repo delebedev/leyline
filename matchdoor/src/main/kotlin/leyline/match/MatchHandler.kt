@@ -287,6 +287,8 @@ class MatchHandler(
 
             ClientMessageType.SearchResp_097b -> s?.onSearch(greMsg)
 
+            ClientMessageType.AssignDamageResp_097b -> s?.onAssignDamage(greMsg)
+
             ClientMessageType.CheckpointReq -> {
                 // Client acknowledges IntermissionReq — MatchCompleted room state
                 // was already sent in sendGameOver(). Nothing to do here.

@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicReference
  */
 class GameActionBridge(
     @Volatile private var timeoutMs: Long = DEFAULT_TIMEOUT_MS,
-    private val prioritySignal: PrioritySignal? = null,
+    val prioritySignal: PrioritySignal? = null,
 ) {
     companion object {
         const val DEFAULT_TIMEOUT_MS = 30_000L

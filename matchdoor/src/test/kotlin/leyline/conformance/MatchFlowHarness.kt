@@ -386,6 +386,19 @@ class MatchFlowHarness(
         drainSink()
     }
 
+    // --- Damage assignment helpers ---
+
+    /**
+     * Send AssignDamageResp with damage assignments.
+     *
+     * @param assigners list of (attackerInstanceId, assignments) where assignments
+     *                  is a list of (blockerOrDefenderInstanceId, damage)
+     */
+    fun assignDamage(assigners: List<Pair<Int, List<Pair<Int, Int>>>>) {
+        session.onAssignDamage(assignDamageResp(assigners))
+        drainSink()
+    }
+
     // --- Targeting helpers ---
 
     /**

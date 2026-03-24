@@ -115,6 +115,9 @@ class AutoPassEngine(
                 CombatHandler.Signal.CONTINUE -> {} // fall through to action check
             }
 
+            // Damage assignment prompt (dedicated future, not action bridge)
+            if (combatHandler.checkPendingDamageAssignment(bridge)) return
+
             // Interactive prompt (targeting, sacrifice, discard, etc.)
             when (targetingHandler.checkPendingPrompt(bridge, game)) {
                 TargetingHandler.PromptResult.SENT_TO_CLIENT -> return
