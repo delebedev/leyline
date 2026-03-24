@@ -282,6 +282,42 @@ class BundleBuilderTest :
             result.messages[1].prompt.promptId shouldBe PromptIds.SELECT_N
         }
 
+        test("discard SelectNReq uses Resolution context and Dynamic listType (#175)") {
+            val (b, _, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Mountain", human, ZoneType.Hand)
+                base.addCard("Forest", human, ZoneType.Hand)
+            }
+
+            val handCards = b.getPlayer(leyline.bridge.SeatId(1))!!
+                .getZone(ZoneType.Hand).cards.toList()
+            val prompt = leyline.bridge.InteractivePromptBridge.PendingPrompt(
+                promptId = "discard-test",
+                request = leyline.bridge.PromptRequest(
+                    promptType = "choose_cards",
+                    message = "Choose a card to discard",
+                    options = listOf("Discard"),
+                    min = 1,
+                    max = 1,
+                    candidateRefs = handCards.mapIndexed { i, c ->
+                        leyline.bridge.PromptCandidateRefDto(i, "card", c.id, "Hand")
+                    },
+                ),
+                future = java.util.concurrent.CompletableFuture(),
+            )
+
+            val req = RequestBuilder.buildSelectNReq(prompt, b)
+
+            req.context shouldBe Messages.SelectionContext.Resolution_a163
+            req.listType shouldBe Messages.SelectionListType.Dynamic
+            req.optionContext shouldBe Messages.OptionContext.Resolution_a9d7
+            req.idType shouldBe Messages.IdType.InstanceId_ab2c
+            req.validationType shouldBe Messages.SelectionValidationType.NonRepeatable
+            req.minSel shouldBe 1
+            req.maxSel shouldBe 1
+            req.idsCount shouldBe 2
+            req.prompt.promptId shouldBe PromptIds.SELECT_N
+        }
+
         test("payCostsBundle shape") {
             val (b, game, counter) = base.startWithBoard { _, _, _ -> }
 
