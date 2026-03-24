@@ -42,8 +42,7 @@ fun main(args: Array<String>) {
     val server = LeylineServer(
         frontDoorPort = fdPort,
         matchDoorPort = mdPort,
-        certFile = tls.first,
-        keyFile = tls.second,
+        tlsFiles = tls,
         upstreamFrontDoor = a["--proxy-fd"],
         upstreamMatchDoor = a["--proxy-md"],
         replayDir = a["--replay"]?.let { File(it) },

@@ -60,9 +60,8 @@ import java.util.UUID
 class LeylineServer(
     private val frontDoorPort: Int = 30010,
     private val matchDoorPort: Int = 30003,
-    /** TLS cert+key (PEM). Falls back to self-signed if null. Needed when client validates certs (UnityTls). */
-    private val certFile: java.io.File? = null,
-    private val keyFile: java.io.File? = null,
+    /** TLS cert+key (PEM). Falls back to self-signed if both null. Needed when client validates certs (UnityTls). */
+    private val tlsFiles: Pair<File?, File?> = null to null,
     /** Proxy mode: if set, relay to these upstream IPs instead of stubbing. */
     private val upstreamFrontDoor: String? = null,
     private val upstreamMatchDoor: String? = null,
@@ -138,9 +137,9 @@ class LeylineServer(
         }
     }
 
-    private fun buildSslContext(): SslContext = if (certFile != null && keyFile != null) {
-        log.info("Loading TLS cert={} key={}", certFile, keyFile)
-        SslContextBuilder.forServer(certFile, keyFile).build()
+    private fun buildSslContext(): SslContext = if (tlsFiles.first != null && tlsFiles.second != null) {
+        log.info("Loading TLS cert={} key={}", tlsFiles.first, tlsFiles.second)
+        SslContextBuilder.forServer(tlsFiles.first, tlsFiles.second).build()
     } else {
         log.info("Using self-signed TLS certificate")
         val ssc = SelfSignedCertificate()
@@ -233,7 +232,19 @@ class LeylineServer(
             log.info("Client Front Door (local) listening on :{}", frontDoorPort)
         }
 
-        matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor") { ch ->
+        matchDoorChannel = bindMatchDoor(mdSsl, coordinator)
+    }
+
+    private fun createMatchId(eventName: String): String {
+        val puzzle = matchConfig.game.puzzle
+        if (puzzle != null && eventName == "SparkyStarterDeckDuel") {
+            return "puzzle-${File(puzzle).nameWithoutExtension}"
+        }
+        return UUID.randomUUID().toString()
+    }
+
+    private fun bindMatchDoor(mdSsl: SslContext, coordinator: AppMatchCoordinator): Channel {
+        val ch = bindServer(mdSsl, matchDoorPort, "MatchDoor") { ch ->
             ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
             ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
             ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
@@ -253,14 +264,7 @@ class LeylineServer(
             )
         }
         log.info("Client Match Door (local) listening on :{}", matchDoorPort)
-    }
-
-    private fun createMatchId(eventName: String): String {
-        val puzzle = matchConfig.game.puzzle
-        if (puzzle != null && eventName == "SparkyStarterDeckDuel") {
-            return "puzzle-${File(puzzle).nameWithoutExtension}"
-        }
-        return UUID.randomUUID().toString()
+        return ch
     }
 
     private fun startReplay(fdSsl: SslContext, mdSsl: SslContext) {
