@@ -21,6 +21,27 @@ Design and write a `.pzl` puzzle file that tests a specific game mechanic. The p
 - Architecture: `docs/puzzles.md` (goal types, format, card registration)
 - Existing puzzles: `matchdoor/src/test/resources/puzzles/` and `puzzles/`
 
+## Card selection
+
+**Prefer cards from recordings.** When writing a puzzle for a conformance issue, the GitHub issue or recording notes name the exact cards observed in the real server session. Use those — they're guaranteed to exist in both Forge and Arena. Check the issue body, `recordings/*/notes.md`, and `just wire cards` for card names.
+
+**Verify before designing.** Run `just card-grp "<name>"` for every non-basic-land card BEFORE committing to a design. A missing card forces a redesign — better to catch it early than after writing the narrative.
+
+**Simple cards for generic roles.** When no recording card applies, use these known-good cards:
+
+| Role | Cards |
+|------|-------|
+| Must-attack | Juggernaut (5/3) |
+| Deathtouch blocker | Typhoid Rats (1/1), Hired Poisoner (1/1) |
+| Vanilla beater | Grizzly Bears (2/2), Centaur Courser (3/3), Savannah Lions (2/1) |
+| Big blocker | Pillarfield Ox (2/4), Kalonian Tusker (3/3) |
+| Burn spell | Lightning Bolt (3 dmg), Shock (2 dmg), Lava Axe (5 dmg) |
+| Pump spell | Giant Growth (+3/+3) |
+| Flying | Healer's Hawk (1/1 flying lifelink), Wind Drake (2/2 flying) |
+| Prowess | Monastery Swiftspear (1/2 haste prowess) |
+
+This palette covers 90% of puzzle needs. Avoid complex cards unless testing their specific mechanic.
+
 ## Step 1: Reasoning Chain
 
 Before writing any `.pzl` content, think through these 7 steps. Write your reasoning out — this becomes the narrative.
@@ -234,3 +255,17 @@ Final output to the user:
 2. **Judge verdict + score** — the final round's evaluation
 3. **Suggested test assertion** — what to check in MatchHarness beyond WIN/LOSE
 4. **Suggested file path** — `matchdoor/src/test/resources/puzzles/<name>.pzl` (test fixture) or `puzzles/<name>.pzl` (acceptance target)
+
+## Step 7: Writer Reflection
+
+After completing the puzzle, append a brief reflection to `docs/puzzle-writer-learnings.md`. This is self-feedback — what was hard, what took the most thinking, what you'd do differently.
+
+```markdown
+### YYYY-MM-DD — <puzzle-filename>.pzl
+
+**Hardest part:** <what took the most thinking — card selection? forcing function? AI behavior?>
+**Surprising:** <anything unexpected — card didn't exist, AI wouldn't cooperate, failure modes overlapped?>
+**Would change:** <what you'd do differently next time, if anything>
+```
+
+This log accumulates friction points that feed back into improving the skill. If the same issue appears 3+ times, it should become a rule or a palette entry.
