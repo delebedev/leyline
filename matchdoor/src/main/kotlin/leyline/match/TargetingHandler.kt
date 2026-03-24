@@ -307,12 +307,13 @@ class TargetingHandler(private val ops: SessionOps) {
                 } else {
                     // Multi-card surveil/scry: away group IDs → indices into options
                     val awayIds = if (groups.size >= 2) groups[1].idsList else emptyList()
+                    val game = bridge.getGame()
                     awayIds.mapNotNull { iid ->
                         val forgeCardId = bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
-                        // Options are card names from topN — match by forge card name
-                        val player = bridge.getPlayer(SeatId(ops.seatId)) ?: return@mapNotNull null
-                        val card = player.allCards.firstOrNull { it.id == forgeCardId.value }
-                        card?.let { req.options.indexOf(it.name) }
+                        // Cards may be zoneless during surveil — use game.findById
+                        // instead of player.allCards (which only sees zoned cards).
+                        val card = game?.findById(forgeCardId.value) ?: return@mapNotNull null
+                        req.options.indexOf(card.name)
                     }.filter { it >= 0 }
                 }
             }
