@@ -264,6 +264,47 @@ class FrontDoorHandlerTest :
             matchInfo["EventId"]?.jsonPrimitive?.content shouldBe "AIBotMatch"
         }
 
+        test("CmdType 603 - SparkyStarterDeckDuel can route into puzzle match ids") {
+            val puzzleAwareMatchmaking = MatchmakingService(
+                store,
+                "localhost",
+                30003,
+                matchIdFactory = { eventName -> if (eventName == "SparkyStarterDeckDuel") "puzzle-bolt-face" else "plain-match" },
+            )
+            val ch = EmbeddedChannel(
+                FrontDoorHandler(
+                    playerId = PlayerId(testPlayerId),
+                    deckService = deckService,
+                    playerService = playerService,
+                    matchmaking = puzzleAwareMatchmaking,
+                    collectionService = CollectionService { emptyList() },
+                    courseService = CourseService(InMemoryCourseRepository()) { _ ->
+                        GeneratedPool(emptyList(), emptyList(), 0)
+                    },
+                    draftService = DraftService(InMemoryDraftSessionRepository()) { _ -> emptyList() },
+                    writer = writer,
+                    golden = golden,
+                ),
+            )
+            channel = ch
+
+            ch.writeCmd(
+                622,
+                """
+                {"EventName":"SparkyStarterDeckDuel",
+                 "Summary":{"DeckId":"$testDeckId","Name":"Test Deck","DeckTileId":12345},
+                 "Deck":{"MainDeck":[{"cardId":75515,"quantity":4},{"cardId":75516,"quantity":56}],"Sideboard":[],"CommandZone":[],"Companions":[]}}
+                """.trimIndent(),
+            )
+            ch.readOutbound<ByteBuf>()!!.release()
+
+            val responses = ch.sendCmdAll(603, """{"EventName":"SparkyStarterDeckDuel"}""")
+            responses.size shouldBe 2
+            val pushObj = json.parseToJsonElement(responses[1].jsonPayload.shouldNotBeNull()).jsonObject
+            pushObj["MatchInfoV3"]!!.jsonObject["MatchId"]!!.jsonPrimitive.content shouldBe "puzzle-bolt-face"
+            pushObj["MatchInfoV3"]!!.jsonObject["EventId"]!!.jsonPrimitive.content shouldBe "SparkyStarterDeckDuel"
+        }
+
         test("CmdType 1700 - GraphDefinitions returns JSON") {
             val ch = fdChannel()
             val msg = ch.sendCmd(1700)

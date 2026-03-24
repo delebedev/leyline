@@ -46,6 +46,7 @@ import leyline.protocol.ClientHeaderStripper
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import java.io.File
+import java.util.UUID
 
 /**
  * Client-compatible TLS TCP server — the single entry point for all three operating modes
@@ -59,9 +60,8 @@ import java.io.File
 class LeylineServer(
     private val frontDoorPort: Int = 30010,
     private val matchDoorPort: Int = 30003,
-    /** TLS cert+key (PEM). Falls back to self-signed if null. Needed when client validates certs (UnityTls). */
-    private val certFile: java.io.File? = null,
-    private val keyFile: java.io.File? = null,
+    /** TLS cert+key (PEM). Falls back to self-signed if both null. Needed when client validates certs (UnityTls). */
+    private val tlsFiles: Pair<File?, File?> = null to null,
     /** Proxy mode: if set, relay to these upstream IPs instead of stubbing. */
     private val upstreamFrontDoor: String? = null,
     private val upstreamMatchDoor: String? = null,
@@ -71,8 +71,6 @@ class LeylineServer(
     val fdGoldenFile: File? = null,
     /** Playtest configuration (decks, seed, die roll, AI speed). */
     val matchConfig: MatchConfig = MatchConfig(),
-    /** Puzzle mode: if set, load this .pzl file for all client connections. */
-    val puzzleFile: File? = null,
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
     private val externalHost: String = "localhost",
     /** Card data repository — passed to MatchHandler for grpId↔name lookups. */
@@ -139,9 +137,9 @@ class LeylineServer(
         }
     }
 
-    private fun buildSslContext(): SslContext = if (certFile != null && keyFile != null) {
-        log.info("Loading TLS cert={} key={}", certFile, keyFile)
-        SslContextBuilder.forServer(certFile, keyFile).build()
+    private fun buildSslContext(): SslContext = if (tlsFiles.first != null && tlsFiles.second != null) {
+        log.info("Loading TLS cert={} key={}", tlsFiles.first, tlsFiles.second)
+        SslContextBuilder.forServer(tlsFiles.first, tlsFiles.second).build()
     } else {
         log.info("Using self-signed TLS certificate")
         val ssc = SelfSignedCertificate()
@@ -177,7 +175,13 @@ class LeylineServer(
             draftPackGen.generate(setCode)
         }
         val validateDeck = buildDeckValidator(cardRepo::findNameByGrpId)
-        val matchmakingService = MatchmakingService(store, externalHost, matchDoorPort, validateDeck = validateDeck)
+        val matchmakingService = MatchmakingService(
+            store,
+            externalHost,
+            matchDoorPort,
+            validateDeck = validateDeck,
+            matchIdFactory = ::createMatchId,
+        )
         val writer = FdResponseWriter(onFdMessage = fdCollector::record)
         val golden = GoldenData.loadFromClasspath()
 
@@ -228,7 +232,19 @@ class LeylineServer(
             log.info("Client Front Door (local) listening on :{}", frontDoorPort)
         }
 
-        matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor") { ch ->
+        matchDoorChannel = bindMatchDoor(mdSsl, coordinator)
+    }
+
+    private fun createMatchId(eventName: String): String {
+        val puzzle = matchConfig.game.puzzle
+        if (puzzle != null && eventName == "SparkyStarterDeckDuel") {
+            return "puzzle-${File(puzzle).nameWithoutExtension}"
+        }
+        return UUID.randomUUID().toString()
+    }
+
+    private fun bindMatchDoor(mdSsl: SslContext, coordinator: AppMatchCoordinator): Channel {
+        val ch = bindServer(mdSsl, matchDoorPort, "MatchDoor") { ch ->
             ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
             ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
             ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
@@ -238,7 +254,6 @@ class LeylineServer(
                 "handler",
                 MatchHandler(
                     matchConfig = matchConfig,
-                    puzzleFile = puzzleFile,
                     coordinator = coordinator,
                     cards = cardRepo,
                     debugSink = DebugSinkAdapter(debugCollector, gameStateCollector),
@@ -249,6 +264,7 @@ class LeylineServer(
             )
         }
         log.info("Client Match Door (local) listening on :{}", matchDoorPort)
+        return ch
     }
 
     private fun startReplay(fdSsl: SslContext, mdSsl: SslContext) {

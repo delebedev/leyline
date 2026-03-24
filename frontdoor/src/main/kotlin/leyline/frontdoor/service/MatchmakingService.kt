@@ -29,8 +29,15 @@ class MatchmakingService(
      * Params: (mainDeck, sideboard, formatId).
      */
     private val validateDeck: ((List<DeckCard>, List<DeckCard>, String) -> String?)? = null,
+    /**
+     * Match ID generator. Allows app wiring to route selected events into custom
+     * MD flows without coupling FD to engine details.
+     */
+    private val matchIdFactory: (String) -> String = { UUID.randomUUID().toString() },
 ) {
     private val log = LoggerFactory.getLogger(MatchmakingService::class.java)
+
+    fun createMatchId(eventName: String): String = matchIdFactory(eventName)
 
     /**
      * Create a match for any event. Validates deck legality against the event's format.
@@ -47,7 +54,7 @@ class MatchmakingService(
         }
 
         return MatchInfo(
-            matchId = UUID.randomUUID().toString(),
+            matchId = createMatchId(eventName),
             host = matchDoorHost,
             port = matchDoorPort,
             eventName = eventName,
@@ -56,7 +63,7 @@ class MatchmakingService(
 
     /** Create MatchInfo without deck validation — for sealed events where deck is in Course. */
     fun createMatchInfo(eventName: String): MatchInfo = MatchInfo(
-        matchId = UUID.randomUUID().toString(),
+        matchId = createMatchId(eventName),
         host = matchDoorHost,
         port = matchDoorPort,
         eventName = eventName,

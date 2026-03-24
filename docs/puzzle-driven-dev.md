@@ -85,10 +85,10 @@ Remove diagnostics before committing.
 After MatchHarness passes, validate in Arena:
 
 ```bash
-# Start puzzle server
+# Edit leyline.toml: set [game].puzzle = "puzzles/<name>.pzl"
 pkill -f LeylineMainKt; sleep 2
 just build
-nohup just serve-puzzle puzzles/<name>.pzl > /tmp/leyline.log 2>&1 &
+nohup just serve > /tmp/leyline.log 2>&1 &
 
 # Launch Arena, navigate to Bot Match
 pkill -f MTGA; sleep 3

@@ -16,7 +16,7 @@ Record a short MP4 video of the MTGA window and upload it for embedding in GitHu
 
 ## Prerequisites
 
-- MTGA running and connected to leyline server (`just serve` or `just serve-puzzle`)
+- MTGA running and connected to leyline server (`just serve`)
 - `ffmpeg` installed (`brew install ffmpeg`)
 - Server up: `curl -s http://localhost:8090/api/state` returns JSON
 
@@ -26,7 +26,7 @@ Record a short MP4 video of the MTGA window and upload it for embedding in GitHu
 
 Use `arena ocr` to check current state. Navigate as needed:
 - For gameplay: lobby → Find Match → Bot Match → deck → Play
-- For puzzle: `just serve-puzzle puzzles/<name>.pzl` → lobby → Play
+- For puzzle: set `game.puzzle = "puzzles/<name>.pzl"` → `just serve` → lobby → Sparky → Play
 - For a specific bug: follow the repro steps first
 
 ### 2. Start recording

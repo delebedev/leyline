@@ -151,7 +151,7 @@ After implementing or fixing an annotation, verify end-to-end:
 
 1. **Write puzzle** — `.pzl` file that triggers the annotation (e.g. creature with counters, aura attachment). Validate with `just puzzle-check`.
 2. **Unit test** — use real Forge names in test input (e.g. `"+1/+1"` not `"P1P1"`). Assert detail key values match proto enum numbers.
-3. **Visual verify** — `just serve-puzzle <file>`, connect client, trigger the annotation in-game.
+3. **Visual verify** — set `game.puzzle` to the file, run `just serve`, connect client, trigger the annotation in-game.
 4. **Wire check** — `curl -s http://localhost:8090/api/messages` → find the annotation in JSON, confirm detail values match real server recordings.
 5. **Update docs** — `docs/rosetta.md` status column, `docs/catalog.yaml` entry, protocol-summary counts if tier changes.
 

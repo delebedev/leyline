@@ -843,7 +843,7 @@ puzzle-mode:
       Skips pre-game (no die roll, no starting player, no mulligan).
       Client receives stage=Play with pre-populated board.
       PuzzleCardRegistrar handles grpId resolution.
-      just serve-puzzle path/to/puzzle.pzl works.
+      Set `game.puzzle = "puzzles/<name>.pzl"`, run `just serve`, then start Sparky.
 
   puzzle-interaction:
     status: wired

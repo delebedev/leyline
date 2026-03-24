@@ -28,7 +28,6 @@ fun main(args: Array<String>) {
     val sc = config.server
     val tls = resolveTls(a)
     val cardRepo = openCardRepo(a)
-    val puzzleFile = resolveOptionalFile(a["--puzzle"], "Puzzle file")
     val fdGoldenFile = resolveOptionalFile(a["--fd-golden"], "FD golden file")
 
     val fdPort = a["--fd-port"]?.toIntOrNull() ?: sc.fdPort
@@ -43,14 +42,12 @@ fun main(args: Array<String>) {
     val server = LeylineServer(
         frontDoorPort = fdPort,
         matchDoorPort = mdPort,
-        certFile = tls.first,
-        keyFile = tls.second,
+        tlsFiles = tls,
         upstreamFrontDoor = a["--proxy-fd"],
         upstreamMatchDoor = a["--proxy-md"],
         replayDir = a["--replay"]?.let { File(it) },
         fdGoldenFile = fdGoldenFile,
         matchConfig = config,
-        puzzleFile = puzzleFile,
         externalHost = fdHost.substringBefore(":"),
         cardRepo = cardRepo,
         playerDbFile = playerDbFile,
@@ -70,7 +67,7 @@ fun main(args: Array<String>) {
 
     installShutdownHook(accountServer, debugServer, mgmtServer, server)
     startAll(server, mgmtServer, debugServer, accountServer)
-    printBanner(server, puzzleFile, isProxy, config, mgmtPort, debugPort, accountPort, accountServer, fdHost)
+    printBanner(server, isProxy, config, mgmtPort, debugPort, accountPort, accountServer, fdHost)
 
     Thread.currentThread().join()
 }
@@ -195,7 +192,6 @@ private fun startAll(
 
 private fun printBanner(
     server: LeylineServer,
-    puzzleFile: File?,
     isProxy: Boolean,
     config: MatchConfig,
     mgmtPort: Int,
@@ -209,9 +205,8 @@ private fun printBanner(
         server.isProxy -> "proxy"
         else -> "local"
     }
-    val puzzleSuffix = if (puzzleFile != null) " + puzzle" else ""
 
-    println("Starting Leyline server ($mode$puzzleSuffix mode)...")
+    println("Starting Leyline server ($mode mode)...")
     println("Leyline server running. Press Ctrl+C to stop.")
     println("Management: http://localhost:$mgmtPort/health")
     println("Debug panel: http://localhost:$debugPort")
@@ -221,9 +216,7 @@ private fun printBanner(
         println("Account:     https://localhost:$accountPort")
     }
     println("Doorbell:    FdURI=$fdHost")
-    if (puzzleFile != null) {
-        println("Puzzle: ${puzzleFile.name}")
-    } else if (!isProxy) {
+    if (!isProxy) {
         println("Config: ${config.summary()}")
     }
 }

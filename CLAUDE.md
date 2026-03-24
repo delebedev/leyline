@@ -7,7 +7,7 @@ Full reimplementation of the client's Front Door, Match Door, and Account Server
 **Engineering stance:** correctness over speed. The protocol is opaque and the client is unforgiving — shortcuts compound. Build it right, test it right, tool it right.
 
 - **Depends on:** forge (engine submodule — game bridges, bootstrap) — never reverse the dependency
-- **Server modes:** `just serve` (local, main dev — fully offline), `just serve-proxy` (passthrough for recording), `just serve-replay`, `just serve-puzzle <file>`
+- **Server modes:** `just serve` (local, main dev — fully offline), `just serve-proxy` (passthrough for recording), `just serve-replay`
 - **Roadmap:** [GitHub Project board](https://github.com/users/delebedev/projects/1)
 - **Bugs & tasks:** GitHub Issues — no local TODO/BUGS files
 
@@ -54,7 +54,7 @@ Other dirs: `bin/` (CLI tools), `docs/`, `forge/` (engine submodule), `gradle/`,
 Puzzles are the primary acceptance tool. `.pzl` files define exact board states — minimal cards, one win path, forced mechanics. The dev loop: write puzzle → run in MatchHarness (<5s cycles) → fix code → Arena playtest for visual proof.
 
 - **Files:** `puzzles/` (acceptance targets), `matchdoor/src/test/resources/puzzles/` (test fixtures)
-- **Run in Arena:** `just serve-puzzle puzzles/bolt-face.pzl`
+- **Run in Arena:** set `game.puzzle = "puzzles/bolt-face.pzl"` in `leyline.toml`, then `just serve` and launch Sparky
 - **Run in tests:** `base.startPuzzleAtMain1(puzzleText)` (Kotest, ~0.09s)
 - **Validate cards:** `just puzzle-check <file>` — mandatory before commit (missing grpId = NPE)
 - **Docs:** `docs/puzzle-design.md` (authoring guide), `docs/puzzle-driven-dev.md` (workflow), `docs/puzzles.md` (architecture)

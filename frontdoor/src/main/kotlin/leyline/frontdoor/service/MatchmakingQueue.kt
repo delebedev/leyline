@@ -35,13 +35,13 @@ class MatchmakingQueue(
         val partner = waiting
         if (partner != null) {
             waiting = null
-            val matchId = java.util.UUID.randomUUID().toString()
+            val matchId = partner.matchId ?: entry.matchId ?: java.util.UUID.randomUUID().toString()
             log.info("MatchmakingQueue: paired {} vs {} → matchId={}", partner.screenName, entry.screenName, matchId)
             return PairResult.Paired(seat1 = partner, seat2 = entry, matchId = matchId)
         }
         if (syntheticOpponent) {
-            val matchId = java.util.UUID.randomUUID().toString()
-            val bot = PairingEntry(SYNTHETIC_SCREEN_NAME) { _, _ -> }
+            val matchId = entry.matchId ?: java.util.UUID.randomUUID().toString()
+            val bot = PairingEntry(screenName = SYNTHETIC_SCREEN_NAME, pushCallback = { _, _ -> })
             log.info("MatchmakingQueue: auto-paired {} vs {} → matchId={}", entry.screenName, SYNTHETIC_SCREEN_NAME, matchId)
             return PairResult.Paired(seat1 = entry, seat2 = bot, matchId = matchId, synthetic = true)
         }
@@ -68,6 +68,8 @@ class MatchmakingQueue(
 
 data class PairingEntry(
     val screenName: String,
+    /** Optional precomputed match id for event-specific routing. */
+    val matchId: String? = null,
     /** Opaque callback for pushing MatchCreated back to this FD channel. */
     val pushCallback: (matchId: String, yourSeat: Int) -> Unit,
 )

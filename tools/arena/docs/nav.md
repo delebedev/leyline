@@ -82,7 +82,7 @@ Waiting for Server:
 - **Actions:** `arena click "Keep"` or `arena click "Mulligan"`
 
 ### Puzzle Mode
-- **Start:** `just serve-puzzle <path>.pzl` — loads a .pzl file as the match
+- **Start:** set `game.puzzle` in config, run `just serve`, then launch Sparky — loads a .pzl file as the match
 - **No mulligan:** Puzzles skip the Keep/Mulligan screen — goes straight to the game board
 - **Same nav:** Still need Play → Find Match → Bot Match → deck → Play to trigger the match
 

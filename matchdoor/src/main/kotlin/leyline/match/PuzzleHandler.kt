@@ -14,8 +14,9 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 /**
- * Puzzle mode delegate — detection from two sources: CLI `--puzzle <file>` flag
- * (takes precedence) or matchId prefix convention (`puzzle-<name>`).
+ * Puzzle mode delegate — routed by `puzzle-<name>` match IDs. When
+ * `game.puzzle` is set in config, that file is loaded for routed puzzle matches;
+ * otherwise the matchId naming convention resolves `puzzles/<name>.pzl`.
  *
  * **Ordering constraint:** [GameBootstrap.initializeLocalization] must be called
  * before any [Puzzle] constructor — Forge's `GameState.<clinit>` reads localized
@@ -23,16 +24,15 @@ import java.io.File
  * so the handler can be created eagerly without triggering Forge class loading.
  */
 class PuzzleHandler(
-    private val puzzleFile: File?,
     private val matchConfig: MatchConfig,
     private val cards: CardRepository?,
     private val registry: MatchRegistry,
 ) {
     private val log = LoggerFactory.getLogger(PuzzleHandler::class.java)
 
-    /** Puzzle mode if --puzzle CLI flag is set, or matchId starts with "puzzle-". */
+    /** Puzzle mode if the FD routed the match via the `puzzle-` prefix. */
     fun isPuzzleMatch(matchId: String): Boolean =
-        puzzleFile != null || matchId.startsWith("puzzle-")
+        matchId.startsWith("puzzle-")
 
     /**
      * Handle ConnectReq in puzzle mode: create bridge with puzzle game, send initial bundle.
@@ -101,17 +101,18 @@ class PuzzleHandler(
         session.onPuzzleStart()
     }
 
-    /** Load puzzle: prefer --puzzle CLI file, fall back to matchId convention. */
+    /** Load puzzle: prefer config file path, fall back to matchId convention. */
     private fun loadPuzzleForMatch(matchId: String): Puzzle {
         // Puzzle constructor triggers GameState.<clinit> which needs localization
         GameBootstrap.initializeLocalization()
 
-        // CLI override takes precedence
-        if (puzzleFile != null) {
-            require(puzzleFile.exists()) { "Puzzle file not found: ${puzzleFile.absolutePath}" }
-            return PuzzleSource.loadFromFile(puzzleFile.absolutePath)
+        val configuredPuzzle = matchConfig.game.puzzle
+        if (configuredPuzzle != null) {
+            val file = File(configuredPuzzle).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), configuredPuzzle) }
+            require(file.exists()) { "Puzzle file not found: ${file.absolutePath}" }
+            return PuzzleSource.loadFromFile(file.absolutePath)
         }
-        // Fall back to matchId convention
+
         val puzzleName = matchId.removePrefix("puzzle-")
         val leylineDir = findLeylineDir()
         val puzzlesDir = File(leylineDir, "puzzles")
