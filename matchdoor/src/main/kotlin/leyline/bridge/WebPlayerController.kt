@@ -1227,6 +1227,30 @@ class WebPlayerController(
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    // Static application confirmations
+    // ═══════════════════════════════════════════════════════════════════
+
+    /**
+     * Auto-decline "assign damage as though unblocked" for trample creatures.
+     * The real Arena server never sends this prompt — it always uses
+     * AssignDamageReq for manual damage distribution. Forge's desktop UI
+     * offers this as a convenience shortcut, but we suppress it to match
+     * Arena behavior.
+     */
+    override fun confirmStaticApplication(
+        hostCard: Card,
+        mode: PlayerActionConfirmMode,
+        message: String,
+        logic: String?,
+    ): Boolean {
+        if (mode == PlayerActionConfirmMode.AlternativeDamageAssignment) {
+            log.info("confirmStaticApplication: auto-declining AlternativeDamageAssignment for {}", hostCard.name)
+            return false
+        }
+        return super.confirmStaticApplication(hostCard, mode, message, logic ?: "")
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     // Combat damage assignment
     // ═══════════════════════════════════════════════════════════════════
 
