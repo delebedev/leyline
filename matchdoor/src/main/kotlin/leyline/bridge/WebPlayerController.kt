@@ -1314,6 +1314,7 @@ class WebPlayerController(
             super.assignCombatDamage(attacker, blockers, remaining, damageDealt, defender, overrideOrder)
         } finally {
             pendingDamageAssignment = null
+            damageAssignCache.clear()
         }
     }
 

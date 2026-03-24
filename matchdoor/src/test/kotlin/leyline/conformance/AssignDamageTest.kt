@@ -85,9 +85,10 @@ class AssignDamageTest :
             val confirmation = postAssign.firstOrNull { it.hasAssignDamageConfirmation() }
             confirmation.shouldNotBeNull()
 
-            // Trample overflow to defender not yet wired (needs recording with trample
-            // to determine correct defender instanceId). Both blockers die from assigned
-            // damage. Game continues — AI survives at 1 life.
+            // Trample overflow is computed server-side (onAssignDamage adds null-key
+            // for totalDamage minus blocker sum). But without a defender slot in the
+            // proto, the client assigns all damage to blockers. Needs trample recording
+            // to determine correct defender instanceId (#235).
             if (!h.isGameOver()) h.passThroughCombat()
         }
 

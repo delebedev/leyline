@@ -81,7 +81,7 @@ Others not observed and likely niche: GatherReq (50), SelectNGroupReq (40), Sele
 
 ### Tier 2 — Degrades gameplay noticeably
 
-3. ~~**AssignDamageReq** ([#197])~~ — **Implemented.** Manual damage distribution for multi-blocker/trample. Auto-assign fallback.
+3. **AssignDamageReq** ([#197]) — Implemented. Manual damage distribution for multi-blocker/trample. Auto-assign fallback. Trample-to-face gap: [#235].
 4. **SelectReplacementReq** — choose between replacement effects. Shocklands, ETB choices.
 5. **DistributionReq** — distribute damage/counters among targets.
 6. **NumericInputReq** — X-cost spells.
@@ -118,3 +118,4 @@ The priority system is functional (2-layer auto-pass, full-control toggle, phase
 [#197]: https://github.com/delebedev/leyline/issues/197
 [#201]: https://github.com/delebedev/leyline/issues/201
 [#200]: https://github.com/delebedev/leyline/issues/200
+[#235]: https://github.com/delebedev/leyline/issues/235

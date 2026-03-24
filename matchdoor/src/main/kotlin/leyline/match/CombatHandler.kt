@@ -25,6 +25,11 @@ import kotlin.collections.iterator
  * `ops.counter` — no seeding or syncing needed.
  */
 class CombatHandler(private val ops: SessionOps) {
+    companion object {
+        /** Prompt ID for damage assignment — observed in recording 2026-03-08 tutorial. */
+        private const val ASSIGN_DAMAGE_PROMPT_ID = 8
+    }
+
     private val log = LoggerFactory.getLogger(CombatHandler::class.java)
 
     /** Legal attacker instanceIds from the last DeclareAttackersReq we sent.
@@ -378,7 +383,7 @@ class CombatHandler(private val ops: SessionOps) {
         val game = bridge.getGame() ?: return false
 
         log.info("CombatHandler: damage assignment pending for {} (damage={})", prompt.attacker.name, prompt.damageDealt)
-        sendAssignDamageReq(bridge, game, prompt)
+        sendAssignDamageReq(bridge, prompt)
         return true
     }
 
@@ -485,7 +490,6 @@ class CombatHandler(private val ops: SessionOps) {
      */
     private fun sendAssignDamageReq(
         bridge: GameBridge,
-        game: Game,
         prompt: WebPlayerController.DamageAssignmentPrompt,
     ) {
         val humanPlayer = bridge.getPlayer(SeatId(ops.seatId)) ?: return
@@ -519,7 +523,7 @@ class CombatHandler(private val ops: SessionOps) {
             .setCanIgnoreBlockers(prompt.hasTrample)
             .setDecisionPrompt(
                 Prompt.newBuilder()
-                    .setPromptId(8)
+                    .setPromptId(ASSIGN_DAMAGE_PROMPT_ID)
                     .addParameters(
                         PromptParameter.newBuilder()
                             .setParameterName("CardId")
