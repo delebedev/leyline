@@ -226,7 +226,7 @@ All feasible issues done or deferred. Time to wrap up.
 1. Create PR:
 
 ```bash
-gh pr create -R delebedev/leyline --title "ralph: $(date +%Y-%m-%d) session" --body "$(cat <<'EOF'
+gh pr create -R delebedev/leyline --label ralph --title "ralph: $(date +%Y-%m-%d) session" --body "$(cat <<'EOF'
 ## Ralph session
 
 | Issue | Mode | Outcome | What changed |
