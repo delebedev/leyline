@@ -92,12 +92,17 @@ with open("recordings/<session>/md-frames.jsonl") as f:
 
 Build a zone transition table: gsId, instanceId changes, zones, what happened.
 
+**If a mechanic was NOT exercised** (e.g. kicker not paid, threshold not reached, transform didn't happen), say so explicitly. Don't invent data — flag it as "unobserved, needs dedicated recording/puzzle."
+
 ### 5. Annotations
 
-Decode raw proto for **novel or gap-filling** moments only:
+Decode raw proto for **novel or gap-filling** moments only.
+
+**Budget: decode at most 3 proto frames.** Pick the most interesting moments — don't decode every zone transition. Use grep to pre-filter:
 
 ```bash
-just proto-inspect recordings/<session>/capture/seat-1/md-payloads/<file>.bin
+# Targeted — grep for specific annotation types instead of full dump
+just proto-inspect <file>.bin 2>&1 | grep -B2 -A15 "ZoneTransfer\|TokenCreated\|CounterAdded\|SelectNreq\|ShouldntPlay"
 ```
 
 **Only document annotations that are:**
@@ -105,7 +110,7 @@ just proto-inspect recordings/<session>/capture/seat-1/md-payloads/<file>.bin
 - **Different** — known annotation with unexpected field values
 - **Gap-filling** — confirms or corrects assumptions about missing mechanics
 
-**Skip well-known annotations** (ObjectIdChanged, ManaPaid, ResolutionStart/Complete, AbilityInstanceCreated/Deleted, TappedUntappedPermanent) unless they behave differently for this card. The goal is to keep this section tight — 3-5 annotation groups, not an exhaustive dump.
+**Skip entirely** if a mechanic's catalog status is "wired" or "works" — don't trace vigilance, flying, basic combat, normal mana payment. Only trace mechanics that are missing, partial, or unknown.
 
 Focus on: ZoneTransfer categories, counter types, persistent annotations, transform mechanics, any SelectNReq/GroupReq shapes.
 
