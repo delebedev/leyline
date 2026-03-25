@@ -52,6 +52,30 @@ In proxy mode, FD frames are also written to `recordings/<session>/capture/fd-fr
 - `GET /api/recording-messages?id=...` — decoded messages for a session
 - `GET /api/recording-compare?left=...&right=...` — action-level comparison between sessions
 
+## Replay control
+
+Available when running `just serve-replay`. Controls frame-by-frame playback of recorded sessions through the Arena client.
+
+- `GET /api/replay/status` — current playback position, frame metadata, active state
+- `POST /api/replay/next` — advance one GRE frame (returns updated status)
+- `GET /api/replay/index` — ordered metadata for all GRE frames in the loaded recording
+
+### Usage
+
+```bash
+# Start replay mode
+just serve-replay
+
+# Connect Arena (Sparky match flow)
+# Then step through:
+curl -s -X POST http://localhost:8090/api/replay/next | python3 -m json.tool
+
+# Check where you are:
+curl -s http://localhost:8090/api/replay/status | python3 -m json.tool
+```
+
+Supports proxy recordings (`capture/payloads/`). Format detected automatically from recording directory structure.
+
 ## Client-side observability (scry)
 
 **scry** (`just scry`) parses Player.log for GRE game state, annotations, and client exceptions. It's the client-side counterpart to the debug server.
