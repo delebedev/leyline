@@ -190,7 +190,7 @@ Write the spec to `docs/card-specs/<card-name-slug>.md`.
 - **Only reference stable, committed docs.** Valid: `docs/catalog.yaml`, `docs/rosetta.md`, `docs/conformance/`, other `docs/card-specs/`. Never reference `.claude/agent-memory/` — those are ephemeral local files. If an agent memory has a useful finding, inline it in the spec.
 - **"What it does" is game rules only.** No wire details (gsIds, effect_ids, annotation types). Write as if explaining the card to a player.
 - **Unobserved mechanics get a banner.** If a key mechanic wasn't exercised (kicker not paid, transform didn't happen), add a clear callout immediately after the Mechanics table: "**Unobserved:** <mechanic> — needs dedicated recording/puzzle."
-- **Track ID lifecycle.** For each ObjectIdChanged, note which subsequent annotations use the old vs new ID. This is a common source of conformance bugs.
+- **Track ID lifecycle.** Use `just proto-trace <instanceId> recordings/<session>/capture/seat-1/md-payloads/` to follow an ID across all frames. Note which annotations use old vs new ID after ObjectIdChanged — common conformance bug source.
 - **Skip mana payment brackets.** Don't trace ManaPaid/TappedUntapped sequences — these are well-known and wired. Only note if something is unusual (e.g. SubCounter cost instead of mana).
 
 ## Reference
