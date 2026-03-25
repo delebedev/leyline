@@ -23,7 +23,7 @@ import java.io.File
  */
 class ReplayHandler(
     private val payloadDir: File,
-) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
+) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>(), ReplayController {
 
     private val log = LoggerFactory.getLogger(ReplayHandler::class.java)
 
@@ -35,6 +35,11 @@ class ReplayHandler(
     private val matchRoomStates: MutableList<CapturedPayload>
     private val greEvents: MutableList<CapturedPayload>
     private val uncategorized: MutableList<CapturedPayload>
+
+    // -- ReplayController state --
+    private var greFrameIndex: List<ReplayController.FrameInfo> = emptyList()
+    private var grePosition = 0
+    @Volatile private var pendingCtx: ChannelHandlerContext? = null
 
     init {
         val allFiles = payloadDir.listFiles()
@@ -81,6 +86,19 @@ class ReplayHandler(
             gres.size,
             other.size,
         )
+
+        greFrameIndex = gres.mapIndexed { i, cp ->
+            val greType = cp.parsed?.greToClientEvent
+                ?.greToClientMessagesList
+                ?.firstOrNull()?.type?.name
+                ?: "Unknown"
+            ReplayController.FrameInfo(
+                index = i,
+                fileName = cp.fileName,
+                greType = greType,
+                category = "gre",
+            )
+        }
     }
 
     override fun channelActive(ctx: ChannelHandlerContext) {
@@ -145,22 +163,37 @@ class ReplayHandler(
             sendProto(ctx, patchMatchId(roomState.parsed), "roomState(patched)")
         }
 
-        // Send next GRE bundle for this seat (patched)
-        val greBundle = popGreForSeat()
-        if (greBundle != null) sendPatchedGre(ctx, greBundle)
+        // Store context — client is waiting for the first GRE frame via next()
+        pendingCtx = ctx
     }
 
     private fun handleGre(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
         val greMsg = ClientToGREMessage.parseFrom(msg.payload)
-        log.info("Replay: GRE type={} seat={}", greMsg.type, greMsg.systemSeatId)
-
-        val next = popGreForSeat()
-        if (next != null) {
-            sendPatchedGre(ctx, next)
-        } else {
-            log.info("Replay: no more GRE responses for seat={}", seatId)
-        }
+        log.info("Replay: GRE from client type={} seat={}", greMsg.type, greMsg.systemSeatId)
+        // Store context for next() to use — client is waiting for the next server frame
+        pendingCtx = ctx
     }
+
+    // -- ReplayController implementation --
+
+    override val currentFrame: Int get() = grePosition
+    override val totalFrames: Int get() = greFrameIndex.size
+    override val frameIndex: List<ReplayController.FrameInfo> get() = greFrameIndex
+
+    override fun next(): Boolean {
+        val ctx = pendingCtx ?: return false
+        val cp = popGreForSeat() ?: return false
+        sendPatchedGre(ctx, cp)
+        grePosition++
+        return true
+    }
+
+    override fun status() = ReplayController.ReplayStatus(
+        currentFrame = grePosition,
+        totalFrames = greFrameIndex.size,
+        currentFrameInfo = greFrameIndex.getOrNull(grePosition),
+        atEnd = grePosition >= greFrameIndex.size,
+    )
 
     /**
      * Patch matchId and clientId in a MatchGameRoomStateChangedEvent.
