@@ -42,10 +42,35 @@ class ReplayHandler(
     @Volatile private var pendingCtx: ChannelHandlerContext? = null
 
     init {
-        val allFiles = payloadDir.listFiles()
-            ?.filter { it.name.startsWith("S-C_MATCH") }
-            ?.sortedBy { it.name }
-            ?: emptyList()
+        val framesDir = File(payloadDir, "capture/frames")
+        val engineDir = File(payloadDir, "engine")
+
+        val allFiles = when {
+            // Proxy format: NNN_MD_S-C_MATCH_DATA.bin in capture/frames/
+            framesDir.isDirectory -> {
+                log.info("Replay: detected proxy frames in {}", framesDir)
+                framesDir.listFiles()
+                    ?.filter { it.name.contains("MD_S-C_MATCH_DATA") }
+                    ?.sortedBy { it.name }
+                    ?: emptyList()
+            }
+            // Engine format: NNN-Type.bin files in engine/
+            engineDir.isDirectory -> {
+                log.info("Replay: detected engine format in {}", engineDir)
+                engineDir.listFiles()
+                    ?.filter { it.extension == "bin" && !it.name.contains("AuthResp") && !it.name.contains("RoomState") }
+                    ?.sortedBy { it.name }
+                    ?: emptyList()
+            }
+            // Legacy: --replay points directly at a dir with S-C_MATCH files
+            else -> {
+                log.info("Replay: loading from {}", payloadDir)
+                payloadDir.listFiles()
+                    ?.filter { it.name.contains("S-C_MATCH") }
+                    ?.sortedBy { it.name }
+                    ?: emptyList()
+            }
+        }
 
         val auths = mutableListOf<CapturedPayload>()
         val rooms = mutableListOf<CapturedPayload>()
@@ -70,6 +95,28 @@ class ReplayHandler(
                 parsed.hasMatchGameRoomStateChangedEvent() -> rooms.add(cp)
                 parsed.hasGreToClientEvent() -> gres.add(cp)
                 else -> other.add(cp)
+            }
+        }
+
+        // Engine format: load auth and room state files separately
+        if (engineDir.isDirectory) {
+            val authFiles = engineDir.listFiles()
+                ?.filter { it.name.contains("AuthResp") && it.extension == "bin" }
+                ?.sortedBy { it.name }
+                ?: emptyList()
+            for (file in authFiles) {
+                val bytes = file.readBytes()
+                val parsed = try { MatchServiceToClientMessage.parseFrom(bytes) } catch (_: Exception) { null }
+                if (parsed != null) auths.add(CapturedPayload(file.name, bytes, parsed))
+            }
+            val roomFiles = engineDir.listFiles()
+                ?.filter { it.name.contains("RoomState") && it.extension == "bin" }
+                ?.sortedBy { it.name }
+                ?: emptyList()
+            for (file in roomFiles) {
+                val bytes = file.readBytes()
+                val parsed = try { MatchServiceToClientMessage.parseFrom(bytes) } catch (_: Exception) { null }
+                if (parsed != null) rooms.add(CapturedPayload(file.name, bytes, parsed))
             }
         }
 
