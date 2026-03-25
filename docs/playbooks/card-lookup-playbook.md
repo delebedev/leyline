@@ -193,11 +193,52 @@ sqlite3 ~/Library/Application\ Support/com.wizards.mtga/Downloads/Raw/Raw_CardDa
 | Card from abilityId | `just ability <abilityId>` (owner + text) |
 | Card name → grpId | `just card-grp "<name>"` (all printings) |
 | Card name → Forge script | `just card-script "<name>"` (fuzzy match) |
+| All cards in a set | `just cards-by-set <SET>` (e.g. FDN, FIN) |
 | All cards in a recording | `just cards-in-session <session>` |
 | Who played a card | `just rec-who-played <session> --card <name>` |
 | Trace instanceId | `just proto-trace <id> recordings/<session>/capture/payloads` |
 | Raw proto dump | `just proto-inspect recordings/<session>/capture/payloads/<file>.bin` |
 | Annotations at a gsId | Check `md-frames.jsonl` (python one-liner above) |
+| Build coverage deck | `just deck coverage <SET> [SET...]` |
+| Show collection stats | `just deck collection` |
+
+## Arena SQLite database
+
+Arena ships a local SQLite card database. All `just card*` recipes query it.
+
+**Location:** `~/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga`
+
+### Key tables
+
+| Table | Purpose |
+|---|---|
+| `Cards` | Card definitions: GrpId, ExpansionCode, Types, Colors, AbilityIds, LinkedFaceGrpIds |
+| `Localizations_enUS` | Localized strings: card names (Formatted=1), ability text, flavor |
+| `Abilities` | Ability definitions: Id, BaseId, Category, AbilityWord, ModalChildIds |
+
+### Cards.AbilityIds format
+
+Comma-separated `abilityId:locId` pairs: `8:46,189038:927602,189039:927603`
+
+### Mechanic detection
+
+Three methods to find mechanics on a card:
+
+1. **Direct ability ID** — keyword abilities appear directly in AbilityIds
+   (flying=8, flash=7, prowess=137, menace=142, job_select=364, tiered=365)
+2. **BaseId chain** — specific abilities chain to a keyword via `Abilities.BaseId`
+   (e.g. "Flashback {2R}" id=5301 → BaseId=35=Flashback)
+3. **AbilityWord enum** — ability words stored as `Abilities.AbilityWord` int
+   (landfall=21, raid=27, threshold=33)
+
+### Collection data
+
+Player's card collection comes from CmdType 551 (Card_GetAllCards).
+Format: `{"cacheVersion":N,"cards":{"<grpId>":<count>,...}}`
+
+**Sources:**
+- Proxy recordings: `fd-frames.jsonl` S2C frame with `"cards"` + `"cacheVersion"` keys
+- Player.log: logged when Arena connects to real servers (not local leyline)
 
 ## Example: Deep-Cavern Bat SelectNreq
 
