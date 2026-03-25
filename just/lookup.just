@@ -59,6 +59,15 @@ puzzle-check file:
     done <<< "$cards"
     [ "$fail" -eq 0 ] && echo "All cards valid." || { echo "Missing cards — puzzle will crash."; exit 1; }
 
+# list all cards in a set
+[group('lookup')]
+cards-by-set setcode:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    db=$(echo "{{arena_db}}"/Raw_CardDatabase_*.mtga)
+    if [ ! -f "$db" ]; then echo "Arena DB not found at {{arena_db}}" >&2; exit 1; fi
+    sqlite3 -header "$db" "SELECT c.GrpId, l.Loc AS Name, c.Colors, c.Types, c.Rarity FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE c.ExpansionCode = '{{setcode}}' AND c.IsToken = 0 AND c.IsPrimaryCard = 1 AND l.Formatted = 1 ORDER BY l.Loc;"
+
 # card name → Forge script path (fuzzy: lowercased, spaces/punctuation → underscore)
 [group('lookup')]
 card-script name:

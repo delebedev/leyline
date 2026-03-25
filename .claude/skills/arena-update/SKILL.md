@@ -22,21 +22,38 @@ After an Arena patch changes server hostnames/IPs, I discover the new endpoints 
 
 ### 1. Discover new hostname (DNS brute-force)
 
-Read current version from `/etc/hosts` entries to get baseline build number. Then sweep both build (AA) and patch (BB) segments:
+Read current version from `/etc/hosts` entries to get baseline build number. Then sweep build (AA), patch (BB), and revision (CC) segments. All three can change independently — e.g. `57-20-1` → `57-40-2`.
 
 ```bash
 # Version format: frontdoor-mtga-production-YYYY-AA-BB-CC.w2.mtgarena.com
-# Patches bump AA (build) or BB (patch) independently
-for a in $(seq <baseline-5> <baseline+10>); do
-  for b in 0 1 2 5 10 15 20 25 30; do
-    h="frontdoor-mtga-production-2026-${a}-${b}-1.w2.mtgarena.com"
-    ip=$(dig +short "$h" A 2>/dev/null | head -1)
-    [ -n "$ip" ] && echo "$h -> $ip"
+# AA=build, BB=patch (can jump by 10-20), CC=revision (usually 1-3)
+for a in $(seq <baseline-5> <baseline+15>); do
+  for b in $(seq 0 50); do
+    for c in 1 2 3; do
+      h="frontdoor-mtga-production-2026-${a}-${b}-${c}.w2.mtgarena.com"
+      ip=$(dig +short "$h" A @8.8.8.8 2>/dev/null | head -1)
+      [ -n "$ip" ] && echo "$h -> $ip"
+    done
   done
 done
 ```
 
-If multiple resolve, pick the highest version. If none resolve beyond current, servers haven't changed — stop and tell user.
+Use `@8.8.8.8` to bypass `/etc/hosts`. If multiple resolve, pick the highest version.
+
+### 1b. Fallback: Player.log discovery
+
+If DNS sweep finds nothing, let Arena connect to real servers and read the doorbell response:
+
+1. Stop leyline (`just stop`)
+2. Comment out `/etc/hosts` Arena entries (step 5 below)
+3. Remove `services.conf` (step 5 below)
+4. Launch Arena: `open -a MTGA`
+5. Wait ~20s, then:
+```bash
+grep "Doorbell response" ~/Library/Logs/Wizards\ Of\ The\ Coast/MTGA/Player.log | tail -1
+```
+6. Extract hostname from `fdURI` field in the JSON response
+7. Kill Arena, continue from step 2
 
 ### 2. Resolve both IPs
 
@@ -131,7 +148,7 @@ just arena ocr  # expect "Home", "Play", etc.
 ## Notes
 
 - Doorbell API needs client auth — can't curl it. DNS brute-force or Player.log are the only discovery methods.
-- If DNS sweep finds nothing new, fallback: remove `services.conf`, launch Arena, grep Player.log for `Doorbell response` to get current hostname.
 - Old hostname may keep resolving for a while (DNS TTL). Always prefer the highest version that resolves.
+- When updating `/etc/hosts`, watch for duplicate lines (e.g. old commented-out IP entries getting rewritten). Deduplicate after editing.
 - After mode switch (real → proxy): always kill + relaunch Arena. Ghost matches otherwise.
 - The user has TouchID sudo — `sudo` commands will prompt for fingerprint approval.

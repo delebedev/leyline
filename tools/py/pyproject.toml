@@ -15,6 +15,7 @@ dependencies = [
 [project.scripts]
 arena = "leyline_tools.arena.cli:main"
 scry = "leyline_tools.scry.cli:main"
+deck = "leyline_tools.deck.cli:main"
 
 [tool.uv]
 package = true

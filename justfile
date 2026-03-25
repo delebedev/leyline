@@ -13,8 +13,8 @@ logback      := project_dir / "app/main/resources/logback.xml"
 logback_cli  := project_dir / "app/main/resources/logback-cli.xml"
 templates    := project_dir / "app/main/resources/arena-templates"
 certs        := env("LEYLINE_CERTS", env("HOME", "/tmp") / ".local/share/leyline/certs")
-fd_ip        := env("LEYLINE_FD_IP", "52.43.17.6")
-md_ip        := env("LEYLINE_MD_IP", "54.202.201.20")
+fd_ip        := env("LEYLINE_FD_IP", "52.11.19.193")
+md_ip        := env("LEYLINE_MD_IP", "34.212.47.135")
 payloads     := env("LEYLINE_PAYLOADS", project_dir / "recordings/latest/capture/payloads")
 ports        := "30010 30003 8090 8091"
 

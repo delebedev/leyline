@@ -11,6 +11,11 @@ tape *ARGS:
     #!/usr/bin/env bash
     uv run --project "{{project_dir}}/tools/py" python tools/tape/tape.py "$@"
 
+[group('tools'), positional-arguments]
+deck *ARGS:
+    #!/usr/bin/env bash
+    uv run --project "{{project_dir}}/tools/py" deck "$@"
+
 # all unique grpIds in a session → card names
 [group('tools')]
 cards-in-session session:
