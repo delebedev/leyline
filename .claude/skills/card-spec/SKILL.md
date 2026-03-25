@@ -48,6 +48,19 @@ Use the Forge DSL keywords:
 - `SVar:` = sub-abilities chained from triggers/activated
 - `DB$` = effect type (Draw, Discard, Token, PutCounter, Destroy, etc.)
 
+For each mechanic, also check if the Forge engine fires a corresponding game event:
+
+```bash
+# Search for events related to the mechanic
+grep -r "GameEvent" forge/forge-game/src/main/java/forge/game/event/ --include="*.java" -l
+# Then check if the specific event exists
+grep -rn "class GameEvent<MechanicName>" forge/forge-game/src/main/java/forge/game/event/
+# Check if it's fired from the relevant game code
+grep -rn "fireEvent.*GameEvent<MechanicName>" forge/forge-game/src/main/java/forge/game/
+```
+
+Add a column to the mechanics table: **Forge event** — the GameEvent class that fires for this mechanic, or "**none — needs new event**" if missing. This determines whether leyline can observe the mechanic via EventBus or needs to infer it from zone transfers.
+
 ### 3. What it does
 
 Plain English summary of the card's behavior. One numbered line per mode/ability.
@@ -127,9 +140,9 @@ Write the spec to `docs/card-specs/<card-name-slug>.md`.
 
 ## Mechanics
 
-| Mechanic | Forge DSL | Catalog status |
-|----------|-----------|----------------|
-| ... | ... | ... |
+| Mechanic | Forge DSL | Forge event | Catalog status |
+|----------|-----------|-------------|----------------|
+| ... | ... | `GameEvent...` or **none** | ... |
 
 ## What it does
 
