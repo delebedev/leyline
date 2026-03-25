@@ -277,9 +277,17 @@ class LeylineServer(
         require(dir.isDirectory) { "Replay dir does not exist: $dir" }
 
         val golden = GoldenData.loadFromClasspath()
-        val memDb = org.jetbrains.exposed.v1.jdbc.Database.connect("jdbc:sqlite::memory:", "org.sqlite.JDBC")
-        val memStore = SqlitePlayerStore(memDb)
-        memStore.createTables()
+        val replayDb = if (playerDbFile.exists()) {
+            org.jetbrains.exposed.v1.jdbc.Database.connect(
+                "jdbc:sqlite:${playerDbFile.absolutePath}",
+                "org.sqlite.JDBC",
+            )
+        } else {
+            val db = org.jetbrains.exposed.v1.jdbc.Database.connect("jdbc:sqlite::memory:", "org.sqlite.JDBC")
+            SqlitePlayerStore(db).createTables()
+            db
+        }
+        val memStore = SqlitePlayerStore(replayDb)
         val pid = PlayerId(playerId)
         memStore.ensurePlayer(pid, "Player")
         val deckService = DeckService(memStore)
