@@ -184,9 +184,20 @@ Write the spec to `docs/card-specs/<card-name-slug>.md`.
 - [ ] ...
 ```
 
+## Rules
+
+- **Specs must be self-contained.** All key findings inline. A reader with only the repo should understand the spec.
+- **Only reference stable, committed docs.** Valid: `docs/catalog.yaml`, `docs/rosetta.md`, `docs/conformance/`, other `docs/card-specs/`. Never reference `.claude/agent-memory/` — those are ephemeral local files. If an agent memory has a useful finding, inline it in the spec.
+- **"What it does" is game rules only.** No wire details (gsIds, effect_ids, annotation types). Write as if explaining the card to a player.
+- **Unobserved mechanics get a banner.** If a key mechanic wasn't exercised (kicker not paid, transform didn't happen), add a clear callout immediately after the Mechanics table: "**Unobserved:** <mechanic> — needs dedicated recording/puzzle."
+- **Track ID lifecycle.** For each ObjectIdChanged, note which subsequent annotations use the old vs new ID. This is a common source of conformance bugs.
+- **Skip mana payment brackets.** Don't trace ManaPaid/TappedUntapped sequences — these are well-known and wired. Only note if something is unusual (e.g. SubCounter cost instead of mana).
+
 ## Reference
 
 - Zone IDs: 27=Stack, 28=Battlefield, 29=Exile, 30=Limbo, 31=Hand, 32=Library, 33=Graveyard
 - `docs/card-specs/think-twice.md` — canonical example (lean, focused)
 - `docs/conformance/how-we-conform.md` — conformance workflow
+- `docs/rosetta.md` — annotation types, zone IDs, transfer categories
+- `docs/catalog.yaml` — mechanic support status
 - `docs/playbooks/card-lookup-playbook.md` — Arena DB schema
