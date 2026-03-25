@@ -223,6 +223,28 @@ Questions to ask:
 - did upstream move the logic into `forge-game` with controller abstractions?
 - if yes, can Leyline move from its custom seam to the new abstraction instead of carrying a fork patch?
 
+Observed during the March 2026 sync: this is exactly where the old ADR-010-era
+seam names drifted.
+
+Older notes may mention:
+
+- `createCostDecision(...)`
+- `payManaInteractively(...)`
+- `selectCardForCostDuringResolve(...)`
+- `selectCardsForCostPart(...)`
+
+Current hook surface to verify against upstream `PlayerControllerHuman`:
+
+- `getCostDecisionMaker(...)`
+- `selectTargetsInteractively(...)`
+- inherit `payManaCost(...)`, override `applyManaToCost(...)`
+- `chooseCardsForCost(...)`
+- `chooseNumberForKeywordCost(...)`
+
+When historical seam docs and current code disagree, trust the current
+`PlayerControllerHuman` surface and treat the older seam names as historical
+labels, not the active API.
+
 ### Event classes
 
 If upstream changed the same event, check whether it now carries the fields Leyline needed.
