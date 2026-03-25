@@ -86,6 +86,8 @@ class DebugServer(
             "/api/fd-messages" to ::serveFdMessages,
             "/api/priority-log" to ::servePriorityLog,
             "/api/best-play" to ::serveBestPlay,
+            "/api/replay/status" to ::serveReplayStatus,
+            "/api/replay/index" to ::serveReplayIndex,
         ).forEach { (path, handler) ->
             srv.createContext(path) { ex -> safe(ex) { handler(ex) } }
         }
@@ -126,6 +128,24 @@ class DebugServer(
                     try {
                         ex.close()
                     } catch (_: Throwable) {}
+                }
+            }
+        }
+
+        srv.createContext("/api/replay/next") { ex ->
+            try {
+                if (ex.requestMethod != "POST") {
+                    ex.sendResponseHeaders(405, -1)
+                    ex.close()
+                    return@createContext
+                }
+                serveReplayNext(ex)
+            } catch (t: Throwable) {
+                log.error("replay/next error: {}", t.message, t)
+                try {
+                    respond(ex, 500, "text/plain", "Error: ${t.message}")
+                } catch (_: Throwable) {
+                    try { ex.close() } catch (_: Throwable) {}
                 }
             }
         }
@@ -586,6 +606,75 @@ class DebugServer(
         val turn: Int = 0,
         val reason: String? = null,
     )
+
+    // --- Replay control ---
+
+    @Serializable
+    private data class ReplayStatusDto(
+        val currentFrame: Int,
+        val totalFrames: Int,
+        val currentGreType: String?,
+        val currentFileName: String?,
+        val atEnd: Boolean,
+        val active: Boolean,
+    )
+
+    @Serializable
+    private data class ReplayFrameDto(
+        val index: Int,
+        val fileName: String,
+        val greType: String,
+        val category: String,
+    )
+
+    private fun serveReplayStatus(ex: HttpExchange) {
+        val ctrl = replayController()
+        if (ctrl == null) {
+            respond(ex, 200, "application/json", json.encodeToString(ReplayStatusDto.serializer(),
+                ReplayStatusDto(0, 0, null, null, atEnd = true, active = false)))
+            return
+        }
+        val s = ctrl.status()
+        respond(ex, 200, "application/json", json.encodeToString(ReplayStatusDto.serializer(), ReplayStatusDto(
+            currentFrame = s.currentFrame,
+            totalFrames = s.totalFrames,
+            currentGreType = s.currentFrameInfo?.greType,
+            currentFileName = s.currentFrameInfo?.fileName,
+            atEnd = s.atEnd,
+            active = true,
+        )))
+    }
+
+    private fun serveReplayNext(ex: HttpExchange) {
+        val ctrl = replayController()
+        if (ctrl == null) {
+            respond(ex, 404, "text/plain", "No active replay")
+            return
+        }
+        ctrl.next()
+        val s = ctrl.status()
+        respond(ex, 200, "application/json", json.encodeToString(ReplayStatusDto.serializer(), ReplayStatusDto(
+            currentFrame = s.currentFrame,
+            totalFrames = s.totalFrames,
+            currentGreType = s.currentFrameInfo?.greType,
+            currentFileName = s.currentFrameInfo?.fileName,
+            atEnd = s.atEnd,
+            active = true,
+        )))
+    }
+
+    private fun serveReplayIndex(ex: HttpExchange) {
+        val ctrl = replayController()
+        if (ctrl == null) {
+            respond(ex, 200, "application/json", "[]")
+            return
+        }
+        val frames = ctrl.frameIndex.map { f ->
+            ReplayFrameDto(f.index, f.fileName, f.greType, f.category)
+        }
+        respond(ex, 200, "application/json",
+            json.encodeToString(kotlinx.serialization.builtins.ListSerializer(ReplayFrameDto.serializer()), frames))
+    }
 
     // --- Front Door messages ---
 
