@@ -216,7 +216,7 @@ class AutoPassEngineTest :
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
 
-            val stubCombat = object : CombatHandler(RecordingSessionOps(bridge = bridge, counter = counter)) {
+            val stubCombat = object : CombatHandler(ops) {
                 override fun checkCombatPhase(
                     bridge: GameBridge,
                     game: forge.game.Game,
@@ -233,7 +233,7 @@ class AutoPassEngineTest :
             ops.sendGameOverCount shouldBe 0
         }
 
-        test("autoPassAndAdvance — SEND_STATE on human turn with real actions sends state") {
+        test("autoPassAndAdvance — SEND_STATE with real actions exits via Grant") {
             val (bridge, game, counter) = base.startWithBoard { _, human, _ ->
                 base.addCard("Grizzly Bears", human, ZoneType.Hand)
                 base.addCard("Forest", human, ZoneType.Battlefield)
@@ -241,7 +241,7 @@ class AutoPassEngineTest :
             }
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
 
-            val stubCombat = object : CombatHandler(RecordingSessionOps(bridge = bridge, counter = counter)) {
+            val stubCombat = object : CombatHandler(ops) {
                 override fun checkCombatPhase(
                     bridge: GameBridge,
                     game: forge.game.Game,
