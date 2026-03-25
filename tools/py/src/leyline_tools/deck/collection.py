@@ -146,7 +146,9 @@ def _extract_json_object(text: str, start: int) -> dict | None:
     return None
 
 
-_RECORDINGS_DIR = Path(__file__).resolve().parents[5] / "recordings"
+_PROJECT_DIR = Path(__file__).resolve().parents[5]
+_RECORDINGS_DIR = _PROJECT_DIR / "recordings"
+_CACHED_COLLECTION = _PROJECT_DIR / "data" / "collection.json"
 
 
 def _find_latest_fd_frames() -> Path | None:
@@ -159,19 +161,44 @@ def _find_latest_fd_frames() -> Path | None:
     return dirs[0] if dirs else None
 
 
+def _from_cached() -> dict[int, int] | None:
+    """Load from data/collection.json cache."""
+    if not _CACHED_COLLECTION.exists():
+        return None
+    with open(_CACHED_COLLECTION) as f:
+        d = json.load(f)
+    if isinstance(d, dict) and len(d) > 50:
+        return {int(k): v for k, v in d.items()}
+    return None
+
+
+def _save_cache(collection: dict[int, int]) -> None:
+    """Cache collection to data/collection.json for fast reuse."""
+    _CACHED_COLLECTION.parent.mkdir(parents=True, exist_ok=True)
+    with open(_CACHED_COLLECTION, "w") as f:
+        json.dump({str(k): v for k, v in collection.items()}, f)
+
+
 def load_collection(
     fd_frames: Path | None = None,
     player_log: Path | None = None,
 ) -> dict[int, int]:
     """Load collection from best available source.
 
-    Priority: explicit fd-frames → auto-detect latest recording → Player.log.
+    Priority: cached file → explicit fd-frames → auto-detect recording → Player.log.
+    Caches result to data/collection.json on first successful load.
     Returns {grpId: count}. Raises SystemExit if no source found.
     """
+    # 0. Cached file (fastest)
+    result = _from_cached()
+    if result:
+        return result
+
     # 1. Explicit FD recording
     if fd_frames:
         result = from_fd_frames(fd_frames)
         if result:
+            _save_cache(result)
             return result
 
     # 2. Auto-detect latest proxy recording
@@ -179,11 +206,13 @@ def load_collection(
     if auto_fd:
         result = from_fd_frames(auto_fd)
         if result:
+            _save_cache(result)
             return result
 
     # 3. Player.log
     result = from_player_log(player_log)
     if result:
+        _save_cache(result)
         return result
 
     raise SystemExit(
