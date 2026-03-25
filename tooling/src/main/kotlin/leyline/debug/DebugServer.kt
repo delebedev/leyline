@@ -145,7 +145,9 @@ class DebugServer(
                 try {
                     respond(ex, 500, "text/plain", "Error: ${t.message}")
                 } catch (_: Throwable) {
-                    try { ex.close() } catch (_: Throwable) {}
+                    try {
+                        ex.close()
+                    } catch (_: Throwable) {}
                 }
             }
         }
@@ -630,19 +632,34 @@ class DebugServer(
     private fun serveReplayStatus(ex: HttpExchange) {
         val ctrl = replayController()
         if (ctrl == null) {
-            respond(ex, 200, "application/json", json.encodeToString(ReplayStatusDto.serializer(),
-                ReplayStatusDto(0, 0, null, null, atEnd = true, active = false)))
+            respond(
+                ex,
+                200,
+                "application/json",
+                json.encodeToString(
+                    ReplayStatusDto.serializer(),
+                    ReplayStatusDto(0, 0, null, null, atEnd = true, active = false),
+                ),
+            )
             return
         }
         val s = ctrl.status()
-        respond(ex, 200, "application/json", json.encodeToString(ReplayStatusDto.serializer(), ReplayStatusDto(
-            currentFrame = s.currentFrame,
-            totalFrames = s.totalFrames,
-            currentGreType = s.currentFrameInfo?.greType,
-            currentFileName = s.currentFrameInfo?.fileName,
-            atEnd = s.atEnd,
-            active = true,
-        )))
+        respond(
+            ex,
+            200,
+            "application/json",
+            json.encodeToString(
+                ReplayStatusDto.serializer(),
+                ReplayStatusDto(
+                    currentFrame = s.currentFrame,
+                    totalFrames = s.totalFrames,
+                    currentGreType = s.currentFrameInfo?.greType,
+                    currentFileName = s.currentFrameInfo?.fileName,
+                    atEnd = s.atEnd,
+                    active = true,
+                ),
+            ),
+        )
     }
 
     private fun serveReplayNext(ex: HttpExchange) {
@@ -653,14 +670,22 @@ class DebugServer(
         }
         ctrl.next()
         val s = ctrl.status()
-        respond(ex, 200, "application/json", json.encodeToString(ReplayStatusDto.serializer(), ReplayStatusDto(
-            currentFrame = s.currentFrame,
-            totalFrames = s.totalFrames,
-            currentGreType = s.currentFrameInfo?.greType,
-            currentFileName = s.currentFrameInfo?.fileName,
-            atEnd = s.atEnd,
-            active = true,
-        )))
+        respond(
+            ex,
+            200,
+            "application/json",
+            json.encodeToString(
+                ReplayStatusDto.serializer(),
+                ReplayStatusDto(
+                    currentFrame = s.currentFrame,
+                    totalFrames = s.totalFrames,
+                    currentGreType = s.currentFrameInfo?.greType,
+                    currentFileName = s.currentFrameInfo?.fileName,
+                    atEnd = s.atEnd,
+                    active = true,
+                ),
+            ),
+        )
     }
 
     private fun serveReplayIndex(ex: HttpExchange) {
@@ -672,8 +697,12 @@ class DebugServer(
         val frames = ctrl.frameIndex.map { f ->
             ReplayFrameDto(f.index, f.fileName, f.greType, f.category)
         }
-        respond(ex, 200, "application/json",
-            json.encodeToString(kotlinx.serialization.builtins.ListSerializer(ReplayFrameDto.serializer()), frames))
+        respond(
+            ex,
+            200,
+            "application/json",
+            json.encodeToString(kotlinx.serialization.builtins.ListSerializer(ReplayFrameDto.serializer()), frames),
+        )
     }
 
     // --- Front Door messages ---

@@ -23,7 +23,8 @@ import java.io.File
  */
 class ReplayHandler(
     private val payloadDir: File,
-) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>(), ReplayController {
+) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>(),
+    ReplayController {
 
     private val log = LoggerFactory.getLogger(ReplayHandler::class.java)
 
@@ -39,6 +40,7 @@ class ReplayHandler(
     // -- ReplayController state --
     private var greFrameIndex: List<ReplayController.FrameInfo> = emptyList()
     private var grePosition = 0
+
     @Volatile private var pendingCtx: ChannelHandlerContext? = null
 
     init {
@@ -106,7 +108,11 @@ class ReplayHandler(
                 ?: emptyList()
             for (file in authFiles) {
                 val bytes = file.readBytes()
-                val parsed = try { MatchServiceToClientMessage.parseFrom(bytes) } catch (_: Exception) { null }
+                val parsed = try {
+                    MatchServiceToClientMessage.parseFrom(bytes)
+                } catch (_: Exception) {
+                    null
+                }
                 if (parsed != null) auths.add(CapturedPayload(file.name, bytes, parsed))
             }
             val roomFiles = engineDir.listFiles()
@@ -115,7 +121,11 @@ class ReplayHandler(
                 ?: emptyList()
             for (file in roomFiles) {
                 val bytes = file.readBytes()
-                val parsed = try { MatchServiceToClientMessage.parseFrom(bytes) } catch (_: Exception) { null }
+                val parsed = try {
+                    MatchServiceToClientMessage.parseFrom(bytes)
+                } catch (_: Exception) {
+                    null
+                }
                 if (parsed != null) rooms.add(CapturedPayload(file.name, bytes, parsed))
             }
         }
