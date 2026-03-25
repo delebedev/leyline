@@ -79,14 +79,23 @@ class ReplayHandler(
         val gres = mutableListOf<CapturedPayload>()
         val other = mutableListOf<CapturedPayload>()
 
+        // Proxy raw captures include a 6-byte frame header; engine dumps don't.
+        val stripHeader = framesDir.isDirectory
+        val headerSize = 6
+
         for (file in allFiles) {
-            val bytes = file.readBytes()
+            val rawBytes = file.readBytes()
+            val protoBytes = if (stripHeader && rawBytes.size > headerSize) {
+                rawBytes.copyOfRange(headerSize, rawBytes.size)
+            } else {
+                rawBytes
+            }
             val parsed = try {
-                MatchServiceToClientMessage.parseFrom(bytes)
+                MatchServiceToClientMessage.parseFrom(protoBytes)
             } catch (_: Exception) {
                 null
             }
-            val cp = CapturedPayload(file.name, bytes, parsed)
+            val cp = CapturedPayload(file.name, protoBytes, parsed)
 
             when {
                 parsed == null -> {
