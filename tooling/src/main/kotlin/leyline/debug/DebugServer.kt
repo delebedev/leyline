@@ -12,6 +12,7 @@ import leyline.game.PuzzleSource
 import leyline.game.StateMapper
 import leyline.game.mapper.ActionMapper
 import leyline.match.MatchSession
+import leyline.match.ReplayController
 import leyline.recording.RecordingInspector
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -50,6 +51,7 @@ class DebugServer(
     private val fdCollector: FdDebugCollector? = null,
     private val eventBus: DebugEventBus? = null,
     private val recordingInspector: RecordingInspector = RecordingInspector(),
+    private val replayController: () -> ReplayController? = { null },
 ) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null

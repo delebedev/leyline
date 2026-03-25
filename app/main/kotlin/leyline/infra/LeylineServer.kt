@@ -39,6 +39,7 @@ import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.FdResponseWriter
 import leyline.match.MatchHandler
+import leyline.match.ReplayController
 import leyline.match.ReplayHandler
 import leyline.protocol.ClientFrameDecoder
 import leyline.protocol.ClientHeaderPrepender
@@ -110,6 +111,10 @@ class LeylineServer(
 
     /** Replay: stub FD, replay recorded bytes on MD. */
     val isReplay get() = replayDir != null
+
+    /** Replay controller — non-null only in replay mode. Set during startReplay(). */
+    var replayController: ReplayController? = null
+        private set
 
     /** Health probe: true when both server channels are bound and active. */
     fun isHealthy(): Boolean {
@@ -312,7 +317,9 @@ class LeylineServer(
             ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
             ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
             ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
-            ch.pipeline().addLast("handler", ReplayHandler(dir))
+            val handler = ReplayHandler(dir)
+            if (replayController == null) replayController = handler
+            ch.pipeline().addLast("handler", handler)
         }
         log.info("Client Match Door (replay from {}) listening on :{}", dir, matchDoorPort)
     }
