@@ -25,7 +25,7 @@ import kotlin.collections.iterator
  * uses the shared [MessageCounter][leyline.game.MessageCounter] via
  * `ops.counter` — no seeding or syncing needed.
  */
-class CombatHandler(private val ops: SessionOps) {
+open class CombatHandler(private val ops: SessionOps) {
     companion object {
         /** Prompt ID for damage assignment — observed in recording 2026-03-08 tutorial. */
         private const val ASSIGN_DAMAGE_PROMPT_ID = 8
@@ -303,7 +303,7 @@ class CombatHandler(private val ops: SessionOps) {
      * Called from the auto-pass loop.
      */
     @Suppress("ReturnCount")
-    fun checkCombatPhase(
+    open fun checkCombatPhase(
         bridge: GameBridge,
         game: Game,
         phase: PhaseType?,

@@ -76,3 +76,24 @@ interface EventDrain {
     /** Drain all queued events since last drain. Empty if no events. */
     fun drainEvents(): DrainedEvents
 }
+
+/**
+ * Read-only view of [GameBridge] for [leyline.match.AutoPassEngine].
+ *
+ * Extends [PlayerLookup] (getGame, getPlayer) and adds the priority/playback
+ * surface needed by the auto-pass loop. Extracted so AutoPassEngine can be
+ * unit-tested with a stub instead of a full GameBridge + Forge engine.
+ */
+interface AutoPassView : PlayerLookup {
+    /** Per-seat action playback queues. */
+    val playbacks: Map<SeatId, GamePlayback>
+
+    /** Seat-scoped bridge facade (action + prompt + mulligan bridges). */
+    fun seat(seatId: Int): GameBridge.SeatBridges
+
+    /** Block until the engine reaches a priority stop. */
+    fun awaitPriority()
+
+    /** Block until priority with timeout. Returns false on timeout/game-over. */
+    fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean
+}

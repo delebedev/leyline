@@ -61,6 +61,7 @@ class GameBridge(
     var cardProto: CardProtoBuilder = CardProtoBuilder(cards),
 ) : IdMapping,
     PlayerLookup,
+    AutoPassView,
     ZoneTracking,
     StateSnapshot,
     AnnotationIds,
@@ -127,7 +128,7 @@ class GameBridge(
         mulliganBridges[seatId] ?: error("No mulligan bridge for seat $seatId")
 
     /** Seat-scoped facade — use in handlers instead of raw seat-1 aliases. */
-    fun seat(seatId: Int): SeatBridges =
+    override fun seat(seatId: Int): SeatBridges =
         SeatBridges(
             action = actionBridge(seatId),
             prompt = promptBridge(seatId),
@@ -180,7 +181,7 @@ class GameBridge(
         private set
 
     /** Per-seat action playback — captures remote-action state diffs via EventBus. Empty before start(). */
-    val playbacks: MutableMap<SeatId, GamePlayback> = mutableMapOf()
+    override val playbacks: MutableMap<SeatId, GamePlayback> = mutableMapOf()
 
     /** Backward-compat: seat-1 playback (single-player path). */
     val playback: GamePlayback? get() = playbacks[SeatId(1)]
@@ -538,7 +539,9 @@ class GameBridge(
      * Block until the engine reaches a priority stop (via [GameActionBridge]).
      * After keep, the engine auto-advances through Beginning → Main1.
      */
-    fun awaitPriority() = awaitPriorityWithTimeout(priorityWaitMs)
+    override fun awaitPriority() {
+        awaitPriorityWithTimeout(priorityWaitMs)
+    }
 
     /**
      * Block until the engine reaches a priority stop, an interactive prompt
@@ -556,7 +559,7 @@ class GameBridge(
      * @param timeoutMs max wait time (use longer values for AI turns)
      * @return true if priority was reached, false if timed out or game over
      */
-    fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean {
+    override fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (true) {
             // Check conditions first (handles already-pending case)

@@ -179,8 +179,10 @@ class AutoPassEngine(
     /**
      * Check if human has meaningful actions. Returns [PriorityDecision.Grant]
      * if state should be sent, [PriorityDecision.Skip] otherwise.
+     *
+     * Internal for testability — tested directly in [AutoPassEngineTest].
      */
-    private fun checkHumanActions(game: Game, isAiTurn: Boolean): PriorityDecision {
+    internal fun checkHumanActions(game: Game, isAiTurn: Boolean): PriorityDecision {
         if (isAiTurn) {
             return PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
         }
