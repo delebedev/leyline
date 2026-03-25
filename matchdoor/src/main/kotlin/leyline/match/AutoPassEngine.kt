@@ -183,6 +183,9 @@ class AutoPassEngine(
      * Internal for testability — tested directly in [AutoPassEngineTest].
      */
     internal fun checkHumanActions(game: Game, isAiTurn: Boolean): PriorityDecision {
+        // AI-turn skips bypass the decision log intentionally — they fire every
+        // engine step (dozens per AI turn) and would drown out the human-turn
+        // decisions that matter for debugging priority/auto-pass issues.
         if (isAiTurn) {
             return PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
         }

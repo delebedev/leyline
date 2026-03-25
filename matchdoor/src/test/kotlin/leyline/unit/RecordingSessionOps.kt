@@ -32,10 +32,8 @@ class RecordingSessionOps(
     val tracedEvents = mutableListOf<Triple<MatchEventType, String, String>>()
     val paceDelays = mutableListOf<Int>()
 
-    var sendRealGameStateCount: Int = 0
-        private set
-    var sendGameOverCount: Int = 0
-        private set
+    val sendRealGameStateCount: Int get() = sentRealGameState.size
+    val sendGameOverCount: Int get() = sentGameOver.size
 
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
         sentGRE.add(messages)
@@ -43,7 +41,6 @@ class RecordingSessionOps(
 
     override fun sendRealGameState(bridge: GameBridge, revealForSeat: Int?) {
         sentRealGameState.add(bridge)
-        sendRealGameStateCount++
     }
 
     override fun sendBundle(result: BundleBuilder.BundleResult) {
@@ -52,7 +49,6 @@ class RecordingSessionOps(
 
     override fun sendGameOver(reason: ResultReason) {
         sentGameOver.add(reason)
-        sendGameOverCount++
     }
 
     override fun traceEvent(type: MatchEventType, game: Game, detail: String) {
@@ -82,14 +78,4 @@ class RecordingSessionOps(
     /** True if any traced event detail contains the substring. */
     fun hasTraceContaining(detail: String): Boolean =
         tracedEvents.any { it.third.contains(detail) }
-
-    fun reset() {
-        sentGRE.clear()
-        sentRealGameState.clear()
-        sentGameOver.clear()
-        tracedEvents.clear()
-        paceDelays.clear()
-        sendRealGameStateCount = 0
-        sendGameOverCount = 0
-    }
 }
