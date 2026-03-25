@@ -73,24 +73,23 @@ Plain English summary of the card's behavior from the game rules perspective. On
 Find sessions where this card was played:
 
 ```bash
+# Search all sessions for the card
 for d in recordings/2026-*/; do
     just cards-in-session "$(basename $d)" 2>&1 | grep -i "<name>" && echo "  ^ $(basename $d)"
 done
 ```
 
-For the best session (seat 1 preferred — full visibility), trace the card:
+For the best session (seat 1 preferred — full visibility), trace the card's zone transitions:
 
-```python
-import json
-with open("recordings/<session>/md-frames.jsonl") as f:
-    for line in f:
-        d = json.loads(line)
-        for o in d.get("objects", []):
-            if o.get("grpId") == <GRPID>:
-                print(f"gsId={d['gsId']} file={d['file']} zone={o.get('zoneId')}")
+```bash
+# Zone transition timeline — one line per instanceId
+just tape proto find-card "<name>" -s <session>
+
+# Full card manifest with abilities
+just tape session cards <session>
 ```
 
-Build a zone transition table: gsId, instanceId changes, zones, what happened.
+Build a zone transition table from the output: gsId, instanceId changes, zones, what happened.
 
 **If a mechanic was NOT exercised** (e.g. kicker not paid, threshold not reached, transform didn't happen), say so explicitly. Don't invent data — flag it as "unobserved, needs dedicated recording/puzzle."
 
@@ -98,11 +97,14 @@ Build a zone transition table: gsId, instanceId changes, zones, what happened.
 
 Decode raw proto for **novel or gap-filling** moments only.
 
-**Budget: decode at most 3 proto frames.** Pick the most interesting moments — don't decode every zone transition. Use grep to pre-filter:
+**Budget: decode at most 3 proto frames.** Pick the most interesting moments. Use these tools:
 
 ```bash
-# Targeted — grep for specific annotation types instead of full dump
-just proto-inspect <file>.bin 2>&1 | grep -B2 -A15 "ZoneTransfer\|TokenCreated\|CounterAdded\|SelectNreq\|ShouldntPlay"
+# Trace an instanceId across all frames (ID lifecycle)
+just proto-trace <instanceId> recordings/<session>/capture/seat-1/md-payloads/
+
+# Targeted annotation grep from a single frame (not full dump)
+just proto-inspect <file>.bin 2>&1 | grep -B2 -A15 "ZoneTransfer\|TokenCreated\|CounterAdded\|SelectNreq"
 ```
 
 **Only document annotations that are:**
