@@ -1,8 +1,35 @@
-# Session Log — Flashback + Mandatory Cost
+# Session Log — Flashback + Mandatory Cost + 3 Cards
 
 **Date:** 2026-03-26
 **Branch:** `feat/flashback-and-mandatory-cost`
-**Goal:** Flashback (Think Twice) + mandatory additional cost (Mardu Outrider) end-to-end
+**Goal:** Flashback, mandatory cost, then Electroduplicate, Novice Inspector, Immersturm Predator
+
+## Pre-dig: 3 Card Research Findings
+
+### Electroduplicate (flashback + copy token + targeting)
+- ~55% wire coverage today. Flashback cast works (just built it).
+- **abilityGrpId missing on GY cast actions** — addZoneCastActions doesn't set it, doesn't receive abilityRegistryLookup. Low fix.
+- **TargetSpec pAnn** — builder exists (AnnotationBuilder:673) but NEVER CALLED. Need emission point when targets selected.
+- **CastingTimeOption pAnn type=13** — no builder. Need new annotation for "cast via alternate cost".
+- **TemporaryPermanent pAnn** — proto type 80 exists, no builder, no emission.
+- **CopyPermanent token** — HIGH complexity. Copy inherits source grpId, not fixed token grpId. Entire subsystem missing.
+- **Pragmatic scope:** Skip copy token mechanics (too large). Focus on: abilityGrpId on actions, flashback annotations. Test flashback cast+resolve+exile. Copy token is a separate issue.
+
+### Novice Inspector (investigate, Clue token, sac-for-draw)
+- Card spec says "wired" but ETB trigger annotations are a systemic gap.
+- **AbilityInstanceCreated for ETB triggers** — no GameEvent for triggered ability creation. Forge fires trigger but leyline doesn't annotate it.
+- **TriggeringObject pAnn** — builder exists (AnnotationBuilder:664), never called.
+- **Clue grpId mapping** — needs AbilityIdToLinkedTokenGrpId entry: 86969→89236.
+- **Sac-for-draw** — Treasure sac-for-mana works (TreasureTokenTest). Clue sac is similar pattern.
+- **Pragmatic scope:** Test cast→ETB→Clue creation→sac-for-draw end-to-end. ETB annotations are conformance gaps, not blocking gameplay.
+
+### Immersturm Predator (sacrifice-as-cost, tap trigger, indestructible)
+- Sacrifice-as-cost: WebCostDecision.visit(CostSacrifice) fully wired, same SelectNReq path as discard.
+- **Tap trigger** — GameEventCardTapped already captured. WORKING.
+- **CounterAdded** — already wired. WORKING.
+- **AddAbility for indestructible** — builder exists (AnnotationBuilder:542), NEVER CALLED. Hard gap — needs EffectTracker expansion.
+- **targetSourceZoneId** — not populated in SelectTargetsReq. Non-blocking (Forge pre-filters).
+- **Pragmatic scope:** Test sacrifice-as-cost→tap trigger→counter+exile chain. Skip AddAbility (conformance gap, not gameplay-blocking).
 
 ## Commits
 
