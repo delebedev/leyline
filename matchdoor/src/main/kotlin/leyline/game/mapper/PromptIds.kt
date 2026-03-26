@@ -18,6 +18,9 @@ object PromptIds {
     const val GROUP_SCRY = 92
     const val GROUP_SURVEIL = 129
     const val SEARCH = 1065
+    /** Mandatory additional cost (discard). Real server: PayCostsReq promptId=1024. */
+    const val DISCARD_COST = 1024
+
     const val SELECT_N = 1243
 
     /** sourceId on SelectNReq for legend rule. */

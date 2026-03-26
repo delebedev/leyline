@@ -166,7 +166,8 @@ object RequestBuilder {
             builder.setPrompt(Prompt.newBuilder())
             builder.setSourceId(PromptIds.SELECT_N_LEGEND_RULE_SOURCE)
         } else {
-            builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+            val promptId = if (isDiscard) PromptIds.DISCARD_COST else PromptIds.SELECT_N
+            builder.setPrompt(Prompt.newBuilder().setPromptId(promptId))
         }
         return builder.build()
     }

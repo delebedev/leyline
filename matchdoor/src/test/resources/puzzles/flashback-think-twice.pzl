@@ -1,6 +1,7 @@
 [metadata]
 Name:Flashback Think Twice — Full Lifecycle
-Goal:Cast Think Twice from hand (draw Coral Merfolk), then flashback from GY (draw Plains), play Coral Merfolk, attack for lethal.
+Goal:Play the Specified Permanent
+Targets:Coral Merfolk
 Turns:5
 Difficulty:Easy
 Description:Tests full flashback lifecycle: hand cast → GY → flashback cast → exile. Drawn creature is the win condition.
