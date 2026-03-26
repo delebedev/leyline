@@ -80,6 +80,61 @@ The relationship validator checks:
 
 When you find a new bug, ask: "what structural rule would have caught this?" Add it to `RelationshipCatalog.kt`. Run `just segment-relationships` to confirm it holds against recordings. The next engineer won't hit the same bug.
 
+## Card-Centric Workflow
+
+The mechanic-centric workflow above works bottom-up: pick a protocol segment, observe variance, implement. The card-centric workflow works top-down: pick a card, decompose it into mechanics, trace it on the wire, find gaps, then group gaps into horizontal work.
+
+### 1. Record — play diverse games
+
+Build mechanic-dense decks (`just deck coverage <SETS>`) and play proxy sessions. The goal is mechanic variety per game, not wins. Every card resolved = data point.
+
+### 2. Spec — one card at a time
+
+Use the `card-spec` skill. For each card: read the Forge script, decompose into mechanics, trace zone transitions and annotations from recordings, identify what's missing in leyline.
+
+Specs live in `docs/card-specs/<card>.md`. Each is self-contained: identity, mechanics table (with Forge event + catalog status), plain-English behavior, trace, annotations, gaps, supporting evidence.
+
+### 3. Synthesize — slice horizontally
+
+After a batch of card specs, read all gaps across specs and group by shared infrastructure:
+
+| Horizontal layer | Example | Cards unblocked |
+|-----------------|---------|-----------------|
+| Counter type mapper | incubation=200, landmark=127, bore=182 | Drake Hatcher, Treasure Map, Brass's Tunnel-Grinder |
+| Token grpId registry | Clue=89236, Hero=96212, Drake=94163 | Novice Inspector, Black Mage's Rod, Drake Hatcher |
+| Transform (grpId mutation) | silent in-place swap, no annotation | Treasure Map, Brass's Tunnel-Grinder, all DFCs |
+| Cast-from-non-hand | GY→Stack, Exile→Stack | Think Twice, Ratcatcher Trainee, Cauldron Familiar |
+| AbilityWordActive | threshold, descended | Kiora, Brass's Tunnel-Grinder |
+
+Each horizontal layer becomes a focused PR with unit tests. Cross-link back to the card specs that need it.
+
+### 4. Implement — horizontal layers first, puzzles as mechanic gates
+
+```
+horizontal PR (unit-tested)     puzzle (integration gate)
+─────────────────────────────   ──────────────────────────────
+counter type mapper             Drake Hatcher puzzle
+token grpId registry            Novice Inspector puzzle
+transform handler               Treasure Map puzzle
+cast-from-GY action             Think Twice puzzle
+```
+
+Each horizontal PR is small, testable, independently mergeable.
+
+**Puzzles test mechanic combos, not individual cards.** A card is the vehicle — the simplest card that exercises the mechanic is the best puzzle candidate. 20K cards exist but only ~50-100 distinct mechanic combos matter. Card specs identify which combos need testing; puzzles prove the combo works.
+
+Most cards share mechanics with others and don't need their own puzzle. Example: one flashback puzzle (Think Twice) covers all flashback cards. One ETB-loot puzzle (Kiora) covers loot + threshold together.
+
+**Exception: complex lifecycles.** Mechanics with multi-step state machines may need multiple puzzles for each phase. Adventure needs 2-3: cast adventure side only, cast creature side only, full loop (adventure → exile → creature from exile). Each phase can break independently.
+
+A puzzle failing tells you which horizontal layer has a gap.
+
+### 5. Close the loop
+
+After a card works in a puzzle, playtest it via `just serve` + Arena. Record the session. Compare the leyline output against the real-server trace in the card spec. Differences = conformance bugs → new gaps → next iteration.
+
+Update the card spec with "verified" status and link to the PR that made it work.
+
 ## Tool Architecture
 
 ```
