@@ -496,10 +496,15 @@ class MatchFlowHarness(
         drainSink()
     }
 
-    /** Cast a spell by card name. Returns false if card not in hand. */
+    /**
+     * Cast a spell from any zone by card name.
+     * Searches Hand first, then Graveyard, then Exile (for flashback/escape/etc.).
+     * Returns false if card not found in any castable zone.
+     */
     fun castSpellByName(cardName: String): Boolean {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return false
-        val card = player.getZone(ZoneType.Hand).cards
+        val card = listOf(ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile)
+            .flatMap { player.getZone(it).cards }
             .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
 
         val msg = performAction {

@@ -1,0 +1,18 @@
+[metadata]
+Name:Flashback Think Twice
+Goal:Cast Think Twice from graveyard via flashback. Verify draw + exile.
+Turns:5
+Difficulty:Easy
+Description:Think Twice in GY with 3 Islands. Cast flashback, draw a card, Think Twice exiled.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Island;Island;Island
+humangraveyard=Think Twice
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
