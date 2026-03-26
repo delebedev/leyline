@@ -18,6 +18,27 @@ After an Arena patch changes server hostnames/IPs, I discover the new endpoints 
 - **services.conf (leyline proxy):** `deploy/services-proxy.conf`
 - **Player.log:** `~/Library/Logs/Wizards Of The Coast/MTGA/Player.log`
 
+## Step 0: Check Arena server status first
+
+Before doing anything, check if Arena is under maintenance:
+
+```bash
+curl -s "https://magicthegatheringarena.statuspage.io/api/v2/status.json" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['status']['description'])"
+```
+
+If "Service Under Maintenance" — check what's happening:
+
+```bash
+curl -s "https://magicthegatheringarena.statuspage.io/api/v2/scheduled-maintenances.json" | python3 -c "
+import json,sys
+for m in json.load(sys.stdin)['scheduled_maintenances'][:3]:
+    print(f\"{m['status']}: {m['name']} | {m['scheduled_for'][:16]} - {m['scheduled_until'][:16]}\")"
+```
+
+If maintenance is `in_progress`, **stop and tell the user** — no point updating while servers are down. Report the expected end time and suggest waiting.
+
+If status is "All Systems Operational", proceed with the update flow.
+
 ## Automated flow
 
 ### 1. Discover new hostname (DNS brute-force)
