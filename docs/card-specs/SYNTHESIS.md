@@ -57,11 +57,12 @@ Persistent annotation tracking ability word conditions (threshold, descended, et
 
 **Existing issue:** #215 (AbilityWordActive annotation not emitted)
 
-### GY→BF return (transfer category unknown)
-Multiple cards return creatures from GY to BF. The transfer category string is **unobserved** across all specs.
+### GY→BF return (category = "Return")
+Transfer category **confirmed: "Return"** via Sun-Blessed Healer kicked ETB (sun-blessed-healer spec, gsId 278).
 
-**Card specs needing this:** nullpriest-of-oblivion (kicked ETB), cauldron-familiar (GY activation), cleric-class (L3), archfiends-vessel (conditional ETB)
-**Action:** needs a dedicated proxy recording where GY→BF actually happens.
+SelectTargetsReq shape: targetSourceZoneId=33 (GY), targetingAbilityGrpId=ability grpId, targetIdx=1, min/maxTargets=1. Fizzle: no legal targets → ability deleted in same diff, no SelectTargetsReq sent.
+
+**Card specs needing this:** nullpriest-of-oblivion, cauldron-familiar, cleric-class, archfiends-vessel, sun-blessed-healer
 
 ### Mandatory additional cost (PayCostsReq)
 Distinct from CastingTimeOptionsReq (optional costs) and SelectNReq (hand-size discard).
