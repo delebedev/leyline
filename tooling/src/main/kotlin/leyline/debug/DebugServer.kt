@@ -92,65 +92,9 @@ class DebugServer(
             srv.createContext(path) { ex -> safe(ex) { handler(ex) } }
         }
 
-        srv.createContext("/api/inject-full") { ex ->
-            try {
-                if (ex.requestMethod != "POST") {
-                    ex.sendResponseHeaders(405, -1)
-                    ex.close()
-                    return@createContext
-                }
-                serveInjectFull(ex)
-            } catch (t: Throwable) {
-                log.error("inject-full error: {}", t.message, t)
-                try {
-                    respond(ex, 500, "text/plain", "Error: ${t.message}")
-                } catch (_: Throwable) {
-                    try {
-                        ex.close()
-                    } catch (_: Throwable) {}
-                }
-            }
-        }
-
-        srv.createContext("/api/inject-puzzle") { ex ->
-            try {
-                if (ex.requestMethod != "POST") {
-                    ex.sendResponseHeaders(405, -1)
-                    ex.close()
-                    return@createContext
-                }
-                serveInjectPuzzle(ex)
-            } catch (t: Throwable) {
-                log.error("inject-puzzle error: {}", t.message, t)
-                try {
-                    respond(ex, 500, "text/plain", "Error: ${t.message}")
-                } catch (_: Throwable) {
-                    try {
-                        ex.close()
-                    } catch (_: Throwable) {}
-                }
-            }
-        }
-
-        srv.createContext("/api/replay/next") { ex ->
-            try {
-                if (ex.requestMethod != "POST") {
-                    ex.sendResponseHeaders(405, -1)
-                    ex.close()
-                    return@createContext
-                }
-                serveReplayNext(ex)
-            } catch (t: Throwable) {
-                log.error("replay/next error: {}", t.message, t)
-                try {
-                    respond(ex, 500, "text/plain", "Error: ${t.message}")
-                } catch (_: Throwable) {
-                    try {
-                        ex.close()
-                    } catch (_: Throwable) {}
-                }
-            }
-        }
+        srv.postContext("/api/inject-full", ::serveInjectFull)
+        srv.postContext("/api/inject-puzzle", ::serveInjectPuzzle)
+        srv.postContext("/api/replay/next", ::serveReplayNext)
 
         srv.createContext("/api/events") { ex ->
             try {
@@ -178,6 +122,29 @@ class DebugServer(
     fun stop() {
         server?.stop(0)
         server = null
+    }
+
+    /** Register a POST-only endpoint with standard error handling. */
+    private fun HttpServer.postContext(path: String, handler: (HttpExchange) -> Unit) {
+        createContext(path) { ex ->
+            try {
+                if (ex.requestMethod != "POST") {
+                    ex.sendResponseHeaders(405, -1)
+                    ex.close()
+                    return@createContext
+                }
+                handler(ex)
+            } catch (t: Throwable) {
+                log.error("{} error: {}", path, t.message, t)
+                try {
+                    respond(ex, 500, "text/plain", "Error: ${t.message}")
+                } catch (_: Throwable) {
+                    try {
+                        ex.close()
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
     }
 
     private fun serveHtml(ex: HttpExchange) {
