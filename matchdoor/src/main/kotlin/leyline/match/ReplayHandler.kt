@@ -38,10 +38,10 @@ class ReplayHandler(
     private val uncategorized: MutableList<CapturedPayload>
 
     // -- ReplayController state --
+    private val replayLock = Any()
     private var greFrameIndex: List<ReplayController.FrameInfo> = emptyList()
     private var grePosition = 0
-
-    @Volatile private var pendingCtx: ChannelHandlerContext? = null
+    private var pendingCtx: ChannelHandlerContext? = null
 
     init {
         val seat1Payloads = File(payloadDir, "capture/seat-1/md-payloads")
@@ -243,15 +243,17 @@ class ReplayHandler(
             sendProto(ctx, patchMatchId(roomState.parsed), "roomState(patched)")
         }
 
-        // Store context — client is waiting for the first GRE frame via next()
-        pendingCtx = ctx
+        synchronized(replayLock) {
+            pendingCtx = ctx
+        }
     }
 
     private fun handleGre(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
         val greMsg = ClientToGREMessage.parseFrom(msg.payload)
         log.info("Replay: GRE from client type={} seat={}", greMsg.type, greMsg.systemSeatId)
-        // Store context for next() to use — client is waiting for the next server frame
-        pendingCtx = ctx
+        synchronized(replayLock) {
+            pendingCtx = ctx
+        }
     }
 
     // -- ReplayController implementation --
@@ -261,19 +263,27 @@ class ReplayHandler(
     override val frameIndex: List<ReplayController.FrameInfo> get() = greFrameIndex
 
     override fun next(): Boolean {
-        val ctx = pendingCtx ?: return false
-        val cp = popGreForSeat() ?: return false
-        sendPatchedGre(ctx, cp)
-        grePosition++
-        return true
+        synchronized(replayLock) {
+            val ctx = pendingCtx ?: return false
+            val cp = popGreForSeat() ?: return false
+            sendPatchedGre(ctx, cp)
+            // Track position by finding this payload in the frame index
+            val idx = greFrameIndex.indexOfFirst { it.fileName == cp.fileName }
+            if (idx >= 0) grePosition = idx + 1
+            return true
+        }
     }
 
-    override fun status() = ReplayController.ReplayStatus(
-        currentFrame = grePosition,
-        totalFrames = greFrameIndex.size,
-        currentFrameInfo = greFrameIndex.getOrNull(grePosition),
-        atEnd = grePosition >= greFrameIndex.size,
-    )
+    override fun status(): ReplayController.ReplayStatus {
+        synchronized(replayLock) {
+            return ReplayController.ReplayStatus(
+                currentFrame = grePosition,
+                totalFrames = greFrameIndex.size,
+                currentFrameInfo = greFrameIndex.getOrNull(grePosition),
+                atEnd = grePosition >= greFrameIndex.size,
+            )
+        }
+    }
 
     /**
      * Patch matchId and clientId in a MatchGameRoomStateChangedEvent.
