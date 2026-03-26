@@ -106,5 +106,15 @@ class ImmersturmPredatorTest :
                 .first { it.name == "Immersturm Predator" }
             predatorAfter.netPower shouldBeGreaterThan basePower
             predatorAfter.getCounters(forge.game.card.CounterEnumType.P1P1) shouldBeGreaterThan 0
+
+            // If tap trigger exiled a card, verify it went to Exile (not under Predator)
+            val ai = h.game().registeredPlayers.last()
+            val courserInGY = ai.getZone(ZoneType.Graveyard).cards.any { it.name == "Centaur Courser" }
+            val courserInExile = ai.getZone(ZoneType.Exile).cards.any { it.name == "Centaur Courser" }
+            // Trigger is "up to one" — card may stay in GY if targeting skipped.
+            // But if it left GY, it must be in Exile (not attached to anything).
+            if (!courserInGY) {
+                courserInExile.shouldBeTrue()
+            }
         }
     })

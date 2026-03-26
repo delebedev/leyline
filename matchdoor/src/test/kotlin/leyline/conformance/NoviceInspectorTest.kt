@@ -5,9 +5,11 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import leyline.bridge.GameBootstrap
 import leyline.bridge.SeatId
+import leyline.game.CardData
 
 /**
  * Novice Inspector — investigate + Clue token + sac-for-draw.
@@ -36,8 +38,23 @@ class NoviceInspectorTest :
 
             // Wire Clue token grpId mapping: Novice Inspector → Clue token
             val clueTokenGrpId = 300002
+            val clueAbilityGrpId = 152 // "{2}, Sacrifice: Draw a card"
             val inspectorGrpId = repo.findGrpIdByName("Novice Inspector")!!
-            repo.register(clueTokenGrpId, "Clue")
+            repo.registerData(
+                CardData(
+                    grpId = clueTokenGrpId,
+                    titleId = 980803,
+                    power = "",
+                    toughness = "",
+                    colors = emptyList(),
+                    types = listOf(6), // Artifact
+                    subtypes = listOf(17), // Clue
+                    supertypes = emptyList(),
+                    abilityIds = listOf(clueAbilityGrpId to 980803),
+                    manaCost = emptyList(),
+                ),
+                "Clue",
+            )
             val inspectorData = repo.findByGrpId(inspectorGrpId)!!
             repo.registerData(
                 inspectorData.copy(tokenGrpIds = mapOf(0 to clueTokenGrpId)),
@@ -88,6 +105,13 @@ class NoviceInspectorTest :
             bfCards.map { it.name } shouldContain "Novice Inspector"
             val clueCard = bfCards.first { it.name.contains("Clue", ignoreCase = true) }
             clueCard.isToken.shouldBeTrue()
+
+            // Verify Clue has the sac-for-draw ability registered
+            val clueGrpId = h.bridge.cards.findGrpIdByName("Clue")
+            clueGrpId shouldNotBe null
+            val clueData = h.bridge.cards.findByGrpId(clueGrpId!!)
+            clueData shouldNotBe null
+            clueData!!.abilityIds.any { it.first == 152 }.shouldBeTrue()
 
             // 3. Activate Clue — {2}, sacrifice: draw a card
             val libBefore = human.getZone(ZoneType.Library).cards.toList().size
