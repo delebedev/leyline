@@ -32,6 +32,8 @@ class AccountServer(
     private val roles: List<String> = TokenService.DEFAULT_ROLES,
     private val upstreamAccount: String? = null,
     private val upstreamDoorbell: String? = null,
+    /** BundleManifests JSON array for doorbell response (enables offline mode). */
+    private val cachedManifests: String? = null,
 ) {
     private val log = LoggerFactory.getLogger(AccountServer::class.java)
     private var engine: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
@@ -90,7 +92,7 @@ class AccountServer(
                 if (isProxyMode) {
                     proxyRoutes(upAccount!!, upDoorbell ?: upAccount, host)
                 } else {
-                    accountRoutes(accountStore, tokenService, host)
+                    accountRoutes(accountStore, tokenService, host, cachedManifests)
                 }
             }
         }.also { it.start(wait = false) }

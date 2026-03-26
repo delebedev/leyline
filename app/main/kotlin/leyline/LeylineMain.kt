@@ -139,6 +139,12 @@ private fun buildAccountServer(
     fdHost: String,
     database: org.jetbrains.exposed.v1.jdbc.Database,
 ): AccountServer {
+    // Detect installed Arena manifest hash from local Downloads dir.
+    // The client checks doorbell BundleManifests before the pointer file at
+    // assets.mtgarena.wizards.com. If we return the hash here, the client
+    // finds the manifest locally and never hits the network — enabling offline mode.
+    val cachedManifests = detectArenaManifestHash()
+
     if (isProxy) {
         return AccountServer(
             port = port,
@@ -148,6 +154,7 @@ private fun buildAccountServer(
             database = database,
             upstreamAccount = a["--proxy-account"] ?: AccountServer.DEFAULT_UPSTREAM_ACCOUNT,
             upstreamDoorbell = a["--proxy-doorbell"] ?: AccountServer.DEFAULT_UPSTREAM_DOORBELL,
+            cachedManifests = cachedManifests,
         )
     }
     val debugRoles = System.getenv("LEYLINE_DEBUG").let { it == "true" || it == "1" }
@@ -158,7 +165,30 @@ private fun buildAccountServer(
         keyFile = a["--account-key"]?.let { File(it) } ?: tls.second,
         fdHost = fdHost,
         database = database,
+        cachedManifests = cachedManifests,
     )
+}
+
+/**
+ * Scan Arena's local Downloads dir for the manifest file and return a BundleManifests JSON array.
+ *
+ * The client checks three manifest sources in order: config, doorbell, pointer file
+ * (assets.mtgarena.wizards.com). Offline, the pointer file times out (~30s on boot).
+ * Returning the hash via doorbell lets the client find the manifest locally and skip the download,
+ * but the pointer file timeout is unavoidable — the client always checks all three sources.
+ */
+private fun detectArenaManifestHash(): String? {
+    val downloadsDir = File(System.getProperty("user.home"), "Library/Application Support/com.wizards.mtga/Downloads")
+    if (!downloadsDir.isDirectory) return null
+    val manifestFile = downloadsDir.listFiles()
+        ?.filter { it.name.startsWith("Manifest_") && it.name.endsWith(".mtga") }
+        ?.maxByOrNull { it.lastModified() }
+        ?: return null
+    // Extract hash from "Manifest_<hash>.mtga"
+    val hash = manifestFile.name.removePrefix("Manifest_").removeSuffix(".mtga")
+    if (hash.isBlank()) return null
+    println("Detected Arena manifest: ${manifestFile.name}")
+    return """[{"category":"","priority":100,"hash":"$hash"}]"""
 }
 
 // -- Lifecycle ----------------------------------------------------------------

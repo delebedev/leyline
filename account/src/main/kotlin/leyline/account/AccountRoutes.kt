@@ -19,11 +19,16 @@ private val json = Json { ignoreUnknownKeys = true }
  * Install all account server routes into a Ktor [Route].
  * Real handlers for auth/register/profile, stubs for age-gate/moderate/skus.
  */
-fun Route.accountRoutes(store: AccountStore, tokens: TokenService, fdHost: String) {
+fun Route.accountRoutes(
+    store: AccountStore,
+    tokens: TokenService,
+    fdHost: String,
+    cachedManifests: String? = null,
+) {
     loginRoute(store, tokens)
     registerRoute(store, tokens)
     profileRoute(store, tokens)
-    doorbellRoute(fdHost)
+    doorbellRoute(fdHost, cachedManifests)
     ageGateStub()
     moderateStub()
     skusStub()
@@ -143,13 +148,18 @@ private fun Route.profileRoute(store: AccountStore, tokens: TokenService) {
 
 // -- Doorbell -----------------------------------------------------------------
 
-private fun Route.doorbellRoute(fdHost: String) {
+private fun Route.doorbellRoute(fdHost: String, cachedManifests: String?) {
     post("/api/doorbell/api/v2/ring") {
         call.receiveText() // drain body
-        log.info("Doorbell: FdURI={}", fdHost)
+        val hasManifests = cachedManifests != null
+        log.info("Doorbell: FdURI={} manifests={}", fdHost, if (hasManifests) "cached" else "empty")
         val response = buildJsonObject {
             put("FdURI", fdHost)
-            putJsonArray("BundleManifests") {}
+            if (cachedManifests != null) {
+                put("BundleManifests", Json.parseToJsonElement(cachedManifests))
+            } else {
+                putJsonArray("BundleManifests") {}
+            }
         }
         call.respondText(response.toString(), ContentType.Application.Json, HttpStatusCode.OK)
     }

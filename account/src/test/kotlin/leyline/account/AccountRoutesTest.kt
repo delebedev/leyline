@@ -15,10 +15,14 @@ import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.Database
 import java.util.Base64
 
-private fun Application.testModule(store: AccountStore, tokens: TokenService) {
+private fun Application.testModule(
+    store: AccountStore,
+    tokens: TokenService,
+    cachedManifests: String? = null,
+) {
     install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     routing {
-        accountRoutes(store, tokens, "localhost:30010")
+        accountRoutes(store, tokens, "localhost:30010", cachedManifests)
     }
 }
 
@@ -27,7 +31,10 @@ class AccountRoutesTest :
 
         tags(UnitTag)
 
-        fun testApp(block: suspend ApplicationTestBuilder.() -> Unit) {
+        fun testAppWithManifests(
+            cachedManifests: String?,
+            block: suspend ApplicationTestBuilder.() -> Unit,
+        ) {
             val dbFile = java.io.File.createTempFile("routes-test", ".db").also { it.deleteOnExit() }
             val db = Database.connect("jdbc:sqlite:${dbFile.absolutePath}", "org.sqlite.JDBC")
             val store = AccountStore(db)
@@ -38,9 +45,13 @@ class AccountRoutesTest :
             store.create("existing@test.com", "password123", "Existing")
 
             testApplication {
-                application { testModule(store, tokens) }
+                application { testModule(store, tokens, cachedManifests) }
                 block()
             }
+        }
+
+        fun testApp(block: suspend ApplicationTestBuilder.() -> Unit) {
+            testAppWithManifests(null, block)
         }
 
         test("login with valid credentials returns 200 + tokens") {
@@ -222,14 +233,31 @@ class AccountRoutesTest :
             }
         }
 
-        test("doorbell returns FdURI") {
+        test("doorbell returns FdURI with empty manifests") {
             testApp {
                 val resp = client.post("/api/doorbell/api/v2/ring") {
                     setBody("{}")
                     contentType(ContentType.Application.Json)
                 }
                 resp.status shouldBe HttpStatusCode.OK
-                resp.bodyAsText() shouldContain """"FdURI":"localhost:30010""""
+                val body = resp.bodyAsText()
+                body shouldContain """"FdURI":"localhost:30010""""
+                body shouldContain """"BundleManifests":[]"""
+            }
+        }
+
+        test("doorbell returns cached BundleManifests when available") {
+            val manifests = """[{"category":"Audio","priority":50,"hash":"abc123"}]"""
+            testAppWithManifests(manifests) {
+                val resp = client.post("/api/doorbell/api/v2/ring") {
+                    setBody("{}")
+                    contentType(ContentType.Application.Json)
+                }
+                resp.status shouldBe HttpStatusCode.OK
+                val body = resp.bodyAsText()
+                body shouldContain """"FdURI":"localhost:30010""""
+                body shouldContain """"category":"Audio""""
+                body shouldContain """"hash":"abc123""""
             }
         }
 
