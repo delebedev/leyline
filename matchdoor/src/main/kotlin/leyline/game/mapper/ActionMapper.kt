@@ -192,7 +192,7 @@ object ActionMapper {
 
         // Zone casts: Graveyard, Exile, Command (flashback, escape, etc.)
         if (checkLegality) {
-            addZoneCastActions(player, builder, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup)
+            addZoneCastActions(player, builder, idResolver, grpIdResolver, cardDataLookup)
         }
         // Pass + FloatMana always available
         builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
@@ -274,7 +274,6 @@ object ActionMapper {
         idResolver: (Int) -> Int,
         grpIdResolver: (Card) -> Int,
         cardDataLookup: (Int) -> CardData?,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry? = { _, _ -> null },
     ) {
         val game = player.game ?: return
         val zones = listOf(ForgeZoneType.Graveyard, ForgeZoneType.Exile, ForgeZoneType.Command)
