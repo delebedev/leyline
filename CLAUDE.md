@@ -86,13 +86,15 @@ See `docs/architecture.md` for diagrams. See `matchdoor/CLAUDE.md` for engine ad
 
 ## Build Setup (from scratch)
 
-One command gets you from fresh clone to runnable tests:
+One command gets you from fresh clone **or fresh worktree** to runnable tests:
 
 ```bash
 just bootstrap    # submodules → forge install → build → seed DB
 ```
 
 This handles: git submodule init, maven install of forge engine, gradle proto-sync + compile + jars, and database seeding. Prerequisite: `mvn` in PATH (`brew install maven`). Safe to re-run — skips forge install if already up to date.
+
+**Worktrees:** Git worktrees do NOT share submodule checkouts or build artifacts. A fresh worktree has an empty `forge/` dir and no jars. **Always run `just bootstrap` first** in a new worktree before building, testing, or serving. This is the single command that makes the worktree functional — don't try to run `just build` or `just test-gate` without it.
 
 **For Arena client connection** (optional, not needed for tests):
 ```bash
