@@ -91,7 +91,7 @@ class FlashbackTest :
 
                 // --- Phase 2: cast Think Twice from GY via flashback ---
                 val handBefore2 = player.getZone(ZoneType.Hand).size()
-                h.castSpellByName("Think Twice").shouldBeTrue()
+                h.castFromGraveyard("Think Twice").shouldBeTrue()
                 h.passPriority() // resolve
 
                 // Drew another card (Plains)

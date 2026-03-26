@@ -503,8 +503,7 @@ class MatchFlowHarness(
      */
     fun castSpellByName(cardName: String): Boolean {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return false
-        val card = listOf(ZoneType.Hand, ZoneType.Graveyard, ZoneType.Exile)
-            .flatMap { player.getZone(it).cards }
+        val card = player.getZone(ZoneType.Hand).cards
             .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
 
         val msg = performAction {
