@@ -190,45 +190,8 @@ object ActionMapper {
         }
 
         // Graveyard / Exile: flashback, escape, and other cast-from-zone abilities.
-        // Skip canCastFromZone — mayPlay grants don't cover keyword-based alt costs
-        // (Flashback, Escape). Instead, rely on chooseCastAbility which checks
-        // canPlay() + canCastTiming() via getAllCastableAbilities/getAlternativeCosts.
         if (checkLegality) {
-            for (zone in listOf(ForgeZoneType.Graveyard, ForgeZoneType.Exile)) {
-                for (card in player.getZone(zone).cards) {
-                    val sa = chooseCastAbility(card, player) ?: continue
-                    val canPay = try {
-                        ComputerUtilMana.canPayManaCost(sa, player, 0, false)
-                    } catch (_: Exception) {
-                        false
-                    }
-                    if (!canPay) continue
-                    val instanceId = idResolver(card.id)
-                    val grpId = grpIdResolver(card)
-                    val actionBuilder = Action.newBuilder()
-                        .setActionType(ActionType.Cast)
-                        .setInstanceId(instanceId)
-                        .setGrpId(grpId)
-                        .setFacetId(instanceId)
-                        .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
-                    val cardData = cardDataLookup(grpId)
-                    if (cardData != null) {
-                        // Use the alternative cost (flashback/escape) for mana requirements
-                        val altManaCost = sa.payCosts?.totalMana
-                        if (altManaCost != null && !altManaCost.isNoCost) {
-                            addManaCostFromForge(altManaCost, actionBuilder)
-                        } else {
-                            for ((color, count) in cardData.manaCost) {
-                                actionBuilder.addManaCost(
-                                    ManaRequirement.newBuilder().addColor(color).setCount(count),
-                                )
-                            }
-                        }
-                        // Skip autoTap for zone casts — alt cost may differ from cardData.manaCost
-                    }
-                    builder.addActions(actionBuilder)
-                }
-            }
+            addZoneCastActions(player, builder, idResolver, grpIdResolver, cardDataLookup)
         }
 
         // Pass + FloatMana always available
@@ -247,6 +210,52 @@ object ActionMapper {
         }
 
         return builder.build()
+    }
+
+    /**
+     * Add Cast actions for cards in GY/Exile with castable abilities (flashback, escape, etc.).
+     * Separated from [buildActionList] to keep nesting manageable.
+     */
+    private fun addZoneCastActions(
+        player: Player,
+        builder: ActionsAvailableReq.Builder,
+        idResolver: (Int) -> Int,
+        grpIdResolver: (Card) -> Int,
+        cardDataLookup: (Int) -> CardData?,
+    ) {
+        for (zone in listOf(ForgeZoneType.Graveyard, ForgeZoneType.Exile)) {
+            for (card in player.getZone(zone).cards) {
+                val sa = chooseCastAbility(card, player) ?: continue
+                val canPay = try {
+                    ComputerUtilMana.canPayManaCost(sa, player, 0, false)
+                } catch (_: Exception) {
+                    false
+                }
+                if (!canPay) continue
+                val instanceId = idResolver(card.id)
+                val grpId = grpIdResolver(card)
+                val actionBuilder = Action.newBuilder()
+                    .setActionType(ActionType.Cast)
+                    .setInstanceId(instanceId)
+                    .setGrpId(grpId)
+                    .setFacetId(instanceId)
+                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+                val cardData = cardDataLookup(grpId)
+                if (cardData != null) {
+                    val altManaCost = sa.payCosts?.totalMana
+                    if (altManaCost != null && !altManaCost.isNoCost) {
+                        addManaCostFromForge(altManaCost, actionBuilder)
+                    } else {
+                        for ((color, count) in cardData.manaCost) {
+                            actionBuilder.addManaCost(
+                                ManaRequirement.newBuilder().addColor(color).setCount(count),
+                            )
+                        }
+                    }
+                }
+                builder.addActions(actionBuilder)
+            }
+        }
     }
 
     /** Build an ActivateMana action for an untapped permanent with mana abilities. */
