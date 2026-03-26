@@ -205,7 +205,7 @@ bootstrap:
     if [ -f .upstream-installed ]; then
         installed_forge=$(cat .upstream-installed)
     fi
-    if [ "$current_forge" = "$installed_forge" ]; then
+    if [ "$current_forge" = "$installed_forge" ] && [ -d forge/.m2-local/forge ]; then
         echo "==> Forge already installed ($(echo "$current_forge" | head -c 8))"
     else
         echo "==> Installing forge engine..."
