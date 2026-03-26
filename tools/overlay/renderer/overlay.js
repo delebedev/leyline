@@ -76,8 +76,61 @@ function updateStatus(data) {
   statusEl.style.color = "#f7d354";
 }
 
-// Stubs — implemented in Tasks 3 and 4
-function refreshIdMap() {}
+const idmapList = document.getElementById("idmap-list");
+
+const ZONE_SHORT = {
+  Battlefield: "BF",
+  Hand: "Hand",
+  Graveyard: "GY",
+  Stack: "Stk",
+  Exile: "Ex",
+  Library: "Lib",
+  Command: "Cmd",
+};
+
+const ZONE_CLASS = {
+  Battlefield: "zone-bf",
+  Hand: "zone-hand",
+  Graveyard: "zone-gy",
+  Stack: "zone-stack",
+  Exile: "zone-exile",
+};
+
+async function refreshIdMap() {
+  try {
+    const res = await fetch(`${API_BASE}/api/id-map?active=true`);
+    if (!res.ok) return;
+    const entries = await res.json();
+    renderIdMap(entries);
+  } catch {
+    // server may have just gone away
+  }
+}
+
+function renderIdMap(entries) {
+  idmapList.innerHTML = "";
+  for (const e of entries) {
+    const zone = e.forgeZone || "?";
+    const zoneShort = ZONE_SHORT[zone] || zone.slice(0, 3);
+    const zoneClass = ZONE_CLASS[zone] || "zone-exile";
+    const tapped = zone === "Battlefield"
+      ? (e.protoZone === "Battlefield" ? "○" : "")
+      : "";
+    const name = e.cardName.length > 12 ? e.cardName.slice(0, 11) + "…" : e.cardName;
+
+    const row = document.createElement("div");
+    row.className = "id-row";
+    row.innerHTML = `
+      <span class="iid">${e.instanceId}</span>
+      <span class="name">${name}</span>
+      <span class="zone ${zoneClass}">${zoneShort}</span>
+      <span class="tap">${tapped}</span>
+    `;
+    idmapList.appendChild(row);
+  }
+}
+
+// Stub — implemented in Task 4
 function appendLog(_entry) {}
 
 // Boot
