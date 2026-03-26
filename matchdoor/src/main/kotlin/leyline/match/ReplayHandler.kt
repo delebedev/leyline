@@ -51,6 +51,7 @@ class ReplayHandler(
         // Detect recording format and whether files have 6-byte frame headers.
         val stripHeader: Boolean
         val allFiles: List<File>
+        val isEngineFormat: Boolean
 
         fun matchDataFiles(dir: File) = dir.listFiles()
             ?.filter { it.name.contains("MD_S-C_MATCH_DATA") }
@@ -63,12 +64,14 @@ class ReplayHandler(
                 log.info("Replay: detected seat-1 payloads in {}", seat1Payloads)
                 allFiles = matchDataFiles(seat1Payloads)
                 stripHeader = false
+                isEngineFormat = false
             }
             // Raw proxy frames (6-byte header) — older captures
             framesDir.isDirectory -> {
                 log.info("Replay: detected raw frames in {}", framesDir)
                 allFiles = matchDataFiles(framesDir)
                 stripHeader = true
+                isEngineFormat = false
             }
             // Engine format
             engineDir.isDirectory -> {
@@ -78,12 +81,14 @@ class ReplayHandler(
                     ?.sortedBy { it.name }
                     ?: emptyList()
                 stripHeader = false
+                isEngineFormat = true
             }
             // Legacy: direct payloads dir
             else -> {
                 log.info("Replay: loading from {}", payloadDir)
                 allFiles = matchDataFiles(payloadDir)
                 stripHeader = false
+                isEngineFormat = false
             }
         }
 
@@ -121,7 +126,7 @@ class ReplayHandler(
         }
 
         // Engine format: load auth and room state files separately
-        if (engineDir.isDirectory) {
+        if (isEngineFormat) {
             val authFiles = engineDir.listFiles()
                 ?.filter { it.name.contains("AuthResp") && it.extension == "bin" }
                 ?.sortedBy { it.name }
@@ -258,8 +263,6 @@ class ReplayHandler(
 
     // -- ReplayController implementation --
 
-    override val currentFrame: Int get() = grePosition
-    override val totalFrames: Int get() = greFrameIndex.size
     override val frameIndex: List<ReplayController.FrameInfo> get() = greFrameIndex
 
     override fun next(): Boolean {

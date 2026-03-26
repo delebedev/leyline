@@ -497,13 +497,13 @@ class MatchFlowHarness(
     }
 
     /**
-     * Cast a spell from any zone by card name.
-     * Searches Hand first, then Graveyard, then Exile (for flashback/escape/etc.).
-     * Returns false if card not found in any castable zone.
+     * Cast a spell by card name from the given [zone] (default: Hand).
+     * For flashback/escape, use `zone = ZoneType.Graveyard`.
+     * Returns false if card not found in the zone.
      */
-    fun castSpellByName(cardName: String): Boolean {
+    fun castSpellByName(cardName: String, zone: ZoneType = ZoneType.Hand): Boolean {
         val player = bridge.getPlayer(SeatId(seatId)) ?: return false
-        val card = player.getZone(ZoneType.Hand).cards
+        val card = player.getZone(zone).cards
             .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
 
         val msg = performAction {
@@ -517,22 +517,9 @@ class MatchFlowHarness(
         return true
     }
 
-    /** Cast a spell from graveyard by name (flashback, escape, etc.). Returns false if not found. */
-    fun castFromGraveyard(cardName: String): Boolean {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
-        val card = player.getZone(ZoneType.Graveyard).cards
-            .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
-
-        val msg = performAction {
-            actionType = ActionType.Cast
-            instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            grpId = bridge.cards.findGrpIdByName(card.name) ?: 0
-        }
-
-        session.onPerformAction(msg)
-        drainSink()
-        return true
-    }
+    /** Alias for `castSpellByName(cardName, ZoneType.Graveyard)`. */
+    fun castFromGraveyard(cardName: String): Boolean =
+        castSpellByName(cardName, zone = ZoneType.Graveyard)
 
     /**
      * Cast a spell and pass once to resolve it.

@@ -92,14 +92,10 @@ class NoviceInspectorTest :
             h.castSpellByName("Novice Inspector").shouldBeTrue()
 
             // 2. Pass until Clue token appears (spell resolve + ETB trigger resolve)
-            repeat(15) {
-                if (human.getZone(ZoneType.Battlefield).cards.toList()
-                        .any { it.name.contains("Clue", ignoreCase = true) }
-                ) {
-                    return@repeat
-                }
-                h.passPriority()
-            }
+            h.passUntil(maxPasses = 15) {
+                human.getZone(ZoneType.Battlefield).cards.toList()
+                    .any { it.name.contains("Clue", ignoreCase = true) }
+            }.shouldBeTrue()
 
             val bfCards = human.getZone(ZoneType.Battlefield).cards.toList()
             bfCards.map { it.name } shouldContain "Novice Inspector"
@@ -118,14 +114,10 @@ class NoviceInspectorTest :
             h.activateAbility(clueCard.name).shouldBeTrue()
 
             // 4. Pass until Clue is gone (cost paid + ability resolves)
-            repeat(15) {
-                if (human.getZone(ZoneType.Battlefield).cards.toList()
-                        .none { it.name.contains("Clue", ignoreCase = true) }
-                ) {
-                    return@repeat
-                }
-                h.passPriority()
-            }
+            h.passUntil(maxPasses = 15) {
+                human.getZone(ZoneType.Battlefield).cards.toList()
+                    .none { it.name.contains("Clue", ignoreCase = true) }
+            }.shouldBeTrue()
 
             // Clue sacrificed — no longer on battlefield
             human.getZone(ZoneType.Battlefield).cards.toList()

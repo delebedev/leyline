@@ -14,12 +14,6 @@ interface ReplayController {
         val category: String,
     )
 
-    /** Current playback position (0-based index into GRE frames). */
-    val currentFrame: Int
-
-    /** Total GRE frames available. */
-    val totalFrames: Int
-
     /** Ordered metadata for all GRE frames. */
     val frameIndex: List<FrameInfo>
 

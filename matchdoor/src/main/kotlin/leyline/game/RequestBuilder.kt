@@ -144,11 +144,19 @@ object RequestBuilder {
         prompt: InteractivePromptBridge.PendingPrompt,
         bridge: GameBridge,
     ): SelectNReq {
-        val isLegendRule = prompt.request.semantic == PromptSemantic.SelectNLegendRule
-        val isDiscard = prompt.request.semantic == PromptSemantic.SelectNDiscard
-        val context = if (isDiscard) SelectionContext.Discard_a163 else SelectionContext.Resolution_a163
-        val listType = if (isDiscard) SelectionListType.Static else SelectionListType.Dynamic
-        val optionContext = if (isDiscard) OptionContext.Payment else OptionContext.Resolution_a9d7
+        val semantic = prompt.request.semantic
+        val (context, listType, optionContext) = when (semantic) {
+            PromptSemantic.SelectNDiscard -> Triple(
+                SelectionContext.Discard_a163,
+                SelectionListType.Static,
+                OptionContext.Payment,
+            )
+            else -> Triple(
+                SelectionContext.Resolution_a163,
+                SelectionListType.Dynamic,
+                OptionContext.Resolution_a9d7,
+            )
+        }
         val builder = SelectNReq.newBuilder()
             .setMinSel(prompt.request.min)
             .setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
@@ -161,13 +169,18 @@ object RequestBuilder {
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
             builder.addIds(instanceId)
         }
-        if (isLegendRule) {
-            // Empty inner prompt; the real promptId goes on the outer GRE message.
-            builder.setPrompt(Prompt.newBuilder())
-            builder.setSourceId(PromptIds.SELECT_N_LEGEND_RULE_SOURCE)
-        } else {
-            val promptId = if (isDiscard) PromptIds.DISCARD_COST else PromptIds.SELECT_N
-            builder.setPrompt(Prompt.newBuilder().setPromptId(promptId))
+        when (semantic) {
+            PromptSemantic.SelectNLegendRule -> {
+                // Empty inner prompt; the real promptId goes on the outer GRE message.
+                builder.setPrompt(Prompt.newBuilder())
+                builder.setSourceId(PromptIds.SELECT_N_LEGEND_RULE_SOURCE)
+            }
+            PromptSemantic.SelectNDiscard -> {
+                builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST))
+            }
+            else -> {
+                builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+            }
         }
         return builder.build()
     }
