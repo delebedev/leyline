@@ -70,12 +70,12 @@ After gs=352 the rod (iid 399) is attached to the Hero token (iid 403). The Atta
 All transient annotations share affectorId=402 (the triggered ability instance), except AttachmentCreated which uses affectorId=399 (the equipment):
 
 - `ResolutionStart` — affectorId=402, affectedIds=[402], details={grpid: 364}
-- `TokenCreated` — affectorId=402, affectedIds=[403], details={} (no details, consistent with token-creation-wire.md)
+- `TokenCreated` — affectorId=402, affectedIds=[403], details={} (no details, consistent with prior conformance research)
 - `AttachmentCreated` — affectorId=399, affectedIds=[403]
 - `ResolutionComplete` — affectorId=402, affectedIds=[402], details={grpid: 364}
 - `AbilityInstanceDeleted` — affectorId=399, affectedIds=[402]
 
-**Key distinction from standard equip:** the `AttachmentCreated` affectorId here is the equipment (399), not the triggered ability instance (402). This matches the existing equipment-wire.md pattern. No `Attachment` persistent annotation was observed in this GSM — the persistent pAnn may appear in the same diff object rather than as a separate annotation entry; flag for verification.
+**Key distinction from standard equip:** the `AttachmentCreated` affectorId here is the equipment (399), not the triggered ability instance (402). This matches the existing prior conformance research pattern. No `Attachment` persistent annotation was observed in this GSM — the persistent pAnn may appear in the same diff object rather than as a separate annotation entry; flag for verification.
 
 ### Resolution enter (gs=350)
 
@@ -102,8 +102,8 @@ Standard two-mana cast pattern: AbilityInstanceCreated (mana source) → TappedU
 
 ## Supporting evidence
 
-- `equipment-wire.md` — establishes baseline equip wire shape (SelectTargetsReq, inline mana, AttachmentCreated affectorId pattern). The job_select auto-attach differs in that no SelectTargetsReq fires and no mana is paid.
-- `token-creation-wire.md` — TokenCreated transient has no details field; affectorId is the resolving ability instance. Consistent here.
+- prior conformance research (equip wire shape) — establishes baseline equip wire shape (SelectTargetsReq, inline mana, AttachmentCreated affectorId pattern). The job_select auto-attach differs in that no SelectTargetsReq fires and no mana is paid.
+- prior conformance research (TokenCreated: no details, affectorId=ability instance) — TokenCreated transient has no details field; affectorId is the resolving ability instance. Consistent here.
 - `docs/catalog.yaml` equipment entry — standard equip is marked wired; job_select is not listed.
 
 **Single data point caveat:** this is the only job_select card captured in our recordings. No variance across multiple casts was possible. The auto-attach sequence (TokenCreated + AttachmentCreated in a single triggered ability resolution, no player input) is confirmed by two identical GSM snapshots in the same session (idx=430 and idx=708 both show gs=352), but the mechanic has not been observed across different job_select cards. Other FIN job_select cards (e.g. Dragoon's Lance grpId 95871, Astrologian's Planisphere grpId 95902) may exhibit the same pattern but are unconfirmed.

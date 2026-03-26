@@ -66,7 +66,7 @@ AbilityInstanceCreated  affectorId=280 (the permanent), affectedIds=[282], sourc
 TriggeringObject pAnn   affectorId=282 (ability iid), affectedIds=[280], source_zone=28
 ```
 
-The ETB trigger fires with `TriggeringObject` persistent annotation pointing back to the source permanent. Pattern is shared by other ETB triggered abilities (see `a-most-helpful-weaver-wire.md`).
+The ETB trigger fires with `TriggeringObject` persistent annotation pointing back to the source permanent. Pattern is shared by other ETB triggered abilities (see prior conformance research (TriggeringObject pAnn on ETB triggers)).
 
 ### Clue token — no LinkInfo
 
@@ -91,7 +91,7 @@ Resolution fires in the *next* diff (gsId 146): Draw ZoneTransfer + AbilityInsta
 
 ### TokenDeleted fires same diff as Sacrifice ZoneTransfer
 
-TokenDeleted does not wait for the ability to resolve. It fires in the same diff as the Sacrifice ZoneTransfer (gsId 144), while the draw ability is still on the stack. This is consistent with `token-creation-wire.md` observations.
+TokenDeleted does not wait for the ability to resolve. It fires in the same diff as the Sacrifice ZoneTransfer (gsId 144), while the draw ability is still on the stack. This is consistent with prior conformance research (TokenCreated: no details, affectorId=ability instance) observations.
 
 ## Gaps for leyline
 
@@ -102,6 +102,6 @@ TokenDeleted does not wait for the ability to resolve. It fires in the same diff
 
 ## Supporting evidence
 
-- `token-creation-wire.md` — TokenCreated shape (no details, affectorId=ability instance)
-- `a-most-helpful-weaver-wire.md` — TriggeringObject pAnn pattern on ETB triggers
+- prior conformance research (TokenCreated: no details, affectorId=ability instance) — TokenCreated shape (no details, affectorId=ability instance)
+- prior conformance research (TriggeringObject pAnn on ETB triggers) — TriggeringObject pAnn pattern on ETB triggers
 - `docs/catalog.yaml` — `tokens` entry: InvestigateEffect uses empty fallback, confirmed gap

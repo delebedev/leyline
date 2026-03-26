@@ -132,7 +132,7 @@ Kiora instances on battlefield carry a persistent `AbilityWordActive` annotation
 
 1. **SelectNreq for discard** — the ETB discard uses SelectNreq (minSel=maxSel=2, Mode$ TgtChoose), not a simple forced discard. Confirmed context="Resolution_a163"/optionContext="Resolution_a9d7". The existing loot (catalog status=partial) likely lacks this player-choice shape — verify `DBDiscard` with `Mode$ TgtChoose` emits SelectNreq.
 2. **Chained sub-ability sequencing** — `TrigDraw` → `DBDiscard` fires as a single ability instance (grpId 143924) but resolves in two diff steps. The SelectNreq is issued mid-resolution (after draw, before discard). Leyline must hold the ability on stack through the SelectNreq/resp roundtrip before emitting the discard diff.
-3. **AbilityWordActive annotation (Threshold)** — persistent annotation for the threshold attack trigger is absent in leyline. Required for the client's threshold counter UI. See `threshold-wire.md` and catalog.yaml `threshold` entry (status=missing).
+3. **AbilityWordActive annotation (Threshold)** — persistent annotation for the threshold attack trigger is absent in leyline. Required for the client's threshold counter UI. See prior conformance research (AbilityWordActive threshold) and catalog.yaml `threshold` entry (status=missing).
 4. **Threshold attack trigger + optional token** — triggered ability on attack, conditional on GY count, with `OptionalDecider$ You`. Requires: (a) AbilityWordActive value tracking, (b) optional trigger prompt (ActionsAvailableReq with pass option), (c) Scion of the Deep token creation. Entire path unobserved in this session.
 
 ## Supporting evidence needed

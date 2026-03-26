@@ -123,18 +123,18 @@ Drake token (iid 351): grpId=94163, type=Token, P/T 2/2, subtype=Drake, color=Bl
 
 ### Key findings
 
-- **counter_type=200 = INCUBATION.** This is a new counter type not previously documented. The reference doc (`counter-type-reference.md`) only covers type 1 (+1/+1) and type 108 (quest/lore). Type 200 needs adding.
+- **counter_type=200 = INCUBATION.** This is a new counter type not previously documented. The reference doc (`docs/card-specs/SYNTHESIS.md` (counter types)) only covers type 1 (+1/+1) and type 108 (quest/lore). Type 200 needs adding.
 - **CounterAdded/CounterRemoved shape is consistent** with +1/+1 counters — same keys (`counter_type`, `transaction_amount`), just type=200 instead of 1. No P/T mod fires (incubation has no stat effect).
 - **Counter pAnn affectorId = 4002/4003** — these appear to be sequentially assigned IDs for the persistent state annotation, not tied to the ability instance. Same pattern as equipment Attachment pAnn IDs.
 - **Activated ability uses `SubCounter` cost** — no mana required. The wire shows CounterRemoved fires at gsId 261 (activation) before the ability resolves at 263. The removal is immediate on activation, not on resolution.
 - **TriggeringObject fires as persistent annotation** at combat damage step, matching the established pattern (source_zone=28).
 - **Vigilance confirmed** — iid 299 never shows `isTapped: true` after attacking. No special wire annotation needed — the engine handles it.
-- **Drake token has no separate TokenCreated details** — same as previously observed tokens (token-creation-wire.md). `objectSourceGrpId=93748` on the token object traces it back to Drake Hatcher.
+- **Drake token has no separate TokenCreated details** — same as previously observed tokens (prior conformance research). `objectSourceGrpId=93748` on the token object traces it back to Drake Hatcher.
 - **Prowess trigger stacking** — two prowess triggers queued at gsId 192 (two noncreature spells cast in sequence), SelectNReq used for ordering. This matches the existing selectnreq-modal-protocol.md pattern.
 
 ## Gaps for leyline
 
-1. **counter_type=200 (INCUBATION) not mapped** — CounterMapper (or equivalent) needs `INCUBATION → 200`. The engine uses `CounterType.INCUBATION`; the wire needs type=200. Update `counter-type-reference.md`.
+1. **counter_type=200 (INCUBATION) not mapped** — CounterMapper (or equivalent) needs `INCUBATION → 200`. The engine uses `CounterType.INCUBATION`; the wire needs type=200. Update `docs/card-specs/SYNTHESIS.md` (counter types).
 2. **SubCounter activation cost** — `Cost$ SubCounter<3/INCUBATION>` in Forge DSL. Need to verify ActivatedAbilityHandler passes the `SubCounter` cost correctly, and that CounterRemoved fires at activation time (not resolution). The wire shows CounterRemoved in the same GSM as AbilityInstanceCreated (gsId 261).
 3. **Incubation counter persistent annotation** — the pAnn at gsId 224 uses `affectorId=4002` (a generated ID, not the ability instance). Verify leyline's Counter pAnn emitter generates a stable ID for the state annotation, distinct from the transient CounterAdded annotation.
 4. **No PowerToughnessModCreated for incubation** — incubation counters do not modify P/T. Verify the engine does not emit a stray P/T mod annotation when adding these counters (it should not, but worth a puzzle check).
@@ -142,9 +142,9 @@ Drake token (iid 351): grpId=94163, type=Token, P/T 2/2, subtype=Drake, color=Bl
 
 ## Supporting evidence needed
 
-- [ ] Update `docs/annotation-field-notes.md` with counter_type=200 (INCUBATION)
-- [ ] Update `docs/card-specs/../annotation-field-notes.md` — CounterRemoved at activation time (before resolution) confirmed
-- [ ] Update `counter-type-reference.md` memory file with type 200
+- [ ] Update `docs/docs/rosetta.md` with counter_type=200 (INCUBATION)
+- [ ] Update `docs/card-specs/../docs/rosetta.md` — CounterRemoved at activation time (before resolution) confirmed
+- [ ] Update `docs/card-specs/SYNTHESIS.md` counter type table with type 200
 - [ ] Cross-reference: other cards with INCUBATION counters (e.g. Ozolith, The Shattered Spire) to confirm type=200 is universal
 - [ ] Puzzle: `drake-hatcher.pzl` — cast Drake, cast noncreature spell (prowess pump), attack unblocked, trigger resolves, counters placed, activate ability, Drake token created
 - [ ] Confirm `Activate_add3` action type is correctly offered by leyline for SubCounter cost abilities (ActionsAvailableReq uniqueAbilityId=197 seen at gsId 228)

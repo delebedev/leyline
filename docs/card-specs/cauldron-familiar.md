@@ -69,7 +69,7 @@ AbilityInstanceCreated affectorId=280 affectedIds=[282]  source_zone=28
 pAnn: TriggeringObject affectorId=282 affectedIds=[280]  source_zone=28
 ```
 
-AbilityInstanceCreated fires in the same diff as Resolve (same gsId=10). The triggering object pAnn points back from the ability instance (282) to the permanent (280). Pattern matches `a-most-helpful-weaver-wire.md`.
+AbilityInstanceCreated fires in the same diff as Resolve (same gsId=10). The triggering object pAnn points back from the ability instance (282) to the permanent (280). Pattern matches prior conformance research (TriggeringObject pAnn on ETB triggers).
 
 ### ETB trigger resolves (gsId 12)
 
@@ -114,8 +114,8 @@ The server populates `actions` in the GameStateMessage (not ActionsAvailableReq)
 ## Supporting evidence
 
 - `sba-categories.md` — SBA_ZeroToughness category, affectorId absent on ObjectIdChanged/ZoneTransfer
-- `a-most-helpful-weaver-wire.md` — TriggeringObject pAnn shape on ETB triggers
+- prior conformance research (TriggeringObject pAnn on ETB triggers) — TriggeringObject pAnn shape on ETB triggers
 - `docs/priority.md` §Priority Flow — documents `actions[] + inactiveActions[]` in ActionsAvailableReq
-- `controllerchanged-wire.md` — same session (2026-03-22_23-02-04) for cross-reference
+- prior conformance research (ControllerChanged wire) — same session (2026-03-22_23-02-04) for cross-reference
 
 **Note:** the GY activated ability was never exercised. All GY→BF mechanics are inferred or flagged as unobserved. A follow-up session with a Food token on battlefield is required to confirm activation flow and return category.

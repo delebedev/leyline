@@ -100,7 +100,7 @@ No ETB annotations. No persistent annotations observed on ETB (no keyword abilit
 
 ## Supporting evidence
 
-- `mandatory-additional-cost-wire.md` — wire shape memo (PayCostsReq promptId=1024, EffectCostResp, Discard ZoneTransfer)
+- `docs/card-specs/mardu-outrider.md` — wire shape memo (PayCostsReq promptId=1024, EffectCostResp, Discard ZoneTransfer)
 - `docs/rosetta.md` — zone IDs: Hand=31, Stack=27, BF=28, GY=33
 - `docs/catalog.yaml` `optional-costs` entry — kicker/buyback use CastingTimeOptionsReq; mandatory costs use PayCostsReq (distinct path)
 - `discard-selectnreq-bug.md` — SelectNReq used for hand-size cleanup discard; confirms mandatory-additional-cost flow does NOT use SelectNReq

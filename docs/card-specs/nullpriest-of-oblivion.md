@@ -90,7 +90,7 @@ Note: ctoId for Kicker differs between casts (2 vs 4). The ctoId is not a stable
 
 1. **Kicked ETB never observed** — `grpId 138454` (ETB trigger) did not fire in this session. Both casts declined the kicker. The triggered ability wire shape — AbilityInstanceCreated affectorId, SelectTargetsReq targeting shape, ZoneTransfer category for GY→BF return — is completely unknown. Needs a dedicated puzzle: put a creature in GY, cast kicked Nullpriest, observe full ETB flow.
 
-2. **GY→BF transfer category unknown** — Forge DSL uses `DB$ ChangeZone Origin$ Graveyard Destination$ Battlefield`. Real server category string for this is unconfirmed. Candidates: "Return", "Resolve", or something custom. Cross-reference `exile-aura-wire.md` (return-from-exile also unobserved) once kicked ETB is captured.
+2. **GY→BF transfer category unknown** — Forge DSL uses `DB$ ChangeZone Origin$ Graveyard Destination$ Battlefield`. Real server category string for this is unconfirmed. Candidates: "Return", "Resolve", or something custom. Cross-reference prior conformance research (Exile category, DisplayCardUnderCard) (return-from-exile also unobserved) once kicked ETB is captured.
 
 3. **SelectTargetsReq vs SelectNReq for GY targeting** — per Forge DSL (`ValidTgts$ Creature.YouOwn`, `TgtPrompt$ Select target creature in your graveyard`), this should use SelectTargetsReq. Expected shape: targetIdx=1, one target group listing GY creature instanceIds. Not yet confirmed on wire.
 
@@ -101,6 +101,6 @@ Note: ctoId for Kicker differs between casts (2 vs 4). The ctoId is not a stable
 ## Supporting evidence
 
 - `docs/rosetta.md` — zone IDs (Hand=31, Stack=27, BF=28, GY=33)
-- `mandatory-additional-cost-wire.md` — PayCostsReq for mandatory costs (distinct from CastingTimeOptionsReq for optional kicker)
-- `exile-aura-wire.md` — GY return-from-exile unobserved; same gap as kicked ETB
-- `targetspec-wire.md` — TargetSpec in persistentAnnotations (expected once kick-ETB is triggered)
+- `docs/card-specs/mardu-outrider.md` — PayCostsReq for mandatory costs (distinct from CastingTimeOptionsReq for optional kicker)
+- prior conformance research (Exile category, DisplayCardUnderCard) — GY return-from-exile unobserved; same gap as kicked ETB
+- prior conformance research (TargetSpec pAnn) — TargetSpec in persistentAnnotations (expected once kick-ETB is triggered)

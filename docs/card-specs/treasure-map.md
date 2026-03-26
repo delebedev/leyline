@@ -111,17 +111,17 @@ All annotations share `affectorId=387` (the ability instance):
 ### Key findings
 
 - **counter_type=127 = LANDMARK.** First recording of this counter type. No P/T mod fires (landmark has no stat effect). Persistent Counter pAnn (affectorId=4002) tracks running total.
-- **Transform is an in-place grpId mutation.** Same pattern as Concealing Curtains (`dfc-activated-transform-wire.md`): object stays at same instanceId, grpId silently changes, no ZoneTransfer. The back face appears with the expected new card types and ability count.
+- **Transform is an in-place grpId mutation.** Same pattern as Concealing Curtains (prior conformance research (Concealing Curtains transform)): object stays at same instanceId, grpId silently changes, no ZoneTransfer. The back face appears with the expected new card types and ability count.
 - **CounterAdded + CounterRemoved fire in the same diff.** The branch logic (check ≥3, then remove all, then transform, then tokens) produces all events atomically in gsId 298. The counter reaches 3 and is immediately removed — the client never observes a persistent annotation with count=3.
-- **Three TokenCreated annotations, one per token.** Each is a separate annotation with affectorId=ability instance. No batching. Token grpId=87485 (Treasure), consistent with existing token-creation-wire.md.
+- **Three TokenCreated annotations, one per token.** Each is a separate annotation with affectorId=ability instance. No batching. Token grpId=87485 (Treasure), consistent with existing prior conformance research.
 - **MultistepEffectComplete (SubCategory=15) fires on every activation resolve** — precedes CounterAdded. Appears to be a mandatory sequencing marker for multi-step activated abilities.
-- **Scry uses GroupReq** (not SelectNReq) — consistent with groupreq-surveil-wire.md. context="Scry", groupSpecs=[Library/Top, Library/Bottom], groupType=Ordered.
+- **Scry uses GroupReq** (not SelectNReq) — consistent with prior conformance research (GroupReq for surveil/scry). context="Scry", groupSpecs=[Library/Top, Library/Bottom], groupType=Ordered.
 - **grpId in ActionsAvailableReq reflects current face.** Before transform: grpId=87432. After transform: grpId=87433. The client tracks this from the object diff.
 
 ## Gaps for leyline
 
 1. **AlternateMode:DoubleFaced not wired.** The branch ability (DBBranch → DBRemoveCtrs → DBTransform → DBTreasureTokens) resolves entirely in the Forge engine, but leyline does not emit the grpId mutation in the Diff object. The transform moment requires: CounterRemoved, three TokenCreated, and the object diff changing grpId/cardTypes/uniqueAbilityCount — all in one Diff GSM.
-2. **counter_type=127 (LANDMARK) not mapped.** CounterMapper needs `LANDMARK → 127`. Update `counter-type-reference.md`.
+2. **counter_type=127 (LANDMARK) not mapped.** CounterMapper needs `LANDMARK → 127`. Update `docs/card-specs/SYNTHESIS.md` (counter types).
 3. **CounterAdded + CounterRemoved in same resolution.** The DBBranch executes synchronously — the single ability resolution emits both a CounterAdded (the +1 that gets you to 3) and then CounterRemoved (−3). The emit order must match: Scry → MultistepEffectComplete → CounterAdded → CounterRemoved → TokenCreated ×3 → ResolutionComplete → AbilityInstanceDeleted.
 4. **Three Treasure tokens created atomically.** DBTreasureTokens creates 3 tokens in one ability step. Each needs its own TokenCreated annotation (three separate annotations, same affectorId). Token grpId=87485.
 5. **Post-transform object diff.** The Diff must update: grpId (87432→87433), cardTypes ([Artifact]→[Land]), uniqueAbilityCount (1→2), isTapped=true (tap was part of the activation cost). A new ColorProduction persistent annotation (colors=12) must appear for the land.
@@ -129,7 +129,7 @@ All annotations share `affectorId=387` (the ability instance):
 
 ## Supporting evidence needed
 
-- [ ] Update `counter-type-reference.md` memory file with counter_type=127 (LANDMARK)
-- [ ] Cross-check `dfc-activated-transform-wire.md` — confirm the in-place grpId mutation pattern also applies here (not just Concealing Curtains)
+- [ ] Update `docs/card-specs/SYNTHESIS.md` counter type table with counter_type=127 (LANDMARK)
+- [ ] Cross-check prior conformance research (Concealing Curtains transform) — confirm the in-place grpId mutation pattern also applies here (not just Concealing Curtains)
 - [ ] Puzzle: `treasure-map.pzl` — enter with 2 landmark counters already on Treasure Map; one activation should trigger transform + 3 tokens
 - [ ] Verify Treasure Cove draw ability (abilityGrpId=116859) wire shape — gsId=364 in session shows the Sac-for-mana bracket but the draw resolution was not captured (player used mana for another spell instead)

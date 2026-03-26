@@ -80,6 +80,6 @@ ZoneTransfer Resolve fires with no AbilityInstanceCreated for grpId 137887. The 
 ## Supporting evidence
 
 - `docs/catalog.yaml` — `lifelink` entry: wired, LifeChanged annotation confirmed
-- `sba-deathtouch-wire.md` — SBA_Damage category shape; ObjectIdChanged+ZoneTransfer pattern confirmed
-- `token-creation-wire.md` — TokenCreated shape (no details, affectorId=ability instance) expected for Demon token
-- `exile-aura-wire.md` — Exile category="Exile" for self-exile ZoneTransfer expected
+- prior conformance research (SBA_Damage category) — SBA_Damage category shape; ObjectIdChanged+ZoneTransfer pattern confirmed
+- prior conformance research (TokenCreated: no details, affectorId=ability instance) — TokenCreated shape (no details, affectorId=ability instance) expected for Demon token
+- prior conformance research (Exile category, DisplayCardUnderCard) — Exile category="Exile" for self-exile ZoneTransfer expected

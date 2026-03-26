@@ -122,7 +122,7 @@ AddAbility+LayeredEffect (pAnn)  affectorId=350, affectedIds=[350]
   details: { originalAbilityObjectZcid:350, UniqueAbilityId:220, grpid:6, effect_id:7002 }
 ```
 
-grpId 6 is First Strike. The AddAbility+LayeredEffect combo matches the Claim-the-Firstborn Haste pattern in `controllerchanged-wire.md`. This is a self-referential conditional static — the permanent grants itself an ability based on a condition.
+grpId 6 is First Strike. The AddAbility+LayeredEffect combo matches the Claim-the-Firstborn Haste pattern in prior conformance research (ControllerChanged wire). This is a self-referential conditional static — the permanent grants itself an ability based on a condition.
 
 ## Gaps for leyline
 
@@ -142,7 +142,7 @@ grpId 6 is First Strike. The AddAbility+LayeredEffect combo matches the Claim-th
 
 ## Supporting evidence
 
-- `exile-aura-wire.md` — Exile ZoneTransfer category and Qualification pAnn context (type 47 = CardRevealed per rosetta.md row 42/47)
-- `token-creation-wire.md` — TokenCreated transient shape: no details field, affectorId=resolving ability iid
-- `controllerchanged-wire.md` — AddAbility+LayeredEffect pAnn shape for grpId=6 (Haste); same shape observed here for First Strike (grpId=6 confirmed)
+- prior conformance research (Exile category, DisplayCardUnderCard) — Exile ZoneTransfer category and Qualification pAnn context (type 47 = CardRevealed per rosetta.md row 42/47)
+- prior conformance research (TokenCreated: no details, affectorId=ability instance) — TokenCreated transient shape: no details field, affectorId=resolving ability iid
+- prior conformance research (ControllerChanged wire) — AddAbility+LayeredEffect pAnn shape for grpId=6 (Haste); same shape observed here for First Strike (grpId=6 confirmed)
 - `docs/rosetta.md` — Qualification annotation type 42, QualificationType 47 = CardRevealed

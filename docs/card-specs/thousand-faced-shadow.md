@@ -67,7 +67,7 @@ Three Steps Ahead (iid 405, grpId=90421) resolved and created a Shadow token:
 | gsId | instanceId | Zone | What happened |
 |------|-----------|------|---------------|
 | 383 | 405 | Stack | ResolutionStart affectorId=405 grpid=90421 |
-| 383 | 412 | →BF (28) | TokenCreated affectorId=405 affectedIds=[412]; no details (consistent with token-creation-wire.md) |
+| 383 | 412 | →BF (28) | TokenCreated affectorId=405 affectedIds=[412]; no details (consistent with prior conformance research) |
 | 383 | 405→413 | Stack→GY | ObjectIdChanged 405→413; ZoneTransfer zone_src=27 zone_dest=33 category=Resolve |
 
 Token iid 412: grpId=**79511** (matches source creature), type=Token, subtypes=Human/Ninja, 1/1, uniqueAbilityCount=3. **Copy tokens use the copied card's grpId, not a distinct token grpId.**
@@ -105,9 +105,9 @@ No ETB trigger queued (enters not attacking — normal cast from hand does not m
 
 ## Supporting evidence
 
-- `token-creation-wire.md` — TokenCreated affectorId=ability instance, no details field. Applies to Three Steps Ahead case above; expected same shape for ETB trigger.
-- `mandatory-additional-cost-wire.md` — PayCostsReq/EffectCostResp sequence. Ninjutsu may use the same pattern for {2}{U}{U} cost, unconfirmed.
+- prior conformance research (TokenCreated: no details, affectorId=ability instance) — TokenCreated affectorId=ability instance, no details field. Applies to Three Steps Ahead case above; expected same shape for ETB trigger.
+- `docs/card-specs/mardu-outrider.md` — PayCostsReq/EffectCostResp sequence. Ninjutsu may use the same pattern for {2}{U}{U} cost, unconfirmed.
 - `promptid-button-labels.md` — confirms ActionsAvailableReq promptId=2 throughout this session.
-- `targeting-wire.md` / `targetspec-wire.md` — SelectTargetsReq shape for single-target prompts. Expected shape for ETB copy trigger.
+- `docs/rosetta.md` (targeting) / prior conformance research (TargetSpec pAnn) — SelectTargetsReq shape for single-target prompts. Expected shape for ETB copy trigger.
 
 **Single data point caveat:** ninjutsu activation and the ETB copy trigger were not observed in this session. All normal-cast wire data is confirmed (two identical casts observed). The copy token grpId finding (=source grpId) requires verification via the ninjutsu ETB path.
