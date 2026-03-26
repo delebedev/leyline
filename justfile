@@ -123,6 +123,11 @@ dev: check-java
     done
 
 
+# launch debug overlay (Electron, always-on-top HUD)
+[group('dev')]
+overlay:
+    @cd tools/overlay && bun run start
+
 # --- Client Setup ---
 
 # MTGA.app location (standard Epic Games install on macOS)
