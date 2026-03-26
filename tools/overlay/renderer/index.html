@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Leyline Overlay</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'JetBrains Mono', 'Menlo', monospace;
+    font-size: 11px;
+    background: transparent;
+    color: #e0e0e0;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #root {
+    background: rgba(0, 0, 0, 0.75);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+</style>
+</head>
+<body>
+  <div id="root">
+    <div id="status">Waiting for server…</div>
+  </div>
+  <script src="overlay.js"></script>
+</body>
+</html>
