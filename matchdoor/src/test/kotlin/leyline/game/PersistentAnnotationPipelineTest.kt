@@ -25,7 +25,7 @@ class PersistentAnnotationPipelineTest :
 
         test("cardExiledWithSourceEmitsDisplayCardUnderCard") {
             val events = listOf(
-                GameEvent.CardExiled(forgeCardId = 80, seatId = 1, sourceForgeCardId = 90),
+                GameEvent.CardExiled(forgeCardId = 80, seatId = 1, sourceForgeCardId = 90, fromBattlefield = true),
             )
             val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
 
