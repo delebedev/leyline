@@ -1,3 +1,4 @@
+const { ipcRenderer } = require("electron");
 const API_BASE = "http://localhost:8090";
 const POLL_INTERVAL = 2000;
 
@@ -77,6 +78,22 @@ function updateStatus(data) {
 }
 
 const idmapList = document.getElementById("idmap-list");
+const root = document.getElementById("root");
+const filterInput = document.getElementById("idmap-filter-input");
+let lastIdMapEntries = [];
+
+ipcRenderer.on("interactive", (_event, isInteractive) => {
+  if (isInteractive) {
+    root.classList.add("interactive");
+    logAutoScroll = false;
+  } else {
+    root.classList.remove("interactive");
+    logAutoScroll = true;
+    logList.scrollTop = logList.scrollHeight;
+    filterInput.value = "";
+    renderIdMap(lastIdMapEntries);
+  }
+});
 
 const ZONE_SHORT = {
   Battlefield: "BF",
@@ -108,14 +125,17 @@ async function refreshIdMap() {
 }
 
 function renderIdMap(entries) {
+  lastIdMapEntries = entries;
+  const filter = filterInput.value.toLowerCase();
+  const filtered = filter
+    ? entries.filter(e => e.cardName.toLowerCase().includes(filter))
+    : entries;
+
   idmapList.innerHTML = "";
-  for (const e of entries) {
+  for (const e of filtered) {
     const zone = e.forgeZone || "?";
     const zoneShort = ZONE_SHORT[zone] || zone.slice(0, 3);
     const zoneClass = ZONE_CLASS[zone] || "zone-exile";
-    const tapped = zone === "Battlefield"
-      ? (e.protoZone === "Battlefield" ? "○" : "")
-      : "";
     const name = e.cardName.length > 12 ? e.cardName.slice(0, 11) + "…" : e.cardName;
 
     const row = document.createElement("div");
@@ -124,7 +144,6 @@ function renderIdMap(entries) {
       <span class="iid">${e.instanceId}</span>
       <span class="name">${name}</span>
       <span class="zone ${zoneClass}">${zoneShort}</span>
-      <span class="tap">${tapped}</span>
     `;
     idmapList.appendChild(row);
   }
@@ -164,6 +183,8 @@ function appendLog(entry) {
     logList.scrollTop = logList.scrollHeight;
   }
 }
+
+filterInput.addEventListener("input", () => renderIdMap(lastIdMapEntries));
 
 // Boot
 setConnected(false);

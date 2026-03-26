@@ -1,7 +1,14 @@
-import { app, BrowserWindow, screen } from "electron";
+import { app, BrowserWindow, screen, globalShortcut } from "electron";
 import { join } from "path";
 
 let win;
+let interactive = false;
+
+function toggleInteractive() {
+  interactive = !interactive;
+  win.setIgnoreMouseEvents(!interactive);
+  win.webContents.send("interactive", interactive);
+}
 
 function createWindow() {
   const { height, width } = screen.getPrimaryDisplay().workAreaSize;
@@ -25,7 +32,9 @@ function createWindow() {
   win.setAlwaysOnTop(true, "screen-saver");
   win.setIgnoreMouseEvents(true);
   win.loadFile(join(import.meta.dirname, "renderer", "index.html"));
+  globalShortcut.register("CommandOrControl+Shift+D", toggleInteractive);
 }
 
 app.whenReady().then(createWindow);
 app.on("window-all-closed", () => app.quit());
+app.on("will-quit", () => globalShortcut.unregisterAll());

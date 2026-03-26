@@ -65,6 +65,27 @@
   .zone-gy { color: #e94560; }
   .zone-stack { color: #f4845f; }
   .zone-exile { color: #8888aa; }
+  #root.interactive {
+    border-left: 2px solid #56c596;
+    box-shadow: -4px 0 12px rgba(86, 197, 150, 0.2);
+  }
+  #idmap-filter {
+    display: none;
+    padding: 4px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  #idmap-filter input {
+    width: 100%;
+    background: rgba(255,255,255,0.1);
+    border: none;
+    color: #e0e0e0;
+    font-family: inherit;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    outline: none;
+  }
+  .interactive #idmap-filter { display: block; }
   #log-panel {
     flex: 1;
     display: flex;
@@ -93,6 +114,7 @@
     <div id="status">Waiting for server…</div>
     <div id="idmap-panel">
       <div class="panel-header">ID Map</div>
+      <div id="idmap-filter"><input type="text" placeholder="filter…" id="idmap-filter-input"></div>
       <div id="idmap-list"></div>
     </div>
     <div id="log-panel">
