@@ -1,0 +1,18 @@
+[metadata]
+Name:Novice Inspector Investigate
+Goal:PlaySpecifiedPermanent
+Turns:3
+Difficulty:Easy
+Description:Cast Novice Inspector to investigate (create Clue token), then sacrifice Clue to draw.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Novice Inspector
+humanbattlefield=Plains;Island;Island
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Runeclaw Bear
+ailibrary=Mountain;Mountain;Mountain

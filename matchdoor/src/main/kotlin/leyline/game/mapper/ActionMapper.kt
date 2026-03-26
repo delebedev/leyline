@@ -10,6 +10,7 @@ import forge.game.spellability.LandAbility
 import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.bridge.chooseCastAbility
+import leyline.bridge.getAllCastableAbilities
 import leyline.game.AbilityRegistry
 import leyline.game.CardData
 import leyline.game.GameBridge
@@ -189,6 +190,10 @@ object ActionMapper {
             builder.addActions(actionBuilder)
         }
 
+        // Zone casts: Graveyard, Exile, Command (flashback, escape, etc.)
+        if (checkLegality) {
+            addZoneCastActions(player, builder, idResolver, grpIdResolver, cardDataLookup)
+        }
         // Pass + FloatMana always available
         builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
         builder.addActions(Action.newBuilder().setActionType(ActionType.FloatMana))
@@ -254,6 +259,62 @@ object ActionMapper {
         )
 
         return actionBuilder.build()
+    }
+
+    /**
+     * Add Cast actions for cards castable from non-hand zones (GY, Exile, Command).
+     * Covers flashback, escape, and other alternate-cost mechanics.
+     *
+     * For alternate-cost casts, sets [Action.abilityGrpId] from the keyword's
+     * registered grpId (e.g. flashback abilityGrpId=175847 for Electroduplicate).
+     */
+    private fun addZoneCastActions(
+        player: Player,
+        builder: ActionsAvailableReq.Builder,
+        idResolver: (Int) -> Int,
+        grpIdResolver: (Card) -> Int,
+        cardDataLookup: (Int) -> CardData?,
+    ) {
+        val game = player.game ?: return
+        val zones = listOf(ForgeZoneType.Graveyard, ForgeZoneType.Exile, ForgeZoneType.Command)
+        for (card in game.getCardsIn(zones)) {
+            val castable = getAllCastableAbilities(card, player)
+            if (castable.isEmpty()) continue
+            val sa = castable.first()
+
+            val instanceId = idResolver(card.id)
+            val grpId = grpIdResolver(card)
+            val actionBuilder = Action.newBuilder()
+                .setActionType(ActionType.Cast)
+                .setInstanceId(instanceId)
+                .setGrpId(grpId)
+                .setFacetId(instanceId)
+                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+
+            // Set abilityGrpId from the alternate cost keyword (flashback, escape, etc.)
+            val cardData = cardDataLookup(grpId)
+            val altCost = sa.alternativeCost
+            if (altCost != null) {
+                val altCostName = altCost.name.uppercase()
+                val abilityGrpId = cardData?.keywordAbilityGrpIds?.entries
+                    ?.firstOrNull { it.key.startsWith(altCostName) }?.value ?: 0
+                if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+            }
+
+            // Mana cost: use alt cost if available, else base from cardData
+            val altManaCost = sa.payCosts?.totalMana
+            if (altManaCost != null && !altManaCost.isNoCost) {
+                addManaCostFromForge(altManaCost, actionBuilder)
+            } else if (cardData != null) {
+                for ((color, count) in cardData.manaCost) {
+                    actionBuilder.addManaCost(
+                        ManaRequirement.newBuilder().addColor(color).setCount(count),
+                    )
+                }
+            }
+
+            builder.addActions(actionBuilder)
+        }
     }
 
     internal fun passOnlyActions(): ActionsAvailableReq =
@@ -354,6 +415,31 @@ object ActionMapper {
             )
         }
         return builder.build()
+    }
+
+    /** Convert a Forge [ManaCost] into proto [ManaRequirement] entries on an action builder. */
+    private fun addManaCostFromForge(
+        manaCost: forge.card.mana.ManaCost,
+        actionBuilder: Action.Builder,
+    ) {
+        // Colored shards: each shard is one pip (e.g. ManaCostShard.BLUE → "U")
+        val colorCounts = mutableMapOf<ManaColor, Int>()
+        for (shard in manaCost) {
+            val color = producedToManaColor(shard.toString()) ?: continue
+            colorCounts[color] = (colorCounts[color] ?: 0) + 1
+        }
+        for ((color, count) in colorCounts) {
+            actionBuilder.addManaCost(
+                ManaRequirement.newBuilder().addColor(color).setCount(count),
+            )
+        }
+        // Generic mana
+        val generic = manaCost.genericCost
+        if (generic > 0) {
+            actionBuilder.addManaCost(
+                ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic),
+            )
+        }
     }
 
     /** Map Forge's produced-mana string (e.g. "G", "W", "Any") to proto ManaColor. */

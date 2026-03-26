@@ -79,6 +79,17 @@ class PromptClassifierTest :
             result.reason shouldBe ClassifiedPrompt.SelectN.Reason.LegendRule
         }
 
+        test("discard cost prompt classifies as select-n with Discard reason") {
+            val result = classify(
+                promptType = "choose_cards",
+                message = "Select a card to discard",
+                semantic = PromptSemantic.SelectNDiscard,
+                candidateRefs = listOf(cardRef),
+            ).shouldBeInstanceOf<ClassifiedPrompt.SelectN>()
+
+            result.reason shouldBe ClassifiedPrompt.SelectN.Reason.Discard
+        }
+
         test("candidate refs without a stronger semantic classifies as targeting") {
             classify(
                 promptType = "choose_cards",

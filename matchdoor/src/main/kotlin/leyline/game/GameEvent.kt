@@ -174,6 +174,7 @@ sealed interface GameEvent {
         val forgeCardId: Int,
         val seatId: Int,
         val sourceForgeCardId: Int? = null,
+        val fromBattlefield: Boolean = false,
     ) : GameEvent
 
     /** A card was discarded (Hand→GY). */

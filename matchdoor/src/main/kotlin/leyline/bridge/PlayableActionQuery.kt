@@ -29,8 +29,10 @@ object PlayableActionQuery {
                 if (sa.canPlay()) return true
             }
         }
+        // Zone casts: flashback, escape, etc. Don't gate on mayPlay() — keyword-based
+        // alt costs (e.g. flashback) may not register explicit mayPlay grants in all
+        // engine states but are still castable via getAlternativeCosts().
         for (card in game.getCardsIn(listOf(ZoneType.Exile, ZoneType.Graveyard, ZoneType.Command))) {
-            if (card.mayPlay(player).isEmpty()) continue
             if (chooseCastAbility(card, player) != null) return true
         }
         return false

@@ -273,6 +273,7 @@ enum class PromptSemantic {
     GroupingScry,
     ModalChoice,
     SelectNLegendRule,
+    SelectNDiscard,
     Search,
 }
 

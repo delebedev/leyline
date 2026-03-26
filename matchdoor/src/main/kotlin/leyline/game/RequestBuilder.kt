@@ -145,14 +145,18 @@ object RequestBuilder {
         bridge: GameBridge,
     ): SelectNReq {
         val isLegendRule = prompt.request.semantic == PromptSemantic.SelectNLegendRule
+        val isDiscard = prompt.request.semantic == PromptSemantic.SelectNDiscard
+        val context = if (isDiscard) SelectionContext.Discard_a163 else SelectionContext.Resolution_a163
+        val listType = if (isDiscard) SelectionListType.Static else SelectionListType.Dynamic
+        val optionContext = if (isDiscard) OptionContext.Payment else OptionContext.Resolution_a9d7
         val builder = SelectNReq.newBuilder()
             .setMinSel(prompt.request.min)
             .setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
-            .setContext(SelectionContext.Resolution_a163)
-            .setListType(SelectionListType.Dynamic)
+            .setContext(context)
+            .setListType(listType)
             .setIdType(IdType.InstanceId_ab2c)
             .setValidationType(SelectionValidationType.NonRepeatable)
-            .setOptionContext(OptionContext.Resolution_a9d7)
+            .setOptionContext(optionContext)
         for (ref in prompt.request.candidateRefs) {
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
             builder.addIds(instanceId)
@@ -162,7 +166,8 @@ object RequestBuilder {
             builder.setPrompt(Prompt.newBuilder())
             builder.setSourceId(PromptIds.SELECT_N_LEGEND_RULE_SOURCE)
         } else {
-            builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
+            val promptId = if (isDiscard) PromptIds.DISCARD_COST else PromptIds.SELECT_N
+            builder.setPrompt(Prompt.newBuilder().setPromptId(promptId))
         }
         return builder.build()
     }
