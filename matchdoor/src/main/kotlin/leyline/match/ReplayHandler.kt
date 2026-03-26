@@ -44,33 +44,46 @@ class ReplayHandler(
     @Volatile private var pendingCtx: ChannelHandlerContext? = null
 
     init {
+        val seat1Payloads = File(payloadDir, "capture/seat-1/md-payloads")
         val framesDir = File(payloadDir, "capture/frames")
         val engineDir = File(payloadDir, "engine")
 
-        val allFiles = when {
-            // Proxy format: NNN_MD_S-C_MATCH_DATA.bin in capture/frames/
-            framesDir.isDirectory -> {
-                log.info("Replay: detected proxy frames in {}", framesDir)
-                framesDir.listFiles()
-                    ?.filter { it.name.contains("MD_S-C_MATCH_DATA") }
-                    ?.sortedBy { it.name }
-                    ?: emptyList()
+        // Detect recording format and whether files have 6-byte frame headers.
+        val stripHeader: Boolean
+        val allFiles: List<File>
+
+        fun matchDataFiles(dir: File) = dir.listFiles()
+            ?.filter { it.name.contains("MD_S-C_MATCH_DATA") }
+            ?.sortedBy { it.name }
+            ?: emptyList()
+
+        when {
+            // Decoded per-seat payloads (no header) — current proxy format
+            seat1Payloads.isDirectory -> {
+                log.info("Replay: detected seat-1 payloads in {}", seat1Payloads)
+                allFiles = matchDataFiles(seat1Payloads)
+                stripHeader = false
             }
-            // Engine format: NNN-Type.bin files in engine/
+            // Raw proxy frames (6-byte header) — older captures
+            framesDir.isDirectory -> {
+                log.info("Replay: detected raw frames in {}", framesDir)
+                allFiles = matchDataFiles(framesDir)
+                stripHeader = true
+            }
+            // Engine format
             engineDir.isDirectory -> {
                 log.info("Replay: detected engine format in {}", engineDir)
-                engineDir.listFiles()
+                allFiles = engineDir.listFiles()
                     ?.filter { it.extension == "bin" && !it.name.contains("AuthResp") && !it.name.contains("RoomState") }
                     ?.sortedBy { it.name }
                     ?: emptyList()
+                stripHeader = false
             }
-            // Legacy: --replay points directly at a dir with S-C_MATCH files
+            // Legacy: direct payloads dir
             else -> {
                 log.info("Replay: loading from {}", payloadDir)
-                payloadDir.listFiles()
-                    ?.filter { it.name.contains("S-C_MATCH") }
-                    ?.sortedBy { it.name }
-                    ?: emptyList()
+                allFiles = matchDataFiles(payloadDir)
+                stripHeader = false
             }
         }
 
@@ -79,8 +92,6 @@ class ReplayHandler(
         val gres = mutableListOf<CapturedPayload>()
         val other = mutableListOf<CapturedPayload>()
 
-        // Proxy raw captures include a 6-byte frame header; engine dumps don't.
-        val stripHeader = framesDir.isDirectory
         val headerSize = 6
 
         for (file in allFiles) {
