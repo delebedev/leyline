@@ -65,6 +65,27 @@
   .zone-gy { color: #e94560; }
   .zone-stack { color: #f4845f; }
   .zone-exile { color: #8888aa; }
+  #log-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #log-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 2px 0;
+  }
+  .log-row {
+    padding: 1px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .log-error { color: #e94560; }
+  .log-warn { color: #f7d354; }
+  .log-info { color: #e0e0e0; }
+  .log-debug { color: #666680; }
 </style>
 </head>
 <body>
@@ -73,6 +94,10 @@
     <div id="idmap-panel">
       <div class="panel-header">ID Map</div>
       <div id="idmap-list"></div>
+    </div>
+    <div id="log-panel">
+      <div class="panel-header">Logs</div>
+      <div id="log-list"></div>
     </div>
   </div>
   <script src="overlay.js"></script>

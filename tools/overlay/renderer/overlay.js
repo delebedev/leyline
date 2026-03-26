@@ -130,8 +130,40 @@ function renderIdMap(entries) {
   }
 }
 
-// Stub — implemented in Task 4
-function appendLog(_entry) {}
+const logList = document.getElementById("log-list");
+const LOG_MAX = 200;
+let logAutoScroll = true;
+
+const LOG_CLASS = {
+  ERROR: "log-error",
+  WARN: "log-warn",
+  INFO: "log-info",
+  DEBUG: "log-debug",
+  TRACE: "log-debug",
+};
+
+function appendLog(entry) {
+  const row = document.createElement("div");
+  row.className = `log-row ${LOG_CLASS[entry.level] || "log-info"}`;
+
+  const time = entry.timestamp
+    ? new Date(entry.timestamp).toLocaleTimeString("en", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : "";
+  const level = (entry.level || "INFO").padEnd(5);
+  const msg = entry.message || "";
+  row.textContent = `${time} ${level} ${msg}`;
+  logList.appendChild(row);
+
+  // Trim ring buffer
+  while (logList.children.length > LOG_MAX) {
+    logList.removeChild(logList.firstChild);
+  }
+
+  // Auto-scroll when in click-through mode
+  if (logAutoScroll) {
+    logList.scrollTop = logList.scrollHeight;
+  }
+}
 
 // Boot
 setConnected(false);
