@@ -274,7 +274,7 @@ object ActionMapper {
         idResolver: (Int) -> Int,
         grpIdResolver: (Card) -> Int,
         cardDataLookup: (Int) -> CardData?,
-        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+        @Suppress("UNUSED_PARAMETER") abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
     ) {
         val game = player.game ?: return
         val zones = listOf(ForgeZoneType.Graveyard, ForgeZoneType.Exile, ForgeZoneType.Command)

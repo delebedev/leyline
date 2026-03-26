@@ -71,8 +71,6 @@ class NoviceInspectorTest :
             harness = h
             h.connectAndKeepPuzzleText(puzzleText)
             val human = h.bridge.getPlayer(SeatId(1))!!
-            val handBefore = human.getZone(ZoneType.Hand).cards.size
-
             // 1. Cast Novice Inspector
             h.castSpellByName("Novice Inspector").shouldBeTrue()
 
