@@ -9,7 +9,7 @@ Quick links for debugging, protocol analysis, and conformance workflows.
 | `tape` | `just tape` | Recording analysis, proto inspection, conformance | `tools/tape/docs/` |
 | `wire` | `just wire` | Front Door frame inspection | `tools/wire/docs/` |
 | `arena` | `just arena` | MTGA UI automation | `tools/arena/docs/` |
-| `scry` | `just scry` | Game state from Player.log | `reading-player-logs.md` |
+| `scry` | `just scry` | Game state from Player.log | `.claude/skills/player-log/` |
 
 Each tool has `--help` with examples. Docs co-located in `tools/<name>/docs/`.
 
@@ -23,7 +23,7 @@ Each tool has `--help` with examples. Docs co-located in `tools/<name>/docs/`.
 ## Recording / Protocol Debug
 
 - `annotation-variance.md` — annotation type variance profiler across all recordings
-- `reading-player-logs.md` — read client/player logs for transport/protocol context
+- `.claude/skills/player-log/` — read client/player logs for transport/protocol context
 - `wire-format.md` — client frame + protobuf wire format details
 - `debug-api.md` — debug panel REST/SSE endpoint reference
 - `../tools/tape/docs/cli.md` — recording CLI reference

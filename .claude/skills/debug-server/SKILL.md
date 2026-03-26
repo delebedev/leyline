@@ -54,4 +54,4 @@ Common client-side crashes and what they mean:
 
 - **Pagination:** list endpoints return `{version:1, data:[...], cursor:N}`. Pass `?since=<cursor>` for next page.
 - **msgSeq:** snapshots and priority events include `msgSeq` — use to correlate between protocol messages and state snapshots.
-- **Client-side logs:** `~/Library/Logs/Wizards Of The Coast/MTGA/Player.log`. Compare debug API output (what we sent) vs Player.log (what client received) to isolate serialization vs logic issues. See `docs/reading-player-logs.md` for extraction scripts.
+- **Client-side logs:** `~/Library/Logs/Wizards Of The Coast/MTGA/Player.log`. Compare debug API output (what we sent) vs Player.log (what client received) to isolate serialization vs logic issues. Load the `player-log` skill for extraction scripts.
