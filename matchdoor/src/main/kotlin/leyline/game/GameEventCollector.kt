@@ -166,7 +166,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
                     GameEvent.CardBounced(card.id, seat)
                 to == ZoneType.Exile -> {
                     val sourceId = card.exiledWith?.id
-                    GameEvent.CardExiled(card.id, seat, sourceId)
+                    GameEvent.CardExiled(card.id, seat, sourceId, fromBattlefield = from == ZoneType.Battlefield)
                 }
                 from == ZoneType.Hand && to == ZoneType.Graveyard ->
                     GameEvent.CardDiscarded(card.id, seat)

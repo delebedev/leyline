@@ -622,7 +622,9 @@ object AnnotationPipeline {
                 is GameEvent.CardBounced -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
                 is GameEvent.CardExiled -> {
                     val sourceId = ev.sourceForgeCardId
-                    if (sourceId != null) {
+                    // Only render "exiled under this card" for BF→Exile (e.g. Fiend Hunter).
+                    // GY→Exile (e.g. Predator trigger) should go to the exile zone normally.
+                    if (sourceId != null && ev.fromBattlefield) {
                         val sourceIid = idResolver(ForgeCardId(sourceId)).value
                         val exiledIid = idResolver(ForgeCardId(ev.forgeCardId)).value
                         persistent.add(AnnotationBuilder.displayCardUnderCard(affectorId = sourceIid, instanceId = exiledIid))
