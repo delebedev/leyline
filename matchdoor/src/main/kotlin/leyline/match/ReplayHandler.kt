@@ -23,7 +23,8 @@ import java.io.File
  */
 class ReplayHandler(
     private val payloadDir: File,
-) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
+) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>(),
+    ReplayController {
 
     private val log = LoggerFactory.getLogger(ReplayHandler::class.java)
 
@@ -36,25 +37,76 @@ class ReplayHandler(
     private val greEvents: MutableList<CapturedPayload>
     private val uncategorized: MutableList<CapturedPayload>
 
+    // -- ReplayController state --
+    private val replayLock = Any()
+    private var greFrameIndex: List<ReplayController.FrameInfo> = emptyList()
+    private var grePosition = 0
+    private var pendingCtx: ChannelHandlerContext? = null
+
     init {
-        val allFiles = payloadDir.listFiles()
-            ?.filter { it.name.startsWith("S-C_MATCH") }
+        val seat1Payloads = File(payloadDir, "capture/seat-1/md-payloads")
+        val framesDir = File(payloadDir, "capture/frames")
+        val engineDir = File(payloadDir, "engine")
+
+        // Detect recording format and whether files have 6-byte frame headers.
+        val stripHeader: Boolean
+        val allFiles: List<File>
+
+        fun matchDataFiles(dir: File) = dir.listFiles()
+            ?.filter { it.name.contains("MD_S-C_MATCH_DATA") }
             ?.sortedBy { it.name }
             ?: emptyList()
+
+        when {
+            // Decoded per-seat payloads (no header) — current proxy format
+            seat1Payloads.isDirectory -> {
+                log.info("Replay: detected seat-1 payloads in {}", seat1Payloads)
+                allFiles = matchDataFiles(seat1Payloads)
+                stripHeader = false
+            }
+            // Raw proxy frames (6-byte header) — older captures
+            framesDir.isDirectory -> {
+                log.info("Replay: detected raw frames in {}", framesDir)
+                allFiles = matchDataFiles(framesDir)
+                stripHeader = true
+            }
+            // Engine format
+            engineDir.isDirectory -> {
+                log.info("Replay: detected engine format in {}", engineDir)
+                allFiles = engineDir.listFiles()
+                    ?.filter { it.extension == "bin" && !it.name.contains("AuthResp") && !it.name.contains("RoomState") }
+                    ?.sortedBy { it.name }
+                    ?: emptyList()
+                stripHeader = false
+            }
+            // Legacy: direct payloads dir
+            else -> {
+                log.info("Replay: loading from {}", payloadDir)
+                allFiles = matchDataFiles(payloadDir)
+                stripHeader = false
+            }
+        }
 
         val auths = mutableListOf<CapturedPayload>()
         val rooms = mutableListOf<CapturedPayload>()
         val gres = mutableListOf<CapturedPayload>()
         val other = mutableListOf<CapturedPayload>()
 
+        val headerSize = 6
+
         for (file in allFiles) {
-            val bytes = file.readBytes()
+            val rawBytes = file.readBytes()
+            val protoBytes = if (stripHeader && rawBytes.size > headerSize) {
+                rawBytes.copyOfRange(headerSize, rawBytes.size)
+            } else {
+                rawBytes
+            }
             val parsed = try {
-                MatchServiceToClientMessage.parseFrom(bytes)
+                MatchServiceToClientMessage.parseFrom(protoBytes)
             } catch (_: Exception) {
                 null
             }
-            val cp = CapturedPayload(file.name, bytes, parsed)
+            val cp = CapturedPayload(file.name, protoBytes, parsed)
 
             when {
                 parsed == null -> {
@@ -65,6 +117,36 @@ class ReplayHandler(
                 parsed.hasMatchGameRoomStateChangedEvent() -> rooms.add(cp)
                 parsed.hasGreToClientEvent() -> gres.add(cp)
                 else -> other.add(cp)
+            }
+        }
+
+        // Engine format: load auth and room state files separately
+        if (engineDir.isDirectory) {
+            val authFiles = engineDir.listFiles()
+                ?.filter { it.name.contains("AuthResp") && it.extension == "bin" }
+                ?.sortedBy { it.name }
+                ?: emptyList()
+            for (file in authFiles) {
+                val bytes = file.readBytes()
+                val parsed = try {
+                    MatchServiceToClientMessage.parseFrom(bytes)
+                } catch (_: Exception) {
+                    null
+                }
+                if (parsed != null) auths.add(CapturedPayload(file.name, bytes, parsed))
+            }
+            val roomFiles = engineDir.listFiles()
+                ?.filter { it.name.contains("RoomState") && it.extension == "bin" }
+                ?.sortedBy { it.name }
+                ?: emptyList()
+            for (file in roomFiles) {
+                val bytes = file.readBytes()
+                val parsed = try {
+                    MatchServiceToClientMessage.parseFrom(bytes)
+                } catch (_: Exception) {
+                    null
+                }
+                if (parsed != null) rooms.add(CapturedPayload(file.name, bytes, parsed))
             }
         }
 
@@ -81,6 +163,19 @@ class ReplayHandler(
             gres.size,
             other.size,
         )
+
+        greFrameIndex = gres.mapIndexed { i, cp ->
+            val greType = cp.parsed?.greToClientEvent
+                ?.greToClientMessagesList
+                ?.firstOrNull()?.type?.name
+                ?: "Unknown"
+            ReplayController.FrameInfo(
+                index = i,
+                fileName = cp.fileName,
+                greType = greType,
+                category = "gre",
+            )
+        }
     }
 
     override fun channelActive(ctx: ChannelHandlerContext) {
@@ -105,11 +200,14 @@ class ReplayHandler(
         clientId = authReq.clientId
         log.info("Replay: auth clientId={} → seat={}", clientId, seatId)
 
-        // Build patched auth response with the REAL clientId from this session
+        // Build patched auth response with the REAL clientId from this session.
+        // Prefer seat-matched auth; fall back to any available (single-seat recordings).
         val captured = if (isFamiliar) {
             authResponses.firstOrNull { it.parsed?.authenticateResponse?.clientId?.endsWith("_Familiar") == true }
+                ?: authResponses.firstOrNull()
         } else {
             authResponses.firstOrNull { it.parsed?.authenticateResponse?.clientId?.endsWith("_Familiar") != true }
+                ?: authResponses.firstOrNull()
         }
 
         if (captured?.parsed != null) {
@@ -145,20 +243,45 @@ class ReplayHandler(
             sendProto(ctx, patchMatchId(roomState.parsed), "roomState(patched)")
         }
 
-        // Send next GRE bundle for this seat (patched)
-        val greBundle = popGreForSeat()
-        if (greBundle != null) sendPatchedGre(ctx, greBundle)
+        synchronized(replayLock) {
+            pendingCtx = ctx
+        }
     }
 
     private fun handleGre(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
         val greMsg = ClientToGREMessage.parseFrom(msg.payload)
-        log.info("Replay: GRE type={} seat={}", greMsg.type, greMsg.systemSeatId)
+        log.info("Replay: GRE from client type={} seat={}", greMsg.type, greMsg.systemSeatId)
+        synchronized(replayLock) {
+            pendingCtx = ctx
+        }
+    }
 
-        val next = popGreForSeat()
-        if (next != null) {
-            sendPatchedGre(ctx, next)
-        } else {
-            log.info("Replay: no more GRE responses for seat={}", seatId)
+    // -- ReplayController implementation --
+
+    override val currentFrame: Int get() = grePosition
+    override val totalFrames: Int get() = greFrameIndex.size
+    override val frameIndex: List<ReplayController.FrameInfo> get() = greFrameIndex
+
+    override fun next(): Boolean {
+        synchronized(replayLock) {
+            val ctx = pendingCtx ?: return false
+            val cp = popGreForSeat() ?: return false
+            sendPatchedGre(ctx, cp)
+            // Track position by finding this payload in the frame index
+            val idx = greFrameIndex.indexOfFirst { it.fileName == cp.fileName }
+            if (idx >= 0) grePosition = idx + 1
+            return true
+        }
+    }
+
+    override fun status(): ReplayController.ReplayStatus {
+        synchronized(replayLock) {
+            return ReplayController.ReplayStatus(
+                currentFrame = grePosition,
+                totalFrames = greFrameIndex.size,
+                currentFrameInfo = greFrameIndex.getOrNull(grePosition),
+                atEnd = grePosition >= greFrameIndex.size,
+            )
         }
     }
 

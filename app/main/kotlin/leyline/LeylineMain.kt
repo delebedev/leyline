@@ -128,6 +128,7 @@ private fun buildDebugServer(port: Int, server: LeylineServer) = DebugServer(
     fdCollector = server.fdCollector,
     eventBus = server.eventBus,
     recordingInspector = server.recordingInspector,
+    replayController = { server.replayController },
 )
 
 private fun buildAccountServer(
