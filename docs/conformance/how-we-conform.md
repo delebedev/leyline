@@ -108,10 +108,10 @@ After a batch of card specs, read all gaps across specs and group by shared infr
 
 Each horizontal layer becomes a focused PR with unit tests. Cross-link back to the card specs that need it.
 
-### 4. Implement — horizontal layers first, card puzzles as gates
+### 4. Implement — horizontal layers first, puzzles as mechanic gates
 
 ```
-horizontal PR (unit-tested)     card puzzle (integration gate)
+horizontal PR (unit-tested)     puzzle (integration gate)
 ─────────────────────────────   ──────────────────────────────
 counter type mapper             Drake Hatcher puzzle
 token grpId registry            Novice Inspector puzzle
@@ -119,7 +119,15 @@ transform handler               Treasure Map puzzle
 cast-from-GY action             Think Twice puzzle
 ```
 
-Each horizontal PR is small, testable, independently mergeable. The card puzzle proves the pieces compose correctly end-to-end. A puzzle failing tells you which horizontal layer has a gap.
+Each horizontal PR is small, testable, independently mergeable.
+
+**Puzzles test mechanic combos, not individual cards.** A card is the vehicle — the simplest card that exercises the mechanic is the best puzzle candidate. 20K cards exist but only ~50-100 distinct mechanic combos matter. Card specs identify which combos need testing; puzzles prove the combo works.
+
+Most cards share mechanics with others and don't need their own puzzle. Example: one flashback puzzle (Think Twice) covers all flashback cards. One ETB-loot puzzle (Kiora) covers loot + threshold together.
+
+**Exception: complex lifecycles.** Mechanics with multi-step state machines may need multiple puzzles for each phase. Adventure needs 2-3: cast adventure side only, cast creature side only, full loop (adventure → exile → creature from exile). Each phase can break independently.
+
+A puzzle failing tells you which horizontal layer has a gap.
 
 ### 5. Close the loop
 
