@@ -14,6 +14,7 @@ import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.PromptSemantic
 import leyline.bridge.WebCostDecision
 import leyline.conformance.TestCardRegistry
 import leyline.game.GameBridge
@@ -104,10 +105,11 @@ class WebCostDecisionTest :
                 Int::class.javaPrimitiveType,
                 Int::class.javaPrimitiveType,
                 Boolean::class.javaPrimitiveType,
+                PromptSemantic::class.java,
             )
             method.isAccessible = true
             @Suppress("UNCHECKED_CAST")
-            return method.invoke(decision, "pick", cards, min, max, cancelAllowed) as? CardCollection
+            return method.invoke(decision, "pick", cards, min, max, cancelAllowed, PromptSemantic.Generic) as? CardCollection
         }
 
         test("selectCards returns null for empty cancelable choice") {

@@ -28,6 +28,7 @@ sealed interface ClassifiedPrompt {
     ) : ClassifiedPrompt {
         enum class Reason {
             LegendRule,
+            Discard,
         }
     }
 
@@ -62,6 +63,10 @@ object PromptClassifier {
                 ClassifiedPrompt.SelectN.Reason.LegendRule,
             )
             req.semantic == PromptSemantic.Search -> ClassifiedPrompt.Search(pendingPrompt)
+            req.semantic == PromptSemantic.SelectNDiscard -> ClassifiedPrompt.SelectN(
+                pendingPrompt,
+                ClassifiedPrompt.SelectN.Reason.Discard,
+            )
             req.candidateRefs.isNotEmpty() -> ClassifiedPrompt.Targeting(pendingPrompt)
             else -> ClassifiedPrompt.AutoResolve(pendingPrompt)
         }

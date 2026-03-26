@@ -68,6 +68,7 @@ class WebCostDecision(
         min: Int,
         max: Int,
         cancelAllowed: Boolean = true,
+        semantic: PromptSemantic = PromptSemantic.Generic,
     ): CardCollection? {
         if (cards.isEmpty()) return if (cancelAllowed) null else CardCollection()
         if (cards.size <= min && !cancelAllowed) {
@@ -85,6 +86,7 @@ class WebCostDecision(
             max = max,
             defaultIndex = 0,
             candidateRefs = refs,
+            semantic = semantic,
         )
         val indices = bridge.requestChoice(request)
         if (indices.isEmpty() && cancelAllowed) return null
@@ -425,6 +427,7 @@ class WebCostDecision(
             c,
             c,
             cancelAllowed = !mandatory,
+            semantic = PromptSemantic.SelectNDiscard,
         ) ?: return null
         if (selected.size != c) return null
         return PaymentDecision.card(selected)

@@ -165,6 +165,17 @@ class TargetingHandler(private val ops: SessionOps) {
                     return true
                 }
 
+                is ClassifiedPrompt.SelectN -> {
+                    val game = bridge.getGame() ?: return false
+                    ops.traceEvent(
+                        MatchEventType.TARGET_PROMPT,
+                        game,
+                        "post-cast selectN reason=${classified.reason} candidates=${pendingPrompt.request.candidateRefs.size}",
+                    )
+                    sendSelectNReq(bridge, classified.pendingPrompt, classified.reason)
+                    return true
+                }
+
                 is ClassifiedPrompt.Search -> {
                     val game = bridge.getGame() ?: return false
                     ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "post-cast search")
