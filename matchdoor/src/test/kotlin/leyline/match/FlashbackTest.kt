@@ -19,8 +19,8 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
 private val PUZZLE = """
 [metadata]
-Name:Flashback Think Twice
-Goal:Cast Think Twice from graveyard via flashback.
+Name:Flashback Think Twice — Full Lifecycle
+Goal:Cast from hand, then flashback from GY. Drawn creature is win condition.
 Turns:5
 Difficulty:Easy
 
@@ -28,12 +28,11 @@ Difficulty:Easy
 ActivePlayer=Human
 ActivePhase=Main1
 HumanLife=20
-AILife=20
+AILife=2
 
-humanbattlefield=Island;Island;Island
-humangraveyard=Think Twice
-humanlibrary=Plains;Plains;Plains;Plains;Plains
-aibattlefield=Mountain
+humanhand=Think Twice
+humanbattlefield=Island;Island;Island;Island;Island;Island
+humanlibrary=Coral Merfolk;Plains;Plains;Plains;Plains
 ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
 """.trimIndent()
 
@@ -44,7 +43,7 @@ class FlashbackTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("ActionMapper offers Cast for flashback card in GY (pure board setup)").config(tags = setOf(ConformanceTag)) {
+        test("ActionMapper offers Cast for flashback card in GY").config(tags = setOf(ConformanceTag)) {
             val (b, game, _) = base.startWithBoard { _, human, _ ->
                 base.addCard("Island", human, ZoneType.Battlefield)
                 base.addCard("Island", human, ZoneType.Battlefield)
@@ -53,7 +52,6 @@ class FlashbackTest :
             }
             val human = game.humanPlayer
 
-            // Verify Think Twice is in GY
             val gyCards = human.getZone(ZoneType.Graveyard).cards
             gyCards.any { it.name == "Think Twice" }.shouldBeTrue()
 
@@ -67,56 +65,45 @@ class FlashbackTest :
             )
 
             val castActions = actions.actionsList.filter { it.actionType == ActionType.Cast }
-            if (castActions.isEmpty()) {
-                val tt = gyCards.first { it.name == "Think Twice" }
-                val sa = leyline.bridge.chooseCastAbility(tt, human)
-                val canPay = if (sa != null) {
-                    try {
-                        forge.ai.ComputerUtilMana.canPayManaCost(sa, human, 0, false)
-                    } catch (_: Exception) {
-                        false
-                    }
-                } else {
-                    false
-                }
-                error(
-                    "No Cast action. chooseCastAbility=${sa != null} canPay=$canPay " +
-                        "keywords=${tt.keywords.map { it.toString() }} " +
-                        "phase=${game.phaseHandler.phase} " +
-                        "all=${actions.actionsList.map { "${it.actionType}(grp=${it.grpId})" }}",
-                )
-            }
             castActions.shouldNotBeEmpty()
-            val castAction = castActions.first()
-            castAction.manaCostCount.shouldBeGreaterThan(0)
+            castActions.first().manaCostCount.shouldBeGreaterThan(0)
         }
 
-        // --- Integration test: full cast+resolve cycle ---
-
-        test("Think Twice flashback: cast resolves, draws card, exiled").config(tags = setOf(IntegrationTag)) {
+        test("full lifecycle: hand cast → GY → flashback → exile").config(tags = setOf(IntegrationTag)) {
             val h = MatchFlowHarness(validating = false)
             try {
                 h.connectAndKeepPuzzleText(PUZZLE)
 
                 val player = h.bridge.getPlayer(SeatId(1))!!
-                val handSizeBefore = player.getZone(ZoneType.Hand).size()
 
-                // Cast Think Twice from GY
+                // --- Phase 1: cast Think Twice from hand ---
+                val handBefore = player.getZone(ZoneType.Hand).size()
                 h.castSpellByName("Think Twice").shouldBeTrue()
+                h.passPriority() // resolve
 
-                // Pass to resolve
-                h.passPriority()
+                // Drew Coral Merfolk (net hand size: -1 cast + 1 draw = 0 change)
+                player.getZone(ZoneType.Hand).size() shouldBe handBefore
+                player.getZone(ZoneType.Hand).cards.any { it.name == "Coral Merfolk" }.shouldBeTrue()
 
-                // Should have drawn a card
-                player.getZone(ZoneType.Hand).size() shouldBe handSizeBefore + 1
+                // Think Twice went to GY (normal instant resolution)
+                player.getZone(ZoneType.Graveyard).cards.any { it.name == "Think Twice" }.shouldBeTrue()
+                player.getZone(ZoneType.Exile).cards.none { it.name == "Think Twice" }.shouldBeTrue()
 
-                // Think Twice should be in Exile (flashback replacement effect)
-                val exile = player.getZone(ZoneType.Exile).cards
-                exile.any { it.name == "Think Twice" }.shouldBeTrue()
+                // --- Phase 2: cast Think Twice from GY via flashback ---
+                val handBefore2 = player.getZone(ZoneType.Hand).size()
+                h.castSpellByName("Think Twice").shouldBeTrue()
+                h.passPriority() // resolve
 
-                // Should NOT be in GY anymore
-                val gy = player.getZone(ZoneType.Graveyard).cards
-                gy.none { it.name == "Think Twice" }.shouldBeTrue()
+                // Drew another card (Plains)
+                player.getZone(ZoneType.Hand).size() shouldBe handBefore2 + 1
+
+                // Think Twice now in EXILE (flashback replacement effect), not GY
+                player.getZone(ZoneType.Exile).cards.any { it.name == "Think Twice" }.shouldBeTrue()
+                player.getZone(ZoneType.Graveyard).cards.none { it.name == "Think Twice" }.shouldBeTrue()
+
+                // Hand should contain both drawn cards: Coral Merfolk + Plains
+                val hand = player.getZone(ZoneType.Hand).cards.map { it.name }
+                hand.any { it == "Coral Merfolk" }.shouldBeTrue()
             } finally {
                 h.shutdown()
             }
