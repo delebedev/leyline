@@ -10,6 +10,7 @@ import forge.game.spellability.LandAbility
 import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.bridge.chooseCastAbility
+import leyline.bridge.getAllCastableAbilities
 import leyline.game.AbilityRegistry
 import leyline.game.CardData
 import leyline.game.GameBridge
@@ -189,11 +190,10 @@ object ActionMapper {
             builder.addActions(actionBuilder)
         }
 
-        // Graveyard / Exile: flashback, escape, and other cast-from-zone abilities.
+        // Zone casts: Graveyard, Exile, Command (flashback, escape, etc.)
         if (checkLegality) {
-            addZoneCastActions(player, builder, idResolver, grpIdResolver, cardDataLookup)
+            addZoneCastActions(player, builder, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup)
         }
-
         // Pass + FloatMana always available
         builder.addActions(Action.newBuilder().setActionType(ActionType.Pass))
         builder.addActions(Action.newBuilder().setActionType(ActionType.FloatMana))
@@ -210,52 +210,6 @@ object ActionMapper {
         }
 
         return builder.build()
-    }
-
-    /**
-     * Add Cast actions for cards in GY/Exile with castable abilities (flashback, escape, etc.).
-     * Separated from [buildActionList] to keep nesting manageable.
-     */
-    private fun addZoneCastActions(
-        player: Player,
-        builder: ActionsAvailableReq.Builder,
-        idResolver: (Int) -> Int,
-        grpIdResolver: (Card) -> Int,
-        cardDataLookup: (Int) -> CardData?,
-    ) {
-        for (zone in listOf(ForgeZoneType.Graveyard, ForgeZoneType.Exile)) {
-            for (card in player.getZone(zone).cards) {
-                val sa = chooseCastAbility(card, player) ?: continue
-                val canPay = try {
-                    ComputerUtilMana.canPayManaCost(sa, player, 0, false)
-                } catch (_: Exception) {
-                    false
-                }
-                if (!canPay) continue
-                val instanceId = idResolver(card.id)
-                val grpId = grpIdResolver(card)
-                val actionBuilder = Action.newBuilder()
-                    .setActionType(ActionType.Cast)
-                    .setInstanceId(instanceId)
-                    .setGrpId(grpId)
-                    .setFacetId(instanceId)
-                    .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
-                val cardData = cardDataLookup(grpId)
-                if (cardData != null) {
-                    val altManaCost = sa.payCosts?.totalMana
-                    if (altManaCost != null && !altManaCost.isNoCost) {
-                        addManaCostFromForge(altManaCost, actionBuilder)
-                    } else {
-                        for ((color, count) in cardData.manaCost) {
-                            actionBuilder.addManaCost(
-                                ManaRequirement.newBuilder().addColor(color).setCount(count),
-                            )
-                        }
-                    }
-                }
-                builder.addActions(actionBuilder)
-            }
-        }
     }
 
     /** Build an ActivateMana action for an untapped permanent with mana abilities. */
@@ -305,6 +259,63 @@ object ActionMapper {
         )
 
         return actionBuilder.build()
+    }
+
+    /**
+     * Add Cast actions for cards castable from non-hand zones (GY, Exile, Command).
+     * Covers flashback, escape, and other alternate-cost mechanics.
+     *
+     * For alternate-cost casts, sets [Action.abilityGrpId] from the keyword's
+     * registered grpId (e.g. flashback abilityGrpId=175847 for Electroduplicate).
+     */
+    private fun addZoneCastActions(
+        player: Player,
+        builder: ActionsAvailableReq.Builder,
+        idResolver: (Int) -> Int,
+        grpIdResolver: (Card) -> Int,
+        cardDataLookup: (Int) -> CardData?,
+        abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry?,
+    ) {
+        val game = player.game ?: return
+        val zones = listOf(ForgeZoneType.Graveyard, ForgeZoneType.Exile, ForgeZoneType.Command)
+        for (card in game.getCardsIn(zones)) {
+            val castable = getAllCastableAbilities(card, player)
+            if (castable.isEmpty()) continue
+            val sa = castable.first()
+
+            val instanceId = idResolver(card.id)
+            val grpId = grpIdResolver(card)
+            val actionBuilder = Action.newBuilder()
+                .setActionType(ActionType.Cast)
+                .setInstanceId(instanceId)
+                .setGrpId(grpId)
+                .setFacetId(instanceId)
+                .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
+
+            // Set abilityGrpId from the alternate cost keyword (flashback, escape, etc.)
+            val cardData = cardDataLookup(grpId)
+            val altCost = sa.alternativeCost
+            if (altCost != null) {
+                val altCostName = altCost.name.uppercase()
+                val abilityGrpId = cardData?.keywordAbilityGrpIds?.entries
+                    ?.firstOrNull { it.key.startsWith(altCostName) }?.value ?: 0
+                if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+            }
+
+            // Mana cost: use alt cost if available, else base from cardData
+            val altManaCost = sa.payCosts?.totalMana
+            if (altManaCost != null && !altManaCost.isNoCost) {
+                addManaCostFromForge(altManaCost, actionBuilder)
+            } else if (cardData != null) {
+                for ((color, count) in cardData.manaCost) {
+                    actionBuilder.addManaCost(
+                        ManaRequirement.newBuilder().addColor(color).setCount(count),
+                    )
+                }
+            }
+
+            builder.addActions(actionBuilder)
+        }
     }
 
     internal fun passOnlyActions(): ActionsAvailableReq =

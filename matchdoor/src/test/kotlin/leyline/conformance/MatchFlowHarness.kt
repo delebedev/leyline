@@ -518,6 +518,23 @@ class MatchFlowHarness(
         return true
     }
 
+    /** Cast a spell from graveyard by name (flashback, escape, etc.). Returns false if not found. */
+    fun castFromGraveyard(cardName: String): Boolean {
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
+        val card = player.getZone(ZoneType.Graveyard).cards
+            .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
+
+        val msg = performAction {
+            actionType = ActionType.Cast
+            instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+            grpId = bridge.cards.findGrpIdByName(card.name) ?: 0
+        }
+
+        session.onPerformAction(msg)
+        drainSink()
+        return true
+    }
+
     /**
      * Cast a spell and pass once to resolve it.
      *
