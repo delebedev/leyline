@@ -200,11 +200,14 @@ class ReplayHandler(
         clientId = authReq.clientId
         log.info("Replay: auth clientId={} → seat={}", clientId, seatId)
 
-        // Build patched auth response with the REAL clientId from this session
+        // Build patched auth response with the REAL clientId from this session.
+        // Prefer seat-matched auth; fall back to any available (single-seat recordings).
         val captured = if (isFamiliar) {
             authResponses.firstOrNull { it.parsed?.authenticateResponse?.clientId?.endsWith("_Familiar") == true }
+                ?: authResponses.firstOrNull()
         } else {
             authResponses.firstOrNull { it.parsed?.authenticateResponse?.clientId?.endsWith("_Familiar") != true }
+                ?: authResponses.firstOrNull()
         }
 
         if (captured?.parsed != null) {
