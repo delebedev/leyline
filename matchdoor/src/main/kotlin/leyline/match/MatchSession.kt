@@ -6,6 +6,8 @@ import leyline.bridge.InstanceId
 import leyline.bridge.PhaseStopProfile
 import leyline.bridge.PlayerAction
 import leyline.bridge.SeatId
+import leyline.bridge.findCard
+import leyline.bridge.getAllCastableAbilities
 import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
@@ -221,7 +223,8 @@ class MatchSession(
         recorder?.recordClientAction(greMsg)
 
         val isCastOrActivate = action.actionType == ActionType.Cast ||
-            action.actionType == ActionType.Activate_add3
+            action.actionType == ActionType.Activate_add3 ||
+            action.actionType == ActionType.CastAdventure
         val game = ctx.game
         val stackWasNonEmpty = !game.stack.isEmpty
         val actionName = action.actionType.name.removeSuffix("_add3")
@@ -286,6 +289,25 @@ class MatchSession(
                     seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
                 Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
+            }
+            ActionType.CastAdventure -> {
+                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val submitted = if (forgeCardId != null) {
+                    val card = findCard(game, forgeCardId)
+                    val player = bridge.getPlayer(SeatId(seatId))
+                    val adventureIndex = if (card != null && player != null) {
+                        getAllCastableAbilities(card, player)
+                            .indexOfFirst { it.isAdventure }
+                            .takeIf { it >= 0 }
+                    } else null
+                    seatBridge.action.submitAction(
+                        pending.actionId,
+                        PlayerAction.CastSpell(forgeCardId, adventureIndex),
+                    )
+                } else {
+                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
+                }
+                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
             }
             else -> {
                 log.info("MatchSession: unhandled action type {}, passing", action.actionType)
