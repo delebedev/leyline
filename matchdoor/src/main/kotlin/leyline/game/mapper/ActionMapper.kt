@@ -194,41 +194,8 @@ object ActionMapper {
 
             // CastAdventure for adventure-capable cards
             if (card.isAdventureCard) {
-                val adventureState = card.getState(CardStateName.Secondary)
-                if (adventureState != null) {
-                    val adventureName = adventureState.name
-                    val adventureGrpId = nameToGrpId(adventureName) ?: grpId
-                    val adventureSas = adventureState.nonManaAbilities
-                    val adventureSa = adventureSas?.firstOrNull()
-
-                    val canCastAdventure = if (checkLegality && adventureSa != null) {
-                        try {
-                            adventureSa.setActivatingPlayer(player)
-                            adventureSa.canPlay() && ComputerUtilMana.canPayManaCost(adventureSa, player, 0, false)
-                        } catch (_: Exception) {
-                            false
-                        }
-                    } else {
-                        !checkLegality
-                    }
-
-                    if (canCastAdventure) {
-                        val advBuilder = Action.newBuilder()
-                            .setActionType(ActionType.CastAdventure)
-                            .setInstanceId(instanceId)
-                            .setGrpId(adventureGrpId)
-                            .setFacetId(instanceId)
-                            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastAdventure))
-
-                        if (adventureSa != null) {
-                            val advManaCost = adventureSa.payCosts?.totalMana
-                            if (advManaCost != null && !advManaCost.isNoCost) {
-                                addManaCostFromForge(advManaCost, advBuilder)
-                            }
-                        }
-                        builder.addActions(advBuilder)
-                    }
-                }
+                buildAdventureAction(card, player, instanceId, grpId, checkLegality, nameToGrpId)
+                    ?.let { builder.addActions(it) }
             }
         }
 
@@ -310,6 +277,43 @@ object ActionMapper {
      * For alternate-cost casts, sets [Action.abilityGrpId] from the keyword's
      * registered grpId (e.g. flashback abilityGrpId=175847 for Electroduplicate).
      */
+    /** Build a CastAdventure action for an adventure card, or null if not castable. */
+    private fun buildAdventureAction(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        fallbackGrpId: Int,
+        checkLegality: Boolean,
+        nameToGrpId: (String) -> Int?,
+    ): Action? {
+        val adventureState = card.getState(CardStateName.Secondary) ?: return null
+        val adventureSa = adventureState.nonManaAbilities?.firstOrNull() ?: return null
+
+        if (checkLegality) {
+            adventureSa.setActivatingPlayer(player)
+            val canCast = try {
+                adventureSa.canPlay() && ComputerUtilMana.canPayManaCost(adventureSa, player, 0, false)
+            } catch (_: Exception) {
+                false
+            }
+            if (!canCast) return null
+        }
+
+        val adventureGrpId = nameToGrpId(adventureState.name) ?: fallbackGrpId
+        val builder = Action.newBuilder()
+            .setActionType(ActionType.CastAdventure)
+            .setInstanceId(instanceId)
+            .setGrpId(adventureGrpId)
+            .setFacetId(instanceId)
+            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastAdventure))
+
+        val advManaCost = adventureSa.payCosts?.totalMana
+        if (advManaCost != null && !advManaCost.isNoCost) {
+            addManaCostFromForge(advManaCost, builder)
+        }
+        return builder.build()
+    }
+
     private fun addZoneCastActions(
         player: Player,
         builder: ActionsAvailableReq.Builder,

@@ -21,8 +21,6 @@ import wotc.mtgo.gre.external.messaging.Messages.ActionType
  * 5. Cast creature from exile
  * 6. Creature resolves to battlefield
  *
- * WIP — may fail pending Qualification pAnn (task 4) and other
- * adventure conformance work. Failures are expected and informative.
  */
 class AdventurePuzzleTest :
     FunSpec({
@@ -35,7 +33,7 @@ class AdventurePuzzleTest :
             harness = null
         }
 
-        xtest("adventure lifecycle: cast adventure → tokens → exile → cast creature → battlefield") {
+        test("adventure lifecycle: cast adventure → tokens → exile → cast creature → battlefield") {
             val pzl = """
             [metadata]
             Name:Adventure Lifecycle
@@ -51,7 +49,7 @@ class AdventurePuzzleTest :
             AILife=1
 
             humanhand=Ratcatcher Trainee
-            humanbattlefield=Mountain;Mountain;Mountain;Swamp;Swamp
+            humanbattlefield=Mountain;Mountain;Mountain;Mountain;Swamp;Swamp;Swamp
             humanlibrary=Mountain
             aibattlefield=Forest
             ailibrary=Forest
@@ -63,12 +61,6 @@ class AdventurePuzzleTest :
             h.phase() shouldBe "MAIN1"
 
             val human = h.game().registeredPlayers.first()
-
-            // Resolve grpIds from the test card registry (synthetic, not real Arena IDs)
-            val creatureGrpId = h.bridge.cards.findGrpIdByName("Ratcatcher Trainee")
-                ?: error("Ratcatcher Trainee not in card registry")
-            val adventureGrpId = h.bridge.cards.findGrpIdByName("Pest Problem")
-            // Adventure face may not be registered yet — ActionMapper assigns it
 
             // --- Step 1: Verify CastAdventure action is available ---
             val trainee = human.getZone(ZoneType.Hand).cards
@@ -115,25 +107,7 @@ class AdventurePuzzleTest :
             inExile.shouldBeTrue()
 
             // --- Step 5: Cast creature from exile ---
-            // After adventure resolves, the card goes to exile and should be
-            // castable as a creature. Find the Cast action for the creature grpId.
-            val postExileActions = h.allMessages.asReversed()
-                .firstOrNull { it.hasActionsAvailableReq() }
-            checkNotNull(postExileActions) { "No ActionsAvailableReq after adventure resolved" }
-
-            // Find Cast action for Ratcatcher Trainee (creature side) by grpId
-            val creatureCastActions = postExileActions.actionsAvailableReq.actionsList
-                .filter { it.actionType == ActionType.Cast && it.grpId == creatureGrpId }
-            creatureCastActions.shouldNotBeEmpty()
-
-            val creatureAction = creatureCastActions.first()
-            val castCreatureMsg = performAction {
-                actionType = ActionType.Cast
-                instanceId = creatureAction.instanceId
-                grpId = creatureAction.grpId
-            }
-            h.session.onPerformAction(castCreatureMsg)
-            h.drainSink()
+            h.castFromExile("Ratcatcher Trainee").shouldBeTrue()
 
             // --- Step 6: Pass until creature resolves to battlefield ---
             val creatureOnBattlefield = h.passUntil(maxPasses = 15) {
