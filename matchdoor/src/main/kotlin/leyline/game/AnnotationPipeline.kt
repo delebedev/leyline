@@ -493,6 +493,8 @@ object AnnotationPipeline {
         val controllerChangedEffects: List<ControllerChangedEffect> = emptyList(),
         /** Forge card IDs of permanents whose control reverted this GSM. */
         val controllerRevertedForgeCardIds: List<Int> = emptyList(),
+        /** AbilityWordActive annotations from scanner — full replacement set for this GSM. */
+        val abilityWordPersistent: List<AnnotationInfo> = emptyList(),
     ) {
         /** Tracks an active controller-change effect for persistent annotation lifecycle. */
         data class ControllerChangedEffect(

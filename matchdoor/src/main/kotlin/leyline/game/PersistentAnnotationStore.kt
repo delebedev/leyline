@@ -152,6 +152,39 @@ class PersistentAnnotationStore {
                 active[numbered.id] = numbered
             }
 
+            // 3b. AbilityWordActive — full-replacement upsert
+            // Scanner provides the complete set that SHOULD exist. Remove stale, upsert changed.
+            val newAbilityWords = mechanicResult.abilityWordPersistent.associateBy { ann ->
+                abilityWordKey(ann)
+            }
+            val staleAwIds = active.entries
+                .filter { (_, ann) ->
+                    ann.typeList.any { it == AnnotationType.AbilityWordActive } &&
+                        abilityWordKey(ann) !in newAbilityWords
+                }
+                .map { it.key }
+            for (id in staleAwIds) {
+                active.remove(id)
+                deletions.add(id)
+            }
+            for ((key, ann) in newAbilityWords) {
+                val existingEntry = active.entries.firstOrNull { (_, existing) ->
+                    existing.typeList.any { it == AnnotationType.AbilityWordActive } &&
+                        abilityWordKey(existing) == key
+                }
+                if (existingEntry != null) {
+                    if (existingEntry.value.detailsList != ann.detailsList) {
+                        active.remove(existingEntry.key)
+                        deletions.add(existingEntry.key)
+                        val numbered = ann.toBuilder().setId(nextId++).build()
+                        active[numbered.id] = numbered
+                    }
+                } else {
+                    val numbered = ann.toBuilder().setId(nextId++).build()
+                    active[numbered.id] = numbered
+                }
+            }
+
             // 4. Detached auras
             for (forgeCardId in mechanicResult.detachedForgeCardIds) {
                 val auraIid = resolveInstanceId(ForgeCardId(forgeCardId)).value
@@ -220,6 +253,13 @@ class PersistentAnnotationStore {
                     ann.typeList.any { it == AnnotationType.LayeredEffect } &&
                     ann.affectedIdsList.contains(cardIid)
             }?.key
+
+        private fun abilityWordKey(ann: AnnotationInfo): Pair<Int, String> {
+            val iid = ann.affectedIdsList.firstOrNull() ?: 0
+            val name = ann.detailsList.firstOrNull { it.key == DetailKeys.ABILITY_WORD_NAME }
+                ?.let { if (it.valueStringCount > 0) it.getValueString(0) else null } ?: ""
+            return iid to name
+        }
 
         private fun findByAura(active: Map<Int, AnnotationInfo>, auraIid: Int): Int? =
             active.entries.firstOrNull { (_, ann) ->
