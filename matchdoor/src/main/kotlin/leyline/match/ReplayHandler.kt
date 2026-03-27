@@ -79,7 +79,7 @@ class ReplayHandler(
                     ?: emptyList()
                 stripHeader = false
             }
-            // Legacy: direct payloads dir
+            // Flat payloads dir (pre-seat-labeling recordings)
             else -> {
                 log.info("Replay: loading from {}", payloadDir)
                 allFiles = matchDataFiles(payloadDir)

@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong
  */
 class CaptureSink(
     private val fdCollector: FdDebugCollector,
-    /** Seat label for MD frame subdirectories (e.g. "seat-1"). Null = flat layout (backward compat). */
+    /** Seat label for MD frame subdirectories (e.g. "seat-1"). Null = flat layout (single-seat). */
     private val mdLabel: String? = null,
 ) : AutoCloseable {
     private val log = LoggerFactory.getLogger(CaptureSink::class.java)
@@ -189,7 +189,7 @@ class CaptureSink(
             // Collect MD payloads from both flat layout and seat subdirectories
             val messages = mutableListOf<RecordingDecoder.DecodedMessage>()
 
-            // Flat layout (backward compat) — decodeDirectory auto-discovers capture/payloads/
+            // Flat layout (single-seat recordings) — decodeDirectory auto-discovers capture/payloads/
             messages.addAll(RecordingDecoder.decodeDirectory(sessionDir))
 
             // Seat subdirectories (e.g. capture/seat-1/md-payloads/)

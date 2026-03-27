@@ -184,7 +184,7 @@ class GameBridge(
     /** Per-seat action playback — captures remote-action state diffs via EventBus. Empty before start(). */
     override val playbacks: MutableMap<SeatId, GamePlayback> = mutableMapOf()
 
-    /** Backward-compat: seat-1 playback (single-player path). */
+    /** Convenience: seat-1 playback for single-player (1vAI) matches. */
     val playback: GamePlayback? get() = playbacks[SeatId(1)]
 
     /** Event collector — captures Forge engine events for annotation building. Null before start(). */
@@ -270,7 +270,7 @@ class GameBridge(
         /** Fallback grpId for cards not in client DB (renders face-down). */
         const val FALLBACK_GRPID = 0
 
-        /** Fallback deck when no config/decklist is provided (tests, legacy). */
+        /** Default deck when no decklist is provided (tests, puzzles without decks). */
         private const val FALLBACK_DECK = """
 20 Llanowar Elves
 4 Elvish Mystic
@@ -329,7 +329,7 @@ class GameBridge(
      * @param seed if non-null, seeds the RNG for deterministic shuffles (tests/replays)
      * @param deckList1 decklist text for seat 1 (human). Falls back to [deckList] or built-in fallback.
      * @param deckList2 decklist text for seat 2 (AI). Falls back to [deckList1].
-     * @param deckList legacy single-deck param for tests — applies to both seats.
+     * @param deckList single-deck shorthand — applies to both seats when deckList1/deckList2 omitted.
      */
     fun start(
         seed: Long? = null,
