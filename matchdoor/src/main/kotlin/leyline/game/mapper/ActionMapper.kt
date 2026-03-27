@@ -299,19 +299,15 @@ object ActionMapper {
             if (!canCast) return null
         }
 
+        // Real server AAR shape: type + instanceId + grpId + shouldStop.
+        // No manaCost, no facetId — client derives cost from card DB.
         val adventureGrpId = nameToGrpId(adventureState.name) ?: fallbackGrpId
-        val builder = Action.newBuilder()
+        return Action.newBuilder()
             .setActionType(ActionType.CastAdventure)
             .setInstanceId(instanceId)
             .setGrpId(adventureGrpId)
-            .setFacetId(instanceId)
             .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastAdventure))
-
-        val advManaCost = adventureSa.payCosts?.totalMana
-        if (advManaCost != null && !advManaCost.isNoCost) {
-            addManaCostFromForge(advManaCost, builder)
-        }
-        return builder.build()
+            .build()
     }
 
     private fun addZoneCastActions(

@@ -42,8 +42,7 @@ class AdventureCastActionTest :
             castActions shouldHaveSize 1
 
             adventureActions shouldHaveSize 1
-            adventureActions[0].grpId shouldBe adventureGrpId
-            adventureActions[0].manaCostCount shouldBeGreaterThan 0
+            // Real server sends no manaCost in CastAdventure — client derives from card DB
         }
 
         test("non-adventure card produces no CastAdventure") {

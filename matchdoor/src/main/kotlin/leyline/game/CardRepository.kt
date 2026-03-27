@@ -10,6 +10,7 @@ interface CardRepository {
     fun findByGrpId(grpId: Int): CardData?
     fun findNameByGrpId(grpId: Int): String?
     fun findGrpIdByName(name: String): Int?
+
     /** Like [findGrpIdByName] but includes secondary faces (adventure, DFC back). */
     fun findGrpIdByNameAnyFace(name: String): Int? = findGrpIdByName(name)
     fun findGrpIdByNameAndSet(name: String, setCode: String): Int? = findGrpIdByName(name)
