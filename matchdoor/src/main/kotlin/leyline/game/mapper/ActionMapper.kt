@@ -60,7 +60,6 @@ object ActionMapper {
             grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, bridge.cards) },
             cardDataLookup = { grpId -> bridge.cards.findByGrpId(grpId) },
             abilityRegistryLookup = { card, cardData -> bridge.abilityRegistryFor(card, cardData) },
-            nameToGrpId = { name -> bridge.cards.findGrpIdByName(name) },
         )
     }
 
@@ -85,7 +84,6 @@ object ActionMapper {
         grpIdResolver: (Card) -> Int,
         cardDataLookup: (Int) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry? = { _, _ -> null },
-        nameToGrpId: (String) -> Int? = { null },
     ): ActionsAvailableReq {
         val builder = ActionsAvailableReq.newBuilder()
 
@@ -194,7 +192,7 @@ object ActionMapper {
 
             // CastAdventure for adventure-capable cards
             if (card.isAdventureCard) {
-                buildAdventureAction(card, player, instanceId, grpId, checkLegality, nameToGrpId)
+                buildAdventureAction(card, player, instanceId, grpId, checkLegality)
                     ?.let { builder.addActions(it) }
             }
         }
@@ -282,9 +280,8 @@ object ActionMapper {
         card: Card,
         player: Player,
         instanceId: Int,
-        fallbackGrpId: Int,
+        creatureGrpId: Int,
         checkLegality: Boolean,
-        nameToGrpId: (String) -> Int?,
     ): Action? {
         val adventureState = card.getState(CardStateName.Secondary) ?: return null
         val adventureSa = adventureState.nonManaAbilities?.firstOrNull() ?: return null
@@ -299,15 +296,19 @@ object ActionMapper {
             if (!canCast) return null
         }
 
-        // Real server AAR shape: type + instanceId + grpId + shouldStop.
-        // No manaCost, no facetId — client derives cost from card DB.
-        val adventureGrpId = nameToGrpId(adventureState.name) ?: fallbackGrpId
-        return Action.newBuilder()
+        // grpId = creature face — client can't resolve IsPrimaryCard=0 adventure
+        // faces and rejects the action if grpId is unknown. manaCost from the
+        // adventure SA provides the correct cost for the Choose One modal.
+        val builder = Action.newBuilder()
             .setActionType(ActionType.CastAdventure)
             .setInstanceId(instanceId)
-            .setGrpId(adventureGrpId)
+            .setGrpId(creatureGrpId)
             .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastAdventure))
-            .build()
+        val advManaCost = adventureSa.payCosts?.totalMana
+        if (advManaCost != null && !advManaCost.isNoCost) {
+            addManaCostFromForge(advManaCost, builder)
+        }
+        return builder.build()
     }
 
     private fun addZoneCastActions(
@@ -464,10 +465,10 @@ object ActionMapper {
         manaCost: forge.card.mana.ManaCost,
         actionBuilder: Action.Builder,
     ) {
-        // Colored shards: each shard is one pip (e.g. ManaCostShard.BLUE → "U")
+        // Colored shards: each shard is one pip (e.g. ManaCostShard.RED → "{R}")
         val colorCounts = mutableMapOf<ManaColor, Int>()
         for (shard in manaCost) {
-            val color = producedToManaColor(shard.toString()) ?: continue
+            val color = producedToManaColor(shard.toString().removeSurrounding("{", "}")) ?: continue
             colorCounts[color] = (colorCounts[color] ?: 0) + 1
         }
         for ((color, count) in colorCounts) {

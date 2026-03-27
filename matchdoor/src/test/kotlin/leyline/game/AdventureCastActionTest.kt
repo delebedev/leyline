@@ -3,11 +3,9 @@ package leyline.game
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.conformance.ConformanceTestBase
-import leyline.conformance.TestCardRegistry
 import leyline.game.mapper.ActionMapper
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 
@@ -21,14 +19,13 @@ class AdventureCastActionTest :
         afterEach { base.tearDown() }
 
         test("adventure card in hand produces both Cast and CastAdventure actions") {
-            // Pre-register the adventure face so nameToGrpId can resolve it
-            val adventureGrpId = TestCardRegistry.ensureCardRegistered("Ratcatcher Trainee") + 1
-            TestCardRegistry.repo.register(adventureGrpId, "Pest Problem")
-
             val (b, _, _) = base.startWithBoard { _, human, _ ->
                 base.addCard("Ratcatcher Trainee", human, ZoneType.Hand)
                 repeat(3) { base.addCard("Mountain", human, ZoneType.Battlefield) }
             }
+
+            val creatureGrpId = b.cards.findGrpIdByName("Ratcatcher Trainee")
+                ?: error("Ratcatcher Trainee not in card registry")
 
             val actions = ActionMapper.buildActionList(
                 seatId = 1,
@@ -42,7 +39,11 @@ class AdventureCastActionTest :
             castActions shouldHaveSize 1
 
             adventureActions shouldHaveSize 1
-            // Real server sends no manaCost in CastAdventure — client derives from card DB
+            val adv = adventureActions[0]
+            // grpId = creature face (client can't resolve IsPrimaryCard=0 adventure faces)
+            adv.grpId shouldBe creatureGrpId
+            // Pest Problem costs {2}{R}: generic=2 + red=1
+            adv.manaCostCount shouldBe 2
         }
 
         test("non-adventure card produces no CastAdventure") {
