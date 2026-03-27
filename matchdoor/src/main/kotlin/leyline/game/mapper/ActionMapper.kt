@@ -510,7 +510,7 @@ object ActionMapper {
         when (action.actionType) {
             ActionType.Cast, ActionType.CastAdventure -> {
                 b.setInstanceId(action.instanceId)
-                b.addAllManaCost(action.manaCostList)
+                // Real server sends no manaCost in GSM actions — client derives from card DB
             }
             ActionType.Play_add3 -> b.setInstanceId(action.instanceId)
             ActionType.ActivateMana, ActionType.Activate_add3 -> {
