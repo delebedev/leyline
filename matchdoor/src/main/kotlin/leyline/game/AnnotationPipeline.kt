@@ -879,8 +879,14 @@ object AnnotationPipeline {
 
             transfers.add(
                 AppliedTransfer(
-                    origId, newId, TransferCategory.Sacrifice, ZONE_BATTLEFIELD, destZone,
-                    resolvedGrpId, ownerSeat.value, manaPayments = manaPayments,
+                    origId,
+                    newId,
+                    TransferCategory.Sacrifice,
+                    ZONE_BATTLEFIELD,
+                    destZone,
+                    resolvedGrpId,
+                    ownerSeat.value,
+                    manaPayments = manaPayments,
                 ),
             )
             zoneRecordings.add(newId to destZone)
