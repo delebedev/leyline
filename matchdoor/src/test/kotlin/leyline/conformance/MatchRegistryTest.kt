@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeSameInstanceAs
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.UnitTag
+import leyline.bridge.SeatId
 import leyline.game.GameBridge
 import leyline.infra.ListMessageSink
 import leyline.match.FamiliarSession
@@ -56,8 +57,8 @@ class MatchRegistryTest :
         test("registerSession + getPeer returns correct session") {
             val registry = MatchRegistry()
             val sink = ListMessageSink()
-            val s1 = MatchSession(seatId = 1, matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
-            val s2 = MatchSession(seatId = 2, matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
+            val s1 = MatchSession(seatId = SeatId(1), matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
+            val s2 = MatchSession(seatId = SeatId(2), matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
             registry.registerSession("m1", 1, s1)
             registry.getPeer("m1", 1).shouldBeNull()
             registry.registerSession("m1", 2, s2)
@@ -141,8 +142,8 @@ class MatchRegistryTest :
         test("registerSession accepts FamiliarSession via SessionOps interface") {
             val registry = MatchRegistry()
             val sink = ListMessageSink()
-            val human = MatchSession(seatId = 1, matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
-            val familiar = FamiliarSession(seatId = 2, matchId = "m1", sink = sink)
+            val human = MatchSession(seatId = SeatId(1), matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
+            val familiar = FamiliarSession(seatId = SeatId(2), matchId = "m1", sink = sink)
             registry.registerSession("m1", 1, human)
             registry.registerSession("m1", 2, familiar)
             registry.getPeer("m1", 1) shouldBeSameInstanceAs familiar
@@ -152,8 +153,8 @@ class MatchRegistryTest :
         test("activeSession returns MatchSession, not FamiliarSession") {
             val registry = MatchRegistry()
             val sink = ListMessageSink()
-            val human = MatchSession(seatId = 1, matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
-            val familiar = FamiliarSession(seatId = 2, matchId = "m1", sink = sink)
+            val human = MatchSession(seatId = SeatId(1), matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
+            val familiar = FamiliarSession(seatId = SeatId(2), matchId = "m1", sink = sink)
             registry.registerSession("m1", 1, human)
             registry.registerSession("m1", 2, familiar)
             registry.activeSession() shouldBeSameInstanceAs human
@@ -174,7 +175,7 @@ class MatchRegistryTest :
             val registry = MatchRegistry()
             val match = registry.getOrCreateMatch("m1") { Match("m1", GameBridge()) }
             val sink = ListMessageSink()
-            val session = MatchSession(seatId = 1, matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
+            val session = MatchSession(seatId = SeatId(1), matchId = "m1", sink = sink, registry = registry, paceDelayMs = 0)
             val handler = MatchHandler(registry = registry)
 
             registry.registerSession("m1", 1, session)
@@ -193,7 +194,7 @@ class MatchRegistryTest :
             val matchId = "forge-match-1"
             val match = registry.getOrCreateMatch(matchId) { Match(matchId, GameBridge()) }
             val sink = ListMessageSink()
-            val session = MatchSession(seatId = 1, matchId = matchId, sink = sink, registry = registry, paceDelayMs = 0, counter = match.bridge.messageCounter)
+            val session = MatchSession(seatId = SeatId(1), matchId = matchId, sink = sink, registry = registry, paceDelayMs = 0, counter = match.bridge.messageCounter)
             session.connectBridge(match.bridge)
 
             val handler = MatchHandler(registry = registry)
@@ -210,7 +211,7 @@ class MatchRegistryTest :
             registry.activeSession().shouldBeNull()
 
             val recreated = registry.getOrCreateMatch(matchId) { Match(matchId, GameBridge()) }
-            val replacement = MatchSession(seatId = 1, matchId = matchId, sink = sink, registry = registry, paceDelayMs = 0)
+            val replacement = MatchSession(seatId = SeatId(1), matchId = matchId, sink = sink, registry = registry, paceDelayMs = 0)
             registry.registerSession(matchId, 1, replacement)
 
             recreated.state shouldBe MatchState.WAITING

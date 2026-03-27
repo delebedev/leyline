@@ -6,7 +6,6 @@ import leyline.bridge.AutoPassReason
 import leyline.bridge.ClientAutoPassState
 import leyline.bridge.PlayerAction
 import leyline.bridge.PriorityDecision
-import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
@@ -81,7 +80,7 @@ class AutoPassEngine(
             // Drain pending AI-action diffs
             if (drainPlayback(bridge)) return@repeat
 
-            val human = bridge.getPlayer(SeatId(ops.seatId))
+            val human = bridge.getPlayer(ops.seatId)
             val phase = game.phaseHandler.phase
             val isHumanTurn = human != null && game.phaseHandler.playerTurn == human
             val isAiTurn = human != null && !isHumanTurn
@@ -143,7 +142,7 @@ class AutoPassEngine(
         val phase2 = game2?.phaseHandler?.phase?.name ?: "?"
         val turn2 = game2?.phaseHandler?.turn ?: -1
         log.warn("autoPassAndAdvance: hit max iterations ({}) at phase={} turn={}", MAX_ITERATIONS, phase2, turn2)
-        val human2 = game2?.let { bridge.getPlayer(SeatId(ops.seatId)) }
+        val human2 = game2?.let { bridge.getPlayer(ops.seatId) }
         val stillAiTurn = human2 != null && game2.phaseHandler.playerTurn != human2
         if (stillAiTurn) {
             log.debug("max-iterations: AI turn, suppressing ActionsAvailableReq")
@@ -160,7 +159,7 @@ class AutoPassEngine(
      * produced by [GamePlayback] already have correct sequence numbers.
      */
     private fun drainPlayback(bridge: GameBridge): Boolean {
-        val playback = bridge.playbacks[SeatId(ops.seatId)] ?: return false
+        val playback = bridge.playbacks[ops.seatId] ?: return false
         if (!playback.hasPendingMessages()) return false
         val batches = playback.drainQueue()
         for ((idx, batch) in batches.withIndex()) {
@@ -235,7 +234,7 @@ class AutoPassEngine(
      * (priority granted to client, game over, or timeout).
      */
     private fun advanceOrWait(bridge: GameBridge, game: Game, phase: PhaseType?, isAiTurn: Boolean): LoopSignal {
-        val pending = bridge.seat(ops.seatId).action.getPending()
+        val pending = bridge.seat(ops.seatId.value).action.getPending()
         log.debug("autoPass: phase={} turn={} aiTurn={} pending={}", phase, game.phaseHandler.turn, isAiTurn, pending != null)
 
         if (pending != null) {
@@ -257,7 +256,7 @@ class AutoPassEngine(
                 val edictal = ops.bundleBuilder!!.edictalPass(ops.counter)
                 ops.sendBundledGRE(edictal.messages)
             }
-            bridge.seat(ops.seatId).action.submitAction(pending.actionId, PlayerAction.PassPriority)
+            bridge.seat(ops.seatId.value).action.submitAction(pending.actionId, PlayerAction.PassPriority)
             bridge.awaitPriority()
         } else if (isAiTurn) {
             ops.traceEvent(MatchEventType.AI_TURN_WAIT, game, "waiting for AI")

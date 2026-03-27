@@ -498,9 +498,9 @@ class DebugServer(
             respondJson(ex, """{"bestPlay":null,"reason":"no game"}""")
             return
         }
-        val player = bridge.getPlayer(leyline.bridge.SeatId(session.seatId))
+        val player = bridge.getPlayer(session.seatId)
         if (player == null) {
-            respondJson(ex, """{"bestPlay":null,"reason":"no player for seat ${session.seatId}"}""")
+            respondJson(ex, """{"bestPlay":null,"reason":"no player for seat ${session.seatId.value}"}""")
             return
         }
 
@@ -719,24 +719,24 @@ class DebugServer(
             session.matchId,
             bridge,
             updateType = GameStateUpdate.SendAndRecord,
-            viewingSeatId = session.seatId,
+            viewingSeatId = session.seatId.value,
         ).gsm
 
         val greGsm = GREToClientMessage.newBuilder()
             .setType(GREMessageType.GameStateMessage_695e)
             .setMsgId(msgId)
             .setGameStateId(gsId)
-            .addSystemSeatIds(session.seatId)
+            .addSystemSeatIds(session.seatId.value)
             .setGameStateMessage(fullGsm)
             .build()
 
         // Build fresh actions so the client has valid actions at the new gsId
-        val actions = ActionMapper.buildActions(game, session.seatId, bridge)
+        val actions = ActionMapper.buildActions(game, session.seatId.value, bridge)
         val greActions = GREToClientMessage.newBuilder()
             .setType(GREMessageType.ActionsAvailableReq_695e)
             .setMsgId(counter.nextMsgId())
             .setGameStateId(gsId)
-            .addSystemSeatIds(session.seatId)
+            .addSystemSeatIds(session.seatId.value)
             .setActionsAvailableReq(actions)
             .build()
 
@@ -820,7 +820,7 @@ class DebugServer(
             session.matchId,
             bridge,
             updateType = GameStateUpdate.SendAndRecord,
-            viewingSeatId = session.seatId,
+            viewingSeatId = session.seatId.value,
         ).gsm
 
         // Add diffDeletedInstanceIds so the client purges cached objects from the old puzzle
@@ -834,16 +834,16 @@ class DebugServer(
             .setType(GREMessageType.GameStateMessage_695e)
             .setMsgId(msgId)
             .setGameStateId(gsId)
-            .addSystemSeatIds(session.seatId)
+            .addSystemSeatIds(session.seatId.value)
             .setGameStateMessage(gsmWithDeletes)
             .build()
 
-        val actions = ActionMapper.buildActions(game, session.seatId, bridge)
+        val actions = ActionMapper.buildActions(game, session.seatId.value, bridge)
         val greActions = GREToClientMessage.newBuilder()
             .setType(GREMessageType.ActionsAvailableReq_695e)
             .setMsgId(counter.nextMsgId())
             .setGameStateId(gsId)
-            .addSystemSeatIds(session.seatId)
+            .addSystemSeatIds(session.seatId.value)
             .setActionsAvailableReq(actions)
             .build()
 

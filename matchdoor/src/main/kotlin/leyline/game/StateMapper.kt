@@ -62,7 +62,7 @@ object StateMapper {
         // ═══ GATHER: drain queues, snapshot mutable state ═══
         val events = bridge.drainEvents().events.toMutableList()
         for (reveal in bridge.drainReveals(viewingSeatId)) {
-            events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
+            events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, SeatId(reveal.ownerSeatId)))
         }
         val initEffectDiff = bridge.effects.emitInitEffectsOnce()
         val boostSnapshot = bridge.snapshotBoosts()
@@ -477,7 +477,7 @@ object StateMapper {
             transferPersistent.addAll(persistent)
         }
         for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
-            annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId, ev.phase, ev.step))
+            annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId.value, ev.phase, ev.step))
         }
         val combatResult = AnnotationPipeline.combatAnnotations(events, bridge)
         annotations.addAll(combatResult.annotations)

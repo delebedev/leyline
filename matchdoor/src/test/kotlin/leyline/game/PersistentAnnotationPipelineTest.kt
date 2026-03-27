@@ -7,6 +7,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
+import leyline.bridge.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -25,7 +26,7 @@ class PersistentAnnotationPipelineTest :
 
         test("cardExiledWithSourceEmitsDisplayCardUnderCard") {
             val events = listOf(
-                GameEvent.CardExiled(forgeCardId = 80, seatId = 1, sourceForgeCardId = 90, fromBattlefield = true),
+                GameEvent.CardExiled(forgeCardId = 80, seatId = SeatId(1), sourceForgeCardId = 90, fromBattlefield = true),
             )
             val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
 
@@ -41,7 +42,7 @@ class PersistentAnnotationPipelineTest :
 
         test("cardExiledWithoutSourceDoesNotEmitDisplayCardUnderCard") {
             val events = listOf(
-                GameEvent.CardExiled(forgeCardId = 80, seatId = 1),
+                GameEvent.CardExiled(forgeCardId = 80, seatId = SeatId(1)),
             )
             val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
             result.transient.shouldBeEmpty()
@@ -50,7 +51,7 @@ class PersistentAnnotationPipelineTest :
 
         test("cardDestroyedPopulatesExileSourceLeftPlay") {
             val events = listOf(
-                GameEvent.CardDestroyed(forgeCardId = 90, seatId = 1),
+                GameEvent.CardDestroyed(forgeCardId = 90, seatId = SeatId(1)),
             )
             val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
             result.exileSourceLeftPlayForgeCardIds shouldBe listOf(90)

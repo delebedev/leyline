@@ -6,6 +6,7 @@ import forge.game.event.*
 import forge.game.event.GameEventManaAbilityActivated
 import forge.game.event.GameEventSpellMovedToStack
 import forge.game.zone.ZoneType
+import leyline.bridge.SeatId
 import leyline.game.mapper.PlayerMapper
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
@@ -396,14 +397,14 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
     // -- helpers --
 
-    private fun seatOf(player: forge.game.player.Player?): Int? {
+    private fun seatOf(player: forge.game.player.Player?): SeatId? {
         if (player == null) return null
-        return if (player.lobbyPlayer is LobbyPlayerAi) 2 else 1
+        return if (player.lobbyPlayer is LobbyPlayerAi) SeatId(2) else SeatId(1)
     }
 
-    private fun seatOf(player: forge.game.player.PlayerView?): Int? {
+    private fun seatOf(player: forge.game.player.PlayerView?): SeatId? {
         if (player == null) return null
-        return if (player.isAI) 2 else 1
+        return if (player.isAI) SeatId(2) else SeatId(1)
     }
 
     /**

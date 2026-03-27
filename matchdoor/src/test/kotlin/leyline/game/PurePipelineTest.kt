@@ -6,6 +6,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
+import leyline.bridge.SeatId
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
@@ -58,7 +59,7 @@ class PurePipelineTest :
                 zone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 100),
                 zone(ZoneIds.LIMBO, ZoneType.Limbo),
             )
-            val events = listOf(GameEvent.LandPlayed(forgeCardId = 42, seatId = 1))
+            val events = listOf(GameEvent.LandPlayed(forgeCardId = 42, seatId = SeatId(1)))
             val previousZones = mapOf(100 to ZoneIds.P1_HAND)
 
             val result = AnnotationPipeline.detectZoneTransfers(
@@ -89,7 +90,7 @@ class PurePipelineTest :
                 zone(ZoneIds.STACK, ZoneType.Stack, 100),
                 zone(ZoneIds.LIMBO, ZoneType.Limbo),
             )
-            val events = listOf(GameEvent.SpellCast(forgeCardId = 42, seatId = 1))
+            val events = listOf(GameEvent.SpellCast(forgeCardId = 42, seatId = SeatId(1)))
             val previousZones = mapOf(100 to ZoneIds.P1_HAND)
 
             val result = AnnotationPipeline.detectZoneTransfers(
@@ -147,7 +148,7 @@ class PurePipelineTest :
                 zone(ZoneIds.P1_GRAVEYARD, ZoneType.Graveyard, 100),
                 zone(ZoneIds.LIMBO, ZoneType.Limbo),
             )
-            val events = listOf(GameEvent.CardDestroyed(forgeCardId = 42, seatId = 1))
+            val events = listOf(GameEvent.CardDestroyed(forgeCardId = 42, seatId = SeatId(1)))
             val previousZones = mapOf(100 to ZoneIds.BATTLEFIELD)
 
             val result = AnnotationPipeline.detectZoneTransfers(
@@ -233,7 +234,7 @@ class PurePipelineTest :
         // Test 3: creature-to-player damage + life change → ModifiedLife for seat 2
         test("combatAnnotations produces ModifiedLife when life changes") {
             val events = listOf(
-                GameEvent.DamageDealtToPlayer(sourceForgeId = 10, targetSeatId = 2, amount = 5, combat = true),
+                GameEvent.DamageDealtToPlayer(sourceForgeId = 10, targetSeatId = SeatId(2), amount = 5, combat = true),
             )
 
             val result = AnnotationPipeline.combatAnnotations(
@@ -249,7 +250,7 @@ class PurePipelineTest :
 
         // Test 4: non-combat events only → empty result
         test("combatAnnotations returns empty for non-combat events only") {
-            val events = listOf(GameEvent.LandPlayed(forgeCardId = 42, seatId = 1))
+            val events = listOf(GameEvent.LandPlayed(forgeCardId = 42, seatId = SeatId(1)))
 
             val result = AnnotationPipeline.combatAnnotations(
                 events = events,

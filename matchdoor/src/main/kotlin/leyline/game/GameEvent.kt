@@ -1,5 +1,7 @@
 package leyline.game
 
+import leyline.bridge.SeatId
+
 /**
  * Lightweight zone enum for [GameEvent]. Decoupled from forge.game.zone.ZoneType
  * so the event/annotation layer has zero forge dependencies. Mapping from
@@ -57,7 +59,7 @@ sealed interface GameEvent {
      *  Single-ability lands produce one entry; dual/multi-lands produce multiple. */
     data class LandPlayed(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
         val colorBitmasks: List<Int> = emptyList(),
     ) : GameEvent
 
@@ -70,7 +72,7 @@ sealed interface GameEvent {
     /** A spell or ability was cast (hand/battlefield → stack). */
     data class SpellCast(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
         val manaPayments: List<ManaPayment> = emptyList(),
     ) : GameEvent
 
@@ -79,7 +81,7 @@ sealed interface GameEvent {
      *  Wired from GameEventSpellMovedToStack. */
     data class SpellMovedToStack(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
     ) : GameEvent
 
     /** A spell or ability finished resolving (stack → battlefield/graveyard/exile). */
@@ -111,14 +113,14 @@ sealed interface GameEvent {
     /** Damage was dealt to a player. */
     data class DamageDealtToPlayer(
         val sourceForgeId: Int,
-        val targetSeatId: Int,
+        val targetSeatId: SeatId,
         val amount: Int,
         val combat: Boolean,
     ) : GameEvent
 
     /** A player's life total changed. */
     data class LifeChanged(
-        val seatId: Int,
+        val seatId: SeatId,
         val oldLife: Int,
         val newLife: Int,
     ) : GameEvent
@@ -126,13 +128,13 @@ sealed interface GameEvent {
     /** Attackers were declared. */
     data class AttackersDeclared(
         val attackerForgeIds: List<Int>,
-        val seatId: Int,
+        val seatId: SeatId,
     ) : GameEvent
 
     /** Blockers were declared. */
     data class BlockersDeclared(
         val blockerForgeIds: List<Int>,
-        val seatId: Int,
+        val seatId: SeatId,
     ) : GameEvent
 
     // -- Group A: zone-transition disambiguation --
@@ -143,27 +145,27 @@ sealed interface GameEvent {
      *  More specific than [CardDestroyed] — produces `SBA_LegendRule` category. */
     data class LegendRuleDeath(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
     ) : GameEvent
 
     /** A permanent was destroyed (BF→GY, not sacrifice).
      *  [sourceForgeCardId] = host card of the ability that caused the destruction (for affectorId). */
     data class CardDestroyed(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
         val sourceForgeCardId: Int? = null,
     ) : GameEvent
 
     /** A permanent was sacrificed (BF→GY via sacrifice effect). */
     data class CardSacrificed(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
     ) : GameEvent
 
     /** A permanent was bounced (BF→Hand or BF→Library). */
     data class CardBounced(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
     ) : GameEvent
 
     /** A card was exiled (any zone → Exile).
@@ -172,7 +174,7 @@ sealed interface GameEvent {
      *  When set, triggers [AnnotationBuilder.displayCardUnderCard] persistent annotation. */
     data class CardExiled(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
         val sourceForgeCardId: Int? = null,
         val fromBattlefield: Boolean = false,
     ) : GameEvent
@@ -180,13 +182,13 @@ sealed interface GameEvent {
     /** A card was discarded (Hand→GY). */
     data class CardDiscarded(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
     ) : GameEvent
 
     /** A card was milled (Library→GY). */
     data class CardMilled(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
         val sourceForgeCardId: Int? = null,
     ) : GameEvent
 
@@ -203,7 +205,7 @@ sealed interface GameEvent {
      *  (e.g. Wary Thespian). Used to resolve the ability's instanceId for affectorId. */
     data class CardSurveiled(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
         val sourceForgeCardId: Int? = null,
     ) : GameEvent
 
@@ -211,14 +213,14 @@ sealed interface GameEvent {
      *  Not wired from a dedicated Forge event — inferred from zone pair. */
     data class SpellCountered(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
     ) : GameEvent
 
     /** A token was created.
      *  Wired from GameEventTokenCreated (enriched with List<Card> tokens). */
     data class TokenCreated(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
         val sourceForgeCardId: Int? = null,
     ) : GameEvent
 
@@ -226,7 +228,7 @@ sealed interface GameEvent {
      *  Wired from GameEventCardChangeZone when card.isToken && from=Battlefield. */
     data class TokenDestroyed(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
     ) : GameEvent
 
     // -- Group A+: attachment events --
@@ -235,13 +237,13 @@ sealed interface GameEvent {
     data class CardAttached(
         val forgeCardId: Int,
         val targetForgeId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
     ) : GameEvent
 
     /** A card was detached from its target (aura falling off, equipment unequipped). */
     data class CardDetached(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
     ) : GameEvent
 
     // -- Group B: annotation-producing events --
@@ -251,7 +253,7 @@ sealed interface GameEvent {
      *  Used to attach mana-ability annotations to Sacrifice zone transfers (Treasure tokens). */
     data class ManaAbilityActivated(
         val forgeCardId: Int,
-        val seatId: Int,
+        val seatId: SeatId,
         val produced: String,
     ) : GameEvent
 
@@ -274,19 +276,19 @@ sealed interface GameEvent {
 
     /** A player's library was shuffled. */
     data class LibraryShuffled(
-        val seatId: Int,
+        val seatId: SeatId,
     ) : GameEvent
 
     /** A player scried (looked at top N, put some on top / some on bottom). */
     data class Scry(
-        val seatId: Int,
+        val seatId: SeatId,
         val topCount: Int,
         val bottomCount: Int,
     ) : GameEvent
 
     /** A player surveilled (looked at top N, put some in library / some in graveyard). */
     data class Surveil(
-        val seatId: Int,
+        val seatId: SeatId,
         val toLibrary: Int,
         val toGraveyard: Int,
     ) : GameEvent
@@ -298,7 +300,7 @@ sealed interface GameEvent {
     /** Cards were revealed to all players (e.g. draw-and-reveal, Explore, etc.). */
     data class CardsRevealed(
         val forgeCardIds: List<Int>,
-        val ownerSeatId: Int,
+        val ownerSeatId: SeatId,
     ) : GameEvent
 
     /** A permanent's controller changed (steal effect or revert).
@@ -306,8 +308,8 @@ sealed interface GameEvent {
      *  [sourceForgeCardId] resolved later from events list (affectorSourceFromEvents pattern). */
     data class ControllerChanged(
         val forgeCardId: Int,
-        val oldControllerSeatId: Int,
-        val newControllerSeatId: Int,
+        val oldControllerSeatId: SeatId,
+        val newControllerSeatId: SeatId,
     ) : GameEvent
 
     // -- Group C: combat enrichment --
@@ -320,7 +322,7 @@ sealed interface GameEvent {
     /** Phase or step changed. Wired from GameEventTurnPhase.
      *  [phase] and [step] are proto enum ordinals (Phase/Step from messages.proto). */
     data class PhaseChanged(
-        val seatId: Int,
+        val seatId: SeatId,
         val phase: Int,
         val step: Int,
     ) : GameEvent

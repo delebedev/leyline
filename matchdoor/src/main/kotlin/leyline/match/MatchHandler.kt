@@ -9,6 +9,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import leyline.bridge.CardEntry
 import leyline.bridge.DeckConverter
+import leyline.bridge.SeatId
 import leyline.config.MatchConfig
 import leyline.frontdoor.service.MatchCoordinator
 import leyline.game.CardRepository
@@ -140,10 +141,10 @@ class MatchHandler(
             val rec = recorderFactory?.invoke()
             val existingCounter = registry.getMatch(matchId)?.bridge?.messageCounter
             val s: SessionOps = if (isFamiliar) {
-                FamiliarSession(seatId, matchId, sink, counter = existingCounter ?: MessageCounter())
+                FamiliarSession(SeatId(seatId), matchId, sink, counter = existingCounter ?: MessageCounter())
             } else {
                 MatchSession(
-                    seatId,
+                    SeatId(seatId),
                     matchId,
                     sink,
                     registry,

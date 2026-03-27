@@ -7,6 +7,7 @@ import io.kotest.matchers.shouldBe
 import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
+import leyline.bridge.SeatId
 import leyline.game.GameBridge
 import leyline.infra.ListMessageSink
 import leyline.match.Match
@@ -83,7 +84,7 @@ class MulliganHandlerIntegrationTest :
 
             val sink1 = ListMessageSink()
             val seat1 = MatchSession(
-                seatId = 1,
+                seatId = SeatId(1),
                 matchId = matchId,
                 sink = sink1,
                 registry = registry,
@@ -91,7 +92,7 @@ class MulliganHandlerIntegrationTest :
                 counter = localBridge.messageCounter,
             )
             val seat2 = MatchSession(
-                seatId = 2,
+                seatId = SeatId(2),
                 matchId = matchId,
                 sink = ListMessageSink(),
                 registry = registry,

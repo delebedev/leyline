@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.SeatId
 
 /**
  * Unit tests for [AnnotationBuilder.categoryFromEvents] — verifies that
@@ -18,7 +19,7 @@ class CategoryFromEventsTest :
 
         test("landPlayedReturnPlayLand") {
             val events = listOf(
-                GameEvent.LandPlayed(forgeCardId = 42, seatId = 1),
+                GameEvent.LandPlayed(forgeCardId = 42, seatId = SeatId(1)),
                 GameEvent.ZoneChanged(forgeCardId = 42, from = Zone.Hand, to = Zone.Battlefield),
             )
             AnnotationBuilder.categoryFromEvents(42, events) shouldBe TransferCategory.PlayLand
@@ -26,7 +27,7 @@ class CategoryFromEventsTest :
 
         test("spellCastReturnsCastSpell") {
             val events = listOf(
-                GameEvent.SpellCast(forgeCardId = 99, seatId = 1),
+                GameEvent.SpellCast(forgeCardId = 99, seatId = SeatId(1)),
                 GameEvent.ZoneChanged(forgeCardId = 99, from = Zone.Hand, to = Zone.Stack),
             )
             AnnotationBuilder.categoryFromEvents(99, events) shouldBe TransferCategory.CastSpell
@@ -45,7 +46,7 @@ class CategoryFromEventsTest :
             // LandPlayed should take priority.
             val events = listOf(
                 GameEvent.ZoneChanged(forgeCardId = 42, from = Zone.Hand, to = Zone.Battlefield),
-                GameEvent.LandPlayed(forgeCardId = 42, seatId = 1),
+                GameEvent.LandPlayed(forgeCardId = 42, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(42, events) shouldBe TransferCategory.PlayLand
         }
@@ -82,7 +83,7 @@ class CategoryFromEventsTest :
 
         test("noMatchingEventReturnsNull") {
             val events = listOf(
-                GameEvent.LandPlayed(forgeCardId = 99, seatId = 1),
+                GameEvent.LandPlayed(forgeCardId = 99, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(42, events).shouldBeNull()
         }
@@ -94,16 +95,16 @@ class CategoryFromEventsTest :
         test("unrelatedEventsIgnored") {
             val events = listOf(
                 GameEvent.CardTapped(forgeCardId = 42, tapped = true),
-                GameEvent.LifeChanged(seatId = 1, oldLife = 20, newLife = 17),
-                GameEvent.DamageDealtToPlayer(sourceForgeId = 10, targetSeatId = 1, amount = 3, combat = true),
+                GameEvent.LifeChanged(seatId = SeatId(1), oldLife = 20, newLife = 17),
+                GameEvent.DamageDealtToPlayer(sourceForgeId = 10, targetSeatId = SeatId(1), amount = 3, combat = true),
             )
             AnnotationBuilder.categoryFromEvents(42, events).shouldBeNull()
         }
 
         test("multipleCardsInEvents") {
             val events = listOf(
-                GameEvent.LandPlayed(forgeCardId = 42, seatId = 1),
-                GameEvent.SpellCast(forgeCardId = 99, seatId = 1),
+                GameEvent.LandPlayed(forgeCardId = 42, seatId = SeatId(1)),
+                GameEvent.SpellCast(forgeCardId = 99, seatId = SeatId(1)),
                 GameEvent.SpellResolved(forgeCardId = 77, hasFizzled = false),
             )
             AnnotationBuilder.categoryFromEvents(42, events) shouldBe TransferCategory.PlayLand
@@ -117,7 +118,7 @@ class CategoryFromEventsTest :
         test("sacrificedOverridesDestroy") {
             // When both CardSacrificed and ZoneChanged(BF→GY) fire, Sacrifice wins
             val events = listOf(
-                GameEvent.CardSacrificed(forgeCardId = 55, seatId = 1),
+                GameEvent.CardSacrificed(forgeCardId = 55, seatId = SeatId(1)),
                 GameEvent.ZoneChanged(forgeCardId = 55, from = Zone.Battlefield, to = Zone.Graveyard),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Sacrifice
@@ -126,7 +127,7 @@ class CategoryFromEventsTest :
         test("sacrificedWithoutZoneChangedReturnsNull") {
             // CardSacrificed alone without a ZoneChanged should not produce a category
             val events = listOf(
-                GameEvent.CardSacrificed(forgeCardId = 55, seatId = 1),
+                GameEvent.CardSacrificed(forgeCardId = 55, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(55, events).shouldBeNull()
         }
@@ -224,7 +225,7 @@ class CategoryFromEventsTest :
         test("sacrificedForOtherCardDoesNotAffect") {
             // CardSacrificed for a different card should not affect the target card
             val events = listOf(
-                GameEvent.CardSacrificed(forgeCardId = 99, seatId = 1),
+                GameEvent.CardSacrificed(forgeCardId = 99, seatId = SeatId(1)),
                 GameEvent.ZoneChanged(forgeCardId = 55, from = Zone.Battlefield, to = Zone.Graveyard),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Destroy
@@ -235,7 +236,7 @@ class CategoryFromEventsTest :
         test("cardDestroyedReturnsDestroy") {
             // CardDestroyed emitted by enriched ZoneChanged handler for BF→GY
             val events = listOf(
-                GameEvent.CardDestroyed(forgeCardId = 55, seatId = 1),
+                GameEvent.CardDestroyed(forgeCardId = 55, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Destroy
         }
@@ -243,8 +244,8 @@ class CategoryFromEventsTest :
         test("cardDestroyedWithSacrificeReturnsSacrifice") {
             // CardSacrificed (from dedicated event) overrides CardDestroyed (from zone pair)
             val events = listOf(
-                GameEvent.CardSacrificed(forgeCardId = 55, seatId = 1),
-                GameEvent.CardDestroyed(forgeCardId = 55, seatId = 1),
+                GameEvent.CardSacrificed(forgeCardId = 55, seatId = SeatId(1)),
+                GameEvent.CardDestroyed(forgeCardId = 55, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Sacrifice
         }
@@ -252,43 +253,43 @@ class CategoryFromEventsTest :
         test("cardDestroyedWithSacrificeReverseOrder") {
             // Order shouldn't matter — sacrifice always overrides destroy
             val events = listOf(
-                GameEvent.CardDestroyed(forgeCardId = 55, seatId = 1),
-                GameEvent.CardSacrificed(forgeCardId = 55, seatId = 1),
+                GameEvent.CardDestroyed(forgeCardId = 55, seatId = SeatId(1)),
+                GameEvent.CardSacrificed(forgeCardId = 55, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Sacrifice
         }
 
         test("cardBouncedReturnsBounce") {
             val events = listOf(
-                GameEvent.CardBounced(forgeCardId = 55, seatId = 1),
+                GameEvent.CardBounced(forgeCardId = 55, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Bounce
         }
 
         test("cardExiledReturnsExile") {
             val events = listOf(
-                GameEvent.CardExiled(forgeCardId = 55, seatId = 1),
+                GameEvent.CardExiled(forgeCardId = 55, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Exile
         }
 
         test("cardDiscardedReturnsDiscard") {
             val events = listOf(
-                GameEvent.CardDiscarded(forgeCardId = 55, seatId = 1),
+                GameEvent.CardDiscarded(forgeCardId = 55, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Discard
         }
 
         test("cardMilledReturnsMill") {
             val events = listOf(
-                GameEvent.CardMilled(forgeCardId = 55, seatId = 1),
+                GameEvent.CardMilled(forgeCardId = 55, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Mill
         }
 
         test("spellCounteredReturnsCountered") {
             val events = listOf(
-                GameEvent.SpellCountered(forgeCardId = 77, seatId = 1),
+                GameEvent.SpellCountered(forgeCardId = 77, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(77, events) shouldBe TransferCategory.Countered
         }
@@ -298,7 +299,7 @@ class CategoryFromEventsTest :
             // same card, the specific event wins (e.g. enriched handler emitted
             // CardDestroyed but a ZoneChanged also leaked through)
             val events = listOf(
-                GameEvent.CardDestroyed(forgeCardId = 55, seatId = 1),
+                GameEvent.CardDestroyed(forgeCardId = 55, seatId = SeatId(1)),
                 GameEvent.ZoneChanged(forgeCardId = 55, from = Zone.Battlefield, to = Zone.Graveyard),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Destroy
@@ -307,8 +308,8 @@ class CategoryFromEventsTest :
         test("mechanicEventTakesPriorityOverZoneSpecific") {
             // LandPlayed (mechanic) takes priority even if CardBounced is present
             val events = listOf(
-                GameEvent.LandPlayed(forgeCardId = 42, seatId = 1),
-                GameEvent.CardBounced(forgeCardId = 42, seatId = 1),
+                GameEvent.LandPlayed(forgeCardId = 42, seatId = SeatId(1)),
+                GameEvent.CardBounced(forgeCardId = 42, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(42, events) shouldBe TransferCategory.PlayLand
         }
@@ -316,8 +317,8 @@ class CategoryFromEventsTest :
         test("sacrificeDoesNotAffectNonDestroyZoneCategory") {
             // CardSacrificed only overrides Destroy, not other zone categories
             val events = listOf(
-                GameEvent.CardSacrificed(forgeCardId = 55, seatId = 1),
-                GameEvent.CardExiled(forgeCardId = 55, seatId = 1),
+                GameEvent.CardSacrificed(forgeCardId = 55, seatId = SeatId(1)),
+                GameEvent.CardExiled(forgeCardId = 55, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Exile
         }
@@ -387,7 +388,7 @@ class CategoryFromEventsTest :
 
         test("cardSurveiledReturnsSurveil") {
             val events = listOf(
-                GameEvent.CardSurveiled(forgeCardId = 55, seatId = 1),
+                GameEvent.CardSurveiled(forgeCardId = 55, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Surveil
         }
@@ -395,7 +396,7 @@ class CategoryFromEventsTest :
         test("cardSurveiledOverridesGenericLibraryToGraveyard") {
             // CardSurveiled takes priority over ZoneChanged(Library→Graveyard) which would give Mill
             val events = listOf(
-                GameEvent.CardSurveiled(forgeCardId = 55, seatId = 1),
+                GameEvent.CardSurveiled(forgeCardId = 55, seatId = SeatId(1)),
                 GameEvent.ZoneChanged(forgeCardId = 55, from = Zone.Library, to = Zone.Graveyard),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Surveil
@@ -404,8 +405,8 @@ class CategoryFromEventsTest :
         test("cardSurveiledDoesNotAffectOtherCard") {
             // CardSurveiled for card 55 should not affect card 99's Mill category
             val events = listOf(
-                GameEvent.CardSurveiled(forgeCardId = 55, seatId = 1),
-                GameEvent.CardMilled(forgeCardId = 99, seatId = 1),
+                GameEvent.CardSurveiled(forgeCardId = 55, seatId = SeatId(1)),
+                GameEvent.CardMilled(forgeCardId = 99, seatId = SeatId(1)),
             )
             AnnotationBuilder.categoryFromEvents(55, events) shouldBe TransferCategory.Surveil
             AnnotationBuilder.categoryFromEvents(99, events) shouldBe TransferCategory.Mill
@@ -444,36 +445,36 @@ class CategoryFromEventsTest :
 
         test("affectorSourceReturnsSurveilSourceCard") {
             val events = listOf(
-                GameEvent.CardSurveiled(forgeCardId = 55, seatId = 1, sourceForgeCardId = 42),
+                GameEvent.CardSurveiled(forgeCardId = 55, seatId = SeatId(1), sourceForgeCardId = 42),
             )
             AnnotationBuilder.affectorSourceFromEvents(55, events) shouldBe 42
         }
 
         test("affectorSourceReturnsMillSourceCard") {
             val events = listOf(
-                GameEvent.CardMilled(forgeCardId = 55, seatId = 1, sourceForgeCardId = 42),
+                GameEvent.CardMilled(forgeCardId = 55, seatId = SeatId(1), sourceForgeCardId = 42),
             )
             AnnotationBuilder.affectorSourceFromEvents(55, events) shouldBe 42
         }
 
         test("affectorSourceReturnsNullWhenMillHasNoSource") {
             val events = listOf(
-                GameEvent.CardMilled(forgeCardId = 55, seatId = 1, sourceForgeCardId = null),
+                GameEvent.CardMilled(forgeCardId = 55, seatId = SeatId(1), sourceForgeCardId = null),
             )
             AnnotationBuilder.affectorSourceFromEvents(55, events).shouldBeNull()
         }
 
         test("affectorSourceReturnsNullWhenSurveilHasNoSource") {
             val events = listOf(
-                GameEvent.CardSurveiled(forgeCardId = 55, seatId = 1, sourceForgeCardId = null),
+                GameEvent.CardSurveiled(forgeCardId = 55, seatId = SeatId(1), sourceForgeCardId = null),
             )
             AnnotationBuilder.affectorSourceFromEvents(55, events).shouldBeNull()
         }
 
         test("affectorSourceMatchesCorrectCard") {
             val events = listOf(
-                GameEvent.CardSurveiled(forgeCardId = 55, seatId = 1, sourceForgeCardId = 42),
-                GameEvent.CardSurveiled(forgeCardId = 66, seatId = 1, sourceForgeCardId = 43),
+                GameEvent.CardSurveiled(forgeCardId = 55, seatId = SeatId(1), sourceForgeCardId = 42),
+                GameEvent.CardSurveiled(forgeCardId = 66, seatId = SeatId(1), sourceForgeCardId = 43),
             )
             AnnotationBuilder.affectorSourceFromEvents(55, events) shouldBe 42
             AnnotationBuilder.affectorSourceFromEvents(66, events) shouldBe 43

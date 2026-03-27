@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import leyline.LeylinePaths
 import leyline.analysis.MechanicClassifier
 import leyline.analysis.SessionAnalyzer
+import leyline.bridge.SeatId
 import leyline.game.GameEvent
 import leyline.match.MatchRecorder
 import leyline.recording.GREToDecoded
@@ -185,7 +186,7 @@ class SessionRecorder(
             ForgeEventSummary(
                 type = ev::class.simpleName ?: "Unknown",
                 mechanic = MechanicClassifier.classify(ev),
-                seat = extractSeat(ev),
+                seat = extractSeat(ev)?.value,
             )
         }
 
@@ -310,7 +311,7 @@ class SessionRecorder(
         }
     }
 
-    private fun extractSeat(ev: GameEvent): Int? = when (ev) {
+    private fun extractSeat(ev: GameEvent): SeatId? = when (ev) {
         is GameEvent.LandPlayed -> ev.seatId
         is GameEvent.SpellCast -> ev.seatId
         is GameEvent.AttackersDeclared -> ev.seatId

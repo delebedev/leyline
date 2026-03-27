@@ -448,9 +448,9 @@ object AnnotationPipeline {
         var playerDamageSeat: Int? = null
         for (ev in playerDamage) {
             val sourceIid = idResolver(ForgeCardId(ev.sourceForgeId)).value
-            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId, ev.amount))
+            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId.value, ev.amount))
             if (firstPlayerDamageAttackerIid == null) firstPlayerDamageAttackerIid = sourceIid
-            playerDamageSeat = ev.targetSeatId
+            playerDamageSeat = ev.targetSeatId.value
         }
 
         // --- DamagedThisTurn badges ---
@@ -549,17 +549,17 @@ object AnnotationPipeline {
                     // annotations.add(AnnotationBuilder.shuffle(ev.seatId))
                     // Suppressed: client's ShuffleAnnotationParser requires OldIds/NewIds
                     // detail keys we don't have. Shuffle is cosmetic (animation only).
-                    log.debug("mechanic: shuffle seat={} (suppressed — no detail keys)", ev.seatId)
+                    log.debug("mechanic: shuffle seat={} (suppressed — no detail keys)", ev.seatId.value)
                 }
                 is GameEvent.Scry -> {
-                    annotations.add(AnnotationBuilder.scry(ev.seatId, ev.topCount, ev.bottomCount))
-                    log.debug("mechanic: scry seat={} top={} bottom={}", ev.seatId, ev.topCount, ev.bottomCount)
+                    annotations.add(AnnotationBuilder.scry(ev.seatId.value, ev.topCount, ev.bottomCount))
+                    log.debug("mechanic: scry seat={} top={} bottom={}", ev.seatId.value, ev.topCount, ev.bottomCount)
                 }
                 is GameEvent.Surveil -> {
                     // Surveil is mechanically similar to scry — use scry annotation
                     // with surveil semantics (toLibrary = top, toGraveyard = bottom)
-                    annotations.add(AnnotationBuilder.scry(ev.seatId, ev.toLibrary, ev.toGraveyard))
-                    log.debug("mechanic: surveil seat={} lib={} gy={}", ev.seatId, ev.toLibrary, ev.toGraveyard)
+                    annotations.add(AnnotationBuilder.scry(ev.seatId.value, ev.toLibrary, ev.toGraveyard))
+                    log.debug("mechanic: surveil seat={} lib={} gy={}", ev.seatId.value, ev.toLibrary, ev.toGraveyard)
                 }
                 is GameEvent.TokenCreated -> {
                     val instanceId = idResolver(ForgeCardId(ev.forgeCardId)).value
@@ -836,7 +836,7 @@ object AnnotationPipeline {
             val origId = realloc.old.value
             val newId = realloc.new.value
             val ownerSeat = sacrificeEv.seatId
-            val destZone = if (ownerSeat == 1) ZONE_P1_GRAVEYARD else ZONE_P2_GRAVEYARD
+            val destZone = if (ownerSeat.value == 1) ZONE_P1_GRAVEYARD else ZONE_P2_GRAVEYARD
 
             // If still in gameObjects, strip it so the client sees it leave.
             val resolvedGrpId = if (stillOnBattlefield) {
@@ -880,7 +880,7 @@ object AnnotationPipeline {
             }
 
             transfers.add(
-                AppliedTransfer(origId, newId, TransferCategory.Sacrifice, ZONE_BATTLEFIELD, destZone, resolvedGrpId, ownerSeat, manaPayments = manaPayments),
+                AppliedTransfer(origId, newId, TransferCategory.Sacrifice, ZONE_BATTLEFIELD, destZone, resolvedGrpId, ownerSeat.value, manaPayments = manaPayments),
             )
             zoneRecordings.add(newId to destZone)
             log.debug("disappeared token: iid {} → {} category=Sacrifice manaPayments={}", origId, newId, manaPayments.size)

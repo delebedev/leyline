@@ -13,6 +13,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
+import leyline.bridge.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.aiPlayer
 import leyline.conformance.humanPlayer
@@ -74,7 +75,7 @@ class GameEventCollectorTest :
             val lp = events.filterIsInstance<GameEvent.LandPlayed>()
             lp.size shouldBe 1
             lp[0].forgeCardId shouldBe land.id
-            lp[0].seatId shouldBe 1
+            lp[0].seatId shouldBe SeatId(1)
         }
 
         // -- SpellCast --
@@ -93,7 +94,7 @@ class GameEventCollectorTest :
             val sc = events.filterIsInstance<GameEvent.SpellCast>()
             sc.size shouldBe 1
             sc[0].forgeCardId shouldBe spell.id
-            sc[0].seatId shouldBe 1
+            sc[0].seatId shouldBe SeatId(1)
         }
 
         // -- SpellResolved --
@@ -167,7 +168,7 @@ class GameEventCollectorTest :
             val destroyed = events.filterIsInstance<GameEvent.CardDestroyed>()
             destroyed.size shouldBe 1
             destroyed[0].forgeCardId shouldBe creature.id
-            destroyed[0].seatId shouldBe 1
+            destroyed[0].seatId shouldBe SeatId(1)
             destroyed[0].sourceForgeCardId shouldBe bolt.id
         }
 
@@ -322,7 +323,7 @@ class GameEventCollectorTest :
             val dmg = collector.drainEvents().events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
             dmg.size shouldBe 1
             dmg[0].sourceForgeId shouldBe creature.id
-            dmg[0].targetSeatId shouldBe 1
+            dmg[0].targetSeatId shouldBe SeatId(1)
             dmg[0].amount shouldBe 3
             dmg[0].combat.shouldBeTrue()
         }
@@ -338,7 +339,7 @@ class GameEventCollectorTest :
 
             val lc = collector.drainEvents().events.filterIsInstance<GameEvent.LifeChanged>()
             lc.size shouldBe 1
-            lc[0].seatId shouldBe 1
+            lc[0].seatId shouldBe SeatId(1)
             lc[0].oldLife shouldBe 20
             lc[0].newLife shouldBe 17
         }
@@ -358,7 +359,7 @@ class GameEventCollectorTest :
             val sac = collector.drainEvents().events.filterIsInstance<GameEvent.CardSacrificed>()
             sac.size shouldBe 1
             sac[0].forgeCardId shouldBe creature.id
-            sac[0].seatId shouldBe 1
+            sac[0].seatId shouldBe SeatId(1)
         }
 
         // -- Attachment --
@@ -473,7 +474,7 @@ class GameEventCollectorTest :
 
             val sh = collector.drainEvents().events.filterIsInstance<GameEvent.LibraryShuffled>()
             sh.size shouldBe 1
-            sh[0].seatId shouldBe 1
+            sh[0].seatId shouldBe SeatId(1)
         }
 
         // -- Scry --
@@ -487,7 +488,7 @@ class GameEventCollectorTest :
 
             val scry = collector.drainEvents().events.filterIsInstance<GameEvent.Scry>()
             scry.size shouldBe 1
-            scry[0].seatId shouldBe 1
+            scry[0].seatId shouldBe SeatId(1)
             scry[0].topCount shouldBe 1
             scry[0].bottomCount shouldBe 2
         }
@@ -503,7 +504,7 @@ class GameEventCollectorTest :
 
             val sv = collector.drainEvents().events.filterIsInstance<GameEvent.Surveil>()
             sv.size shouldBe 1
-            sv[0].seatId shouldBe 1
+            sv[0].seatId shouldBe SeatId(1)
             sv[0].toLibrary shouldBe 1
             sv[0].toGraveyard shouldBe 3
         }
@@ -532,7 +533,7 @@ class GameEventCollectorTest :
 
             val sh = collector.drainEvents().events.filterIsInstance<GameEvent.LibraryShuffled>()
             sh.size shouldBe 1
-            sh[0].seatId shouldBe 2
+            sh[0].seatId shouldBe SeatId(2)
         }
 
         // -- P/T cache cleared on zone leave --
