@@ -499,7 +499,10 @@ permanents:
     notes: >
       PhasedOut/PhasedIn annotations (95/96) not implemented.
       Forge tracks phasing as card state, not zone. GameEventCardPhased
-      fires but not wired to nexus events.
+      fires but not wired to nexus events. Zone 12 = phaseout zone
+      (confirmed via kaito-shizuki spec). PhasedOut has affectorId=trigger,
+      PhasedIn has no affectorId. No ZoneTransfer — zone change via
+      gameObject diff only.
 
   controller-change:
     status: wired
@@ -516,7 +519,55 @@ permanents:
 
   type-change:
     status: missing
-    notes: "ModifiedType annotation (25) not implemented."
+    notes: >
+      ModifiedType annotation (25) not implemented. Crew mechanic uses
+      ModifiedType + LayeredEffect persistent annotation to change
+      Vehicle artifact → artifact creature (surgehacker-mech spec).
+
+  ability-removal:
+    status: missing
+    notes: >
+      RemoveAbility annotation (type 23) not implemented. Wire shape confirmed
+      via tamiyos-compleation spec: multi-type pAnn [RemoveAbility, LayeredEffect],
+      key=targetIid(string), value="all", effect_id links to LayeredEffectCreated.
+      Needed for "loses all abilities" effects.
+
+  vehicle:
+    status: missing
+    notes: >
+      Vehicle type + Crew mechanic not implemented. Crew uses PayCostsReq with
+      effectCostType=Select, weights=creature power, minSel=crew number.
+      CrewedThisTurn (type 94) persistent annotation tracks crew sources.
+      ModifiedType+LayeredEffect makes vehicle a creature until EOT.
+      ShouldntPlay/RedundantActivation hints for already-crewed vehicles.
+      Wire shape confirmed via surgehacker-mech spec (Crew 4).
+
+  saga:
+    status: missing
+    notes: >
+      Saga enchantment subtype not implemented. Lore counter (type 108)
+      auto-increment on ETB + draw step. Chapter abilities trigger based on
+      counter count (separate grpId per chapter). Final chapter: exile-return
+      transform (two-step ObjectIdChanged + ZoneTransfer with categories
+      Exile/Return). Wire shape confirmed via tribute-to-horobi spec.
+      Overlaps #191 (DFC / Saga flip wire).
+
+  channel:
+    status: missing
+    notes: >
+      Hand-zone activated ability. Discard-as-cost uses standard Discard
+      category. Channel ability has its own grpId distinct from ETB trigger.
+      Requires ActionMapper to offer activated abilities on cards in hand.
+      Wire shape confirmed via twinshot-sniper spec.
+
+  qualification:
+    status: missing
+    notes: >
+      Qualification persistent annotation (type 42) not implemented. Three
+      confirmed usages: QualificationType=47 (adventure exile marker),
+      QualificationType=21 (aura continuous "loses abilities + doesn't untap"),
+      CantBeBlockedByObjects (evasion grant). Wire shape confirmed via
+      tamiyos-compleation, tatsunari-toad-rider, ratcatcher-trainee specs.
 
 
 # ─── Keywords ────────────────────────────────────────────────────────

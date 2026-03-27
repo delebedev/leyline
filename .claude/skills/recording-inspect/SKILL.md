@@ -9,7 +9,8 @@ Walk through a proxy recording session interactively: show what happened, let yo
 
 ## When to use me
 
-- After a proxy recording session ("let's look at last game")
+- After a proxy recording session ("let's look at last game", "let's analyse today's games")
+- Reviewing the recording backlog — sessions don't have to be from today
 - When investigating how a specific card/mechanic played out on the real server
 - Before implementing a mechanic — understand what the client saw first
 - `/recording-inspect` or `/recording-inspect 2026-03-17`
@@ -59,9 +60,22 @@ Ask the user: **"Which cards or mechanics interest you?"**
 
 Don't guess — wait for direction. The user knows what they played and what felt interesting.
 
-### 6. Card activity analysis
+### 6. Forge script check (BEFORE tracing)
 
-When the user picks cards to investigate, trace what actually happened using annotations from `md-frames.jsonl`.
+**Always read the Forge script before tracing recordings.** The script tells you what abilities exist, what keywords matter, and what the engine supports — so you know what to look for in annotations.
+
+```bash
+just card-script "<name>"
+```
+Read the script. Note:
+- What abilities the card has (triggered, activated, static, keywords)
+- Mana costs for activated abilities
+- Token scripts referenced
+- Any complex interactions (replacement effects, conditions)
+
+### 7. Card activity analysis
+
+With the Forge script as context, trace what actually happened using annotations from `md-frames.jsonl`.
 
 **Seat detection:** `md-frames.jsonl` contains frames from both seats interleaved (check `systemSeatIds` field). For AI bot games, seat 1 is typically the human player, but this isn't guaranteed. Ask the user if unclear rather than guessing. When analyzing, filter to one seat's frames to avoid double-counting annotations.
 
@@ -78,7 +92,7 @@ When the user picks cards to investigate, trace what actually happened using ann
 | `ModifiedLife` (details: `life`) | Life gain/loss with source card |
 | `Scry` | Scry event |
 
-### 7. Deep trace (if user wants)
+### 8. Deep trace (if user wants)
 
 For protocol-level card lifecycle:
 
@@ -94,17 +108,14 @@ just tape proto trace <instanceId> -s <session>
 ```
 Protocol-level lifecycle. Call out: ObjectIdChanged (realloc/transform), DeclareAttackers/Blockers, SelectTargetsReq, etc.
 
-### 8. Forge script check
+### 9. Compare Forge vs recording
 
-```bash
-just card-script "<name>"
-```
-Read the script. Compare abilities against what the recording shows. Flag:
+With both the script and trace data in hand, flag:
 - Ability present in recording but missing from Forge script — **can't implement yet**
 - Ability in Forge but not exercised in recording — **no conformance data**
 - Both present — **ready to wire/verify**
 
-### 9. Write/update notes
+### 10. Write/update notes
 
 At the end, offer to write or update `recordings/<session>/notes.md` with:
 - Deck description and opponent (if known)

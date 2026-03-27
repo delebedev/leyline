@@ -27,7 +27,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 18 | LayeredEffectCreated | `GameEventCardStatsChanged` | `PowerToughnessChanged` | `layeredEffectCreated()` | `effect_id`, `sourceAbilityGRPID`, `LayeredEffectType` | Implemented |
 | 20 | Attachment | `GameEventCardAttachment` | `CardAttached` | `attachment()` (persistent) | affector/affected ids | Implemented |
 | 22 | CopiedObject | -- | -- | -- | `abilityGrpId`, `LayeredEffectType`, `CopyObject` | MISSING |
-| 23 | RemoveAbility | -- | -- | -- | `effect_id` | MISSING |
+| 23 | RemoveAbility | -- | -- | -- | `effect_id`; multi-type pAnn `[RemoveAbility, LayeredEffect]`, key=targetIid(str), value="all" | MISSING — wire shape confirmed (tamiyos-compleation spec) |
 | 25 | ModifiedType | -- | -- | -- | `effect_id`, `temporaryCardType` | MISSING |
 | 26 | TargetSpec | -- | -- | -- | `index`, `abilityGrpId`, `distributions`, `promptId` | MISSING |
 | 28 | FaceDown | -- | -- | -- | `abilityGrpId`, `REASON` | MISSING |
@@ -42,7 +42,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 39 | AbilityWordActive | -- | -- | -- | `AbilityWordName`, `value`, `colors`, `AbilityGrpId` | MISSING |
 | 40 | LinkInfo | -- | -- | -- | `LinkType`, `Choice_Value` | MISSING |
 | 41 | TokenDeleted | `GameEventCardChangeZone` | `TokenDestroyed` | `tokenDeleted()` | affectorId=instanceId, affectedIds=[instanceId] | Implemented |
-| 42 | Qualification | -- | -- | -- | `QualificationType`, `QualificationSubtype`, `grpid` | MISSING |
+| 42 | Qualification | -- | -- | -- | `QualificationType`, `QualificationSubtype`, `grpid`, `SourceParent`, `CantBeBlockedByObjects`; QualType 47=adventure exile, 21=aura continuous, CantBeBlockedByObjects=evasion grant | MISSING — wire shape confirmed (tamiyos-compleation, tatsunari, ratcatcher-trainee specs) |
 | 43 | ResolutionStart | `GameEventSpellResolved` | `SpellResolved` | `resolutionStart()` | `grpid` | Implemented |
 | 44 | ResolutionComplete | `GameEventSpellResolved` | `SpellResolved` | `resolutionComplete()` | `grpid` | Implemented |
 | 45 | Designation | -- | -- | -- | `PromptMessage`, `CostIncrease`, `grpid` | MISSING |
@@ -92,9 +92,9 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 91 | ReferencedCardNames | -- | -- | -- | (none) | MISSING |
 | 92 | PlayerSelectingTargets | -- | -- | -- | affector/affected ids | MISSING |
 | 93 | PlayerSubmittedTargets | -- | -- | -- | affector/affected ids | MISSING |
-| 94 | CrewedThisTurn | -- | -- | -- | (none) | MISSING |
-| 95 | PhasedOut | `GameEventCardPhased` | -- | -- | affected ids | MISSING |
-| 96 | PhasedIn | `GameEventCardPhased` | -- | -- | affected ids | MISSING |
+| 94 | CrewedThisTurn | -- | -- | -- | affectorId=vehicle, affectedIds=[crew sources]; persistent, cleared EOT | MISSING — wire shape confirmed (surgehacker-mech spec) |
+| 95 | PhasedOut | `GameEventCardPhased` | -- | -- | affectorId=trigger ability iid, affectedIds=[permanent]; no detail keys; zone change via gameObject diff to zone 12 (no ZoneTransfer) | MISSING — wire shape confirmed (kaito-shizuki spec) |
+| 96 | PhasedIn | `GameEventCardPhased` | -- | -- | affectedIds=[permanent]; no affectorId (system action), no details; zone 12→BF via gameObject diff | MISSING — wire shape confirmed (kaito-shizuki spec) |
 | 97 | LoyaltyActivationsRemaining | -- | -- | -- | `ActivationsRemaining` | MISSING |
 | 99 | RegeneratePending | `GameEventCardRegenerated` | -- | -- | (none) | MISSING |
 | 100 | PermanentRegenerated | `GameEventCardRegenerated` | -- | -- | affected ids | MISSING |
@@ -167,10 +167,11 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 36 | Library | `Library` | `P2_LIBRARY` | Per-seat (P2) | Hidden |
 | 37 | Graveyard | `Graveyard` | `P2_GRAVEYARD` | Per-seat (P2) | Public |
 | 38 | Sideboard | `Sideboard` | `P2_SIDEBOARD` | Per-seat (P2) | Private |
+| 12 | PhasedOut | -- | -- | Shared | Hidden (phased-out permanents invisible to client; confirmed via kaito-shizuki spec) |
 
 **Forge zones with no Arena equivalent**: `Flashback`, `Ante`, `Merged`, `SchemeDeck`, `PlanarDeck`, `AttractionDeck`, `Junkyard`, `ContraptionDeck`, `Subgame`, `ExtraHand`, `None`
 
-**Arena zones with no Forge equivalent**: `Revealed`, `Limbo`, `Suppressed`, `Pending`, `PhasedOut` (Forge tracks phasing as card state, not zone)
+**Arena zones with no Forge equivalent**: `Revealed`, `Limbo`, `Suppressed`, `Pending`, `PhasedOut` (zone 12 — Forge tracks phasing as card state, not zone)
 
 ## Table 4: Action Types
 
