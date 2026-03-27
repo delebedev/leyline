@@ -75,6 +75,7 @@ sealed interface GameEvent {
         val cardId: ForgeCardId,
         val seatId: SeatId,
         val manaPayments: List<ManaPayment> = emptyList(),
+        val isAdventure: Boolean = false,
     ) : GameEvent
 
     /** A spell was placed on the stack before costs were paid.

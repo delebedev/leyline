@@ -291,23 +291,25 @@ class MatchSession(
                 Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             ActionType.CastAdventure -> {
-                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val submitted = if (forgeCardId != null) {
-                    val card = findCard(game, forgeCardId)
-                    val player = bridge.getPlayer(SeatId(seatId))
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val submitted = if (cardId != null) {
+                    val card = findCard(game, cardId)
+                    val player = bridge.getPlayer(seatId)
                     val adventureIndex = if (card != null && player != null) {
                         getAllCastableAbilities(card, player)
                             .indexOfFirst { it.isAdventure }
                             .takeIf { it >= 0 }
-                    } else null
+                    } else {
+                        null
+                    }
                     seatBridge.action.submitAction(
                         pending.actionId,
-                        PlayerAction.CastSpell(forgeCardId, adventureIndex),
+                        PlayerAction.CastSpell(cardId, adventureIndex),
                     )
                 } else {
                     seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
-                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             else -> {
                 log.info("MatchSession: unhandled action type {}, passing", action.actionType)
