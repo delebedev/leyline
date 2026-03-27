@@ -878,7 +878,10 @@ object AnnotationPipeline {
             }
 
             transfers.add(
-                AppliedTransfer(origId, newId, TransferCategory.Sacrifice, ZONE_BATTLEFIELD, destZone, resolvedGrpId, ownerSeat.value, manaPayments = manaPayments),
+                AppliedTransfer(
+                    origId, newId, TransferCategory.Sacrifice, ZONE_BATTLEFIELD, destZone,
+                    resolvedGrpId, ownerSeat.value, manaPayments = manaPayments,
+                ),
             )
             zoneRecordings.add(newId to destZone)
             log.debug("disappeared token: iid {} → {} category=Sacrifice manaPayments={}", origId, newId, manaPayments.size)

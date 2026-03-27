@@ -58,6 +58,7 @@ object AnnotationBuilder {
      *
      * Priority: specific mechanic events > CardSacrificed override > zone-pair inference.
      */
+    @Suppress("CyclomaticComplexMethod") // flat dispatch table, not actual complexity
     fun categoryFromEvents(forgeCardId: ForgeCardId, events: List<GameEvent>): TransferCategory? {
         var generic: GameEvent.ZoneChanged? = null
         var sacrificed = false
