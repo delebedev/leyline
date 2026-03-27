@@ -511,6 +511,10 @@ object AnnotationPipeline {
         val abilityWordPersistent: List<AnnotationInfo> = emptyList(),
         /** Qualification annotations for adventure-exiled cards — full replacement set for this GSM. */
         val qualificationPersistent: List<AnnotationInfo> = emptyList(),
+        /** CrewedThisTurn persistent annotations — full replacement set for this GSM. */
+        val crewedThisTurnPersistent: List<AnnotationInfo> = emptyList(),
+        /** ModifiedType+LayeredEffect persistent annotations for crew type changes — full replacement set. */
+        val crewTypeChangePersistent: List<AnnotationInfo> = emptyList(),
     ) {
         /** Tracks an active controller-change effect for persistent annotation lifecycle. */
         data class ControllerChangedEffect(

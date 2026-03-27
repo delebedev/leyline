@@ -219,6 +219,13 @@ class GameBridge(
      */
     val annotations = PersistentAnnotationStore()
 
+    /**
+     * Active crew type-change effects: forgeCardId → effectId.
+     * Allocated when a vehicle is crewed (type changes to creature),
+     * removed when the crew effect expires (end of turn, vehicle reverts).
+     */
+    val activeCrewEffects = mutableMapOf<ForgeCardId, Int>()
+
     override fun nextAnnotationId(): Int = annotations.nextAnnotationId()
 
     override fun nextPersistentAnnotationId(): Int = annotations.nextPersistentAnnotationId()
@@ -783,6 +790,7 @@ class GameBridge(
         diff.resetAll()
         effects.resetAll()
         annotations.resetAll()
+        activeCrewEffects.clear()
 
         // Swap to InMemoryCardRepository backed by the client DB for real grpIds.
         // PuzzleCardRegistrar checks clientRepo first (real art), falls back to synthetic.
@@ -973,6 +981,66 @@ class GameBridge(
             }
         }
         return result
+    }
+
+    /**
+     * Snapshot of a crewed vehicle: vehicle card, its instanceId, and the
+     * instanceIds of creatures that crewed it.
+     */
+    data class CrewSnapshot(
+        val vehicleForgeCardId: ForgeCardId,
+        val vehicleInstanceId: Int,
+        val crewSourceInstanceIds: List<Int>,
+        /** True when the vehicle is currently a creature (crew resolved). */
+        val isCreature: Boolean,
+        /** Crew ability grpId, resolved from the vehicle's ability registry. */
+        val crewAbilityGrpId: Int?,
+    )
+
+    /**
+     * Snapshot which vehicles are currently crewed this turn.
+     * Iterates all battlefield cards and checks `card.getCrewedByThisTurn()`.
+     */
+    fun snapshotCrewState(): List<CrewSnapshot> {
+        val game = game ?: return emptyList()
+        val result = mutableListOf<CrewSnapshot>()
+        for (player in game.players) {
+            for (card in player.getZone(ZoneType.Battlefield).cards) {
+                val crewSources = card.getCrewedByThisTurn()
+                if (crewSources == null || crewSources.isEmpty()) continue
+
+                val vehicleFid = ForgeCardId(card.id)
+                val vehicleIid = ids.getOrAlloc(vehicleFid).value
+                val sourceIids = crewSources.map { ids.getOrAlloc(ForgeCardId(it.id)).value }
+
+                // Resolve crew ability grpId (Task 4)
+                val crewAbilityGrpId = resolveCrewAbilityGrpId(card)
+
+                result.add(
+                    CrewSnapshot(
+                        vehicleForgeCardId = vehicleFid,
+                        vehicleInstanceId = vehicleIid,
+                        crewSourceInstanceIds = sourceIids,
+                        isCreature = card.isCreature,
+                        crewAbilityGrpId = crewAbilityGrpId,
+                    ),
+                )
+            }
+        }
+        return result
+    }
+
+    /**
+     * Resolve crew ability grpId for a card via its ability registry.
+     * Finds the SpellAbility where `sa.isCrew == true` and resolves its grpId.
+     */
+    private fun resolveCrewAbilityGrpId(card: Card): Int? {
+        val grpId = cards.findGrpIdByName(card.name) ?: return null
+        val cardData = cards.findByGrpId(grpId) ?: return null
+        val registry = abilityRegistryFor(card, cardData) ?: return null
+
+        val crewSa = card.spellAbilities?.firstOrNull { it.isCrew } ?: return null
+        return registry.forSpellAbility(crewSa.id)
     }
 
     // --- Internal ---

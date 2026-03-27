@@ -444,9 +444,42 @@ object StateMapper {
             emptyList()
         }
 
+        // CrewedThisTurn + ModifiedType+LayeredEffect: scan crewed vehicles
+        val crewSnapshots = bridge.snapshotCrewState()
+        val crewedThisTurnPersistent = crewSnapshots.map { snap ->
+            AnnotationBuilder.crewedThisTurn(snap.vehicleInstanceId, snap.crewSourceInstanceIds)
+        }
+        val crewTypeChangePersistent = mutableListOf<AnnotationInfo>()
+        // Track active crew effects: allocate effectId for new crewed vehicles, remove expired
+        val currentCrewedFids = crewSnapshots.filter { it.isCreature }.map { it.vehicleForgeCardId }.toSet()
+        // Remove expired crew effects (vehicle no longer a creature)
+        val expiredCrewFids = bridge.activeCrewEffects.keys - currentCrewedFids
+        for (fid in expiredCrewFids) {
+            val effectId = bridge.activeCrewEffects.remove(fid)
+            if (effectId != null) {
+                annotations.add(AnnotationBuilder.layeredEffectDestroyed(effectId))
+            }
+        }
+        // Allocate new crew effects for newly crewed vehicles
+        for (snap in crewSnapshots) {
+            if (!snap.isCreature) continue
+            val effectId = bridge.activeCrewEffects.getOrPut(snap.vehicleForgeCardId) {
+                bridge.effects.nextEffectId()
+            }
+            crewTypeChangePersistent.add(
+                AnnotationBuilder.modifiedTypeLayeredEffect(
+                    instanceId = snap.vehicleInstanceId,
+                    effectId = effectId,
+                    sourceAbilityGrpId = snap.crewAbilityGrpId,
+                ),
+            )
+        }
+
         val enrichedMechanicResult = mechanicResult.copy(
             abilityWordPersistent = abilityWordPersistent,
             qualificationPersistent = qualificationPersistent + mechanicResult.qualificationPersistent,
+            crewedThisTurnPersistent = crewedThisTurnPersistent,
+            crewTypeChangePersistent = crewTypeChangePersistent,
         )
         val batch = PersistentAnnotationStore.computeBatch(
             currentActive = persistSnapshot,

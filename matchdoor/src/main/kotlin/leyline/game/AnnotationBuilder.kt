@@ -818,6 +818,35 @@ object AnnotationBuilder {
             .addAffectedIds(instanceId)
             .build()
 
+    /**
+     * Persistent: vehicle was crewed this turn. Arena type 94 (CrewedThisTurn).
+     * Wire shape: affectorId = vehicle instanceId, affectedIds = crew source instanceIds.
+     * Emitted when crew resolves; persists until end of turn.
+     */
+    fun crewedThisTurn(vehicleInstanceId: Int, crewSourceInstanceIds: List<Int>): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.CrewedThisTurn)
+            .setAffectorId(vehicleInstanceId)
+            .apply { crewSourceInstanceIds.forEach { addAffectedIds(it) } }
+            .build()
+
+    /**
+     * Persistent: vehicle became a creature via crew (type change). Types: [ModifiedType, LayeredEffect].
+     * Wire shape: affectedIds = [vehicleInstanceId], effect_id, sourceAbilityGRPID (crew ability grpId).
+     * Emitted when crew resolves and vehicle gains Creature type; removed on expiry.
+     */
+    fun modifiedTypeLayeredEffect(instanceId: Int, effectId: Int, sourceAbilityGrpId: Int? = null): AnnotationInfo {
+        val builder = AnnotationInfo.newBuilder()
+            .addType(AnnotationType.ModifiedType)
+            .addType(AnnotationType.LayeredEffect)
+            .addAffectedIds(instanceId)
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId))
+        if (sourceAbilityGrpId != null) {
+            builder.addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId))
+        }
+        return builder.build()
+    }
+
     /** Creature was dealt damage this turn. Persistent state badge. Arena type 90. */
     fun damagedThisTurn(instanceId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()

@@ -163,6 +163,26 @@ class PersistentAnnotationStore {
             // 3c. Qualification — full-replacement for adventure-exiled cards
             nextId = upsertQualifications(active, deletions, nextId, mechanicResult.qualificationPersistent)
 
+            // 3d. CrewedThisTurn — full-replacement upsert (keyed by vehicle affectorId)
+            nextId = upsertByType(
+                active,
+                deletions,
+                nextId,
+                AnnotationType.CrewedThisTurn,
+                mechanicResult.crewedThisTurnPersistent,
+                { it.affectorId },
+            )
+
+            // 3e. ModifiedType+LayeredEffect for crew type changes — full-replacement upsert
+            nextId = upsertByType(
+                active,
+                deletions,
+                nextId,
+                AnnotationType.ModifiedType,
+                mechanicResult.crewTypeChangePersistent,
+                { it.affectedIdsList.firstOrNull() ?: 0 },
+            )
+
             // 4. Detached auras
             for (forgeCardId in mechanicResult.detachedForgeCardIds) {
                 val auraIid = resolveInstanceId(forgeCardId).value
