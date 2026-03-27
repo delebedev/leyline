@@ -521,22 +521,9 @@ class MatchFlowHarness(
     fun castFromGraveyard(cardName: String): Boolean =
         castSpellByName(cardName, zone = ZoneType.Graveyard)
 
-    /** Cast a spell from exile by name (adventure creature, etc.). Returns false if not found. */
-    fun castFromExile(cardName: String): Boolean {
-        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
-        val card = player.getZone(ZoneType.Exile).cards
-            .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
-
-        val msg = performAction {
-            actionType = ActionType.Cast
-            instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-            grpId = bridge.cards.findGrpIdByName(card.name) ?: 0
-        }
-
-        session.onPerformAction(msg)
-        drainSink()
-        return true
-    }
+    /** Alias for `castSpellByName(cardName, ZoneType.Exile)`. */
+    fun castFromExile(cardName: String): Boolean =
+        castSpellByName(cardName, zone = ZoneType.Exile)
 
     /**
      * Cast a spell and pass once to resolve it.
