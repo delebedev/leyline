@@ -4,6 +4,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.ints.shouldBeLessThan
 import leyline.IntegrationTag
+import leyline.bridge.GameBootstrap
 import leyline.bridge.SeatId
 
 /**
@@ -29,6 +30,8 @@ class AiCombatAutoPassTest :
     FunSpec({
 
         tags(IntegrationTag)
+
+        beforeSpec { GameBootstrap.initializeCardDatabase(quiet = true) }
 
         var harness: MatchFlowHarness? = null
 
@@ -82,8 +85,8 @@ class AiCombatAutoPassTest :
             val humanPlayer = h.bridge.getPlayer(SeatId(1))!!
 
             // If the bug were present, elapsed would be >= 10000ms (multiple bridge timeouts).
-            // With the fix, it should complete well under 8 seconds (includes card DB init).
-            elapsed.toInt() shouldBeLessThan 8000
+            // With the fix, puzzle resolve takes <1s (card DB pre-warmed in beforeSpec).
+            elapsed.toInt() shouldBeLessThan 3000
 
             // Positive assertion: combat damage was dealt.
             // Raging Goblin (1/1) attacked unblocked → human took 1 damage.
