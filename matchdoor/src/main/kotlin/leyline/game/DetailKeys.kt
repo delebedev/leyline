@@ -42,4 +42,6 @@ object DetailKeys {
     const val DISABLE = "Disable"
     const val TEMPORARY_ZONE_TRANSFER = "TemporaryZoneTransfer"
     const val VALUE = "value"
+    const val ABILITY_WORD_NAME = "AbilityWordName"
+    const val THRESHOLD = "threshold"
 }
