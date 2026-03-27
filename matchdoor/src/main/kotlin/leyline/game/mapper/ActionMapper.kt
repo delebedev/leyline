@@ -1,6 +1,7 @@
 package leyline.game.mapper
 
 import forge.ai.ComputerUtilMana
+import forge.card.CardStateName
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.card.CardLists
@@ -59,6 +60,7 @@ object ActionMapper {
             grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, bridge.cards) },
             cardDataLookup = { grpId -> bridge.cards.findByGrpId(grpId) },
             abilityRegistryLookup = { card, cardData -> bridge.abilityRegistryFor(card, cardData) },
+            nameToGrpId = { name -> bridge.cards.findGrpIdByName(name) },
         )
     }
 
@@ -83,6 +85,7 @@ object ActionMapper {
         grpIdResolver: (Card) -> Int,
         cardDataLookup: (Int) -> CardData?,
         abilityRegistryLookup: (Card, CardData?) -> AbilityRegistry? = { _, _ -> null },
+        nameToGrpId: (String) -> Int? = { null },
     ): ActionsAvailableReq {
         val builder = ActionsAvailableReq.newBuilder()
 
@@ -188,6 +191,45 @@ object ActionMapper {
                 }
             }
             builder.addActions(actionBuilder)
+
+            // CastAdventure for adventure-capable cards
+            if (card.isAdventureCard) {
+                val adventureState = card.getState(CardStateName.Secondary)
+                if (adventureState != null) {
+                    val adventureName = adventureState.name
+                    val adventureGrpId = nameToGrpId(adventureName) ?: grpId
+                    val adventureSas = adventureState.nonManaAbilities
+                    val adventureSa = adventureSas?.firstOrNull()
+
+                    val canCastAdventure = if (checkLegality && adventureSa != null) {
+                        try {
+                            adventureSa.setActivatingPlayer(player)
+                            adventureSa.canPlay() && ComputerUtilMana.canPayManaCost(adventureSa, player, 0, false)
+                        } catch (_: Exception) {
+                            false
+                        }
+                    } else {
+                        !checkLegality
+                    }
+
+                    if (canCastAdventure) {
+                        val advBuilder = Action.newBuilder()
+                            .setActionType(ActionType.CastAdventure)
+                            .setInstanceId(instanceId)
+                            .setGrpId(adventureGrpId)
+                            .setFacetId(instanceId)
+                            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastAdventure))
+
+                        if (adventureSa != null) {
+                            val advManaCost = adventureSa.payCosts?.totalMana
+                            if (advManaCost != null && !advManaCost.isNoCost) {
+                                addManaCostFromForge(advManaCost, advBuilder)
+                            }
+                        }
+                        builder.addActions(advBuilder)
+                    }
+                }
+            }
         }
 
         // Zone casts: Graveyard, Exile, Command (flashback, escape, etc.)
@@ -462,7 +504,7 @@ object ActionMapper {
     fun stripActionForGsm(action: Action): Action {
         val b = Action.newBuilder().setActionType(action.actionType)
         when (action.actionType) {
-            ActionType.Cast -> {
+            ActionType.Cast, ActionType.CastAdventure -> {
                 b.setInstanceId(action.instanceId)
                 b.addAllManaCost(action.manaCostList)
             }
