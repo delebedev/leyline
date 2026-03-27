@@ -580,17 +580,14 @@ keywords:
       missing — client won't show regen shield visual.
 
   threshold:
-    status: missing
+    status: partial
     notes: >
       Engine applies the continuous +1/+1 and deathtouch correctly (Forge handles it).
-      Wire gap: AbilityWordActive (proto type 39) persistent annotation never emitted.
-      This annotation tracks { threshold: 7, value: <GY count>, AbilityGrpId, AbilityWordName }
-      and updates every diff. When value >= threshold, two persistent LayeredEffect annotations
-      must be added: [ModifiedToughness, ModifiedPower, LayeredEffect] (effect_id=7002) and
-      [AddAbility, LayeredEffect] (effect_id=7003, UniqueAbilityId=222 for deathtouch).
-      The LayeredEffectCreated transient fires at ETB to pre-announce effect slots.
-      Without AbilityWordActive, the client's threshold UI counter and conditional highlights
-      are absent. Stat changes (p/t, ability count) still show correctly via object diff.
+      AbilityWordActive (proto type 39) persistent annotation now emitted for Condition$-based
+      ability words (Threshold, Metalcraft, Delirium, Ferocious, Hellbent, Desert, Blessing).
+      Tracks { threshold, value, AbilityGrpId, AbilityWordName } with live value updates per diff.
+      Remaining gap: turn-scoped ability words (Raid, Morbid, Descended) need event-driven
+      detection, not snapshot-based. LayeredEffect annotations for crossing handled by EffectTracker.
       Wire spec: docs/plans/2026-03-21-threshold-wire-spec.md
       Recording: recordings/2026-03-21_23-30-58/ (Dreadwing Scavenger grpId 93831, iid 295)
 

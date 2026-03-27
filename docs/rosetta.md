@@ -39,7 +39,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 36 | AbilityInstanceCreated | `GameEventSpellAbilityCast` | `SpellCast` | `abilityInstanceCreated()` | affected ids | Implemented — also emitted for mana-sacrifice (Treasure: opens the ability bracket). |
 | 37 | AbilityInstanceDeleted | `GameEventSpellResolved` / `GameEventSpellRemovedFromStack` | `SpellResolved` | `abilityInstanceDeleted()` | affected ids | Implemented — also emitted for mana-sacrifice (Treasure: closes the ability bracket). |
 | 38 | DisplayCardUnderCard | `GameEventCardChangeZone` (to=Exile) | `CardExiled` (with `sourceForgeCardId`) | `displayCardUnderCard()` | `TemporaryZoneTransfer`, `Disable` | Implemented — persistent, emitted for exile-under-permanent. Cleaned up when source leaves battlefield. |
-| 39 | AbilityWordActive | -- | -- | -- | `AbilityWordName`, `value`, `colors`, `AbilityGrpId` | MISSING |
+| 39 | AbilityWordActive | -- | AbilityWordScanner | `abilityWordActive()` | `AbilityWordName`, `value`, `threshold`, `AbilityGrpId` | PARTIAL — Condition$-based (Threshold, Metalcraft, Delirium) |
 | 40 | LinkInfo | -- | -- | -- | `LinkType`, `Choice_Value` | MISSING |
 | 41 | TokenDeleted | `GameEventCardChangeZone` | `TokenDestroyed` | `tokenDeleted()` | affectorId=instanceId, affectedIds=[instanceId] | Implemented |
 | 42 | Qualification | -- | -- | -- | `QualificationType`, `QualificationSubtype`, `grpid` | MISSING |
