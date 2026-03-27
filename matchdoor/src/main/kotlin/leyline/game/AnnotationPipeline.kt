@@ -716,6 +716,7 @@ object AnnotationPipeline {
             }
             srcZone == ZONE_EXILE -> when (destZone) {
                 ZONE_P1_HAND, ZONE_P2_HAND, ZONE_BATTLEFIELD -> TransferCategory.Return
+                ZONE_STACK -> TransferCategory.CastSpell
                 else -> TransferCategory.ZoneTransfer
             }
             else -> TransferCategory.ZoneTransfer

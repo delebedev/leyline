@@ -57,4 +57,8 @@ class InferCategoryTest :
             AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.EXILE, ZoneIds.P1_GRAVEYARD) shouldBe TransferCategory.ZoneTransfer
             AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.STACK, ZoneIds.P1_GRAVEYARD) shouldBe TransferCategory.ZoneTransfer
         }
+
+        test("exileToStackIsCastSpell") {
+            AnnotationPipeline.inferCategory(dummyObj(), ZoneIds.EXILE, ZoneIds.STACK) shouldBe TransferCategory.CastSpell
+        }
     })
