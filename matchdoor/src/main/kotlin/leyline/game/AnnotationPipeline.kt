@@ -41,9 +41,9 @@ object AnnotationPipeline {
 
     /**
      * ManaPaid.id base value. The real server assigns mana payment IDs sequentially
-     * across the GSM. In the CHALLENGE-STARTER recording, CastSpell payments start
-     * at id=3 (after prior persistent annotation IDs 1-2). This is a best-effort
-     * approximation — a proper fix would track a global counter across the GSM.
+     * across the GSM. CastSpell payments typically start at id=3 (after prior
+     * persistent annotation IDs 1-2). Best-effort approximation — a proper fix
+     * would track a global counter across the GSM.
      */
     private const val MANA_ID_BASE = 3
 

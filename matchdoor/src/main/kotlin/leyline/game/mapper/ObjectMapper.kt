@@ -196,8 +196,8 @@ object ObjectMapper {
     /**
      * Build a [GameObjectInfo] for echo-back GSMs during iterative combat declaration.
      *
-     * Real server echo objects carry NO combat state (no attackState/blockState) —
-     * confirmed across 4 proxy recordings. Only base card fields are included.
+     * Echo objects carry NO combat state (no attackState/blockState).
+     * Only base card fields are included.
      * The client uses the DeclareAttackersReq/DeclareBlockersReq re-prompt
      * (not object state) to track provisional selections.
      */

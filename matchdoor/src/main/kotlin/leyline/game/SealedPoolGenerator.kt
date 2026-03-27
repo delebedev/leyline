@@ -72,7 +72,7 @@ class SealedPoolGenerator(private val cards: CardRepository) {
     }
 
     companion object {
-        // Known Arena collation IDs for sets (from proxy recordings)
+        // Known Arena collation IDs for sets
         private val COLLATION_IDS = mapOf(
             "FDN" to 100026,
             "DSK" to 100050,

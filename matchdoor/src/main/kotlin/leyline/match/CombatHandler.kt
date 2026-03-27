@@ -114,7 +114,6 @@ open class CombatHandler(private val ops: SessionOps) {
             } else {
                 // XOR toggle: selectedAttackers contains the toggled creature(s).
                 // If already committed → deselect. If not committed → select.
-                // Conformance: recording 2026-03-14_17-28-50, idx 160/172/184.
                 val toggled = resp.selectedAttackersList.map { it.attackerInstanceId }
                 val current = lastDeclaredAttackerIds.toMutableSet()
                 for (id in toggled) {
@@ -124,7 +123,7 @@ open class CombatHandler(private val ops: SessionOps) {
                 log.info("CombatHandler: toggle {} → committed {}", toggled, lastDeclaredAttackerIds)
             }
             // Echo back GSM with creature object (no combat state) + DeclareAttackersReq.
-            // Real server echo carries NO attackState — confirmed across 4 proxy recordings.
+            // Echo carries NO attackState — only base card fields.
             sendAttackerEchoBack(bridge)
             return
         }

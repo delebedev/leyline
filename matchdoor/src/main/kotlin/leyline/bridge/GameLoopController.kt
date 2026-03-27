@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * Lifecycle:
  * 1. [start] launches a daemon thread that calls `match.startGame(game)`
  * 2. When the loop reaches a priority stop, it blocks on [GameActionBridge]
- * 3. WS handler calls [GameActionBridge.submitAction] to unblock
+ * 3. Netty handler calls [GameActionBridge.submitAction] to unblock
  * 4. On disconnect / game reset, [shutdown] cancels pending and interrupts the thread
  */
 class GameLoopController(

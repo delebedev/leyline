@@ -265,7 +265,7 @@ object AnnotationBuilder {
      * [spellInstanceId] = the spell/ability instance that consumed the mana (affectedIds).
      * [landInstanceId] = the land (or mana source) that produced the mana (affectorId).
      * [manaId] = mana payment tracking ID (real server assigns sequentially).
-     * [color] = mana color as int bitmask (e.g. 2 = blue), matching the recording wire format.
+     * [color] = mana color as int bitmask (e.g. 2 = blue), matching the Arena wire format.
      * When mana tracking is not available, pass defaults (0, 0, 0).
      */
     fun manaPaid(spellInstanceId: Int, landInstanceId: Int, manaId: Int = 0, color: Int = 0): AnnotationInfo =
@@ -333,7 +333,7 @@ object AnnotationBuilder {
     /**
      * Combat damage dealt by a creature. Client uses this for damage flash animation.
      * [type] = damage type: 1=combat, 0=non-combat (real server always sends this).
-     * [markDamage] = always 1 in real server recordings (flag, not amount).
+     * [markDamage] = always 1 (flag, not amount).
      */
     fun damageDealt(sourceInstanceId: Int, targetId: Int, amount: Int, type: Int = 1, markDamage: Int = 1): AnnotationInfo =
         AnnotationInfo.newBuilder()

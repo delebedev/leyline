@@ -3,7 +3,7 @@ package leyline.bridge
 /**
  * Reusable deadline-based polling for game loop state changes.
  *
- * Both the WebSocket handler and test fixtures need to block until the engine
+ * Both the Netty handler and test fixtures need to block until the engine
  * posts a new pending action, game ends, or an interactive prompt arrives.
  * This consolidates the shared poll-sleep loop.
  */

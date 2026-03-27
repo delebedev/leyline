@@ -11,11 +11,11 @@ import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Thread-safe bridge between the blocking engine thread and async WebSocket handlers.
+ * Thread-safe bridge between the blocking engine thread and async Netty handlers.
  *
  * When the engine needs interactive input (choose cards, pick option, etc.),
- * [requestChoice] blocks the engine thread on a [CompletableFuture]. The WS handler
- * sends a prompt to the client, and when the client responds, [submitResponse]
+ * [requestChoice] blocks the engine thread on a [CompletableFuture]. The message
+ * handler sends a prompt to the client, and when the client responds, [submitResponse]
  * completes the future so the engine resumes.
  *
  * One pending prompt at a time — the engine is single-threaded.
@@ -222,7 +222,7 @@ class InteractivePromptBridge(
     }
 
     /**
-     * Called from the WS handler coroutine. Completes the pending prompt future
+     * Called from the Netty handler. Completes the pending prompt future
      * so the blocked engine thread can resume.
      *
      * @return true if the prompt was matched and completed
@@ -237,7 +237,7 @@ class InteractivePromptBridge(
     }
 
     /**
-     * Get the current pending prompt for WS broadcast. Returns null if no prompt
+     * Get the current pending prompt for client broadcast. Returns null if no prompt
      * is pending.
      */
     fun getPendingPrompt(): PendingPrompt? = pending.get()

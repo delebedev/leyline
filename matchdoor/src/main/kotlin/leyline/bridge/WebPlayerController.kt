@@ -1102,7 +1102,7 @@ class WebPlayerController(
 
     // -- Mulligan / starting player ----------------------------------------
     // The engine's MulliganService calls these on the game thread.
-    // When a MulliganBridge is wired, they block until the WS client
+    // When a MulliganBridge is wired, they block until the client
     // submits a decision. Without a bridge (tests, AI), they auto-decide.
 
     override fun mulliganKeepHand(mulliganingPlayer: Player, cardsToReturn: Int): Boolean {
