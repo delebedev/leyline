@@ -3,16 +3,17 @@ package leyline.match
 import forge.game.Game
 import forge.game.phase.PhaseType
 import forge.game.player.Player
+import leyline.DevCheck
 import leyline.bridge.ForgeCardId
 import leyline.bridge.ForgePlayerId
 import leyline.bridge.InstanceId
 import leyline.bridge.PlayerAction
-import leyline.bridge.SeatId
 import leyline.bridge.Target
 import leyline.bridge.WebPlayerController
 import leyline.bridge.findCard
 import leyline.game.GameBridge
 import leyline.game.RequestBuilder
+import leyline.game.mapper.PromptIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import kotlin.collections.iterator
@@ -27,8 +28,7 @@ import kotlin.collections.iterator
  */
 open class CombatHandler(private val ops: SessionOps) {
     companion object {
-        /** Prompt ID for damage assignment — observed in recording 2026-03-08 tutorial. */
-        private const val ASSIGN_DAMAGE_PROMPT_ID = 8
+        private const val ASSIGN_DAMAGE_PROMPT_ID = PromptIds.ASSIGN_DAMAGE
     }
 
     private val log = LoggerFactory.getLogger(CombatHandler::class.java)
@@ -115,7 +115,6 @@ open class CombatHandler(private val ops: SessionOps) {
             } else {
                 // XOR toggle: selectedAttackers contains the toggled creature(s).
                 // If already committed → deselect. If not committed → select.
-                // Conformance: recording 2026-03-14_17-28-50, idx 160/172/184.
                 val toggled = resp.selectedAttackersList.map { it.attackerInstanceId }
                 val current = lastDeclaredAttackerIds.toMutableSet()
                 for (id in toggled) {
@@ -125,15 +124,16 @@ open class CombatHandler(private val ops: SessionOps) {
                 log.info("CombatHandler: toggle {} → committed {}", toggled, lastDeclaredAttackerIds)
             }
             // Echo back GSM with creature object (no combat state) + DeclareAttackersReq.
-            // Real server echo carries NO attackState — confirmed across 4 proxy recordings.
+            // Echo carries NO attackState — only base card fields.
             sendAttackerEchoBack(bridge)
             return
         }
 
         // SubmitAttackersReq: finalize — use last known selection
-        val seatBridge = bridge.seat(ops.seatId)
+        val seatBridge = bridge.seat(ops.seatId.value)
         val pending = seatBridge.action.getPending() ?: run {
             log.warn("CombatHandler: SubmitAttackersReq but no pending action — recovering")
+            DevCheck.fail { "SubmitAttackersReq but no pending action" }
             ops.sendRealGameState(bridge)
             return
         }
@@ -146,11 +146,9 @@ open class CombatHandler(private val ops: SessionOps) {
         )
 
         val attackerCardIds = selectedInstanceIds.mapNotNull { instanceId ->
-            val forgeId = bridge.getForgeCardId(InstanceId(instanceId))
-            if (forgeId == null) {
-                log.warn("CombatHandler: instanceId {} not in map (map size={})", instanceId, bridge.getInstanceIdMap().size)
+            DevCheck.requireOrNull(bridge.getForgeCardId(InstanceId(instanceId))) {
+                "CombatHandler: instanceId $instanceId not in map (map size=${bridge.getInstanceIdMap().size})"
             }
-            forgeId
         }
         pendingLegalAttackers = emptyList()
         lastDeclaredAttackerIds = emptyList()
@@ -167,7 +165,7 @@ open class CombatHandler(private val ops: SessionOps) {
 
         // Resolve the defending player: the opponent of the active (attacking) player.
         val game = bridge.getGame()
-        val humanPlayer = bridge.getPlayer(SeatId(ops.seatId))
+        val humanPlayer = bridge.getPlayer(ops.seatId)
         val defenderPlayerId = game?.players
             ?.firstOrNull { it != humanPlayer }?.id
 
@@ -190,9 +188,10 @@ open class CombatHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val seatBridge = bridge.seat(ops.seatId)
+        val seatBridge = bridge.seat(ops.seatId.value)
         val pending = seatBridge.action.getPending() ?: run {
             log.warn("CombatHandler: CancelAttackers but no pending action — recovering")
+            DevCheck.fail { "CancelAttackers but no pending action" }
             ops.sendRealGameState(bridge)
             return
         }
@@ -211,7 +210,7 @@ open class CombatHandler(private val ops: SessionOps) {
         )
 
         val game = bridge.getGame()
-        val humanPlayer = bridge.getPlayer(SeatId(ops.seatId))
+        val humanPlayer = bridge.getPlayer(ops.seatId)
         val defenderPlayerId = game?.players
             ?.firstOrNull { it != humanPlayer }?.id
 
@@ -262,9 +261,10 @@ open class CombatHandler(private val ops: SessionOps) {
         }
 
         // SubmitBlockersReq: finalize
-        val seatBridge = bridge.seat(ops.seatId)
+        val seatBridge = bridge.seat(ops.seatId.value)
         val pending = seatBridge.action.getPending() ?: run {
             log.warn("CombatHandler: SubmitBlockersReq but no pending action — recovering")
+            DevCheck.fail { "SubmitBlockersReq but no pending action" }
             ops.sendRealGameState(bridge)
             return
         }
@@ -347,7 +347,7 @@ open class CombatHandler(private val ops: SessionOps) {
                     val skipBlockers = sendDeclareBlockersReq(bridge)
                     if (skipBlockers) {
                         // Zero legal blockers — submit empty declaration and advance
-                        val seatBridge = bridge.seat(ops.seatId)
+                        val seatBridge = bridge.seat(ops.seatId.value)
                         val pending = seatBridge.action.getPending()
                         if (pending != null) {
                             seatBridge.action.submitAction(pending.actionId, PlayerAction.DeclareBlockers(emptyMap()))
@@ -419,6 +419,7 @@ open class CombatHandler(private val ops: SessionOps) {
         }
         val prompt = wpc.pendingDamageAssignment ?: run {
             log.warn("CombatHandler: AssignDamageResp but no pending damage assignment")
+            DevCheck.fail { "AssignDamageResp but no pending damage assignment" }
             ops.sendRealGameState(bridge)
             return
         }
@@ -429,11 +430,9 @@ open class CombatHandler(private val ops: SessionOps) {
         var firstMap: MutableMap<forge.game.card.Card?, Int>? = null
 
         for (assigner in resp.assignersList) {
-            val attackerForgeId = bridge.getForgeCardId(InstanceId(assigner.instanceId))
-            if (attackerForgeId == null) {
-                log.warn("CombatHandler: unknown attacker instanceId={}", assigner.instanceId)
-                continue
-            }
+            val attackerForgeId = DevCheck.requireOrNull(bridge.getForgeCardId(InstanceId(assigner.instanceId))) {
+                "CombatHandler: unknown attacker instanceId=${assigner.instanceId}"
+            } ?: continue
 
             val damageMap = mutableMapOf<forge.game.card.Card?, Int>()
             for (assignment in assigner.assignmentsList) {
@@ -465,7 +464,7 @@ open class CombatHandler(private val ops: SessionOps) {
                 firstMap = damageMap
             } else {
                 // Cache for subsequent per-attacker calls
-                wpc.damageAssignCache[attackerForgeId.value] = damageMap
+                wpc.damageAssignCache[attackerForgeId] = damageMap
             }
         }
 
@@ -504,7 +503,7 @@ open class CombatHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         prompt: WebPlayerController.DamageAssignmentPrompt,
     ) {
-        val humanPlayer = bridge.getPlayer(SeatId(ops.seatId)) ?: return
+        val humanPlayer = bridge.getPlayer(ops.seatId) ?: return
 
         val attackerIid = bridge.getOrAllocInstanceId(ForgeCardId(prompt.attacker.id))
         val assignments = mutableListOf<DamageAssignment>()
@@ -616,7 +615,7 @@ open class CombatHandler(private val ops: SessionOps) {
 
     private fun sendDeclareBlockersReq(bridge: GameBridge): Boolean {
         val game = bridge.getGame() ?: return false
-        val req = RequestBuilder.buildDeclareBlockersReq(game, ops.seatId, bridge)
+        val req = RequestBuilder.buildDeclareBlockersReq(game, ops.seatId.value, bridge)
 
         if (req.blockersCount == 0) {
             log.info("CombatHandler: zero legal blockers — auto-submitting empty declaration")
@@ -640,7 +639,7 @@ open class CombatHandler(private val ops: SessionOps) {
      * drain and send.
      */
     private fun drainPendingPlayback(bridge: GameBridge) {
-        val playback = bridge.playbacks[SeatId(ops.seatId)] ?: return
+        val playback = bridge.playbacks[ops.seatId] ?: return
         if (playback.hasPendingMessages()) {
             val batches = playback.drainQueue()
             for (batch in batches) {

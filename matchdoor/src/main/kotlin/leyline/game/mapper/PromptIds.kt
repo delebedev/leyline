@@ -5,10 +5,17 @@ object PromptIds {
     const val PASS_PRIORITY = 2
     const val DECLARE_ATTACKERS = 6
     const val ORDER_BLOCKERS = 7
+    const val ASSIGN_DAMAGE = 8
     const val SELECT_TARGETS = 10
     const val PAY_COSTS = 11
     const val CASTING_TIME_OPTIONS = 23
     const val MATCH_RESULT_WIN_LOSS = 27
+
+    /** Post-game "reveal hand" option. */
+    const val REVEAL_HAND = 29
+
+    /** Post-game "draw card" option. */
+    const val DRAW_CARD = 30
     const val MULLIGAN = 34
     const val STARTING_PLAYER = 37
 

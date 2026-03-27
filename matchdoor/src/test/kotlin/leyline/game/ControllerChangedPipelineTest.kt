@@ -10,6 +10,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
+import leyline.bridge.SeatId
 import leyline.conformance.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -27,8 +28,8 @@ class ControllerChangedPipelineTest :
 
         test("steal emits transient ControllerChanged + LayeredEffectCreated + persistent CC+LayeredEffect") {
             val events = listOf(
-                GameEvent.SpellResolved(forgeCardId = 10, hasFizzled = false),
-                GameEvent.ControllerChanged(forgeCardId = 42, oldControllerSeatId = 2, newControllerSeatId = 1),
+                GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false),
+                GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
             )
             val result = AnnotationPipeline.mechanicAnnotations(
                 events,
@@ -57,20 +58,20 @@ class ControllerChangedPipelineTest :
 
                 // Tracked effect
                 result.controllerChangedEffects shouldHaveSize 1
-                result.controllerChangedEffects[0].forgeCardId shouldBe 42
+                result.controllerChangedEffects[0].forgeCardId shouldBe ForgeCardId(42)
                 result.controllerChangedEffects[0].effectId shouldBe 7005
             }
         }
 
         test("revert detected when forgeCardId is in activeStealForgeCardIds") {
             val events = listOf(
-                GameEvent.ControllerChanged(forgeCardId = 42, oldControllerSeatId = 1, newControllerSeatId = 2),
+                GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(1), newControllerSeatId = SeatId(2)),
             )
             val result = AnnotationPipeline.mechanicAnnotations(
                 events,
                 idResolver = ::testResolver,
                 effectIdAllocator = ::testEffectAllocator,
-                activeStealForgeCardIds = setOf(42),
+                activeStealForgeCardIds = setOf(ForgeCardId(42)),
             )
 
             assertSoftly {
@@ -79,7 +80,7 @@ class ControllerChangedPipelineTest :
                 // No new persistent
                 result.persistent.shouldBeEmpty()
                 // Revert tracked
-                result.controllerRevertedForgeCardIds shouldContain 42
+                result.controllerRevertedForgeCardIds shouldContain ForgeCardId(42)
                 // No new steal effects
                 result.controllerChangedEffects.shouldBeEmpty()
             }
@@ -87,7 +88,7 @@ class ControllerChangedPipelineTest :
 
         test("steal without SpellResolved uses affectorId=0") {
             val events = listOf(
-                GameEvent.ControllerChanged(forgeCardId = 42, oldControllerSeatId = 2, newControllerSeatId = 1),
+                GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
             )
             val result = AnnotationPipeline.mechanicAnnotations(
                 events,
@@ -106,10 +107,10 @@ class ControllerChangedPipelineTest :
 
         test("multiple spells: affector matches nearest preceding SpellResolved") {
             val events = listOf(
-                GameEvent.SpellResolved(forgeCardId = 10, hasFizzled = false),
-                GameEvent.ControllerChanged(forgeCardId = 42, oldControllerSeatId = 2, newControllerSeatId = 1),
-                GameEvent.SpellResolved(forgeCardId = 20, hasFizzled = false),
-                GameEvent.ControllerChanged(forgeCardId = 43, oldControllerSeatId = 2, newControllerSeatId = 1),
+                GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false),
+                GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
+                GameEvent.SpellResolved(cardId = ForgeCardId(20), hasFizzled = false),
+                GameEvent.ControllerChanged(cardId = ForgeCardId(43), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
             )
             val result = AnnotationPipeline.mechanicAnnotations(
                 events,
@@ -128,9 +129,9 @@ class ControllerChangedPipelineTest :
 
         test("effect_id monotonically increases across steals") {
             val events = listOf(
-                GameEvent.SpellResolved(forgeCardId = 10, hasFizzled = false),
-                GameEvent.ControllerChanged(forgeCardId = 42, oldControllerSeatId = 2, newControllerSeatId = 1),
-                GameEvent.ControllerChanged(forgeCardId = 43, oldControllerSeatId = 2, newControllerSeatId = 1),
+                GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false),
+                GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
+                GameEvent.ControllerChanged(cardId = ForgeCardId(43), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
             )
             val result = AnnotationPipeline.mechanicAnnotations(
                 events,
@@ -159,7 +160,7 @@ class ControllerChangedPipelineTest :
             val mechanicResult = AnnotationPipeline.MechanicAnnotationResult(
                 transient = emptyList(),
                 persistent = emptyList(),
-                controllerRevertedForgeCardIds = listOf(42),
+                controllerRevertedForgeCardIds = listOf(ForgeCardId(42)),
             )
 
             val batch = PersistentAnnotationStore.computeBatch(

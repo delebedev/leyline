@@ -47,3 +47,12 @@ synthetic_opponent = true
 [ai]
 # AI animation speed. 2 = twice as fast, 1 = default, 0 = instant.
 speed = 1.0
+
+[dev]
+# Crash on unexpected nulls/fallbacks (missing grpId, instanceId not in map,
+# protocol sequencing errors). Off = warn + fallback (production behavior).
+strict = true
+
+# Crash when auto-pass fires from missing data (bridge timeouts, prompt
+# timeouts, auto-resolve). Off = pass priority silently (production behavior).
+strict_pass = true

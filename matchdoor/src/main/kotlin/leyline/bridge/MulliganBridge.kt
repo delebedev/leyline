@@ -2,6 +2,7 @@ package leyline.bridge
 
 import forge.game.card.Card
 import forge.game.card.CardCollectionView
+import leyline.DevCheck
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -13,7 +14,7 @@ import java.util.concurrent.TimeoutException
  * The engine's [forge.game.mulligan.MulliganService] runs on the game thread and
  * calls [forge.game.player.PlayerController.mulliganKeepHand] /
  * [forge.game.player.PlayerController.tuckCardsViaMulligan], both of which block
- * until the web client submits a decision via WebSocket.
+ * until the client submits a decision via the Netty handler.
  *
  * For tests, [autoKeep] mode auto-submits keep immediately.
  */
@@ -47,7 +48,7 @@ class MulliganBridge(
 
     /**
      * Called by [WebPlayerController.mulliganKeepHand] on the game thread.
-     * Blocks until the WS client calls [submitKeep] or [submitMull].
+     * Blocks until the client calls [submitKeep] or [submitMull].
      *
      * @return true to keep, false to mulligan
      */
@@ -71,6 +72,7 @@ class MulliganBridge(
             future.get(timeoutMs, TimeUnit.MILLISECONDS)
         } catch (_: TimeoutException) {
             log.warn("MulliganBridge: timeout waiting for keep decision, auto-keeping")
+            DevCheck.failOnAutoPass { "Mulligan keep decision timed out" }
             true
         } finally {
             synchronized(this) {
@@ -82,7 +84,7 @@ class MulliganBridge(
 
     /**
      * Called by [WebPlayerController.tuckCardsViaMulligan] on the game thread.
-     * Blocks until the WS client calls [submitTuck].
+     * Blocks until the client calls [submitTuck].
      *
      * @return the cards to put on bottom of library
      */
@@ -106,6 +108,7 @@ class MulliganBridge(
             future.get(timeoutMs, TimeUnit.MILLISECONDS)
         } catch (_: TimeoutException) {
             log.warn("MulliganBridge: timeout waiting for tuck, auto-tucking first {}", count)
+            DevCheck.failOnAutoPass { "Mulligan tuck decision timed out" }
             hand.toList().take(count)
         } finally {
             synchronized(this) {

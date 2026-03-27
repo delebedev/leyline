@@ -1,6 +1,7 @@
 package leyline.bridge
 
 import forge.game.Game
+import leyline.DevCheck
 import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -11,11 +12,11 @@ import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Thread-safe bridge between the blocking engine thread and async WebSocket handlers.
+ * Thread-safe bridge between the blocking engine thread and async Netty handlers.
  *
  * When the engine needs interactive input (choose cards, pick option, etc.),
- * [requestChoice] blocks the engine thread on a [CompletableFuture]. The WS handler
- * sends a prompt to the client, and when the client responds, [submitResponse]
+ * [requestChoice] blocks the engine thread on a [CompletableFuture]. The message
+ * handler sends a prompt to the client, and when the client responds, [submitResponse]
  * completes the future so the engine resumes.
  *
  * One pending prompt at a time — the engine is single-threaded.
@@ -42,7 +43,7 @@ class InteractivePromptBridge(
      * of [GameEvent.CardDestroyed]. Thread-safe — WPC writes on engine thread,
      * collector reads on the same thread (events fire synchronously during SBA).
      */
-    val legendRuleVictims: MutableSet<Int> = CopyOnWriteArraySet()
+    val legendRuleVictims: MutableSet<ForgeCardId> = CopyOnWriteArraySet()
 
     /**
      * Forge card IDs of cards moved Library→Hand via a search effect (ChangeZone tutor).
@@ -53,7 +54,7 @@ class InteractivePromptBridge(
      * [GameEvent.ZoneChanged], yielding [TransferCategory.Put] instead of [TransferCategory.Draw].
      * Thread-safe — WPC writes on engine thread; collector reads on the same thread.
      */
-    val searchedToHandCards: MutableSet<Int> = CopyOnWriteArraySet()
+    val searchedToHandCards: MutableSet<ForgeCardId> = CopyOnWriteArraySet()
 
     companion object {
         const val DEFAULT_TIMEOUT_MS = 30_000L
@@ -149,12 +150,12 @@ class InteractivePromptBridge(
      * Record of revealed cards: list of forge card IDs + the seatId of the player
      * who revealed them.
      */
-    data class RevealRecord(val forgeCardIds: List<Int>, val ownerSeatId: Int)
+    data class RevealRecord(val forgeCardIds: List<ForgeCardId>, val ownerSeatId: SeatId)
 
     private val revealQueue = ConcurrentLinkedQueue<RevealRecord>()
 
     /** Push a batch of revealed card IDs (called from engine thread via WebPlayerController). */
-    fun recordReveal(forgeCardIds: List<Int>, ownerSeatId: Int) {
+    fun recordReveal(forgeCardIds: List<ForgeCardId>, ownerSeatId: SeatId) {
         if (forgeCardIds.isEmpty()) return
         revealQueue.add(RevealRecord(forgeCardIds, ownerSeatId))
         log.debug("Reveal recorded: {} cards for seat {}", forgeCardIds.size, ownerSeatId)
@@ -208,11 +209,13 @@ class InteractivePromptBridge(
                     "options=${request.options.size}, min=${request.min}, max=${request.max})",
             )
             log.warn("Prompt timed out, using default\n{}", diagnostic)
+            DevCheck.failOnAutoPass { "Prompt timed out (type=${request.promptType}, msg=${request.message})" }
             val fallback = listOf(request.defaultIndex)
             record(request, PromptOutcome.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
             fallback
         } catch (ex: Exception) {
             log.error("Prompt failed with exception, using default", ex)
+            DevCheck.failOnAutoPass { "Prompt failed: ${ex.message}" }
             val fallback = listOf(request.defaultIndex)
             record(request, PromptOutcome.ERROR, fallback, System.currentTimeMillis() - startMs)
             fallback
@@ -222,7 +225,7 @@ class InteractivePromptBridge(
     }
 
     /**
-     * Called from the WS handler coroutine. Completes the pending prompt future
+     * Called from the Netty handler. Completes the pending prompt future
      * so the blocked engine thread can resume.
      *
      * @return true if the prompt was matched and completed
@@ -237,7 +240,7 @@ class InteractivePromptBridge(
     }
 
     /**
-     * Get the current pending prompt for WS broadcast. Returns null if no prompt
+     * Get the current pending prompt for client broadcast. Returns null if no prompt
      * is pending.
      */
     fun getPendingPrompt(): PendingPrompt? = pending.get()

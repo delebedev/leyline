@@ -378,11 +378,11 @@ object StateMapper {
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds = events
             .filterIsInstance<GameEvent.SpellCast>()
-            .flatMap { it.manaPayments.map { mp -> mp.sourceForgeCardId } }
+            .flatMap { it.manaPayments.map { mp -> mp.sourceCardId } }
             .toSet()
         val sacrificedManaForgeIds = events.filterIsInstance<GameEvent.ManaAbilityActivated>()
-            .filter { ma -> events.any { it is GameEvent.CardSacrificed && it.forgeCardId == ma.forgeCardId } }
-            .map { it.forgeCardId }
+            .filter { ma -> events.any { it is GameEvent.CardSacrificed && it.cardId == ma.cardId } }
+            .map { it.cardId }
             .toSet()
         val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds
         val mechanicResult = AnnotationPipeline.mechanicAnnotations(
@@ -477,7 +477,7 @@ object StateMapper {
             transferPersistent.addAll(persistent)
         }
         for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
-            annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId, ev.phase, ev.step))
+            annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId.value, ev.phase, ev.step))
         }
         val combatResult = AnnotationPipeline.combatAnnotations(events, bridge)
         annotations.addAll(combatResult.annotations)
@@ -503,8 +503,8 @@ object StateMapper {
     ): (InstanceId, Long) -> Int? {
         val game = bridge.getGame() ?: return { _, _ -> null }
         return resolver@{ instanceId, staticId ->
-            val forgeCardId = bridge.getForgeCardId(instanceId) ?: return@resolver null
-            val card = findCard(game, forgeCardId) ?: return@resolver null
+            val cardId = bridge.getForgeCardId(instanceId) ?: return@resolver null
+            val card = findCard(game, cardId) ?: return@resolver null
             val grpId = bridge.cards.findGrpIdByName(card.name) ?: return@resolver null
             val cardData = bridge.cards.findByGrpId(grpId) ?: return@resolver null
 

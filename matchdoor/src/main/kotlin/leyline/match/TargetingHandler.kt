@@ -1,6 +1,7 @@
 package leyline.match
 
 import forge.game.Game
+import leyline.DevCheck
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.InteractivePromptBridge
@@ -40,10 +41,11 @@ class TargetingHandler(private val ops: SessionOps) {
         greMsg: ClientToGREMessage,
         bridge: GameBridge,
     ) {
-        val seatBridge = bridge.seat(ops.seatId)
+        val seatBridge = bridge.seat(ops.seatId.value)
         val resp = greMsg.selectTargetsResp
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: run {
             log.warn("TargetingHandler: SelectTargetsResp but no pending prompt")
+            DevCheck.fail { "SelectTargetsResp but no pending prompt" }
             return
         }
 
@@ -53,8 +55,8 @@ class TargetingHandler(private val ops: SessionOps) {
             val instanceId = target.targetInstanceId
             val playerIdx = resolvePlayerTarget(instanceId, bridge, pendingPrompt)
             if (playerIdx != null) return@mapNotNull playerIdx
-            val forgeCardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@mapNotNull null
-            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
+            val cardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@mapNotNull null
+            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
         }.filter { it >= 0 }
 
         log.info("TargetingHandler: SelectTargetsResp iids={} indices={} (awaiting SubmitTargetsReq)", selectedInstanceIds, selectedIndices)
@@ -65,7 +67,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val game = bridge.getGame() ?: return
         val echoDiff = ops.bundleBuilder!!.buildEchoDiffGsm(ops.counter)
         val gsId = ops.counter.currentGsId()
-        val rePrompt = RequestBuilder.buildSelectTargetsRePrompt(pendingPrompt, bridge, selectedInstanceIds, ops.seatId)
+        val rePrompt = RequestBuilder.buildSelectTargetsRePrompt(pendingPrompt, bridge, selectedInstanceIds, ops.seatId.value)
         val rePromptMsg = ops.makeGRE(GREMessageType.SelectTargetsReq_695e, gsId, ops.counter.nextMsgId()) {
             it.selectTargetsReq = rePrompt
         }
@@ -86,6 +88,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val pending = pendingInteraction as? PendingClientInteraction.TargetSelection
         if (pending == null) {
             log.warn("TargetingHandler: SubmitTargetsReq but no pending target selection")
+            DevCheck.fail { "SubmitTargetsReq but no pending target selection" }
             return
         }
         pendingInteraction = null
@@ -100,7 +103,7 @@ class TargetingHandler(private val ops: SessionOps) {
             ),
         )
 
-        bridge.seat(ops.seatId).prompt.submitResponse(pending.promptId, pending.selectedIndices)
+        bridge.seat(ops.seatId.value).prompt.submitResponse(pending.promptId, pending.selectedIndices)
         bridge.awaitPriority()
         autoPass(bridge)
     }
@@ -114,17 +117,18 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val seatBridge = bridge.seat(ops.seatId)
+        val seatBridge = bridge.seat(ops.seatId.value)
         val resp = greMsg.selectNResp
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: run {
             log.warn("TargetingHandler: SelectNResp but no pending prompt")
+            DevCheck.fail { "SelectNResp but no pending prompt" }
             return
         }
 
         val selectedIndices = resp.idsList.mapNotNull { instanceId ->
-            val forgeCardId = bridge.getForgeCardId(InstanceId(instanceId))
-            if (forgeCardId == null) return@mapNotNull null
-            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
+            val cardId = bridge.getForgeCardId(InstanceId(instanceId))
+            if (cardId == null) return@mapNotNull null
+            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
         }.filter { it >= 0 }
 
         log.info("TargetingHandler: SelectNResp indices={}", selectedIndices)
@@ -144,7 +148,7 @@ class TargetingHandler(private val ops: SessionOps) {
      */
     @Suppress("ReturnCount")
     fun handlePostCastPrompt(bridge: GameBridge, clientAutoResolve: Boolean = false): Boolean {
-        val pendingPrompt = bridge.seat(ops.seatId).prompt.getPendingPrompt()
+        val pendingPrompt = bridge.seat(ops.seatId.value).prompt.getPendingPrompt()
         if (pendingPrompt != null) {
             when (val classified = PromptClassifier.classify(pendingPrompt)) {
                 is ClassifiedPrompt.ModalChoice -> {
@@ -220,7 +224,7 @@ class TargetingHandler(private val ops: SessionOps) {
      *   defaultIndex. Covers discard-to-hand-size at Cleanup and similar engine prompts.
      */
     fun checkPendingPrompt(bridge: GameBridge, game: Game): PromptResult {
-        val seatBridge = bridge.seat(ops.seatId)
+        val seatBridge = bridge.seat(ops.seatId.value)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: return PromptResult.NONE
         val classified = PromptClassifier.classify(pendingPrompt)
 
@@ -294,9 +298,10 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val seatBridge = bridge.seat(ops.seatId)
+        val seatBridge = bridge.seat(ops.seatId.value)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: run {
             log.warn("TargetingHandler: GroupResp but no pending prompt")
+            DevCheck.fail { "GroupResp but no pending prompt" }
             return
         }
 
@@ -320,10 +325,10 @@ class TargetingHandler(private val ops: SessionOps) {
                     val awayIds = if (groups.size >= 2) groups[1].idsList else emptyList()
                     val game = bridge.getGame()
                     awayIds.mapNotNull { iid ->
-                        val forgeCardId = bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
+                        val cardId = bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
                         // Cards may be zoneless during surveil — use game.findById
                         // instead of player.allCards (which only sees zoned cards).
-                        val card = game?.findById(forgeCardId.value) ?: return@mapNotNull null
+                        val card = game?.findById(cardId.value) ?: return@mapNotNull null
                         req.options.indexOf(card.name)
                     }.filter { it >= 0 }
                 }
@@ -356,10 +361,11 @@ class TargetingHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         autoPass: (GameBridge) -> Unit,
     ) {
-        val seatBridge = bridge.seat(ops.seatId)
+        val seatBridge = bridge.seat(ops.seatId.value)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt()
         if (pendingPrompt == null) {
             log.warn("TargetingHandler: CancelActionReq but no pending prompt")
+            DevCheck.fail { "CancelActionReq but no pending prompt" }
             return
         }
 
@@ -384,11 +390,12 @@ class TargetingHandler(private val ops: SessionOps) {
     ) {
         val pending = pendingInteraction as? PendingClientInteraction.Search ?: run {
             log.warn("SearchResp received but no search pending")
+            DevCheck.fail { "SearchResp but no search pending" }
             return
         }
         pendingInteraction = null
 
-        val seatBridge = bridge.seat(ops.seatId)
+        val seatBridge = bridge.seat(ops.seatId.value)
         val prompt = seatBridge.prompt.getPendingPrompt()
         if (prompt != null && prompt.promptId == pending.promptId) {
             val responseIndex = if (itemsFound.isEmpty()) {
@@ -400,9 +407,9 @@ class TargetingHandler(private val ops: SessionOps) {
                 // TODO: multi-pick support — currently only maps first selected card.
                 //  Future spells with maxFind > 1 will silently ignore subsequent picks.
                 val chosenInstanceId = itemsFound.first()
-                val forgeCardId = bridge.getForgeCardId(InstanceId(chosenInstanceId))
-                val idx = if (forgeCardId != null) {
-                    prompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
+                val cardId = bridge.getForgeCardId(InstanceId(chosenInstanceId))
+                val idx = if (cardId != null) {
+                    prompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
                 } else {
                     -1
                 }
@@ -411,6 +418,7 @@ class TargetingHandler(private val ops: SessionOps) {
                     idx
                 } else {
                     log.warn("SearchResp: instanceId={} not found in candidates, using default", chosenInstanceId)
+                    DevCheck.fail { "SearchResp: instanceId=$chosenInstanceId not in candidates" }
                     prompt.request.defaultIndex
                 }
             }
@@ -461,6 +469,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val cardName = req.modalSourceCardName
         if (cardName == null) {
             log.warn("TargetingHandler: modal prompt but no modalSourceCardName, auto-resolving")
+            DevCheck.fail { "modal prompt but no modalSourceCardName" }
             autoResolvePrompt(bridge, pendingPrompt)
             return
         }
@@ -469,6 +478,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val cardGrpId = bridge.cards.findGrpIdByName(cardName)
         if (cardGrpId == null) {
             log.warn("TargetingHandler: card '{}' not in card DB, auto-resolving modal", cardName)
+            DevCheck.fail { "modal card '$cardName' not in card DB" }
             autoResolvePrompt(bridge, pendingPrompt)
             return
         }
@@ -476,6 +486,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val modalInfo = bridge.cards.lookupModalOptions(cardGrpId)
         if (modalInfo == null) {
             log.warn("TargetingHandler: no modal options for grpId={}, auto-resolving", cardGrpId)
+            DevCheck.fail { "no modal options for card '$cardName' grpId=$cardGrpId" }
             autoResolvePrompt(bridge, pendingPrompt)
             return
         }
@@ -529,7 +540,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
                 log.info("TargetingHandler: CastingTimeOptionsResp (modal) grpIds={} → indices={}", chosenGrpIds, selectedIndices)
 
-                bridge.seat(ops.seatId).prompt.submitResponse(pending.promptId, selectedIndices)
+                bridge.seat(ops.seatId.value).prompt.submitResponse(pending.promptId, selectedIndices)
                 pendingInteraction = null
                 bridge.awaitPriority()
                 autoPass(bridge)
@@ -537,6 +548,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
             else -> {
                 log.warn("TargetingHandler: CastingTimeOptionsResp but no pending modal or optional cost")
+                DevCheck.fail { "CastingTimeOptionsResp but no pending modal or optional cost" }
             }
         }
     }
@@ -551,13 +563,13 @@ class TargetingHandler(private val ops: SessionOps) {
         pendingActionId: String,
         bridge: GameBridge,
     ): Boolean {
-        val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return false
+        val cardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return false
         val game = bridge.getGame() ?: return false
-        val card = game.findById(forgeCardId.value) ?: return false
+        val card = game.findById(cardId.value) ?: return false
 
         // Find the castable SpellAbility to check for optional costs
         val sa = card.spellAbilities?.firstOrNull { it.isSpell && !it.isLandAbility } ?: return false
-        sa.setActivatingPlayer(bridge.getPlayer(SeatId(ops.seatId)) ?: return false)
+        sa.setActivatingPlayer(bridge.getPlayer(ops.seatId) ?: return false)
 
         val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
         if (optionalCosts.isEmpty()) return false
@@ -589,7 +601,7 @@ class TargetingHandler(private val ops: SessionOps) {
         // Stash the Cast action for replay after response
         pendingInteraction = PendingClientInteraction.OptionalCost(
             pendingActionId = pendingActionId,
-            action = leyline.bridge.PlayerAction.CastSpell(forgeCardId),
+            action = leyline.bridge.PlayerAction.CastSpell(cardId),
             costCtoIds = costCtoIds,
         )
 
@@ -631,7 +643,7 @@ class TargetingHandler(private val ops: SessionOps) {
         log.info("TargetingHandler: optional cost response ctoId={} accepted={} indices={}", chosenCtoId, accepted, acceptedIndices)
 
         // Stash decision for WebPlayerController.chooseOptionalCosts to read
-        val seatBridge = bridge.seat(ops.seatId)
+        val seatBridge = bridge.seat(ops.seatId.value)
         seatBridge.prompt.stashedOptionalCostIndices = acceptedIndices
 
         // Now submit the Cast action to the engine
@@ -643,6 +655,7 @@ class TargetingHandler(private val ops: SessionOps) {
             autoPass(bridge)
         } else {
             log.warn("TargetingHandler: optional cost response but no pending engine action")
+            DevCheck.fail { "optional cost response but no pending engine action" }
         }
     }
 
@@ -652,13 +665,13 @@ class TargetingHandler(private val ops: SessionOps) {
     ) {
         // Reveal library contents so the client can populate the search picker.
         // The GSM sent by sendRealGameState will include full card objects for the library.
-        ops.sendRealGameState(bridge, revealForSeat = ops.seatId)
+        ops.sendRealGameState(bridge, revealForSeat = ops.seatId.value)
 
         // Extract search parameters from the Forge prompt.
         val req = pendingPrompt.request
-        val player = bridge.getPlayer(SeatId(ops.seatId))
+        val player = bridge.getPlayer(ops.seatId)
         val library = player?.getZone(forge.game.zone.ZoneType.Library)
-        val libZoneId = if (ops.seatId == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
+        val libZoneId = if (ops.seatId.value == 1) ZoneIds.P1_LIBRARY else ZoneIds.P2_LIBRARY
 
         // All library card instanceIds
         val allLibIds = library?.cards?.map {
@@ -741,7 +754,7 @@ class TargetingHandler(private val ops: SessionOps) {
         context: GroupingContext,
     ) {
         val game = bridge.getGame() ?: return
-        val player = bridge.getPlayer(SeatId(ops.seatId)) ?: return
+        val player = bridge.getPlayer(ops.seatId) ?: return
         val req = pendingPrompt.request
 
         // Resolve surveil/scry cards from candidateRefs (forge card IDs set by WebPlayerController).
@@ -759,7 +772,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
         if (resolved.isEmpty()) {
             log.warn("TargetingHandler: surveil/scry but no cards resolved from candidateRefs (falling back to library top)")
-            bridge.seat(ops.seatId).prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
+            bridge.seat(ops.seatId.value).prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
             bridge.awaitPriority()
             return
         }
@@ -781,7 +794,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
     /** Submit default response and wait — used when modal lookup fails. */
     private fun autoResolvePrompt(bridge: GameBridge, prompt: InteractivePromptBridge.PendingPrompt) {
-        bridge.seat(ops.seatId).prompt.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
+        bridge.seat(ops.seatId.value).prompt.submitResponse(prompt.promptId, listOf(prompt.request.defaultIndex))
         bridge.awaitPriority()
     }
 }

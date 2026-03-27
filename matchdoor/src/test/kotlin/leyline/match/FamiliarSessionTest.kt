@@ -5,6 +5,7 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.SeatId
 import leyline.infra.ListMessageSink
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -15,7 +16,7 @@ class FamiliarSessionTest :
 
         test("sendBundledGRE forwards messages to sink") {
             val sink = ListMessageSink()
-            val session = FamiliarSession(seatId = 2, matchId = "m-1", sink = sink)
+            val session = FamiliarSession(seatId = SeatId(2), matchId = "m-1", sink = sink)
             val msg = GREToClientMessage.newBuilder()
                 .setType(GREMessageType.GameStateMessage_695e)
                 .build()
@@ -27,14 +28,14 @@ class FamiliarSessionTest :
         }
 
         test("seatId and matchId are accessible") {
-            val session = FamiliarSession(seatId = 2, matchId = "m-42", sink = ListMessageSink())
-            session.seatId shouldBe 2
+            val session = FamiliarSession(seatId = SeatId(2), matchId = "m-42", sink = ListMessageSink())
+            session.seatId shouldBe SeatId(2)
             session.matchId shouldBe "m-42"
         }
 
         test("sendGameOver is no-op — sink stays empty") {
             val sink = ListMessageSink()
-            val session = FamiliarSession(seatId = 2, matchId = "m-1", sink = sink)
+            val session = FamiliarSession(seatId = SeatId(2), matchId = "m-1", sink = sink)
 
             session.sendGameOver(ResultReason.Game_ae0a)
 
@@ -44,7 +45,7 @@ class FamiliarSessionTest :
 
         test("action methods are inherited no-ops") {
             val sink = ListMessageSink()
-            val session = FamiliarSession(seatId = 2, matchId = "m-1", sink = sink)
+            val session = FamiliarSession(seatId = SeatId(2), matchId = "m-1", sink = sink)
             val dummyMsg = ClientToGREMessage.getDefaultInstance()
 
             session.onPerformAction(dummyMsg)
@@ -63,7 +64,7 @@ class FamiliarSessionTest :
         }
 
         test("makeGRE builds message with correct fields") {
-            val session = FamiliarSession(seatId = 2, matchId = "m-1", sink = ListMessageSink())
+            val session = FamiliarSession(seatId = SeatId(2), matchId = "m-1", sink = ListMessageSink())
             val gre = session.makeGRE(
                 type = GREMessageType.GameStateMessage_695e,
                 gsId = 5,

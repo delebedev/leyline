@@ -44,12 +44,12 @@ class InstanceIdReallocTest :
             val player = b.getPlayer(SeatId(1))!!
             val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
             val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id))
-            val forgeCardId = land.id
+            val cardId = land.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.moveToPlay(land, null, AbilityKey.newMap())
             }
-            val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             origInstanceId shouldNotBe newInstanceId
 
@@ -81,12 +81,12 @@ class InstanceIdReallocTest :
 
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(creature.id))
-            val forgeCardId = creature.id
+            val cardId = creature.id
 
             base.captureAfterAction(b, game, counter) {
                 game.action.destroy(creature, null, false, AbilityKey.newMap())
             }
-            val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             origInstanceId shouldNotBe newInstanceId
             b.getLimboInstanceIds().shouldContain(origInstanceId)
@@ -101,18 +101,18 @@ class InstanceIdReallocTest :
 
             val player = b.getPlayer(SeatId(1))!!
             val creature = player.getZone(ZoneType.Hand).cards.first { it.isCreature }
-            val forgeCardId = creature.id
+            val cardId = creature.id
 
             base.castCreature(b) ?: error("castCreature failed at seed 42")
             base.postAction(game, b, counter)
 
-            val stackInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val stackInstanceId = b.getOrAllocInstanceId(ForgeCardId(cardId))
             b.snapshotFromGame(game)
 
             base.passPriority(b)
             base.postAction(game, b, counter)
 
-            val bfInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val bfInstanceId = b.getOrAllocInstanceId(ForgeCardId(cardId))
             bfInstanceId shouldBe stackInstanceId
         }
 

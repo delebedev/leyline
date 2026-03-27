@@ -134,8 +134,8 @@ class DebugCollector(
             val limboSet = bridge.getLimboSet() // retired instanceIds
             val protoZones = bridge.getProtoZones() // instanceId → proto zoneId
 
-            // Invert activeIds for O(1) lookup: active instanceId → forgeCardId
-            val activeInstanceIds = activeIds.values.toSet()
+            // Invert activeIds for O(1) lookup: active instanceId values
+            val activeInstanceIds = activeIds.values.map { it.value }.toSet()
 
             // Derive seat from player: seat 1 = human, seat 2 = AI
             val seatByPlayerId = mapOf(
@@ -144,14 +144,14 @@ class DebugCollector(
             )
 
             allIds.map { (instanceId, forgeCardId) ->
-                val card = game.findById(forgeCardId)
-                val isActive = instanceId in activeInstanceIds
-                val isLimbo = instanceId in limboSet
-                val protoZoneId = protoZones[instanceId]
+                val card = game.findById(forgeCardId.value)
+                val isActive = instanceId.value in activeInstanceIds
+                val isLimbo = instanceId.value in limboSet
+                val protoZoneId = protoZones[instanceId.value]
 
                 IdMapEntry(
-                    instanceId = instanceId,
-                    forgeCardId = forgeCardId,
+                    instanceId = instanceId.value,
+                    forgeCardId = forgeCardId.value,
                     cardName = card?.name ?: "?",
                     ownerSeatId = seatByPlayerId[card?.owner?.id] ?: 0,
                     status = when {

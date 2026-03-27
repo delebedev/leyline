@@ -225,7 +225,7 @@ class PuzzleBridgeTest :
             // Seat 1 (human): connect and run onPuzzleStart — normal path
             val sink1 = ListMessageSink()
             val session1 = MatchSession(
-                seatId = 1,
+                seatId = SeatId(1),
                 matchId = matchId,
                 sink = sink1,
                 registry = registry,
@@ -242,7 +242,7 @@ class PuzzleBridgeTest :
             // Seat 2 (Familiar): connect and run onPuzzleStart — this is the race
             val sink2 = ListMessageSink()
             val session2 = MatchSession(
-                seatId = 2,
+                seatId = SeatId(2),
                 matchId = matchId,
                 sink = sink2,
                 registry = registry,

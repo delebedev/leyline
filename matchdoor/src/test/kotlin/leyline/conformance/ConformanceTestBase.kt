@@ -313,11 +313,11 @@ open class ConformanceTestBase {
         val player = b.getPlayer(SeatId(1)) ?: return null
         val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: return null
         val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id)).value
-        val forgeCardId = land.id
+        val cardId = land.id
 
         playLand(b) ?: return null
         val gsm = postAction(game, b, counter).gsmOrNull ?: return null
-        val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+        val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
         return Triple(gsm, origInstanceId, newInstanceId)
     }
@@ -354,12 +354,12 @@ open class ConformanceTestBase {
         val player = b.getPlayer(SeatId(1)) ?: return null
         val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: return null
         val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(creature.id)).value
-        val forgeCardId = creature.id
+        val cardId = creature.id
 
         castCreature(b) ?: return null
         // Use mergedGsm to combine QueuedGSM triplet annotations into one GSM
         val gsm = postAction(game, b, counter).mergedGsm
-        val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+        val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
         return Triple(gsm, origInstanceId, newInstanceId)
     }

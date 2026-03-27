@@ -32,7 +32,7 @@ object RequestBuilder {
      * [chooserSeatId] is the seat choosing targets — used for highlights:
      * opponent = Hot (suggested), everything else = Cold.
      *
-     * See `docs/plans/player-targeting.md` for protocol details from proxy recording.
+     * See `docs/plans/player-targeting.md` for protocol details.
      */
     fun buildSelectTargetsReq(
         prompt: InteractivePromptBridge.PendingPrompt,
@@ -192,7 +192,6 @@ object RequestBuilder {
      * @param committedAttackerIds instanceIds of attackers already selected (echo-back).
      *   Committed attackers get [selectedDamageRecipient] set to the opponent player.
      *   Initial request passes empty set (no pre-selection).
-     *   Conformance: recording 2026-03-06_22-37-41 frames 202 vs 205.
      */
     fun buildDeclareAttackersReq(
         game: Game,
@@ -221,7 +220,7 @@ object RequestBuilder {
                 attacker.setSelectedDamageRecipient(defaultRecipient)
             }
             builder.addAttackers(attacker)
-            // qualifiedAttackers never has selectedDamageRecipient (confirmed in recordings)
+            // qualifiedAttackers never has selectedDamageRecipient
             val qualified = Attacker.newBuilder()
                 .setAttackerInstanceId(instanceId)
                 .addLegalDamageRecipients(defaultRecipient)
@@ -241,7 +240,6 @@ object RequestBuilder {
      * @param blockerAssignments committed blocker→attacker assignments (instanceIds).
      *   Committed blockers get `selectedAttackerInstanceIds` set and `attackerInstanceIds`
      *   cleared. Uncommitted blockers get `attackerInstanceIds` (available targets).
-     *   Conformance: recording 2026-03-01_00-18-46 idx 238, 2026-03-14_17-28-50 idx 106.
      */
     fun buildDeclareBlockersReq(
         game: Game,

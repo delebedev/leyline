@@ -82,9 +82,9 @@ class BundleBuilder(
         // Re-embed stripped actions into the GSM
         val gs = GsmBuilder.embedActions(result.gsm, actions, frame, recipientSeatId = seatId)
 
-        // QueuedGSM split disabled: recording analysis shows QueuedGSM is only sent to
-        // the non-caster seat (opponent's deferred copy during targeting). The caster
-        // always gets regular GameStateMessage. See docs/conformance/queued-gsm-findings.md.
+        // QueuedGSM split disabled: QueuedGSM is only sent to the non-caster seat
+        // (opponent's deferred copy during targeting). The caster always gets regular
+        // GameStateMessage. See docs/conformance/queued-gsm-findings.md.
         // Keep infrastructure for PvP — enable when recipientSeat != casterSeat.
         @Suppress("UnusedPrivateProperty")
         val split: Triple<GameStateMessage, GameStateMessage, GameStateMessage>? = null
@@ -416,7 +416,7 @@ class BundleBuilder(
         val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
 
         // Build provisional creature objects for ALL legal attackers.
-        // Real server echo objects carry NO combat state — confirmed across 4 recordings.
+        // Echo objects carry NO combat state — only base card fields.
         val objects = mutableListOf<GameObjectInfo>()
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
@@ -506,7 +506,7 @@ class BundleBuilder(
         val player = bridge.getPlayer(SeatId(seatId)) ?: return BundleResult(emptyList())
 
         // Build provisional creature objects for assigned blockers.
-        // Real server echo objects carry NO combat state — confirmed across 4 recordings.
+        // Echo objects carry NO combat state — only base card fields.
         val objects = mutableListOf<GameObjectInfo>()
         val blockerSet = blockAssignments.keys
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
@@ -748,7 +748,7 @@ class BundleBuilder(
      * Game-over sequence: 3x GS Diff + IntermissionReq.
      * Pure proto construction — no bridge or game engine access.
      *
-     * Pattern matches real server recordings:
+     * Protocol pattern:
      * - gs1: GameInfo(stage=GameOver, matchState=GameComplete, 1 result scope=Game),
      *        players with PendingLoss, teams, LossOfGame annotation (if lethal)
      * - gs2: GameInfo(stage=GameOver, matchState=MatchComplete, 2 results Game+Match)
@@ -812,7 +812,7 @@ class BundleBuilder(
         val loserInfo = PlayerMapper.buildPlayerInfo(loserPlayer, losingPlayerSeatId).toBuilder()
             .setStatus(PlayerStatus.PendingLoss_a1c6)
         gs1.addPlayers(loserInfo)
-        // Timers (recording shows inactivity timer on gs1)
+        // Timers — inactivity timer on gs1
         gs1.addAllTimers(PlayerMapper.buildTimers())
         // LossOfGame annotation
         if (losingPlayerSeatId != 0) {
@@ -856,12 +856,12 @@ class BundleBuilder(
                     )
                     .addOptions(
                         UserOption.newBuilder()
-                            .setOptionPrompt(Prompt.newBuilder().setPromptId(30))
+                            .setOptionPrompt(Prompt.newBuilder().setPromptId(PromptIds.DRAW_CARD))
                             .setResponseType(ClientMessageType.DrawCardResp),
                     )
                     .addOptions(
                         UserOption.newBuilder()
-                            .setOptionPrompt(Prompt.newBuilder().setPromptId(29))
+                            .setOptionPrompt(Prompt.newBuilder().setPromptId(PromptIds.REVEAL_HAND))
                             .setResponseType(ClientMessageType.RevealHandResp),
                     )
                     .setIntermissionPrompt(

@@ -8,6 +8,7 @@ import io.netty.channel.ChannelHandlerContext
 import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
+import leyline.bridge.SeatId
 import leyline.config.GameConfig
 import leyline.config.MatchConfig
 import leyline.infra.ListMessageSink
@@ -69,7 +70,7 @@ class PuzzleHandlerTest :
         test("onPuzzleConnect sends initial bundle and actions, then enters puzzle loop") {
             val registry = MatchRegistry()
             val sink = ListMessageSink()
-            val session = MatchSession(seatId = 1, matchId = "puzzle-bolt-face", sink = sink, registry = registry, paceDelayMs = 0)
+            val session = MatchSession(seatId = SeatId(1), matchId = "puzzle-bolt-face", sink = sink, registry = registry, paceDelayMs = 0)
             val temp = tempPuzzleFile("bundle")
             try {
                 val handler = PuzzleHandler(MatchConfig(game = GameConfig(puzzle = temp.absolutePath)), TestCardRegistry.repo, registry)
@@ -97,12 +98,12 @@ class PuzzleHandlerTest :
                 val handler = PuzzleHandler(MatchConfig(game = GameConfig(puzzle = temp.absolutePath)), TestCardRegistry.repo, registry)
 
                 val sink1 = ListMessageSink()
-                val session1 = MatchSession(seatId = 1, matchId = "puzzle-lands-only", sink = sink1, registry = registry, paceDelayMs = 0)
+                val session1 = MatchSession(seatId = SeatId(1), matchId = "puzzle-lands-only", sink = sink1, registry = registry, paceDelayMs = 0)
                 val (channel1, ctx1) = channelCtx()
                 val first = handler.onPuzzleConnect(ctx1, session1, "puzzle-lands-only", 1)
 
                 val sink2 = ListMessageSink()
-                val session2 = MatchSession(seatId = 1, matchId = "puzzle-lands-only", sink = sink2, registry = registry, paceDelayMs = 0)
+                val session2 = MatchSession(seatId = SeatId(1), matchId = "puzzle-lands-only", sink = sink2, registry = registry, paceDelayMs = 0)
                 val (channel2, ctx2) = channelCtx()
                 val second = handler.onPuzzleConnect(ctx2, session2, "puzzle-lands-only", 1)
 
@@ -145,7 +146,7 @@ class PuzzleHandlerTest :
             try {
                 val registry = MatchRegistry()
                 val sink = ListMessageSink()
-                val session = MatchSession(seatId = 1, matchId = "puzzle-cli-puzzle", sink = sink, registry = registry, paceDelayMs = 0)
+                val session = MatchSession(seatId = SeatId(1), matchId = "puzzle-cli-puzzle", sink = sink, registry = registry, paceDelayMs = 0)
                 val handler = PuzzleHandler(
                     MatchConfig(game = GameConfig(puzzle = temp.absolutePath)),
                     TestCardRegistry.repo,

@@ -1,5 +1,6 @@
 package leyline.conformance
 
+import leyline.bridge.SeatId
 import leyline.config.AiConfig
 import leyline.config.MatchConfig
 import leyline.game.GameBridge
@@ -56,7 +57,7 @@ class DualSeatHarness(
         bridge.startTwoPlayer(seed = seed, deckList1 = deckList1, deckList2 = deckList2)
 
         session1 = MatchSession(
-            seatId = 1,
+            seatId = SeatId(1),
             matchId = matchId,
             sink = sink1,
             registry = registry,
@@ -64,7 +65,7 @@ class DualSeatHarness(
             counter = bridge.messageCounter,
         )
         session2 = MatchSession(
-            seatId = 2,
+            seatId = SeatId(2),
             matchId = matchId,
             sink = sink2,
             registry = registry,

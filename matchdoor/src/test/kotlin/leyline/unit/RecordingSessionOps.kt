@@ -1,6 +1,7 @@
 package leyline.unit
 
 import forge.game.Game
+import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
@@ -15,14 +16,14 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * or null by default (for tests that don't need action building).
  */
 class RecordingSessionOps(
-    override val seatId: Int = 1,
+    override val seatId: SeatId = SeatId(1),
     override val matchId: String = "test-match",
     override var counter: MessageCounter = MessageCounter(),
     private val bridge: GameBridge? = null,
 ) : SessionOps {
 
     override val bundleBuilder: BundleBuilder? =
-        bridge?.let { BundleBuilder(it, matchId, seatId) }
+        bridge?.let { BundleBuilder(it, matchId, seatId.value) }
 
     // --- Recorded calls ---
 
@@ -66,7 +67,7 @@ class RecordingSessionOps(
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage {
         val gre = GREToClientMessage.newBuilder()
-            .setType(type).setMsgId(msgId).setGameStateId(gsId).addSystemSeatIds(seatId)
+            .setType(type).setMsgId(msgId).setGameStateId(gsId).addSystemSeatIds(seatId.value)
         configure(gre)
         return gre.build()
     }

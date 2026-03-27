@@ -65,9 +65,9 @@ class MandatoryDiscardCostTest :
         /** Find the instanceId for a card by name from SelectNReq candidates. */
         fun findDiscardCandidate(h: MatchFlowHarness, req: SelectNReq, cardName: String): Int {
             for (iid in req.idsList) {
-                val forgeCardId = h.bridge.getForgeCardId(InstanceId(iid)) ?: continue
+                val cardId = h.bridge.getForgeCardId(InstanceId(iid)) ?: continue
                 val game = h.bridge.getGame() ?: continue
-                val card = game.findById(forgeCardId.value) ?: continue
+                val card = game.findById(cardId.value) ?: continue
                 if (card.name == cardName) return iid
             }
             error("Card '$cardName' not found in SelectNReq candidates: ${req.idsList}")

@@ -1,6 +1,7 @@
 package leyline.bridge
 
 import forge.game.Game
+import leyline.DevCheck
 import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -10,10 +11,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Thread-safe bridge between the blocking engine game loop and async WebSocket handlers.
+ * Thread-safe bridge between the blocking engine game loop and async Netty handlers.
  *
  * When the engine reaches a priority stop (via [WebPlayerController.chooseSpellAbilityToPlay]),
- * it calls [awaitAction] which blocks the game thread. The WS handler broadcasts state to the
+ * it calls [awaitAction] which blocks the game thread. The message handler broadcasts state to the
  * client, and when the client responds (cast, pass, attack, etc.), [submitAction] completes
  * the future so the engine resumes.
  *
@@ -115,6 +116,7 @@ class GameActionBridge(
 
         if (!pending.compareAndSet(null, action)) {
             log.warn("Action bridge already has a pending action; auto-passing")
+            DevCheck.failOnAutoPass { "Action bridge already has a pending action" }
             return PlayerAction.PassPriority
         }
         prioritySignal?.signal()
@@ -134,9 +136,11 @@ class GameActionBridge(
                     "active=${state.activePlayerId}, priority=${state.priorityPlayerId})",
             )
             log.warn("Action timed out, auto-passing\n{}", diagnostic)
+            DevCheck.failOnAutoPass { "Action timed out after ${effectiveTimeout}ms" }
             PlayerAction.PassPriority
         } catch (ex: Exception) {
             log.warn("Action await failed: ${ex.message}, auto-passing")
+            DevCheck.failOnAutoPass { "Action await failed: ${ex.message}" }
             PlayerAction.PassPriority
         } finally {
             deadlineMs = null
@@ -145,7 +149,7 @@ class GameActionBridge(
     }
 
     /**
-     * Called from the WS handler coroutine. Completes the pending action future
+     * Called from the Netty handler. Completes the pending action future
      * so the blocked engine thread can resume.
      *
      * @return true if the action was matched and completed
@@ -160,7 +164,7 @@ class GameActionBridge(
     }
 
     /**
-     * Get the current pending action for WS broadcast. Returns null if no action
+     * Get the current pending action for client broadcast. Returns null if no action
      * is pending.
      *
      * A pending action whose future is already completed (submitted but not yet

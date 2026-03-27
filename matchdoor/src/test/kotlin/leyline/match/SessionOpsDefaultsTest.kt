@@ -4,6 +4,7 @@ import forge.game.Game
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import leyline.UnitTag
+import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
@@ -15,7 +16,7 @@ class SessionOpsDefaultsTest :
         tags(UnitTag)
 
         val ops = object : SessionOps {
-            override val seatId = 1
+            override val seatId = SeatId(1)
             override val matchId = "test-match"
             override var counter = MessageCounter()
 

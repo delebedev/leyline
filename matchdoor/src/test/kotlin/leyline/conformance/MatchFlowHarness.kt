@@ -62,7 +62,7 @@ class MatchFlowHarness(
         if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
 
         session = MatchSession(
-            seatId = seatId,
+            seatId = SeatId(seatId),
             matchId = matchId,
             sink = effectiveSink,
             registry = registry,
@@ -121,7 +121,7 @@ class MatchFlowHarness(
         TestCardRegistry.ensureRegistered()
 
         session = MatchSession(
-            seatId = seatId,
+            seatId = SeatId(seatId),
             matchId = matchId,
             sink = effectiveSink,
             registry = registry,

@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
+import leyline.bridge.SeatId
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
 import leyline.conformance.detailUint
@@ -30,7 +31,7 @@ class MechanicAnnotationPipelineTest :
         test("counterAddedAnnotation") {
             // Forge sends display name "+1/+1" (from CounterEnumType.getName()), not "P1P1"
             val events = listOf(
-                GameEvent.CountersChanged(forgeCardId = 42, counterType = "+1/+1", oldCount = 0, newCount = 2),
+                GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "+1/+1", oldCount = 0, newCount = 2),
             )
             val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
 
@@ -54,7 +55,7 @@ class MechanicAnnotationPipelineTest :
         test("counterRemovedAnnotation") {
             // Forge sends "LOYAL" for loyalty counters (CounterEnumType.LOYALTY.getName())
             val events = listOf(
-                GameEvent.CountersChanged(forgeCardId = 42, counterType = "LOYAL", oldCount = 5, newCount = 2),
+                GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "LOYAL", oldCount = 5, newCount = 2),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
@@ -65,7 +66,7 @@ class MechanicAnnotationPipelineTest :
 
         test("counterUnchangedSkipped") {
             val events = listOf(
-                GameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 3, newCount = 3),
+                GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "P1P1", oldCount = 3, newCount = 3),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
             annotations.shouldBeEmpty()
@@ -76,7 +77,7 @@ class MechanicAnnotationPipelineTest :
         xtest("shuffleAnnotation") {
             // Shuffle annotations are suppressed in production (crash client). See commit 76d61d2973.
             val events = listOf(
-                GameEvent.LibraryShuffled(seatId = 1),
+                GameEvent.LibraryShuffled(seatId = SeatId(1)),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
@@ -89,7 +90,7 @@ class MechanicAnnotationPipelineTest :
 
         test("scryAnnotation") {
             val events = listOf(
-                GameEvent.Scry(seatId = 2, topCount = 1, bottomCount = 2),
+                GameEvent.Scry(seatId = SeatId(2), topCount = 1, bottomCount = 2),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
@@ -103,7 +104,7 @@ class MechanicAnnotationPipelineTest :
 
         test("surveilAnnotation") {
             val events = listOf(
-                GameEvent.Surveil(seatId = 1, toLibrary = 1, toGraveyard = 1),
+                GameEvent.Surveil(seatId = SeatId(1), toLibrary = 1, toGraveyard = 1),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
@@ -115,7 +116,7 @@ class MechanicAnnotationPipelineTest :
 
         test("tokenCreatedAnnotation") {
             val events = listOf(
-                GameEvent.TokenCreated(forgeCardId = 99, seatId = 1),
+                GameEvent.TokenCreated(cardId = ForgeCardId(99), seatId = SeatId(1)),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
@@ -128,7 +129,7 @@ class MechanicAnnotationPipelineTest :
 
         test("tokenDestroyedProducesAnnotation") {
             val events = listOf(
-                GameEvent.TokenDestroyed(forgeCardId = 88, seatId = 1),
+                GameEvent.TokenDestroyed(cardId = ForgeCardId(88), seatId = SeatId(1)),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
@@ -142,7 +143,7 @@ class MechanicAnnotationPipelineTest :
 
         test("powerToughnessChangedBothAnnotations") {
             val events = listOf(
-                GameEvent.PowerToughnessChanged(forgeCardId = 50, oldPower = 2, newPower = 4, oldToughness = 3, newToughness = 5),
+                GameEvent.PowerToughnessChanged(cardId = ForgeCardId(50), oldPower = 2, newPower = 4, oldToughness = 3, newToughness = 5),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
@@ -159,7 +160,7 @@ class MechanicAnnotationPipelineTest :
 
         test("powerOnlyChangedOneAnnotation") {
             val events = listOf(
-                GameEvent.PowerToughnessChanged(forgeCardId = 50, oldPower = 2, newPower = 5, oldToughness = 3, newToughness = 3),
+                GameEvent.PowerToughnessChanged(cardId = ForgeCardId(50), oldPower = 2, newPower = 5, oldToughness = 3, newToughness = 3),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
@@ -170,7 +171,7 @@ class MechanicAnnotationPipelineTest :
 
         test("toughnessOnlyChangedOneAnnotation") {
             val events = listOf(
-                GameEvent.PowerToughnessChanged(forgeCardId = 50, oldPower = 2, newPower = 2, oldToughness = 3, newToughness = 1),
+                GameEvent.PowerToughnessChanged(cardId = ForgeCardId(50), oldPower = 2, newPower = 2, oldToughness = 3, newToughness = 1),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
@@ -183,7 +184,7 @@ class MechanicAnnotationPipelineTest :
 
         test("attachProducesCorrectAnnotationShape") {
             val events = listOf(
-                GameEvent.CardAttached(forgeCardId = 55, targetForgeId = 66, seatId = 1),
+                GameEvent.CardAttached(cardId = ForgeCardId(55), targetCardId = ForgeCardId(66), seatId = SeatId(1)),
             )
             val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
 
@@ -208,17 +209,17 @@ class MechanicAnnotationPipelineTest :
 
         test("detachReturnsDetachedForgeCardId") {
             val events = listOf(
-                GameEvent.CardDetached(forgeCardId = 60, seatId = 1),
+                GameEvent.CardDetached(cardId = ForgeCardId(60), seatId = SeatId(1)),
             )
             val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
-            result.detachedForgeCardIds shouldBe listOf(60)
+            result.detachedForgeCardIds shouldBe listOf(ForgeCardId(60))
         }
 
         // -- RemoveAttachment --
 
         test("detachProducesRemoveAttachment") {
             val events = listOf(
-                GameEvent.CardDetached(forgeCardId = 60, seatId = 1),
+                GameEvent.CardDetached(cardId = ForgeCardId(60), seatId = SeatId(1)),
             )
             val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
             val annotations = result.transient
@@ -232,22 +233,22 @@ class MechanicAnnotationPipelineTest :
 
         test("zoneTransferEventsProduceNoTransientButTrackCleanup") {
             val events = listOf(
-                GameEvent.ZoneChanged(forgeCardId = 1, from = Zone.Hand, to = Zone.Battlefield),
-                GameEvent.LandPlayed(forgeCardId = 1, seatId = 1),
-                GameEvent.CardDestroyed(forgeCardId = 2, seatId = 1),
-                GameEvent.DamageDealtToPlayer(sourceForgeId = 4, targetSeatId = 1, amount = 3, combat = true),
+                GameEvent.ZoneChanged(cardId = ForgeCardId(1), from = Zone.Hand, to = Zone.Battlefield),
+                GameEvent.LandPlayed(cardId = ForgeCardId(1), seatId = SeatId(1)),
+                GameEvent.CardDestroyed(cardId = ForgeCardId(2), seatId = SeatId(1)),
+                GameEvent.DamageDealtToPlayer(sourceCardId = ForgeCardId(4), targetSeatId = SeatId(1), amount = 3, combat = true),
             )
             val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
             result.transient.shouldBeEmpty()
             // CardDestroyed tracks for DisplayCardUnderCard cleanup
-            result.exileSourceLeftPlayForgeCardIds shouldBe listOf(2)
+            result.exileSourceLeftPlayForgeCardIds shouldBe listOf(ForgeCardId(2))
         }
 
         // -- CardTapped --
 
         test("cardTappedProducesAnnotation") {
             val events = listOf(
-                GameEvent.CardTapped(forgeCardId = 70, tapped = true),
+                GameEvent.CardTapped(cardId = ForgeCardId(70), tapped = true),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
@@ -259,7 +260,7 @@ class MechanicAnnotationPipelineTest :
 
         test("cardUntappedProducesAnnotation") {
             val events = listOf(
-                GameEvent.CardTapped(forgeCardId = 71, tapped = false),
+                GameEvent.CardTapped(cardId = ForgeCardId(71), tapped = false),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
 
@@ -272,8 +273,8 @@ class MechanicAnnotationPipelineTest :
             // NOTE: LibraryShuffled is suppressed in production (crash client). See commit 76d61d2973.
             // Only testing CounterChanged + Scry here (2 events → 2 annotations).
             val events = listOf(
-                GameEvent.CountersChanged(forgeCardId = 42, counterType = "P1P1", oldCount = 0, newCount = 1),
-                GameEvent.Scry(seatId = 1, topCount = 2, bottomCount = 0),
+                GameEvent.CountersChanged(cardId = ForgeCardId(42), counterType = "P1P1", oldCount = 0, newCount = 1),
+                GameEvent.Scry(seatId = SeatId(1), topCount = 2, bottomCount = 0),
             )
             val annotations = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver).transient
             annotations.size shouldBe 2

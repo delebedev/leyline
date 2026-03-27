@@ -27,13 +27,13 @@ class RemovalSpellFlowTest :
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
             }
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-            val forgeCardId = creature.id
+            val cardId = creature.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.moveToHand(creature, null)
             }
 
-            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value))
+            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(ForgeCardId(cardId)).value))
             zt.category shouldBe "Bounce"
         }
 
@@ -42,13 +42,13 @@ class RemovalSpellFlowTest :
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
             }
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-            val forgeCardId = creature.id
+            val cardId = creature.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.destroy(creature, null, false, AbilityKey.newMap())
             }
 
-            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value))
+            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(ForgeCardId(cardId)).value))
             zt.category shouldBe "Destroy"
         }
 
@@ -57,13 +57,13 @@ class RemovalSpellFlowTest :
                 base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
             }
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-            val forgeCardId = creature.id
+            val cardId = creature.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.exile(creature, null, AbilityKey.newMap())
             }
 
-            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value))
+            val zt = checkNotNull(gsm.findZoneTransfer(b.getOrAllocInstanceId(ForgeCardId(cardId)).value))
             zt.category shouldBe "Exile"
         }
 

@@ -34,7 +34,7 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  * [MatchHandler] creates one per connection and delegates GRE messages here.
  */
 class MatchSession(
-    override val seatId: Int,
+    override val seatId: SeatId,
     override val matchId: String,
     val sink: MessageSink,
     val registry: MatchRegistry,
@@ -89,7 +89,7 @@ class MatchSession(
      */
     override fun connectBridge(bridge: GameBridge): Unit = synchronized(sessionLock) {
         gameBridge = bridge
-        bundleBuilder = BundleBuilder(bridge, matchId, seatId)
+        bundleBuilder = BundleBuilder(bridge, matchId, seatId.value)
         if (bridge.messageCounter !== counter) {
             log.debug("connectBridge: adopting bridge counter (race: session created before match)")
             counter = bridge.messageCounter
@@ -116,7 +116,7 @@ class MatchSession(
         // Drain AI action diffs queued during awaitPriority.
         // These have gsIds allocated by the engine thread via the shared counter
         // during awaitPriority. Send them first (lower gsIds).
-        val playback = ctx.bridge.playbacks[SeatId(seatId)]
+        val playback = ctx.bridge.playbacks[seatId]
         if (playback != null) {
             for (batch in playback.drainQueue()) {
                 sendBundledGRE(batch)
@@ -156,8 +156,8 @@ class MatchSession(
         // path only fires for MatchSession. Warn if somehow called for a non-seat-1
         // MatchSession — it would consume seat 1's pending priority via the shared
         // ActionBridge, advancing the engine past Main1.
-        if (seatId != 1) {
-            log.warn("MatchSession: onPuzzleStart called for seat {} — expected seat 1 only", seatId)
+        if (seatId.value != 1) {
+            log.warn("MatchSession: onPuzzleStart called for seat {} — expected seat 1 only", seatId.value)
             return
         }
 
@@ -182,7 +182,7 @@ class MatchSession(
     override fun onPerformAction(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val ctx = resolveContext() ?: return
         val bridge = ctx.bridge
-        val seatBridge = bridge.seat(seatId)
+        val seatBridge = bridge.seat(seatId.value)
         log.info("MatchSession: onPerformAction enter gsId={} (current={})", greMsg.gameStateId, counter.currentGsId())
 
         // Reject stale actions — client may resend with outdated gameStateId
@@ -237,13 +237,13 @@ class MatchSession(
                 seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
             }
             ActionType.Play_add3 -> {
-                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val submitted = if (forgeCardId != null) {
-                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PlayLand(forgeCardId))
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val submitted = if (cardId != null) {
+                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PlayLand(cardId))
                 } else {
                     seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
-                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             ActionType.Cast -> {
                 // Check for optional costs (kicker, buyback, etc.) before submitting.
@@ -253,39 +253,39 @@ class MatchSession(
                     Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
                     // Don't submit to engine yet — wait for CastingTimeOptionsResp
                 } else {
-                    val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                    val submitted = if (forgeCardId != null) {
-                        seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(forgeCardId))
+                    val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                    val submitted = if (cardId != null) {
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(cardId))
                     } else {
                         seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                     }
-                    Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
+                    Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
                 }
             }
             ActionType.Activate_add3 -> {
-                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                 val abilityIndex = resolveAbilityIndex(action, bridge)
-                val submitted = if (forgeCardId != null) {
+                val submitted = if (cardId != null) {
                     seatBridge.action.submitAction(
                         pending.actionId,
-                        PlayerAction.ActivateAbility(forgeCardId, abilityIndex),
+                        PlayerAction.ActivateAbility(cardId, abilityIndex),
                     )
                 } else {
                     seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
-                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             ActionType.ActivateMana -> {
-                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val submitted = if (forgeCardId != null) {
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val submitted = if (cardId != null) {
                     seatBridge.action.submitAction(
                         pending.actionId,
-                        PlayerAction.ActivateMana(forgeCardId),
+                        PlayerAction.ActivateMana(cardId),
                     )
                 } else {
                     seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
-                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             else -> {
                 log.info("MatchSession: unhandled action type {}, passing", action.actionType)
@@ -429,7 +429,7 @@ class MatchSession(
         autoPassState.update(incoming)
         log.debug("MatchSession: autoPassOption={} stackAutoPassOption={}", autoPassState.autoPassOption, autoPassState.stackAutoPassOption)
 
-        val (msg, nextMsgId) = HandshakeMessages.settingsResp(seatId, counter.currentMsgId(), counter.currentGsId(), clientSettings)
+        val (msg, nextMsgId) = HandshakeMessages.settingsResp(seatId.value, counter.currentMsgId(), counter.currentGsId(), clientSettings)
         counter.setMsgId(nextMsgId)
         ProtoDump.dump(msg, "SettingsResp")
         sink.sendRaw(msg)
@@ -447,9 +447,9 @@ class MatchSession(
     private fun applyStopsToProfile(settings: SettingsMessage) {
         val bridge = gameBridge ?: return
         val profile = bridge.phaseStopProfile ?: return
-        val humanPlayer = bridge.getPlayer(SeatId(seatId)) ?: return
-        val aiSeatId = if (seatId == 1) 2 else 1
-        val aiPlayer = bridge.getPlayer(SeatId(aiSeatId)) ?: return
+        val humanPlayer = bridge.getPlayer(seatId) ?: return
+        val aiSeatId = SeatId(if (seatId.value == 1) 2 else 1)
+        val aiPlayer = bridge.getPlayer(aiSeatId) ?: return
 
         // Honor clear-all flags even when no explicit stops present
         if (settings.clearAllStops == SettingStatus.Set || settings.clearAllYields == SettingStatus.Set) {
@@ -608,7 +608,7 @@ class MatchSession(
      */
     override fun sendGameOver(reason: ResultReason) {
         val bridge = gameBridge
-        val humanPlayer = bridge?.getPlayer(SeatId(seatId))
+        val humanPlayer = bridge?.getPlayer(seatId)
         val humanWon = humanPlayer?.getOutcome()?.hasWon() ?: false
         val winningTeam = if (humanWon) 1 else 2
         val losingPlayerSeatId = if (humanWon) 2 else 1
@@ -657,7 +657,7 @@ class MatchSession(
         registry.teardownMatch(
             matchId = matchId,
             reason = if (reason == ResultReason.Concede) MatchTeardownReason.Concede else MatchTeardownReason.GameOver,
-            seatId = seatId,
+            seatId = seatId.value,
             recorder = recorder,
             fallbackBridge = bridge,
         )
@@ -673,14 +673,14 @@ class MatchSession(
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage {
         val gre = GREToClientMessage.newBuilder()
-            .setType(type).setMsgId(msgId).setGameStateId(gsId).addSystemSeatIds(seatId)
+            .setType(type).setMsgId(msgId).setGameStateId(gsId).addSystemSeatIds(seatId.value)
         configure(gre)
         return gre.build()
     }
 
     /** Send multiple GRE messages bundled in one GreToClientEvent + mirror to peer. */
     override fun sendBundledGRE(messages: List<GREToClientMessage>) {
-        debugSink?.recordOutbound(messages, seatId)
+        debugSink?.recordOutbound(messages, seatId.value)
         debugSink?.collectOutbound(messages, debugSink?.currentSeq() ?: 0)
         recorder?.recordOutbound(messages)
         sink.send(messages)
@@ -689,8 +689,8 @@ class MatchSession(
 
     /** Send a copy of GRE messages to the Familiar (seat 2) via registry. */
     private fun mirrorToFamiliar(messages: List<GREToClientMessage>) {
-        if (seatId != 1) return
-        val peer = registry.getPeer(matchId, seatId) ?: return
+        if (seatId.value != 1) return
+        val peer = registry.getPeer(matchId, seatId.value) ?: return
         // Only mirror to FamiliarSession — PvP peers build their own state
         // via per-seat GamePlayback.
         if (peer !is FamiliarSession) return
@@ -719,7 +719,7 @@ class MatchSession(
     override fun traceEvent(type: MatchEventType, game: Game, detail: String) {
         val phase = game.phaseHandler.phase?.name
         val turn = game.phaseHandler.turn
-        val human = gameBridge?.getPlayer(SeatId(seatId))
+        val human = gameBridge?.getPlayer(seatId)
         val priority = when (game.phaseHandler.priorityPlayer) {
             human -> "human"
             else -> "ai"

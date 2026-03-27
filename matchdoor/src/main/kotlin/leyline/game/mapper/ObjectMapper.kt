@@ -3,6 +3,7 @@ package leyline.game.mapper
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.player.Player
+import leyline.DevCheck
 import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.game.CardProtoBuilder
@@ -196,8 +197,8 @@ object ObjectMapper {
     /**
      * Build a [GameObjectInfo] for echo-back GSMs during iterative combat declaration.
      *
-     * Real server echo objects carry NO combat state (no attackState/blockState) —
-     * confirmed across 4 proxy recordings. Only base card fields are included.
+     * Echo objects carry NO combat state (no attackState/blockState).
+     * Only base card fields are included.
      * The client uses the DeclareAttackersReq/DeclareBlockersReq re-prompt
      * (not object state) to track provisional selections.
      */
@@ -226,11 +227,13 @@ object ObjectMapper {
         if (card.isToken) {
             return resolveTokenGrpId(card, cards) ?: run {
                 log.error("token grpId=0 for '{}' (forgeId={})", card.name, card.id)
+                DevCheck.fail { "token grpId=0 for '${card.name}' (forgeId=${card.id})" }
                 GameBridge.FALLBACK_GRPID
             }
         }
         return cards.findGrpIdByName(card.name) ?: run {
             log.error("grpId=0 for card '{}' (forgeId={}): not in client card DB", card.name, card.id)
+            DevCheck.fail { "grpId=0 for '${card.name}' (forgeId=${card.id}): not in client card DB" }
             GameBridge.FALLBACK_GRPID
         }
     }

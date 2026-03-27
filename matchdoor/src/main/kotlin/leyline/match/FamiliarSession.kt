@@ -1,6 +1,7 @@
 package leyline.match
 
 import forge.game.Game
+import leyline.bridge.SeatId
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
@@ -18,7 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * the type system enforces read-only behavior without boolean gates.
  */
 class FamiliarSession(
-    override val seatId: Int,
+    override val seatId: SeatId,
     override val matchId: String,
     val sink: MessageSink,
     override var counter: MessageCounter = MessageCounter(),
@@ -41,7 +42,7 @@ class FamiliarSession(
         configure: (GREToClientMessage.Builder) -> Unit,
     ): GREToClientMessage {
         val gre = GREToClientMessage.newBuilder()
-            .setType(type).setMsgId(msgId).setGameStateId(gsId).addSystemSeatIds(seatId)
+            .setType(type).setMsgId(msgId).setGameStateId(gsId).addSystemSeatIds(seatId.value)
         configure(gre)
         return gre.build()
     }

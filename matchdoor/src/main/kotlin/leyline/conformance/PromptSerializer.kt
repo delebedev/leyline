@@ -9,8 +9,8 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * Lossless proto→JSON for engine prompt messages.
  *
  * Uses [JsonFormat.printer] with [preservingProtoFieldNames] so output
- * matches the recording decoder's format — enabling field-level diffing
- * between engine output and proxy recordings.
+ * matches the protocol decoder's format — enabling field-level
+ * conformance diffing.
  */
 object PromptSerializer {
 

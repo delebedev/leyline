@@ -57,9 +57,9 @@ class SurveilFlowTest :
             // not the next card in library. This catches the bug where the engine
             // already removed the card before we read library top.
             val revealedInstanceId = req.instanceIdsList.first()
-            val forgeCardId = h.bridge.getForgeCardId(InstanceId(revealedInstanceId))
-            forgeCardId.shouldNotBeNull()
-            val card = h.bridge.getGame()!!.findById(checkNotNull(forgeCardId).value)
+            val cardId = h.bridge.getForgeCardId(InstanceId(revealedInstanceId))
+            cardId.shouldNotBeNull()
+            val card = h.bridge.getGame()!!.findById(checkNotNull(cardId).value)
             card.shouldNotBeNull()
             card.name shouldBe "Grizzly Bears"
         }

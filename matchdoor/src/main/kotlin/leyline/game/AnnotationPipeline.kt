@@ -41,9 +41,9 @@ object AnnotationPipeline {
 
     /**
      * ManaPaid.id base value. The real server assigns mana payment IDs sequentially
-     * across the GSM. In the CHALLENGE-STARTER recording, CastSpell payments start
-     * at id=3 (after prior persistent annotation IDs 1-2). This is a best-effort
-     * approximation — a proper fix would track a global counter across the GSM.
+     * across the GSM. CastSpell payments typically start at id=3 (after prior
+     * persistent annotation IDs 1-2). Best-effort approximation — a proper fix
+     * would track a global counter across the GSM.
      */
     private const val MANA_ID_BASE = 3
 
@@ -162,9 +162,8 @@ object AnnotationPipeline {
             val prevZone = previousZones[obj.instanceId]
             if (prevZone != null && prevZone != obj.zoneId) {
                 val forgeCardId = forgeIdLookup(InstanceId(obj.instanceId))
-                val forgeCardIdValue = forgeCardId?.value
-                val category = if (forgeCardIdValue != null && events.isNotEmpty()) {
-                    AnnotationBuilder.categoryFromEvents(forgeCardIdValue, events)
+                val category = if (forgeCardId != null && events.isNotEmpty()) {
+                    AnnotationBuilder.categoryFromEvents(forgeCardId, events)
                         ?: inferCategory(obj, prevZone, obj.zoneId)
                 } else {
                     inferCategory(obj, prevZone, obj.zoneId)
@@ -188,11 +187,11 @@ object AnnotationPipeline {
                 }
                 // Resolve affectorId: the ability instance that caused this transfer.
                 // For surveil (and future mechanics), the source card's ability on the
-                // stack has instanceId = getOrAlloc(sourceForgeCardId + STACK_ABILITY_ID_OFFSET).
-                val affectorId = if (forgeCardIdValue != null && events.isNotEmpty()) {
-                    val sourceForgeId = AnnotationBuilder.affectorSourceFromEvents(forgeCardIdValue, events)
-                    if (sourceForgeId != null) {
-                        idLookup(ForgeCardId(sourceForgeId + ObjectMapper.STACK_ABILITY_ID_OFFSET)).value
+                // stack has instanceId = getOrAlloc(sourceCardId + STACK_ABILITY_ID_OFFSET).
+                val affectorId = if (forgeCardId != null && events.isNotEmpty()) {
+                    val sourceCardId = AnnotationBuilder.affectorSourceFromEvents(forgeCardId, events)
+                    if (sourceCardId != null) {
+                        idLookup(ForgeCardId(sourceCardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET)).value
                     } else {
                         0
                     }
@@ -201,22 +200,22 @@ object AnnotationPipeline {
                 }
 
                 // Extract color bitmasks from LandPlayed event for ColorProduction annotation.
-                val colorBitmasks = if (category == TransferCategory.PlayLand && forgeCardIdValue != null) {
+                val colorBitmasks = if (category == TransferCategory.PlayLand && forgeCardId != null) {
                     events.filterIsInstance<GameEvent.LandPlayed>()
-                        .firstOrNull { it.forgeCardId == forgeCardIdValue }
+                        .firstOrNull { it.cardId == forgeCardId }
                         ?.colorBitmasks ?: emptyList()
                 } else {
                     emptyList()
                 }
 
                 // Extract mana payment info from SpellCast events for CastSpell transfers.
-                val manaPayments = if (category == TransferCategory.CastSpell && forgeCardIdValue != null) {
+                val manaPayments = if (category == TransferCategory.CastSpell && forgeCardId != null) {
                     events.filterIsInstance<GameEvent.SpellCast>()
-                        .firstOrNull { it.forgeCardId == forgeCardIdValue }
+                        .firstOrNull { it.cardId == forgeCardId }
                         ?.manaPayments?.map { mp ->
-                            val landIid = idLookup(ForgeCardId(mp.sourceForgeCardId)).value
-                            val manaAbilityIid = idLookup(ForgeCardId(mp.sourceForgeCardId + MANA_ABILITY_ID_OFFSET)).value
-                            val abilityGrpId = manaAbilityGrpIdResolver(ForgeCardId(mp.sourceForgeCardId))
+                            val landIid = idLookup(mp.sourceCardId).value
+                            val manaAbilityIid = idLookup(ForgeCardId(mp.sourceCardId.value + MANA_ABILITY_ID_OFFSET)).value
+                            val abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId)
                             ManaPaymentRecord(
                                 landInstanceId = landIid,
                                 manaAbilityInstanceId = manaAbilityIid,
@@ -438,8 +437,8 @@ object AnnotationPipeline {
 
         // --- DamageDealt: creature → creature ---
         for (ev in cardDamage) {
-            val sourceIid = idResolver(ForgeCardId(ev.sourceForgeId)).value
-            val targetIid = idResolver(ForgeCardId(ev.targetForgeId)).value
+            val sourceIid = idResolver(ev.sourceCardId).value
+            val targetIid = idResolver(ev.targetCardId).value
             annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid, ev.amount))
         }
 
@@ -447,15 +446,15 @@ object AnnotationPipeline {
         var firstPlayerDamageAttackerIid: Int? = null
         var playerDamageSeat: Int? = null
         for (ev in playerDamage) {
-            val sourceIid = idResolver(ForgeCardId(ev.sourceForgeId)).value
-            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId, ev.amount))
+            val sourceIid = idResolver(ev.sourceCardId).value
+            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId.value, ev.amount))
             if (firstPlayerDamageAttackerIid == null) firstPlayerDamageAttackerIid = sourceIid
-            playerDamageSeat = ev.targetSeatId
+            playerDamageSeat = ev.targetSeatId.value
         }
 
         // --- DamagedThisTurn badges ---
         for (ev in cardDamage) {
-            val targetIid = idResolver(ForgeCardId(ev.targetForgeId)).value
+            val targetIid = idResolver(ev.targetCardId).value
             annotations.add(AnnotationBuilder.damagedThisTurn(targetIid))
         }
 
@@ -484,21 +483,21 @@ object AnnotationPipeline {
         val transient: List<AnnotationInfo>,
         val persistent: List<AnnotationInfo>,
         /** Forge card IDs of auras/equipment that were detached this GSM. */
-        val detachedForgeCardIds: List<Int> = emptyList(),
+        val detachedForgeCardIds: List<ForgeCardId> = emptyList(),
         /** Forge card IDs of permanents that left the battlefield this GSM.
          *  Used by [PersistentAnnotationStore.computeBatch] to clean up
          *  [AnnotationType.DisplayCardUnderCard] persistent annotations. */
-        val exileSourceLeftPlayForgeCardIds: List<Int> = emptyList(),
+        val exileSourceLeftPlayForgeCardIds: List<ForgeCardId> = emptyList(),
         /** Controller-change effects created this GSM (for persistent tracking). */
         val controllerChangedEffects: List<ControllerChangedEffect> = emptyList(),
         /** Forge card IDs of permanents whose control reverted this GSM. */
-        val controllerRevertedForgeCardIds: List<Int> = emptyList(),
+        val controllerRevertedForgeCardIds: List<ForgeCardId> = emptyList(),
         /** AbilityWordActive annotations from scanner — full replacement set for this GSM. */
         val abilityWordPersistent: List<AnnotationInfo> = emptyList(),
     ) {
         /** Tracks an active controller-change effect for persistent annotation lifecycle. */
         data class ControllerChangedEffect(
-            val forgeCardId: Int,
+            val forgeCardId: ForgeCardId,
             val effectId: Int,
             val affectorInstanceId: Int,
             val stolenInstanceId: Int,
@@ -518,23 +517,23 @@ object AnnotationPipeline {
     @Suppress("CyclomaticComplexMethod", "LongMethod")
     fun mechanicAnnotations(
         events: List<GameEvent>,
-        manaPaidForgeCardIds: Set<Int> = emptySet(),
+        manaPaidForgeCardIds: Set<ForgeCardId> = emptySet(),
         idResolver: (ForgeCardId) -> InstanceId,
         effectIdAllocator: () -> Int = { 0 },
-        activeStealForgeCardIds: Set<Int> = emptySet(),
+        activeStealForgeCardIds: Set<ForgeCardId> = emptySet(),
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
-        val detachedForgeCardIds = mutableListOf<Int>()
-        val exileSourceLeftPlayForgeCardIds = mutableListOf<Int>()
+        val detachedForgeCardIds = mutableListOf<ForgeCardId>()
+        val exileSourceLeftPlayForgeCardIds = mutableListOf<ForgeCardId>()
         val controllerChangedEffects = mutableListOf<MechanicAnnotationResult.ControllerChangedEffect>()
-        val controllerRevertedForgeCardIds = mutableListOf<Int>()
+        val controllerRevertedForgeCardIds = mutableListOf<ForgeCardId>()
         for (ev in events) {
             when (ev) {
                 is GameEvent.CountersChanged -> {
                     val delta = ev.newCount - ev.oldCount
                     if (delta == 0) continue
-                    val instanceId = idResolver(ForgeCardId(ev.forgeCardId)).value
+                    val instanceId = idResolver(ev.cardId).value
                     if (delta > 0) {
                         annotations.add(AnnotationBuilder.counterAdded(instanceId, ev.counterType, delta))
                     } else {
@@ -549,39 +548,39 @@ object AnnotationPipeline {
                     // annotations.add(AnnotationBuilder.shuffle(ev.seatId))
                     // Suppressed: client's ShuffleAnnotationParser requires OldIds/NewIds
                     // detail keys we don't have. Shuffle is cosmetic (animation only).
-                    log.debug("mechanic: shuffle seat={} (suppressed — no detail keys)", ev.seatId)
+                    log.debug("mechanic: shuffle seat={} (suppressed — no detail keys)", ev.seatId.value)
                 }
                 is GameEvent.Scry -> {
-                    annotations.add(AnnotationBuilder.scry(ev.seatId, ev.topCount, ev.bottomCount))
-                    log.debug("mechanic: scry seat={} top={} bottom={}", ev.seatId, ev.topCount, ev.bottomCount)
+                    annotations.add(AnnotationBuilder.scry(ev.seatId.value, ev.topCount, ev.bottomCount))
+                    log.debug("mechanic: scry seat={} top={} bottom={}", ev.seatId.value, ev.topCount, ev.bottomCount)
                 }
                 is GameEvent.Surveil -> {
                     // Surveil is mechanically similar to scry — use scry annotation
                     // with surveil semantics (toLibrary = top, toGraveyard = bottom)
-                    annotations.add(AnnotationBuilder.scry(ev.seatId, ev.toLibrary, ev.toGraveyard))
-                    log.debug("mechanic: surveil seat={} lib={} gy={}", ev.seatId, ev.toLibrary, ev.toGraveyard)
+                    annotations.add(AnnotationBuilder.scry(ev.seatId.value, ev.toLibrary, ev.toGraveyard))
+                    log.debug("mechanic: surveil seat={} lib={} gy={}", ev.seatId.value, ev.toLibrary, ev.toGraveyard)
                 }
                 is GameEvent.TokenCreated -> {
-                    val instanceId = idResolver(ForgeCardId(ev.forgeCardId)).value
+                    val instanceId = idResolver(ev.cardId).value
                     annotations.add(AnnotationBuilder.tokenCreated(instanceId))
                     log.debug("mechanic: tokenCreated iid={}", instanceId)
                 }
                 is GameEvent.TokenDestroyed -> {
-                    val instanceId = idResolver(ForgeCardId(ev.forgeCardId)).value
+                    val instanceId = idResolver(ev.cardId).value
                     annotations.add(AnnotationBuilder.tokenDeleted(instanceId))
                     log.debug("mechanic: tokenDeleted iid={}", instanceId)
                 }
                 is GameEvent.CardTapped -> {
-                    if (ev.forgeCardId in manaPaidForgeCardIds) {
-                        log.debug("mechanic: skipping tapped for mana-paid land forgeId={}", ev.forgeCardId)
+                    if (ev.cardId in manaPaidForgeCardIds) {
+                        log.debug("mechanic: skipping tapped for mana-paid land forgeId={}", ev.cardId)
                     } else {
-                        val instanceId = idResolver(ForgeCardId(ev.forgeCardId)).value
+                        val instanceId = idResolver(ev.cardId).value
                         annotations.add(AnnotationBuilder.tappedUntappedPermanent(instanceId, instanceId, ev.tapped))
                         log.debug("mechanic: tapped={} iid={}", ev.tapped, instanceId)
                     }
                 }
                 is GameEvent.PowerToughnessChanged -> {
-                    val instanceId = idResolver(ForgeCardId(ev.forgeCardId)).value
+                    val instanceId = idResolver(ev.cardId).value
                     if (ev.oldPower != ev.newPower) {
                         annotations.add(AnnotationBuilder.modifiedPower(instanceId))
                     }
@@ -597,21 +596,21 @@ object AnnotationPipeline {
                     log.debug("mechanic: P/T changed iid={} {}/{}→{}/{}", instanceId, ev.oldPower, ev.oldToughness, ev.newPower, ev.newToughness)
                 }
                 is GameEvent.CardAttached -> {
-                    val auraIid = idResolver(ForgeCardId(ev.forgeCardId)).value
-                    val targetIid = idResolver(ForgeCardId(ev.targetForgeId)).value
+                    val auraIid = idResolver(ev.cardId).value
+                    val targetIid = idResolver(ev.targetCardId).value
                     annotations.add(AnnotationBuilder.attachmentCreated(auraIid, targetIid))
                     persistent.add(AnnotationBuilder.attachment(auraIid, targetIid))
                     log.debug("mechanic: attachment aura={} target={}", auraIid, targetIid)
                 }
                 is GameEvent.CardDetached -> {
-                    val auraIid = idResolver(ForgeCardId(ev.forgeCardId)).value
+                    val auraIid = idResolver(ev.cardId).value
                     annotations.add(AnnotationBuilder.removeAttachment(auraIid))
-                    detachedForgeCardIds.add(ev.forgeCardId)
+                    detachedForgeCardIds.add(ev.cardId)
                     log.debug("mechanic: removeAttachment aura={}", auraIid)
                 }
                 is GameEvent.CardsRevealed -> {
-                    for (forgeCardId in ev.forgeCardIds) {
-                        val instanceId = idResolver(ForgeCardId(forgeCardId)).value
+                    for (cardId in ev.cardIds) {
+                        val instanceId = idResolver(cardId).value
                         annotations.add(AnnotationBuilder.revealedCardCreated(instanceId))
                         log.debug("mechanic: revealedCardCreated iid={} seat={}", instanceId, ev.ownerSeatId)
                     }
@@ -619,28 +618,28 @@ object AnnotationPipeline {
                 // Track permanents leaving battlefield for DisplayCardUnderCard cleanup.
                 // CardExiled is safe to add unconditionally — findExileSourcesLeavingPlay
                 // only matches cards that were an exile source (affectorId), not exiled cards.
-                is GameEvent.CardDestroyed -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
-                is GameEvent.CardSacrificed -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
-                is GameEvent.CardBounced -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
+                is GameEvent.CardDestroyed -> exileSourceLeftPlayForgeCardIds.add(ev.cardId)
+                is GameEvent.CardSacrificed -> exileSourceLeftPlayForgeCardIds.add(ev.cardId)
+                is GameEvent.CardBounced -> exileSourceLeftPlayForgeCardIds.add(ev.cardId)
                 is GameEvent.CardExiled -> {
-                    val sourceId = ev.sourceForgeCardId
+                    val sourceId = ev.sourceCardId
                     // Only render "exiled under this card" for BF→Exile (e.g. Fiend Hunter).
                     // GY→Exile (e.g. Predator trigger) should go to the exile zone normally.
                     if (sourceId != null && ev.fromBattlefield) {
-                        val sourceIid = idResolver(ForgeCardId(sourceId)).value
-                        val exiledIid = idResolver(ForgeCardId(ev.forgeCardId)).value
+                        val sourceIid = idResolver(sourceId).value
+                        val exiledIid = idResolver(ev.cardId).value
                         persistent.add(AnnotationBuilder.displayCardUnderCard(affectorId = sourceIid, instanceId = exiledIid))
                         log.debug("mechanic: displayCardUnderCard source={} exiled={}", sourceIid, exiledIid)
                     }
-                    exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
+                    exileSourceLeftPlayForgeCardIds.add(ev.cardId)
                 }
                 is GameEvent.ControllerChanged -> {
-                    val cardIid = idResolver(ForgeCardId(ev.forgeCardId)).value
-                    val isRevert = ev.forgeCardId in activeStealForgeCardIds
+                    val cardIid = idResolver(ev.cardId).value
+                    val isRevert = ev.cardId in activeStealForgeCardIds
 
                     if (isRevert) {
                         // Control reverted — signal cleanup of existing CC persistent annotation
-                        controllerRevertedForgeCardIds.add(ev.forgeCardId)
+                        controllerRevertedForgeCardIds.add(ev.cardId)
                         log.debug(
                             "mechanic: controllerChanged revert iid={} {}->{}",
                             cardIid,
@@ -656,7 +655,7 @@ object AnnotationPipeline {
                             .filterIsInstance<GameEvent.SpellResolved>()
                             .lastOrNull()
                         val affectorIid = if (spellResolved != null) {
-                            idResolver(ForgeCardId(spellResolved.forgeCardId)).value
+                            idResolver(spellResolved.cardId).value
                         } else {
                             0
                         }
@@ -664,7 +663,7 @@ object AnnotationPipeline {
                         annotations.add(AnnotationBuilder.layeredEffectCreated(effectId, affectorIid))
                         annotations.add(AnnotationBuilder.controllerChanged(affectorIid, cardIid))
                         persistent.add(AnnotationBuilder.controllerChangedEffect(affectorIid, cardIid, effectId))
-                        controllerChangedEffects.add(MechanicAnnotationResult.ControllerChangedEffect(ev.forgeCardId, effectId, affectorIid, cardIid))
+                        controllerChangedEffects.add(MechanicAnnotationResult.ControllerChangedEffect(ev.cardId, effectId, affectorIid, cardIid))
                         log.debug(
                             "mechanic: controllerChanged steal iid={} affector={} effectId={} {}->{}",
                             cardIid,
@@ -675,9 +674,9 @@ object AnnotationPipeline {
                         )
                     }
                 }
-                is GameEvent.LegendRuleDeath -> exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
+                is GameEvent.LegendRuleDeath -> exileSourceLeftPlayForgeCardIds.add(ev.cardId)
                 is GameEvent.ZoneChanged -> {
-                    if (ev.from == Zone.Battlefield) exileSourceLeftPlayForgeCardIds.add(ev.forgeCardId)
+                    if (ev.from == Zone.Battlefield) exileSourceLeftPlayForgeCardIds.add(ev.cardId)
                 }
                 else -> {} // Remaining zone-transfer events handled in Stages 1-2, combat in Stage 3
             }
@@ -828,15 +827,14 @@ object AnnotationPipeline {
             if (zoneId != ZONE_BATTLEFIELD) continue
             if (instanceId in mainLoopOrigIds) continue
             val forgeCardId = forgeIdLookup(InstanceId(instanceId)) ?: continue
-            val forgeCardIdValue = forgeCardId.value
-            val sacrificeEv = sacrificeEvents.firstOrNull { it.forgeCardId == forgeCardIdValue } ?: continue
+            val sacrificeEv = sacrificeEvents.firstOrNull { it.cardId == forgeCardId } ?: continue
 
             val stillOnBattlefield = instanceId in currentInstanceIds
             val realloc = idAllocator(forgeCardId)
             val origId = realloc.old.value
             val newId = realloc.new.value
             val ownerSeat = sacrificeEv.seatId
-            val destZone = if (ownerSeat == 1) ZONE_P1_GRAVEYARD else ZONE_P2_GRAVEYARD
+            val destZone = if (ownerSeat.value == 1) ZONE_P1_GRAVEYARD else ZONE_P2_GRAVEYARD
 
             // If still in gameObjects, strip it so the client sees it leave.
             val resolvedGrpId = if (stillOnBattlefield) {
@@ -856,7 +854,7 @@ object AnnotationPipeline {
             }
 
             val manaPayments = buildManaSacrificePayments(
-                forgeCardIdValue,
+                forgeCardId,
                 origId,
                 manaAbilityEvents,
                 spellCastEvents,
@@ -880,7 +878,16 @@ object AnnotationPipeline {
             }
 
             transfers.add(
-                AppliedTransfer(origId, newId, TransferCategory.Sacrifice, ZONE_BATTLEFIELD, destZone, resolvedGrpId, ownerSeat, manaPayments = manaPayments),
+                AppliedTransfer(
+                    origId,
+                    newId,
+                    TransferCategory.Sacrifice,
+                    ZONE_BATTLEFIELD,
+                    destZone,
+                    resolvedGrpId,
+                    ownerSeat.value,
+                    manaPayments = manaPayments,
+                ),
             )
             zoneRecordings.add(newId to destZone)
             log.debug("disappeared token: iid {} → {} category=Sacrifice manaPayments={}", origId, newId, manaPayments.size)
@@ -915,25 +922,25 @@ object AnnotationPipeline {
 
     /** Build mana payment records for a sacrifice that activated a mana ability. */
     private fun buildManaSacrificePayments(
-        forgeCardId: Int,
+        forgeCardId: ForgeCardId,
         origId: Int,
         manaAbilityEvents: List<GameEvent.ManaAbilityActivated>,
         spellCastEvents: List<GameEvent.SpellCast>,
         idLookup: (ForgeCardId) -> InstanceId,
         manaAbilityGrpIdResolver: (ForgeCardId) -> Int,
     ): List<ManaPaymentRecord> {
-        if (manaAbilityEvents.none { it.forgeCardId == forgeCardId }) return emptyList()
+        if (manaAbilityEvents.none { it.cardId == forgeCardId }) return emptyList()
         val castEv = spellCastEvents.firstOrNull { sc ->
-            sc.manaPayments.any { it.sourceForgeCardId == forgeCardId }
+            sc.manaPayments.any { it.sourceCardId == forgeCardId }
         } ?: return emptyList()
-        val mp = castEv.manaPayments.first { it.sourceForgeCardId == forgeCardId }
+        val mp = castEv.manaPayments.first { it.sourceCardId == forgeCardId }
         return listOf(
             ManaPaymentRecord(
                 landInstanceId = origId,
-                manaAbilityInstanceId = idLookup(ForgeCardId(forgeCardId + MANA_ABILITY_ID_OFFSET)).value,
+                manaAbilityInstanceId = idLookup(ForgeCardId(forgeCardId.value + MANA_ABILITY_ID_OFFSET)).value,
                 color = mp.color,
-                abilityGrpId = manaAbilityGrpIdResolver(ForgeCardId(forgeCardId)),
-                spellInstanceId = idLookup(ForgeCardId(castEv.forgeCardId)).value,
+                abilityGrpId = manaAbilityGrpIdResolver(forgeCardId),
+                spellInstanceId = idLookup(castEv.cardId).value,
             ),
         )
     }

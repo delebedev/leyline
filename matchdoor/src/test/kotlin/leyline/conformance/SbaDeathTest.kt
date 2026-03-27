@@ -31,17 +31,17 @@ class SbaDeathTest :
             }
             val human = game.humanPlayer
             val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-            val forgeCardId = creature.id
-            val origId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+            val cardId = creature.id
+            val origId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val gsm = base.captureAfterAction(b, game, counter, checkSba = true) {
                 creature.baseToughness = 0
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId) ?: gsm.findZoneTransfer(origId))
             zt.category shouldBe "Destroy"
-            human.getZone(ZoneType.Graveyard).cards.any { it.id == forgeCardId }.shouldBeTrue()
+            human.getZone(ZoneType.Graveyard).cards.any { it.id == cardId }.shouldBeTrue()
         }
 
         test("lethal damage creature dies to SBA") {
@@ -50,13 +50,13 @@ class SbaDeathTest :
             }
             val human = game.humanPlayer
             val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-            val forgeCardId = creature.id
-            val origId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+            val cardId = creature.id
+            val origId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val gsm = base.captureAfterAction(b, game, counter, checkSba = true) {
                 creature.damage = creature.netToughness
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId) ?: gsm.findZoneTransfer(origId))
             zt.category shouldBe "Destroy"
@@ -68,14 +68,14 @@ class SbaDeathTest :
             }
             val human = game.humanPlayer
             val creature = human.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
-            val forgeCardId = creature.id
-            val origId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+            val cardId = creature.id
+            val origId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val gsm = base.captureAfterAction(b, game, counter, checkSba = true) {
                 creature.damage = 1
                 creature.setHasBeenDealtDeathtouchDamage(true)
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId) ?: gsm.findZoneTransfer(origId))
             zt.category shouldBe "Destroy"

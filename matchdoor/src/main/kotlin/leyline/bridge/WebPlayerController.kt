@@ -33,6 +33,7 @@ import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
 import forge.player.PlayerControllerHuman
 import forge.util.collect.FCollectionView
+import leyline.DevCheck
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 
@@ -131,7 +132,7 @@ class WebPlayerController(
     @Volatile var pendingDamageAssignment: DamageAssignmentPrompt? = null
 
     /** Cache for batched responses — subsequent attackers in Forge's per-attacker loop. */
-    val damageAssignCache: MutableMap<Int, MutableMap<Card?, Int>> = mutableMapOf()
+    val damageAssignCache: MutableMap<ForgeCardId, MutableMap<Card?, Int>> = mutableMapOf()
 
     data class DamageAssignmentPrompt(
         val attacker: Card,
@@ -300,12 +301,12 @@ class WebPlayerController(
     ) {
         // Capture card IDs for annotation pipeline
         if (!cards.isEmpty()) {
-            val forgeCardIds = cards.mapNotNull { card ->
+            val cardIds = cards.mapNotNull { card ->
                 // CardCollectionView items are Card objects (not CardView)
-                (card as? Card)?.id
+                (card as? Card)?.let { ForgeCardId(it.id) }
             }
-            val ownerSeat = if (owner.lobbyPlayer is forge.ai.LobbyPlayerAi) 2 else 1
-            bridge.recordReveal(forgeCardIds, ownerSeat)
+            val ownerSeat = if (owner.lobbyPlayer is forge.ai.LobbyPlayerAi) SeatId(2) else SeatId(1)
+            bridge.recordReveal(cardIds, ownerSeat)
         }
         // Delegate to parent for GUI display (WebGuiGame no-op log)
         super.reveal(cards, zone, owner, messagePrefix, addMsgSuffix)
@@ -436,7 +437,7 @@ class WebPlayerController(
 
         // Search: mark chosen card so GameEventCollector emits CardSearchedToHand (Put category).
         if (isSearch && chosen is Card) {
-            bridge.searchedToHandCards.add(chosen.id)
+            bridge.searchedToHandCards.add(ForgeCardId(chosen.id))
             log.debug("search to hand: marked card {} (id={})", chosen.name, chosen.id)
         }
 
@@ -445,7 +446,7 @@ class WebPlayerController(
             val cards = optionList.filterIsInstance<Card>()
             for (card in cards) {
                 if (card !== chosen) {
-                    bridge.legendRuleVictims.add(card.id)
+                    bridge.legendRuleVictims.add(ForgeCardId(card.id))
                 }
             }
             log.info(
@@ -1102,7 +1103,7 @@ class WebPlayerController(
 
     // -- Mulligan / starting player ----------------------------------------
     // The engine's MulliganService calls these on the game thread.
-    // When a MulliganBridge is wired, they block until the WS client
+    // When a MulliganBridge is wired, they block until the client
     // submits a decision. Without a bridge (tests, AI), they auto-decide.
 
     override fun mulliganKeepHand(mulliganingPlayer: Player, cardsToReturn: Int): Boolean {
@@ -1323,7 +1324,7 @@ class WebPlayerController(
         overrideOrder: Boolean,
     ): MutableMap<Card?, Int>? {
         // Check cache — CombatHandler may have pre-filled from a batched response
-        val cached = damageAssignCache.remove(attacker.id)
+        val cached = damageAssignCache.remove(ForgeCardId(attacker.id))
         if (cached != null) {
             log.info("assignCombatDamage: cache hit for {} (id={})", attacker.name, attacker.id)
             return cached
@@ -1368,9 +1369,11 @@ class WebPlayerController(
             future.get(timeout, java.util.concurrent.TimeUnit.MILLISECONDS)
         } catch (_: java.util.concurrent.TimeoutException) {
             log.warn("assignCombatDamage: timed out, auto-assigning for {}", attacker.name)
+            DevCheck.failOnAutoPass { "assignCombatDamage timed out for ${attacker.name}" }
             super.assignCombatDamage(attacker, blockers, remaining, damageDealt, defender, overrideOrder)
         } catch (ex: Exception) {
             log.warn("assignCombatDamage: error {}, auto-assigning", ex.message)
+            DevCheck.failOnAutoPass { "assignCombatDamage error: ${ex.message}" }
             super.assignCombatDamage(attacker, blockers, remaining, damageDealt, defender, overrideOrder)
         } finally {
             pendingDamageAssignment = null

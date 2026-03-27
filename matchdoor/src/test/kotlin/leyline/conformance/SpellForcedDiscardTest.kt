@@ -31,16 +31,16 @@ class SpellForcedDiscardTest :
             }
             val human = game.humanPlayer
             val cardInHand = human.getZone(ZoneType.Hand).cards.first()
-            val forgeCardId = cardInHand.id
+            val cardId = cardInHand.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 human.discard(cardInHand, null, false, AbilityKey.newMap())
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId))
             zt.category shouldBe "Discard"
-            human.getZone(ZoneType.Graveyard).cards.any { it.id == forgeCardId }.shouldBeTrue()
+            human.getZone(ZoneType.Graveyard).cards.any { it.id == cardId }.shouldBeTrue()
         }
 
         test("multiple spell forced discards all produce Discard category") {

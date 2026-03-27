@@ -1,5 +1,6 @@
 package leyline.match
 
+import leyline.bridge.ForgeCardId
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -60,11 +61,11 @@ object Tap {
         log.debug("[Client→] template {}", label)
     }
 
-    fun actionResult(actionType: ActionType, instanceId: Int, forgeCardId: Int?, success: Boolean) {
+    fun actionResult(actionType: ActionType, instanceId: Int, forgeCardId: ForgeCardId?, success: Boolean) {
         if (!log.isDebugEnabled) return
         val type = actionType.name.removeSuffix("_add3")
         if (forgeCardId != null) {
-            log.debug("[Client⚡] {} instanceId={}→forgeId={} ok={}", type, instanceId, forgeCardId, success)
+            log.debug("[Client⚡] {} instanceId={}→forgeId={} ok={}", type, instanceId, forgeCardId.value, success)
         } else {
             log.debug("[Client⚡] {} instanceId={} unmapped", type, instanceId)
         }
