@@ -10,6 +10,7 @@ import io.netty.handler.codec.protobuf.ProtobufEncoder
 import io.netty.handler.ssl.SslContext
 import io.netty.handler.ssl.SslContextBuilder
 import io.netty.handler.ssl.util.SelfSignedCertificate
+import leyline.DevCheck
 import leyline.LeylinePaths
 import leyline.bridge.DeckConverter
 import leyline.bridge.DeckLoader
@@ -126,6 +127,9 @@ class LeylineServer(
     fun start() {
         // Register global instance for logback appender (must happen before any logging)
         DebugCollector.instance = debugCollector
+
+        // Initialize dev-time strict checking from config
+        DevCheck.init(matchConfig.dev.strict, matchConfig.dev.strictPass)
 
         // Configure proto dump output directory
         leyline.protocol.ProtoDump.engineDumpDir = leyline.LeylinePaths.ENGINE_DUMP

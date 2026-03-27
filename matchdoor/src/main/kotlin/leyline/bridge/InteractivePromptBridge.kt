@@ -1,6 +1,7 @@
 package leyline.bridge
 
 import forge.game.Game
+import leyline.DevCheck
 import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -208,11 +209,13 @@ class InteractivePromptBridge(
                     "options=${request.options.size}, min=${request.min}, max=${request.max})",
             )
             log.warn("Prompt timed out, using default\n{}", diagnostic)
+            DevCheck.failOnAutoPass { "Prompt timed out (type=${request.promptType}, msg=${request.message})" }
             val fallback = listOf(request.defaultIndex)
             record(request, PromptOutcome.TIMEOUT, fallback, System.currentTimeMillis() - startMs)
             fallback
         } catch (ex: Exception) {
             log.error("Prompt failed with exception, using default", ex)
+            DevCheck.failOnAutoPass { "Prompt failed: ${ex.message}" }
             val fallback = listOf(request.defaultIndex)
             record(request, PromptOutcome.ERROR, fallback, System.currentTimeMillis() - startMs)
             fallback

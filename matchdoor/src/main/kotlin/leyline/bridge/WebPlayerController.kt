@@ -33,6 +33,7 @@ import forge.game.trigger.WrappedAbility
 import forge.game.zone.ZoneType
 import forge.player.PlayerControllerHuman
 import forge.util.collect.FCollectionView
+import leyline.DevCheck
 import org.apache.commons.lang3.tuple.ImmutablePair
 import org.slf4j.LoggerFactory
 
@@ -1368,9 +1369,11 @@ class WebPlayerController(
             future.get(timeout, java.util.concurrent.TimeUnit.MILLISECONDS)
         } catch (_: java.util.concurrent.TimeoutException) {
             log.warn("assignCombatDamage: timed out, auto-assigning for {}", attacker.name)
+            DevCheck.failOnAutoPass { "assignCombatDamage timed out for ${attacker.name}" }
             super.assignCombatDamage(attacker, blockers, remaining, damageDealt, defender, overrideOrder)
         } catch (ex: Exception) {
             log.warn("assignCombatDamage: error {}, auto-assigning", ex.message)
+            DevCheck.failOnAutoPass { "assignCombatDamage error: ${ex.message}" }
             super.assignCombatDamage(attacker, blockers, remaining, damageDealt, defender, overrideOrder)
         } finally {
             pendingDamageAssignment = null

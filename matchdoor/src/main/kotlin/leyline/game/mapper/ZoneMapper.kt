@@ -2,6 +2,7 @@ package leyline.game.mapper
 
 import forge.game.Game
 import forge.game.player.Player
+import leyline.DevCheck
 import leyline.bridge.ForgeCardId
 import leyline.game.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -197,7 +198,9 @@ object ZoneMapper {
             // Use a separate instance ID for the ability on the stack
             val abilityInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceCard.id + STACK_ABILITY_ID_OFFSET)).value
             val ownerSeatId = if (sourceCard.owner == human) 1 else 2
-            val grpId = bridge.cards.findGrpIdByName(sourceCard.name) ?: GameBridge.FALLBACK_GRPID
+            val grpId = DevCheck.requireOrNull(bridge.cards.findGrpIdByName(sourceCard.name)) {
+                "stack ability grpId miss: '${sourceCard.name}'"
+            } ?: GameBridge.FALLBACK_GRPID
 
             zoneBuilder.addObjectInstanceIds(abilityInstanceId)
             gameObjects.add(ObjectMapper.buildAbilityObject(grpId, abilityInstanceId, ownerSeatId, bridge.cardProto))

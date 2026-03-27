@@ -9,10 +9,11 @@ import java.io.File
 /**
  * Top-level configuration loaded from `leyline.toml`.
  *
- * Three sections:
+ * Four sections:
  * - [server] — ports, timeouts, paths (infra)
  * - [game]   — seed, die roll, mulligan, timer (match setup)
  * - [ai]     — animation speed
+ * - [dev]    — strict checking knobs for development
  *
  * Loaded once at startup; immutable after that.
  * CLI args and env vars override TOML values where noted.
@@ -22,6 +23,7 @@ data class MatchConfig(
     val server: ServerConfig = ServerConfig(),
     val game: GameConfig = GameConfig(),
     val ai: AiConfig = AiConfig(),
+    val dev: DevConfig = DevConfig(),
 ) {
     companion object {
         private val log = LoggerFactory.getLogger(MatchConfig::class.java)
@@ -87,6 +89,9 @@ data class MatchConfig(
         append(" skipMulligan=${game.skipMulligan}")
         append(" aiSpeed=${ai.speed}x")
         game.puzzle?.let { append(" puzzle=$it") }
+        if (dev.strict || dev.strictPass) {
+            append(" dev.strict=${dev.strict} dev.strict_pass=${dev.strictPass}")
+        }
     }
 }
 
@@ -185,4 +190,20 @@ data class AiConfig(
      * 0 = instant (no delays).
      */
     val speed: Double = 1.0,
+)
+
+/**
+ * Development-time checking knobs.
+ *
+ * - [strict] — crash on unexpected nulls/fallbacks (missing grpId, instanceId
+ *   not in map, protocol sequencing errors). Off = warn + fallback (production behavior).
+ * - [strictPass] — crash when auto-pass fires from missing data (bridge timeouts,
+ *   prompt timeouts, auto-resolve). Off = pass priority silently (production behavior).
+ */
+@Serializable
+data class DevConfig(
+    val strict: Boolean = false,
+
+    @SerialName("strict_pass")
+    val strictPass: Boolean = false,
 )

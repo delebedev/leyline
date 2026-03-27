@@ -2,6 +2,7 @@ package leyline.bridge
 
 import forge.game.card.Card
 import forge.game.card.CardCollectionView
+import leyline.DevCheck
 import org.slf4j.LoggerFactory
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeUnit
@@ -71,6 +72,7 @@ class MulliganBridge(
             future.get(timeoutMs, TimeUnit.MILLISECONDS)
         } catch (_: TimeoutException) {
             log.warn("MulliganBridge: timeout waiting for keep decision, auto-keeping")
+            DevCheck.failOnAutoPass { "Mulligan keep decision timed out" }
             true
         } finally {
             synchronized(this) {
@@ -106,6 +108,7 @@ class MulliganBridge(
             future.get(timeoutMs, TimeUnit.MILLISECONDS)
         } catch (_: TimeoutException) {
             log.warn("MulliganBridge: timeout waiting for tuck, auto-tucking first {}", count)
+            DevCheck.failOnAutoPass { "Mulligan tuck decision timed out" }
             hand.toList().take(count)
         } finally {
             synchronized(this) {

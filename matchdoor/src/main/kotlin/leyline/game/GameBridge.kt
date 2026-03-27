@@ -9,6 +9,7 @@ import forge.game.zone.ZoneType
 import forge.gamemodes.puzzle.Puzzle
 import forge.player.PlayerControllerHuman
 import forge.util.MyRandom
+import leyline.DevCheck
 import leyline.bridge.DeckLoader
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GameActionBridge
@@ -499,7 +500,8 @@ class GameBridge(
     fun getHandGrpIds(seatId: Int): List<Int> {
         val player = getPlayer(SeatId(seatId)) ?: return emptyList()
         return player.getZone(ZoneType.Hand).cards.map { card ->
-            cards.findGrpIdByName(card.name) ?: FALLBACK_GRPID
+            DevCheck.requireOrNull(cards.findGrpIdByName(card.name)) { "hand grpId miss: '${card.name}'" }
+                ?: FALLBACK_GRPID
         }
     }
 
@@ -511,7 +513,10 @@ class GameBridge(
         for (zone in listOf(ZoneType.Library, ZoneType.Hand)) {
             player.getZone(zone).cards.forEach { allCards.add(it.name) }
         }
-        return allCards.map { cards.findGrpIdByName(it) ?: FALLBACK_GRPID }
+        return allCards.map {
+            DevCheck.requireOrNull(cards.findGrpIdByName(it)) { "deck grpId miss: '$it'" }
+                ?: FALLBACK_GRPID
+        }
     }
 
     override fun getGame(): Game? = game

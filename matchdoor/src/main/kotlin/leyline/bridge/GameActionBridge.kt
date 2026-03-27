@@ -1,6 +1,7 @@
 package leyline.bridge
 
 import forge.game.Game
+import leyline.DevCheck
 import org.slf4j.LoggerFactory
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
@@ -115,6 +116,7 @@ class GameActionBridge(
 
         if (!pending.compareAndSet(null, action)) {
             log.warn("Action bridge already has a pending action; auto-passing")
+            DevCheck.failOnAutoPass { "Action bridge already has a pending action" }
             return PlayerAction.PassPriority
         }
         prioritySignal?.signal()
@@ -134,9 +136,11 @@ class GameActionBridge(
                     "active=${state.activePlayerId}, priority=${state.priorityPlayerId})",
             )
             log.warn("Action timed out, auto-passing\n{}", diagnostic)
+            DevCheck.failOnAutoPass { "Action timed out after ${effectiveTimeout}ms" }
             PlayerAction.PassPriority
         } catch (ex: Exception) {
             log.warn("Action await failed: ${ex.message}, auto-passing")
+            DevCheck.failOnAutoPass { "Action await failed: ${ex.message}" }
             PlayerAction.PassPriority
         } finally {
             deadlineMs = null

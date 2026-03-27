@@ -3,6 +3,7 @@ package leyline.match
 import forge.game.Game
 import forge.game.phase.PhaseType
 import forge.game.player.Player
+import leyline.DevCheck
 import leyline.bridge.ForgeCardId
 import leyline.bridge.ForgePlayerId
 import leyline.bridge.InstanceId
@@ -132,6 +133,7 @@ open class CombatHandler(private val ops: SessionOps) {
         val seatBridge = bridge.seat(ops.seatId.value)
         val pending = seatBridge.action.getPending() ?: run {
             log.warn("CombatHandler: SubmitAttackersReq but no pending action — recovering")
+            DevCheck.requireOrNull<Unit>(null) { "SubmitAttackersReq but no pending action" }
             ops.sendRealGameState(bridge)
             return
         }
@@ -144,11 +146,9 @@ open class CombatHandler(private val ops: SessionOps) {
         )
 
         val attackerCardIds = selectedInstanceIds.mapNotNull { instanceId ->
-            val forgeId = bridge.getForgeCardId(InstanceId(instanceId))
-            if (forgeId == null) {
-                log.warn("CombatHandler: instanceId {} not in map (map size={})", instanceId, bridge.getInstanceIdMap().size)
+            DevCheck.requireOrNull(bridge.getForgeCardId(InstanceId(instanceId))) {
+                "CombatHandler: instanceId $instanceId not in map (map size=${bridge.getInstanceIdMap().size})"
             }
-            forgeId
         }
         pendingLegalAttackers = emptyList()
         lastDeclaredAttackerIds = emptyList()
@@ -191,6 +191,7 @@ open class CombatHandler(private val ops: SessionOps) {
         val seatBridge = bridge.seat(ops.seatId.value)
         val pending = seatBridge.action.getPending() ?: run {
             log.warn("CombatHandler: CancelAttackers but no pending action — recovering")
+            DevCheck.requireOrNull<Unit>(null) { "CancelAttackers but no pending action" }
             ops.sendRealGameState(bridge)
             return
         }
@@ -263,6 +264,7 @@ open class CombatHandler(private val ops: SessionOps) {
         val seatBridge = bridge.seat(ops.seatId.value)
         val pending = seatBridge.action.getPending() ?: run {
             log.warn("CombatHandler: SubmitBlockersReq but no pending action — recovering")
+            DevCheck.requireOrNull<Unit>(null) { "SubmitBlockersReq but no pending action" }
             ops.sendRealGameState(bridge)
             return
         }
@@ -417,6 +419,7 @@ open class CombatHandler(private val ops: SessionOps) {
         }
         val prompt = wpc.pendingDamageAssignment ?: run {
             log.warn("CombatHandler: AssignDamageResp but no pending damage assignment")
+            DevCheck.requireOrNull<Unit>(null) { "AssignDamageResp but no pending damage assignment" }
             ops.sendRealGameState(bridge)
             return
         }
@@ -427,11 +430,9 @@ open class CombatHandler(private val ops: SessionOps) {
         var firstMap: MutableMap<forge.game.card.Card?, Int>? = null
 
         for (assigner in resp.assignersList) {
-            val attackerForgeId = bridge.getForgeCardId(InstanceId(assigner.instanceId))
-            if (attackerForgeId == null) {
-                log.warn("CombatHandler: unknown attacker instanceId={}", assigner.instanceId)
-                continue
-            }
+            val attackerForgeId = DevCheck.requireOrNull(bridge.getForgeCardId(InstanceId(assigner.instanceId))) {
+                "CombatHandler: unknown attacker instanceId=${assigner.instanceId}"
+            } ?: continue
 
             val damageMap = mutableMapOf<forge.game.card.Card?, Int>()
             for (assignment in assigner.assignmentsList) {
