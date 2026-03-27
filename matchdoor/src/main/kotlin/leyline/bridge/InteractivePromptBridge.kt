@@ -42,7 +42,7 @@ class InteractivePromptBridge(
      * of [GameEvent.CardDestroyed]. Thread-safe — WPC writes on engine thread,
      * collector reads on the same thread (events fire synchronously during SBA).
      */
-    val legendRuleVictims: MutableSet<Int> = CopyOnWriteArraySet()
+    val legendRuleVictims: MutableSet<ForgeCardId> = CopyOnWriteArraySet()
 
     /**
      * Forge card IDs of cards moved Library→Hand via a search effect (ChangeZone tutor).
@@ -53,7 +53,7 @@ class InteractivePromptBridge(
      * [GameEvent.ZoneChanged], yielding [TransferCategory.Put] instead of [TransferCategory.Draw].
      * Thread-safe — WPC writes on engine thread; collector reads on the same thread.
      */
-    val searchedToHandCards: MutableSet<Int> = CopyOnWriteArraySet()
+    val searchedToHandCards: MutableSet<ForgeCardId> = CopyOnWriteArraySet()
 
     companion object {
         const val DEFAULT_TIMEOUT_MS = 30_000L
@@ -149,12 +149,12 @@ class InteractivePromptBridge(
      * Record of revealed cards: list of forge card IDs + the seatId of the player
      * who revealed them.
      */
-    data class RevealRecord(val forgeCardIds: List<Int>, val ownerSeatId: Int)
+    data class RevealRecord(val forgeCardIds: List<ForgeCardId>, val ownerSeatId: SeatId)
 
     private val revealQueue = ConcurrentLinkedQueue<RevealRecord>()
 
     /** Push a batch of revealed card IDs (called from engine thread via WebPlayerController). */
-    fun recordReveal(forgeCardIds: List<Int>, ownerSeatId: Int) {
+    fun recordReveal(forgeCardIds: List<ForgeCardId>, ownerSeatId: SeatId) {
         if (forgeCardIds.isEmpty()) return
         revealQueue.add(RevealRecord(forgeCardIds, ownerSeatId))
         log.debug("Reveal recorded: {} cards for seat {}", forgeCardIds.size, ownerSeatId)

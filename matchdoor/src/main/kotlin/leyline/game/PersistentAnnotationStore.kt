@@ -162,7 +162,7 @@ class PersistentAnnotationStore {
 
             // 4. Detached auras
             for (forgeCardId in mechanicResult.detachedForgeCardIds) {
-                val auraIid = resolveInstanceId(ForgeCardId(forgeCardId)).value
+                val auraIid = resolveInstanceId(forgeCardId).value
                 val annId = findByAura(active, auraIid)
                 if (annId != null) {
                     active.remove(annId)
@@ -186,7 +186,7 @@ class PersistentAnnotationStore {
             // 6. Controller-change revert — remove CC+LayeredEffect persistent annotations
             //    and emit LayeredEffectDestroyed for the associated effect_id.
             for (forgeCardId in mechanicResult.controllerRevertedForgeCardIds) {
-                val cardIid = resolveInstanceId(ForgeCardId(forgeCardId)).value
+                val cardIid = resolveInstanceId(forgeCardId).value
                 val annId = findControllerChanged(active, cardIid)
                 if (annId != null) {
                     val ann = active[annId]
@@ -296,13 +296,13 @@ class PersistentAnnotationStore {
          */
         private fun findExileSourcesLeavingPlay(
             active: Map<Int, AnnotationInfo>,
-            leftPlayForgeIds: Set<Int>,
+            leftPlayForgeIds: Set<ForgeCardId>,
             resolveForgeCardId: (InstanceId) -> ForgeCardId?,
         ): List<Int> =
             active.entries
                 .filter { (_, ann) ->
                     ann.typeList.any { it == AnnotationType.DisplayCardUnderCard } &&
-                        resolveForgeCardId(InstanceId(ann.affectorId))?.value in leftPlayForgeIds
+                        resolveForgeCardId(InstanceId(ann.affectorId)) in leftPlayForgeIds
                 }
                 .map { it.key }
     }
@@ -349,18 +349,18 @@ class PersistentAnnotationStore {
     fun getAll(): List<AnnotationInfo> = active.values.toList()
 
     /** Forge card IDs of permanents currently under stolen control (have ControllerChanged+LayeredEffect pAnn). */
-    private val activeSteals = mutableSetOf<Int>()
+    private val activeSteals = mutableSetOf<ForgeCardId>()
 
     /** Set of forge card IDs currently under stolen control. Used by pipeline to detect reverts. */
-    fun activeStealForgeCardIds(): Set<Int> = activeSteals.toSet()
+    fun activeStealForgeCardIds(): Set<ForgeCardId> = activeSteals.toSet()
 
     /** Record a steal effect for tracking. Called after computeBatch when new steals are created. */
-    fun addSteals(forgeCardIds: Collection<Int>) {
+    fun addSteals(forgeCardIds: Collection<ForgeCardId>) {
         activeSteals.addAll(forgeCardIds)
     }
 
     /** Remove steal tracking for reverted cards. */
-    fun removeSteals(forgeCardIds: Collection<Int>) {
+    fun removeSteals(forgeCardIds: Collection<ForgeCardId>) {
         activeSteals.removeAll(forgeCardIds.toSet())
     }
 

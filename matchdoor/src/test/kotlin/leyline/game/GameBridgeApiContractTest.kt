@@ -5,6 +5,8 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.ForgeCardId
+import leyline.bridge.SeatId
 
 class GameBridgeApiContractTest :
     FunSpec({
@@ -23,11 +25,11 @@ class GameBridgeApiContractTest :
             val bridge = GameBridge()
             bridge.configureSyntheticSeat(2)
 
-            bridge.promptBridge(1).recordReveal(listOf(101), ownerSeatId = 1)
-            bridge.promptBridge(2).recordReveal(listOf(202), ownerSeatId = 2)
+            bridge.promptBridge(1).recordReveal(listOf(ForgeCardId(101)), ownerSeatId = SeatId(1))
+            bridge.promptBridge(2).recordReveal(listOf(ForgeCardId(202)), ownerSeatId = SeatId(2))
 
-            bridge.drainReveals(1).map { it.ownerSeatId } shouldBe listOf(1)
-            bridge.drainReveals(0).map { it.ownerSeatId } shouldBe listOf(2)
+            bridge.drainReveals(1).map { it.ownerSeatId } shouldBe listOf(SeatId(1))
+            bridge.drainReveals(0).map { it.ownerSeatId } shouldBe listOf(SeatId(2))
             bridge.drainReveals(0) shouldBe emptyList()
         }
     })

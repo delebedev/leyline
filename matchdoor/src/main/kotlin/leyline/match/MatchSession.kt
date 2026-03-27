@@ -237,13 +237,13 @@ class MatchSession(
                 seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
             }
             ActionType.Play_add3 -> {
-                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val submitted = if (forgeCardId != null) {
-                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PlayLand(forgeCardId))
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val submitted = if (cardId != null) {
+                    seatBridge.action.submitAction(pending.actionId, PlayerAction.PlayLand(cardId))
                 } else {
                     seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
-                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             ActionType.Cast -> {
                 // Check for optional costs (kicker, buyback, etc.) before submitting.
@@ -253,39 +253,39 @@ class MatchSession(
                     Tap.outboundTemplate("Cast deferred — optional cost prompt sent")
                     // Don't submit to engine yet — wait for CastingTimeOptionsResp
                 } else {
-                    val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                    val submitted = if (forgeCardId != null) {
-                        seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(forgeCardId))
+                    val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                    val submitted = if (cardId != null) {
+                        seatBridge.action.submitAction(pending.actionId, PlayerAction.CastSpell(cardId))
                     } else {
                         seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                     }
-                    Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
+                    Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
                 }
             }
             ActionType.Activate_add3 -> {
-                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
                 val abilityIndex = resolveAbilityIndex(action, bridge)
-                val submitted = if (forgeCardId != null) {
+                val submitted = if (cardId != null) {
                     seatBridge.action.submitAction(
                         pending.actionId,
-                        PlayerAction.ActivateAbility(forgeCardId, abilityIndex),
+                        PlayerAction.ActivateAbility(cardId, abilityIndex),
                     )
                 } else {
                     seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
-                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             ActionType.ActivateMana -> {
-                val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-                val submitted = if (forgeCardId != null) {
+                val cardId = bridge.getForgeCardId(InstanceId(action.instanceId))
+                val submitted = if (cardId != null) {
                     seatBridge.action.submitAction(
                         pending.actionId,
-                        PlayerAction.ActivateMana(forgeCardId),
+                        PlayerAction.ActivateMana(cardId),
                     )
                 } else {
                     seatBridge.action.submitAction(pending.actionId, PlayerAction.PassPriority)
                 }
-                Tap.actionResult(action.actionType, action.instanceId, forgeCardId?.value, submitted)
+                Tap.actionResult(action.actionType, action.instanceId, cardId, submitted)
             }
             else -> {
                 log.info("MatchSession: unhandled action type {}, passing", action.actionType)

@@ -44,12 +44,12 @@ class PlayLandFieldTest :
             val player = b.getPlayer(SeatId(1))!!
             val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
             val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id)).value
-            val forgeCardId = land.id
+            val cardId = land.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.moveToPlay(land, null, AbilityKey.newMap())
             }
-            val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+            val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             // Hard gate — if no annotations, nothing else matters
             gsm.annotationsList.shouldNotBeEmpty()
@@ -117,12 +117,12 @@ class PlayLandFieldTest :
             val player = b.getPlayer(SeatId(1)) ?: error("Player 1 not found")
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
             val origInstanceId = b.getOrAllocInstanceId(ForgeCardId(land.id))
-            val forgeCardId = land.id
+            val cardId = land.id
 
             base.playLand(b) ?: error("No land in hand at seed 42")
             val postResult = base.postAction(game, b, counter)
             acc.processAll(postResult.messages)
-            val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newInstanceId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             assertSoftly {
                 // New instanceId on BF

@@ -131,7 +131,7 @@ class WebPlayerController(
     @Volatile var pendingDamageAssignment: DamageAssignmentPrompt? = null
 
     /** Cache for batched responses — subsequent attackers in Forge's per-attacker loop. */
-    val damageAssignCache: MutableMap<Int, MutableMap<Card?, Int>> = mutableMapOf()
+    val damageAssignCache: MutableMap<ForgeCardId, MutableMap<Card?, Int>> = mutableMapOf()
 
     data class DamageAssignmentPrompt(
         val attacker: Card,
@@ -300,12 +300,12 @@ class WebPlayerController(
     ) {
         // Capture card IDs for annotation pipeline
         if (!cards.isEmpty()) {
-            val forgeCardIds = cards.mapNotNull { card ->
+            val cardIds = cards.mapNotNull { card ->
                 // CardCollectionView items are Card objects (not CardView)
-                (card as? Card)?.id
+                (card as? Card)?.let { ForgeCardId(it.id) }
             }
-            val ownerSeat = if (owner.lobbyPlayer is forge.ai.LobbyPlayerAi) 2 else 1
-            bridge.recordReveal(forgeCardIds, ownerSeat)
+            val ownerSeat = if (owner.lobbyPlayer is forge.ai.LobbyPlayerAi) SeatId(2) else SeatId(1)
+            bridge.recordReveal(cardIds, ownerSeat)
         }
         // Delegate to parent for GUI display (WebGuiGame no-op log)
         super.reveal(cards, zone, owner, messagePrefix, addMsgSuffix)
@@ -436,7 +436,7 @@ class WebPlayerController(
 
         // Search: mark chosen card so GameEventCollector emits CardSearchedToHand (Put category).
         if (isSearch && chosen is Card) {
-            bridge.searchedToHandCards.add(chosen.id)
+            bridge.searchedToHandCards.add(ForgeCardId(chosen.id))
             log.debug("search to hand: marked card {} (id={})", chosen.name, chosen.id)
         }
 
@@ -445,7 +445,7 @@ class WebPlayerController(
             val cards = optionList.filterIsInstance<Card>()
             for (card in cards) {
                 if (card !== chosen) {
-                    bridge.legendRuleVictims.add(card.id)
+                    bridge.legendRuleVictims.add(ForgeCardId(card.id))
                 }
             }
             log.info(
@@ -1323,7 +1323,7 @@ class WebPlayerController(
         overrideOrder: Boolean,
     ): MutableMap<Card?, Int>? {
         // Check cache — CombatHandler may have pre-filled from a batched response
-        val cached = damageAssignCache.remove(attacker.id)
+        val cached = damageAssignCache.remove(ForgeCardId(attacker.id))
         if (cached != null) {
             log.info("assignCombatDamage: cache hit for {} (id={})", attacker.name, attacker.id)
             return cached

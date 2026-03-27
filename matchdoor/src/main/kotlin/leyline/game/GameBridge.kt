@@ -231,10 +231,10 @@ class GameBridge(
     override fun getForgeCardId(instanceId: InstanceId): ForgeCardId? = ids.getForgeCardId(instanceId)
 
     /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */
-    fun getInstanceIdMap(): Map<Int, Int> = ids.snapshot()
+    fun getInstanceIdMap(): Map<InstanceId, ForgeCardId> = ids.snapshot()
 
     /** Read-only snapshot of forgeCardId → current active instanceId. */
-    fun getActiveInstanceIdMap(): Map<Int, Int> = ids.activeSnapshot()
+    fun getActiveInstanceIdMap(): Map<ForgeCardId, InstanceId> = ids.activeSnapshot()
 
     /** Set of instanceIds currently retired to Limbo. */
     fun getLimboSet(): Set<Int> = limbo.all().toSet()

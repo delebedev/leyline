@@ -464,7 +464,7 @@ open class CombatHandler(private val ops: SessionOps) {
                 firstMap = damageMap
             } else {
                 // Cache for subsequent per-attacker calls
-                wpc.damageAssignCache[attackerForgeId.value] = damageMap
+                wpc.damageAssignCache[attackerForgeId] = damageMap
             }
         }
 

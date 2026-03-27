@@ -15,8 +15,8 @@ import java.util.concurrent.ConcurrentHashMap
  * Thread-safe: concurrent maps + atomic counter. One registry per game.
  */
 class InstanceIdRegistry(startId: Int = 100) {
-    private val forgeIdToInstanceId = ConcurrentHashMap<Int, Int>()
-    private val instanceIdToForgeId = ConcurrentHashMap<Int, Int>()
+    private val forgeIdToInstanceId = ConcurrentHashMap<ForgeCardId, InstanceId>()
+    private val instanceIdToForgeId = ConcurrentHashMap<InstanceId, ForgeCardId>()
     private var nextInstanceId = startId
 
     /**
@@ -27,26 +27,24 @@ class InstanceIdRegistry(startId: Int = 100) {
 
     /** Allocate or return existing client instanceId for a Forge card ID. */
     fun getOrAlloc(forgeCardId: ForgeCardId): InstanceId =
-        InstanceId(
-            forgeIdToInstanceId.computeIfAbsent(forgeCardId.value) {
-                val id = nextInstanceId++
-                instanceIdToForgeId[id] = forgeCardId.value
-                id
-            },
-        )
+        forgeIdToInstanceId.computeIfAbsent(forgeCardId) {
+            val id = InstanceId(nextInstanceId++)
+            instanceIdToForgeId[id] = forgeCardId
+            id
+        }
 
     /**
      * Allocate a fresh instanceId for a Forge card that changed zones.
      * Updates forward map (forgeCardId → new ID), keeps old ID in reverse map.
      */
     fun realloc(forgeCardId: ForgeCardId): IdReallocation {
-        val oldRaw = forgeIdToInstanceId[forgeCardId.value]
+        val oldId = forgeIdToInstanceId[forgeCardId]
             ?: return getOrAlloc(forgeCardId).let { IdReallocation(it, it) }
-        val newRaw = nextInstanceId++
-        forgeIdToInstanceId[forgeCardId.value] = newRaw
-        instanceIdToForgeId[newRaw] = forgeCardId.value
+        val newId = InstanceId(nextInstanceId++)
+        forgeIdToInstanceId[forgeCardId] = newId
+        instanceIdToForgeId[newId] = forgeCardId
         // old reverse entry kept intentionally — client may reference old IDs
-        return IdReallocation(InstanceId(oldRaw), InstanceId(newRaw))
+        return IdReallocation(oldId, newId)
     }
 
     /**
@@ -57,7 +55,7 @@ class InstanceIdRegistry(startId: Int = 100) {
      * The reverse map is also cleared so old IDs don't resolve.
      */
     fun resetAll(): List<InstanceId> {
-        val oldIds = forgeIdToInstanceId.values.map { InstanceId(it) }
+        val oldIds = forgeIdToInstanceId.values.toList()
         forgeIdToInstanceId.clear()
         instanceIdToForgeId.clear()
         return oldIds
@@ -65,11 +63,11 @@ class InstanceIdRegistry(startId: Int = 100) {
 
     /** Reverse lookup: client instanceId → Forge card ID. */
     fun getForgeCardId(instanceId: InstanceId): ForgeCardId? =
-        instanceIdToForgeId[instanceId.value]?.let { ForgeCardId(it) }
+        instanceIdToForgeId[instanceId]
 
     /** Read-only snapshot of instanceId → forgeCardId (all, including retired). */
-    fun snapshot(): Map<Int, Int> = HashMap(instanceIdToForgeId)
+    fun snapshot(): Map<InstanceId, ForgeCardId> = HashMap(instanceIdToForgeId)
 
     /** Read-only snapshot of forgeCardId → current active instanceId. */
-    fun activeSnapshot(): Map<Int, Int> = HashMap(forgeIdToInstanceId)
+    fun activeSnapshot(): Map<ForgeCardId, InstanceId> = HashMap(forgeIdToInstanceId)
 }

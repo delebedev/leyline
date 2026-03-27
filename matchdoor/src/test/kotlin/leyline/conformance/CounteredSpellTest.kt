@@ -31,7 +31,7 @@ class CounteredSpellTest :
 
         /**
          * Shared setup: play land, cast creature (→ Stack), snapshot.
-         * Returns the stack Card and its forgeCardId.
+         * Returns the stack Card and its cardId.
          */
         fun castToStack(): Triple<Triple<GameBridge, Game, MessageCounter>, Card, Int> {
             val setup = base.startGameAtMain1()
@@ -42,37 +42,37 @@ class CounteredSpellTest :
 
             val player = b.getPlayer(SeatId(1))!!
             val creature = player.getZone(ZoneType.Hand).cards.first { it.isCreature }
-            val forgeCardId = creature.id
+            val cardId = creature.id
 
             base.castCreature(b)
             b.snapshotFromGame(game, counter.nextGsId())
 
-            val stackCard = game.stackZone.cards.first { it.id == forgeCardId }
-            return Triple(setup, stackCard, forgeCardId)
+            val stackCard = game.stackZone.cards.first { it.id == cardId }
+            return Triple(setup, stackCard, cardId)
         }
 
         test("countered creature goes to graveyard with Countered category") {
-            val (setup, stackCard, forgeCardId) = castToStack()
+            val (setup, stackCard, cardId) = castToStack()
             val (b, game, counter) = setup
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.moveToGraveyard(stackCard, null)
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId)) { "Should have ZoneTransfer for countered spell" }
             zt.category shouldBe "Countered"
         }
 
         test("fizzled SpellResolved event produces Countered not Resolve") {
-            val (setup, stackCard, forgeCardId) = castToStack()
+            val (setup, stackCard, cardId) = castToStack()
             val (b, game, counter) = setup
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.fireEvent(forge.game.event.GameEventSpellResolved(stackCard.firstSpellAbility, true))
                 game.action.moveToGraveyard(stackCard, null)
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId)).value
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId)) { "Should have ZoneTransfer for fizzled spell" }
             zt.category shouldBe "Countered"

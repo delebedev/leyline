@@ -87,11 +87,11 @@ class ZoneTransitionConformanceTest :
             val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand }
                 ?: error("No land in hand")
             val origId = b.getOrAllocInstanceId(ForgeCardId(land.id))
-            val forgeCardId = land.id
+            val cardId = land.id
 
             base.playLand(b)
             val gsm = base.postAction(game, b, counter).gsmOrNull ?: error("No GSM after play land")
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer annotation" }
             zt.category shouldBe "PlayLand"
@@ -115,11 +115,11 @@ class ZoneTransitionConformanceTest :
             val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
                 ?: error("No creature in hand")
             val origId = b.getOrAllocInstanceId(ForgeCardId(creature.id))
-            val forgeCardId = creature.id
+            val cardId = creature.id
 
             base.castCreature(b)
             val gsm = base.postAction(game, b, counter).gsmOrNull ?: error("No GSM after cast")
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for cast" }
             zt.category shouldBe "CastSpell"
@@ -140,7 +140,7 @@ class ZoneTransitionConformanceTest :
             val player = human(b)
             val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
                 ?: error("No creature in hand")
-            val forgeCardId = creature.id
+            val cardId = creature.id
 
             base.castCreature(b)
             base.postAction(game, b, counter)
@@ -148,7 +148,7 @@ class ZoneTransitionConformanceTest :
 
             base.passPriority(b)
             val gsm = base.postAction(game, b, counter).gsmOrNull ?: error("No GSM after resolve")
-            val resolvedId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val resolvedId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             val zt = checkNotNull(gsm.findZoneTransfer(resolvedId.value)) { "Should have ZoneTransfer for resolve" }
             zt.category shouldBe "Resolve"
@@ -167,12 +167,12 @@ class ZoneTransitionConformanceTest :
             }
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val origId = b.getOrAllocInstanceId(ForgeCardId(creature.id))
-            val forgeCardId = creature.id
+            val cardId = creature.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.destroy(creature, null, false, AbilityKey.newMap())
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for destroy" }
             zt.category shouldBe "Destroy"
@@ -190,13 +190,13 @@ class ZoneTransitionConformanceTest :
             }
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val origId = b.getOrAllocInstanceId(ForgeCardId(creature.id))
-            val forgeCardId = creature.id
+            val cardId = creature.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.fireEvent(forge.game.event.GameEventCardSacrificed(CardView.get(creature)))
                 game.action.moveToGraveyard(creature, null)
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for sacrifice" }
             zt.category shouldBe "Sacrifice"
@@ -212,12 +212,12 @@ class ZoneTransitionConformanceTest :
             }
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val origId = b.getOrAllocInstanceId(ForgeCardId(creature.id))
-            val forgeCardId = creature.id
+            val cardId = creature.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.exile(creature, null, AbilityKey.newMap())
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for exile" }
             zt.category shouldBe "Exile"
@@ -233,12 +233,12 @@ class ZoneTransitionConformanceTest :
             }
             val creature = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.isCreature }
             val origId = b.getOrAllocInstanceId(ForgeCardId(creature.id))
-            val forgeCardId = creature.id
+            val cardId = creature.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.moveToHand(creature, null)
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for bounce" }
             zt.category shouldBe "Bounce"
@@ -254,12 +254,12 @@ class ZoneTransitionConformanceTest :
             }
             val player = game.humanPlayer
             val topCard = player.getZone(ZoneType.Library).cards.first()
-            val forgeCardId = topCard.id
+            val cardId = topCard.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 player.drawCard()
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for draw" }
             zt.category shouldBe "Draw"
@@ -272,12 +272,12 @@ class ZoneTransitionConformanceTest :
             }
             val player = game.humanPlayer
             val cardInHand = player.getZone(ZoneType.Hand).cards.first()
-            val forgeCardId = cardInHand.id
+            val cardId = cardInHand.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 player.discard(cardInHand, null, false, AbilityKey.newMap())
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for discard" }
             zt.category shouldBe "Discard"
@@ -290,12 +290,12 @@ class ZoneTransitionConformanceTest :
             }
             val player = game.humanPlayer
             val topCard = player.getZone(ZoneType.Library).cards.first()
-            val forgeCardId = topCard.id
+            val cardId = topCard.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.moveToGraveyard(topCard, null)
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for mill" }
             zt.category shouldBe "Mill"
@@ -308,12 +308,12 @@ class ZoneTransitionConformanceTest :
             }
             val player = game.humanPlayer
             val topCard = player.getZone(ZoneType.Library).cards.first()
-            val forgeCardId = topCard.id
+            val cardId = topCard.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.exile(topCard, null, AbilityKey.newMap())
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for library exile" }
             zt.category shouldBe "Exile"
@@ -376,12 +376,12 @@ class ZoneTransitionConformanceTest :
             }
             val player = game.humanPlayer
             val cardInHand = player.getZone(ZoneType.Hand).cards.first()
-            val forgeCardId = cardInHand.id
+            val cardId = cardInHand.id
 
             val gsm = base.captureAfterAction(b, game, counter) {
                 game.action.exile(cardInHand, null, AbilityKey.newMap())
             }
-            val newId = b.getOrAllocInstanceId(ForgeCardId(forgeCardId))
+            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
 
             val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for Hand→Exile" }
             zt.category shouldBe "Exile"

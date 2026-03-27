@@ -53,8 +53,8 @@ class TargetingHandler(private val ops: SessionOps) {
             val instanceId = target.targetInstanceId
             val playerIdx = resolvePlayerTarget(instanceId, bridge, pendingPrompt)
             if (playerIdx != null) return@mapNotNull playerIdx
-            val forgeCardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@mapNotNull null
-            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
+            val cardId = bridge.getForgeCardId(InstanceId(instanceId)) ?: return@mapNotNull null
+            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
         }.filter { it >= 0 }
 
         log.info("TargetingHandler: SelectTargetsResp iids={} indices={} (awaiting SubmitTargetsReq)", selectedInstanceIds, selectedIndices)
@@ -122,9 +122,9 @@ class TargetingHandler(private val ops: SessionOps) {
         }
 
         val selectedIndices = resp.idsList.mapNotNull { instanceId ->
-            val forgeCardId = bridge.getForgeCardId(InstanceId(instanceId))
-            if (forgeCardId == null) return@mapNotNull null
-            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
+            val cardId = bridge.getForgeCardId(InstanceId(instanceId))
+            if (cardId == null) return@mapNotNull null
+            pendingPrompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
         }.filter { it >= 0 }
 
         log.info("TargetingHandler: SelectNResp indices={}", selectedIndices)
@@ -320,10 +320,10 @@ class TargetingHandler(private val ops: SessionOps) {
                     val awayIds = if (groups.size >= 2) groups[1].idsList else emptyList()
                     val game = bridge.getGame()
                     awayIds.mapNotNull { iid ->
-                        val forgeCardId = bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
+                        val cardId = bridge.getForgeCardId(InstanceId(iid)) ?: return@mapNotNull null
                         // Cards may be zoneless during surveil — use game.findById
                         // instead of player.allCards (which only sees zoned cards).
-                        val card = game?.findById(forgeCardId.value) ?: return@mapNotNull null
+                        val card = game?.findById(cardId.value) ?: return@mapNotNull null
                         req.options.indexOf(card.name)
                     }.filter { it >= 0 }
                 }
@@ -400,9 +400,9 @@ class TargetingHandler(private val ops: SessionOps) {
                 // TODO: multi-pick support — currently only maps first selected card.
                 //  Future spells with maxFind > 1 will silently ignore subsequent picks.
                 val chosenInstanceId = itemsFound.first()
-                val forgeCardId = bridge.getForgeCardId(InstanceId(chosenInstanceId))
-                val idx = if (forgeCardId != null) {
-                    prompt.request.candidateRefs.indexOfFirst { it.entityId == forgeCardId.value }
+                val cardId = bridge.getForgeCardId(InstanceId(chosenInstanceId))
+                val idx = if (cardId != null) {
+                    prompt.request.candidateRefs.indexOfFirst { it.entityId == cardId.value }
                 } else {
                     -1
                 }
@@ -551,9 +551,9 @@ class TargetingHandler(private val ops: SessionOps) {
         pendingActionId: String,
         bridge: GameBridge,
     ): Boolean {
-        val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return false
+        val cardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return false
         val game = bridge.getGame() ?: return false
-        val card = game.findById(forgeCardId.value) ?: return false
+        val card = game.findById(cardId.value) ?: return false
 
         // Find the castable SpellAbility to check for optional costs
         val sa = card.spellAbilities?.firstOrNull { it.isSpell && !it.isLandAbility } ?: return false
@@ -589,7 +589,7 @@ class TargetingHandler(private val ops: SessionOps) {
         // Stash the Cast action for replay after response
         pendingInteraction = PendingClientInteraction.OptionalCost(
             pendingActionId = pendingActionId,
-            action = leyline.bridge.PlayerAction.CastSpell(forgeCardId),
+            action = leyline.bridge.PlayerAction.CastSpell(cardId),
             costCtoIds = costCtoIds,
         )
 

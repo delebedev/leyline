@@ -6,6 +6,7 @@ import forge.game.event.*
 import forge.game.event.GameEventManaAbilityActivated
 import forge.game.event.GameEventSpellMovedToStack
 import forge.game.zone.ZoneType
+import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.game.mapper.PlayerMapper
 import org.slf4j.LoggerFactory
@@ -81,7 +82,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     private val queue = ConcurrentLinkedQueue<GameEvent>()
 
     /** Last-seen P/T per card ID — used to detect deltas on GameEventCardStatsChanged. */
-    private val lastPT = ConcurrentHashMap<Int, Pair<Int, Int>>()
+    private val lastPT = ConcurrentHashMap<ForgeCardId, Pair<Int, Int>>()
 
     /**
      * Drain all queued events since last drain. Returns events in engine firing order.
@@ -117,7 +118,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
             ?.findById(ev.land().id)
             ?.let(::computeColorBitmasks)
             ?: emptyList()
-        queue.add(GameEvent.LandPlayed(ev.land().id, seat, colorBitmasks))
+        queue.add(GameEvent.LandPlayed(ForgeCardId(ev.land().id), seat, colorBitmasks))
         log.debug("event: LandPlayed card={} seat={} colors={}", ev.land().name, seat, colorBitmasks)
     }
 
@@ -126,24 +127,24 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val seat = seatOf(card.controller) ?: return
         val payments = ev.manaPayments().map { mp ->
             GameEvent.ManaPayment(
-                sourceForgeCardId = mp.sourceCardId(),
+                sourceCardId = ForgeCardId(mp.sourceCardId()),
                 color = mp.color().toInt() and 0xFF,
             )
         }
-        queue.add(GameEvent.SpellCast(card.id, seat, payments))
+        queue.add(GameEvent.SpellCast(ForgeCardId(card.id), seat, payments))
         log.debug("event: SpellCast card={} seat={} manaPayments={}", card.name, seat, payments.size)
     }
 
     override fun visit(ev: GameEventSpellMovedToStack) {
         val card = ev.card()
         val seat = seatOf(card.controller) ?: return
-        queue.add(GameEvent.SpellMovedToStack(card.id, seat))
+        queue.add(GameEvent.SpellMovedToStack(ForgeCardId(card.id), seat))
         log.debug("event: SpellMovedToStack card={} seat={}", card.name, seat)
     }
 
     override fun visit(ev: GameEventSpellResolved) {
         val card = ev.spell().hostCard ?: return
-        queue.add(GameEvent.SpellResolved(card.id, ev.hasFizzled()))
+        queue.add(GameEvent.SpellResolved(ForgeCardId(card.id), ev.hasFizzled()))
         log.debug("event: SpellResolved card={} fizzled={}", card.name, ev.hasFizzled())
     }
 
@@ -160,33 +161,33 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val event = if (seat != null && from != null) {
             when {
                 from == ZoneType.Battlefield && to == ZoneType.Graveyard && isLegendRuleVictim(card.id) ->
-                    GameEvent.LegendRuleDeath(card.id, seat)
+                    GameEvent.LegendRuleDeath(ForgeCardId(card.id), seat)
                 // BF→GY without legend rule: fall through to ZoneChanged.
                 // CardDestroyed is emitted from GameEventCardDestroyed (with activator).
                 from == ZoneType.Battlefield && (to == ZoneType.Hand || to == ZoneType.Library) ->
-                    GameEvent.CardBounced(card.id, seat)
+                    GameEvent.CardBounced(ForgeCardId(card.id), seat)
                 to == ZoneType.Exile -> {
                     val sourceId = card.exiledWith?.id
-                    GameEvent.CardExiled(card.id, seat, sourceId, fromBattlefield = from == ZoneType.Battlefield)
+                    GameEvent.CardExiled(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }, fromBattlefield = from == ZoneType.Battlefield)
                 }
                 from == ZoneType.Hand && to == ZoneType.Graveyard ->
-                    GameEvent.CardDiscarded(card.id, seat)
+                    GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
                 from == ZoneType.Library && to == ZoneType.Graveyard -> {
                     val sourceId = bridge.getGame()?.stack?.peek()?.spellAbility?.hostCard?.id
-                    GameEvent.CardMilled(card.id, seat, sourceId)
+                    GameEvent.CardMilled(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) })
                 }
                 from == ZoneType.Library && to == ZoneType.Hand && isSearchedToHand(card.id) ->
-                    GameEvent.CardSearchedToHand(card.id)
-                else -> GameEvent.ZoneChanged(card.id, Zone.fromForge(from), Zone.fromForge(to))
+                    GameEvent.CardSearchedToHand(ForgeCardId(card.id))
+                else -> GameEvent.ZoneChanged(ForgeCardId(card.id), Zone.fromForge(from), Zone.fromForge(to))
             }
         } else {
-            GameEvent.ZoneChanged(card.id, from?.let { Zone.fromForge(it) } ?: Zone.Other, Zone.fromForge(to))
+            GameEvent.ZoneChanged(ForgeCardId(card.id), from?.let { Zone.fromForge(it) } ?: Zone.Other, Zone.fromForge(to))
         }
 
         // Clear cached P/T when a card leaves the battlefield so re-entering
         // cards diff against fresh values instead of stale prior-lifetime stats.
         if (from == ZoneType.Battlefield) {
-            lastPT.remove(card.id)
+            lastPT.remove(ForgeCardId(card.id))
         }
 
         queue.add(event)
@@ -194,28 +195,28 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
         // Emit TokenDestroyed when a token leaves the battlefield
         if (card.isToken && from == ZoneType.Battlefield && seat != null) {
-            queue.add(GameEvent.TokenDestroyed(card.id, seat))
+            queue.add(GameEvent.TokenDestroyed(ForgeCardId(card.id), seat))
             log.debug("event: TokenDestroyed card={} seat={}", card.name, seat)
         }
     }
 
     override fun visit(ev: GameEventCardTapped) {
-        queue.add(GameEvent.CardTapped(ev.card().id, ev.tapped()))
+        queue.add(GameEvent.CardTapped(ForgeCardId(ev.card().id), ev.tapped()))
         log.debug("event: CardTapped card={} tapped={}", ev.card().name, ev.tapped())
     }
 
     override fun visit(ev: GameEventManaAbilityActivated) {
         val card = ev.source()
         val seat = seatOf(card.controller) ?: return
-        queue.add(GameEvent.ManaAbilityActivated(card.id, seat, ev.produced()))
+        queue.add(GameEvent.ManaAbilityActivated(ForgeCardId(card.id), seat, ev.produced()))
         log.debug("event: ManaAbilityActivated card={} seat={} produced={}", card.name, seat, ev.produced())
     }
 
     override fun visit(ev: GameEventCardDamaged) {
         queue.add(
             GameEvent.DamageDealtToCard(
-                sourceForgeId = ev.source().id,
-                targetForgeId = ev.card().id,
+                sourceCardId = ForgeCardId(ev.source().id),
+                targetCardId = ForgeCardId(ev.card().id),
                 amount = ev.amount(),
             ),
         )
@@ -226,7 +227,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val source = ev.source() ?: return
         queue.add(
             GameEvent.DamageDealtToPlayer(
-                sourceForgeId = source.id,
+                sourceCardId = ForgeCardId(source.id),
                 targetSeatId = seat,
                 amount = ev.amount(),
                 combat = ev.combat(),
@@ -247,7 +248,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
     override fun visit(ev: GameEventAttackersDeclared) {
         val seat = seatOf(ev.player()) ?: return
-        val ids = ev.attackersMap().values().map { it.id }
+        val ids = ev.attackersMap().values().map { ForgeCardId(it.id) }
         if (ids.isNotEmpty()) {
             queue.add(GameEvent.AttackersDeclared(ids, seat))
         }
@@ -257,7 +258,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val seat = seatOf(ev.defendingPlayer()) ?: return
         // Flatten all blocking creatures from the nested map
         val ids = ev.blockers().values.flatMap { multimap ->
-            multimap.keys().map { it.id }
+            multimap.keys().map { ForgeCardId(it.id) }
         }
         if (ids.isNotEmpty()) {
             queue.add(GameEvent.BlockersDeclared(ids, seat))
@@ -269,7 +270,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     override fun visit(ev: GameEventCardSacrificed) {
         val card = ev.card()
         val seat = seatOf(card.controller) ?: return
-        queue.add(GameEvent.CardSacrificed(card.id, seat))
+        queue.add(GameEvent.CardSacrificed(ForgeCardId(card.id), seat))
         log.debug("event: CardSacrificed card={} seat={}", card.name, seat)
     }
 
@@ -277,8 +278,8 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val card = ev.card() ?: return
         val seat = seatOf(card.controller) ?: return
         val sourceId = ev.activator()?.id
-        queue.add(GameEvent.CardDestroyed(card.id, seat, sourceId))
-        log.debug("event: CardDestroyed card={} seat={} source={}", card.name, seat, sourceId)
+        queue.add(GameEvent.CardDestroyed(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }))
+        log.debug("event: CardDestroyed card={} seat={} source={}", card.name, seat, sourceId?.let { ForgeCardId(it) })
     }
 
     // -- Group A+: attachment events --
@@ -288,10 +289,10 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val seat = seatOf(card.controller) ?: return
         val newTarget = ev.newTarget()
         if (newTarget != null) {
-            queue.add(GameEvent.CardAttached(card.id, newTarget.id, seat))
+            queue.add(GameEvent.CardAttached(ForgeCardId(card.id), ForgeCardId(newTarget.id), seat))
             log.debug("event: CardAttached card={} target={} seat={}", card.name, newTarget.name, seat)
         } else {
-            queue.add(GameEvent.CardDetached(card.id, seat))
+            queue.add(GameEvent.CardDetached(ForgeCardId(card.id), seat))
             log.debug("event: CardDetached card={} seat={}", card.name, seat)
         }
     }
@@ -301,7 +302,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     override fun visit(ev: GameEventCardCounters) {
         queue.add(
             GameEvent.CountersChanged(
-                forgeCardId = ev.card().id,
+                cardId = ForgeCardId(ev.card().id),
                 counterType = ev.type().name,
                 oldCount = ev.oldValue(),
                 newCount = ev.newValue(),
@@ -312,7 +313,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
     override fun visit(ev: GameEventCardStatsChanged) {
         for (card in ev.cards()) {
-            val id = card.id
+            val id = ForgeCardId(card.id)
             val newPower = card.currentState.power
             val newTough = card.currentState.toughness
             val prev = lastPT.put(id, Pair(newPower, newTough))
@@ -321,7 +322,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
             if (oldPower != newPower || oldTough != newTough) {
                 queue.add(
                     GameEvent.PowerToughnessChanged(
-                        forgeCardId = id,
+                        cardId = id,
                         oldPower = oldPower,
                         newPower = newPower,
                         oldToughness = oldTough,
@@ -357,16 +358,16 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     override fun visit(ev: GameEventCardSurveiled) {
         val seat = seatOf(ev.card().controller) ?: return
         val sourceId = ev.causeCard()?.id
-        queue.add(GameEvent.CardSurveiled(ev.card().id, seat, sourceId))
-        log.debug("event: CardSurveiled card={} seat={} source={}", ev.card().name, seat, sourceId)
+        queue.add(GameEvent.CardSurveiled(ForgeCardId(ev.card().id), seat, sourceId?.let { ForgeCardId(it) }))
+        log.debug("event: CardSurveiled card={} seat={} source={}", ev.card().name, seat, sourceId?.let { ForgeCardId(it) })
     }
 
     override fun visit(ev: GameEventTokenCreated) {
         for (card in ev.tokens()) {
             val seat = seatOf(card.controller) ?: continue
             val sourceId = card.tokenSpawningAbility?.hostCard?.id
-            queue.add(GameEvent.TokenCreated(card.id, seat, sourceId))
-            log.debug("event: TokenCreated card={} seat={} source={}", card.name, seat, sourceId)
+            queue.add(GameEvent.TokenCreated(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }))
+            log.debug("event: TokenCreated card={} seat={} source={}", card.name, seat, sourceId?.let { ForgeCardId(it) })
         }
     }
 
@@ -374,7 +375,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val card = ev.card()
         val oldSeat = seatOf(ev.oldController()) ?: return
         val newSeat = seatOf(ev.newController()) ?: return
-        queue.add(GameEvent.ControllerChanged(card.id, oldSeat, newSeat))
+        queue.add(GameEvent.ControllerChanged(ForgeCardId(card.id), oldSeat, newSeat))
         log.debug("event: ControllerChanged card={} {} -> {}", card.name, oldSeat, newSeat)
     }
 
@@ -412,9 +413,10 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
      * Library→Hand. Consumes the flag so it doesn't fire again for subsequent zone events.
      */
     private fun isSearchedToHand(forgeCardId: Int): Boolean {
+        val id = ForgeCardId(forgeCardId)
         for (seat in bridge.allSeatIds()) {
             val searched = bridge.promptBridge(seat).searchedToHandCards
-            if (searched.remove(forgeCardId)) return true
+            if (searched.remove(id)) return true
         }
         return false
     }
@@ -428,9 +430,10 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
      * Consuming on match (remove) so the flag doesn't leak to future SBAs.
      */
     private fun isLegendRuleVictim(forgeCardId: Int): Boolean {
+        val id = ForgeCardId(forgeCardId)
         for (seat in bridge.allSeatIds()) {
             val victims = bridge.promptBridge(seat).legendRuleVictims
-            if (victims.remove(forgeCardId)) return true
+            if (victims.remove(id)) return true
         }
         return false
     }

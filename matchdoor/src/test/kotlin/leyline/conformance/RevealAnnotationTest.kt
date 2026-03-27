@@ -8,6 +8,7 @@ import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import leyline.ConformanceTag
 import leyline.bridge.ForgeCardId
+import leyline.bridge.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
@@ -31,7 +32,7 @@ class RevealAnnotationTest :
             val handCard = with(base) { game.humanPlayer.firstCardIn(ZoneType.Hand) }
 
             val gsm = base.captureAfterAction(b, game, counter) {
-                b.promptBridge(1).recordReveal(listOf(handCard.id), 1)
+                b.promptBridge(1).recordReveal(listOf(ForgeCardId(handCard.id)), SeatId(1))
             }
 
             val instanceId = b.getOrAllocInstanceId(ForgeCardId(handCard.id))
@@ -49,7 +50,7 @@ class RevealAnnotationTest :
             val handCards = game.humanPlayer.getZone(ZoneType.Hand).cards.toList()
 
             val gsm = base.captureAfterAction(b, game, counter) {
-                b.promptBridge(1).recordReveal(handCards.map { it.id }, 1)
+                b.promptBridge(1).recordReveal(handCards.map { ForgeCardId(it.id) }, SeatId(1))
             }
 
             val revealAnns = gsm.annotationsList.filter {

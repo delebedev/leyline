@@ -1,5 +1,6 @@
 package leyline.game
 
+import leyline.bridge.ForgeCardId
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.CounterType
@@ -57,7 +58,7 @@ object AnnotationBuilder {
      *
      * Priority: specific mechanic events > CardSacrificed override > zone-pair inference.
      */
-    fun categoryFromEvents(forgeCardId: Int, events: List<GameEvent>): TransferCategory? {
+    fun categoryFromEvents(forgeCardId: ForgeCardId, events: List<GameEvent>): TransferCategory? {
         var generic: GameEvent.ZoneChanged? = null
         var sacrificed = false
         var zoneCategory: TransferCategory? = null
@@ -65,9 +66,9 @@ object AnnotationBuilder {
         for (ev in events) {
             when (ev) {
                 // Highest priority — mechanic-specific events (immediate return)
-                is GameEvent.LandPlayed -> if (ev.forgeCardId == forgeCardId) return TransferCategory.PlayLand
-                is GameEvent.SpellCast -> if (ev.forgeCardId == forgeCardId) return TransferCategory.CastSpell
-                is GameEvent.SpellResolved -> if (ev.forgeCardId == forgeCardId) {
+                is GameEvent.LandPlayed -> if (ev.cardId == forgeCardId) return TransferCategory.PlayLand
+                is GameEvent.SpellCast -> if (ev.cardId == forgeCardId) return TransferCategory.CastSpell
+                is GameEvent.SpellResolved -> if (ev.cardId == forgeCardId) {
                     // Fizzled spells (countered) go Stack→GY — not a successful resolve
                     if (ev.hasFizzled) {
                         zoneCategory = TransferCategory.Countered
@@ -76,20 +77,20 @@ object AnnotationBuilder {
                     }
                 }
                 // Legend rule SBA — highest zone-specific priority (immediate return)
-                is GameEvent.LegendRuleDeath -> if (ev.forgeCardId == forgeCardId) return TransferCategory.SbaLegendRule
+                is GameEvent.LegendRuleDeath -> if (ev.cardId == forgeCardId) return TransferCategory.SbaLegendRule
                 // Sacrifice flag — overrides Destroy when both fire for same card
-                is GameEvent.CardSacrificed -> if (ev.forgeCardId == forgeCardId) sacrificed = true
+                is GameEvent.CardSacrificed -> if (ev.cardId == forgeCardId) sacrificed = true
                 // Zone-specific events (emitted by enriched ZoneChanged handler)
-                is GameEvent.CardDestroyed -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Destroy
-                is GameEvent.CardBounced -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Bounce
-                is GameEvent.CardExiled -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Exile
-                is GameEvent.CardDiscarded -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Discard
-                is GameEvent.CardMilled -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Mill
-                is GameEvent.CardSurveiled -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Surveil
-                is GameEvent.CardSearchedToHand -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Put
-                is GameEvent.SpellCountered -> if (ev.forgeCardId == forgeCardId) zoneCategory = TransferCategory.Countered
+                is GameEvent.CardDestroyed -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Destroy
+                is GameEvent.CardBounced -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Bounce
+                is GameEvent.CardExiled -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Exile
+                is GameEvent.CardDiscarded -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Discard
+                is GameEvent.CardMilled -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Mill
+                is GameEvent.CardSurveiled -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Surveil
+                is GameEvent.CardSearchedToHand -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Put
+                is GameEvent.SpellCountered -> if (ev.cardId == forgeCardId) zoneCategory = TransferCategory.Countered
                 // Generic zone change — fallback, infer category from zone pair
-                is GameEvent.ZoneChanged -> if (ev.forgeCardId == forgeCardId) generic = ev
+                is GameEvent.ZoneChanged -> if (ev.cardId == forgeCardId) generic = ev
                 // Other events (tapped, damage, life, counters, etc.) don't affect transfer category
                 else -> {}
             }
@@ -121,12 +122,12 @@ object AnnotationBuilder {
      *
      * @return Forge card ID of the causing ability's host card, or null if unknown.
      */
-    fun affectorSourceFromEvents(forgeCardId: Int, events: List<GameEvent>): Int? {
+    fun affectorSourceFromEvents(forgeCardId: ForgeCardId, events: List<GameEvent>): ForgeCardId? {
         for (ev in events) {
             when {
-                ev is GameEvent.CardMilled && ev.forgeCardId == forgeCardId -> return ev.sourceForgeCardId
-                ev is GameEvent.CardSurveiled && ev.forgeCardId == forgeCardId -> return ev.sourceForgeCardId
-                ev is GameEvent.CardDestroyed && ev.forgeCardId == forgeCardId -> return ev.sourceForgeCardId
+                ev is GameEvent.CardMilled && ev.cardId == forgeCardId -> return ev.sourceCardId
+                ev is GameEvent.CardSurveiled && ev.cardId == forgeCardId -> return ev.sourceCardId
+                ev is GameEvent.CardDestroyed && ev.cardId == forgeCardId -> return ev.sourceCardId
             }
         }
         return null

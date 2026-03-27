@@ -149,9 +149,9 @@ class LegendRuleTest :
 private fun findUntappedIsamaru(h: MatchFlowHarness, instanceIds: List<Int>): Int? {
     val player = h.bridge.getPlayer(SeatId(1)) ?: return null
     for (iid in instanceIds) {
-        val forgeCardId = h.bridge.getForgeCardId(InstanceId(iid)) ?: continue
+        val cardId = h.bridge.getForgeCardId(InstanceId(iid)) ?: continue
         val card = player.getZone(ForgeZoneType.Battlefield).cards
-            .firstOrNull { it.id == forgeCardId.value }
+            .firstOrNull { it.id == cardId.value }
         if (card != null && !card.isTapped) return iid
     }
     return null

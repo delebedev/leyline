@@ -13,6 +13,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
+import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.aiPlayer
@@ -74,7 +75,7 @@ class GameEventCollectorTest :
             val events = collector.drainEvents().events
             val lp = events.filterIsInstance<GameEvent.LandPlayed>()
             lp.size shouldBe 1
-            lp[0].forgeCardId shouldBe land.id
+            lp[0].cardId shouldBe ForgeCardId(land.id)
             lp[0].seatId shouldBe SeatId(1)
         }
 
@@ -93,7 +94,7 @@ class GameEventCollectorTest :
             val events = collector.drainEvents().events
             val sc = events.filterIsInstance<GameEvent.SpellCast>()
             sc.size shouldBe 1
-            sc[0].forgeCardId shouldBe spell.id
+            sc[0].cardId shouldBe ForgeCardId(spell.id)
             sc[0].seatId shouldBe SeatId(1)
         }
 
@@ -112,7 +113,7 @@ class GameEventCollectorTest :
             val events = collector.drainEvents().events
             val sr = events.filterIsInstance<GameEvent.SpellResolved>()
             sr.size shouldBe 1
-            sr[0].forgeCardId shouldBe spell.id
+            sr[0].cardId shouldBe ForgeCardId(spell.id)
             sr[0].hasFizzled.shouldBeFalse()
         }
 
@@ -149,7 +150,7 @@ class GameEventCollectorTest :
             // BF→GY via zone change now produces ZoneChanged (not CardDestroyed)
             val zoneChanges = events.filterIsInstance<GameEvent.ZoneChanged>()
             zoneChanges.size shouldBe 1
-            zoneChanges[0].forgeCardId shouldBe creature.id
+            zoneChanges[0].cardId shouldBe ForgeCardId(creature.id)
         }
 
         test("GameEventCardDestroyed emits CardDestroyed with source") {
@@ -167,9 +168,9 @@ class GameEventCollectorTest :
             val events = collector.drainEvents().events
             val destroyed = events.filterIsInstance<GameEvent.CardDestroyed>()
             destroyed.size shouldBe 1
-            destroyed[0].forgeCardId shouldBe creature.id
+            destroyed[0].cardId shouldBe ForgeCardId(creature.id)
             destroyed[0].seatId shouldBe SeatId(1)
-            destroyed[0].sourceForgeCardId shouldBe bolt.id
+            destroyed[0].sourceCardId shouldBe ForgeCardId(bolt.id)
         }
 
         test("BF to Hand emits CardBounced") {
@@ -186,7 +187,7 @@ class GameEventCollectorTest :
 
             val bounced = collector.drainEvents().events.filterIsInstance<GameEvent.CardBounced>()
             bounced.size shouldBe 1
-            bounced[0].forgeCardId shouldBe creature.id
+            bounced[0].cardId shouldBe ForgeCardId(creature.id)
         }
 
         test("any to Exile emits CardExiled") {
@@ -269,7 +270,7 @@ class GameEventCollectorTest :
 
             val tapped = collector.drainEvents().events.filterIsInstance<GameEvent.CardTapped>()
             tapped.size shouldBe 1
-            tapped[0].forgeCardId shouldBe land.id
+            tapped[0].cardId shouldBe ForgeCardId(land.id)
             tapped[0].tapped.shouldBeTrue()
         }
 
@@ -305,8 +306,8 @@ class GameEventCollectorTest :
 
             val dmg = collector.drainEvents().events.filterIsInstance<GameEvent.DamageDealtToCard>()
             dmg.size shouldBe 1
-            dmg[0].sourceForgeId shouldBe source.id
-            dmg[0].targetForgeId shouldBe target.id
+            dmg[0].sourceCardId shouldBe ForgeCardId(source.id)
+            dmg[0].targetCardId shouldBe ForgeCardId(target.id)
             dmg[0].amount shouldBe 2
         }
 
@@ -322,7 +323,7 @@ class GameEventCollectorTest :
 
             val dmg = collector.drainEvents().events.filterIsInstance<GameEvent.DamageDealtToPlayer>()
             dmg.size shouldBe 1
-            dmg[0].sourceForgeId shouldBe creature.id
+            dmg[0].sourceCardId shouldBe ForgeCardId(creature.id)
             dmg[0].targetSeatId shouldBe SeatId(1)
             dmg[0].amount shouldBe 3
             dmg[0].combat.shouldBeTrue()
@@ -358,7 +359,7 @@ class GameEventCollectorTest :
 
             val sac = collector.drainEvents().events.filterIsInstance<GameEvent.CardSacrificed>()
             sac.size shouldBe 1
-            sac[0].forgeCardId shouldBe creature.id
+            sac[0].cardId shouldBe ForgeCardId(creature.id)
             sac[0].seatId shouldBe SeatId(1)
         }
 
@@ -379,8 +380,8 @@ class GameEventCollectorTest :
 
             val attached = collector.drainEvents().events.filterIsInstance<GameEvent.CardAttached>()
             attached.size shouldBe 1
-            attached[0].forgeCardId shouldBe aura.id
-            attached[0].targetForgeId shouldBe creature.id
+            attached[0].cardId shouldBe ForgeCardId(aura.id)
+            attached[0].targetCardId shouldBe ForgeCardId(creature.id)
         }
 
         test("card detached event") {
@@ -397,7 +398,7 @@ class GameEventCollectorTest :
 
             val detached = collector.drainEvents().events.filterIsInstance<GameEvent.CardDetached>()
             detached.size shouldBe 1
-            detached[0].forgeCardId shouldBe aura.id
+            detached[0].cardId shouldBe ForgeCardId(aura.id)
         }
 
         // -- Counters --
@@ -414,7 +415,7 @@ class GameEventCollectorTest :
 
             val cc = collector.drainEvents().events.filterIsInstance<GameEvent.CountersChanged>()
             cc.size shouldBe 1
-            cc[0].forgeCardId shouldBe creature.id
+            cc[0].cardId shouldBe ForgeCardId(creature.id)
             cc[0].counterType shouldBe "+1/+1"
             cc[0].oldCount shouldBe 0
             cc[0].newCount shouldBe 2
@@ -441,7 +442,7 @@ class GameEventCollectorTest :
 
             val pt = collector.drainEvents().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
             pt.size shouldBe 1
-            pt[0].forgeCardId shouldBe creature.id
+            pt[0].cardId shouldBe ForgeCardId(creature.id)
             pt[0].newPower shouldBe creature.getNetPower()
         }
 

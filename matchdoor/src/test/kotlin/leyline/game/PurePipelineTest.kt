@@ -59,7 +59,7 @@ class PurePipelineTest :
                 zone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 100),
                 zone(ZoneIds.LIMBO, ZoneType.Limbo),
             )
-            val events = listOf(GameEvent.LandPlayed(forgeCardId = 42, seatId = SeatId(1)))
+            val events = listOf(GameEvent.LandPlayed(cardId = ForgeCardId(42), seatId = SeatId(1)))
             val previousZones = mapOf(100 to ZoneIds.P1_HAND)
 
             val result = AnnotationPipeline.detectZoneTransfers(
@@ -90,7 +90,7 @@ class PurePipelineTest :
                 zone(ZoneIds.STACK, ZoneType.Stack, 100),
                 zone(ZoneIds.LIMBO, ZoneType.Limbo),
             )
-            val events = listOf(GameEvent.SpellCast(forgeCardId = 42, seatId = SeatId(1)))
+            val events = listOf(GameEvent.SpellCast(cardId = ForgeCardId(42), seatId = SeatId(1)))
             val previousZones = mapOf(100 to ZoneIds.P1_HAND)
 
             val result = AnnotationPipeline.detectZoneTransfers(
@@ -117,7 +117,7 @@ class PurePipelineTest :
                 zone(ZoneIds.BATTLEFIELD, ZoneType.Battlefield, 100),
                 zone(ZoneIds.LIMBO, ZoneType.Limbo),
             )
-            val events = listOf(GameEvent.SpellResolved(forgeCardId = 42, hasFizzled = false))
+            val events = listOf(GameEvent.SpellResolved(cardId = ForgeCardId(42), hasFizzled = false))
             val previousZones = mapOf(100 to ZoneIds.STACK)
 
             val result = AnnotationPipeline.detectZoneTransfers(
@@ -148,7 +148,7 @@ class PurePipelineTest :
                 zone(ZoneIds.P1_GRAVEYARD, ZoneType.Graveyard, 100),
                 zone(ZoneIds.LIMBO, ZoneType.Limbo),
             )
-            val events = listOf(GameEvent.CardDestroyed(forgeCardId = 42, seatId = SeatId(1)))
+            val events = listOf(GameEvent.CardDestroyed(cardId = ForgeCardId(42), seatId = SeatId(1)))
             val previousZones = mapOf(100 to ZoneIds.BATTLEFIELD)
 
             val result = AnnotationPipeline.detectZoneTransfers(
@@ -211,7 +211,7 @@ class PurePipelineTest :
         // Test 2: creature-to-creature damage → DamageDealt
         // (PhaseOrStepModified is now emitted event-driven in Stage 2b, not by combatAnnotations)
         test("combatAnnotations produces DamageDealt for creature-to-creature") {
-            val events = listOf(GameEvent.DamageDealtToCard(sourceForgeId = 10, targetForgeId = 20, amount = 3))
+            val events = listOf(GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3))
 
             val result = AnnotationPipeline.combatAnnotations(
                 events = events,
@@ -234,7 +234,7 @@ class PurePipelineTest :
         // Test 3: creature-to-player damage + life change → ModifiedLife for seat 2
         test("combatAnnotations produces ModifiedLife when life changes") {
             val events = listOf(
-                GameEvent.DamageDealtToPlayer(sourceForgeId = 10, targetSeatId = SeatId(2), amount = 5, combat = true),
+                GameEvent.DamageDealtToPlayer(sourceCardId = ForgeCardId(10), targetSeatId = SeatId(2), amount = 5, combat = true),
             )
 
             val result = AnnotationPipeline.combatAnnotations(
@@ -250,7 +250,7 @@ class PurePipelineTest :
 
         // Test 4: non-combat events only → empty result
         test("combatAnnotations returns empty for non-combat events only") {
-            val events = listOf(GameEvent.LandPlayed(forgeCardId = 42, seatId = SeatId(1)))
+            val events = listOf(GameEvent.LandPlayed(cardId = ForgeCardId(42), seatId = SeatId(1)))
 
             val result = AnnotationPipeline.combatAnnotations(
                 events = events,
