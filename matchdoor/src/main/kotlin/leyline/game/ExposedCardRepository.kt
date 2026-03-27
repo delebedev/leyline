@@ -98,6 +98,14 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
         }
     }
 
+    override fun findGrpIdByNameAnyFace(name: String): Int? {
+        nameToGrpId[name]?.let { return it }
+        return queryGrpIdByNameAnyFace(name)?.also { grpId ->
+            nameToGrpId[name] = grpId
+            grpIdToName[grpId] = name
+        }
+    }
+
     override fun findGrpIdByNameAndSet(name: String, setCode: String): Int? = queryGrpIdByNameAndSet(name, setCode)?.also { grpId ->
         nameToGrpId[name] = grpId
         grpIdToName[grpId] = name
@@ -244,6 +252,27 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
         }
     } catch (e: Exception) {
         log.warn("Failed to query grpId for name='{}': {}", cardName, e.message)
+        null
+    }
+
+    /** Like [queryGrpIdByName] but without isPrimaryCard filter — finds adventure/DFC back faces. */
+    private fun queryGrpIdByNameAnyFace(cardName: String): Int? = try {
+        transaction(database) {
+            Cards.join(Localizations, JoinType.INNER, Cards.titleId, Localizations.locId)
+                .selectAll()
+                .where {
+                    (Localizations.formatted eq 1) and
+                        locMatches(cardName) and
+                        (Cards.isToken eq 0)
+                }
+                .orderBy(Cards.isDigitalOnly)
+                .orderBy(Cards.isRebalanced)
+                .orderBy(Cards.grpId, order = org.jetbrains.exposed.v1.core.SortOrder.DESC)
+                .firstOrNull()
+                ?.get(Cards.grpId)
+        }
+    } catch (e: Exception) {
+        log.warn("Failed to query grpId (any face) for name='{}': {}", cardName, e.message)
         null
     }
 }

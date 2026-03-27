@@ -47,6 +47,9 @@ class PuzzleCardRegistrar(
             if (clientData != null) {
                 repo.registerData(clientData, card.name)
                 log.debug("Registered puzzle card '{}' grpId={} (client DB)", card.name, clientGrpId)
+                // Adventure cards: also register the secondary face (e.g. "Pest Problem")
+                // so token grpId resolution can find it.
+                registerAdventureFace(card)
                 return clientGrpId
             }
         }
@@ -54,7 +57,24 @@ class PuzzleCardRegistrar(
         val data = fromForgeCard(card)
         repo.registerData(data, card.name)
         log.debug("Registered puzzle card '{}' grpId={} (synthetic)", card.name, data.grpId)
+        registerAdventureFace(card)
         return data.grpId
+    }
+
+    /** Register the adventure face name if the card is an adventure card. */
+    private fun registerAdventureFace(card: Card) {
+        if (!card.isAdventureCard) return
+        val secondaryName = card.getState(forge.card.CardStateName.Secondary)?.name ?: return
+        if (repo.findGrpIdByName(secondaryName) != null) return
+        // Adventure faces have IsPrimaryCard=0 — use findGrpIdByNameAnyFace
+        val clientGrpId = clientRepo?.findGrpIdByNameAnyFace(secondaryName)
+        if (clientGrpId != null) {
+            val clientData = clientRepo.findByGrpId(clientGrpId)
+            if (clientData != null) {
+                repo.registerData(clientData, secondaryName)
+                log.debug("Registered adventure face '{}' grpId={}", secondaryName, clientGrpId)
+            }
+        }
     }
 
     /**

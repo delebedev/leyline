@@ -241,7 +241,11 @@ object ObjectMapper {
     /** Resolve token grpId via source card's AbilityIdToLinkedTokenGrpId mapping. */
     private fun resolveTokenGrpId(card: Card, cards: CardRepository): Int? {
         val sourceCard = card.tokenSpawningAbility?.hostCard ?: return null
-        val sourceGrpId = cards.findGrpIdByName(sourceCard.name) ?: return null
+        // Try current state name first (e.g. "Pest Problem" for adventure on stack),
+        // then primary face name as fallback. Token mappings in Arena DB can be on
+        // either face — adventure tokens map from the adventure face grpId.
+        val sourceGrpId = cards.findGrpIdByNameAnyFace(sourceCard.name)
+            ?: return null
         return cards.tokenGrpIdForCard(sourceGrpId, card.name)
     }
 }
