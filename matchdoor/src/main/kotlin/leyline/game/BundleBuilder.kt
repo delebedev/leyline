@@ -856,12 +856,12 @@ class BundleBuilder(
                     )
                     .addOptions(
                         UserOption.newBuilder()
-                            .setOptionPrompt(Prompt.newBuilder().setPromptId(30))
+                            .setOptionPrompt(Prompt.newBuilder().setPromptId(PromptIds.DRAW_CARD))
                             .setResponseType(ClientMessageType.DrawCardResp),
                     )
                     .addOptions(
                         UserOption.newBuilder()
-                            .setOptionPrompt(Prompt.newBuilder().setPromptId(29))
+                            .setOptionPrompt(Prompt.newBuilder().setPromptId(PromptIds.REVEAL_HAND))
                             .setResponseType(ClientMessageType.RevealHandResp),
                     )
                     .setIntermissionPrompt(
