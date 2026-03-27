@@ -394,31 +394,28 @@ object StateMapper {
         )
         annotations.addAll(mechanicResult.transient)
 
-        // AbilityWordActive: scan battlefield for ability word conditions
-        val humanPlayer = bridge.getPlayer(SeatId(1))
-        val abilityWordPersistent = if (humanPlayer != null) {
-            val bfCards = humanPlayer.getZone(forge.game.zone.ZoneType.Battlefield).cards.toList()
-            AbilityWordScanner.scan(
-                battlefieldCards = bfCards,
-                player = humanPlayer,
-                instanceIdResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
-                registryResolver = { card ->
-                    val grpId = bridge.cards.findGrpIdByName(card.name) ?: 0
-                    val cardData = bridge.cards.findByGrpId(grpId)
-                    bridge.abilityRegistryFor(card, cardData)
-                },
-            ).map { entry ->
-                AnnotationBuilder.abilityWordActive(
-                    instanceId = entry.instanceId,
-                    abilityWordName = entry.abilityWordName,
-                    value = entry.value,
-                    threshold = entry.threshold,
-                    abilityGrpId = entry.abilityGrpId,
-                    affectorId = entry.affectorId ?: entry.instanceId,
-                )
-            }
-        } else {
-            emptyList()
+        // AbilityWordActive: scan all battlefield permanents (both seats)
+        val game = bridge.getPlayer(SeatId(1))?.game
+        val bfCards = game?.registeredPlayers
+            ?.flatMap { it.getZone(forge.game.zone.ZoneType.Battlefield).cards.toList() }
+            ?: emptyList()
+        val abilityWordPersistent = AbilityWordScanner.scan(
+            battlefieldCards = bfCards,
+            instanceIdResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
+            registryResolver = { card ->
+                val grpId = bridge.cards.findGrpIdByName(card.name) ?: 0
+                val cardData = bridge.cards.findByGrpId(grpId)
+                bridge.abilityRegistryFor(card, cardData)
+            },
+        ).map { entry ->
+            AnnotationBuilder.abilityWordActive(
+                instanceId = entry.instanceId,
+                abilityWordName = entry.abilityWordName,
+                value = entry.value,
+                threshold = entry.threshold,
+                abilityGrpId = entry.abilityGrpId,
+                affectorId = entry.affectorId ?: entry.instanceId,
+            )
         }
 
         if (initEffectDiff.created.isNotEmpty()) {

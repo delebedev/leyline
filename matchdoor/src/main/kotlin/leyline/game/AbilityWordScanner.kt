@@ -59,23 +59,21 @@ object AbilityWordScanner {
         "Blessing" to ConditionSpec("Blessing"),
     )
 
-    /** Named params checked on Triggers (Threshold$ True, etc.) — same condition names. */
-    private val NAMED_PARAM_CONDITIONS = setOf(
-        "Threshold", "Metalcraft", "Delirium", "Hellbent",
-        "FatefulHour", "Revolt", "Desert", "Blessing", "Ferocious",
-    )
+    /** Named params checked on Triggers (Threshold$ True, etc.) — derived from CONDITIONS. */
+    private val NAMED_PARAM_CONDITIONS = CONDITIONS.keys
 
     /**
      * Scan battlefield permanents for ability word conditions.
      *
-     * @param battlefieldCards cards currently on the battlefield
-     * @param player the controlling player (for value computation)
+     * Scans all cards regardless of controller — each card's value is computed
+     * relative to its controller's game state (GY count, artifact count, etc.).
+     *
+     * @param battlefieldCards cards currently on the battlefield (all players)
      * @param instanceIdResolver ForgeCardId → InstanceId
      * @param registryResolver Card → AbilityRegistry? (for abilityGrpId)
      */
     fun scan(
         battlefieldCards: List<Card>,
-        player: Player,
         instanceIdResolver: (ForgeCardId) -> InstanceId,
         registryResolver: (Card) -> AbilityRegistry?,
     ): List<AbilityWordEntry> {
@@ -83,7 +81,7 @@ object AbilityWordScanner {
         val seen = mutableSetOf<Pair<Int, String>>() // (forgeCardId, conditionName) dedup
 
         for (card in battlefieldCards) {
-            if (card.controller != player) continue
+            val controller = card.controller ?: continue
             val iid = instanceIdResolver(ForgeCardId(card.id)).value
             val registry = registryResolver(card)
 
@@ -97,7 +95,7 @@ object AbilityWordScanner {
                     AbilityWordEntry(
                         instanceId = iid,
                         abilityWordName = spec.abilityWordName,
-                        value = spec.value?.invoke(player),
+                        value = spec.value?.invoke(controller),
                         threshold = spec.threshold,
                         abilityGrpId = registry?.forStaticAbility(sa.id)?.takeIf { it > 0 },
                     ),
@@ -115,7 +113,7 @@ object AbilityWordScanner {
                         AbilityWordEntry(
                             instanceId = iid,
                             abilityWordName = spec.abilityWordName,
-                            value = spec.value?.invoke(player),
+                            value = spec.value?.invoke(controller),
                             threshold = spec.threshold,
                             abilityGrpId = registry?.forTrigger(trigger.id)?.takeIf { it > 0 },
                         ),
