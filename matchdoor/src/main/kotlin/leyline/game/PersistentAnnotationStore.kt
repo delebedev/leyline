@@ -154,7 +154,10 @@ class PersistentAnnotationStore {
 
             // 3b. AbilityWordActive — full-replacement upsert
             nextId = upsertAbilityWords(
-                active, deletions, nextId, mechanicResult.abilityWordPersistent,
+                active,
+                deletions,
+                nextId,
+                mechanicResult.abilityWordPersistent,
             )
 
             // 4. Detached auras
