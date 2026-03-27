@@ -239,6 +239,10 @@ class PersistentAnnotationStore {
         /**
          * Full-replacement upsert for AbilityWordActive persistent annotations.
          * Scanner provides the complete set that SHOULD exist — remove stale, upsert changed.
+         *
+         * Perf: O(N×M) where N = new annotations, M = total active pAnns. Fine for
+         * typical battlefield sizes (~20 permanents). If this becomes hot, pre-index
+         * existing AbilityWordActive entries by key before the upsert loop.
          */
         private fun upsertAbilityWords(
             active: MutableMap<Int, AnnotationInfo>,

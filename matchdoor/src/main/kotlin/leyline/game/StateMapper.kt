@@ -396,9 +396,12 @@ object StateMapper {
 
         // AbilityWordActive: scan all battlefield permanents (both seats)
         val game = bridge.getPlayer(SeatId(1))?.game
-        val bfCards = game?.registeredPlayers
-            ?.flatMap { it.getZone(forge.game.zone.ZoneType.Battlefield).cards.toList() }
-            ?: emptyList()
+        val bfCards = if (game != null) {
+            game.registeredPlayers.flatMap { it.getZone(forge.game.zone.ZoneType.Battlefield).cards.toList() }
+        } else {
+            log.info("AbilityWordActive scan skipped — no game available")
+            emptyList()
+        }
         val abilityWordPersistent = AbilityWordScanner.scan(
             battlefieldCards = bfCards,
             instanceIdResolver = { fid -> bridge.getOrAllocInstanceId(fid) },

@@ -5,7 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import leyline.UnitTag
+import leyline.ConformanceTag
 import leyline.bridge.ForgeCardId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.humanPlayer
@@ -13,7 +13,7 @@ import leyline.conformance.humanPlayer
 class AbilityWordScannerTest :
     FunSpec({
 
-        tags(UnitTag)
+        tags(ConformanceTag)
 
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
