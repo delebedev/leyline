@@ -7,6 +7,8 @@ description: Sync the forge engine submodule with upstream Card-Forge/forge. Mer
 
 Merge upstream `Card-Forge/forge` master into `delebedev/forge` fork, validate against leyline's test suite, and land via PRs to both repos.
 
+**Reference:** `fork-deltas.md` in this folder has the full fork-local delta inventory, preserve surface, and validation history. Read it before starting.
+
 ## Prerequisites
 
 - `mvn` in PATH (`brew install maven`)
@@ -40,7 +42,7 @@ Divergence check:
 git -C forge rev-list --left-right --count HEAD...FETCH_HEAD
 ```
 
-Also check preserve surface for upstream changes:
+Check preserve surface for upstream changes (see `fork-deltas.md` for full file list):
 
 ```bash
 git -C forge log --oneline FETCH_HEAD --not HEAD -- \
@@ -51,18 +53,11 @@ git -C forge log --oneline FETCH_HEAD --not HEAD -- \
   forge-game/src/main/java/forge/game/spellability/AbilityManaPart.java
 ```
 
-If empty: no preserve surface conflicts expected. If not: careful merge ahead.
-
 ### 3. Create sync worktree from origin/master
 
 ```bash
 git -C forge fetch origin master
 git -C forge worktree add ../forge--sync -b sync/upstream-$(date +%Y-%m-%d) origin/master
-```
-
-Then merge upstream:
-
-```bash
 cd ~/src/leyline/forge--sync
 git merge --no-commit --no-ff <upstream-sha>
 ```
@@ -78,7 +73,7 @@ Priority order:
 5. **Adventure/mobile/desktop content** — take upstream (`git checkout --theirs`)
 6. **Everything else** — take upstream
 
-For bulk upstream-takes with files that have spaces:
+Bulk upstream-take for non-leyline files:
 
 ```bash
 git diff --diff-filter=U --name-only | grep -v "preserve-pattern" | while IFS= read -r f; do
@@ -88,18 +83,13 @@ done
 
 ### 5. Install merged forge
 
-`just install-forge` hardcodes `forge/` dir. Run maven directly from the sync worktree:
+`just install-forge` hardcodes `forge/` dir. Run maven directly:
 
 ```bash
 cd ~/src/leyline/forge--sync
 mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install \
   -pl forge-core,forge-game,forge-ai,forge-gui -am \
   -DskipTests -Dcheckstyle.skip=true -q
-```
-
-Then copy jars to where leyline expects them:
-
-```bash
 rsync -a ~/src/leyline/forge--sync/.m2-local/ ~/src/leyline/forge/.m2-local/
 ```
 
@@ -109,7 +99,7 @@ rsync -a ~/src/leyline/forge--sync/.m2-local/ ~/src/leyline/forge/.m2-local/
 cd ~/src/leyline
 just build
 just test-gate        # must pass 100%
-just test-integration # 2 known pre-existing failures ok
+just test-integration # known pre-existing failures ok
 ```
 
 ### 7. If leyline breaks, patch in the right place
@@ -117,129 +107,35 @@ just test-integration # 2 known pre-existing failures ok
 - Engine API change: patch in `forge--sync`, commit, re-install, re-test
 - Leyline adapter code: patch in leyline
 
-Common compile fixes:
-- **Constructor signature changes** (e.g. `HumanCostDecision` gained a `prompt` param) — update fork seam calls
-- **Duplicate methods from auto-merge** (e.g. `StaticAbilityMustAttack`) — git can silently duplicate identical methods added at different positions
-- **Missing fork-local event fire sites** — single-line `game.fireEvent(...)` calls in large files auto-merge away without conflict. Always verify fire sites after merge (see below).
+Common fixes:
+- **Constructor signature changes** — update fork seam calls
+- **Duplicate methods from auto-merge** — git silently duplicates identical methods added at different positions
+- **Missing fork-local event fire sites** — single-line `game.fireEvent(...)` calls auto-merge away. Always verify fire sites (see `fork-deltas.md`)
 
 ### 8. Land it
 
 1. Commit merge in `forge--sync`
-2. Push branch to `delebedev/forge`
-3. Create PR there (list preserved fork deltas in body)
-4. Merge PR
-5. In leyline: `git -C forge fetch origin master && git -C forge checkout origin/master && git add forge`
-6. Create leyline branch + PR with submodule pointer update
-
-## Fork-Local Engine Deltas
-
-These are the patches we carry. After every merge, verify ALL exist — especially fire sites.
-
-### Event classes (in `forge-game/.../event/`)
-
-| Class | Fields | Purpose |
-|---|---|---|
-| `GameEventManaAbilityActivated` | `CardView source, String produced` | Mana globe annotations |
-| `GameEventSpellMovedToStack` | `CardView card` | Cast annotation sequencing |
-| `GameEventControllerChanged` | `Card card, Player oldController, Player newController` | Steal/threaten annotations |
-| `GameEventCardDestroyed` | `Card card, Card activator` | Destroy source attribution (upstream has empty record) |
-| `GameEventSpellAbilityCast` | `List<ManaPaymentInfo> manaPayments` | Mana payment tracking (fork-enriched) |
-| `GameEventTokenCreated` | enriched with card refs | Token source tracking |
-| `GameEventCardSurveiled` | `causeCard` field | Surveil affector tracking |
-
-All custom events need corresponding `visit()` methods in `IGameEventVisitor` + `Base` class.
-
-### Event fire sites (CRITICAL — silently lost in merges)
-
-| Event | Fire site | Location |
-|---|---|---|
-| `GameEventManaAbilityActivated` | `AbilityManaPart.produceMana()` | After `manaPool.add(this.lastManaProduced)` |
-| `GameEventSpellMovedToStack` | `PlaySpellAbility.playAbility()` | After `moveToStack()`, before `changeText()` |
-| `GameEventControllerChanged` | `GameAction.controllerChangeZoneCorrection()` | After `handleChangedControllerSprocketReset()` |
-| `GameEventCardDestroyed` | `GameAction.destroy()` | Uses `(c, sa != null ? sa.getHostCard() : null)` |
-
-**Post-merge check:** grep each fire site file for the event class name. If missing, re-add.
-
-### Other patches
-
-| Patch | File | Purpose |
-|---|---|---|
-| ADR-010 seam methods | `PlayerControllerHuman.java` | `createCostDecision`, `selectTargetsInteractively`, etc. |
-| MyRandom shuffle routing | `MyRandom.java` | Deterministic tests |
-| Suppressed card-init warnings | `CardDb.java` | Quieter test output |
-| Removed `System.out.println` | `GameAction.controllerChangeZoneCorrection()` | Stale debug line |
-
-## Preserve Surface
-
-Files most likely to conflict. When they do, map to leyline consumers before resolving.
-
-### Controller seam
-
-- `forge-game/.../player/PlaySpellAbility.java` (moved from `forge-gui` as of upstream March 2026)
-- `forge-gui/.../player/PlayerControllerHuman.java`
-- `forge-gui/.../player/TargetSelection.java`
-- `forge-gui/.../player/TargetSelectionResult.java`
-
-Leyline consumer: `matchdoor/.../bridge/WebPlayerController.kt`
-
-Note: `HumanPlaySpellAbility.java` was **deleted upstream** (merged into `PlaySpellAbility`). If it reappears in conflicts, delete it.
-
-### Events
-
-- `forge-game/.../event/IGameEventVisitor.java`
-- All fork-local event classes listed above
-
-Leyline consumers: `GameEventCollector.kt`, `GameEvent.kt`, `AnnotationBuilder.kt`
-
-### Build contract
-
-- `pom.xml`, `.mvn/maven.config`
-
-Leyline consumers: `build.gradle.kts`, `justfile`
+2. Push branch to `delebedev/forge`, create PR (list preserved fork deltas)
+3. Merge forge PR
+4. In leyline: `git -C forge fetch origin master && git -C forge checkout origin/master && git add forge`
+5. Create leyline branch + PR with submodule pointer update
 
 ## Troubleshooting
 
 ### Maven install fails with checkstyle errors
-
-Add `-Dcheckstyle.skip=true`. The fork doesn't maintain upstream's checkstyle config.
+Add `-Dcheckstyle.skip=true`.
 
 ### Upstream fetch times out
-
-Use `--depth=100`. The Card-Forge/forge repo is huge; full fetch over HTTPS is unreliable.
+Use `--depth=100`.
 
 ### Compile error: duplicate method
-
-Auto-merge can silently duplicate identical methods when both sides added the same code. Search for the method name — if it appears twice, delete one.
+Auto-merge artifact. Search for the method name — delete the duplicate.
 
 ### Compile error: constructor signature mismatch
+Read the new constructor, update the fork seam call.
 
-Upstream changed a constructor that fork seam code calls. Read the new constructor, update the call. Common: `HumanCostDecision` gaining/losing parameters.
-
-### Tests fail for "missing annotation" after merge
-
-Don't assume the annotation pipeline broke. First check:
-1. Are fork-local event fire sites still present? (grep the fire site files)
-2. Is the engine thread crashing earlier? (check test XML `system-out/system-err`)
-3. Did upstream change Java call paths that bypass Kotlin overrides? (nullability on controller methods)
+### Tests fail for "missing annotation"
+First check: (1) fork-local fire sites still present? (2) engine thread crashing earlier? (3) upstream changed Java call paths bypassing Kotlin overrides?
 
 ### Integration test timing regression
-
-If `AiCombatAutoPassTest` or similar timing tests regress, check if it's pre-existing by testing against the old forge jars.
-
-## Validation History
-
-### 2026-03-27
-
-- Upstream: `28e1847a5bc` (466 commits)
-- Fork tip: `dba25420f6b`
-- Conflicts: CI workflows, IGameEventVisitor, CounterKeywordType/CounterType, ~280 adventure/content files
-- Gate: 646/646 test-gate, integration 2 pre-existing failures
-- Notable: worktree initially branched from stale submodule pin — had to redo from `origin/master`
-
-### 2026-03-17
-
-- Upstream: `02a1da0cac`
-- Fork tip: `865759fec1`
-- Conflicts: CI workflows, DraftEffect, PlaySpellAbility, HumanPlaySpellAbility, PlayerControllerHuman
-- Gate: 586/586 test-gate, 138/138 integration
-- Notable: engine-thread crash in WebPlayerController from Java-nullable prompt/matrix after upstream controller refactoring
+Check if pre-existing by testing against old forge jars.
