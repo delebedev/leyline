@@ -51,8 +51,8 @@ speed = 1.0
 [dev]
 # Crash on unexpected nulls/fallbacks (missing grpId, instanceId not in map,
 # protocol sequencing errors). Off = warn + fallback (production behavior).
-#strict = true
+strict = true
 
 # Crash when auto-pass fires from missing data (bridge timeouts, prompt
 # timeouts, auto-resolve). Off = pass priority silently (production behavior).
-#strict_pass = true
+strict_pass = true
