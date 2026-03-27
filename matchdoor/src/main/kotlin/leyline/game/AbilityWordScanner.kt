@@ -31,32 +31,19 @@ object AbilityWordScanner {
     )
 
     private data class ConditionSpec(
-        val abilityWordName: String,
         val threshold: Int? = null,
         val value: ((Player) -> Int)? = null,
     )
 
-    /** Maps Forge Condition$ values → Arena wire shape. */
+    /** Maps Forge Condition$ name → Arena wire shape. Key doubles as AbilityWordName. */
     private val CONDITIONS = mapOf(
-        "Threshold" to ConditionSpec(
-            "Threshold",
-            threshold = 7,
-            value = { p -> p.getZone(ZoneType.Graveyard).size() },
-        ),
-        "Metalcraft" to ConditionSpec(
-            "Metalcraft",
-            threshold = 3,
-            value = { p -> p.getCardsIn(ZoneType.Battlefield).toList().count { it.isArtifact } },
-        ),
-        "Delirium" to ConditionSpec(
-            "Delirium",
-            threshold = 4,
-            value = { p -> AbilityUtils.countCardTypesFromList(p.getCardsIn(ZoneType.Graveyard), false) },
-        ),
-        "Ferocious" to ConditionSpec("Ferocious"),
-        "Hellbent" to ConditionSpec("Hellbent"),
-        "Desert" to ConditionSpec("Desert"),
-        "Blessing" to ConditionSpec("Blessing"),
+        "Threshold" to ConditionSpec(threshold = 7, value = { p -> p.getZone(ZoneType.Graveyard).size() }),
+        "Metalcraft" to ConditionSpec(threshold = 3, value = { p -> p.getCardsIn(ZoneType.Battlefield).toList().count { it.isArtifact } }),
+        "Delirium" to ConditionSpec(threshold = 4, value = { p -> AbilityUtils.countCardTypesFromList(p.getCardsIn(ZoneType.Graveyard), false) }),
+        "Ferocious" to ConditionSpec(),
+        "Hellbent" to ConditionSpec(),
+        "Desert" to ConditionSpec(),
+        "Blessing" to ConditionSpec(),
     )
 
     /** Named params checked on Triggers (Threshold$ True, etc.) — derived from CONDITIONS. */
@@ -94,7 +81,7 @@ object AbilityWordScanner {
                 results.add(
                     AbilityWordEntry(
                         instanceId = iid,
-                        abilityWordName = spec.abilityWordName,
+                        abilityWordName = condition,
                         value = spec.value?.invoke(controller),
                         threshold = spec.threshold,
                         abilityGrpId = registry?.forStaticAbility(sa.id)?.takeIf { it > 0 },
@@ -112,7 +99,7 @@ object AbilityWordScanner {
                     results.add(
                         AbilityWordEntry(
                             instanceId = iid,
-                            abilityWordName = spec.abilityWordName,
+                            abilityWordName = paramName,
                             value = spec.value?.invoke(controller),
                             threshold = spec.threshold,
                             abilityGrpId = registry?.forTrigger(trigger.id)?.takeIf { it > 0 },

@@ -31,7 +31,6 @@ class AbilityWordScannerTest :
 
             val results = AbilityWordScanner.scan(
                 battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
-
                 instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
                 registryResolver = { card ->
                     val grpId = b.cards.findGrpIdByName(card.name) ?: 0
@@ -56,7 +55,6 @@ class AbilityWordScannerTest :
 
             val results = AbilityWordScanner.scan(
                 battlefieldCards = human.getZone(ZoneType.Battlefield).cards.toList(),
-
                 instanceIdResolver = { fid -> b.getOrAllocInstanceId(fid) },
                 registryResolver = { _ -> null },
             )
