@@ -160,6 +160,9 @@ class PersistentAnnotationStore {
                 mechanicResult.abilityWordPersistent,
             )
 
+            // 3c. Qualification — full-replacement for adventure-exiled cards
+            nextId = upsertQualifications(active, deletions, nextId, mechanicResult.qualificationPersistent)
+
             // 4. Detached auras
             for (forgeCardId in mechanicResult.detachedForgeCardIds) {
                 val auraIid = resolveInstanceId(forgeCardId).value
@@ -277,6 +280,44 @@ class PersistentAnnotationStore {
                         active[numbered.id] = numbered
                     }
                 } else {
+                    val numbered = ann.toBuilder().setId(nextId++).build()
+                    active[numbered.id] = numbered
+                }
+            }
+            return nextId
+        }
+
+        /**
+         * Full-replacement upsert for Qualification persistent annotations.
+         * Scanner provides the complete set of adventure-exiled cards — remove stale, add new.
+         * Qualification details are constant (no value changes), so no change detection needed.
+         */
+        private fun upsertQualifications(
+            active: MutableMap<Int, AnnotationInfo>,
+            deletions: MutableList<Int>,
+            startId: Int,
+            newAnnotations: List<AnnotationInfo>,
+        ): Int {
+            var nextId = startId
+            val newByIid = newAnnotations.associateBy { it.affectedIdsList.firstOrNull() ?: 0 }
+            // Remove stale
+            val staleIds = active.entries
+                .filter { (_, ann) ->
+                    ann.typeList.any { it == AnnotationType.Qualification } &&
+                        (ann.affectedIdsList.firstOrNull() ?: 0) !in newByIid
+                }
+                .map { it.key }
+            for (id in staleIds) {
+                active.remove(id)
+                deletions.add(id)
+            }
+            // Add new (skip if already present for this instanceId)
+            for ((iid, ann) in newByIid) {
+                val exists = active.values.any { existing ->
+                    existing.typeList.any { it == AnnotationType.Qualification } &&
+                        (existing.affectedIdsList.firstOrNull() ?: 0) == iid
+                }
+                if (!exists) {
                     val numbered = ann.toBuilder().setId(nextId++).build()
                     active[numbered.id] = numbered
                 }

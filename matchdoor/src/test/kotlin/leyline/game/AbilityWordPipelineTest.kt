@@ -20,11 +20,13 @@ class AbilityWordPipelineTest :
 
         fun mechanicResult(
             abilityWordPersistent: List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo> = emptyList(),
+            qualificationPersistent: List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo> = emptyList(),
         ) =
             AnnotationPipeline.MechanicAnnotationResult(
                 transient = emptyList(),
                 persistent = emptyList(),
                 abilityWordPersistent = abilityWordPersistent,
+                qualificationPersistent = qualificationPersistent,
             )
 
         test("AbilityWordActive created in first batch") {
@@ -148,6 +150,74 @@ class AbilityWordPipelineTest :
             }
             awAnns shouldHaveSize 1
             awAnns[0].id shouldBe 3
+            result.deletedIds.shouldBeEmpty()
+        }
+
+        // --- Qualification (adventure exile) ---
+
+        test("Qualification created in first batch") {
+            val ann = AnnotationBuilder.qualification(instanceId = 348)
+
+            val result = PersistentAnnotationStore.computeBatch(
+                currentActive = emptyMap(),
+                startPersistentId = 1,
+                effectPersistent = emptyList(),
+                effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                transferPersistent = emptyList(),
+                mechanicResult = mechanicResult(qualificationPersistent = listOf(ann)),
+                resolveInstanceId = ::testResolver,
+            )
+
+            val qAnns = result.allAnnotations.filter {
+                AnnotationType.Qualification in it.typeList
+            }
+            qAnns shouldHaveSize 1
+            qAnns[0].affectedIdsList shouldBe listOf(348)
+            qAnns[0].detailInt("QualificationType") shouldBe 47
+            result.deletedIds.shouldBeEmpty()
+        }
+
+        test("Qualification removed when card leaves exile") {
+            val old = AnnotationBuilder.qualification(instanceId = 348)
+                .toBuilder().setId(5).build()
+
+            val result = PersistentAnnotationStore.computeBatch(
+                currentActive = mapOf(5 to old),
+                startPersistentId = 10,
+                effectPersistent = emptyList(),
+                effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                transferPersistent = emptyList(),
+                mechanicResult = mechanicResult(qualificationPersistent = emptyList()),
+                resolveInstanceId = ::testResolver,
+            )
+
+            result.allAnnotations.filter {
+                AnnotationType.Qualification in it.typeList
+            }.shouldBeEmpty()
+            result.deletedIds shouldBe listOf(5)
+        }
+
+        test("Qualification not churned when unchanged") {
+            val existing = AnnotationBuilder.qualification(instanceId = 348)
+                .toBuilder().setId(5).build()
+
+            val same = AnnotationBuilder.qualification(instanceId = 348)
+
+            val result = PersistentAnnotationStore.computeBatch(
+                currentActive = mapOf(5 to existing),
+                startPersistentId = 10,
+                effectPersistent = emptyList(),
+                effectDiff = EffectTracker.DiffResult(emptyList(), emptyList()),
+                transferPersistent = emptyList(),
+                mechanicResult = mechanicResult(qualificationPersistent = listOf(same)),
+                resolveInstanceId = ::testResolver,
+            )
+
+            val qAnns = result.allAnnotations.filter {
+                AnnotationType.Qualification in it.typeList
+            }
+            qAnns shouldHaveSize 1
+            qAnns[0].id shouldBe 5
             result.deletedIds.shouldBeEmpty()
         }
     })

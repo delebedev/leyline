@@ -494,6 +494,8 @@ object AnnotationPipeline {
         val controllerRevertedForgeCardIds: List<ForgeCardId> = emptyList(),
         /** AbilityWordActive annotations from scanner — full replacement set for this GSM. */
         val abilityWordPersistent: List<AnnotationInfo> = emptyList(),
+        /** Qualification annotations for adventure-exiled cards — full replacement set for this GSM. */
+        val qualificationPersistent: List<AnnotationInfo> = emptyList(),
     ) {
         /** Tracks an active controller-change effect for persistent annotation lifecycle. */
         data class ControllerChangedEffect(

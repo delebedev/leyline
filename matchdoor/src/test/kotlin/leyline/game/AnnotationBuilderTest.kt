@@ -12,6 +12,7 @@ import leyline.conformance.detailUint
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
+@Suppress("LargeClass")
 class AnnotationBuilderTest :
     FunSpec({
 
@@ -743,6 +744,21 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.PredictedDirectDamage
             ann.affectedIdsList shouldContain 336
             ann.detailInt("value") shouldBe 2
+        }
+
+        // --- Qualification (Tier 1 persistent) ---
+
+        test("qualificationAdventure") {
+            val ann = AnnotationBuilder.qualification(instanceId = 348)
+            ann.typeList shouldContain AnnotationType.Qualification
+            assertSoftly {
+                ann.affectedIdsList shouldBe listOf(348)
+                ann.detailInt("QualificationType") shouldBe 47
+                ann.detailInt("QualificationSubtype") shouldBe 0
+                ann.detailUint("grpid") shouldBe 196
+                ann.detailInt("SourceParent") shouldBe 0
+            }
+            ann.affectorId shouldBe 0
         }
 
         // --- AbilityWordActive (Tier 1 persistent) ---

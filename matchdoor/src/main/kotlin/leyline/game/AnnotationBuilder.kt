@@ -544,6 +544,25 @@ object AnnotationBuilder {
         }
         .build()
 
+    /**
+     * Persistent annotation marking a card as eligible for an alternate cast
+     * (adventure from exile, etc.). Wire shape from 2026-03-25 recording.
+     */
+    fun qualification(
+        instanceId: Int,
+        qualificationType: Int = 47,
+        qualificationSubtype: Int = 0,
+        grpId: Int = 196,
+        sourceParent: Int = 0,
+    ): AnnotationInfo = AnnotationInfo.newBuilder()
+        .addType(AnnotationType.Qualification)
+        .addAffectedIds(instanceId)
+        .addDetails(int32Detail(DetailKeys.SOURCE_PARENT, sourceParent))
+        .addDetails(uint32Detail(DetailKeys.GRPID, grpId))
+        .addDetails(int32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
+        .addDetails(int32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType))
+        .build()
+
     /** Map Forge counter type name to proto CounterType numeric value.
      *  Forge's CounterEnumType.getName() returns display names ("+1/+1", "LOYAL")
      *  which differ from both the Java enum constant ("P1P1", "LOYALTY") and the

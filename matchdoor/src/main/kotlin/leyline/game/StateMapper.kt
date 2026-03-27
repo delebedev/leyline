@@ -1,6 +1,7 @@
 package leyline.game
 
 import forge.game.Game
+import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
 import leyline.bridge.findCard
@@ -430,7 +431,23 @@ object StateMapper {
         val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
         annotations.addAll(effectTransient)
 
-        val enrichedMechanicResult = mechanicResult.copy(abilityWordPersistent = abilityWordPersistent)
+        // Qualification pAnn for adventure-exiled cards (cast-from-exile eligibility marker)
+        val qualificationPersistent = if (game != null) {
+            game.registeredPlayers
+                .flatMap { it.getZone(forge.game.zone.ZoneType.Exile).cards.toList() }
+                .filter { it.isOnAdventure }
+                .map { card ->
+                    val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+                    AnnotationBuilder.qualification(instanceId = iid)
+                }
+        } else {
+            emptyList()
+        }
+
+        val enrichedMechanicResult = mechanicResult.copy(
+            abilityWordPersistent = abilityWordPersistent,
+            qualificationPersistent = qualificationPersistent,
+        )
         val batch = PersistentAnnotationStore.computeBatch(
             currentActive = persistSnapshot,
             startPersistentId = startPersistentId,
