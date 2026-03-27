@@ -103,7 +103,29 @@ Two creatures tapped: Brute Suit (power 4, weight=4) + Prosperous Thief (power 2
 
 ## Supporting evidence needed
 
-- [ ] Other vehicles in recordings — Brute Suit (79681) in same session, compare crew annotation shape
-- [ ] Vehicle with crew cost < total available power — does `minSel` always equal crew number?
+- [x] Other vehicles in recordings — Brute Suit (79681) in same session, compare crew annotation shape — **confirmed identical shape** (see cross-vehicle comparison below)
+- [x] Vehicle with crew cost < total available power — does `minSel` always equal crew number? — **confirmed: `minSel` = crew number** (Crew 1 → minSel=1, Crew 4 → minSel=4)
 - [ ] ETB with 2+ vehicles already on board — confirm X scales correctly (expect damage=4+ with 2 vehicles pre-ETB)
 - [ ] Puzzle: minimal crew scenario — 1 creature exactly meeting crew cost, verify annotation sequence
+
+## Cross-vehicle crew comparison (same session)
+
+Raw PayCostsReq decoded from protobuf for both vehicles in the same game:
+
+| Field | Brute Suit (Crew 1, gsId 267) | Surgehacker Mech (Crew 4, gsId 271) |
+|-------|-------------------------------|--------------------------------------|
+| promptId | 8929 | 8922 |
+| abilityGrpId | 76556 | 76611 |
+| `minSel` (field 4.1) | **1** | **4** |
+| `maxSel` (field 4.2) | 2147483647 (MAX_INT) | 2147483647 (MAX_INT) |
+| `context` (field 4.3) | 7 (NonManaPayment) | 7 (NonManaPayment) |
+| `optionContext` (field 4.5) | 2 (Payment) | 2 (Payment) |
+| available ids | [293, 354] (Prosperous Thief, Ninja token) | [293, 348] (Prosperous Thief, Brute Suit) |
+| weights | [2, 1] (power of each creature) | [2, 4] (power of each creature) |
+
+**Conclusions:**
+- `minSel` = crew number. Confirmed across Crew 1 and Crew 4.
+- `maxSel` = MAX_INT — no upper limit on creatures tapped (only total power matters).
+- `weights` = creature power, used to check if selection meets crew cost threshold.
+- `context: 7` = NonManaPayment enum value. `optionContext: 2` = Payment.
+- The PayCostsReq shape is identical across vehicles — only `minSel`, `promptId`, and `abilityGrpId` differ.
