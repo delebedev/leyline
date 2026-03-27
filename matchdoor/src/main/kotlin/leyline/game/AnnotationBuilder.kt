@@ -514,6 +514,34 @@ object AnnotationBuilder {
             .addDetails(int32Detail(DetailKeys.COUNTER_TYPE, counterType))
             .build()
 
+    /**
+     * Persistent annotation for ability word condition tracking.
+     *
+     * Wire shape from recordings:
+     * - types: [AbilityWordActive]
+     * - affectorId: creature instanceId (or seat=1 for Descended)
+     * - affectedIds: [creature instanceId]
+     * - details: AbilityWordName (always), value/threshold/AbilityGrpId (quantitative only)
+     */
+    fun abilityWordActive(
+        instanceId: Int,
+        abilityWordName: String,
+        value: Int? = null,
+        threshold: Int? = null,
+        abilityGrpId: Int? = null,
+        affectorId: Int = instanceId,
+    ): AnnotationInfo = AnnotationInfo.newBuilder()
+        .addType(AnnotationType.AbilityWordActive)
+        .setAffectorId(affectorId)
+        .addAffectedIds(instanceId)
+        .addDetails(typedStringDetail(DetailKeys.ABILITY_WORD_NAME, abilityWordName))
+        .apply {
+            if (value != null) addDetails(int32Detail(DetailKeys.VALUE, value))
+            if (threshold != null) addDetails(int32Detail(DetailKeys.THRESHOLD, threshold))
+            if (abilityGrpId != null) addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId))
+        }
+        .build()
+
     /** Map Forge counter type name to proto CounterType numeric value.
      *  Forge's CounterEnumType.getName() returns display names ("+1/+1", "LOYAL")
      *  which differ from both the Java enum constant ("P1P1", "LOYALTY") and the

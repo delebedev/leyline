@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.conformance.detail
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
 import leyline.conformance.detailUint
@@ -742,5 +743,43 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.PredictedDirectDamage
             ann.affectedIdsList shouldContain 336
             ann.detailInt("value") shouldBe 2
+        }
+
+        // --- AbilityWordActive (Tier 1 persistent) ---
+
+        test("abilityWordActiveQuantitative") {
+            val ann = AnnotationBuilder.abilityWordActive(
+                instanceId = 295,
+                abilityWordName = "Threshold",
+                value = 5,
+                threshold = 7,
+                abilityGrpId = 175886,
+            )
+            ann.typeList shouldContain AnnotationType.AbilityWordActive
+            assertSoftly {
+                ann.affectorId shouldBe 295
+                ann.affectedIdsList shouldBe listOf(295)
+                ann.detailString("AbilityWordName") shouldBe "Threshold"
+                ann.detailInt("value") shouldBe 5
+                ann.detailInt("threshold") shouldBe 7
+                ann.detailInt("AbilityGrpId") shouldBe 175886
+            }
+        }
+
+        test("abilityWordActiveKeywordOnly") {
+            val ann = AnnotationBuilder.abilityWordActive(
+                instanceId = 303,
+                abilityWordName = "Descended",
+                affectorId = 1,
+            )
+            ann.typeList shouldContain AnnotationType.AbilityWordActive
+            assertSoftly {
+                ann.affectorId shouldBe 1
+                ann.affectedIdsList shouldBe listOf(303)
+                ann.detailString("AbilityWordName") shouldBe "Descended"
+            }
+            // No value/threshold/abilityGrpId details for keyword-only variants
+            ann.detail("value") shouldBe null
+            ann.detail("threshold") shouldBe null
         }
     })

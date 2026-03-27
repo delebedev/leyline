@@ -61,6 +61,22 @@ git diff --name-only main...HEAD | grep 'src/test/'
 
 **Flag if:** production code changed in a module but zero test files changed in that module. Exception: pure refactors that don't change behavior (rename, move, extract).
 
+#### 2b½. Lint & static analysis
+
+Run detekt and spotless for changed modules. These catch issues (cyclomatic complexity, formatting) that `just test-gate` does not — CI runs them separately.
+
+```bash
+# Determine changed modules
+changed_modules=$(git diff --name-only main...HEAD | grep 'src/main/' | sed 's|/src/.*||' | sort -u)
+
+# Run detekt + spotlessCheck for each
+for mod in $changed_modules; do
+  ./gradlew :${mod}:detekt :${mod}:spotlessCheck
+done
+```
+
+**Flag if:** detekt or spotless fails. Fix before creating the PR — CI will reject it.
+
 #### 2c. Catalog & rosetta freshness
 
 If matchdoor production code changed (new annotations, zone transitions, action handlers, game events):

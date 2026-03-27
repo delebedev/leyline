@@ -152,6 +152,14 @@ class PersistentAnnotationStore {
                 active[numbered.id] = numbered
             }
 
+            // 3b. AbilityWordActive — full-replacement upsert
+            nextId = upsertAbilityWords(
+                active,
+                deletions,
+                nextId,
+                mechanicResult.abilityWordPersistent,
+            )
+
             // 4. Detached auras
             for (forgeCardId in mechanicResult.detachedForgeCardIds) {
                 val auraIid = resolveInstanceId(ForgeCardId(forgeCardId)).value
@@ -220,6 +228,61 @@ class PersistentAnnotationStore {
                     ann.typeList.any { it == AnnotationType.LayeredEffect } &&
                     ann.affectedIdsList.contains(cardIid)
             }?.key
+
+        private fun abilityWordKey(ann: AnnotationInfo): Pair<Int, String> {
+            val iid = ann.affectedIdsList.firstOrNull() ?: 0
+            val name = ann.detailsList.firstOrNull { it.key == DetailKeys.ABILITY_WORD_NAME }
+                ?.let { if (it.valueStringCount > 0) it.getValueString(0) else null } ?: ""
+            return iid to name
+        }
+
+        /**
+         * Full-replacement upsert for AbilityWordActive persistent annotations.
+         * Scanner provides the complete set that SHOULD exist — remove stale, upsert changed.
+         *
+         * Perf: O(N×M) where N = new annotations, M = total active pAnns. Fine for
+         * typical battlefield sizes (~20 permanents). If this becomes hot, pre-index
+         * existing AbilityWordActive entries by key before the upsert loop.
+         */
+        private fun upsertAbilityWords(
+            active: MutableMap<Int, AnnotationInfo>,
+            deletions: MutableList<Int>,
+            startId: Int,
+            newAnnotations: List<AnnotationInfo>,
+        ): Int {
+            var nextId = startId
+            val newByKey = newAnnotations.associateBy { abilityWordKey(it) }
+            // Remove stale
+            val staleIds = active.entries
+                .filter { (_, ann) ->
+                    ann.typeList.any { it == AnnotationType.AbilityWordActive } &&
+                        abilityWordKey(ann) !in newByKey
+                }
+                .map { it.key }
+            for (id in staleIds) {
+                active.remove(id)
+                deletions.add(id)
+            }
+            // Upsert new/changed
+            for ((key, ann) in newByKey) {
+                val existing = active.entries.firstOrNull { (_, e) ->
+                    e.typeList.any { it == AnnotationType.AbilityWordActive } &&
+                        abilityWordKey(e) == key
+                }
+                if (existing != null) {
+                    if (existing.value.detailsList != ann.detailsList) {
+                        active.remove(existing.key)
+                        deletions.add(existing.key)
+                        val numbered = ann.toBuilder().setId(nextId++).build()
+                        active[numbered.id] = numbered
+                    }
+                } else {
+                    val numbered = ann.toBuilder().setId(nextId++).build()
+                    active[numbered.id] = numbered
+                }
+            }
+            return nextId
+        }
 
         private fun findByAura(active: Map<Int, AnnotationInfo>, auraIid: Int): Int? =
             active.entries.firstOrNull { (_, ann) ->

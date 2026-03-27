@@ -394,6 +394,33 @@ object StateMapper {
         )
         annotations.addAll(mechanicResult.transient)
 
+        // AbilityWordActive: scan all battlefield permanents (both seats)
+        val game = bridge.getPlayer(SeatId(1))?.game
+        val bfCards = if (game != null) {
+            game.registeredPlayers.flatMap { it.getZone(forge.game.zone.ZoneType.Battlefield).cards.toList() }
+        } else {
+            log.info("AbilityWordActive scan skipped — no game available")
+            emptyList()
+        }
+        val abilityWordPersistent = AbilityWordScanner.scan(
+            battlefieldCards = bfCards,
+            instanceIdResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
+            registryResolver = { card ->
+                val grpId = bridge.cards.findGrpIdByName(card.name) ?: 0
+                val cardData = bridge.cards.findByGrpId(grpId)
+                bridge.abilityRegistryFor(card, cardData)
+            },
+        ).map { entry ->
+            AnnotationBuilder.abilityWordActive(
+                instanceId = entry.instanceId,
+                abilityWordName = entry.abilityWordName,
+                value = entry.value,
+                threshold = entry.threshold,
+                abilityGrpId = entry.abilityGrpId,
+                affectorId = entry.affectorId ?: entry.instanceId,
+            )
+        }
+
         if (initEffectDiff.created.isNotEmpty()) {
             val (initTransient, _) = AnnotationPipeline.effectAnnotations(initEffectDiff)
             annotations.addAll(initTransient)
@@ -403,13 +430,14 @@ object StateMapper {
         val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
         annotations.addAll(effectTransient)
 
+        val enrichedMechanicResult = mechanicResult.copy(abilityWordPersistent = abilityWordPersistent)
         val batch = PersistentAnnotationStore.computeBatch(
             currentActive = persistSnapshot,
             startPersistentId = startPersistentId,
             effectPersistent = effectPersistent,
             effectDiff = effectDiff,
             transferPersistent = transferPersistent,
-            mechanicResult = mechanicResult,
+            mechanicResult = enrichedMechanicResult,
             resolveInstanceId = { fid -> bridge.getOrAllocInstanceId(fid) },
             resolveForgeCardId = { iid -> bridge.getForgeCardId(iid) },
         )
