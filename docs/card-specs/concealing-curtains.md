@@ -116,10 +116,11 @@ gsId=163:
 
 Scope: transform mechanic only. The on-transform trigger (reveal/choose/discard/draw) is autopassed — Forge resolves it internally, leyline emits no interactive wire for it.
 
-1. **ObjectMapper: grpId mutation on DFC transform** — when Forge fires `GameEventCardStatsChanged(transform=true)`, the existing gameObject's grpId, overlayGrpId, subtypes, P/T, name, and uniqueAbilities must all update in-place in the Diff. No ZoneTransfer.
+1. **othersideGrpId on DFC gameObjects** — proto field 40 never set. Front face carries back-face grpId, back face carries front-face grpId. Applies to all DFC objects on any zone.
 2. **Qualification persistent annotation (type 42)** — not wired at all. Must emit on transform with keyword data (grpId=142 for Menace, QualificationType=40). Also needed for other keyword-granting effects.
-3. **TriggeringObject persistent annotation** — links trigger ability to its source. Format: affectorId=trigger-abilityId, affectedIds=[source-instanceId], source_zone.
-4. **Update `docs/catalog.yaml`** — add `dfc-activated-transform` entry documenting the in-place grpId mutation wire shape, distinct from saga DFC.
+3. **Update `docs/catalog.yaml`** — add `dfc-activated-transform` entry documenting the in-place grpId mutation wire shape, distinct from saga DFC.
+
+Note: grpId mutation itself works via snapshot-compare (resolveGrpId uses card.name which changes on transform). TriggeringObject pAnn (type 32) deferred — cosmetic when trigger is autopassed.
 
 ### Phase 2 — Reveal opponent hand infrastructure (issue #256)
 
