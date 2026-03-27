@@ -82,7 +82,7 @@ private suspend fun proxyDoorbell(call: io.ktor.server.application.ApplicationCa
     var json = resp.body()
     // Rewrite FdURI to localhost so client connects to our proxy FD
     json = json.replace(Regex(""""FdURI"\s*:\s*"[^"]+""""), """"FdURI":"$fdHost"""")
-    log.info("Proxy doorbell: {} -> {} (rewrote FdURI={})", call.request.path(), targetUrl, fdHost)
+    log.info("Proxy doorbell: {} -> {} (status={}, rewrote FdURI={})", call.request.path(), targetUrl, resp.statusCode(), fdHost)
     call.respondText(
         json,
         ContentType.Application.Json,
