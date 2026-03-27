@@ -44,6 +44,14 @@ object DevCheck {
     }
 
     /**
+     * Pure guard — crash in strict mode with no return value.
+     * Use at bail-out sites where the caller returns/continues after the check.
+     */
+    inline fun fail(message: () -> String) {
+        if (strict) error("[strict] ${message()}")
+    }
+
+    /**
      * Call at auto-pass / auto-resolve sites. If [strictPass] is on, throw.
      * Otherwise the caller proceeds with its fallback behavior.
      */

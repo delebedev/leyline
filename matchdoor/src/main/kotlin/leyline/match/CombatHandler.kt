@@ -133,7 +133,7 @@ open class CombatHandler(private val ops: SessionOps) {
         val seatBridge = bridge.seat(ops.seatId.value)
         val pending = seatBridge.action.getPending() ?: run {
             log.warn("CombatHandler: SubmitAttackersReq but no pending action — recovering")
-            DevCheck.requireOrNull<Unit>(null) { "SubmitAttackersReq but no pending action" }
+            DevCheck.fail { "SubmitAttackersReq but no pending action" }
             ops.sendRealGameState(bridge)
             return
         }
@@ -191,7 +191,7 @@ open class CombatHandler(private val ops: SessionOps) {
         val seatBridge = bridge.seat(ops.seatId.value)
         val pending = seatBridge.action.getPending() ?: run {
             log.warn("CombatHandler: CancelAttackers but no pending action — recovering")
-            DevCheck.requireOrNull<Unit>(null) { "CancelAttackers but no pending action" }
+            DevCheck.fail { "CancelAttackers but no pending action" }
             ops.sendRealGameState(bridge)
             return
         }
@@ -264,7 +264,7 @@ open class CombatHandler(private val ops: SessionOps) {
         val seatBridge = bridge.seat(ops.seatId.value)
         val pending = seatBridge.action.getPending() ?: run {
             log.warn("CombatHandler: SubmitBlockersReq but no pending action — recovering")
-            DevCheck.requireOrNull<Unit>(null) { "SubmitBlockersReq but no pending action" }
+            DevCheck.fail { "SubmitBlockersReq but no pending action" }
             ops.sendRealGameState(bridge)
             return
         }
@@ -419,7 +419,7 @@ open class CombatHandler(private val ops: SessionOps) {
         }
         val prompt = wpc.pendingDamageAssignment ?: run {
             log.warn("CombatHandler: AssignDamageResp but no pending damage assignment")
-            DevCheck.requireOrNull<Unit>(null) { "AssignDamageResp but no pending damage assignment" }
+            DevCheck.fail { "AssignDamageResp but no pending damage assignment" }
             ops.sendRealGameState(bridge)
             return
         }

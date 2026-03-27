@@ -227,13 +227,13 @@ object ObjectMapper {
         if (card.isToken) {
             return resolveTokenGrpId(card, cards) ?: run {
                 log.error("token grpId=0 for '{}' (forgeId={})", card.name, card.id)
-                DevCheck.requireOrNull<Int>(null) { "token grpId=0 for '${card.name}' (forgeId=${card.id})" }
+                DevCheck.fail { "token grpId=0 for '${card.name}' (forgeId=${card.id})" }
                 GameBridge.FALLBACK_GRPID
             }
         }
         return cards.findGrpIdByName(card.name) ?: run {
             log.error("grpId=0 for card '{}' (forgeId={}): not in client card DB", card.name, card.id)
-            DevCheck.requireOrNull<Int>(null) { "grpId=0 for '${card.name}' (forgeId=${card.id}): not in client card DB" }
+            DevCheck.fail { "grpId=0 for '${card.name}' (forgeId=${card.id}): not in client card DB" }
             GameBridge.FALLBACK_GRPID
         }
     }

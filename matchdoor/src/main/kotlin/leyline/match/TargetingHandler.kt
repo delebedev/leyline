@@ -45,7 +45,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val resp = greMsg.selectTargetsResp
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: run {
             log.warn("TargetingHandler: SelectTargetsResp but no pending prompt")
-            DevCheck.requireOrNull<Unit>(null) { "SelectTargetsResp but no pending prompt" }
+            DevCheck.fail { "SelectTargetsResp but no pending prompt" }
             return
         }
 
@@ -88,7 +88,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val pending = pendingInteraction as? PendingClientInteraction.TargetSelection
         if (pending == null) {
             log.warn("TargetingHandler: SubmitTargetsReq but no pending target selection")
-            DevCheck.requireOrNull<Unit>(null) { "SubmitTargetsReq but no pending target selection" }
+            DevCheck.fail { "SubmitTargetsReq but no pending target selection" }
             return
         }
         pendingInteraction = null
@@ -121,7 +121,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val resp = greMsg.selectNResp
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: run {
             log.warn("TargetingHandler: SelectNResp but no pending prompt")
-            DevCheck.requireOrNull<Unit>(null) { "SelectNResp but no pending prompt" }
+            DevCheck.fail { "SelectNResp but no pending prompt" }
             return
         }
 
@@ -301,7 +301,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val seatBridge = bridge.seat(ops.seatId.value)
         val pendingPrompt = seatBridge.prompt.getPendingPrompt() ?: run {
             log.warn("TargetingHandler: GroupResp but no pending prompt")
-            DevCheck.requireOrNull<Unit>(null) { "GroupResp but no pending prompt" }
+            DevCheck.fail { "GroupResp but no pending prompt" }
             return
         }
 
@@ -365,7 +365,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val pendingPrompt = seatBridge.prompt.getPendingPrompt()
         if (pendingPrompt == null) {
             log.warn("TargetingHandler: CancelActionReq but no pending prompt")
-            DevCheck.requireOrNull<Unit>(null) { "CancelActionReq but no pending prompt" }
+            DevCheck.fail { "CancelActionReq but no pending prompt" }
             return
         }
 
@@ -390,7 +390,7 @@ class TargetingHandler(private val ops: SessionOps) {
     ) {
         val pending = pendingInteraction as? PendingClientInteraction.Search ?: run {
             log.warn("SearchResp received but no search pending")
-            DevCheck.requireOrNull<Unit>(null) { "SearchResp but no search pending" }
+            DevCheck.fail { "SearchResp but no search pending" }
             return
         }
         pendingInteraction = null
@@ -418,7 +418,7 @@ class TargetingHandler(private val ops: SessionOps) {
                     idx
                 } else {
                     log.warn("SearchResp: instanceId={} not found in candidates, using default", chosenInstanceId)
-                    DevCheck.requireOrNull<Int>(null) { "SearchResp: instanceId=$chosenInstanceId not in candidates" }
+                    DevCheck.fail { "SearchResp: instanceId=$chosenInstanceId not in candidates" }
                     prompt.request.defaultIndex
                 }
             }
@@ -469,7 +469,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val cardName = req.modalSourceCardName
         if (cardName == null) {
             log.warn("TargetingHandler: modal prompt but no modalSourceCardName, auto-resolving")
-            DevCheck.requireOrNull<Unit>(null) { "modal prompt but no modalSourceCardName" }
+            DevCheck.fail { "modal prompt but no modalSourceCardName" }
             autoResolvePrompt(bridge, pendingPrompt)
             return
         }
@@ -478,7 +478,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val cardGrpId = bridge.cards.findGrpIdByName(cardName)
         if (cardGrpId == null) {
             log.warn("TargetingHandler: card '{}' not in card DB, auto-resolving modal", cardName)
-            DevCheck.requireOrNull<Unit>(null) { "modal card '$cardName' not in card DB" }
+            DevCheck.fail { "modal card '$cardName' not in card DB" }
             autoResolvePrompt(bridge, pendingPrompt)
             return
         }
@@ -486,7 +486,7 @@ class TargetingHandler(private val ops: SessionOps) {
         val modalInfo = bridge.cards.lookupModalOptions(cardGrpId)
         if (modalInfo == null) {
             log.warn("TargetingHandler: no modal options for grpId={}, auto-resolving", cardGrpId)
-            DevCheck.requireOrNull<Unit>(null) { "no modal options for card '$cardName' grpId=$cardGrpId" }
+            DevCheck.fail { "no modal options for card '$cardName' grpId=$cardGrpId" }
             autoResolvePrompt(bridge, pendingPrompt)
             return
         }
@@ -548,7 +548,7 @@ class TargetingHandler(private val ops: SessionOps) {
 
             else -> {
                 log.warn("TargetingHandler: CastingTimeOptionsResp but no pending modal or optional cost")
-                DevCheck.requireOrNull<Unit>(null) { "CastingTimeOptionsResp but no pending modal or optional cost" }
+                DevCheck.fail { "CastingTimeOptionsResp but no pending modal or optional cost" }
             }
         }
     }
@@ -655,7 +655,7 @@ class TargetingHandler(private val ops: SessionOps) {
             autoPass(bridge)
         } else {
             log.warn("TargetingHandler: optional cost response but no pending engine action")
-            DevCheck.requireOrNull<Unit>(null) { "optional cost response but no pending engine action" }
+            DevCheck.fail { "optional cost response but no pending engine action" }
         }
     }
 

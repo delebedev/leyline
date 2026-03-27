@@ -12,7 +12,8 @@ import java.util.concurrent.ConcurrentHashMap
  * allocating fresh instanceIds on first sight and supporting reallocation when
  * cards change zones (the protocol assigns new IDs on zone transfer).
  *
- * Thread-safe: concurrent maps + atomic counter. One registry per game.
+ * Thread-safe reads (concurrent maps). Writes (getOrAlloc, realloc) are engine-thread-only.
+ * One registry per game.
  */
 class InstanceIdRegistry(startId: Int = 100) {
     private val forgeIdToInstanceId = ConcurrentHashMap<ForgeCardId, InstanceId>()
