@@ -3,10 +3,9 @@ package leyline.game
 /**
  * Mapping table: keyword name → Arena Qualification annotation parameters.
  *
- * Populated from real server recordings. Each keyword needs one recording
- * of a card with that keyword to capture the server's grpId and
- * qualificationType values. Unknown keywords log a warning at runtime
- * but don't crash.
+ * Populated from observing real server behavior. Each keyword needs a
+ * game where a card with that keyword appears to capture the server's
+ * grpId and qualificationType values.
  */
 object KeywordQualifications {
 
@@ -18,7 +17,7 @@ object KeywordQualifications {
 
     private val table: Map<String, QualInfo> = mapOf(
         "Menace" to QualInfo(grpId = 142, qualificationType = 40),
-        // Add entries as recordings provide data for other keywords:
+        // Add entries as more keywords are observed in real server output:
         // "Flying" to QualInfo(grpId = ?, qualificationType = ?),
         // "Trample" to QualInfo(grpId = ?, qualificationType = ?),
         // "Lifelink" to QualInfo(grpId = ?, qualificationType = ?),
