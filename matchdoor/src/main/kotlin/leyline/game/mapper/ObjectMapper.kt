@@ -230,6 +230,34 @@ object ObjectMapper {
             .build()
     }
 
+    /**
+     * Build a [GameObjectInfo] for a RevealedCard proxy that mirrors a real hand card.
+     *
+     * Per wire recordings: proxy has `type = RevealedCard`, `visibility = Public`,
+     * `zoneId = handZoneId` (overlays the hand zone, NOT the Revealed zone),
+     * and `viewers = [seatId-of-viewer]`. Mirrors grpId, types, P/T from real card.
+     */
+    fun buildRevealedCardProxy(
+        card: Card,
+        proxyInstanceId: Int,
+        handZoneId: Int,
+        ownerSeatId: Int,
+        viewerSeatId: Int,
+        bridge: GameBridge,
+    ): GameObjectInfo {
+        val grpId = resolveGrpId(card, bridge.cards)
+        return bridge.cardProto.buildObjectInfo(grpId)
+            .setInstanceId(proxyInstanceId)
+            .setType(GameObjectType.RevealedCard)
+            .setZoneId(handZoneId)
+            .setVisibility(Visibility.Public)
+            .setOwnerSeatId(ownerSeatId)
+            .setControllerSeatId(ownerSeatId)
+            .addViewers(viewerSeatId)
+            .applyCardFields(card)
+            .build()
+    }
+
     /** Resolve the other face's grpId for DFC cards. Returns 0 for non-DFC. */
     internal fun resolveOthersideGrpId(card: Card, cards: CardRepository): Int {
         if (!card.isDoubleFaced) return 0

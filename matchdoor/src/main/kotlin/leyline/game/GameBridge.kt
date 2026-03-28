@@ -209,6 +209,18 @@ class GameBridge(
     /** Zone tracking + diff baseline/client-seen state tracking. */
     val diff = DiffSnapshotter(ids)
 
+    // ── Reveal proxy lifecycle ──────────────────────────────────────────────
+    // RevealedCard proxies exist during an active reveal-choose effect.
+    // StateMapper reads activeRevealProxies to inject them into the GSM.
+    // After the choice resolves, proxy IDs move to pendingProxyDeletions
+    // so the next diff emits RevealedCardDeleted + diffDeletedInstanceIds.
+
+    /** Currently active RevealedCard proxy IDs (populated during buildFromGame). */
+    val activeRevealProxies: MutableMap<ForgeCardId, InstanceId> = mutableMapOf()
+
+    /** Proxy IDs waiting for cleanup on the next diff. */
+    val pendingProxyDeletions: MutableSet<InstanceId> = mutableSetOf()
+
     /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
     val effects = EffectTracker()
 

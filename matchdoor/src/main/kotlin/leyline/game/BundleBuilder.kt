@@ -621,6 +621,7 @@ class BundleBuilder(
         counter: MessageCounter,
         req: SelectNReq,
         isLegendRule: Boolean = false,
+        isRevealChoose: Boolean = false,
     ): BundleResult {
         val nextGs = counter.nextGsId()
 
@@ -631,21 +632,29 @@ class BundleBuilder(
 
         val msg2 = makeGRE(GREMessageType.SelectNreq, nextGs, counter.nextMsgId()) {
             it.selectNReq = req
-            if (isLegendRule) {
-                // Legend rule: promptId=72 + CardId param, no cancel allowed.
-                it.setPrompt(
-                    Prompt.newBuilder()
-                        .setPromptId(PromptIds.SELECT_N_LEGEND_RULE)
-                        .addParameters(
-                            PromptParameter.newBuilder()
-                                .setParameterName("CardId")
-                                .setType(ParameterType.Number),
-                        )
-                        .build(),
-                )
-                it.allowCancel = AllowCancel.No_a526
-            } else {
-                it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
+            when {
+                isLegendRule -> {
+                    // Legend rule: promptId=72 + CardId param, no cancel allowed.
+                    it.setPrompt(
+                        Prompt.newBuilder()
+                            .setPromptId(PromptIds.SELECT_N_LEGEND_RULE)
+                            .addParameters(
+                                PromptParameter.newBuilder()
+                                    .setParameterName("CardId")
+                                    .setType(ParameterType.Number),
+                            )
+                            .build(),
+                    )
+                    it.allowCancel = AllowCancel.No_a526
+                }
+                isRevealChoose -> {
+                    // Reveal-choose (Duress, Revealing Eye): no cancel.
+                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
+                    it.allowCancel = AllowCancel.No_a526
+                }
+                else -> {
+                    it.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N).build())
+                }
             }
         }
 

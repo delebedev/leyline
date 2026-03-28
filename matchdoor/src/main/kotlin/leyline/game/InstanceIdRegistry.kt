@@ -62,6 +62,12 @@ class InstanceIdRegistry(startId: Int = 100) {
         return oldIds
     }
 
+    /**
+     * Allocate a synthetic instanceId not mapped to any Forge card.
+     * Used for RevealedCard proxy objects that mirror real cards.
+     */
+    fun allocSynthetic(): InstanceId = InstanceId(nextInstanceId++)
+
     /** Reverse lookup: client instanceId → Forge card ID. */
     fun getForgeCardId(instanceId: InstanceId): ForgeCardId? =
         instanceIdToForgeId[instanceId]

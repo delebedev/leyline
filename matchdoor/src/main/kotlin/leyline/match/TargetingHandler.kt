@@ -735,6 +735,7 @@ class TargetingHandler(private val ops: SessionOps) {
             ops.counter,
             req,
             isLegendRule = reason == ClassifiedPrompt.SelectN.Reason.LegendRule,
+            isRevealChoose = reason == ClassifiedPrompt.SelectN.Reason.RevealChoose,
         )
         Tap.outboundTemplate("SelectNReq seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)

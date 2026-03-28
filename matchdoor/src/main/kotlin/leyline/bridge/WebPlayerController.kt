@@ -307,6 +307,12 @@ class WebPlayerController(
             }
             val ownerSeat = if (owner.lobbyPlayer is forge.ai.LobbyPlayerAi) SeatId(2) else SeatId(1)
             bridge.recordReveal(cardIds, ownerSeat)
+            // Snapshot the full hand for reveal-choose effects (Duress, Revealing Eye).
+            // The choice method reads this to populate unfilteredRefs on the prompt.
+            // Set on THIS controller's bridge (the chooser's seat, not the hand owner).
+            // Both Duress (chooseCardsToDiscardFrom) and Revealing Eye (chooseCardsForEffect)
+            // call the caster's controller, which has this bridge instance.
+            bridge.activeReveal = InteractivePromptBridge.ActiveReveal(cardIds, ownerSeat)
         }
         // Delegate to parent for GUI display (WebGuiGame no-op log)
         super.reveal(cards, zone, owner, messagePrefix, addMsgSuffix)
@@ -350,7 +356,15 @@ class WebPlayerController(
         validCards: CardCollection,
         min: Int,
         max: Int,
-    ): CardCollection = chooseCardsViaBridge(validCards, min, max, "Choose cards to discard")
+    ): CardCollection {
+        val reveal = bridge.activeReveal
+        if (reveal != null) {
+            // Reveal-choose path (Duress, Thoughtseize): validCards is filtered,
+            // reveal.allHandCardIds has the full hand for unfilteredIds.
+            return chooseCardsViaBridgeForReveal(validCards, min, max, sa, reveal)
+        }
+        return chooseCardsViaBridge(validCards, min, max, "Choose cards to discard")
+    }
 
     override fun chooseCardsToDiscardToMaximumHandSize(nDiscard: Int): CardCollection {
         // PCHuman uses GuiBase + InputSelectCardsFromList
@@ -381,6 +395,12 @@ class WebPlayerController(
         params: MutableMap<String, Any>?,
     ): CardCollectionView {
         if (sourceList.isEmpty()) return CardCollection()
+        val reveal = bridge.activeReveal
+        if (reveal != null) {
+            // Reveal-choose path (Revealing Eye chained SubAbility).
+            val effectiveMin = if (isOptional) 0 else min
+            return chooseCardsViaBridgeForReveal(sourceList, effectiveMin, max, sa, reveal)
+        }
         if (!isOptional && sourceList.size <= min) return sourceList
         val effectiveMin = if (isOptional) 0 else min
         return chooseCardsViaBridge(sourceList, effectiveMin, max, title ?: "Choose cards")
@@ -1399,6 +1419,54 @@ class WebPlayerController(
                 else -> null
             }
         }
+
+    /**
+     * Reveal-choose bridge path: builds a prompt with filtered [candidateRefs] (selectable)
+     * and unfiltered [unfilteredRefs] (all revealed cards) for the SelectNReq wire shape.
+     */
+    private fun chooseCardsViaBridgeForReveal(
+        filteredCards: CardCollectionView,
+        min: Int,
+        max: Int,
+        sa: SpellAbility?,
+        reveal: InteractivePromptBridge.ActiveReveal,
+    ): CardCollection {
+        try {
+            val candidateRefs = filteredCards.mapIndexedNotNull { idx, card ->
+                (card as? Card)?.let {
+                    PromptCandidateRefDto(idx, "card", it.id, it.zone?.zoneType?.name)
+                }
+            }
+            val unfilteredRefs = reveal.allHandCardIds.mapIndexed { idx, forgeCardId ->
+                PromptCandidateRefDto(idx, "card", forgeCardId.value)
+            }
+            val effectiveMin = if (filteredCards.isEmpty()) 0 else min.coerceAtLeast(0)
+            val effectiveMax = if (filteredCards.isEmpty()) 0 else max.coerceAtMost(filteredCards.size)
+            val labels = filteredCards.map { it.name }
+            val request = PromptRequest(
+                promptType = "choose_cards",
+                message = "Choose a card to discard",
+                options = labels,
+                min = effectiveMin,
+                max = effectiveMax.coerceAtLeast(effectiveMin),
+                defaultIndex = 0,
+                semantic = PromptSemantic.RevealChoose,
+                candidateRefs = candidateRefs,
+                unfilteredRefs = unfilteredRefs,
+                sourceEntityId = sa?.hostCard?.id,
+            )
+            val indices = bridge.requestChoice(request)
+            val result = CardCollection()
+            for (idx in indices) {
+                if (idx in 0 until filteredCards.size) {
+                    result.add(filteredCards.get(idx) as Card)
+                }
+            }
+            return result
+        } finally {
+            bridge.activeReveal = null
+        }
+    }
 
     /** Common bridge-based card selection for sacrifice/discard/choose/reveal. */
     private fun chooseCardsViaBridge(

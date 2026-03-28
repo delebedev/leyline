@@ -725,13 +725,17 @@ zones:
     notes: "Used for puzzle goals. Not fully mapped for Commander/emblem use."
 
   revealed:
-    status: partial
+    status: wired
     notes: >
-      Revealed zone (18/19) exists in zone list but always empty — proxy RevealedCard objects
-      not synthesized. RevealedCardCreated (59) fires correctly via drainReveals().
-      RevealedCardDeleted (60) defined but never called — proxy cleanup missing.
-      InstanceRevealedToOpponent (75) persistent annotation not wired.
-      CardRevealed (47) missing. Wire spec: docs/plans/2026-03-21-explore-wire-spec.md.
+      Revealed zone (18/19) populated with RevealedCard proxy objects during reveal-choose
+      effects (Duress, Revealing Eye, etc.). Proxies have type=RevealedCard, visibility=Public,
+      zoneId=handZone (overlay pattern), viewers=[opponent]. Hand zone flips to Public with
+      viewers=[1,2] during reveal. RevealedCardCreated (59) fires via drainReveals().
+      RevealedCardDeleted (60) fires on proxy cleanup after choice completes.
+      SelectNReq with ids (filtered) + unfilteredIds (all revealed), sourceId=spell.
+      Still missing: InstanceRevealedToOpponent (75) persistent annotation,
+      CardRevealed (47) annotation. Wire spec: docs/plans/2026-03-21-explore-wire-spec.md.
+      Implementation: docs/plans/2026-03-28-reveal-hand-infra.md.
 
   dfc-activated-transform:
     status: wired
@@ -742,8 +746,9 @@ zones:
       othersideGrpId links front↔back face grpIds on all DFC gameObjects.
       Qualification pAnn emits keyword badges on back face (Menace hardcoded, others TBD).
       Distinct from saga DFC which uses ZoneTransfer pair (exile front → resolve back).
-      On-transform trigger (reveal/choose/discard) autopassed — engine resolves via AI.
-      Phase 2 (#256): interactive reveal UI wire.
+      On-transform trigger (reveal/choose/discard) now interactive via reveal-choose
+      infrastructure (#256). Reveal hand → choose card → discard → draw wired end-to-end.
+      See revealed zone entry for SelectNReq wire shape.
 
   sideboard:
     status: wired
