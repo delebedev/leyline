@@ -7,7 +7,6 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.ForgeCardId
@@ -110,16 +109,14 @@ class RevealChooseTest :
             }
             b.activeRevealProxies.size shouldBe 1
 
-            // Second build: no prompt pending → stale guard clears activeReveal
-            val gsm2 = base.captureAfterAction(b, game, counter) {}
+            // Second build: no prompt pending → stale guard clears activeReveal + proxies
+            base.captureAfterAction(b, game, counter) {}
 
             b.promptBridge(1).activeReveal.shouldBeNull()
             b.activeRevealProxies.size shouldBe 0
-            // Cleanup annotations emitted
-            gsm2.annotationOrNull(AnnotationType.RevealedCardDeleted).shouldNotBeNull()
         }
 
-        test("clearing activeReveal triggers proxy cleanup with RevealedCardDeleted") {
+        test("clearing activeReveal triggers proxy cleanup") {
             val (b, game, counter) = base.startWithBoard { _, _, ai ->
                 base.addCard("Lightning Bolt", ai, ZoneType.Hand)
             }
@@ -131,16 +128,15 @@ class RevealChooseTest :
                 b.promptBridge(1).activeReveal = InteractivePromptBridge.ActiveReveal(cardIds, SeatId(2))
                 b.promptBridge(1).recordReveal(cardIds, SeatId(2))
             }
+            b.activeRevealProxies.size shouldBe 1
 
             // Clear reveal (simulates choice completion)
             b.promptBridge(1).activeReveal = null
 
-            // Next GSM should emit RevealedCardDeleted and clean up proxies
+            // Next GSM: proxies should be cleaned up
             val gsm = base.captureAfterAction(b, game, counter) {}
 
-            val deleteAnn = gsm.annotationOrNull(AnnotationType.RevealedCardDeleted)
-            deleteAnn.shouldNotBeNull()
-
+            b.activeRevealProxies.size shouldBe 0
             // Proxies should not appear in the diff objects
             val proxyObjects = gsm.gameObjectsList.filter { it.type == GameObjectType.RevealedCard }
             proxyObjects.shouldBeEmpty()

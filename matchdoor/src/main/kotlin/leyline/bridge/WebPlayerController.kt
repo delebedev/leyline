@@ -307,12 +307,11 @@ class WebPlayerController(
             }
             val ownerSeat = if (owner.lobbyPlayer is forge.ai.LobbyPlayerAi) SeatId(2) else SeatId(1)
             bridge.recordReveal(cardIds, ownerSeat)
-            // Snapshot the full hand for reveal-choose effects (Duress, Revealing Eye).
-            // The choice method reads this to populate unfilteredRefs on the prompt.
-            // Set on THIS controller's bridge (the chooser's seat, not the hand owner).
-            // Both Duress (chooseCardsToDiscardFrom) and Revealing Eye (chooseCardsForEffect)
-            // call the caster's controller, which has this bridge instance.
-            bridge.activeReveal = InteractivePromptBridge.ActiveReveal(cardIds, ownerSeat)
+            // Only set activeReveal for hand reveals (Duress, Revealing Eye, Thoughtseize).
+            // Library reveals (Explore, search) should NOT trigger proxy synthesis.
+            if (zone == ZoneType.Hand) {
+                bridge.activeReveal = InteractivePromptBridge.ActiveReveal(cardIds, ownerSeat)
+            }
         }
         // Delegate to parent for GUI display (WebGuiGame no-op log)
         super.reveal(cards, zone, owner, messagePrefix, addMsgSuffix)

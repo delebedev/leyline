@@ -72,6 +72,8 @@ object PromptClassifier {
                 pendingPrompt,
                 ClassifiedPrompt.SelectN.Reason.RevealChoose,
             )
+            // Ordering: explicit semantics above must precede candidateRefs fallback,
+            // since reveal-choose prompts also have candidateRefs populated.
             req.candidateRefs.isNotEmpty() -> ClassifiedPrompt.Targeting(pendingPrompt)
             else -> ClassifiedPrompt.AutoResolve(pendingPrompt)
         }

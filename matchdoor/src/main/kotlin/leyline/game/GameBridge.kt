@@ -215,11 +215,9 @@ class GameBridge(
     // After the choice resolves, proxy IDs move to pendingProxyDeletions
     // so the next diff emits RevealedCardDeleted + diffDeletedInstanceIds.
 
-    /** Currently active RevealedCard proxy IDs (populated during buildFromGame). */
+    /** Currently active RevealedCard proxy IDs (populated during buildFromGame).
+     *  Written on engine thread (during buildFromGame), read serially — not concurrent. */
     val activeRevealProxies: MutableMap<ForgeCardId, InstanceId> = mutableMapOf()
-
-    /** Proxy IDs waiting for cleanup on the next diff. */
-    val pendingProxyDeletions: MutableSet<InstanceId> = mutableSetOf()
 
     /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
     val effects = EffectTracker()
