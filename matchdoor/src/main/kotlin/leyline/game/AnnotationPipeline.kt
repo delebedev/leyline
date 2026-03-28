@@ -533,6 +533,7 @@ object AnnotationPipeline {
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
+        val qualificationPersistent = mutableListOf<AnnotationInfo>()
         val detachedForgeCardIds = mutableListOf<ForgeCardId>()
         val exileSourceLeftPlayForgeCardIds = mutableListOf<ForgeCardId>()
         val controllerChangedEffects = mutableListOf<MechanicAnnotationResult.ControllerChangedEffect>()
@@ -629,7 +630,7 @@ object AnnotationPipeline {
                         val instanceId = idResolver(ev.cardId).value
                         // Menace keyword Qualification — hardcoded for Phase 1.
                         // TODO: Generalize keyword→Qualification mapping when more DFCs are exercised.
-                        persistent.add(
+                        qualificationPersistent.add(
                             AnnotationBuilder.qualification(
                                 affectorId = instanceId,
                                 instanceId = instanceId,
@@ -715,6 +716,7 @@ object AnnotationPipeline {
             exileSourceLeftPlayForgeCardIds,
             controllerChangedEffects,
             controllerRevertedForgeCardIds,
+            qualificationPersistent = qualificationPersistent,
         )
     }
 
