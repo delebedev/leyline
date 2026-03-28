@@ -917,10 +917,10 @@ class GameBridge(
                         val cardData = cards.findByGrpId(grpId)
                         abilityRegistryFor(card, cardData)
                     } else {
-                        val grpId = registrar.ensureCardRegisteredByName(card.name)
-                        DevCheck.requireOrNull(grpId.takeIf { it != 0 }) {
-                            "puzzle card '${card.name}' (by-name) registered with grpId=0"
-                        }
+                        // Null-rules cards include synthetic engine objects (Puzzle Goal,
+                        // DetachedCardEffect) that don't exist in any card DB. grpId=0
+                        // is the correct fallback — they're invisible to the client.
+                        registrar.ensureCardRegisteredByName(card.name)
                     }
                     ids.getOrAlloc(ForgeCardId(card.id))
                     registered++
