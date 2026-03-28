@@ -27,13 +27,6 @@ object AnnotationPipeline {
     // Zone ID constants needed by the pipeline
     private const val ZONE_STACK = ZoneIds.STACK
 
-    // DFC transform: back-face keywords not present on the front face need a
-    // Qualification pAnn (runtime keyword grant). Currently only Concealing Curtains
-    // → Revealing Eye (gains Menace). To generalize: diff front/back CardData keyword
-    // sets, emit Qualification per new keyword with correct grpId/qualificationType.
-    // Requires a keyword→(grpId, qualType) mapping table populated from recordings.
-    private const val MENACE_KEYWORD_GRPID = 142
-    private const val MENACE_QUALIFICATION_TYPE = 40
     private const val ZONE_BATTLEFIELD = ZoneIds.BATTLEFIELD
     private const val ZONE_EXILE = ZoneIds.EXILE
     private const val ZONE_LIMBO = ZoneIds.LIMBO
@@ -180,7 +173,7 @@ object AnnotationPipeline {
                 }
                 // Allocate new instanceId for zone transfer (real server does this).
                 // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
-                val realloc = if (category != TransferCategory.Resolve && forgeCardId != null) {
+                val realloc = if (!category.keepsSameInstanceId && forgeCardId != null) {
                     idAllocator(forgeCardId)
                 } else {
                     InstanceIdRegistry.IdReallocation(InstanceId(obj.instanceId), InstanceId(obj.instanceId))
@@ -638,21 +631,24 @@ object AnnotationPipeline {
                     }
                 }
                 is GameEvent.CardTransformed -> {
-                    // Hardcoded to Menace — only correct for Concealing Curtains.
-                    // See constants above for the generalization path.
+                    // Emit Qualification pAnns for back-face keywords.
+                    // Currently only Menace is mapped; table grows as more keywords are observed.
                     if (ev.isBackSide) {
-                        val instanceId = idResolver(ev.cardId).value
-                        qualificationPersistent.add(
-                            AnnotationBuilder.qualification(
-                                affectorId = instanceId,
-                                instanceId = instanceId,
-                                grpId = MENACE_KEYWORD_GRPID,
-                                qualificationType = MENACE_QUALIFICATION_TYPE,
-                                qualificationSubtype = 0,
-                                sourceParent = instanceId,
-                            ),
-                        )
-                        log.debug("mechanic: Qualification (Menace) on transform iid={}", instanceId)
+                        val menace = KeywordQualifications.forKeyword("Menace")
+                        if (menace != null) {
+                            val instanceId = idResolver(ev.cardId).value
+                            qualificationPersistent.add(
+                                AnnotationBuilder.qualification(
+                                    affectorId = instanceId,
+                                    instanceId = instanceId,
+                                    grpId = menace.grpId,
+                                    qualificationType = menace.qualificationType,
+                                    qualificationSubtype = menace.qualificationSubtype,
+                                    sourceParent = instanceId,
+                                ),
+                            )
+                            log.debug("mechanic: Qualification (Menace) on transform iid={}", instanceId)
+                        }
                     }
                 }
                 // Track permanents leaving battlefield for DisplayCardUnderCard cleanup.

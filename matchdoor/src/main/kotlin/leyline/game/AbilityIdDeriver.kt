@@ -21,7 +21,20 @@ object AbilityIdDeriver {
     )
 
     /**
-     * Derive (abilityIds, keywordAbilityGrpIds) for a card.
+     * Derived ability data including abilityIds, keywordAbilityGrpIds, and [SlotLayout].
+     *
+     * [slotLayout] is the single source of truth for slot ordering — keywords occupy
+     * the first N slots, then non-mana activated abilities. Callers should prefer
+     * [slotLayout] over recomputing keyword/activated counts independently.
+     */
+    data class DerivedAbilities(
+        val abilityIds: List<Pair<Int, Int>>,
+        val keywordAbilityGrpIds: Map<String, Int>,
+        val slotLayout: SlotLayout,
+    )
+
+    /**
+     * Derive [DerivedAbilities] for a card.
      *
      * Layout: keywords occupy the first N slots, then non-mana activated abilities.
      * This ordering must match [ActionMapper]'s iteration and [MatchSession]'s
@@ -33,11 +46,21 @@ object AbilityIdDeriver {
     fun deriveAbilityIds(
         card: Card,
         counter: AtomicInteger,
-    ): Pair<List<Pair<Int, Int>>, Map<String, Int>> {
+    ): DerivedAbilities {
         // Basic lands get well-known ability IDs
         val subtypes = card.type.subtypes.map { it.lowercase() }
         for ((subtype, abilityId) in BASIC_LAND_ABILITIES) {
-            if (subtype in subtypes) return listOf(abilityId to 0) to emptyMap()
+            if (subtype in subtypes) {
+                return DerivedAbilities(
+                    abilityIds = listOf(abilityId to 0),
+                    keywordAbilityGrpIds = emptyMap(),
+                    slotLayout = SlotLayout(
+                        keywordCount = 0,
+                        activatedCount = 0,
+                        slots = listOf(SlotEntry(abilityId, 0, SlotKind.Mana)),
+                    ),
+                )
+            }
         }
 
         val keywords = card.rules?.mainPart?.keywords?.toList() ?: emptyList()
@@ -47,13 +70,27 @@ object AbilityIdDeriver {
 
         val abilityIds = (0 until totalCount).map { counter.getAndIncrement() to 0 }
 
-        // Keywords occupy the first slots
+        val slotEntries = mutableListOf<SlotEntry>()
         val keywordMap = mutableMapOf<String, Int>()
+
         for ((i, kw) in keywords.withIndex()) {
             if (i < abilityIds.size) {
                 keywordMap[kw.uppercase()] = abilityIds[i].first
+                slotEntries.add(SlotEntry(abilityIds[i].first, 0, SlotKind.Keyword))
             }
         }
-        return abilityIds to keywordMap
+        for (i in keywords.size until totalCount) {
+            slotEntries.add(SlotEntry(abilityIds[i].first, 0, SlotKind.Activated))
+        }
+
+        return DerivedAbilities(
+            abilityIds = abilityIds,
+            keywordAbilityGrpIds = keywordMap,
+            slotLayout = SlotLayout(
+                keywordCount = keywords.size,
+                activatedCount = activatedCount,
+                slots = slotEntries,
+            ),
+        )
     }
 }

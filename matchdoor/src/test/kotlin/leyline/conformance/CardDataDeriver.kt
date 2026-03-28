@@ -63,7 +63,11 @@ object CardDataDeriver {
         val manaCost = deriveManaCost(rules.manaCost)
 
         // Abilities — assign synthetic sequential IDs per ability on the card
-        val (abilityIds, keywordAbilityGrpIds) = deriveAbilityIds(card)
+        val derived = deriveAbilityIds(card)
+        val abilityIds = derived.abilityIds
+        val keywordAbilityGrpIds = derived.keywordAbilityGrpIds
+
+        val linkedFaces = resolveLinkedFaceGrpIds(card)
 
         return CardData(
             grpId = grpId,
@@ -77,6 +81,7 @@ object CardDataDeriver {
             abilityIds = abilityIds,
             manaCost = manaCost,
             keywordAbilityGrpIds = keywordAbilityGrpIds,
+            linkedFaceGrpIds = linkedFaces,
         )
     }
 
@@ -90,6 +95,21 @@ object CardDataDeriver {
             counts.merge(color, 1, Int::plus)
         }
         return counts.toList()
+    }
+
+    private fun resolveLinkedFaceGrpIds(card: Card): List<Int> {
+        val states = card.states ?: return emptyList()
+        if (states.size <= 1) return emptyList()
+        val linkedIds = mutableListOf<Int>()
+        for (stateName in states) {
+            if (stateName == forge.card.CardStateName.Original) continue
+            if (stateName == forge.card.CardStateName.FaceDown) continue
+            val altState = card.getState(stateName) ?: continue
+            val altName = altState.name ?: continue
+            if (altName == card.name) continue
+            linkedIds.add(nameToGrpId.getOrPut(altName) { nextGrpId.getAndIncrement() })
+        }
+        return linkedIds
     }
 
     private fun deriveAbilityIds(card: Card) = leyline.game.AbilityIdDeriver.deriveAbilityIds(card, nextAbilityGrpId)

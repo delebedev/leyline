@@ -20,4 +20,7 @@ data class CardData(
     val manaCost: List<Pair<ManaColor, Int>>, // (color, count) from OldSchoolManaText
     val tokenGrpIds: Map<Int, Int> = emptyMap(), // abilityGrpId → tokenGrpId
     val keywordAbilityGrpIds: Map<String, Int> = emptyMap(), // keyword name → abilityGrpId
-)
+    val linkedFaceGrpIds: List<Int> = emptyList(),
+) {
+    val isMultiFace: Boolean get() = linkedFaceGrpIds.isNotEmpty()
+}

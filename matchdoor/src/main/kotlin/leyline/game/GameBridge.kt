@@ -552,6 +552,11 @@ class GameBridge(
         return abilityRegistries.computeIfAbsent(card.id) { AbilityRegistry.build(card, cardData) }
     }
 
+    /** Evict cached AbilityRegistry for a card (e.g. after DFC transform). */
+    fun evictAbilityRegistry(forgeCardId: Int) {
+        abilityRegistries.remove(forgeCardId)
+    }
+
     /** Populate seat map by registration order (seat 1 = first, seat 2 = second). */
     private fun populateSeatMap(g: Game) {
         g.players.forEachIndexed { index, player -> players[index + 1] = player }

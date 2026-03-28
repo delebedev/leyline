@@ -103,4 +103,54 @@ class CardRepositoryTest :
             )
             repo.tokenGrpIdForCard(3000).shouldBeNull()
         }
+
+        // --- linkedFaceGrpIds ---
+
+        test("CardData isMultiFace true when linkedFaceGrpIds non-empty") {
+            val data = CardData(
+                grpId = 78895, titleId = 1, power = "0", toughness = "4",
+                colors = listOf(3), types = listOf(2), subtypes = emptyList(),
+                supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
+                linkedFaceGrpIds = listOf(78896),
+            )
+            data.isMultiFace shouldBe true
+        }
+
+        test("CardData isMultiFace false when linkedFaceGrpIds empty") {
+            val data = CardData(
+                grpId = 75515, titleId = 1, power = "2", toughness = "2",
+                colors = emptyList(), types = listOf(2), subtypes = emptyList(),
+                supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
+            )
+            data.isMultiFace shouldBe false
+        }
+
+        test("findLinkedFaces returns linkedFaceGrpIds from registered CardData") {
+            repo.registerData(
+                CardData(
+                    grpId = 78895, titleId = 1, power = "0", toughness = "4",
+                    colors = emptyList(), types = emptyList(), subtypes = emptyList(),
+                    supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
+                    linkedFaceGrpIds = listOf(78896),
+                ),
+                "Concealing Curtains",
+            )
+            repo.findLinkedFaces(78895) shouldBe listOf(78896)
+        }
+
+        test("findLinkedFaces returns empty for unknown grpId") {
+            repo.findLinkedFaces(99999) shouldBe emptyList()
+        }
+
+        test("findLinkedFaces returns empty for single-face card") {
+            repo.registerData(
+                CardData(
+                    grpId = 75515, titleId = 1, power = "2", toughness = "2",
+                    colors = emptyList(), types = emptyList(), subtypes = emptyList(),
+                    supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
+                ),
+                "Grizzly Bears",
+            )
+            repo.findLinkedFaces(75515) shouldBe emptyList()
+        }
     })

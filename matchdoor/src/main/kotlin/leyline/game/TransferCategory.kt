@@ -9,10 +9,13 @@ package leyline.game
  *
  * [label] is the exact string written into the protobuf `KeyValuePairInfo`.
  */
-enum class TransferCategory(val label: String) {
+enum class TransferCategory(
+    val label: String,
+    val keepsSameInstanceId: Boolean = false,
+) {
     PlayLand("PlayLand"),
     CastSpell("CastSpell"),
-    Resolve("Resolve"),
+    Resolve("Resolve", keepsSameInstanceId = true),
     Destroy("Destroy"),
     Sacrifice("Sacrifice"),
     Countered("Countered"),

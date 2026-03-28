@@ -531,32 +531,23 @@ class MatchSession(
     }
 
     /**
-     * Map Arena abilityGrpId → Forge ability index for multi-ability cards.
+     * Map Arena abilityGrpId → Forge ability index via [SlotLayout].
      *
-     * CardData.abilityIds layout: [keyword0, ..., activate0, activate1, ...]
-     * Keyword entries occupy the first N slots. The offset is derived from the
-     * Forge card's actual activated ability count — not from keywordAbilityGrpIds,
-     * which is only populated for synthetic (puzzle/test) cards.
+     * Uses the AbilityRegistry's SlotLayout as the single source of truth
+     * for keyword/activated slot positions. Falls back to 0 if lookup fails.
      */
     private fun resolveAbilityIndex(action: Action, bridge: GameBridge): Int {
         val abilityGrpId = action.abilityGrpId
         if (abilityGrpId == 0) return 0
-        val cardData = bridge.cards.findByGrpId(action.grpId) ?: return 0
-        val slotIndex = cardData.abilityIds.indexOfFirst { it.first == abilityGrpId }
-        if (slotIndex < 0) return 0
 
-        // Derive keyword count from the Forge card's actual activated abilities.
-        // abilityIds layout is [keywords..., activated...]. The activated count
-        // from Forge tells us how many trailing slots are activated abilities;
-        // everything before that is keywords.
-        val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId))
-        val game = bridge.getGame()
-        val forgeCard = if (forgeCardId != null && game != null) findCard(game, forgeCardId) else null
-        val activatedCount = forgeCard?.spellAbilities
-            ?.count { it.isActivatedAbility && !it.isManaAbility() } ?: 0
-        val keywordCount = maxOf(0, cardData.abilityIds.size - activatedCount)
-        val abilityIndex = slotIndex - keywordCount
-        return if (abilityIndex >= 0) abilityIndex else 0
+        val cardData = bridge.cards.findByGrpId(action.grpId) ?: return 0
+        val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return 0
+        val game = bridge.getGame() ?: return 0
+        val forgeCard = game.findById(forgeCardId.value) ?: return 0
+        val registry = bridge.abilityRegistryFor(forgeCard, cardData) ?: return 0
+
+        val index = registry.slotLayout.forgeIndexFor(abilityGrpId)
+        return if (index != null && index >= 0) index else 0
     }
 
     /**
