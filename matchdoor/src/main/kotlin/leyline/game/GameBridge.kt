@@ -23,6 +23,8 @@ import leyline.bridge.PhaseStopProfile
 import leyline.bridge.PrioritySignal
 import leyline.bridge.SeatId
 import leyline.bridge.WebPlayerController
+import leyline.bridge.isCommander
+import leyline.bridge.isCommanderVariant
 import leyline.config.MatchConfig
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
@@ -70,6 +72,10 @@ class GameBridge(
     private val log = LoggerFactory.getLogger(GameBridge::class.java)
 
     private var game: Game? = null
+
+    /** True when the active game uses Commander/Brawl/Oathbreaker rules. */
+    val isBrawlOrCommander: Boolean
+        get() = game?.isCommander ?: false
     private val players: MutableMap<Int, Player> = mutableMapOf()
     private var loopController: GameLoopController? = null
 
@@ -363,6 +369,7 @@ class GameBridge(
         deckList: String? = null,
         deckList1: String? = null,
         deckList2: String? = null,
+        variant: String? = null,
     ) {
         log.info("GameBridge: initializing card database")
         GameBootstrap.initializeCardDatabase()
@@ -384,7 +391,12 @@ class GameBridge(
             deck2.main.countAll(),
         )
 
-        val g = GameBootstrap.createConstructedGame(deck1, deck2)
+        val g = if (variant != null && isCommanderVariant(variant)) {
+            log.info("GameBridge: creating commander-variant game (variant={})", variant)
+            GameBootstrap.createCommanderGame(deck1, deck2, variant)
+        } else {
+            GameBootstrap.createConstructedGame(deck1, deck2)
+        }
         game = g
 
         populateSeatMap(g)
@@ -455,6 +467,7 @@ class GameBridge(
         seed: Long? = null,
         deckList1: String? = null,
         deckList2: String? = null,
+        variant: String? = null,
     ) {
         log.info("GameBridge: starting two-player game")
         GameBootstrap.initializeCardDatabase()
@@ -469,7 +482,12 @@ class GameBridge(
         val deck1 = DeckLoader.parseDeckList(seat1Str)
         val deck2 = DeckLoader.parseDeckList(seat2Str)
 
-        val g = GameBootstrap.createTwoPlayerGame(deck1, deck2)
+        val g = if (variant != null && isCommanderVariant(variant)) {
+            log.info("GameBridge: creating two-player commander-variant game (variant={})", variant)
+            GameBootstrap.createTwoPlayerCommanderGame(deck1, deck2, variant = variant)
+        } else {
+            GameBootstrap.createTwoPlayerGame(deck1, deck2)
+        }
         game = g
         populateSeatMap(g)
 

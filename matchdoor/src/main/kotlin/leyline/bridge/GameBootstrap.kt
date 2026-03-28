@@ -30,6 +30,9 @@ val Game.isCommander: Boolean
 /** Commander-family game type slugs (used for deck validation, game creation). */
 val COMMANDER_VARIANTS = setOf("commander", "brawl", "oathbreaker")
 
+/** Arena Brawl starting life (vs 40 for Commander/EDH, 20 for Standard). */
+const val BRAWL_STARTING_LIFE = 25
+
 fun isCommanderVariant(gameType: String): Boolean = gameType.lowercase() in COMMANDER_VARIANTS
 
 object GameBootstrap {
@@ -164,14 +167,17 @@ object GameBootstrap {
         ensureLocalization()
 
         val gameType = resolveCommanderVariant(variant)
+        val isBrawl = gameType == GameType.Brawl
         val players = mutableListOf<RegisteredPlayer>()
 
         val p1 = RegisteredPlayer.forCommander(deck1)
             .setPlayer(forge.player.LobbyPlayerHuman(name1))
+        if (isBrawl) p1.startingLife = BRAWL_STARTING_LIFE
         players.add(p1)
 
         val p2 = RegisteredPlayer.forCommander(deck2)
             .setPlayer(forge.player.LobbyPlayerHuman(name2))
+        if (isBrawl) p2.startingLife = BRAWL_STARTING_LIFE
         players.add(p2)
 
         val rules = GameRules(gameType)
@@ -225,14 +231,17 @@ object GameBootstrap {
         ensureLocalization()
 
         val gameType = resolveCommanderVariant(variant)
+        val isBrawl = gameType == GameType.Brawl
         val players = mutableListOf<RegisteredPlayer>()
 
         val human = RegisteredPlayer.forCommander(humanDeck)
             .setPlayer(forge.player.GamePlayerUtil.getGuiPlayer())
+        if (isBrawl) human.startingLife = BRAWL_STARTING_LIFE
         players.add(human)
 
         val ai = RegisteredPlayer.forCommander(aiDeck)
             .setPlayer(LobbyPlayerAi("AI", null))
+        if (isBrawl) ai.startingLife = BRAWL_STARTING_LIFE
         players.add(ai)
 
         val rules = GameRules(gameType)
@@ -274,9 +283,16 @@ object GameBootstrap {
         ensureLocalization()
 
         val gameType = resolveCommanderVariant(variant)
+        val isBrawl = gameType == GameType.Brawl
         val players = mutableListOf<RegisteredPlayer>()
-        players.add(RegisteredPlayer.forCommander(deck1).setPlayer(LobbyPlayerAi("AI 1", null)))
-        players.add(RegisteredPlayer.forCommander(deck2).setPlayer(LobbyPlayerAi("AI 2", null)))
+        val p1 = RegisteredPlayer.forCommander(deck1).setPlayer(LobbyPlayerAi("AI 1", null))
+        val p2 = RegisteredPlayer.forCommander(deck2).setPlayer(LobbyPlayerAi("AI 2", null))
+        if (isBrawl) {
+            p1.startingLife = BRAWL_STARTING_LIFE
+            p2.startingLife = BRAWL_STARTING_LIFE
+        }
+        players.add(p1)
+        players.add(p2)
 
         val rules = GameRules(gameType)
         rules.addAppliedVariant(gameType)
