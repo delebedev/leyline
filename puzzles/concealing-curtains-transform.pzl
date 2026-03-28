@@ -1,0 +1,18 @@
+[metadata]
+Name:Concealing Curtains Transform
+Goal:Win
+Turns:4
+Difficulty:Easy
+Description:Transform Concealing Curtains into Revealing Eye and attack for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+
+humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp
+humanlibrary=Swamp
+aibattlefield=
+aihand=Grizzly Bears
+ailibrary=Forest
