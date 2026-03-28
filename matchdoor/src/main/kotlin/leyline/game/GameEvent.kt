@@ -276,12 +276,16 @@ sealed interface GameEvent {
         val newToughness: Int,
     ) : GameEvent
 
-    /** A double-faced card transformed (front ↔ back).
-     *  Emitted from GameEventCardStatsChanged when isBackSide() flips. */
+    /** A card changed state (DFC transform, flip, modal face switch).
+     *  [newStateName] is the Forge CardStateName after the change.
+     *  Detected by [GameEventCollector] from [GameEventCardStatsChanged]. */
     data class CardTransformed(
         val cardId: ForgeCardId,
-        val isBackSide: Boolean,
-    ) : GameEvent
+        val newStateName: forge.card.CardStateName,
+    ) : GameEvent {
+        /** Convenience — true when the card flipped to its back face. */
+        val isBackSide: Boolean get() = newStateName == forge.card.CardStateName.Backside
+    }
 
     /** A player's library was shuffled. */
     data class LibraryShuffled(

@@ -84,8 +84,8 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     /** Last-seen P/T per card ID — used to detect deltas on GameEventCardStatsChanged. */
     private val lastPT = ConcurrentHashMap<ForgeCardId, Pair<Int, Int>>()
 
-    /** Last-seen backside state per card ID — used to detect transform on GameEventCardStatsChanged. */
-    private val lastBackSide = ConcurrentHashMap<ForgeCardId, Boolean>()
+    /** Last-seen CardStateName per card — used to detect transform in GameEventCardStatsChanged. */
+    private val lastStateName = ConcurrentHashMap<ForgeCardId, forge.card.CardStateName>()
 
     /**
      * Drain all queued events since last drain. Returns events in engine firing order.
@@ -191,11 +191,11 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
             GameEvent.ZoneChanged(ForgeCardId(card.id), from?.let { Zone.fromForge(it) } ?: Zone.Other, Zone.fromForge(to))
         }
 
-        // Clear cached P/T when a card leaves the battlefield so re-entering
+        // Clear cached P/T and state name when a card leaves the battlefield so re-entering
         // cards diff against fresh values instead of stale prior-lifetime stats.
         if (from == ZoneType.Battlefield) {
             lastPT.remove(ForgeCardId(card.id))
-            lastBackSide.remove(ForgeCardId(card.id))
+            lastStateName.remove(ForgeCardId(card.id))
         }
 
         queue.add(event)
@@ -323,18 +323,8 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         for (card in ev.cards()) {
             val id = ForgeCardId(card.id)
 
-            // Detect transform: backside state changed
-            val newBackSide = card.currentState.state == forge.card.CardStateName.Backside
-            val prevBackSide = lastBackSide.put(id, newBackSide)
-            if (prevBackSide != null && prevBackSide != newBackSide) {
-                queue.add(
-                    GameEvent.CardTransformed(
-                        cardId = id,
-                        isBackSide = newBackSide,
-                    ),
-                )
-                log.debug("event: CardTransformed card={} backSide={}", card.name, newBackSide)
-            }
+            // Detect transform (DFC, flip, modal)
+            checkForTransform(card)
 
             val newPower = card.currentState.power
             val newTough = card.currentState.toughness
@@ -419,6 +409,20 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     }
 
     // -- helpers --
+
+    /**
+     * Check if a card's state name changed (transform, flip, modal face switch).
+     * Emits [GameEvent.CardTransformed] on change.
+     */
+    private fun checkForTransform(cardView: forge.game.card.CardView) {
+        val id = ForgeCardId(cardView.id)
+        val newState = cardView.currentState?.state ?: return
+        val prevState = lastStateName.put(id, newState)
+        if (prevState != null && prevState != newState) {
+            queue.add(GameEvent.CardTransformed(id, newState))
+            log.debug("event: CardTransformed card={} {} → {}", cardView.name, prevState, newState)
+        }
+    }
 
     private fun seatOf(player: forge.game.player.Player?): SeatId? {
         if (player == null) return null
