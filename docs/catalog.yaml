@@ -733,6 +733,18 @@ zones:
       InstanceRevealedToOpponent (75) persistent annotation not wired.
       CardRevealed (47) missing. Wire spec: docs/plans/2026-03-21-explore-wire-spec.md.
 
+  dfc-activated-transform:
+    status: wired
+    notes: >
+      Activated-ability DFC transform (Concealing Curtains → Revealing Eye, Delver of Secrets, etc.).
+      In-place grpId mutation on the existing gameObject — same instanceId, no ZoneTransfer.
+      Snapshot-compare diff catches all field changes (grpId, P/T, subtypes, abilities).
+      othersideGrpId links front↔back face grpIds on all DFC gameObjects.
+      Qualification pAnn emits keyword badges on back face (Menace hardcoded, others TBD).
+      Distinct from saga DFC which uses ZoneTransfer pair (exile front → resolve back).
+      On-transform trigger (reveal/choose/discard) autopassed — engine resolves via AI.
+      Phase 2 (#256): interactive reveal UI wire.
+
   sideboard:
     status: wired
     notes: "Zone mapped (34/38). Not exercised outside puzzle mode."

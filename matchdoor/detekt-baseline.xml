@@ -24,6 +24,8 @@
     <!-- Forge adapter classes: splitting would require restructuring the adapter boundary -->
     <ID>LargeClass:WebCostDecision.kt$WebCostDecision : CostDecisionMakerBase</ID>
     <ID>LargeClass:WebPlayerController.kt$WebPlayerController : PlayerControllerHuman</ID>
+    <!-- Test class: grows with each annotation type — splitting by annotation tier would fragment related tests -->
+    <ID>LargeClass:AnnotationBuilderTest.kt$AnnotationBuilderTest : FunSpec</ID>
     <!-- ComplexCondition: protocol invariant for smart phase-skip; extracting to a method obscures the intent -->
     <ID>ComplexCondition:WebPlayerController.kt$WebPlayerController$!fullControl &amp;&amp; smartPhaseSkip &amp;&amp; !bridge.consumePromptResolved() &amp;&amp; handler.playerTurn?.id == player.id &amp;&amp; game.stack.isEmpty &amp;&amp; !PlayableActionQuery.hasPlayableNonManaAction(game, player)</ID>
     <!-- MaxLineLength: test assertions with inline JSON/message strings; extraction adds noise -->

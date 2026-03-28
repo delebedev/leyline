@@ -446,7 +446,7 @@ object StateMapper {
 
         val enrichedMechanicResult = mechanicResult.copy(
             abilityWordPersistent = abilityWordPersistent,
-            qualificationPersistent = qualificationPersistent,
+            qualificationPersistent = qualificationPersistent + mechanicResult.qualificationPersistent,
         )
         val batch = PersistentAnnotationStore.computeBatch(
             currentActive = persistSnapshot,

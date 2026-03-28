@@ -9,6 +9,7 @@ import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
+import leyline.conformance.detailUint
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 class AbilityWordPipelineTest :
@@ -173,7 +174,7 @@ class AbilityWordPipelineTest :
             }
             qAnns shouldHaveSize 1
             qAnns[0].affectedIdsList shouldBe listOf(348)
-            qAnns[0].detailInt("QualificationType") shouldBe 47
+            qAnns[0].detailUint("QualificationType") shouldBe 47
             result.deletedIds.shouldBeEmpty()
         }
 

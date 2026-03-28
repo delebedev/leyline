@@ -52,6 +52,7 @@ object ObjectMapper {
             .setVisibility(visibility)
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(ownerSeatId)
+            .setOthersideGrpId(resolveOthersideGrpId(card, bridge.cards))
             .applyCardFields(card)
             .build()
     }
@@ -77,6 +78,7 @@ object ObjectMapper {
             .setVisibility(Visibility.Public)
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(controllerSeatId)
+            .setOthersideGrpId(resolveOthersideGrpId(card, bridge.cards))
             .applyCardFields(card, bridge, game)
             .build()
     }
@@ -218,8 +220,21 @@ object ObjectMapper {
             .setVisibility(Visibility.Public)
             .setOwnerSeatId(ownerSeatId)
             .setControllerSeatId(controllerSeatId)
+            .setOthersideGrpId(resolveOthersideGrpId(card, bridge.cards))
             .applyCardFields(card, bridge, game = null) // echo objects carry no combat state
             .build()
+    }
+
+    /** Resolve the other face's grpId for DFC cards. Returns 0 for non-DFC. */
+    internal fun resolveOthersideGrpId(card: Card, cards: CardRepository): Int {
+        if (!card.isDoubleFaced) return 0
+        val otherStateName = if (card.currentState.stateName == forge.card.CardStateName.Backside) {
+            forge.card.CardStateName.Original
+        } else {
+            forge.card.CardStateName.Backside
+        }
+        val otherState = card.getState(otherStateName) ?: return 0
+        return cards.findGrpIdByName(otherState.name) ?: 0
     }
 
     /** Resolve grpId for a card, using token-specific lookup for tokens. */

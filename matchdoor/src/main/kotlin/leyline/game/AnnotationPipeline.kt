@@ -26,6 +26,14 @@ object AnnotationPipeline {
 
     // Zone ID constants needed by the pipeline
     private const val ZONE_STACK = ZoneIds.STACK
+
+    // DFC transform: back-face keywords not present on the front face need a
+    // Qualification pAnn (runtime keyword grant). Currently only Concealing Curtains
+    // → Revealing Eye (gains Menace). To generalize: diff front/back CardData keyword
+    // sets, emit Qualification per new keyword with correct grpId/qualificationType.
+    // Requires a keyword→(grpId, qualType) mapping table populated from recordings.
+    private const val MENACE_KEYWORD_GRPID = 142
+    private const val MENACE_QUALIFICATION_TYPE = 40
     private const val ZONE_BATTLEFIELD = ZoneIds.BATTLEFIELD
     private const val ZONE_EXILE = ZoneIds.EXILE
     private const val ZONE_LIMBO = ZoneIds.LIMBO
@@ -533,6 +541,7 @@ object AnnotationPipeline {
     ): MechanicAnnotationResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
+        val qualificationPersistent = mutableListOf<AnnotationInfo>()
         val detachedForgeCardIds = mutableListOf<ForgeCardId>()
         val exileSourceLeftPlayForgeCardIds = mutableListOf<ForgeCardId>()
         val controllerChangedEffects = mutableListOf<MechanicAnnotationResult.ControllerChangedEffect>()
@@ -624,6 +633,24 @@ object AnnotationPipeline {
                         log.debug("mechanic: revealedCardCreated iid={} seat={}", instanceId, ev.ownerSeatId)
                     }
                 }
+                is GameEvent.CardTransformed -> {
+                    // Hardcoded to Menace — only correct for Concealing Curtains.
+                    // See constants above for the generalization path.
+                    if (ev.isBackSide) {
+                        val instanceId = idResolver(ev.cardId).value
+                        qualificationPersistent.add(
+                            AnnotationBuilder.qualification(
+                                affectorId = instanceId,
+                                instanceId = instanceId,
+                                grpId = MENACE_KEYWORD_GRPID,
+                                qualificationType = MENACE_QUALIFICATION_TYPE,
+                                qualificationSubtype = 0,
+                                sourceParent = instanceId,
+                            ),
+                        )
+                        log.debug("mechanic: Qualification (Menace) on transform iid={}", instanceId)
+                    }
+                }
                 // Track permanents leaving battlefield for DisplayCardUnderCard cleanup.
                 // CardExiled is safe to add unconditionally — findExileSourcesLeavingPlay
                 // only matches cards that were an exile source (affectorId), not exiled cards.
@@ -697,6 +724,7 @@ object AnnotationPipeline {
             exileSourceLeftPlayForgeCardIds,
             controllerChangedEffects,
             controllerRevertedForgeCardIds,
+            qualificationPersistent = qualificationPersistent,
         )
     }
 

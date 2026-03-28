@@ -753,10 +753,10 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.Qualification
             assertSoftly {
                 ann.affectedIdsList shouldBe listOf(348)
-                ann.detailInt("QualificationType") shouldBe 47
-                ann.detailInt("QualificationSubtype") shouldBe 0
+                ann.detailUint("QualificationType") shouldBe 47
+                ann.detailUint("QualificationSubtype") shouldBe 0
                 ann.detailUint("grpid") shouldBe 196
-                ann.detailInt("SourceParent") shouldBe 0
+                ann.detailUint("SourceParent") shouldBe 0
             }
             ann.affectorId shouldBe 0
         }
@@ -797,5 +797,25 @@ class AnnotationBuilderTest :
             // No value/threshold/abilityGrpId details for keyword-only variants
             ann.detail("value") shouldBe null
             ann.detail("threshold") shouldBe null
+        }
+
+        test("qualification annotation shape") {
+            val ann = AnnotationBuilder.qualification(
+                affectorId = 287,
+                instanceId = 287,
+                grpId = 142,
+                qualificationType = 40,
+                qualificationSubtype = 0,
+                sourceParent = 287,
+            )
+            ann.typeList shouldContain AnnotationType.Qualification
+            ann.affectorId shouldBe 287
+            ann.affectedIdsList shouldContain 287
+            assertSoftly {
+                ann.detailUint("grpid") shouldBe 142
+                ann.detailUint("QualificationType") shouldBe 40
+                ann.detailUint("QualificationSubtype") shouldBe 0
+                ann.detailUint("SourceParent") shouldBe 287
+            }
         }
     })

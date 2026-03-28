@@ -561,10 +561,10 @@ object AnnotationBuilder {
     ): AnnotationInfo = AnnotationInfo.newBuilder()
         .addType(AnnotationType.Qualification)
         .addAffectedIds(instanceId)
-        .addDetails(int32Detail(DetailKeys.SOURCE_PARENT, sourceParent))
+        .addDetails(uint32Detail(DetailKeys.SOURCE_PARENT, sourceParent))
         .addDetails(uint32Detail(DetailKeys.GRPID, grpId))
-        .addDetails(int32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
-        .addDetails(int32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType))
+        .addDetails(uint32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
+        .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType))
         .build()
 
     /** Map Forge counter type name to proto CounterType numeric value.
@@ -830,6 +830,28 @@ object AnnotationBuilder {
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.InstanceRevealedToOpponent)
             .addAffectedIds(instanceId)
+            .build()
+
+    /** Keyword qualification badge on a permanent. Persistent. Arena type 42.
+     *  [grpId] = keyword grpId (e.g. 142 for Menace).
+     *  [qualificationType] = Arena qualification subtype (e.g. 40 for combat keyword).
+     *  [sourceParent] = instanceId of the permanent granting the keyword (usually self). */
+    fun qualification(
+        affectorId: Int,
+        instanceId: Int,
+        grpId: Int,
+        qualificationType: Int,
+        qualificationSubtype: Int = 0,
+        sourceParent: Int,
+    ): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.Qualification)
+            .setAffectorId(affectorId)
+            .addAffectedIds(instanceId)
+            .addDetails(uint32Detail(DetailKeys.GRPID, grpId))
+            .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType))
+            .addDetails(uint32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
+            .addDetails(uint32Detail(DetailKeys.SOURCE_PARENT, sourceParent))
             .build()
 
     private fun typedStringDetail(key: String, value: String): KeyValuePairInfo =

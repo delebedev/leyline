@@ -84,6 +84,9 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     /** Last-seen P/T per card ID — used to detect deltas on GameEventCardStatsChanged. */
     private val lastPT = ConcurrentHashMap<ForgeCardId, Pair<Int, Int>>()
 
+    /** Last-seen backside state per card ID — used to detect transform on GameEventCardStatsChanged. */
+    private val lastBackSide = ConcurrentHashMap<ForgeCardId, Boolean>()
+
     /**
      * Drain all queued events since last drain. Returns events in engine firing order.
      *
@@ -192,6 +195,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         // cards diff against fresh values instead of stale prior-lifetime stats.
         if (from == ZoneType.Battlefield) {
             lastPT.remove(ForgeCardId(card.id))
+            lastBackSide.remove(ForgeCardId(card.id))
         }
 
         queue.add(event)
@@ -318,6 +322,20 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     override fun visit(ev: GameEventCardStatsChanged) {
         for (card in ev.cards()) {
             val id = ForgeCardId(card.id)
+
+            // Detect transform: backside state changed
+            val newBackSide = card.currentState.state == forge.card.CardStateName.Backside
+            val prevBackSide = lastBackSide.put(id, newBackSide)
+            if (prevBackSide != null && prevBackSide != newBackSide) {
+                queue.add(
+                    GameEvent.CardTransformed(
+                        cardId = id,
+                        isBackSide = newBackSide,
+                    ),
+                )
+                log.debug("event: CardTransformed card={} backSide={}", card.name, newBackSide)
+            }
+
             val newPower = card.currentState.power
             val newTough = card.currentState.toughness
             val prev = lastPT.put(id, Pair(newPower, newTough))
