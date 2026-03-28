@@ -444,9 +444,15 @@ object StateMapper {
             emptyList()
         }
 
+        val (crewedThisTurnPersistent, crewTypeChangePersistent, crewExpiredAnnotations) =
+            computeCrewAnnotations(bridge)
+        annotations.addAll(crewExpiredAnnotations)
+
         val enrichedMechanicResult = mechanicResult.copy(
             abilityWordPersistent = abilityWordPersistent,
             qualificationPersistent = qualificationPersistent + mechanicResult.qualificationPersistent,
+            crewedThisTurnPersistent = crewedThisTurnPersistent,
+            crewTypeChangePersistent = crewTypeChangePersistent,
         )
         val batch = PersistentAnnotationStore.computeBatch(
             currentActive = persistSnapshot,
@@ -479,6 +485,35 @@ object StateMapper {
         val transferPersistent: MutableList<AnnotationInfo>,
         val combatResult: AnnotationPipeline.CombatAnnotationResult,
     )
+
+    /** Crew annotation scan: CrewedThisTurn pAnns, ModifiedType pAnns, and expired effect annotations. */
+    private fun computeCrewAnnotations(
+        bridge: GameBridge,
+    ): Triple<List<AnnotationInfo>, List<AnnotationInfo>, List<AnnotationInfo>> {
+        val crewSnapshots = bridge.snapshotCrewState()
+        val crewedThisTurn = crewSnapshots.map { snap ->
+            AnnotationBuilder.crewedThisTurn(snap.vehicleInstanceId, snap.crewSourceInstanceIds)
+        }
+        val typeChange = mutableListOf<AnnotationInfo>()
+        val expired = mutableListOf<AnnotationInfo>()
+
+        val currentCrewedFids = crewSnapshots.filter { it.isCreature }.map { it.vehicleForgeCardId }.toSet()
+        for (effectId in bridge.releaseCrewEffects(currentCrewedFids)) {
+            expired.add(AnnotationBuilder.layeredEffectDestroyed(effectId))
+        }
+        for (snap in crewSnapshots) {
+            if (!snap.isCreature) continue
+            val effectId = bridge.getOrAllocCrewEffectId(snap.vehicleForgeCardId)
+            typeChange.add(
+                AnnotationBuilder.modifiedTypeLayeredEffect(
+                    instanceId = snap.vehicleInstanceId,
+                    effectId = effectId,
+                    sourceAbilityGrpId = snap.crewAbilityGrpId,
+                ),
+            )
+        }
+        return Triple(crewedThisTurn, typeChange, expired)
+    }
 
     private fun computeAnnotations(
         events: List<GameEvent>,

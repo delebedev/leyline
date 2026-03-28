@@ -28,7 +28,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 20 | Attachment | `GameEventCardAttachment` | `CardAttached` | `attachment()` (persistent) | affector/affected ids | Implemented |
 | 22 | CopiedObject | -- | -- | -- | `abilityGrpId`, `LayeredEffectType`, `CopyObject` | MISSING |
 | 23 | RemoveAbility | -- | -- | -- | `effect_id`; multi-type pAnn `[RemoveAbility, LayeredEffect]`, key=targetIid(str), value="all" | MISSING — wire shape confirmed (tamiyos-compleation spec) |
-| 25 | ModifiedType | -- | -- | -- | `effect_id`, `temporaryCardType` | MISSING |
+| 25 | ModifiedType | -- | -- | -- | `effect_id`, `sourceAbilityGRPID` | WIRED — crew type-change (Vehicle→Creature). Multi-typed with LayeredEffect. |
 | 26 | TargetSpec | -- | -- | -- | `index`, `abilityGrpId`, `distributions`, `promptId` | MISSING |
 | 28 | FaceDown | -- | -- | -- | `abilityGrpId`, `REASON` | MISSING |
 | 29 | TurnPermanent | -- | -- | -- | (none) | MISSING |
@@ -92,7 +92,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 91 | ReferencedCardNames | -- | -- | -- | (none) | MISSING |
 | 92 | PlayerSelectingTargets | -- | -- | -- | affector/affected ids | MISSING |
 | 93 | PlayerSubmittedTargets | -- | -- | -- | affector/affected ids | MISSING |
-| 94 | CrewedThisTurn | -- | -- | -- | affectorId=vehicle, affectedIds=[crew sources]; persistent, cleared EOT | MISSING — wire shape confirmed (surgehacker-mech spec) |
+| 94 | CrewedThisTurn | -- | -- | -- | affectorId=vehicle, affectedIds=[crew sources]; persistent, cleared EOT | WIRED — full-replacement upsert per GSM. |
 | 95 | PhasedOut | `GameEventCardPhased` | -- | -- | affectorId=trigger ability iid, affectedIds=[permanent]; no detail keys; zone change via gameObject diff to zone 12 (no ZoneTransfer) | MISSING — wire shape confirmed (kaito-shizuki spec) |
 | 96 | PhasedIn | `GameEventCardPhased` | -- | -- | affectedIds=[permanent]; no affectorId (system action), no details; zone 12→BF via gameObject diff | MISSING — wire shape confirmed (kaito-shizuki spec) |
 | 97 | LoyaltyActivationsRemaining | -- | -- | -- | `ActivationsRemaining` | MISSING |

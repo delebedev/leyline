@@ -11,6 +11,7 @@ import leyline.game.CardRepository
 import leyline.game.GameBridge
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
+import forge.card.CardType.CoreType as ForgeCoreType
 import forge.game.zone.ZoneType as ForgeZoneType
 
 /**
@@ -106,8 +107,9 @@ object ObjectMapper {
      * Apply dynamic Forge game state onto a [GameObjectInfo.Builder] already enriched
      * with static card data from [CardProtoBuilder.buildObjectInfo].
      *
-     * Static fields (types, colors, abilities, base P/T) come from the client DB.
-     * This method adds: live P/T, tapped, sickness, damage, loyalty, combat, attachment.
+     * Static fields (colors, abilities, base P/T) come from the client DB.
+     * This method overlays: live card types (continuous effects can add/remove types),
+     * live P/T, tapped, sickness, damage, loyalty, combat, attachment.
      */
     fun GameObjectInfo.Builder.applyCardFields(
         card: Card,
@@ -115,6 +117,9 @@ object ObjectMapper {
         game: Game? = null,
     ): GameObjectInfo.Builder {
         val type = card.type
+
+        // Live card types from Forge — continuous effects (e.g. crew) can add/remove types
+        overlayCardTypes(type)
 
         // Live P/T from Forge (may differ from base due to buffs/counters)
         if (type.isCreature) {
@@ -235,6 +240,34 @@ object ObjectMapper {
         }
         val otherState = card.getState(otherStateName) ?: return 0
         return cards.findGrpIdByName(otherState.name) ?: 0
+    }
+
+    /** Forge CoreType → proto CardType mapping. */
+    private val coreTypeToProto: Map<ForgeCoreType, CardType> = mapOf(
+        ForgeCoreType.Artifact to CardType.Artifact_a80b,
+        ForgeCoreType.Creature to CardType.Creature,
+        ForgeCoreType.Enchantment to CardType.Enchantment,
+        ForgeCoreType.Instant to CardType.Instant,
+        ForgeCoreType.Land to CardType.Land_a80b,
+        ForgeCoreType.Planeswalker to CardType.Planeswalker,
+        ForgeCoreType.Sorcery to CardType.Sorcery,
+        ForgeCoreType.Kindred to CardType.Kindred,
+        ForgeCoreType.Battle to CardType.Battle,
+    )
+
+    /**
+     * Overlay live card types from Forge onto the builder when they differ from the DB.
+     *
+     * Continuous effects (crew, animate, enchant) can add or remove types at runtime.
+     * Only rebuilds when the live set differs from what the DB provided — no-op otherwise.
+     */
+    private fun GameObjectInfo.Builder.overlayCardTypes(type: forge.card.CardTypeView) {
+        val liveTypes = type.coreTypes.mapNotNull { coreTypeToProto[it] }.toSortedSet(compareBy { it.number })
+        val dbTypes = cardTypesList.toSortedSet(compareBy { it.number })
+        if (liveTypes == dbTypes) return
+
+        clearCardTypes()
+        liveTypes.forEach { addCardTypes(it) }
     }
 
     /** Resolve grpId for a card, using token-specific lookup for tokens. */
