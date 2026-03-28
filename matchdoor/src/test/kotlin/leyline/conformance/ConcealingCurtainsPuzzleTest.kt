@@ -31,7 +31,6 @@ class ConcealingCurtainsPuzzleTest :
             humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp
             humanlibrary=Swamp
             aibattlefield=
-            aihand=Grizzly Bears
             ailibrary=Forest
             """.trimIndent()
             val (b, game, _) = base.startPuzzleAtMain1(pzl)
