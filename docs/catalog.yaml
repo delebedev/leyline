@@ -518,11 +518,11 @@ permanents:
     notes: "ModifiedColor annotation (7) not implemented."
 
   type-change:
-    status: missing
+    status: wired
     notes: >
-      ModifiedType annotation (25) not implemented. Crew mechanic uses
-      ModifiedType + LayeredEffect persistent annotation to change
-      Vehicle artifact → artifact creature (surgehacker-mech spec).
+      ModifiedType (25) + LayeredEffect persistent annotation emitted when
+      continuous effects change card types. Crew makes Vehicle → Artifact Creature.
+      Live type overlay in ObjectMapper reflects Forge's continuous effect state.
 
   ability-removal:
     status: missing
@@ -533,14 +533,14 @@ permanents:
       Needed for "loses all abilities" effects.
 
   vehicle:
-    status: missing
+    status: wired
     notes: >
-      Vehicle type + Crew mechanic not implemented. Crew uses PayCostsReq with
-      effectCostType=Select, weights=creature power, minSel=crew number.
-      CrewedThisTurn (type 94) persistent annotation tracks crew sources.
-      ModifiedType+LayeredEffect makes vehicle a creature until EOT.
-      ShouldntPlay/RedundantActivation hints for already-crewed vehicles.
-      Wire shape confirmed via surgehacker-mech spec (Crew 4).
+      Vehicle type + Crew mechanic implemented. Forge handles game logic
+      (CostTapType + isCrew, continuous type change). Leyline emits:
+      CrewedThisTurn (94) pAnn with crew sources, ModifiedType+LayeredEffect
+      pAnn for type change, live cardTypes in GSM diff. PayCostsReq with
+      effectCostType=Select auto-handled by Forge AI cost solver.
+      ShouldntPlay/RedundantActivation deferred (UI hint, no gameplay impact).
 
   saga:
     status: missing
