@@ -39,7 +39,7 @@ class AbilityRegistry private constructor(
          * Uses [cardData.abilityIds] for slot values, so must be called *after*
          * [AbilityIdDeriver.deriveAbilityIds].
          */
-        fun build(card: Card, cardData: CardData, slotLayout: SlotLayout = SlotLayout.EMPTY): AbilityRegistry {
+        fun build(card: Card, cardData: CardData): AbilityRegistry {
             val abilityIds = cardData.abilityIds
             if (abilityIds.isEmpty()) return EMPTY
 
@@ -53,7 +53,15 @@ class AbilityRegistry private constructor(
             mapManaAbilities(card, fallbackGrpId, saMap)
             mapUnclaimedIntrinsics(card, fallbackGrpId, staticMap, triggerMap)
 
-            return AbilityRegistry(saMap, staticMap, triggerMap, slotLayout)
+            // Derive SlotLayout from the same data — single source of truth
+            val activatedCount = abilityIds.size - keywordCount
+            val slots = abilityIds.mapIndexed { i, (grpId, textId) ->
+                val kind = if (i < keywordCount) SlotKind.Keyword else SlotKind.Activated
+                SlotEntry(grpId, textId, kind)
+            }
+            val layout = SlotLayout(keywordCount, activatedCount, slots)
+
+            return AbilityRegistry(saMap, staticMap, triggerMap, layout)
         }
 
         /** Phase 1: Keywords occupy the first N slots. Returns keyword count. */
