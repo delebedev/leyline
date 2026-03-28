@@ -276,6 +276,13 @@ sealed interface GameEvent {
         val newToughness: Int,
     ) : GameEvent
 
+    /** A double-faced card transformed (front ↔ back).
+     *  Emitted from GameEventCardStatsChanged when isBackSide() flips. */
+    data class CardTransformed(
+        val cardId: ForgeCardId,
+        val isBackSide: Boolean,
+    ) : GameEvent
+
     /** A player's library was shuffled. */
     data class LibraryShuffled(
         val seatId: SeatId,

@@ -1,5 +1,6 @@
 package leyline.game
 
+import forge.card.CardStateName
 import forge.game.card.CardView
 import forge.game.card.CounterEnumType
 import forge.game.event.*
@@ -462,6 +463,47 @@ class GameEventCollectorTest :
 
             val pt = collector.drainEvents().events.filterIsInstance<GameEvent.PowerToughnessChanged>()
             pt.shouldBeEmpty()
+        }
+
+        // -- Transform --
+
+        test("transform emits CardTransformed") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Concealing Curtains", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents() // clear setup events
+
+            val card = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.name == "Concealing Curtains" }
+
+            // First stats event establishes baseline (no prior cached backside -> no delta)
+            game.fireEvent(GameEventCardStatsChanged(card))
+            collector.drainEvents()
+
+            // Simulate transform — toggle to back side
+            card.setState(CardStateName.Backside, true)
+            card.setBackSide(true)
+            game.fireEvent(GameEventCardStatsChanged(card))
+
+            val events = collector.drainEvents().events
+            val transformed = events.filterIsInstance<GameEvent.CardTransformed>()
+            transformed.size shouldBe 1
+            transformed[0].cardId shouldBe ForgeCardId(card.id)
+            transformed[0].isBackSide shouldBe true
+        }
+
+        test("non-transform stats change does not emit CardTransformed") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+            }
+            val collector = b.eventCollector!!
+            collector.drainEvents()
+
+            val card = game.humanPlayer.getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            game.fireEvent(GameEventCardStatsChanged(card))
+
+            val events = collector.drainEvents().events
+            events.filterIsInstance<GameEvent.CardTransformed>().shouldBeEmpty()
         }
 
         // -- Shuffle --
