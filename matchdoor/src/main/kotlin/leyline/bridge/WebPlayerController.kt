@@ -1061,8 +1061,20 @@ class WebPlayerController(
         sa.hostCard?.setSplitStateToPlayAbility(sa)
 
         val needsTargeting = sa.usesTargeting() && sa.targets.isEmpty()
+        log.info(
+            "playChosenSpellAbility: {} host={} isActivated={} sorcerySpeed={} canCastSorcery={} needsTargeting={} canCastTiming={}",
+            sa.javaClass.simpleName,
+            sa.hostCard?.name,
+            sa.isActivatedAbility,
+            sa.restrictions?.isSorcerySpeed,
+            player.canCastSorcery(),
+            needsTargeting,
+            sa.canCastTiming(player),
+        )
         val req = PlaySpellAbility(this, sa)
-        return req.playAbility(needsTargeting, false, false)
+        val result = req.playAbility(needsTargeting, false, false)
+        if (!result) log.warn("playChosenSpellAbility FAILED for {} — ability rollback", sa.hostCard?.name)
+        return result
     }
 
     override fun playSpellAbilityNoStack(effectSA: SpellAbility, mayChoseNewTargets: Boolean) {
