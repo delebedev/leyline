@@ -21,6 +21,7 @@ Local server that makes the Magic: The Gathering Arena client connect to Forge (
 - **Autonomous bug fixing.** Given a bug report: just fix it. Logs → errors → failing test → resolve. Zero hand-holding.
 - **Ship the feature, not just the code.** Before PRing, ask: "Does this work end-to-end from the user's perspective?" Tests green ≠ feature complete. "Pre-existing" is not an excuse when YOU created the context where it matters. "Follow-up" is not appropriate for gaps that make the feature non-functional. Trivial blockers (< 5 min) ship with the feature, not after.
 - **Elegance balance.** Non-trivial changes: pause and ask "is there a more elegant way?" Skip for simple obvious fixes.
+- **Learn from corrections.** After ANY correction from the user, update `docs/lessons.md` with the pattern — what went wrong, why, how to avoid it. Review before starting complex work.
 - **Ralph PRs get labeled.** Add `--label ralph` to `gh pr create` in ralph-loop sessions.
 
 ## Modules
