@@ -4,6 +4,7 @@ Local server that makes the Magic: The Gathering Arena client connect to Forge (
 
 - **Depends on:** forge (engine submodule — game bridges, bootstrap) — never reverse the dependency
 - **Server modes:** `just serve` (local, main dev — fully offline), `just serve-proxy` (passthrough for recording), `just serve-replay`
+- **Current priority:** [v0.1 release](docs/v0.1-release.md) — first public release, FDN as core set
 - **Roadmap:** [GitHub Project board](https://github.com/users/delebedev/projects/1)
 - **Bugs & tasks:** GitHub Issues — no local TODO/BUGS files
 
