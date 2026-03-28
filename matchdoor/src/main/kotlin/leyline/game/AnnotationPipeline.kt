@@ -624,6 +624,24 @@ object AnnotationPipeline {
                         log.debug("mechanic: revealedCardCreated iid={} seat={}", instanceId, ev.ownerSeatId)
                     }
                 }
+                is GameEvent.CardTransformed -> {
+                    if (ev.isBackSide) {
+                        val instanceId = idResolver(ev.cardId).value
+                        // Menace keyword Qualification — hardcoded for Phase 1.
+                        // TODO: Generalize keyword→Qualification mapping when more DFCs are exercised.
+                        persistent.add(
+                            AnnotationBuilder.qualification(
+                                affectorId = instanceId,
+                                instanceId = instanceId,
+                                grpId = 142, // Menace
+                                qualificationType = 40,
+                                qualificationSubtype = 0,
+                                sourceParent = instanceId,
+                            ),
+                        )
+                        log.debug("mechanic: Qualification (Menace) on transform iid={}", instanceId)
+                    }
+                }
                 // Track permanents leaving battlefield for DisplayCardUnderCard cleanup.
                 // CardExiled is safe to add unconditionally — findExileSourcesLeavingPlay
                 // only matches cards that were an exile source (affectorId), not exiled cards.
