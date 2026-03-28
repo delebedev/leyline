@@ -909,11 +909,17 @@ class GameBridge(
                     // Use live card when rules are available (spellAbilities populated).
                     // Fall back to by-name path for cards with null rules.
                     if (card.rules != null) {
-                        registrar.ensureCardRegistered(card)
+                        val grpId = registrar.ensureCardRegistered(card)
+                        DevCheck.requireOrNull(grpId.takeIf { it != 0 }) {
+                            "puzzle card '${card.name}' registered with grpId=0"
+                        }
                         // Pre-populate ability registry for puzzle cards
-                        val cardData = cards.findByGrpId(cards.findGrpIdByName(card.name) ?: 0)
+                        val cardData = cards.findByGrpId(grpId)
                         abilityRegistryFor(card, cardData)
                     } else {
+                        // Null-rules cards include synthetic engine objects (Puzzle Goal,
+                        // DetachedCardEffect) that don't exist in any card DB. grpId=0
+                        // is the correct fallback — they're invisible to the client.
                         registrar.ensureCardRegisteredByName(card.name)
                     }
                     ids.getOrAlloc(ForgeCardId(card.id))

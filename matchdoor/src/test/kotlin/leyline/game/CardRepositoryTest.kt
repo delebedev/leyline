@@ -1,5 +1,6 @@
 package leyline.game
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -75,6 +76,19 @@ class CardRepositoryTest :
 
         test("token grp id for card unknown source") {
             repo.tokenGrpIdForCard(9999).shouldBeNull()
+        }
+
+        // --- registerData grpId=0 guard ---
+
+        test("registerData rejects grpId 0") {
+            val data = CardData(
+                grpId = 0, titleId = 1, power = "", toughness = "",
+                colors = emptyList(), types = emptyList(), subtypes = emptyList(),
+                supertypes = emptyList(), abilityIds = emptyList(), manaCost = emptyList(),
+            )
+            shouldThrow<IllegalArgumentException> {
+                repo.registerData(data, "Broken Card")
+            }
         }
 
         test("token grp id for card no tokens") {

@@ -1,5 +1,6 @@
 package leyline.game
 
+import forge.card.CardStateName
 import forge.card.CardType.CoreType
 import forge.card.CardType.Supertype
 import forge.card.mana.ManaCostShard
@@ -47,9 +48,9 @@ class PuzzleCardRegistrar(
             if (clientData != null) {
                 repo.registerData(clientData, card.name)
                 log.debug("Registered puzzle card '{}' grpId={} (client DB)", card.name, clientGrpId)
-                // Adventure cards: also register the secondary face (e.g. "Pest Problem")
-                // so token grpId resolution can find it.
-                registerAdventureFace(card)
+                // Register alternate faces (adventure, DFC back, split halves, etc.)
+                // so grpId resolution can find them.
+                registerAlternateFaces(card)
                 return clientGrpId
             }
         }
@@ -57,23 +58,36 @@ class PuzzleCardRegistrar(
         val data = fromForgeCard(card)
         repo.registerData(data, card.name)
         log.debug("Registered puzzle card '{}' grpId={} (synthetic)", card.name, data.grpId)
-        registerAdventureFace(card)
+        registerAlternateFaces(card)
         return data.grpId
     }
 
-    /** Register the adventure face name if the card is an adventure card. */
-    private fun registerAdventureFace(card: Card) {
-        if (!card.isAdventureCard) return
-        val secondaryName = card.getState(forge.card.CardStateName.Secondary)?.name ?: return
-        if (repo.findGrpIdByName(secondaryName) != null) return
-        // Adventure faces have IsPrimaryCard=0 — use findGrpIdByNameAnyFace
-        val clientGrpId = clientRepo?.findGrpIdByNameAnyFace(secondaryName)
-        if (clientGrpId != null) {
-            val clientData = clientRepo.findByGrpId(clientGrpId)
-            if (clientData != null) {
-                repo.registerData(clientData, secondaryName)
-                log.debug("Registered adventure face '{}' grpId={}", secondaryName, clientGrpId)
+    /**
+     * Register all alternate faces (adventure, DFC back, MDFC, split halves, flip, meld).
+     * Iterates [Card.getStates] and registers any face not already known,
+     * using [clientRepo] for real grpIds when available.
+     */
+    private fun registerAlternateFaces(card: Card) {
+        for (stateName in card.states) {
+            if (stateName in SKIP_STATES) continue
+            val state = card.getState(stateName) ?: continue
+            val faceName = state.name ?: continue
+            if (faceName == card.name) continue // same as primary — skip
+            if (repo.findGrpIdByName(faceName) != null) continue // already registered
+
+            val clientGrpId = clientRepo?.findGrpIdByNameAnyFace(faceName)
+            if (clientGrpId != null) {
+                val clientData = clientRepo.findByGrpId(clientGrpId)
+                if (clientData != null) {
+                    repo.registerData(clientData, faceName)
+                    log.debug("Registered alternate face '{}' ({}) grpId={}", faceName, stateName, clientGrpId)
+                    continue
+                }
             }
+            // No client DB match — register synthetic so downstream lookups don't NPE
+            val syntheticData = fromForgeCard(card, faceName)
+            repo.registerData(syntheticData, faceName)
+            log.debug("Registered alternate face '{}' ({}) grpId={} (synthetic)", faceName, stateName, syntheticData.grpId)
         }
     }
 
@@ -102,16 +116,18 @@ class PuzzleCardRegistrar(
                 db.getCard(cardName)
             }
             ?: run {
-                log.warn("Card '{}' not found in Forge DB", cardName)
+                // Synthetic engine cards (Puzzle Goal, DetachedCardEffect) aren't in any
+                // card DB — grpId=0 fallback is correct for them.
+                log.debug("Card '{}' not found in Forge DB (synthetic?)", cardName)
                 return 0
             }
         val tempCard = Card.fromPaperCard(paperCard, null)
         return ensureCardRegistered(tempCard)
     }
 
-    /** Derive [CardData] from a live Forge [Card]. */
-    private fun fromForgeCard(card: Card): CardData {
-        val name = card.name
+    /** Derive [CardData] from a live Forge [Card], optionally overriding the name (for alternate faces). */
+    private fun fromForgeCard(card: Card, overrideName: String? = null): CardData {
+        val name = overrideName ?: card.name
         val grpId = nameToGrpId.getOrPut(name) { nextGrpId.getAndIncrement() }
         val titleId = nextTitleId.getAndIncrement()
 
@@ -166,6 +182,12 @@ class PuzzleCardRegistrar(
     private fun deriveAbilityIds(card: Card) = AbilityIdDeriver.deriveAbilityIds(card, nextAbilityGrpId)
 
     companion object {
+        /** States that don't represent registrable alternate card faces. */
+        private val SKIP_STATES = setOf(
+            CardStateName.Original, // primary face — already registered
+            CardStateName.FaceDown, // morphed state, not a real face
+        )
+
         private val CORE_TYPE_MAP = mapOf(
             CoreType.Artifact to 1, CoreType.Creature to 2, CoreType.Enchantment to 3,
             CoreType.Instant to 4, CoreType.Land to 5, CoreType.Phenomenon to 6,
