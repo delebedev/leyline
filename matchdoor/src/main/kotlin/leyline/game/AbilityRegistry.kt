@@ -16,6 +16,7 @@ class AbilityRegistry private constructor(
     private val saMap: Map<Int, Int>,
     private val staticMap: Map<Int, Int>,
     private val triggerMap: Map<Int, Int>,
+    val slotLayout: SlotLayout = SlotLayout.EMPTY,
 ) {
 
     /** SpellAbility forge id → abilityGrpId (mana + activated). */
@@ -30,7 +31,7 @@ class AbilityRegistry private constructor(
     companion object {
 
         /** Empty registry — no mappings. */
-        val EMPTY = AbilityRegistry(emptyMap(), emptyMap(), emptyMap())
+        val EMPTY = AbilityRegistry(emptyMap(), emptyMap(), emptyMap(), SlotLayout.EMPTY)
 
         /**
          * Build a registry from a live Forge [card] and its derived [cardData].
@@ -38,7 +39,7 @@ class AbilityRegistry private constructor(
          * Uses [cardData.abilityIds] for slot values, so must be called *after*
          * [AbilityIdDeriver.deriveAbilityIds].
          */
-        fun build(card: Card, cardData: CardData): AbilityRegistry {
+        fun build(card: Card, cardData: CardData, slotLayout: SlotLayout = SlotLayout.EMPTY): AbilityRegistry {
             val abilityIds = cardData.abilityIds
             if (abilityIds.isEmpty()) return EMPTY
 
@@ -52,7 +53,7 @@ class AbilityRegistry private constructor(
             mapManaAbilities(card, fallbackGrpId, saMap)
             mapUnclaimedIntrinsics(card, fallbackGrpId, staticMap, triggerMap)
 
-            return AbilityRegistry(saMap, staticMap, triggerMap)
+            return AbilityRegistry(saMap, staticMap, triggerMap, slotLayout)
         }
 
         /** Phase 1: Keywords occupy the first N slots. Returns keyword count. */

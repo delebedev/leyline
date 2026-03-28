@@ -150,7 +150,9 @@ class PuzzleCardRegistrar(
         val toughness = if (type.isCreature) rules.intToughness.let { if (it == Integer.MAX_VALUE) "0" else it.toString() } else ""
 
         val manaCost = deriveManaCost(rules.manaCost)
-        val (abilityIds, keywordAbilityGrpIds) = deriveAbilityIds(card)
+        val derived = deriveAbilityIds(card)
+        val abilityIds = derived.abilityIds
+        val keywordAbilityGrpIds = derived.keywordAbilityGrpIds
 
         return CardData(
             grpId = grpId,

@@ -63,7 +63,9 @@ object CardDataDeriver {
         val manaCost = deriveManaCost(rules.manaCost)
 
         // Abilities — assign synthetic sequential IDs per ability on the card
-        val (abilityIds, keywordAbilityGrpIds) = deriveAbilityIds(card)
+        val derived = deriveAbilityIds(card)
+        val abilityIds = derived.abilityIds
+        val keywordAbilityGrpIds = derived.keywordAbilityGrpIds
 
         return CardData(
             grpId = grpId,
