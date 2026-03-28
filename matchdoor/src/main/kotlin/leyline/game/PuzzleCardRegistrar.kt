@@ -154,6 +154,8 @@ class PuzzleCardRegistrar(
         val abilityIds = derived.abilityIds
         val keywordAbilityGrpIds = derived.keywordAbilityGrpIds
 
+        val linkedFaces = resolveLinkedFaceGrpIds(card)
+
         return CardData(
             grpId = grpId,
             titleId = titleId,
@@ -166,7 +168,33 @@ class PuzzleCardRegistrar(
             abilityIds = abilityIds,
             manaCost = manaCost,
             keywordAbilityGrpIds = keywordAbilityGrpIds,
+            linkedFaceGrpIds = linkedFaces,
         )
+    }
+
+    /**
+     * Resolve linked face grpIds for multi-face cards.
+     * Checks alternate states (Backside, Flipped, Modal, Adventure, Meld).
+     * Uses client DB if available, otherwise allocates synthetic grpIds.
+     */
+    private fun resolveLinkedFaceGrpIds(card: Card): List<Int> {
+        val states = card.states ?: return emptyList()
+        if (states.size <= 1) return emptyList()
+
+        val linkedIds = mutableListOf<Int>()
+        for (stateName in states) {
+            if (stateName == forge.card.CardStateName.Original) continue
+            if (stateName == forge.card.CardStateName.FaceDown) continue
+            val altState = card.getState(stateName) ?: continue
+            val altName = altState.name ?: continue
+            if (altName == card.name) continue
+
+            val altGrpId = clientRepo?.findGrpIdByName(altName)
+                ?: repo.findGrpIdByName(altName)
+                ?: nameToGrpId.getOrPut(altName) { nextGrpId.getAndIncrement() }
+            linkedIds.add(altGrpId)
+        }
+        return linkedIds
     }
 
     private fun deriveManaCost(cost: forge.card.mana.ManaCost?): List<Pair<ManaColor, Int>> {
