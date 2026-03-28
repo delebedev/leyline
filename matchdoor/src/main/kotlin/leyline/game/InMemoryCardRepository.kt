@@ -21,6 +21,7 @@ class InMemoryCardRepository : CardRepository {
     }
 
     fun registerData(data: CardData, cardName: String) {
+        require(data.grpId != 0) { "Cannot register card '$cardName' with grpId=0" }
         register(data.grpId, cardName)
         cache[data.grpId] = data
     }
