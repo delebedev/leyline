@@ -547,6 +547,10 @@ object AnnotationBuilder {
     /**
      * Persistent annotation marking a card as eligible for an alternate cast
      * (adventure from exile, etc.). Wire shape from 2026-03-25 recording.
+     *
+     * grpId=196 appears universal for adventure Qualification — observed on
+     * Ratcatcher Trainee (86845). Likely a fixed ability ID, not per-card.
+     * Verify against a second adventure card recording if issues arise.
      */
     fun qualification(
         instanceId: Int,

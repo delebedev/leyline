@@ -302,6 +302,9 @@ class MatchSession(
                     } else {
                         null
                     }
+                    if (adventureIndex == null) {
+                        log.warn("CastAdventure: no adventure SA found for card={} iid={}", card?.name, action.instanceId)
+                    }
                     seatBridge.action.submitAction(
                         pending.actionId,
                         PlayerAction.CastSpell(cardId, adventureIndex),

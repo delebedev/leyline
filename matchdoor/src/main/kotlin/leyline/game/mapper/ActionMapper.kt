@@ -268,13 +268,6 @@ object ActionMapper {
         return actionBuilder.build()
     }
 
-    /**
-     * Add Cast actions for cards castable from non-hand zones (GY, Exile, Command).
-     * Covers flashback, escape, and other alternate-cost mechanics.
-     *
-     * For alternate-cost casts, sets [Action.abilityGrpId] from the keyword's
-     * registered grpId (e.g. flashback abilityGrpId=175847 for Electroduplicate).
-     */
     /** Build a CastAdventure action for an adventure card, or null if not castable. */
     private fun buildAdventureAction(
         card: Card,
