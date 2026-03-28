@@ -21,6 +21,7 @@ from .commands.input import (
 )
 from .commands.state import cmd_errors, cmd_state
 from .diagnostics import cmd_health, cmd_issues
+from .flows import cmd_concede as _cmd_concede, cmd_start_bot_match as _cmd_start_bot_match
 from .gameplay import cmd_attack_all, cmd_land, cmd_play
 from .interaction import cmd_click, cmd_drag, cmd_move
 from .nav import cmd_navigate as _cmd_navigate, cmd_scene, cmd_wait, cmd_where
@@ -88,6 +89,14 @@ def cmd_navigate(args: list[str]) -> None:
     _cmd_navigate(args, COMMANDS)
 
 
+def cmd_concede(args: list[str]) -> None:
+    _cmd_concede(args, COMMANDS)
+
+
+def cmd_start_bot_match(args: list[str]) -> None:
+    _cmd_start_bot_match(args, COMMANDS)
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -121,6 +130,8 @@ COMMANDS = {
     "issues": cmd_issues,
     "health": cmd_health,
     "turn": cmd_turn,
+    "concede": cmd_concede,
+    "start-bot-match": cmd_start_bot_match,
 }
 
 
@@ -152,6 +163,8 @@ COMMAND_HELP = {
     "issues": "Review session errors and failures",
     "health": "Pre-flight health check (server, client, display)",
     "turn": "Structured turn state for agent decision-making",
+    "concede": "Concede match and return to lobby. Idempotent — safe from any screen.",
+    "start-bot-match": "Start bot match from anywhere. [--deck NAME|N] (default: random)",
 }
 
 

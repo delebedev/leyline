@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import sys
 import time
@@ -47,7 +48,9 @@ def detect_screen() -> str | None:
     all_text = " ".join(ocr_texts).lower()
 
     def _has(anchor: str) -> bool:
-        return anchor.lower() in all_text
+        # Word-boundary match to avoid "Play" matching inside "ForgePlayer"
+        pattern = r"\b" + re.escape(anchor.lower()) + r"\b"
+        return bool(re.search(pattern, all_text))
 
     def _has_any(anchors: list[str]) -> bool:
         return any(_has(a) for a in anchors)
@@ -205,6 +208,17 @@ def try_dismiss_popups(commands: dict[str, object]) -> str | None:
         return name
 
     return None
+
+
+def dismiss_all_popups(commands: dict[str, object], max_rounds: int = 5) -> list[str]:
+    """Dismiss stacked popups. Returns list of popup names dismissed."""
+    dismissed: list[str] = []
+    for _ in range(max_rounds):
+        popup = try_dismiss_popups(commands)
+        if popup is None:
+            break
+        dismissed.append(popup)
+    return dismissed
 
 
 def cmd_navigate(args: list[str], commands: dict[str, object]) -> None:

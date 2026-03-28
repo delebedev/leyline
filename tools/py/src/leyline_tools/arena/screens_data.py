@@ -36,6 +36,11 @@ POPUPS: list[dict] = [
         "dismiss": ["click 210,482", "sleep 1"],
     },
     {
+        "name": "NetworkError",
+        "ocr_anchors": ["Network Error"],
+        "dismiss": ['click "OK" --retry 3', "sleep 1"],
+    },
+    {
         "name": "GenericModal",
         "ocr_anchors": ["Okay"],
         "ocr_reject": ["Banned"],
@@ -147,7 +152,7 @@ TRANSITIONS: list[dict] = [
     {
         "from": "Home",
         "to": "RecentlyPlayed",
-        "steps": ['click "Play" --retry 3'],
+        "steps": ['click "Play" --retry 3 --bottom'],
         "wait": 'text="Recently Played"',
         "wait_timeout": 5,
     },
@@ -196,7 +201,7 @@ TRANSITIONS: list[dict] = [
     {
         "from": "FindMatch",
         "to": "DeckSelected",
-        "steps": ['click "Bot Match" --retry 3', "sleep 1"],
+        "steps": ['click "Bot Match" --retry 3 --bottom', "sleep 1"],
         "wait": 'text="Edit Deck"',
         "wait_timeout": 5,
         "note": "Caller must click a deck thumbnail after this.",

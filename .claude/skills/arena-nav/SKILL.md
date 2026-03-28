@@ -154,8 +154,7 @@ Available screens: `Home`, `FindMatch`, `DeckSelected`, `Events`, `EventLanding`
 | Play blade → FindMatch | `arena click "Find Match" --retry 3` |
 | FindMatch → Bot Match | `arena click "Bot Match" --retry 3` → click deck → `arena click 866,533` |
 | Home → Log Out | `arena click 900,42` → sleep 1 → `arena click "Log Out" --retry 3` |
-| InGame → Concede | `arena click 940,42` → sleep 1 → `arena click "Concede" --retry 3` |
-| Result → Home | `arena click 210,482` × 3 with 2s gaps |
+| InGame → Home (concede) | `arena concede` |
 
 ## Bot Match Flow (Complete Recipe)
 
@@ -184,19 +183,8 @@ sleep 5                                      # match load (~3-5s local Forge)
 arena click "Keep" --retry 2 2>/dev/null; true
 sleep 2
 
-# 5. In-game: pass to concede
-arena click 888,504                          # pass priority
-sleep 2
-
-# 6. Concede
-arena click 940,42                           # cog icon
-sleep 1
-arena click "Concede" --retry 3
-arena wait text="DEFEAT" --timeout 10
-
-# 7. Dismiss result
-arena click 210,482 && sleep 2 && arena click 210,482 && sleep 2 && arena click 210,482
-arena wait text="Play" --timeout 10          # back in lobby
+# 5. Concede and return to lobby
+arena concede
 ```
 
 ## Sealed Event Flow (Complete Recipe)
@@ -260,17 +248,11 @@ arena wait text="Keep" --timeout 15          # mulligan screen
 arena click "Keep" --retry 3
 sleep 3
 
-# 9. Concede
-arena click 940,42                           # cog icon
-sleep 1
-arena click "Concede" --retry 3
-arena wait text="DEFEAT" --timeout 10
+# 9. Concede — lands at EventLobby for events
+arena concede
+# Returns {"ok": true, "screen": "EventLobby"}
 
-# 10. Dismiss result
-arena click 480,300 && sleep 2 && arena click 480,300 && sleep 2 && arena click 480,300
-sleep 3
-
-# 11. Verify loss tracked
+# 10. Verify loss tracked
 arena ocr --find "Loss"                      # "1 Loss" on event blade
 
 # 12. Resign from event
@@ -353,22 +335,13 @@ arena click "Keep" --retry 3
 - **"Unable to finish draft" after last pick is expected.** CmdTypes 621/1908 are stubbed as no-ops (#85). Dismiss error, then: `just stop` + restart server + `arena launch`. Event blade shows "Build Your Deck" on resume.
 - **"Build Your Deck" on resume.** After server restart, completed drafts go straight to deckbuilder — no re-draft needed.
 
-## Concede-Fast Recipe
+## Concede
 
-When the goal is just to lose quickly (recording FD traffic, smoke testing):
+`arena concede` — single call, blocks until done, returns JSON. Idempotent — safe from any screen.
 
-```bash
-arena click 866,533                          # Play (from deck select)
-sleep 5                                      # match load
-arena click "Keep" --retry 2 2>/dev/null; true
-sleep 1
-arena click 940,42                           # cog icon
-sleep 0.5
-arena click "Concede" --retry 3
-arena wait text="DEFEAT" --timeout 10
-arena click 210,482 && sleep 2 && arena click 210,482 && sleep 2 && arena click 210,482
-arena wait text="Play" --timeout 10
-```
+- **InGame/Mulligan:** cog → Concede → dismiss result → Home (or EventLobby for events)
+- **Result/EventResult:** just dismisses
+- **Any other screen:** no-op, returns `{"ok": true, "screen": "...", "noop": true}`
 
 ## Login / Logout
 
