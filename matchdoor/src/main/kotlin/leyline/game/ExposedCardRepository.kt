@@ -44,6 +44,7 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
         val isDigitalOnly = integer("IsDigitalOnly").default(0)
         val isRebalanced = integer("IsRebalanced").default(0)
         val expansionCode = text("ExpansionCode").default("")
+        val linkedFaceGrpIds = text("LinkedFaceGrpIds").default("")
         override val primaryKey = PrimaryKey(grpId)
     }
 
@@ -170,6 +171,7 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
                     abilityIds = parseAbilityIds(row[Cards.abilityIds]),
                     manaCost = parseManaCost(row[Cards.oldSchoolManaText]),
                     tokenGrpIds = parseTokenGrpIds(row[Cards.abilityIdToLinkedTokenGrpId]),
+                    linkedFaceGrpIds = parseIntList(row[Cards.linkedFaceGrpIds]),
                 )
             }
         }

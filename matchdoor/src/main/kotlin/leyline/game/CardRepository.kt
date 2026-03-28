@@ -30,6 +30,10 @@ interface CardRepository {
      */
     fun registerModalOptions(cardGrpId: Int, info: ModalAbilityInfo) {}
 
+    /** Linked face grpIds for multi-face cards (DFC, MDFC, Adventure, Split). */
+    fun findLinkedFaces(grpId: Int): List<Int> =
+        findByGrpId(grpId)?.linkedFaceGrpIds ?: emptyList()
+
     /**
      * Token grpId produced by [sourceGrpId].
      * Single token -> returns directly. Multiple -> matches by [tokenName].
