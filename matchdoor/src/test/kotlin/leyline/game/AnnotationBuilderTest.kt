@@ -753,10 +753,10 @@ class AnnotationBuilderTest :
             ann.typeList shouldContain AnnotationType.Qualification
             assertSoftly {
                 ann.affectedIdsList shouldBe listOf(348)
-                ann.detailInt("QualificationType") shouldBe 47
-                ann.detailInt("QualificationSubtype") shouldBe 0
+                ann.detailUint("QualificationType") shouldBe 47
+                ann.detailUint("QualificationSubtype") shouldBe 0
                 ann.detailUint("grpid") shouldBe 196
-                ann.detailInt("SourceParent") shouldBe 0
+                ann.detailUint("SourceParent") shouldBe 0
             }
             ann.affectorId shouldBe 0
         }

@@ -561,10 +561,10 @@ object AnnotationBuilder {
     ): AnnotationInfo = AnnotationInfo.newBuilder()
         .addType(AnnotationType.Qualification)
         .addAffectedIds(instanceId)
-        .addDetails(int32Detail(DetailKeys.SOURCE_PARENT, sourceParent))
+        .addDetails(uint32Detail(DetailKeys.SOURCE_PARENT, sourceParent))
         .addDetails(uint32Detail(DetailKeys.GRPID, grpId))
-        .addDetails(int32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
-        .addDetails(int32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType))
+        .addDetails(uint32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
+        .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType))
         .build()
 
     /** Map Forge counter type name to proto CounterType numeric value.
@@ -848,10 +848,10 @@ object AnnotationBuilder {
             .addType(AnnotationType.Qualification)
             .setAffectorId(affectorId)
             .addAffectedIds(instanceId)
-            .addDetails(uint32Detail("grpid", grpId))
-            .addDetails(uint32Detail("QualificationType", qualificationType))
-            .addDetails(uint32Detail("QualificationSubtype", qualificationSubtype))
-            .addDetails(uint32Detail("SourceParent", sourceParent))
+            .addDetails(uint32Detail(DetailKeys.GRPID, grpId))
+            .addDetails(uint32Detail(DetailKeys.QUALIFICATION_TYPE, qualificationType))
+            .addDetails(uint32Detail(DetailKeys.QUALIFICATION_SUBTYPE, qualificationSubtype))
+            .addDetails(uint32Detail(DetailKeys.SOURCE_PARENT, sourceParent))
             .build()
 
     private fun typedStringDetail(key: String, value: String): KeyValuePairInfo =

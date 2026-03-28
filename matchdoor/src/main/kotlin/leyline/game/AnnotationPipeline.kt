@@ -26,6 +26,11 @@ object AnnotationPipeline {
 
     // Zone ID constants needed by the pipeline
     private const val ZONE_STACK = ZoneIds.STACK
+
+    // DFC transform Qualification constants — Phase 1 (Concealing Curtains only).
+    // Replace with keyword→Qualification lookup table when more DFCs are exercised.
+    private const val MENACE_KEYWORD_GRPID = 142
+    private const val MENACE_QUALIFICATION_TYPE = 40
     private const val ZONE_BATTLEFIELD = ZoneIds.BATTLEFIELD
     private const val ZONE_EXILE = ZoneIds.EXILE
     private const val ZONE_LIMBO = ZoneIds.LIMBO
@@ -626,16 +631,16 @@ object AnnotationPipeline {
                     }
                 }
                 is GameEvent.CardTransformed -> {
+                    // Phase 1: only Concealing Curtains → Revealing Eye (Menace).
+                    // Generalize to keyword→Qualification lookup when more DFCs are exercised.
                     if (ev.isBackSide) {
                         val instanceId = idResolver(ev.cardId).value
-                        // Menace keyword Qualification — hardcoded for Phase 1.
-                        // TODO: Generalize keyword→Qualification mapping when more DFCs are exercised.
                         qualificationPersistent.add(
                             AnnotationBuilder.qualification(
                                 affectorId = instanceId,
                                 instanceId = instanceId,
-                                grpId = 142, // Menace
-                                qualificationType = 40,
+                                grpId = MENACE_KEYWORD_GRPID,
+                                qualificationType = MENACE_QUALIFICATION_TYPE,
                                 qualificationSubtype = 0,
                                 sourceParent = instanceId,
                             ),
