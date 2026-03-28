@@ -27,8 +27,11 @@ object AnnotationPipeline {
     // Zone ID constants needed by the pipeline
     private const val ZONE_STACK = ZoneIds.STACK
 
-    // DFC transform Qualification constants — Phase 1 (Concealing Curtains only).
-    // Replace with keyword→Qualification lookup table when more DFCs are exercised.
+    // DFC transform: back-face keywords not present on the front face need a
+    // Qualification pAnn (runtime keyword grant). Currently only Concealing Curtains
+    // → Revealing Eye (gains Menace). To generalize: diff front/back CardData keyword
+    // sets, emit Qualification per new keyword with correct grpId/qualificationType.
+    // Requires a keyword→(grpId, qualType) mapping table populated from recordings.
     private const val MENACE_KEYWORD_GRPID = 142
     private const val MENACE_QUALIFICATION_TYPE = 40
     private const val ZONE_BATTLEFIELD = ZoneIds.BATTLEFIELD
@@ -631,8 +634,8 @@ object AnnotationPipeline {
                     }
                 }
                 is GameEvent.CardTransformed -> {
-                    // Phase 1: only Concealing Curtains → Revealing Eye (Menace).
-                    // Generalize to keyword→Qualification lookup when more DFCs are exercised.
+                    // Hardcoded to Menace — only correct for Concealing Curtains.
+                    // See constants above for the generalization path.
                     if (ev.isBackSide) {
                         val instanceId = idResolver(ev.cardId).value
                         qualificationPersistent.add(
