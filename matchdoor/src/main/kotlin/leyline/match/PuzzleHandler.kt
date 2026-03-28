@@ -30,9 +30,9 @@ class PuzzleHandler(
 ) {
     private val log = LoggerFactory.getLogger(PuzzleHandler::class.java)
 
-    /** Puzzle mode if the FD routed the match via the `puzzle-` prefix. */
+    /** Puzzle mode when a puzzle file is configured — matchId is irrelevant. */
     fun isPuzzleMatch(matchId: String): Boolean =
-        matchId.startsWith("puzzle-")
+        matchConfig.game.puzzle != null
 
     /**
      * Handle ConnectReq in puzzle mode: create bridge with puzzle game, send initial bundle.
