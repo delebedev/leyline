@@ -41,22 +41,31 @@ object ZoneMapper {
         gyZoneId: Int,
         viewingSeatId: Int = 0,
         revealForSeat: Int? = null,
+        revealHand: Boolean = false,
     ) {
         if (player == null) return
 
         // Hand — objectInstanceIds always (for card count), GameObjectInfo only for viewer.
         // Real server omits GameObjectInfo for opponent's hand → renders face-down.
-        val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId
+        // Exception: during reveal-choose, opponent's hand becomes Public with viewers=[1,2].
+        val canSeeHand = viewingSeatId == 0 || viewingSeatId == seatId || revealHand
         val hand = player.getZone(ForgeZoneType.Hand)
+        val handVisibility = if (revealHand) Visibility.Public else Visibility.Private
         val handBuilder = ZoneInfo.newBuilder()
             .setZoneId(handZoneId).setType(ZoneType.Hand)
-            .setOwnerSeatId(seatId).setVisibility(Visibility.Private)
+            .setOwnerSeatId(seatId).setVisibility(handVisibility)
             .addViewers(seatId)
+        if (revealHand) {
+            // During reveal, both players see the hand
+            val viewerSeat = if (seatId == 1) 2 else 1
+            handBuilder.addViewers(viewerSeat)
+        }
+        val cardVisibility = if (revealHand) Visibility.Public else Visibility.Private
         for (card in hand.cards) {
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             handBuilder.addObjectInstanceIds(instanceId)
             if (canSeeHand) {
-                gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, handZoneId, seatId, bridge))
+                gameObjects.add(ObjectMapper.buildCardObject(card, instanceId, handZoneId, seatId, bridge, cardVisibility))
             }
         }
         zones.add(handBuilder.build())

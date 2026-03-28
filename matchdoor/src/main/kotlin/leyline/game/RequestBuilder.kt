@@ -131,7 +131,7 @@ object RequestBuilder {
 
     /**
      * Build a [SelectNReq] from a pending prompt with candidateRefs.
-     * Used for "choose N cards" prompts (discard, sacrifice, legend rule, etc.).
+     * Used for "choose N cards" prompts (discard, sacrifice, legend rule, reveal-choose, etc.).
      *
      * Maps prompt candidate entity IDs to client instanceIds. The client
      * responds with SelectNResp containing selected instanceIds.
@@ -139,6 +139,7 @@ object RequestBuilder {
      * Context/listType vary by prompt type:
      * - `legend_rule`: context=Resolution, listType=Dynamic
      * - `choose_cards` (discard): context=Discard, listType=Static
+     * - `reveal_choose`: context=Resolution, listType=Dynamic, +unfilteredIds +sourceId
      */
     fun buildSelectNReq(
         prompt: InteractivePromptBridge.PendingPrompt,
@@ -158,16 +159,27 @@ object RequestBuilder {
             )
         }
         val builder = SelectNReq.newBuilder()
-            .setMinSel(prompt.request.min)
-            .setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
             .setContext(context)
             .setListType(listType)
             .setIdType(IdType.InstanceId_ab2c)
             .setValidationType(SelectionValidationType.NonRepeatable)
             .setOptionContext(optionContext)
+
+        // For reveal-choose with empty ids (no valid target), omit minSel/maxSel (defaults to 0).
+        val hasValidChoices = prompt.request.candidateRefs.isNotEmpty()
+        if (semantic != PromptSemantic.RevealChoose || hasValidChoices) {
+            builder.setMinSel(prompt.request.min)
+            builder.setMaxSel(prompt.request.max.coerceAtLeast(prompt.request.min))
+        }
+
         for (ref in prompt.request.candidateRefs) {
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
             builder.addIds(instanceId)
+        }
+        // unfilteredIds — all revealed cards (superset of ids) for reveal-choose prompts
+        for (ref in prompt.request.unfilteredRefs) {
+            val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value
+            builder.addUnfilteredIds(instanceId)
         }
         when (semantic) {
             PromptSemantic.SelectNLegendRule -> {
@@ -177,6 +189,14 @@ object RequestBuilder {
             }
             PromptSemantic.SelectNDiscard -> {
                 builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.DISCARD_COST))
+            }
+            PromptSemantic.RevealChoose -> {
+                val sourceEntityId = prompt.request.sourceEntityId
+                if (sourceEntityId != null) {
+                    val sourceInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceEntityId)).value
+                    builder.setSourceId(sourceInstanceId)
+                }
+                builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))
             }
             else -> {
                 builder.setPrompt(Prompt.newBuilder().setPromptId(PromptIds.SELECT_N))

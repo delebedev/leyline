@@ -152,6 +152,24 @@ class InteractivePromptBridge(
      */
     data class RevealRecord(val forgeCardIds: List<ForgeCardId>, val ownerSeatId: SeatId)
 
+    /**
+     * Snapshot of the full revealed hand during a reveal-choose effect (Duress, Revealing Eye, etc.).
+     *
+     * Set by [WebPlayerController.reveal] on the engine thread before the choice method
+     * is called. Read by [WebPlayerController.chooseCardsToDiscardFrom] /
+     * [WebPlayerController.chooseCardsForEffect] to populate `unfilteredRefs` on the prompt.
+     * Cleared after the choice completes.
+     *
+     * Threading: engine thread writes, annotation-build thread reads (`@Volatile`).
+     */
+    data class ActiveReveal(
+        val allHandCardIds: List<ForgeCardId>,
+        val ownerSeatId: SeatId,
+    )
+
+    @Volatile
+    var activeReveal: ActiveReveal? = null
+
     private val revealQueue = ConcurrentLinkedQueue<RevealRecord>()
 
     /** Push a batch of revealed card IDs (called from engine thread via WebPlayerController). */
@@ -278,6 +296,9 @@ enum class PromptSemantic {
     SelectNLegendRule,
     SelectNDiscard,
     Search,
+
+    /** "Choose from revealed hand" — Duress, Revealing Eye, Thoughtseize, etc. */
+    RevealChoose,
 }
 
 data class PromptRequest(
@@ -293,6 +314,12 @@ data class PromptRequest(
     val sourceEntityId: Int? = null,
     /** Card name for modal ETB prompts — session layer resolves grpId from this. */
     val modalSourceCardName: String? = null,
+    /**
+     * All revealed cards (unfiltered) for reveal-choose prompts.
+     * Maps to `unfilteredIds` in SelectNReq — shows the full hand even when
+     * only a subset is selectable (e.g., noncreature nonland for Duress).
+     */
+    val unfilteredRefs: List<PromptCandidateRefDto> = emptyList(),
 )
 
 /** Convert a pending engine prompt into its wire DTO. */

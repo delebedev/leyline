@@ -1,6 +1,7 @@
 package leyline.game
 
 import leyline.bridge.ForgeCardId
+import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
 
 /**
@@ -314,6 +315,11 @@ sealed interface GameEvent {
     data class CardsRevealed(
         val cardIds: List<ForgeCardId>,
         val ownerSeatId: SeatId,
+    ) : GameEvent
+
+    /** RevealedCard proxies removed after reveal-choose resolution. */
+    data class RevealProxiesDeleted(
+        val proxyInstanceIds: List<InstanceId>,
     ) : GameEvent
 
     /** A permanent's controller changed (steal effect or revert).

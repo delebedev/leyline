@@ -630,6 +630,12 @@ object AnnotationPipeline {
                         log.debug("mechanic: revealedCardCreated iid={} seat={}", instanceId, ev.ownerSeatId)
                     }
                 }
+                is GameEvent.RevealProxiesDeleted -> {
+                    for (proxyId in ev.proxyInstanceIds) {
+                        annotations.add(AnnotationBuilder.revealedCardDeleted(proxyId.value))
+                        log.debug("mechanic: revealedCardDeleted proxyIid={}", proxyId)
+                    }
+                }
                 is GameEvent.CardTransformed -> {
                     // Emit Qualification pAnns for back-face keywords.
                     // Currently only Menace is mapped; table grows as more keywords are observed.

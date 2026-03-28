@@ -3,9 +3,11 @@ package leyline.game
 import forge.game.Game
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
+import leyline.bridge.InteractivePromptBridge
 import leyline.bridge.SeatId
 import leyline.bridge.findCard
 import leyline.game.mapper.ActionMapper
+import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.PlayerMapper
 import leyline.game.mapper.ZoneIds
 import leyline.game.mapper.ZoneMapper
@@ -119,10 +121,15 @@ object StateMapper {
         }
         zones.add(limboZone.build())
 
+        // Detect active reveal-choose effect, clearing stale state if engine skipped the choice.
+        val activeReveal = detectActiveReveal(bridge)
+        val revealedHandSeat = activeReveal?.ownerSeatId?.value
+
         // Player 1 zones
         ZoneMapper.addPlayerZones(
             game, human, 1, bridge, zones, gameObjects,
             ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, viewingSeatId, revealForSeat,
+            revealHand = revealedHandSeat == 1,
         )
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P1_SIDEBOARD, ZoneType.Sideboard, 1))
 
@@ -130,6 +137,7 @@ object StateMapper {
         ZoneMapper.addPlayerZones(
             game, ai, 2, bridge, zones, gameObjects,
             ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, viewingSeatId, revealForSeat,
+            revealHand = revealedHandSeat == 2,
         )
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P2_SIDEBOARD, ZoneType.Sideboard, 2))
 
@@ -140,6 +148,9 @@ object StateMapper {
 
         // Stack abilities (triggers, activated abilities not represented as zone cards)
         ZoneMapper.addStackAbilities(game, bridge, zones, gameObjects, human)
+
+        // RevealedCard proxy synthesis / cleanup
+        applyRevealProxies(activeReveal, game, bridge, zones, gameObjects, events)
 
         log.info(
             "buildFromGame: phase={} turn={} hand={} objects={} zones={}",
@@ -216,14 +227,26 @@ object StateMapper {
         val prevZoneMap = prev.zonesList.associateBy { it.zoneId }
         val changedZones = current.zonesList.filter { zone ->
             val prevZone = prevZoneMap[zone.zoneId]
-            prevZone == null || prevZone.objectInstanceIdsList != zone.objectInstanceIdsList
+            prevZone == null ||
+                prevZone.objectInstanceIdsList != zone.objectInstanceIdsList ||
+                prevZone.visibility != zone.visibility ||
+                prevZone.viewersList != zone.viewersList
         }
 
         // Compute changed/new objects, filtering out opponent hand objects
+        // (except RevealedCard proxies and real hand cards during active reveal)
         val prevObjMap = prev.gameObjectsList.associateBy { it.instanceId }
         val opponentHandZoneId = ZoneMapper.opponentHandZone(viewingSeatId)
+        val hasActiveReveal = bridge.allSeatIds().any { bridge.promptBridge(it).activeReveal != null }
         val changedObjects = current.gameObjectsList.filter { obj ->
-            if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) return@filter false
+            if (opponentHandZoneId != 0 && obj.zoneId == opponentHandZoneId) {
+                // During reveal-choose: include RevealedCard proxies and Public hand cards
+                if (hasActiveReveal && (obj.type == GameObjectType.RevealedCard || obj.visibility == Visibility.Public)) {
+                    // fall through to normal change detection
+                } else {
+                    return@filter false
+                }
+            }
             val prevObj = prevObjMap[obj.instanceId]
             prevObj == null || prevObj != obj
         }
@@ -520,6 +543,74 @@ object StateMapper {
         return Triple(crewedThisTurn, typeChange, expired)
     }
 
+    /**
+     * Find the active reveal across all seats, or null. Clears stale reveals where
+     * proxies were synthesized but the engine skipped the choice method
+     * (e.g., Duress vs all-creature hand → DiscardEffect short-circuits at max==0).
+     */
+    private fun detectActiveReveal(bridge: GameBridge): InteractivePromptBridge.ActiveReveal? =
+        bridge.allSeatIds().firstNotNullOfOrNull { seatId ->
+            val prompt = bridge.promptBridge(seatId)
+            val reveal = prompt.activeReveal ?: return@firstNotNullOfOrNull null
+            if (bridge.activeRevealProxies.isNotEmpty() && prompt.getPendingPrompt() == null) {
+                prompt.activeReveal = null // stale — engine skipped choice
+                null
+            } else {
+                reveal
+            }
+        }
+
+    /**
+     * Synthesize RevealedCard proxy objects during active reveal-choose, or
+     * schedule proxy cleanup when the reveal ends. Modifies [zones], [gameObjects],
+     * and [events] in place.
+     */
+    private fun applyRevealProxies(
+        activeReveal: InteractivePromptBridge.ActiveReveal?,
+        game: Game,
+        bridge: GameBridge,
+        zones: MutableList<ZoneInfo>,
+        gameObjects: MutableList<GameObjectInfo>,
+        events: MutableList<GameEvent>,
+    ) {
+        if (activeReveal != null) {
+            val ownerSeat = activeReveal.ownerSeatId.value
+            val viewerSeat = if (ownerSeat == 1) 2 else 1
+            val handZoneId = if (ownerSeat == 1) ZoneIds.P1_HAND else ZoneIds.P2_HAND
+            val revealedZoneId = if (ownerSeat == 1) ZoneIds.REVEALED_P1 else ZoneIds.REVEALED_P2
+
+            val revealedZoneIdx = zones.indexOfFirst { it.zoneId == revealedZoneId }
+            val revealedZoneBuilder = if (revealedZoneIdx >= 0) {
+                zones.removeAt(revealedZoneIdx).toBuilder()
+            } else {
+                ZoneMapper.makeZone(revealedZoneId, ZoneType.Revealed, ownerSeat, Visibility.Public).toBuilder()
+            }
+
+            // Re-use proxy IDs across diffs during the same reveal (stable instanceIds).
+            val needsAlloc = bridge.activeRevealProxies.isEmpty()
+            for (forgeCardId in activeReveal.allHandCardIds) {
+                val card = findCard(game, forgeCardId) ?: continue
+                val proxyId = if (needsAlloc) {
+                    val id = bridge.ids.allocSynthetic()
+                    bridge.activeRevealProxies[forgeCardId] = id
+                    id
+                } else {
+                    bridge.activeRevealProxies[forgeCardId] ?: continue
+                }
+                revealedZoneBuilder.addObjectInstanceIds(proxyId.value)
+                gameObjects.add(
+                    ObjectMapper.buildRevealedCardProxy(card, proxyId.value, handZoneId, ownerSeat, viewerSeat, bridge),
+                )
+            }
+            zones.add(revealedZoneBuilder.build())
+        } else if (bridge.activeRevealProxies.isNotEmpty()) {
+            // Reveal ended — emit cleanup annotations and clear tracking.
+            // Diff naturally detects missing proxy objects via snapshot-compare.
+            val deletedProxies = bridge.activeRevealProxies.values.toList()
+            bridge.activeRevealProxies.clear()
+            events.add(GameEvent.RevealProxiesDeleted(deletedProxies))
+        }
+    }
     private fun computeAnnotations(
         events: List<GameEvent>,
         transferResult: AnnotationPipeline.TransferResult,
