@@ -444,36 +444,9 @@ object StateMapper {
             emptyList()
         }
 
-        // CrewedThisTurn + ModifiedType+LayeredEffect: scan crewed vehicles
-        val crewSnapshots = bridge.snapshotCrewState()
-        val crewedThisTurnPersistent = crewSnapshots.map { snap ->
-            AnnotationBuilder.crewedThisTurn(snap.vehicleInstanceId, snap.crewSourceInstanceIds)
-        }
-        val crewTypeChangePersistent = mutableListOf<AnnotationInfo>()
-        // Track active crew effects: allocate effectId for new crewed vehicles, remove expired
-        val currentCrewedFids = crewSnapshots.filter { it.isCreature }.map { it.vehicleForgeCardId }.toSet()
-        // Remove expired crew effects (vehicle no longer a creature)
-        val expiredCrewFids = bridge.activeCrewEffects.keys - currentCrewedFids
-        for (fid in expiredCrewFids) {
-            val effectId = bridge.activeCrewEffects.remove(fid)
-            if (effectId != null) {
-                annotations.add(AnnotationBuilder.layeredEffectDestroyed(effectId))
-            }
-        }
-        // Allocate new crew effects for newly crewed vehicles
-        for (snap in crewSnapshots) {
-            if (!snap.isCreature) continue
-            val effectId = bridge.activeCrewEffects.getOrPut(snap.vehicleForgeCardId) {
-                bridge.effects.nextEffectId()
-            }
-            crewTypeChangePersistent.add(
-                AnnotationBuilder.modifiedTypeLayeredEffect(
-                    instanceId = snap.vehicleInstanceId,
-                    effectId = effectId,
-                    sourceAbilityGrpId = snap.crewAbilityGrpId,
-                ),
-            )
-        }
+        val (crewedThisTurnPersistent, crewTypeChangePersistent, crewExpiredAnnotations) =
+            computeCrewAnnotations(bridge)
+        annotations.addAll(crewExpiredAnnotations)
 
         val enrichedMechanicResult = mechanicResult.copy(
             abilityWordPersistent = abilityWordPersistent,
@@ -512,6 +485,38 @@ object StateMapper {
         val transferPersistent: MutableList<AnnotationInfo>,
         val combatResult: AnnotationPipeline.CombatAnnotationResult,
     )
+
+    /** Crew annotation scan: CrewedThisTurn pAnns, ModifiedType pAnns, and expired effect annotations. */
+    private fun computeCrewAnnotations(
+        bridge: GameBridge,
+    ): Triple<List<AnnotationInfo>, List<AnnotationInfo>, List<AnnotationInfo>> {
+        val crewSnapshots = bridge.snapshotCrewState()
+        val crewedThisTurn = crewSnapshots.map { snap ->
+            AnnotationBuilder.crewedThisTurn(snap.vehicleInstanceId, snap.crewSourceInstanceIds)
+        }
+        val typeChange = mutableListOf<AnnotationInfo>()
+        val expired = mutableListOf<AnnotationInfo>()
+
+        val currentCrewedFids = crewSnapshots.filter { it.isCreature }.map { it.vehicleForgeCardId }.toSet()
+        for (fid in bridge.activeCrewEffects.keys - currentCrewedFids) {
+            val effectId = bridge.activeCrewEffects.remove(fid)
+            if (effectId != null) expired.add(AnnotationBuilder.layeredEffectDestroyed(effectId))
+        }
+        for (snap in crewSnapshots) {
+            if (!snap.isCreature) continue
+            val effectId = bridge.activeCrewEffects.getOrPut(snap.vehicleForgeCardId) {
+                bridge.effects.nextEffectId()
+            }
+            typeChange.add(
+                AnnotationBuilder.modifiedTypeLayeredEffect(
+                    instanceId = snap.vehicleInstanceId,
+                    effectId = effectId,
+                    sourceAbilityGrpId = snap.crewAbilityGrpId,
+                ),
+            )
+        }
+        return Triple(crewedThisTurn, typeChange, expired)
+    }
 
     private fun computeAnnotations(
         events: List<GameEvent>,

@@ -51,7 +51,6 @@ class VehicleCrewPuzzleTest :
             h.connectAndKeepPuzzleText(pzl)
 
             val human = h.game().registeredPlayers.first()
-            val ai = h.game().registeredPlayers.last()
 
             // Auto-pass should stop at Main1 when crew ability is available
             h.phase() shouldBe "MAIN1"

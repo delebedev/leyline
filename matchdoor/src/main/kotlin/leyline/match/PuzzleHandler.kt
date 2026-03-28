@@ -31,6 +31,7 @@ class PuzzleHandler(
     private val log = LoggerFactory.getLogger(PuzzleHandler::class.java)
 
     /** Puzzle mode when a puzzle file is configured — matchId is irrelevant. */
+    @Suppress("UnusedParameter") // matchId kept for call-site clarity
     fun isPuzzleMatch(matchId: String): Boolean =
         matchConfig.game.puzzle != null
 
