@@ -74,6 +74,26 @@ class PuzzleCardRegistrarTest :
             repo.registeredCount shouldBe 1
         }
 
+        test("registers transform DFC backside — Concealing Curtains / Revealing Eye") {
+            val repo = InMemoryCardRepository()
+            val registrar = PuzzleCardRegistrar(repo)
+
+            val card = loadCard("Concealing Curtains")
+            registrar.ensureCardRegistered(card)
+
+            repo.findGrpIdByName("Concealing Curtains").shouldNotBeNull()
+            repo.findGrpIdByName("Revealing Eye").shouldNotBeNull()
+        }
+
+        test("by-name path returns 0 for synthetic engine cards") {
+            val repo = InMemoryCardRepository()
+            val registrar = PuzzleCardRegistrar(repo)
+
+            // Puzzle Goal is a synthetic Forge card, not in any card DB
+            val grpId = registrar.ensureCardRegisteredByName("Puzzle Goal")
+            grpId shouldBe 0
+        }
+
         test("idempotent — repeated registration returns same grpId") {
             val repo = InMemoryCardRepository()
             val registrar = PuzzleCardRegistrar(repo)
