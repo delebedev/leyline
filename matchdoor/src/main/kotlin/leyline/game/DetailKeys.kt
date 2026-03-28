@@ -44,4 +44,7 @@ object DetailKeys {
     const val VALUE = "value"
     const val ABILITY_WORD_NAME = "AbilityWordName"
     const val THRESHOLD = "threshold"
+    const val QUALIFICATION_TYPE = "QualificationType"
+    const val QUALIFICATION_SUBTYPE = "QualificationSubtype"
+    const val SOURCE_PARENT = "SourceParent"
 }

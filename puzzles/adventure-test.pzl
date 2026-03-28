@@ -1,0 +1,18 @@
+[metadata]
+Name:Adventure Test
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Test adventure casting with Ratcatcher Trainee / Pest Problem.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=1
+
+humanhand=Ratcatcher Trainee
+humanbattlefield=Mountain;Mountain;Mountain;Mountain;Swamp;Swamp;Swamp
+humanlibrary=Mountain;Mountain;Mountain
+aibattlefield=Forest
+ailibrary=Forest;Forest;Forest

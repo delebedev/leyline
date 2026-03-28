@@ -521,6 +521,10 @@ class MatchFlowHarness(
     fun castFromGraveyard(cardName: String): Boolean =
         castSpellByName(cardName, zone = ZoneType.Graveyard)
 
+    /** Alias for `castSpellByName(cardName, ZoneType.Exile)`. */
+    fun castFromExile(cardName: String): Boolean =
+        castSpellByName(cardName, zone = ZoneType.Exile)
+
     /**
      * Cast a spell and pass once to resolve it.
      *

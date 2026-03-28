@@ -76,6 +76,8 @@ object AnnotationPipeline {
         val colorBitmasks: List<Int> = emptyList(),
         /** Resolved mana payments for CastSpell (one per land tapped). */
         val manaPayments: List<ManaPaymentRecord> = emptyList(),
+        /** True if this transfer is an adventure spell cast (UserActionTaken actionType=16). */
+        val isAdventureCast: Boolean = false,
     )
 
     /**
@@ -208,28 +210,32 @@ object AnnotationPipeline {
                     emptyList()
                 }
 
-                // Extract mana payment info from SpellCast events for CastSpell transfers.
-                val manaPayments = if (category == TransferCategory.CastSpell && forgeCardId != null) {
+                // Extract mana payment info + adventure flag from SpellCast events.
+                val spellCastEvent = if (category == TransferCategory.CastSpell && forgeCardId != null) {
                     events.filterIsInstance<GameEvent.SpellCast>()
                         .firstOrNull { it.cardId == forgeCardId }
-                        ?.manaPayments?.map { mp ->
-                            val landIid = idLookup(mp.sourceCardId).value
-                            val manaAbilityIid = idLookup(ForgeCardId(mp.sourceCardId.value + MANA_ABILITY_ID_OFFSET)).value
-                            val abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId)
-                            ManaPaymentRecord(
-                                landInstanceId = landIid,
-                                manaAbilityInstanceId = manaAbilityIid,
-                                color = mp.color,
-                                abilityGrpId = abilityGrpId,
-                                spellInstanceId = newId,
-                            )
-                        } ?: emptyList()
                 } else {
-                    emptyList()
+                    null
                 }
+                val manaPayments = spellCastEvent?.manaPayments?.map { mp ->
+                    val landIid = idLookup(mp.sourceCardId).value
+                    val manaAbilityIid = idLookup(ForgeCardId(mp.sourceCardId.value + MANA_ABILITY_ID_OFFSET)).value
+                    val abilityGrpId = manaAbilityGrpIdResolver(mp.sourceCardId)
+                    ManaPaymentRecord(
+                        landInstanceId = landIid,
+                        manaAbilityInstanceId = manaAbilityIid,
+                        color = mp.color,
+                        abilityGrpId = abilityGrpId,
+                        spellInstanceId = newId,
+                    )
+                } ?: emptyList()
+                val isAdventureCast = spellCastEvent?.isAdventure == true
 
                 transfers.add(
-                    AppliedTransfer(origId, newId, category, prevZone, obj.zoneId, obj.grpId, obj.ownerSeatId, affectorId, colorBitmasks, manaPayments),
+                    AppliedTransfer(
+                        origId, newId, category, prevZone, obj.zoneId, obj.grpId,
+                        obj.ownerSeatId, affectorId, colorBitmasks, manaPayments, isAdventureCast,
+                    ),
                 )
                 zoneRecordings.add(newId to obj.zoneId)
             } else {
@@ -326,7 +332,8 @@ object AnnotationPipeline {
                         ),
                     )
                 }
-                annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 1))
+                val castActionType = if (transfer.isAdventureCast) 16 else 1
+                annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = castActionType))
             }
             TransferCategory.Resolve -> {
                 annotations.add(AnnotationBuilder.resolutionStart(newId, grpId))
@@ -494,6 +501,8 @@ object AnnotationPipeline {
         val controllerRevertedForgeCardIds: List<ForgeCardId> = emptyList(),
         /** AbilityWordActive annotations from scanner — full replacement set for this GSM. */
         val abilityWordPersistent: List<AnnotationInfo> = emptyList(),
+        /** Qualification annotations for adventure-exiled cards — full replacement set for this GSM. */
+        val qualificationPersistent: List<AnnotationInfo> = emptyList(),
     ) {
         /** Tracks an active controller-change effect for persistent annotation lifecycle. */
         data class ControllerChangedEffect(
@@ -716,6 +725,7 @@ object AnnotationPipeline {
             }
             srcZone == ZONE_EXILE -> when (destZone) {
                 ZONE_P1_HAND, ZONE_P2_HAND, ZONE_BATTLEFIELD -> TransferCategory.Return
+                ZONE_STACK -> TransferCategory.CastSpell
                 else -> TransferCategory.ZoneTransfer
             }
             else -> TransferCategory.ZoneTransfer

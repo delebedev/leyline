@@ -160,6 +160,9 @@ class PersistentAnnotationStore {
                 mechanicResult.abilityWordPersistent,
             )
 
+            // 3c. Qualification — full-replacement for adventure-exiled cards
+            nextId = upsertQualifications(active, deletions, nextId, mechanicResult.qualificationPersistent)
+
             // 4. Detached auras
             for (forgeCardId in mechanicResult.detachedForgeCardIds) {
                 val auraIid = resolveInstanceId(forgeCardId).value
@@ -237,26 +240,33 @@ class PersistentAnnotationStore {
         }
 
         /**
-         * Full-replacement upsert for AbilityWordActive persistent annotations.
-         * Scanner provides the complete set that SHOULD exist — remove stale, upsert changed.
+         * Generic full-replacement upsert for snapshot-based persistent annotations.
+         *
+         * Removes stale annotations of [type] not in [newAnnotations], adds new ones.
+         * When [detectChanges] is true, replaces existing annotations whose details differ
+         * (e.g. AbilityWordActive value updates). When false, skips if key already exists
+         * (e.g. Qualification with constant details).
          *
          * Perf: O(N×M) where N = new annotations, M = total active pAnns. Fine for
-         * typical battlefield sizes (~20 permanents). If this becomes hot, pre-index
-         * existing AbilityWordActive entries by key before the upsert loop.
+         * typical battlefield sizes (~20 permanents).
+         *
+         * @param keyFn extracts the dedup key from an annotation
          */
-        private fun upsertAbilityWords(
+        private fun <K> upsertByType(
             active: MutableMap<Int, AnnotationInfo>,
             deletions: MutableList<Int>,
             startId: Int,
+            type: AnnotationType,
             newAnnotations: List<AnnotationInfo>,
+            keyFn: (AnnotationInfo) -> K,
+            detectChanges: Boolean = false,
         ): Int {
             var nextId = startId
-            val newByKey = newAnnotations.associateBy { abilityWordKey(it) }
+            val newByKey = newAnnotations.associateBy { keyFn(it) }
             // Remove stale
             val staleIds = active.entries
                 .filter { (_, ann) ->
-                    ann.typeList.any { it == AnnotationType.AbilityWordActive } &&
-                        abilityWordKey(ann) !in newByKey
+                    ann.typeList.any { it == type } && keyFn(ann) !in newByKey
                 }
                 .map { it.key }
             for (id in staleIds) {
@@ -266,11 +276,10 @@ class PersistentAnnotationStore {
             // Upsert new/changed
             for ((key, ann) in newByKey) {
                 val existing = active.entries.firstOrNull { (_, e) ->
-                    e.typeList.any { it == AnnotationType.AbilityWordActive } &&
-                        abilityWordKey(e) == key
+                    e.typeList.any { it == type } && keyFn(e) == key
                 }
                 if (existing != null) {
-                    if (existing.value.detailsList != ann.detailsList) {
+                    if (detectChanges && existing.value.detailsList != ann.detailsList) {
                         active.remove(existing.key)
                         deletions.add(existing.key)
                         val numbered = ann.toBuilder().setId(nextId++).build()
@@ -283,6 +292,20 @@ class PersistentAnnotationStore {
             }
             return nextId
         }
+
+        private fun upsertAbilityWords(
+            active: MutableMap<Int, AnnotationInfo>,
+            deletions: MutableList<Int>,
+            startId: Int,
+            newAnnotations: List<AnnotationInfo>,
+        ): Int = upsertByType(active, deletions, startId, AnnotationType.AbilityWordActive, newAnnotations, ::abilityWordKey, detectChanges = true)
+
+        private fun upsertQualifications(
+            active: MutableMap<Int, AnnotationInfo>,
+            deletions: MutableList<Int>,
+            startId: Int,
+            newAnnotations: List<AnnotationInfo>,
+        ): Int = upsertByType(active, deletions, startId, AnnotationType.Qualification, newAnnotations, { it.affectedIdsList.firstOrNull() ?: 0 })
 
         private fun findByAura(active: Map<Int, AnnotationInfo>, auraIid: Int): Int? =
             active.entries.firstOrNull { (_, ann) ->

@@ -10,6 +10,9 @@ interface CardRepository {
     fun findByGrpId(grpId: Int): CardData?
     fun findNameByGrpId(grpId: Int): String?
     fun findGrpIdByName(name: String): Int?
+
+    /** Like [findGrpIdByName] but includes secondary faces (adventure, DFC back). */
+    fun findGrpIdByNameAnyFace(name: String): Int? = findGrpIdByName(name)
     fun findGrpIdByNameAndSet(name: String, setCode: String): Int? = findGrpIdByName(name)
 
     /** All non-token, primary-card grpIds in the database. */
@@ -37,9 +40,11 @@ interface CardRepository {
         if (tokens.isEmpty()) return null
         if (tokens.size == 1) return tokens.values.first()
         if (tokenName == null) return null
+        // Forge names tokens "Rat Token", Arena DB uses "Rat" — try both
+        val normalized = tokenName.removeSuffix(" Token")
         for ((_, tokenGrpId) in tokens) {
-            val name = findNameByGrpId(tokenGrpId)
-            if (name == tokenName) return tokenGrpId
+            val name = findNameByGrpId(tokenGrpId) ?: continue
+            if (name == tokenName || name == normalized) return tokenGrpId
         }
         return null
     }

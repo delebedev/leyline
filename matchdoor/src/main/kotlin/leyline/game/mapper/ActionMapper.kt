@@ -1,6 +1,7 @@
 package leyline.game.mapper
 
 import forge.ai.ComputerUtilMana
+import forge.card.CardStateName
 import forge.game.Game
 import forge.game.card.Card
 import forge.game.card.CardLists
@@ -188,6 +189,12 @@ object ActionMapper {
                 }
             }
             builder.addActions(actionBuilder)
+
+            // CastAdventure for adventure-capable cards
+            if (card.isAdventureCard) {
+                buildAdventureAction(card, player, instanceId, grpId, checkLegality)
+                    ?.let { builder.addActions(it) }
+            }
         }
 
         // Zone casts: Graveyard, Exile, Command (flashback, escape, etc.)
@@ -261,13 +268,42 @@ object ActionMapper {
         return actionBuilder.build()
     }
 
-    /**
-     * Add Cast actions for cards castable from non-hand zones (GY, Exile, Command).
-     * Covers flashback, escape, and other alternate-cost mechanics.
-     *
-     * For alternate-cost casts, sets [Action.abilityGrpId] from the keyword's
-     * registered grpId (e.g. flashback abilityGrpId=175847 for Electroduplicate).
-     */
+    /** Build a CastAdventure action for an adventure card, or null if not castable. */
+    private fun buildAdventureAction(
+        card: Card,
+        player: Player,
+        instanceId: Int,
+        creatureGrpId: Int,
+        checkLegality: Boolean,
+    ): Action? {
+        val adventureState = card.getState(CardStateName.Secondary) ?: return null
+        val adventureSa = adventureState.nonManaAbilities?.firstOrNull() ?: return null
+
+        if (checkLegality) {
+            adventureSa.setActivatingPlayer(player)
+            val canCast = try {
+                adventureSa.canPlay() && ComputerUtilMana.canPayManaCost(adventureSa, player, 0, false)
+            } catch (_: Exception) {
+                false
+            }
+            if (!canCast) return null
+        }
+
+        // grpId = creature face — client can't resolve IsPrimaryCard=0 adventure
+        // faces and rejects the action if grpId is unknown. manaCost from the
+        // adventure SA provides the correct cost for the Choose One modal.
+        val builder = Action.newBuilder()
+            .setActionType(ActionType.CastAdventure)
+            .setInstanceId(instanceId)
+            .setGrpId(creatureGrpId)
+            .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastAdventure))
+        val advManaCost = adventureSa.payCosts?.totalMana
+        if (advManaCost != null && !advManaCost.isNoCost) {
+            addManaCostFromForge(advManaCost, builder)
+        }
+        return builder.build()
+    }
+
     private fun addZoneCastActions(
         player: Player,
         builder: ActionsAvailableReq.Builder,
@@ -422,10 +458,10 @@ object ActionMapper {
         manaCost: forge.card.mana.ManaCost,
         actionBuilder: Action.Builder,
     ) {
-        // Colored shards: each shard is one pip (e.g. ManaCostShard.BLUE → "U")
+        // Colored shards: each shard is one pip (e.g. ManaCostShard.RED → "{R}")
         val colorCounts = mutableMapOf<ManaColor, Int>()
         for (shard in manaCost) {
-            val color = producedToManaColor(shard.toString()) ?: continue
+            val color = producedToManaColor(shard.toString().removeSurrounding("{", "}")) ?: continue
             colorCounts[color] = (colorCounts[color] ?: 0) + 1
         }
         for ((color, count) in colorCounts) {
@@ -462,9 +498,9 @@ object ActionMapper {
     fun stripActionForGsm(action: Action): Action {
         val b = Action.newBuilder().setActionType(action.actionType)
         when (action.actionType) {
-            ActionType.Cast -> {
+            ActionType.Cast, ActionType.CastAdventure -> {
                 b.setInstanceId(action.instanceId)
-                b.addAllManaCost(action.manaCostList)
+                // Real server sends no manaCost in GSM actions — client derives from card DB
             }
             ActionType.Play_add3 -> b.setInstanceId(action.instanceId)
             ActionType.ActivateMana, ActionType.Activate_add3 -> {

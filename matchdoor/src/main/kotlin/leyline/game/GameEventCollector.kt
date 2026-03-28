@@ -131,8 +131,12 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
                 color = mp.color().toInt() and 0xFF,
             )
         }
-        queue.add(GameEvent.SpellCast(ForgeCardId(card.id), seat, payments))
-        log.debug("event: SpellCast card={} seat={} manaPayments={}", card.name, seat, payments.size)
+        val realCard = bridge.getGame()?.findById(card.id)
+        val isAdventure = realCard != null &&
+            realCard.isAdventureCard &&
+            realCard.currentStateName == forge.card.CardStateName.Secondary
+        queue.add(GameEvent.SpellCast(ForgeCardId(card.id), seat, payments, isAdventure = isAdventure))
+        log.debug("event: SpellCast card={} seat={} manaPayments={} adventure={}", card.name, seat, payments.size, isAdventure)
     }
 
     override fun visit(ev: GameEventSpellMovedToStack) {

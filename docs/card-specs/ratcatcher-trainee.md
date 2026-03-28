@@ -142,7 +142,7 @@ grpId 6 is First Strike. The AddAbility+LayeredEffect combo matches the Claim-th
 
 ## Supporting evidence
 
-- prior conformance research (Exile category, DisplayCardUnderCard) — Exile ZoneTransfer category and Qualification pAnn context (type 47 = CardRevealed per rosetta.md row 42/47)
+- conformance report `docs/conformance/adventure-2026-03-25.md` — full proto verification; DisplayCardUnderCard absent (wrong prediction); hand/exile/BF Adventure proxy pattern confirmed
 - prior conformance research (TokenCreated: no details, affectorId=ability instance) — TokenCreated transient shape: no details field, affectorId=resolving ability iid
 - prior conformance research (ControllerChanged wire) — AddAbility+LayeredEffect pAnn shape for grpId=6 (Haste); same shape observed here for First Strike (grpId=6 confirmed)
 - `docs/rosetta.md` — Qualification annotation type 42, QualificationType 47 = CardRevealed
