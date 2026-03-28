@@ -224,7 +224,17 @@ class GameBridge(
      * Allocated when a vehicle is crewed (type changes to creature),
      * removed when the crew effect expires (end of turn, vehicle reverts).
      */
-    val activeCrewEffects = mutableMapOf<ForgeCardId, Int>()
+    private val activeCrewEffects = mutableMapOf<ForgeCardId, Int>()
+
+    /** Get or allocate a synthetic effect ID for a crewed vehicle's type-change effect. */
+    fun getOrAllocCrewEffectId(vehicleId: ForgeCardId): Int =
+        activeCrewEffects.getOrPut(vehicleId) { effects.nextEffectId() }
+
+    /** Release expired crew effects. Returns effectIds that were removed. */
+    fun releaseCrewEffects(currentCrewedIds: Set<ForgeCardId>): List<Int> {
+        val expired = activeCrewEffects.keys - currentCrewedIds
+        return expired.mapNotNull { activeCrewEffects.remove(it) }
+    }
 
     override fun nextAnnotationId(): Int = annotations.nextAnnotationId()
 

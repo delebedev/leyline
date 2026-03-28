@@ -498,15 +498,12 @@ object StateMapper {
         val expired = mutableListOf<AnnotationInfo>()
 
         val currentCrewedFids = crewSnapshots.filter { it.isCreature }.map { it.vehicleForgeCardId }.toSet()
-        for (fid in bridge.activeCrewEffects.keys - currentCrewedFids) {
-            val effectId = bridge.activeCrewEffects.remove(fid)
-            if (effectId != null) expired.add(AnnotationBuilder.layeredEffectDestroyed(effectId))
+        for (effectId in bridge.releaseCrewEffects(currentCrewedFids)) {
+            expired.add(AnnotationBuilder.layeredEffectDestroyed(effectId))
         }
         for (snap in crewSnapshots) {
             if (!snap.isCreature) continue
-            val effectId = bridge.activeCrewEffects.getOrPut(snap.vehicleForgeCardId) {
-                bridge.effects.nextEffectId()
-            }
+            val effectId = bridge.getOrAllocCrewEffectId(snap.vehicleForgeCardId)
             typeChange.add(
                 AnnotationBuilder.modifiedTypeLayeredEffect(
                     instanceId = snap.vehicleInstanceId,

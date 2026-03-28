@@ -262,8 +262,8 @@ object ObjectMapper {
      * Only rebuilds when the live set differs from what the DB provided — no-op otherwise.
      */
     private fun GameObjectInfo.Builder.overlayCardTypes(type: forge.card.CardTypeView) {
-        val liveTypes = type.coreTypes.mapNotNull { coreTypeToProto[it] }.toSet()
-        val dbTypes = cardTypesList.toSet()
+        val liveTypes = type.coreTypes.mapNotNull { coreTypeToProto[it] }.toSortedSet(compareBy { it.number })
+        val dbTypes = cardTypesList.toSortedSet(compareBy { it.number })
         if (liveTypes == dbTypes) return
 
         clearCardTypes()
