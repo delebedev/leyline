@@ -213,7 +213,7 @@
   {
     "internalName": "Play_Brawl",
     "publicName": "Standard Brawl",
-    "deckSelectFormat": "StandardBrawl",
+    "deckSelectFormat": "Brawl",
     "displayPriority": -1,
     "flags": [
       "IsArenaPlayModeEvent",

@@ -171,19 +171,26 @@ object DeckWireBuilder {
     private fun kotlinx.serialization.json.JsonObjectBuilder.putTrailingFields(deck: Deck) {
         put("DeckTileId", deck.tileId)
         put("DeckArtId", 0)
-        put("FormatLegalities", formatLegalities(deck.totalCards))
+        put("FormatLegalities", formatLegalities(deck))
         put("PreferredCosmetics", preferredCosmetics())
         put("DeckValidationSummaries", buildJsonArray {})
         put("UnownedCards", buildJsonObject {})
     }
 
-    /** Format legality keys the client expects. Subset of real server's ~143 formats. */
+    /**
+     * Format legality keys the client expects. Subset of real server's ~143 formats.
+     *
+     * Real server returns ~143 keys. We emit the ones the client checks for deck
+     * filtering in queue selection. Missing keys default to false on the client.
+     *
+     * For Brawl decks: Brawl + DirectGameBrawl variants = true, everything else false.
+     * For constructed decks (≥60 cards): constructed + DirectGame variants = true.
+     */
     private val CONSTRUCTED_FORMATS = listOf(
         "Standard", "Historic", "Explorer", "Timeless", "Alchemy",
         "TraditionalStandard", "TraditionalHistoric", "TraditionalExplorer", "TraditionalTimeless",
         "DirectGame", "DirectGameAlchemy",
     )
-    private val BRAWL_FORMATS = listOf("Brawl", "HistoricBrawl")
     private val LIMITED_FORMATS = listOf(
         "Draft",
         "Sealed",
@@ -193,11 +200,21 @@ object DeckWireBuilder {
         "DirectGameLimitedRebalanced",
     )
 
-    private fun formatLegalities(totalCards: Int): JsonObject {
-        val constructedLegal = totalCards >= 60
+    private fun formatLegalities(deck: Deck): JsonObject {
+        val isBrawl = deck.format == Format.Brawl
+        val mainDeckCards = deck.mainDeck.sumOf { it.quantity }
+        val constructedLegal = !isBrawl && mainDeckCards >= 60
+        // Standard Brawl (59 main) vs Historic Brawl (99 main)
+        val isStandardBrawl = isBrawl && mainDeckCards < 80
+        val isHistoricBrawl = isBrawl && mainDeckCards >= 80
         return buildJsonObject {
             for (fmt in CONSTRUCTED_FORMATS) put(fmt, constructedLegal)
-            for (fmt in BRAWL_FORMATS) put(fmt, false)
+            put("Brawl", isStandardBrawl)
+            put("HistoricBrawl", isHistoricBrawl)
+            put("DirectGameBrawl", isBrawl)
+            put("DirectGameBrawlRebalanced", isBrawl)
+            put("AllZeroes", true)
+            put("StandardBrawl", isStandardBrawl)
             for (fmt in LIMITED_FORMATS) put(fmt, true)
         }
     }
