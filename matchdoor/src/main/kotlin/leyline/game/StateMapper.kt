@@ -65,6 +65,11 @@ object StateMapper {
         for (reveal in bridge.drainReveals(viewingSeatId)) {
             events.add(GameEvent.CardsRevealed(reveal.forgeCardIds, reveal.ownerSeatId))
         }
+        // Evict stale AbilityRegistry entries for transformed cards so the next
+        // abilityRegistryFor() call rebuilds from the current face.
+        for (ev in events) {
+            if (ev is GameEvent.CardTransformed) bridge.evictAbilityRegistry(ev.cardId.value)
+        }
         val initEffectDiff = bridge.effects.emitInitEffectsOnce()
         val boostSnapshot = bridge.snapshotBoosts()
         val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
