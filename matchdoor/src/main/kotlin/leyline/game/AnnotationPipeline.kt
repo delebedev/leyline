@@ -180,7 +180,7 @@ object AnnotationPipeline {
                 }
                 // Allocate new instanceId for zone transfer (real server does this).
                 // Exception: Resolve (Stack→Battlefield) keeps the same instanceId.
-                val realloc = if (category != TransferCategory.Resolve && forgeCardId != null) {
+                val realloc = if (!category.keepsSameInstanceId && forgeCardId != null) {
                     idAllocator(forgeCardId)
                 } else {
                     InstanceIdRegistry.IdReallocation(InstanceId(obj.instanceId), InstanceId(obj.instanceId))
