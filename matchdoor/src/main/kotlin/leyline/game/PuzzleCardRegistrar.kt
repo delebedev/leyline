@@ -84,7 +84,10 @@ class PuzzleCardRegistrar(
                     continue
                 }
             }
-            // No client DB match — register synthetic so downstream lookups don't NPE
+            // No client DB match — register synthetic so downstream lookups don't NPE.
+            // NOTE: Uses primary face's type/P/T/colors since fromForgeCard reads card.type/rules.
+            // Acceptable because this path only fires without a clientRepo (tests); production
+            // puzzles always have clientRepo with real per-face stats from the Arena DB.
             val syntheticData = fromForgeCard(card, faceName)
             repo.registerData(syntheticData, faceName)
             log.debug("Registered alternate face '{}' ({}) grpId={} (synthetic)", faceName, stateName, syntheticData.grpId)
