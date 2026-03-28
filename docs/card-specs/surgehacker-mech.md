@@ -91,20 +91,34 @@ Two creatures tapped: Brute Suit (power 4, weight=4) + Prosperous Thief (power 2
 - **`SBA_Damage` zone transfer category** — creature dying from ETB damage uses this category (not `Destroy` or `LethalDamage`). Zone dest=37 (not 33/Graveyard — needs rosetta check, may be a limbo zone before GY).
 - **`RedundantActivation` ShouldntPlay** fires for already-crewed vehicles. Both vehicles get it independently. This is a UI hint — "don't offer crew again."
 
-## Gaps for leyline
+## Implementation status
 
-1. **Vehicle type support** — Vehicles are artifacts that become creatures when crewed. Leyline needs: (a) vehicle type recognition in card type mapping, (b) crew ability activation handling, (c) the `ModifiedType`/`LayeredEffect` persistent annotation to signal the type change to the client.
-2. **Crew cost payment** — `PayCostsReq` with `effectCostType: Select` and power-weighted creature selection. This is a non-mana cost flow — need to implement the `NonManaPayment` context in cost payment handling.
-3. **`CrewedThisTurn` persistent annotation** — new annotation type. Must be emitted when crew resolves, cleared at end of turn.
-4. **ETB damage = 2× vehicle count** — the X calculation depends on counting vehicles you control. Forge handles this via `Count$Valid Vehicle.YouCtrl/Times.2`. Need to verify leyline's triggered ability → DamageDealt annotation path works for engine-calculated X values.
-5. **`ShouldntPlay` / `RedundantActivation` emission** — server hints to the client that crewing an already-crewed vehicle is redundant. Low priority but needed for conformance.
-6. **Zone 37 identification** — ETB damage kill sends creature to zone 37, not 33 (Graveyard). Need to confirm what zone 37 is and add to rosetta if missing.
-7. **Update `docs/catalog.yaml`** — add `vehicle` and `crew` mechanics.
+### Done (PR #272)
 
-## Supporting evidence needed
+1. **Vehicle type support** — ✅ Live card type overlay in `ObjectMapper.applyCardFields`. Vehicles show `[Artifact, Creature]` when crewed. Generic — handles any type-changing continuous effect.
+2. **`CrewedThisTurn` persistent annotation** — ✅ Type 94, affectorId=vehicle, affectedIds=crew sources. Full-replacement upsert per GSM via `snapshotCrewState()`.
+3. **`ModifiedType` + `LayeredEffect` persistent annotation** — ✅ Type-change effect with synthetic effectId + sourceAbilityGRPID from AbilityRegistry. Effect lifecycle: allocate on crew, `LayeredEffectDestroyed` on expiry.
+4. **Crew ability grpId resolution** — ✅ Via `AbilityRegistry.forSpellAbility()` for `isCrew` abilities.
+5. **Zone 37** — ✅ Already in rosetta: P2 Graveyard. Not a gap.
+6. **`docs/catalog.yaml`** — ✅ Vehicle + type-change marked as wired.
+
+### Not needed (Forge handles)
+
+- **Crew cost payment** — Forge AI auto-solves via `CostTapType` + `CAN_CREW`. No leyline code needed.
+- **ETB damage = 2× vehicle count** — Forge handles via `Count$Valid Vehicle.YouCtrl/Times.2`. Works out of the box.
+
+### Follow-ups (filed)
+
+- **`PayCostsReq` for interactive crew** — Not emitted. Only matters when a human player controls crew cost payment (not our current use case — AI plays, human watches). The wire shape is fully documented in the cross-vehicle comparison below: `effectCostType=Select`, `minSel=crew number`, `weights=creature power`, `context=NonManaPayment`.
+- **`TappedUntappedPermanent` affectorId** — #270. Crew taps use self-referencing affectorId instead of crew ability stack instance. Cosmetic. Forge's `GameEventCardTapped` doesn't carry a cause field.
+- **Crew cost prompt text** — #271. "Submit 0" persists after selecting crew source instead of updating to "Submit 1".
+- **`ShouldntPlay` / `RedundantActivation`** — Not emitted. UI hint for "don't offer crew again". No gameplay impact.
+
+## Supporting evidence
 
 - [x] Other vehicles in recordings — Brute Suit (79681) in same session, compare crew annotation shape — **confirmed identical shape** (see cross-vehicle comparison below)
 - [x] Vehicle with crew cost < total available power — does `minSel` always equal crew number? — **confirmed: `minSel` = crew number** (Crew 1 → minSel=1, Crew 4 → minSel=4)
+- [x] Arena playtest — crewed Brute Suit with Grizzly Bears, attacked, won. Type change visible, crew resolves correctly.
 - [ ] ETB with 2+ vehicles already on board — confirm X scales correctly (expect damage=4+ with 2 vehicles pre-ETB)
 - [ ] Puzzle: minimal crew scenario — 1 creature exactly meeting crew cost, verify annotation sequence
 
