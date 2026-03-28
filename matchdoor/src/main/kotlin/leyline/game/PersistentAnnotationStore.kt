@@ -171,6 +171,7 @@ class PersistentAnnotationStore {
                 AnnotationType.CrewedThisTurn,
                 mechanicResult.crewedThisTurnPersistent,
                 { it.affectorId },
+                detectChanges = true,
             )
 
             // 3e. ModifiedType+LayeredEffect for crew type changes — full-replacement upsert
