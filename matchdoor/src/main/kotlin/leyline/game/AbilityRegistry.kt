@@ -53,7 +53,11 @@ class AbilityRegistry private constructor(
             mapManaAbilities(card, fallbackGrpId, saMap)
             mapUnclaimedIntrinsics(card, fallbackGrpId, staticMap, triggerMap)
 
-            // Derive SlotLayout from the same data — single source of truth
+            // Derive SlotLayout from the same data — single source of truth.
+            // activatedCount may include the padded minimum slot (maxOf(1, kw+act))
+            // for cards with no keywords or activated abilities. SlotKind is approximate:
+            // mana-only cards get Activated here; AbilityIdDeriver uses Mana for those.
+            // forgeIndexFor() ignores kind — only slot position matters.
             val activatedCount = abilityIds.size - keywordCount
             val slots = abilityIds.mapIndexed { i, (grpId, textId) ->
                 val kind = if (i < keywordCount) SlotKind.Keyword else SlotKind.Activated

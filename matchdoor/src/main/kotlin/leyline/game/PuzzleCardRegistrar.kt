@@ -183,8 +183,7 @@ class PuzzleCardRegistrar(
 
         val linkedIds = mutableListOf<Int>()
         for (stateName in states) {
-            if (stateName == forge.card.CardStateName.Original) continue
-            if (stateName == forge.card.CardStateName.FaceDown) continue
+            if (stateName in SKIP_STATES) continue
             val altState = card.getState(stateName) ?: continue
             val altName = altState.name ?: continue
             if (altName == card.name) continue
