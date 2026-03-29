@@ -55,7 +55,7 @@ Structured classification of failures for agent triage. Each category has a dete
 **What:** Client parsed our message but crashed rendering/processing it.
 
 **Detection:**
-- `arena errors` / `scry state` — annotation parse exceptions, bare exceptions
+- `scry state` — annotation parse exceptions, bare exceptions
 - `AnnotationParseException` with annotation type ID in Player.log
 
 **Diagnostic path:**
@@ -125,7 +125,7 @@ Structured classification of failures for agent triage. Each category has a dete
 1. Check if the action actually fired: `arena issues` (was click registered?)
 2. Check server state: `GET /api/state` (did the engine process it?)
 3. Check client state: `arena ocr` (is the client showing something unexpected?)
-4. Check for errors: `arena errors` + `tail logs/leyline.log`
+4. Check for errors: `just scry state` + `tail logs/leyline.log`
 
 **Fix pattern:** Depends on root cause:
 - Action not registered → retry with different coords or `--retry`
@@ -148,7 +148,7 @@ Structured classification of failures for agent triage. Each category has a dete
 2. `arena scene` — check Player.log scene
 3. Is this a new screen not in the state machine? Add it.
 
-**Fix pattern:** Add screen + transitions to `arena_screens.py` and `docs/arena-screens.yaml`.
+**Fix pattern:** Add screen + transitions to `screens_data.py` (see `tools/arena/README.md` § Adding a Screen).
 
 ---
 
@@ -170,7 +170,7 @@ When something breaks, classify first:
 
 | Source | Detector | Categories |
 |---|---|---|
-| Player.log exceptions | `scry` / `arena errors` | CLIENT, PROTOCOL |
+| Player.log exceptions | `scry state` | CLIENT, PROTOCOL |
 | Server logs | `GET /api/logs?level=ERROR` | ENGINE, BUILD |
 | InvariantChecker | `ValidatingMessageSink` / `/api/recording-invariants` | PROTOCOL |
 | Arena CLI failures | `arena issues` | TIMEOUT, VISUAL, NAVIGATION |

@@ -70,7 +70,6 @@ Never use screenshots for state detection (~800 tokens). `arena ocr` is free.
 | `arena navigate` | Auto-navigate to screen | `arena navigate Home` |
 | `arena board` | Full board state | `arena board --no-ocr` |
 | `arena state` | Debug API game state | `arena state` |
-| `arena errors` | Client errors from Player.log | `arena errors` |
 | `arena issues` | Aggregate session errors | `arena issues` |
 | `arena capture` | Screenshot | `arena capture --out /tmp/screen.png` |
 | `arena launch` | Launch MTGA | `arena launch` |
@@ -300,7 +299,6 @@ If 888,504 doesn't advance, run `arena board` — check for pending actions (tar
 ### Client-side
 
 ```bash
-arena errors                                 # client errors from Player.log
 just scry state --no-cards                   # full client state + errors
 arena board --no-ocr                         # protocol-only board state
 ```

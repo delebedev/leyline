@@ -39,6 +39,7 @@ def cmd_click(args: list[str]) -> None:
         "double" if "--double" in args else "right" if "--right" in args else "click"
     )
     exact = "--exact" in args
+    bottom = "--bottom" in args
 
     max_retries = 0
     if "--retry" in args:
@@ -101,6 +102,8 @@ def cmd_click(args: list[str]) -> None:
             continue
 
         try_remove(img)
+        if bottom and len(matches) > 1:
+            matches.sort(key=lambda m: m.get("cy", 0), reverse=True)
         first = matches[0]
         cx = int(float(first["cx"]))
         cy = int(float(first["cy"]))

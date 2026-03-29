@@ -17,13 +17,12 @@ user-invocable: false
 | Stream GRE blocks | `just scry stream` (`-f` to follow) |
 | Current lobby screen | `just scry scene` |
 | HTTP live state | `just scry serve` (port 8091: `/state`, `/errors`, `/scene`) |
-| Client errors | `arena errors` |
 | Error aggregation | `arena issues` (last N days) |
 
 ## Decision tree
 
 1. **Quick state check** → `just scry state`
-2. **Client crash / annotation error** → `arena errors`, then check [annotation field requirements](reading-player-logs.md#annotation-field-requirements-from-client-source)
+2. **Client crash / annotation error** → `just scry state`, then check [annotation field requirements](reading-player-logs.md#annotation-field-requirements-from-client-source)
 3. **Deep investigation** (specific gsId, full zones/objects) → ad-hoc scripts in [reading-player-logs.md](reading-player-logs.md#key-searches)
 4. **Compare server vs client** → debug API `:8090` (`/api/messages`, `/api/game-states`) vs Player.log. See [cross-referencing](reading-player-logs.md#cross-referencing-with-debug-api)
 

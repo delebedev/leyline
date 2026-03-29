@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shlex
 import sys
 import time
@@ -19,8 +20,32 @@ def cmd_scene(args: list[str]) -> None:
     print(json.dumps({"current": scene}))
 
 
+# Scenes that map to exactly one screen — no OCR needed
+_UNAMBIGUOUS_SCENES: dict[str, str] = {}
+
+
+def _build_unambiguous_scenes() -> None:
+    """Find scenes that belong to exactly one screen definition."""
+    scene_to_screens: dict[str, list[str]] = {}
+    for name, s in SCREENS.items():
+        sc = s.get("scene")
+        if sc:
+            scene_to_screens.setdefault(sc, []).append(name)
+    for sc, names in scene_to_screens.items():
+        if len(names) == 1:
+            _UNAMBIGUOUS_SCENES[sc] = names[0]
+
+
+_build_unambiguous_scenes()
+
+
 def detect_screen() -> str | None:
     scene = get_current_scene()
+
+    # Fast path: scene alone is enough for unambiguous screens
+    if scene and scene in _UNAMBIGUOUS_SCENES:
+        return _UNAMBIGUOUS_SCENES[scene]
+
     img = "/tmp/arena/_detect_screen.png"
     Path(img).parent.mkdir(parents=True, exist_ok=True)
     bounds = capture_window(img)
@@ -47,7 +72,9 @@ def detect_screen() -> str | None:
     all_text = " ".join(ocr_texts).lower()
 
     def _has(anchor: str) -> bool:
-        return anchor.lower() in all_text
+        # Word-boundary match to avoid "Play" matching inside "ForgePlayer"
+        pattern = r"\b" + re.escape(anchor.lower()) + r"\b"
+        return bool(re.search(pattern, all_text))
 
     def _has_any(anchors: list[str]) -> bool:
         return any(_has(a) for a in anchors)
@@ -205,6 +232,17 @@ def try_dismiss_popups(commands: dict[str, object]) -> str | None:
         return name
 
     return None
+
+
+def dismiss_all_popups(commands: dict[str, object], max_rounds: int = 5) -> list[str]:
+    """Dismiss stacked popups. Returns list of popup names dismissed."""
+    dismissed: list[str] = []
+    for _ in range(max_rounds):
+        popup = try_dismiss_popups(commands)
+        if popup is None:
+            break
+        dismissed.append(popup)
+    return dismissed
 
 
 def cmd_navigate(args: list[str], commands: dict[str, object]) -> None:

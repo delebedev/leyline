@@ -85,39 +85,23 @@ Remove diagnostics before committing.
 After MatchHarness passes, validate in Arena:
 
 ```bash
-# Edit leyline.toml: set [game].puzzle = "puzzles/<name>.pzl"
-pkill -f LeylineMainKt; sleep 2
-just build
-nohup just serve > /tmp/leyline.log 2>&1 &
+# 1. Set puzzle in leyline.toml: [game].puzzle = "puzzles/<name>.pzl"
+# 2. Start server and get into game
+just build && just serve   # (background)
+arena start-puzzle puzzles/<name>.pzl
 
-# Launch Arena, navigate to Bot Match
-pkill -f MTGA; sleep 3
-just arena launch
-# ... navigate to Find Match → Bot Match → select deck → Play
+# 3. Play through, capture screenshots
+arena capture --out /tmp/step1.png
+# ... play ...
 
-# Capture screenshots at key steps
-just arena capture --out /tmp/step1.png
-# ... play through ...
+# 4. Hot-swap to iterate (no restart needed)
+arena start-puzzle puzzles/<other>.pzl
 
-# Publish gallery
+# 5. Publish gallery for PR
 ~/.claude/skills/publish/publish.sh --title "Feature Name" /tmp/step*.png
 ```
 
-Add gallery URL to PR comment as evidence.
-
-### Hot-swap puzzles (no restart)
-
-Once Arena is connected and in-game, swap to a different puzzle without restarting the server or Arena:
-
-```bash
-# By file path (from puzzles/ dir)
-curl -X POST http://localhost:8090/api/inject-puzzle?file=legend-rule
-
-# By inline .pzl content
-curl -X POST http://localhost:8090/api/inject-puzzle -d @puzzles/legend-rule.pzl
-```
-
-The client resets to the new board state immediately — no reconnect needed. Use this to iterate on puzzle design or re-run a scenario after a code fix (`just build` first, then inject).
+`arena start-puzzle` handles navigation (Home → Sparky's Challenge → Play → InGame), puzzle injection via debug API, and phase HUD sync. Hot-swaps when already in-game.
 
 ## Conformance Assertions
 
