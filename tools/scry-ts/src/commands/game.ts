@@ -1,10 +1,7 @@
-import { Database } from "bun:sqlite";
 import { loadEvents } from "../log";
 import { detectGames, type Game } from "../games";
-import { Accumulator } from "../accumulator";
-import { findArenaDb, resolveCardInfo, type CardInfo } from "../cards";
 import { loadCatalog, readSavedGame, type CatalogEntry } from "../catalog";
-import { loadMeta, saveMeta, type CardEntry } from "../meta";
+import { loadMeta, saveMeta, buildCardManifest, type CardEntry } from "../meta";
 import { parseLog } from "../parser";
 
 async function loadAllGames(): Promise<Game[]> {
@@ -24,6 +21,7 @@ export async function gameCommand(args: string[]) {
     console.log("Usage: scry game [command]\n");
     console.log("Commands:");
     console.log("  list         List all games in Player.log");
+    console.log("  search TERM  Search across saved games");
     console.log("  cards        Card manifest for a game");
     console.log("  notes        Show notes for a game");
     console.log("  <N>          Show game #N detail");
@@ -41,6 +39,8 @@ export async function gameCommand(args: string[]) {
     } else {
       await gameList();
     }
+  } else if (verb === "search") {
+    await gameSearch(args.slice(1));
   } else if (verb === "cards") {
     await gameCards(args.slice(1));
   } else if (verb === "notes") {
@@ -164,53 +164,14 @@ async function gameCards(args: string[]) {
   }
 
   if (!game) {
-    // Fall back to live log
     const games = await loadAllGames();
     game = games[games.length - 1];
   }
 
-  const dbPath = findArenaDb();
-  if (!dbPath) {
+  const cards = buildCardManifest(game);
+  if (!cards) {
     console.error("Arena card DB not found. Launch Arena at least once.");
     process.exit(1);
-  }
-  const db = new Database(dbPath, { readonly: true });
-
-  // Scan all GSMs for unique grpIds + track ownership/instanceIds
-  const cardData = new Map<number, { ownerSeat: number; instanceIds: Set<number> }>();
-  const acc = new Accumulator();
-  for (const gsm of game.greMessages) {
-    acc.apply(gsm.raw);
-    if (!acc.current) continue;
-    for (const [, obj] of acc.current.objects) {
-      if (!obj.grpId) continue;
-      // Skip ability objects — they have their own grpIds that aren't in the card DB
-      if (obj.type.includes("Ability")) continue;
-      let entry = cardData.get(obj.grpId);
-      if (!entry) {
-        entry = { ownerSeat: obj.ownerSeatId, instanceIds: new Set() };
-        cardData.set(obj.grpId, entry);
-      }
-      entry.instanceIds.add(obj.instanceId);
-    }
-  }
-
-  const cardInfos = resolveCardInfo(db, [...cardData.keys()]);
-
-  const cards: CardEntry[] = [];
-  for (const [grpId, data] of cardData) {
-    const info = cardInfos.get(grpId);
-    cards.push({
-      grpId,
-      name: info?.name ?? `grp=${grpId}`,
-      types: info?.types ?? [],
-      subtypes: info?.subtypes ?? [],
-      power: info?.power ?? null,
-      toughness: info?.toughness ?? null,
-      isToken: info?.isToken ?? false,
-      ownerSeat: data.ownerSeat,
-      instanceIds: [...data.instanceIds].sort((a, b) => a - b),
-    });
   }
 
   // Cache in meta if saved game
@@ -221,6 +182,89 @@ async function gameCards(args: string[]) {
   }
 
   printCards(cards, gameFile ?? "live");
+}
+
+// TODO: performance — currently reads every saved log file sequentially.
+// For large catalogs (100+ games), consider building a search index at save
+// time, or parallelizing reads with Bun's worker threads.
+async function gameSearch(args: string[]) {
+  const term = args.find((a) => !a.startsWith("-"));
+  if (!term) {
+    console.error("Usage: scry game search <term>");
+    process.exit(1);
+  }
+  const termLower = term.toLowerCase();
+
+  const catalog = loadCatalog();
+  if (catalog.games.length === 0) {
+    console.log("No saved games. Run: scry save");
+    return;
+  }
+
+  let totalHits = 0;
+
+  for (const entry of catalog.games) {
+    const meta = loadMeta(entry.file);
+    const label = entry.file.replace(".log", "");
+
+    // Phase 1: search card names in meta (fast, enriched)
+    const matchedCards = meta.cards
+      .filter((c) => c.name.toLowerCase().includes(termLower))
+      .map((c) => c.name);
+
+    if (matchedCards.length > 0) {
+      console.log(`${label}  cards: ${matchedCards.join(", ")}`);
+      totalHits++;
+      continue; // card match is sufficient — skip raw grep
+    }
+
+    // Phase 2: search notes
+    const matchedNotes = meta.notes.filter((n) => n.text.toLowerCase().includes(termLower));
+    if (matchedNotes.length > 0) {
+      for (const note of matchedNotes) {
+        const anchor = note.gsId != null ? `T${note.turn} gs=${note.gsId}` : "";
+        console.log(`${label}  note: "${note.text}" ${anchor}`);
+      }
+      totalHits++;
+      continue;
+    }
+
+    // Phase 3: search tags
+    if (meta.tags.some((t) => t.toLowerCase().includes(termLower))) {
+      console.log(`${label}  tag: ${meta.tags.filter((t) => t.toLowerCase().includes(termLower)).join(", ")}`);
+      totalHits++;
+      continue;
+    }
+
+    // Phase 4: raw log grep (protocol terms — grpIds, annotation types, etc.)
+    try {
+      const lines = readSavedGame(entry.file);
+      let rawHits = 0;
+      for (const line of lines) {
+        if (line.toLowerCase().includes(termLower)) {
+          rawHits++;
+          if (rawHits === 1) {
+            // Show first match context
+            const idx = line.toLowerCase().indexOf(termLower);
+            const start = Math.max(0, idx - 30);
+            const end = Math.min(line.length, idx + term.length + 50);
+            const snippet = (start > 0 ? "..." : "") + line.substring(start, end).trim() + (end < line.length ? "..." : "");
+            console.log(`${label}  raw: ${snippet}`);
+          }
+        }
+      }
+      if (rawHits > 0) {
+        if (rawHits > 1) console.log(`${" ".repeat(label.length)}  (${rawHits} matches)`);
+        totalHits++;
+      }
+    } catch {}
+  }
+
+  if (totalHits === 0) {
+    console.log(`No matches for "${term}" across ${catalog.games.length} saved games.`);
+  } else {
+    console.log(`\n${totalHits} games matched`);
+  }
 }
 
 function printCards(cards: CardEntry[], label: string) {

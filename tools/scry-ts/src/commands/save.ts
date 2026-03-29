@@ -5,6 +5,7 @@ import { sliceGames } from "../slicer";
 import { parseLog } from "../parser";
 import { detectGames } from "../games";
 import { loadCatalog, isAlreadySaved, saveGame } from "../catalog";
+import { loadMeta, saveMeta, buildCardManifest } from "../meta";
 
 const DEFAULT_LOG = resolve(homedir(), "Library/Logs/Wizards of the Coast/MTGA/Player.log");
 const PREV_LOG = resolve(homedir(), "Library/Logs/Wizards of the Coast/MTGA/Player-prev.log");
@@ -87,6 +88,16 @@ export async function saveCommand(args: string[]) {
         turns: maxTurn,
         gsmCount,
       });
+
+      // Auto-resolve cards at save time
+      if (game) {
+        const cards = buildCardManifest(game);
+        if (cards) {
+          const meta = loadMeta(entry.file);
+          meta.cards = cards;
+          saveMeta(entry.file, meta);
+        }
+      }
 
       console.log(`  saved: ${entry.file} — ${Math.ceil(maxTurn / 2)} rounds, ${result ?? "no result"}`);
       totalSaved++;

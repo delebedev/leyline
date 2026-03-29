@@ -104,6 +104,8 @@ async function gsmList(args: string[]) {
 
   if (view === "turns") {
     renderTurns(gsms);
+  } else if (view === "annotations") {
+    renderAnnotations(gsms);
   } else if (view === "actions") {
     renderActions(gsms);
   } else {
@@ -165,6 +167,63 @@ function renderTurns(gsms: { game: Game; gsm: GsmSummary }[]) {
   }
 
   console.log(`\n${withTurn.length} turns`);
+}
+
+function renderAnnotations(gsms: { game: Game; gsm: GsmSummary }[]) {
+  const resolver = getResolver();
+
+  // Build a zone map from the first Full GSM
+  const zoneMap = new Map<number, string>();
+  for (const { gsm } of gsms) {
+    for (const z of gsm.raw.zones ?? []) {
+      const name = zoneName(z.type ?? "");
+      const owner = z.ownerSeatId ? ` (seat ${z.ownerSeatId})` : "";
+      zoneMap.set(z.zoneId, `${name}${owner}`);
+    }
+  }
+  const fmtZone = (id: number) => zoneMap.get(id) ?? `zone=${id}`;
+
+  let count = 0;
+  let lastTurn = -1;
+
+  for (const { gsm } of gsms) {
+    const annotations = gsm.raw.annotations ?? [];
+    if (annotations.length === 0) continue;
+
+    const phase = gsm.step ? `${gsm.phase}/${gsm.step}` : gsm.phase;
+    if (gsm.turn !== lastTurn) {
+      if (lastTurn !== -1) console.log("");
+      lastTurn = gsm.turn;
+    }
+
+    for (const ann of annotations) {
+      const types = (ann.type ?? []).map((t: string) => stripPrefix(t, "AnnotationType_"));
+      const affector = ann.affectorId ?? "—";
+      const affected: number[] = ann.affectedIds ?? [];
+      const affectedStr = affected.length > 0 ? ` → [${affected.join(", ")}]` : "";
+
+      // Build detail string with enrichment
+      const detailParts: string[] = [];
+      for (const d of ann.details ?? []) {
+        const key = d.key as string;
+        const rawVals: (string | number)[] =
+          d.valueString?.length ? d.valueString :
+          d.valueInt32?.length ? d.valueInt32 :
+          d.valueUint32?.length ? d.valueUint32 : [];
+        const isZoneKey = key === "zone_src" || key === "zone_dest";
+        const vals = rawVals.map((v: string | number) =>
+          isZoneKey && typeof v === "number" ? fmtZone(v) : String(v)
+        ).join(", ");
+        detailParts.push(`${key}=${vals}`);
+      }
+      const details = detailParts.length > 0 ? `  ${detailParts.join("  ")}` : "";
+
+      console.log(`  gs=${gsm.gsId} T${gsm.turn} ${phase}  ${types.join(", ")}  from=${affector}${affectedStr}${details}`);
+      count++;
+    }
+  }
+
+  console.log(`\n${count} annotations`);
 }
 
 function renderActions(gsms: { game: Game; gsm: GsmSummary }[]) {
