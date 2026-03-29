@@ -353,7 +353,8 @@ object AnnotationPipeline {
             TransferCategory.Bounce, TransferCategory.Draw, TransferCategory.Discard,
             TransferCategory.Mill, TransferCategory.Surveil, TransferCategory.Exile,
             TransferCategory.Return, TransferCategory.Search, TransferCategory.Put,
-            TransferCategory.SbaLegendRule, TransferCategory.ZoneTransfer,
+            TransferCategory.SbaLegendRule, TransferCategory.SbaUnattachedAura,
+            TransferCategory.ZoneTransfer,
             -> {
                 if (origId != newId) {
                     annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))

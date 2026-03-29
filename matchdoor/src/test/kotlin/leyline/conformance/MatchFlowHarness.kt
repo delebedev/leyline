@@ -624,6 +624,18 @@ class MatchFlowHarness(
         return true
     }
 
+    // --- OptionalAction helpers ---
+
+    /**
+     * Respond to a shock land OptionalActionMessage.
+     *
+     * @param accept true = pay life (enter untapped), false = decline (enter tapped)
+     */
+    fun respondToOptionalAction(accept: Boolean) {
+        session.onOptionalAction(optionalActionResp(accept))
+        drainSink()
+    }
+
     // --- SelectN helpers ---
 
     /**

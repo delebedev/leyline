@@ -285,6 +285,27 @@ fun castingTimeOptionsResp(
     }
 
 // ---------------------------------------------------------------------------
+// OptionalActionResp — shock land ETB "pay life or enter tapped"
+// ---------------------------------------------------------------------------
+
+/**
+ * [OptionalActionResp] — accept (AllowYes) or decline (CancelNo) a
+ * shock land ETB replacement prompt.
+ *
+ * ```kotlin
+ * optionalActionResp(accept = true)   // pay 2 life, enter untapped
+ * optionalActionResp(accept = false)  // enter tapped
+ * ```
+ */
+fun optionalActionResp(accept: Boolean): ClientToGREMessage =
+    clientMessage(ClientMessageType.OptionalActionResp) {
+        setOptionalResp(
+            OptionalResp.newBuilder()
+                .setResponse(if (accept) OptionResponse.AllowYes else OptionResponse.CancelNo),
+        )
+    }
+
+// ---------------------------------------------------------------------------
 // Settings — for unit tests building SettingsMessage / stops
 // ---------------------------------------------------------------------------
 
