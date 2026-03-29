@@ -1,0 +1,13 @@
+{
+  "name": "scry",
+  "version": "0.0.1",
+  "description": "MTGA Player.log parser and game state tool",
+  "type": "module",
+  "bin": {
+    "scry": "./cli.ts"
+  },
+  "scripts": {
+    "scry": "bun run cli.ts",
+    "test": "bun test"
+  }
+}

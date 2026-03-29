@@ -1,0 +1,40 @@
+#!/usr/bin/env bun
+
+import { boardCommand } from "./src/commands/board";
+import { eventsCommand } from "./src/commands/events";
+import { gameCommand } from "./src/commands/game";
+import { gsmCommand } from "./src/commands/gsm";
+import { lobbyCommand } from "./src/commands/lobby";
+
+const commands: Record<string, { description: string; run: (args: string[]) => Promise<void> }> = {
+  board:  { description: "Accumulated board state",          run: boardCommand },
+  events: { description: "Summarize Player.log event types", run: eventsCommand },
+  game:   { description: "Game summaries and details",       run: gameCommand },
+  gsm:    { description: "Query game state messages",        run: gsmCommand },
+  lobby:  { description: "Lobby request/response pairs",     run: lobbyCommand },
+};
+
+async function main() {
+  const args = process.argv.slice(2);
+  const command = args[0];
+
+  if (!command || command === "--help" || command === "-h") {
+    console.log("scry — MTGA Player.log parser\n");
+    console.log("Usage: scry <command> [flags]\n");
+    console.log("Commands:");
+    for (const [name, cmd] of Object.entries(commands)) {
+      console.log(`  ${name.padEnd(16)} ${cmd.description}`);
+    }
+    process.exit(0);
+  }
+
+  const cmd = commands[command];
+  if (!cmd) {
+    console.error(`Unknown command: ${command}\nRun 'scry --help' for usage.`);
+    process.exit(1);
+  }
+
+  await cmd.run(args.slice(1));
+}
+
+main();
