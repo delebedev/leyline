@@ -75,6 +75,7 @@ export interface GameObject {
   objectSourceGrpId: number;
   parentId: number;
   isFacedown: boolean;
+  /** Arena localization ID — not a card name. Resolve via grpId → CardResolver. */
   name: number;
 }
 
@@ -106,6 +107,9 @@ export class Accumulator {
     }
 
     // Process persistent annotations
+    // On Full, persistent annotations start empty (parseGameState initializes
+    // an empty Map). The clear() is a safety net — a no-op in normal flow
+    // but guards against future changes to parseGameState.
     if (type.includes("Full")) {
       merged.persistentAnnotations.clear();
     } else {

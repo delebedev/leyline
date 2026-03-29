@@ -35,7 +35,7 @@ function gsm(gsId: number, opts?: { type?: string; turn?: number; phase?: string
 }
 
 function gameOver(winner: number) {
-  return { results: [{ resultType: "ResultType_WinLoss", winningTeamId: winner }] };
+  return { results: [{ result: "ResultType_WinLoss", winningTeamId: winner }] };
 }
 
 describe("detectGames", () => {

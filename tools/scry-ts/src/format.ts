@@ -34,13 +34,3 @@ export function formatPhase(phase: string, step: string): string {
   return s ? `${p}/${s}` : p;
 }
 
-/** Format an object one-liner for gsm show. */
-export function fmtObject(obj: any, resolver: CardResolver | null): string {
-  const otype = stripPrefix(obj.type ?? "", "GameObjectType_");
-  const parts = [`iid=${obj.instanceId}`, `grp=${fmtGrp(obj.grpId, resolver)}`];
-  parts.push(zoneName(obj.zone?.type ?? "") || `zone=${obj.zoneId}`);
-  if (obj.ownerSeatId) parts.push(`owner=${obj.ownerSeatId}`);
-  if (obj.power) parts.push(`${obj.power.value}/${obj.toughness?.value ?? "?"}`);
-  if (obj.isTapped) parts.push("tapped");
-  return `${otype} ${parts.join("  ")}`;
-}

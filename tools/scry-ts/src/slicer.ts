@@ -5,7 +5,7 @@
  * so we can save verbatim log slices.
  */
 
-const GRE_HEADER = /\[UnityCrossThreadLogger\](\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}): Match to ([0-9a-zA-Z_-]+): GreToClientEvent/;
+import { GRE_HEADER } from "./parser";
 const CONNECT_RESP = /"GREMessageType_ConnectResp"/;
 const GAME_RESULT = /"ResultType_WinLoss"|"ResultType_Draw"/;
 

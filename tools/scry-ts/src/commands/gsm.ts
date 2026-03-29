@@ -170,8 +170,6 @@ function renderTurns(gsms: { game: Game; gsm: GsmSummary }[]) {
 }
 
 function renderAnnotations(gsms: { game: Game; gsm: GsmSummary }[]) {
-  const resolver = getResolver();
-
   // Build a zone map from the first Full GSM
   const zoneMap = new Map<number, string>();
   for (const { gsm } of gsms) {

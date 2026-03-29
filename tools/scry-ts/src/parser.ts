@@ -13,7 +13,7 @@ export type LogEvent =
   | { type: "fd-response"; name: string; id: string; payload: unknown }
   | { type: "scene"; from: string; to: string; initiator: string; context: string };
 
-const GRE_HEADER = /\[UnityCrossThreadLogger\](\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}): Match to ([0-9a-zA-Z_-]+): GreToClientEvent/;
+export const GRE_HEADER = /\[UnityCrossThreadLogger\](\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}): Match to ([0-9a-zA-Z_-]+): GreToClientEvent/;
 const STANDALONE_GRE = /^\{\s*"greToClientEvent":/;
 const FD_REQUEST = /\[UnityCrossThreadLogger\]==> (\S+) (\{.+\})$/;
 const FD_RESPONSE = /^<== (\S+)\(([^)]+)\)/;
