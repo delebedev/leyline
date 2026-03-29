@@ -610,6 +610,29 @@ class MatchFlowHarness(
         return true
     }
 
+    /** Activate an ability on a card in the player's hand (Channel, Cycling, etc.). */
+    fun activateAbilityFromHand(cardName: String, abilityIndex: Int = 0): Boolean {
+        val player = bridge.getPlayer(SeatId(seatId)) ?: return false
+        val card = player.getZone(ZoneType.Hand).cards
+            .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
+
+        val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+        val grpId = bridge.cards.findGrpIdByName(card.name) ?: 0
+        val cardData = bridge.cards.findByGrpId(grpId)
+        val keywordCount = cardData?.keywordAbilityGrpIds?.size ?: 0
+        val abilityGrpId = cardData?.abilityIds?.getOrNull(keywordCount + abilityIndex)?.first ?: 0
+
+        val msg = performAction {
+            actionType = ActionType.Activate_add3
+            instanceId = iid
+            this.grpId = grpId
+            this.abilityGrpId = abilityGrpId
+        }
+        session.onPerformAction(msg)
+        drainSink()
+        return true
+    }
+
     // --- SelectN helpers ---
 
     /**

@@ -156,6 +156,36 @@ cost modifications. Uses the MTG layer system (comp rules).
 interrupting cost payment. Known hazard: if `payComputerCosts()` fails after
 freeze, stack stays frozen — defensive `unfreezeStack()` needed in callers.
 
+### Hand-Zone Activation (Channel, Cycling, Transmute)
+
+Some abilities activate from hand instead of battlefield. Forge handles these
+generically — no special keyword code for Channel.
+
+**Card DSL pattern:**
+```
+A:AB$ DealDamage | Cost$ 1 R Discard<1/CARDNAME> | ActivationZone$ Hand | PrecostDesc$ Channel —
+```
+
+**Zone restriction flow:**
+1. `SpellAbilityRestriction.setRestrictions()` parses `ActivationZone` → stores as `ZoneType`
+2. `SpellAbilityVariables.zone` defaults to `ZoneType.Battlefield`
+3. `checkZoneRestrictions()` compares card's current zone against the ability's required zone
+4. `AbilityActivated.canPlay()` → `getRestrictions().canPlay()` → `checkZoneRestrictions()`
+
+**Discard-as-cost:**
+- `CostDiscard.doPayment()` → `Player.discard()` → `game.getAction().moveToGraveyard()`
+- Fires `GameEventCardChangeZone` (standard zone-change event) + `TriggerType.Discarded`
+- `Discard<1/CARDNAME>` means discard the source card itself (`CostPart.payCostFromSource()`)
+- Cost payment order: `CostDiscard.paymentOrder()` returns 10
+
+**Not a keyword.** Channel is a combination of properties:
+- `ActivationZone$ Hand` — restrict to hand zone
+- `Discard<1/CARDNAME>` — self-discard cost
+- `PrecostDesc$ Channel —` — display text
+
+Same pattern used by Cycling (`Discard<1/CARDNAME>` + `ActivationZone$ Hand` + `DB$ Draw`)
+and Transmute (`Discard<1/CARDNAME>` + `ActivationZone$ Hand` + `DB$ ChangeZone`).
+
 ## Player Controller Architecture
 
 Two separate paths for interactive decisions:
