@@ -184,6 +184,8 @@ async function gameCards(args: string[]) {
     if (!acc.current) continue;
     for (const [, obj] of acc.current.objects) {
       if (!obj.grpId) continue;
+      // Skip ability objects — they have their own grpIds that aren't in the card DB
+      if (obj.type.includes("Ability")) continue;
       let entry = cardData.get(obj.grpId);
       if (!entry) {
         entry = { ownerSeat: obj.ownerSeatId, instanceIds: new Set() };
