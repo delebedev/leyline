@@ -1,13 +1,12 @@
 import { resolve } from "path";
 import { homedir } from "os";
-import { readFileSync } from "fs";
 import { sliceGames } from "../slicer";
 import { parseLog } from "../parser";
 import { detectGames } from "../games";
 import { loadCatalog, isAlreadySaved, saveGame } from "../catalog";
 import { loadMeta, saveMeta, buildCardManifest } from "../meta";
+import { DEFAULT_LOG } from "../log";
 
-const DEFAULT_LOG = resolve(homedir(), "Library/Logs/Wizards of the Coast/MTGA/Player.log");
 const PREV_LOG = resolve(homedir(), "Library/Logs/Wizards of the Coast/MTGA/Player-prev.log");
 
 export async function saveCommand(args: string[]) {
@@ -53,7 +52,11 @@ export async function saveCommand(args: string[]) {
 
     for (let i = 0; i < slices.length; i++) {
       const slice = slices[i];
-      const game = games[i]; // parallel arrays — same detection order
+      // Cross-match by timestamp — sliceGames and detectGames may diverge
+      // on edge cases (standalone GRE JSON without header)
+      const game = games.find(
+        (g) => g.startTimestamp === slice.startTimestamp
+      ) ?? games[i] ?? null;
 
       const matchId = game?.matchId ?? slice.matchId;
       const startTs = game?.startTimestamp ?? slice.startTimestamp;

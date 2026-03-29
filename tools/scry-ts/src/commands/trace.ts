@@ -1,7 +1,7 @@
 import { resolveGame } from "../resolve";
 import { Accumulator } from "../accumulator";
 import { getResolver } from "../cards";
-import { stripPrefix, fmtGrp, zoneName } from "../format";
+import { stripPrefix, fmtGrp, zoneName, formatPhase } from "../format";
 
 export async function traceCommand(args: string[]) {
   if (!args[0] || args[0] === "--help" || args[0] === "-h") {
@@ -177,8 +177,3 @@ interface TraceEvent {
   details: string[];
 }
 
-function formatPhase(phase: string, step: string): string {
-  const p = stripPrefix(phase, "Phase_");
-  const s = step ? stripPrefix(step, "Step_") : "";
-  return s ? `${p}/${s}` : p;
-}

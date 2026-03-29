@@ -27,6 +27,13 @@ export function fmtGrp(grpId: number, resolver: CardResolver | null): string {
   return name ? `${grpId} (${name})` : String(grpId);
 }
 
+/** Phase + step → readable string: "Main1", "Combat/DeclareAttack". */
+export function formatPhase(phase: string, step: string): string {
+  const p = stripPrefix(phase, "Phase_");
+  const s = step ? stripPrefix(step, "Step_") : "";
+  return s ? `${p}/${s}` : p;
+}
+
 /** Format an object one-liner for gsm show. */
 export function fmtObject(obj: any, resolver: CardResolver | null): string {
   const otype = stripPrefix(obj.type ?? "", "GameObjectType_");

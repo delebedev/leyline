@@ -90,13 +90,13 @@ export function saveGame(
 ): CatalogEntry {
   ensureDirs();
 
-  let filename = filenameFromTimestamp(meta.startTimestamp);
+  const baseFilename = filenameFromTimestamp(meta.startTimestamp);
   // Dedup filename
+  let filename = baseFilename;
   let finalPath = join(GAMES_DIR, filename);
   let counter = 1;
   while (existsSync(finalPath)) {
-    const base = filename.replace(".log", "");
-    filename = `${base}_${counter}.log`;
+    filename = baseFilename.replace(".log", `_${counter}.log`);
     finalPath = join(GAMES_DIR, filename);
     counter++;
   }

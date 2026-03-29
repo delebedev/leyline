@@ -1,40 +1,20 @@
-import { loadEvents } from "../log";
-import { detectGames } from "../games";
+import { resolveGame, parseGameFlag } from "../resolve";
 import { Accumulator, type GameObject } from "../accumulator";
 import { getResolver, type CardResolver } from "../cards";
-import { stripPrefix, zoneName } from "../format";
+import { stripPrefix, zoneName, formatPhase } from "../format";
 
 export async function boardCommand(args: string[]) {
   if (args[0] === "--help" || args[0] === "-h") {
     console.log("Usage: scry board [flags]\n");
     console.log("Show accumulated board state.\n");
     console.log("Flags:");
-    console.log("  --game N     Select game (default: last)");
+    console.log("  --game REF   Game reference (catalog filename or live index)");
     console.log("  --gsid N     Show state at specific gsId");
     console.log("  --json       Output raw accumulated state as JSON");
     return;
   }
 
-  const events = await loadEvents();
-  const games = detectGames(events);
-  if (games.length === 0) {
-    console.error("No games found in Player.log");
-    process.exit(1);
-  }
-
-  // Select game
-  let gameIdx = games.length;
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--game" && i + 1 < args.length) {
-      const val = args[++i];
-      gameIdx = val === "last" ? games.length : parseInt(val, 10);
-    }
-  }
-  const game = games[gameIdx - 1];
-  if (!game) {
-    console.error(`Game #${gameIdx} not found (${games.length} available)`);
-    process.exit(1);
-  }
+  const { game, label } = await resolveGame(args);
 
   // Target gsId (optional — default: replay all)
   let targetGsId: number | null = null;
@@ -59,7 +39,6 @@ export async function boardCommand(args: string[]) {
   }
 
   if (jsonMode) {
-    // Serialize Maps to plain objects for JSON
     const state = acc.current;
     console.log(JSON.stringify({
       gameStateId: state.gameStateId,
@@ -116,8 +95,6 @@ export async function boardCommand(args: string[]) {
       const key = `${zt}|${seat}`;
       const objects = grouped.get(key);
       if (!objects || objects.length === 0) continue;
-
-      // Skip Limbo (noise)
       if (zt === "Limbo") continue;
 
       const seatLabel = seat > 0 ? ` (seat ${seat})` : "";
@@ -129,7 +106,6 @@ export async function boardCommand(args: string[]) {
 
       if (zt === "Battlefield") {
         console.log(`${zt}${seatLabel}:`);
-        // Group by creature / noncreature
         const creatures: string[] = [];
         const others: string[] = [];
         for (const obj of objects) {
@@ -181,22 +157,15 @@ export async function boardCommand(args: string[]) {
       const atype = stripPrefix(action.actionType ?? "", "ActionType_");
       const grpId = action.grpId ?? 0;
       const iid = action.instanceId ?? 0;
-      // Try resolving name from grpId, then from the object in accumulated state
       let name = grpId ? resolver?.resolve(grpId) : null;
       if (!name && iid) {
         const obj = acc.findObject(iid);
         if (obj) name = resolver?.resolve(obj.grpId) ?? null;
       }
-      const label = name ?? (grpId ? `grp=${grpId}` : `iid=${iid}`);
-      console.log(`  ${atype}: ${label} (iid=${iid})`);
+      const cardLabel = name ?? (grpId ? `grp=${grpId}` : `iid=${iid}`);
+      console.log(`  ${atype}: ${cardLabel} (iid=${iid})`);
     }
   }
-}
-
-function formatPhase(phase: string, step: string): string {
-  const p = stripPrefix(phase, "Phase_");
-  const s = step ? stripPrefix(step, "Step_") : "";
-  return s ? `${p}/${s}` : p;
 }
 
 function cardName(obj: GameObject, resolver: CardResolver | null): string {

@@ -40,12 +40,20 @@ async function main() {
   const command = args[0];
 
   if (!command || command === "--help" || command === "-h") {
-    console.log("scry — MTGA Player.log parser\n");
-    console.log("Usage: scry <command> [flags]\n");
+    console.log("scry — MTGA Player.log parser and game state tool\n");
+    console.log("Usage: scry <command> [args] [--flags]\n");
     console.log("Commands:");
     for (const [name, cmd] of Object.entries(commands)) {
       console.log(`  ${name.padEnd(16)} ${cmd.description}`);
     }
+    console.log("\nWorkflow:");
+    console.log("  Play games → scry save → games are cataloged in ~/.scry/games/");
+    console.log("  Most commands default to last game in Player.log.");
+    console.log("  Use --game <ref> to target a saved game (substring match on filename).");
+    console.log("\nCommon flags:");
+    console.log("  --json       Lossless raw JSON output (where supported)");
+    console.log("  --game REF   Target a specific game (e.g. 2026-03-29, or live index)");
+    console.log("  --help       Help for any command (e.g. scry gsm --help)");
     process.exit(0);
   }
 
