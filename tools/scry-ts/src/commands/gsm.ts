@@ -1,6 +1,6 @@
 import { loadEvents } from "../log";
 import { detectGames, type Game, type GsmSummary } from "../games";
-import { getResolver } from "../cards";
+import { getResolver, type CardResolver } from "../cards";
 import { stripPrefix, fmtGrp, zoneName } from "../format";
 
 /** Parse --game/--all flags, return selected games. */
@@ -51,6 +51,7 @@ export async function gsmCommand(args: string[]) {
     console.log("  --game last  Most recent game (default)");
     console.log("  --all        All games in log");
     console.log("  --has TYPE   Filter by annotation type (repeatable)");
+    console.log("  --view V     Projection: default, turns, actions");
     console.log("  --json       Output raw JSON (gsm show only)");
     return;
   }
@@ -93,7 +94,24 @@ async function gsmList(args: string[]) {
     return;
   }
 
-  const showGameCol = selected.length > 1;
+  // Parse --view flag
+  let view = "default";
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--view" && i + 1 < args.length) {
+      view = args[++i];
+    }
+  }
+
+  if (view === "turns") {
+    renderTurns(gsms);
+  } else if (view === "actions") {
+    renderActions(gsms);
+  } else {
+    renderDefault(gsms, selected.length > 1);
+  }
+}
+
+function renderDefault(gsms: { game: Game; gsm: GsmSummary }[], showGameCol: boolean) {
   const header = [
     showGameCol ? "Game" : null,
     "gsId".padStart(4),
@@ -130,6 +148,95 @@ async function gsmList(args: string[]) {
   }
 
   console.log(`\n${gsms.length} GSMs`);
+}
+
+function renderTurns(gsms: { game: Game; gsm: GsmSummary }[]) {
+  // Filter to GSMs that have turnInfo (skip bare echoes)
+  const withTurn = gsms.filter(({ gsm }) => gsm.phase || gsm.step);
+
+  console.log(`${"gsId".padStart(4)}  ${"Turn".padStart(4)}  ${"Phase".padEnd(20)}  ${"Active".padStart(6)}  ${"Priority".padStart(8)}`);
+  console.log("—".repeat(50));
+
+  for (const { gsm } of withTurn) {
+    const phase = gsm.step ? `${gsm.phase}/${gsm.step}` : gsm.phase;
+    console.log(
+      `${String(gsm.gsId).padStart(4)}  ${String(gsm.turn).padStart(4)}  ${phase.padEnd(20)}  ${`seat${gsm.activePlayer}`.padStart(6)}  ${`seat${gsm.raw.turnInfo?.priorityPlayer ?? "?"}`.padStart(8)}`
+    );
+  }
+
+  console.log(`\n${withTurn.length} turns`);
+}
+
+function renderActions(gsms: { game: Game; gsm: GsmSummary }[]) {
+  const resolver = getResolver();
+
+  // Extract actions from ZoneTransfer annotations + UserActionTaken
+  const actions: { turn: number; gsId: number; seat: string; category: string; card: string }[] = [];
+
+  for (const { gsm } of gsms) {
+    const raw = gsm.raw;
+    const annotations = raw.annotations ?? [];
+
+    // Build instance→grpId map from objects in this GSM
+    const grpById = new Map<number, number>();
+    for (const obj of raw.gameObjects ?? []) {
+      if (obj.instanceId && obj.grpId) grpById.set(obj.instanceId, obj.grpId);
+    }
+
+    for (const ann of annotations) {
+      const types: string[] = ann.type ?? [];
+
+      // ZoneTransfer — the primary action signal
+      if (types.some((t: string) => t.includes("ZoneTransfer"))) {
+        const details = ann.details ?? [];
+        let category = "?";
+        for (const d of details) {
+          if (d.key === "category") {
+            category = d.valueString?.[0] ?? "?";
+          }
+        }
+        // Skip non-action categories
+        if (category === "SBA_Damage" || category === "SBA_UnattachedAura" || category === "SBA_ZeroToughness") continue;
+
+        const affectedId = ann.affectedIds?.[0] ?? 0;
+        const affectorId = ann.affectorId ?? 0;
+        // Card is the affected object (the thing that moved)
+        const grpId = grpById.get(affectedId) ?? grpById.get(affectorId) ?? 0;
+        const card = cardLabel(grpId, resolver);
+        const seat = affectorId <= 2 && affectorId > 0 ? `seat${affectorId}` : "—";
+
+        actions.push({
+          turn: gsm.turn,
+          gsId: gsm.gsId,
+          seat,
+          category,
+          card,
+        });
+      }
+    }
+  }
+
+  if (actions.length === 0) {
+    console.log("No actions found.");
+    return;
+  }
+
+  console.log(`${"Turn".padStart(4)}  ${"Seat".padEnd(5)}  ${"Action".padEnd(20)}  ${"Card".padEnd(30)}  gsId`);
+  console.log("—".repeat(72));
+
+  for (const a of actions) {
+    console.log(
+      `${String(a.turn).padStart(4)}  ${a.seat.padEnd(5)}  ${a.category.padEnd(20)}  ${a.card.padEnd(30)}  ${a.gsId}`
+    );
+  }
+
+  console.log(`\n${actions.length} actions`);
+}
+
+function cardLabel(grpId: number, resolver: CardResolver | null): string {
+  if (!grpId) return "?";
+  const name = resolver?.resolve(grpId);
+  return name ?? `grp=${grpId}`;
 }
 
 async function gsmShow(args: string[]) {
