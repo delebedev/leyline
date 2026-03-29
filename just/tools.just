@@ -2,6 +2,10 @@
 # Usage: just wire tail 5, just tape session list
 
 [group('tools'), positional-arguments]
+scry-ts *ARGS:
+    @cd "{{project_dir}}/tools/scry-ts" && bun run cli.ts "$@"
+
+[group('tools'), positional-arguments]
 wire *ARGS:
     #!/usr/bin/env bash
     uv run --project "{{project_dir}}/tools/py" python tools/wire/wire.py "$@"
