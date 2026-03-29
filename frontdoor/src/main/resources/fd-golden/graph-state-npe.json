@@ -18,19 +18,11 @@
       "Status": "Available",
       "ProgressNodeState": {}
     },
-    "ColorChallengeAnyOneTrackComplete": {
-      "Status": "Available",
-      "ProgressionHistoryStateDataState": {}
-    },
     "CheckForceCompleteJumpInUnlock": {
       "Status": "Completed"
     },
     "JumpIn_Unlocked": {
       "Status": "Available"
-    },
-    "ColorChallengeComplete": {
-      "Status": "Available",
-      "ProgressionHistoryStateDataState": {}
     },
     "UnlockQuickDraftExitNode": {
       "Status": "Available"

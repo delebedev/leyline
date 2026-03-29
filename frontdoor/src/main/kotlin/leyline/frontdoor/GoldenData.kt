@@ -26,7 +26,9 @@ class GoldenData(
             graphStateResponses = mapOf(
                 "NPE_Tutorial" to loadTextResource("fd-golden/graph-state-npe-tutorial.json"),
                 "NewPlayerExperience" to loadTextResource("fd-golden/graph-state-npe.json"),
-                "ColorChallenge" to loadTextResource("fd-golden/graph-state-color-challenge.json"),
+                // Stub — client's CampaignGraphManager expects a state for every graph in definitions.
+                // Empty dicts are fine; missing entry → black screen.
+                "ColorChallenge" to """{"NodeStates":{},"MilestoneStates":{}}""",
             ),
             preconDecksJson = loadTextResource("fd-golden/precon-decks.json"),
         )

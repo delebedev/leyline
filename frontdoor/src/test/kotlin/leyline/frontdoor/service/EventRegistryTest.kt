@@ -34,24 +34,19 @@ class EventRegistryTest :
             result shouldContain "AIBotMatch"
         }
 
-        test("active events JSON has all formats, ColorChallenge, and AiBotMatches") {
+        test("active events JSON has all formats and AiBotMatches") {
             val result = EventWireBuilder.toActiveEventsJson(EventRegistry.activeEvents, EventRegistry.aiBotMatches)
             val obj = json.parseToJsonElement(result).jsonObject
             val events = obj["Events"]?.jsonArray ?: error("no Events")
-            events shouldHaveAtLeastSize 13
+            events shouldHaveAtLeastSize 7
 
             // Queue-backing events present
             events.first { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "Ladder" }
 
-            // ColorChallenge added
-            val cc = events.first {
-                it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "ColorChallenge"
-            }.jsonObject
-            cc["EventState"]?.jsonPrimitive?.content shouldBe "ForceActive"
-
             // AIBotMatch NOT in Events (lives in AiBotMatches)
             val names = events.map { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content }
             check("AIBotMatch" !in names) { "AIBotMatch should not be in Events array" }
+            check("ColorChallenge" !in names) { "ColorChallenge should not be in Events array" }
 
             val bots = obj["AiBotMatches"]?.jsonArray ?: error("no AiBotMatches")
             bots shouldHaveAtLeastSize 2
