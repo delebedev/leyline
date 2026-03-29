@@ -29,7 +29,10 @@ class CardProtoBuilder(private val cards: CardRepository) {
         subtypes.firstNotNullOfOrNull { basicLandAbilities[it] }
 
     /** Build a [GameObjectInfo] from DB data, no template — for buildFromGame path. */
-    fun buildObjectInfo(grpId: Int): GameObjectInfo.Builder {
+    fun buildObjectInfo(
+        grpId: Int,
+        extrinsicKeywordGrpIds: List<Int> = emptyList(),
+    ): GameObjectInfo.Builder {
         val builder = GameObjectInfo.newBuilder()
             .setGrpId(grpId)
             .setOverlayGrpId(grpId)
@@ -48,11 +51,18 @@ class CardProtoBuilder(private val cards: CardRepository) {
         abilities.forEach { (abilityGrpId, _) ->
             builder.addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(abilityGrpId))
         }
+        for (kwGrpId in extrinsicKeywordGrpIds) {
+            builder.addUniqueAbilities(UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(kwGrpId))
+        }
         return builder
     }
 
     /** Build a [GameObjectInfo] from DB data, preserving template structure fields. */
-    fun buildObjectInfo(grpId: Int, template: GameObjectInfo): GameObjectInfo {
+    fun buildObjectInfo(
+        grpId: Int,
+        template: GameObjectInfo,
+        extrinsicKeywordGrpIds: List<Int> = emptyList(),
+    ): GameObjectInfo {
         val card = cards.findByGrpId(grpId) ?: return template.toBuilder().setGrpId(grpId).setOverlayGrpId(grpId).build()
 
         val builder = template.toBuilder()
@@ -91,6 +101,11 @@ class CardProtoBuilder(private val cards: CardRepository) {
         abilities.forEach { (abilityGrpId, _) ->
             builder.addUniqueAbilities(
                 UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(abilityGrpId),
+            )
+        }
+        for (kwGrpId in extrinsicKeywordGrpIds) {
+            builder.addUniqueAbilities(
+                UniqueAbilityInfo.newBuilder().setId(abilitySeqId++).setGrpId(kwGrpId),
             )
         }
 

@@ -1025,6 +1025,32 @@ class GameBridge(
     }
 
     /**
+     * Snapshot current extrinsic keyword grants for all battlefield cards.
+     * Returns map of cardInstanceId -> keyword entries from Forge's changedCardKeywords table (Layer 6).
+     * Direct parallel to [snapshotBoosts] for P/T.
+     */
+    fun snapshotKeywords(): Map<Int, List<EffectTracker.KeywordEntry>> {
+        val game = game ?: return emptyMap()
+        val result = mutableMapOf<Int, MutableList<EffectTracker.KeywordEntry>>()
+        for (player in game.players) {
+            for (card in player.getZone(forge.game.zone.ZoneType.Battlefield).cards) {
+                val table = card.changedCardKeywords
+                if (table.isEmpty) continue
+                val instanceId = ids.getOrAlloc(ForgeCardId(card.id))
+                for (cell in table.cellSet()) {
+                    val timestamp = cell.rowKey
+                    val staticId = cell.columnKey
+                    for (kw in cell.value.keywords) {
+                        result.getOrPut(instanceId.value) { mutableListOf() }
+                            .add(EffectTracker.KeywordEntry(timestamp, staticId, kw.keyword.toString()))
+                    }
+                }
+            }
+        }
+        return result
+    }
+
+    /**
      * Snapshot of a crewed vehicle: vehicle card, its instanceId, and the
      * instanceIds of creatures that crewed it.
      */
