@@ -592,6 +592,7 @@ class FrontDoorHandler(
     companion object {
         private val GRAPH_ID_PATTERN = Regex(""""GraphId"\s*:\s*"([^"]+)"""")
 
+        /** Fallback for unknown graph IDs — not expected in normal flow. Known graphs need real state files. */
         private const val GRAPH_DEFAULT = """{"NodeStates":{},"MilestoneStates":{}}"""
     }
 }
