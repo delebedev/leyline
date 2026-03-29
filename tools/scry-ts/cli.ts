@@ -20,6 +20,19 @@ const commands: Record<string, { description: string; run: (args: string[]) => P
   trace:  { description: "Trace a card's journey",           run: traceCommand },
 };
 
+import { appendFileSync, mkdirSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
+
+function logUsage(args: string[]) {
+  try {
+    const dir = join(homedir(), ".scry");
+    mkdirSync(dir, { recursive: true });
+    const line = `${new Date().toISOString()}  ${args.join(" ")}\n`;
+    appendFileSync(join(dir, "usage.log"), line);
+  } catch {}
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
@@ -40,6 +53,7 @@ async function main() {
     process.exit(1);
   }
 
+  logUsage(args);
   await cmd.run(args.slice(1));
 }
 
