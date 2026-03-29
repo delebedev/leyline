@@ -101,14 +101,13 @@ Default: `mining`
 | Cast a spell | `arena play "Card Name"` |
 | Attack with all | `arena attack-all` |
 | Pass priority | `arena click 888,504` |
-| Check errors | `arena errors` |
 | Navigate home | `arena navigate Home` |
 
 ## Recovery
 
 - **Stuck priority:** `arena click 888,504` (pass button) 3 times with 2s gaps
 - **Unknown modal:** `arena click 480,300` then `arena click 888,504`
-- **Game frozen:** check `arena errors`, then `arena navigate Home`
+- **Game frozen:** `just scry state` to diagnose, then `arena navigate Home`
 - **Scry stale:** actions list empty when it shouldn't be → `arena turn` again (cache clears)
 
 ## Session Journaling

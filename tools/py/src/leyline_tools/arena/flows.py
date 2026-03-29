@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import random
 import time
+import urllib.request
 from pathlib import Path
 
 from .common import die, try_remove
@@ -282,3 +283,129 @@ def cmd_start_bot_match(args: list[str], commands: dict[str, object]) -> None:
             die(f"Game did not start (screen: {scene_check})")
 
     print(json.dumps({"ok": True, "screen": "InGame", "deck": deck_name}))
+
+
+# ---------------------------------------------------------------------------
+# start-puzzle
+# ---------------------------------------------------------------------------
+
+
+def _inject_puzzle(puzzle_path: str) -> None:
+    """POST puzzle file to debug API."""
+    path = Path(puzzle_path)
+    if not path.exists():
+        die(f"Puzzle file not found: {puzzle_path}")
+    data = path.read_bytes()
+    req = urllib.request.Request(
+        "http://localhost:8090/api/inject-puzzle",
+        data=data,
+        headers={"Content-Type": "text/plain"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            resp.read()  # drain response
+    except Exception as e:
+        die(f"inject-puzzle failed: {e}")
+
+
+def _get_to_sparky_match(commands: dict[str, object]) -> None:
+    """Navigate to an in-game Sparky's Challenge match.
+
+    Handles: Home → Sparky's Challenge → Start/Play → InGame.
+    Also handles EventLobby (Resume/Play) and already in-game.
+    """
+    screen = detect_screen()
+    if screen is None:
+        die("Cannot detect current screen")
+
+    # Already in game — nothing to do
+    if screen == "InGame":
+        return
+
+    # In a match state — concede first, will land at EventLobby
+    if screen in _CONCEDE_SCREENS:
+        cmd_concede([], commands)
+        screen = detect_screen()
+
+    # At EventLanding or EventLobby — both share scene=EventLanding.
+    # The bottom-right button is either "Start" (not enrolled) or "Play"
+    # (enrolled). Don't text-match "Start" — it appears in description
+    # text ("starter decks"). Instead: check for "Resign" to detect
+    # enrollment, then click the bottom-right button by position.
+    if screen in ("EventLanding", "EventLobby"):
+        _click_event_play(commands)
+        return
+
+    # From Home or elsewhere — navigate to Sparky's Challenge
+    if screen != "Home":
+        _ensure_home(commands)
+
+    # Click Sparky's Challenge tile on Home screen
+    exec_step('click "Sparky" --retry 3', commands)
+    exec_step("sleep 2", commands)
+
+    _click_event_play(commands)
+
+
+def _click_event_play(commands: dict[str, object]) -> None:
+    """Click Start/Play on event page and wait for InGame.
+
+    The bottom-right button (≈865,531) is "Start" before enrollment,
+    "Play" after. Both advance the flow. If not enrolled, clicking
+    Start enrolls, then Play appears — click again.
+    """
+    enrolled = poll_ocr("Resign", present=True, timeout_ms=2000)
+
+    if not enrolled:
+        # Click Start button (bottom-right)
+        exec_step("click 865,531", commands)
+        exec_step("sleep 2", commands)
+
+    # Click Play button (same position after enrollment)
+    exec_step('click "Play" --retry 3 --bottom', commands)
+    if not wait_condition("scene=InGame", 30):
+        die("Game did not start from event page")
+
+
+def cmd_start_puzzle(args: list[str], commands: dict[str, object]) -> None:
+    """Load a puzzle into an in-game Sparky's Challenge match.
+
+    Usage: arena start-puzzle <file.pzl>
+
+    If already in-game: hot-swaps the puzzle without restarting.
+    If not in-game: navigates to Sparky's Challenge, starts match, then injects.
+    """
+    if not args or args[0] in ("--help", "-h"):
+        print("Usage: arena start-puzzle <file.pzl>")
+        return
+
+    puzzle_path = args[0]
+
+    # Step 1: Get into a game
+    screen = detect_screen()
+    already_in_game = screen == "InGame"
+
+    if not already_in_game:
+        _get_to_sparky_match(commands)
+        # Wait a moment for the game to fully initialize
+        exec_step("sleep 3", commands)
+
+    # Step 2: Inject puzzle via debug API
+    _inject_puzzle(puzzle_path)
+
+    # Step 3: Click Pass to resync phase HUD
+    exec_step("click 888,504", commands)
+    exec_step("sleep 1", commands)
+
+    puzzle_name = Path(puzzle_path).stem
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "screen": "InGame",
+                "puzzle": puzzle_name,
+                "hot_swap": already_in_game,
+            }
+        )
+    )

@@ -20,8 +20,32 @@ def cmd_scene(args: list[str]) -> None:
     print(json.dumps({"current": scene}))
 
 
+# Scenes that map to exactly one screen — no OCR needed
+_UNAMBIGUOUS_SCENES: dict[str, str] = {}
+
+
+def _build_unambiguous_scenes() -> None:
+    """Find scenes that belong to exactly one screen definition."""
+    scene_to_screens: dict[str, list[str]] = {}
+    for name, s in SCREENS.items():
+        sc = s.get("scene")
+        if sc:
+            scene_to_screens.setdefault(sc, []).append(name)
+    for sc, names in scene_to_screens.items():
+        if len(names) == 1:
+            _UNAMBIGUOUS_SCENES[sc] = names[0]
+
+
+_build_unambiguous_scenes()
+
+
 def detect_screen() -> str | None:
     scene = get_current_scene()
+
+    # Fast path: scene alone is enough for unambiguous screens
+    if scene and scene in _UNAMBIGUOUS_SCENES:
+        return _UNAMBIGUOUS_SCENES[scene]
+
     img = "/tmp/arena/_detect_screen.png"
     Path(img).parent.mkdir(parents=True, exist_ok=True)
     bounds = capture_window(img)

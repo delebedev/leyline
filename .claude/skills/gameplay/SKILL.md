@@ -88,7 +88,6 @@ spell casting always follows mana curve regardless of mode.
 | Pass priority | `arena click 888,504` |
 | Dismiss modal | `arena click 480,491` |
 | Check screen | `arena where` |
-| Check errors | `arena errors` |
 | Navigate home | `arena navigate Home` |
 
 ## Prompts (IMPORTANT)
@@ -109,7 +108,7 @@ If you see a PROMPT line, handle it BEFORE trying to play more cards.
 - **"No actions available"** → `arena click 888,504` (pass). This is normal.
 - **Stuck (same state 3x)** → `arena click 888,504` three times, 2s gaps between.
 - **Unknown modal/popup** → `arena click 480,300` then `arena click 888,504`
-- **Game frozen** → `arena errors` to diagnose, then `arena navigate Home`
+- **Game frozen** → `just scry state` to diagnose, then `arena navigate Home`
 - **Scry shows turn 0** → game hasn't started or has ended. Check `arena where`.
 
 ## Session Journaling

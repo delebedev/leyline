@@ -123,6 +123,7 @@ SCREENS: dict[str, dict] = {
     "Mulligan": {
         "scene": None,
         "ocr_anchors": ["Keep"],
+        "ocr_reject": ["Resign", "Start", "Resume"],
     },
     "InGame": {
         "scene": "InGame",

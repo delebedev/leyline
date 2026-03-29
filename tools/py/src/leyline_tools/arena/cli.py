@@ -19,9 +19,13 @@ from .commands.input import (
     cmd_paste,
     cmd_type,
 )
-from .commands.state import cmd_errors, cmd_state
+from .commands.state import cmd_state
 from .diagnostics import cmd_health, cmd_issues
-from .flows import cmd_concede as _cmd_concede, cmd_start_bot_match as _cmd_start_bot_match
+from .flows import (
+    cmd_concede as _cmd_concede,
+    cmd_start_bot_match as _cmd_start_bot_match,
+    cmd_start_puzzle as _cmd_start_puzzle,
+)
 from .gameplay import cmd_attack_all, cmd_land, cmd_play
 from .interaction import cmd_click, cmd_drag, cmd_move
 from .nav import cmd_navigate as _cmd_navigate, cmd_scene, cmd_wait, cmd_where
@@ -97,6 +101,10 @@ def cmd_start_bot_match(args: list[str]) -> None:
     _cmd_start_bot_match(args, COMMANDS)
 
 
+def cmd_start_puzzle(args: list[str]) -> None:
+    _cmd_start_puzzle(args, COMMANDS)
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -120,7 +128,6 @@ COMMANDS = {
     "attack-all": cmd_attack_all,
     "bot-match": cmd_bot_match,
     "state": cmd_state,
-    "errors": cmd_errors,
     "scene": cmd_scene,
     "where": cmd_where,
     "navigate": cmd_navigate,
@@ -132,6 +139,7 @@ COMMANDS = {
     "turn": cmd_turn,
     "concede": cmd_concede,
     "start-bot-match": cmd_start_bot_match,
+    "start-puzzle": cmd_start_puzzle,
 }
 
 
@@ -153,7 +161,6 @@ COMMAND_HELP = {
     "attack-all": "Attack with all creatures (All Attack + confirm)",
     "bot-match": "Start bot match: lobby→deck→keep→game. [--deck <name|N>]",
     "state": "Show debug API game state (local mode only)",
-    "errors": "Show client errors from Player.log",
     "scene": "Current lobby screen from Player.log",
     "where": "Detect current screen (scene + OCR)",
     "navigate": "Auto-navigate to screen. <Home|FindMatch|InGame|...>",
@@ -165,6 +172,7 @@ COMMAND_HELP = {
     "turn": "Structured turn state for agent decision-making",
     "concede": "Concede match and return to lobby. Idempotent — safe from any screen.",
     "start-bot-match": "Start bot match from anywhere. [--deck NAME|N] (default: random)",
+    "start-puzzle": "Load puzzle into Sparky's Challenge match. <file.pzl>",
 }
 
 
