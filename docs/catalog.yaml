@@ -649,8 +649,9 @@ keywords:
       AbilityWordActive (proto type 39) persistent annotation now emitted for Condition$-based
       ability words (Threshold, Metalcraft, Delirium, Ferocious, Hellbent, Desert, Blessing).
       Tracks { threshold, value, AbilityGrpId, AbilityWordName } with live value updates per diff.
-      Remaining gap: turn-scoped ability words (Raid, Morbid, Descended) need event-driven
-      detection, not snapshot-based. LayeredEffect annotations for crossing handled by EffectTracker.
+      Morbid now supported (per-player boolean pAnn, CheckSVar$ detection).
+      Remaining gap: Raid, Descended need similar per-player boolean treatment.
+      LayeredEffect annotations for crossing handled by EffectTracker.
       Wire spec: docs/plans/2026-03-21-threshold-wire-spec.md
       Recording: recordings/2026-03-21_23-30-58/ (Dreadwing Scavenger grpId 93831, iid 295)
 

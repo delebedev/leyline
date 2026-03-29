@@ -447,6 +447,7 @@ object StateMapper {
                 threshold = entry.threshold,
                 abilityGrpId = entry.abilityGrpId,
                 affectorId = entry.affectorId ?: entry.instanceId,
+                affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) },
             )
         }
 

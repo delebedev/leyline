@@ -532,10 +532,11 @@ object AnnotationBuilder {
         threshold: Int? = null,
         abilityGrpId: Int? = null,
         affectorId: Int = instanceId,
+        affectedIds: List<Int> = listOf(instanceId),
     ): AnnotationInfo = AnnotationInfo.newBuilder()
         .addType(AnnotationType.AbilityWordActive)
         .setAffectorId(affectorId)
-        .addAffectedIds(instanceId)
+        .apply { affectedIds.forEach { addAffectedIds(it) } }
         .addDetails(typedStringDetail(DetailKeys.ABILITY_WORD_NAME, abilityWordName))
         .apply {
             if (value != null) addDetails(int32Detail(DetailKeys.VALUE, value))

@@ -3,11 +3,15 @@ package leyline.game
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.ForgeCardId
 import leyline.conformance.ConformanceTestBase
+import leyline.conformance.detail
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
 import leyline.conformance.humanPlayer
@@ -80,6 +84,72 @@ class AbilityWordPuzzleTest :
                 AnnotationType.AbilityWordActive in it.typeList
             }
             aw2.detailInt("value") shouldBe 6
+        }
+
+        test("Morbid pAnn has seatId affectorId and morbid permanents in affectedIds") {
+            val (b, game, counter) = base.startWithBoard { _, human, ai ->
+                base.addCard("Cackling Prowler", human, ZoneType.Battlefield)
+                base.addCard("Grizzly Bears", ai, ZoneType.Battlefield)
+            }
+            val human = game.humanPlayer
+            val prowler = human.getZone(ZoneType.Battlefield).cards
+                .first { it.name == "Cackling Prowler" }
+            val prowlerIid = b.getOrAllocInstanceId(ForgeCardId(prowler.id)).value
+
+            // Kill AI bear — triggers morbid condition
+            val ai = game.registeredPlayers.find { it != human }!!
+            val bear = ai.getZone(ZoneType.Battlefield).cards.first()
+            val gsm = base.captureAfterAction(b, game, counter) {
+                game.action.moveToGraveyard(bear, null)
+            }
+
+            val morbidAnns = gsm.persistentAnnotationsList.filter {
+                AnnotationType.AbilityWordActive in it.typeList &&
+                    it.detailString("AbilityWordName") == "Morbid"
+            }
+            morbidAnns shouldHaveSize 1
+            assertSoftly {
+                morbidAnns[0].affectorId shouldBe 1 // P1 seatId
+                morbidAnns[0].affectedIdsList shouldContain prowlerIid
+                morbidAnns[0].detailString("AbilityWordName") shouldBe "Morbid"
+                // Boolean-only: no value or threshold details
+                morbidAnns[0].detail("value").shouldBeNull()
+                morbidAnns[0].detail("threshold").shouldBeNull()
+            }
+        }
+
+        test("Morbid pAnn absent when no creature died") {
+            val (b, game, counter) = base.startWithBoard { _, human, _ ->
+                base.addCard("Cackling Prowler", human, ZoneType.Battlefield)
+            }
+
+            val gsm = base.stateOnlyDiff(game, b, counter)
+            gsm.persistentAnnotationsList.filter {
+                AnnotationType.AbilityWordActive in it.typeList &&
+                    it.detailString("AbilityWordName") == "Morbid"
+            }.shouldBeEmpty()
+        }
+
+        test("Two morbid cards produce single pAnn with both iids in affectedIds") {
+            val (b, game, counter) = base.startWithBoard { _, human, ai ->
+                base.addCard("Cackling Prowler", human, ZoneType.Battlefield)
+                base.addCard("Needletooth Pack", human, ZoneType.Battlefield)
+                base.addCard("Grizzly Bears", ai, ZoneType.Battlefield)
+            }
+            val human = game.humanPlayer
+            val ai = game.registeredPlayers.find { it != human }!!
+            val bear = ai.getZone(ZoneType.Battlefield).cards.first()
+
+            val gsm = base.captureAfterAction(b, game, counter) {
+                game.action.moveToGraveyard(bear, null)
+            }
+
+            val morbidAnns = gsm.persistentAnnotationsList.filter {
+                AnnotationType.AbilityWordActive in it.typeList &&
+                    it.detailString("AbilityWordName") == "Morbid"
+            }
+            morbidAnns shouldHaveSize 1 // one pAnn per player, not per card
+            morbidAnns[0].affectedIdsCount shouldBe 2 // both morbid permanents listed
         }
 
         test("no AbilityWordActive for non-threshold creatures") {
