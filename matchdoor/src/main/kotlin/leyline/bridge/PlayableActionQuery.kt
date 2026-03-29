@@ -29,6 +29,12 @@ object PlayableActionQuery {
                 if (sa.canPlay()) return true
             }
         }
+        // Hand cards: activated abilities with non-battlefield activation zones (Channel)
+        for (card in handCards) {
+            for (sa in getNonManaActivatedAbilities(card, player)) {
+                if (sa.canPlay()) return true
+            }
+        }
         // Zone casts: flashback, escape, etc. Don't gate on mayPlay() — keyword-based
         // alt costs (e.g. flashback) may not register explicit mayPlay grants in all
         // engine states but are still castable via getAlternativeCosts().

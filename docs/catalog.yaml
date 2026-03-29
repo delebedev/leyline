@@ -553,11 +553,13 @@ permanents:
       Overlaps #191 (DFC / Saga flip wire).
 
   channel:
-    status: missing
+    status: wired
     notes: >
-      Hand-zone activated ability. Discard-as-cost uses standard Discard
-      category. Channel ability has its own grpId distinct from ETB trigger.
-      Requires ActionMapper to offer activated abilities on cards in hand.
+      Hand-zone activated ability. ActionMapper offers Activate_add3 for
+      hand cards whose abilities pass Forge's canPlay() zone check.
+      Discard-as-cost uses standard Discard category. Channel ability has
+      its own grpId distinct from ETB trigger. Forge treats Channel as a
+      combination of ActivationZone=Hand + Discard<1/CARDNAME> (not a keyword).
       Wire shape confirmed via twinshot-sniper spec.
 
   qualification:

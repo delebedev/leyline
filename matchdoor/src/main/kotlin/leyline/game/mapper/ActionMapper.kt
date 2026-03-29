@@ -157,7 +157,7 @@ object ActionMapper {
             }
         }
 
-        // Non-land spells
+        // Non-land spells (Cast before Activate_add3 — client uses emission order for text assignment)
         for (card in CardLists.filter(handCards, CardPredicates.NON_LANDS)) {
             if (checkLegality) {
                 val sa = chooseCastAbility(card, player) ?: continue
@@ -194,6 +194,35 @@ object ActionMapper {
             if (card.isAdventureCard) {
                 buildAdventureAction(card, player, instanceId, grpId, checkLegality)
                     ?.let { builder.addActions(it) }
+            }
+        }
+
+        // Hand cards: activated abilities with non-battlefield activation zones (Channel, etc.)
+        // Real server sends: instanceId + abilityGrpId + manaCost — no grpId/facetId.
+        // Including grpId causes the client to render card text instead of ability text.
+        if (checkLegality) {
+            for (card in handCards) {
+                for (ability in card.spellAbilities) {
+                    ability.setActivatingPlayer(player)
+                    if (!ability.isActivatedAbility) continue
+                    if (ability.isManaAbility()) continue
+                    if (!ability.canPlay()) continue // Forge checks ActivationZone restriction
+                    val instanceId = idResolver(card.id)
+                    val grpId = grpIdResolver(card)
+                    val cardData = cardDataLookup(grpId)
+                    val actionBuilder = Action.newBuilder()
+                        .setActionType(ActionType.Activate_add3)
+                        .setInstanceId(instanceId)
+                    val registry = abilityRegistryLookup(card, cardData)
+                    val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
+                    if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
+                    // Wire requires manaCost with abilityGrpId echoed in each ManaRequirement
+                    val abilityCost = ability.payCosts?.totalMana
+                    if (abilityCost != null && !abilityCost.isNoCost) {
+                        addManaCostFromForgeWithAbilityGrpId(abilityCost, actionBuilder, abilityGrpId)
+                    }
+                    builder.addActions(actionBuilder)
+                }
             }
         }
 
@@ -474,6 +503,34 @@ object ActionMapper {
         if (generic > 0) {
             actionBuilder.addManaCost(
                 ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic),
+            )
+        }
+    }
+
+    /**
+     * Like [addManaCostFromForge] but embeds [abilityGrpId] in each [ManaRequirement].
+     * Real server sends this for hand-zone activated abilities (Channel, Ninjutsu, etc.)
+     * so the client can associate cost display with the specific ability modal option.
+     */
+    private fun addManaCostFromForgeWithAbilityGrpId(
+        manaCost: forge.card.mana.ManaCost,
+        actionBuilder: Action.Builder,
+        abilityGrpId: Int,
+    ) {
+        val colorCounts = mutableMapOf<ManaColor, Int>()
+        for (shard in manaCost) {
+            val color = producedToManaColor(shard.toString().removeSurrounding("{", "}")) ?: continue
+            colorCounts[color] = (colorCounts[color] ?: 0) + 1
+        }
+        for ((color, count) in colorCounts) {
+            actionBuilder.addManaCost(
+                ManaRequirement.newBuilder().addColor(color).setCount(count).setAbilityGrpId(abilityGrpId),
+            )
+        }
+        val generic = manaCost.genericCost
+        if (generic > 0) {
+            actionBuilder.addManaCost(
+                ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic).setAbilityGrpId(abilityGrpId),
             )
         }
     }
