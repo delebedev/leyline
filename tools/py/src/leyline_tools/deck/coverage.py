@@ -55,13 +55,29 @@ BASE_ID_MECHANICS: dict[str, int] = {
 
 # Method 3: AbilityWord enum on abilities
 ABILITY_WORD_MECHANICS: dict[str, int] = {
+    "alliance": 43,
+    "domain": 12,
+    "heroic": 13,
     "landfall": 21,
+    "morbid": 24,
     "raid": 27,
     "threshold": 33,
 }
 
 # Mechanics detected structurally (not via abilities).
 STRUCTURAL_MECHANICS = {"transform", "token_maker", "modal"}
+
+# Method 4: Text patterns matched against ability Loc text.
+# Each entry: mechanic name → list of regex patterns (case-insensitive).
+TEXT_MECHANICS: dict[str, list[str]] = {
+    "etb": [r"\benters\b", r"\benter the battlefield\b"],
+    "dies": [r"\bdies\b", r"\bwhen .+ is put into .+ graveyard\b"],
+    "attack_trigger": [r"\bwhenever .+ attacks\b", r"\bwhen .+ attacks\b"],
+    "sacrifice": [r"\bsacrifice\b"],
+    "counters": [r"\+1/\+1 counter", r"\-1/\-1 counter"],
+    "mill": [r"\bmill\b"],
+    "protection": [r"\bprotection from\b"],
+}
 
 # Weight multiplier: rare/missing mechanics in leyline score higher.
 MECHANIC_WEIGHT: dict[str, float] = {
@@ -78,6 +94,17 @@ MECHANIC_WEIGHT: dict[str, float] = {
     "raid": 2.0,
     "prowess": 1.5,
     "convoke": 2.0,
+    "morbid": 3.0,
+    "heroic": 3.0,
+    "domain": 2.0,
+    "alliance": 2.0,
+    "etb": 1.5,
+    "dies": 2.0,
+    "attack_trigger": 1.5,
+    "sacrifice": 2.0,
+    "counters": 1.5,
+    "mill": 2.0,
+    "protection": 1.0,
 }
 
 # Color bitmask in Arena DB Colors column (comma-separated ints).
@@ -135,6 +162,28 @@ def _build_ability_word_index(conn: sqlite3.Connection) -> dict[int, int]:
     return {row[0]: row[1] for row in rows}
 
 
+def _build_text_index(conn: sqlite3.Connection) -> dict[int, str]:
+    """Map AbilityId → English text for all abilities (for text-pattern matching)."""
+    rows = conn.execute(
+        "SELECT a.Id, l.Loc FROM Abilities a JOIN Localizations_enUS l ON a.TextId = l.LocId"
+    ).fetchall()
+    return {row[0]: row[1] for row in rows}
+
+
+def _text_mechanics(ability_ids: list[int], text_index: dict[int, str]) -> list[str]:
+    """Detect mechanics by matching ability text against TEXT_MECHANICS patterns."""
+    combined = " ".join(text_index.get(aid, "") for aid in ability_ids)
+    if not combined.strip():
+        return []
+    found: list[str] = []
+    for mech, patterns in TEXT_MECHANICS.items():
+        for pat in patterns:
+            if re.search(pat, combined, re.IGNORECASE):
+                found.append(mech)
+                break
+    return found
+
+
 def _has_modal(conn: sqlite3.Connection, ability_ids: list[int]) -> bool:
     """Check if any ability has modal children."""
     if not ability_ids:
@@ -153,6 +202,7 @@ def score_set(
     set_code: str,
     base_id_index: dict[int, int],
     ability_word_index: dict[int, int],
+    text_index: dict[int, str] | None = None,
 ) -> list[ScoredCard]:
     """Score all non-token primary cards in a set by mechanic density."""
     # Reverse maps: value → mechanic name
@@ -236,6 +286,13 @@ def score_set(
             card.mechanics.append("modal")
             seen.add("modal")
 
+        # Method 4: text pattern matching
+        if text_index:
+            for mech in _text_mechanics(ability_ids, text_index):
+                if mech not in seen:
+                    card.mechanics.append(mech)
+                    seen.add(mech)
+
         # Score
         card.score = sum(MECHANIC_WEIGHT.get(m, 1.0) for m in card.mechanics)
 
@@ -274,22 +331,25 @@ def build_coverage_deck(
 
     spell_slots = deck_size - land_count
     deck: list[ScoredCard] = []
-    counts: dict[int, int] = {}
+    name_counts: dict[str, int] = {}  # Arena enforces 4-of by name, not grpId
     covered_mechanics: set[str] = set()
 
     for card in nonland:
         if len(deck) >= spell_slots:
             break
+        # Respect both per-grpId ownership and per-name 4-of limit
         limit = max_copies
         if owned_copies is not None:
             limit = min(limit, owned_copies.get(card.grp_id, 0))
+        name_used = name_counts.get(card.name, 0)
+        limit = min(limit, max_copies - name_used)
         if limit <= 0:
             continue
         copies = min(limit, spell_slots - len(deck))
         # Only 1 copy if all its mechanics are already covered
         if all(m in covered_mechanics for m in card.mechanics):
             copies = min(copies, 1)
-        counts[card.grp_id] = counts.get(card.grp_id, 0) + copies
+        name_counts[card.name] = name_used + copies
         for _ in range(copies):
             deck.append(card)
             if len(deck) >= spell_slots:
@@ -299,8 +359,76 @@ def build_coverage_deck(
     return deck
 
 
+def find_dual_lands(
+    conn: sqlite3.Connection,
+    colors: set[str],
+    collection: dict[int, int] | None = None,
+) -> list[tuple[str, int]]:
+    """Find owned dual lands matching the deck's color pair.
+
+    Returns list of (card_name, owned_count) sorted by preference:
+    temples > guildgates > gainlands > other.
+    """
+    if not colors or len(colors) < 2:
+        return []
+
+    color_reverse = {v: k for k, v in COLOR_NAMES.items()}
+    ci_ints = {color_reverse[c] for c in colors if c in color_reverse}
+    if len(ci_ints) < 2:
+        return []
+
+    rows = conn.execute(
+        """
+        SELECT c.GrpId, l.Loc, c.ColorIdentity
+        FROM Cards c
+        JOIN Localizations_enUS l ON c.TitleId = l.LocId
+        WHERE c.IsPrimaryCard = 1
+          AND c.Types LIKE '%5%' AND c.Colors = ''
+          AND c.ColorIdentity LIKE '%,%'
+          AND c.LinkedFaceGrpIds = ''
+          AND l.Formatted = 1
+        """,
+    ).fetchall()
+
+    results: list[tuple[str, int, int]] = []
+    for grp_id, name, ci_str in rows:
+        name = _HTML_TAG_RE.sub("", name)
+        ci_set = {int(x.strip()) for x in ci_str.split(",") if x.strip()}
+        if ci_set != ci_ints:
+            continue
+        owned = collection.get(grp_id, 0) if collection else 4
+        if owned <= 0:
+            continue
+        # Priority: temple=0, guildgate=1, gainland=2, other=3
+        prio = 3
+        lower = name.lower()
+        if "temple" in lower:
+            prio = 0
+        elif "guildgate" in lower:
+            prio = 1
+        elif any(w in lower for w in ["cliffs", "hollow", "sands", "cove", "backwater",
+                                       "caves", "highlands", "barrens", "crag"]):
+            prio = 2
+        results.append((name, min(owned, 4), prio))
+
+    # Dedupe by name — sum owned copies across printings
+    by_name: dict[str, tuple[int, int]] = {}  # name → (total_owned, best_prio)
+    for name, count, prio in results:
+        if name in by_name:
+            old_count, old_prio = by_name[name]
+            by_name[name] = (old_count + count, min(old_prio, prio))
+        else:
+            by_name[name] = (count, prio)
+
+    deduped = [(name, min(count, 4), prio) for name, (count, prio) in by_name.items()]
+    deduped.sort(key=lambda x: x[2])
+    return [(name, count) for name, count, _ in deduped]
+
+
 def format_deck_list(
-    deck: list[ScoredCard], land_count: int = 25
+    deck: list[ScoredCard],
+    land_count: int = 25,
+    dual_lands: list[tuple[str, int]] | None = None,
 ) -> str:
     """Format deck as Arena-importable list."""
     # Count copies
@@ -316,7 +444,18 @@ def format_deck_list(
     for card, count in sorted(counts.values(), key=lambda x: (-x[0].score, x[0].name)):
         lines.append(f"{count} {card.name}")
 
-    # Basic lands — distribute evenly across deck colors
+    # Dual lands first (cap at ~half of land slots), then basics
+    max_duals = land_count // 2
+    dual_slots = 0
+    if dual_lands:
+        for name, count in dual_lands:
+            use = min(count, max_duals - dual_slots)
+            if use <= 0:
+                break
+            lines.append(f"{use} {name}")
+            dual_slots += use
+
+    basic_slots = land_count - dual_slots
     color_set: set[str] = set()
     for card in deck:
         color_set.update(card.colors)
@@ -325,8 +464,8 @@ def format_deck_list(
 
     land_names = {"W": "Plains", "U": "Island", "B": "Swamp", "R": "Mountain", "G": "Forest"}
     colors = sorted(color_set)
-    per_color = land_count // len(colors)
-    remainder = land_count % len(colors)
+    per_color = basic_slots // len(colors)
+    remainder = basic_slots % len(colors)
     for i, c in enumerate(colors):
         n = per_color + (1 if i < remainder else 0)
         if n > 0:
@@ -360,10 +499,11 @@ def pick_best_colors(
     conn = sqlite3.connect(str(db_path))
     base_id_index = _build_base_id_index(conn)
     ability_word_index = _build_ability_word_index(conn)
+    text_index = _build_text_index(conn)
 
     color_scores: dict[str, float] = {}
     for code in set_codes:
-        for card in score_set(conn, code, base_id_index, ability_word_index):
+        for card in score_set(conn, code, base_id_index, ability_word_index, text_index):
             if collection is not None and card.grp_id not in collection:
                 continue
             if card.is_land or card.score == 0:
@@ -400,10 +540,11 @@ def run(
     conn = sqlite3.connect(str(db_path))
     base_id_index = _build_base_id_index(conn)
     ability_word_index = _build_ability_word_index(conn)
+    text_index = _build_text_index(conn)
 
     all_cards: list[ScoredCard] = []
     for code in set_codes:
-        scored = score_set(conn, code, base_id_index, ability_word_index)
+        scored = score_set(conn, code, base_id_index, ability_word_index, text_index)
         if collection is not None:
             owned = [c for c in scored if c.grp_id in collection]
             print(f"\n=== {code}: {len(scored)} total, {len(owned)} owned, "
@@ -431,7 +572,13 @@ def run(
     for mech, count in summary.items():
         print(f"  {mech:<20s} {count} cards")
 
+    # Find owned dual lands for the mana base
+    duals = find_dual_lands(conn, colors or set(), collection) if colors else []
+    if duals:
+        dual_names = ", ".join(f"{n} x{c}" for n, c in duals[:6])
+        print(f"\nDual lands: {dual_names}")
+
     print(f"\n--- Arena Import ---")
-    print(format_deck_list(deck, land_count))
+    print(format_deck_list(deck, land_count, dual_lands=duals))
 
     conn.close()
