@@ -8,8 +8,8 @@ package leyline.game
  * Eliminates the dual-derivation bug class where keyword count was computed
  * independently in two places.
  *
- * Slot ordering: keywords occupy slots `[0, keywordCount)`,
- * activated abilities occupy `[keywordCount, keywordCount + activatedCount)`.
+ * Slot ordering: keywords `[0, keywordCount)`, then triggers (Intrinsic),
+ * then activated abilities `[keywordCount + triggerCount, ...)`.
  */
 data class SlotLayout(
     val keywordCount: Int,
@@ -19,15 +19,19 @@ data class SlotLayout(
     /**
      * Map an Arena abilityGrpId to its Forge ability index.
      *
-     * Returns the slot index minus keyword count:
-     * - Activated abilities return `>= 0` (the Forge ability index)
-     * - Keywords return negative values (not activated abilities)
-     * - Unknown abilityGrpIds return `null`
+     * Counts only [SlotKind.Activated] slots preceding the target to produce
+     * the Forge-side ability index (keywords and triggers don't count).
+     * Returns negative for non-activated slots, null for unknown abilityGrpIds.
      */
     fun forgeIndexFor(abilityGrpId: Int): Int? {
         val slot = slots.indexOfFirst { it.abilityGrpId == abilityGrpId }
         if (slot < 0) return null
-        return slot - keywordCount
+        if (slots[slot].kind != SlotKind.Activated) {
+            // Non-activated: return negative offset (same contract as before)
+            return slot - keywordCount - slots.take(slot + 1).count { it.kind == SlotKind.Intrinsic }
+        }
+        // Count activated slots before this one — this IS the Forge ability index
+        return slots.take(slot).count { it.kind == SlotKind.Activated }
     }
 
     companion object {

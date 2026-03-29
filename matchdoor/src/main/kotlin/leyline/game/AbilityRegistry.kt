@@ -54,13 +54,15 @@ class AbilityRegistry private constructor(
             mapUnclaimedIntrinsics(card, fallbackGrpId, staticMap, triggerMap)
 
             // Derive SlotLayout from the same data — single source of truth.
-            // activatedCount may include the padded minimum slot (maxOf(1, kw+act))
-            // for cards with no keywords or activated abilities. SlotKind is approximate:
-            // mana-only cards get Activated here; AbilityIdDeriver uses Mana for those.
-            // forgeIndexFor() ignores kind — only slot position matters.
-            val activatedCount = abilityIds.size - keywordCount
+            // Arena layout: [keywords..., triggers..., activated...].
+            val triggerCount = card.triggers?.count { it.isIntrinsic } ?: 0
+            val activatedCount = abilityIds.size - keywordCount - triggerCount
             val slots = abilityIds.mapIndexed { i, (grpId, textId) ->
-                val kind = if (i < keywordCount) SlotKind.Keyword else SlotKind.Activated
+                val kind = when {
+                    i < keywordCount -> SlotKind.Keyword
+                    i < keywordCount + triggerCount -> SlotKind.Intrinsic // trigger slot
+                    else -> SlotKind.Activated
+                }
                 SlotEntry(grpId, textId, kind)
             }
             val layout = SlotLayout(keywordCount, activatedCount, slots)
@@ -96,18 +98,27 @@ class AbilityRegistry private constructor(
             return keywordStrings.size
         }
 
-        /** Phase 2: Non-mana activated abilities in slots after keywords. */
+        /**
+         * Phase 2: Non-mana activated abilities in slots after keywords + triggers.
+         *
+         * Arena abilityIds layout: `[keywords..., triggers..., activated...]`.
+         * We must skip trigger slots (intrinsic triggers that aren't keyword-bound)
+         * to reach the correct abilityGrpId for each activated ability.
+         */
         private fun mapActivatedAbilities(
             card: Card,
             abilityIds: List<Pair<Int, Int>>,
             keywordCount: Int,
             saMap: MutableMap<Int, Int>,
         ) {
+            // Count intrinsic non-keyword triggers to compute the offset past trigger slots.
+            val triggerCount = card.triggers?.count { it.isIntrinsic } ?: 0
+            val activatedStart = keywordCount + triggerCount
             var idx = 0
             for (sa in card.spellAbilities ?: emptyList()) {
                 if (!sa.isActivatedAbility || sa.isManaAbility()) continue
                 if (!sa.isIntrinsic) continue
-                val slotIdx = keywordCount + idx
+                val slotIdx = activatedStart + idx
                 if (slotIdx < abilityIds.size) saMap[sa.id] = abilityIds[slotIdx].first
                 idx++
             }

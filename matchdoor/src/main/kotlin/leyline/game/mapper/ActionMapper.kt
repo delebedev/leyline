@@ -157,7 +157,7 @@ object ActionMapper {
             }
         }
 
-        // Non-land spells
+        // Non-land spells (Cast before Activate_add3 — client uses emission order for text assignment)
         for (card in CardLists.filter(handCards, CardPredicates.NON_LANDS)) {
             if (checkLegality) {
                 val sa = chooseCastAbility(card, player) ?: continue
@@ -198,8 +198,8 @@ object ActionMapper {
         }
 
         // Hand cards: activated abilities with non-battlefield activation zones (Channel, etc.)
-        // Real server sends both Cast and Activate_add3 for the same instanceId;
-        // client shows a "Choose One" modal when both are present.
+        // Real server sends: instanceId + abilityGrpId + manaCost — no grpId/facetId.
+        // Including grpId causes the client to render card text instead of ability text.
         if (checkLegality) {
             for (card in handCards) {
                 for (ability in card.spellAbilities) {
@@ -213,9 +213,6 @@ object ActionMapper {
                     val actionBuilder = Action.newBuilder()
                         .setActionType(ActionType.Activate_add3)
                         .setInstanceId(instanceId)
-                        .setGrpId(grpId)
-                        .setFacetId(instanceId)
-                        .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Activate_add3))
                     val registry = abilityRegistryLookup(card, cardData)
                     val abilityGrpId = registry?.forSpellAbility(ability.id) ?: 0
                     if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
