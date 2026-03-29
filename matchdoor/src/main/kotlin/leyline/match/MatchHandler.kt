@@ -383,6 +383,12 @@ class MatchHandler(
             }
             log.warn("Match Door: deckId {} not in DB", deckId)
         }
+        // Fallback: pick first deck from DB (Sparky precon events don't send deckId)
+        val fallback = coordinator?.resolveFirstDeck()
+        if (fallback != null) {
+            log.info("Match Door: seat 1 using fallback deck (no deckId from client)")
+            return convertArenaCardsToDeckText(fallback)
+        }
         error("No deck selected for seat 1 — select a deck in the Arena client before queuing")
     }
 
