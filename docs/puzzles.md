@@ -5,15 +5,15 @@ Forge `.pzl` puzzles played through the client. Pre-built board states — no mu
 ## Quick Start
 
 ```bash
-# edit leyline.toml: [game].puzzle = "puzzles/bolt-face.pzl"
-just serve
+# 1. Set puzzle in leyline.toml: [game].puzzle = "puzzles/bolt-face.pzl"
+# 2. Start server + navigate to game
+just serve   # (background)
+arena start-puzzle puzzles/bolt-face.pzl
 ```
 
-Then in Arena: Play → Bot Match (Sparky) → choose deck → Play.
+`arena start-puzzle` navigates Home → Sparky's Challenge → Play → InGame, injects the puzzle via debug API, and syncs the phase HUD. Hot-swaps if already in-game.
 
 `game.puzzle` only affects Sparky challenge matches. Normal queues and direct matches stay constructed.
-
-You can still hot-swap with `/api/inject-puzzle` after the game starts.
 
 Test puzzles live in `matchdoor/src/test/resources/puzzles/`. Simplest: `WEB_TEST_00.pzl` (1 Mountain, 1 Lightning Bolt, AI at 3 life).
 
