@@ -410,6 +410,8 @@ object FdEnvelope {
         val teamId: Int,
         val name: String,
         val avatarId: String = "Avatar_Basic_Adventurer",
+        /** Commander grpIds for Brawl/Commander formats. Empty for Standard. */
+        val commanderGrpIds: List<Int> = emptyList(),
     )
 
     /**
@@ -447,22 +449,27 @@ object FdEnvelope {
                 put("YourSeat", yourSeat)
                 putJsonArray("PlayerInfos") {
                     for (p in players) {
-                        add(playerInfoJson(p.seatId, p.teamId, p.name, p.avatarId))
+                        add(playerInfoJson(p))
                     }
                 }
             }
         }.toString()
     }
 
-    private fun playerInfoJson(seatId: Int, teamId: Int, name: String, avatarId: String) =
+    private fun playerInfoJson(p: PlayerInfo) =
         buildJsonObject {
-            put("SeatId", seatId)
-            put("TeamId", teamId)
-            put("ScreenName", name)
+            put("SeatId", p.seatId)
+            put("TeamId", p.teamId)
+            put("ScreenName", p.name)
+            if (p.commanderGrpIds.isNotEmpty()) {
+                putJsonArray("CommanderGrpIds") {
+                    p.commanderGrpIds.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) }
+                }
+            }
             putJsonObject("CosmeticsSelection") {
                 putJsonObject("Avatar") {
                     put("Type", "Avatar")
-                    put("Id", avatarId)
+                    put("Id", p.avatarId)
                 }
                 putJsonArray("Emotes") {}
             }

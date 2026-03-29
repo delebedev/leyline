@@ -12,13 +12,30 @@ object DeckConverter {
      * Convert card entry lists to Forge-parseable deck text.
      * Unknown grpIds are skipped with a warning.
      *
+     * When [commandZone] is non-empty, emits a `[Commander]` section header
+     * before the main deck. [DeckLoader.parseDeckList] routes cards under
+     * `[Commander]` to [forge.deck.DeckSection.Commander], which
+     * [RegisteredPlayer.forCommander] uses to place them in the command zone.
+     *
      * @param nameByGrpId lookup function: grpId → card name (null if unknown)
      */
     fun toDeckText(
         mainDeck: List<CardEntry>,
         sideboard: List<CardEntry>,
+        commandZone: List<CardEntry> = emptyList(),
         nameByGrpId: (Int) -> String?,
     ): String = buildString {
+        if (commandZone.isNotEmpty()) {
+            appendLine("[Commander]")
+            for (card in commandZone) {
+                val name = nameByGrpId(card.grpId)
+                if (name != null) {
+                    appendLine("${card.quantity} $name")
+                } else {
+                    log.warn("DeckConverter: unknown commander grpId {}", card.grpId)
+                }
+            }
+        }
         for (card in mainDeck) {
             val name = nameByGrpId(card.grpId)
             if (name != null) {
@@ -49,9 +66,10 @@ object DeckConverter {
     fun toForgeDeck(
         mainDeck: List<CardEntry>,
         sideboard: List<CardEntry>,
+        commandZone: List<CardEntry> = emptyList(),
         nameByGrpId: (Int) -> String?,
     ): forge.deck.Deck {
-        val text = toDeckText(mainDeck, sideboard, nameByGrpId)
+        val text = toDeckText(mainDeck, sideboard, commandZone, nameByGrpId)
         return DeckLoader.parseDeckList(text)
     }
 }

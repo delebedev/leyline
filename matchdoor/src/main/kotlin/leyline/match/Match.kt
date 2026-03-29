@@ -27,8 +27,9 @@ class Match(
         deckList: String? = null,
         deckList1: String? = null,
         deckList2: String? = null,
+        variant: String? = null,
     ) {
-        bridge.start(seed, deckList, deckList1, deckList2)
+        bridge.start(seed, deckList, deckList1, deckList2, variant)
         if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
             onStateChanged?.invoke(MatchState.RUNNING)
         }
@@ -39,8 +40,9 @@ class Match(
         seed: Long? = null,
         deckList1: String? = null,
         deckList2: String? = null,
+        variant: String? = null,
     ) {
-        bridge.startTwoPlayer(seed, deckList1, deckList2)
+        bridge.startTwoPlayer(seed, deckList1, deckList2, variant)
         if (stateRef.compareAndSet(MatchState.WAITING, MatchState.RUNNING)) {
             onStateChanged?.invoke(MatchState.RUNNING)
         }

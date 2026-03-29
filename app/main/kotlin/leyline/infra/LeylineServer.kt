@@ -383,7 +383,7 @@ class LeylineServer(
     ): (List<DeckCard>, List<DeckCard>, String) -> String? = { mainDeck, sideboard, formatId ->
         val mainEntries = mainDeck.map { leyline.bridge.CardEntry(it.grpId, it.quantity) }
         val sideEntries = sideboard.map { leyline.bridge.CardEntry(it.grpId, it.quantity) }
-        val deckText = DeckConverter.toDeckText(mainEntries, sideEntries, nameByGrpId)
+        val deckText = DeckConverter.toDeckText(mainEntries, sideEntries, nameByGrpId = nameByGrpId)
         if (deckText.isBlank()) {
             null
         } else {

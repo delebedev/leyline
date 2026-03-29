@@ -55,9 +55,11 @@ class AppMatchCoordinator(
 
     override fun resolveDeckJson(deckId: String): String? {
         // 1. Constructed deck from repository
-        deckService.getById(DeckId(deckId))?.let { return cardsToJson(it.mainDeck, it.sideboard) }
+        deckService.getById(DeckId(deckId))?.let {
+            return cardsToJson(it.mainDeck, it.sideboard, it.commandZone)
+        }
 
-        // 2. Sealed/draft course deck
+        // 2. Sealed/draft course deck (no command zone)
         val event = selectedEventName ?: return null
         val courseDeck = courseService.getCourse(playerId, event)?.deck ?: return null
         return cardsToJson(courseDeck.mainDeck, courseDeck.sideboard)
@@ -65,7 +67,7 @@ class AppMatchCoordinator(
 
     override fun resolveDeckJsonByName(name: String): String? {
         val deck = deckService.getByName(name) ?: return null
-        return cardsToJson(deck.mainDeck, deck.sideboard)
+        return cardsToJson(deck.mainDeck, deck.sideboard, deck.commandZone)
     }
 
     override fun reportMatchResult(won: Boolean) {
@@ -74,9 +76,16 @@ class AppMatchCoordinator(
         log.info("Match result recorded: event={} won={}", event, won)
     }
 
-    private fun cardsToJson(mainDeck: List<DeckCard>, sideboard: List<DeckCard>): String =
+    private fun cardsToJson(
+        mainDeck: List<DeckCard>,
+        sideboard: List<DeckCard>,
+        commandZone: List<DeckCard> = emptyList(),
+    ): String =
         buildJsonObject {
             put("MainDeck", DeckWireBuilder.cardsToJsonArray(mainDeck))
             put("Sideboard", DeckWireBuilder.cardsToJsonArray(sideboard))
+            if (commandZone.isNotEmpty()) {
+                put("CommandZone", DeckWireBuilder.cardsToJsonArray(commandZone))
+            }
         }.toString()
 }

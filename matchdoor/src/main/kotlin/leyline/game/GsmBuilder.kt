@@ -309,20 +309,31 @@ object GsmBuilder {
         val human = bridge.getPlayer(SeatId(1))
         val ai = bridge.getPlayer(SeatId(2))
 
+        val isBrawl = bridge.isBrawlOrCommander
+        val gameVariant = if (isBrawl) GameVariant.Brawl else GameVariant.Normal
+        val freeMulliganCount = if (isBrawl) 1 else 0
+
+        val deckConstraints = if (isBrawl) {
+            DeckConstraintInfo.newBuilder()
+                .setMinDeckSize(58).setMaxDeckSize(59).setMaxSideboardSize(1)
+                .setMinCommanderSize(1).setMaxCommanderSize(2)
+        } else {
+            DeckConstraintInfo.newBuilder()
+                .setMinDeckSize(60).setMaxDeckSize(250).setMaxSideboardSize(15)
+        }
+
         val gameInfo = GameInfo.newBuilder()
             .setMatchID(matchId)
             .setGameNumber(1)
             .setStage(GameStage.Start_a920)
             .setType(GameType.Duel)
-            .setVariant(GameVariant.Normal)
+            .setVariant(gameVariant)
             .setMatchState(MatchState.GameInProgress)
             .setMatchWinCondition(MatchWinCondition.SingleElimination)
             .setSuperFormat(SuperFormat.Constructed)
             .setMulliganType(MulliganType.London)
-            .setDeckConstraintInfo(
-                DeckConstraintInfo.newBuilder()
-                    .setMinDeckSize(60).setMaxDeckSize(250).setMaxSideboardSize(15),
-            )
+            .setFreeMulliganCount(freeMulliganCount)
+            .setDeckConstraintInfo(deckConstraints)
 
         // Seat 2 has pending ChooseStartingPlayerResp
         val player1 = PlayerMapper.buildPlayerInfo(human, 1)

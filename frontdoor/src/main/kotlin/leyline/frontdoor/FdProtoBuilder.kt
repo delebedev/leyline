@@ -43,8 +43,16 @@ object FdProtoBuilder {
             fmt.sideboardMax?.let {
                 b.addMessage(13, unknownFields { addVarint(2, it.toLong()) })
             }
-            // field 14: empty string (some formats send this)
-            b.addString(14, "")
+            // field 14: CommandZoneQuota — Quota{min, max} for commander formats
+            fmt.commandZoneSize?.let { cz ->
+                b.addMessage(
+                    14,
+                    unknownFields {
+                        addVarint(1, cz.min.toLong())
+                        addVarint(2, cz.max.toLong())
+                    },
+                )
+            }
             fmt.field16?.let { b.addVarint(16, it.toLong()) }
             for (id in fmt.allowedCommanders) b.addVarint(17, id.toLong())
             for (rr in fmt.rarityRestrictions) {
@@ -187,6 +195,7 @@ private data class FormatEntry(
     val field16: Int? = null,
     val allowedCommanders: List<Int> = emptyList(),
     val rarityRestrictions: List<RarityRestriction> = emptyList(),
+    val commandZoneSize: DeckSizeRange? = null,
 )
 
 @Serializable

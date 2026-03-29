@@ -206,6 +206,7 @@ class MatchHandler(
                     // second client connects — getOrPut in ensureSeatBridges
                     // preserves them.
                     val isPvp = coordinator?.isPvpMatch(matchId) == true
+                    val gameVariant = resolveGameVariant()
                     val match = registry.getOrCreateMatch(matchId) {
                         val bridge = GameBridge(matchConfig = matchConfig, messageCounter = s!!.counter, cards = cards ?: leyline.game.InMemoryCardRepository())
                         Match(matchId, bridge).also {
@@ -214,12 +215,14 @@ class MatchHandler(
                                     seed = matchConfig.game.seed,
                                     deckList1 = resolveSeat1Deck(),
                                     deckList2 = resolveSeat2Deck(),
+                                    variant = gameVariant,
                                 )
                             } else {
                                 it.start(
                                     seed = matchConfig.game.seed,
                                     deckList1 = resolveSeat1Deck(),
                                     deckList2 = resolveSeat2Deck(),
+                                    variant = gameVariant,
                                 )
                             }
                         }
@@ -403,7 +406,18 @@ class MatchHandler(
         val obj = lenientJson.parseToJsonElement(cardsJson).jsonObject
         val mainDeck = parseDeckSection(obj, "MainDeck")
         val sideboard = parseDeckSection(obj, "Sideboard")
-        return DeckConverter.toDeckText(mainDeck, sideboard, cards!!::findNameByGrpId)
+        val commandZone = parseDeckSection(obj, "CommandZone")
+        return DeckConverter.toDeckText(mainDeck, sideboard, commandZone, cards!!::findNameByGrpId)
+    }
+
+    /**
+     * Derive Forge game variant from the selected Arena event name.
+     * Brawl events (Play_Brawl, Play_Brawl_Historic) → "brawl".
+     * Standard/other events → null (Constructed).
+     */
+    private fun resolveGameVariant(): String? {
+        val event = coordinator?.selectedEventName ?: return null
+        return if (event.contains("Brawl", ignoreCase = true)) "brawl" else null
     }
 
     private fun parseDeckSection(
