@@ -173,3 +173,4 @@ just arena ocr  # expect "Home", "Play", etc.
 - When updating `/etc/hosts`, watch for duplicate lines (e.g. old commented-out IP entries getting rewritten). Deduplicate after editing.
 - After mode switch (real → proxy): always kill + relaunch Arena. Ghost matches otherwise.
 - The user has TouchID sudo — `sudo` commands will prompt for fingerprint approval.
+- **Asset bundle downloads are not blocking.** Version bumps often trigger a ~1.4GB asset re-download (art, audio, UI). Proxy works fine without completing it — bundles are cosmetic, not protocol-critical. Safe to skip during the update flow and let Arena catch up on the next real-server session.
