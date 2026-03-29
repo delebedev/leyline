@@ -5,6 +5,8 @@ import { eventsCommand } from "./src/commands/events";
 import { gameCommand } from "./src/commands/game";
 import { gsmCommand } from "./src/commands/gsm";
 import { lobbyCommand } from "./src/commands/lobby";
+import { saveCommand } from "./src/commands/save";
+import { traceCommand } from "./src/commands/trace";
 
 const commands: Record<string, { description: string; run: (args: string[]) => Promise<void> }> = {
   board:  { description: "Accumulated board state",          run: boardCommand },
@@ -12,6 +14,8 @@ const commands: Record<string, { description: string; run: (args: string[]) => P
   game:   { description: "Game summaries and details",       run: gameCommand },
   gsm:    { description: "Query game state messages",        run: gsmCommand },
   lobby:  { description: "Lobby request/response pairs",     run: lobbyCommand },
+  save:   { description: "Save games to durable storage",    run: saveCommand },
+  trace:  { description: "Trace a card's journey",           run: traceCommand },
 };
 
 async function main() {
