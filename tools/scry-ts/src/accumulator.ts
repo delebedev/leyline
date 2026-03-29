@@ -89,6 +89,9 @@ export class Accumulator {
   /** Reverse: new instanceId → old instanceId. */
   private idBackward = new Map<number, number>();
 
+  // History: unused by CLI commands today (each invocation replays from start).
+  // Kept for future daemon/live mode where the process stays warm and
+  // getState() can serve historical snapshots without full replay.
   private history = new Map<number, GameState>();
   private historyOrder: number[] = [];
 
