@@ -391,6 +391,21 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         log.debug("event: ControllerChanged card={} {} -> {}", card.name, oldSeat, newSeat)
     }
 
+    // -- Group B++: keyword grant events --
+
+    override fun visit(ev: GameEventExtrinsicKeywordAdded) {
+        val card = ev.card()
+        queue.add(
+            GameEvent.KeywordGranted(
+                cardId = ForgeCardId(card.id),
+                keyword = ev.keyword(),
+                timestamp = ev.timestamp(),
+                staticId = ev.staticId(),
+            ),
+        )
+        log.debug("event: KeywordGranted card={} keyword={} ts={} static={}", card.name, ev.keyword(), ev.timestamp(), ev.staticId())
+    }
+
     // -- Group C: combat enrichment --
 
     override fun visit(ev: GameEventCombatEnded) {

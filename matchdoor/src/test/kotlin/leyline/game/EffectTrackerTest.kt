@@ -2,6 +2,7 @@ package leyline.game
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.UnitTag
@@ -116,5 +117,43 @@ class EffectTrackerTest :
             tracker.resetAll()
             val result = tracker.diffBoosts(boosts)
             result.created.size shouldBe 1
+        }
+
+        // --- Keyword tracking ---
+
+        test("diffKeywords creates entry on first call") {
+            val tracker = EffectTracker()
+            val input = mapOf(100 to listOf(EffectTracker.KeywordEntry(1L, 0L, "Trample")))
+            val diff = tracker.diffKeywords(input)
+            diff.created.size shouldBe 1
+            diff.created[0].keyword shouldBe "Trample"
+            diff.created[0].cardInstanceId shouldBe 100
+            diff.destroyed.shouldBeEmpty()
+        }
+
+        test("diffKeywords returns empty when keyword persists") {
+            val tracker = EffectTracker()
+            val input = mapOf(100 to listOf(EffectTracker.KeywordEntry(1L, 0L, "Trample")))
+            tracker.diffKeywords(input)
+            val diff2 = tracker.diffKeywords(input)
+            diff2.created.shouldBeEmpty()
+            diff2.destroyed.shouldBeEmpty()
+        }
+
+        test("diffKeywords destroys entry when keyword removed") {
+            val tracker = EffectTracker()
+            val input = mapOf(100 to listOf(EffectTracker.KeywordEntry(1L, 0L, "Trample")))
+            tracker.diffKeywords(input)
+            val diff2 = tracker.diffKeywords(emptyMap())
+            diff2.destroyed.size shouldBe 1
+            diff2.created.shouldBeEmpty()
+        }
+
+        test("keyword and boost effects share the same ID counter") {
+            val tracker = EffectTracker()
+            tracker.nextEffectId() // simulate a boost taking the first ID
+            val input = mapOf(100 to listOf(EffectTracker.KeywordEntry(1L, 0L, "Trample")))
+            val diff = tracker.diffKeywords(input)
+            diff.created[0].syntheticId shouldBeGreaterThan EffectTracker.INITIAL_EFFECT_ID
         }
     })

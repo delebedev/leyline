@@ -331,6 +331,17 @@ sealed interface GameEvent {
         val newControllerSeatId: SeatId,
     ) : GameEvent
 
+    // -- Group B++: keyword grant events --
+
+    /** An extrinsic keyword was granted to a permanent (e.g. Flying from an aura/anthem).
+     *  Wired from GameEventExtrinsicKeywordAdded (fires in Card.addChangedCardKeywords). */
+    data class KeywordGranted(
+        val cardId: ForgeCardId,
+        val keyword: String,
+        val timestamp: Long,
+        val staticId: Long,
+    ) : GameEvent
+
     // -- Group C: combat enrichment --
 
     /** Combat phase ended — signal to clear combat state. */

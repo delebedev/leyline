@@ -546,6 +546,33 @@ object AnnotationBuilder {
         .build()
 
     /**
+     * Keyword grant via layered effect — multi-creature form.
+     * Types: [AddAbility_af5a, LayeredEffect]. One pAnn covers all affected creatures.
+     *
+     * Wire shape: flat affectedIds list, one UniqueAbilityId per creature, shared grpId.
+     * Confirmed from Overrun sessions 2026-03-29_16-55-19 and 2026-03-29_17-04-26.
+     */
+    fun addAbilityMulti(
+        affectedIds: List<Int>,
+        grpId: Int,
+        effectId: Int,
+        uniqueAbilityIds: List<Int>,
+        originalAbilityObjectZcid: Int,
+        affectorId: Int,
+    ): AnnotationInfo {
+        val builder = AnnotationInfo.newBuilder()
+            .addType(AnnotationType.AddAbility_af5a)
+            .addType(AnnotationType.LayeredEffect)
+            .setAffectorId(affectorId)
+            .addDetails(uint32Detail(DetailKeys.GRPID, grpId))
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId))
+            .addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, originalAbilityObjectZcid))
+        affectedIds.forEach { builder.addAffectedIds(it) }
+        uniqueAbilityIds.forEach { builder.addDetails(int32Detail(DetailKeys.UNIQUE_ABILITY_ID, it)) }
+        return builder.build()
+    }
+
+    /**
      * Persistent annotation marking a card as eligible for an alternate cast
      * (adventure from exile, etc.). Wire shape from 2026-03-25 recording.
      *

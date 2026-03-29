@@ -35,11 +35,31 @@ class EffectTracker {
 
     data class DiffResult(val created: List<TrackedEffect>, val destroyed: List<TrackedEffect>)
 
+    // --- Keyword tracking ---
+
+    data class KeywordEntry(val timestamp: Long, val staticId: Long, val keyword: String)
+
+    data class KeywordFingerprint(val cardInstanceId: Int, val timestamp: Long, val staticId: Long)
+
+    data class TrackedKeywordEffect(
+        val syntheticId: Int,
+        val fingerprint: KeywordFingerprint,
+        val keyword: String,
+    ) {
+        val cardInstanceId: Int get() = fingerprint.cardInstanceId
+    }
+
+    data class KeywordDiffResult(
+        val created: List<TrackedKeywordEffect>,
+        val destroyed: List<TrackedKeywordEffect>,
+    )
+
     /** Whether init effects have been emitted for this game. */
     private var initEmitted = false
 
     private var nextId = INITIAL_EFFECT_ID
     private val activeEffects = mutableMapOf<EffectFingerprint, TrackedEffect>()
+    private val activeKeywordEffects = mutableMapOf<KeywordFingerprint, TrackedKeywordEffect>()
 
     /** Allocate the next monotonic synthetic effect ID. */
     fun nextEffectId(): Int = nextId++
@@ -80,6 +100,41 @@ class EffectTracker {
     }
 
     /**
+     * Diff current keyword grants against previously tracked state.
+     * Returns created/destroyed keyword effects for LayeredEffectCreated /
+     * LayeredEffectDestroyed + AddAbility pAnn emission.
+     */
+    fun diffKeywords(currentKeywords: Map<Int, List<KeywordEntry>>): KeywordDiffResult {
+        val currentFps = mutableMapOf<KeywordFingerprint, KeywordEntry>()
+        for ((cardIid, entries) in currentKeywords) {
+            for (entry in entries) {
+                currentFps[KeywordFingerprint(cardIid, entry.timestamp, entry.staticId)] = entry
+            }
+        }
+
+        val destroyed = mutableListOf<TrackedKeywordEffect>()
+        val toRemove = mutableListOf<KeywordFingerprint>()
+        for ((fp, tracked) in activeKeywordEffects) {
+            if (fp !in currentFps) {
+                destroyed.add(tracked)
+                toRemove.add(fp)
+            }
+        }
+        for (fp in toRemove) activeKeywordEffects.remove(fp)
+
+        val created = mutableListOf<TrackedKeywordEffect>()
+        for ((fp, entry) in currentFps) {
+            if (fp !in activeKeywordEffects) {
+                val tracked = TrackedKeywordEffect(nextEffectId(), fp, entry.keyword)
+                activeKeywordEffects[fp] = tracked
+                created.add(tracked)
+            }
+        }
+
+        return KeywordDiffResult(created, destroyed)
+    }
+
+    /**
      * Emit the 3 game-initialization effects (7002-7004) that the real server
      * creates and immediately destroys at gsId=1.
      *
@@ -113,6 +168,7 @@ class EffectTracker {
     fun resetAll() {
         nextId = INITIAL_EFFECT_ID
         activeEffects.clear()
+        activeKeywordEffects.clear()
         initEmitted = false
     }
 }
