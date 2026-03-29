@@ -8,6 +8,7 @@ import { lobbyCommand } from "./src/commands/lobby";
 import { noteCommand } from "./src/commands/note";
 import { saveCommand } from "./src/commands/save";
 import { traceCommand } from "./src/commands/trace";
+import { usageCommand } from "./src/commands/usage";
 
 const commands: Record<string, { description: string; run: (args: string[]) => Promise<void> }> = {
   board:  { description: "Accumulated board state",          run: boardCommand },
@@ -18,6 +19,7 @@ const commands: Record<string, { description: string; run: (args: string[]) => P
   note:   { description: "Add a note to a saved game",       run: noteCommand },
   save:   { description: "Save games to durable storage",    run: saveCommand },
   trace:  { description: "Trace a card's journey",           run: traceCommand },
+  usage:  { description: "Command usage heatmap",             run: usageCommand },
 };
 
 import { appendFileSync, mkdirSync } from "fs";
