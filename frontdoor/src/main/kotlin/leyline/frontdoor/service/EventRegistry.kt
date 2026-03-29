@@ -47,17 +47,13 @@ data class EventDef(
     val collationId: Int = 0,
     /** Wire EventState — null omits the field (default), "ForceActive" for always-visible events. */
     val eventState: String? = null,
-    /** Precon deck IDs for InspectPreconDecksWidget (Color Challenge nodes). */
+    /** Precon deck IDs for InspectPreconDecksWidget. */
     val preconDeckIds: List<String> = emptyList(),
-    /** Fixed deck selection (Color Challenge nodes use "Fixed"). */
+    /** Deck button behavior override (e.g. "Fixed" for precon events). */
     val deckButtonBehavior: String? = null,
 ) {
     val isSealed: Boolean get() = formatType == "Sealed"
 }
-
-/** Color Challenge node config — precon deck + opponent avatar (from graph definitions). */
-@Serializable
-data class ColorChallengeNode(val preconDeckId: String, val opponentAvatar: String)
 
 /** Bot Match entry in the AiBotMatches array (separate from Events). */
 @Serializable
@@ -92,7 +88,7 @@ data class AiBotMatchDef(
  * ### Key fields
  * - `EventBladeBehavior: "Queue"` → Find Match only. Real server uses prio -1 for all queue events.
  * - `EventBladeBehavior: null` (omitted) → home tile candidate, ordered by displayPriority.
- * - `EventState: "ForceActive"` → always visible regardless of start/lock times (ColorChallenge).
+ * - `EventState: "ForceActive"` → always visible regardless of start/lock times.
  * - `EventState: "NotActive"` → exists in registry but greyed out (test/seasonal events).
  * - `AiBotMatches[]` is a **separate array** from `Events[]` — putting AIBotMatch in both
  *   causes a client crash ("duplicate key"). Bot Match home tile on mature accounts comes from
@@ -133,13 +129,6 @@ object EventRegistry {
 
     /** AiBotMatches array — separate from Events, rendered as "Bot Match" tile. */
     val aiBotMatches: List<AiBotMatchDef> = loadResource("/fd-golden/ai-bot-matches.json")
-
-    /**
-     * Color Challenge node → precon deck ID + opponent avatar.
-     * Loaded from `fd-golden/color-challenge-nodes.json` (proxy capture 2026-03-10).
-     * Used by CmdType 1703 (Graph_AdvanceNode) to start a Familiar bot match.
-     */
-    val colorChallengeNodes: Map<String, ColorChallengeNode> = loadResource("/fd-golden/color-challenge-nodes.json")
 
     fun findEvent(internalName: String): EventDef? =
         events.firstOrNull { it.internalName == internalName }

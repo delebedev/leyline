@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
@@ -328,7 +329,7 @@ class FrontDoorHandlerTest :
             ids shouldContain "StandardBrawl"
         }
 
-        test("CmdType 624 - ActiveEventsV2 has all formats, ColorChallenge, and AiBotMatches") {
+        test("CmdType 624 - ActiveEventsV2 has all formats and AiBotMatches") {
             val obj = sendJson(624)
             val events = obj["Events"]?.jsonArray
             events.shouldNotBeNull()
@@ -337,8 +338,7 @@ class FrontDoorHandlerTest :
             names shouldContain "Ladder"
             names shouldContain "Historic_Ladder"
             names shouldContain "Explorer_Ladder"
-            names shouldContain "ColorChallenge"
-            names shouldContain "ColorChallenge_Node5_W"
+            names.shouldNotContain("ColorChallenge")
 
             val bots = obj["AiBotMatches"]?.jsonArray
             bots.shouldNotBeNull()
