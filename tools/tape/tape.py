@@ -206,6 +206,135 @@ def _find_card(name, session_hint):
         print(f"{iid:>12}  {info['grpId']:>6}  {transitions}")
 
 
+def _show_gsid(session_hint, gsid):
+    """Resolve session + gsId to the matching .bin file(s) and inspect them.
+
+    Runs InspectKt, then filters output to only show GRE messages matching
+    the requested gsId (plus the file header). This avoids dumping 8+ GSMs
+    when only one is interesting.
+    """
+    import json
+
+    session_path = _resolve_session_path(session_hint)
+    jsonl = os.path.join(session_path, "md-frames.jsonl")
+    if not os.path.isfile(jsonl):
+        print(f"error: no md-frames.jsonl in {session_path}", file=sys.stderr)
+        sys.exit(1)
+
+    # Find bin files matching the gsId
+    matching_files = []
+    for line in open(jsonl):
+        obj = json.loads(line.strip())
+        if obj.get("gsId") == gsid:
+            f = obj.get("file", "")
+            if f and f.endswith(".bin") and "S-C" in f:
+                matching_files.append(f)
+
+    if not matching_files:
+        print(f"error: no S→C frame found for gsId={gsid} in {session_path}", file=sys.stderr)
+        sys.exit(1)
+
+    # Deduplicate — a gsId may appear in the same bin (multiple GRE messages per envelope)
+    seen = set()
+    unique_files = []
+    for f in matching_files:
+        if f not in seen:
+            seen.add(f)
+            unique_files.append(f)
+
+    # Resolve to actual path in capture/seat-N/md-payloads/
+    md_payloads = _resolve_md_payloads(session_hint)
+
+    def _find_bin(filename):
+        full = os.path.join(md_payloads, filename)
+        if os.path.isfile(full):
+            return full
+        capture = os.path.dirname(os.path.dirname(md_payloads))
+        for entry in sorted(os.listdir(capture)):
+            alt = os.path.join(capture, entry, "md-payloads", filename)
+            if entry.startswith("seat-") and os.path.isfile(alt):
+                return alt
+        return None
+
+    for f in unique_files:
+        bin_path = _find_bin(f)
+        if not bin_path:
+            print(f"warning: {f} not found in any seat md-payloads", file=sys.stderr)
+            continue
+
+        # Run InspectKt and capture output
+        cp = _classpath()
+        java_home = os.environ.get("JAVA_HOME", "")
+        java_bin = os.path.join(java_home, "bin", "java") if java_home else "java"
+        cmd = [java_bin] + _JVM_CLI.split() + ["-cp", cp, "leyline.debug.InspectKt", bin_path]
+        result = subprocess.run(cmd, cwd=PROJECT_DIR, capture_output=True, text=True)
+
+        if result.returncode != 0:
+            print(result.stderr, file=sys.stderr)
+            sys.exit(result.returncode)
+
+        # Filter: split into greToClientMessages blocks, keep only those
+        # containing our target gsId.
+        output = result.stdout
+
+        # Print everything up to "=== Proto Text ===" (header/summary),
+        # filtering summary lines to only show matching gsId
+        header_end = output.find("=== Proto Text ===")
+        if header_end == -1:
+            print(output)
+            continue
+
+        header = output[:header_end + len("=== Proto Text ===")]
+        proto_body = output[header_end + len("=== Proto Text ==="):]
+
+        # Filter summary lines
+        for hline in header.split("\n"):
+            hs = hline.strip()
+            if hs.startswith("- type=") and f"gsId={gsid}" not in hs:
+                continue
+            print(hline)
+        print()
+
+        # Split proto body into greToClientMessages blocks via brace counting
+        blocks = []
+        current_block = []
+        depth = 0
+        preamble = []  # lines before first greToClientMessages
+        in_block = False
+
+        for pline in proto_body.split("\n"):
+            ps = pline.strip()
+            if ps.startswith("greToClientMessages {") and depth == 0:
+                in_block = True
+                current_block = [pline]
+                depth = ps.count("{") - ps.count("}")
+                continue
+            if in_block:
+                current_block.append(pline)
+                depth += ps.count("{") - ps.count("}")
+                if depth <= 0:
+                    blocks.append("\n".join(current_block))
+                    current_block = []
+                    in_block = False
+                    depth = 0
+            else:
+                preamble.append(pline)
+
+        # Print preamble (transactionId, requestId, etc.)
+        preamble_text = "\n".join(preamble).strip()
+        if preamble_text:
+            print(preamble_text)
+
+        # Print only blocks matching our gsId
+        for block in blocks:
+            if f"gameStateId: {gsid}" in block:
+                print(block)
+                print()
+
+        if result.stderr:
+            print(result.stderr, file=sys.stderr, end="")
+
+
 def _run_python(script_name, *cli_args):
     """Run a sibling Python script."""
     script = os.path.join(TAPE_DIR, script_name)
@@ -418,6 +547,8 @@ def dispatch(args):
             _java("leyline.conformance.CompareMainKt", *args.extra)
         elif verb == "inspect":
             _java("leyline.debug.InspectKt", args.file)
+        elif verb == "show":
+            _show_gsid(args.session, args.gsid)
         elif verb == "decode-recording":
             extra = [args.output] if args.output else []
             _java("leyline.recording.RecordingDecoderMainKt", args.dir, *extra)
@@ -546,6 +677,10 @@ def main():
 
     p = ss.add_parser("inspect", help="Inspect a .bin template")
     p.add_argument("file")
+
+    p = ss.add_parser("show", help="Full proto for a gsId (resolves session → bin → inspect)")
+    p.add_argument("-s", "--session", required=True, help="Session name or substring")
+    p.add_argument("gsid", type=int, help="Game state ID to inspect")
 
     p = ss.add_parser("trace", help="Trace an ID across payloads (--start/--finish)")
     p.add_argument("id")

@@ -95,16 +95,24 @@ Build a zone transition table from the output: gsId, instanceId changes, zones, 
 
 ### 5. Annotations
 
-Decode raw proto for **novel or gap-filling** moments only.
+**IMPORTANT: md-frames.jsonl is lossy.** It drops prompt body fields (NumericInputReq internals, OptionalActionMessage sourceId, inactiveActions, etc.). Use JSONL to *find* interesting gsIds, then decode the raw binary for full field data.
 
-**Budget: decode at most 3 proto frames.** Pick the most interesting moments. Use these tools:
+**Workflow: grep-then-read.**
+1. Search `md-frames.jsonl` (or use `find-card` output) to identify interesting gsIds
+2. `just tape proto show -s <session> <gsId>` — full proto text for that game state
+3. Document from the raw proto, not from JSONL field values
+
+**Budget: decode at most 5 proto frames** via `tape proto show`. Pick the most interesting moments.
 
 ```bash
-# Trace an instanceId across all frames (ID lifecycle)
-just proto-trace <instanceId> recordings/<session>/capture/seat-1/md-payloads/
+# Full proto for a specific gsId (resolves session → bin → inspect)
+just tape proto show -s <session> <gsId>
 
-# Targeted annotation grep from a single frame (not full dump)
-just proto-inspect <file>.bin 2>&1 | grep -B2 -A15 "ZoneTransfer\|TokenCreated\|CounterAdded\|SelectNreq"
+# Trace an instanceId across all frames (ID lifecycle)
+just tape proto trace <instanceId> -s <session>
+
+# Inspect a specific bin file directly
+just tape proto inspect <file>.bin
 ```
 
 **Only document annotations that are:**

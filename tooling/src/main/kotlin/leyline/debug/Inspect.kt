@@ -1,6 +1,8 @@
 package leyline.debug
 
 import com.google.protobuf.TextFormat
+import wotc.mtgo.gre.external.messaging.Messages.ClientToGREMessage
+import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import wotc.mtgo.gre.external.messaging.Messages.MatchServiceToClientMessage
 import java.io.File
 import kotlin.system.exitProcess
@@ -25,19 +27,41 @@ fun main(args: Array<String>) {
     }
 
     val bytes = file.readBytes()
-    val msg: MatchServiceToClientMessage
-    try {
-        msg = MatchServiceToClientMessage.parseFrom(bytes)
-    } catch (e: Exception) {
-        System.err.println("Failed to parse as MatchServiceToClientMessage: ${e.message}")
-        exitProcess(1)
-        return // unreachable, satisfies compiler
-    }
 
-    // --- Summary ---
     println("=== ${file.name} (${bytes.size} bytes) ===")
     println()
 
+    // Detect direction: parse outer ClientToMatchServiceMessage and check the message type enum.
+    // ClientToGremessage=2 and ClientToGreuimessage=3 are C→S GRE payloads.
+    // Any other value (or parse failure) → treat as S→C MatchServiceToClientMessage.
+    val outer = try { ClientToMatchServiceMessage.parseFrom(bytes) } catch (e: Exception) { null }
+    val isCS = outer != null && (outer.clientToMatchServiceMessageType.number == 2 ||
+        outer.clientToMatchServiceMessageType.number == 3)
+
+    if (isCS) {
+        val inner = try {
+            ClientToGREMessage.parseFrom(outer!!.payload)
+        } catch (e: Exception) {
+            System.err.println("Failed to parse payload as ClientToGREMessage: ${e.message}")
+            exitProcess(1)
+            return
+        }
+        printClientToGRE(inner)
+        return
+    }
+
+    // S→C path
+    val sc = try {
+        MatchServiceToClientMessage.parseFrom(bytes)
+    } catch (e: Exception) {
+        System.err.println("Failed to parse as MatchServiceToClientMessage: ${e.message}")
+        exitProcess(1)
+        return
+    }
+    printServerToClient(sc)
+}
+
+private fun printServerToClient(msg: MatchServiceToClientMessage) {
     val topFields = buildList {
         if (msg.hasAuthenticateResponse()) add("AuthenticateResponse")
         if (msg.hasMatchGameRoomStateChangedEvent()) add("MatchGameRoomStateChangedEvent")
@@ -80,5 +104,18 @@ fun main(args: Array<String>) {
 
     println()
     println("=== Proto Text ===")
+    println(TextFormat.printer().printToString(msg))
+}
+
+private fun printClientToGRE(msg: ClientToGREMessage) {
+    val innerField = msg.messageCase?.name ?: "(none)"
+    println("Top-level fields: ClientToGREMessage")
+    println("type=${msg.type}  seatId=${msg.systemSeatId}  gsId=${msg.gameStateId}  respId=${msg.respId}")
+    println("message:          $innerField")
+
+    if (msg.hasOptionalResp()) println("  response=${msg.optionalResp.response}")
+
+    println()
+    println("=== Proto Text (ClientToGREMessage) ===")
     println(TextFormat.printer().printToString(msg))
 }
