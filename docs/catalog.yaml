@@ -197,6 +197,16 @@ spells:
       Casting works. Targeting wired (fixed 2026-02-21, needs client QA).
       Player receives SelectTargetsReq for targeted instants.
 
+  fight-bite-damage:
+    status: wired
+    notes: >
+      "Creature deals damage equal to its power to target" spells (Bite Down
+      grpId 93925, Rabid Bite, Ram Through pattern). Two sequential
+      SelectTargetsReq groups: group 1 = dealer creature, group 2 = target
+      creature/PW. DamageDealt.affectorId = dealing creature iid
+      (GameEventCardDamaged.source()), NOT the spell iid. Target dies via
+      Destroy category ZoneTransfer (SBA lethal damage). Confirmed 2026-03-29.
+
   cast-sorcery:
     status: wired
     notes: "Same as creature — cast, stack, resolve."
