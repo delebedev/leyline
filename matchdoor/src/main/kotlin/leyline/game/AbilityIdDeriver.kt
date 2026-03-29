@@ -64,11 +64,9 @@ object AbilityIdDeriver {
         }
 
         val keywords = card.rules?.mainPart?.keywords?.toList() ?: emptyList()
-        // Count intrinsic triggers — Arena layout: [keywords, triggers, activated]
-        val triggerCount = card.triggers?.count { it.isIntrinsic } ?: 0
         // Count non-mana activated abilities — matches the filter in ActionMapper and CardLookup.
         val activatedCount = card.spellAbilities?.count { it.isActivatedAbility && !it.isManaAbility() } ?: 0
-        val totalCount = maxOf(1, keywords.size + triggerCount + activatedCount)
+        val totalCount = maxOf(1, keywords.size + activatedCount)
 
         val abilityIds = (0 until totalCount).map { counter.getAndIncrement() to 0 }
 
@@ -81,12 +79,7 @@ object AbilityIdDeriver {
                 slotEntries.add(SlotEntry(abilityIds[i].first, 0, SlotKind.Keyword))
             }
         }
-        for (i in keywords.size until keywords.size + triggerCount) {
-            if (i < abilityIds.size) {
-                slotEntries.add(SlotEntry(abilityIds[i].first, 0, SlotKind.Intrinsic))
-            }
-        }
-        for (i in keywords.size + triggerCount until totalCount) {
+        for (i in keywords.size until totalCount) {
             slotEntries.add(SlotEntry(abilityIds[i].first, 0, SlotKind.Activated))
         }
 

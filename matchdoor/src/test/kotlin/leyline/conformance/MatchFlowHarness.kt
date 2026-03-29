@@ -592,22 +592,7 @@ class MatchFlowHarness(
         val player = bridge.getPlayer(SeatId(seatId)) ?: return false
         val card = player.getZone(ZoneType.Battlefield).cards
             .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
-
-        val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
-        val grpId = bridge.cards.findGrpIdByName(card.name) ?: 0
-        val cardData = bridge.cards.findByGrpId(grpId)
-        val keywordCount = cardData?.keywordAbilityGrpIds?.size ?: 0
-        val abilityGrpId = cardData?.abilityIds?.getOrNull(keywordCount + abilityIndex)?.first ?: 0
-
-        val msg = performAction {
-            actionType = ActionType.Activate_add3
-            instanceId = iid
-            this.grpId = grpId
-            this.abilityGrpId = abilityGrpId
-        }
-        session.onPerformAction(msg)
-        drainSink()
-        return true
+        return submitActivateAction(card, abilityIndex)
     }
 
     /** Activate an ability on a card in the player's hand (Channel, Cycling, etc.). */
@@ -615,12 +600,18 @@ class MatchFlowHarness(
         val player = bridge.getPlayer(SeatId(seatId)) ?: return false
         val card = player.getZone(ZoneType.Hand).cards
             .firstOrNull { it.name.equals(cardName, ignoreCase = true) } ?: return false
+        return submitActivateAction(card, abilityIndex)
+    }
 
+    /** Common Activate_add3 submission for both battlefield and hand cards. */
+    private fun submitActivateAction(card: forge.game.card.Card, abilityIndex: Int): Boolean {
         val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
         val grpId = bridge.cards.findGrpIdByName(card.name) ?: 0
         val cardData = bridge.cards.findByGrpId(grpId)
         val keywordCount = cardData?.keywordAbilityGrpIds?.size ?: 0
-        val abilityGrpId = cardData?.abilityIds?.getOrNull(keywordCount + abilityIndex)?.first ?: 0
+        // Arena layout: [keywords, triggers, activated]. Skip trigger slots.
+        val triggerCount = card.triggers?.count { it.isIntrinsic } ?: 0
+        val abilityGrpId = cardData?.abilityIds?.getOrNull(keywordCount + triggerCount + abilityIndex)?.first ?: 0
 
         val msg = performAction {
             actionType = ActionType.Activate_add3
