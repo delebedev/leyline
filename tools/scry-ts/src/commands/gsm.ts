@@ -1,7 +1,8 @@
 import { type Game, type GsmSummary } from "../games";
 import { resolveGame } from "../resolve";
+import { Accumulator, type GameState, type GameObject } from "../accumulator";
 import { getResolver, type CardResolver } from "../cards";
-import { stripPrefix, fmtGrp, zoneName } from "../format";
+import { stripPrefix, fmtGrp, zoneName, formatPhase } from "../format";
 
 export async function gsmCommand(args: string[]) {
   const verb = args[0];
@@ -11,6 +12,7 @@ export async function gsmCommand(args: string[]) {
     console.log("Commands:");
     console.log("  list     List GSMs (default: last game)");
     console.log("  show N   Show full GSM detail by gsId");
+    console.log("  diff A B Diff accumulated state between two gsIds");
     console.log("\nFlags:");
     console.log("  --game N     Select game by index");
     console.log("  --game last  Most recent game (default)");
@@ -25,6 +27,8 @@ export async function gsmCommand(args: string[]) {
     await gsmList(args.slice(1));
   } else if (verb === "show") {
     await gsmShow(args.slice(1));
+  } else if (verb === "diff") {
+    await gsmDiff(args.slice(1));
   } else {
     console.error(`Unknown gsm command: ${verb}\nRun 'scry gsm --help' for usage.`);
     process.exit(1);
@@ -255,6 +259,198 @@ function cardLabel(grpId: number, resolver: CardResolver | null): string {
   if (!grpId) return "?";
   const name = resolver?.resolve(grpId);
   return name ?? `grp=${grpId}`;
+}
+
+async function gsmDiff(args: string[]) {
+  const nums = args.filter((a) => !a.startsWith("-")).map((a) => parseInt(a, 10)).filter((n) => !isNaN(n));
+  if (nums.length < 2) {
+    console.error("Usage: scry gsm diff <gsIdA> <gsIdB>");
+    process.exit(1);
+  }
+  const [gsIdA, gsIdB] = nums;
+  const jsonMode = args.includes("--json");
+
+  const { game, label } = await resolveGame(args);
+  const resolver = getResolver();
+
+  // Replay to gsId A
+  const accA = new Accumulator();
+  for (const gsm of game.greMessages) {
+    accA.apply(gsm.raw);
+    if (gsm.gsId === gsIdA) break;
+  }
+
+  // Replay to gsId B
+  const accB = new Accumulator();
+  for (const gsm of game.greMessages) {
+    accB.apply(gsm.raw);
+    if (gsm.gsId === gsIdB) break;
+  }
+
+  if (!accA.current || !accB.current) {
+    console.error(`Could not accumulate to both gsIds (${gsIdA}, ${gsIdB})`);
+    process.exit(1);
+  }
+
+  const stateA = accA.current;
+  const stateB = accB.current;
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ from: gsIdA, to: gsIdB, a: serializeState(stateA), b: serializeState(stateB) }, null, 2));
+    return;
+  }
+
+  const fmtCard = (obj: GameObject) => {
+    const name = resolver?.resolve(obj.grpId);
+    return name ?? `grp=${obj.grpId}`;
+  };
+
+  console.log(`Diff: gs=${gsIdA} → gs=${gsIdB} (${label})\n`);
+
+  // Turn info
+  const tiA = stateA.turnInfo;
+  const tiB = stateB.turnInfo;
+  if (tiA && tiB) {
+    const phaseA = formatPhase(tiA.phase, tiA.step);
+    const phaseB = formatPhase(tiB.phase, tiB.step);
+    if (tiA.turnNumber !== tiB.turnNumber || phaseA !== phaseB) {
+      console.log(`Turn: T${tiA.turnNumber} ${phaseA} → T${tiB.turnNumber} ${phaseB}`);
+    }
+  }
+
+  // Life changes
+  for (const seat of [1, 2]) {
+    const lifeA = stateA.players.get(seat)?.lifeTotal ?? 0;
+    const lifeB = stateB.players.get(seat)?.lifeTotal ?? 0;
+    if (lifeA !== lifeB) {
+      console.log(`Life seat ${seat}: ${lifeA} → ${lifeB} (${lifeB - lifeA >= 0 ? "+" : ""}${lifeB - lifeA})`);
+    }
+  }
+
+  // Build zone maps for readable names
+  const zoneMapB = new Map<number, string>();
+  for (const [, z] of stateB.zones) {
+    const name = zoneName(z.type);
+    const owner = z.ownerSeatId ? ` (seat ${z.ownerSeatId})` : "";
+    zoneMapB.set(z.zoneId, `${name}${owner}`);
+  }
+  const fmtZone = (zid: number) => zoneMapB.get(zid) ?? `zone=${zid}`;
+
+  // Object changes
+  const allIds = new Set([...stateA.objects.keys(), ...stateB.objects.keys()]);
+  const added: string[] = [];
+  const removed: string[] = [];
+  const changed: string[] = [];
+
+  for (const id of allIds) {
+    const objA = stateA.objects.get(id);
+    const objB = stateB.objects.get(id);
+
+    if (!objA && objB) {
+      added.push(`${fmtCard(objB)} (iid=${id}) → ${fmtZone(objB.zoneId)}`);
+    } else if (objA && !objB) {
+      removed.push(`${fmtCard(objA)} (iid=${id}) from ${fmtZone(objA.zoneId)}`);
+    } else if (objA && objB) {
+      const diffs: string[] = [];
+      if (objA.zoneId !== objB.zoneId) diffs.push(`zone: ${fmtZone(objA.zoneId)} → ${fmtZone(objB.zoneId)}`);
+      if (objA.power !== objB.power || objA.toughness !== objB.toughness) diffs.push(`P/T: ${objA.power}/${objA.toughness} → ${objB.power}/${objB.toughness}`);
+      if (objA.isTapped !== objB.isTapped) diffs.push(objB.isTapped ? "tapped" : "untapped");
+      if (objA.damage !== objB.damage) diffs.push(`damage: ${objA.damage} → ${objB.damage}`);
+      if (objA.controllerSeatId !== objB.controllerSeatId) diffs.push(`controller: seat${objA.controllerSeatId} → seat${objB.controllerSeatId}`);
+      if (diffs.length > 0) {
+        changed.push(`${fmtCard(objB)} (iid=${id}): ${diffs.join(", ")}`);
+      }
+    }
+  }
+
+  if (added.length > 0) {
+    console.log("\nAdded:");
+    for (const line of added) console.log(`  + ${line}`);
+  }
+  if (removed.length > 0) {
+    console.log("\nRemoved:");
+    for (const line of removed) console.log(`  - ${line}`);
+  }
+  if (changed.length > 0) {
+    console.log("\nChanged:");
+    for (const line of changed) console.log(`  ~ ${line}`);
+  }
+
+  // Action changes
+  const actionsA = extractActionSummaries(stateA, resolver);
+  const actionsB = extractActionSummaries(stateB, resolver);
+  const actionsAdded = actionsB.filter((b) => !actionsA.some((a) => a.key === b.key));
+  const actionsRemoved = actionsA.filter((a) => !actionsB.some((b) => b.key === a.key));
+  const costChanged: string[] = [];
+
+  // Compare costs for actions present in both
+  for (const b of actionsB) {
+    const a = actionsA.find((x) => x.key === b.key);
+    if (a && a.cost !== b.cost) {
+      costChanged.push(`${b.label}: ${a.cost} → ${b.cost}`);
+    }
+  }
+
+  if (actionsAdded.length > 0 || actionsRemoved.length > 0 || costChanged.length > 0) {
+    console.log("\nActions:");
+    for (const a of actionsAdded) console.log(`  + ${a.label} (${a.cost})`);
+    for (const a of actionsRemoved) console.log(`  - ${a.label} (${a.cost})`);
+    for (const c of costChanged) console.log(`  Δ ${c}`);
+  }
+
+  if (added.length === 0 && removed.length === 0 && changed.length === 0 && actionsAdded.length === 0 && actionsRemoved.length === 0 && costChanged.length === 0) {
+    console.log("\nNo differences.");
+  }
+}
+
+interface ActionSummary {
+  key: string;   // dedup key: type+instanceId
+  label: string; // human readable
+  cost: string;  // mana cost string
+}
+
+function extractActionSummaries(state: GameState, resolver: CardResolver | null): ActionSummary[] {
+  const result: ActionSummary[] = [];
+  for (const a of state.actions) {
+    const action = a.action ?? a;
+    const atype = stripPrefix(action.actionType ?? "", "ActionType_");
+    if (atype === "Activate_Mana" || atype === "Pass" || atype === "FloatMana") continue;
+    const iid = action.instanceId ?? 0;
+    const grpId = action.grpId ?? 0;
+    let name = grpId ? resolver?.resolve(grpId) : null;
+    if (!name && iid) {
+      const obj = state.objects.get(iid);
+      if (obj) name = resolver?.resolve(obj.grpId) ?? null;
+    }
+    name = name ?? (grpId ? `grp=${grpId}` : `iid=${iid}`);
+    const manaCost = action.manaCost ?? [];
+    const costStr = manaCost.length > 0
+      ? manaCost.map((c: any) => {
+          const colors = c.color ?? [];
+          const count = c.count ?? 0;
+          if (colors.length === 0) return String(count);
+          const ch = stripPrefix(colors[0] ?? "", "ManaColor_")[0];
+          return count > 1 ? `${count}${ch}` : ch;
+        }).join("")
+      : "0";
+
+    result.push({
+      key: `${atype}:${iid}`,
+      label: `${atype}: ${name}`,
+      cost: costStr,
+    });
+  }
+  return result;
+}
+
+function serializeState(state: GameState): any {
+  return {
+    gameStateId: state.gameStateId,
+    turnInfo: state.turnInfo,
+    players: Object.fromEntries(state.players),
+    objects: Object.fromEntries(state.objects),
+    actions: state.actions,
+  };
 }
 
 async function gsmShow(args: string[]) {
