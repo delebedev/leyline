@@ -21,20 +21,24 @@ Build a complete card spec for a single MTG card, documenting everything needed 
 
 ## Before you start
 
-1. Check available tooling:
 ```bash
-just scry-ts --help
+just scry-ts --help                        # available commands
+just scry-ts game list --saved             # saved games
+just scry-ts game search "<name>"          # find which game has the card
+just scry-ts game notes <ref>              # human observations — read first, often points you to the interesting moments
 ```
 
-2. See what saved games exist:
-```bash
-just scry-ts game list --saved
-```
+## Proven investigation sequence
 
-3. Find which game has the card:
-```bash
-just scry-ts game search "<name>"
-```
+Agents consistently report this workflow as most effective:
+
+1. **`game notes`** — read human observations first. They point to interesting moments.
+2. **`trace "<name>" --game <ref>`** — the #1 command. Full card lifecycle, grouped by turn. Start here.
+3. **`gsm show N --json | jq`** — drill into specific GSMs from trace. Essential for novel annotations.
+4. **`board --gsid N`** — board context at key moments. Shows actions, life, zones.
+5. **`ability <id>`** — resolve abilityGrpIds encountered in trace.
+6. **`prompts --game <ref>`** — see all player interaction messages (OptionalAction, SelectN, etc.)
+7. **`gsm diff A B`** — compare state before/after a key event (e.g. cost reduction).
 
 ## Process
 
