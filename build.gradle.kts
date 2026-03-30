@@ -59,7 +59,7 @@ dependencies {
     implementation(project(":account"))
     implementation(project(":frontdoor"))
     implementation(project(":matchdoor"))
-    implementation(project(":tooling"))
+    implementation(libs.protobuf.java.util)
     implementation(libs.kotlin.stdlib)
     implementation(libs.serialization.json)
     implementation(libs.exposed.core)

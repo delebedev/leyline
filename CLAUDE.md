@@ -30,11 +30,10 @@ Local server that makes the Magic: The Gathering Arena client connect to Forge (
 ## Modules
 
 ```
-app/            Composition root — LeylineMain, Netty pipeline, debug wiring. Thin.
+app/            Composition root — LeylineMain, Netty pipeline, debug server, seed DB.
 account/        Account server (Ktor HTTPS) — auth, JWT, doorbell. Zero forge deps.
 frontdoor/      Front Door protocol — lobby, decks, events, matchmaking, collections.
 matchdoor/      Game engine adapter — the big one. See matchdoor/CLAUDE.md.
-tooling/        Dev-only — debug server, seed DB.
 ```
 
 Other dirs: `bin/`, `docs/`, `forge/` (engine submodule), `gradle/`, `just/`, `proto/`.

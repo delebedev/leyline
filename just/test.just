@@ -4,12 +4,12 @@
 # single test class (e.g. `just test-one ShouldStopEvaluatorTest`)
 [group('test')]
 test-one class:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:test :tooling:test :frontdoor:test :account:test -Pkotest.filter.specs=".*{{class}}"
+    cd "{{project_dir}}" && ./gradlew :matchdoor:test :frontdoor:test :account:test test -Pkotest.filter.specs=".*{{class}}"
 
 # pre-commit gate: unit + conformance + fmt check (all modules)
 [group('test')]
 test-gate:
-    cd "{{project_dir}}" && ./gradlew spotlessCheck detekt :matchdoor:testGate :tooling:testGate :frontdoor:test :account:test
+    cd "{{project_dir}}" && ./gradlew spotlessCheck detekt :matchdoor:testGate :frontdoor:test :account:test
 
 # matchdoor integration tests (boots engine per fork — run after risky matchdoor changes)
 [group('test')]
@@ -17,15 +17,12 @@ test-integration:
     cd "{{project_dir}}" && ./gradlew :matchdoor:testIntegration
 
 # JaCoCo coverage report (per-module, merged summary)
-# Integration coverage: run `just test-integration` first — jacocoTestReport
-# merges all .exec files, so integration data is included automatically.
 [group('test')]
 coverage:
     #!/usr/bin/env bash
     set +e
     cd "{{project_dir}}"
     ./gradlew :matchdoor:testGate :matchdoor:jacocoTestReport \
-              :tooling:testGate :tooling:jacocoTestReport \
               :frontdoor:test :frontdoor:jacocoTestReport \
               :account:test :account:jacocoTestReport; rc=$?
     xmls=$(find . -path '*/build/reports/jacoco/*/jacocoTestReport.xml' -not -path '*/forge/*' 2>/dev/null | tr '\n' ' ')
@@ -33,7 +30,7 @@ coverage:
         echo ""
         for xml in $xmls; do
             echo "--- $(echo $xml | sed 's|^\./||;s|/build/.*||') ---"
-            uv run --project "{{project_dir}}/tools/py" python "{{project_dir}}/gradle/scripts/coverage-summary.py" "$xml"
+            python3 "{{project_dir}}/gradle/scripts/coverage-summary.py" "$xml"
             echo ""
         done
     else
@@ -48,15 +45,18 @@ detekt:
 
 # conformance pipeline: engine test → template from recording → diff
 # Usage: just conform PlayLand [session]
-# Chains: ConformancePipelineTest → tape segment template → tape conform run
-# Exit 0 = PASS, 1 = annotation diffs, 2 = regression vs golden
+# NOTE: requires leyline-private tools (tape/segments.py)
 [group('test')]
 conform category session="":
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{project_dir}}"
+    private="{{project_dir}}/../leyline-private"
+    if [ ! -d "$private/tools/tape" ]; then
+        echo "Conformance pipeline requires ~/src/leyline-private" >&2
+        exit 1
+    fi
 
-    # Derive frame filename from category (PlayLand → playland, CastSpell → castspell)
     frame=$(echo "{{category}}" | tr '[:upper:]' '[:lower:]')
     frame_file="matchdoor/build/conformance/${frame}-frame.json"
     golden_file="matchdoor/src/test/resources/golden/conform-${frame}.json"
@@ -74,7 +74,7 @@ conform category session="":
     echo ""
     echo "=== Step 2: Generate template from recording ==="
     session_arg="{{session}}"
-    uv run --project "{{project_dir}}/tools/py" python tools/tape/segments.py template "{{category}}" ${session_arg:+"$session_arg"} > "$template_file"
+    python3 "$private/tools/tape/segments.py" template "{{category}}" ${session_arg:+"$session_arg"} > "$template_file"
     echo "  → $template_file"
 
     echo ""
@@ -83,15 +83,19 @@ conform category session="":
     if [ -f "$golden_file" ]; then
         golden_flag="--golden $golden_file"
     fi
-    uv run --project "{{project_dir}}/tools/py" python tools/tape/segments.py diff "$template_file" "$frame_file" $golden_flag
+    python3 "$private/tools/tape/segments.py" diff "$template_file" "$frame_file" $golden_flag
 
-# capture golden diff result for a category (run after `just conform` succeeds)
-# Usage: just conform-golden PlayLand [session]
+# capture golden diff result for a category
 [group('test')]
 conform-golden category session="":
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{project_dir}}"
+    private="{{project_dir}}/../leyline-private"
+    if [ ! -d "$private/tools/tape" ]; then
+        echo "Conformance pipeline requires ~/src/leyline-private" >&2
+        exit 1
+    fi
 
     frame=$(echo "{{category}}" | tr '[:upper:]' '[:lower:]')
     frame_file="matchdoor/build/conformance/${frame}-frame.json"
@@ -103,6 +107,5 @@ conform-golden category session="":
         exit 1
     fi
 
-    # Exit 0 = PASS, 1 = known diffs (both valid for golden capture)
-    uv run --project "{{project_dir}}/tools/py" python tools/tape/segments.py diff "$template_file" "$frame_file" --json > "$golden_file" || true
+    python3 "$private/tools/tape/segments.py" diff "$template_file" "$frame_file" --json > "$golden_file" || true
     echo "Golden captured: $golden_file"
