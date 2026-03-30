@@ -1,10 +1,16 @@
 #!/usr/bin/env bun
 
+import { clickCommand } from "./src/commands/click";
 import { preflightCommand } from "./src/commands/preflight";
+import { sceneCommand } from "./src/commands/scene";
+import { waitCommand } from "./src/commands/wait";
 import { logCommand } from "./src/telemetry";
 
 const commands: Record<string, { description: string; run: (args: string[]) => Promise<void> }> = {
-  preflight: { description: "System readiness check", run: preflightCommand },
+  click:      { description: "Click coordinates or landmark",  run: clickCommand },
+  preflight:  { description: "System readiness check",         run: preflightCommand },
+  scene:      { description: "Current Arena scene",            run: sceneCommand },
+  wait:       { description: "Wait for condition",             run: waitCommand },
 };
 
 async function main() {
