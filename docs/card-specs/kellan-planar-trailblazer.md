@@ -34,7 +34,7 @@ Kellan has a "ladder" of activated abilities — each transforms it into a progr
 
 The abilities are gated: you must go Scout → Detective → Rogue in order. Activating the wrong one (e.g., Detective→Rogue while still a Scout) does nothing because the condition isn't met. The server annotates this with `ShouldntPlay(ConsequentialConditionNotMet)`.
 
-**Unobserved:** The combat damage trigger (impulse draw) was not exercised in this game — Kellan never connected as a Detective. Needs a dedicated recording or puzzle.
+**Unobserved:** The combat damage trigger (impulse draw) was not exercised in this game — Kellan never connected as a Detective. Needs a dedicated game or puzzle.
 
 ## Trace (game 2026-03-30_20-06-50, seat 1)
 
@@ -182,7 +182,7 @@ Leyline's `ActionMapper` already loops through all `spellAbilities` per permanen
 
 2. **Animate ability support.** Forge's `AB$ Animate` changes creature types, P/T, and grants keywords. The engine fires `GameEventCardStatsChanged`. Leyline's type-change pipeline (wired for Crew/Vehicles) should handle the `ModifiedType` + `LayeredEffect` persistent annotations, but the `ConditionPresent$` gate and `RemoveCreatureTypes$` override are untested for activated abilities outside Vehicle context.
 
-3. **Impulse draw ("exile top, play this turn").** Forge's `DB$ Dig` + `MayPlay$ True` continuous effect has no dedicated wire path. Requires: `ZoneTransfer(Library→Exile)` with a reveal/impulse category, `CardRevealed` annotation (#47, missing), and a `Qualification` persistent annotation (#42, missing) marking the exiled card as playable this turn. Need a recording where the trigger fires.
+3. **Impulse draw ("exile top, play this turn").** Forge's `DB$ Dig` + `MayPlay$ True` continuous effect has no dedicated wire path. Requires: `ZoneTransfer(Library→Exile)` with a reveal/impulse category, `CardRevealed` annotation (#47, missing), and a `Qualification` persistent annotation (#42, missing) marking the exiled card as playable this turn. Need a game where the trigger fires.
 
 4. **Combat damage trigger wiring.** `DamageDone` mode triggers are wired at the engine level, but Kellan's gained trigger (via Animate) creates a new trigger instance at runtime — need to verify that dynamically-added triggers fire events and get correct `AbilityInstanceCreated` annotation.
 

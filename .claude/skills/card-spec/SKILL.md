@@ -236,6 +236,7 @@ Write the spec to `docs/card-specs/<card-name-slug>.md`.
 - **Track ID lifecycle.** `scry trace` follows ObjectIdChanged chains automatically.
 - **Skip mana payment brackets.** Don't trace ManaPaid sequences unless unusual.
 - **Tooling feedback is not optional.** Every spec improves the next agent's workflow.
+- **Say "game" not "recording."** Data comes from Player.log saved games. "Needs a dedicated game or puzzle" not "needs a recording."
 
 ## Reference
 

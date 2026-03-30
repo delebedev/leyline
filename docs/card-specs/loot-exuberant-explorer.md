@@ -90,7 +90,7 @@ After Loot's static ability granted +1 land, the player had two land plays this 
 | 627 | Second land played: Mountain (grp=58449) Hand→Battlefield, category=PlayLand |
 | 632 | **`ActionType_Play` still offered** — Gruul Guildgate (iid 496). Third land play available! |
 
-The third land play at gs=632 is unexpected for a single `AdjustLandPlays$ 1`. Possible sources: another "additional land" effect on the battlefield (Primeval Bounty was in play but doesn't grant extra lands), or the recording captures a turn where multiple effects stacked. **Needs investigation** — could be Rampaging Baloths landfall trigger interaction or a second source not visible in this trace.
+The third land play at gs=632 is unexpected for a single `AdjustLandPlays$ 1`. Possible sources: another "additional land" effect on the battlefield (Primeval Bounty was in play but doesn't grant extra lands), or the game captures a turn where multiple effects stacked. **Needs investigation** — could be Rampaging Baloths landfall trigger interaction or a second source not visible in this trace.
 
 ## Trace (session 2026-03-30_20-06, seat 1)
 
@@ -184,7 +184,7 @@ A:AB$ Dig | Cost$ 4 G G T | DigNum$ 6 | ChangeNum$ 1 | Optional$ True
 ## Supporting evidence needed
 
 - [ ] Confirm the third land play at gs=632 — identify the source (another effect or protocol artifact)
-- [ ] Test `Optional$ True` on Dig — recording where player declines all 6 cards (no legal target or player chose not to)
+- [ ] Test `Optional$ True` on Dig — game where player declines all 6 cards (no legal target or player chose not to)
 - [ ] Other `AdjustLandPlays` cards (e.g., Oracle of Mul Daya, Dryad of the Ilysian Grove) for protocol comparison
 - [ ] Puzzle: Loot activation with exactly N lands and a creature with CMC=N to verify boundary condition
 
