@@ -5,7 +5,6 @@
 export const landmarks: Record<string, [number, number]> = {
   // Home screen
   "home-cta":       [866, 533],   // big Play / Start button (bottom right)
-  "home-play":      [866, 533],   // alias
 
   // Top nav bar
   "nav-profile":    [108, 57],
@@ -17,15 +16,38 @@ export const landmarks: Record<string, [number, number]> = {
 
   // Play blade
   "blade-close":    [746, 93],    // X to close play blade
-  "center":         [480, 284],   // screen center
+  "bot-match-card": [866, 350],   // Bot Match card body (opens deck selector)
+  "bot-play":       [866, 534],   // Play in bot match selector
+  "bot-close":      [746, 94],    // X close deck selector
+
+  // DeckListViewer
+  "deck-new":       [96, 260],    // "+" new deck card
+  "deck-edit":      [865, 532],   // Edit Deck button
+  "deck-export":    [322, 530],   // Export icon
+  "deck-import":    [385, 530],   // Import icon
+  "deck-clone":     [445, 530],   // Clone icon
+  "deck-delete":    [520, 530],   // Delete icon
+  "deck-details":   [202, 530],   // Stats/details icon
+  "deck-favorite":  [262, 530],   // Heart icon
+  "deck-collection":[117, 532],   // Collection button
+
+  // DeckBuilder
+  "builder-done":   [867, 533],   // Done / save & exit
+  "builder-search": [53, 99],     // Search collection
+  "builder-format": [852, 98],    // Format dropdown (new deck)
 
   // In-game
+  "action-btn":     [888, 504],   // universal: Pass/Next/End Turn/Resolve/All Attack
   "game-menu":      [940, 42],    // gear icon (top right)
-  "pass-btn":       [887, 491],   // pass priority / resolve
-  "pass-btn-2":     [890, 510],   // second pass click (Sparky 2-click pattern)
+  "game-concede":   [480, 344],   // Concede in Options overlay
+  "opponent-face":  [480, 85],    // targeting opponent
+
+  // Export dialog
+  "export-ok":      [480, 340],   // dismiss export dialog
 
   // Dismiss / generic
-  "dismiss":        [210, 482],   // generic dismiss click (modals, results)
+  "dismiss":        [210, 482],   // generic dismiss (modals, results)
+  "center":         [480, 284],   // screen center
 };
 
 /** Resolve a landmark name or "x,y" string to [x, y]. Returns null if unrecognized. */
