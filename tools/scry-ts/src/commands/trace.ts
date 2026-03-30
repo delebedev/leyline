@@ -182,6 +182,29 @@ export async function traceCommand(args: string[]) {
     return;
   }
 
+  // Build instanceId → card name map from accumulated state
+  // Replay once more to collect all object names
+  const idNames = new Map<number, string>();
+  if (resolver) {
+    const acc2 = new Accumulator();
+    for (const gsm of game.greMessages) {
+      acc2.apply(gsm.raw);
+      if (!acc2.current) continue;
+      for (const [, obj] of acc2.current.objects) {
+        if (obj.grpId && !obj.type.includes("Ability")) {
+          const name = resolver.resolve(obj.grpId);
+          if (name) idNames.set(obj.instanceId, name);
+        }
+      }
+    }
+  }
+
+  const fmtId = (id: number): string => {
+    if (id <= 2) return String(id); // seat IDs
+    const name = idNames.get(id);
+    return name ? `${id} (${name})` : String(id);
+  };
+
   // Print trace
   let lastTurn = -1;
   for (const ev of filtered) {
@@ -191,8 +214,8 @@ export async function traceCommand(args: string[]) {
       lastTurn = ev.turn;
     }
     const detailStr = ev.details.length > 0 ? `  ${ev.details.join("  ")}` : "";
-    const affectedStr = ev.affected.length > 0 ? ` → [${ev.affected.join(", ")}]` : "";
-    console.log(`  gs=${ev.gsId}  ${ev.types.join(", ")}  from=${ev.affector}${affectedStr}${detailStr}`);
+    const affectedStr = ev.affected.length > 0 ? ` → [${ev.affected.map(fmtId).join(", ")}]` : "";
+    console.log(`  gs=${ev.gsId}  ${ev.types.join(", ")}  from=${fmtId(ev.affector)}${affectedStr}${detailStr}`);
   }
 
   console.log(`\n${filtered.length} annotations across ${new Set(filtered.map((e) => e.gsId)).size} GSMs`);
