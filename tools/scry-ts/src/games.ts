@@ -99,7 +99,7 @@ export function detectGames(events: Iterable<LogEvent>): Game[] {
       }
       current = {
         index: games.length + 1,
-        matchId: event.matchId,
+        matchId: null, // set from gameInfo.matchID when first GSM arrives
         startTimestamp: event.timestamp,
         endTimestamp: null,
         greMessages: [],
@@ -110,15 +110,17 @@ export function detectGames(events: Iterable<LogEvent>): Game[] {
 
     if (!current) continue;
 
-    // Update match ID if we see it
-    if (event.matchId && !current.matchId) {
-      current.matchId = event.matchId;
-    }
     current.endTimestamp = event.timestamp;
 
     for (const msg of event.messages) {
       const gsm = extractGsm(msg, event.timestamp);
       if (gsm) current.greMessages.push(gsm);
+
+      // Prefer gameInfo.matchID (per-game) over header matchId (connection/session)
+      const gameMatchId = msg.gameStateMessage?.gameInfo?.matchID;
+      if (gameMatchId) {
+        current.matchId = gameMatchId;
+      }
 
       const result = extractResult(msg);
       if (result) {

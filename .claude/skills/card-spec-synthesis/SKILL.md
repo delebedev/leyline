@@ -1,11 +1,11 @@
 ---
 name: card-spec-synthesis
-description: Cross-cut analysis of card specs — extract horizontal layers, update catalog/rosetta, link gaps to issues, flag trace gaps, write prioritized SYNTHESIS.md
+description: Cross-cut analysis of card specs — extract horizontal layers, update catalog/rosetta, link gaps to issues, flag trace gaps, aggregate tooling feedback, write prioritized SYNTHESIS.md
 ---
 
 ## What I do
 
-Read all card specs in `docs/card-specs/`, extract gaps, group into horizontal layers, update reference docs, and produce a prioritized work plan.
+Read all card specs in `docs/card-specs/`, extract gaps, group into horizontal layers, update reference docs, aggregate tooling feedback, and produce a prioritized work plan.
 
 ## When to use me
 
@@ -19,29 +19,40 @@ Read all card specs in `docs/card-specs/`, extract gaps, group into horizontal l
 ### 1. Read all specs, extract gaps
 
 ```bash
-# List all specs
 ls docs/card-specs/*.md
-
-# Extract Gaps sections
-for spec in docs/card-specs/*.md; do
-    echo "=== $(basename $spec .md) ==="
-    sed -n '/^## Gaps/,/^## /p' "$spec" | head -25
-done
 ```
 
-For each gap, note: what mechanic, what's missing, which card.
+For each spec, extract: gaps, key findings, tooling feedback, unobserved mechanics.
 
-### 2. Group into horizontal layers
+### 2. Spec consistency check
+
+Review specs for consistency. Fix in place:
+- **Language:** "game" not "recording." Data comes from Player.log saved games.
+- **Template compliance:** all required sections present (Identity, Mechanics, What it does, Trace, Key findings, Gaps, Tooling feedback, Supporting evidence)
+- **Tooling feedback section exists.** If missing, flag it — every spec should have one.
+- **Trim noise:** remove duplicate findings, overly verbose mana payment traces, redundant ShouldntPlay entries (once documented, don't repeat the pattern in every spec)
+
+### 3. Aggregate tooling feedback
+
+Collect all Tooling Feedback sections. Produce a vote tally:
+
+| Feature request | Specs that requested it | Status |
+|---|---|---|
+| ... | kellan, ooze, spinner | Done / Open |
+
+Check which requests were addressed since last synthesis. Update status. This drives scry-ts development priorities.
+
+### 4. Group gaps into horizontal layers
 
 Cluster gaps by shared infrastructure. Three tiers:
 
 - **Tier 1 — Data registration.** Counter types, token grpIds, ability mappings. No logic changes, just adding entries. Do first.
-- **Tier 2 — Shared protocol handlers.** Transform, cast-from-non-hand, AbilityWordActive, transfer categories. One handler unblocks multiple cards.
+- **Tier 2 — Shared protocol handlers.** OptionalActionMessage, CopyPermanent tokens, cost reduction, transfer categories. One handler unblocks multiple cards.
 - **Tier 3 — New mechanics.** Card-type-specific (adventure, ninjutsu, class leveling). Build when trace data is sufficient.
 
 Prioritize by **unblock count** — how many card specs does this layer enable?
 
-### 3. Update reference docs
+### 5. Update reference docs
 
 Check if card specs discovered new data that belongs in committed reference docs:
 
@@ -49,9 +60,9 @@ Check if card specs discovered new data that belongs in committed reference docs
 
 **`docs/catalog.yaml`** — mechanic status changes. If a spec confirmed something works or found it's more broken than listed, update the status + notes.
 
-Only update with **confirmed findings** (traced on wire), not assumptions.
+Only update with **confirmed findings** (traced in Player.log game data), not assumptions.
 
-### 4. Link gaps to existing issues
+### 6. Link gaps to existing issues
 
 Search open issues for overlap before creating new ones:
 
@@ -59,35 +70,25 @@ Search open issues for overlap before creating new ones:
 gh issue list --state open --limit 60 --json number,title --jq '.[] | "\(.number) \(.title)"'
 ```
 
-Or use the `gh-issue-sync` skill if available for local search:
-
-```bash
-grep -r "<keyword>" .issues/open/
-```
-
 For each horizontal layer:
 - **Existing issue found:** comment with spec evidence (card spec path + key finding). Keep it brief.
-- **No existing issue:** create one. Title = horizontal layer name. Body = card spec refs + wire findings.
+- **No existing issue:** create one. Title = horizontal layer name. Body = card spec refs + findings.
 
-### 5. Flag trace gaps
+### 7. Flag trace gaps
 
-List mechanics that were **unobserved across all specs** — the card was played but the mechanic never triggered:
+List mechanics that were **unobserved across all specs** — the card was played but the mechanic never triggered. These need **dedicated games** or puzzles. Output as a "next game targets" list.
 
-- Nullpriest: kicker never paid → kicked ETB unknown
-- Cauldron Familiar: no Food → GY→BF return unknown
-- Archfiend's Vessel: cast from hand → conditional ETB unknown
-- Brass's Tunnel-Grinder: game ended early → transform unknown
-- Cleric Class: never leveled up → all class mechanics unknown
-- Thousand-Faced Shadow: never activated → ninjutsu unknown
-
-These need **dedicated play sessions** or puzzles. Output as a "next recording targets" list for `just deck coverage`.
-
-### 6. Write SYNTHESIS.md
+### 8. Write SYNTHESIS.md
 
 Output to `docs/card-specs/SYNTHESIS.md`. Structure:
 
 ```markdown
 # Card Spec Synthesis — Horizontal Layers
+
+## Tooling feedback tally
+
+| Feature | Votes | Specs | Status |
+|---|---|---|---|
 
 ## Tier 1 — Data registration
 ### Counter type mapper
@@ -108,8 +109,11 @@ Output to `docs/card-specs/SYNTHESIS.md`. Structure:
 ## New issues created
 | Issue | Layer |
 
-## Trace gaps — next recording targets
+## Trace gaps — next game targets
 - <mechanic>: <what to play>
+
+## Spec consistency fixes applied
+- <what was fixed and where>
 ```
 
 ## Rules
@@ -118,6 +122,8 @@ Output to `docs/card-specs/SYNTHESIS.md`. Structure:
 - **Don't duplicate issue content.** Issues get a comment with spec refs, not a copy of the spec.
 - **Tier 1 before Tier 2 before Tier 3.** Data registration is highest ROI.
 - **Confirmed findings only** for rosetta/catalog updates. "Expected" or "assumed" ≠ confirmed.
+- **Say "game" not "recording."** Data comes from Player.log saved games.
+- **Fix specs in place.** Consistency issues get corrected directly, not just flagged.
 
 ## Reference
 
@@ -125,4 +131,4 @@ Output to `docs/card-specs/SYNTHESIS.md`. Structure:
 - `docs/card-specs/SYNTHESIS.md` — output (overwrite on each run)
 - `docs/rosetta.md` — protocol reference
 - `docs/catalog.yaml` — mechanic status
-- `docs/conformance/how-we-conform.md` — workflow context
+- `just scry-ts --help` — available tooling commands

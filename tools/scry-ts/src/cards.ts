@@ -125,6 +125,34 @@ export function resolveCardInfo(db: Database, grpIds: number[]): Map<number, Car
   return result;
 }
 
+/** Resolve an abilityGrpId to its text and source card. */
+export function resolveAbility(db: Database, abilityGrpId: number): { text: string; cardName: string | null } | null {
+  const row = db.query(
+    `SELECT a.TextId, a.Category, c.GrpId
+     FROM Abilities a
+     LEFT JOIN Cards c ON c.AbilityIds LIKE '%' || a.Id || ':%'
+     WHERE a.Id = ?`
+  ).get(abilityGrpId) as { TextId: number; Category: string; GrpId: number | null } | null;
+  if (!row) return null;
+
+  const textRow = db.query(
+    "SELECT Loc FROM Localizations_enUS WHERE LocId = ? AND Formatted = 1"
+  ).get(row.TextId) as { Loc: string } | null;
+
+  let cardName: string | null = null;
+  if (row.GrpId) {
+    const nameRow = db.query(
+      "SELECT l.Loc FROM Cards c JOIN Localizations_enUS l ON c.TitleId = l.LocId WHERE c.GrpId = ? AND l.Formatted = 1"
+    ).get(row.GrpId) as { Loc: string } | null;
+    cardName = nameRow?.Loc?.replace(/<[^>]+>/g, "") ?? null;
+  }
+
+  return {
+    text: textRow?.Loc?.replace(/<[^>]+>/g, "") ?? `ability=${abilityGrpId}`,
+    cardName,
+  };
+}
+
 /** Shared singleton — null if Arena DB not found. */
 let _resolver: CardResolver | null | undefined;
 

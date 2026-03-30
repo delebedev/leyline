@@ -1,22 +1,26 @@
 #!/usr/bin/env bun
 
+import { abilityCommand } from "./src/commands/ability";
 import { boardCommand } from "./src/commands/board";
 import { eventsCommand } from "./src/commands/events";
 import { gameCommand } from "./src/commands/game";
 import { gsmCommand } from "./src/commands/gsm";
 import { lobbyCommand } from "./src/commands/lobby";
 import { noteCommand } from "./src/commands/note";
+import { promptsCommand } from "./src/commands/prompts";
 import { saveCommand } from "./src/commands/save";
 import { traceCommand } from "./src/commands/trace";
 import { usageCommand } from "./src/commands/usage";
 
 const commands: Record<string, { description: string; run: (args: string[]) => Promise<void> }> = {
+  ability: { description: "Resolve abilityGrpId to text",    run: abilityCommand },
   board:  { description: "Accumulated board state",          run: boardCommand },
   events: { description: "Summarize Player.log event types", run: eventsCommand },
   game:   { description: "Game summaries and details",       run: gameCommand },
   gsm:    { description: "Query game state messages",        run: gsmCommand },
   lobby:  { description: "Lobby request/response pairs",     run: lobbyCommand },
-  note:   { description: "Add a note to a saved game",       run: noteCommand },
+  note:    { description: "Add a note to a saved game",       run: noteCommand },
+  prompts: { description: "Player interaction prompts",       run: promptsCommand },
   save:   { description: "Save games to durable storage",    run: saveCommand },
   trace:  { description: "Trace a card's journey",           run: traceCommand },
   usage:  { description: "Command usage heatmap",             run: usageCommand },

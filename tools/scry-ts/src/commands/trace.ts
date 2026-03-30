@@ -10,12 +10,22 @@ export async function traceCommand(args: string[]) {
                 "annotation, and instance ID change.\n");
     console.log("Flags:");
     console.log("  --game REF   Game reference (catalog filename substring, or live index)");
+    console.log("  --gsid N     Show only annotations from a specific GSM");
+    console.log("  --json       Output raw annotation JSON (pipe to jq)");
     return;
   }
 
   const target = args[0];
   const isNumeric = /^\d+$/.test(target);
   const targetInstanceId = isNumeric ? parseInt(target, 10) : null;
+  const jsonMode = args.includes("--json");
+
+  let filterGsId: number | null = null;
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--gsid" && i + 1 < args.length) {
+      filterGsId = parseInt(args[++i], 10);
+    }
+  }
 
   const resolver = getResolver();
   const { game, source, label } = await resolveGame(args);
@@ -128,6 +138,7 @@ export async function traceCommand(args: string[]) {
         affector,
         affected,
         details,
+        raw: ann,
       });
     }
   }
@@ -142,29 +153,72 @@ export async function traceCommand(args: string[]) {
   const idsLabel = trackedIds.size > 0
     ? ` — instanceIds: [${[...trackedIds].sort((a, b) => a - b).join(", ")}]`
     : "";
-  console.log(`Trace: ${cardLabel}${grpLabel}${idsLabel}`);
-  console.log(`Game: ${label}`);
-  console.log("");
+  if (!jsonMode) {
+    console.log(`Trace: ${cardLabel}${grpLabel}${idsLabel}`);
+    console.log(`Game: ${label}`);
+    console.log("");
+  }
 
-  if (trace.length === 0) {
-    console.log("No annotations found for this card.");
+  // Apply --gsid filter
+  let filtered = filterGsId != null ? trace.filter((e) => e.gsId === filterGsId) : trace;
+
+  if (filtered.length === 0) {
+    console.log(filterGsId != null
+      ? `No annotations for this card at gsId ${filterGsId}.`
+      : "No annotations found for this card.");
     return;
   }
 
+  // JSON mode — raw annotations, clean for piping
+  if (jsonMode) {
+    console.error(`Trace: ${cardLabel}${grpLabel}${idsLabel}`);
+    console.error(`Game: ${label}\n`);
+    console.log(JSON.stringify(filtered.map((e) => ({
+      gsId: e.gsId,
+      turn: e.turn,
+      phase: e.phase,
+      annotation: e.raw,
+    })), null, 2));
+    return;
+  }
+
+  // Build instanceId → card name map from accumulated state
+  // Replay once more to collect all object names
+  const idNames = new Map<number, string>();
+  if (resolver) {
+    const acc2 = new Accumulator();
+    for (const gsm of game.greMessages) {
+      acc2.apply(gsm.raw);
+      if (!acc2.current) continue;
+      for (const [, obj] of acc2.current.objects) {
+        if (obj.grpId && !obj.type.includes("Ability")) {
+          const name = resolver.resolve(obj.grpId);
+          if (name) idNames.set(obj.instanceId, name);
+        }
+      }
+    }
+  }
+
+  const fmtId = (id: number): string => {
+    if (id <= 2) return String(id); // seat IDs
+    const name = idNames.get(id);
+    return name ? `${id} (${name})` : String(id);
+  };
+
   // Print trace
   let lastTurn = -1;
-  for (const ev of trace) {
+  for (const ev of filtered) {
     if (ev.turn !== lastTurn) {
       if (lastTurn !== -1) console.log("");
       console.log(`T${ev.turn} ${ev.phase}`);
       lastTurn = ev.turn;
     }
     const detailStr = ev.details.length > 0 ? `  ${ev.details.join("  ")}` : "";
-    const affectedStr = ev.affected.length > 0 ? ` → [${ev.affected.join(", ")}]` : "";
-    console.log(`  gs=${ev.gsId}  ${ev.types.join(", ")}  from=${ev.affector}${affectedStr}${detailStr}`);
+    const affectedStr = ev.affected.length > 0 ? ` → [${ev.affected.map(fmtId).join(", ")}]` : "";
+    console.log(`  gs=${ev.gsId}  ${ev.types.join(", ")}  from=${fmtId(ev.affector)}${affectedStr}${detailStr}`);
   }
 
-  console.log(`\n${trace.length} annotations across ${new Set(trace.map((e) => e.gsId)).size} GSMs`);
+  console.log(`\n${filtered.length} annotations across ${new Set(filtered.map((e) => e.gsId)).size} GSMs`);
 }
 
 interface TraceEvent {
@@ -175,5 +229,6 @@ interface TraceEvent {
   affector: number;
   affected: number[];
   details: string[];
+  raw: any;
 }
 
