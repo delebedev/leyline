@@ -5,6 +5,17 @@ import { dlopen, FFIType, ptr } from "bun:ffi";
 import { compileC } from "./compile";
 
 let lib: ReturnType<typeof dlopen> | null = null;
+let lastActivate = 0;
+const ACTIVATE_DEDUP_MS = 2000;
+
+/** Bring MTGA to foreground. Deduped — no-op if called within 2s. */
+export async function activateMtga(): Promise<void> {
+  const now = Date.now();
+  if (now - lastActivate < ACTIVATE_DEDUP_MS) return;
+  Bun.spawnSync({ cmd: ["osascript", "-e", 'tell application "MTGA" to activate'] });
+  await Bun.sleep(300); // let window come forward
+  lastActivate = Date.now();
+}
 
 async function getLib() {
   if (lib) return lib;
@@ -50,6 +61,7 @@ export async function findMtgaWindow(): Promise<WindowBounds | null> {
 }
 
 export async function click(x: number, y: number): Promise<void> {
+  await activateMtga();
   const l = await getLib();
   l.symbols.shim_click(x, y);
 }
