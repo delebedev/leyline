@@ -10,6 +10,13 @@ import { consumeScratchNotes } from "./note";
 
 const PREV_LOG = resolve(homedir(), "Library/Logs/Wizards of the Coast/MTGA/Player-prev.log");
 
+/** Parse Arena timestamp "DD/MM/YYYY HH:MM:SS" to epoch ms. */
+function parseArenaTimestamp(ts: string): number {
+  const m = ts.match(/(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2}):(\d{2})/);
+  if (!m) return 0;
+  return new Date(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}:${m[6]}`).getTime();
+}
+
 export async function saveCommand(args: string[]) {
   if (args[0] === "--help" || args[0] === "-h") {
     console.log("Usage: scry save [flags]\n");
@@ -111,17 +118,30 @@ export async function saveCommand(args: string[]) {
     }
   }
 
-  // Attach scratch notes to saved games
-  if (!dryRun && totalSaved > 0) {
+  // Attach scratch notes to saved games.
+  // Match by startTimestamp — matchId from GRE header is unreliable (it's the
+  // connection/session ID, shared across all games). gameInfo.matchID is per-game
+  // but scratch notes may not have it. Timestamp proximity is the safe match.
+  if (!dryRun) {
     const scratchNotes = consumeScratchNotes();
     if (scratchNotes.length > 0) {
       let attached = 0;
       for (const note of scratchNotes) {
-        const target = catalog.games.find((g) => note.matchId && g.matchId === note.matchId);
-        if (target) {
-          const meta = loadMeta(target.file);
+        const noteTime = new Date(note.ts).getTime();
+        let best: (typeof catalog.games)[number] | null = null;
+        let bestTime = 0;
+        for (const g of catalog.games) {
+          if (!g.startTimestamp) continue;
+          const gameTime = parseArenaTimestamp(g.startTimestamp);
+          if (gameTime <= noteTime && gameTime > bestTime) {
+            bestTime = gameTime;
+            best = g;
+          }
+        }
+        if (best) {
+          const meta = loadMeta(best.file);
           meta.notes.push({ text: note.text, gsId: note.gsId, turn: note.turn, phase: note.phase, ts: note.ts });
-          saveMeta(target.file, meta);
+          saveMeta(best.file, meta);
           attached++;
         }
       }
