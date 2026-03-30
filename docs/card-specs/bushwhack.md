@@ -130,8 +130,8 @@ All gaps documented in `docs/plans/2026-03-21-library-search-wire-spec.md`. Summ
 
 ### Mode 2 — Fight
 
-6. **Fight mechanic not cataloged.** No `fight` entry in `docs/catalog.yaml`. Fight = "each creature deals damage equal to its power to the other." Engine resolves via `GameEventFight` → `DamageDealt` annotations (×2). The fight-specific wire is **unverified** — no successful fight resolution captured in recordings.
-7. **DamageDealt annotation shape for fight.** Combat DamageDealt is wired, but fight damage may differ (non-combat damage source, different affectorId semantics). Needs a recording where fight resolves successfully.
+6. **Fight mechanic not cataloged.** No `fight` entry in `docs/catalog.yaml`. Fight = "each creature deals damage equal to its power to the other." Engine resolves via `GameEventFight` → `DamageDealt` annotations (×2). The fight-specific wire is **unverified** — no successful fight resolution captured in games.
+7. **DamageDealt annotation shape for fight.** Combat DamageDealt is wired, but fight damage may differ (non-combat damage source, different affectorId semantics). Needs a game where fight resolves successfully.
 8. **Lethal fight → creature dies.** If a creature takes lethal damage from fight, SBA destroys it. The SBA_Damage ZoneTransfer should fire. The interaction between fight resolution and SBA is unverified for leyline.
 
 ### Both modes
@@ -141,7 +141,7 @@ All gaps documented in `docs/plans/2026-03-21-library-search-wire-spec.md`. Summ
 
 ## Supporting evidence needed
 
-- [ ] **Fight recording.** Record a game where Bushwhack fight mode resolves successfully (both targets still legal). Needed to capture: DamageDealt annotation shape, lethal-fight → SBA sequence, fight-specific affectorId patterns.
+- [ ] **Fight game.** Play a game where Bushwhack fight mode resolves successfully (both targets still legal). Needed to capture: DamageDealt annotation shape, lethal-fight → SBA sequence, fight-specific affectorId patterns.
 - [ ] Cross-reference with other fight cards in Forge: `Prey Upon`, `Bite Down`, `Ancient Animus` — same `DB$ Fight` mechanism.
-- [ ] Catalog update: add `fight` entry under `mechanics` with status `missing` (or `unknown` pending recording evidence).
+- [ ] Catalog update: add `fight` entry under `mechanics` with status `missing` (or `unknown` pending game evidence).
 - [ ] Verify charm sub-ability grpId 141939 is consistent across sessions or card-specific.

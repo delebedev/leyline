@@ -134,6 +134,6 @@ Same targeting pattern as Cast 1. SelectTargetsReq → PlayerSubmittedTargets fo
 ## Supporting evidence needed
 
 - [ ] Cross-reference with Concealing Curtains spec (`docs/card-specs/concealing-curtains.md`) — same reveal+choose infrastructure but triggered from a creature transform, not a sorcery. Reveals "nonland" vs Duress's "noncreature nonland" filter. Confirm RevealedCard proxy zone placement matches (Curtains says zone 19; Duress shows zone 35 in gameObject.zoneId).
-- [ ] Thoughtseize recording — same mechanic, different filter (nonland, nonartifact vs noncreature, nonland). Would confirm the SelectNReq shape is consistent across similar effects.
+- [ ] Thoughtseize game — same mechanic, different filter (nonland, nonartifact vs noncreature, nonland). Would confirm the SelectNReq shape is consistent across similar effects.
 - [ ] Puzzle: Duress vs hand of mixed types — verify the filter logic produces correct `ids`/`unfilteredIds` split when some cards qualify and some don't.
 - [ ] Puzzle: Duress vs empty hand — edge case, does SelectNReq even fire?

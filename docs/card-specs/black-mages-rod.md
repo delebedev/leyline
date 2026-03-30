@@ -97,7 +97,7 @@ Standard two-mana cast pattern: AbilityInstanceCreated (mana source) → TappedU
 2. **AttachmentCreated affectorId in job_select context.** Standard equip uses `affectorId=equipmentIid`. Verify leyline emits the same shape here (not `affectorId=triggerAbilityIid`).
 3. **Persistent Attachment pAnn after auto-attach.** Confirm that the Attachment persistent annotation (affector=equipmentIid, affectedIds=[heroTokenIid]) appears in the diff object at gs=352 in addition to the transient AttachmentCreated.
 4. **Three LayeredEffectCreated at ETB.** The three effect slots (7003/7004/7005) for +1/+0, Wizard subtype, and the noncreature-spell trigger must all register before the job_select trigger fires. Verify leyline's ETB handler emits these in the same GSM as Resolve, not deferred.
-5. **Hero token grpId 96212.** Verify `TokenRegistry` maps the FIN Hero token to grpId 96212. The token has no abilities in the recording (no Equip ability on the token itself).
+5. **Hero token grpId 96212.** Verify `TokenRegistry` maps the FIN Hero token to grpId 96212. The token has no abilities in the game (no Equip ability on the token itself).
 6. **Standard Equip {3} (abilityGrpId 1156) still needs testing.** The auto-attach at ETB was observed; a manual re-equip to a different creature was not exercised in this session.
 
 ## Supporting evidence
@@ -106,4 +106,4 @@ Standard two-mana cast pattern: AbilityInstanceCreated (mana source) → TappedU
 - prior conformance research (TokenCreated: no details, affectorId=ability instance) — TokenCreated transient has no details field; affectorId is the resolving ability instance. Consistent here.
 - `docs/catalog.yaml` equipment entry — standard equip is marked wired; job_select is not listed.
 
-**Single data point caveat:** this is the only job_select card captured in our recordings. No variance across multiple casts was possible. The auto-attach sequence (TokenCreated + AttachmentCreated in a single triggered ability resolution, no player input) is confirmed by two identical GSM snapshots in the same session (idx=430 and idx=708 both show gs=352), but the mechanic has not been observed across different job_select cards. Other FIN job_select cards (e.g. Dragoon's Lance grpId 95871, Astrologian's Planisphere grpId 95902) may exhibit the same pattern but are unconfirmed.
+**Single data point caveat:** this is the only job_select card captured in our recordings. No variance across multiple casts was possible. The auto-attach sequence (TokenCreated + AttachmentCreated in a single triggered ability resolution, no player input) is confirmed by two identical GSM snapshots in the same session (idx=430 and idx=708 both show gs=352), but the mechanic has not been observed across different job_select cards in other games. Other FIN job_select cards (e.g. Dragoon's Lance grpId 95871, Astrologian's Planisphere grpId 95902) may exhibit the same pattern but are unconfirmed.

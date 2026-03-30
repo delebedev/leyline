@@ -80,5 +80,5 @@ Cast once during declare blockers (turn 8). Target: Cauldron Familiar (instanceI
 ## Supporting evidence needed
 
 - [ ] Other cards granting triggered abilities (Unlikely Aid, Supernatural Stamina) — cross-check AddAbility wire shape
-- [ ] Exile path: recording where the buffed creature is exiled (not dies) to confirm the trigger fires with zone_src=29
+- [ ] Exile path: game where the buffed creature is exiled (not dies) to confirm the trigger fires with zone_src=29
 - [ ] Puzzle: Ashnod's Intervention on a creature that blocks and dies — verify delayed trigger + return-to-hand sequence

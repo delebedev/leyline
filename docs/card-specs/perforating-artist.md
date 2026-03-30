@@ -176,7 +176,7 @@ Tracks all raid-enabled permanents + their active trigger instances. The ability
 
 6. **SyntheticEvent before ModifiedLife.** The SyntheticEvent(type=1) preceding ModifiedLife appears inconsistently (present on fallback path, absent on explicit choice path). Determine whether leyline should always emit it or match the server's path-dependent behavior.
 
-## Recordings
+## Games
 
 | Session | Seat | PA observed? | Branches exercised | Notes |
 |---------|------|-------------|-------------------|-------|
@@ -187,6 +187,6 @@ Tracks all raid-enabled permanents + their active trigger instances. The ability
 
 - [ ] Trace 2026-03-25_21-59-57 for additional trigger observations — particularly the discard branch and multi-opponent scenarios
 - [ ] Confirm prompt IDs (1216/1217/1218 for branches, 1219 for sacrifice target) are stable across sessions or card-specific
-- [ ] Cross-reference with other GenericChoice cards (e.g., Browbeat, Vexing Devil) if present in recordings — verify the SelectNReq shape generalizes
+- [ ] Cross-reference with other GenericChoice cards (e.g., Browbeat, Vexing Devil) if present in games — verify the SelectNReq shape generalizes
 - [ ] Puzzle: Perforating Artist vs opponent with exactly 1 nonland permanent and 1 card in hand — verify all 3 branches appear and each resolves correctly
 - [ ] Puzzle: Perforating Artist vs opponent with no permanents and empty hand — confirm fallback fires with no SelectNReq

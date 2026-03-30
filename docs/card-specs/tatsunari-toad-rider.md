@@ -128,6 +128,6 @@ BG Sagas/Shrines deck. Tatsunari cast once from hand (gsId=102), triggered twice
 ## Supporting evidence needed
 
 - [ ] Other cards with "can't be blocked except by" — trace Qualification annotation to confirm CantBeBlockedByObjects pattern is consistent (e.g. Suspicious Stowaway, Nighthawk Scavenger menace?)
-- [ ] Cards with intervening-if conditional triggers — verify trigger suppression in other recordings
+- [ ] Cards with intervening-if conditional triggers — verify trigger suppression in other games
 - [ ] Second session (2026-03-27_21-29-18, game 4) — cross-validate, especially if activated ability was used differently
 - [ ] Puzzle: `tatsunari-keimi.pzl` — Tatsunari + enchantment in hand + no Keimi on BF, verify token creation + activated ability evasion

@@ -192,8 +192,8 @@ Leyline's `ActionMapper` already loops through all `spellAbilities` per permanen
 
 ## Supporting evidence needed
 
-- [ ] Recording where Kellan deals combat damage as Detective — exercise impulse draw trigger, observe ZoneTransfer(Library→Exile) + CardRevealed + MayPlay annotation chain
-- [ ] Recording where the exiled card is actually played from exile — confirm the `Qualification` / `MayPlay` wire path
+- [ ] Game where Kellan deals combat damage as Detective — exercise impulse draw trigger, observe ZoneTransfer(Library→Exile) + CardRevealed + MayPlay annotation chain
+- [ ] Game where the exiled card is actually played from exile — confirm the `Qualification` / `MayPlay` wire path
 - [ ] Puzzle: Kellan on battlefield as Scout, activate both abilities in one turn (enough mana for {1}{R} then {2}{R}) — verify ability ladder in controlled environment
 - [ ] Cross-reference Cleric Class (`docs/card-specs/cleric-class.md`) — another ability-ladder card; does `ConsequentialConditionNotMet` fire for Class level-up?
 

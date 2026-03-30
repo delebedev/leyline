@@ -21,7 +21,7 @@
 | Gain control (all Rat tokens) | `DB$ GainControl \| AllValid$ Rat.token` | `GameEventControllerChanged` | wired (annotation only) |
 | Attack trigger (sacrifice + draw) | `T:Mode$ Attacks` + `AB$ Draw \| Cost$ Sac<1/...>` | `GameEventCardSacrificed` | wired |
 
-**Unobserved:** Attack trigger sacrifice+draw — Echo attacked in this session but the optional sacrifice was declined (no resolution frame). Needs dedicated recording or puzzle.
+**Unobserved:** Attack trigger sacrifice+draw — Echo attacked in this session but the optional sacrifice was declined (no resolution frame). Needs dedicated game or puzzle.
 
 ## What it does
 
@@ -112,7 +112,7 @@ Tribute to Horobi was cast once by seat 1. Full saga lifecycle observed: cast, c
 
 ## Supporting evidence needed
 
-- [ ] Other saga cards in recordings (Okiba Reckoner Raid was in this deck — check if it also transformed)
+- [ ] Other saga cards in games (Okiba Reckoner Raid was in this deck — check if it also transformed)
 - [ ] Puzzle for attack trigger: Echo attacks, player sacrifices a Rat, draws a card — exercises the unobserved may-sacrifice ability
 - [ ] Variance: confirm `Exile`/`Return` categories are consistent across other exile-return transform cards (e.g. Fable of the Mirror-Breaker)
 - [ ] Check if lore counter removal (saga leaves BF) emits CounterRemoved or if the exile handles it implicitly

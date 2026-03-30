@@ -110,7 +110,7 @@ All annotations share `affectorId=387` (the ability instance):
 
 ### Key findings
 
-- **counter_type=127 = LANDMARK.** First recording of this counter type. No P/T mod fires (landmark has no stat effect). Persistent Counter pAnn (affectorId=4002) tracks running total.
+- **counter_type=127 = LANDMARK.** First observation of this counter type. No P/T mod fires (landmark has no stat effect). Persistent Counter pAnn (affectorId=4002) tracks running total.
 - **Transform is an in-place grpId mutation.** Same pattern as Concealing Curtains (prior conformance research (Concealing Curtains transform)): object stays at same instanceId, grpId silently changes, no ZoneTransfer. The back face appears with the expected new card types and ability count.
 - **CounterAdded + CounterRemoved fire in the same diff.** The branch logic (check ≥3, then remove all, then transform, then tokens) produces all events atomically in gsId 298. The counter reaches 3 and is immediately removed — the client never observes a persistent annotation with count=3.
 - **Three TokenCreated annotations, one per token.** Each is a separate annotation with affectorId=ability instance. No batching. Token grpId=87485 (Treasure), consistent with existing prior conformance research.

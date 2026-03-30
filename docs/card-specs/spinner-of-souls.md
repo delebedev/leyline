@@ -198,7 +198,7 @@ The first Spinner dying (iid 342→386, T18) triggered the second Spinner's abil
 
 ## Supporting evidence needed
 
-- [ ] Recording where the "may" trigger is DECLINED — to see the `OptionalResp(CancelNo)` → `AbilityInstanceDeleted` without DigUntil resolution
+- [ ] Game where the "may" trigger is DECLINED — to see the `OptionalResp(CancelNo)` → `AbilityInstanceDeleted` without DigUntil resolution
 - [ ] Another DigUntil card (e.g., Brawl-legal creature with "reveal until") to confirm RevealedCard annotation shape is consistent
 - [ ] Edge case: what if no creature is found (library runs out)? Forge handles this (all cards go to bottom in random order, nothing goes to hand) but wire shape unobserved
 

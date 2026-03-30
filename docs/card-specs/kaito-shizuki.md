@@ -24,7 +24,7 @@
 | -7: Emblem (combat damage trigger) | `AB$ Effect \| Ultimate$ True` | — | **missing** (emblem zone not mapped) |
 | -7: Library search to battlefield | `DB$ ChangeZone \| Origin$ Library \| Destination$ Battlefield` | `GameEventCardChangeZone` | wired (mechanic), **missing** (emblem source) |
 
-**Unobserved:** -2 Ninja token creation and -7 emblem ultimate were not activated in this session. Both need dedicated recording or puzzle.
+**Unobserved:** -2 Ninja token creation and -7 emblem ultimate were not activated in this session. Both need dedicated game or puzzle.
 
 ## What it does
 
@@ -104,11 +104,11 @@ loyaltyUsed shows `value: 1` after activation — tracks that one activation was
 4. **No ZoneTransfer for phasing.** Unlike all other zone changes, phasing uses annotation-only signaling. The zone change must be communicated via gameObject diff (zoneId field change) rather than ZoneTransfer annotation.
 5. **Raid / turn-scoped ability words.** Catalog notes "Raid, Morbid, Descended need event-driven detection." The +1 conditional discard works because Forge handles Raid server-side, but leyline needs to track attack history to correctly skip the discard.
 6. **LoyaltyActivationsRemaining (type 97) not implemented.** Catalog lists it as unwired. The `loyaltyUsed` field on gameObject is the source data.
-7. **Emblem zone not mapped.** The -7 ultimate creates an emblem in the Command zone. Catalog notes "Emblem zone not mapped" under cast-planeswalker. Unobserved — needs a recording or puzzle where the ultimate fires.
+7. **Emblem zone not mapped.** The -7 ultimate creates an emblem in the Command zone. Catalog notes "Emblem zone not mapped" under cast-planeswalker. Unobserved — needs a game or puzzle where the ultimate fires.
 
 ## Supporting evidence needed
 
-- [ ] Recording with -2 activation (Ninja token creation) — confirms TokenCreated annotation shape for PW-sourced tokens
-- [ ] Recording with -7 activation (emblem) — confirms emblem zone handling, combat damage trigger from emblem
+- [ ] Game with -2 activation (Ninja token creation) — confirms TokenCreated annotation shape for PW-sourced tokens
+- [ ] Game with -7 activation (emblem) — confirms emblem zone handling, combat damage trigger from emblem
 - [ ] Cross-reference: other phasing cards (e.g. Teferi's Protection, Guardian of Ghirapur) for PhasedOut/PhasedIn annotation consistency
 - [ ] Puzzle: Kaito +1 with Raid met (attacked this turn) — confirms discard is skipped (no ZoneTransfer)

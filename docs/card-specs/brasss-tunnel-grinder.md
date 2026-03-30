@@ -127,5 +127,5 @@ Second bore counter at T10 (gsId 258→260):
 ## Supporting evidence needed
 
 - [ ] Observe transform: need a session where Brass's Tunnel-Grinder reaches 3 bore counters — confirm grpId mutation in Diff and counter pAnn removal
-- [ ] Confirm back-face grpId (Tecutlan, the Searing Rift) — need `just card-grp "Tecutlan"` or recording with transform
+- [ ] Confirm back-face grpId (Tecutlan, the Searing Rift) — need `just card-grp "Tecutlan"` or game with transform
 - [ ] Validate `AbilityWordActive(Descended)` reset timing — should be absent in the next turn's opening diffs

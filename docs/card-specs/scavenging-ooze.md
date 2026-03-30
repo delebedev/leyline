@@ -131,42 +131,6 @@ Two copies cast across the game. First copy (iid 296) died in combat T7. Second 
 
 ---
 
-## Kellan Modal Ability Investigation
-
-**Game:** 2026-03-30_20-06, card: Kellan (grpId 93804, Legendary Creature — Human Faerie Detective)
-
-### Context
-
-Kellan has two activated abilities with distinct abilityGrpIds:
-- **175854** — Scout ability ({1}{R}): adds subtypes + grants a new ability (grpId 175853)
-- **175855** — Detective ability ({2}{R}): different effect (condition not met in this game — `ConsequentialConditionNotMet`)
-
-The user reported seeing a modal UI for choosing which ability to activate.
-
-### What the protocol shows
-
-**There is no modal/ChoiceReq.** The "modal" UI is entirely client-side. The server simply offers **two separate `ActionType_Activate` actions** on the same instanceId (296), each with a different `abilityGrpId`:
-
-```json
-{ "actionType": "ActionType_Activate", "instanceId": 296, "abilityGrpId": 175854, "manaCost": [{G:1, R:1}] }
-{ "actionType": "ActionType_Activate", "instanceId": 296, "abilityGrpId": 175855, "manaCost": [{G:2, R:1}] }
-```
-
-The client renders these as a modal picker because they share the same `instanceId`. When the player picks one, the client sends a `PerformActionResp` with the chosen abilityGrpId. At gsId 126, ability 175854 was chosen — the server created ability instance 306 (grp=175854) on the stack.
-
-### Resolution (gsId 128)
-
-- `ResolutionStart` grpid=175854
-- `LayeredEffectCreated` (two effects: 7002 = type modification, 7003 = add ability)
-- `persistentAnnotations`: `ModifiedType + LayeredEffect` (sourceAbilityGRPID=175854, effect_id=7002) and `AddAbility + LayeredEffect` (grpid=175853, effect_id=7003)
-- After resolution, 175854 gets `ShouldntPlay` with `ConsequentialConditionNotMet` — the Scout ability can't be used again (already a Detective)
-
-### Key finding
-
-**No server-side modal prompt exists.** Multiple `ActionType_Activate` entries with the same `instanceId` but different `abilityGrpId` values is the pattern. The Arena client infers the modal UI from this. For leyline's ActionMapper, this means: when a creature has N>1 activated abilities that are all legal, emit N separate Activate actions — the client handles the rest.
-
----
-
 ## Tooling Feedback
 
 ### What worked well

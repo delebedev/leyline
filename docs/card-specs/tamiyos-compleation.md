@@ -20,7 +20,7 @@
 | Loses all abilities (continuous) | `S:RemoveAllAbilities$ True` | **none** (static layer, no event) | **missing** (RemoveAbility ann type 23 not wired) |
 | Doesn't untap during untap step | `R:Event$ Untap \| Layer$ CantHappen` | **none** (replacement effect) | wired (tap-untap) |
 
-**Unobserved:** Equipment unattach — the target in this session was a creature, not an Equipment. Needs dedicated recording or puzzle.
+**Unobserved:** Equipment unattach — the target in this session was a creature, not an Equipment. Needs dedicated game or puzzle.
 
 ## What it does
 
@@ -83,7 +83,7 @@ SelectTargetsReq sent with sourceId=322. Valid targets included instanceId 311 (
 
 ### Key findings
 
-- **RemoveAbility (type 23) is a multi-type pAnn** — it co-occurs with LayeredEffect (type 19) on the same persistent annotation. The key is the target's instanceId as a string, value "all" meaning all abilities removed. This is the first observed instance of RemoveAbility in recordings.
+- **RemoveAbility (type 23) is a multi-type pAnn** — it co-occurs with LayeredEffect (type 19) on the same persistent annotation. The key is the target's instanceId as a string, value "all" meaning all abilities removed. This is the first observed instance of RemoveAbility in games.
 - **Qualification (type 42) observed for first time** — persistent annotation linking the aura's continuous effect to its target. QualificationType=21 is uncharted — no prior documentation of what type 21 means. The grpid points to the ability text, not the card.
 - **LayeredEffectCreated affectedIds contains effect_id, not target** — the transient LayeredEffectCreated (id=394) has affectedIds=[7005] which is the effect_id referenced in the persistent RemoveAbility+LayeredEffect pAnn. Different from P/T pump LayeredEffectCreated which puts the target creature in affectedIds.
 - **gameObject P/T unchanged** — the enchanted Bird Wizard still reports power=2, toughness=2 in its gameObject at gs155. The ability removal is purely annotation-driven (RemoveAbility pAnn), not reflected in gameObject fields. Client presumably reads the pAnn to suppress ability display.
@@ -98,7 +98,7 @@ SelectTargetsReq sent with sourceId=322. Valid targets included instanceId 311 (
 
 ## Supporting evidence needed
 
-- [ ] Other "loses all abilities" cards in recordings — Planar Disruption (83728) shares abilityGrpId 147864 (enchant) but different continuous effect; Stop Cold (grpId for 147866 shared ability)
+- [ ] Other "loses all abilities" cards — Planar Disruption (83728) shares abilityGrpId 147864 (enchant) but different continuous effect; Stop Cold (grpId for 147866 shared ability)
 - [ ] Qualification pAnn on other aura types — does it fire for all enchant-style continuous effects or only ability-removal?
 - [ ] Equipment target scenario — puzzle with Tamiyo's Compleation targeting an Equipment to observe the unattach ETB path
 - [ ] "Doesn't untap" wire — trace through an untap step where the enchanted creature should skip untap, confirm no TappedUntapped annotation fires for it

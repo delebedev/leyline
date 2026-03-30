@@ -116,7 +116,7 @@ Two creatures tapped: Brute Suit (power 4, weight=4) + Prosperous Thief (power 2
 
 ## Supporting evidence
 
-- [x] Other vehicles in recordings — Brute Suit (79681) in same session, compare crew annotation shape — **confirmed identical shape** (see cross-vehicle comparison below)
+- [x] Other vehicles in games — Brute Suit (79681) in same session, compare crew annotation shape — **confirmed identical shape** (see cross-vehicle comparison below)
 - [x] Vehicle with crew cost < total available power — does `minSel` always equal crew number? — **confirmed: `minSel` = crew number** (Crew 1 → minSel=1, Crew 4 → minSel=4)
 - [x] Arena playtest — crewed Brute Suit with Grizzly Bears, attacked, won. Type change visible, crew resolves correctly.
 - [ ] ETB with 2+ vehicles already on board — confirm X scales correctly (expect damage=4+ with 2 vehicles pre-ETB)
