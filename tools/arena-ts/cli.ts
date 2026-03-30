@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { preflightCommand } from "./src/commands/preflight";
+import { logCommand } from "./src/telemetry";
 
 const commands: Record<string, { description: string; run: (args: string[]) => Promise<void> }> = {
   preflight: { description: "System readiness check", run: preflightCommand },
@@ -26,7 +27,26 @@ async function main() {
     process.exit(1);
   }
 
-  await cmd.run(args.slice(1));
+  const start = performance.now();
+  let ok = true;
+  let err: string | undefined;
+  try {
+    await cmd.run(args.slice(1));
+  } catch (e: unknown) {
+    ok = false;
+    err = e instanceof Error ? e.message : String(e);
+    console.error(`Error: ${err}`);
+    process.exitCode = 1;
+  } finally {
+    logCommand({
+      ts: new Date().toISOString(),
+      cmd: command,
+      args: args.slice(1),
+      ms: Math.round(performance.now() - start),
+      ok,
+      err,
+    });
+  }
 }
 
 main();
