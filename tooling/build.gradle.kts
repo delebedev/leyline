@@ -47,7 +47,7 @@ val testUnit by tasks.registering(Test::class) {
 
 val testGate by tasks.registering(Test::class) {
     configureTestDefaults()
-    systemProperty("kotest.tags", "UnitTag | ConformanceTag")
+    systemProperty("kotest.tags", "UnitTag")
 }
 
 powerAssert {

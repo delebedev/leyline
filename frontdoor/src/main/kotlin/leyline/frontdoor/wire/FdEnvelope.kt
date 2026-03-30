@@ -388,7 +388,7 @@ object FdEnvelope {
 
     /**
      * Build a 6-byte outgoing FD frame header (version + type + LE payload length).
-     * Shared by FrontDoorHandler and FrontDoorReplayStub.
+     * Shared by FrontDoorHandler.
      */
     fun buildOutgoingHeader(payloadLength: Int): ByteArray {
         val h = ByteArray(FdWireConstants.HEADER_SIZE)
@@ -416,7 +416,7 @@ object FdEnvelope {
 
     /**
      * Build a MatchCreated push notification JSON payload.
-     * Shared by FrontDoorHandler and FrontDoorReplayStub.
+     * Shared by FrontDoorHandler.
      *
      * @param playerInfos player seats; null uses Familiar defaults (ForgePlayer + Sparky).
      */

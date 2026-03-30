@@ -5,15 +5,12 @@ import com.sun.net.httpserver.HttpServer
 import forge.ai.simulation.SpellAbilityPicker
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import leyline.analysis.SessionAnalyzer
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
 import leyline.game.mapper.ActionMapper
 import leyline.match.MatchSession
-import leyline.match.ReplayController
-import leyline.recording.RecordingInspector
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import java.io.File
@@ -37,10 +34,6 @@ import java.util.concurrent.Executors
  * - `GET /api/priority-events` → priority trace events
  * - `GET /api/instance-history` → zone history for an instanceId (`?id=N`)
  * - `GET /api/best-play`    → Forge AI oracle — best play for current board state
- * - `GET /api/recordings` → discover recording sessions on disk
- * - `GET /api/recording-summary?id=...` → compact summary for one session
- * - `GET /api/recording-actions?id=...` → extracted action timeline
- * - `GET /api/recording-compare?left=...&right=...` → action-level comparison
  * Client errors: use `scry state` or `scry serve` (port 8091) instead.
  */
 @Suppress("LargeClass")
@@ -50,8 +43,6 @@ class DebugServer(
     private val gameStateCollector: GameStateCollector? = null,
     private val fdCollector: FdDebugCollector? = null,
     private val eventBus: DebugEventBus? = null,
-    private val recordingInspector: RecordingInspector = RecordingInspector(),
-    private val replayController: () -> ReplayController? = { null },
 ) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null
@@ -74,27 +65,15 @@ class DebugServer(
             "/api/state-diff" to ::serveStateDiff,
             "/api/priority-events" to ::servePriorityEvents,
             "/api/instance-history" to ::serveInstanceHistory,
-            "/api/recordings" to ::serveRecordings,
-            "/api/recording-summary" to ::serveRecordingSummary,
-            "/api/recording-actions" to ::serveRecordingActions,
-            "/api/recording-compare" to ::serveRecordingCompare,
-            "/api/recording-messages" to ::serveRecordingMessages,
-            "/api/recording-analysis" to ::serveRecordingAnalysis,
-            "/api/recording-events" to ::serveRecordingEvents,
-            "/api/recording-invariants" to ::serveRecordingInvariants,
-            "/api/recording-mechanics" to ::serveRecordingMechanics,
             "/api/fd-messages" to ::serveFdMessages,
             "/api/priority-log" to ::servePriorityLog,
             "/api/best-play" to ::serveBestPlay,
-            "/api/replay/status" to ::serveReplayStatus,
-            "/api/replay/index" to ::serveReplayIndex,
         ).forEach { (path, handler) ->
             srv.createContext(path) { ex -> safe(ex) { handler(ex) } }
         }
 
         srv.postContext("/api/inject-full", ::serveInjectFull)
         srv.postContext("/api/inject-puzzle", ::serveInjectPuzzle)
-        srv.postContext("/api/replay/next", ::serveReplayNext)
 
         srv.createContext("/api/events") { ex ->
             try {
@@ -271,167 +250,6 @@ class DebugServer(
         respondJsonList(ex, json.encodeToString(history), null)
     }
 
-    private fun serveRecordings(ex: HttpExchange) {
-        val sessions = recordingInspector.listSessions()
-        respondJsonList(ex, json.encodeToString(sessions), null)
-    }
-
-    private fun serveRecordingSummary(ex: HttpExchange) {
-        val params = parseQuery(ex.requestURI.rawQuery)
-        val id = params["id"]
-        if (id.isNullOrBlank()) {
-            respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
-            return
-        }
-        val summary = recordingInspector.summary(id)
-        if (summary == null) {
-            respond(ex, 404, "text/plain", "Recording session not found or not parseable")
-            return
-        }
-        respondJson(ex, json.encodeToString(summary))
-    }
-
-    private fun serveRecordingActions(ex: HttpExchange) {
-        val params = parseQuery(ex.requestURI.rawQuery)
-        val id = params["id"]
-        if (id.isNullOrBlank()) {
-            respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
-            return
-        }
-        val card = params["card"]
-        val actor = params["actor"]
-        val limit = params["limit"]?.toIntOrNull() ?: 1000
-        val actions = recordingInspector.actions(id, cardFilter = card, actorFilter = actor, limit = limit)
-        respondJsonList(ex, json.encodeToString(actions), null)
-    }
-
-    private fun serveRecordingMessages(ex: HttpExchange) {
-        val params = parseQuery(ex.requestURI.rawQuery)
-        val id = params["id"]
-        if (id.isNullOrBlank()) {
-            respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
-            return
-        }
-        val messages = recordingInspector.messages(id)
-        if (messages == null) {
-            respond(ex, 404, "text/plain", "Recording session not found or not parseable")
-            return
-        }
-        respondJsonList(ex, json.encodeToString(messages), null)
-    }
-
-    private fun serveRecordingCompare(ex: HttpExchange) {
-        val params = parseQuery(ex.requestURI.rawQuery)
-        val left = params["left"]
-        val right = params["right"]
-        if (left.isNullOrBlank() || right.isNullOrBlank()) {
-            respond(ex, 400, "text/plain", "Required: ?left=<sessionId>&right=<sessionId>")
-            return
-        }
-        val diff = recordingInspector.compare(left, right)
-        if (diff == null) {
-            respond(ex, 404, "text/plain", "Could not compare sessions (missing or unparsable)")
-            return
-        }
-        respondJson(ex, json.encodeToString(diff))
-    }
-
-    // --- Recording analysis endpoints ---
-
-    private fun serveRecordingAnalysis(ex: HttpExchange) {
-        val params = parseQuery(ex.requestURI.rawQuery)
-        val id = params["id"]
-        if (id.isNullOrBlank()) {
-            respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
-            return
-        }
-        val recordingDir = recordingInspector.resolveSessionDir(id)
-        if (recordingDir == null) {
-            respond(ex, 404, "text/plain", "Session not found")
-            return
-        }
-        // Resolve session root: recording dir may be a leaf (engine/, capture/payloads/)
-        // but analysis.json lives at the session root (parent of engine/ or grandparent of capture/payloads/)
-        val sessionDir = recordingInspector.resolveSessionRoot(recordingDir)
-        // Read existing analysis or run on demand
-        val analysis = SessionAnalyzer.readAnalysis(sessionDir)
-            ?: SessionAnalyzer.analyze(sessionDir)
-        if (analysis == null) {
-            respond(ex, 404, "text/plain", "No analysis available (no messages)")
-            return
-        }
-        respondJson(ex, json.encodeToString(analysis))
-    }
-
-    private fun serveRecordingEvents(ex: HttpExchange) {
-        val params = parseQuery(ex.requestURI.rawQuery)
-        val id = params["id"]
-        if (id.isNullOrBlank()) {
-            respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
-            return
-        }
-        val recordingDir = recordingInspector.resolveSessionDir(id)
-        if (recordingDir == null) {
-            respond(ex, 404, "text/plain", "Session not found")
-            return
-        }
-        val sessionDir = recordingInspector.resolveSessionRoot(recordingDir)
-        val eventsFile = File(sessionDir, "events.jsonl")
-        if (!eventsFile.exists()) {
-            respondJsonList(ex, "[]", null)
-            return
-        }
-        val streamFilter = params["stream"]
-        val sinceSeq = params["since"]?.toIntOrNull() ?: 0
-
-        val lines = eventsFile.readLines()
-            .filter { it.isNotBlank() }
-            .let { allLines ->
-                if (streamFilter != null || sinceSeq > 0) {
-                    allLines.filter { line ->
-                        val streamOk = streamFilter == null || line.contains("\"stream\":\"$streamFilter\"")
-                        val seqOk = sinceSeq <= 0 ||
-                            run {
-                                val seqMatch = Regex("\"seq\":(\\d+)").find(line)
-                                val lineSeq = seqMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
-                                lineSeq > sinceSeq
-                            }
-                        streamOk && seqOk
-                    }
-                } else {
-                    allLines
-                }
-            }
-
-        respondJson(ex, "{\"version\":1,\"data\":[${lines.joinToString(",")}]}")
-    }
-
-    private fun serveRecordingInvariants(ex: HttpExchange) {
-        val params = parseQuery(ex.requestURI.rawQuery)
-        val id = params["id"]
-        if (id.isNullOrBlank()) {
-            respond(ex, 400, "text/plain", "Required: ?id=<sessionId>")
-            return
-        }
-        val recordingDir = recordingInspector.resolveSessionDir(id)
-        if (recordingDir == null) {
-            respond(ex, 404, "text/plain", "Session not found")
-            return
-        }
-        val sessionDir = recordingInspector.resolveSessionRoot(recordingDir)
-        val analysis = SessionAnalyzer.readAnalysis(sessionDir)
-        if (analysis == null) {
-            respondJsonList(ex, "[]", null)
-            return
-        }
-        respondJsonList(ex, "[]", null)
-    }
-
-    private fun serveRecordingMechanics(ex: HttpExchange) {
-        val manifest = SessionAnalyzer.readManifest()
-        respondJson(ex, json.encodeToString(manifest.sorted()))
-    }
-
     // --- Priority decision log ---
 
     /**
@@ -575,102 +393,6 @@ class DebugServer(
         val turn: Int = 0,
         val reason: String? = null,
     )
-
-    // --- Replay control ---
-
-    @Serializable
-    private data class ReplayStatusDto(
-        val currentFrame: Int,
-        val totalFrames: Int,
-        val currentGreType: String?,
-        val currentFileName: String?,
-        val atEnd: Boolean,
-        val active: Boolean,
-    )
-
-    @Serializable
-    private data class ReplayFrameDto(
-        val index: Int,
-        val fileName: String,
-        val greType: String,
-        val category: String,
-    )
-
-    private fun serveReplayStatus(ex: HttpExchange) {
-        val ctrl = replayController()
-        if (ctrl == null) {
-            respond(
-                ex,
-                200,
-                "application/json",
-                json.encodeToString(
-                    ReplayStatusDto.serializer(),
-                    ReplayStatusDto(0, 0, null, null, atEnd = true, active = false),
-                ),
-            )
-            return
-        }
-        val s = ctrl.status()
-        respond(
-            ex,
-            200,
-            "application/json",
-            json.encodeToString(
-                ReplayStatusDto.serializer(),
-                ReplayStatusDto(
-                    currentFrame = s.currentFrame,
-                    totalFrames = s.totalFrames,
-                    currentGreType = s.currentFrameInfo?.greType,
-                    currentFileName = s.currentFrameInfo?.fileName,
-                    atEnd = s.atEnd,
-                    active = true,
-                ),
-            ),
-        )
-    }
-
-    private fun serveReplayNext(ex: HttpExchange) {
-        val ctrl = replayController()
-        if (ctrl == null) {
-            respond(ex, 404, "text/plain", "No active replay")
-            return
-        }
-        ctrl.next()
-        val s = ctrl.status()
-        respond(
-            ex,
-            200,
-            "application/json",
-            json.encodeToString(
-                ReplayStatusDto.serializer(),
-                ReplayStatusDto(
-                    currentFrame = s.currentFrame,
-                    totalFrames = s.totalFrames,
-                    currentGreType = s.currentFrameInfo?.greType,
-                    currentFileName = s.currentFrameInfo?.fileName,
-                    atEnd = s.atEnd,
-                    active = true,
-                ),
-            ),
-        )
-    }
-
-    private fun serveReplayIndex(ex: HttpExchange) {
-        val ctrl = replayController()
-        if (ctrl == null) {
-            respond(ex, 200, "application/json", "[]")
-            return
-        }
-        val frames = ctrl.frameIndex.map { f ->
-            ReplayFrameDto(f.index, f.fileName, f.greType, f.category)
-        }
-        respond(
-            ex,
-            200,
-            "application/json",
-            json.encodeToString(kotlinx.serialization.builtins.ListSerializer(ReplayFrameDto.serializer()), frames),
-        )
-    }
 
     // --- Front Door messages ---
 
