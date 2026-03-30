@@ -6,6 +6,7 @@ import { detectGames } from "../games";
 import { loadCatalog, isAlreadySaved, saveGame } from "../catalog";
 import { loadMeta, saveMeta, buildCardManifest } from "../meta";
 import { DEFAULT_LOG } from "../log";
+import { consumeScratchNotes } from "./note";
 
 const PREV_LOG = resolve(homedir(), "Library/Logs/Wizards of the Coast/MTGA/Player-prev.log");
 
@@ -107,6 +108,26 @@ export async function saveCommand(args: string[]) {
 
       // Refresh catalog reference (saveGame mutates the file)
       catalog.games.push(entry);
+    }
+  }
+
+  // Attach scratch notes to saved games
+  if (!dryRun && totalSaved > 0) {
+    const scratchNotes = consumeScratchNotes();
+    if (scratchNotes.length > 0) {
+      let attached = 0;
+      for (const note of scratchNotes) {
+        const target = catalog.games.find((g) => note.matchId && g.matchId === note.matchId);
+        if (target) {
+          const meta = loadMeta(target.file);
+          meta.notes.push({ text: note.text, gsId: note.gsId, turn: note.turn, phase: note.phase, ts: note.ts });
+          saveMeta(target.file, meta);
+          attached++;
+        }
+      }
+      if (attached > 0) {
+        console.log(`  ${attached} scratch note${attached > 1 ? "s" : ""} attached`);
+      }
     }
   }
 

@@ -57,7 +57,6 @@ graph TB
     FD["frontdoor"]
     ACCT["account"]
     MD["matchdoor"]
-    TOOL["tooling"]
     ENGINE["Forge Engine"]
 
     CLIENT -- "TLS + protobuf" --> APP
@@ -65,23 +64,20 @@ graph TB
     APP --> ACCT
     APP --> MD
     MD -- "CompletableFuture" --> ENGINE
-    TOOL -.-> MD
 
     style CLIENT fill:#4a9eff,color:#fff
     style APP fill:#7c4dff,color:#fff
     style FD fill:#7c4dff,color:#fff
     style ACCT fill:#7c4dff,color:#fff
     style MD fill:#7c4dff,color:#fff
-    style TOOL fill:#607d8b,color:#fff
     style ENGINE fill:#ff9800,color:#fff
 ```
 
 ```
-app/         Composition root — Netty pipeline, server startup, debug wiring
+app/         Composition root — Netty pipeline, server startup, debug server
 account/     Auth, registration, JWT, doorbell
 frontdoor/   Lobby protocol — decks, events, matchmaking
 matchdoor/   Game engine adapter — state mapping, annotations, combat
-tooling/     Dev-only — debug server, recording, analysis, arena CLI
 ```
 
 See [docs/architecture.md](docs/architecture.md) for the full deep-dive: wire protocol, match lifecycle, state mapping pipeline, and forge-web reuse boundary.
