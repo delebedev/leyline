@@ -7,6 +7,7 @@ import { gameCommand } from "./src/commands/game";
 import { gsmCommand } from "./src/commands/gsm";
 import { lobbyCommand } from "./src/commands/lobby";
 import { noteCommand } from "./src/commands/note";
+import { promptsCommand } from "./src/commands/prompts";
 import { saveCommand } from "./src/commands/save";
 import { traceCommand } from "./src/commands/trace";
 import { usageCommand } from "./src/commands/usage";
@@ -18,7 +19,8 @@ const commands: Record<string, { description: string; run: (args: string[]) => P
   game:   { description: "Game summaries and details",       run: gameCommand },
   gsm:    { description: "Query game state messages",        run: gsmCommand },
   lobby:  { description: "Lobby request/response pairs",     run: lobbyCommand },
-  note:   { description: "Add a note to a saved game",       run: noteCommand },
+  note:    { description: "Add a note to a saved game",       run: noteCommand },
+  prompts: { description: "Player interaction prompts",       run: promptsCommand },
   save:   { description: "Save games to durable storage",    run: saveCommand },
   trace:  { description: "Trace a card's journey",           run: traceCommand },
   usage:  { description: "Command usage heatmap",             run: usageCommand },
