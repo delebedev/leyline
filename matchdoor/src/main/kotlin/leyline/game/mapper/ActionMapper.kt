@@ -15,6 +15,7 @@ import leyline.bridge.getAllCastableAbilities
 import leyline.game.AbilityRegistry
 import leyline.game.CardData
 import leyline.game.GameBridge
+import leyline.game.ManaColorMapping
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -219,7 +220,7 @@ object ActionMapper {
                     // Wire requires manaCost with abilityGrpId echoed in each ManaRequirement
                     val abilityCost = ability.payCosts?.totalMana
                     if (abilityCost != null && !abilityCost.isNoCost) {
-                        addManaCostFromForgeWithAbilityGrpId(abilityCost, actionBuilder, abilityGrpId)
+                        addManaCostFromForge(abilityCost, actionBuilder, abilityGrpId)
                     }
                     builder.addActions(actionBuilder)
                 }
@@ -482,10 +483,17 @@ object ActionMapper {
         return builder.build()
     }
 
-    /** Convert a Forge [ManaCost] into proto [ManaRequirement] entries on an action builder. */
+    /**
+     * Convert a Forge [ManaCost] into proto [ManaRequirement] entries on an action builder.
+     *
+     * When [abilityGrpId] is set, each [ManaRequirement] embeds it — real server sends this
+     * for hand-zone activated abilities (Channel, Ninjutsu, etc.) so the client can associate
+     * cost display with the specific ability modal option.
+     */
     private fun addManaCostFromForge(
         manaCost: forge.card.mana.ManaCost,
         actionBuilder: Action.Builder,
+        abilityGrpId: Int? = null,
     ) {
         // Colored shards: each shard is one pip (e.g. ManaCostShard.RED → "{R}")
         val colorCounts = mutableMapOf<ManaColor, Int>()
@@ -494,58 +502,22 @@ object ActionMapper {
             colorCounts[color] = (colorCounts[color] ?: 0) + 1
         }
         for ((color, count) in colorCounts) {
-            actionBuilder.addManaCost(
-                ManaRequirement.newBuilder().addColor(color).setCount(count),
-            )
+            val req = ManaRequirement.newBuilder().addColor(color).setCount(count)
+            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
+            actionBuilder.addManaCost(req)
         }
         // Generic mana
         val generic = manaCost.genericCost
         if (generic > 0) {
-            actionBuilder.addManaCost(
-                ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic),
-            )
-        }
-    }
-
-    /**
-     * Like [addManaCostFromForge] but embeds [abilityGrpId] in each [ManaRequirement].
-     * Real server sends this for hand-zone activated abilities (Channel, Ninjutsu, etc.)
-     * so the client can associate cost display with the specific ability modal option.
-     */
-    private fun addManaCostFromForgeWithAbilityGrpId(
-        manaCost: forge.card.mana.ManaCost,
-        actionBuilder: Action.Builder,
-        abilityGrpId: Int,
-    ) {
-        val colorCounts = mutableMapOf<ManaColor, Int>()
-        for (shard in manaCost) {
-            val color = producedToManaColor(shard.toString().removeSurrounding("{", "}")) ?: continue
-            colorCounts[color] = (colorCounts[color] ?: 0) + 1
-        }
-        for ((color, count) in colorCounts) {
-            actionBuilder.addManaCost(
-                ManaRequirement.newBuilder().addColor(color).setCount(count).setAbilityGrpId(abilityGrpId),
-            )
-        }
-        val generic = manaCost.genericCost
-        if (generic > 0) {
-            actionBuilder.addManaCost(
-                ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic).setAbilityGrpId(abilityGrpId),
-            )
+            val req = ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic)
+            if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
+            actionBuilder.addManaCost(req)
         }
     }
 
     /** Map Forge's produced-mana string (e.g. "G", "W", "Any") to proto ManaColor. */
-    internal fun producedToManaColor(produced: String): ManaColor? = when (produced.uppercase().trim()) {
-        "W" -> ManaColor.White_afc9
-        "U" -> ManaColor.Blue_afc9
-        "B" -> ManaColor.Black_afc9
-        "R" -> ManaColor.Red_afc9
-        "G" -> ManaColor.Green_afc9
-        "C" -> ManaColor.Colorless_afc9
-        "ANY" -> ManaColor.Generic
-        else -> null
-    }
+    internal fun producedToManaColor(produced: String): ManaColor? =
+        ManaColorMapping.fromProduced(produced)
 
     /**
      * Strip an Action down to the minimal format used inside GSM embedded actions.

@@ -2,11 +2,9 @@ package leyline.conformance
 
 import forge.card.CardType.CoreType
 import forge.card.CardType.Supertype
-import forge.card.mana.ManaCostShard
 import forge.game.card.Card
 import leyline.game.CardData
 import org.slf4j.LoggerFactory
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -85,17 +83,8 @@ object CardDataDeriver {
         )
     }
 
-    private fun deriveManaCost(cost: forge.card.mana.ManaCost?): List<Pair<ManaColor, Int>> {
-        if (cost == null || cost.isNoCost) return emptyList()
-        val counts = mutableMapOf<ManaColor, Int>()
-        val generic = cost.genericCost
-        if (generic > 0) counts[ManaColor.Generic] = generic
-        for (shard in cost) {
-            val color = SHARD_MAP[shard] ?: continue
-            counts.merge(color, 1, Int::plus)
-        }
-        return counts.toList()
-    }
+    private fun deriveManaCost(cost: forge.card.mana.ManaCost?) =
+        leyline.game.ManaColorMapping.deriveManaCost(cost)
 
     private fun resolveLinkedFaceGrpIds(card: Card): List<Int> {
         val states = card.states ?: return emptyList()
@@ -256,16 +245,5 @@ object CardDataDeriver {
         "thopter" to 269,
         "unicorn" to 275,
         "werewolf" to 283,
-    )
-
-    /** ManaCostShard → proto ManaColor. Only simple shards mapped; hybrids skipped. */
-    private val SHARD_MAP = mapOf(
-        ManaCostShard.WHITE to ManaColor.White_afc9,
-        ManaCostShard.BLUE to ManaColor.Blue_afc9,
-        ManaCostShard.BLACK to ManaColor.Black_afc9,
-        ManaCostShard.RED to ManaColor.Red_afc9,
-        ManaCostShard.GREEN to ManaColor.Green_afc9,
-        ManaCostShard.COLORLESS to ManaColor.Colorless_afc9,
-        ManaCostShard.X to ManaColor.X,
     )
 }

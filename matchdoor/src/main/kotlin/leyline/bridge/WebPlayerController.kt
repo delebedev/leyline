@@ -732,9 +732,9 @@ class WebPlayerController(
         if (indices.isEmpty()) return emptyMap()
 
         // Map selected cards to mana cost shards.
-        // TODO: greedy WUBRG-order assignment can be suboptimal for multi-color
-        // creatures vs costs with mixed colored/generic — consider AI's approach
-        // or a min-cost matching algorithm.
+        // TODO: delegate shard assignment to ComputerUtilMana when implementing convoke support
+        // Greedy WUBRG-order assignment can be suboptimal for multi-color
+        // creatures vs costs with mixed colored/generic.
         // Track remaining colored/generic counts to avoid over-assigning.
         val colorShardCounts = mutableMapOf<ManaCostShard, Int>()
         for (shard in listOf(ManaCostShard.WHITE, ManaCostShard.BLUE, ManaCostShard.BLACK, ManaCostShard.RED, ManaCostShard.GREEN)) {
