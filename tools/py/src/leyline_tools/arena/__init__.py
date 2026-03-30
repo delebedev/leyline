@@ -1,1 +1,0 @@
-"""Arena automation package."""

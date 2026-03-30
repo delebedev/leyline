@@ -3,14 +3,16 @@
 Local server that makes the Magic: The Gathering Arena client connect to Forge (open-source rules engine) instead of official servers. Reimplements the client's Front Door (lobby/decks/matchmaking), Match Door (game protocol), and Account Server (auth/JWT).
 
 - **Depends on:** forge (engine submodule — game bridges, bootstrap) — never reverse the dependency
-- **Server modes:** `just serve` (local, main dev — fully offline), `just serve-proxy` (passthrough for recording), `just serve-replay`
+- **Server mode:** `just serve` (local, fully offline)
 - **Current priority:** [v0.1 release](docs/v0.1-release.md) — first public release, FDN as core set
 - **Roadmap:** [GitHub Project board](https://github.com/users/delebedev/projects/1)
 - **Bugs & tasks:** GitHub Issues — no local TODO/BUGS files
 
 **Engineering stance:** correctness over speed. The protocol is opaque and the client is unforgiving — shortcuts compound.
 
-**Recording is the spec.** Real server recordings are the source of truth for protocol conformance — not guesses, not docs. Use `just wire` and `just tape` to inspect them. See `.claude/rules/recordings.md` for structure and tooling.
+**Recording is the spec.** Real server recordings are the source of truth for protocol conformance — not guesses, not docs. Recording tooling (`wire`, `tape`, `serve-proxy`) moved to `~/src/leyline-private`.
+
+**`just wire` / `just tape` no longer exist in this repo.** Many docs, skills, and playbooks still reference them. When you encounter `just wire` or `just tape` commands in docs, try `just scry-ts` instead — it covers game state, board, card trace, GSM queries, and lobby inspection from Player.log. Run `just scry-ts --help` for available commands.
 
 ## Agent Policy
 
@@ -28,14 +30,13 @@ Local server that makes the Magic: The Gathering Arena client connect to Forge (
 ## Modules
 
 ```
-app/            Composition root — LeylineMain, Netty pipeline, debug wiring. Thin.
+app/            Composition root — LeylineMain, Netty pipeline, debug server, seed DB.
 account/        Account server (Ktor HTTPS) — auth, JWT, doorbell. Zero forge deps.
 frontdoor/      Front Door protocol — lobby, decks, events, matchmaking, collections.
 matchdoor/      Game engine adapter — the big one. See matchdoor/CLAUDE.md.
-tooling/        Dev-only — debug server, recording, analysis, arena automation.
 ```
 
-Other dirs: `bin/`, `docs/`, `forge/` (engine submodule), `gradle/`, `just/`, `proto/`, `recordings/`.
+Other dirs: `bin/`, `docs/`, `forge/` (engine submodule), `gradle/`, `just/`, `proto/`.
 
 ## Build & Run
 

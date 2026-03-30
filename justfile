@@ -2,7 +2,6 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 
 import 'just/java.just'
 import 'just/lookup.just'
-import 'just/proto.just'
 import 'just/client.just'
 import 'just/tools.just'
 import 'just/test.just'
@@ -13,9 +12,6 @@ logback      := project_dir / "app/main/resources/logback.xml"
 logback_cli  := project_dir / "app/main/resources/logback-cli.xml"
 templates    := project_dir / "app/main/resources/arena-templates"
 certs        := env("LEYLINE_CERTS", env("HOME", "/tmp") / ".local/share/leyline/certs")
-fd_ip        := env("LEYLINE_FD_IP", "44.224.89.50")
-md_ip        := env("LEYLINE_MD_IP", "44.228.100.127")
-payloads     := env("LEYLINE_PAYLOADS", project_dir / "recordings/latest")
 ports        := "30010 30003 8090 8091"
 
 # --- JVM flags (shared base + per-mode overrides) ---
@@ -29,7 +25,7 @@ jvm_opts_cli := _jvm_base + " -Dlogback.configurationFile=" + logback_cli + " -D
 # Full classpath expression (shared by _java and _cli launch helpers).
 # Module class dirs prepended so fresh classes take precedence over stale jars.
 # Fixes: `just dev-build` (compileKotlin only) + CLI tools seeing old jar bytecode.
-_module_classes := project_dir + '/matchdoor/build/classes/kotlin/main:' + project_dir + '/matchdoor/build/classes/java/main:' + project_dir + '/matchdoor/build/resources/main:' + project_dir + '/tooling/build/classes/kotlin/main:' + project_dir + '/tooling/build/classes/java/main:' + project_dir + '/tooling/build/resources/main:' + project_dir + '/frontdoor/build/classes/kotlin/main:' + project_dir + '/frontdoor/build/resources/main:' + project_dir + '/account/build/classes/kotlin/main:' + project_dir + '/account/build/resources/main:' + project_dir + '/app/build/classes/kotlin/main:' + project_dir + '/app/build/resources/main'
+_module_classes := project_dir + '/matchdoor/build/classes/kotlin/main:' + project_dir + '/matchdoor/build/classes/java/main:' + project_dir + '/matchdoor/build/resources/main:' + project_dir + '/frontdoor/build/classes/kotlin/main:' + project_dir + '/frontdoor/build/resources/main:' + project_dir + '/account/build/classes/kotlin/main:' + project_dir + '/account/build/resources/main:' + project_dir + '/app/build/classes/kotlin/main:' + project_dir + '/app/build/resources/main'
 _cp := '"' + _module_classes + ':$classpath:' + project_dir + '/build/classes/kotlin/main:' + project_dir + '/build/classes/java/main:' + project_dir + '/build/resources/main"'
 
 # Kill ports + launch (for server targets)
@@ -245,52 +241,6 @@ serve: build check-java
     {{_cert_flags}}
     {{_java}} leyline.LeylineMainKt $cert_flags
 
-# replay-local mode: replay captured FD session (fd-frames.jsonl), local MD
-[group('serve')]
-serve-replay-stub golden="": build check-java
-    #!/usr/bin/env bash
-    set -euo pipefail
-    golden="{{golden}}"
-    if [ -z "$golden" ]; then
-        # Auto-detect: latest capture with fd-frames.jsonl
-        golden=$(ls -td recordings/*/capture/fd-frames.jsonl 2>/dev/null | head -1)
-        if [ -z "$golden" ]; then
-            echo "No fd-frames.jsonl found. Run: just serve-proxy (then connect client)" >&2
-            exit 1
-        fi
-        echo "Using golden: $golden"
-    fi
-    {{_cert_flags}}
-    {{_java}} leyline.LeylineMainKt $cert_flags --fd-golden "$golden"
-
-# proxy mode (both doors, capture traffic for recording/analysis)
-[group('serve')]
-serve-proxy: build check-java
-    #!/usr/bin/env bash
-    set -euo pipefail
-    local_proxy_conf="{{project_dir}}/deploy/services-proxy.conf"
-    if [ ! -f "$local_proxy_conf" ]; then
-        echo "Missing $local_proxy_conf" >&2
-        echo "Create it from deploy/services-proxy.example.conf and fill local proxy creds." >&2
-        exit 1
-    fi
-    if grep -q '"accountSystemId": "leyline"' "$local_proxy_conf" && \
-       grep -q '"accountSystemSecret": "forge-secret"' "$local_proxy_conf"; then
-        echo "Refusing to start proxy with template credential values in $local_proxy_conf" >&2
-        echo "Fill local proxy creds first." >&2
-        exit 1
-    fi
-    cp "{{project_dir}}/deploy/services-proxy.conf" "{{_streaming}}/services.conf"
-    {{_cert_flags}}
-    {{_java}} leyline.LeylineMainKt $cert_flags --proxy-fd {{fd_ip}} --proxy-md {{md_ip}}
-
-# replay mode (local FD, replay recorded bytes on MD)
-[group('serve')]
-serve-replay: build check-java
-    #!/usr/bin/env bash
-    set -euo pipefail
-    {{_cert_flags}}
-    {{_java}} leyline.LeylineMainKt $cert_flags --replay {{payloads}}
 
 # --- Docker ---
 

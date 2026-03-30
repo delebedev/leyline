@@ -11,7 +11,7 @@ import java.io.File
 /**
  * Standalone entry point for the Leyline server (client compat layer).
  *
- * Run via justfile targets: `just serve`, `just serve-proxy`, etc.
+ * Run via justfile target: `just serve`.
  * See CLAUDE.md for mode descriptions.
  *
  * TLS: self-signed certs by default (needs mitmproxy CA certs for UnityTls validation).
@@ -22,14 +22,11 @@ import java.io.File
  */
 fun main(args: Array<String>) {
     val a = parseArgs(args)
-    val isProxy = a["--proxy-fd"] != null && a["--proxy-md"] != null
 
-    val config = loadConfig(a, isProxy)
+    val config = loadConfig(a)
     val sc = config.server
     val tls = resolveTls(a)
     val cardRepo = openCardRepo(a)
-    val fdGoldenFile = resolveOptionalFile(a["--fd-golden"], "FD golden file")
-
     val fdPort = a["--fd-port"]?.toIntOrNull() ?: sc.fdPort
     val mdPort = a["--md-port"]?.toIntOrNull() ?: sc.mdPort
     val fdHost = a["--fd-host"]
@@ -43,10 +40,6 @@ fun main(args: Array<String>) {
         frontDoorPort = fdPort,
         matchDoorPort = mdPort,
         tlsFiles = tls,
-        upstreamFrontDoor = a["--proxy-fd"],
-        upstreamMatchDoor = a["--proxy-md"],
-        replayDir = a["--replay"]?.let { File(it) },
-        fdGoldenFile = fdGoldenFile,
         matchConfig = config,
         externalHost = fdHost.substringBefore(":"),
         cardRepo = cardRepo,
@@ -63,19 +56,18 @@ fun main(args: Array<String>) {
         "jdbc:sqlite:${playerDbFile.absolutePath}",
         "org.sqlite.JDBC",
     )
-    val accountServer = buildAccountServer(a, isProxy, accountPort, tls, fdHost, accountDb)
+    val accountServer = buildAccountServer(a, accountPort, tls, fdHost, accountDb)
 
     installShutdownHook(accountServer, debugServer, mgmtServer, server)
     startAll(server, mgmtServer, debugServer, accountServer)
-    printBanner(server, isProxy, config, mgmtPort, debugPort, accountPort, accountServer, fdHost)
+    printBanner(config, mgmtPort, debugPort, accountPort, fdHost)
 
     Thread.currentThread().join()
 }
 
 // -- Config & resources -------------------------------------------------------
 
-private fun loadConfig(a: Map<String, String>, isProxy: Boolean): MatchConfig {
-    if (isProxy) return MatchConfig()
+private fun loadConfig(a: Map<String, String>): MatchConfig {
     val configFile = a["--config"]?.let { File(it) }
         ?: File(System.getProperty("user.dir"), MatchConfig.DEFAULT_FILENAME)
     return MatchConfig.load(configFile)
@@ -113,12 +105,6 @@ private fun openCardRepo(a: Map<String, String>): ExposedCardRepository {
     )
 }
 
-private fun resolveOptionalFile(path: String?, label: String): File? {
-    val file = path?.let { File(it) } ?: return null
-    require(file.exists()) { "$label not found: ${file.absolutePath}" }
-    return file
-}
-
 // -- Server builders ----------------------------------------------------------
 
 private fun buildDebugServer(port: Int, server: LeylineServer) = DebugServer(
@@ -127,13 +113,10 @@ private fun buildDebugServer(port: Int, server: LeylineServer) = DebugServer(
     gameStateCollector = server.gameStateCollector,
     fdCollector = server.fdCollector,
     eventBus = server.eventBus,
-    recordingInspector = server.recordingInspector,
-    replayController = { server.replayController },
 )
 
 private fun buildAccountServer(
     a: Map<String, String>,
-    isProxy: Boolean,
     port: Int,
     tls: Pair<File?, File?>,
     fdHost: String,
@@ -145,18 +128,6 @@ private fun buildAccountServer(
     // finds the manifest locally and never hits the network — enabling offline mode.
     val cachedManifests = detectArenaManifestHash()
 
-    if (isProxy) {
-        return AccountServer(
-            port = port,
-            certFile = a["--account-cert"]?.let { File(it) } ?: tls.first,
-            keyFile = a["--account-key"]?.let { File(it) } ?: tls.second,
-            fdHost = fdHost,
-            database = database,
-            upstreamAccount = a["--proxy-account"] ?: AccountServer.DEFAULT_UPSTREAM_ACCOUNT,
-            upstreamDoorbell = a["--proxy-doorbell"] ?: AccountServer.DEFAULT_UPSTREAM_DOORBELL,
-            cachedManifests = cachedManifests,
-        )
-    }
     val debugRoles = System.getenv("LEYLINE_DEBUG").let { it == "true" || it == "1" }
     return AccountServer(
         port = port,
@@ -222,34 +193,21 @@ private fun startAll(
 }
 
 private fun printBanner(
-    server: LeylineServer,
-    isProxy: Boolean,
     config: MatchConfig,
     mgmtPort: Int,
     debugPort: Int,
     accountPort: Int,
-    accountServer: AccountServer,
     fdHost: String,
 ) {
-    val mode = when {
-        server.isReplay -> "replay"
-        server.isProxy -> "proxy"
-        else -> "local"
-    }
+    val mode = "local"
 
     println("Starting Leyline server ($mode mode)...")
     println("Leyline server running. Press Ctrl+C to stop.")
     println("Management: http://localhost:$mgmtPort/health")
     println("Debug panel: http://localhost:$debugPort")
-    if (accountServer.isProxy) {
-        println("Account:     https://localhost:$accountPort -> ${AccountServer.DEFAULT_UPSTREAM_ACCOUNT} (proxy)")
-    } else {
-        println("Account:     https://localhost:$accountPort")
-    }
+    println("Account:     https://localhost:$accountPort")
     println("Doorbell:    FdURI=$fdHost")
-    if (!isProxy) {
-        println("Config: ${config.summary()}")
-    }
+    println("Config: ${config.summary()}")
 }
 
 // -- Utilities ----------------------------------------------------------------

@@ -3,11 +3,8 @@ package leyline.match
 import wotc.mtgo.gre.external.messaging.Messages.*
 
 /**
- * Recording contract for match sessions — decouples match code from
- * the concrete [SessionRecorder][leyline.debug.SessionRecorder] implementation.
- *
- * Production implementation: `SessionRecorder` (always-on dual-stream JSONL).
- * Tests: null (no recording).
+ * Recording contract for match sessions.
+ * Currently unused (no recorder wired). Retained for future external recording tools.
  */
 interface MatchRecorder {
     /** Record outbound GRE messages (what we told the client). */

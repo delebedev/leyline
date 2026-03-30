@@ -22,9 +22,7 @@ import leyline.debug.DebugEventBus
 import leyline.debug.DebugSinkAdapter
 import leyline.debug.FdDebugCollector
 import leyline.debug.GameStateCollector
-import leyline.debug.SessionRecorder
 import leyline.frontdoor.FrontDoorHandler
-import leyline.frontdoor.FrontDoorReplayStub
 import leyline.frontdoor.GoldenData
 import leyline.frontdoor.domain.CollationPool
 import leyline.frontdoor.domain.DeckCard
@@ -40,8 +38,6 @@ import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
 import leyline.frontdoor.wire.FdResponseWriter
 import leyline.match.MatchHandler
-import leyline.match.ReplayController
-import leyline.match.ReplayHandler
 import leyline.protocol.ClientFrameDecoder
 import leyline.protocol.ClientHeaderPrepender
 import leyline.protocol.ClientHeaderStripper
@@ -51,8 +47,7 @@ import java.io.File
 import java.util.UUID
 
 /**
- * Client-compatible TLS TCP server — the single entry point for all three operating modes
- * (local/proxy/replay). Each mode assembles a different Netty pipeline per door.
+ * Client-compatible TLS TCP server — local mode only.
  *
  * Cross-BC state (deck/event selection, deck resolution, match results) flows through
  * [AppMatchCoordinator] — both doors receive the same instance.
@@ -64,13 +59,6 @@ class LeylineServer(
     private val matchDoorPort: Int = 30003,
     /** TLS cert+key (PEM). Falls back to self-signed if both null. Needed when client validates certs (UnityTls). */
     private val tlsFiles: Pair<File?, File?> = null to null,
-    /** Proxy mode: if set, relay to these upstream IPs instead of stubbing. */
-    private val upstreamFrontDoor: String? = null,
-    private val upstreamMatchDoor: String? = null,
-    /** Replay mode: if set, replay recorded payloads from this directory. */
-    private val replayDir: File? = null,
-    /** FD golden file: if set, use replay-based FD stub instead of hand-crafted. */
-    val fdGoldenFile: File? = null,
     /** Playtest configuration (decks, seed, die roll, AI speed). */
     val matchConfig: MatchConfig = MatchConfig(),
     /** External hostname for MatchCreated push (client connects here for MD). Defaults to localhost. */
@@ -92,30 +80,11 @@ class LeylineServer(
 
     @Volatile private var matchDoorChannel: Channel? = null
 
-    /** Counter for MD proxy connections — first = seat-1, second = seat-2. */
-    private val mdConnectionCount = java.util.concurrent.atomic.AtomicInteger(0)
-
     // --- Debug infrastructure (wired in start()) ---
     val eventBus = DebugEventBus()
     val fdCollector = FdDebugCollector(eventBus)
-    val captureSink = CaptureSink(fdCollector)
-    val captureSinkSeat1 = CaptureSink(fdCollector, mdLabel = "seat-1")
-    val captureSinkSeat2 = CaptureSink(fdCollector, mdLabel = "seat-2")
     val debugCollector = DebugCollector(eventBus)
     val gameStateCollector = GameStateCollector(cardRepo, eventBus)
-    val recordingInspector = leyline.recording.RecordingInspector(
-        cardNameLookup = { grpId: Int -> cardRepo.findNameByGrpId(grpId) },
-    )
-
-    /** Proxy: relay both FD + MD to real Arena servers for traffic capture. */
-    val isProxy get() = upstreamFrontDoor != null && upstreamMatchDoor != null && replayDir == null
-
-    /** Replay: stub FD, replay recorded bytes on MD. */
-    val isReplay get() = replayDir != null
-
-    /** Replay controller — non-null only in replay mode. Set during startReplay(). */
-    var replayController: ReplayController? = null
-        private set
 
     /** Health probe: true when both server channels are bound and active. */
     fun isHealthy(): Boolean {
@@ -139,11 +108,7 @@ class LeylineServer(
         GameBootstrap.initializeCardDatabase()
 
         val ssl = buildSslContext()
-        when {
-            isReplay -> startReplay(ssl, ssl)
-            isProxy -> startProxy(ssl, ssl)
-            else -> startLocal(ssl, ssl)
-        }
+        startLocal(ssl, ssl)
     }
 
     private fun buildSslContext(): SslContext = if (tlsFiles.first != null && tlsFiles.second != null) {
@@ -202,44 +167,27 @@ class LeylineServer(
             courseService = courseService,
         )
 
-        val goldenFile = fdGoldenFile
-        if (goldenFile != null) {
-            frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Replay") { ch ->
-                ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast(
-                    "handler",
-                    FrontDoorReplayStub(
-                        goldenFile,
-                        matchDoorHost = externalHost,
-                        matchDoorPort = matchDoorPort,
-                        onFdMessage = fdCollector::record,
-                    ),
-                )
-            }
-            log.info("Client Front Door (replay from {}) listening on :{}", goldenFile.name, frontDoorPort)
-        } else {
-            frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
-                ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-                ch.pipeline().addLast(
-                    "handler",
-                    FrontDoorHandler(
-                        playerId = pid,
-                        deckService = deckService,
-                        playerService = playerService,
-                        matchmaking = matchmakingService,
-                        collectionService = CollectionService { cardRepo.findAllGrpIds() },
-                        courseService = courseService,
-                        draftService = draftService,
-                        writer = writer,
-                        golden = golden,
-                        onFdMessage = fdCollector::record,
-                        coordinator = coordinator,
-                        matchmakingQueue = pvpQueue,
-                    ),
-                )
-            }
-            log.info("Client Front Door (local) listening on :{}", frontDoorPort)
+        frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
+            ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
+            ch.pipeline().addLast(
+                "handler",
+                FrontDoorHandler(
+                    playerId = pid,
+                    deckService = deckService,
+                    playerService = playerService,
+                    matchmaking = matchmakingService,
+                    collectionService = CollectionService { cardRepo.findAllGrpIds() },
+                    courseService = courseService,
+                    draftService = draftService,
+                    writer = writer,
+                    golden = golden,
+                    onFdMessage = fdCollector::record,
+                    coordinator = coordinator,
+                    matchmakingQueue = pvpQueue,
+                ),
+            )
         }
+        log.info("Client Front Door (local) listening on :{}", frontDoorPort)
 
         matchDoorChannel = bindMatchDoor(mdSsl, coordinator)
     }
@@ -266,101 +214,11 @@ class LeylineServer(
                     coordinator = coordinator,
                     cards = cardRepo,
                     debugSink = DebugSinkAdapter(debugCollector, gameStateCollector),
-                    recorderFactory = {
-                        SessionRecorder(mode = "engine").also { SessionRecorder.register(it) }
-                    },
                 ),
             )
         }
         log.info("Client Match Door (local) listening on :{}", matchDoorPort)
         return ch
-    }
-
-    private fun startReplay(fdSsl: SslContext, mdSsl: SslContext) {
-        val dir = replayDir!!
-        require(dir.isDirectory) { "Replay dir does not exist: $dir" }
-
-        val golden = GoldenData.loadFromClasspath()
-        val replayDb = if (playerDbFile.exists()) {
-            org.jetbrains.exposed.v1.jdbc.Database.connect(
-                "jdbc:sqlite:${playerDbFile.absolutePath}",
-                "org.sqlite.JDBC",
-            )
-        } else {
-            val db = org.jetbrains.exposed.v1.jdbc.Database.connect("jdbc:sqlite::memory:", "org.sqlite.JDBC")
-            SqlitePlayerStore(db).createTables()
-            db
-        }
-        val memStore = SqlitePlayerStore(replayDb)
-        val pid = PlayerId(playerId)
-        memStore.ensurePlayer(pid, "Player")
-        val deckService = DeckService(memStore)
-        val courseService = CourseService(memStore) { _ ->
-            GeneratedPool(emptyList(), emptyList(), 0)
-        }
-        val draftService = DraftService(memStore.asDraftSessionRepository()) { _ -> emptyList() }
-        val coordinator = AppMatchCoordinator(pid, deckService, courseService)
-        val memWriter = FdResponseWriter(onFdMessage = fdCollector::record)
-
-        frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor") { ch ->
-            ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-            ch.pipeline().addLast(
-                "handler",
-                FrontDoorHandler(
-                    playerId = pid,
-                    deckService = deckService,
-                    playerService = PlayerService(memStore),
-                    matchmaking = MatchmakingService(memStore, externalHost, matchDoorPort),
-                    collectionService = CollectionService { cardRepo.findAllGrpIds() },
-                    courseService = courseService,
-                    draftService = draftService,
-                    writer = memWriter,
-                    golden = golden,
-                    onFdMessage = fdCollector::record,
-                    coordinator = coordinator,
-                ),
-            )
-        }
-        log.info("Client Front Door (replay) listening on :{}", frontDoorPort)
-
-        // Match Door: replay recorded payloads
-        matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor-Replay") { ch ->
-            ch.pipeline().addLast("frameDecoder", ClientFrameDecoder())
-            ch.pipeline().addLast("headerStripper", ClientHeaderStripper())
-            ch.pipeline().addLast("protobufDecoder", ProtobufDecoder(ClientToMatchServiceMessage.getDefaultInstance()))
-            ch.pipeline().addLast("headerPrepender", ClientHeaderPrepender())
-            val handler = ReplayHandler(dir)
-            if (replayController == null) replayController = handler
-            ch.pipeline().addLast("handler", handler)
-        }
-        log.info("Client Match Door (replay from {}) listening on :{}", dir, matchDoorPort)
-    }
-
-    private fun startProxy(fdSsl: SslContext, mdSsl: SslContext) {
-        val fdHost = upstreamFrontDoor!!
-        val mdHost = upstreamMatchDoor ?: fdHost
-
-        frontDoorChannel = bindServer(fdSsl, frontDoorPort, "FrontDoor-Proxy") { ch ->
-            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, fdHost, frontDoorPort, "FD", captureSink))
-        }
-        log.info("Client Front Door (proxy → {}:{}) listening on :{}", fdHost, frontDoorPort, frontDoorPort)
-
-        val mdSinks = arrayOf(captureSinkSeat1, captureSinkSeat2)
-        matchDoorChannel = bindServer(mdSsl, matchDoorPort, "MatchDoor-Proxy") { ch ->
-            val count = mdConnectionCount.getAndIncrement()
-            // Each game opens 2 MD connections (one per seat).
-            // 3rd+ connection = new game — rotate session.
-            if (count >= 2 && count % 2 == 0) {
-                log.info("New match detected (MD connection #{}), rotating session", count + 1)
-                captureSinkSeat1.rotate()
-                captureSinkSeat2.rotate()
-                captureSink.rotate()
-                LeylinePaths.rotateSession()
-            }
-            val idx = (count % 2).coerceAtMost(mdSinks.lastIndex)
-            ch.pipeline().addLast("proxy", ProxyFrontHandler(workerGroup, mdHost, matchDoorPort, "MD", mdSinks[idx]))
-        }
-        log.info("Client Match Door (proxy → {}:{}) listening on :{}", mdHost, matchDoorPort, matchDoorPort)
     }
 
     fun stop() {
@@ -369,9 +227,6 @@ class LeylineServer(
         matchDoorChannel?.close()?.sync()
         workerGroup.shutdownGracefully()
         bossGroup.shutdownGracefully()
-        captureSink.close()
-        captureSinkSeat1.close()
-        captureSinkSeat2.close()
     }
 
     /**
