@@ -46,6 +46,7 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
  * @see GameEvent for the Forge→protocol event translation layer
  * @see TransferCategory for the category label enum
  */
+@Suppress("LargeClass")
 object AnnotationBuilder {
 
     /**

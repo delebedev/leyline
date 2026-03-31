@@ -395,7 +395,7 @@ object StateMapper {
     )
 
     /** Stages 4-5: mechanic + effect annotations, persistent computation, numbering. */
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList", "LongMethod")
     private fun computeRemainingAnnotations(
         events: List<GameEvent>,
         annotations: MutableList<AnnotationInfo>,
