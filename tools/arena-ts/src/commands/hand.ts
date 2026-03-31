@@ -48,17 +48,20 @@ export async function handCommand(args: string[]): Promise<void> {
     }
   }
 
-  // Sort by cx for visual left-to-right display
+  // Sort by cx for visual left-to-right order
   results.sort((a, b) => a.cx - b.cx);
 
+  // Assign visual order (1-based, left to right)
+  const ordered = results.map((r, i) => ({ ...r, order: i + 1 }));
+
   if (json) {
-    console.log(JSON.stringify(results, null, 2));
+    console.log(JSON.stringify(ordered, null, 2));
     return;
   }
 
   console.log(`Hand (${state.handCount}):`);
-  for (const r of results) {
+  for (const r of ordered) {
     const method = r.method === "ocr" ? `ocr ${r.score.toFixed(2)}` : "est";
-    console.log(`  ${r.cx},${r.cy}  ${r.name.padEnd(30)} [${method}]`);
+    console.log(`  ${r.order}. ${r.name.padEnd(28)} ${r.cx},${r.cy}  [${method}]`);
   }
 }
