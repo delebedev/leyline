@@ -78,12 +78,14 @@ class OptionalActionHandler(private val ops: SessionOps) {
         bridge: GameBridge,
         prompt: WebPlayerController.OptionalActionPrompt,
     ) {
-        // Resolve instanceId for the source (host card on the stack)
-        val sourceId = prompt.hostCard?.let {
-            bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value
-        } ?: 0
+        val hostCard = prompt.hostCard
+        if (hostCard == null) {
+            log.warn("OptionalActionHandler: hostCard is null — cannot send OptionalActionMessage")
+            prompt.future.complete(true) // auto-accept to avoid engine deadlock
+            return
+        }
 
-        val hostCardId = sourceId // CardId parameter points to the same card
+        val sourceId = bridge.getOrAllocInstanceId(ForgeCardId(hostCard.id)).value
 
         val optionalMsg = OptionalActionMessage.newBuilder()
             .setSourceId(sourceId)
@@ -95,19 +97,36 @@ class OptionalActionHandler(private val ops: SessionOps) {
                 PromptParameter.newBuilder()
                     .setParameterName("CardId")
                     .setType(ParameterType.Number)
-                    .setNumberValue(hostCardId),
+                    .setNumberValue(sourceId), // CardId = source card instanceId
             )
             .build()
 
-        val gsId = ops.counter.currentGsId()
-        val msgId = ops.counter.nextMsgId()
+        // Bare GSM diff with pendingMessageCount=1 — signals the client that
+        // OptionalActionMessage follows. Without this, the client may process
+        // the preceding GSM before the prompt arrives.
+        val prevGsId = ops.counter.currentGsId()
+        val gsId = ops.counter.nextGsId()
+        val pendingGsm = GameStateMessage.newBuilder()
+            .setType(GameStateType.Diff)
+            .setGameStateId(gsId)
+            .setPrevGameStateId(prevGsId)
+            .setPendingMessageCount(1)
+            .setUpdate(GameStateUpdate.SendAndRecord)
+            .build()
 
-        val gre = ops.makeGRE(GREMessageType.OptionalActionMessage_695e, gsId, msgId) {
+        val msgId = ops.counter.nextMsgId()
+        val gsmGre = ops.makeGRE(GREMessageType.GameStateMessage_695e, gsId, ops.counter.nextMsgId()) {
+            it.gameStateMessage = pendingGsm
+        }
+
+        val optionalGre = ops.makeGRE(GREMessageType.OptionalActionMessage_695e, gsId, msgId) {
             it.optionalActionMessage = optionalMsg
             it.prompt = promptProto
+            // Controls Cancel button visibility, NOT whether declining is allowed.
+            // Player can always decline via CancelNo response regardless of this value.
             it.allowCancel = AllowCancel.No_a526
         }
 
-        ops.sendBundledGRE(listOf(gre))
+        ops.sendBundledGRE(listOf(gsmGre, optionalGre))
     }
 }
