@@ -17,6 +17,7 @@ import java.io.File
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Embedded HTTP server for the Leyline debug panel.
@@ -43,6 +44,8 @@ class DebugServer(
     private val gameStateCollector: GameStateCollector? = null,
     private val fdCollector: FdDebugCollector? = null,
     private val eventBus: DebugEventBus? = null,
+    /** Runtime puzzle holder — set/cleared by POST /api/puzzle. */
+    private val runtimePuzzle: AtomicReference<String?>? = null,
 ) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null

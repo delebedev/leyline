@@ -68,9 +68,6 @@ data class MatchConfig(
         require(server.bridgeTimeoutMs > 0) {
             "server.bridge_timeout_ms must be positive, got ${server.bridgeTimeoutMs}"
         }
-        game.puzzle?.let {
-            require(it.isNotBlank()) { "game.puzzle must not be blank" }
-        }
     }
 
     /**
@@ -88,7 +85,6 @@ data class MatchConfig(
         append(game.dieRollWinner?.let { "seat$it" } ?: "random")
         append(" skipMulligan=${game.skipMulligan}")
         append(" aiSpeed=${ai.speed}x")
-        game.puzzle?.let { append(" puzzle=$it") }
         if (dev.strict || dev.strictPass) {
             append(" dev.strict=${dev.strict} dev.strict_pass=${dev.strictPass}")
         }
@@ -175,11 +171,6 @@ data class GameConfig(
     @SerialName("synthetic_opponent")
     val syntheticOpponent: Boolean = false,
 
-    /**
-     * Optional puzzle file path. When set, Sparky challenge matches route into
-     * puzzle mode and load this .pzl file.
-     */
-    val puzzle: String? = null,
 )
 
 @Serializable

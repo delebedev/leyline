@@ -45,6 +45,7 @@ import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.ClientToMatchServiceMessage
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Client-compatible TLS TCP server — local mode only.
@@ -85,6 +86,9 @@ class LeylineServer(
     val fdCollector = FdDebugCollector(eventBus)
     val debugCollector = DebugCollector(eventBus)
     val gameStateCollector = GameStateCollector(cardRepo, eventBus)
+
+    /** Runtime puzzle path — set via debug API, read by PuzzleHandler and createMatchId(). */
+    val runtimePuzzle = AtomicReference<String?>(null)
 
     /** Health probe: true when both server channels are bound and active. */
     fun isHealthy(): Boolean {
@@ -193,7 +197,7 @@ class LeylineServer(
     }
 
     private fun createMatchId(eventName: String): String {
-        val puzzle = matchConfig.game.puzzle
+        val puzzle = runtimePuzzle.get()
         if (puzzle != null && eventName == "SparkyStarterDeckDuel") {
             return "puzzle-${File(puzzle).nameWithoutExtension}"
         }
@@ -214,6 +218,7 @@ class LeylineServer(
                     coordinator = coordinator,
                     cards = cardRepo,
                     debugSink = DebugSinkAdapter(debugCollector, gameStateCollector),
+                    puzzlePath = { runtimePuzzle.get() },
                 ),
             )
         }
