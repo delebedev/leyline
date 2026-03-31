@@ -55,6 +55,31 @@ int shim_find_mtga(double *x, double *y, double *w, double *h) {
     return found;
 }
 
+// Returns CGWindowID for MTGA window. 0 if not found.
+int shim_mtga_window_id(void) {
+    CFArrayRef list = CGWindowListCopyWindowInfo(
+        kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements,
+        kCGNullWindowID);
+    if (!list) return 0;
+    int wid = 0;
+    CFIndex count = CFArrayGetCount(list);
+    for (CFIndex i = 0; i < count; i++) {
+        CFDictionaryRef entry = CFArrayGetValueAtIndex(list, i);
+        CFStringRef owner;
+        if (!CFDictionaryGetValueIfPresent(entry, kCGWindowOwnerName, (const void **)&owner))
+            continue;
+        char buf[256];
+        CFStringGetCString(owner, buf, sizeof(buf), kCFStringEncodingUTF8);
+        if (strcmp(buf, "MTGA") != 0) continue;
+        CFNumberRef num;
+        if (CFDictionaryGetValueIfPresent(entry, kCGWindowNumber, (const void **)&num))
+            CFNumberGetValue(num, kCFNumberIntType, &wid);
+        break;
+    }
+    CFRelease(list);
+    return wid;
+}
+
 // --- Mouse input ---
 // All events: mach_absolute_time() timestamp + kCGHIDEventTap (Sequoia-safe).
 

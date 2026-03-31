@@ -31,6 +31,7 @@ async function getLib() {
     shim_mouse_down: { returns: FFIType.void, args: [FFIType.f64, FFIType.f64] },
     shim_mouse_up: { returns: FFIType.void, args: [FFIType.f64, FFIType.f64] },
     shim_right_click: { returns: FFIType.void, args: [FFIType.f64, FFIType.f64] },
+    shim_mtga_window_id: { returns: FFIType.i32, args: [] },
   });
   return lib;
 }
@@ -69,6 +70,20 @@ export async function click(x: number, y: number): Promise<void> {
 export async function move(x: number, y: number): Promise<void> {
   const l = await getLib();
   l.symbols.shim_move(x, y);
+}
+
+/** Get MTGA CGWindowID. Returns 0 if not found. */
+export async function mtgaWindowId(): Promise<number> {
+  const l = await getLib();
+  return l.symbols.shim_mtga_window_id();
+}
+
+/** Capture MTGA window by window ID — works even behind other windows. */
+export async function captureMtga(outPath: string): Promise<boolean> {
+  const wid = await mtgaWindowId();
+  if (wid === 0) return false;
+  const proc = Bun.spawnSync({ cmd: ["screencapture", "-l", String(wid), "-o", "-x", outPath] });
+  return proc.exitCode === 0;
 }
 
 /** Smoothstep drag from (x1,y1) to (x2,y2). steps=30, totalMs=500. */

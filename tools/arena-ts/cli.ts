@@ -3,6 +3,7 @@
 import { clickCommand } from "./src/commands/click";
 import { concedeCommand } from "./src/commands/concede";
 import { dragCommand } from "./src/commands/drag";
+import { handCommand } from "./src/commands/hand";
 import { keepCommand } from "./src/commands/keep";
 import { landCommand } from "./src/commands/land";
 import { passCommand } from "./src/commands/pass";
@@ -16,6 +17,7 @@ const commands: Record<string, { description: string; run: (args: string[]) => P
   click:      { description: "Click coordinates or landmark",  run: clickCommand },
   concede:    { description: "Concede current match",          run: concedeCommand },
   drag:       { description: "Drag between two points",        run: dragCommand },
+  hand:       { description: "Hand cards with positions",      run: handCommand },
   keep:       { description: "Keep hand during mulligan",      run: keepCommand },
   land:       { description: "Play a land from hand",          run: landCommand },
   pass:       { description: "Pass priority (action button)",  run: passCommand },

@@ -3,12 +3,13 @@
 // Captures the hand strip of the MTGA window, upscales for OCR accuracy,
 // matches detected text against known card names from scry game state.
 
-import { findMtgaWindow } from "./input";
+import { captureMtga } from "./input";
 import { compileSwift } from "./compile";
 import { REFERENCE_WIDTH } from "./window";
 
 // Hand layout constants (960px reference space)
-const HAND_Y_RATIO = 0.78;       // crop top — only scan bottom 22% of screen
+const HAND_CROP_BOTTOM = 0.20;   // capture bottom 20% of window
+const HAND_CROP_SIDES = 280;     // trim 280px (retina) from each side
 const HAND_X_MIN = 120;          // left bound for valid hand card detections
 const HAND_X_MAX = 800;          // right bound
 const HAND_X_CENTER = 500;       // visual center of hand fan
@@ -35,48 +36,66 @@ function handAdjust(ocrCx: number): [number, number] {
   return [cx, cy];
 }
 
-/** Capture full window, upscale, OCR, filter to hand region by Y coordinate. */
+/**
+ * Capture MTGA hand strip, upscale, OCR.
+ * Pipeline: capture by window ID → crop (bottom 20%, trim 280px sides) → upscale → OCR.
+ * Works even if MTGA is behind other windows.
+ */
 async function ocrHandStrip(): Promise<{ items: any[]; ocrTo960: number } | null> {
-  const bounds = await findMtgaWindow();
-  if (!bounds) return null;
+  const fullImg = "/tmp/arena-hand-full.png";
+  const stripImg = "/tmp/arena-hand-strip.png";
+  const stripUp = "/tmp/arena-hand-strip-up.png";
 
-  const img = "/tmp/arena-hand-capture.png";
-  const imgUp = "/tmp/arena-hand-upscale.png";
-
-  // Capture hires (retina gives 2x)
-  const cap = Bun.spawnSync({
-    cmd: ["screencapture", "-R", `${bounds.x},${bounds.y},${bounds.w},${bounds.h}`, "-x", img],
-  });
-  if (cap.exitCode !== 0) return null;
+  // Capture by window ID
+  if (!(await captureMtga(fullImg))) return null;
 
   // Get pixel dimensions
-  const sipsInfo = Bun.spawnSync({ cmd: ["sips", "-g", "pixelWidth", "-g", "pixelHeight", img], stdout: "pipe" });
+  const sipsInfo = Bun.spawnSync({ cmd: ["sips", "-g", "pixelWidth", "-g", "pixelHeight", fullImg], stdout: "pipe" });
   const sipsOut = sipsInfo.stdout.toString();
   const wMatch = sipsOut.match(/pixelWidth:\s*(\d+)/);
-  if (!wMatch) return null;
-  const capW = parseInt(wMatch[1]);
+  const hMatch = sipsOut.match(/pixelHeight:\s*(\d+)/);
+  if (!wMatch || !hMatch) return null;
+  const fullW = parseInt(wMatch[1]);
+  const fullH = parseInt(hMatch[1]);
 
-  // Upscale for better OCR
-  const scale = Math.max(2, Math.round(OCR_TARGET_WIDTH / capW));
-  Bun.spawnSync({ cmd: ["sips", "--resampleWidth", String(capW * scale), img, "--out", imgUp] });
+  // Crop: bottom 20%, trim sides via Swift CGImage.cropping
+  const cropH = Math.round(fullH * HAND_CROP_BOTTOM);
+  const cropY = fullH - cropH;
+  const cropX = HAND_CROP_SIDES;
+  const cropW = fullW - HAND_CROP_SIDES * 2;
 
-  // OCR full image
+  const cropProc = Bun.spawnSync({
+    cmd: ["swift", "-e", `
+import AppKit
+let img = NSImage(contentsOfFile: "${fullImg}")!
+let cg = img.cgImage(forProposedRect: nil, context: nil, hints: nil)!
+let cropped = cg.cropping(to: CGRect(x: ${cropX}, y: ${cropY}, width: ${cropW}, height: ${cropH}))!
+let rep = NSBitmapImageRep(cgImage: cropped)
+try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "${stripImg}"))
+`],
+    stderr: "pipe",
+  });
+  if (cropProc.exitCode !== 0) return null;
+
+  // Upscale strip for OCR (target ~3840px wide)
+  const scale = Math.max(2, Math.round(3840 / cropW));
+  Bun.spawnSync({ cmd: ["sips", "--resampleWidth", String(cropW * scale), stripImg, "--out", stripUp] });
+
+  // OCR
   const ocrBin = await compileSwift("ocr");
-  const ocr = Bun.spawnSync({ cmd: [ocrBin, imgUp, "--json", "--min-confidence", "0.15"], stdout: "pipe" });
+  const ocr = Bun.spawnSync({
+    cmd: [ocrBin, stripUp, "--json", "--min-confidence", "0.10"],
+    stdout: "pipe",
+  });
   if (ocr.exitCode !== 0) return null;
 
   try {
-    const allItems = JSON.parse(ocr.stdout.toString());
-    const ocrTo960 = REFERENCE_WIDTH / (capW * scale);
-
-    // Filter to hand region: bottom ~22% of image
-    const imgUpInfo = Bun.spawnSync({ cmd: ["sips", "-g", "pixelHeight", imgUp], stdout: "pipe" });
-    const hMatch = imgUpInfo.stdout.toString().match(/pixelHeight:\s*(\d+)/);
-    const imgH = hMatch ? parseInt(hMatch[1]) : capW; // fallback
-    const handMinY = imgH * HAND_Y_RATIO;
-
-    const items = allItems.filter((d: any) => d.cy >= handMinY);
-    return { items, ocrTo960 };
+    const items = JSON.parse(ocr.stdout.toString());
+    // Convert OCR coords (upscaled-strip space) → 960px ref space
+    for (const item of items) {
+      item.cx = (item.cx / scale + cropX) / fullW * REFERENCE_WIDTH;
+    }
+    return { items, ocrTo960: 1 }; // cx already in 960px ref
   } catch {
     return null;
   }
@@ -228,6 +247,58 @@ export async function findHandCard(
   }
 
   return null;
+}
+
+/**
+ * Find positions for ALL hand cards in one OCR pass.
+ * Handles duplicate card names by assigning distinct positions.
+ */
+export async function findAllHandCards(
+  knownNames: string[],
+): Promise<Map<string, HandCardPosition[]>> {
+  const resultMap = new Map<string, HandCardPosition[]>();
+  const ocrResult = await ocrHandStrip();
+  if (!ocrResult) return resultMap;
+
+  const { items, ocrTo960 } = ocrResult;
+
+  // Match OCR detections to card names
+  const cardMatches = new Map<string, { score: number; cx: number }[]>();
+  for (const item of items) {
+    const cx960 = Math.round(item.cx * ocrTo960);
+    if (cx960 < HAND_X_MIN || cx960 > HAND_X_MAX) continue;
+    for (const name of new Set(knownNames)) {
+      const score = fuzzyCardMatch(item.text, name);
+      if (score >= 0.4) {
+        if (!cardMatches.has(name)) cardMatches.set(name, []);
+        cardMatches.get(name)!.push({ score, cx: cx960 });
+      }
+    }
+  }
+
+  // Count copies needed per name
+  const nameCounts = new Map<string, number>();
+  for (const name of knownNames) {
+    nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+  }
+
+  // Assign positions with dedup
+  const usedCx = new Set<number>();
+  for (const [name, needed] of nameCounts) {
+    const positions: HandCardPosition[] = [];
+    const candidates = (cardMatches.get(name) ?? []).sort((a, b) => b.score - a.score);
+    for (const { cx, score } of candidates) {
+      if (positions.length >= needed) break;
+      if (![...usedCx].some(ux => Math.abs(cx - ux) < 30)) {
+        const [adjCx, adjCy] = handAdjust(cx);
+        positions.push({ name, cx: adjCx, cy: adjCy, score });
+        usedCx.add(cx);
+      }
+    }
+    resultMap.set(name, positions);
+  }
+
+  return resultMap;
 }
 
 /** Estimate hand card position without OCR. Last resort fallback. */
