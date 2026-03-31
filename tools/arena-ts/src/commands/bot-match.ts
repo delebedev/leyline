@@ -45,15 +45,19 @@ export async function botMatchCommand(args: string[]): Promise<void> {
   await clickRef(fm[0], fm[1]);
   await Bun.sleep(2000);
 
-  // 3. Verify — "My Decks" visible means deck selector is showing
+  // 3. Click Play format tab (ensures we're on Play, not Ranked/Brawl)
+  await clickRef(866, 192); // fmt-play
+  await Bun.sleep(1500);
+
+  // 4. Verify — "My Decks" visible means deck selector is showing
   if (!(await ocrFindText("My Decks"))) {
     console.error("deck selector not visible (no 'My Decks')");
     process.exitCode = 1;
     return;
   }
 
-  // 4. Click Bot Match in format list
-  console.log("selecting Bot Match format...");
+  // 5. Click Bot Match in format list
+  console.log("selecting Bot Match...");
   const bm = await ocrFindText("Bot Match");
   if (!bm) { console.error("'Bot Match' not found in format list"); process.exitCode = 1; return; }
   await clickRef(bm[0], bm[1]);
