@@ -1,6 +1,6 @@
 // src/commands/bot-match.ts
 // Start a bot match.
-// Home → play blade → OCR "Bot Match" → select deck → Play.
+// Home → Play → Find Match → Bot Match → select deck → Play.
 
 import { click, activateMtga, captureMtga } from "../input";
 import { getWindowBounds, scaleToScreen, REFERENCE_WIDTH } from "../window";
@@ -12,12 +12,13 @@ export async function botMatchCommand(args: string[]): Promise<void> {
     console.log("arena bot-match — start a bot match\n");
     console.log("Usage:");
     console.log("  arena bot-match                  # first deck");
+    console.log("  arena bot-match --deck 2         # 2nd deck in grid");
     console.log("  arena bot-match --deck 'Mono B'  # deck by name (OCR)");
     return;
   }
 
   const deckIdx = args.indexOf("--deck");
-  const deckName = deckIdx !== -1 ? args[deckIdx + 1] : null;
+  const deckArg = deckIdx !== -1 ? args[deckIdx + 1] : null;
 
   const bounds = await getWindowBounds();
   if (!bounds) { console.error("MTGA window not found"); process.exitCode = 1; return; }
@@ -32,47 +33,69 @@ export async function botMatchCommand(args: string[]): Promise<void> {
 
   await activateMtga(true);
 
-  // 1. Open play blade
-  console.log("play blade...");
+  // 1. Click Play
+  console.log("opening play blade...");
   await clickRef(866, 533);
-  await Bun.sleep(2500);
+  await Bun.sleep(2000);
 
-  // 2. OCR find "Bot Match", click it
-  console.log("finding Bot Match...");
-  const botPos = await ocrFind("Bot Match");
-  if (!botPos) { console.error("'Bot Match' not found"); process.exitCode = 1; return; }
-  await clickRef(botPos[0], botPos[1]);
-  await Bun.sleep(2500);
+  // 2. Click Find Match
+  console.log("find match...");
+  const fm = await ocrFind("Find Match");
+  if (!fm) { console.error("'Find Match' not found"); process.exitCode = 1; return; }
+  await clickRef(fm[0], fm[1]);
+  await Bun.sleep(2000);
 
-  // 3. Select deck
-  if (deckName) {
-    const deckPos = await ocrFind(deckName);
-    if (deckPos) {
-      console.log(`selecting "${deckName}"...`);
-      await clickRef(deckPos[0], deckPos[1] - 40);
-      await Bun.sleep(1000);
-    } else {
-      console.error(`deck "${deckName}" not found — using default`);
-    }
-  } else {
-    // Click first deck in grid
-    await clickRef(230, 300);
-    await Bun.sleep(1000);
+  // 3. Verify — "My Decks" visible means deck selector is showing
+  if (!(await ocrFind("My Decks"))) {
+    console.error("deck selector not visible (no 'My Decks')");
+    process.exitCode = 1;
+    return;
   }
 
-  // 4. Verify deck selected — OCR for "Edit Deck"
-  const editPos = await ocrFind("Edit Deck");
-  if (!editPos) {
+  // 4. Click Bot Match in format list
+  console.log("selecting Bot Match format...");
+  const bm = await ocrFind("Bot Match");
+  if (!bm) { console.error("'Bot Match' not found in format list"); process.exitCode = 1; return; }
+  await clickRef(bm[0], bm[1]);
+  await Bun.sleep(1500);
+
+  // 5. Select deck
+  if (deckArg) {
+    const deckNum = parseInt(deckArg);
+    if (!isNaN(deckNum) && deckNum >= 1 && deckNum <= 8) {
+      const gridX = [230, 376, 523, 668];
+      const gridY = [300, 440];
+      const row = Math.floor((deckNum - 1) / 4);
+      const col = (deckNum - 1) % 4;
+      console.log(`selecting deck #${deckNum}...`);
+      await clickRef(gridX[col], gridY[row]);
+    } else {
+      const dp = await ocrFind(deckArg);
+      if (dp) {
+        console.log(`selecting "${deckArg}"...`);
+        await clickRef(dp[0], dp[1] - 40);
+      } else {
+        console.error(`deck "${deckArg}" not found — using first`);
+        await clickRef(230, 300);
+      }
+    }
+  } else {
+    await clickRef(230, 300);
+  }
+  await Bun.sleep(1000);
+
+  // 6. Verify deck selected — "Edit Deck" visible
+  if (!(await ocrFind("Edit Deck"))) {
     console.error("no deck selected (Edit Deck not visible)");
     process.exitCode = 1;
     return;
   }
 
-  // 5. Click Play
+  // 7. Click Play
   console.log("starting match...");
   await clickRef(866, 534);
 
-  // 6. Wait for InGame
+  // 8. Wait for InGame
   for (let i = 0; i < 20; i++) {
     await Bun.sleep(1500);
     const s = await currentScene();
@@ -83,7 +106,7 @@ export async function botMatchCommand(args: string[]): Promise<void> {
   process.exitCode = 1;
 }
 
-/** OCR capture MTGA, find text, return [cx, cy] in 960px ref. */
+/** OCR MTGA window, find text, return [cx, cy] in 960px ref. Picks bottommost match. */
 async function ocrFind(text: string): Promise<[number, number] | null> {
   const img = "/tmp/arena-ocr-find.png";
   if (!(await captureMtga(img))) return null;
@@ -102,7 +125,6 @@ async function ocrFind(text: string): Promise<[number, number] | null> {
     const wMatch = sipsInfo.stdout.toString().match(/pixelWidth:\s*(\d+)/);
     const imgW = wMatch ? parseInt(wMatch[1]) : 1920;
     const scale = REFERENCE_WIDTH / imgW;
-    // Pick bottommost match (the actual button, not header text)
     const sorted = items.sort((a: any, b: any) => b.cy - a.cy);
     return [Math.round(sorted[0].cx * scale), Math.round(sorted[0].cy * scale)];
   } catch { return null; }
