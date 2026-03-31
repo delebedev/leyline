@@ -29,6 +29,9 @@ object PromptIds {
     /** Mandatory additional cost (discard). Real server: PayCostsReq promptId=1024. */
     const val DISCARD_COST = 1024
 
+    /** "You may" trigger decision (OptionalActionMessage). */
+    const val OPTIONAL_ACTION = 1159
+
     const val SELECT_N = 1243
 
     /** sourceId on SelectNReq for legend rule. */

@@ -1,6 +1,7 @@
 <?xml version="1.0" ?>
 <SmellBaseline>
   <ManuallySuppressedIssues>
+    <ID>ReturnCount:AutoPassEngine.kt$AutoPassEngine$fun autoPassAndAdvance(bridge: GameBridge)</ID>
     <ID>ReturnCount:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostDiscard): PaymentDecision?</ID>
     <ID>ReturnCount:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
     <ID>ReturnCount:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostPutCardToLib): PaymentDecision?</ID>
