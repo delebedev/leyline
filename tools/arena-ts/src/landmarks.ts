@@ -20,6 +20,11 @@ export const landmarks: Record<string, [number, number]> = {
   "bot-play":       [866, 534],   // Play in bot match selector
   "bot-close":      [746, 94],    // X close deck selector
 
+  // Format tabs (Find Match / deck selector)
+  "fmt-ranked":     [805, 192],   // Ranked tab
+  "fmt-play":       [866, 192],   // Play tab
+  "fmt-brawl":      [928, 192],   // Brawl tab
+
   // DeckListViewer
   "deck-new":       [96, 260],    // "+" new deck card
   "deck-edit":      [865, 532],   // Edit Deck button
