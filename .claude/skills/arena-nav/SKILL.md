@@ -1,200 +1,139 @@
 ---
 name: arena-nav
-description: Load before any MTGA UI automation — bot matches, puzzles, sealed events, draft, or in-game card playing. Commands, coords, recovery, and dev pitfalls.
+description: Load before any MTGA UI automation — bot matches, brawl, in-game card playing. Commands, coords, recovery, and dev pitfalls.
 ---
 
 ## When to use me
 
-- Before running ANY `arena` commands
+- Before running ANY `arena-ts` commands
 - When an automation flow gets stuck
-- When building or debugging compound arena commands
+- When building or debugging arena automation
 
 ## First: load current commands
 
-Run `arena --help` to see all available commands with descriptions. The output is the source of truth — this skill documents patterns and pitfalls, not an exhaustive command list.
+Run `just arena-ts --help` to see all available commands. The help output is the source of truth — this skill documents patterns and pitfalls, not an exhaustive command list.
 
-## Compound Commands
+## Starting Matches
 
-These block internally and return JSON. The agent should never poll or retry externally.
+| Command | Purpose |
+|---------|---------|
+| `arena bot-match [--deck N\|NAME]` | Home → Find Match → Play tab → Bot Match → deck → Play |
+| `arena brawl [--deck N\|NAME]` | Home → Find Match → Brawl tab → Standard Brawl → deck → Play |
+| `arena concede` | Idempotent — Escape → Concede → dismiss results → Home |
+| `arena keep` | Keep hand during mulligan, handle card returns |
 
-| Command | Purpose | Returns |
-|---------|---------|---------|
-| `arena start-bot-match [--deck NAME\|N]` | From anywhere → in-game bot match. Random deck by default. | `{"ok": true, "screen": "InGame", "deck": "..."}` |
-| `arena start-puzzle <file.pzl>` | From anywhere → in-game with puzzle loaded (Sparky's Challenge). Hot-swaps if already in-game. | `{"ok": true, "screen": "InGame", "puzzle": "..."}` |
-| `arena concede` | Idempotent — from any screen, ensure not in a match. Lands at natural resting place (Home or EventLobby). | `{"ok": true, "screen": "Home"}` or `{"ok": true, "screen": "...", "noop": true}` |
+### Deck selection
 
-### Click flags
-
-- `--retry N` — recapture + re-OCR up to N times (for animations)
-- `--exact` — whole-word OCR match (avoids card text collisions)
-- `--bottom` — when multiple OCR matches, pick lowest on screen (fixes "Play" in event descriptions vs Play button)
-- `--double` — double-click (for draft picks)
+- `--deck 2` — 2nd deck in grid (1-based)
+- `--deck 'Mono B'` — find by OCR name match
+- No flag — uses first deck in grid
 
 ## Signal Priority
 
 | Priority | Source | Use for |
 |----------|--------|---------|
-| 1 | `arena scene` | Lobby screen from Player.log — fastest, no OCR |
-| 2 | `arena ocr` | Visual text + coords (~0 tokens) |
-| 3 | `arena where` | Combined scene + OCR screen detection |
-| 4 | Debug API (`:8090`) | Engine state — forge-only, not available in proxy |
-
-**Never use screenshots for state detection** (~800 tokens). `arena ocr` costs ~0.
+| 1 | `arena scene` | Scene from Player.log — fastest. Detects InGame via GRE messages. |
+| 2 | `arena turn` | Game state: hand, actions, phase, life. From scry-ts accumulator. |
+| 3 | `arena hand` | Hand cards with OCR-detected visual positions. |
+| 4 | OCR (internal) | Used by commands internally. Not a standalone command yet. |
 
 ## Coordinate System
 
-**All coords are in 960-wide logical space** (MTGA macOS logical on 2x Retina: 1920 render / 2).
+**All coords are in 960-wide logical space.** Auto-scaled to actual window.
 
-- `arena ocr` returns coords in this space
-- `arena click <x>,<y>` expects coords in this space
-- Auto-scales on 1x displays
+Use named landmarks: `arena click home-cta` not `arena click 866,533`. Run `arena click --help` to see all landmarks.
 
-### In-Game Coords
+### Key In-Game Landmarks
 
-| Element | Coords | Notes |
-|---------|--------|-------|
-| Action button (Pass/Next/End Turn/All Attack) | 888,504 | Universal — all labels, same position |
-| Cog/Settings icon (in-game) | 940,42 | Opens Concede menu |
-| Opponent portrait (targeting) | 480,85 | Click during targeting |
-| Submit (targeting) | 888,489 | Confirm target selection |
-| Cancel (targeting/kicker) | 888,456 | Back out / decline cost |
-| Kicker choice (right card) | 560,250 | "Choose One" modal |
+| Landmark | Coords | Notes |
+|----------|--------|-------|
+| `action-btn` | 888,504 | Universal — Pass/Next/End Turn/Resolve/All Attack |
+| `game-concede` | 480,344 | Concede button in Options overlay |
+| `opponent-face` | 480,85 | Click during targeting |
+| `home-cta` | 866,533 | Play button on Home screen |
+
+### Format Tab Landmarks
+
+| Landmark | Coords | Notes |
+|----------|--------|-------|
+| `fmt-play` | 866,192 | Play format tab |
+| `fmt-ranked` | 805,192 | Ranked format tab |
+| `fmt-brawl` | 928,192 | Brawl format tab |
 
 ## How to Play Cards
 
-1. **`arena play "Card Name"`** — Best. Verified drag, retries with jitter, confirms zone change.
-2. **`arena drag <from> <to>`** — Fallback. Cards in hand at y~530, x spans 350-620.
+1. **`arena land [name]`** — Play a land. OCR-locates in hand, drags to battlefield, verifies.
+2. **`arena cast "Card Name"`** — Cast a spell. Same OCR pipeline, drag, verify.
+3. **`arena drag <from> <to>`** — Direct drag between coords. Fallback for anything else.
+4. **`arena pass [--n N]`** — Click action button. Pass priority, resolve, end turn.
 
-### Patterns
+### Gameplay Loop
 
-- **Lands:** `arena play "Plains"` — plays instantly
-- **Spells:** Same, gets "Pay" prompt if mana available
-- **Targeting:** Click target, then Submit at 888,489
-- **Optional costs:** "Choose One" modal — left=normal, right=with cost (~560,250)
-- **Modal choices (scry, surveil):** Click option card, then "Done"
+```
+arena turn               # check phase, hand, available actions
+arena land               # play a land if available
+arena cast "Card Name"   # cast a spell
+arena pass               # pass priority
+arena pass --n 5         # pass through multiple phases
+arena turn               # check what happened
+```
+
+### Card Positions
+
+**Card display order ≠ zone order.** MTGA sorts hand by mana cost visually. `arena hand` shows cards in visual left-to-right order with OCR-detected positions.
+
+The OCR pipeline: capture MTGA by window ID → crop bottom 20% + trim sides → upscale 2x → Vision OCR → fuzzy match → arc-adjusted position.
+
+Leftmost cards may be too overlapped for OCR — falls back to gap inference.
 
 ### Combat
 
+- **All Attack:** `arena pass` when in DeclareAttack phase (action button says "All Attack")
 - **Blocker assignment is click-click, NOT drag.** Click blocker, click attacker.
-- **15s bridge timeout** on DeclareAttackers/Blockers — script fast, don't OCR between clicks.
-- **All Attack:** 888,504 when "All Attack" prompt shows.
-
-## Forge Engine Quirks
-
-Read `forge-quirks.md` in this skill folder for Forge-vs-real-Arena differences: extra priority stops, Resolve clicks, phase skipping, cards to avoid, display issues.
-
-Key point: after `arena play`, spells need 888,504 (Resolve) then 888,504 (Pass). Lands just need Pass.
-
-## Sealed & Draft Events
-
-Read `event-gotchas.md` in this skill folder for sealed/draft-specific pitfalls: OCR text collisions ("Open", "Play"), deck building grid shifts, draft pick mechanics, ghost courses.
+- After casting a spell, click `arena pass` to Resolve, then again to Pass.
 
 ## Turn Cycle
 
-Forge gives priority at every phase — expect 5-10 clicks per turn.
+Real server gives priority at relevant phases. Typical turn:
 
-**888,504 is universal.** Pass, Next, End Turn, Resolve, All Attack — all same coord.
+1. `arena pass` through upkeep/draw → MAIN1
+2. `arena land` + `arena cast` — play cards
+3. `arena pass` → combat → declare attackers → confirm
+4. `arena pass` → MAIN2 → more cards if needed
+5. `arena pass` → end turn
 
-1. Click 888,504 through upkeep/draw → MAIN1
-2. Play cards
-3. Click 888,504 → combat → All Attack → confirm
-4. MAIN2 → more cards
-5. Click 888,504 → end turn → 5s sleep for Sparky
+**`arena turn`** tells you the current phase and available actions. Always check before acting.
 
-**Stuck?** `arena board` — check for pending actions.
+## Known Sharp Edges
 
-## Server
-
-- **`just serve`** — local Forge. `just serve-proxy` — passthrough + recording.
-- **Pre-flight:** `arena health` (checks server, port, window, OCR, display)
-- **After code changes:** `just stop` + rebuild + `just serve` (JVM holds old bytecode)
-- **After mode switch:** `just stop` + restart + `arena launch` (ghost matches)
-- **`synthetic_opponent = true`** in `leyline.toml` for events (default, don't remove)
-
-### Puzzle reinject
-
-`arena start-puzzle <file.pzl>` handles this. Manual alternative:
-```bash
-curl -s -X POST http://localhost:8090/api/inject-puzzle \
-  --data-binary @puzzles/my-puzzle.pzl -H "Content-Type: text/plain"
-```
-Click Pass (888,504) after reinject to sync phase HUD. Does NOT work after `gameOver=true`.
-
-## Login / Logout
-
-```bash
-# Login
-arena activate
-arena click 500,355                         # email field
-arena clear-field && arena paste forge@local
-arena click 500,385                         # password field
-arena clear-field && arena paste forge
-arena click 480,470                         # Log In
-
-# Logout
-arena click 900,42 && sleep 1 && arena click "Log Out" --retry 3
-```
+- **Adventure cards** show adventure name instead of card name in `arena turn`/`arena hand` (scry-ts bug)
+- **HTML tags** in card names (`<nobr>`) — leak from Arena DB
+- **Cast actions are unfiltered by mana** — `arena turn` lists all legal casts, not just affordable ones
+- **Seat number varies** — we're not always seat 1. `gamestate.ts` uses `game.ourSeat` from ConnectResp.
+- **Player.log verification lag** — after playing a card, Player.log may take 2-3s to update. `arena land` may falsely report failure.
+- **Format list position** — "Bot Match" position in the format sidebar shifts. OCR finds it dynamically.
 
 ## Recovery
 
 | Symptom | Action |
 |---------|--------|
-| Unknown screen | `arena where` → `arena navigate Home` |
-| Modal/popup | `arena click 480,300` or `arena click "Okay" --retry 3` |
-| Stuck in-game | `arena board` → check actions |
-| "Waiting for Server..." | Restart server, relaunch MTGA |
-| Ghost match | `just stop` + restart + `arena launch` |
-| Wrong coords | `system_profiler SPDisplaysDataType` — check display scale |
+| Unknown screen | `arena scene` to check, `arena click home-cta` to get home |
+| Modal/popup | `arena click center` or `arena click dismiss` |
+| Stuck in-game | `arena turn` → check actions → `arena pass` |
+| Wrong card played | Drag hit wrong position. Use `arena hand` to verify positions first. |
+| Not in game | `arena scene --json` → check `inGame` field |
 
 ## Subagent Journaling
 
-When dispatching arena automation to a subagent, have it journal:
+When dispatching arena automation to a subagent:
 
 ```bash
 echo "=== <Task> $(date) ===" > /tmp/<task>-playtest.log
 echo "$(date +%H:%M:%S) [step N] what happened" >> /tmp/<task>-playtest.log
 ```
 
-After every automation loop: `arena issues` to review failures.
+## For Developers
 
-## Building Compound Commands
+Architecture, native layer, OCR pipeline details: read `tools/arena-ts/CLAUDE.md` and `tools/arena-ts/README.md`.
 
-Pitfalls learned from building `concede`, `start-bot-match`, `start-puzzle`:
-
-### OCR Disambiguation
-
-- **"Play" appears everywhere** — event descriptions, card text, the actual button. Use `--bottom` to pick the lowest match (the button is always bottom-right).
-- **"Start" matches "starter decks"** — don't text-match Start. Check enrollment via "Resign" presence, click Start button by coord.
-- **"Bot Match" appears as header AND sidebar** — `--bottom` picks the sidebar item.
-- **"Keep" in "Keep playing until..."** — event descriptions contain mulligan keywords. Scene-first detection prevents false Mulligan detection.
-- **"Play" in "ForgePlayer"** — substring match `"play" in "forgeplayer"` is true. Word-boundary matching in `detect_screen` fixes this.
-
-### Screen Detection
-
-- **Scene-first:** Unambiguous scenes (EventLanding, DeckBuilder, Profile, InGame, etc.) skip OCR entirely. Built into `detect_screen()`.
-- **Shared scenes:** EventLanding and EventLobby both use `scene: "EventLanding"`. Disambiguate with OCR (Resign presence = EventLobby).
-- **`detect_screen` vs `scene`:** If `detect_screen` returns wrong screen but `scene` is right, the OCR is matching a false positive. Check word boundaries and reject rules in `screens_data.py`.
-
-### Timing
-
-- **Defeat screen animation:** 3s wait before clicks register. Don't fire dismiss clicks immediately.
-- **Poll loop pattern:** Click → sleep 3s → check `scene=Home` → repeat up to 5x. Better than blind `sleep 2` × 3 clicks.
-- **VS screen:** ~5-10s load time between Play click and InGame scene.
-
-### Deck Selection
-
-- Click deck **card art** (~80px above the OCR name label). Clicking the label text doesn't select.
-- Filter OCR results: exclude "Edit Deck", "My Decks", "Double-click to Edit" from deck name candidates.
-- Verify selection: poll for "Edit Deck" text after clicking.
-
-### Tool Internals
-
-For architecture, Swift binaries, adding commands/screens: read `tools/arena/README.md`.
-
-### Testing Workflow
-
-1. `arena capture --out /tmp/test.png --resolution 960` — see what's on screen
-2. Read the image to verify clicks landed correctly
-3. `arena ocr --fmt` — check all text positions
-4. `arena ocr --find "X"` — check what OCR returns for specific text
-5. Don't guess coords — verify from OCR output first
+Adding new match types: use `startMatch()` from `src/match-flow.ts` — specify format tab + format entry name. See `bot-match.ts` and `brawl.ts` for examples.

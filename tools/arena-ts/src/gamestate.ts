@@ -77,14 +77,15 @@ export async function liveState(): Promise<LiveState | null> {
     step: stripPrefix(ti?.step ?? "", "Step_"),
     activePlayer: ti?.activePlayer ?? 0,
     priorityPlayer: ti?.priorityPlayer ?? 0,
-    isOurTurn: ti?.activePlayer === 1,
+    isOurTurn: ti?.activePlayer === game.ourSeat,
   };
 
-  // Find hand zone for seat 1
+  // Find hand zone for our seat
+  const ourSeat = game.ourSeat;
   const handCards: HandCard[] = [];
   let handZoneId: number | null = null;
   for (const [, z] of state.zones) {
-    if (z.type === "ZoneType_Hand" && z.ownerSeatId === 1) {
+    if (z.type === "ZoneType_Hand" && z.ownerSeatId === ourSeat) {
       handZoneId = z.zoneId;
       break;
     }
@@ -104,14 +105,14 @@ export async function liveState(): Promise<LiveState | null> {
     }
   }
 
-  // Actions (seat 1 only)
+  // Actions (our seat only)
   const lands: PlayableAction[] = [];
   const casts: PlayableAction[] = [];
   const otherActions: PlayableAction[] = [];
   const handIds = new Set(handCards.map(c => c.instanceId));
 
   for (const a of state.actions) {
-    if (a.seatId != null && a.seatId !== 1) continue;
+    if (a.seatId != null && a.seatId !== ourSeat) continue;
     const action = (a as any).action ?? a;
     const atype = action.actionType ?? "";
     if (atype.includes("Activate_Mana")) continue;
@@ -141,8 +142,9 @@ export async function liveState(): Promise<LiveState | null> {
   }
 
   // Life totals
-  const p1 = state.players.get(1);
-  const p2 = state.players.get(2);
+  const oppSeat = ourSeat === 1 ? 2 : 1;
+  const p1 = state.players.get(ourSeat);
+  const p2 = state.players.get(oppSeat);
 
   return {
     turnInfo,
