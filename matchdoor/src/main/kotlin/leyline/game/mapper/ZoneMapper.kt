@@ -166,6 +166,7 @@ object ZoneMapper {
         zones.removeIf { it.zoneId == arenaZoneId }
 
         val allCards = game.getCardsIn(forgeZone)
+            .filter { it.gamePieceType == forge.card.GamePieceType.CARD || it.isToken }
         for (card in allCards) {
             val ownerSeatId = if (card.owner == human) 1 else 2
             val controllerSeatId = if (card.controller == human) 1 else 2

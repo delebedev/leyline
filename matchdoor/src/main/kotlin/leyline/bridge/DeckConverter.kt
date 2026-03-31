@@ -35,6 +35,7 @@ object DeckConverter {
                     log.warn("DeckConverter: unknown commander grpId {}", card.grpId)
                 }
             }
+            appendLine("[Deck]")
         }
         for (card in mainDeck) {
             val name = nameByGrpId(card.grpId)

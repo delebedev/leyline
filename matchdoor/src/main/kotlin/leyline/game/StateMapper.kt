@@ -147,6 +147,7 @@ object StateMapper {
         ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Battlefield, ZoneIds.BATTLEFIELD, bridge, zones, gameObjects, human, ai, keywordSnapshot)
         ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human, ai)
         ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human, ai)
+        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human, ai)
 
         // Stack abilities (triggers, activated abilities not represented as zone cards)
         ZoneMapper.addStackAbilities(game, bridge, zones, gameObjects, human)
