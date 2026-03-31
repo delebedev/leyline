@@ -1,24 +1,12 @@
 // src/commands/land.ts
-// Play a land from hand. Uses scry game state to find playable land,
-// then drags from estimated hand position to battlefield.
+// Play a land from hand. Uses scry for playable actions, OCR for card position.
 
 import { liveState } from "../gamestate";
+import { findHandCard, estimateHandPosition } from "../hand";
 import { drag } from "../input";
-import { getWindowBounds, scaleToScreen, REFERENCE_WIDTH } from "../window";
+import { getWindowBounds, scaleToScreen } from "../window";
 
-// Hand card X positions in 960px space, indexed by hand size and card index.
-// Cards fan in an arc; these are approximate centers.
-function handCardX(handSize: number, index: number): number {
-  if (handSize <= 0) return 480;
-  // Cards spread roughly 350-620 for a 7-card hand, centering at 480
-  const totalWidth = Math.min(handSize * 60, 400);
-  const startX = 480 - totalWidth / 2;
-  const spacing = handSize > 1 ? totalWidth / (handSize - 1) : 0;
-  return Math.round(startX + spacing * index);
-}
-
-const HAND_Y = 510;          // approximate y for cards in hand
-const BATTLEFIELD_Y = 300;   // drop target y
+const BATTLEFIELD_DROP: [number, number] = [480, 300];
 
 export async function landCommand(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h")) {
@@ -55,12 +43,21 @@ export async function landCommand(args: string[]): Promise<void> {
     land = match;
   }
 
-  // Find card position in hand
-  const handCard = state.hand.find(c => c.instanceId === land.instanceId);
-  if (!handCard) {
-    console.error(`land ${land.name} not found in hand objects`);
-    process.exitCode = 1;
-    return;
+  // Find card position via OCR
+  const knownNames = state.hand.map(c => c.name);
+  const pos = await findHandCard(land.name, knownNames);
+
+  let fromX: number, fromY: number;
+  if (pos) {
+    fromX = pos.cx;
+    fromY = pos.cy;
+    console.log(`playing ${land.name} (iid=${land.instanceId}) from OCR (${fromX},${fromY}) score=${pos.score.toFixed(2)}`);
+  } else {
+    // Fallback: estimate from hand index
+    const handCard = state.hand.find(c => c.instanceId === land.instanceId);
+    const idx = handCard?.index ?? 0;
+    [fromX, fromY] = estimateHandPosition(idx, state.handCount);
+    console.log(`playing ${land.name} (iid=${land.instanceId}) from estimate (${fromX},${fromY}) [OCR failed]`);
   }
 
   const bounds = await getWindowBounds();
@@ -70,14 +67,12 @@ export async function landCommand(args: string[]): Promise<void> {
     return;
   }
 
-  const fromX = handCardX(state.handCount, handCard.index);
-  const [sx1, sy1] = scaleToScreen(fromX, HAND_Y, bounds);
-  const [sx2, sy2] = scaleToScreen(480, BATTLEFIELD_Y, bounds);
+  const [sx1, sy1] = scaleToScreen(fromX, fromY, bounds);
+  const [sx2, sy2] = scaleToScreen(BATTLEFIELD_DROP[0], BATTLEFIELD_DROP[1], bounds);
 
-  console.log(`playing ${land.name} (iid=${land.instanceId}) from hand[${handCard.index}] (${fromX},${HAND_Y})`);
   await drag(sx1, sy1, sx2, sy2);
 
-  // Verify by re-reading state after a delay
+  // Verify
   await Bun.sleep(2000);
   const after = await liveState();
   if (after) {
