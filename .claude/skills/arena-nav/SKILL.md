@@ -132,6 +132,10 @@ echo "=== <Task> $(date) ===" > /tmp/<task>-playtest.log
 echo "$(date +%H:%M:%S) [step N] what happened" >> /tmp/<task>-playtest.log
 ```
 
+## Deck & Lobby Navigation Reference
+
+Detailed coordinates, screen flows, and recipes for deck management and lobby navigation: read `deck-navigation.md` in this skill folder.
+
 ## For Developers
 
 Architecture, native layer, OCR pipeline details: read `tools/arena-ts/CLAUDE.md` and `tools/arena-ts/README.md`.
