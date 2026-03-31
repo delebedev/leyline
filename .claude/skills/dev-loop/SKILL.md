@@ -95,7 +95,7 @@ On approval:
 
 Three layers for protocol/annotation bugs, two for others:
 
-1. **Conformance pipeline** (protocol bugs) — `just conform <Category> [session]`. Verifies annotation structure matches recording. Exit 0 = perfect, exit 1 = known gaps, exit 2 = regression. If improved over golden, capture new baseline: `just conform-golden <Category>`.
+1. **Trace comparison** (protocol bugs) — use `scry-ts trace` to compare per-card annotation shapes between arena logs and leyline logs. Check annotation types, detail keys, zone transfer categories.
 2. **Unit/integration test** — the regression test from Phase 5 passes, proving the code change works
 3. **In-game** — re-run the **reproduce** skill. For visual bugs: `arena capture` + annotated screenshot proving the visual is fixed. For protocol bugs: debug API confirms correct output. Check for new client errors.
 4. Module-scoped test task or `just test-gate` passes — no regressions

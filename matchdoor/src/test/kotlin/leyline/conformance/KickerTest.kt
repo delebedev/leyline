@@ -18,7 +18,6 @@ import wotc.mtgo.gre.external.messaging.Messages.*
  * 3. Spell deals kicked damage (4 not 2)
  *
  * Wire spec: docs/plans/2026-03-14-kicker-wire-spec.md
- * Golden template: golden/conform-kicker-template.json
  */
 class KickerTest :
     FunSpec({

@@ -126,7 +126,7 @@ Two agents is correct. The conformance subagent exists (`.claude/agents/conforma
 
 ## Anti-patterns
 
-1. **Scoping from engine behavior.** Ask "what does the real server send?" before "how does Forge do this?" Recording is the spec.
+1. **Scoping from engine behavior.** Ask "what does the real server send?" before "how does Forge do this?" Player.log is the spec.
 
 2. **Uncited claims.** "The server sends X" without `[citation: recording:...]` is an assertion, not a fact. Gate 1 can't verify what it can't check.
 

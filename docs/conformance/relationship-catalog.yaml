@@ -1,0 +1,201 @@
+# Relationship Catalog — structural invariants for protocol segments
+#
+# Each pattern is a hand-written invariant observed in real Arena server games,
+# validated against arena logs.
+#
+# Rule types:
+#   AlwaysPresent  — annotation type must appear in every instance of the segment
+#   NonEmpty       — field or list must be present and non-empty
+#   ValueIn        — field value must be one of an expected set
+#   Equals         — field A == field B within the same segment (after ID normalization)
+#   AffectorIdRule — affectorId on an annotation is always zero or always non-zero
+#
+# Grow this catalog as bugs reveal new invariants.
+
+patterns:
+
+  # --- CastSpell ---
+  - segment: CastSpell
+    rule_type: AlwaysPresent
+    annotation_type: ObjectIdChanged
+
+  - segment: CastSpell
+    rule_type: AlwaysPresent
+    annotation_type: ZoneTransfer
+
+  - segment: CastSpell
+    rule_type: ValueIn
+    target: "annotations[ZoneTransfer].details.zone_dest"
+    values: ["27"]
+
+  - segment: CastSpell
+    rule_type: ValueIn
+    target: "annotations[ZoneTransfer].details.category"
+    values: ["CastSpell"]
+
+  - segment: CastSpell
+    rule_type: NonEmpty
+    target: "gameStateMessage.gameObjects"
+
+  # --- PlayLand ---
+  - segment: PlayLand
+    rule_type: AlwaysPresent
+    annotation_type: ObjectIdChanged
+
+  - segment: PlayLand
+    rule_type: AlwaysPresent
+    annotation_type: ZoneTransfer
+
+  - segment: PlayLand
+    rule_type: ValueIn
+    target: "annotations[ZoneTransfer].details.zone_dest"
+    values: ["28"]
+
+  - segment: PlayLand
+    rule_type: ValueIn
+    target: "annotations[ZoneTransfer].details.category"
+    values: ["PlayLand"]
+
+  # --- Resolve ---
+  - segment: Resolve
+    rule_type: AlwaysPresent
+    annotation_type: ZoneTransfer
+
+  - segment: Resolve
+    rule_type: AlwaysPresent
+    annotation_type: ResolutionComplete
+
+  # --- SearchReq ---
+  - segment: SearchReq
+    rule_type: NonEmpty
+    target: "searchReq.itemsToSearch"
+
+  - segment: SearchReq
+    rule_type: NonEmpty
+    target: "searchReq.itemsSought"
+
+  - segment: SearchReq
+    rule_type: NonEmpty
+    target: "searchReq.zonesToSearch"
+
+  # --- Draw ---
+  - segment: Draw
+    rule_type: AlwaysPresent
+    annotation_type: ZoneTransfer
+
+  - segment: Draw
+    rule_type: AlwaysPresent
+    annotation_type: ObjectIdChanged
+
+  - segment: Draw
+    rule_type: ValueIn
+    target: "annotations[ZoneTransfer].details.category"
+    values: ["Draw"]
+
+  # --- Sacrifice ---
+  - segment: Sacrifice
+    rule_type: AlwaysPresent
+    annotation_type: ObjectIdChanged
+
+  - segment: Sacrifice
+    rule_type: AlwaysPresent
+    annotation_type: ZoneTransfer
+
+  - segment: Sacrifice
+    rule_type: AlwaysPresent
+    annotation_type: AbilityInstanceDeleted
+
+  - segment: Sacrifice
+    rule_type: ValueIn
+    target: "annotations[ZoneTransfer].details.category"
+    values: ["Sacrifice"]
+
+  # --- SBA_Damage (state-based lethal damage) ---
+  - segment: SBA_Damage
+    rule_type: AlwaysPresent
+    annotation_type: DamageDealt
+
+  - segment: SBA_Damage
+    rule_type: AlwaysPresent
+    annotation_type: ObjectIdChanged
+
+  - segment: SBA_Damage
+    rule_type: AlwaysPresent
+    annotation_type: ZoneTransfer
+
+  - segment: SBA_Damage
+    rule_type: ValueIn
+    target: "annotations[ZoneTransfer].details.category"
+    values: ["SBA_Damage"]
+
+  # --- Destroy ---
+  - segment: Destroy
+    rule_type: AlwaysPresent
+    annotation_type: ObjectIdChanged
+
+  - segment: Destroy
+    rule_type: AlwaysPresent
+    annotation_type: ZoneTransfer
+
+  - segment: Destroy
+    rule_type: ValueIn
+    target: "annotations[ZoneTransfer].details.category"
+    values: ["Destroy"]
+
+  # --- Discard ---
+  - segment: Discard
+    rule_type: AlwaysPresent
+    annotation_type: ObjectIdChanged
+
+  - segment: Discard
+    rule_type: AlwaysPresent
+    annotation_type: ZoneTransfer
+
+  - segment: Discard
+    rule_type: ValueIn
+    target: "annotations[ZoneTransfer].details.category"
+    values: ["Discard"]
+
+  # --- DeclareAttackersReq ---
+  - segment: DeclareAttackersReq
+    rule_type: NonEmpty
+    target: "declareAttackersReq.attackers"
+
+  - segment: DeclareAttackersReq
+    rule_type: NonEmpty
+    target: "declareAttackersReq.qualifiedAttackers"
+
+  - segment: DeclareAttackersReq
+    rule_type: ValueIn
+    target: "declareAttackersReq.canSubmitAttackers"
+    values: ["true"]
+
+  - segment: DeclareAttackersReq
+    rule_type: ValueIn
+    target: "prompt.promptId"
+    values: ["6"]
+
+  # --- SelectTargetsReq ---
+  - segment: SelectTargetsReq
+    rule_type: NonEmpty
+    target: "selectTargetsReq.targets"
+
+  - segment: SelectTargetsReq
+    rule_type: ValueIn
+    target: "prompt.promptId"
+    values: ["10"]
+
+  # --- DeclareBlockersReq ---
+  - segment: DeclareBlockersReq
+    rule_type: NonEmpty
+    target: "declareBlockersReq.blockers"
+
+  # --- MulliganReq ---
+  - segment: MulliganReq
+    rule_type: NonEmpty
+    target: "mulliganReq.mulliganType"
+
+  # --- ConnectResp ---
+  - segment: ConnectResp
+    rule_type: NonEmpty
+    target: "connectResp.protoVer"

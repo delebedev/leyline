@@ -20,7 +20,7 @@ Tools link back: `--help` is the minimum. A pointer to the relevant
 playbook or doc is better. If a tool has non-obvious behavior, the
 help text says where to learn more.
 
-## 2. Recording is the spec
+## 2. Player.log is the spec
 
 When the specification is a black box, captured real traffic is the
 authoritative reference. Read the recording before writing code. The

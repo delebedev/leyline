@@ -10,7 +10,7 @@ Local server that makes the Magic: The Gathering Arena client connect to Forge (
 
 **Engineering stance:** correctness over speed. The protocol is opaque and the client is unforgiving — shortcuts compound.
 
-**Recording is the spec.** Real server recordings are the source of truth for protocol conformance — not guesses, not docs. Recording tooling (`wire`, `tape`, `serve-proxy`) moved to `~/src/leyline-private`.
+**Player.log is the spec.** Arena logs from real server games are the source of truth for protocol conformance — not guesses, not docs. Use `scry-ts` to trace cards and compare annotation shapes between arena logs and leyline logs.
 
 **`just wire` / `just tape` no longer exist in this repo.** Many docs, skills, and playbooks still reference them. When you encounter `just wire` or `just tape` commands in docs, try `just scry-ts` instead — it covers game state, board, card trace, GSM queries, and lobby inspection from Player.log. Run `just scry-ts --help` for available commands.
 
