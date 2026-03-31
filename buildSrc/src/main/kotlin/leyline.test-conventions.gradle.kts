@@ -14,11 +14,13 @@ jacoco {
 
 // Don't depend on test — CI/recipes control test execution order.
 // Report generates from whatever .exec files exist in build/jacoco/.
+// mustRunAfter ensures the report waits for any test task that IS in the graph,
+// without forcing those tasks to run when only jacocoTestReport is requested.
 tasks.named<JacocoReport>("jacocoTestReport") {
     reports {
         xml.required.set(true)
         html.required.set(false)
     }
-    // Pick up exec data from all test tasks (test, testGate, testIntegration, etc.)
     executionData.setFrom(fileTree(layout.buildDirectory.dir("jacoco")) { include("*.exec") })
+    mustRunAfter(tasks.withType<Test>())
 }
