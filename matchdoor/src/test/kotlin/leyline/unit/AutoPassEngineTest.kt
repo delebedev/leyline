@@ -15,6 +15,7 @@ import leyline.game.GameBridge
 import leyline.match.AutoPassEngine
 import leyline.match.CombatHandler
 import leyline.match.MatchEventType
+import leyline.match.OptionalActionHandler
 import leyline.match.TargetingHandler
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassOption
 import wotc.mtgo.gre.external.messaging.Messages.AutoPassPriority
@@ -46,7 +47,7 @@ class AutoPassEngineTest :
         test("checkHumanActions — AI turn always returns Skip(OnlyPassActions)") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops))
+            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
 
             val decision = engine.checkHumanActions(game, isAiTurn = true)
 
@@ -61,7 +62,7 @@ class AutoPassEngineTest :
             val autoPassState = ClientAutoPassState()
             autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), autoPassState)
+            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops), autoPassState)
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
@@ -77,7 +78,7 @@ class AutoPassEngineTest :
             val autoPassState = ClientAutoPassState()
             autoPassState.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), autoPassState)
+            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops), autoPassState)
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
@@ -95,7 +96,7 @@ class AutoPassEngineTest :
             val autoPassState = ClientAutoPassState()
             autoPassState.update(settingsMessage { autoPassOption = AutoPassOption.ResolveAll })
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), autoPassState)
+            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops), autoPassState)
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
@@ -107,7 +108,7 @@ class AutoPassEngineTest :
         test("checkHumanActions — no autoPass + pass-only → Skip(OnlyPassActions)") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops))
+            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
@@ -122,7 +123,7 @@ class AutoPassEngineTest :
                 base.addCard("Forest", human, ZoneType.Battlefield)
             }
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops))
+            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
 
             val decision = engine.checkHumanActions(game, isAiTurn = false)
 
@@ -137,7 +138,7 @@ class AutoPassEngineTest :
         test("checkHumanActions records decisions in decisionLog") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops))
+            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
 
             engine.decisionLog().size shouldBe 0
             engine.checkHumanActions(game, isAiTurn = false)
@@ -148,7 +149,7 @@ class AutoPassEngineTest :
         test("AI turn skip does not record in decisionLog") {
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops))
+            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
 
             engine.checkHumanActions(game, isAiTurn = true)
             engine.decisionLog().size shouldBe 0
@@ -160,7 +161,7 @@ class AutoPassEngineTest :
             val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
             game.setGameOver(GameEndReason.AllOpposingTeamsLost)
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops))
+            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
 
             engine.autoPassAndAdvance(bridge)
 
@@ -176,7 +177,7 @@ class AutoPassEngineTest :
                 base.addCard("Forest", human, ZoneType.Battlefield)
             }
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops))
+            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
 
             engine.autoPassAndAdvance(bridge)
 
@@ -189,7 +190,7 @@ class AutoPassEngineTest :
             val autoPassState = ClientAutoPassState()
             autoPassState.updateAutoPassPriority(AutoPassPriority.No_a099)
             val ops = RecordingSessionOps(bridge = bridge, counter = counter)
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), autoPassState)
+            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops), autoPassState)
 
             engine.autoPassAndAdvance(bridge)
 
@@ -200,7 +201,7 @@ class AutoPassEngineTest :
         test("autoPassAndAdvance — null game returns immediately") {
             val bridge = GameBridge()
             val ops = RecordingSessionOps()
-            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops))
+            val engine = AutoPassEngine(ops, CombatHandler(ops), TargetingHandler(ops), OptionalActionHandler(ops))
 
             engine.autoPassAndAdvance(bridge)
 
@@ -226,7 +227,7 @@ class AutoPassEngineTest :
                 ): Signal = Signal.STOP
             }
 
-            val engine = AutoPassEngine(ops, stubCombat, TargetingHandler(ops))
+            val engine = AutoPassEngine(ops, stubCombat, TargetingHandler(ops), OptionalActionHandler(ops))
             engine.autoPassAndAdvance(bridge)
 
             ops.sendRealGameStateCount shouldBe 0
@@ -251,7 +252,7 @@ class AutoPassEngineTest :
                 ): Signal = Signal.SEND_STATE
             }
 
-            val engine = AutoPassEngine(ops, stubCombat, TargetingHandler(ops))
+            val engine = AutoPassEngine(ops, stubCombat, TargetingHandler(ops), OptionalActionHandler(ops))
             engine.autoPassAndAdvance(bridge)
 
             // Human turn + real actions → sendRealGameState from SEND_STATE path
