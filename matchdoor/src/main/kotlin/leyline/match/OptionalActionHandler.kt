@@ -92,7 +92,7 @@ class OptionalActionHandler(private val ops: SessionOps) {
             .build()
 
         val promptProto = Prompt.newBuilder()
-            .setPromptId(PromptIds.OPTIONAL_ACTION)
+            .setPromptId(2233)
             .addParameters(
                 PromptParameter.newBuilder()
                     .setParameterName("CardId")
