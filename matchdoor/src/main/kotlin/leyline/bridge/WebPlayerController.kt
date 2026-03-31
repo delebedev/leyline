@@ -156,6 +156,7 @@ class WebPlayerController(
     )
 
     data class OptionalActionPrompt(
+        /** Retained for leyline-x25: targeting order fix needs ability details. */
         val wrapper: WrappedAbility,
         val hostCard: Card?,
         val future: java.util.concurrent.CompletableFuture<Boolean>,

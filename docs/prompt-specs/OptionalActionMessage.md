@@ -2,7 +2,7 @@
 
 **GRE type:** `GREMessageType_OptionalActionMessage` = 45
 **Response type:** `ClientMessageType_OptionalActionResp` = 25
-**Status:** NOT IMPLEMENTED
+**Status:** IMPLEMENTED (#309) — known quirks: wrong promptId (leyline-ua6), targeting order (leyline-x25)
 **Occurrences:** 16 across 7 games (March 29–31 2026)
 
 ## Wire shape (GRE → Client)
