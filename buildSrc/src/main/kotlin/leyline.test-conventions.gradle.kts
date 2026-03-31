@@ -23,4 +23,7 @@ tasks.named<JacocoReport>("jacocoTestReport") {
     }
     executionData.setFrom(fileTree(layout.buildDirectory.dir("jacoco")) { include("*.exec") })
     mustRunAfter(tasks.withType<Test>())
+    // Disable build cache — exec files vary per test suite (gate vs integration)
+    // but Gradle cache keys only track class files, serving stale reports.
+    outputs.cacheIf { false }
 }
