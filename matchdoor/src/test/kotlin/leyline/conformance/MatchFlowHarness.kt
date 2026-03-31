@@ -698,5 +698,55 @@ class MatchFlowHarness(
         allRawMessages.addAll(sink.rawMessages)
         accumulator.processAll(sink.messages)
         sink.clear()
+
+        // Auto-accept "you may" triggers so the engine can continue.
+        // Without this, confirmTrigger blocks on its future and the test
+        // never reaches the next prompt (e.g. SearchReq after optional ETB).
+        autoRespondToOptionalAction()
+    }
+
+    private fun autoRespondToOptionalAction() {
+        val wpc = bridge.humanController ?: return
+        wpc.pendingOptionalAction ?: return
+        val msg = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e } ?: return
+
+        val greMsg = ClientToGREMessage.newBuilder()
+            .setType(ClientMessageType.OptionalActionResp)
+            .setGameStateId(msg.gameStateId)
+            .setRespId(msg.msgId)
+            .setOptionalResp(
+                OptionalResp.newBuilder()
+                    .setResponse(OptionResponse.AllowYes),
+            )
+            .build()
+        session.onOptionalActionResp(greMsg)
+
+        // Drain follow-up messages without recursing
+        allMessages.addAll(sink.messages)
+        allRawMessages.addAll(sink.rawMessages)
+        accumulator.processAll(sink.messages)
+        sink.clear()
+    }
+
+    /**
+     * Respond to an OptionalActionMessage with Accept or Decline.
+     * For tests that need explicit control over the optional decision.
+     */
+    fun respondToOptionalAction(accept: Boolean) {
+        val msg = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
+        val greMsg = ClientToGREMessage.newBuilder()
+            .setType(ClientMessageType.OptionalActionResp)
+            .setGameStateId(msg?.gameStateId ?: 0)
+            .setRespId(msg?.msgId ?: 0)
+            .setOptionalResp(
+                OptionalResp.newBuilder()
+                    .setResponse(if (accept) OptionResponse.AllowYes else OptionResponse.CancelNo),
+            )
+            .build()
+        session.onOptionalActionResp(greMsg)
+        allMessages.addAll(sink.messages)
+        allRawMessages.addAll(sink.rawMessages)
+        accumulator.processAll(sink.messages)
+        sink.clear()
     }
 }

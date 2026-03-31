@@ -290,6 +290,8 @@ class MatchHandler(
 
             ClientMessageType.AssignDamageResp_097b -> s?.onAssignDamage(greMsg)
 
+            ClientMessageType.OptionalActionResp -> s?.onOptionalActionResp(greMsg)
+
             ClientMessageType.CheckpointReq -> {
                 // Client acknowledges IntermissionReq — MatchCompleted room state
                 // was already sent in sendGameOver(). Nothing to do here.

@@ -131,6 +131,17 @@ class WebPlayerController(
      */
     @Volatile var pendingDamageAssignment: DamageAssignmentPrompt? = null
 
+    /**
+     * Pending "you may" trigger decision. Set by [confirmTrigger] when an optional
+     * trigger fires (Forge's [WrappedAbility] with [OptionalDecider]).
+     * Detected by OptionalActionHandler in the auto-pass loop, which sends
+     * [OptionalActionMessage] to the client. Completed when the client responds
+     * with [OptionalResp] (Allow_Yes → true, Cancel_No → false).
+     *
+     * Same dedicated-future pattern as [pendingDamageAssignment].
+     */
+    @Volatile var pendingOptionalAction: OptionalActionPrompt? = null
+
     /** Cache for batched responses — subsequent attackers in Forge's per-attacker loop. */
     val damageAssignCache: MutableMap<ForgeCardId, MutableMap<Card?, Int>> = mutableMapOf()
 
@@ -142,6 +153,13 @@ class WebPlayerController(
         val hasDeathtouch: Boolean,
         val hasTrample: Boolean,
         val future: java.util.concurrent.CompletableFuture<MutableMap<Card?, Int>>,
+    )
+
+    data class OptionalActionPrompt(
+        /** Retained for leyline-x25: targeting order fix needs ability details. */
+        val wrapper: WrappedAbility,
+        val hostCard: Card?,
+        val future: java.util.concurrent.CompletableFuture<Boolean>,
     )
 
     /** Set client auto-pass state (called by MatchSession after bridge connection). */
@@ -551,21 +569,28 @@ class WebPlayerController(
     }
 
     override fun confirmTrigger(wrapper: WrappedAbility): Boolean {
-        // PCHuman uses FModel + GuiBase + InputConfirm
         if (wrapper.isMandatory) return true
-        val source = wrapper.hostCard?.name ?: "Unknown"
-        val description = wrapper.stackDescription?.takeIf { it.isNotBlank() }
-            ?: "Triggered ability"
-        val request = PromptRequest(
-            promptType = "confirm",
-            message = "$source: $description — Use this ability?",
-            options = listOf("Yes", "No"),
-            min = 1,
-            max = 1,
-            defaultIndex = 0,
+
+        // Route through pendingOptionalAction so the session layer emits a proper
+        // OptionalActionMessage (GRE type 45) instead of a generic confirm prompt.
+        // The auto-pass loop detects the pending field and sends the wire message.
+        val future = java.util.concurrent.CompletableFuture<Boolean>()
+        pendingOptionalAction = OptionalActionPrompt(
+            wrapper = wrapper,
+            hostCard = wrapper.hostCard,
+            future = future,
         )
-        val result = bridge.requestChoice(request)
-        return result.firstOrNull() == 0
+        actionBridge?.prioritySignal?.signal()
+
+        return try {
+            val timeoutMs = actionBridge?.getTimeoutMs() ?: 120_000L
+            future.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+        } catch (e: Exception) {
+            log.warn("confirmTrigger: timeout/error for {} — auto-accepting", wrapper.hostCard?.name, e)
+            true // Default to accepting on timeout (safe — ability resolves normally)
+        } finally {
+            pendingOptionalAction = null
+        }
     }
 
     override fun confirmPayment(costPart: CostPart?, question: String, sa: SpellAbility): Boolean {

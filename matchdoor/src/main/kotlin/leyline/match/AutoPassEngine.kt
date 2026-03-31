@@ -24,6 +24,7 @@ class AutoPassEngine(
     private val ops: SessionOps,
     private val combatHandler: CombatHandler,
     private val targetingHandler: TargetingHandler,
+    private val optionalActionHandler: OptionalActionHandler,
     private val autoPassState: ClientAutoPassState = ClientAutoPassState(),
 ) {
     private val log = LoggerFactory.getLogger(AutoPassEngine::class.java)
@@ -116,6 +117,9 @@ class AutoPassEngine(
 
             // Damage assignment prompt (dedicated future, not action bridge)
             if (combatHandler.checkPendingDamageAssignment(bridge)) return
+
+            // Optional action prompt — "you may" trigger (dedicated future)
+            if (optionalActionHandler.checkPendingOptionalAction(bridge)) return
 
             // Interactive prompt (targeting, sacrifice, discard, etc.)
             when (targetingHandler.checkPendingPrompt(bridge, game)) {

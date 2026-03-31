@@ -1,0 +1,18 @@
+[metadata]
+Name:Optional Trigger - Reclamation Sage
+Goal:Cast Reclamation Sage, choose whether to destroy artifact, then pick target
+Turns:3
+Difficulty:Tutorial
+Description:Reclamation Sage ETB has OptionalDecider — triggers OptionalActionMessage. Accept → target selection (2 artifacts). Decline leaves both.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Reclamation Sage
+humanbattlefield=Forest;Forest;Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Sol Ring;Gleaming Barrier
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

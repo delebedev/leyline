@@ -76,10 +76,11 @@ class MatchSession(
     /** Client auto-pass settings (autoPassOption / stackAutoPassOption). */
     val autoPassState = ClientAutoPassState()
 
-    /** Sub-handlers for combat, targeting, and auto-pass flows. */
+    /** Sub-handlers for combat, targeting, optional actions, and auto-pass flows. */
     val combatHandler = CombatHandler(this)
     val targetingHandler = TargetingHandler(this)
-    val autoPassEngine = AutoPassEngine(this, combatHandler, targetingHandler, autoPassState)
+    val optionalActionHandler = OptionalActionHandler(this)
+    val autoPassEngine = AutoPassEngine(this, combatHandler, targetingHandler, optionalActionHandler, autoPassState)
 
     /**
      * Wire the game bridge (called by [MatchHandler] after bridge creation).
@@ -375,6 +376,12 @@ class MatchSession(
     override fun onAssignDamage(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
         val ctx = resolveContext() ?: return
         combatHandler.onAssignDamage(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
+    }
+
+    /** Handle OptionalActionResp — delegates to [OptionalActionHandler]. */
+    override fun onOptionalActionResp(greMsg: ClientToGREMessage) = synchronized(sessionLock) {
+        val ctx = resolveContext() ?: return
+        optionalActionHandler.onOptionalActionResp(greMsg, ctx.bridge) { autoPassEngine.autoPassAndAdvance(it) }
     }
 
     /** Handle SelectTargetsResp — delegates to [TargetingHandler]. */
