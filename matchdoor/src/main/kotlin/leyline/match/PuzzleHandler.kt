@@ -15,8 +15,8 @@ import java.io.File
 
 /**
  * Puzzle mode delegate — routed by `puzzle-<name>` match IDs. When
- * `game.puzzle` is set in config, that file is loaded for routed puzzle matches;
- * otherwise the matchId naming convention resolves `puzzles/<name>.pzl`.
+ * [puzzlePath] returns a non-null path, that file is loaded for routed puzzle
+ * matches; otherwise the matchId naming convention resolves `puzzles/<name>.pzl`.
  *
  * **Ordering constraint:** [GameBootstrap.initializeLocalization] must be called
  * before any [Puzzle] constructor — Forge's `GameState.<clinit>` reads localized
@@ -24,16 +24,17 @@ import java.io.File
  * so the handler can be created eagerly without triggering Forge class loading.
  */
 class PuzzleHandler(
-    private val matchConfig: MatchConfig,
+    private val puzzlePath: () -> String?,
     private val cards: CardRepository?,
     private val registry: MatchRegistry,
+    private val matchConfig: MatchConfig = MatchConfig(),
 ) {
     private val log = LoggerFactory.getLogger(PuzzleHandler::class.java)
 
     /** Puzzle mode when a puzzle file is configured — matchId is irrelevant. */
     @Suppress("UnusedParameter") // matchId kept for call-site clarity
     fun isPuzzleMatch(matchId: String): Boolean =
-        matchConfig.game.puzzle != null
+        puzzlePath() != null
 
     /**
      * Handle ConnectReq in puzzle mode: create bridge with puzzle game, send initial bundle.
@@ -107,7 +108,7 @@ class PuzzleHandler(
         // Puzzle constructor triggers GameState.<clinit> which needs localization
         GameBootstrap.initializeLocalization()
 
-        val configuredPuzzle = matchConfig.game.puzzle
+        val configuredPuzzle = puzzlePath()
         if (configuredPuzzle != null) {
             val file = File(configuredPuzzle).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), configuredPuzzle) }
             require(file.exists()) { "Puzzle file not found: ${file.absolutePath}" }

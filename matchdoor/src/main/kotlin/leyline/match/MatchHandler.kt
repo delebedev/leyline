@@ -43,6 +43,8 @@ class MatchHandler(
     private val debugSink: MatchDebugSink? = null,
     /** Factory for per-session recorders. Null = no recording. */
     private val recorderFactory: (() -> MatchRecorder)? = null,
+    /** Runtime puzzle file path supplier — non-null activates puzzle mode. */
+    private val puzzlePath: () -> String? = { null },
 ) : SimpleChannelInboundHandler<ClientToMatchServiceMessage>() {
     private val log = LoggerFactory.getLogger(MatchHandler::class.java)
 
@@ -70,7 +72,7 @@ class MatchHandler(
     )
 
     /** Puzzle mode delegate — detection, loading, initial bundle. */
-    private val puzzleHandler = PuzzleHandler(matchConfig, cards, registry)
+    private val puzzleHandler = PuzzleHandler(puzzlePath, cards, registry, matchConfig)
 
     companion object {
         val defaultRegistry = MatchRegistry()
