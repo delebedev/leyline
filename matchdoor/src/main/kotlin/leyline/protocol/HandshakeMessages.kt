@@ -17,9 +17,9 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 object HandshakeMessages {
 
     /** Room state event — match room with both players. */
-    fun roomState(matchId: String, playerId: String, opponentName: String = "Sparky"): MatchServiceToClientMessage {
+    fun roomState(matchId: String, playerId: String, opponentName: String = "Sparky", eventId: String = "AIBotMatch"): MatchServiceToClientMessage {
         val roomInfo = MatchGameRoomInfo.newBuilder()
-            .setGameRoomConfig(buildRoomConfig(matchId, playerId, opponentName))
+            .setGameRoomConfig(buildRoomConfig(matchId, playerId, opponentName, eventId))
             .setStateType(MatchGameRoomStateType.Playing)
             .addPlayers(playerInfo(playerId, "Player", 1, 1))
             .addPlayers(playerInfo("${playerId}_Familiar", opponentName, 2, 2))
@@ -72,11 +72,11 @@ object HandshakeMessages {
             .setUserId(userId).setPlayerName(name)
             .setSystemSeatId(seat).setTeamId(team)
 
-    private fun buildRoomConfig(matchId: String, playerId: String, opponentName: String = "Sparky"): MatchGameRoomConfig.Builder {
+    private fun buildRoomConfig(matchId: String, playerId: String, opponentName: String = "Sparky", eventId: String = "AIBotMatch"): MatchGameRoomConfig.Builder {
         val familiarId = "${playerId}_Familiar"
         return MatchGameRoomConfig.newBuilder()
             .setMatchId(matchId)
-            .setEventId("AIBotMatch")
+            .setEventId(eventId)
             .addReservedPlayers(
                 playerInfo(playerId, "Player", 1, 1)
                     .setCourseId("Avatar_Basic_Adventurer")
@@ -86,7 +86,7 @@ object HandshakeMessages {
                 playerInfo(familiarId, opponentName, 2, 2)
                     .setCourseId("Avatar_Basic_Sparky")
                     .setIsBotPlayer(true)
-                    .setEventId("AIBotMatch"),
+                    .setEventId(eventId),
             )
     }
 

@@ -29,17 +29,24 @@ export async function startMatch(opts: MatchFlowOpts): Promise<boolean> {
 
   await activateMtga(true);
 
-  // 1. Open play blade
+  // 1. Open play blade — use OCR to find Play button (bottommost "Play" on home)
   console.log("play blade...");
-  await clickRef(866, 533); // home-cta
-  await Bun.sleep(1000);
+  const playBtn = await ocrFindText("Play");
+  if (playBtn) {
+    await clickRef(playBtn[0], playBtn[1]);
+  } else {
+    await clickRef(866, 519); // home-cta fallback
+  }
+  await Bun.sleep(2000);
 
-  // 2. Find Match
+  // 2. Find Match tab — click it if we landed on Events
   console.log("find match...");
   const fm = await ocrFindText("Find Match");
-  if (!fm) { console.error("'Find Match' not found"); return false; }
-  await clickRef(fm[0], fm[1]);
-  await Bun.sleep(1000);
+  if (fm) {
+    await clickRef(fm[0], fm[1]);
+    await Bun.sleep(1000);
+  }
+  // If "Find Match" not found, we might already be on it (Bot Match card click goes straight there)
 
   // 3. Format tab
   const tabCoords = landmarks[opts.formatTab];

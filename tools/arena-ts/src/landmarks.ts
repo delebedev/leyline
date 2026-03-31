@@ -5,7 +5,7 @@
 
 export const landmarks: Record<string, [number, number]> = {
   // Home screen
-  "home-cta":       [866, 519],   // big Play / Start button (bottom right)
+  "home-cta":       [866, 506],   // big Play / Start button (bottom right)
 
   // Top nav bar
   "nav-profile":    [108, 43],
