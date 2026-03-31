@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { botMatchCommand } from "./src/commands/bot-match";
 import { castCommand } from "./src/commands/cast";
 import { clickCommand } from "./src/commands/click";
 import { concedeCommand } from "./src/commands/concede";
@@ -15,6 +16,7 @@ import { waitCommand } from "./src/commands/wait";
 import { logCommand } from "./src/telemetry";
 
 const commands: Record<string, { description: string; run: (args: string[]) => Promise<void> }> = {
+  "bot-match": { description: "Start a bot match",              run: botMatchCommand },
   cast:       { description: "Cast a spell from hand",         run: castCommand },
   click:      { description: "Click coordinates or landmark",  run: clickCommand },
   concede:    { description: "Concede current match",          run: concedeCommand },
