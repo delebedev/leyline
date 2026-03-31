@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
+import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
 import leyline.game.mapper.ActionMapper
@@ -543,83 +544,8 @@ class DebugServer(
         val bridge = session?.gameBridge
 
         if (session != null && bridge != null) {
-            GameBootstrap.initializeLocalization()
-
-            val puzzle = when {
-                body.isNotEmpty() -> PuzzleSource.loadFromText(body, "injected")
-                puzzlePath != null -> {
-                    val testResDir = File("matchdoor/src/test/resources/puzzles")
-                    val pzlFile = File(testResDir, "$fileParam.pzl")
-                    if (pzlFile.exists()) {
-                        PuzzleSource.loadFromFile(pzlFile.absolutePath)
-                    } else {
-                        @Suppress("SwallowedException")
-                        try {
-                            PuzzleSource.loadFromResource("puzzles/$fileParam.pzl")
-                        } catch (e: IllegalStateException) {
-                            respond(ex, 404, "text/plain", "Puzzle not found: $fileParam")
-                            return
-                        }
-                    }
-                }
-                else -> {
-                    respond(ex, 400, "text/plain", "Unexpected state")
-                    return
-                }
-            }
-
-            val deletedIds = bridge.resetForPuzzle(puzzle)
-
-            val counter = session.counter
-            val gsId = counter.nextGsId()
-            val msgId = counter.nextMsgId()
-
-            val game = bridge.getGame()!!
-            val fullGsm = StateMapper.buildFromGame(
-                game,
-                gsId,
-                session.matchId,
-                bridge,
-                updateType = GameStateUpdate.SendAndRecord,
-                viewingSeatId = session.seatId.value,
-            ).gsm
-
-            val gsmWithDeletes = if (deletedIds.isNotEmpty()) {
-                fullGsm.toBuilder().addAllDiffDeletedInstanceIds(deletedIds).build()
-            } else {
-                fullGsm
-            }
-
-            val greGsm = GREToClientMessage.newBuilder()
-                .setType(GREMessageType.GameStateMessage_695e)
-                .setMsgId(msgId)
-                .setGameStateId(gsId)
-                .addSystemSeatIds(session.seatId.value)
-                .setGameStateMessage(gsmWithDeletes)
-                .build()
-
-            val actions = ActionMapper.buildActions(game, session.seatId.value, bridge)
-            val greActions = GREToClientMessage.newBuilder()
-                .setType(GREMessageType.ActionsAvailableReq_695e)
-                .setMsgId(counter.nextMsgId())
-                .setGameStateId(gsId)
-                .addSystemSeatIds(session.seatId.value)
-                .setActionsAvailableReq(actions)
-                .build()
-
-            session.sendBundledGRE(listOf(greGsm, greActions))
-            bridge.snapshotDiffBaseline(gsmWithDeletes)
-
-            if (fileParam != null) {
-                val info = "Puzzle '$fileParam' set + injected gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
-                log.info(info)
-                respond(ex, 200, "text/plain", info)
-            } else {
-                val meta = PuzzleSource.parseMetadata(body)
-                val info = "Injected puzzle '${meta.name}' gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
-                log.info(info)
-                respond(ex, 200, "text/plain", info)
-            }
+            val label = hotSwapPuzzle(session, bridge, body, fileParam, puzzlePath, ex) ?: return
+            respond(ex, 200, "text/plain", label)
         } else {
             // No active session — just set runtime for next match
             if (fileParam != null) {
@@ -627,6 +553,92 @@ class DebugServer(
             } else {
                 respond(ex, 400, "text/plain", "No active session to inject body puzzle into")
             }
+        }
+    }
+
+    /** Hot-swap puzzle into active session. Returns label string on success, null if error was sent. */
+    private fun hotSwapPuzzle(
+        session: MatchSession,
+        bridge: GameBridge,
+        body: String,
+        fileParam: String?,
+        puzzlePath: String?,
+        ex: HttpExchange,
+    ): String? {
+        GameBootstrap.initializeLocalization()
+
+        val puzzle = when {
+            body.isNotEmpty() -> PuzzleSource.loadFromText(body, "injected")
+            puzzlePath != null -> {
+                val testResDir = File("matchdoor/src/test/resources/puzzles")
+                val pzlFile = File(testResDir, "$fileParam.pzl")
+                if (pzlFile.exists()) {
+                    PuzzleSource.loadFromFile(pzlFile.absolutePath)
+                } else {
+                    @Suppress("SwallowedException")
+                    try {
+                        PuzzleSource.loadFromResource("puzzles/$fileParam.pzl")
+                    } catch (e: IllegalStateException) {
+                        respond(ex, 404, "text/plain", "Puzzle not found: $fileParam")
+                        return null
+                    }
+                }
+            }
+            else -> {
+                respond(ex, 400, "text/plain", "Unexpected state")
+                return null
+            }
+        }
+
+        val deletedIds = bridge.resetForPuzzle(puzzle)
+
+        val counter = session.counter
+        val gsId = counter.nextGsId()
+        val msgId = counter.nextMsgId()
+
+        val game = bridge.getGame()!!
+        val fullGsm = StateMapper.buildFromGame(
+            game,
+            gsId,
+            session.matchId,
+            bridge,
+            updateType = GameStateUpdate.SendAndRecord,
+            viewingSeatId = session.seatId.value,
+        ).gsm
+
+        val gsmWithDeletes = if (deletedIds.isNotEmpty()) {
+            fullGsm.toBuilder().addAllDiffDeletedInstanceIds(deletedIds).build()
+        } else {
+            fullGsm
+        }
+
+        val greGsm = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.GameStateMessage_695e)
+            .setMsgId(msgId)
+            .setGameStateId(gsId)
+            .addSystemSeatIds(session.seatId.value)
+            .setGameStateMessage(gsmWithDeletes)
+            .build()
+
+        val actions = ActionMapper.buildActions(game, session.seatId.value, bridge)
+        val greActions = GREToClientMessage.newBuilder()
+            .setType(GREMessageType.ActionsAvailableReq_695e)
+            .setMsgId(counter.nextMsgId())
+            .setGameStateId(gsId)
+            .addSystemSeatIds(session.seatId.value)
+            .setActionsAvailableReq(actions)
+            .build()
+
+        session.sendBundledGRE(listOf(greGsm, greActions))
+        bridge.snapshotDiffBaseline(gsmWithDeletes)
+
+        return if (fileParam != null) {
+            "Puzzle '$fileParam' set + injected gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
+                .also { log.info(it) }
+        } else {
+            val meta = PuzzleSource.parseMetadata(body)
+            "Injected puzzle '${meta.name}' gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
+                .also { log.info(it) }
         }
     }
 
