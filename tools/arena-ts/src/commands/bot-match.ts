@@ -57,11 +57,16 @@ export async function botMatchCommand(args: string[]): Promise<void> {
   await clickRef(866, 533);  // home-cta
   await Bun.sleep(2000);
 
-  // Step 3: click Bot Match card body to open deck selector
-  // The play blade shows "Recently Played" with Bot Match on the right.
-  // Click the card body (not the Play button) to get the deck selector.
-  console.log("opening deck selector...");
-  await clickRef(866, 350);  // bot-match-card body
+  // Step 3: OCR the play blade to find "Bot Match", click its card body
+  console.log("finding Bot Match...");
+  const botPos = await ocrFindInBlade("Bot Match", bounds);
+  if (!botPos) {
+    console.error("'Bot Match' not found on play blade");
+    process.exitCode = 1;
+    return;
+  }
+  // Click card body — above the text label
+  await clickRef(botPos[0], botPos[1] - 80);
   await Bun.sleep(2000);
 
   // Step 4: select deck
@@ -104,6 +109,38 @@ export async function botMatchCommand(args: string[]): Promise<void> {
 
   console.error("timed out waiting for game");
   process.exitCode = 1;
+}
+
+/** OCR the play blade to find text (e.g. "Bot Match"). Returns [cx, cy] in 960px ref or null. */
+async function ocrFindInBlade(
+  text: string,
+  bounds: { x: number; y: number; w: number; h: number },
+): Promise<[number, number] | null> {
+  const img = "/tmp/arena-blade-ocr.png";
+  if (!(await captureMtga(img))) return null;
+
+  const ocrBin = await compileSwift("ocr");
+  const ocr = Bun.spawnSync({
+    cmd: [ocrBin, img, "--json", "--min-confidence", "0.3"],
+    stdout: "pipe",
+  });
+  if (ocr.exitCode !== 0) return null;
+
+  try {
+    const items = JSON.parse(ocr.stdout.toString());
+    const sipsInfo = Bun.spawnSync({ cmd: ["sips", "-g", "pixelWidth", img], stdout: "pipe" });
+    const wMatch = sipsInfo.stdout.toString().match(/pixelWidth:\s*(\d+)/);
+    const imgW = wMatch ? parseInt(wMatch[1]) : 1920;
+    const scale = REFERENCE_WIDTH / imgW;
+
+    const needle = text.toLowerCase();
+    for (const item of items) {
+      if (item.text.toLowerCase().includes(needle)) {
+        return [Math.round(item.cx * scale), Math.round(item.cy * scale)];
+      }
+    }
+  } catch {}
+  return null;
 }
 
 /** OCR the deck selector to find a deck by name. Returns [cx, cy] in 960px ref or null. */
