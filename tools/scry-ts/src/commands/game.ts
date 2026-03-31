@@ -154,7 +154,11 @@ async function gameCards(args: string[]) {
     const meta = loadMeta(gameFile);
     // Return cached cards if available
     if (meta.cards.length > 0) {
-      printCards(meta.cards, gameFile);
+      // Need ourSeat — parse to get it
+      const lines = readSavedGame(gameFile);
+      const games = detectGames([...parseLog(lines)]);
+      const ourSeat = games[games.length - 1]?.ourSeat ?? 1;
+      printCards(meta.cards, gameFile, ourSeat);
       return;
     }
     // Parse saved game
@@ -181,7 +185,7 @@ async function gameCards(args: string[]) {
     saveMeta(gameFile, meta);
   }
 
-  printCards(cards, gameFile ?? "live");
+  printCards(cards, gameFile ?? "live", game.ourSeat);
 }
 
 // TODO: performance — currently reads every saved log file sequentially.
@@ -267,7 +271,7 @@ async function gameSearch(args: string[]) {
   }
 }
 
-function printCards(cards: CardEntry[], label: string) {
+function printCards(cards: CardEntry[], label: string, ourSeat: number = 1) {
   console.log(`Cards (${label}):\n`);
 
   const BASICS = new Set(["Plains", "Island", "Swamp", "Mountain", "Forest"]);
@@ -279,7 +283,7 @@ function printCards(cards: CardEntry[], label: string) {
 
     if (seatCards.length === 0) continue;
 
-    const seatLabel = seat === 1 ? "Seat 1 (you)" : "Seat 2 (opponent)";
+    const seatLabel = seat === ourSeat ? `Seat ${seat} (you)` : `Seat ${seat} (opponent)`;
     console.log(`${seatLabel}:`);
     for (const c of seatCards) {
       const pt = c.power != null ? ` ${c.power}/${c.toughness}` : "";

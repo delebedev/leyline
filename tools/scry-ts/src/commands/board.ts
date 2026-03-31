@@ -90,14 +90,17 @@ export async function boardCommand(args: string[]) {
   // Print zones in logical order
   const zoneOrder = ["Battlefield", "Stack", "Hand", "Graveyard", "Exile", "Library", "Command", "Limbo"];
 
+  const oppSeat = game.ourSeat === 1 ? 2 : 1;
+
   for (const zt of zoneOrder) {
-    for (const seat of [0, 1, 2]) {
+    // Show our side first, then opponent
+    for (const seat of [0, game.ourSeat, oppSeat]) {
       const key = `${zt}|${seat}`;
       const objects = grouped.get(key);
       if (!objects || objects.length === 0) continue;
       if (zt === "Limbo") continue;
 
-      const seatLabel = seat > 0 ? ` (seat ${seat})` : "";
+      const seatLabel = seat === game.ourSeat ? " (you)" : seat === oppSeat ? " (opponent)" : "";
 
       if (zt === "Library") {
         console.log(`${zt}${seatLabel}: ${objects.length} cards`);
@@ -147,7 +150,7 @@ export async function boardCommand(args: string[]) {
   const actions = state.actions.filter((a: any) => {
     const action = a.action ?? a;
     const atype = action.actionType ?? "";
-    return !atype.includes("Activate_Mana") && (a.seatId === 1 || !a.seatId);
+    return !atype.includes("Activate_Mana") && (a.seatId === game.ourSeat || !a.seatId);
   });
   if (actions.length > 0) {
     console.log("");

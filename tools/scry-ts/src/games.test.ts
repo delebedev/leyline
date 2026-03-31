@@ -11,8 +11,8 @@ function gre(messages: any[], opts?: { timestamp?: string; matchId?: string }): 
   };
 }
 
-function connectResp() {
-  return { type: "GREMessageType_ConnectResp" };
+function connectResp(seat: number = 1) {
+  return { type: "GREMessageType_ConnectResp", systemSeatIds: [seat] };
 }
 
 function gsm(gsId: number, opts?: { type?: string; turn?: number; phase?: string; annotations?: any[]; gameInfo?: any }) {
@@ -90,6 +90,29 @@ describe("detectGames", () => {
     const games = detectGames(events);
     expect(games).toHaveLength(1);
     expect(games[0].greMessages).toHaveLength(1);
+  });
+
+  it("detects seat 2 and win/loss correctly", () => {
+    const events = [
+      gre([connectResp(2)]), // we are seat 2
+      gre([gsm(1, { type: "Full" })]),
+      gre([gsm(2, { gameInfo: gameOver(2) })]), // seat 2 wins = we win
+    ];
+    const games = detectGames(events);
+    expect(games).toHaveLength(1);
+    expect(games[0].ourSeat).toBe(2);
+    expect(games[0].result).toBe("win");
+  });
+
+  it("detects loss when opponent wins and we are seat 2", () => {
+    const events = [
+      gre([connectResp(2)]),
+      gre([gsm(1, { type: "Full" })]),
+      gre([gsm(2, { gameInfo: gameOver(1) })]), // seat 1 wins = we lose
+    ];
+    const games = detectGames(events);
+    expect(games[0].ourSeat).toBe(2);
+    expect(games[0].result).toBe("loss");
   });
 
   it("returns empty for no GRE events", () => {
