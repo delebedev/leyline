@@ -5,15 +5,17 @@ Forge `.pzl` puzzles played through the client. Pre-built board states — no mu
 ## Quick Start
 
 ```bash
-# 1. Set puzzle in leyline.toml: [game].puzzle = "puzzles/bolt-face.pzl"
-# 2. Start server + navigate to game
+# 1. Start server
 just serve   # (background)
-arena start-puzzle puzzles/bolt-face.pzl
+# 2. Set puzzle via runtime API (hot-swaps if in match, queues for next Sparky match)
+just puzzle puzzles/bolt-face.pzl
+# 3. Navigate to Sparky match
+just arena-ts bot-match
 ```
 
-`arena start-puzzle` navigates Home → Sparky's Challenge → Play → InGame, injects the puzzle via debug API, and syncs the phase HUD. Hot-swaps if already in-game.
+`just puzzle <file>` calls `POST :8090/api/puzzle?file=<name>` on the debug server. Hot-swaps if already in a match; queues for the next Sparky match otherwise. `GET :8090/api/puzzle` returns the current puzzle; `POST` with no params clears it.
 
-`game.puzzle` only affects Sparky challenge matches. Normal queues and direct matches stay constructed.
+Puzzles only affect Sparky challenge matches. Normal queues and direct matches stay constructed.
 
 Test puzzles live in `matchdoor/src/test/resources/puzzles/`. Simplest: `WEB_TEST_00.pzl` (1 Mountain, 1 Lightning Bolt, AI at 3 life).
 
@@ -44,8 +46,8 @@ The client sees `stage=Play` in the first GSM and enters the turn loop directly.
 ### Startup Flow
 
 ```
-leyline.toml [game].puzzle = "puzzles/bolt-face.pzl"
-  → just serve
+POST :8090/api/puzzle?file=puzzles/bolt-face.pzl   (or: just puzzle puzzles/bolt-face.pzl)
+  → debug server stores active puzzle path
   → FrontDoor MatchCreated for SparkyStarterDeckDuel uses matchId "puzzle-bolt-face"
 
 On client ConnectReq:
@@ -71,7 +73,7 @@ On client ConnectReq:
 
 | File | Role |
 |------|------|
-| `leyline.toml` | `game.puzzle` selects puzzle file for Sparky routing |
+| Debug API (`/api/puzzle`) | Runtime puzzle selection for Sparky routing |
 | `LeylineServer.kt` | Routes SparkyStarterDeckDuel to `puzzle-<name>` match IDs |
 | `MatchHandler.kt` | Puzzle detection, bridge creation, initial bundle |
 | `MatchSession.kt` | `onPuzzleStart()` — seeds snapshot, enters game loop |
@@ -181,7 +183,7 @@ Life:3
 
 ## Limitations
 
-- **No puzzle selection UI** — set `game.puzzle` in config, then launch Sparky. No in-client browser.
+- **No puzzle selection UI** — use `just puzzle <file>` or `POST /api/puzzle`, then launch Sparky. No in-client browser.
 - **No goal display** — the Puzzle Goal enforcement card exists in the Command zone but the client has no UI for it.
 - **No turn-limit timer** — Forge engine tracks turns but there's no visual countdown.
 - **Seat 2 (Familiar) support deferred** — only seat 1 (human) connection is wired. Familiar connects but doesn't receive puzzle-specific state.

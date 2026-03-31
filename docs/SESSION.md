@@ -37,7 +37,7 @@ Implemented two end-to-end mechanics in parallel (sub-agent dispatch):
 3. `e6538ca` fix: extract addZoneCastActions to fix detekt NestedBlockDepth
 
 ## Open threads
-- **Arena playtest not done:** `screencapture -R` lacks screen recording permission in agent terminal. Server runs, puzzles load, but can't automate clicks/captures. Manual playtest needed — puzzles are ready in `leyline.toml` and via `inject-puzzle` API.
+- **Arena playtest not done:** `screencapture -R` lacks screen recording permission in agent terminal. Server runs, puzzles load, but can't automate clicks/captures. Manual playtest needed — puzzles are ready via `just puzzle <file>` (runtime API).
 - **PayCostsReq conformance:** Real server uses PayCostsReq promptId=1024 → EffectCostResp for mandatory costs. We use SelectNReq (works end-to-end, wrong wire shape). Conformance follow-up — create issue.
 - **AutoTap skipped for zone casts:** Flashback cost differs from `cardData.manaCost`, so autoTap solution not generated for GY/Exile casts. Client falls back to manual tap. Low priority.
 - **Library search still blocked:** puzzle infra uses InMemoryCardRepo but search needs real card DB (from Mar 22 session). Unrelated to this branch.

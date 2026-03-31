@@ -113,6 +113,7 @@ private fun buildDebugServer(port: Int, server: LeylineServer) = DebugServer(
     gameStateCollector = server.gameStateCollector,
     fdCollector = server.fdCollector,
     eventBus = server.eventBus,
+    runtimePuzzle = server.runtimePuzzle,
 )
 
 private fun buildAccountServer(

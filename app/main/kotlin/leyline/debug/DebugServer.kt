@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
+import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
 import leyline.game.mapper.ActionMapper
@@ -17,6 +18,7 @@ import java.io.File
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * Embedded HTTP server for the Leyline debug panel.
@@ -43,6 +45,8 @@ class DebugServer(
     private val gameStateCollector: GameStateCollector? = null,
     private val fdCollector: FdDebugCollector? = null,
     private val eventBus: DebugEventBus? = null,
+    /** Runtime puzzle holder — set/cleared by POST /api/puzzle. */
+    private val runtimePuzzle: AtomicReference<String?>? = null,
 ) {
     private val log = LoggerFactory.getLogger(DebugServer::class.java)
     private var server: HttpServer? = null
@@ -73,7 +77,27 @@ class DebugServer(
         }
 
         srv.postContext("/api/inject-full", ::serveInjectFull)
-        srv.postContext("/api/inject-puzzle", ::serveInjectPuzzle)
+        srv.createContext("/api/puzzle") { ex ->
+            try {
+                when (ex.requestMethod) {
+                    "GET" -> serveGetPuzzle(ex)
+                    "POST" -> servePuzzle(ex)
+                    else -> {
+                        ex.sendResponseHeaders(405, -1)
+                        ex.close()
+                    }
+                }
+            } catch (t: Throwable) {
+                log.error("/api/puzzle error: {}", t.message, t)
+                try {
+                    respond(ex, 500, "text/plain", "Error: ${t.message}")
+                } catch (_: Throwable) {
+                    try {
+                        ex.close()
+                    } catch (_: Throwable) {}
+                }
+            }
+        }
 
         srv.createContext("/api/events") { ex ->
             try {
@@ -472,65 +496,102 @@ class DebugServer(
         respond(ex, 200, "text/plain", info)
     }
 
-    /**
-     * POST `/api/inject-puzzle` — hot-swap the running game to a new puzzle.
-     *
-     * Accepts raw `.pzl` content in the request body, or `?file=<name>` to load
-     * from test resources (e.g. `?file=bolt-face` → `puzzles/bolt-face.pzl`).
-     *
-     * Tears down the current game, clears all bridge state, starts a fresh puzzle
-     * game, and injects its Full GSM + actions into the connected client.
-     */
-    private fun serveInjectPuzzle(ex: HttpExchange) {
-        val session = debugCollector?.sessionProvider?.invoke() as? MatchSession
-        if (session == null) {
-            respond(ex, 404, "text/plain", "No active session")
-            return
-        }
-        val bridge = session.gameBridge
-        if (bridge == null) {
-            respond(ex, 404, "text/plain", "No game bridge")
-            return
-        }
+    private fun serveGetPuzzle(ex: HttpExchange) {
+        val current = runtimePuzzle?.get()
+        respondJson(ex, """{"puzzle":${if (current != null) "\"$current\"" else "null"}}""")
+    }
 
-        // Load puzzle: body content takes precedence, then ?file= query param
+    private fun servePuzzle(ex: HttpExchange) {
         val body = ex.requestBody.bufferedReader().readText().trim()
         val fileParam = ex.requestURI.query
             ?.split("&")
             ?.associate { it.split("=", limit = 2).let { p -> p[0] to (p.getOrNull(1) ?: "") } }
             ?.get("file")
 
-        // Puzzle constructor triggers GameState.<clinit> which needs localization
+        // No file param + no body → clear puzzle
+        if (fileParam == null && body.isEmpty()) {
+            runtimePuzzle?.set(null)
+            respond(ex, 200, "text/plain", "Puzzle cleared")
+            return
+        }
+
+        // Resolve puzzle file path when ?file= is given
+        val puzzlePath = if (fileParam != null) {
+            val testResDir = File("matchdoor/src/test/resources/puzzles")
+            val pzlFile = File(testResDir, "$fileParam.pzl")
+            if (pzlFile.exists()) {
+                pzlFile.absolutePath
+            } else {
+                // Verify classpath resource exists
+                val resource = javaClass.classLoader.getResource("puzzles/$fileParam.pzl")
+                if (resource == null) {
+                    respond(ex, 404, "text/plain", "Puzzle not found: $fileParam (checked ${pzlFile.absolutePath} and classpath)")
+                    return
+                }
+                "puzzles/$fileParam.pzl"
+            }
+        } else {
+            null
+        }
+
+        // Set runtime puzzle path for next match (only when file-based)
+        if (puzzlePath != null) {
+            runtimePuzzle?.set(puzzlePath)
+        }
+
+        // Try hot-swap if there's an active session
+        val session = debugCollector?.sessionProvider?.invoke() as? MatchSession
+        val bridge = session?.gameBridge
+
+        if (session != null && bridge != null) {
+            val label = hotSwapPuzzle(session, bridge, body, fileParam, puzzlePath, ex) ?: return
+            respond(ex, 200, "text/plain", label)
+        } else {
+            // No active session — just set runtime for next match
+            if (fileParam != null) {
+                respond(ex, 200, "text/plain", "Puzzle set: $fileParam (will activate on next Sparky match)")
+            } else {
+                respond(ex, 400, "text/plain", "No active session to inject body puzzle into")
+            }
+        }
+    }
+
+    /** Hot-swap puzzle into active session. Returns label string on success, null if error was sent. */
+    private fun hotSwapPuzzle(
+        session: MatchSession,
+        bridge: GameBridge,
+        body: String,
+        fileParam: String?,
+        puzzlePath: String?,
+        ex: HttpExchange,
+    ): String? {
         GameBootstrap.initializeLocalization()
 
         val puzzle = when {
             body.isNotEmpty() -> PuzzleSource.loadFromText(body, "injected")
-            fileParam != null -> {
-                // Try filesystem first (test resources), then classpath
+            puzzlePath != null -> {
                 val testResDir = File("matchdoor/src/test/resources/puzzles")
                 val pzlFile = File(testResDir, "$fileParam.pzl")
                 if (pzlFile.exists()) {
                     PuzzleSource.loadFromFile(pzlFile.absolutePath)
                 } else {
-                    @Suppress("SwallowedException") // resource-not-found → 404, exception carries no useful info
+                    @Suppress("SwallowedException")
                     try {
                         PuzzleSource.loadFromResource("puzzles/$fileParam.pzl")
                     } catch (e: IllegalStateException) {
-                        respond(ex, 404, "text/plain", "Puzzle not found: $fileParam (checked ${pzlFile.absolutePath} and classpath)")
-                        return
+                        respond(ex, 404, "text/plain", "Puzzle not found: $fileParam")
+                        return null
                     }
                 }
             }
             else -> {
-                respond(ex, 400, "text/plain", "Provide .pzl content in body or ?file=<name> query param")
-                return
+                respond(ex, 400, "text/plain", "Unexpected state")
+                return null
             }
         }
 
-        // Reset bridge with new puzzle (shutdown → clear state → startPuzzle)
         val deletedIds = bridge.resetForPuzzle(puzzle)
 
-        // Build and send Full GSM + actions from the new engine state
         val counter = session.counter
         val gsId = counter.nextGsId()
         val msgId = counter.nextMsgId()
@@ -545,7 +606,6 @@ class DebugServer(
             viewingSeatId = session.seatId.value,
         ).gsm
 
-        // Add diffDeletedInstanceIds so the client purges cached objects from the old puzzle
         val gsmWithDeletes = if (deletedIds.isNotEmpty()) {
             fullGsm.toBuilder().addAllDiffDeletedInstanceIds(deletedIds).build()
         } else {
@@ -572,11 +632,14 @@ class DebugServer(
         session.sendBundledGRE(listOf(greGsm, greActions))
         bridge.snapshotDiffBaseline(gsmWithDeletes)
 
-        val meta = PuzzleSource.parseMetadata(if (body.isNotEmpty()) body else "")
-        val label = if (fileParam != null) fileParam else meta.name
-        val info = "Injected puzzle '$label' gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
-        log.info(info)
-        respond(ex, 200, "text/plain", info)
+        return if (fileParam != null) {
+            "Puzzle '$fileParam' set + injected gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
+                .also { log.info(it) }
+        } else {
+            val meta = PuzzleSource.parseMetadata(body)
+            "Injected puzzle '${meta.name}' gsId=$gsId objects=${fullGsm.gameObjectsCount} zones=${fullGsm.zonesCount}"
+                .also { log.info(it) }
+        }
     }
 
     // --- Helpers ---

@@ -89,7 +89,7 @@ Test uses `ConformanceTestBase.startPuzzleAtMain1(puzzleText)` → returns `(bri
 
 #### Tier 2: Puzzle in-game (server + client, ~30s)
 
-Start server with `game.puzzle` set in config, connect client, play through in MTGA. Best for:
+Run `just puzzle <file>` to set the puzzle (hot-swaps, no restart needed), connect client, play through in MTGA. Best for:
 - Visual bugs that need client rendering to confirm
 - Client-side behavior (highlights, animations, prompts)
 - When Tier 1 passes but you need to see what the player sees

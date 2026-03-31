@@ -34,7 +34,7 @@ Design and write a `.pzl` puzzle file that tests a specific game mechanic. The p
 | Must-attack | Juggernaut (5/3) |
 | Deathtouch blocker | Typhoid Rats (1/1), Hired Poisoner (1/1) |
 | Vanilla beater | Grizzly Bears (2/2), Centaur Courser (3/3), Savannah Lions (2/1) |
-| Big blocker | Pillarfield Ox (2/4), Kalonian Tusker (3/3) |
+| Big blocker | Those Who Serve (2/4), Kalonian Tusker (3/3) |
 | Burn spell | Lightning Bolt (3 dmg), Shock (2 dmg), Lava Axe (5 dmg) |
 | Pump spell | Giant Growth (+3/+3) |
 | Flying | Healer's Hawk (1/1 flying lifelink), Wind Drake (2/2 flying) |

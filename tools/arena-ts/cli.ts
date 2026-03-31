@@ -8,6 +8,7 @@ import { concedeCommand } from "./src/commands/concede";
 import { dragCommand } from "./src/commands/drag";
 import { handCommand } from "./src/commands/hand";
 import { keepCommand } from "./src/commands/keep";
+import { launchCommand } from "./src/commands/launch";
 import { landCommand } from "./src/commands/land";
 import { passCommand } from "./src/commands/pass";
 import { preflightCommand } from "./src/commands/preflight";
@@ -25,6 +26,7 @@ const commands: Record<string, { description: string; run: (args: string[]) => P
   drag:       { description: "Drag between two points",        run: dragCommand },
   hand:       { description: "Hand cards with positions",      run: handCommand },
   keep:       { description: "Keep hand during mulligan",      run: keepCommand },
+  launch:     { description: "Launch MTGA client",             run: launchCommand },
   land:       { description: "Play a land from hand",          run: landCommand },
   pass:       { description: "Pass priority (action button)",  run: passCommand },
   preflight:  { description: "System readiness check",         run: preflightCommand },

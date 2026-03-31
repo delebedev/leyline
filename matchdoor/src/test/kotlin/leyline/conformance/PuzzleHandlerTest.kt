@@ -9,8 +9,6 @@ import io.netty.channel.ChannelInboundHandlerAdapter
 import io.netty.channel.embedded.EmbeddedChannel
 import leyline.IntegrationTag
 import leyline.bridge.SeatId
-import leyline.config.GameConfig
-import leyline.config.MatchConfig
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
@@ -73,7 +71,7 @@ class PuzzleHandlerTest :
             val session = MatchSession(seatId = SeatId(1), matchId = "puzzle-bolt-face", sink = sink, registry = registry, paceDelayMs = 0)
             val temp = tempPuzzleFile("bundle")
             try {
-                val handler = PuzzleHandler(MatchConfig(game = GameConfig(puzzle = temp.absolutePath)), TestCardRegistry.repo, registry)
+                val handler = PuzzleHandler(puzzlePath = { temp.absolutePath }, TestCardRegistry.repo, registry)
                 val (channel, ctx) = channelCtx()
 
                 val bridge = handler.onPuzzleConnect(ctx, session, "puzzle-bolt-face", 1)
@@ -95,7 +93,7 @@ class PuzzleHandlerTest :
             val registry = MatchRegistry()
             val temp = tempPuzzleFile("reuse")
             try {
-                val handler = PuzzleHandler(MatchConfig(game = GameConfig(puzzle = temp.absolutePath)), TestCardRegistry.repo, registry)
+                val handler = PuzzleHandler(puzzlePath = { temp.absolutePath }, TestCardRegistry.repo, registry)
 
                 val sink1 = ListMessageSink()
                 val session1 = MatchSession(seatId = SeatId(1), matchId = "puzzle-lands-only", sink = sink1, registry = registry, paceDelayMs = 0)
@@ -148,7 +146,7 @@ class PuzzleHandlerTest :
                 val sink = ListMessageSink()
                 val session = MatchSession(seatId = SeatId(1), matchId = "puzzle-cli-puzzle", sink = sink, registry = registry, paceDelayMs = 0)
                 val handler = PuzzleHandler(
-                    MatchConfig(game = GameConfig(puzzle = temp.absolutePath)),
+                    puzzlePath = { temp.absolutePath },
                     TestCardRegistry.repo,
                     registry,
                 )

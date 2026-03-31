@@ -40,10 +40,6 @@ timer = false
 # queues the player but never finds an opponent.
 synthetic_opponent = true
 
-# Optional puzzle file. When set, clicking the Sparky bot match tile launches
-# this puzzle instead of a normal bot game.
-#puzzle = "puzzles/bolt-face.pzl"
-
 [ai]
 # AI animation speed. 2 = twice as fast, 1 = default, 0 = instant.
 speed = 1.0

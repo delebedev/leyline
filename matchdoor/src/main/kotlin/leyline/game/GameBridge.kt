@@ -201,8 +201,10 @@ class GameBridge(
     var phaseStopProfile: PhaseStopProfile? = null
         private set
 
-    /** Client DB repo saved during puzzle hot-swap — used by PuzzleCardRegistrar for real grpIds. */
-    private var puzzleClientRepo: CardRepository? = null
+    /** Immutable reference to the card repository passed at construction.
+     *  Used by PuzzleCardRegistrar as the client DB for real grpId lookups —
+     *  survives puzzle hot-swaps (which replace [cards] with InMemoryCardRepository). */
+    private val cardRepository: CardRepository = cards
 
     // --- Composed components ---
 
@@ -822,9 +824,6 @@ class GameBridge(
     fun resetForPuzzle(puzzle: Puzzle): List<Int> {
         log.info("GameBridge: resetting for new puzzle")
 
-        // Save reference to client DB repo before swapping (for real grpId lookups)
-        val previousRepo = cards
-
         shutdown()
 
         // Clear all mapping/tracking state from the previous game
@@ -835,12 +834,11 @@ class GameBridge(
         annotations.resetAll()
         activeCrewEffects.clear()
 
-        // Swap to InMemoryCardRepository backed by the client DB for real grpIds.
-        // PuzzleCardRegistrar checks clientRepo first (real art), falls back to synthetic.
+        // Fresh InMemoryCardRepository — registerPuzzleCards uses cardRepository
+        // (the immutable constructor reference) for real grpId lookups.
         val memRepo = InMemoryCardRepository()
         cards = memRepo
         cardProto = CardProtoBuilder(memRepo)
-        puzzleClientRepo = previousRepo
 
         startPuzzle(puzzle)
         log.info("GameBridge: puzzle hot-swap complete, deleted {} old instanceIds", deletedIds.size)
@@ -944,7 +942,7 @@ class GameBridge(
             log.info("GameBridge: puzzle mode swapped to InMemoryCardRepository (clientRepo={})", originalCards::class.simpleName)
             inMemory
         }
-        val registrar = PuzzleCardRegistrar(repo, clientRepo = puzzleClientRepo ?: originalCards.takeUnless { it === repo })
+        val registrar = PuzzleCardRegistrar(repo, clientRepo = cardRepository.takeUnless { it === repo })
         val allZones = listOf(
             ZoneType.Hand,
             ZoneType.Battlefield,
