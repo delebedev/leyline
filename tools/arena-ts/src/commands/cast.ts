@@ -80,5 +80,24 @@ export async function castCommand(args: string[]): Promise<void> {
   const [sx2, sy2] = scaleToScreen(dropTo[0], dropTo[1], bounds);
   await drag(sx1, sy1, sx2, sy2);
 
-  console.log(`dragged to (${dropTo[0]},${dropTo[1]})`);
+  // Verify card left hand
+  await Bun.sleep(2000);
+  const after = await liveState();
+  const castName = pos?.name ?? cardName;
+  if (after) {
+    const stillInHand = after.hand.some(c =>
+      c.name.toLowerCase() === castName.toLowerCase()
+    );
+    if (stillInHand && after.hand.filter(c =>
+      c.name.toLowerCase() === castName.toLowerCase()
+    ).length >= (state.hand.filter(c =>
+      c.name.toLowerCase() === castName.toLowerCase()
+    ).length)) {
+      console.error(`drag may not have landed — ${castName} still in hand`);
+      process.exitCode = 1;
+      return;
+    }
+  }
+
+  console.log(`cast ${castName}`);
 }
