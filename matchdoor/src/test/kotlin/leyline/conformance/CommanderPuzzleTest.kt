@@ -9,6 +9,7 @@ import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.bridge.SeatId
 import leyline.game.mapper.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.GameVariant
 
 class CommanderPuzzleTest :
     FunSpec({
@@ -47,5 +48,17 @@ class CommanderPuzzleTest :
             val zone26 = h.accumulator.zones[ZoneIds.COMMAND]
             checkNotNull(zone26) { "Zone 26 (Command) not in accumulated state" }
             zone26.objectInstanceIdsList.shouldNotBeEmpty()
+
+            // Build a fresh GSM and check gameInfo has Brawl variant
+            val freshGsm = leyline.game.StateMapper.buildFromGame(
+                game,
+                999,
+                "test",
+                h.bridge,
+                viewingSeatId = 1,
+            ).gsm
+            freshGsm.gameInfo.variant shouldBe GameVariant.Brawl
+            freshGsm.gameInfo.hasDeckConstraintInfo().shouldBeTrue()
+            freshGsm.gameInfo.deckConstraintInfo.minCommanderSize shouldBe 1
         }
     })

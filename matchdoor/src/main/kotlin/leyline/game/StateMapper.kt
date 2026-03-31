@@ -84,15 +84,26 @@ object StateMapper {
         val startAnnotationId = bridge.annotations.currentAnnotationId()
 
         // ═══ MAP: engine state → proto objects ═══
+        val isBrawl = bridge.isBrawlOrCommander
+        val gameVariant = if (isBrawl) GameVariant.Brawl else GameVariant.Normal
+
         val gameInfo = GameInfo.newBuilder()
             .setMatchID(matchId)
             .setGameNumber(1)
             .setStage(GameStage.Play_a920)
             .setType(GameType.Duel)
-            .setVariant(GameVariant.Normal)
+            .setVariant(gameVariant)
             .setMatchState(MatchState.GameInProgress)
             .setMatchWinCondition(MatchWinCondition.SingleElimination)
             .setMulliganType(MulliganType.London)
+        if (isBrawl) {
+            gameInfo.setDeckConstraintInfo(
+                DeckConstraintInfo.newBuilder()
+                    .setMinDeckSize(58).setMaxDeckSize(59).setMaxSideboardSize(1)
+                    .setMinCommanderSize(1).setMaxCommanderSize(2),
+            )
+            gameInfo.setFreeMulliganCount(1)
+        }
 
         val player1 = PlayerMapper.buildPlayerInfo(human, 1)
         val player2 = PlayerMapper.buildPlayerInfo(ai, 2)
