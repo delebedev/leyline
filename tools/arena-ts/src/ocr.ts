@@ -3,7 +3,7 @@
 
 import { captureMtga } from "./input";
 import { compileSwift } from "./compile";
-import { REFERENCE_WIDTH } from "./window";
+import { captureToRef } from "./window";
 
 export interface OcrDetection {
   text: string;
@@ -24,19 +24,19 @@ export async function ocrWindow(): Promise<OcrDetection[]> {
   });
   if (ocr.exitCode !== 0) return [];
 
-  const sipsInfo = Bun.spawnSync({ cmd: ["sips", "-g", "pixelWidth", img], stdout: "pipe" });
-  const wMatch = sipsInfo.stdout.toString().match(/pixelWidth:\s*(\d+)/);
+  const sipsInfo = Bun.spawnSync({ cmd: ["sips", "-g", "pixelWidth", "-g", "pixelHeight", img], stdout: "pipe" });
+  const sipsOut = sipsInfo.stdout.toString();
+  const wMatch = sipsOut.match(/pixelWidth:\s*(\d+)/);
+  const hMatch = sipsOut.match(/pixelHeight:\s*(\d+)/);
   const imgW = wMatch ? parseInt(wMatch[1]) : 1920;
-  const scale = REFERENCE_WIDTH / imgW;
+  const imgH = hMatch ? parseInt(hMatch[1]) : 1080;
 
   try {
     const items = JSON.parse(ocr.stdout.toString());
-    return items.map((d: any) => ({
-      text: d.text,
-      cx: Math.round(d.cx * scale),
-      cy: Math.round(d.cy * scale),
-      confidence: d.confidence,
-    }));
+    return items.map((d: any) => {
+      const [cx, cy] = captureToRef(d.cx, d.cy, imgW, imgH);
+      return { text: d.text, cx, cy, confidence: d.confidence };
+    });
   } catch { return []; }
 }
 
@@ -55,12 +55,14 @@ export async function ocrFindText(text: string): Promise<[number, number] | null
   try {
     const items = JSON.parse(ocr.stdout.toString());
     if (items.length === 0) return null;
-    const sipsInfo = Bun.spawnSync({ cmd: ["sips", "-g", "pixelWidth", img], stdout: "pipe" });
-    const wMatch = sipsInfo.stdout.toString().match(/pixelWidth:\s*(\d+)/);
+    const sipsInfo = Bun.spawnSync({ cmd: ["sips", "-g", "pixelWidth", "-g", "pixelHeight", img], stdout: "pipe" });
+    const sipsOut = sipsInfo.stdout.toString();
+    const wMatch = sipsOut.match(/pixelWidth:\s*(\d+)/);
+    const hMatch = sipsOut.match(/pixelHeight:\s*(\d+)/);
     const imgW = wMatch ? parseInt(wMatch[1]) : 1920;
-    const scale = REFERENCE_WIDTH / imgW;
+    const imgH = hMatch ? parseInt(hMatch[1]) : 1080;
     // Bottommost match
     const sorted = items.sort((a: any, b: any) => b.cy - a.cy);
-    return [Math.round(sorted[0].cx * scale), Math.round(sorted[0].cy * scale)];
+    return captureToRef(sorted[0].cx, sorted[0].cy, imgW, imgH);
   } catch { return null; }
 }

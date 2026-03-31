@@ -1,58 +1,59 @@
 // src/landmarks.ts
-// Named coordinates in 960px reference space.
-// Reusable aliases for common UI targets. All coords assume 960x~568 logical.
+// Named coordinates in 960×540 game-content reference space.
+// (0,0) = top-left of game area (below macOS title bar).
+// scaleToScreen adds the title bar offset automatically.
 
 export const landmarks: Record<string, [number, number]> = {
   // Home screen
-  "home-cta":       [866, 533],   // big Play / Start button (bottom right)
+  "home-cta":       [866, 519],   // big Play / Start button (bottom right)
 
   // Top nav bar
-  "nav-profile":    [108, 57],
-  "nav-decks":      [157, 57],
-  "nav-packs":      [207, 57],
-  "nav-mastery":    [307, 57],
-  "nav-quests":     [366, 57],
-  "nav-back":       [51, 57],     // back arrow (Profile, Decks, etc.)
+  "nav-profile":    [108, 43],
+  "nav-decks":      [157, 43],
+  "nav-packs":      [207, 43],
+  "nav-mastery":    [307, 43],
+  "nav-quests":     [366, 43],
+  "nav-back":       [51, 43],     // back arrow (Profile, Decks, etc.)
 
   // Play blade
-  "blade-close":    [746, 93],    // X to close play blade
-  "bot-match-card": [866, 350],   // Bot Match card body (opens deck selector)
-  "bot-play":       [866, 534],   // Play in bot match selector
-  "bot-close":      [746, 94],    // X close deck selector
+  "blade-close":    [746, 79],    // X to close play blade
+  "bot-match-card": [866, 336],   // Bot Match card body (opens deck selector)
+  "bot-play":       [866, 520],   // Play in bot match selector
+  "bot-close":      [746, 80],    // X close deck selector
 
   // Format tabs (Find Match / deck selector)
-  "fmt-ranked":     [805, 192],   // Ranked tab
-  "fmt-play":       [866, 192],   // Play tab
-  "fmt-brawl":      [928, 192],   // Brawl tab
+  "fmt-ranked":     [805, 165],   // Ranked tab
+  "fmt-play":       [866, 165],   // Play tab
+  "fmt-brawl":      [928, 165],   // Brawl tab
 
   // DeckListViewer
-  "deck-new":       [96, 260],    // "+" new deck card
-  "deck-edit":      [865, 532],   // Edit Deck button
-  "deck-export":    [322, 530],   // Export icon
-  "deck-import":    [385, 530],   // Import icon
-  "deck-clone":     [445, 530],   // Clone icon
-  "deck-delete":    [520, 530],   // Delete icon
-  "deck-details":   [202, 530],   // Stats/details icon
-  "deck-favorite":  [262, 530],   // Heart icon
-  "deck-collection":[117, 532],   // Collection button
+  "deck-new":       [96, 246],    // "+" new deck card
+  "deck-edit":      [865, 518],   // Edit Deck button
+  "deck-export":    [322, 516],   // Export icon
+  "deck-import":    [385, 516],   // Import icon
+  "deck-clone":     [445, 516],   // Clone icon
+  "deck-delete":    [520, 516],   // Delete icon
+  "deck-details":   [202, 516],   // Stats/details icon
+  "deck-favorite":  [262, 516],   // Heart icon
+  "deck-collection":[117, 518],   // Collection button
 
   // DeckBuilder
-  "builder-done":   [867, 533],   // Done / save & exit
-  "builder-search": [53, 99],     // Search collection
-  "builder-format": [852, 98],    // Format dropdown (new deck)
+  "builder-done":   [867, 519],   // Done / save & exit
+  "builder-search": [53, 85],     // Search collection
+  "builder-format": [852, 84],    // Format dropdown (new deck)
 
   // In-game
-  "action-btn":     [888, 504],   // universal: Pass/Next/End Turn/Resolve/All Attack
-  "game-menu":      [940, 42],    // gear icon (top right)
-  "game-concede":   [480, 344],   // Concede in Options overlay
-  "opponent-face":  [480, 85],    // targeting opponent
+  "action-btn":     [888, 490],   // universal: Pass/Next/End Turn/Resolve/All Attack
+  "game-menu":      [940, 28],    // gear icon (top right)
+  "game-concede":   [480, 330],   // Concede in Options overlay
+  "opponent-face":  [480, 71],    // targeting opponent
 
   // Export dialog
-  "export-ok":      [480, 340],   // dismiss export dialog
+  "export-ok":      [480, 326],   // dismiss export dialog
 
   // Dismiss / generic
-  "dismiss":        [210, 482],   // generic dismiss (modals, results)
-  "center":         [480, 284],   // screen center
+  "dismiss":        [210, 468],   // generic dismiss (modals, results)
+  "center":         [480, 270],   // screen center
 };
 
 /** Resolve a landmark name or "x,y" string to [x, y]. Returns null if unrecognized. */
