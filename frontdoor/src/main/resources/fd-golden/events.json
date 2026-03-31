@@ -221,7 +221,7 @@
       "UpdateDailyWeeklyRewards"
     ],
     "titleLocKey": "Events/Event_Title_Play_Brawl_Bo1",
-    "descLocKey": "Events/Event_Desc_Play_Brawl_Bo1"
+    "descLocKey": "Events/Event_Desc_Play_Brawl"
   },
   {
     "internalName": "AIBotMatch",

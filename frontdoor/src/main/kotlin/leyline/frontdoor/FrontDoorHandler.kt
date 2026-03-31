@@ -565,6 +565,21 @@ class FrontDoorHandler(
 
     private fun sendMatchCreated(ctx: ChannelHandlerContext, match: MatchInfo, yourSeat: Int = 1) {
         val matchType = if (yourSeat > 1) "Queue" else "Familiar"
+
+        // Resolve commander grpIds for Brawl events (feeds VSScreen commander reveal)
+        val commanderGrpIds = coordinator.selectedDeckId?.let { deckId ->
+            deckService.getById(DeckId(deckId))?.commandZone?.map { it.grpId }
+        } ?: emptyList()
+
+        val playerInfos = if (commanderGrpIds.isNotEmpty()) {
+            listOf(
+                FdEnvelope.PlayerInfo(seatId = 1, teamId = 1, name = "ForgePlayer", commanderGrpIds = commanderGrpIds),
+                FdEnvelope.PlayerInfo(seatId = 2, teamId = 2, name = "Sparky", commanderGrpIds = commanderGrpIds),
+            )
+        } else {
+            null
+        }
+
         val json = FdEnvelope.buildMatchCreatedJson(
             match.matchId,
             match.host,
@@ -572,8 +587,9 @@ class FrontDoorHandler(
             matchType = matchType,
             yourSeat = yourSeat,
             eventId = match.eventName,
+            playerInfos = playerInfos,
         )
-        log.info("Front Door: pushing MatchCreated matchId={} event={} seat={}", match.matchId, match.eventName, yourSeat)
+        log.info("Front Door: pushing MatchCreated matchId={} event={} seat={} commanders={}", match.matchId, match.eventName, yourSeat, commanderGrpIds.size)
         writer.send(ctx, null, FdResponse.Json(json))
     }
 

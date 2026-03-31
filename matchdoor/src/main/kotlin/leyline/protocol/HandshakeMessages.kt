@@ -74,20 +74,20 @@ object HandshakeMessages {
 
     private fun buildRoomConfig(matchId: String, playerId: String, opponentName: String = "Sparky", eventId: String = "AIBotMatch"): MatchGameRoomConfig.Builder {
         val familiarId = "${playerId}_Familiar"
-        return MatchGameRoomConfig.newBuilder()
+        val isBot = eventId == "AIBotMatch"
+        val builder = MatchGameRoomConfig.newBuilder()
             .setMatchId(matchId)
+        // Real server puts eventId on each reservedPlayer, not on the config
+        if (isBot) builder.setEventId(eventId)
+        val p1 = playerInfo(playerId, "Player", 1, 1)
+            .setCourseId("Avatar_Basic_Adventurer")
+            .setPlatformId("Mac")
             .setEventId(eventId)
-            .addReservedPlayers(
-                playerInfo(playerId, "Player", 1, 1)
-                    .setCourseId("Avatar_Basic_Adventurer")
-                    .setPlatformId("Mac"),
-            )
-            .addReservedPlayers(
-                playerInfo(familiarId, opponentName, 2, 2)
-                    .setCourseId("Avatar_Basic_Sparky")
-                    .setIsBotPlayer(true)
-                    .setEventId(eventId),
-            )
+        val p2 = playerInfo(familiarId, opponentName, 2, 2)
+            .setCourseId("Avatar_Basic_Sparky")
+            .setEventId(eventId)
+        if (isBot) p2.setIsBotPlayer(true)
+        return builder.addReservedPlayers(p1).addReservedPlayers(p2)
     }
 
     private fun wrapRoomState(roomInfo: MatchGameRoomInfo.Builder): MatchServiceToClientMessage =
