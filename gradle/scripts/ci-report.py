@@ -168,8 +168,8 @@ def coverage_bar(pct: float) -> str:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--jacoco-xml", nargs="*", default=[], help="JaCoCo XML report paths")
-    parser.add_argument("--test-xml-dir", nargs="*", default=[], help="JUnit XML result directories")
+    parser.add_argument("--jacoco-xml", action="append", default=[], help="JaCoCo XML report path (repeatable)")
+    parser.add_argument("--test-xml-dir", action="append", default=[], help="JUnit XML result directory (repeatable)")
     parser.add_argument("--job-name", default="Gate", help="Job name for the header")
     args = parser.parse_args()
 
