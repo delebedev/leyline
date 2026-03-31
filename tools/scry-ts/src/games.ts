@@ -10,6 +10,8 @@ import { type LogEvent, parseLog } from "./parser";
 export interface Game {
   index: number;
   matchId: string | null;
+  /** Our seat from ConnectResp systemSeatIds. Usually 1, but 2 in Brawl/PvP. */
+  ourSeat: number;
   startTimestamp: string | null;
   endTimestamp: string | null;
   greMessages: GsmSummary[];
@@ -59,7 +61,7 @@ function extractGsm(msg: any, timestamp: string | null): GsmSummary | null {
   };
 }
 
-function extractResult(msg: any): "win" | "loss" | "draw" | null {
+function extractResult(msg: any, ourSeat: number): "win" | "loss" | "draw" | null {
   const gi = msg.gameStateMessage?.gameInfo;
   if (!gi) return null;
 
@@ -72,8 +74,8 @@ function extractResult(msg: any): "win" | "loss" | "draw" | null {
     const type = r.result ?? r.resultType ?? "";
     if (type.includes("WinLoss")) {
       const winner = r.winningTeamId ?? r.winningSeatId;
-      if (winner === 1) return "win";
-      if (winner === 2) return "loss";
+      if (winner === ourSeat) return "win";
+      if (winner !== ourSeat) return "loss";
     }
     if (type.includes("Draw")) return "draw";
   }
@@ -97,9 +99,16 @@ export function detectGames(events: Iterable<LogEvent>): Game[] {
         current.active = false;
         games.push(current);
       }
+      // Extract our seat from ConnectResp.systemSeatIds
+      const connectMsg = event.messages.find(
+        (m: any) => m.type === "GREMessageType_ConnectResp"
+      ) as any;
+      const ourSeat = connectMsg?.systemSeatIds?.[0] ?? 1;
+
       current = {
         index: games.length + 1,
         matchId: null, // set from gameInfo.matchID when first GSM arrives
+        ourSeat,
         startTimestamp: event.timestamp,
         endTimestamp: null,
         greMessages: [],
@@ -122,7 +131,7 @@ export function detectGames(events: Iterable<LogEvent>): Game[] {
         current.matchId = gameMatchId;
       }
 
-      const result = extractResult(msg);
+      const result = extractResult(msg, current.ourSeat);
       if (result) {
         current.result = result;
         current.active = false;
