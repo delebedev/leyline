@@ -1,8 +1,9 @@
 // src/scene.ts
 // Current Arena scene via scry-ts parser.
-// Reads Player.log, returns last SceneChange event's target scene.
+// Combines SceneChange events with GRE game detection for real server support.
 
 import { parseLog, type LogEvent } from "../../scry-ts/src/parser";
+import { detectGames } from "../../scry-ts/src/games";
 import { DEFAULT_LOG } from "../../scry-ts/src/log";
 import { existsSync, statSync } from "fs";
 
@@ -10,9 +11,11 @@ export interface SceneInfo {
   scene: string;
   from: string;
   ts: Date;
+  inGame: boolean;
+  matchId: string | null;
 }
 
-/** Returns current scene or null if Player.log missing/no scenes found. */
+/** Returns current scene. Detects InGame via GRE events even without SceneChange. */
 export async function currentScene(): Promise<SceneInfo | null> {
   if (!existsSync(DEFAULT_LOG)) return null;
 
@@ -20,16 +23,35 @@ export async function currentScene(): Promise<SceneInfo | null> {
   const events = [...parseLog(text.split("\n"))];
   const stat = statSync(DEFAULT_LOG);
 
-  let last: LogEvent | null = null;
+  // Find last scene change
+  let lastScene: LogEvent | null = null;
   for (const ev of events) {
-    if (ev.type === "scene") last = ev;
+    if (ev.type === "scene") lastScene = ev;
   }
-  if (!last || last.type !== "scene") return null;
+
+  // Detect active game via scry-ts game boundary detection
+  const games = detectGames(events);
+  const activeGame = games.find(g => g.active);
+
+  // If there's an active game, we're InGame regardless of scene
+  if (activeGame) {
+    return {
+      scene: "InGame",
+      from: lastScene?.type === "scene" ? lastScene.to : "unknown",
+      ts: stat.mtime,
+      inGame: true,
+      matchId: activeGame.matchId,
+    };
+  }
+
+  if (!lastScene || lastScene.type !== "scene") return null;
 
   return {
-    scene: last.to,
-    from: last.from,
+    scene: lastScene.to,
+    from: lastScene.from,
     ts: stat.mtime,
+    inGame: false,
+    matchId: null,
   };
 }
 
