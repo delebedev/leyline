@@ -292,6 +292,11 @@ class InvariantChecker {
             // ObjectIdChanged references old (replaced) instanceIds — skip entirely
             val isObjectIdChanged = ann.typeList.any { it == AnnotationType.ObjectIdChanged }
             if (isObjectIdChanged) continue
+            // LayeredEffect annotations use synthetic effect IDs, not entity references
+            val isLayeredEffect = ann.typeList.any {
+                it == AnnotationType.LayeredEffectCreated || it == AnnotationType.LayeredEffectDestroyed
+            }
+            if (isLayeredEffect) continue
 
             if (ann.affectorId != 0 && !isKnown(ann.affectorId)) {
                 record(

@@ -880,6 +880,7 @@ object AnnotationPipeline {
         }
 
         for (effect in keywordDiff.destroyed) {
+            if (KeywordGrpIds.forKeyword(effect.keyword) == null) continue
             transient.add(AnnotationBuilder.layeredEffectDestroyed(effect.syntheticId))
         }
 

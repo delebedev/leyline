@@ -63,7 +63,7 @@ class KeywordGrantAnnotationTest :
         test("effectAnnotations skips unknown keyword grpIds") {
             val kwDiff = EffectTracker.KeywordDiffResult(
                 created = listOf(
-                    EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L), "Hexproof"),
+                    EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L), "Flanking"),
                 ),
                 destroyed = emptyList(),
             )

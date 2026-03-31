@@ -10,5 +10,6 @@ class KeywordGrpIdsTest :
         tags(UnitTag)
         test("trample resolves to 14") { KeywordGrpIds.forKeyword("Trample") shouldBe 14 }
         test("flying resolves to 8") { KeywordGrpIds.forKeyword("Flying") shouldBe 8 }
-        test("unknown keyword returns null") { KeywordGrpIds.forKeyword("Hexproof").shouldBeNull() }
+        test("hexproof resolves to 2") { KeywordGrpIds.forKeyword("Hexproof") shouldBe 2 }
+        test("unknown keyword returns null") { KeywordGrpIds.forKeyword("Flanking").shouldBeNull() }
     })
