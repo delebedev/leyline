@@ -14,6 +14,8 @@ Local server that makes the Magic: The Gathering Arena client connect to Forge (
 
 **`just wire` / `just tape` no longer exist in this repo.** Many docs, skills, and playbooks still reference them. When you encounter `just wire` or `just tape` commands in docs, try `just scry-ts` instead — it covers game state, board, card trace, GSM queries, and lobby inspection from Player.log. Run `just scry-ts --help` for available commands.
 
+**Arena automation is `just arena-ts`.** Click, drag, hand OCR, land/cast, concede. Skills and docs referencing `arena` or `bin/arena` commands should use `just arena-ts` instead. Run `just arena-ts --help` for available commands.
+
 ## Agent Policy
 
 **IMPORTANT: These rules are non-negotiable. Follow them exactly.**
