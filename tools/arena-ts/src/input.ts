@@ -70,3 +70,39 @@ export async function move(x: number, y: number): Promise<void> {
   const l = await getLib();
   l.symbols.shim_move(x, y);
 }
+
+/** Smoothstep drag from (x1,y1) to (x2,y2). steps=30, totalMs=500. */
+export async function drag(
+  x1: number, y1: number,
+  x2: number, y2: number,
+  opts?: { steps?: number; totalMs?: number },
+): Promise<void> {
+  await activateMtga();
+  const l = await getLib();
+  const steps = opts?.steps ?? 30;
+  const totalMs = opts?.totalMs ?? 500;
+
+  // Pre-move + settle (Unity needs hover to register the card)
+  l.symbols.shim_move(x1, y1);
+  await Bun.sleep(500);
+
+  // Mouse down + hold
+  l.symbols.shim_mouse_down(x1, y1);
+  await Bun.sleep(150);
+
+  // Smoothstep interpolation
+  for (let i = 1; i <= steps; i++) {
+    const linear = i / steps;
+    const t = linear * linear * (3 - 2 * linear); // smoothstep
+    const cx = x1 + (x2 - x1) * t;
+    const cy = y1 + (y2 - y1) * t;
+    l.symbols.shim_move(cx, cy);
+    // Variable timing: slower at start/end
+    const sleepFactor = 0.6 + 0.8 * (1 - Math.abs(linear - 0.5) * 2);
+    await Bun.sleep((totalMs / steps) * sleepFactor);
+  }
+
+  // Hold at destination + release
+  await Bun.sleep(120);
+  l.symbols.shim_mouse_up(x2, y2);
+}
