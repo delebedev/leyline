@@ -566,7 +566,8 @@ class FrontDoorHandler(
     private fun sendMatchCreated(ctx: ChannelHandlerContext, match: MatchInfo, yourSeat: Int = 1) {
         val matchType = if (yourSeat > 1) "Queue" else "Familiar"
 
-        // Resolve commander grpIds for Brawl events (feeds VSScreen commander reveal)
+        // Resolve commander grpIds for Brawl events (feeds VSScreen commander reveal).
+        // AI mirrors seat 1's deck (same commander) — seat 2 gets the same grpIds.
         val commanderGrpIds = coordinator.selectedDeckId?.let { deckId ->
             deckService.getById(DeckId(deckId))?.commandZone?.map { it.grpId }
         } ?: emptyList()
