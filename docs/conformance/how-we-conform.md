@@ -1,6 +1,6 @@
 # How We Conform
 
-> **Migration in progress.** Conformance is moving from proto-based recording analysis (private repo tooling) to Player.log-based comparison via `scry-ts`. The card-centric workflow and principles below remain valid. Proto-based tooling (`conform-proto`, `segment-variance`, `segment-relationships`) lives in `leyline-private`.
+> **Migration in progress.** Conformance is moving from proto-based analysis to Player.log-based comparison via `scry-ts`. The card-centric workflow and principles below remain valid. See `docs/conformance/strategy.md` for the current approach.
 
 ## Principles
 
@@ -152,7 +152,7 @@ scry-ts parser                (JSON, lossless for S→C)
         └─→ scry-ts game           (catalog, search, card manifest)
 ```
 
-Proto-based tooling (`conform-proto`, `segment-variance`, `segment-relationships`) lives in `leyline-private` for research use.
+Legacy proto-based tooling (`conform-proto`, `segment-variance`, `segment-relationships`) has been retired from this repo.
 
 ## Key files
 

@@ -1,8 +1,7 @@
 # Relationship Catalog — structural invariants for protocol segments
 #
-# Extracted from RelationshipCatalog.kt + Relationship.kt in leyline-private/tooling.
-# Each pattern is a hand-written invariant observed in real Arena server recordings,
-# validated by RelationshipValidator against recording data.
+# Each pattern is a hand-written invariant observed in real Arena server games,
+# validated against arena logs.
 #
 # Rule types:
 #   AlwaysPresent  — annotation type must appear in every instance of the segment
