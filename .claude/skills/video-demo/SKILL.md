@@ -26,7 +26,7 @@ Record a short MP4 video of the MTGA window and upload it for embedding in GitHu
 
 Use `arena ocr` to check current state. Navigate as needed:
 - For gameplay: lobby → Find Match → Bot Match → deck → Play
-- For puzzle: set `game.puzzle = "puzzles/<name>.pzl"` → `just serve` → lobby → Sparky → Play
+- For puzzle: `just puzzle <name>` (hot-swaps, no restart needed) → lobby → Sparky → Play
 - For a specific bug: follow the repro steps first
 
 ### 2. Start recording

@@ -85,10 +85,11 @@ Remove diagnostics before committing.
 After MatchHarness passes, validate in Arena:
 
 ```bash
-# 1. Set puzzle in leyline.toml: [game].puzzle = "puzzles/<name>.pzl"
-# 2. Start server and get into game
+# 1. Start server (if not already running)
 just build && just serve   # (background)
-arena start-puzzle puzzles/<name>.pzl
+
+# 2. Set puzzle (hot-swaps if in-game, queues for next Sparky match if not)
+just puzzle <name>         # e.g. just puzzle bolt-face
 
 # 3. Play through, capture screenshots
 arena capture --out /tmp/step1.png

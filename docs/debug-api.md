@@ -109,10 +109,11 @@ If the server shows annotations but scry doesn't, the gap is in the annotation �
 ## State injection
 
 - `POST /api/inject-full` — rebuild current engine state as Full GSM, send to client. No request body needed.
-- `POST /api/inject-puzzle` — hot-swap the running game to a new puzzle. Tears down engine, loads `.pzl`, restarts, injects Full GSM + actions.
-  - Body: raw `.pzl` content (text/plain)
-  - Query param: `?file=<name>` — loads from `matchdoor/src/test/resources/puzzles/<name>.pzl`
+- `POST /api/puzzle?file=<name>` — set puzzle. Hot-swaps if in a match, queues for next Sparky match if not. Loads from `puzzles/<name>.pzl`.
+  - `GET /api/puzzle` — returns current puzzle state
+  - `POST /api/puzzle` (no params) — clear puzzle
   - Sequential injection works — no reconnect needed between puzzles
+  - CLI shortcut: `just puzzle <name>` / `just puzzle --clear`
 
 ## Recording analysis (post-game)
 
