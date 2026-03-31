@@ -6,7 +6,7 @@ Local server that makes the Magic: The Gathering Arena client connect to Forge (
 - **Server mode:** `just serve` (local, fully offline)
 - **Current priority:** [v0.1 release](docs/v0.1-release.md) — first public release, FDN as core set
 - **Roadmap:** [GitHub Project board](https://github.com/users/delebedev/projects/1)
-- **Bugs & tasks:** GitHub Issues — no local TODO/BUGS files
+- **Bugs & tasks:** `bd` (beads) for agent work; GitHub Issues for public-facing bugs/features
 
 **Engineering stance:** correctness over speed. The protocol is opaque and the client is unforgiving — shortcuts compound.
 
@@ -26,6 +26,26 @@ Local server that makes the Magic: The Gathering Arena client connect to Forge (
 - **Elegance balance.** Non-trivial changes: pause and ask "is there a more elegant way?" Skip for simple obvious fixes.
 - **Learn from corrections.** After ANY correction from the user, update `docs/lessons.md` with the pattern — what went wrong, why, how to avoid it. Review before starting complex work.
 - **Ralph PRs get labeled.** Add `--label ralph` to `gh pr create` in ralph-loop sessions.
+
+## Task Tracking (beads)
+
+`bd` is the issue tracker. Embedded Dolt DB in `.beads/`, git-tracked.
+
+```bash
+bd ready                    # what's unblocked and available
+bd show <id>                # full details + deps
+bd create --title="..." --description="..." --type=task --priority=2  # new issue
+bd update <id> --claim      # claim + mark in-progress
+bd close <id>               # done
+bd dep add <child> <parent> # wire dependencies
+bd search <query>           # full-text search
+bd remember "insight"       # persistent cross-session memory
+bd prime                    # session context dump (memories, workflow)
+```
+
+- **Priority:** 0–4 (0=critical, 4=backlog). Not words.
+- **Don't use `bd edit`** — opens $EDITOR, blocks agents. Use `bd update <id> --description="..."` inline.
+- GH issues remain for public bug reports and external contributors.
 
 ## Modules
 
