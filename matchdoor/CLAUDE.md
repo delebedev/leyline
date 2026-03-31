@@ -44,6 +44,21 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 
 **Diff strategy: snapshot-compare, not incremental tracking.** `buildDiffFromGame` rebuilds a full GSM from engine state and compares it against the previous baseline (proto equality). This is O(all objects) per diff (~50 cards, <1ms) but eliminates an entire class of bugs: no dirty flags to forget, no change lists to keep in sync with engine state. The engine is opaque (Forge doesn't expose change sets), so the alternative would be a parallel bookkeeping system — two sources of truth that can diverge. Snapshot-compare is correct by construction.
 
+## Cost Data Flow
+
+Mana cost reaches the client through two paths depending on the action type. `ManaColorMapping` is the single source of truth for Forge→Arena color translation in both paths.
+
+| Action type | Cost source | Why |
+|---|---|---|
+| Regular cast (hand) | `CardData.manaCost` (static, from Arena DB via `parseManaCost`) | Stable, matches what client expects for `ManaRequirement` |
+| Alt cost / flashback / escape | `SpellAbility.payCosts.totalMana` (dynamic, from Forge engine) | Alt cost modifies the base cost; only Forge knows the actual amount |
+| Adventure cast | `SpellAbility.payCosts.totalMana` (adventure face SA) | Adventure face has its own cost, not on the creature's `CardData` |
+| Activated ability | `SpellAbility.payCosts.totalMana` + `abilityGrpId` | Ability cost ≠ card cast cost; `abilityGrpId` links to modal UI |
+
+**Decision rule:** Use `CardData.manaCost` for regular cast. Use `SA.payCosts` for alt costs, adventure, and activated abilities. When in doubt, check what the real server sends for that action type.
+
+**Payment:** `WebCostDecision` visitor pattern — extends Forge's `CostDecisionMakerBase`, routes interactive cost decisions (sacrifice, tap creatures for convoke, etc.) through `InteractivePromptBridge`.
+
 ## Cookbook
 
 ### Adding a new annotation type

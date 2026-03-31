@@ -3,11 +3,9 @@ package leyline.game
 import forge.card.CardStateName
 import forge.card.CardType.CoreType
 import forge.card.CardType.Supertype
-import forge.card.mana.ManaCostShard
 import forge.game.card.Card
 import forge.model.FModel
 import org.slf4j.LoggerFactory
-import wotc.mtgo.gre.external.messaging.Messages.ManaColor
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -196,17 +194,8 @@ class PuzzleCardRegistrar(
         return linkedIds
     }
 
-    private fun deriveManaCost(cost: forge.card.mana.ManaCost?): List<Pair<ManaColor, Int>> {
-        if (cost == null || cost.isNoCost) return emptyList()
-        val counts = mutableMapOf<ManaColor, Int>()
-        val generic = cost.genericCost
-        if (generic > 0) counts[ManaColor.Generic] = generic
-        for (shard in cost) {
-            val color = SHARD_MAP[shard] ?: continue
-            counts.merge(color, 1, Int::plus)
-        }
-        return counts.toList()
-    }
+    private fun deriveManaCost(cost: forge.card.mana.ManaCost?) =
+        ManaColorMapping.deriveManaCost(cost)
 
     private fun deriveAbilityIds(card: Card) = AbilityIdDeriver.deriveAbilityIds(card, nextAbilityGrpId)
 
@@ -244,16 +233,6 @@ class PuzzleCardRegistrar(
             "spirit" to 68, "vampire" to 74, "wall" to 76, "warrior" to 77,
             "wizard" to 78, "wolf" to 79, "zombie" to 81,
             "aura" to 6, "vehicle" to 331, "saga" to 347, "treasure" to 343,
-        )
-
-        private val SHARD_MAP = mapOf(
-            ManaCostShard.WHITE to ManaColor.White_afc9,
-            ManaCostShard.BLUE to ManaColor.Blue_afc9,
-            ManaCostShard.BLACK to ManaColor.Black_afc9,
-            ManaCostShard.RED to ManaColor.Red_afc9,
-            ManaCostShard.GREEN to ManaColor.Green_afc9,
-            ManaCostShard.COLORLESS to ManaColor.Colorless_afc9,
-            ManaCostShard.X to ManaColor.X,
         )
     }
 }
