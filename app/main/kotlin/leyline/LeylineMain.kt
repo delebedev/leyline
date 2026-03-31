@@ -152,8 +152,11 @@ private fun buildAccountServer(
 private fun detectArenaManifestHash(): String? {
     val downloadsDir = File(System.getProperty("user.home"), "Library/Application Support/com.wizards.mtga/Downloads")
     if (!downloadsDir.isDirectory) return null
+    // Match only the main manifest (Manifest_<hex>.mtga), not category-prefixed ones
+    // like Manifest_Audio_<hex>.mtga or Manifest_Localization_<hex>.mtga
+    val hashPattern = Regex("""^Manifest_([0-9a-f]+)\.mtga$""")
     val manifestFile = downloadsDir.listFiles()
-        ?.filter { it.name.startsWith("Manifest_") && it.name.endsWith(".mtga") }
+        ?.filter { hashPattern.matches(it.name) }
         ?.maxByOrNull { it.lastModified() }
         ?: return null
     // Extract hash from "Manifest_<hash>.mtga"

@@ -91,13 +91,15 @@ class OptionalActionHandler(private val ops: SessionOps) {
             .setSourceId(sourceId)
             .build()
 
+        // TODO: shock land ETB needs promptId 2233 + ReplacementEffect pAnn with
+        // allocated affectorId as sourceId. Currently uses generic prompt for all.
         val promptProto = Prompt.newBuilder()
-            .setPromptId(2233)
+            .setPromptId(PromptIds.OPTIONAL_ACTION)
             .addParameters(
                 PromptParameter.newBuilder()
                     .setParameterName("CardId")
                     .setType(ParameterType.Number)
-                    .setNumberValue(sourceId), // CardId = source card instanceId
+                    .setNumberValue(sourceId),
             )
             .build()
 
