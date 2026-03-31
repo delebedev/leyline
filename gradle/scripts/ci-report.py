@@ -7,25 +7,28 @@ Outputs markdown to stdout suitable for posting as a PR comment.
 """
 
 import argparse
-import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 SLOW_THRESHOLD = 3.0
 
 
-def parse_jacoco(paths: list[Path]) -> tuple[list[tuple], int, int]:
-    """Parse JaCoCo XML reports. Returns (module_rows, total_covered, total_lines)."""
+def parse_jacoco(paths: list[Path]) -> list[tuple]:
+    """Parse JaCoCo XML reports. Returns (module_rows, total_covered, total_lines).
+
+    When multiple XMLs report the same module from different suites (gate vs
+    integration), they appear as separate rows — XML-level merging can't
+    compute a true line-level union.  The suite label is inferred from the
+    artifact path (coverage-gate/ vs coverage-integration/).
+    """
     module_rows = []
-    grand_covered = 0
-    grand_lines = 0
+    seen: dict[str, int] = {}  # track duplicate module names
 
     for path in paths:
         if not path.exists():
             continue
         tree = ET.parse(path)
         root = tree.getroot()
-        # Module name from report name attribute or filename
         module = root.get("name", path.parent.parent.parent.name)
 
         covered = 0
@@ -36,13 +39,30 @@ def parse_jacoco(paths: list[Path]) -> tuple[list[tuple], int, int]:
                 missed += int(counter.get("missed", 0))
 
         total = covered + missed
-        if total > 0:
-            pct = 100 * covered / total
-            module_rows.append((module, pct, covered, total))
-            grand_covered += covered
-            grand_lines += total
+        if total == 0:
+            continue
 
-    return module_rows, grand_covered, grand_lines
+        # Disambiguate duplicate modules with suite label from artifact path
+        # e.g. ci-artifacts/coverage-integration/matchdoor/... → "int"
+        if module in seen:
+            suite = _suite_label(path)
+            if suite:
+                module = f"{module} ({suite})"
+        seen[module] = seen.get(module, 0) + 1
+
+        pct = 100 * covered / total
+        module_rows.append((module, pct, covered, total))
+
+    return module_rows
+
+
+def _suite_label(path: Path) -> str:
+    """Extract suite label from artifact path like 'ci-artifacts/coverage-gate/...'."""
+    for part in path.parts:
+        if part.startswith("coverage-"):
+            tag = part.removeprefix("coverage-")
+            return {"gate": "gate", "integration": "int"}.get(tag, tag)
+    return ""
 
 
 def parse_test_results(dirs: list[Path]) -> tuple[int, int, int, list, list]:
@@ -85,7 +105,7 @@ def parse_test_results(dirs: list[Path]) -> tuple[int, int, int, list, list]:
 
 
 def format_report(
-    module_rows, grand_covered, grand_lines,
+    module_rows,
     total_tests, failed_tests, skipped_tests, failures, slow_tests,
     job_name="Gate",
 ) -> str:
@@ -116,10 +136,20 @@ def format_report(
         lines.append("</details>")
         lines.append("")
 
-    # Coverage table
+    # Coverage table — grand total uses only the first (gate) row per base module
+    # to avoid inflating the number when integration adds a second row.
     if module_rows:
-        grand_pct = 100 * grand_covered / grand_lines if grand_lines > 0 else 0
-        lines.append(f"**Coverage:** {grand_pct:.1f}% ({grand_covered}/{grand_lines} lines)")
+        seen_base = set()
+        deduped_covered = 0
+        deduped_lines = 0
+        for module, _pct, covered, total in module_rows:
+            base = module.split(" (")[0]
+            if base not in seen_base:
+                seen_base.add(base)
+                deduped_covered += covered
+                deduped_lines += total
+        grand_pct = 100 * deduped_covered / deduped_lines if deduped_lines > 0 else 0
+        lines.append(f"**Coverage:** {grand_pct:.1f}% ({deduped_covered}/{deduped_lines} lines)")
         lines.append("")
         lines.append("| Module | Coverage | Lines |")
         lines.append("|--------|----------|-------|")
@@ -152,19 +182,19 @@ def coverage_bar(pct: float) -> str:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--jacoco-xml", nargs="*", default=[], help="JaCoCo XML report paths")
-    parser.add_argument("--test-xml-dir", nargs="*", default=[], help="JUnit XML result directories")
+    parser.add_argument("--jacoco-xml", action="append", default=[], help="JaCoCo XML report path (repeatable)")
+    parser.add_argument("--test-xml-dir", action="append", default=[], help="JUnit XML result directory (repeatable)")
     parser.add_argument("--job-name", default="Gate", help="Job name for the header")
     args = parser.parse_args()
 
     jacoco_paths = [Path(p) for p in args.jacoco_xml]
     test_dirs = [Path(p) for p in args.test_xml_dir]
 
-    module_rows, grand_covered, grand_lines = parse_jacoco(jacoco_paths)
+    module_rows = parse_jacoco(jacoco_paths)
     total_tests, failed_tests, skipped_tests, failures, slow_tests = parse_test_results(test_dirs)
 
     report = format_report(
-        module_rows, grand_covered, grand_lines,
+        module_rows,
         total_tests, failed_tests, skipped_tests, failures, slow_tests,
         job_name=args.job_name,
     )

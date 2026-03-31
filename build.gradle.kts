@@ -7,7 +7,6 @@ plugins {
     alias(libs.plugins.kotlin.power.assert)
     alias(libs.plugins.spotless)
     alias(libs.plugins.detekt)
-    id("org.gradle.test-retry")
     alias(libs.plugins.versions)
     jacoco
     application
