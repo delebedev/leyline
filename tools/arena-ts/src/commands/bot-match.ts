@@ -2,10 +2,10 @@
 // Start a bot match.
 // Home → Play → Find Match → Bot Match → select deck → Play.
 
-import { click, activateMtga, captureMtga } from "../input";
-import { getWindowBounds, scaleToScreen, REFERENCE_WIDTH } from "../window";
+import { click, activateMtga } from "../input";
+import { getWindowBounds, scaleToScreen } from "../window";
 import { currentScene } from "../scene";
-import { compileSwift } from "../compile";
+import { ocrFindText } from "../ocr";
 
 export async function botMatchCommand(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h")) {
@@ -40,13 +40,13 @@ export async function botMatchCommand(args: string[]): Promise<void> {
 
   // 2. Click Find Match
   console.log("find match...");
-  const fm = await ocrFind("Find Match");
+  const fm = await ocrFindText("Find Match");
   if (!fm) { console.error("'Find Match' not found"); process.exitCode = 1; return; }
   await clickRef(fm[0], fm[1]);
   await Bun.sleep(2000);
 
   // 3. Verify — "My Decks" visible means deck selector is showing
-  if (!(await ocrFind("My Decks"))) {
+  if (!(await ocrFindText("My Decks"))) {
     console.error("deck selector not visible (no 'My Decks')");
     process.exitCode = 1;
     return;
@@ -54,7 +54,7 @@ export async function botMatchCommand(args: string[]): Promise<void> {
 
   // 4. Click Bot Match in format list
   console.log("selecting Bot Match format...");
-  const bm = await ocrFind("Bot Match");
+  const bm = await ocrFindText("Bot Match");
   if (!bm) { console.error("'Bot Match' not found in format list"); process.exitCode = 1; return; }
   await clickRef(bm[0], bm[1]);
   await Bun.sleep(1500);
@@ -70,7 +70,7 @@ export async function botMatchCommand(args: string[]): Promise<void> {
       console.log(`selecting deck #${deckNum}...`);
       await clickRef(gridX[col], gridY[row]);
     } else {
-      const dp = await ocrFind(deckArg);
+      const dp = await ocrFindText(deckArg);
       if (dp) {
         console.log(`selecting "${deckArg}"...`);
         await clickRef(dp[0], dp[1] - 40);
@@ -85,7 +85,7 @@ export async function botMatchCommand(args: string[]): Promise<void> {
   await Bun.sleep(1000);
 
   // 6. Verify deck selected — "Edit Deck" visible
-  if (!(await ocrFind("Edit Deck"))) {
+  if (!(await ocrFindText("Edit Deck"))) {
     console.error("no deck selected (Edit Deck not visible)");
     process.exitCode = 1;
     return;
@@ -104,28 +104,4 @@ export async function botMatchCommand(args: string[]): Promise<void> {
 
   console.error("timed out waiting for game");
   process.exitCode = 1;
-}
-
-/** OCR MTGA window, find text, return [cx, cy] in 960px ref. Picks bottommost match. */
-async function ocrFind(text: string): Promise<[number, number] | null> {
-  const img = "/tmp/arena-ocr-find.png";
-  if (!(await captureMtga(img))) return null;
-
-  const ocrBin = await compileSwift("ocr");
-  const ocr = Bun.spawnSync({
-    cmd: [ocrBin, img, "--find", text, "--json"],
-    stdout: "pipe",
-  });
-  if (ocr.exitCode !== 0) return null;
-
-  try {
-    const items = JSON.parse(ocr.stdout.toString());
-    if (items.length === 0) return null;
-    const sipsInfo = Bun.spawnSync({ cmd: ["sips", "-g", "pixelWidth", img], stdout: "pipe" });
-    const wMatch = sipsInfo.stdout.toString().match(/pixelWidth:\s*(\d+)/);
-    const imgW = wMatch ? parseInt(wMatch[1]) : 1920;
-    const scale = REFERENCE_WIDTH / imgW;
-    const sorted = items.sort((a: any, b: any) => b.cy - a.cy);
-    return [Math.round(sorted[0].cx * scale), Math.round(sorted[0].cy * scale)];
-  } catch { return null; }
 }

@@ -41,7 +41,7 @@ function handAdjust(ocrCx: number): [number, number] {
  * Pipeline: capture by window ID → crop (bottom 20%, trim 280px sides) → upscale → OCR.
  * Works even if MTGA is behind other windows.
  */
-async function ocrHandStrip(): Promise<{ items: any[]; ocrTo960: number } | null> {
+async function ocrHandStrip(): Promise<{ items: any[]; } | null> {
   const fullImg = "/tmp/arena-hand-full.png";
   const stripImg = "/tmp/arena-hand-strip.png";
   const stripUp = "/tmp/arena-hand-strip-up.png";
@@ -95,7 +95,7 @@ try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWith
     for (const item of items) {
       item.cx = (item.cx / scale + cropX) / fullW * REFERENCE_WIDTH;
     }
-    return { items, ocrTo960: 1 }; // cx already in 960px ref
+    return { items }; // cx already in 960px ref
   } catch {
     return null;
   }
@@ -178,12 +178,12 @@ export async function findHandCard(
   const result = await ocrHandStrip();
   if (!result) return null;
 
-  const { items, ocrTo960 } = result;
+  const { items } = result;
 
   // Match all OCR detections against all known hand card names
   const cardMatches = new Map<string, { score: number; cx: number }[]>();
   for (const item of items) {
-    const cx960 = Math.round(item.cx * ocrTo960);
+    const cx960 = Math.round(item.cx);
     if (cx960 < HAND_X_MIN || cx960 > HAND_X_MAX) continue;
 
     for (const name of knownNames) {
@@ -265,7 +265,7 @@ export async function findAllHandCards(
   // Match OCR detections to card names
   const cardMatches = new Map<string, { score: number; cx: number }[]>();
   for (const item of items) {
-    const cx960 = Math.round(item.cx * ocrTo960);
+    const cx960 = Math.round(item.cx);
     if (cx960 < HAND_X_MIN || cx960 > HAND_X_MAX) continue;
     for (const name of new Set(knownNames)) {
       const score = fuzzyCardMatch(item.text, name);

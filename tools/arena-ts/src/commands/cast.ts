@@ -47,24 +47,25 @@ export async function castCommand(args: string[]): Promise<void> {
 
   // Find card position via OCR
   const knownNames = state.hand.map(c => c.name);
+  // Find the card in hand (for instanceId)
+  const handCard = state.hand.find(c =>
+    c.name.toLowerCase().includes(cardName.toLowerCase()) ||
+    cardName.toLowerCase().includes(c.name.toLowerCase())
+  );
+  if (!handCard) {
+    console.error(`"${cardName}" not found in hand`);
+    process.exitCode = 1;
+    return;
+  }
+
   const pos = await findHandCard(cardName, knownNames);
 
   let fromX: number, fromY: number;
   if (pos) {
     fromX = pos.cx;
     fromY = pos.cy;
-    console.log(`casting ${pos.name} from OCR (${fromX},${fromY}) score=${pos.score.toFixed(2)}`);
+    console.log(`casting ${handCard.name} from OCR (${fromX},${fromY}) score=${pos.score.toFixed(2)}`);
   } else {
-    // Fallback: find by name in hand, use estimate
-    const handCard = state.hand.find(c =>
-      c.name.toLowerCase().includes(cardName.toLowerCase()) ||
-      cardName.toLowerCase().includes(c.name.toLowerCase())
-    );
-    if (!handCard) {
-      console.error(`"${cardName}" not found in hand`);
-      process.exitCode = 1;
-      return;
-    }
     [fromX, fromY] = estimateHandPosition(handCard.index, state.handCount);
     console.log(`casting ${handCard.name} from estimate (${fromX},${fromY}) [OCR failed]`);
   }
@@ -80,24 +81,17 @@ export async function castCommand(args: string[]): Promise<void> {
   const [sx2, sy2] = scaleToScreen(dropTo[0], dropTo[1], bounds);
   await drag(sx1, sy1, sx2, sy2);
 
-  // Verify card left hand
+  // Verify card left hand (by instanceId)
   await Bun.sleep(2000);
   const after = await liveState();
-  const castName = pos?.name ?? cardName;
   if (after) {
-    const stillInHand = after.hand.some(c =>
-      c.name.toLowerCase() === castName.toLowerCase()
-    );
-    if (stillInHand && after.hand.filter(c =>
-      c.name.toLowerCase() === castName.toLowerCase()
-    ).length >= (state.hand.filter(c =>
-      c.name.toLowerCase() === castName.toLowerCase()
-    ).length)) {
-      console.error(`drag may not have landed — ${castName} still in hand`);
+    const stillInHand = after.hand.some(c => c.instanceId === handCard.instanceId);
+    if (stillInHand) {
+      console.error(`drag may not have landed — ${handCard.name} still in hand`);
       process.exitCode = 1;
       return;
     }
   }
 
-  console.log(`cast ${castName}`);
+  console.log(`cast ${handCard.name}`);
 }
