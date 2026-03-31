@@ -109,7 +109,9 @@ Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
 
 Primary acceptance tool. `.pzl` files define exact board states — minimal cards, one win path, forced mechanics. See `docs/puzzle-driven-dev.md` for the full workflow.
 
+- `just puzzle <file>` — set puzzle via debug API (hot-swaps if in match, queues for next Sparky match)
 - `just puzzle-check <file>` — mandatory before commit (missing grpId = NPE)
+- `POST :8090/api/puzzle?file=<name>` — runtime API (GET returns current, POST with no params clears)
 
 ## Proto
 
