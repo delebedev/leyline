@@ -36,18 +36,18 @@ export async function botMatchCommand(args: string[]): Promise<void> {
   // 1. Click Play
   console.log("opening play blade...");
   await clickRef(866, 533);
-  await Bun.sleep(2000);
+  await Bun.sleep(1000);
 
   // 2. Click Find Match
   console.log("find match...");
   const fm = await ocrFindText("Find Match");
   if (!fm) { console.error("'Find Match' not found"); process.exitCode = 1; return; }
   await clickRef(fm[0], fm[1]);
-  await Bun.sleep(2000);
+  await Bun.sleep(1000);
 
   // 3. Click Play format tab (ensures we're on Play, not Ranked/Brawl)
   await clickRef(866, 192); // fmt-play
-  await Bun.sleep(1500);
+  await Bun.sleep(1000);
 
   // 4. Verify — "My Decks" visible means deck selector is showing
   if (!(await ocrFindText("My Decks"))) {
@@ -61,7 +61,7 @@ export async function botMatchCommand(args: string[]): Promise<void> {
   const bm = await ocrFindText("Bot Match");
   if (!bm) { console.error("'Bot Match' not found in format list"); process.exitCode = 1; return; }
   await clickRef(bm[0], bm[1]);
-  await Bun.sleep(1500);
+  await Bun.sleep(1000);
 
   // 5. Select deck
   if (deckArg) {
@@ -101,7 +101,7 @@ export async function botMatchCommand(args: string[]): Promise<void> {
 
   // 8. Wait for InGame
   for (let i = 0; i < 20; i++) {
-    await Bun.sleep(1500);
+    await Bun.sleep(1000);
     const s = await currentScene();
     if (s?.inGame) { console.log("in game"); return; }
   }
