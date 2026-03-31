@@ -1,0 +1,19 @@
+[metadata]
+Name:Commander Visibility Test
+Goal:Verify commander card renders in command zone
+Turns:3
+Difficulty:Tutorial
+Description:Arabella in command zone should be visible to the client as a clickable card.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=25
+AILife=25
+
+humancommand=Arabella, Abandoned Doll|IsCommander
+humanhand=Plains;Plains;Plains
+humanbattlefield=Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

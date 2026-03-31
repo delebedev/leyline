@@ -762,6 +762,15 @@ class GameBridge(
         // to handle any SBAs/triggers during setup (forge-web pattern).
         applyPuzzleSafely(puzzle, g)
 
+        // Auto-detect commander presence → apply Brawl variant for commander tax,
+        // zone-return rules, and correct starting life. Must happen after puzzle
+        // state is applied (commanders are placed by GameState.applyToGame).
+        val hasCommander = g.players.any { it.commanders.isNotEmpty() }
+        if (hasCommander) {
+            g.rules.addAppliedVariant(forge.game.GameType.Brawl)
+            log.info("GameBridge: puzzle has commander — applied Brawl variant")
+        }
+
         // Finalize: set age=Play, position at MAIN1 turn 1
         GameBootstrap.finalizeForPuzzle(g)
         log.info("GameBridge: puzzle applied, game at {} turn {}", g.phaseHandler.phase, g.phaseHandler.turn)
