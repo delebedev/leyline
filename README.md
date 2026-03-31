@@ -6,7 +6,7 @@ Open-source local game server that connects the real Arena client to [Forge](htt
 
 ## Design philosophy
 
-**Recording is the spec.** Real sessions are the source of truth for protocol conformance. Observe, diff, close gaps.
+**Player.log is the spec.** Arena logs from real server games are the source of truth for protocol conformance. Trace, diff, close gaps.
 
 **Minimal engine changes.** Leyline plugs into Forge's existing bridge layer — `CompletableFuture` interfaces that block the engine thread at each decision point. The fork adds a handful of event hooks and controller seams; the rules engine is untouched.
 

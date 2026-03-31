@@ -1,27 +1,25 @@
 # How We Conform
 
-**The single reference for conformance workflow.** Supersedes command references in `pipeline.md` and `workflow.md` for the match-door protocol layer. Those docs retain architectural context and protocol findings — this doc tells you what to run.
+> **Migration in progress.** Conformance is moving from proto-based recording analysis (private repo tooling) to Player.log-based comparison via `scry-ts`. The card-centric workflow and principles below remain valid. Proto-based tooling (`conform-proto`, `segment-variance`, `segment-relationships`) lives in `leyline-private`.
 
 ## Principles
 
-1. **Recording is the spec.** Real server recordings are the source of truth.
-2. **Raw proto, not decoded JSON.** `md-frames.jsonl` is lossy — use `RecordingFrameLoader` for conformance.
-3. **Observe variance, don't guess from one sample.** Run `just segment-variance` to see what's constant vs variable.
-4. **Structural invariants, not field-by-field equality.** The relationship catalog encodes the protocol rules. The differ uses variance profiles to compare intelligently.
+1. **Player.log is the spec.** Arena logs from real server games are the source of truth for building specs.
+2. **Player.log is the comparison format.** Both real server and leyline produce Player.logs — compare per-card annotation traces.
+3. **Observe variance, don't guess from one sample.** Profile annotation shapes across multiple games.
+4. **Structural invariants, not field-by-field equality.** The relationship catalog (`docs/conformance/relationship-catalog.yaml`) encodes protocol rules.
 
 ## Quick Reference
 
 | I want to... | Run |
 |---|---|
-| See what the real server sends for a message type | `just conform-proto SearchReq <session> --seat 0` |
-| See field variance across all recordings for a mechanic | `just segment-variance CastSpell` |
-| List all segment categories with instance counts | `just segment-variance` |
-| Validate structural invariants against recordings | `just segment-relationships` |
-| Validate structural invariants against engine output | `just segment-relationships --engine <dir>` |
-| Diff engine output against a recording (exact) | `just conform-proto <Type> <session> --engine <dir>` |
-| Diff engine output against a recording (profile-aware) | `just conform-proto <Type> <session> --engine <dir> --profile` |
-| Check annotation detail key shapes | `just proto-annotation-variance` |
-| Interactive segment exploration (legacy, JSON-based) | `just tape segment list <session>` |
+| Trace a card through a game | `just scry-ts trace "Card Name" --game <id>` |
+| See annotation types in a game | `just scry-ts gsm list --view annotations --game <id>` |
+| See board state at a point in time | `just scry-ts board --game <id> --gsid <N>` |
+| Save a game for later analysis | `just scry-ts save` |
+| Search saved games for a card | `just scry-ts game search "Card Name"` |
+| List saved games | `just scry-ts game list` |
+| Resolve an abilityGrpId | `just scry-ts ability <id>` |
 
 ## Workflow: Implementing a New Mechanic
 
@@ -138,65 +136,36 @@ Update the card spec with "verified" status and link to the PR that made it work
 ## Tool Architecture
 
 ```
-Recording .bin files (local)
+Player.log (arena or leyline)
         │
         ▼
-RecordingFrameLoader          (raw proto, lossless)
+scry-ts parser                (JSON, lossless for S→C)
         │
-        ├─→ just conform-proto     (decode + diff single messages)
+        ├─→ scry-ts trace          (per-card annotation journey)
         │
-        ├─→ SegmentDetector        (categorize frames by mechanic)
-        │         │
-        │         ├─→ FieldVarianceProfiler   (per-field variance)
-        │         │         │
-        │         │         └─→ just segment-variance  (CLI report)
-        │         │
-        │         └─→ RelationshipValidator   (invariant checking)
-        │                   │
-        │                   ├─→ RelationshipCatalog    (hand-written rules)
-        │                   ├─→ Auto-derived rules     (affectorId from variance)
-        │                   └─→ just segment-relationships (CLI report)
+        ├─→ scry-ts gsm            (GSM queries, diffs, annotation views)
         │
-        └─→ ProtoDiffer            (field-by-field diff)
-                  │
-                  └─→ Profile-aware mode    (uses variance + relationships)
+        ├─→ scry-ts board          (accumulated board state at any point)
+        │
+        ├─→ scry-ts prompts        (server request audit)
+        │
+        └─→ scry-ts game           (catalog, search, card manifest)
 ```
 
-## What's still valid from the old pipeline
-
-| Tool | Status | Use for |
-|------|--------|---------|
-| `segments.py` / `just tape segment` | Still works | Interactive exploration, segment listing, ID tracing |
-| `md-frames.jsonl` | Still generated | Quick browsing of session frames |
-| `AnnotationVariance.kt` / `just proto-annotation-variance` | Still works | Annotation detail-key variance (separate from the observatory) |
-| `AnnotationShapeConformanceTest` | Still in CI | Catches annotation builder regressions |
-| `StructuralFingerprint` / `StructuralDiff` | Still works | Shape-level timeline comparison |
-
-**Deprecated (being replaced):**
-| Tool | Replaced by |
-|------|-------------|
-| `AnnotationSerializer.kt` JSON output | `ProtoDiffer` direct proto comparison |
-| `just conform` (Python template → diff chain) | `just conform-proto --profile` |
-| `ConformancePipelineTest` JSON intermediary | Direct proto diff in tests |
-| JSON templates from `just tape segment template` | `just conform-proto` raw proto decode |
+Proto-based tooling (`conform-proto`, `segment-variance`, `segment-relationships`) lives in `leyline-private` for research use.
 
 ## Key files
 
 | File | What |
 |------|------|
-| `tooling/.../conformance/RecordingFrameLoader.kt` | Loads raw .bin → `List<GREToClientMessage>` |
-| `tooling/.../conformance/ProtoDiffer.kt` | Field-by-field diff with ID normalization + profile-aware mode |
-| `tooling/.../conformance/SegmentDetector.kt` | Categorize recording frames into segments |
-| `tooling/.../conformance/FieldVarianceProfiler.kt` | Per-field variance + auto-derived affectorId rules |
-| `tooling/.../conformance/RelationshipValidator.kt` | Validate patterns against segment instances |
-| `tooling/.../conformance/RelationshipCatalog.kt` | Hand-written structural invariants (40 patterns) |
-| `tooling/.../conformance/Relationship.kt` | Relationship types: Equals, NonEmpty, ValueIn, AlwaysPresent, AffectorIdRule |
-| `just/proto.just` | CLI recipes: `conform-proto`, `segment-variance`, `segment-relationships` |
+| `tools/scry-ts/` | Player.log analysis CLI (Bun TypeScript) |
+| `docs/conformance/relationship-catalog.yaml` | 40 structural invariants (extracted from Kotlin) |
+| `docs/rosetta.md` | Annotation types, zone IDs, transfer categories |
+| `docs/catalog.yaml` | Mechanic implementation status |
 
 ## Related docs
 
-- `conformance/debugging.md` — annotation ordering, instanceId lifecycle, detail key types (still current)
+- `conformance/debugging.md` — annotation ordering, instanceId lifecycle, detail key types
 - `conformance/protocol-findings.md` — durable protocol facts (multi-type annotations, ID ranges, patterns)
-- `conformance/levers.md` — architectural analysis of conformance gaps (levers #2 and #6 now in progress)
-- `annotation-variance.md` — annotation detail-key variance tool (parallel system, not replaced)
+- `conformance/levers.md` — architectural analysis of conformance gaps
 - `rosetta.md` — annotation types, zone IDs, transfer categories, protocol reference
