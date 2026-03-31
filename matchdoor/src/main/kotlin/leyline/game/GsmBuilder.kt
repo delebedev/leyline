@@ -373,6 +373,8 @@ object GsmBuilder {
                     human,
                     ai,
                 )
+            } else {
+                log.warn("buildInitialGameState: Brawl game but bridge.getGame() is null — command zone will be empty")
             }
         }
 

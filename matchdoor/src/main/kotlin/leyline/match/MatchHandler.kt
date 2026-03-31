@@ -314,7 +314,8 @@ class MatchHandler(
         val playerId = clientId.removeSuffix("_Familiar")
         val opponentName = coordinator?.pvpOpponentName(matchId) ?: "Sparky"
         val eventName = coordinator?.selectedEventName ?: "AIBotMatch"
-        val msg = HandshakeMessages.roomState(matchId, playerId, opponentName, eventName)
+        val isBot = coordinator?.isPvpMatch(matchId) != true
+        val msg = HandshakeMessages.roomState(matchId, playerId, opponentName, eventName, isBot)
         Tap.outboundTemplate("RoomState matchId=$matchId opponent=$opponentName")
         ProtoDump.dump(msg, "RoomState")
         ctx.writeAndFlush(msg)

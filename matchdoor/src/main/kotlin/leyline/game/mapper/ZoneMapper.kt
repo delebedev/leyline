@@ -165,6 +165,7 @@ object ZoneMapper {
         val zoneBuilder = zones.find { it.zoneId == arenaZoneId }?.toBuilder() ?: return
         zones.removeIf { it.zoneId == arenaZoneId }
 
+        // Filter synthetic engine objects (DetachedCardEffect etc.) — not real cards
         val allCards = game.getCardsIn(forgeZone)
             .filter { it.gamePieceType == forge.card.GamePieceType.CARD || it.isToken }
         for (card in allCards) {
