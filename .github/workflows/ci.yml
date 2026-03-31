@@ -67,12 +67,6 @@ jobs:
       - name: Test (unit + conformance)
         run: just test-gate
 
-      - name: Coverage reports
-        if: always()
-        run: |
-          ./gradlew :matchdoor:jacocoTestReport :tooling:jacocoTestReport \
-                    :frontdoor:jacocoTestReport :account:jacocoTestReport || true
-
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
@@ -86,7 +80,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: coverage
+          name: coverage-gate
           path: '**/build/reports/jacoco/**/jacocoTestReport.xml'
           if-no-files-found: ignore
           retention-days: 7
@@ -144,6 +138,15 @@ jobs:
         with:
           name: test-results-integration
           path: '**/build/test-results/**/TEST-*.xml'
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration
+          path: '**/build/reports/jacoco/**/jacocoTestReport.xml'
           if-no-files-found: ignore
           retention-days: 7
 

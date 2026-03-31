@@ -1,7 +1,6 @@
 import leyline.build.configureTestDefaults
 
 plugins {
-    id("org.gradle.test-retry")
     jacoco
 }
 

@@ -6,15 +6,18 @@
 test-one class:
     cd "{{project_dir}}" && ./gradlew :matchdoor:test :frontdoor:test :account:test test -Pkotest.filter.specs=".*{{class}}"
 
-# pre-commit gate: unit + conformance + fmt check (all modules)
+# pre-commit gate: unit + conformance + fmt check + coverage (all modules)
 [group('test')]
 test-gate:
-    cd "{{project_dir}}" && ./gradlew spotlessCheck detekt :matchdoor:testGate :frontdoor:test :account:test
+    cd "{{project_dir}}" && ./gradlew spotlessCheck detekt \
+        :matchdoor:testGate :matchdoor:jacocoTestReport \
+        :frontdoor:test :frontdoor:jacocoTestReport \
+        :account:test :account:jacocoTestReport
 
 # matchdoor integration tests (boots engine per fork — run after risky matchdoor changes)
 [group('test')]
 test-integration:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:testIntegration
+    cd "{{project_dir}}" && ./gradlew :matchdoor:testIntegration :matchdoor:jacocoTestReport
 
 # JaCoCo coverage report (per-module, merged summary)
 [group('test')]

@@ -7,7 +7,6 @@ Outputs markdown to stdout suitable for posting as a PR comment.
 """
 
 import argparse
-import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -15,17 +14,21 @@ SLOW_THRESHOLD = 3.0
 
 
 def parse_jacoco(paths: list[Path]) -> tuple[list[tuple], int, int]:
-    """Parse JaCoCo XML reports. Returns (module_rows, total_covered, total_lines)."""
-    module_rows = []
-    grand_covered = 0
-    grand_lines = 0
+    """Parse JaCoCo XML reports. Returns (module_rows, total_covered, total_lines).
+
+    When multiple XMLs report the same module (e.g. gate + integration both
+    produce matchdoor), their LINE counters are merged.  This may slightly
+    over-count lines hit by both suites, but coverage % only goes up — never
+    inflated beyond 100%.
+    """
+    # Accumulate per-module: {module: (covered, missed)}
+    by_module: dict[str, list[int]] = {}
 
     for path in paths:
         if not path.exists():
             continue
         tree = ET.parse(path)
         root = tree.getroot()
-        # Module name from report name attribute or filename
         module = root.get("name", path.parent.parent.parent.name)
 
         covered = 0
@@ -35,12 +38,25 @@ def parse_jacoco(paths: list[Path]) -> tuple[list[tuple], int, int]:
                 covered += int(counter.get("covered", 0))
                 missed += int(counter.get("missed", 0))
 
+        if covered + missed == 0:
+            continue
+
+        if module in by_module:
+            # Merge: take max covered, min missed (optimistic union)
+            prev_c, prev_m = by_module[module]
+            by_module[module] = [max(prev_c, covered), min(prev_m, missed)]
+        else:
+            by_module[module] = [covered, missed]
+
+    module_rows = []
+    grand_covered = 0
+    grand_lines = 0
+    for module, (covered, missed) in by_module.items():
         total = covered + missed
-        if total > 0:
-            pct = 100 * covered / total
-            module_rows.append((module, pct, covered, total))
-            grand_covered += covered
-            grand_lines += total
+        pct = 100 * covered / total
+        module_rows.append((module, pct, covered, total))
+        grand_covered += covered
+        grand_lines += total
 
     return module_rows, grand_covered, grand_lines
 
