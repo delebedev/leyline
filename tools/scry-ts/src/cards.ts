@@ -56,7 +56,7 @@ export class CardResolver {
         .query(`${LOOKUP_SQL}${placeholders})`)
         .all(...uncached) as { GrpId: number; Loc: string }[];
       for (const row of rows) {
-        this.cache.set(row.GrpId, row.Loc);
+        this.cache.set(row.GrpId, row.Loc.replace(/<[^>]+>/g, ""));
       }
     }
     const result = new Map<number, string>();
@@ -94,12 +94,12 @@ export function resolveCardInfo(db: Database, grpIds: number[]): Map<number, Car
   for (const row of db.query(
     "SELECT e.Value, l.Loc FROM Enums e JOIN Localizations_enUS l ON e.LocId = l.LocId WHERE e.Type = 'CardType' AND l.Formatted = 1"
   ).all() as { Value: number; Loc: string }[]) {
-    typeMap.set(row.Value, row.Loc);
+    typeMap.set(row.Value, row.Loc.replace(/<[^>]+>/g, ""));
   }
   for (const row of db.query(
     "SELECT e.Value, l.Loc FROM Enums e JOIN Localizations_enUS l ON e.LocId = l.LocId WHERE e.Type = 'SubType' AND l.Formatted = 1"
   ).all() as { Value: number; Loc: string }[]) {
-    subtypeMap.set(row.Value, row.Loc);
+    subtypeMap.set(row.Value, row.Loc.replace(/<[^>]+>/g, ""));
   }
 
   const placeholders = grpIds.map(() => "?").join(",");

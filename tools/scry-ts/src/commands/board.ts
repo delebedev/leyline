@@ -76,9 +76,16 @@ export async function boardCommand(args: string[]) {
     zoneById.set(z.zoneId, { type: z.type, ownerSeatId: z.ownerSeatId });
   }
 
-  // Group objects by zone type + owner
+  // Build set of zone-tracked objectIds (excludes phantom proxies like Adventure companions)
+  const zoneTracked = new Set<number>();
+  for (const [, z] of state.zones) {
+    for (const id of z.objectIds) zoneTracked.add(id);
+  }
+
+  // Group objects by zone type + owner (skip phantom proxies not in any zone's objectIds)
   const grouped = new Map<string, GameObject[]>();
   for (const [, obj] of state.objects) {
+    if (!zoneTracked.has(obj.instanceId)) continue;
     const zone = zoneById.get(obj.zoneId);
     const zt = zone ? zoneName(zone.type) : `zone=${obj.zoneId}`;
     const owner = zone?.ownerSeatId ?? obj.ownerSeatId;
