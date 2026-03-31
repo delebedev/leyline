@@ -1,7 +1,7 @@
 {
   "database": "dolt",
   "backend": "dolt",
-  "dolt_mode": "embedded",
+  "dolt_mode": "server",
   "dolt_database": "leyline",
   "project_id": "9f8883f5-43fa-45c8-8d73-3167a10224a7"
 }
