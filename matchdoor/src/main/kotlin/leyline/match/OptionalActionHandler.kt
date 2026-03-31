@@ -114,12 +114,11 @@ class OptionalActionHandler(private val ops: SessionOps) {
             .setUpdate(GameStateUpdate.SendAndRecord)
             .build()
 
-        val msgId = ops.counter.nextMsgId()
         val gsmGre = ops.makeGRE(GREMessageType.GameStateMessage_695e, gsId, ops.counter.nextMsgId()) {
             it.gameStateMessage = pendingGsm
         }
 
-        val optionalGre = ops.makeGRE(GREMessageType.OptionalActionMessage_695e, gsId, msgId) {
+        val optionalGre = ops.makeGRE(GREMessageType.OptionalActionMessage_695e, gsId, ops.counter.nextMsgId()) {
             it.optionalActionMessage = optionalMsg
             it.prompt = promptProto
             // Controls Cancel button visibility, NOT whether declining is allowed.
