@@ -72,6 +72,18 @@ just serve        # start server (restart after code changes — JVM holds old b
 
 **Worktrees need `just bootstrap` before anything else** — they don't share submodule checkouts or build artifacts.
 
+## Arena Automation
+
+**Always run `just arena-ts preflight` before any arena-ts command.** It checks MTGA is running, window is visible, and accessibility permissions are granted. If MTGA isn't running, launch it with `just arena-ts launch`.
+
+```bash
+just arena-ts preflight       # check MTGA is ready
+just arena-ts launch          # launch MTGA client (1920x1080 windowed)
+just arena-ts bot-match       # start a Sparky bot match
+just arena-ts scene           # current Arena scene (Home, InGame, etc.)
+just arena-ts --help          # full command list
+```
+
 ## Testing
 
 Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.

@@ -389,7 +389,7 @@ class TargetingFlowTest :
                 ct.highlight shouldBe HighlightType.Tepid
             }
 
-            // Should also include creature targets (Runeclaw Bear, Pillarfield Ox)
+            // Should also include creature targets (Runeclaw Bear, Those Who Serve)
             val targetCount = targetIds.size
             targetCount shouldBeGreaterThanOrEqual 4
 
