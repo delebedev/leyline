@@ -177,10 +177,6 @@ jobs:
       - name: Generate CI report
         if: github.event_name == 'pull_request'
         run: |
-          echo "=== JaCoCo XMLs found ==="
-          find ci-artifacts -name 'jacocoTestReport.xml' 2>/dev/null
-          echo "=== Test result dirs ==="
-          find ci-artifacts -type d -name 'test-results-*' 2>/dev/null
           jacoco_args=""
           for f in $(find ci-artifacts -name 'jacocoTestReport.xml' 2>/dev/null); do
             jacoco_args="$jacoco_args --jacoco-xml $f"
@@ -189,7 +185,6 @@ jobs:
           for d in $(find ci-artifacts -type d -name 'test-results-*' 2>/dev/null); do
             test_dir_args="$test_dir_args --test-xml-dir $d"
           done
-          echo "Running: python3 gradle/scripts/ci-report.py $jacoco_args $test_dir_args"
           python3 gradle/scripts/ci-report.py $jacoco_args $test_dir_args > ci-comment.md
           cat ci-comment.md
 
