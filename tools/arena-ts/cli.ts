@@ -40,6 +40,12 @@ async function main() {
     for (const [name, cmd] of Object.entries(commands)) {
       console.log(`  ${name.padEnd(16)} ${cmd.description}`);
     }
+    console.log("\nWorkflow:");
+    console.log("  preflight → start match → keep → turn/hand → land/cast/pass → concede");
+    console.log("  All coordinates in 960px reference space (auto-scaled to window).");
+    console.log("\nCommon flags:");
+    console.log("  --json       Raw JSON output (where supported)");
+    console.log("  --help       Help for any command (e.g. arena hand --help)");
     process.exit(0);
   }
 

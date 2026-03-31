@@ -34,7 +34,7 @@ export async function turnCommand(args: string[]): Promise<void> {
   if (state.lands.length > 0)
     console.log(`Can play land: ${state.lands.map(a => a.name).join(", ")}`);
   if (state.casts.length > 0)
-    console.log(`Can cast: ${state.casts.map(a => a.name).join(", ")}`);
+    console.log(`Can cast (unfiltered by mana): ${state.casts.map(a => a.name).join(", ")}`);
   if (state.otherActions.length > 0)
     console.log(`Other: ${state.otherActions.map(a => `${a.type}: ${a.name}`).join(", ")}`);
   if (state.lands.length === 0 && state.casts.length === 0 && state.otherActions.length === 0)
