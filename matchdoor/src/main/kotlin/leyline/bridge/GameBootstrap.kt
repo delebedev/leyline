@@ -25,7 +25,9 @@ val Game.isPuzzle: Boolean
 
 /** True when game rules indicate Commander. */
 val Game.isCommander: Boolean
-    get() = rules.gameType == GameType.Commander || rules.hasAppliedVariant(GameType.Commander)
+    get() = COMMANDER_GAME_TYPES.any { rules.gameType == it || rules.hasAppliedVariant(it) }
+
+private val COMMANDER_GAME_TYPES = setOf(GameType.Commander, GameType.Brawl, GameType.Oathbreaker)
 
 /** Commander-family game type slugs (used for deck validation, game creation). */
 val COMMANDER_VARIANTS = setOf("commander", "brawl", "oathbreaker")
