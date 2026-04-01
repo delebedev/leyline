@@ -48,7 +48,7 @@ object ObjectMapper {
         bridge: GameBridge,
         visibility: Visibility = Visibility.Private,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry)
+        val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry, bridge)
         return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Card)
@@ -75,7 +75,7 @@ object ObjectMapper {
         game: Game,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry)
+        val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry, bridge)
         val extrinsicKws = keywordSnapshot[instanceId]
             ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
             ?: emptyList()
@@ -230,7 +230,7 @@ object ObjectMapper {
         controllerSeatId: Int,
         bridge: GameBridge,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry)
+        val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry, bridge)
         return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Card)
@@ -258,7 +258,7 @@ object ObjectMapper {
         viewerSeatId: Int,
         bridge: GameBridge,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cards, proxyInstanceId, bridge.tokenRegistry)
+        val grpId = resolveGrpId(card, bridge.cards, proxyInstanceId, bridge.tokenRegistry, bridge)
         return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(proxyInstanceId)
             .setType(GameObjectType.RevealedCard)
@@ -321,10 +321,14 @@ object ObjectMapper {
         cards: CardRepository,
         instanceId: Int = 0,
         tokenRegistry: TokenIdentityRegistry? = null,
+        bridge: GameBridge? = null,
     ): Int {
         if (card.isToken) {
             // 1. Registry cache — stable across diff ticks
-            tokenRegistry?.resolve(instanceId)?.let { return it }
+            tokenRegistry?.resolve(instanceId)?.let {
+                bridge?.ensureCardData(it)
+                return it
+            }
 
             // 2. Copy token — use source permanent's grpId
             val copiedPermanent = card.copiedPermanent
@@ -335,6 +339,7 @@ object ObjectMapper {
                         return GameBridge.FALLBACK_GRPID
                     }
                 if (instanceId != 0) tokenRegistry?.register(instanceId, sourceGrpId)
+                bridge?.ensureCardData(sourceGrpId)
                 return sourceGrpId
             }
 
@@ -342,6 +347,7 @@ object ObjectMapper {
             val tokenGrpId = resolveTokenGrpId(card, cards)
             if (tokenGrpId != null) {
                 if (instanceId != 0) tokenRegistry?.register(instanceId, tokenGrpId)
+                bridge?.ensureCardData(tokenGrpId)
                 return tokenGrpId
             }
             log.error("token grpId=0 for '{}' (forgeId={})", card.name, card.id)

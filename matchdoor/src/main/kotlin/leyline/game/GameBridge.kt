@@ -206,6 +206,21 @@ class GameBridge(
      *  survives puzzle hot-swaps (which replace [cards] with InMemoryCardRepository). */
     private val cardRepository: CardRepository = cards
 
+    /**
+     * Ensure [CardData] for [grpId] is in the active [cards] repo.
+     * When puzzle mode swaps to [InMemoryCardRepository], tokens created at
+     * runtime won't be pre-registered. This copies from the client DB on demand.
+     */
+    fun ensureCardData(grpId: Int) {
+        if (grpId == 0) return
+        if (cards.findByGrpId(grpId) != null) return
+        val repo = cards as? InMemoryCardRepository ?: return
+        val data = cardRepository.findByGrpId(grpId) ?: return
+        val name = cardRepository.findNameByGrpId(grpId) ?: return
+        repo.registerData(data, name)
+        log.debug("ensureCardData: lazy-registered grpId={} name={}", grpId, name)
+    }
+
     // --- Composed components ---
 
     /** Card ID mapping (Forge cardId ↔ client instanceId). */
