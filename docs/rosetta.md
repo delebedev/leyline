@@ -43,8 +43,8 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 40 | LinkInfo | -- | -- | -- | `LinkType`, `Choice_Value` | MISSING |
 | 41 | TokenDeleted | `GameEventCardChangeZone` | `TokenDestroyed` | `tokenDeleted()` | affectorId=instanceId, affectedIds=[instanceId] | Implemented |
 | 42 | Qualification | -- | -- | -- | `QualificationType`, `QualificationSubtype`, `grpid`, `SourceParent`, `CantBeBlockedByObjects`; QualType 47=adventure exile, 21=aura continuous, CantBeBlockedByObjects=evasion grant | MISSING — wire shape confirmed (tamiyos-compleation, tatsunari, ratcatcher-trainee specs) |
-| 43 | ResolutionStart | `GameEventSpellResolved` | `SpellResolved` | `resolutionStart()` | `grpid` | Implemented |
-| 44 | ResolutionComplete | `GameEventSpellResolved` | `SpellResolved` | `resolutionComplete()` | `grpid` | Implemented |
+| 43 | ResolutionStart | `GameEventSpellResolved` | `SpellResolved` | `resolutionStart()` | `grpid` | Implemented — emitted for Resolve zone transfers (Stack→Battlefield). NOT emitted for disappeared triggered abilities (instanceId gone from state; affectorId unresolvable). Real server emits them — gap may affect stack animation. |
+| 44 | ResolutionComplete | `GameEventSpellResolved` | `SpellResolved` | `resolutionComplete()` | `grpid` | Implemented — same gap as ResolutionStart for disappeared triggered abilities. |
 | 45 | Designation | -- | -- | -- | `PromptMessage`, `CostIncrease`, `grpid` | MISSING |
 | 46 | GainDesignation | -- | -- | -- | designation type | MISSING |
 | 47 | CardRevealed | -- | -- | -- | `source_zone` | MISSING |
