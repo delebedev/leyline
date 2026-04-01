@@ -96,11 +96,37 @@ bd dolt push        # then push
 
 ### If pull fails with "uncommitted changes"
 
-Auto-commit wasn't on when writes happened. Fix:
+Auto-commit wasn't on when writes happened. Try committing first:
 ```bash
 bd sql 'CALL dolt_add("-A")'
 bd sql 'CALL dolt_commit("-am", "commit working set")'
 bd dolt pull
+```
+
+If `dolt_commit` says "nothing to commit" but pull still fails, the working set is corrupted. Use the safe reset below.
+
+### Safe reset to remote
+
+**Always backup before resetting.** `dolt_reset --hard` destroys local-only data.
+
+```bash
+# 1. Backup local state
+bd export > /tmp/beads-backup.jsonl
+
+# 2. Reset to remote
+bd sql 'CALL dolt_fetch("origin")'
+bd sql 'CALL dolt_reset("--hard", "origin/main")'
+
+# 3. Pull to confirm clean state
+bd dolt pull
+
+# 4. Check if anything was lost
+bd list
+# Compare against /tmp/beads-backup.jsonl — if issues are missing:
+bd import /tmp/beads-backup.jsonl
+
+# 5. Push to align
+bd dolt push
 ```
 
 ### If pull fails with "non-fast-forward" on push
@@ -121,15 +147,6 @@ The `.beads/metadata.json` (git-tracked) has a different project_id than the Dol
 ```bash
 bd sql 'SELECT * FROM metadata WHERE `key` = "_project_id"'
 # Edit .beads/metadata.json to match, commit to git
-```
-
-### Nuclear recovery — reset to remote
-
-If local state is corrupted beyond repair:
-```bash
-bd sql 'CALL dolt_fetch("origin")'
-bd sql 'CALL dolt_reset("--hard", "origin/main")'
-bd dolt pull
 ```
 
 ### Recovering lost issues from Dolt history
