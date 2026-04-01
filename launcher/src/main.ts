@@ -36,8 +36,6 @@ ghLink.addEventListener("click", async (e) => {
 // --- State ---
 
 let arenaFound = false;
-let arenaSource = "";
-let arenaConfigured = false;
 let serverState = "Stopped";
 let busy = false;
 
@@ -67,13 +65,7 @@ function updateUI() {
   }
 
   // Hint text
-  if (serverState === "Running") {
-    hint.textContent = "Launch Arena to play";
-  } else if (serverState === "Starting") {
-    hint.textContent = "";
-  } else {
-    hint.textContent = "";
-  }
+  hint.textContent = serverState === "Running" ? "Launch Arena to play" : "";
 }
 
 // --- Arena detection ---
@@ -88,8 +80,6 @@ async function checkArena() {
   try {
     const info = (await invoke("detect_arena")) as ArenaInfo;
     arenaFound = true;
-    arenaSource = info.source;
-    arenaConfigured = info.configured;
     arenaDot.className = "dot dot-found";
     if (info.configured) {
       arenaValue.textContent = `Configured (${info.source})`;
@@ -141,7 +131,8 @@ playBtn.addEventListener("click", async () => {
     // Refresh arena status (now configured)
     await checkArena();
   } catch (e) {
-    serverState = String(e);
+    console.error("Start failed:", e);
+    serverState = "Stopped";
   } finally {
     busy = false;
     playBtn.textContent = "Start";

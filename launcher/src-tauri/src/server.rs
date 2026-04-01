@@ -76,8 +76,8 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
     server.set_state(ServerState::Starting, &app);
 
     let child = Command::new(&bin_path)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .spawn()
         .map_err(|e| {
             let msg = format!("Failed to spawn leyline: {e}");
