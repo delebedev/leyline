@@ -1,0 +1,18 @@
+[metadata]
+Name:Shock Land Temple Garden
+Goal:None
+Turns:3
+Difficulty:Easy
+Description:Play Temple Garden — test shock land ETB replacement prompt.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Temple Garden
+humanbattlefield=Forest
+humanlibrary=Forest;Forest;Forest
+aibattlefield=Forest
+ailibrary=Forest;Forest;Forest

@@ -8,7 +8,9 @@ import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.game.CardProtoBuilder
 import leyline.game.CardRepository
+import leyline.game.EffectTracker
 import leyline.game.GameBridge
+import leyline.game.KeywordGrpIds
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.card.CardType.CoreType as ForgeCoreType
@@ -70,9 +72,13 @@ object ObjectMapper {
         controllerSeatId: Int,
         bridge: GameBridge,
         game: Game,
+        keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ): GameObjectInfo {
         val grpId = resolveGrpId(card, bridge.cards)
-        return bridge.cardProto.buildObjectInfo(grpId)
+        val extrinsicKws = keywordSnapshot[instanceId]
+            ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
+            ?: emptyList()
+        return bridge.cardProto.buildObjectInfo(grpId, extrinsicKeywordGrpIds = extrinsicKws)
             .setInstanceId(instanceId)
             .setType(GameObjectType.Card)
             .setZoneId(zoneId)

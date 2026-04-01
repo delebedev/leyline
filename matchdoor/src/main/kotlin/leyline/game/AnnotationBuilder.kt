@@ -46,6 +46,7 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
  * @see GameEvent for the Forge→protocol event translation layer
  * @see TransferCategory for the category label enum
  */
+@Suppress("LargeClass")
 object AnnotationBuilder {
 
     /**
@@ -532,10 +533,11 @@ object AnnotationBuilder {
         threshold: Int? = null,
         abilityGrpId: Int? = null,
         affectorId: Int = instanceId,
+        affectedIds: List<Int> = listOf(instanceId),
     ): AnnotationInfo = AnnotationInfo.newBuilder()
         .addType(AnnotationType.AbilityWordActive)
         .setAffectorId(affectorId)
-        .addAffectedIds(instanceId)
+        .apply { affectedIds.forEach { addAffectedIds(it) } }
         .addDetails(typedStringDetail(DetailKeys.ABILITY_WORD_NAME, abilityWordName))
         .apply {
             if (value != null) addDetails(int32Detail(DetailKeys.VALUE, value))
@@ -543,6 +545,60 @@ object AnnotationBuilder {
             if (abilityGrpId != null) addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId))
         }
         .build()
+
+    /**
+     * Keyword grant via layered effect — multi-creature form.
+     * Types: [AddAbility_af5a, LayeredEffect]. One pAnn covers all affected creatures.
+     *
+     * Wire shape: flat affectedIds list, one UniqueAbilityId per creature, shared grpId.
+     * Confirmed from Overrun sessions 2026-03-29_16-55-19 and 2026-03-29_17-04-26.
+     */
+    fun addAbilityMulti(
+        affectedIds: List<Int>,
+        grpId: Int,
+        effectId: Int,
+        uniqueAbilityIds: List<Int>,
+        originalAbilityObjectZcid: Int,
+        affectorId: Int,
+    ): AnnotationInfo {
+        val builder = AnnotationInfo.newBuilder()
+            .addType(AnnotationType.AddAbility_af5a)
+            .addType(AnnotationType.LayeredEffect)
+            .setAffectorId(affectorId)
+            .addDetails(uint32Detail(DetailKeys.GRPID, grpId))
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId))
+            .addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, originalAbilityObjectZcid))
+        affectedIds.forEach { builder.addAffectedIds(it) }
+        uniqueAbilityIds.forEach { builder.addDetails(int32Detail(DetailKeys.UNIQUE_ABILITY_ID, it)) }
+        return builder.build()
+    }
+
+    /**
+     * Multi-keyword grant for auras (e.g. Flying + First Strike from Angelic Destiny).
+     * Packs multiple grpIds/UniqueAbilityIds into one [AddAbility+LayeredEffect] pAnn.
+     */
+    fun addAbilityPacked(
+        affectedId: Int,
+        grpIds: List<Int>,
+        effectId: Int,
+        uniqueAbilityIds: List<Int>,
+        originalAbilityObjectZcids: List<Int>,
+        affectorId: Int,
+    ): AnnotationInfo {
+        require(grpIds.size == uniqueAbilityIds.size) { "grpIds and uniqueAbilityIds must match" }
+        val builder = AnnotationInfo.newBuilder()
+            .addType(AnnotationType.AddAbility_af5a)
+            .addType(AnnotationType.LayeredEffect)
+            .setAffectorId(affectorId)
+            .addAffectedIds(affectedId)
+            .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId))
+        grpIds.forEach { builder.addDetails(uint32Detail(DetailKeys.GRPID, it)) }
+        uniqueAbilityIds.forEach { builder.addDetails(int32Detail(DetailKeys.UNIQUE_ABILITY_ID, it)) }
+        originalAbilityObjectZcids.forEach {
+            builder.addDetails(int32Detail(DetailKeys.ORIGINAL_ABILITY_OBJECT_ZCID, it))
+        }
+        return builder.build()
+    }
 
     /**
      * Persistent annotation marking a card as eligible for an alternate cast
@@ -797,10 +853,12 @@ object AnnotationBuilder {
 
     // -- Tier 2 detail-less annotations --
 
-    /** Layered effect ended (continuous effect removed). Arena type 19. */
-    fun layeredEffectDestroyed(effectId: Int): AnnotationInfo =
+    /** Layered effect ended. [affectorId] = source of the destruction (e.g. aura iid for
+     *  SBA_UnattachedAura; 0/omitted for EOT expiry). Arena type 19. */
+    fun layeredEffectDestroyed(effectId: Int, affectorId: Int = 0): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.LayeredEffectDestroyed)
+            .apply { if (affectorId != 0) setAffectorId(affectorId) }
             .addAffectedIds(effectId)
             .build()
 
@@ -835,12 +893,18 @@ object AnnotationBuilder {
      * Wire shape: affectedIds = [vehicleInstanceId], effect_id, sourceAbilityGRPID (crew ability grpId).
      * Emitted when crew resolves and vehicle gains Creature type; removed on expiry.
      */
-    fun modifiedTypeLayeredEffect(instanceId: Int, effectId: Int, sourceAbilityGrpId: Int? = null): AnnotationInfo {
+    fun modifiedTypeLayeredEffect(
+        instanceId: Int,
+        effectId: Int,
+        affectorId: Int = 0,
+        sourceAbilityGrpId: Int? = null,
+    ): AnnotationInfo {
         val builder = AnnotationInfo.newBuilder()
             .addType(AnnotationType.ModifiedType)
             .addType(AnnotationType.LayeredEffect)
             .addAffectedIds(instanceId)
             .addDetails(int32Detail(DetailKeys.EFFECT_ID, effectId))
+        if (affectorId != 0) builder.setAffectorId(affectorId)
         if (sourceAbilityGrpId != null) {
             builder.addDetails(int32Detail(DetailKeys.SOURCE_ABILITY_GRPID, sourceAbilityGrpId))
         }

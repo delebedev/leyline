@@ -32,6 +32,9 @@ object PromptIds {
     /** "You may" trigger decision (OptionalActionMessage). */
     const val OPTIONAL_ACTION = 1159
 
+    /** Shock land ETB "pay life or enter tapped" (OptionalActionMessage). */
+    const val SHOCK_LAND_ETB = 2233
+
     const val SELECT_N = 1243
 
     /** sourceId on SelectNReq for legend rule. */

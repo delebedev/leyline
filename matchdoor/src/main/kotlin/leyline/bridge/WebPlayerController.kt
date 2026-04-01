@@ -156,8 +156,8 @@ class WebPlayerController(
     )
 
     data class OptionalActionPrompt(
-        /** Retained for leyline-x25: targeting order fix needs ability details. */
-        val wrapper: WrappedAbility,
+        /** Retained for leyline-x25: targeting order fix needs ability details. Null for non-trigger prompts (e.g. shock land ETB). */
+        val wrapper: WrappedAbility?,
         val hostCard: Card?,
         val future: java.util.concurrent.CompletableFuture<Boolean>,
     )
@@ -804,9 +804,50 @@ class WebPlayerController(
     }
 
     // -- Pay cost to prevent effect ----------------------------------------
-    // payCostToPreventEffect is inherited from PCHuman. Upstream now resolves
-    // card-picking/mana payment for these flows through chooseCardsForCost and
-    // payManaCost/applyManaToCost, so the older extra seam callbacks are dead.
+
+    override fun payCostToPreventEffect(
+        cost: Cost,
+        sa: SpellAbility,
+        alreadyPaid: Boolean,
+        allPayers: FCollectionView<Player>,
+    ): Boolean {
+        // Shock land pattern: UnlessCost$ PayLife<N> — single CostPayLife part.
+        // Route through pendingOptionalAction so the client gets an
+        // OptionalActionMessage (GRE type 45) instead of a generic confirm.
+        val lifePart = cost.costParts.singleOrNull() as? forge.game.cost.CostPayLife
+        if (lifePart != null) {
+            val amount = lifePart.getAbilityAmount(sa)
+            val hostCard = sa.hostCard
+            log.info("payCostToPreventEffect: shock land PayLife<{}> for {}", amount, hostCard?.name)
+
+            val future = java.util.concurrent.CompletableFuture<Boolean>()
+            pendingOptionalAction = OptionalActionPrompt(
+                wrapper = null,
+                hostCard = hostCard,
+                future = future,
+            )
+            actionBridge?.prioritySignal?.signal()
+
+            val accepted = try {
+                val timeoutMs = actionBridge?.getTimeoutMs() ?: 120_000L
+                future.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+            } catch (e: Exception) {
+                log.warn("payCostToPreventEffect: timeout/error for {} — declining (enters tapped)", hostCard?.name, e)
+                false // Default to declining on timeout (safe — land enters tapped)
+            } finally {
+                pendingOptionalAction = null
+            }
+
+            if (accepted) {
+                // Player chose to pay life — land enters untapped.
+                player.payLife(amount, sa, true)
+            }
+            return accepted
+        }
+
+        // Non-PayLife costs: fall through to superclass (echo, cumulative upkeep, etc.)
+        return super.payCostToPreventEffect(cost, sa, alreadyPaid, allPayers)
+    }
 
     // -- Discard unless type -----------------------------------------------
     // PCHuman uses InputSelectEntitiesFromList (desktop-only, hangs).

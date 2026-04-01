@@ -75,6 +75,8 @@ object StateMapper {
         val initEffectDiff = bridge.effects.emitInitEffectsOnce()
         val boostSnapshot = bridge.snapshotBoosts()
         val effectDiff = bridge.effects.diffBoosts(boostSnapshot)
+        val keywordSnapshot = bridge.snapshotKeywords()
+        val keywordDiff = bridge.effects.diffKeywords(keywordSnapshot)
         // Snapshot persistent state BEFORE compute — computeBatch is pure over this snapshot.
         // See PersistentAnnotationStore class KDoc for lifecycle and ordering invariants.
         val persistSnapshot = bridge.annotations.snapshot()
@@ -142,7 +144,7 @@ object StateMapper {
         zones.add(ZoneMapper.makePrivateZone(ZoneIds.P2_SIDEBOARD, ZoneType.Sideboard, 2))
 
         // Populate shared zones with any cards
-        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Battlefield, ZoneIds.BATTLEFIELD, bridge, zones, gameObjects, human, ai)
+        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Battlefield, ZoneIds.BATTLEFIELD, bridge, zones, gameObjects, human, ai, keywordSnapshot)
         ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human, ai)
         ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human, ai)
 
@@ -170,7 +172,7 @@ object StateMapper {
         // Stages 4-5 + persistent computation
         val remaining = computeRemainingAnnotations(
             events, annotations, transferPersistent, initEffectDiff, effectDiff,
-            persistSnapshot, startPersistentId, startAnnotationId, bridge,
+            persistSnapshot, startPersistentId, startAnnotationId, bridge, keywordDiff,
         )
 
         // ═══ ASSEMBLE: build the GSM proto ═══
@@ -393,7 +395,7 @@ object StateMapper {
     )
 
     /** Stages 4-5: mechanic + effect annotations, persistent computation, numbering. */
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList", "LongMethod")
     private fun computeRemainingAnnotations(
         events: List<GameEvent>,
         annotations: MutableList<AnnotationInfo>,
@@ -404,6 +406,7 @@ object StateMapper {
         startPersistentId: Int,
         startAnnotationId: Int,
         bridge: GameBridge,
+        keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
     ): RemainingAnnotationsResult {
         val castSpellManaForgeIds = events
             .filterIsInstance<GameEvent.SpellCast>()
@@ -447,6 +450,7 @@ object StateMapper {
                 threshold = entry.threshold,
                 abilityGrpId = entry.abilityGrpId,
                 affectorId = entry.affectorId ?: entry.instanceId,
+                affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) },
             )
         }
 
@@ -456,7 +460,20 @@ object StateMapper {
         }
 
         val sourceAbilityResolver = buildSourceAbilityResolver(bridge)
-        val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(effectDiff, sourceAbilityResolver)
+        val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(
+            diff = effectDiff,
+            sourceAbilityResolver = sourceAbilityResolver,
+            keywordDiff = keywordDiff,
+            keywordAffectorResolver = { _, _, _ ->
+                // Best-effort: use most recent SpellResolved event's instanceId as affector.
+                // Full resolver (tracing spell → keyword grant) comes later.
+                events.filterIsInstance<GameEvent.SpellResolved>()
+                    .lastOrNull()
+                    ?.let { bridge.getOrAllocInstanceId(it.cardId).value }
+                    ?: 0
+            },
+            uniqueAbilityIdAllocator = { bridge.effects.nextEffectId() },
+        )
         annotations.addAll(effectTransient)
 
         // Qualification pAnn for adventure-exiled cards (cast-from-exile eligibility marker)

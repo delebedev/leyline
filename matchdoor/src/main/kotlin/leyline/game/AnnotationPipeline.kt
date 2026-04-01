@@ -353,7 +353,8 @@ object AnnotationPipeline {
             TransferCategory.Bounce, TransferCategory.Draw, TransferCategory.Discard,
             TransferCategory.Mill, TransferCategory.Surveil, TransferCategory.Exile,
             TransferCategory.Return, TransferCategory.Search, TransferCategory.Put,
-            TransferCategory.SbaLegendRule, TransferCategory.ZoneTransfer,
+            TransferCategory.SbaLegendRule, TransferCategory.SbaUnattachedAura,
+            TransferCategory.ZoneTransfer,
             -> {
                 if (origId != newId) {
                     annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
@@ -779,14 +780,20 @@ object AnnotationPipeline {
     fun effectAnnotations(
         diff: EffectTracker.DiffResult,
         sourceAbilityResolver: ((InstanceId, Long) -> Int?)? = null,
+        keywordDiff: EffectTracker.KeywordDiffResult = EffectTracker.KeywordDiffResult(emptyList(), emptyList()),
+        keywordAffectorResolver: ((String, Long, Long) -> Int)? = null,
+        uniqueAbilityIdAllocator: (() -> Int)? = null,
     ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
-        if (diff.created.isEmpty() && diff.destroyed.isEmpty()) {
+        val hasBoosts = diff.created.isNotEmpty() || diff.destroyed.isNotEmpty()
+        val hasKeywords = keywordDiff.created.isNotEmpty() || keywordDiff.destroyed.isNotEmpty()
+        if (!hasBoosts && !hasKeywords) {
             return emptyList<AnnotationInfo>() to emptyList()
         }
 
         val transient = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
 
+        // ── P/T boosts ──────────────────────────────────────────────────────
         for (effect in diff.created) {
             val sourceAbilityGrpId = sourceAbilityResolver?.invoke(
                 InstanceId(effect.cardInstanceId),
@@ -828,6 +835,52 @@ object AnnotationPipeline {
         }
 
         for (effect in diff.destroyed) {
+            transient.add(AnnotationBuilder.layeredEffectDestroyed(effect.syntheticId))
+        }
+
+        // ── Keyword grants ──────────────────────────────────────────────────
+        // Group created keyword effects by (keyword, timestamp, staticId) so that
+        // all creatures affected by the same static ability get one shared pAnn.
+        if (keywordDiff.created.isNotEmpty() && uniqueAbilityIdAllocator != null) {
+            val groups = keywordDiff.created
+                .groupBy { Triple(it.keyword, it.fingerprint.timestamp, it.fingerprint.staticId) }
+
+            for ((key, effects) in groups) {
+                val (keyword, timestamp, staticId) = key
+                val grpId = KeywordGrpIds.forKeyword(keyword) ?: continue
+                val effectId = effects.first().syntheticId
+                val affectorId = keywordAffectorResolver?.invoke(keyword, timestamp, staticId) ?: 0
+
+                transient.add(
+                    AnnotationBuilder.layeredEffectCreated(effectId, if (affectorId != 0) affectorId else null),
+                )
+
+                val creatureIids = effects.map { it.cardInstanceId }
+                val uniqueAbilityIds = creatureIids.map { uniqueAbilityIdAllocator() }
+
+                persistent.add(
+                    AnnotationBuilder.addAbilityMulti(
+                        affectedIds = creatureIids,
+                        grpId = grpId,
+                        effectId = effectId,
+                        uniqueAbilityIds = uniqueAbilityIds,
+                        originalAbilityObjectZcid = affectorId,
+                        affectorId = affectorId,
+                    ),
+                )
+
+                log.debug(
+                    "effectAnnotations: keyword grant {} grpId={} effectId={} creatures={}",
+                    keyword,
+                    grpId,
+                    effectId,
+                    creatureIids.size,
+                )
+            }
+        }
+
+        for (effect in keywordDiff.destroyed) {
+            if (KeywordGrpIds.forKeyword(effect.keyword) == null) continue
             transient.add(AnnotationBuilder.layeredEffectDestroyed(effect.syntheticId))
         }
 

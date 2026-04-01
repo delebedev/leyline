@@ -1,6 +1,6 @@
 ---
 name: card-spec
-description: Build a card spec — Forge script decomposition, mechanic catalog mapping, trace from Player.log games, gap analysis for leyline implementation
+description: Build a card spec — Forge script decomposition, mechanic catalog mapping, trace from recordings, gap analysis for leyline implementation
 ---
 
 ## What I do
@@ -17,28 +17,7 @@ Build a complete card spec for a single MTG card, documenting everything needed 
 ## Input
 
 - Card name (required)
-- Game reference (optional — which saved game to trace, e.g. `2026-03-30_20-33`)
-
-## Before you start
-
-```bash
-just scry-ts --help                        # available commands
-just scry-ts game list --saved             # saved games
-just scry-ts game search "<name>"          # find which game has the card
-just scry-ts game notes <ref>              # human observations — read first, often points you to the interesting moments
-```
-
-## Proven investigation sequence
-
-Agents consistently report this workflow as most effective:
-
-1. **`game notes`** — read human observations first. They point to interesting moments.
-2. **`trace "<name>" --game <ref>`** — the #1 command. Full card lifecycle, grouped by turn. Start here.
-3. **`gsm show N --json | jq`** — drill into specific GSMs from trace. Essential for novel annotations.
-4. **`board --gsid N`** — board context at key moments. Shows actions, life, zones.
-5. **`ability <id>`** — resolve abilityGrpIds encountered in trace.
-6. **`prompts --game <ref>`** — see all player interaction messages (OptionalAction, SelectN, etc.)
-7. **`gsm diff A B`** — compare state before/after a key event (e.g. cost reduction).
+- Session hint (optional — which recording session to trace)
 
 ## Process
 
@@ -49,7 +28,6 @@ Look up the card:
 ```bash
 just card-grp "<name>"           # → grpId
 just card-script "<name>"        # → Forge script path
-just scry-ts ability <grpId>     # → ability text from Arena DB (if ability ID known)
 ```
 
 Read the Forge script. Extract: name, grpId, set, type, costs (including alternate costs like flashback/kicker).
@@ -59,6 +37,7 @@ Read the Forge script. Extract: name, grpId, set, type, costs (including alterna
 From the Forge script, list every mechanic the card exercises. Map each to catalog status:
 
 ```bash
+# Read catalog for current status
 cat docs/catalog.yaml
 ```
 
@@ -73,6 +52,7 @@ For each mechanic, check if the Forge engine fires a corresponding game event:
 
 ```bash
 grep -rn "class GameEvent" forge/forge-game/src/main/java/forge/game/event/ --include="*.java"
+grep -rn "fireEvent.*GameEvent<Name>" forge/forge-game/src/main/java/forge/game/
 ```
 
 The mechanics table has **4 required columns**:
@@ -80,64 +60,69 @@ The mechanics table has **4 required columns**:
 | Mechanic | Forge DSL | Forge event | Catalog status |
 |----------|-----------|-------------|----------------|
 
+- **Forge event**: the `GameEvent*` class that fires, or **"none"** if missing. This determines whether leyline can observe via EventBus or must infer from zone transfers.
+
 ### 3. What it does
 
 Plain English summary of the card's behavior from the game rules perspective. One numbered line per mode/ability.
 
-**IMPORTANT: This section must be game-rules generic.** No session-specific details. Write as if explaining the card to someone who hasn't seen a game.
+**IMPORTANT: This section must be game-rules generic.** No session-specific details (turn numbers, mana sources, opponent life totals). Those belong in the Trace section. Write it as if explaining the card to someone who hasn't seen a recording.
 
 ### 4. Trace
 
-Find the card in saved games and trace its lifecycle:
+Find sessions where this card was played:
 
 ```bash
-# Trace card through a game — shows zone transfers, annotations, ID changes
-just scry-ts trace "<name>" --game <ref>
-
-# Filter to a specific moment
-just scry-ts trace "<name>" --game <ref> --gsid <N>
-
-# Raw annotation JSON for deep inspection
-just scry-ts trace "<name>" --game <ref> --gsid <N> --json
-
-# See the board at any point
-just scry-ts board --game <ref> --gsid <N>
-
-# Look at specific GSMs
-just scry-ts gsm show <gsId> --game <ref>
-just scry-ts gsm show <gsId> --game <ref> --json
-
-# Find GSMs with specific annotation types
-just scry-ts gsm list --has <AnnotationType> --game <ref> --view annotations
-
-# Resolve ability IDs encountered in trace
-just scry-ts ability <abilityGrpId>
-
-# Card manifest for game context
-just scry-ts game cards <ref>
-
-# Check game notes (may have human observations)
-just scry-ts game notes <ref>
+# Search all sessions for the card
+for d in recordings/2026-*/; do
+    just cards-in-session "$(basename $d)" 2>&1 | grep -i "<name>" && echo "  ^ $(basename $d)"
+done
 ```
 
-Build a zone transition table from the trace output: gsId, instanceId changes, zones, what happened.
+For the best session (seat 1 preferred — full visibility), trace the card's zone transitions:
 
-**If a mechanic was NOT exercised** (e.g. kicker not paid, threshold not reached, transform didn't happen), say so explicitly. Don't invent data — flag it as "unobserved, needs dedicated game/puzzle."
+```bash
+# Zone transition timeline — one line per instanceId
+just tape proto find-card "<name>" -s <session>
+
+# Full card manifest with abilities
+just tape session cards <session>
+```
+
+Build a zone transition table from the output: gsId, instanceId changes, zones, what happened.
+
+**If a mechanic was NOT exercised** (e.g. kicker not paid, threshold not reached, transform didn't happen), say so explicitly. Don't invent data — flag it as "unobserved, needs dedicated recording/puzzle."
 
 ### 5. Annotations
 
-Use `trace --json` and `gsm show --json` to decode raw annotations for **novel or gap-filling** moments only.
+**IMPORTANT: md-frames.jsonl is lossy.** It drops prompt body fields (NumericInputReq internals, OptionalActionMessage sourceId, inactiveActions, etc.). Use JSONL to *find* interesting gsIds, then decode the raw binary for full field data.
 
-**Budget: inspect at most 3 GSMs in full JSON.** Pick the most interesting moments.
+**Workflow: grep-then-read.**
+1. Search `md-frames.jsonl` (or use `find-card` output) to identify interesting gsIds
+2. `just tape proto show -s <session> <gsId>` — full proto text for that game state
+3. Document from the raw proto, not from JSONL field values
+
+**Budget: decode at most 5 proto frames** via `tape proto show`. Pick the most interesting moments.
+
+```bash
+# Full proto for a specific gsId (resolves session → bin → inspect)
+just tape proto show -s <session> <gsId>
+
+# Trace an instanceId across all frames (ID lifecycle)
+just tape proto trace <instanceId> -s <session>
+
+# Inspect a specific bin file directly
+just tape proto inspect <file>.bin
+```
 
 **Only document annotations that are:**
 - **New** — annotation type not previously documented
 - **Different** — known annotation with unexpected field values
 - **Gap-filling** — confirms or corrects assumptions about missing mechanics
 
-**Skip entirely** if a mechanic's catalog status is "wired" or "works."
+**Skip entirely** if a mechanic's catalog status is "wired" or "works" — don't trace vigilance, flying, basic combat, normal mana payment. Only trace mechanics that are missing, partial, or unknown.
 
-Focus on: ZoneTransfer categories, counter types, persistent annotations, transform mechanics, any SelectNReq/GroupReq shapes, ShouldntPlay reasons, OptionalActionMessage patterns.
+Focus on: ZoneTransfer categories, counter types, persistent annotations, transform mechanics, any SelectNReq/GroupReq shapes.
 
 ### 6. Key findings
 
@@ -145,28 +130,13 @@ Bullet list of what the trace revealed. Corrections to prior assumptions go here
 
 ### 7. Gaps for leyline
 
-Numbered list of what's missing or broken. Each gap should be actionable — what code needs to change.
+Numbered list of what's missing or broken. Each gap should be actionable — what code needs to change. Include any tasks like "update counter-type-reference" or "add to catalog" here, not in Supporting evidence.
 
-### 8. Tooling feedback
+### 8. Supporting evidence needed
 
-**This section is required.** After completing the spec, document your experience with the tooling:
+**Cross-references only.** Other cards exercising the same mechanics, variance questions across sessions, puzzles to write.
 
-1. **Commands used** — which scry-ts commands you ran, and whether they worked
-2. **What was missing or awkward** — friction points, workarounds needed
-3. **Wish list** — features that would have made the investigation faster
-4. **Upvote existing wishes** — review these known requests from other agents and note which would have helped you:
-   - Card name resolution in trace output (implemented — did it help?)
-   - `scry ability <id>` for abilityGrpId lookup (implemented — did it help?)
-   - Opponent zone labeling (ours/theirs vs seat 1/seat 2)
-   - GRE non-GSM message capture (OptionalActionMessage, ChoiceReq)
-   - `gsm diff` (compare two GSMs)
-   - `trace --filter` by annotation type
-
-This feedback drives tool development. Be specific about what cost you time.
-
-### 9. Supporting evidence needed
-
-**Cross-references only.** Other cards exercising the same mechanics, puzzles to write.
+Do NOT put tasks, doc updates, or action items here — those belong in Gaps.
 
 ## Output
 
@@ -196,7 +166,7 @@ Write the spec to `docs/card-specs/<card-name-slug>.md`.
 
 1. ...
 
-## Trace (game <ref>, seat <N>)
+## Trace (session <timestamp>, seat <N>)
 
 <context — how many times cast, by whom>
 
@@ -206,6 +176,11 @@ Write the spec to `docs/card-specs/<card-name-slug>.md`.
 |------|-----------|------|---------------|
 | ... | ... | ... | ... |
 
+### Annotations
+
+**<Event> (gsId <N>):**
+- `<AnnotationType>` — key details
+
 ### Key findings
 
 - ...
@@ -214,18 +189,6 @@ Write the spec to `docs/card-specs/<card-name-slug>.md`.
 
 1. ...
 
-## Tooling feedback
-
-### Commands used
-| Command | Worked? | Notes |
-|---------|---------|-------|
-
-### Missing/awkward
-- ...
-
-### Wish list
-- ...
-
 ## Supporting evidence needed
 
 - [ ] ...
@@ -233,18 +196,18 @@ Write the spec to `docs/card-specs/<card-name-slug>.md`.
 
 ## Rules
 
-- **Specs must be self-contained.** All key findings inline.
-- **Only reference stable, committed docs.** Valid: `docs/catalog.yaml`, `docs/rosetta.md`, other `docs/card-specs/`.
-- **"What it does" is game rules only.** No wire details.
-- **Unobserved mechanics get a banner.** Clear callout after the Mechanics table.
-- **Track ID lifecycle.** `scry trace` follows ObjectIdChanged chains automatically.
-- **Skip mana payment brackets.** Don't trace ManaPaid sequences unless unusual.
-- **Tooling feedback is not optional.** Every spec improves the next agent's workflow.
-- **Say "game" not "recording."** Data comes from Player.log saved games. "Needs a dedicated game or puzzle" not "needs a recording."
+- **Specs must be self-contained.** All key findings inline. A reader with only the repo should understand the spec.
+- **Only reference stable, committed docs.** Valid: `docs/catalog.yaml`, `docs/rosetta.md`, `docs/conformance/`, other `docs/card-specs/`. Never reference `.claude/agent-memory/` — those are ephemeral local files. If an agent memory has a useful finding, inline it in the spec.
+- **"What it does" is game rules only.** No wire details (gsIds, effect_ids, annotation types). Write as if explaining the card to a player.
+- **Unobserved mechanics get a banner.** If a key mechanic wasn't exercised (kicker not paid, transform didn't happen), add a clear callout immediately after the Mechanics table: "**Unobserved:** <mechanic> — needs dedicated recording/puzzle."
+- **Track ID lifecycle.** Use `just proto-trace <instanceId> recordings/<session>/capture/seat-1/md-payloads/` to follow an ID across all frames. Note which annotations use old vs new ID after ObjectIdChanged — common conformance bug source.
+- **Skip mana payment brackets.** Don't trace ManaPaid/TappedUntapped sequences — these are well-known and wired. Only note if something is unusual (e.g. SubCounter cost instead of mana).
 
 ## Reference
 
-- `just scry-ts --help` — available commands (always check first)
+- Zone IDs: 27=Stack, 28=Battlefield, 29=Exile, 30=Limbo, 31=Hand, 32=Library, 33=Graveyard
 - `docs/card-specs/think-twice.md` — canonical example (lean, focused)
+- `docs/conformance/how-we-conform.md` — conformance workflow
 - `docs/rosetta.md` — annotation types, zone IDs, transfer categories
 - `docs/catalog.yaml` — mechanic support status
+- `docs/playbooks/card-lookup-playbook.md` — Arena DB schema

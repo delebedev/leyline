@@ -37,6 +37,9 @@ interface MatchCoordinator {
     /** Resolve a deck by name (AI deck from config). */
     fun resolveDeckJsonByName(name: String): String?
 
+    /** Resolve the first available deck (fallback when client doesn't send deckId). */
+    fun resolveFirstDeck(): String? = null
+
     // --- PvP queue ---
 
     /** Mark a matchId as PvP (two-human). Called by FD when queue pairs. */

@@ -65,6 +65,12 @@ class AppMatchCoordinator(
         return cardsToJson(courseDeck.mainDeck, courseDeck.sideboard)
     }
 
+    override fun resolveFirstDeck(): String? {
+        val first = deckService.listForPlayer(playerId).firstOrNull() ?: return null
+        log.info("Fallback deck: {} ({})", first.name, first.id.value)
+        return cardsToJson(first.mainDeck, first.sideboard)
+    }
+
     override fun resolveDeckJsonByName(name: String): String? {
         val deck = deckService.getByName(name) ?: return null
         return cardsToJson(deck.mainDeck, deck.sideboard, deck.commandZone)

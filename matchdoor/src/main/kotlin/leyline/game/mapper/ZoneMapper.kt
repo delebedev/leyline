@@ -4,6 +4,7 @@ import forge.game.Game
 import forge.game.player.Player
 import leyline.DevCheck
 import leyline.bridge.ForgeCardId
+import leyline.game.EffectTracker
 import leyline.game.GameBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -158,6 +159,7 @@ object ZoneMapper {
         gameObjects: MutableList<GameObjectInfo>,
         human: Player?,
         ai: Player?,
+        keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ) {
         // Find the zone builder we already added
         val zoneBuilder = zones.find { it.zoneId == arenaZoneId }?.toBuilder() ?: return
@@ -171,7 +173,7 @@ object ZoneMapper {
             zoneBuilder.addObjectInstanceIds(instanceId)
 
             gameObjects.add(
-                ObjectMapper.buildSharedCardObject(card, instanceId, arenaZoneId, ownerSeatId, controllerSeatId, bridge, game),
+                ObjectMapper.buildSharedCardObject(card, instanceId, arenaZoneId, ownerSeatId, controllerSeatId, bridge, game, keywordSnapshot),
             )
         }
         zones.add(zoneBuilder.build())
