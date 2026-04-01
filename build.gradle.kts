@@ -60,7 +60,9 @@ configurations.all {
     exclude(group = "org.eclipse.jetty")
     exclude(group = "org.eclipse.jetty.alpn")
     exclude(group = "javax.servlet")
-    exclude(group = "org.tinylog")
+    // Keep tinylog-api + tinylog-impl (Forge calls org.tinylog.Logger directly)
+    // but exclude the SLF4J binding — we use logback for SLF4J
+    exclude(group = "org.tinylog", module = "slf4j-tinylog")
 }
 
 dependencies {
