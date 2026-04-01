@@ -148,10 +148,10 @@ object ObjectMapper {
             }
         }
 
-        // Copy token identity — isCopy flag + source grpId
+        // Copy token identity — isCopy flag + source grpId (builder's proto field, set by resolveGrpId)
         if (card.isToken && card.copiedPermanent != null) {
             setIsCopy(true)
-            setObjectSourceGrpId(grpId)
+            setObjectSourceGrpId(this.grpId)
         }
 
         // Attachment (Auras, Equipment)

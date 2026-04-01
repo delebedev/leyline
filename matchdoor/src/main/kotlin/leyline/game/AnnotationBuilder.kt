@@ -921,7 +921,7 @@ object AnnotationBuilder {
     /**
      * Copy token with EOT sacrifice. Persistent annotation. Arena type 80.
      * Drives "sacrifice at end of turn" visual indicator on the client.
-     * [abilityGrpId] = 192424 (universal EOT-sacrifice marker from recordings).
+     * [abilityGrpId] = 192424 (universal EOT-sacrifice marker observed in real server games).
      */
     fun temporaryPermanent(
         tokenInstanceId: Int,

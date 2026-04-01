@@ -24,9 +24,8 @@ import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
  * - TemporaryPermanent pAnn emitted for EOT-sacrifice copies
  * - TemporaryPermanent NOT emitted for permanent copies
  *
- * Uses Electroduplicate (copy + haste + EOT sacrifice) for Board A.
- * Homunculus Horde would test permanent copies but requires draw-count
- * trigger infrastructure — deferred until that mechanic is wired.
+ * Board A: Electroduplicate (copy + haste + EOT sacrifice).
+ * Board B: Homunculus Horde (permanent copy via draw trigger).
  */
 class CopyTokenIntegrationTest :
     FunSpec({
