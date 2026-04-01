@@ -522,20 +522,22 @@ object ActionMapper {
         return beingPaid.toManaCost()
     }
 
+    /** Aggregate colored shards from a Forge [ManaCost] into a color→count map. */
+    private fun manaCostColorCounts(manaCost: forge.card.mana.ManaCost): Map<ManaColor, Int> {
+        val counts = mutableMapOf<ManaColor, Int>()
+        for (shard in manaCost) {
+            val color = producedToManaColor(shard.toString().removeSurrounding("{", "}")) ?: continue
+            counts[color] = (counts[color] ?: 0) + 1
+        }
+        return counts
+    }
+
     /**
      * Convert a Forge [ManaCost][forge.card.mana.ManaCost] to `List<Pair<ManaColor, Int>>`
      * for use with [buildAutoTapSolution] which expects that format.
      */
     internal fun forgeManaCostToPairs(manaCost: forge.card.mana.ManaCost): List<Pair<ManaColor, Int>> {
-        val colorCounts = mutableMapOf<ManaColor, Int>()
-        for (shard in manaCost) {
-            val color = producedToManaColor(shard.toString().removeSurrounding("{", "}")) ?: continue
-            colorCounts[color] = (colorCounts[color] ?: 0) + 1
-        }
-        val result = mutableListOf<Pair<ManaColor, Int>>()
-        for ((color, count) in colorCounts) {
-            result.add(color to count)
-        }
+        val result = manaCostColorCounts(manaCost).map { (color, count) -> color to count }.toMutableList()
         val generic = manaCost.genericCost
         if (generic > 0) {
             result.add(ManaColor.Generic to generic)
@@ -555,18 +557,11 @@ object ActionMapper {
         actionBuilder: Action.Builder,
         abilityGrpId: Int? = null,
     ) {
-        // Colored shards: each shard is one pip (e.g. ManaCostShard.RED → "{R}")
-        val colorCounts = mutableMapOf<ManaColor, Int>()
-        for (shard in manaCost) {
-            val color = producedToManaColor(shard.toString().removeSurrounding("{", "}")) ?: continue
-            colorCounts[color] = (colorCounts[color] ?: 0) + 1
-        }
-        for ((color, count) in colorCounts) {
+        for ((color, count) in manaCostColorCounts(manaCost)) {
             val req = ManaRequirement.newBuilder().addColor(color).setCount(count)
             if (abilityGrpId != null) req.setAbilityGrpId(abilityGrpId)
             actionBuilder.addManaCost(req)
         }
-        // Generic mana
         val generic = manaCost.genericCost
         if (generic > 0) {
             val req = ManaRequirement.newBuilder().addColor(ManaColor.Generic).setCount(generic)
