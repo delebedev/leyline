@@ -49,9 +49,10 @@ object ObjectMapper {
         visibility: Visibility = Visibility.Private,
     ): GameObjectInfo {
         val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry, bridge)
+        val objType = if (card.isToken) GameObjectType.Token else GameObjectType.Card
         return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
-            .setType(GameObjectType.Card)
+            .setType(objType)
             .setZoneId(zoneId)
             .setVisibility(visibility)
             .setOwnerSeatId(ownerSeatId)
@@ -76,12 +77,13 @@ object ObjectMapper {
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ): GameObjectInfo {
         val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry, bridge)
+        val objType = if (card.isToken) GameObjectType.Token else GameObjectType.Card
         val extrinsicKws = keywordSnapshot[instanceId]
             ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
             ?: emptyList()
         return bridge.cardProto.buildObjectInfo(grpId, extrinsicKeywordGrpIds = extrinsicKws)
             .setInstanceId(instanceId)
-            .setType(GameObjectType.Card)
+            .setType(objType)
             .setZoneId(zoneId)
             .setVisibility(Visibility.Public)
             .setOwnerSeatId(ownerSeatId)
@@ -231,9 +233,10 @@ object ObjectMapper {
         bridge: GameBridge,
     ): GameObjectInfo {
         val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry, bridge)
+        val objType = if (card.isToken) GameObjectType.Token else GameObjectType.Card
         return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
-            .setType(GameObjectType.Card)
+            .setType(objType)
             .setZoneId(zoneId)
             .setVisibility(Visibility.Public)
             .setOwnerSeatId(ownerSeatId)
