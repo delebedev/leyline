@@ -1,4 +1,5 @@
 import leyline.build.CheckUpstreamTask
+import leyline.build.JlinkBundleTask
 import leyline.build.WriteClasspathTask
 
 plugins {
@@ -52,6 +53,14 @@ sourceSets {
         kotlin.setSrcDirs(listOf("app/test/kotlin"))
         resources.setSrcDirs(listOf("app/test/resources"))
     }
+}
+
+configurations.all {
+    // Dead deps from Forge POMs — unused in headless server mode
+    exclude(group = "org.eclipse.jetty")
+    exclude(group = "org.eclipse.jetty.alpn")
+    exclude(group = "javax.servlet")
+    exclude(group = "org.tinylog")
 }
 
 dependencies {
@@ -150,4 +159,93 @@ val writeClasspath by tasks.registering(WriteClasspathTask::class) {
 
 tasks.named("classes") {
     finalizedBy(writeClasspath)
+}
+
+// --- Standalone bundle (jlink JRE + stripped JARs + launch script) ---
+
+val currentPlatformClassifier: String by lazy {
+    val arch = System.getProperty("os.arch").let { if (it == "aarch64" || it == "arm64") "aarch64" else "x86_64" }
+    val os = System.getProperty("os.name").lowercase().let {
+        when {
+            it.contains("mac") -> "macos"
+            it.contains("linux") -> "linux"
+            it.contains("win") -> "windows"
+            else -> error("Unsupported OS: $it")
+        }
+    }
+    "$os-$arch"
+}
+
+val sqliteNativePath: String by lazy {
+    val arch = System.getProperty("os.arch").let { if (it == "aarch64" || it == "arm64") "aarch64" else "x86_64" }
+    val os = System.getProperty("os.name").lowercase().let {
+        when {
+            it.contains("mac") -> "Mac"
+            it.contains("linux") -> "Linux"
+            it.contains("win") -> "Windows"
+            else -> error("Unsupported OS: $it")
+        }
+    }
+    "$os/$arch"
+}
+
+val jlinkBundle by tasks.registering(JlinkBundleTask::class) {
+    description = "Build self-contained distribution with stripped JRE (no system Java needed)"
+    dependsOn("installDist")
+    installDir.set(layout.buildDirectory.dir("install/leyline"))
+    jlinkModules.set(
+        "java.base,java.compiler,java.instrument,java.management,java.naming," +
+            "java.net.http,java.scripting,java.security.jgss,java.sql," +
+            "jdk.httpserver,jdk.unsupported,jdk.crypto.ec",
+    )
+    sqlitePlatform.set(sqliteNativePath)
+    jvmArgs.set(application.applicationDefaultJvmArgs)
+    mainClass.set(application.mainClass)
+    outputDir.set(layout.buildDirectory.dir("bundle"))
+}
+
+val bundleArchive by tasks.registering(Tar::class) {
+    description = "Package standalone bundle + card resources into distributable archive"
+    dependsOn(jlinkBundle)
+    archiveBaseName.set("leyline")
+    archiveClassifier.set(currentPlatformClassifier)
+    compression = Compression.GZIP
+
+    into("leyline") {
+        // Bundle (jre + lib + bin)
+        from(jlinkBundle.flatMap { it.outputDir })
+
+        // Server config + seed database
+        from("leyline.toml")
+        into("data") {
+            from("data/player.db")
+        }
+
+        // Card resources — only what the engine needs at runtime
+        into("res") {
+            from("forge/forge-gui/res") {
+                include(
+                    "cardsfolder/**",
+                    "editions/**",
+                    "tokenscripts/**",
+                    "formats/**",
+                    "lists/**",
+                    "ai/**",
+                    "blockdata/**",
+                    "defaults/**",
+                    "setlookup/**",
+                    "deckgendecks/**",
+                    "geneticaidecks/**",
+                    "languages/en-US.properties",
+                )
+            }
+        }
+    }
+
+    destinationDirectory.set(layout.buildDirectory.dir("dist"))
+
+    doLast {
+        val archive = archiveFile.get().asFile
+        logger.lifecycle("Archive: ${archive.name} (${archive.length() / 1_048_576}MB)")
+    }
 }
