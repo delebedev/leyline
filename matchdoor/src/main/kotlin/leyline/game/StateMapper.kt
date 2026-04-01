@@ -502,9 +502,9 @@ object StateMapper {
             emptyList()
         }
 
-        // TemporaryPermanent pAnn for copy tokens with EOT-sacrifice
+        // TemporaryPermanent pAnn for any token with EOT-sacrifice (copy or otherwise)
         val temporaryPermanentPersistent = if (game != null) {
-            bfCards.filter { it.isToken && it.copiedPermanent != null && it.hasSVar("EndOfTurnLeavePlay") }
+            bfCards.filter { it.isToken && it.hasSVar("EndOfTurnLeavePlay") }
                 .map { card ->
                     val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
                     AnnotationBuilder.temporaryPermanent(iid)
