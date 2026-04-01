@@ -343,6 +343,12 @@ object ActionMapper {
         val advEffective = computeEffectiveCost(adventureSa, player)
         if (advEffective != null && !advEffective.isNoCost) {
             addManaCostFromForge(advEffective, builder)
+        } else {
+            // Fallback: raw SA cost (adventure face always has its own cost)
+            val advManaCost = adventureSa.payCosts?.totalMana
+            if (advManaCost != null && !advManaCost.isNoCost) {
+                addManaCostFromForge(advManaCost, builder)
+            }
         }
         return builder.build()
     }
