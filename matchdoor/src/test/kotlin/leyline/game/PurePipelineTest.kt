@@ -432,4 +432,58 @@ class PurePipelineTest :
             annotations shouldHaveSize 1
             annotations[0].typeList shouldBe listOf(AnnotationType.AbilityInstanceDeleted)
         }
+
+        // -----------------------------------------------------------------------
+        // Negative tests: things that should NOT produce stack ability records
+        // -----------------------------------------------------------------------
+
+        test("regular spell on stack does not produce StackAbilityAppearance") {
+            // A Card (not Ability) object on the stack — e.g. a cast creature.
+            val spellObj = GameObjectInfo.newBuilder()
+                .setInstanceId(600)
+                .setGrpId(99999)
+                .setZoneId(ZoneIds.STACK)
+                .setOwnerSeatId(1)
+                .setType(GameObjectType.Card)
+                .build()
+            val zones = listOf(
+                zone(ZoneIds.STACK, ZoneType.Stack, 600),
+                zone(ZoneIds.LIMBO, ZoneType.Limbo),
+            )
+
+            val result = AnnotationPipeline.detectZoneTransfers(
+                gameObjects = listOf(spellObj),
+                zones = zones,
+                events = emptyList(),
+                previousZones = emptyMap(),
+                forgeIdLookup = { null },
+                idAllocator = noOpAllocator,
+                idLookup = { fid -> InstanceId(fid.value + 1000) },
+            )
+
+            result.stackAbilityAppearances.shouldBeEmpty()
+        }
+
+        test("ability already on stack from previous diff is not re-detected") {
+            val obj = abilityObject()
+            val zones = listOf(
+                zone(ZoneIds.STACK, ZoneType.Stack, abilityIid),
+                zone(ZoneIds.LIMBO, ZoneType.Limbo),
+            )
+            // Ability was already on the stack last diff.
+            val previousZones = mapOf(abilityIid to ZoneIds.STACK, sourceCardIid to ZoneIds.BATTLEFIELD)
+
+            val result = AnnotationPipeline.detectZoneTransfers(
+                gameObjects = listOf(obj),
+                zones = zones,
+                events = emptyList(),
+                previousZones = previousZones,
+                forgeIdLookup = forgeIdLookup,
+                idAllocator = noOpAllocator,
+                idLookup = idLookup,
+            )
+
+            result.stackAbilityAppearances.shouldBeEmpty()
+            result.stackAbilityDisappearances.shouldBeEmpty()
+        }
     })
