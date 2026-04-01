@@ -6,8 +6,11 @@ import forge.game.Game
 import forge.game.card.Card
 import forge.game.card.CardLists
 import forge.game.card.CardPredicates
+import forge.game.cost.CostAdjustment
+import forge.game.mana.ManaCostBeingPaid
 import forge.game.player.Player
 import forge.game.spellability.LandAbility
+import forge.game.spellability.SpellAbility
 import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.bridge.chooseCastAbility
@@ -160,8 +163,9 @@ object ActionMapper {
 
         // Non-land spells (Cast before Activate_add3 — client uses emission order for text assignment)
         for (card in CardLists.filter(handCards, CardPredicates.NON_LANDS)) {
+            var sa: SpellAbility? = null
             if (checkLegality) {
-                val sa = chooseCastAbility(card, player) ?: continue
+                sa = chooseCastAbility(card, player) ?: continue
                 val canPay = try {
                     ComputerUtilMana.canPayManaCost(sa, player, 0, false)
                 } catch (_: Exception) {
@@ -177,16 +181,25 @@ object ActionMapper {
                 .setGrpId(grpId)
                 .setFacetId(instanceId)
                 .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.Cast))
-            val cardData = cardDataLookup(grpId)
-            if (cardData != null) {
-                for ((color, count) in cardData.manaCost) {
-                    actionBuilder.addManaCost(
-                        ManaRequirement.newBuilder().addColor(color).setCount(count),
-                    )
-                }
+
+            // Cost: use Forge's effective cost (includes reductions/tax) when available,
+            // fall back to static card DB cost for naive mode
+            val effectiveCost = sa?.let { computeEffectiveCost(it, player) }
+            if (effectiveCost != null && !effectiveCost.isNoCost) {
+                addManaCostFromForge(effectiveCost, actionBuilder)
                 if (checkLegality) {
-                    val autoTap = buildAutoTapSolution(cardData.manaCost, player, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup)
+                    val costPairs = forgeManaCostToPairs(effectiveCost)
+                    val autoTap = buildAutoTapSolution(costPairs, player, idResolver, grpIdResolver, cardDataLookup, abilityRegistryLookup)
                     if (autoTap != null) actionBuilder.setAutoTapSolution(autoTap)
+                }
+            } else {
+                val cardData = cardDataLookup(grpId)
+                if (cardData != null) {
+                    for ((color, count) in cardData.manaCost) {
+                        actionBuilder.addManaCost(
+                            ManaRequirement.newBuilder().addColor(color).setCount(count),
+                        )
+                    }
                 }
             }
             builder.addActions(actionBuilder)
@@ -327,9 +340,9 @@ object ActionMapper {
             .setInstanceId(instanceId)
             .setGrpId(creatureGrpId)
             .setShouldStop(ShouldStopEvaluator.shouldStop(ActionType.CastAdventure))
-        val advManaCost = adventureSa.payCosts?.totalMana
-        if (advManaCost != null && !advManaCost.isNoCost) {
-            addManaCostFromForge(advManaCost, builder)
+        val advEffective = computeEffectiveCost(adventureSa, player)
+        if (advEffective != null && !advEffective.isNoCost) {
+            addManaCostFromForge(advEffective, builder)
         }
         return builder.build()
     }
@@ -367,10 +380,10 @@ object ActionMapper {
                 if (abilityGrpId > 0) actionBuilder.setAbilityGrpId(abilityGrpId)
             }
 
-            // Mana cost: use alt cost if available, else base from cardData
-            val altManaCost = sa.payCosts?.totalMana
-            if (altManaCost != null && !altManaCost.isNoCost) {
-                addManaCostFromForge(altManaCost, actionBuilder)
+            // Mana cost: use effective cost (includes commander tax + reductions)
+            val effectiveCost = computeEffectiveCost(sa, player)
+            if (effectiveCost != null && !effectiveCost.isNoCost) {
+                addManaCostFromForge(effectiveCost, actionBuilder)
             } else if (cardData != null) {
                 for ((color, count) in cardData.manaCost) {
                     actionBuilder.addManaCost(
@@ -481,6 +494,47 @@ object ActionMapper {
             )
         }
         return builder.build()
+    }
+
+    /**
+     * Compute the effective mana cost for a spell, including static cost reductions
+     * (e.g. "spells cost {1} less") and cost raises (commander tax, etc.).
+     *
+     * Uses Forge's [CostAdjustment] two-stage pipeline:
+     * 1. `adjust(Cost)` → commander tax + raise cost effects
+     * 2. `adjust(ManaCostBeingPaid)` → static cost reductions (ReduceCost abilities)
+     *
+     * Returns null if the spell has no mana cost.
+     */
+    internal fun computeEffectiveCost(sa: SpellAbility, player: Player): forge.card.mana.ManaCost? {
+        val baseCost = sa.payCosts ?: return null
+        val adjusted = CostAdjustment.adjust(baseCost, sa, false)
+        val manaCost = adjusted.totalMana ?: return null
+        if (manaCost.isNoCost) return null
+        val beingPaid = ManaCostBeingPaid(manaCost)
+        CostAdjustment.adjust(beingPaid, sa, player, null, true, false)
+        return beingPaid.toManaCost()
+    }
+
+    /**
+     * Convert a Forge [ManaCost][forge.card.mana.ManaCost] to `List<Pair<ManaColor, Int>>`
+     * for use with [buildAutoTapSolution] which expects that format.
+     */
+    internal fun forgeManaCostToPairs(manaCost: forge.card.mana.ManaCost): List<Pair<ManaColor, Int>> {
+        val colorCounts = mutableMapOf<ManaColor, Int>()
+        for (shard in manaCost) {
+            val color = producedToManaColor(shard.toString().removeSurrounding("{", "}")) ?: continue
+            colorCounts[color] = (colorCounts[color] ?: 0) + 1
+        }
+        val result = mutableListOf<Pair<ManaColor, Int>>()
+        for ((color, count) in colorCounts) {
+            result.add(color to count)
+        }
+        val generic = manaCost.genericCost
+        if (generic > 0) {
+            result.add(ManaColor.Generic to generic)
+        }
+        return result
     }
 
     /**
