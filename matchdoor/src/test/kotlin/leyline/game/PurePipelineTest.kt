@@ -11,7 +11,6 @@ import leyline.bridge.SeatId
 import leyline.conformance.detailInt
 import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.ZoneIds
-import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
@@ -394,43 +393,14 @@ class PurePipelineTest :
             ann.detailInt("source_zone") shouldBe ZoneIds.BATTLEFIELD
         }
 
-        test("annotation shape for resolved disappearance includes resolution pair") {
-            val disappearance = AnnotationPipeline.StackAbilityDisappearance(
-                abilityInstanceId = abilityIid,
-                sourceCardInstanceId = sourceCardIid,
-                grpId = cardGrpId,
-                hasFizzled = false,
-            )
+        test("disappearance emits only AbilityInstanceDeleted") {
+            // ResolutionStart/Complete are NOT emitted for disappeared abilities —
+            // the ability's instanceId is no longer a valid game object.
+            val ann = AnnotationBuilder.abilityInstanceDeleted(abilityIid, sourceCardIid)
 
-            // Simulate what computeAnnotations does.
-            val annotations = mutableListOf<AnnotationInfo>()
-            annotations.add(AnnotationBuilder.resolutionStart(disappearance.abilityInstanceId, disappearance.grpId))
-            annotations.add(AnnotationBuilder.resolutionComplete(disappearance.abilityInstanceId, disappearance.grpId))
-            annotations.add(AnnotationBuilder.abilityInstanceDeleted(disappearance.abilityInstanceId, disappearance.sourceCardInstanceId))
-
-            annotations shouldHaveSize 3
-            annotations[0].typeList shouldBe listOf(AnnotationType.ResolutionStart)
-            annotations[1].typeList shouldBe listOf(AnnotationType.ResolutionComplete)
-            annotations[2].typeList shouldBe listOf(AnnotationType.AbilityInstanceDeleted)
-        }
-
-        test("fizzled disappearance skips resolution annotations") {
-            val disappearance = AnnotationPipeline.StackAbilityDisappearance(
-                abilityInstanceId = abilityIid,
-                sourceCardInstanceId = sourceCardIid,
-                grpId = cardGrpId,
-                hasFizzled = true,
-            )
-
-            val annotations = mutableListOf<AnnotationInfo>()
-            if (!disappearance.hasFizzled) {
-                annotations.add(AnnotationBuilder.resolutionStart(disappearance.abilityInstanceId, disappearance.grpId))
-                annotations.add(AnnotationBuilder.resolutionComplete(disappearance.abilityInstanceId, disappearance.grpId))
-            }
-            annotations.add(AnnotationBuilder.abilityInstanceDeleted(disappearance.abilityInstanceId, disappearance.sourceCardInstanceId))
-
-            annotations shouldHaveSize 1
-            annotations[0].typeList shouldBe listOf(AnnotationType.AbilityInstanceDeleted)
+            ann.typeList shouldBe listOf(AnnotationType.AbilityInstanceDeleted)
+            ann.affectorId shouldBe sourceCardIid
+            ann.affectedIdsList shouldBe listOf(abilityIid)
         }
 
         // -----------------------------------------------------------------------

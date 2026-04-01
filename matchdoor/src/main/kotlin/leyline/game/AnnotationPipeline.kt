@@ -296,6 +296,8 @@ object AnnotationPipeline {
             forgeIdLookup,
             idLookup,
             grpIdResolver,
+            retiredIds,
+            patchedZones,
         )
 
         // Record zones for instanceIds that appear only in zone objectInstanceIds
@@ -997,6 +999,8 @@ object AnnotationPipeline {
         forgeIdLookup: (InstanceId) -> ForgeCardId?,
         idLookup: (ForgeCardId) -> InstanceId,
         grpIdResolver: (ForgeCardId) -> Int,
+        retiredIds: MutableList<Int>,
+        patchedZones: MutableList<ZoneInfo>,
     ): List<StackAbilityDisappearance> {
         val resolvedEvents = events.filterIsInstance<GameEvent.SpellResolved>()
         val disappearances = mutableListOf<StackAbilityDisappearance>()
@@ -1017,6 +1021,11 @@ object AnnotationPipeline {
             // Correlate with SpellResolved event for fizzle detection.
             val resolvedEv = resolvedEvents.firstOrNull { it.cardId == sourceCardForgeId }
             val hasFizzled = resolvedEv?.hasFizzled == true
+
+            // Retire the disappeared ability instanceId to Limbo so annotation
+            // references (affectedIds) remain resolvable by the validating sink.
+            retiredIds.add(instanceId)
+            appendToZone(patchedZones, ZONE_LIMBO, instanceId)
 
             disappearances.add(
                 StackAbilityDisappearance(

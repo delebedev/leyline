@@ -673,10 +673,11 @@ object StateMapper {
             )
         }
         for (d in transferResult.stackAbilityDisappearances) {
-            if (!d.hasFizzled) {
-                annotations.add(AnnotationBuilder.resolutionStart(d.abilityInstanceId, d.grpId))
-                annotations.add(AnnotationBuilder.resolutionComplete(d.abilityInstanceId, d.grpId))
-            }
+            // Note: ResolutionStart/Complete are NOT emitted here — they reference the
+            // ability's instanceId as affectorId, but that object no longer exists (it
+            // disappeared from the stack). The Resolve transfer path handles resolution
+            // annotations for spells that move zones. For triggered abilities that vanish,
+            // AbilityInstanceDeleted alone signals the lifecycle end.
             annotations.add(
                 AnnotationBuilder.abilityInstanceDeleted(d.abilityInstanceId, d.sourceCardInstanceId),
             )
