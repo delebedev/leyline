@@ -30,7 +30,7 @@ curl http://localhost:8091/health  # → {"status":"ok"}
 
 **sqlite-jdbc** ships 23 native libs for all platforms (14 MB). `JlinkBundleTask` repacks it keeping only the target platform (~800 KB).
 
-**Dead dependency exclusions** in `build.gradle.kts` remove Jetty, tinylog, servlet-api — Forge POMs pull these for desktop/mobile features leyline doesn't use.
+**Dead dependency exclusions** in `build.gradle.kts` remove Jetty, servlet-api, and tinylog's SLF4J binding — Forge POMs pull these for desktop/mobile features leyline doesn't use. Tinylog API + impl are kept because Forge code calls `org.tinylog.Logger` directly (e.g. `Card.addAssignedDamage`).
 
 **Resource resolution**: `bin/leyline` passes `-Dleyline.res.dir=$DIR/res`. `ResourceResolver` maps `forge-gui/res/X` to `res/X` when this property is set, falling back to dev-layout paths.
 
