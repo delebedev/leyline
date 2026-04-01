@@ -50,12 +50,12 @@ Mana cost reaches the client through two paths depending on the action type. `Ma
 
 | Action type | Cost source | Why |
 |---|---|---|
-| Regular cast (hand) | `CardData.manaCost` (static, from Arena DB via `parseManaCost`) | Stable, matches what client expects for `ManaRequirement` |
-| Alt cost / flashback / escape | `SpellAbility.payCosts.totalMana` (dynamic, from Forge engine) | Alt cost modifies the base cost; only Forge knows the actual amount |
-| Adventure cast | `SpellAbility.payCosts.totalMana` (adventure face SA) | Adventure face has its own cost, not on the creature's `CardData` |
+| Regular cast (hand) | `computeEffectiveCost(sa, player)` via `CostAdjustment` | Includes static reductions + commander tax; falls back to `CardData.manaCost` in naive mode |
+| Alt cost / flashback / escape / zone cast | `computeEffectiveCost(sa, player)` via `CostAdjustment` | Handles commander tax, raise costs, and reductions |
+| Adventure cast | `computeEffectiveCost(adventureSa, player)` | Adventure face SA with full cost adjustments |
 | Activated ability | `SpellAbility.payCosts.totalMana` + `abilityGrpId` | Ability cost ≠ card cast cost; `abilityGrpId` links to modal UI |
 
-**Decision rule:** Use `CardData.manaCost` for regular cast. Use `SA.payCosts` for alt costs, adventure, and activated abilities. When in doubt, check what the real server sends for that action type.
+**Decision rule:** Use `computeEffectiveCost(sa, player)` for all cast actions — it chains `CostAdjustment.adjust(Cost)` (commander tax + raises) and `CostAdjustment.adjust(ManaCostBeingPaid)` (static reductions). Falls back to `CardData.manaCost` only in naive mode (no SpellAbility available). Activated abilities still use raw `SA.payCosts` (no reduction path needed yet).
 
 **Payment:** `WebCostDecision` visitor pattern — extends Forge's `CostDecisionMakerBase`, routes interactive cost decisions (sacrifice, tap creatures for convoke, etc.) through `InteractivePromptBridge`.
 

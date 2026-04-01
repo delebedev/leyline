@@ -1,0 +1,18 @@
+[metadata]
+Name:Cost Reduction — Archmage of Runes
+Goal:Win
+Turns:3
+Difficulty:Easy
+Description:Archmage reduces Run Away Together from {1}{U} to {U}. Only 1 Island available — cast is impossible without the reduction. Bounce AI's blocker, attack for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+
+humanhand=Run Away Together
+humanbattlefield=Archmage of Runes;Coral Merfolk;Island
+humanlibrary=Island;Island;Island;Island;Island
+aibattlefield=Grizzly Bears
+ailibrary=Forest;Forest;Forest;Forest;Forest
