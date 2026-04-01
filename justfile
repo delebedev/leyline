@@ -242,6 +242,14 @@ serve: build check-java
     {{_java}} leyline.LeylineMainKt $cert_flags
 
 
+# --- Packaging ---
+
+# build self-contained archive (jlink JRE + JARs + card resources, no system Java needed)
+[group('deploy')]
+bundle:
+    ./gradlew bundleArchive --no-daemon
+    @echo "Archive: $(ls build/dist/leyline-*.tar.gz)"
+
 # --- Docker ---
 
 # build Docker image for local use
