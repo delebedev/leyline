@@ -87,6 +87,22 @@ object AnnotationPipeline {
      * Contains patched copies of gameObjects/zones (with reallocated instanceIds
      * and Limbo entries) plus deferred side effects the caller must apply.
      */
+    /** A triggered ability that just appeared on the stack (no previousZone entry). */
+    data class StackAbilityAppearance(
+        val abilityInstanceId: Int,
+        val sourceCardInstanceId: Int,
+        val sourceZoneId: Int,
+        val grpId: Int,
+    )
+
+    /** A triggered ability that was on the stack and is now gone (resolved or fizzled). */
+    data class StackAbilityDisappearance(
+        val abilityInstanceId: Int,
+        val sourceCardInstanceId: Int,
+        val grpId: Int,
+        val hasFizzled: Boolean,
+    )
+
     data class TransferResult(
         /** Detected zone transfers for annotation building. */
         val transfers: List<AppliedTransfer>,
@@ -98,6 +114,10 @@ object AnnotationPipeline {
         val retiredIds: List<Int>,
         /** (instanceId, zoneId) pairs to record (caller applies via [ZoneTracking.recordZone]). */
         val zoneRecordings: List<Pair<Int, Int>>,
+        /** Triggered abilities that just appeared on the stack. */
+        val stackAbilityAppearances: List<StackAbilityAppearance> = emptyList(),
+        /** Triggered abilities that left the stack (resolved/fizzled). */
+        val stackAbilityDisappearances: List<StackAbilityDisappearance> = emptyList(),
     )
 
     /**
@@ -133,6 +153,10 @@ object AnnotationPipeline {
                 0
             }
         },
+        grpIdResolver = { fid ->
+            val card = bridge.getGame()?.let { findCard(it, fid) }
+            if (card != null) bridge.cards.findGrpIdByName(card.name) ?: 0 else 0
+        },
     )
 
     /**
@@ -144,6 +168,7 @@ object AnnotationPipeline {
      * for ID allocation but defers tracking side effects (retireToLimbo, recordZone)
      * to the caller via the result.
      */
+    @Suppress("LongMethod")
     internal fun detectZoneTransfers(
         gameObjects: List<GameObjectInfo>,
         zones: List<ZoneInfo>,
@@ -153,6 +178,8 @@ object AnnotationPipeline {
         idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
         idLookup: (ForgeCardId) -> InstanceId,
         manaAbilityGrpIdResolver: (ForgeCardId) -> Int = { 0 },
+        /** Resolve grpId for a source card's ForgeCardId (for stack ability resolution annotations). */
+        grpIdResolver: (ForgeCardId) -> Int = { 0 },
     ): TransferResult {
         val patchedObjects = gameObjects.toMutableList()
         val patchedZones = zones.toMutableList()
@@ -251,10 +278,34 @@ object AnnotationPipeline {
             forgeIdLookup, idAllocator, idLookup, manaAbilityGrpIdResolver,
         )
 
-        // Also record zones for instanceIds that appear only in zone objectInstanceIds
-        // but not in gameObjects (e.g. library cards — hidden, no GameObjectInfo).
-        // This enables zone-transfer detection when they later move to a visible zone.
+        // Post-pass: detect triggered ability lifecycle on the stack.
+        val mainLoopIds = transfers.map { it.origId }.toSet()
         val gameObjectIds = patchedObjects.map { it.instanceId }.toSet()
+        val appearances = detectStackAbilityAppearances(
+            patchedObjects,
+            previousZones,
+            mainLoopIds,
+            forgeIdLookup,
+            idLookup,
+        )
+        val (disappearances, disappearedRetiredIds) = detectStackAbilityDisappearances(
+            events,
+            previousZones,
+            gameObjectIds,
+            mainLoopIds,
+            forgeIdLookup,
+            idLookup,
+            grpIdResolver,
+        )
+        // Retire disappeared ability instanceIds to Limbo so annotation
+        // references (affectedIds) remain resolvable by the validating sink.
+        for (id in disappearedRetiredIds) {
+            retiredIds.add(id)
+            appendToZone(patchedZones, ZONE_LIMBO, id)
+        }
+
+        // Record zones for instanceIds that appear only in zone objectInstanceIds
+        // but not in gameObjects (e.g. library cards — hidden, no GameObjectInfo).
         for (zone in patchedZones) {
             for (iid in zone.objectInstanceIdsList) {
                 if (iid !in gameObjectIds) {
@@ -263,7 +314,15 @@ object AnnotationPipeline {
             }
         }
 
-        return TransferResult(transfers, patchedObjects, patchedZones, retiredIds, zoneRecordings)
+        return TransferResult(
+            transfers,
+            patchedObjects,
+            patchedZones,
+            retiredIds,
+            zoneRecordings,
+            stackAbilityAppearances = appearances,
+            stackAbilityDisappearances = disappearances,
+        )
     }
 
     /**
@@ -890,6 +949,98 @@ object AnnotationPipeline {
     }
 
     // --- helpers ---
+
+    /**
+     * Detect triggered abilities that just appeared on the stack.
+     * These are [GameObjectType.Ability] objects in the stack zone with no [previousZones] entry.
+     */
+    private fun detectStackAbilityAppearances(
+        patchedObjects: List<GameObjectInfo>,
+        previousZones: Map<Int, Int>,
+        mainLoopIds: Set<Int>,
+        forgeIdLookup: (InstanceId) -> ForgeCardId?,
+        idLookup: (ForgeCardId) -> InstanceId,
+    ): List<StackAbilityAppearance> {
+        val appearances = mutableListOf<StackAbilityAppearance>()
+        for (obj in patchedObjects) {
+            if (obj.type != GameObjectType.Ability) continue
+            if (obj.zoneId != ZONE_STACK) continue
+            if (obj.instanceId in mainLoopIds) continue
+            if (previousZones.containsKey(obj.instanceId)) continue
+
+            // Derive source card from forge ID: ability forgeId = sourceCard.id + OFFSET.
+            val abilityForgeId = forgeIdLookup(InstanceId(obj.instanceId))
+            val sourceCardForgeId = if (abilityForgeId != null) {
+                ForgeCardId(abilityForgeId.value - ObjectMapper.STACK_ABILITY_ID_OFFSET)
+            } else {
+                null
+            }
+            val sourceCardIid = sourceCardForgeId?.let { idLookup(it).value } ?: 0
+            val sourceZoneId = if (sourceCardIid > 0) previousZones[sourceCardIid] ?: 0 else 0
+
+            appearances.add(
+                StackAbilityAppearance(
+                    abilityInstanceId = obj.instanceId,
+                    sourceCardInstanceId = sourceCardIid,
+                    sourceZoneId = sourceZoneId,
+                    grpId = obj.grpId,
+                ),
+            )
+            log.debug("stack ability appeared: iid={} grpId={} source={}", obj.instanceId, obj.grpId, sourceCardIid)
+        }
+        return appearances
+    }
+
+    /**
+     * Detect triggered abilities that left the stack (resolved or fizzled).
+     * Finds instanceIds in [previousZones] that were on the stack but are absent from current objects.
+     *
+     * Returns (disappearances, retiredInstanceIds). Caller folds retired IDs into
+     * [TransferResult] and appends them to Limbo — keeps this function pure.
+     */
+    private fun detectStackAbilityDisappearances(
+        events: List<GameEvent>,
+        previousZones: Map<Int, Int>,
+        currentInstanceIds: Set<Int>,
+        mainLoopIds: Set<Int>,
+        forgeIdLookup: (InstanceId) -> ForgeCardId?,
+        idLookup: (ForgeCardId) -> InstanceId,
+        grpIdResolver: (ForgeCardId) -> Int,
+    ): Pair<List<StackAbilityDisappearance>, List<Int>> {
+        val resolvedEvents = events.filterIsInstance<GameEvent.SpellResolved>()
+        val disappearances = mutableListOf<StackAbilityDisappearance>()
+        val newRetiredIds = mutableListOf<Int>()
+
+        for ((instanceId, zoneId) in previousZones) {
+            if (zoneId != ZONE_STACK) continue
+            if (instanceId in currentInstanceIds) continue
+            if (instanceId in mainLoopIds) continue
+
+            // Only match ability objects (forge ID in the STACK_ABILITY_ID_OFFSET range).
+            val abilityForgeId = forgeIdLookup(InstanceId(instanceId)) ?: continue
+            if (abilityForgeId.value < ObjectMapper.STACK_ABILITY_ID_OFFSET) continue
+
+            val sourceCardForgeId = ForgeCardId(abilityForgeId.value - ObjectMapper.STACK_ABILITY_ID_OFFSET)
+            val sourceCardIid = idLookup(sourceCardForgeId).value
+            val grpId = grpIdResolver(sourceCardForgeId)
+
+            // Correlate with SpellResolved event for fizzle detection.
+            val resolvedEv = resolvedEvents.firstOrNull { it.cardId == sourceCardForgeId }
+            val hasFizzled = resolvedEv?.hasFizzled == true
+
+            newRetiredIds.add(instanceId)
+            disappearances.add(
+                StackAbilityDisappearance(
+                    abilityInstanceId = instanceId,
+                    sourceCardInstanceId = sourceCardIid,
+                    grpId = grpId,
+                    hasFizzled = hasFizzled,
+                ),
+            )
+            log.debug("stack ability disappeared: iid={} grpId={} fizzled={}", instanceId, grpId, hasFizzled)
+        }
+        return disappearances to newRetiredIds
+    }
 
     /**
      * Detect token sacrifices invisible to the main transfer loop.
