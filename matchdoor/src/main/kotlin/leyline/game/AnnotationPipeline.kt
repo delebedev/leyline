@@ -288,7 +288,7 @@ object AnnotationPipeline {
             forgeIdLookup,
             idLookup,
         )
-        val disappearances = detectStackAbilityDisappearances(
+        val (disappearances, disappearedRetiredIds) = detectStackAbilityDisappearances(
             events,
             previousZones,
             gameObjectIds,
@@ -296,9 +296,13 @@ object AnnotationPipeline {
             forgeIdLookup,
             idLookup,
             grpIdResolver,
-            retiredIds,
-            patchedZones,
         )
+        // Retire disappeared ability instanceIds to Limbo so annotation
+        // references (affectedIds) remain resolvable by the validating sink.
+        for (id in disappearedRetiredIds) {
+            retiredIds.add(id)
+            appendToZone(patchedZones, ZONE_LIMBO, id)
+        }
 
         // Record zones for instanceIds that appear only in zone objectInstanceIds
         // but not in gameObjects (e.g. library cards — hidden, no GameObjectInfo).
@@ -990,6 +994,9 @@ object AnnotationPipeline {
     /**
      * Detect triggered abilities that left the stack (resolved or fizzled).
      * Finds instanceIds in [previousZones] that were on the stack but are absent from current objects.
+     *
+     * Returns (disappearances, retiredInstanceIds). Caller folds retired IDs into
+     * [TransferResult] and appends them to Limbo — keeps this function pure.
      */
     private fun detectStackAbilityDisappearances(
         events: List<GameEvent>,
@@ -999,11 +1006,10 @@ object AnnotationPipeline {
         forgeIdLookup: (InstanceId) -> ForgeCardId?,
         idLookup: (ForgeCardId) -> InstanceId,
         grpIdResolver: (ForgeCardId) -> Int,
-        retiredIds: MutableList<Int>,
-        patchedZones: MutableList<ZoneInfo>,
-    ): List<StackAbilityDisappearance> {
+    ): Pair<List<StackAbilityDisappearance>, List<Int>> {
         val resolvedEvents = events.filterIsInstance<GameEvent.SpellResolved>()
         val disappearances = mutableListOf<StackAbilityDisappearance>()
+        val newRetiredIds = mutableListOf<Int>()
 
         for ((instanceId, zoneId) in previousZones) {
             if (zoneId != ZONE_STACK) continue
@@ -1022,11 +1028,7 @@ object AnnotationPipeline {
             val resolvedEv = resolvedEvents.firstOrNull { it.cardId == sourceCardForgeId }
             val hasFizzled = resolvedEv?.hasFizzled == true
 
-            // Retire the disappeared ability instanceId to Limbo so annotation
-            // references (affectedIds) remain resolvable by the validating sink.
-            retiredIds.add(instanceId)
-            appendToZone(patchedZones, ZONE_LIMBO, instanceId)
-
+            newRetiredIds.add(instanceId)
             disappearances.add(
                 StackAbilityDisappearance(
                     abilityInstanceId = instanceId,
@@ -1037,7 +1039,7 @@ object AnnotationPipeline {
             )
             log.debug("stack ability disappeared: iid={} grpId={} fizzled={}", instanceId, grpId, hasFizzled)
         }
-        return disappearances
+        return disappearances to newRetiredIds
     }
 
     /**
