@@ -230,6 +230,9 @@ class GameBridge(
     /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
     val effects = EffectTracker()
 
+    /** Cached token grpId per instanceId — stable across diff ticks. */
+    val tokenRegistry = TokenIdentityRegistry()
+
     /**
      * Annotation ID sequences + persistent annotation lifecycle.
      * See [PersistentAnnotationStore] class KDoc for the full lifecycle
@@ -278,7 +281,10 @@ class GameBridge(
     /** Proto zone tracking — where the protocol last placed each instanceId. */
     fun getProtoZones(): Map<Int, Int> = diff.allZones()
 
-    override fun retireToLimbo(instanceId: InstanceId) = limbo.retire(instanceId.value)
+    override fun retireToLimbo(instanceId: InstanceId) {
+        limbo.retire(instanceId.value)
+        tokenRegistry.retire(instanceId.value)
+    }
 
     override fun getLimboInstanceIds(): List<InstanceId> = limbo.all().map { InstanceId(it) }
 

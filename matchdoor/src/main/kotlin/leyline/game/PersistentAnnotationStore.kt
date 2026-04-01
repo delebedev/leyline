@@ -184,6 +184,16 @@ class PersistentAnnotationStore {
                 { it.affectedIdsList.firstOrNull() ?: 0 },
             )
 
+            // 3f. TemporaryPermanent — full-replacement upsert (keyed by token affectorId)
+            nextId = upsertByType(
+                active,
+                deletions,
+                nextId,
+                AnnotationType.TemporaryPermanent,
+                mechanicResult.temporaryPermanentPersistent,
+                { it.affectorId },
+            )
+
             // 4. Detached auras
             for (forgeCardId in mechanicResult.detachedForgeCardIds) {
                 val auraIid = resolveInstanceId(forgeCardId).value

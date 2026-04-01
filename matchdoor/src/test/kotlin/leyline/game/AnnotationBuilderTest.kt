@@ -354,6 +354,16 @@ class AnnotationBuilderTest :
             ann.detailsCount shouldBe 0
         }
 
+        // --- TemporaryPermanent (persistent) ---
+
+        test("temporaryPermanentFields") {
+            val ann = AnnotationBuilder.temporaryPermanent(tokenInstanceId = 371)
+            ann.typeList shouldContain AnnotationType.TemporaryPermanent
+            ann.affectorId shouldBe 371
+            ann.affectedIdsList shouldContain 371
+            ann.detailInt(DetailKeys.ABILITY_GRP_ID_UPPER) shouldBe 192424
+        }
+
         // --- CounterAdded (Group B) ---
 
         test("counterAddedFields") {
