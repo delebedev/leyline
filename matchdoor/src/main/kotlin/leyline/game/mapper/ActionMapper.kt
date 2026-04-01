@@ -61,7 +61,10 @@ object ActionMapper {
             seatId = seatId,
             checkLegality = checkLegality,
             idResolver = { forgeCardId -> bridge.getOrAllocInstanceId(ForgeCardId(forgeCardId)).value },
-            grpIdResolver = { card -> ObjectMapper.resolveGrpId(card, bridge.cards) },
+            grpIdResolver = { card ->
+                val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+                ObjectMapper.resolveGrpId(card, bridge.cards, iid, bridge.tokenRegistry, bridge)
+            },
             cardDataLookup = { grpId -> bridge.cards.findByGrpId(grpId) },
             abilityRegistryLookup = { card, cardData -> bridge.abilityRegistryFor(card, cardData) },
         )

@@ -556,7 +556,11 @@ class MatchSession(
             val forgeId = bridge.getForgeCardId(InstanceId(action.instanceId))
             val game = bridge.getGame()
             val card = if (forgeId != null && game != null) findCard(game, forgeId) else null
-            if (card != null) ObjectMapper.resolveGrpId(card, bridge.cards) else return 0
+            if (card != null) {
+                ObjectMapper.resolveGrpId(card, bridge.cards, action.instanceId, bridge.tokenRegistry, bridge)
+            } else {
+                return 0
+            }
         }
         val cardData = bridge.cards.findByGrpId(grpId) ?: return 0
         val forgeCardId = bridge.getForgeCardId(InstanceId(action.instanceId)) ?: return 0
