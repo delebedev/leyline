@@ -47,6 +47,7 @@ object StateMapper {
      * objectInstanceIds (for card count) but no GameObjectInfo (renders face-down).
      * Use 0 to include all objects (internal snapshots for diffing).
      */
+    @Suppress("LongMethod")
     fun buildFromGame(
         game: Game,
         gameStateId: Int,

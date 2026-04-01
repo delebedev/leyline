@@ -17,7 +17,13 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 object HandshakeMessages {
 
     /** Room state event — match room with both players. */
-    fun roomState(matchId: String, playerId: String, opponentName: String = "Sparky", eventId: String = "AIBotMatch", isBot: Boolean = true): MatchServiceToClientMessage {
+    fun roomState(
+        matchId: String,
+        playerId: String,
+        opponentName: String = "Sparky",
+        eventId: String = "AIBotMatch",
+        isBot: Boolean = true,
+    ): MatchServiceToClientMessage {
         val roomInfo = MatchGameRoomInfo.newBuilder()
             .setGameRoomConfig(buildRoomConfig(matchId, playerId, opponentName, eventId, isBot))
             .setStateType(MatchGameRoomStateType.Playing)
@@ -72,7 +78,13 @@ object HandshakeMessages {
             .setUserId(userId).setPlayerName(name)
             .setSystemSeatId(seat).setTeamId(team)
 
-    private fun buildRoomConfig(matchId: String, playerId: String, opponentName: String = "Sparky", eventId: String = "AIBotMatch", isBot: Boolean = true): MatchGameRoomConfig.Builder {
+    private fun buildRoomConfig(
+        matchId: String,
+        playerId: String,
+        opponentName: String = "Sparky",
+        eventId: String = "AIBotMatch",
+        isBot: Boolean = true,
+    ): MatchGameRoomConfig.Builder {
         val familiarId = "${playerId}_Familiar"
         val builder = MatchGameRoomConfig.newBuilder()
             .setMatchId(matchId)
