@@ -1,0 +1,247 @@
+:root {
+  --bg: #0e0e12;
+  --surface: #1a1a22;
+  --border: #2a2a35;
+  --text: #e0e0e6;
+  --text-dim: #888894;
+  --accent: #4adeac;
+  --accent-hover: #6eedc4;
+  --green: #4ade80;
+  --yellow: #fbbf24;
+  --red: #f87171;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "SF Mono", "JetBrains Mono", "Fira Code", monospace;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px;
+}
+
+header {
+  text-align: center;
+}
+
+header h1 {
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+
+header {
+  position: relative;
+}
+
+.tagline {
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.6;
+  letter-spacing: 1px;
+}
+
+.info-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.info-btn:hover {
+  border-color: var(--text-dim);
+  color: var(--text);
+}
+
+.info-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.info-overlay.hidden {
+  display: none;
+}
+
+.info-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 24px;
+  font-size: 12px;
+  line-height: 1.6;
+  max-width: 380px;
+}
+
+.info-panel p {
+  margin-bottom: 8px;
+}
+
+.info-panel p:last-of-type {
+  margin-bottom: 12px;
+}
+
+.info-links {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.info-links a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.info-links a:hover {
+  color: var(--accent-hover);
+}
+
+.info-version {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.hint {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  min-height: 16px;
+}
+
+main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.play-btn {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  padding: 16px 48px;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  letter-spacing: 1px;
+}
+
+.play-btn:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: scale(1.02);
+}
+
+.play-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.play-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.play-icon {
+  margin-right: 8px;
+}
+
+footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.label {
+  color: var(--text-dim);
+}
+
+.value {
+  color: var(--text);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-stopped { background: var(--text-dim); }
+.dot-starting { background: var(--yellow); animation: pulse 1s infinite; }
+.dot-running { background: var(--green); }
+.dot-error { background: var(--red); }
+.dot-found { background: var(--green); }
+.dot-missing { background: var(--red); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.restore-btn {
+  margin-top: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  align-self: flex-start;
+}
+
+.restore-btn:hover:not(:disabled) {
+  border-color: var(--text-dim);
+  color: var(--text);
+}
+
+.restore-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}

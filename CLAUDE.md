@@ -58,6 +58,7 @@ app/            Composition root — LeylineMain, Netty pipeline, debug server, 
 account/        Account server (Ktor HTTPS) — auth, JWT, doorbell. Zero forge deps.
 frontdoor/      Front Door protocol — lobby, decks, events, matchmaking, collections.
 matchdoor/      Game engine adapter — the big one. See matchdoor/CLAUDE.md.
+launcher/       Tauri v2 desktop app — player-facing launcher. See launcher/CLAUDE.md.
 ```
 
 Other dirs: `bin/`, `docs/`, `forge/` (engine submodule), `gradle/`, `just/`, `proto/`.

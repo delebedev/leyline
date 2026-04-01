@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Leyline</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <h1>leyline</h1>
+        <p class="tagline">Arena, unplugged</p>
+        <button id="info-btn" class="info-btn" aria-label="About">?</button>
+      </header>
+
+      <div id="info-overlay" class="info-overlay hidden">
+        <div class="info-panel">
+          <p>Leyline runs a local game server so you can play Arena offline against AI.</p>
+          <p><strong>Start</strong> configures Arena and starts the server. Then launch Arena normally.</p>
+          <p><strong>Restore</strong> undoes all changes — Arena connects to official servers again.</p>
+          <div class="info-links">
+            <a id="gh-link" href="#">GitHub</a>
+            <span class="info-version">v0.1.0</span>
+          </div>
+        </div>
+      </div>
+
+      <main>
+        <button id="play-btn" class="play-btn" disabled>
+          Start
+        </button>
+        <p id="hint" class="hint"></p>
+      </main>
+
+      <footer>
+        <div id="status-server" class="status-line">
+          <span class="dot dot-stopped"></span>
+          <span class="label">Leyline:</span>
+          <span class="value" id="server-value">Checking...</span>
+        </div>
+        <div id="status-arena" class="status-line">
+          <span class="dot dot-stopped"></span>
+          <span class="label">Arena:</span>
+          <span class="value" id="arena-value">Detecting...</span>
+        </div>
+        <button id="restore-btn" class="restore-btn" disabled>
+          Restore Arena
+        </button>
+      </footer>
+    </div>
+
+    <script type="module" src="main.ts"></script>
+  </body>
+</html>
