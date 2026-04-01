@@ -60,10 +60,14 @@ object TestCardRegistry {
      * Bulk-register all card names from a deck list string.
      * Parses "N CardName" lines, registers each unique name.
      */
+    private val SECTION_HEADER = Regex("""^\[.+]$|^(Deck|Sideboard|Maybeboard|Commander|Companion)\s*$""", RegexOption.IGNORE_CASE)
+
     fun ensureDeckRegistered(deckList: String) {
         val names = deckList.trim().lines()
             .filter { it.isNotBlank() }
-            .map { it.trim().replaceFirst(Regex("^\\d+\\s+"), "") }
+            .map { it.trim() }
+            .filter { !SECTION_HEADER.matches(it) }
+            .map { it.replaceFirst(Regex("^\\d+\\s+"), "") }
             .distinct()
         val failures = mutableListOf<String>()
         for (name in names) {

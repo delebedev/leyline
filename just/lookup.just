@@ -47,7 +47,7 @@ puzzle-check file:
     db=$(echo "{{arena_db}}"/Raw_CardDatabase_*.mtga)
     if [ ! -f "$db" ]; then echo "Arena DB not found at {{arena_db}}" >&2; exit 1; fi
     if [ ! -f "{{file}}" ]; then echo "Puzzle file not found: {{file}}" >&2; exit 1; fi
-    cards=$(grep -E '^(human|ai)(battlefield|hand|library|graveyard|exile)=' "{{file}}" \
+    cards=$(grep -E '^(human|ai)(battlefield|hand|library|graveyard|exile|command)=' "{{file}}" \
         | sed 's/^[^=]*=//' | tr ';' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' \
         | sed 's/|.*//' \
         | grep -Ev '^(Plains|Island|Swamp|Mountain|Forest)$' | sort -u)

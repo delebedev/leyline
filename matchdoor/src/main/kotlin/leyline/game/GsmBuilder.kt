@@ -356,6 +356,28 @@ object GsmBuilder {
         ZoneMapper.addInitialPlayerZones(human, 1, bridge, zones, ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, ZoneIds.P1_SIDEBOARD)
         ZoneMapper.addInitialPlayerZones(ai, 2, bridge, zones, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, ZoneIds.P2_SIDEBOARD)
 
+        // Brawl: populate zone 26 with commander cards as full game objects.
+        // Commanders start in the command zone, not the library — the client
+        // needs both objectInstanceIds on the zone AND GameObjectInfo entries.
+        val gameObjects = mutableListOf<GameObjectInfo>()
+        if (isBrawl) {
+            val game = bridge.getGame()
+            if (game != null) {
+                ZoneMapper.addSharedZoneCards(
+                    game,
+                    forge.game.zone.ZoneType.Command,
+                    ZoneIds.COMMAND,
+                    bridge,
+                    zones,
+                    gameObjects,
+                    human,
+                    ai,
+                )
+            } else {
+                log.warn("buildInitialGameState: Brawl game but bridge.getGame() is null — command zone will be empty")
+            }
+        }
+
         val builder = GameStateMessage.newBuilder()
             .setType(GameStateType.Full)
             .setGameStateId(gameStateId)
@@ -365,6 +387,7 @@ object GsmBuilder {
             .addPlayers(player1).addPlayers(player2)
             .setTurnInfo(TurnInfo.newBuilder().setDecisionPlayer(2))
             .addAllZones(zones.sortedBy { it.zoneId })
+            .addAllGameObjects(gameObjects)
             .addAllTimers(PlayerMapper.buildTimers())
             .setUpdate(GameStateUpdate.SendAndRecord)
         if (pendingMessageCount > 0) builder.setPendingMessageCount(pendingMessageCount)

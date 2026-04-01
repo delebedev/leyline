@@ -47,14 +47,17 @@ class DeckConverterTest :
             val main = listOf(CardEntry(93848, 1))
             val text = DeckConverter.toDeckText(main, emptyList(), commander, nameByGrpId)
             text shouldContain "[Commander]"
+            text shouldContain "[Deck]"
             text shouldContain "1 Lightning Bolt"
             text shouldContain "1 Counterspell"
-            // Commander section comes before main deck cards
+            // [Commander] → commander card → [Deck] → main deck cards
             val commanderIdx = text.indexOf("[Commander]")
             val boltIdx = text.indexOf("1 Lightning Bolt")
+            val deckIdx = text.indexOf("[Deck]")
             val counterspellIdx = text.indexOf("1 Counterspell")
             (commanderIdx < boltIdx) shouldBe true
-            (boltIdx < counterspellIdx) shouldBe true
+            (boltIdx < deckIdx) shouldBe true
+            (deckIdx < counterspellIdx) shouldBe true
         }
 
         test("empty commandZone omits Commander header") {

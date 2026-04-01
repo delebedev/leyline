@@ -17,9 +17,15 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 object HandshakeMessages {
 
     /** Room state event — match room with both players. */
-    fun roomState(matchId: String, playerId: String, opponentName: String = "Sparky"): MatchServiceToClientMessage {
+    fun roomState(
+        matchId: String,
+        playerId: String,
+        opponentName: String = "Sparky",
+        eventId: String = "AIBotMatch",
+        isBot: Boolean = true,
+    ): MatchServiceToClientMessage {
         val roomInfo = MatchGameRoomInfo.newBuilder()
-            .setGameRoomConfig(buildRoomConfig(matchId, playerId, opponentName))
+            .setGameRoomConfig(buildRoomConfig(matchId, playerId, opponentName, eventId, isBot))
             .setStateType(MatchGameRoomStateType.Playing)
             .addPlayers(playerInfo(playerId, "Player", 1, 1))
             .addPlayers(playerInfo("${playerId}_Familiar", opponentName, 2, 2))
@@ -72,22 +78,27 @@ object HandshakeMessages {
             .setUserId(userId).setPlayerName(name)
             .setSystemSeatId(seat).setTeamId(team)
 
-    private fun buildRoomConfig(matchId: String, playerId: String, opponentName: String = "Sparky"): MatchGameRoomConfig.Builder {
+    private fun buildRoomConfig(
+        matchId: String,
+        playerId: String,
+        opponentName: String = "Sparky",
+        eventId: String = "AIBotMatch",
+        isBot: Boolean = true,
+    ): MatchGameRoomConfig.Builder {
         val familiarId = "${playerId}_Familiar"
-        return MatchGameRoomConfig.newBuilder()
+        val builder = MatchGameRoomConfig.newBuilder()
             .setMatchId(matchId)
-            .setEventId("AIBotMatch")
-            .addReservedPlayers(
-                playerInfo(playerId, "Player", 1, 1)
-                    .setCourseId("Avatar_Basic_Adventurer")
-                    .setPlatformId("Mac"),
-            )
-            .addReservedPlayers(
-                playerInfo(familiarId, opponentName, 2, 2)
-                    .setCourseId("Avatar_Basic_Sparky")
-                    .setIsBotPlayer(true)
-                    .setEventId("AIBotMatch"),
-            )
+        // Real server puts eventId on each reservedPlayer, not on the config
+        if (isBot) builder.setEventId(eventId)
+        val p1 = playerInfo(playerId, "Player", 1, 1)
+            .setCourseId("Avatar_Basic_Adventurer")
+            .setPlatformId("Mac")
+            .setEventId(eventId)
+        val p2 = playerInfo(familiarId, opponentName, 2, 2)
+            .setCourseId("Avatar_Basic_Sparky")
+            .setEventId(eventId)
+        if (isBot) p2.setIsBotPlayer(true)
+        return builder.addReservedPlayers(p1).addReservedPlayers(p2)
     }
 
     private fun wrapRoomState(roomInfo: MatchGameRoomInfo.Builder): MatchServiceToClientMessage =

@@ -29,6 +29,7 @@ class MatchFlowHarness(
     private val deckList: String? = null,
     validating: Boolean = true,
     private val matchConfig: MatchConfig = MatchConfig(ai = AiConfig(speed = 0.0)),
+    private val variant: String? = null,
 ) {
 
     private val matchId = "test-match"
@@ -71,7 +72,7 @@ class MatchFlowHarness(
 
         bridge = GameBridge(bridgeTimeoutMs = 5_000L, matchConfig = matchConfig, messageCounter = session.counter, cards = TestCardRegistry.repo)
         bridge.priorityWaitMs = 2_000L
-        bridge.start(seed = seed, deckList = deckList)
+        bridge.start(seed = seed, deckList = deckList, variant = variant)
 
         session.connectBridge(bridge)
         registry.registerSession(matchId, seatId, session)

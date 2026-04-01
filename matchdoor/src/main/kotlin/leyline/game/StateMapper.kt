@@ -47,6 +47,7 @@ object StateMapper {
      * objectInstanceIds (for card count) but no GameObjectInfo (renders face-down).
      * Use 0 to include all objects (internal snapshots for diffing).
      */
+    @Suppress("LongMethod")
     fun buildFromGame(
         game: Game,
         gameStateId: Int,
@@ -84,15 +85,26 @@ object StateMapper {
         val startAnnotationId = bridge.annotations.currentAnnotationId()
 
         // ═══ MAP: engine state → proto objects ═══
+        val isBrawl = bridge.isBrawlOrCommander
+        val gameVariant = if (isBrawl) GameVariant.Brawl else GameVariant.Normal
+
         val gameInfo = GameInfo.newBuilder()
             .setMatchID(matchId)
             .setGameNumber(1)
             .setStage(GameStage.Play_a920)
             .setType(GameType.Duel)
-            .setVariant(GameVariant.Normal)
+            .setVariant(gameVariant)
             .setMatchState(MatchState.GameInProgress)
             .setMatchWinCondition(MatchWinCondition.SingleElimination)
             .setMulliganType(MulliganType.London)
+        if (isBrawl) {
+            gameInfo.setDeckConstraintInfo(
+                DeckConstraintInfo.newBuilder()
+                    .setMinDeckSize(58).setMaxDeckSize(59).setMaxSideboardSize(1)
+                    .setMinCommanderSize(1).setMaxCommanderSize(2),
+            )
+            gameInfo.setFreeMulliganCount(1)
+        }
 
         val player1 = PlayerMapper.buildPlayerInfo(human, 1)
         val player2 = PlayerMapper.buildPlayerInfo(ai, 2)
@@ -147,6 +159,7 @@ object StateMapper {
         ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Battlefield, ZoneIds.BATTLEFIELD, bridge, zones, gameObjects, human, ai, keywordSnapshot)
         ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Stack, ZoneIds.STACK, bridge, zones, gameObjects, human, ai)
         ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Exile, ZoneIds.EXILE, bridge, zones, gameObjects, human, ai)
+        ZoneMapper.addSharedZoneCards(game, ForgeZoneType.Command, ZoneIds.COMMAND, bridge, zones, gameObjects, human, ai)
 
         // Stack abilities (triggers, activated abilities not represented as zone cards)
         ZoneMapper.addStackAbilities(game, bridge, zones, gameObjects, human)
