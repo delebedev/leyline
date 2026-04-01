@@ -95,6 +95,11 @@ RALPH.md
 .issues/
 node_modules/
 
+# Launcher (Tauri/Rust build artifacts)
+launcher/src-tauri/target/
+launcher/dist/
+launcher/bun.lockb
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db

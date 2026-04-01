@@ -250,6 +250,18 @@ bundle:
     ./gradlew bundleArchive --no-daemon
     @echo "Archive: $(ls build/dist/leyline-*.tar.gz)"
 
+# --- Launcher ---
+
+# dev mode — hot-reload frontend, server runs separately via `just serve`
+[group('launcher')]
+launcher-dev:
+    cd "{{project_dir}}/launcher" && bun tauri dev
+
+# build distributable .dmg (runs `bundle` first to produce sidecar)
+[group('launcher')]
+launcher-build: bundle
+    cd "{{project_dir}}/launcher" && TAURI_CONFIG='{"bundle":{"resources":{"../../build/bundle/**":"leyline/"}}}' bun tauri build
+
 # --- Docker ---
 
 # build Docker image for local use
