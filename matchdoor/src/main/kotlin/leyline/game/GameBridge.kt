@@ -206,6 +206,21 @@ class GameBridge(
      *  survives puzzle hot-swaps (which replace [cards] with InMemoryCardRepository). */
     private val cardRepository: CardRepository = cards
 
+    /**
+     * Ensure [CardData] for [grpId] is in the active [cards] repo.
+     * When puzzle mode swaps to [InMemoryCardRepository], tokens created at
+     * runtime won't be pre-registered. This copies from the client DB on demand.
+     */
+    fun ensureCardData(grpId: Int) {
+        if (grpId == 0) return
+        if (cards.findByGrpId(grpId) != null) return
+        val repo = cards as? InMemoryCardRepository ?: return
+        val data = cardRepository.findByGrpId(grpId) ?: return
+        val name = cardRepository.findNameByGrpId(grpId) ?: return
+        repo.registerData(data, name)
+        log.debug("ensureCardData: lazy-registered grpId={} name={}", grpId, name)
+    }
+
     // --- Composed components ---
 
     /** Card ID mapping (Forge cardId ↔ client instanceId). */
@@ -229,6 +244,9 @@ class GameBridge(
 
     /** Layered effect lifecycle tracker — synthetic IDs + P/T boost diffing. */
     val effects = EffectTracker()
+
+    /** Cached token grpId per instanceId — stable across diff ticks. */
+    val tokenRegistry = TokenIdentityRegistry()
 
     /**
      * Annotation ID sequences + persistent annotation lifecycle.
@@ -278,7 +296,10 @@ class GameBridge(
     /** Proto zone tracking — where the protocol last placed each instanceId. */
     fun getProtoZones(): Map<Int, Int> = diff.allZones()
 
-    override fun retireToLimbo(instanceId: InstanceId) = limbo.retire(instanceId.value)
+    override fun retireToLimbo(instanceId: InstanceId) {
+        limbo.retire(instanceId.value)
+        tokenRegistry.retire(instanceId.value)
+    }
 
     override fun getLimboInstanceIds(): List<InstanceId> = limbo.all().map { InstanceId(it) }
 

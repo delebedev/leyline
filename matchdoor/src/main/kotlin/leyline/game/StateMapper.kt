@@ -502,6 +502,17 @@ object StateMapper {
             emptyList()
         }
 
+        // TemporaryPermanent pAnn for copy tokens with EOT-sacrifice
+        val temporaryPermanentPersistent = if (game != null) {
+            bfCards.filter { it.isToken && it.copiedPermanent != null && it.hasSVar("EndOfTurnLeavePlay") }
+                .map { card ->
+                    val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+                    AnnotationBuilder.temporaryPermanent(iid)
+                }
+        } else {
+            emptyList()
+        }
+
         val (crewedThisTurnPersistent, crewTypeChangePersistent, crewExpiredAnnotations) =
             computeCrewAnnotations(bridge)
         annotations.addAll(crewExpiredAnnotations)
@@ -511,6 +522,7 @@ object StateMapper {
             qualificationPersistent = qualificationPersistent + mechanicResult.qualificationPersistent,
             crewedThisTurnPersistent = crewedThisTurnPersistent,
             crewTypeChangePersistent = crewTypeChangePersistent,
+            temporaryPermanentPersistent = temporaryPermanentPersistent,
         )
         val batch = PersistentAnnotationStore.computeBatch(
             currentActive = persistSnapshot,

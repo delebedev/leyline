@@ -918,6 +918,21 @@ object AnnotationBuilder {
             .addAffectedIds(instanceId)
             .build()
 
+    /**
+     * Copy token with EOT sacrifice. Persistent annotation. Arena type 80.
+     * Drives "sacrifice at end of turn" visual indicator on the client.
+     * [abilityGrpId] = 192424 (universal EOT-sacrifice marker observed in real server games).
+     */
+    fun temporaryPermanent(
+        tokenInstanceId: Int,
+        abilityGrpId: Int = 192424,
+    ): AnnotationInfo = AnnotationInfo.newBuilder()
+        .addType(AnnotationType.TemporaryPermanent)
+        .setAffectorId(tokenInstanceId)
+        .addAffectedIds(tokenInstanceId)
+        .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID_UPPER, abilityGrpId))
+        .build()
+
     /** Card in hidden zone revealed to opponent. Persistent badge. Arena type 75. */
     fun instanceRevealedToOpponent(instanceId: Int): AnnotationInfo =
         AnnotationInfo.newBuilder()

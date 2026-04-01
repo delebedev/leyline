@@ -39,8 +39,9 @@ function extractGsm(msg: any, timestamp: string | null): GsmSummary | null {
 
   const ti = gsm.turnInfo ?? {};
   const annotations = gsm.annotations ?? [];
+  const persistent = gsm.persistentAnnotations ?? [];
   const types = new Set<string>();
-  for (const ann of annotations) {
+  for (const ann of [...annotations, ...persistent]) {
     for (const t of ann.type ?? []) {
       types.add(t.replace("AnnotationType_", ""));
     }

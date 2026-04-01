@@ -509,6 +509,8 @@ object AnnotationPipeline {
         val crewedThisTurnPersistent: List<AnnotationInfo> = emptyList(),
         /** ModifiedType+LayeredEffect persistent annotations for crew type changes — full replacement set. */
         val crewTypeChangePersistent: List<AnnotationInfo> = emptyList(),
+        /** TemporaryPermanent pAnns for copy tokens with EOT-sacrifice — full replacement set. */
+        val temporaryPermanentPersistent: List<AnnotationInfo> = emptyList(),
     ) {
         /** Tracks an active controller-change effect for persistent annotation lifecycle. */
         data class ControllerChangedEffect(

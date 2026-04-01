@@ -112,7 +112,6 @@ class PersistentAnnotationStore {
         ): BatchResult {
             val active = currentActive.toMutableMap()
             val deletions = mutableListOf<Int>()
-            val revertedEffectIds = mutableListOf<Int>()
             var nextId = startPersistentId
 
             // 1. Effect lifecycle
@@ -184,6 +183,38 @@ class PersistentAnnotationStore {
                 { it.affectedIdsList.firstOrNull() ?: 0 },
             )
 
+            // 3f. TemporaryPermanent — full-replacement upsert (keyed by token affectorId)
+            nextId = upsertByType(
+                active,
+                deletions,
+                nextId,
+                AnnotationType.TemporaryPermanent,
+                mechanicResult.temporaryPermanentPersistent,
+                { it.affectorId },
+            )
+
+            // 4-6. Cleanup: detached auras, exile sources, controller reverts
+            val cleanupReverts = cleanupDetachedAndReverted(
+                active,
+                deletions,
+                mechanicResult,
+                resolveInstanceId,
+                resolveForgeCardId,
+            )
+
+            return BatchResult(active.values.toList(), deletions, nextId, cleanupReverts)
+        }
+
+        /** Steps 4-6: remove pAnns for detached auras, exile sources leaving play, controller reverts. */
+        private fun cleanupDetachedAndReverted(
+            active: MutableMap<Int, AnnotationInfo>,
+            deletions: MutableList<Int>,
+            mechanicResult: AnnotationPipeline.MechanicAnnotationResult,
+            resolveInstanceId: (ForgeCardId) -> InstanceId,
+            resolveForgeCardId: (InstanceId) -> ForgeCardId?,
+        ): List<Int> {
+            val revertedEffectIds = mutableListOf<Int>()
+
             // 4. Detached auras
             for (forgeCardId in mechanicResult.detachedForgeCardIds) {
                 val auraIid = resolveInstanceId(forgeCardId).value
@@ -195,10 +226,6 @@ class PersistentAnnotationStore {
             }
 
             // 5. Exile source left play — remove DisplayCardUnderCard
-            //    Reverse lookup: scan annotations, resolve affectorId back to forgeCardId,
-            //    check membership. This handles iid reallocation from zone transfers —
-            //    the annotation's affectorId is the OLD iid, but resolveForgeCardId
-            //    works for retired iids via the registry's retained mappings.
             val leftPlayForgeIds = mechanicResult.exileSourceLeftPlayForgeCardIds.toSet()
             if (leftPlayForgeIds.isNotEmpty()) {
                 for (annId in findExileSourcesLeavingPlay(active, leftPlayForgeIds, resolveForgeCardId)) {
@@ -207,8 +234,7 @@ class PersistentAnnotationStore {
                 }
             }
 
-            // 6. Controller-change revert — remove CC+LayeredEffect persistent annotations
-            //    and emit LayeredEffectDestroyed for the associated effect_id.
+            // 6. Controller-change revert
             for (forgeCardId in mechanicResult.controllerRevertedForgeCardIds) {
                 val cardIid = resolveInstanceId(forgeCardId).value
                 val annId = findControllerChanged(active, cardIid)
@@ -216,17 +242,14 @@ class PersistentAnnotationStore {
                     val ann = active[annId]
                     active.remove(annId)
                     deletions.add(annId)
-                    // Extract effect_id for LayeredEffectDestroyed emission
                     val effectId = ann?.detailsList
                         ?.firstOrNull { it.key == DetailKeys.EFFECT_ID && it.valueInt32Count > 0 }
                         ?.getValueInt32(0)
-                    if (effectId != null) {
-                        revertedEffectIds.add(effectId)
-                    }
+                    if (effectId != null) revertedEffectIds.add(effectId)
                 }
             }
 
-            return BatchResult(active.values.toList(), deletions, nextId, revertedEffectIds)
+            return revertedEffectIds
         }
 
         private fun findByEffectId(active: Map<Int, AnnotationInfo>, effectId: Int): Int? =

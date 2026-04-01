@@ -11,6 +11,7 @@ import leyline.game.CardRepository
 import leyline.game.EffectTracker
 import leyline.game.GameBridge
 import leyline.game.KeywordGrpIds
+import leyline.game.TokenIdentityRegistry
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.card.CardType.CoreType as ForgeCoreType
@@ -47,10 +48,11 @@ object ObjectMapper {
         bridge: GameBridge,
         visibility: Visibility = Visibility.Private,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cards)
+        val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry, bridge)
+        val objType = if (card.isToken) GameObjectType.Token else GameObjectType.Card
         return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
-            .setType(GameObjectType.Card)
+            .setType(objType)
             .setZoneId(zoneId)
             .setVisibility(visibility)
             .setOwnerSeatId(ownerSeatId)
@@ -74,13 +76,14 @@ object ObjectMapper {
         game: Game,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cards)
+        val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry, bridge)
+        val objType = if (card.isToken) GameObjectType.Token else GameObjectType.Card
         val extrinsicKws = keywordSnapshot[instanceId]
             ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
             ?: emptyList()
         return bridge.cardProto.buildObjectInfo(grpId, extrinsicKeywordGrpIds = extrinsicKws)
             .setInstanceId(instanceId)
-            .setType(GameObjectType.Card)
+            .setType(objType)
             .setZoneId(zoneId)
             .setVisibility(Visibility.Public)
             .setOwnerSeatId(ownerSeatId)
@@ -143,6 +146,12 @@ object ObjectMapper {
             if (type.isPlaneswalker) {
                 setLoyalty(UInt32Value.newBuilder().setValue(card.currentLoyalty))
             }
+        }
+
+        // Copy token identity — isCopy flag + source grpId (builder's proto field, set by resolveGrpId)
+        if (card.isToken && card.copiedPermanent != null) {
+            setIsCopy(true)
+            setObjectSourceGrpId(this.grpId)
         }
 
         // Attachment (Auras, Equipment)
@@ -223,10 +232,11 @@ object ObjectMapper {
         controllerSeatId: Int,
         bridge: GameBridge,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cards)
+        val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry, bridge)
+        val objType = if (card.isToken) GameObjectType.Token else GameObjectType.Card
         return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
-            .setType(GameObjectType.Card)
+            .setType(objType)
             .setZoneId(zoneId)
             .setVisibility(Visibility.Public)
             .setOwnerSeatId(ownerSeatId)
@@ -251,7 +261,7 @@ object ObjectMapper {
         viewerSeatId: Int,
         bridge: GameBridge,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cards)
+        val grpId = resolveGrpId(card, bridge.cards, proxyInstanceId, bridge.tokenRegistry, bridge)
         return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(proxyInstanceId)
             .setType(GameObjectType.RevealedCard)
@@ -304,14 +314,48 @@ object ObjectMapper {
         liveTypes.forEach { addCardTypes(it) }
     }
 
-    /** Resolve grpId for a card, using token-specific lookup for tokens. */
-    internal fun resolveGrpId(card: Card, cards: CardRepository): Int {
+    /**
+     * Resolve grpId for a card. Tokens use the [TokenIdentityRegistry] cache,
+     * falling back to the standard lookup chain on first encounter.
+     * Copy tokens (Forge `copiedPermanent != null`) use the source permanent's grpId.
+     */
+    internal fun resolveGrpId(
+        card: Card,
+        cards: CardRepository,
+        instanceId: Int = 0,
+        tokenRegistry: TokenIdentityRegistry? = null,
+        bridge: GameBridge? = null,
+    ): Int {
         if (card.isToken) {
-            return resolveTokenGrpId(card, cards) ?: run {
-                log.error("token grpId=0 for '{}' (forgeId={})", card.name, card.id)
-                DevCheck.fail { "token grpId=0 for '${card.name}' (forgeId=${card.id})" }
-                GameBridge.FALLBACK_GRPID
+            // 1. Registry cache — stable across diff ticks
+            tokenRegistry?.resolve(instanceId)?.let {
+                bridge?.ensureCardData(it)
+                return it
             }
+
+            // 2. Copy token — use source permanent's grpId
+            val copiedPermanent = card.copiedPermanent
+            if (copiedPermanent != null) {
+                val sourceGrpId = cards.findGrpIdByNameAnyFace(copiedPermanent.name)
+                    ?: run {
+                        log.error("copy token grpId=0: source '{}' not in card DB", copiedPermanent.name)
+                        return GameBridge.FALLBACK_GRPID
+                    }
+                if (instanceId != 0) tokenRegistry?.register(instanceId, sourceGrpId)
+                bridge?.ensureCardData(sourceGrpId)
+                return sourceGrpId
+            }
+
+            // 3. Standard token — AbilityIdToLinkedTokenGrpId lookup
+            val tokenGrpId = resolveTokenGrpId(card, cards)
+            if (tokenGrpId != null) {
+                if (instanceId != 0) tokenRegistry?.register(instanceId, tokenGrpId)
+                bridge?.ensureCardData(tokenGrpId)
+                return tokenGrpId
+            }
+            log.error("token grpId=0 for '{}' (forgeId={})", card.name, card.id)
+            DevCheck.fail { "token grpId=0 for '${card.name}' (forgeId=${card.id})" }
+            return GameBridge.FALLBACK_GRPID
         }
         return cards.findGrpIdByName(card.name) ?: run {
             log.error("grpId=0 for card '{}' (forgeId={}): not in client card DB", card.name, card.id)
