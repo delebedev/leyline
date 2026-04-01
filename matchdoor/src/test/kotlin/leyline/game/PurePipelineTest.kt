@@ -2,14 +2,19 @@ package leyline.game
 
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
+import leyline.conformance.detailInt
+import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GameObjectInfo
+import wotc.mtgo.gre.external.messaging.Messages.GameObjectType
 import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
@@ -261,5 +266,170 @@ class PurePipelineTest :
 
             result.annotations.shouldBeEmpty()
             result.hasCombatDamage shouldBe false
+        }
+
+        // -----------------------------------------------------------------------
+        // Stack ability lifecycle: appearance + disappearance detection
+        // -----------------------------------------------------------------------
+
+        // Source card forgeId=42, ability forgeId=42+100_000=100_042.
+        // Source card instanceId=300, ability instanceId=500.
+        val sourceForgeId = ForgeCardId(42)
+        val abilityForgeId = ForgeCardId(42 + ObjectMapper.STACK_ABILITY_ID_OFFSET)
+        val sourceCardIid = 300
+        val abilityIid = 500
+        val cardGrpId = 12345
+
+        fun abilityObject(instanceId: Int = abilityIid, grpId: Int = cardGrpId): GameObjectInfo =
+            GameObjectInfo.newBuilder()
+                .setInstanceId(instanceId)
+                .setGrpId(grpId)
+                .setZoneId(ZoneIds.STACK)
+                .setOwnerSeatId(1)
+                .setType(GameObjectType.Ability)
+                .build()
+
+        /** Standard lookup: maps ability instanceId → ability forgeId, source instanceId → source forgeId. */
+        val forgeIdLookup: (InstanceId) -> ForgeCardId? = { iid ->
+            when (iid.value) {
+                abilityIid -> abilityForgeId
+                sourceCardIid -> sourceForgeId
+                else -> null
+            }
+        }
+        val idLookup: (ForgeCardId) -> InstanceId = { fid ->
+            when (fid) {
+                sourceForgeId -> InstanceId(sourceCardIid)
+                abilityForgeId -> InstanceId(abilityIid)
+                else -> InstanceId(fid.value + 1000)
+            }
+        }
+        val noOpAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation = { fid ->
+            InstanceIdRegistry.IdReallocation(InstanceId(fid.value), InstanceId(fid.value))
+        }
+
+        test("detectZoneTransfers finds new stack ability appearance") {
+            val obj = abilityObject()
+            val zones = listOf(
+                zone(ZoneIds.STACK, ZoneType.Stack, abilityIid),
+                zone(ZoneIds.LIMBO, ZoneType.Limbo),
+            )
+            // Source card is on the battlefield in previous state.
+            val previousZones = mapOf(sourceCardIid to ZoneIds.BATTLEFIELD)
+
+            val result = AnnotationPipeline.detectZoneTransfers(
+                gameObjects = listOf(obj),
+                zones = zones,
+                events = emptyList(),
+                previousZones = previousZones,
+                forgeIdLookup = forgeIdLookup,
+                idAllocator = noOpAllocator,
+                idLookup = idLookup,
+            )
+
+            result.transfers.shouldBeEmpty()
+            result.stackAbilityAppearances shouldHaveSize 1
+            val a = result.stackAbilityAppearances[0]
+            a.abilityInstanceId shouldBe abilityIid
+            a.sourceCardInstanceId shouldBe sourceCardIid
+            a.sourceZoneId shouldBe ZoneIds.BATTLEFIELD
+            a.grpId shouldBe cardGrpId
+        }
+
+        test("detectZoneTransfers finds stack ability disappearance") {
+            // Ability was on the stack, now gone. SpellResolved event for the source card.
+            val zones = listOf(zone(ZoneIds.STACK, ZoneType.Stack), zone(ZoneIds.LIMBO, ZoneType.Limbo))
+            val previousZones = mapOf(abilityIid to ZoneIds.STACK, sourceCardIid to ZoneIds.BATTLEFIELD)
+            val events = listOf(GameEvent.SpellResolved(cardId = sourceForgeId, hasFizzled = false))
+
+            val result = AnnotationPipeline.detectZoneTransfers(
+                gameObjects = emptyList(),
+                zones = zones,
+                events = events,
+                previousZones = previousZones,
+                forgeIdLookup = forgeIdLookup,
+                idAllocator = noOpAllocator,
+                idLookup = idLookup,
+                grpIdResolver = { fid -> if (fid == sourceForgeId) cardGrpId else 0 },
+            )
+
+            result.stackAbilityDisappearances shouldHaveSize 1
+            val d = result.stackAbilityDisappearances[0]
+            d.abilityInstanceId shouldBe abilityIid
+            d.sourceCardInstanceId shouldBe sourceCardIid
+            d.grpId shouldBe cardGrpId
+            d.hasFizzled shouldBe false
+        }
+
+        test("stack ability fizzle sets hasFizzled") {
+            val zones = listOf(zone(ZoneIds.STACK, ZoneType.Stack), zone(ZoneIds.LIMBO, ZoneType.Limbo))
+            val previousZones = mapOf(abilityIid to ZoneIds.STACK, sourceCardIid to ZoneIds.BATTLEFIELD)
+            val events = listOf(GameEvent.SpellResolved(cardId = sourceForgeId, hasFizzled = true))
+
+            val result = AnnotationPipeline.detectZoneTransfers(
+                gameObjects = emptyList(),
+                zones = zones,
+                events = events,
+                previousZones = previousZones,
+                forgeIdLookup = forgeIdLookup,
+                idAllocator = noOpAllocator,
+                idLookup = idLookup,
+                grpIdResolver = { fid -> if (fid == sourceForgeId) cardGrpId else 0 },
+            )
+
+            result.stackAbilityDisappearances shouldHaveSize 1
+            result.stackAbilityDisappearances[0].hasFizzled shouldBe true
+        }
+
+        test("annotation shape for stack ability appearance") {
+            val ann = AnnotationBuilder.abilityInstanceCreated(
+                abilityInstanceId = abilityIid,
+                affectorId = sourceCardIid,
+                sourceZoneId = ZoneIds.BATTLEFIELD,
+            )
+
+            ann.typeList shouldBe listOf(AnnotationType.AbilityInstanceCreated)
+            ann.affectorId shouldBe sourceCardIid
+            ann.affectedIdsList shouldBe listOf(abilityIid)
+            ann.detailInt("source_zone") shouldBe ZoneIds.BATTLEFIELD
+        }
+
+        test("annotation shape for resolved disappearance includes resolution pair") {
+            val disappearance = AnnotationPipeline.StackAbilityDisappearance(
+                abilityInstanceId = abilityIid,
+                sourceCardInstanceId = sourceCardIid,
+                grpId = cardGrpId,
+                hasFizzled = false,
+            )
+
+            // Simulate what computeAnnotations does.
+            val annotations = mutableListOf<AnnotationInfo>()
+            annotations.add(AnnotationBuilder.resolutionStart(disappearance.abilityInstanceId, disappearance.grpId))
+            annotations.add(AnnotationBuilder.resolutionComplete(disappearance.abilityInstanceId, disappearance.grpId))
+            annotations.add(AnnotationBuilder.abilityInstanceDeleted(disappearance.abilityInstanceId, disappearance.sourceCardInstanceId))
+
+            annotations shouldHaveSize 3
+            annotations[0].typeList shouldBe listOf(AnnotationType.ResolutionStart)
+            annotations[1].typeList shouldBe listOf(AnnotationType.ResolutionComplete)
+            annotations[2].typeList shouldBe listOf(AnnotationType.AbilityInstanceDeleted)
+        }
+
+        test("fizzled disappearance skips resolution annotations") {
+            val disappearance = AnnotationPipeline.StackAbilityDisappearance(
+                abilityInstanceId = abilityIid,
+                sourceCardInstanceId = sourceCardIid,
+                grpId = cardGrpId,
+                hasFizzled = true,
+            )
+
+            val annotations = mutableListOf<AnnotationInfo>()
+            if (!disappearance.hasFizzled) {
+                annotations.add(AnnotationBuilder.resolutionStart(disappearance.abilityInstanceId, disappearance.grpId))
+                annotations.add(AnnotationBuilder.resolutionComplete(disappearance.abilityInstanceId, disappearance.grpId))
+            }
+            annotations.add(AnnotationBuilder.abilityInstanceDeleted(disappearance.abilityInstanceId, disappearance.sourceCardInstanceId))
+
+            annotations shouldHaveSize 1
+            annotations[0].typeList shouldBe listOf(AnnotationType.AbilityInstanceDeleted)
         }
     })

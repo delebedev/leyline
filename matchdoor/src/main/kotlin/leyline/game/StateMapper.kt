@@ -666,6 +666,21 @@ object StateMapper {
             annotations.addAll(transient)
             transferPersistent.addAll(persistent)
         }
+        // Stack ability lifecycle: triggered abilities appearing/disappearing.
+        for (a in transferResult.stackAbilityAppearances) {
+            annotations.add(
+                AnnotationBuilder.abilityInstanceCreated(a.abilityInstanceId, a.sourceCardInstanceId, a.sourceZoneId),
+            )
+        }
+        for (d in transferResult.stackAbilityDisappearances) {
+            if (!d.hasFizzled) {
+                annotations.add(AnnotationBuilder.resolutionStart(d.abilityInstanceId, d.grpId))
+                annotations.add(AnnotationBuilder.resolutionComplete(d.abilityInstanceId, d.grpId))
+            }
+            annotations.add(
+                AnnotationBuilder.abilityInstanceDeleted(d.abilityInstanceId, d.sourceCardInstanceId),
+            )
+        }
         for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
             annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId.value, ev.phase, ev.step))
         }
