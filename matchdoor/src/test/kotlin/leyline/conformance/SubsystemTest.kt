@@ -107,7 +107,7 @@ abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
         game.action.exile(card, null, AbilityKey.newMap())
     }
 
-    /** Find card by name, perform action, return (gsm, newInstanceId). */
+    /** Find card by name, perform action, assert realloc + Limbo, return (gsm, newInstanceId). */
     fun transferCard(
         b: GameBridge,
         game: Game,
@@ -119,10 +119,15 @@ abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
         val player = humanPlayer(b)
         val card = listOf(ZoneType.Battlefield, ZoneType.Hand, ZoneType.Library, ZoneType.Graveyard, ZoneType.Exile)
             .firstNotNullOf { zone -> player.getZone(zone).cards.firstOrNull { it.name == cardName } }
+        val origId = b.instanceId(card.id)
         val cardId = card.id
 
         val gsm = capture(b, game, counter, checkSba = checkSba) { action(card, game) }
         val newId = b.instanceId(cardId)
+
+        // Every zone transfer reallocates instanceId and retires the old one to Limbo
+        check(origId != newId) { "instanceId should change on zone transfer ($cardName): $origId" }
+        assertLimboContains(gsm, origId)
 
         return gsm to newId
     }
