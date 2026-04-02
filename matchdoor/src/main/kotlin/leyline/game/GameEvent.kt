@@ -57,12 +57,12 @@ enum class Zone {
 sealed interface GameEvent {
 
     /** A land was played from hand to battlefield.
-     *  [colorBitmasks] = per-mana-ability color bitmask (1=W, 2=U, 4=B, 8=R, 16=G).
+     *  [colorOrdinals] = Arena ManaColor proto ordinals (W=1, U=2, B=3, R=4, G=5).
      *  Single-ability lands produce one entry; dual/multi-lands produce multiple. */
     data class LandPlayed(
         val cardId: ForgeCardId,
         val seatId: SeatId,
-        val colorBitmasks: List<Int> = emptyList(),
+        val colorOrdinals: List<Int> = emptyList(),
     ) : GameEvent
 
     /** One mana globe spent to pay for a spell. */

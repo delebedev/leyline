@@ -117,12 +117,12 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
     override fun visit(ev: GameEventLandPlayed) {
         val seat = seatOf(ev.player()) ?: return
-        val colorBitmasks = bridge.getGame()
+        val colorOrdinals = bridge.getGame()
             ?.findById(ev.land().id)
-            ?.let(::computeColorBitmasks)
+            ?.let(::computeColorOrdinals)
             ?: emptyList()
-        queue.add(GameEvent.LandPlayed(ForgeCardId(ev.land().id), seat, colorBitmasks))
-        log.debug("event: LandPlayed card={} seat={} colors={}", ev.land().name, seat, colorBitmasks)
+        queue.add(GameEvent.LandPlayed(ForgeCardId(ev.land().id), seat, colorOrdinals))
+        log.debug("event: LandPlayed card={} seat={} colors={}", ev.land().name, seat, colorOrdinals)
     }
 
     override fun visit(ev: GameEventSpellAbilityCast) {
@@ -480,20 +480,19 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     }
 
     /**
-     * Compute color bitmask(s) from a land's mana abilities.
-     * Each mana ability produces one bitmask entry (OR of its color chars).
+     * Compute Arena color ordinals from a land's mana abilities.
+     * Each mana ability contributes one Arena ordinal per color it produces.
      * Basic lands → single entry (e.g. [2] for Island).
-     * Dual/multi-lands → multiple entries (e.g. [4, 5] for Orzhov Gate).
-     * Uses Forge's MagicColor bitmask which matches Arena's (1=W, 2=U, 4=B, 8=R, 16=G).
+     * Dual/multi-lands → multiple entries (e.g. [3, 1] for Orzhov Gate).
+     * Maps through [ManaColorMapping.fromProduced] → ManaColor proto ordinal
+     * (W=1, U=2, B=3, R=4, G=5).
      */
-    private fun computeColorBitmasks(card: forge.game.card.Card): List<Int> =
+    private fun computeColorOrdinals(card: forge.game.card.Card): List<Int> =
         card.getManaAbilities()
-            .mapNotNull { sa ->
-                val produced = sa.manaPart?.origProduced ?: return@mapNotNull null
-                var bitmask = 0
-                for (ch in produced) {
-                    bitmask = bitmask or forge.card.MagicColor.fromName(ch).toInt()
+            .flatMap { sa ->
+                val produced = sa.manaPart?.origProduced ?: return@flatMap emptyList()
+                produced.mapNotNull { ch ->
+                    ManaColorMapping.fromProduced(ch.toString())?.number
                 }
-                if (bitmask != 0) bitmask else null
             }
 }
