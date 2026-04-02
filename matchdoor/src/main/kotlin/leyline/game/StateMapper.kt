@@ -544,8 +544,9 @@ object StateMapper {
         bridge.annotations.addSteals(mechanicResult.controllerChangedEffects.map { it.forgeCardId })
         bridge.annotations.removeSteals(mechanicResult.controllerRevertedForgeCardIds)
 
+        val ordered = AnnotationOrderEnforcer.enforce(annotations)
         var annId = startAnnotationId
-        val numbered = annotations.map { it.toBuilder().setId(annId++).build() }
+        val numbered = ordered.map { it.toBuilder().setId(annId++).build() }
         return RemainingAnnotationsResult(numbered, batch.allAnnotations, batch, annId)
     }
 

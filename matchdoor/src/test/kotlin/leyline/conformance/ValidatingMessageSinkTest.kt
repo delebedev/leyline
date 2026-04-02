@@ -323,6 +323,66 @@ class ValidatingMessageSinkTest :
             }.message!!.lowercase() shouldContain "violation"
         }
 
+        // --- annotation ordering ---
+
+        test("Detects ObjectIdChanged after annotation referencing its newId") {
+            val sink = lenientSink()
+
+            val zt = AnnotationInfo.newBuilder()
+                .setId(1)
+                .addType(AnnotationType.ZoneTransfer_af5a)
+                .addAffectedIds(200) // references newId=200
+                .build()
+            val oic = AnnotationInfo.newBuilder()
+                .setId(2)
+                .addType(AnnotationType.ObjectIdChanged)
+                .addAffectedIds(100) // origId
+                .addDetails(
+                    KeyValuePairInfo.newBuilder()
+                        .setKey("new_id")
+                        .addValueInt32(200),
+                )
+                .build()
+
+            // Wrong order: ZT before OIC
+            val badGsm = gsm(gsId = 1, type = GameStateType.Full, annotations = listOf(zt, oic))
+            sink.send(listOf(greMessage(msgId = 1, gsm = badGsm)))
+
+            sink.violations.shouldExist { "annotation ordering violation" in it }
+        }
+
+        test("No violation when ObjectIdChanged precedes referencing annotation") {
+            val sink = lenientSink()
+
+            val oic = AnnotationInfo.newBuilder()
+                .setId(1)
+                .addType(AnnotationType.ObjectIdChanged)
+                .addAffectedIds(100)
+                .addDetails(
+                    KeyValuePairInfo.newBuilder()
+                        .setKey("new_id")
+                        .addValueInt32(200),
+                )
+                .build()
+            val zt = AnnotationInfo.newBuilder()
+                .setId(2)
+                .addType(AnnotationType.ZoneTransfer_af5a)
+                .addAffectedIds(200)
+                .build()
+
+            // Include game objects so referential integrity check passes
+            val obj200 = GameObjectInfo.newBuilder().setInstanceId(200).build()
+            val goodGsm = GameStateMessage.newBuilder()
+                .setGameStateId(1)
+                .setType(GameStateType.Full)
+                .addAllAnnotations(listOf(oic, zt))
+                .addGameObjects(obj200)
+                .build()
+            sink.send(listOf(greMessage(msgId = 1, gsm = goodGsm)))
+
+            sink.violations.shouldBeEmpty()
+        }
+
         // --- seedFull ---
 
         test("seedFull populates gsId tracking so subsequent diffs validate correctly") {
