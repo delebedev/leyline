@@ -645,6 +645,14 @@ class MatchFlowHarness(
         drainSink()
     }
 
+    // --- Optional cost helpers ---
+
+    /** Respond to a CastingTimeOptionsReq with the given ctoId (kicker, buyback). */
+    fun respondToOptionalCost(ctoId: Int) {
+        session.onCastingTimeOptions(optionalCostResp(ctoId))
+        drainSink()
+    }
+
     // --- Message inspection ---
 
     /** Snapshot current message count for later comparison with [messagesSince]. */
