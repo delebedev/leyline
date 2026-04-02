@@ -93,6 +93,18 @@ When consolidating, check if tests are truly independent or redundant:
 - **`persistentAnnotation(type)` may return a different card's annotation.** When multiple cards have the same persistent annotation type (e.g., EnteredZoneThisTurn for both a land and a creature), filter by `affectedIdsList` to find the right one.
 - **`annotationOrNull` + `shouldNotBeNull()` is an anti-pattern** when you expect the annotation to exist. Use `annotation(type)` directly — it fails with a clear message ("No annotation of type X") vs the opaque "expected non-null but was null". Reserve `annotationOrNull` for genuinely optional annotations (e.g., "if present, check shape").
 
+## Wiring tests are superseded by interaction tests
+
+A test that only asserts "the bridge accepted this action" or "the action wasn't silently converted to PassPriority" is redundant once an interaction test exercises the same path end-to-end. If an interaction test activates an ability and the effect lands (damage dealt, token created, card drawn), the bridge accepted it — no separate wiring assertion needed. When consolidating, delete wiring-only tests when an interaction test covers the same action type.
+
+## Prefer puzzles over multi-turn setup sequences
+
+Tests that use `startGameAtMain1` with manual setup loops (play land, cast creature, resolve, check if card landed, repeat) are fragile — seed-dependent board state, silent skips when setup fails, multi-turn advancement with unpredictable AI interleaving. Convert these to `startPuzzle` with declarative board state. Puzzles are deterministic, faster to read, and never fail at setup.
+
+**Before (fragile):** boot game → play land → cast creature → resolve → check battlefield → hope seed cooperated → test the real thing.
+
+**After (declarative):** `startPuzzle` with the card already on battlefield → test the real thing.
+
 ## What moves, what stays — decision rules
 
 The consolidation author (human) decides what moves. The implementing agent gets an explicit list. Rules of thumb:
