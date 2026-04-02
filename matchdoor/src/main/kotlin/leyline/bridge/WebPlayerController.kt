@@ -67,10 +67,10 @@ import org.slf4j.LoggerFactory
  *   → [GameActionBridge.awaitAction] to block until the client responds.
  *
  * - [playChosenSpellAbility]: Resolves the chosen spell through Forge's
- *   [PlaySpellAbility] path (costs, targets, mana). **Cannot use
- *   [InteractivePromptBridge] for optional cost decisions here** — the engine
- *   thread is already blocked in this call, and auto-pass can't run until the
- *   engine returns. Auto-accepts optional costs instead.
+ *   [PlaySpellAbility] path (costs, targets, mana). Reads the stashed optional
+ *   cost decision from [InteractivePromptBridge.stashedOptionalCostIndices]
+ *   (set by [TargetingHandler][leyline.match.TargetingHandler] after client
+ *   responds to CastingTimeOptionsReq). Falls back to auto-accept when no stash.
  *
  * - [declareAttackers] / [declareBlockers]: Same pattern as
  *   [chooseSpellAbilityToPlay] — notify → await → translate → submit.
@@ -1132,15 +1132,17 @@ class WebPlayerController(
             return true
         }
 
-        // Auto-apply optional additional costs (kicker, buyback, etc.) BEFORE
-        // the spell hits the stack. Can't use InteractivePromptBridge here (deadlock —
-        // engine thread is blocked, auto-pass can't run until engine returns).
-        // Auto-accept all optional costs; engine checks mana during payment.
+        // Apply optional costs (kicker, buyback, etc.) BEFORE playAbility.
+        // Can't delegate to PlaySpellAbility.chooseOptionalAdditionalCosts() because
+        // it calls getAbilityToPlay() which blocks on InteractivePromptBridge — deadlock
+        // since the engine thread is already in this call.
+        // Instead, read the stashed decision from TargetingHandler (set after client
+        // responded to CastingTimeOptionsReq). Fallback: auto-accept all (test harness).
         var sa = chosenSa
         val optionalCosts = forge.game.GameActionUtil.getOptionalCostValues(sa)
         if (optionalCosts.isNotEmpty()) {
-            log.info("playChosenSpellAbility: auto-accepting {} optional costs for {}", optionalCosts.size, sa.hostCard?.name)
-            sa = forge.game.GameActionUtil.addOptionalCosts(sa, optionalCosts)
+            val chosen = chooseOptionalCosts(sa, optionalCosts)
+            sa = forge.game.GameActionUtil.addOptionalCosts(sa, chosen)
         }
 
         sa.hostCard?.setSplitStateToPlayAbility(sa)

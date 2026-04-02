@@ -112,6 +112,69 @@ class KickerTest :
             ai.life shouldBe 0
         }
 
+        test("Burst Lightning unkicked deals 2 damage when kicker declined") {
+            val pzl = """
+            [metadata]
+            Name:Unkicked Lightning
+            Goal:Win
+            Turns:1
+            Difficulty:Easy
+            Description:Cast Burst Lightning without kicker — deals 2 not 4.
+
+            [state]
+            ActivePlayer=Human
+            ActivePhase=Main1
+            HumanLife=20
+            AILife=2
+
+            humanhand=Burst Lightning
+            humanbattlefield=Mountain;Mountain;Mountain;Mountain;Mountain
+            humanlibrary=Mountain
+            aibattlefield=Centaur Courser
+            ailibrary=Mountain
+            """.trimIndent()
+
+            val h = MatchFlowHarness(seed = 42L, validating = false)
+            harness = h
+            h.connectAndKeepPuzzleText(pzl)
+
+            val human = h.game().registeredPlayers.first()
+            val ai = h.game().registeredPlayers.last()
+
+            // Cast Burst Lightning — triggers optional cost prompt
+            val snap = h.messageSnapshot()
+            h.castSpellByName("Burst Lightning").shouldBeTrue()
+            val castMessages = h.messagesSince(snap)
+
+            val ctoReqMsg = castMessages.firstOrNull { it.hasCastingTimeOptionsReq() }
+            ctoReqMsg.shouldNotBeNull()
+
+            // Decline kicker — send Done (ctoId=0)
+            val doneOption = ctoReqMsg.castingTimeOptionsReq.castingTimeOptionReqList.first {
+                it.castingTimeOptionType == CastingTimeOptionType.Done
+            }
+            val doneResp = clientMessage(ClientMessageType.CastingTimeOptionsResp_097b) {
+                setCastingTimeOptionsResp(
+                    CastingTimeOptionsResp.newBuilder()
+                        .setCastingTimeOptionResp(
+                            CastingTimeOptionResp.newBuilder().setCtoId(doneOption.ctoId),
+                        ),
+                )
+            }
+            h.session.onCastingTimeOptions(doneResp)
+            h.drainSink()
+
+            // Target opponent (seatId 2)
+            h.selectTargets(listOf(2))
+
+            // Resolve — unkicked deals 2 damage, AI at 2 → 0
+            h.passUntil(maxPasses = 20) { isGameOver() || ai.life <= 0 }.shouldBeTrue()
+
+            h.isGameOver().shouldBeTrue()
+            human.hasWon().shouldBeTrue()
+            ai.life shouldBe 0
+        }
+
         test("optional cost response gates targeting prompt") {
             val pzl = """
             [metadata]
