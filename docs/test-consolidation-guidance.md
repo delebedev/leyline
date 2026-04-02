@@ -91,6 +91,7 @@ When consolidating, check if tests are truly independent or redundant:
 - **`(a < b).shouldBeTrue()`** gives terrible failure messages ("expected true but was false"). When possible, assert the type list directly with `shouldBe listOf(...)`. When ordering between non-consecutive items, `(a < b).shouldBeTrue()` is acceptable but add a comment explaining what's being checked.
 - **`uint >= 0` is always true** — don't assert tautologies. Use `shouldBeGreaterThan 0` or `shouldNotBe 0` if the value must be positive.
 - **`persistentAnnotation(type)` may return a different card's annotation.** When multiple cards have the same persistent annotation type (e.g., EnteredZoneThisTurn for both a land and a creature), filter by `affectedIdsList` to find the right one.
+- **`annotationOrNull` + `shouldNotBeNull()` is an anti-pattern** when you expect the annotation to exist. Use `annotation(type)` directly — it fails with a clear message ("No annotation of type X") vs the opaque "expected non-null but was null". Reserve `annotationOrNull` for genuinely optional annotations (e.g., "if present, check shape").
 
 ## What moves, what stays — decision rules
 

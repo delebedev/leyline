@@ -88,14 +88,17 @@ Prefer concise helpers from `TestExtensions.kt` over verbose manual patterns.
 ### Annotation lookup
 
 ```kotlin
-// Good: throws with clear message if missing
+// Good: throws with clear message ("No annotation of type ZoneTransfer")
 val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
 
-// Avoid inside assertSoftly — the "soft" null check is illusory
-// since downstream lines depend on the value being non-null
+// Bad: annotationOrNull + shouldNotBeNull gives opaque "expected non-null but was null"
 val zt = gsm.annotationOrNull(AnnotationType.ZoneTransfer_af5a).shouldNotBeNull()
 
-// annotationOrNull is for genuinely optional annotations (e.g. "if present, check shape")
+// Same applies to persistent annotations:
+val cp = gsm.persistentAnnotation(AnnotationType.ColorProduction) // Good
+val cp = gsm.persistentAnnotationOrNull(AnnotationType.ColorProduction).shouldNotBeNull() // Bad
+
+// annotationOrNull is ONLY for genuinely optional annotations (e.g. "if present, check shape")
 ```
 
 ### Detail extraction

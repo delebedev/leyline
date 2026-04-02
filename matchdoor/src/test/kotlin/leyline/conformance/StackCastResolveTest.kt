@@ -8,7 +8,6 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.bridge.ForgeCardId
@@ -18,7 +17,6 @@ import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
-import wotc.mtgo.gre.external.messaging.Messages.ZoneType as ProtoZoneType
 
 /**
  * Stack/cast/resolve subsystem tests.
@@ -124,8 +122,10 @@ class StackCastResolveTest :
                 castUat.affectedIdsList shouldContain newId
 
                 // AIC references the mana ability, not the spell
-                (newId in gsm.annotation(AnnotationType.AbilityInstanceCreated)
-                    .affectedIdsList) shouldBe false
+                (
+                    newId in gsm.annotation(AnnotationType.AbilityInstanceCreated)
+                        .affectedIdsList
+                    ) shouldBe false
             }
         }
 

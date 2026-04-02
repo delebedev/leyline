@@ -2,8 +2,8 @@ package leyline.conformance
 
 import forge.game.zone.ZoneType
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
@@ -48,9 +48,8 @@ class RevealTest :
                 b.promptBridge(1).recordReveal(listOf(ForgeCardId(handCard.id)), SeatId(1))
             }
 
-            val revealAnn = gsm.annotationOrNull(AnnotationType.RevealedCardCreated)
-            revealAnn.shouldNotBeNull()
-            revealAnn.affectedIdsList.contains(instanceId.value).shouldBeTrue()
+            gsm.annotation(AnnotationType.RevealedCardCreated)
+                .affectedIdsList shouldContain instanceId.value
         }
 
         test("multi-card reveal produces one annotation per card") {
@@ -60,13 +59,12 @@ class RevealTest :
                 addCard("Grizzly Bears", human, ZoneType.Hand)
             }
             val handCards = game.humanPlayer.getZone(ZoneType.Hand).cards.toList()
-            val cardCount = handCards.size
 
             val gsm = capture(b, game, counter) {
                 b.promptBridge(1).recordReveal(handCards.map { ForgeCardId(it.id) }, SeatId(1))
             }
 
-            gsm.annotations(AnnotationType.RevealedCardCreated) shouldHaveSize cardCount
+            gsm.annotations(AnnotationType.RevealedCardCreated) shouldHaveSize 3
         }
 
         test("no reveal produces no RevealedCardCreated annotation") {
@@ -100,14 +98,12 @@ class RevealTest :
                     proxy.visibility shouldBe Visibility.Public
                     proxy.zoneId shouldBe ZoneIds.P2_HAND
                     proxy.ownerSeatId shouldBe 2
-                    proxy.viewersCount shouldBeGreaterThan 0
+                    proxy.viewersCount shouldBe 1
                 }
             }
 
             val revealedZone = gsm.zonesList.first { it.zoneId == ZoneIds.REVEALED_P2 }
             revealedZone.objectInstanceIdsList shouldHaveSize 2
-
-            b.promptBridge(1).activeReveal = null
         }
 
         test("active reveal flips opponent hand to Public visibility") {
@@ -129,8 +125,6 @@ class RevealTest :
             }
             handCards shouldHaveSize 1
             handCards.first().visibility shouldBe Visibility.Public
-
-            b.promptBridge(1).activeReveal = null
         }
 
         test("stale activeReveal without pending prompt is auto-cleared") {
