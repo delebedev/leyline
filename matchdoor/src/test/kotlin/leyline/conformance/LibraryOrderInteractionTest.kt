@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import io.kotest.assertions.assertSoftly
+import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
@@ -67,9 +68,10 @@ class LibraryOrderInteractionTest :
             player.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Grizzly Bears"
         }
 
-        test("surveil 1 — put in graveyard moves card") {
+        test("surveil 1 — put in graveyard moves card and produces Surveil annotation") {
             startPuzzle(surveil1Puzzle)
             val player = human
+            val snap = harness.messageSnapshot()
             val cardIds = harness.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             harness.respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
@@ -82,11 +84,18 @@ class LibraryOrderInteractionTest :
             // Library top is now Forest (Bears was removed)
             player.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Forest"
 
+            // ZoneTransfer annotation with Surveil category and non-zero affectorId
+            val annotations = harness.annotationsSince(snap)
+            val surveilZt = annotations.firstOrNull { ann ->
+                ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
+                    ann.detailString("category") == "Surveil"
+            }
+            surveilZt.shouldNotBeNull()
+            surveilZt.affectedIdsList shouldHaveSize 1
+            (surveilZt.affectorId != 0).shouldBeTrue()
+
             harness.accumulator.assertConsistent("after surveil to graveyard")
         }
-
-        // Surveil ZoneTransfer annotation shape (category + affectorId) is tested
-        // at board level in ZoneTransferTest.
 
         // --- Surveil 2 (Sterling Hound: ETB surveil 2) ---
 
