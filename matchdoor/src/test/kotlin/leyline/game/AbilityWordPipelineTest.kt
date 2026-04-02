@@ -26,7 +26,7 @@ class AbilityWordPipelineTest :
             abilityWordPersistent: List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo> = emptyList(),
             qualificationPersistent: List<wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo> = emptyList(),
         ) =
-            AnnotationPipeline.MechanicAnnotationResult(
+            MechanicAnnotationResult(
                 transient = emptyList(),
                 persistent = emptyList(),
                 abilityWordPersistent = abilityWordPersistent,

@@ -48,7 +48,7 @@ object ObjectMapper {
         bridge: GameBridge,
         visibility: Visibility = Visibility.Private,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry, bridge)
+        val grpId = bridge.resolveGrpId(card, instanceId)
         val objType = if (card.isToken) GameObjectType.Token else GameObjectType.Card
         return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
@@ -76,7 +76,7 @@ object ObjectMapper {
         game: Game,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry, bridge)
+        val grpId = bridge.resolveGrpId(card, instanceId)
         val objType = if (card.isToken) GameObjectType.Token else GameObjectType.Card
         val extrinsicKws = keywordSnapshot[instanceId]
             ?.mapNotNull { KeywordGrpIds.forKeyword(it.keyword) }
@@ -232,7 +232,7 @@ object ObjectMapper {
         controllerSeatId: Int,
         bridge: GameBridge,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cards, instanceId, bridge.tokenRegistry, bridge)
+        val grpId = bridge.resolveGrpId(card, instanceId)
         val objType = if (card.isToken) GameObjectType.Token else GameObjectType.Card
         return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(instanceId)
@@ -261,7 +261,7 @@ object ObjectMapper {
         viewerSeatId: Int,
         bridge: GameBridge,
     ): GameObjectInfo {
-        val grpId = resolveGrpId(card, bridge.cards, proxyInstanceId, bridge.tokenRegistry, bridge)
+        val grpId = bridge.resolveGrpId(card, proxyInstanceId)
         return bridge.cardProto.buildObjectInfo(grpId)
             .setInstanceId(proxyInstanceId)
             .setType(GameObjectType.RevealedCard)

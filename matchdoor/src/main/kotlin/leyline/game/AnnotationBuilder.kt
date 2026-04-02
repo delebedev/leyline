@@ -42,7 +42,10 @@ import wotc.mtgo.gre.external.messaging.Messages.KeyValuePairValueType
  *
  * Authoritative client parser reference: from Arena client decompilation (annotation registry)
  *
- * @see AnnotationPipeline for the pipeline that calls these builders
+ * @see ZoneTransferDetector for zone transfer detection
+ * @see TransferAnnotations for transfer-stage annotation generation
+ * @see CombatAnnotations for combat-stage annotations
+ * @see MechanicAnnotations for mechanic and effect annotations
  * @see GameEvent for the Forge→protocol event translation layer
  * @see TransferCategory for the category label enum
  */
@@ -55,7 +58,7 @@ object AnnotationBuilder {
      * Looks up the forge card ID in the event list and returns the category
      * based on the **most specific** event (LandPlayed > ZoneChanged, etc.).
      * Returns null if no matching event was found — caller should fall back
-     * to [StateMapper.inferCategory].
+     * to [ZoneTransferDetector.inferCategory].
      *
      * Priority: specific mechanic events > CardSacrificed override > zone-pair inference.
      */

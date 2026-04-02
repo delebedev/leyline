@@ -755,40 +755,21 @@ class TargetingHandler(private val ops: SessionOps) {
         context: GroupingContext,
     ) {
         val game = bridge.getGame() ?: return
-        val player = bridge.getPlayer(ops.seatId) ?: return
         val req = pendingPrompt.request
 
-        // Resolve surveil/scry cards from candidateRefs (forge card IDs set by WebPlayerController).
-        // We can't read library top here — the engine already removed the card from the zone
-        // while blocking in requestChoice(). CandidateRefs carry the correct forge card IDs.
-        // Use Game.findById() which visits all cards including those in limbo (no zone).
-        data class ResolvedCard(val card: forge.game.card.Card, val instanceId: Int)
-
-        val resolved = req.candidateRefs
-            .filter { it.kind == "card" }
-            .mapNotNull { ref ->
-                val card = game.findById(ref.entityId)
-                if (card != null) ResolvedCard(card, bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value) else null
-            }
-
-        if (resolved.isEmpty()) {
+        // Resolve candidateRefs → cards + build bundle. Returns null if no cards resolved.
+        val result = ops.bundleBuilder!!.resolveSurveilScryBundle(req.candidateRefs, context, ops.counter)
+        if (result == null) {
             log.warn("TargetingHandler: surveil/scry but no cards resolved from candidateRefs (falling back to library top)")
             bridge.seat(ops.seatId.value).prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
             bridge.awaitPriority()
             return
         }
 
-        val topCards = resolved.map { it.card }
-        val cardInstanceIds = resolved.map { it.instanceId }
-
-        // sourceId: the card that triggered surveil — check stack for the trigger source
-        val sourceId = game.stack.firstOrNull()?.let { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value } ?: 0
-
         val contextLabel = if (context == GroupingContext.Surveil) "Surveil" else "Scry"
-        log.info("TargetingHandler: sending GroupReq for {} cards={}", contextLabel, cardInstanceIds)
-        ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "$contextLabel GroupReq cards=${cardInstanceIds.size}")
+        log.info("TargetingHandler: sending GroupReq for {}", contextLabel)
+        ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "$contextLabel GroupReq")
 
-        val result = ops.bundleBuilder!!.surveilScryBundle(topCards, cardInstanceIds, sourceId, context, ops.counter)
         Tap.outboundTemplate("GroupReq($contextLabel) seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
     }

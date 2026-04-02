@@ -29,7 +29,7 @@ class KeywordGrantAnnotationTest :
                 destroyed = emptyList(),
             )
             var uniqueId = 330
-            val (transient, persistent) = AnnotationPipeline.effectAnnotations(
+            val (transient, persistent) = MechanicAnnotations.effectAnnotations(
                 diff = boostDiff,
                 keywordDiff = kwDiff,
                 keywordAffectorResolver = { _, _, _ -> 435 },
@@ -53,7 +53,7 @@ class KeywordGrantAnnotationTest :
                     EffectTracker.TrackedKeywordEffect(7010, EffectTracker.KeywordFingerprint(389, 1L, 5L), "Trample"),
                 ),
             )
-            val (transient, _) = AnnotationPipeline.effectAnnotations(
+            val (transient, _) = MechanicAnnotations.effectAnnotations(
                 diff = EffectTracker.DiffResult(emptyList(), emptyList()),
                 keywordDiff = kwDiff,
             )
@@ -67,7 +67,7 @@ class KeywordGrantAnnotationTest :
                 ),
                 destroyed = emptyList(),
             )
-            val (_, persistent) = AnnotationPipeline.effectAnnotations(
+            val (_, persistent) = MechanicAnnotations.effectAnnotations(
                 diff = EffectTracker.DiffResult(emptyList(), emptyList()),
                 keywordDiff = kwDiff,
                 uniqueAbilityIdAllocator = { 1 },
@@ -85,7 +85,7 @@ class KeywordGrantAnnotationTest :
                 destroyed = emptyList(),
             )
             var uniqueId = 400
-            val (transient, persistent) = AnnotationPipeline.effectAnnotations(
+            val (transient, persistent) = MechanicAnnotations.effectAnnotations(
                 diff = EffectTracker.DiffResult(emptyList(), emptyList()),
                 keywordDiff = kwDiff,
                 keywordAffectorResolver = { _, _, _ -> 500 },
@@ -122,7 +122,7 @@ class KeywordGrantAnnotationTest :
                 destroyed = emptyList(),
             )
             var uniqueId = 330
-            val (transient, persistent) = AnnotationPipeline.effectAnnotations(
+            val (transient, persistent) = MechanicAnnotations.effectAnnotations(
                 diff = boostDiff,
                 keywordDiff = kwDiff,
                 keywordAffectorResolver = { _, _, _ -> 435 },

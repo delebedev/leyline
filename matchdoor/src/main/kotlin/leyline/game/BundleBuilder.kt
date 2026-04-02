@@ -3,6 +3,7 @@ package leyline.game
 import forge.game.Game
 import forge.game.card.Card
 import leyline.bridge.ForgeCardId
+import leyline.bridge.PromptCandidateRefDto
 import leyline.bridge.SeatId
 import leyline.game.mapper.ActionMapper
 import leyline.game.mapper.ObjectMapper
@@ -1102,6 +1103,36 @@ class BundleBuilder(
                 .setPrevGameStateId(gsId - 1)
                 .build()
         }
+    }
+
+    /**
+     * Resolve candidateRefs to Forge cards and build a surveil/scry bundle.
+     *
+     * Encapsulates card resolution (candidateRefs → Forge Card + instanceId) plus
+     * bundle building (reveal diff + GroupReq) so callers don't need to do inline
+     * card resolution. Returns null if no cards could be resolved from candidateRefs.
+     *
+     * @param candidateRefs prompt candidate references from [InteractivePromptBridge]
+     * @param context whether this is surveil or scry
+     * @param counter message counter for sequencing
+     */
+    fun resolveSurveilScryBundle(
+        candidateRefs: List<PromptCandidateRefDto>,
+        context: GroupingContext,
+        counter: MessageCounter,
+    ): BundleResult? {
+        val game = bridge.getGame() ?: return null
+        val resolved = candidateRefs
+            .filter { it.kind == "card" }
+            .mapNotNull { ref ->
+                val card = game.findById(ref.entityId)
+                if (card != null) card to bridge.getOrAllocInstanceId(ForgeCardId(ref.entityId)).value else null
+            }
+        if (resolved.isEmpty()) return null
+        val topCards = resolved.map { it.first }
+        val cardInstanceIds = resolved.map { it.second }
+        val sourceId = game.stack.firstOrNull()?.let { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value } ?: 0
+        return surveilScryBundle(topCards, cardInstanceIds, sourceId, context, counter)
     }
 
     /**

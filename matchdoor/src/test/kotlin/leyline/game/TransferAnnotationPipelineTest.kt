@@ -28,7 +28,7 @@ class TransferAnnotationPipelineTest :
         // --- annotationsForTransfer: PlayLand ---
 
         test("playLandProducesThreeAnnotations") {
-            val transfer = AnnotationPipeline.AppliedTransfer(
+            val transfer = AppliedTransfer(
                 origId = 100,
                 newId = 200,
                 category = TransferCategory.PlayLand,
@@ -37,7 +37,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 12345,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
 
             assertSoftly {
                 annotations.size shouldBe 3
@@ -51,7 +51,7 @@ class TransferAnnotationPipelineTest :
         }
 
         test("playLandHasCorrectIds") {
-            val transfer = AnnotationPipeline.AppliedTransfer(
+            val transfer = AppliedTransfer(
                 origId = 100,
                 newId = 200,
                 category = TransferCategory.PlayLand,
@@ -60,7 +60,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 12345,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
 
             // ObjectIdChanged should reference origId in affectedIds
             annotations[0].affectedIdsList shouldContain 100
@@ -69,7 +69,7 @@ class TransferAnnotationPipelineTest :
         }
 
         test("playLandProducesPersistentAnnotation") {
-            val transfer = AnnotationPipeline.AppliedTransfer(
+            val transfer = AppliedTransfer(
                 origId = 100,
                 newId = 200,
                 category = TransferCategory.PlayLand,
@@ -78,7 +78,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 12345,
                 ownerSeatId = 1,
             )
-            val (_, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            val (_, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
 
             persistent.size shouldBe 1
             persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
@@ -87,7 +87,7 @@ class TransferAnnotationPipelineTest :
         // --- annotationsForTransfer: CastSpell ---
 
         test("castSpell with one mana payment produces 8 annotations") {
-            val transfer = AnnotationPipeline.AppliedTransfer(
+            val transfer = AppliedTransfer(
                 origId = 100,
                 newId = 200,
                 category = TransferCategory.CastSpell,
@@ -96,7 +96,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
                 manaPayments = listOf(
-                    AnnotationPipeline.ManaPaymentRecord(
+                    ManaPaymentRecord(
                         landInstanceId = 300,
                         manaAbilityInstanceId = 400,
                         color = 2,
@@ -104,7 +104,7 @@ class TransferAnnotationPipelineTest :
                     ),
                 ),
             )
-            val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
 
             assertSoftly {
                 annotations.size shouldBe 8
@@ -157,7 +157,7 @@ class TransferAnnotationPipelineTest :
         }
 
         test("castSpell with zero mana payments produces 3 annotations") {
-            val transfer = AnnotationPipeline.AppliedTransfer(
+            val transfer = AppliedTransfer(
                 origId = 100,
                 newId = 200,
                 category = TransferCategory.CastSpell,
@@ -167,7 +167,7 @@ class TransferAnnotationPipelineTest :
                 ownerSeatId = 1,
                 manaPayments = emptyList(),
             )
-            val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
 
             assertSoftly {
                 annotations.size shouldBe 3
@@ -181,7 +181,7 @@ class TransferAnnotationPipelineTest :
         }
 
         test("castSpellUserActionIsCast") {
-            val transfer = AnnotationPipeline.AppliedTransfer(
+            val transfer = AppliedTransfer(
                 origId = 100,
                 newId = 200,
                 category = TransferCategory.CastSpell,
@@ -190,7 +190,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
 
             annotations.last().detailInt("actionType") shouldBe 1
         }
@@ -198,7 +198,7 @@ class TransferAnnotationPipelineTest :
         // --- annotationsForTransfer: Resolve ---
 
         test("resolveProducesThreeAnnotations") {
-            val transfer = AnnotationPipeline.AppliedTransfer(
+            val transfer = AppliedTransfer(
                 origId = 200,
                 newId = 200,
                 category = TransferCategory.Resolve,
@@ -207,7 +207,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
 
             assertSoftly {
                 annotations.size shouldBe 3
@@ -221,7 +221,7 @@ class TransferAnnotationPipelineTest :
         }
 
         test("resolveZoneTransferHasActingSeat") {
-            val transfer = AnnotationPipeline.AppliedTransfer(
+            val transfer = AppliedTransfer(
                 origId = 200,
                 newId = 200,
                 category = TransferCategory.Resolve,
@@ -230,14 +230,14 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 2)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 2)
 
             // Resolve ZoneTransfer should carry actingSeat as affectorId
             annotations[2].affectorId shouldBe 2
         }
 
         test("resolveUsesGrpId") {
-            val transfer = AnnotationPipeline.AppliedTransfer(
+            val transfer = AppliedTransfer(
                 origId = 200,
                 newId = 200,
                 category = TransferCategory.Resolve,
@@ -246,7 +246,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
 
             annotations[0].detailUint("grpid") shouldBe 67890
         }
@@ -254,7 +254,7 @@ class TransferAnnotationPipelineTest :
         // --- Edge cases ---
 
         test("genericZoneTransferProducesAnnotations") {
-            val transfer = AnnotationPipeline.AppliedTransfer(
+            val transfer = AppliedTransfer(
                 origId = 100,
                 newId = 200,
                 category = TransferCategory.ZoneTransfer,
@@ -263,7 +263,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
 
             // ZoneTransfer category produces ObjectIdChanged (when origId != newId) + ZoneTransfer
             annotations.size shouldBe 2
@@ -273,7 +273,7 @@ class TransferAnnotationPipelineTest :
         }
 
         test("castSpellToStackGetsPersistentAnnotation") {
-            val transfer = AnnotationPipeline.AppliedTransfer(
+            val transfer = AppliedTransfer(
                 origId = 100,
                 newId = 200,
                 category = TransferCategory.CastSpell,
@@ -282,7 +282,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
             )
-            val (_, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            val (_, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
             persistent.size shouldBe 1
             persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
             persistent[0].affectorId shouldBe ZoneIds.STACK
@@ -290,7 +290,7 @@ class TransferAnnotationPipelineTest :
 
         test("resolveToGraveyardNoPersistentAnnotation") {
             // Spell resolves but goes to graveyard (instant/sorcery)
-            val transfer = AnnotationPipeline.AppliedTransfer(
+            val transfer = AppliedTransfer(
                 origId = 200,
                 newId = 200,
                 category = TransferCategory.Resolve,
@@ -299,7 +299,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
 
             annotations.size shouldBe 3
             persistent.shouldBeEmpty()

@@ -14,7 +14,7 @@ import wotc.mtgo.gre.external.messaging.Messages.ZoneInfo
 import wotc.mtgo.gre.external.messaging.Messages.ZoneType
 
 /**
- * Pure unit tests for [AnnotationPipeline.detectZoneTransfers] — the overload
+ * Pure unit tests for [ZoneTransferDetector.detectZoneTransfers] — the overload
  * that takes function parameters instead of [GameBridge].
  *
  * No game engine, no bridge, no card DB. Each test constructs
@@ -62,7 +62,7 @@ class PurePipelineTest :
             val events = listOf(GameEvent.LandPlayed(cardId = ForgeCardId(42), seatId = SeatId(1)))
             val previousZones = mapOf(100 to ZoneIds.P1_HAND)
 
-            val result = AnnotationPipeline.detectZoneTransfers(
+            val result = ZoneTransferDetector.detectZoneTransfers(
                 gameObjects = listOf(obj),
                 zones = zones,
                 events = events,
@@ -93,7 +93,7 @@ class PurePipelineTest :
             val events = listOf(GameEvent.SpellCast(cardId = ForgeCardId(42), seatId = SeatId(1)))
             val previousZones = mapOf(100 to ZoneIds.P1_HAND)
 
-            val result = AnnotationPipeline.detectZoneTransfers(
+            val result = ZoneTransferDetector.detectZoneTransfers(
                 gameObjects = listOf(obj),
                 zones = zones,
                 events = events,
@@ -120,7 +120,7 @@ class PurePipelineTest :
             val events = listOf(GameEvent.SpellResolved(cardId = ForgeCardId(42), hasFizzled = false))
             val previousZones = mapOf(100 to ZoneIds.STACK)
 
-            val result = AnnotationPipeline.detectZoneTransfers(
+            val result = ZoneTransferDetector.detectZoneTransfers(
                 gameObjects = listOf(obj),
                 zones = zones,
                 events = events,
@@ -151,7 +151,7 @@ class PurePipelineTest :
             val events = listOf(GameEvent.CardDestroyed(cardId = ForgeCardId(42), seatId = SeatId(1)))
             val previousZones = mapOf(100 to ZoneIds.BATTLEFIELD)
 
-            val result = AnnotationPipeline.detectZoneTransfers(
+            val result = ZoneTransferDetector.detectZoneTransfers(
                 gameObjects = listOf(obj),
                 zones = zones,
                 events = events,
@@ -177,7 +177,7 @@ class PurePipelineTest :
             )
             val previousZones = mapOf(100 to ZoneIds.BATTLEFIELD)
 
-            val result = AnnotationPipeline.detectZoneTransfers(
+            val result = ZoneTransferDetector.detectZoneTransfers(
                 gameObjects = listOf(obj),
                 zones = zones,
                 events = emptyList(),
@@ -197,7 +197,7 @@ class PurePipelineTest :
 
         // Test 1: no damage events → empty result
         test("combatAnnotations returns empty when no damage events") {
-            val result = AnnotationPipeline.combatAnnotations(
+            val result = CombatAnnotations.combatAnnotations(
                 events = emptyList(),
                 idResolver = { fid -> InstanceId(fid.value + 1000) },
                 previousLifeTotals = emptyMap(),
@@ -213,7 +213,7 @@ class PurePipelineTest :
         test("combatAnnotations produces DamageDealt for creature-to-creature") {
             val events = listOf(GameEvent.DamageDealtToCard(sourceCardId = ForgeCardId(10), targetCardId = ForgeCardId(20), amount = 3))
 
-            val result = AnnotationPipeline.combatAnnotations(
+            val result = CombatAnnotations.combatAnnotations(
                 events = events,
                 idResolver = { fid -> InstanceId(fid.value + 1000) },
                 previousLifeTotals = emptyMap(),
@@ -237,7 +237,7 @@ class PurePipelineTest :
                 GameEvent.DamageDealtToPlayer(sourceCardId = ForgeCardId(10), targetSeatId = SeatId(2), amount = 5, combat = true),
             )
 
-            val result = AnnotationPipeline.combatAnnotations(
+            val result = CombatAnnotations.combatAnnotations(
                 events = events,
                 idResolver = { fid -> InstanceId(fid.value + 1000) },
                 previousLifeTotals = mapOf(1 to 20, 2 to 20),
@@ -252,7 +252,7 @@ class PurePipelineTest :
         test("combatAnnotations returns empty for non-combat events only") {
             val events = listOf(GameEvent.LandPlayed(cardId = ForgeCardId(42), seatId = SeatId(1)))
 
-            val result = AnnotationPipeline.combatAnnotations(
+            val result = CombatAnnotations.combatAnnotations(
                 events = events,
                 idResolver = { fid -> InstanceId(fid.value + 1000) },
                 previousLifeTotals = emptyMap(),
