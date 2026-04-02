@@ -98,8 +98,16 @@ class GamePlayback(
     }
 
     override fun visit(ev: GameEventAttackersDeclared) {
-        if (!isRemoteActing()) return
-        captureAndPause(COMBAT_DELAY)
+        // Capture for BOTH local and remote attackers. The real server sends a
+        // combat-state diff (tapped creatures + attackState=Attacking) after
+        // attackers are declared regardless of whose turn it is. Without this,
+        // the human-seat auto-pass loop overshoots past combat before building
+        // a diff, and the client never sees attackers tapped (leyline-o2q).
+        if (isRemoteActing()) {
+            captureAndPause(COMBAT_DELAY)
+        } else {
+            captureAndPause(0) // no pacing delay on own turn
+        }
     }
 
     override fun visit(ev: GameEventBlockersDeclared) {

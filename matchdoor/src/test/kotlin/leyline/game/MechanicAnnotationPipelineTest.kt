@@ -255,7 +255,7 @@ class MechanicAnnotationPipelineTest :
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.TappedUntappedPermanent
             annotations[0].affectedIdsList shouldContain testResolver(ForgeCardId(70)).value
-            annotations[0].detailUint("tapped") shouldBe 1
+            annotations[0].detailInt("tapped") shouldBe 1
         }
 
         test("cardUntappedProducesAnnotation") {
@@ -266,7 +266,7 @@ class MechanicAnnotationPipelineTest :
 
             annotations.size shouldBe 1
             annotations[0].typeList shouldContain AnnotationType.TappedUntappedPermanent
-            annotations[0].detailUint("tapped") shouldBe 0
+            annotations[0].detailInt("tapped") shouldBe 0
         }
 
         test("mechanicAnnotationsMultipleEvents") {
