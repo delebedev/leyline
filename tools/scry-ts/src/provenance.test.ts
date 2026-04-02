@@ -45,6 +45,13 @@ describe("inferProvenance", () => {
     expect(provenance.confidence).toBe("inferred");
     expect(provenance.matchId).toBe("real-1");
   });
+
+  it("falls back to inferred real when match id is null", () => {
+    const provenance = inferProvenance(null, []);
+    expect(provenance.source).toBe("real");
+    expect(provenance.confidence).toBe("inferred");
+    expect(provenance.matchId).toBeNull();
+  });
 });
 
 describe("parseSavedSourceFilter", () => {
@@ -57,7 +64,12 @@ describe("parseSavedSourceFilter", () => {
   });
 
   it("treats --all as any source", () => {
-    expect(formatSourceBadge({ source: "puzzle", confidence: "explicit", matchId: "m1", puzzleRef: "bolt-face" })).toBe("puzzle:bolt-face");
     expect([...parseSavedSourceFilter(["--all"])]).toEqual(["real", "leyline", "puzzle", "unknown"]);
+  });
+});
+
+describe("formatSourceBadge", () => {
+  it("renders puzzle refs inline", () => {
+    expect(formatSourceBadge({ source: "puzzle", confidence: "explicit", matchId: "m1", puzzleRef: "bolt-face" })).toBe("puzzle:bolt-face");
   });
 });

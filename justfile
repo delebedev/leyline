@@ -41,6 +41,7 @@ _key      := certs / "frontdoor.key"
 _account_cert := certs / "account-combined.pem"
 _account_key  := certs / "account.key"
 _cert_flags := 'cert_flags=""; if [ -f "' + _cert + '" ] && [ -f "' + _key + '" ]; then cert_flags="--cert ' + _cert + ' --key ' + _key + '"; fi; account_flags=""; if [ -f "' + _account_cert + '" ] && [ -f "' + _account_key + '" ]; then account_flags="--account-cert ' + _account_cert + ' --account-key ' + _account_key + '"; fi; cert_flags="$cert_flags $account_flags"'
+_forge_m2_setup := 'eval "$(' + project_dir + '/gradle/scripts/forge-m2.sh ' + project_dir + ')"'
 
 # --- Build ---
 
@@ -50,28 +51,8 @@ install-forge:
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{project_dir}}"
-    local_repo="{{project_dir}}/forge/.m2-local"
-    backup_repo="{{project_dir}}/forge/.m2-local.worktree"
-    current_forge=$(cd forge && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml)
-    if [ -n "$(cd forge && git status --porcelain)" ]; then
-        forge_m2="$local_repo"
-        if [ -L "$local_repo" ]; then
-            trash "$local_repo"
-        fi
-        mkdir -p "$forge_m2"
-        echo "Forge checkout dirty; using local cache: $forge_m2"
-    else
-        forge_m2="${LEYLINE_FORGE_M2_ROOT:-$HOME/.cache/leyline/forge-m2}/$current_forge"
-        mkdir -p "$forge_m2"
-        if [ -e "$local_repo" ] && [ ! -L "$local_repo" ]; then
-            if [ -e "$backup_repo" ] || [ -L "$backup_repo" ]; then
-                trash "$backup_repo"
-            fi
-            mv "$local_repo" "$backup_repo"
-        fi
-        ln -sfn "$forge_m2" "$local_repo"
-        echo "Forge checkout clean; using shared cache: $forge_m2"
-    fi
+    {{_forge_m2_setup}}
+    echo "Forge checkout $forge_cache_mode; using cache: $forge_m2"
     cd "{{project_dir}}/forge" && mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install -Dmaven.repo.local="$forge_m2" -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
     printf '%s\n' "$current_forge" > "{{project_dir}}/.upstream-installed"
     echo "Forge engine installed to $forge_m2"
@@ -113,25 +94,7 @@ build:
     #!/usr/bin/env bash
     set -euo pipefail
     cd "{{project_dir}}"
-    local_repo="{{project_dir}}/forge/.m2-local"
-    backup_repo="{{project_dir}}/forge/.m2-local.worktree"
-    current_forge=$(cd forge && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml)
-    if [ -n "$(cd forge && git status --porcelain)" ]; then
-        if [ -L "$local_repo" ]; then
-            trash "$local_repo"
-        fi
-        mkdir -p "$local_repo"
-    else
-        forge_m2="${LEYLINE_FORGE_M2_ROOT:-$HOME/.cache/leyline/forge-m2}/$current_forge"
-        mkdir -p "$forge_m2"
-        if [ -e "$local_repo" ] && [ ! -L "$local_repo" ]; then
-            if [ -e "$backup_repo" ] || [ -L "$backup_repo" ]; then
-                trash "$backup_repo"
-            fi
-            mv "$local_repo" "$backup_repo"
-        fi
-        ln -sfn "$forge_m2" "$local_repo"
-    fi
+    {{_forge_m2_setup}}
     ./gradlew classes jar
     echo "Build complete. Classpath: {{classpath}}"
 
@@ -270,29 +233,12 @@ bootstrap:
     fi
 
     # Install forge (skip if already up to date)
-    current_forge=$(cd forge && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml)
-    if [ -n "$(cd forge && git status --porcelain)" ]; then
-        forge_m2="{{project_dir}}/forge/.m2-local"
-        forge_cache_mode="local"
-    else
-        forge_m2="${LEYLINE_FORGE_M2_ROOT:-$HOME/.cache/leyline/forge-m2}/$current_forge"
-        forge_cache_mode="shared"
-    fi
-    local_repo="{{project_dir}}/forge/.m2-local"
-    backup_repo="{{project_dir}}/forge/.m2-local.worktree"
+    {{_forge_m2_setup}}
     installed_forge=""
     if [ -f .upstream-installed ]; then
         installed_forge=$(cat .upstream-installed)
     fi
     if [ "$forge_cache_mode" = "shared" ] && [ -d "$forge_m2/forge" ]; then
-        mkdir -p "$forge_m2"
-        if [ -e "$local_repo" ] && [ ! -L "$local_repo" ]; then
-            if [ -e "$backup_repo" ] || [ -L "$backup_repo" ]; then
-                trash "$backup_repo"
-            fi
-            mv "$local_repo" "$backup_repo"
-        fi
-        ln -sfn "$forge_m2" "$local_repo"
         printf '%s\n' "$current_forge" > .upstream-installed
         echo "==> Forge already installed ($(echo "$current_forge" | head -c 8)) [shared cache]"
     elif [ "$current_forge" = "$installed_forge" ] && [ -d "$forge_m2/forge" ]; then

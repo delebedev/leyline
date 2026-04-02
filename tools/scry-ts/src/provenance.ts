@@ -25,6 +25,7 @@ interface LeylineSessionRecord {
 const SESSION_JOURNAL = resolve(homedir(), ".scry/leyline-sessions.jsonl");
 const ALL_SOURCES: GameSource[] = ["real", "leyline", "puzzle", "unknown"];
 const DEFAULT_SAVED_SOURCES: GameSource[] = ["real", "unknown"];
+const PROVENANCE_SUMMARY_SEPARATOR = "  ";
 
 export function loadLeylineSessions(path: string = SESSION_JOURNAL): LeylineSessionRecord[] {
   if (!existsSync(path)) return [];
@@ -94,6 +95,10 @@ export function parseSavedSourceFilter(args: string[]): Set<GameSource> {
   }
 
   const raw = args[idx + 1];
+  if (!raw || raw.startsWith("-")) {
+    console.error("Missing value for --source");
+    process.exit(1);
+  }
   if (raw === "any") {
     return new Set(ALL_SOURCES);
   }
@@ -132,5 +137,5 @@ export function formatProvenanceSummary(provenance?: Provenance): string {
   if (!provenance) return "unknown";
   const parts = [formatSourceBadge(provenance), provenance.confidence];
   if (provenance.eventName) parts.push(provenance.eventName);
-  return parts.join("  ");
+  return parts.join(PROVENANCE_SUMMARY_SEPARATOR);
 }

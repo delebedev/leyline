@@ -118,7 +118,9 @@ async function gameListSaved(args: string[]) {
   }
 
   const allowedSources = parseSavedSourceFilter(args);
-  const entries = catalog.games.filter((entry) => matchesSource(loadMeta(entry.file), allowedSources));
+  const entries = catalog.games
+    .map((entry) => ({ entry, meta: loadMeta(entry.file) }))
+    .filter(({ meta }) => matchesSource(meta, allowedSources));
   if (entries.length === 0) {
     console.log("No saved games matched the source filter.");
     return;
@@ -128,9 +130,8 @@ async function gameListSaved(args: string[]) {
   console.log(`${"File".padEnd(26)}  ${"Source".padEnd(18)}  ${"Rounds".padStart(6)}  ${"GSMs".padStart(4)}  ${"Result".padEnd(6)}  Notes`);
   console.log("—".repeat(90));
 
-  for (const entry of newestFirst) {
+  for (const { entry, meta } of newestFirst) {
     const rounds = Math.ceil(entry.turns / 2);
-    const meta = loadMeta(entry.file);
     const noteCount = meta.notes.length > 0 ? `${meta.notes.length} notes` : "";
     const tags = meta.tags.length > 0 ? meta.tags.map((t) => `#${t}`).join(" ") : "";
     const extra = [noteCount, tags].filter(Boolean).join("  ");

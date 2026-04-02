@@ -199,6 +199,8 @@ class LeylineServer(
     private fun createMatchId(eventName: String): String {
         val puzzle = runtimePuzzle.get()
         val matchId = UUID.randomUUID().toString()
+        // Puzzle runs are inferred from runtime puzzle injection because Arena
+        // currently has no distinct Front Door event for "this is a puzzle".
         val source = if (puzzle != null && eventName == "SparkyStarterDeckDuel") "puzzle" else "leyline"
         val puzzleRef = if (source == "puzzle") File(puzzle).nameWithoutExtension else null
         ScrySessionJournal.record(
