@@ -153,8 +153,10 @@ pub fn restore_arena(_app: AppHandle) -> Result<(), String> {
     let _ = Command::new("defaults")
         .args(["delete", "com.Wizards.MtGA", "CheckSC"])
         .output();
+    // Keep HashFilesOnStartup=0 — deleting reverts to default (verify all),
+    // which triggers ~1.5GB re-download of Audio assets on next real-server boot.
     let _ = Command::new("defaults")
-        .args(["delete", "com.Wizards.MtGA", "HashFilesOnStartup"])
+        .args(["write", "com.Wizards.MtGA", "HashFilesOnStartup", "-integer", "0"])
         .output();
 
     Ok(())

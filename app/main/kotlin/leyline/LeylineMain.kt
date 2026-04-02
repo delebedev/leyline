@@ -127,7 +127,7 @@ private fun buildAccountServer(
     // The client checks doorbell BundleManifests before the pointer file at
     // assets.mtgarena.wizards.com. If we return the hash here, the client
     // finds the manifest locally and never hits the network — enabling offline mode.
-    val cachedManifests = detectArenaManifestHash()
+    val cachedManifests = detectArenaManifests()
 
     val debugRoles = System.getenv("LEYLINE_DEBUG").let { it == "true" || it == "1" }
     return AccountServer(
@@ -142,28 +142,42 @@ private fun buildAccountServer(
 }
 
 /**
- * Scan Arena's local Downloads dir for the manifest file and return a BundleManifests JSON array.
+ * Scan Arena's local Downloads dir for manifest files and return a BundleManifests JSON array.
  *
  * The client checks three manifest sources in order: config, doorbell, pointer file
  * (assets.mtgarena.wizards.com). Offline, the pointer file times out (~30s on boot).
- * Returning the hash via doorbell lets the client find the manifest locally and skip the download,
- * but the pointer file timeout is unavoidable — the client always checks all three sources.
+ * Returning hashes via doorbell lets the client find manifests locally and skip downloads.
+ *
+ * The real server doorbell returns Audio + Localization manifests (priority 50).
+ * The main manifest comes from the pointer file. We mirror this shape so switching
+ * between leyline and real servers doesn't invalidate Arena's download cache.
  */
-private fun detectArenaManifestHash(): String? {
+private fun detectArenaManifests(): String? {
     val downloadsDir = File(System.getProperty("user.home"), "Library/Application Support/com.wizards.mtga/Downloads")
     if (!downloadsDir.isDirectory) return null
-    // Match only the main manifest (Manifest_<hex>.mtga), not category-prefixed ones
-    // like Manifest_Audio_<hex>.mtga or Manifest_Localization_<hex>.mtga
-    val hashPattern = Regex("""^Manifest_([0-9a-f]+)\.mtga$""")
-    val manifestFile = downloadsDir.listFiles()
-        ?.filter { hashPattern.matches(it.name) }
-        ?.maxByOrNull { it.lastModified() }
-        ?: return null
-    // Extract hash from "Manifest_<hash>.mtga"
-    val hash = manifestFile.name.removePrefix("Manifest_").removeSuffix(".mtga")
-    if (hash.isBlank()) return null
-    println("Detected Arena manifest: ${manifestFile.name}")
-    return """[{"category":"","priority":100,"hash":"$hash"}]"""
+
+    // Manifest_<hex>.mtga → main (from pointer file on real server, but we include it too)
+    // Manifest_Audio_<hex>.mtga → Audio category
+    // Manifest_Localization_<hex>.mtga → Localization category
+    val mainPattern = Regex("""^Manifest_([0-9a-f]+)\.mtga$""")
+    val categoryPattern = Regex("""^Manifest_(Audio|Localization)_([0-9a-f]+)\.mtga$""")
+
+    val entries = mutableListOf<String>()
+    for (file in downloadsDir.listFiles() ?: return null) {
+        categoryPattern.matchEntire(file.name)?.let { match ->
+            val category = match.groupValues[1]
+            val hash = match.groupValues[2]
+            entries.add("""{"category":"$category","priority":50,"hash":"$hash"}""")
+            println("Detected Arena manifest: ${file.name}")
+        }
+        mainPattern.matchEntire(file.name)?.let { match ->
+            val hash = match.groupValues[1]
+            entries.add("""{"category":"","priority":100,"hash":"$hash"}""")
+            println("Detected Arena manifest: ${file.name}")
+        }
+    }
+    if (entries.isEmpty()) return null
+    return "[${entries.joinToString(",")}]"
 }
 
 // -- Lifecycle ----------------------------------------------------------------
