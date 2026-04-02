@@ -167,8 +167,12 @@ dev-teardown:
         echo "==> Removed services.conf"
     fi
     defaults delete com.Wizards.MtGA CheckSC 2>/dev/null || true
-    defaults delete com.Wizards.MtGA HashFilesOnStartup 2>/dev/null || true
-    echo "==> macOS defaults cleared"
+    # Keep HashFilesOnStartup=0 — deleting it reverts to default (verify all),
+    # which triggers ~1.5GB re-download of Audio assets on next real-server boot.
+    # Arena still gets patches via pointer file hash changes; this only skips
+    # re-hashing already-downloaded files on startup.
+    defaults write com.Wizards.MtGA HashFilesOnStartup -integer 0
+    echo "==> macOS defaults updated (CheckSC cleared, HashFilesOnStartup=0 preserved)"
     echo "Dev teardown complete. Arena restored to stock."
 
 # --- Bootstrap ---
