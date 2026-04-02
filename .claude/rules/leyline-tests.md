@@ -81,7 +81,7 @@ Existing tests using `val base = ConformanceTestBase()` pattern still work — m
 ## Style
 
 - **No silent skips.** `if (list.isEmpty()) return@test` hides broken setups. A test that can't fail isn't a test.
-- **Exact counts, not weak gates.** `shouldHaveSize(2)` not `shouldNotBeEmpty()`. You control the board — you know exactly how many actions/annotations to expect.
+- **Exact counts, not weak gates.** `shouldHaveSize(2)` not `shouldNotBeEmpty()`. You control the board — you know exactly how many actions/annotations to expect. "Exact" means **derivable from your setup** — if you can't trace the expected value back to the board you built, keep the weaker assertion and comment why.
 - **Named constants.** `ActionType.Play_add3.number` not `3`, `SEAT_ID` not `1`, `ZoneIds.STACK` not magic numbers.
 - **`assertSoftly` for multi-field shape checks.** Hard gates (annotation exists at all) go before the `assertSoftly` block.
 - **One test per distinct board setup.** Different board = different test.
@@ -92,6 +92,7 @@ Existing tests using `val base = ConformanceTestBase()` pattern still work — m
 - **No `when` with `else -> {}`** — silently ignores unknown variants. Filter by type explicitly.
 - **No tautological assertions.** `uint >= 0` is always true. Use `shouldBeGreaterThan 0` if value must be positive.
 - **No fully qualified Forge/proto types inline** — import them.
+- **Wrap Forge actions that take boilerplate params.** `destroy(card, game)` not `game.action.destroy(card, null, false, AbilityKey.newMap())`. SubsystemTest provides `destroy()`, `exile()`, `moveToBattlefield()`. If you need a new one, add it there.
 - **`(a < b).shouldBeTrue()` gives bad failure messages** ("expected true but was false"). Prefer `shouldBe listOf(...)` for type ordering. For non-consecutive ordering, `(a < b)` is acceptable but add a comment.
 
 ## Assertions & helpers
@@ -146,6 +147,27 @@ cast.shouldHaveSize(1)
 ```kotlin
 val zt = checkNotNull(gsm.findZoneTransfer(instanceId)) { "Should have ZoneTransfer" }
 zt.category shouldBe "PlayLand"
+gsm.hasEnteredZoneThisTurn(instanceId).shouldBeTrue()
+```
+
+### InstanceId resolution
+
+```kotlin
+// Good: absorbs ForgeCardId wrapping + .value unwrapping
+val newId = b.instanceId(card.id)
+
+// Avoid: noisy three-step
+val newId = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+```
+
+### Zone transfer helper (SubsystemTest)
+
+```kotlin
+// transferCard: finds card by name, performs action, returns (gsm, newInstanceId)
+val (gsm, newId) = transferCard(b, game, counter, "Grizzly Bears") { card, g ->
+    destroy(card, g)
+}
+checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Destroy"
 ```
 
 ### Nullability

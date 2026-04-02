@@ -85,7 +85,7 @@ When consolidating, check if tests are truly independent or redundant:
 
 - **Merge** if one test is a strict subset of another (e.g., "TUP before ManaPaid" is a subset of "mana bracket ordering AIC < TUP < ManaPaid < AID")
 - **Merge** if tests share the exact same setup and assert different facets of the same GSM — use `assertSoftly` for the combined assertions
-- **Don't merge** if the tests need different setup (e.g., `resolveAndCapture()` vs manual `startGameAtMain1` flow) — different snapshot timing can cause failures
+- **Don't merge** if the tests need different setup (e.g., `resolveAndCapture()` vs manual `startGameAtMain1` flow) — different snapshot timing can cause failures. Each `postAction`/`snapshotFromGame` call advances bridge state; tests that pass individually can break when merged if they depend on specific counter/baseline state.
 - **Don't merge** if one test checks annotation existence and another checks instanceId values — these can fail independently and the failure message matters
 - **Don't assume consecutive annotation indices.** `aicIdx shouldBe (tupIdx - 1)` fails if other annotations interleave. Use `<` comparison for ordering.
 - **`(a < b).shouldBeTrue()`** gives terrible failure messages ("expected true but was false"). When possible, assert the type list directly with `shouldBe listOf(...)`. When ordering between non-consecutive items, `(a < b).shouldBeTrue()` is acceptable but add a comment explaining what's being checked.
@@ -101,6 +101,7 @@ The consolidation author (human) decides what moves. The implementing agent gets
 - **Cross-cutting tests stay** — if a test exercises multiple subsystems in one test (e.g., "annotation IDs sequential across PlayLand + CastSpell + Resolve"), it stays in the cross-cutting file
 - **Pre-existing failures migrate with their tests** — note them with TODO comments. The failure now lives in the new file, not the old one.
 - **Duplicate tests at wrong tier get replaced** — if a MatchFlowHarness test duplicates what a board-level test already covers, delete the heavier one.
+- **Redundant tests surface during consolidation.** When tests from different files land next to each other, duplicates become obvious (e.g., two files testing "Destroy" category with different assertion depth). Consolidation is a natural dedup pass — take the stronger version, delete the weaker.
 
 ## After implementation
 
