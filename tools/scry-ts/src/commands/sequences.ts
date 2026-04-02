@@ -65,6 +65,8 @@ interface AggregatedSlot {
   followedBy: Record<string, number>;
   annotations: { always: string[]; sometimes: Record<string, number> };
   gsIdDelta: Record<string, number>;
+  annotationOrder: string[];
+  orderConsistency: number;
 }
 
 // --- Abbreviation map for human output ---
@@ -536,6 +538,7 @@ function aggregateSlots(instances: InteractionInstance[], slotCount: number): Ag
     const followedBys: Record<string, number> = {};
     const annCounts = new Map<string, number>();
     const gsIdDeltas: Record<string, number> = {};
+    const orderings: string[][] = [];
     let total = 0;
 
     for (const inst of instances) {
@@ -559,6 +562,14 @@ function aggregateSlots(instances: InteractionInstance[], slotCount: number): Ag
       // gsId delta
       const delta = String(slot.gsIdDelta);
       gsIdDeltas[delta] = (gsIdDeltas[delta] ?? 0) + 1;
+
+      // annotation ordering (from raw annotations array, preserving Player.log order)
+      const rawAnns: any[] = slot.gsm.raw.annotations ?? [];
+      const order = rawAnns.map((a: any) => {
+        const types: string[] = a.type ?? [];
+        return (types[0] ?? "").replace("AnnotationType_", "");
+      }).filter((t: string) => t.length > 0);
+      if (order.length > 0) orderings.push(order);
     }
 
     // Split annotations into always vs sometimes
@@ -572,6 +583,9 @@ function aggregateSlots(instances: InteractionInstance[], slotCount: number): Ag
       }
     }
 
+    // Compute canonical annotation order + consistency
+    const { annotationOrder, orderConsistency } = computeCanonicalOrder(orderings);
+
     slots.push({
       index: si + 1,
       role: instances[0]?.slots[si]?.role ?? "UNKNOWN",
@@ -579,10 +593,37 @@ function aggregateSlots(instances: InteractionInstance[], slotCount: number): Ag
       followedBy: followedBys,
       annotations: { always, sometimes },
       gsIdDelta: gsIdDeltas,
+      annotationOrder,
+      orderConsistency,
     });
   }
 
   return slots;
+}
+
+function computeCanonicalOrder(orderings: string[][]): { annotationOrder: string[]; orderConsistency: number } {
+  if (orderings.length === 0) return { annotationOrder: [], orderConsistency: 1.0 };
+
+  // Count exact sequence occurrences
+  const seqCounts = new Map<string, { seq: string[]; count: number }>();
+  for (const ord of orderings) {
+    const key = ord.join(",");
+    const entry = seqCounts.get(key) ?? { seq: ord, count: 0 };
+    entry.count++;
+    seqCounts.set(key, entry);
+  }
+
+  // Find most common
+  let best: string[] = [];
+  let bestCount = 0;
+  for (const { seq, count } of seqCounts.values()) {
+    if (count > bestCount) { best = seq; bestCount = count; }
+  }
+
+  return {
+    annotationOrder: best,
+    orderConsistency: orderings.length > 0 ? bestCount / orderings.length : 1.0,
+  };
 }
 
 // --- Rendering ---
@@ -615,6 +656,13 @@ function renderHuman(aggregated: AggregatedInteraction[]) {
       console.log(
         `  [${slot.index}] ${slot.role.padEnd(22)} ${ut.padEnd(12)} ${fbStr.padEnd(24)} [${annStr}]`,
       );
+
+      // Show annotation ordering for slots with 3+ annotation types
+      if (slot.annotationOrder.length >= 3) {
+        const orderStr = slot.annotationOrder.map(abbreviate).join(" \u2192 ");
+        const pct = Math.round(slot.orderConsistency * 100);
+        console.log(`      order: ${orderStr}  (${pct}% consistent)`);
+      }
     }
 
     // Variants
@@ -647,6 +695,8 @@ function renderJson(aggregated: AggregatedInteraction[], gamesScanned: number) {
         followedBy: slot.followedBy,
         annotations: slot.annotations,
         gsIdDelta: slot.gsIdDelta,
+        annotationOrder: slot.annotationOrder,
+        orderConsistency: slot.orderConsistency,
       })),
     })),
     meta: {
