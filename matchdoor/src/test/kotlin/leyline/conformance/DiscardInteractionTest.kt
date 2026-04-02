@@ -3,7 +3,6 @@ package leyline.conformance
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
-import leyline.bridge.InstanceId
 import leyline.bridge.InteractivePromptBridge
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
@@ -37,17 +36,6 @@ class DiscardInteractionTest :
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
         """.trimIndent()
 
-        /** Find instanceId for a card by name from SelectNReq candidates. */
-        fun findCandidate(req: SelectNReq, cardName: String): Int {
-            for (iid in req.idsList) {
-                val cardId = harness.bridge.getForgeCardId(InstanceId(iid)) ?: continue
-                val game = harness.bridge.getGame() ?: continue
-                val card = game.findById(cardId.value) ?: continue
-                if (card.name == cardName) return iid
-            }
-            error("Card '$cardName' not found in SelectNReq candidates: ${req.idsList}")
-        }
-
         test("discard-as-cost — SelectNReq proto shape") {
             startPuzzle(marduPuzzle)
 
@@ -69,7 +57,7 @@ class DiscardInteractionTest :
 
             castSpellByName("Mardu Outrider") shouldBe true
             val req = harness.allMessages.last { it.hasSelectNReq() }.selectNReq
-            val mountainId = findCandidate(req, "Mountain")
+            val mountainId = findInstanceId(req.idsList, "Mountain")
             harness.respondToSelectN(listOf(mountainId))
             passPriority()
 

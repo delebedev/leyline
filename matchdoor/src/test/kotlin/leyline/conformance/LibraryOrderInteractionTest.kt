@@ -6,7 +6,6 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import leyline.bridge.InstanceId
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -57,12 +56,7 @@ class LibraryOrderInteractionTest :
             }
 
             // Revealed card must be library top (Grizzly Bears)
-            val revealedId = req.instanceIdsList.first()
-            val cardId = harness.bridge.getForgeCardId(InstanceId(revealedId))
-            cardId.shouldNotBeNull()
-            val card = game().findById(cardId.value)
-            card.shouldNotBeNull()
-            card.name shouldBe "Grizzly Bears"
+            cardName(req.instanceIdsList.first()) shouldBe "Grizzly Bears"
         }
 
         test("surveil 1 — keep on top leaves card on library top") {

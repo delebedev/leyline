@@ -5,6 +5,7 @@ import forge.game.player.Player
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import leyline.IntegrationTag
+import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
 
 /**
@@ -96,6 +97,21 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
         harness.castSpellByName(cardName, zone)
 
     fun resolveSpell(cardName: String) = harness.resolveSpell(cardName)
+
+    // --- Card lookup ---
+
+    /** Resolve instanceId to card name via bridge. Fails clearly if card not found. */
+    fun cardName(instanceId: Int): String {
+        val cardId = harness.bridge.getForgeCardId(InstanceId(instanceId))
+            ?: error("No ForgeCardId for instanceId $instanceId")
+        val card = harness.game().findById(cardId.value)
+            ?: error("No card for forgeCardId ${cardId.value}")
+        return card.name
+    }
+
+    /** Find instanceId for a card by name in a list of candidate instanceIds. */
+    fun findInstanceId(candidateIds: List<Int>, name: String): Int = candidateIds.firstOrNull { cardName(it) == name }
+        ?: error("Card '$name' not found in candidates: $candidateIds")
 
     // --- State queries ---
 
