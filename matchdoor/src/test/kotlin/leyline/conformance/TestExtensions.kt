@@ -98,6 +98,13 @@ fun GameStateMessage.persistentAnnotation(type: AnnotationType): AnnotationInfo 
 fun GameStateMessage.persistentAnnotationOrNull(type: AnnotationType): AnnotationInfo? =
     persistentAnnotationsList.firstOrNull { type in it.typeList }
 
+/** Check if a specific instanceId has EnteredZoneThisTurn persistent annotation. */
+fun GameStateMessage.hasEnteredZoneThisTurn(instanceId: Int): Boolean =
+    persistentAnnotationsList.any {
+        AnnotationType.EnteredZoneThisTurn in it.typeList &&
+            instanceId in it.affectedIdsList
+    }
+
 // ----- Tier 2: Accumulator consistency -----
 
 /** Assert that action instanceIds and zone object refs are all valid. */

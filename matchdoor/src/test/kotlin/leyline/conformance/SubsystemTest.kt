@@ -7,6 +7,7 @@ import forge.game.player.Player
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import leyline.ConformanceTag
+import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
@@ -89,6 +90,42 @@ abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
     // --- Player helpers ---
 
     fun humanPlayer(b: GameBridge): Player = b.getPlayer(humanSeat)!!
+
+    // --- ID helpers ---
+
+    /** Resolve a Forge card.id to its current proto instanceId. */
+    fun GameBridge.instanceId(cardId: Int): Int =
+        getOrAllocInstanceId(ForgeCardId(cardId)).value
+
+    // --- Game action wrappers (hide Forge internals) ---
+
+    fun destroy(card: Card, game: Game) {
+        game.action.destroy(card, null, false, AbilityKey.newMap())
+    }
+
+    fun exile(card: Card, game: Game) {
+        game.action.exile(card, null, AbilityKey.newMap())
+    }
+
+    /** Find card by name, perform action, return (gsm, newInstanceId). */
+    fun transferCard(
+        b: GameBridge,
+        game: Game,
+        counter: MessageCounter,
+        cardName: String,
+        checkSba: Boolean = false,
+        action: (Card, Game) -> Unit,
+    ): Pair<GameStateMessage, Int> {
+        val player = humanPlayer(b)
+        val card = listOf(ZoneType.Battlefield, ZoneType.Hand, ZoneType.Library, ZoneType.Graveyard, ZoneType.Exile)
+            .firstNotNullOf { zone -> player.getZone(zone).cards.firstOrNull { it.name == cardName } }
+        val cardId = card.id
+
+        val gsm = capture(b, game, counter, checkSba = checkSba) { action(card, game) }
+        val newId = b.instanceId(cardId)
+
+        return gsm to newId
+    }
 
     // --- Delegated bundle/capture ---
 
