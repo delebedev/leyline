@@ -163,7 +163,7 @@ class AnnotationOrderingTest :
             val tups = gsm.annotationsList.filter { AnnotationType.TappedUntappedPermanent in it.typeList }
             tups.isNotEmpty().shouldBeTrue()
             for (tup in tups) {
-                tup.detailUint("tapped") shouldBe 1
+                tup.detailInt("tapped") shouldBe 1
             }
         }
 

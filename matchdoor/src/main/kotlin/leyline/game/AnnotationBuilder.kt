@@ -293,7 +293,7 @@ object AnnotationBuilder {
             .addType(AnnotationType.TappedUntappedPermanent)
             .setAffectorId(abilityId)
             .addAffectedIds(permanentId)
-            .addDetails(uint32Detail(DetailKeys.TAPPED, if (tapped) 1 else 0))
+            .addDetails(int32Detail(DetailKeys.TAPPED, if (tapped) 1 else 0))
             .build()
 
     /**

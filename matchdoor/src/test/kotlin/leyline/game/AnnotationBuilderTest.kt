@@ -210,7 +210,7 @@ class AnnotationBuilderTest :
             ann.affectorId shouldBe 800
             ann.affectedIdsList shouldContain 700
 
-            ann.detailUint("tapped") shouldBe 1
+            ann.detailInt("tapped") shouldBe 1
         }
 
         test("tappedUntappedPermanentUntapVariant") {
@@ -219,7 +219,7 @@ class AnnotationBuilderTest :
             ann.affectorId shouldBe 800
             ann.affectedIdsList shouldContain 700
 
-            ann.detailUint("tapped") shouldBe 0
+            ann.detailInt("tapped") shouldBe 0
         }
 
         // --- AbilityInstanceCreated ---

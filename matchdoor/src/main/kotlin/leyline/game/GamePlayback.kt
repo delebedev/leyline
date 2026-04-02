@@ -9,8 +9,8 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
- * Paces remote turns by sleeping the game thread at key events and capturing
- * per-action GRE state diffs for the client.
+ * Captures per-action GRE state diffs for the client, pacing remote turns
+ * by sleeping the game thread at key events.
  *
  * Subscribes to the engine's Guava EventBus. Events fire synchronously on
  * the game thread -- sleeping here freezes engine progress and state, making
@@ -98,8 +98,16 @@ class GamePlayback(
     }
 
     override fun visit(ev: GameEventAttackersDeclared) {
-        if (!isRemoteActing()) return
-        captureAndPause(COMBAT_DELAY)
+        // Capture for BOTH local and remote attackers. The real server sends a
+        // combat-state diff (tapped creatures + attackState=Attacking) after
+        // attackers are declared regardless of whose turn it is. Without this,
+        // the human-seat auto-pass loop overshoots past combat before building
+        // a diff, and the client never sees attackers tapped (leyline-o2q).
+        if (isRemoteActing()) {
+            captureAndPause(COMBAT_DELAY)
+        } else {
+            captureAndPause(0) // no pacing delay on own turn
+        }
     }
 
     override fun visit(ev: GameEventBlockersDeclared) {
@@ -148,7 +156,7 @@ class GamePlayback(
             // with the same gsId creates a self-referential snapshot.
 
             log.debug(
-                "AI action captured: phase={} turn={} queued={} msgs={}",
+                "action captured: phase={} turn={} queued={} msgs={}",
                 game.phaseHandler.phase,
                 game.phaseHandler.turn,
                 queue.size,
