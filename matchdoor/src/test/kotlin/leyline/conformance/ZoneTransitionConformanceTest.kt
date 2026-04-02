@@ -9,7 +9,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
@@ -105,56 +104,8 @@ class ZoneTransitionConformanceTest :
             assertLimboContains(gsm, origId.value)
         }
 
-        // 2. Hand → Stack (CastSpell)
-        test("Hand → Stack (CastSpell)").config(tags = setOf(IntegrationTag)) {
-            val (b, game, counter) = base.startGameAtMain1()
-            base.playLand(b)
-            b.snapshotFromGame(game)
-
-            val player = human(b)
-            val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
-                ?: error("No creature in hand")
-            val origId = b.getOrAllocInstanceId(ForgeCardId(creature.id))
-            val cardId = creature.id
-
-            base.castCreature(b)
-            val gsm = base.postAction(game, b, counter).gsmOrNull ?: error("No GSM after cast")
-            val newId = b.getOrAllocInstanceId(ForgeCardId(cardId))
-
-            val zt = checkNotNull(gsm.findZoneTransfer(newId.value)) { "Should have ZoneTransfer for cast" }
-            zt.category shouldBe "CastSpell"
-
-            origId shouldNotBe newId
-            val oic = findObjectIdChanged(gsm, origId.value)
-            oic.shouldNotBeNull()
-            assertObjectIdChangedBeforeZoneTransfer(gsm, origId.value)
-            assertLimboContains(gsm, origId.value)
-        }
-
-        // 3. Stack → Battlefield (Resolve)
-        test("Stack → Battlefield (Resolve)").config(tags = setOf(IntegrationTag)) {
-            val (b, game, counter) = base.startGameAtMain1()
-            base.playLand(b)
-            b.snapshotFromGame(game)
-
-            val player = human(b)
-            val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature }
-                ?: error("No creature in hand")
-            val cardId = creature.id
-
-            base.castCreature(b)
-            base.postAction(game, b, counter)
-            b.snapshotFromGame(game)
-
-            base.passPriority(b)
-            val gsm = base.postAction(game, b, counter).gsmOrNull ?: error("No GSM after resolve")
-            val resolvedId = b.getOrAllocInstanceId(ForgeCardId(cardId))
-
-            val zt = checkNotNull(gsm.findZoneTransfer(resolvedId.value)) { "Should have ZoneTransfer for resolve" }
-            zt.category shouldBe "Resolve"
-
-            hasEnteredZoneThisTurn(gsm, resolvedId.value).shouldBeTrue()
-        }
+        // 2. Hand -> Stack (CastSpell) -- moved to StackCastResolveTest
+        // 3. Stack -> Battlefield (Resolve) -- moved to StackCastResolveTest
 
         // =======================================================================
         // Group B: Zone transition tests (no threads — startWithBoard)

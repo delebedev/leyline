@@ -7,7 +7,6 @@ import forge.game.player.Player
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import leyline.ConformanceTag
-import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
@@ -98,6 +97,15 @@ abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
     fun gameStart(game: Game, b: GameBridge, counter: MessageCounter) = base.gameStart(game, b, counter)
     fun handshakeFull(game: Game, b: GameBridge, gsId: Int) = base.handshakeFull(game, b, gsId)
     fun playLand(b: GameBridge) = base.playLand(b)
+    fun castCreature(b: GameBridge) = base.castCreature(b)
+    fun passPriority(b: GameBridge) = base.passPriority(b)
+
+    // --- Cast/resolve convenience captures ---
+
+    fun castSpellBundle() = base.castSpellBundle()
+    fun castSpellAndCapture() = base.castSpellAndCapture()
+    fun castSpellAndCaptureWithIds() = base.castSpellAndCaptureWithIds()
+    fun resolveAndCapture() = base.resolveAndCapture()
 
     companion object {
         const val SEAT_ID = ConformanceTestBase.SEAT_ID

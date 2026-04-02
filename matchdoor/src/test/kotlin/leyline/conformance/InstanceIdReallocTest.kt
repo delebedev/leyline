@@ -4,12 +4,9 @@ import forge.game.ability.AbilityKey
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
 import leyline.bridge.ForgeCardId
-import leyline.bridge.SeatId
-import leyline.game.snapshotFromGame
 
 /**
  * InstanceId reallocation on zone transfer and Limbo zone accumulation.
@@ -48,29 +45,6 @@ class InstanceIdReallocTest :
             b.getLimboInstanceIds().shouldContain(origInstanceId)
         }
 
-        // ===== Engine-dependent tests =====
-
-        test("Resolve keeps same instanceId") {
-            val (b, game, counter) = base.startGameAtMain1()
-            base.playLand(b) ?: error("playLand failed at seed 42")
-            b.snapshotFromGame(game)
-
-            val player = b.getPlayer(SeatId(1))!!
-            val creature = player.getZone(ZoneType.Hand).cards.first { it.isCreature }
-            val cardId = creature.id
-
-            base.castCreature(b) ?: error("castCreature failed at seed 42")
-            base.postAction(game, b, counter)
-
-            val stackInstanceId = b.getOrAllocInstanceId(ForgeCardId(cardId))
-            b.snapshotFromGame(game)
-
-            base.passPriority(b)
-            base.postAction(game, b, counter)
-
-            val bfInstanceId = b.getOrAllocInstanceId(ForgeCardId(cardId))
-            bfInstanceId shouldBe stackInstanceId
-        }
-
-        // Limbo grows test moved to LandManaTest
+        // "Resolve keeps same instanceId" moved to StackCastResolveTest
+        // "Limbo grows" moved to LandManaTest
     })
