@@ -757,18 +757,19 @@ class TargetingHandler(private val ops: SessionOps) {
         val game = bridge.getGame() ?: return
         val req = pendingPrompt.request
 
-        // Resolve candidateRefs → cards + build bundle. Returns null if no cards resolved.
+        // Resolve candidateRefs → cards + build bundle. Returns null if game unavailable or no cards resolved.
         val result = ops.bundleBuilder!!.resolveSurveilScryBundle(req.candidateRefs, context, ops.counter)
         if (result == null) {
-            log.warn("TargetingHandler: surveil/scry but no cards resolved from candidateRefs (falling back to library top)")
+            log.warn("TargetingHandler: surveil/scry resolve failed — game={} candidateRefs={} (falling back)", game != null, req.candidateRefs.size)
             bridge.seat(ops.seatId.value).prompt.submitResponse(pendingPrompt.promptId, listOf(req.defaultIndex))
             bridge.awaitPriority()
             return
         }
 
         val contextLabel = if (context == GroupingContext.Surveil) "Surveil" else "Scry"
-        log.info("TargetingHandler: sending GroupReq for {}", contextLabel)
-        ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "$contextLabel GroupReq")
+        val msgCount = result.messages.size
+        log.info("TargetingHandler: sending GroupReq for {} messages={}", contextLabel, msgCount)
+        ops.traceEvent(MatchEventType.TARGET_PROMPT, game, "$contextLabel GroupReq messages=$msgCount")
 
         Tap.outboundTemplate("GroupReq($contextLabel) seat=${ops.seatId}")
         ops.sendBundledGRE(result.messages)
