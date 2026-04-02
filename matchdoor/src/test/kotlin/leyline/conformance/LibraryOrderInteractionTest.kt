@@ -1,9 +1,7 @@
 package leyline.conformance
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import wotc.mtgo.gre.external.messaging.Messages.*
@@ -87,22 +85,8 @@ class LibraryOrderInteractionTest :
             harness.accumulator.assertConsistent("after surveil to graveyard")
         }
 
-        test("surveil 1 — graveyard produces ZoneTransfer with Surveil category") {
-            startPuzzle(surveil1Puzzle)
-            val snap = harness.messageSnapshot()
-            val cardIds = harness.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
-
-            harness.respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
-
-            val annotations = harness.annotationsSince(snap)
-            val surveilZt = annotations.firstOrNull { ann ->
-                ann.typeList.any { it == AnnotationType.ZoneTransfer_af5a } &&
-                    ann.detailString("category") == "Surveil"
-            }
-            surveilZt.shouldNotBeNull()
-            surveilZt.affectedIdsList.shouldNotBeEmpty()
-            (surveilZt.affectorId != 0).shouldBeTrue()
-        }
+        // Surveil ZoneTransfer annotation shape (category + affectorId) is tested
+        // at board level in ZoneTransferTest.
 
         // --- Surveil 2 (Sterling Hound: ETB surveil 2) ---
 

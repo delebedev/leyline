@@ -210,6 +210,7 @@ data class ZoneTransferInfo(
     val category: String,
     val zoneSrc: Int = -1,
     val zoneDest: Int = -1,
+    val affectorId: Int = 0,
 )
 
 /** Find the ZoneTransfer annotation for a given instanceId. */
@@ -219,6 +220,7 @@ fun GameStateMessage.findZoneTransfer(instanceId: Int): ZoneTransferInfo? {
         category = ann.detail("category")?.getValueString(0) ?: "",
         zoneSrc = ann.detail("zone_src")?.getValueInt32(0) ?: -1,
         zoneDest = ann.detail("zone_dest")?.getValueInt32(0) ?: -1,
+        affectorId = ann.affectorId,
     )
 }
 

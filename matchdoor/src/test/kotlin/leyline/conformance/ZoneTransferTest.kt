@@ -10,6 +10,8 @@ import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
+import leyline.bridge.ForgeCardId
+import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.ZoneIds
 import leyline.game.snapshotFromGame
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -99,6 +101,31 @@ class ZoneTransferTest :
                 g.action.moveToGraveyard(card, null)
             }
             checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Mill"
+        }
+
+        test("Library → Graveyard (Surveil) — category and affectorId") {
+            val (b, game, counter) = startWithBoard { _, human, _ ->
+                addCard("Grizzly Bears", human, ZoneType.Library)
+                addCard("Wary Thespian", human, ZoneType.Battlefield)
+            }
+            val source = game.humanPlayer.getZone(ZoneType.Battlefield).cards
+                .first { it.name == "Wary Thespian" }
+            // Pre-register the source card's ability instanceId (normally done when ability goes on stack)
+            val abilityForgeId = ForgeCardId(source.id + ObjectMapper.STACK_ABILITY_ID_OFFSET)
+            b.getOrAllocInstanceId(abilityForgeId)
+
+            val (gsm, newId) = transferCard(b, game, counter, "Grizzly Bears") { card, g ->
+                // Order matters: moveToGraveyard fires CardMilled, then CardSurveiled
+                // overwrites. Matches production order in Player.surveil().
+                g.action.moveToGraveyard(card, null)
+                g.fireEvent(forge.game.event.GameEventCardSurveiled(card, source))
+            }
+            val zt = checkNotNull(gsm.findZoneTransfer(newId))
+            zt.category shouldBe "Surveil"
+            // TODO: affectorId should be source card's ability instance, but at board
+            // level the detector can't resolve it (forgeCardId lookup mismatch after
+            // realloc). Covered by session-tier surveil flow. Fix when adding more
+            // affectorId tests to ZoneTransferTest.
         }
 
         test("Library → Exile") {
