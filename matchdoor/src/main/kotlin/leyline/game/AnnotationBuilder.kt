@@ -761,8 +761,8 @@ object AnnotationBuilder {
     // -- Tier 2 detail-carrying annotations --
 
     /** Land color production for card frame rendering. Arena type 110 (ColorProduction).
-     *  [colors] = bitmask (1=W, 2=U, 4=B, 8=R, 16=G).
-     *  Real card: grp:96188, colors=4 (session 09-33-05). */
+     *  [colors] = Arena ManaColor ordinals (W=1, U=2, B=3, R=4, G=5).
+     *  Real card: grp:96188, colors=3 (Swamp, session 09-33-05). */
     fun colorProduction(instanceId: Int, colors: List<Int>): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.ColorProduction)

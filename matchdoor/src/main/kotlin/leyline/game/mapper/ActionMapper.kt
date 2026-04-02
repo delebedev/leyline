@@ -277,8 +277,9 @@ object ActionMapper {
         val sa = card.manaAbilities.first()
         val registry = abilityRegistryLookup(card, cardData)
         val abilityGrpId = registry?.forSpellAbility(sa.id) ?: 0
-        val produced = sa.manaPart?.origProduced ?: ""
-        val manaColor = producedToManaColor(produced) ?: ManaColor.Generic
+        val mana = sa.manaPart
+        val produced = if (mana != null && mana.isComboMana) mana.getComboColors(sa) else mana?.origProduced ?: ""
+        val manaColor = produced.split(" ").firstNotNullOfOrNull { producedToManaColor(it) } ?: ManaColor.Generic
 
         val actionBuilder = Action.newBuilder()
             .setActionType(ActionType.ActivateMana)
@@ -434,14 +435,18 @@ object ActionMapper {
             for (sa in card.manaAbilities) {
                 sa.setActivatingPlayer(player)
                 if (!sa.canPlay()) continue
-                val produced = sa.manaPart?.origProduced ?: continue
-                val manaColor = producedToManaColor(produced) ?: continue
+                val mana = sa.manaPart ?: continue
+                val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
+                val colors = produced.split(" ").mapNotNull { producedToManaColor(it) }
+                if (colors.isEmpty()) continue
                 val instanceId = idResolver(card.id)
                 val grpId = grpIdResolver(card)
                 val cardData = cardDataLookup(grpId)
                 val registry = abilityRegistryLookup(card, cardData)
                 val abilityGrpId = registry?.forSpellAbility(sa.id) ?: 0
-                sources.add(ManaSource(card, instanceId, manaColor, abilityGrpId))
+                for (color in colors) {
+                    sources.add(ManaSource(card, instanceId, color, abilityGrpId))
+                }
             }
         }
 

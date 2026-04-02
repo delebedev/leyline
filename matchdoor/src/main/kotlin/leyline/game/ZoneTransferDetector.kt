@@ -28,8 +28,8 @@ data class AppliedTransfer(
     val ownerSeatId: Int,
     /** InstanceId of the ability/spell that caused this transfer (for affectorId). */
     val affectorId: Int = 0,
-    /** Color bitmasks for land color production (1=W, 2=U, 4=B, 8=R, 16=G). */
-    val colorBitmasks: List<Int> = emptyList(),
+    /** Arena ManaColor ordinals for land color production (W=1, U=2, B=3, R=4, G=5). */
+    val colorOrdinals: List<Int> = emptyList(),
     /** Resolved mana payments for CastSpell (one per land tapped). */
     val manaPayments: List<ManaPaymentRecord> = emptyList(),
     /** True if this transfer is an adventure spell cast (UserActionTaken actionType=16). */
@@ -196,11 +196,11 @@ object ZoneTransferDetector {
                     0
                 }
 
-                // Extract color bitmasks from LandPlayed event for ColorProduction annotation.
-                val colorBitmasks = if (category == TransferCategory.PlayLand && forgeCardId != null) {
+                // Extract color ordinals from LandPlayed event for ColorProduction annotation.
+                val colorOrdinals = if (category == TransferCategory.PlayLand && forgeCardId != null) {
                     events.filterIsInstance<GameEvent.LandPlayed>()
                         .firstOrNull { it.cardId == forgeCardId }
-                        ?.colorBitmasks ?: emptyList()
+                        ?.colorOrdinals ?: emptyList()
                 } else {
                     emptyList()
                 }
@@ -229,7 +229,7 @@ object ZoneTransferDetector {
                 transfers.add(
                     AppliedTransfer(
                         origId, newId, category, prevZone, obj.zoneId, obj.grpId,
-                        obj.ownerSeatId, affectorId, colorBitmasks, manaPayments, isAdventureCast,
+                        obj.ownerSeatId, affectorId, colorOrdinals, manaPayments, isAdventureCast,
                     ),
                 )
                 zoneRecordings.add(newId to obj.zoneId)

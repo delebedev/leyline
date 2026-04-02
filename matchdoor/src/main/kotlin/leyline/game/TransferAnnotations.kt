@@ -122,8 +122,8 @@ object TransferAnnotations {
         }
 
         // Persistent: ColorProduction for lands entering the battlefield
-        if (category == TransferCategory.PlayLand && transfer.colorBitmasks.isNotEmpty()) {
-            persistent.add(AnnotationBuilder.colorProduction(newId, transfer.colorBitmasks))
+        if (category == TransferCategory.PlayLand && transfer.colorOrdinals.isNotEmpty()) {
+            persistent.add(AnnotationBuilder.colorProduction(newId, transfer.colorOrdinals))
         }
 
         return annotations to persistent

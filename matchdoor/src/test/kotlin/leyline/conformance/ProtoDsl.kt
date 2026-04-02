@@ -284,6 +284,19 @@ fun castingTimeOptionsResp(
         )
     }
 
+/**
+ * [CastingTimeOptionsResp] for optional costs (kicker, buyback).
+ * Sends the selected [ctoId] — 0 for Done (decline), >0 for the cost option.
+ */
+fun optionalCostResp(ctoId: Int): ClientToGREMessage =
+    clientMessage(ClientMessageType.CastingTimeOptionsResp_097b) {
+        setCastingTimeOptionsResp(
+            CastingTimeOptionsResp.newBuilder().setCastingTimeOptionResp(
+                CastingTimeOptionResp.newBuilder().setCtoId(ctoId),
+            ),
+        )
+    }
+
 // ---------------------------------------------------------------------------
 // OptionalActionResp — shock land ETB "pay life or enter tapped"
 // ---------------------------------------------------------------------------

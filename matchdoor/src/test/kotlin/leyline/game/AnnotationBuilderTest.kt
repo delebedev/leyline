@@ -693,6 +693,25 @@ class AnnotationBuilderTest :
             colors.getValueInt32(1) shouldBe 5
         }
 
+        // --- Color ordinal conversion (used by GameEventCollector.computeColorOrdinals) ---
+
+        test("manaColorMappingProducesArenaOrdinals") {
+            assertSoftly {
+                ManaColorMapping.fromProduced("W")?.number shouldBe 1
+                ManaColorMapping.fromProduced("U")?.number shouldBe 2
+                ManaColorMapping.fromProduced("B")?.number shouldBe 3
+                ManaColorMapping.fromProduced("R")?.number shouldBe 4
+                ManaColorMapping.fromProduced("G")?.number shouldBe 5
+            }
+        }
+
+        test("manaColorMappingDualLandOrdinals") {
+            val wg = listOf("W", "G").mapNotNull { ManaColorMapping.fromProduced(it)?.number }
+            wg shouldBe listOf(1, 5)
+            val ub = listOf("U", "B").mapNotNull { ManaColorMapping.fromProduced(it)?.number }
+            ub shouldBe listOf(2, 3)
+        }
+
         // --- TriggeringObject (Tier 2) ---
 
         test("triggeringObjectFields") {

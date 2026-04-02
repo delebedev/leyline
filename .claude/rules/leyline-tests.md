@@ -29,7 +29,7 @@ Scope to the modules you changed. Don't run all modules when you touched one.
 
 ## Tags
 
-**Every test class MUST have a tag.** First line inside `FunSpec({` body.
+**Every test class MUST have a tag.** First line inside `FunSpec({` body (or auto-wired by `SubsystemTest`).
 
 | Module | Tag | Notes |
 |---|---|---|
@@ -42,44 +42,60 @@ Scope to the modules you changed. Don't run all modules when you touched one.
 
 ## Setup tiers (matchdoor)
 
-| Setup | Time | Use when |
-|---|---|---|
-| `startWithBoard{}` | 0.01s | **Default.** Zone transitions, events, annotations, state mapping, action fields |
-| `startPuzzleAtMain1(pzl)` | 0.09s | SBA scenarios, board states needing proper game start |
-| `startGameAtMain1()` | 0.5s | Play/cast pipeline through bridge (needs engine thread) |
-| `connectAndKeep()` | 0.7-3s | Full MatchSession — auto-pass, combat, targeting, game-over flows |
+| Tier | Method | Time | Use when |
+|---|---|---|---|
+| Board | `startWithBoard` + `capture()` | 0.01s | **Default.** Zone transitions, annotations, action fields, state mapping |
+| Puzzle | `startPuzzleAtMain1(pzl)` | 0.09s | SBA scenarios, complex board states needing proper game start |
+| Bridge | `startGameAtMain1()` | 0.5s | Cast/resolve pipeline through bridge (needs engine thread) |
+| Session | `connectAndKeep()` (MatchFlowHarness) | 0.7-3s | Full MatchSession — auto-pass, combat, targeting, game-over |
 
-**Bias toward `startWithBoard`.** If the test doesn't call `passPriority()` or need the game loop thread, it probably belongs at board level with `captureAfterAction` + synchronous `game.action.*`.
+**Bias toward Board.** If the test doesn't call `passPriority()` or need the game loop thread, it belongs at board level.
+
+**Board and Bridge use SubsystemTest. Session uses MatchFlowHarness.** Never mix bases in one file — different speed tiers, different base classes, separate files.
+
+### Playing cards in tests
+
+See `forge-seams.md` for full details. Quick reference:
+- `addCard("Forest", human, ZoneType.Battlefield)` — places card during `startWithBoard` setup. No zone change. **For board setup.**
+- `moveToBattlefield(card, game)` — raw zone move during test. No events, no triggers. **For moving cards as setup after startWithBoard.**
+- `player.playLand(land, true, null)` — full Forge path. Fires events, consumes land drop. **For testing the land play itself.**
 
 ## Test class shape
 
+**New tests: extend SubsystemTest** (auto-wires tags, initCardDatabase, tearDown):
+
 ```kotlin
-class FooTest : FunSpec({
-
-    tags(ConformanceTag)
-
-    val base = ConformanceTestBase()
-    beforeSpec { base.initCardDatabase() }
-    afterEach { base.tearDown() }
+class FooTest : SubsystemTest({
 
     test("some behavior") {
-        val (b, game, counter) = base.startWithBoard { _, human, _ ->
-            base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+        val (b, game, counter) = startWithBoard { _, human, _ ->
+            addCard("Grizzly Bears", human, ZoneType.Battlefield)
         }
         // action + assertions
     }
 })
 ```
 
+Existing tests using `val base = ConformanceTestBase()` pattern still work — migrate to SubsystemTest when touching the file.
+
 ## Style
 
-- **No silent skips.** `if (list.isEmpty()) return@test` hides broken setups. If the board should produce cast actions, assert `castActions.shouldNotBeEmpty()`. A test that can't fail isn't a test.
-- **`assertSoftly` for multi-field shape checks.** When one setup produces one GSM and you check N facets, wrap in `assertSoftly {}` — reports all failures, not just the first. Hard gates (e.g. "annotations exist at all") go before the `assertSoftly` block.
-- **One test per distinct board setup.** Don't mix Activate checks (needs Gingerbrute) into a Cast test (needs creature + mana). Different board = different test.
+- **MUST: Assert what the test name claims.** "Keep on top" must check the card is on top — not just "not in graveyard." A test that can't fail for the right reason isn't testing anything. If the test name says X, the assertion must prove X directly.
+- **MUST: Assert the specific outcome, not its side effects.** Check the card by name and position, not `shouldNotBeEmpty()` or `.any {}`. You control the board — you know exactly what should be where. `gy.none { it.name == "Foo" }` is a side-effect check; `libTop.name shouldBe "Foo"` is a direct outcome check.
+- **No silent skips.** `if (list.isEmpty()) return@test` hides broken setups. A test that can't fail isn't a test.
+- **Exact counts, not weak gates.** `shouldHaveSize(2)` not `shouldNotBeEmpty()`. You control the board — you know exactly how many actions/annotations to expect. "Exact" means **derivable from your setup** — if you can't trace the expected value back to the board you built, keep the weaker assertion and comment why.
+- **Named constants.** `ActionType.Play_add3.number` not `3`, `SEAT_ID` not `1`, `ZoneIds.STACK` not magic numbers.
+- **`assertSoftly` for multi-field shape checks.** Hard gates (annotation exists at all) go before the `assertSoftly` block.
+- **One test per distinct board setup.** Different board = different test.
 - **Category assertions mandatory** on zone transfer tests. `zt.shouldNotBeNull()` alone is lax — always check `zt.category shouldBe "..."`.
-- **Bail-out loops need terminal assertions.** `repeat(N) { if (cond) return@repeat; passPriority() }` silently passes if the condition never holds. Always assert the condition after the loop, or use `passUntil` / `passThroughCombat` which fail on exhaustion.
-- **Use helpers, not raw proto access.** `ann.detailInt("zone_src")` not `ann.detailsList.first { it.key == "zone_src" }.getValueInt32(0)`. Check `TestExtensions.kt` before writing inline lookups. If a pattern appears 2+ times and no helper exists, propose one.
-- **Tests should read like specs.** If a test is noisy — repeated setup, verbose assertion chains, inline filter/map gymnastics — extract a helper that names the intent. `shouldHaveZoneTransfer(from, to, category)` beats 5 lines of filtering + asserting.
+- **Bail-out loops need terminal assertions.** Always assert the condition after the loop, or use `passUntil` / `passThroughCombat` which fail on exhaustion.
+- **Use helpers, not raw proto access.** Check `TestExtensions.kt` before writing inline lookups. If a pattern appears 2+ times and no helper exists, propose one.
+- **Tests should read like specs.** Extract helpers that name the intent.
+- **No `when` with `else -> {}`** — silently ignores unknown variants. Filter by type explicitly.
+- **No tautological assertions.** `uint >= 0` is always true. Use `shouldBeGreaterThan 0` if value must be positive.
+- **No fully qualified Forge/proto types inline** — import them.
+- **Wrap Forge actions that take boilerplate params.** `destroy(card, game)` not `game.action.destroy(card, null, false, AbilityKey.newMap())`. SubsystemTest provides `destroy()`, `exile()`, `moveToBattlefield()`. If you need a new one, add it there.
+- **`(a < b).shouldBeTrue()` gives bad failure messages** ("expected true but was false"). Prefer `shouldBe listOf(...)` for type ordering. For non-consecutive ordering, `(a < b)` is acceptable but add a comment.
 
 ## Assertions & helpers
 
@@ -88,14 +104,21 @@ Prefer concise helpers from `TestExtensions.kt` over verbose manual patterns.
 ### Annotation lookup
 
 ```kotlin
-// Good: throws with clear message if missing
+// Good: throws with clear message ("No annotation of type ZoneTransfer")
 val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
 
-// Avoid inside assertSoftly — the "soft" null check is illusory
-// since downstream lines depend on the value being non-null
+// Bad: annotationOrNull + shouldNotBeNull gives opaque "expected non-null but was null"
 val zt = gsm.annotationOrNull(AnnotationType.ZoneTransfer_af5a).shouldNotBeNull()
 
-// annotationOrNull is for genuinely optional annotations (e.g. "if present, check shape")
+// Same applies to persistent annotations:
+val cp = gsm.persistentAnnotation(AnnotationType.ColorProduction) // Good
+val cp = gsm.persistentAnnotationOrNull(AnnotationType.ColorProduction).shouldNotBeNull() // Bad
+
+// annotationOrNull is ONLY for genuinely optional annotations (e.g. "if present, check shape")
+
+// Plural: all annotations of a type
+val tups = gsm.annotations(AnnotationType.TappedUntappedPermanent)
+tups.shouldHaveSize(1)
 ```
 
 ### Detail extraction
@@ -104,6 +127,7 @@ val zt = gsm.annotationOrNull(AnnotationType.ZoneTransfer_af5a).shouldNotBeNull(
 // Good: one line, fails clearly if key missing
 zt.detailInt("zone_src") shouldBe ZoneIds.P1_HAND
 zt.detailString("category") shouldBe "PlayLand"
+zt.detailIntList("colors") shouldBe listOf(5) // multi-value
 
 // Avoid: verbose, redundant type check
 val zoneSrc = zt.detail("zone_src").shouldNotBeNull()
@@ -111,13 +135,41 @@ zoneSrc.type shouldBe KeyValuePairValueType.Int32
 zoneSrc.getValueInt32(0) shouldBe ZoneIds.P1_HAND
 ```
 
-Available: `detailInt()`, `detailUint()`, `detailString()`, `detail()` (raw nullable).
+Available: `detailInt()`, `detailUint()`, `detailString()`, `detailIntList()`, `detail()` (raw nullable).
+
+### Action filtering
+
+```kotlin
+val cast = actions.ofType(ActionType.Cast)
+cast.shouldHaveSize(1)
+```
 
 ### Zone transfer
 
 ```kotlin
 val zt = checkNotNull(gsm.findZoneTransfer(instanceId)) { "Should have ZoneTransfer" }
 zt.category shouldBe "PlayLand"
+gsm.hasEnteredZoneThisTurn(instanceId).shouldBeTrue()
+```
+
+### InstanceId resolution
+
+```kotlin
+// Good: absorbs ForgeCardId wrapping + .value unwrapping
+val newId = b.instanceId(card.id)
+
+// Avoid: noisy three-step
+val newId = b.getOrAllocInstanceId(ForgeCardId(card.id)).value
+```
+
+### Zone transfer helper (SubsystemTest)
+
+```kotlin
+// transferCard: finds card by name, performs action, returns (gsm, newInstanceId)
+val (gsm, newId) = transferCard(b, game, counter, "Grizzly Bears") { card, g ->
+    destroy(card, g)
+}
+checkNotNull(gsm.findZoneTransfer(newId)).category shouldBe "Destroy"
 ```
 
 ### Nullability
@@ -128,13 +180,16 @@ zt.category shouldBe "PlayLand"
 
 ## Harnesses
 
-### ConformanceTestBase
+### SubsystemTest (preferred)
 
-Board-level and bridge-level tests. Key methods:
+Board-level and bridge-level tests. Extends FunSpec, auto-wires tags/setup/teardown. Key methods:
 - `startWithBoard { game, human, ai -> }` — synchronous, no threads
 - `startGameAtMain1()` — full game boot, returns `(bridge, game, counter)`
 - `addCard(name, player, zone)` — place card in zone
-- `captureAfterAction(b, game, counter) { action() }` — snapshot → action → diff GSM
+- `capture(b, game, counter) { action() }` — snapshot → action → diff GSM
+- `moveToBattlefield(card, game)` — raw zone move (no events)
+- `playLandFromHand(b, game, counter)` — full land play, returns GSM
+- `humanPlayer(b)` — human player shortcut
 
 ### MatchFlowHarness
 
