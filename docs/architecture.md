@@ -284,8 +284,9 @@ The bridge layer is intentionally transport-agnostic. The `CompletableFuture` pa
 ```
 leyline/src/main/kotlin/leyline/              65 files, ~14.5K LOC
   ├── LeylineMain.kt                          ← Entry point
-  ├── game/           (22 files, ~5.5K LOC)   ← Core: StateMapper, BundleBuilder, AnnotationBuilder,
-  │                                              GameBridge, AnnotationPipeline, GameEventCollector,
+  ├── game/           (25 files, ~5.5K LOC)   ← Core: StateMapper, BundleBuilder, AnnotationBuilder,
+  │                                              GameBridge, ZoneTransferDetector, TransferAnnotations,
+  │                                              CombatAnnotations, MechanicAnnotations, GameEventCollector,
   │                                              GamePlayback, ObjectMapper, ZoneMapper, CardDb
   ├── server/         (12 files, ~2.5K LOC)   ← Transport: MatchHandler, MatchSession, AutoPassEngine,
   │                                              CombatHandler, TargetingHandler, FrontDoorService,
