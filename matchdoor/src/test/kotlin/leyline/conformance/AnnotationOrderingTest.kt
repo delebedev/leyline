@@ -43,63 +43,7 @@ class AnnotationOrderingTest :
             ids.toSet().size shouldBe ids.size
         }
 
-        // ===== PlayLand ordering =====
-
-        test("PlayLand annotation order: ObjectIdChanged -> ZoneTransfer -> UserActionTaken") {
-            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
-
-            val types = gsm.annotationsList.map { it.typeList.first() }
-            val oicIdx = types.indexOf(AnnotationType.ObjectIdChanged)
-            val ztIdx = types.indexOf(AnnotationType.ZoneTransfer_af5a)
-            val uatIdx = types.indexOf(AnnotationType.UserActionTaken)
-
-            oicIdx shouldBeGreaterThanOrEqual 0
-            ztIdx shouldBeGreaterThanOrEqual 0
-            uatIdx shouldBeGreaterThanOrEqual 0
-
-            (oicIdx < ztIdx).shouldBeTrue()
-            (ztIdx < uatIdx).shouldBeTrue()
-        }
-
-        test("PlayLand: exactly 3 annotations") {
-            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
-
-            val types = gsm.annotationsList.map { it.typeList.first() }
-            val expected = listOf(
-                AnnotationType.ObjectIdChanged,
-                AnnotationType.ZoneTransfer_af5a,
-                AnnotationType.UserActionTaken,
-            )
-            types shouldBe expected
-        }
-
-        test("PlayLand: ZoneTransfer affectorId is zero") {
-            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
-
-            val zt = gsm.annotation(AnnotationType.ZoneTransfer_af5a)
-            zt.affectorId shouldBe 0
-        }
-
-        test("PlayLand: UserActionTaken affectorId equals acting seat") {
-            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
-
-            val uat = gsm.annotation(AnnotationType.UserActionTaken)
-            uat.affectorId shouldBe 1
-        }
-
-        test("PlayLand: UserActionTaken actionType=3 (Play)") {
-            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
-
-            val uat = gsm.annotation(AnnotationType.UserActionTaken)
-            uat.detailInt("actionType") shouldBe 3
-        }
-
-        test("PlayLand: ObjectIdChanged has no affectorId set") {
-            val gsm = base.playLandAndCapture() ?: error("No land in hand at seed 42")
-
-            val oic = gsm.annotation(AnnotationType.ObjectIdChanged)
-            oic.affectorId shouldBe 0
-        }
+        // PlayLand ordering tests moved to LandManaTest
 
         // ===== CastSpell ordering =====
 
@@ -157,6 +101,8 @@ class AnnotationOrderingTest :
             castUat.detailInt("actionType") shouldBe 1
         }
 
+        // TODO: fails with IndexOutOfBoundsException — TUP annotation has no "tapped" detail.
+        //  Pre-existing; not caused by LandMana migration.
         test("CastSpell: TappedUntappedPermanent has tapped=1 detail") {
             val gsm = base.castSpellAndCapture() ?: error("Could not cast spell at seed 42")
 

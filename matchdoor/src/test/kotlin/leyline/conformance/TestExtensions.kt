@@ -63,6 +63,12 @@ fun AnnotationInfo.detailUint(key: String): Int =
 fun AnnotationInfo.detailString(key: String): String =
     detail(key)?.getValueString(0) ?: error("No detail '$key' on annotation $typeList")
 
+/** Shorthand: get all int32 values for a multi-value detail (e.g. colors=[3, 5]). */
+fun AnnotationInfo.detailIntList(key: String): List<Int> {
+    val d = detail(key) ?: error("No detail '$key' on annotation $typeList")
+    return (0 until d.valueInt32Count).map { d.getValueInt32(it) }
+}
+
 // ----- Tier 1: Action filtering -----
 
 /** Filter actions by ActionType. */
@@ -78,6 +84,15 @@ fun GameStateMessage.annotation(type: AnnotationType): AnnotationInfo =
 /** Find the first annotation with the given type, or null. */
 fun GameStateMessage.annotationOrNull(type: AnnotationType): AnnotationInfo? =
     annotationsList.firstOrNull { type in it.typeList }
+
+/** Find the first persistent annotation with the given type. */
+fun GameStateMessage.persistentAnnotation(type: AnnotationType): AnnotationInfo =
+    persistentAnnotationsList.firstOrNull { type in it.typeList }
+        ?: error("No persistent annotation of type $type")
+
+/** Find the first persistent annotation with the given type, or null. */
+fun GameStateMessage.persistentAnnotationOrNull(type: AnnotationType): AnnotationInfo? =
+    persistentAnnotationsList.firstOrNull { type in it.typeList }
 
 // ----- Tier 2: Accumulator consistency -----
 
