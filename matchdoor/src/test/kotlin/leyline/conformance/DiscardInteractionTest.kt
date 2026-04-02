@@ -2,7 +2,6 @@ package leyline.conformance
 
 import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.collections.shouldHaveSize
-import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.bridge.InstanceId
 import leyline.bridge.InteractivePromptBridge
@@ -24,7 +23,7 @@ class DiscardInteractionTest :
             [metadata]
             Name:Mandatory Cost - Mardu Outrider
             Goal:Win
-            Turns:3
+            Turns:2
 
             [state]
             ActivePlayer=Human
@@ -61,7 +60,7 @@ class DiscardInteractionTest :
                 req.optionContext shouldBe OptionContext.Payment
                 req.minSel shouldBe 1
                 req.maxSel shouldBe 1
-                req.idsList.size shouldBeGreaterThan 0
+                req.idsList shouldHaveSize 1
             }
         }
 
@@ -72,7 +71,7 @@ class DiscardInteractionTest :
             val req = harness.allMessages.last { it.hasSelectNReq() }.selectNReq
             val mountainId = findCandidate(req, "Mountain")
             harness.respondToSelectN(listOf(mountainId))
-            if (!isGameOver()) passPriority()
+            passPriority()
 
             val player = human
             assertSoftly {

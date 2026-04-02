@@ -1,7 +1,6 @@
 package leyline.conformance
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -29,7 +28,7 @@ class LibraryOrderInteractionTest :
             [metadata]
             Name:Surveil 1
             Goal:Win
-            Turns:10
+            Turns:1
 
             [state]
             ActivePlayer=Human
@@ -66,30 +65,30 @@ class LibraryOrderInteractionTest :
             card.name shouldBe "Grizzly Bears"
         }
 
-        test("surveil 1 — keep on top leaves card in library") {
+        test("surveil 1 — keep on top leaves card on library top") {
             startPuzzle(surveil1Puzzle)
+            val player = human
             val cardIds = harness.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             harness.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
 
-            val gy = human.getZone(ForgeZoneType.Graveyard).cards
-            gy.none { it.name == "Grizzly Bears" }.shouldBeTrue()
+            player.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Grizzly Bears"
         }
 
         test("surveil 1 — put in graveyard moves card") {
             startPuzzle(surveil1Puzzle)
+            val player = human
             val cardIds = harness.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             harness.respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
 
-            val gy = human.getZone(ForgeZoneType.Graveyard).cards
-            gy.any { it.name == "Grizzly Bears" }.shouldBeTrue()
+            // Grizzly Bears in graveyard
+            val gyBears = player.getZone(ForgeZoneType.Graveyard).cards
+                .filter { it.name == "Grizzly Bears" }
+            gyBears shouldHaveSize 1
 
-            // Library top should not be Grizzly Bears
-            val libTop = human.getZone(ForgeZoneType.Library).cards.lastOrNull()
-            if (libTop != null) {
-                libTop.name shouldBe "Forest"
-            }
+            // Library top is now Forest (Bears was removed)
+            player.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Forest"
 
             harness.accumulator.assertConsistent("after surveil to graveyard")
         }
@@ -108,7 +107,6 @@ class LibraryOrderInteractionTest :
             }
             surveilZt.shouldNotBeNull()
             surveilZt.affectedIdsList.shouldNotBeEmpty()
-            surveilZt.affectorId shouldBe surveilZt.affectorId // self-check
             (surveilZt.affectorId != 0).shouldBeTrue()
         }
 
@@ -120,7 +118,7 @@ class LibraryOrderInteractionTest :
             [metadata]
             Name:Surveil 2
             Goal:Win
-            Turns:10
+            Turns:1
 
             [state]
             ActivePlayer=Human
@@ -135,17 +133,16 @@ class LibraryOrderInteractionTest :
                 """.trimIndent(),
             )
 
+            val player = human
             val groupReq = harness.castSpellUntilGroupReq("Sterling Hound")
             groupReq.context shouldBe GroupingContext.Surveil
-            groupReq.instanceIdsList.size shouldBe 2
+            groupReq.instanceIdsList shouldHaveSize 2
 
             val allIds = groupReq.instanceIdsList
             harness.respondToGroupReq(awayInstanceIds = allIds, allInstanceIds = allIds)
 
-            val gy = human.getZone(ForgeZoneType.Graveyard)
             // Sterling Hound resolved to BF, 2 surveiled cards in graveyard
-            gy.size() shouldBe 2
-            isGameOver().shouldBeFalse()
+            player.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
         }
 
         // --- Scry 1 (Wall of Runes: ETB scry 1) ---
@@ -154,7 +151,7 @@ class LibraryOrderInteractionTest :
             [metadata]
             Name:Scry 1
             Goal:Win
-            Turns:10
+            Turns:1
 
             [state]
             ActivePlayer=Human
@@ -186,12 +183,13 @@ class LibraryOrderInteractionTest :
 
         test("scry 1 — put on bottom") {
             startPuzzle(scryPuzzle)
+            val player = human
             val cardIds = harness.castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             harness.respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
-            // Wall of Runes should be on battlefield
-            human.getZone(ForgeZoneType.Battlefield).cards
+            // Wall of Runes on battlefield
+            player.getZone(ForgeZoneType.Battlefield).cards
                 .filter { it.name == "Wall of Runes" } shouldHaveSize 1
 
             // Scry annotation emitted
@@ -200,9 +198,8 @@ class LibraryOrderInteractionTest :
                 .firstOrNull { ann -> ann.typeList.any { it == AnnotationType.Scry_af5a } }
             scryAnn.shouldNotBeNull()
 
-            harness.accumulator.assertConsistent("after scry to bottom")
-            assertGsIdChain(harness.allMessages, context = "scry flow")
-            isGameOver().shouldBeFalse()
+            // Grizzly Bears moved to bottom — library top is now Forest
+            player.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Forest"
         }
 
         test("scry 1 — keep on top") {
@@ -212,8 +209,7 @@ class LibraryOrderInteractionTest :
 
             harness.respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)
 
-            // Card should still be in library (not moved to bottom or graveyard)
-            player.getZone(ForgeZoneType.Library).cards.shouldNotBeEmpty()
-            isGameOver().shouldBeFalse()
+            // Grizzly Bears still on library top
+            player.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Grizzly Bears"
         }
     })

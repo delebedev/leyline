@@ -80,6 +80,8 @@ Existing tests using `val base = ConformanceTestBase()` pattern still work — m
 
 ## Style
 
+- **MUST: Assert what the test name claims.** "Keep on top" must check the card is on top — not just "not in graveyard." A test that can't fail for the right reason isn't testing anything. If the test name says X, the assertion must prove X directly.
+- **MUST: Assert the specific outcome, not its side effects.** Check the card by name and position, not `shouldNotBeEmpty()` or `.any {}`. You control the board — you know exactly what should be where. `gy.none { it.name == "Foo" }` is a side-effect check; `libTop.name shouldBe "Foo"` is a direct outcome check.
 - **No silent skips.** `if (list.isEmpty()) return@test` hides broken setups. A test that can't fail isn't a test.
 - **Exact counts, not weak gates.** `shouldHaveSize(2)` not `shouldNotBeEmpty()`. You control the board — you know exactly how many actions/annotations to expect. "Exact" means **derivable from your setup** — if you can't trace the expected value back to the board you built, keep the weaker assertion and comment why.
 - **Named constants.** `ActionType.Play_add3.number` not `3`, `SEAT_ID` not `1`, `ZoneIds.STACK` not magic numbers.
