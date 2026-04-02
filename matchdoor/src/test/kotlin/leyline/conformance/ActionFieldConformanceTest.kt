@@ -160,6 +160,30 @@ class ActionFieldConformanceTest :
             }
         }
 
+        test("dual lands produce autoTapSolution for Cast actions") {
+            val (b, game, _) = base.startWithBoard { _, human, _ ->
+                base.addCard("Jungle Hollow", human, ZoneType.Battlefield)
+                base.addCard("Jungle Hollow", human, ZoneType.Battlefield)
+                base.addCard("Grizzly Bears", human, ZoneType.Hand)
+            }
+
+            val actions = ActionMapper.buildActions(game, 1, b)
+            val castActions = actions.actionsList.filter { it.actionType == ActionType.Cast }
+            castActions.shouldNotBeEmpty()
+
+            assertSoftly {
+                for (a in castActions) {
+                    a.manaCostCount shouldBeGreaterThan 0
+                    a.hasAutoTapSolution().shouldBeTrue()
+                    a.autoTapSolution.autoTapActionsCount shouldBeGreaterThan 0
+                    for (tap in a.autoTapSolution.autoTapActionsList) {
+                        tap.instanceId shouldNotBe 0
+                        tap.hasManaPaymentOption().shouldBeTrue()
+                    }
+                }
+            }
+        }
+
         test("Activate action fields — non-mana activated ability") {
             val (b, game, _) = base.startWithBoard { _, human, _ ->
                 // Gingerbrute: {1}: can't be blocked except by haste creatures
