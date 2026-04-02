@@ -3,6 +3,45 @@ import { detectGames, type Game } from "../games";
 import { loadCatalog, readSavedGame, type CatalogEntry } from "../catalog";
 import { loadMeta, saveMeta, buildCardManifest, type CardEntry } from "../meta";
 import { parseLog } from "../parser";
+import { formatProvenanceSummary, formatSourceBadge, matchesSource, parseSavedSourceFilter } from "../provenance";
+import { parseGameFlag, resolveGame } from "../resolve";
+
+function firstPositional(args: string[]): string | null {
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--source" || arg === "--game") {
+      i++;
+      continue;
+    }
+    if (arg === "--saved" || arg === "--all") continue;
+    if (!arg.startsWith("-")) return arg;
+  }
+  return null;
+}
+
+function selectSavedEntry(catalog: { games: CatalogEntry[] }, gameRef: string | null, args: string[]): CatalogEntry | undefined {
+  if (gameRef) {
+    return catalog.games.find((g) => g.file.includes(gameRef));
+  }
+
+  const allowedSources = parseSavedSourceFilter(args);
+  for (let i = catalog.games.length - 1; i >= 0; i--) {
+    const entry = catalog.games[i];
+    if (matchesSource(loadMeta(entry.file), allowedSources)) {
+      return entry;
+    }
+  }
+  return undefined;
+}
+
+export function normalizeGameShowArgs(args: string[]): string[] {
+  if (parseGameFlag(args)) return args;
+
+  const ref = firstPositional(args);
+  if (!ref || ref === "last") return args;
+
+  return ["--game", ref, ...args.slice(1)];
+}
 
 async function loadAllGames(): Promise<Game[]> {
   const events = await loadEvents();
@@ -29,13 +68,15 @@ export async function gameCommand(args: string[]) {
     console.log("\nFlags:");
     console.log("  --game REF   Game reference (catalog filename or live index)");
     console.log("  --saved      List from catalog instead of live log");
+    console.log("  --source S   Saved-game filter: real|leyline|puzzle|unknown|any");
+    console.log("  --all        Alias for --source any");
     return;
   }
 
   if (verb === "list") {
     const useSaved = args.includes("--saved");
     if (useSaved) {
-      await gameListSaved();
+      await gameListSaved(args.slice(1));
     } else {
       await gameList();
     }
@@ -46,17 +87,18 @@ export async function gameCommand(args: string[]) {
   } else if (verb === "notes") {
     await gameNotes(args.slice(1));
   } else {
-    await gameShow(verb ?? "last");
+    await gameShow(args);
   }
 }
 
 async function gameList() {
   const games = await loadAllGames();
+  const newestFirst = [...games].reverse();
 
   console.log(`${"#".padStart(3)}  ${"Start".padEnd(18)}  ${"Rounds".padStart(6)}  ${"GSMs".padStart(4)}  ${"Result".padEnd(6)}  Status`);
   console.log("—".repeat(64));
 
-  for (const game of games) {
+  for (const game of newestFirst) {
     const start = game.startTimestamp ?? "—";
     const maxTurn = game.greMessages.reduce((m, g) => Math.max(m, g.turn), 0);
     const rounds = Math.ceil(maxTurn / 2);
@@ -68,44 +110,53 @@ async function gameList() {
   }
 }
 
-async function gameListSaved() {
+async function gameListSaved(args: string[]) {
   const catalog = loadCatalog();
   if (catalog.games.length === 0) {
     console.log("No saved games. Run: scry save");
     return;
   }
 
-  console.log(`${"File".padEnd(26)}  ${"Rounds".padStart(6)}  ${"GSMs".padStart(4)}  ${"Result".padEnd(6)}  Notes`);
-  console.log("—".repeat(70));
+  const allowedSources = parseSavedSourceFilter(args);
+  const entries = catalog.games.filter((entry) => matchesSource(loadMeta(entry.file), allowedSources));
+  if (entries.length === 0) {
+    console.log("No saved games matched the source filter.");
+    return;
+  }
+  const newestFirst = [...entries].reverse();
 
-  for (const entry of catalog.games) {
+  console.log(`${"File".padEnd(26)}  ${"Source".padEnd(18)}  ${"Rounds".padStart(6)}  ${"GSMs".padStart(4)}  ${"Result".padEnd(6)}  Notes`);
+  console.log("—".repeat(90));
+
+  for (const entry of newestFirst) {
     const rounds = Math.ceil(entry.turns / 2);
     const meta = loadMeta(entry.file);
     const noteCount = meta.notes.length > 0 ? `${meta.notes.length} notes` : "";
     const tags = meta.tags.length > 0 ? meta.tags.map((t) => `#${t}`).join(" ") : "";
     const extra = [noteCount, tags].filter(Boolean).join("  ");
     console.log(
-      `${entry.file.replace(".log", "").padEnd(26)}  ${String(rounds).padStart(6)}  ${String(entry.gsmCount).padStart(4)}  ${(entry.result ?? "—").padEnd(6)}  ${extra}`
+      `${entry.file.replace(".log", "").padEnd(26)}  ${formatSourceBadge(meta.provenance).padEnd(18)}  ${String(rounds).padStart(6)}  ${String(entry.gsmCount).padStart(4)}  ${(entry.result ?? "—").padEnd(6)}  ${extra}`
     );
   }
 }
 
-async function gameShow(which: string) {
-  const games = await loadAllGames();
-
-  const idx = which === "last" ? games.length : parseInt(which, 10);
-  const game = games[idx - 1];
-  if (!game) {
-    console.error(`Game #${idx} not found (${games.length} available)`);
-    process.exit(1);
-  }
+async function gameShow(args: string[]) {
+  const { game, source, label } = await resolveGame(normalizeGameShowArgs(args));
+  const meta = source === "saved" ? loadMeta(`${label}.log`) : null;
 
   const maxTurn = game.greMessages.reduce((m, g) => Math.max(m, g.turn), 0);
   const rounds = Math.ceil(maxTurn / 2);
   const status = game.active ? " (active)" : "";
   const result = game.result ? `  result=${game.result}` : "";
+  const heading = source === "saved" ? `Game ${label}` : `Game #${game.index}`;
 
-  console.log(`Game #${game.index}${status}${result}`);
+  console.log(`${heading}${status}${result}`);
+  if (source === "saved") {
+    console.log(`  source: saved`);
+    if (meta?.provenance) {
+      console.log(`  provenance: ${formatProvenanceSummary(meta.provenance)}`);
+    }
+  }
   console.log(`  match:  ${game.matchId ?? "—"}`);
   console.log(`  start:  ${game.startTimestamp ?? "—"}`);
   console.log(`  turns:  ${maxTurn} (${rounds} rounds)`);
@@ -138,16 +189,11 @@ async function gameCards(args: string[]) {
   let gameFile: string | null = null;
   let game: Game | null = null;
 
-  const gameRef = args.find((a) => !a.startsWith("-"));
+  const gameRef = firstPositional(args);
 
   // Try catalog
   const catalog = loadCatalog();
-  let entry: CatalogEntry | undefined;
-  if (gameRef) {
-    entry = catalog.games.find((g) => g.file.includes(gameRef));
-  } else {
-    entry = catalog.games[catalog.games.length - 1];
-  }
+  let entry: CatalogEntry | undefined = selectSavedEntry(catalog, gameRef, args);
 
   if (entry) {
     gameFile = entry.file;
@@ -192,7 +238,7 @@ async function gameCards(args: string[]) {
 // For large catalogs (100+ games), consider building a search index at save
 // time, or parallelizing reads with Bun's worker threads.
 async function gameSearch(args: string[]) {
-  const term = args.find((a) => !a.startsWith("-"));
+  const term = firstPositional(args);
   if (!term) {
     console.error("Usage: scry game search <term>");
     process.exit(1);
@@ -205,11 +251,14 @@ async function gameSearch(args: string[]) {
     return;
   }
 
+  const allowedSources = parseSavedSourceFilter(args);
   let totalHits = 0;
 
   for (const entry of catalog.games) {
     const meta = loadMeta(entry.file);
+    if (!matchesSource(meta, allowedSources)) continue;
     const label = entry.file.replace(".log", "");
+    const sourceBadge = formatSourceBadge(meta.provenance);
 
     // Phase 1: search card names in meta (fast, enriched)
     const matchedCards = meta.cards
@@ -217,7 +266,7 @@ async function gameSearch(args: string[]) {
       .map((c) => c.name);
 
     if (matchedCards.length > 0) {
-      console.log(`${label}  cards: ${matchedCards.join(", ")}`);
+      console.log(`${label}  [${sourceBadge}]  cards: ${matchedCards.join(", ")}`);
       totalHits++;
       continue; // card match is sufficient — skip raw grep
     }
@@ -227,7 +276,7 @@ async function gameSearch(args: string[]) {
     if (matchedNotes.length > 0) {
       for (const note of matchedNotes) {
         const anchor = note.gsId != null ? `T${note.turn} gs=${note.gsId}` : "";
-        console.log(`${label}  note: "${note.text}" ${anchor}`);
+        console.log(`${label}  [${sourceBadge}]  note: "${note.text}" ${anchor}`);
       }
       totalHits++;
       continue;
@@ -235,7 +284,7 @@ async function gameSearch(args: string[]) {
 
     // Phase 3: search tags
     if (meta.tags.some((t) => t.toLowerCase().includes(termLower))) {
-      console.log(`${label}  tag: ${meta.tags.filter((t) => t.toLowerCase().includes(termLower)).join(", ")}`);
+      console.log(`${label}  [${sourceBadge}]  tag: ${meta.tags.filter((t) => t.toLowerCase().includes(termLower)).join(", ")}`);
       totalHits++;
       continue;
     }
@@ -253,7 +302,7 @@ async function gameSearch(args: string[]) {
             const start = Math.max(0, idx - 30);
             const end = Math.min(line.length, idx + term.length + 50);
             const snippet = (start > 0 ? "..." : "") + line.substring(start, end).trim() + (end < line.length ? "..." : "");
-            console.log(`${label}  raw: ${snippet}`);
+            console.log(`${label}  [${sourceBadge}]  raw: ${snippet}`);
           }
         }
       }
@@ -303,14 +352,9 @@ function printCards(cards: CardEntry[], label: string, ourSeat: number = 1) {
 }
 
 async function gameNotes(args: string[]) {
-  const gameRef = args.find((a) => !a.startsWith("-"));
+  const gameRef = firstPositional(args);
   const catalog = loadCatalog();
-  let entry: CatalogEntry | undefined;
-  if (gameRef) {
-    entry = catalog.games.find((g) => g.file.includes(gameRef));
-  } else {
-    entry = catalog.games[catalog.games.length - 1];
-  }
+  const entry: CatalogEntry | undefined = selectSavedEntry(catalog, gameRef, args);
 
   if (!entry) {
     console.error("Game not found. Run: scry save");
@@ -324,6 +368,8 @@ async function gameNotes(args: string[]) {
   }
 
   console.log(`Notes (${entry.file.replace(".log", "")}):\n`);
+  console.log(`  provenance: ${formatProvenanceSummary(meta.provenance)}`);
+  console.log("");
   for (const note of meta.notes) {
     const anchor = note.gsId != null ? `T${note.turn ?? "?"} gs=${note.gsId} ${note.phase ?? ""}` : "";
     console.log(`  ${anchor.padEnd(30)}  "${note.text}"`);

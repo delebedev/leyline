@@ -50,6 +50,23 @@ Test the accumulator thoroughly — it's the subtlest code (proto3 merge semanti
 
 `~/.scry/games/*.log` are **immutable after write**. Raw log slices, never modified. Enrichment goes in `.meta.json` sidecars. The catalog is a derived index — if it gets corrupted, it can be rebuilt from the log files.
 
+`.meta.json` may include `provenance`:
+- `real` for normal Arena games
+- `leyline` for local server games
+- `puzzle` for local puzzle runs
+- `unknown` for legacy/unclassified saves
+
+Leyline can emit `~/.scry/leyline-sessions.jsonl`; `scry save` joins by `matchId` and records explicit provenance. No journal match falls back to `real` / `inferred`.
+
+## Analysis defaults
+
+For speccing, bug analysis, and card-behavior investigation, prefer saved games with `source=real` first. Include `unknown` when provenance is missing or when working through older saves. Do **not** default to `leyline` / `puzzle` runs unless the task is explicitly about local-server behavior, puzzles, or protocol debugging.
+
+User-facing commands should preserve that bias:
+- saved-game queries default to `real,unknown`
+- `--source leyline|puzzle|any` is explicit opt-in
+- live commands stay unfiltered
+
 ## Card resolution
 
 Arena's SQLite DB is the only external dependency. It lives with the game client installation. Never copy or bundle it. Resolve at save time, cache in `.meta.json`, so queries work even if Arena is uninstalled later.

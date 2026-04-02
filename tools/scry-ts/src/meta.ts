@@ -13,11 +13,13 @@ import { gamesDir } from "./catalog";
 import { findArenaDb, resolveCardInfo } from "./cards";
 import { Accumulator } from "./accumulator";
 import type { Game } from "./games";
+import type { Provenance } from "./provenance";
 
 export interface GameMeta {
   cards: CardEntry[];
   tags: string[];
   notes: GameNote[];
+  provenance?: Provenance;
 }
 
 export interface CardEntry {

@@ -7,6 +7,7 @@ import { loadCatalog, isAlreadySaved, saveGame } from "../catalog";
 import { loadMeta, saveMeta, buildCardManifest } from "../meta";
 import { DEFAULT_LOG } from "../log";
 import { consumeScratchNotes } from "./note";
+import { inferProvenance, loadLeylineSessions, formatSourceBadge } from "../provenance";
 
 const PREV_LOG = resolve(homedir(), "Library/Logs/Wizards of the Coast/MTGA/Player-prev.log");
 
@@ -31,6 +32,7 @@ export async function saveCommand(args: string[]) {
   const dryRun = args.includes("--dry-run");
 
   const catalog = loadCatalog();
+  const sessions = loadLeylineSessions();
   let totalSaved = 0;
   let totalSkipped = 0;
 
@@ -85,9 +87,10 @@ export async function saveCommand(args: string[]) {
       const result = game?.result ?? null;
 
       const rawLines = lines.slice(slice.startLine, slice.endLine + 1);
+      const provenance = inferProvenance(matchId, sessions);
 
       if (dryRun) {
-        console.log(`  would save: ${startTs ?? "?"} — ${Math.ceil(maxTurn / 2)} rounds, ${result ?? "no result"} (${rawLines.length} lines)`);
+        console.log(`  would save: ${startTs ?? "?"} — ${Math.ceil(maxTurn / 2)} rounds, ${result ?? "no result"} [${formatSourceBadge(provenance)}] (${rawLines.length} lines)`);
         totalSaved++;
         continue;
       }
@@ -100,17 +103,19 @@ export async function saveCommand(args: string[]) {
         gsmCount,
       });
 
+      const meta = loadMeta(entry.file);
+      meta.provenance = provenance;
+
       // Auto-resolve cards at save time
       if (game) {
         const cards = buildCardManifest(game);
         if (cards) {
-          const meta = loadMeta(entry.file);
           meta.cards = cards;
-          saveMeta(entry.file, meta);
         }
       }
+      saveMeta(entry.file, meta);
 
-      console.log(`  saved: ${entry.file} — ${Math.ceil(maxTurn / 2)} rounds, ${result ?? "no result"}`);
+      console.log(`  saved: ${entry.file} — ${Math.ceil(maxTurn / 2)} rounds, ${result ?? "no result"} [${formatSourceBadge(provenance)}]`);
       totalSaved++;
 
       // Refresh catalog reference (saveGame mutates the file)

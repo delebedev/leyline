@@ -198,10 +198,16 @@ class LeylineServer(
 
     private fun createMatchId(eventName: String): String {
         val puzzle = runtimePuzzle.get()
-        if (puzzle != null && eventName == "SparkyStarterDeckDuel") {
-            return "puzzle-${File(puzzle).nameWithoutExtension}"
-        }
-        return UUID.randomUUID().toString()
+        val matchId = UUID.randomUUID().toString()
+        val source = if (puzzle != null && eventName == "SparkyStarterDeckDuel") "puzzle" else "leyline"
+        val puzzleRef = if (source == "puzzle") File(puzzle).nameWithoutExtension else null
+        ScrySessionJournal.record(
+            matchId = matchId,
+            source = source,
+            eventName = eventName,
+            puzzleRef = puzzleRef,
+        )
+        return matchId
     }
 
     private fun bindMatchDoor(mdSsl: SslContext, coordinator: AppMatchCoordinator): Channel {
