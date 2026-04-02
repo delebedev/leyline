@@ -9,8 +9,8 @@ import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
- * Paces remote turns by sleeping the game thread at key events and capturing
- * per-action GRE state diffs for the client.
+ * Captures per-action GRE state diffs for the client, pacing remote turns
+ * by sleeping the game thread at key events.
  *
  * Subscribes to the engine's Guava EventBus. Events fire synchronously on
  * the game thread -- sleeping here freezes engine progress and state, making
@@ -156,7 +156,7 @@ class GamePlayback(
             // with the same gsId creates a self-referential snapshot.
 
             log.debug(
-                "AI action captured: phase={} turn={} queued={} msgs={}",
+                "action captured: phase={} turn={} queued={} msgs={}",
                 game.phaseHandler.phase,
                 game.phaseHandler.turn,
                 queue.size,

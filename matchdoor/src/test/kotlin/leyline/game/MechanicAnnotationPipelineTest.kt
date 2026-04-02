@@ -11,7 +11,6 @@ import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
-import leyline.conformance.detailUint
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
