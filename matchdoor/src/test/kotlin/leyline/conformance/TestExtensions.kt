@@ -77,6 +77,10 @@ fun ActionsAvailableReq.ofType(type: ActionType): List<Action> =
 
 // ----- Tier 1: Annotation lookup by type -----
 
+/** Find all annotations with the given type. */
+fun GameStateMessage.annotations(type: AnnotationType): List<AnnotationInfo> =
+    annotationsList.filter { type in it.typeList }
+
 /** Find the first annotation with the given type. */
 fun GameStateMessage.annotation(type: AnnotationType): AnnotationInfo =
     annotationsList.first { type in it.typeList }
