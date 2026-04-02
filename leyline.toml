@@ -51,4 +51,4 @@ strict = true
 
 # Crash when auto-pass fires from missing data (bridge timeouts, prompt
 # timeouts, auto-resolve). Off = pass priority silently (production behavior).
-strict_pass = true
+strict_pass = false
