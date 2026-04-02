@@ -513,6 +513,13 @@ object StateMapper {
             emptyList()
         }
 
+        // TargetSpec pAnn for each targeted spell/ability on the stack
+        val targetSpecPersistent = if (game != null) {
+            buildTargetSpecAnnotations(game, bridge)
+        } else {
+            emptyList()
+        }
+
         val (crewedThisTurnPersistent, crewTypeChangePersistent, crewExpiredAnnotations) =
             computeCrewAnnotations(bridge)
         annotations.addAll(crewExpiredAnnotations)
@@ -523,6 +530,7 @@ object StateMapper {
             crewedThisTurnPersistent = crewedThisTurnPersistent,
             crewTypeChangePersistent = crewTypeChangePersistent,
             temporaryPermanentPersistent = temporaryPermanentPersistent,
+            targetSpecPersistent = targetSpecPersistent,
         )
         val batch = PersistentAnnotationStore.computeBatch(
             currentActive = persistSnapshot,
@@ -556,6 +564,46 @@ object StateMapper {
         val transferPersistent: MutableList<AnnotationInfo>,
         val combatResult: CombatAnnotationResult,
     )
+
+    /**
+     * Scan the stack for spells/abilities with targets and emit TargetSpec pAnns.
+     * Each card target gets a separate annotation with 1-based index per target group.
+     * Removed automatically by upsertByType when the spell resolves (leaves stack).
+     */
+    private fun buildTargetSpecAnnotations(game: Game, bridge: GameBridge): List<AnnotationInfo> {
+        val result = mutableListOf<AnnotationInfo>()
+        for (entry in game.getStack()) {
+            val sourceCard = entry.sourceCard ?: continue
+            val sa = entry.spellAbility
+            val targets = sa.targets
+            if (targets.isEmpty()) continue
+
+            val abilityIid = bridge.getOrAllocInstanceId(
+                ForgeCardId(sourceCard.id + ObjectMapper.STACK_ABILITY_ID_OFFSET),
+            ).value
+            val grpId = bridge.cards.findGrpIdByName(sourceCard.name) ?: 0
+            val cardData = bridge.cards.findByGrpId(grpId)
+            val registry = bridge.abilityRegistryFor(sourceCard, cardData)
+            val abilityGrpId = registry?.forSpellAbility(sa.id) ?: grpId
+
+            var idx = 1
+            for (target in targets) {
+                if (target !is forge.game.card.Card) continue
+                val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(target.id)).value
+                result.add(
+                    AnnotationBuilder.targetSpec(
+                        instanceId = targetIid,
+                        abilityGrpId = abilityGrpId,
+                        index = idx,
+                        promptId = 0,
+                        promptParameters = abilityIid,
+                    ),
+                )
+                idx++
+            }
+        }
+        return result
+    }
 
     /** Crew annotation scan: CrewedThisTurn pAnns, ModifiedType pAnns, and expired effect annotations. */
     private fun computeCrewAnnotations(

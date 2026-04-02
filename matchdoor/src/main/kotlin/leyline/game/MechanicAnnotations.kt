@@ -32,6 +32,8 @@ data class MechanicAnnotationResult(
     val crewTypeChangePersistent: List<AnnotationInfo> = emptyList(),
     /** TemporaryPermanent pAnns for copy tokens with EOT-sacrifice — full replacement set. */
     val temporaryPermanentPersistent: List<AnnotationInfo> = emptyList(),
+    /** TargetSpec pAnns for spells/abilities on stack with targets — full replacement set. */
+    val targetSpecPersistent: List<AnnotationInfo> = emptyList(),
 ) {
     /** Tracks an active controller-change effect for persistent annotation lifecycle. */
     data class ControllerChangedEffect(
