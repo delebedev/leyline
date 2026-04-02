@@ -483,16 +483,18 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
      * Compute Arena color ordinals from a land's mana abilities.
      * Each mana ability contributes one Arena ordinal per color it produces.
      * Basic lands → single entry (e.g. [2] for Island).
-     * Dual/multi-lands → multiple entries (e.g. [3, 1] for Orzhov Gate).
-     * Maps through [ManaColorMapping.fromProduced] → ManaColor proto ordinal
-     * (W=1, U=2, B=3, R=4, G=5).
+     * Dual/multi-lands → multiple entries (e.g. [3, 5] for Jungle Hollow).
+     * Uses [AbilityManaPart.mana] which resolves Combo/Chosen/ColorID keywords,
+     * then maps each color through [ManaColorMapping.fromProduced] → ManaColor
+     * proto ordinal (W=1, U=2, B=3, R=4, G=5).
      */
     private fun computeColorOrdinals(card: forge.game.card.Card): List<Int> =
         card.getManaAbilities()
             .flatMap { sa ->
-                val produced = sa.manaPart?.origProduced ?: return@flatMap emptyList()
-                produced.mapNotNull { ch ->
-                    ManaColorMapping.fromProduced(ch.toString())?.number
+                val mana = sa.manaPart ?: return@flatMap emptyList()
+                val produced = if (mana.isComboMana) mana.getComboColors(sa) else mana.origProduced
+                produced.split(" ").mapNotNull { token ->
+                    ManaColorMapping.fromProduced(token)?.number
                 }
             }
 }
