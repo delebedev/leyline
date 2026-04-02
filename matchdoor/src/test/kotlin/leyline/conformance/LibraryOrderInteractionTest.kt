@@ -60,29 +60,29 @@ class LibraryOrderInteractionTest :
 
         test("surveil 1 — keep on top leaves card on library top") {
             startPuzzle(surveil1Puzzle)
-            val player = human
+
             val cardIds = harness.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             harness.respondToGroupReq(awayInstanceIds = emptyList(), allInstanceIds = cardIds)
 
-            player.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Grizzly Bears"
+            human.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Grizzly Bears"
         }
 
         test("surveil 1 — put in graveyard moves card and produces Surveil annotation") {
             startPuzzle(surveil1Puzzle)
-            val player = human
+
             val snap = harness.messageSnapshot()
             val cardIds = harness.castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
             harness.respondToGroupReq(awayInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Grizzly Bears in graveyard
-            val gyBears = player.getZone(ForgeZoneType.Graveyard).cards
+            val gyBears = human.getZone(ForgeZoneType.Graveyard).cards
                 .filter { it.name == "Grizzly Bears" }
             gyBears shouldHaveSize 1
 
             // Library top is now Forest (Bears was removed)
-            player.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Forest"
+            human.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Forest"
 
             // ZoneTransfer annotation with Surveil category and non-zero affectorId
             val annotations = harness.annotationsSince(snap)
@@ -120,7 +120,6 @@ class LibraryOrderInteractionTest :
                 """.trimIndent(),
             )
 
-            val player = human
             val groupReq = harness.castSpellUntilGroupReq("Sterling Hound")
             groupReq.context shouldBe GroupingContext.Surveil
             groupReq.instanceIdsList shouldHaveSize 2
@@ -129,7 +128,7 @@ class LibraryOrderInteractionTest :
             harness.respondToGroupReq(awayInstanceIds = allIds, allInstanceIds = allIds)
 
             // Sterling Hound resolved to BF, 2 surveiled cards in graveyard
-            player.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
+            human.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
         }
 
         // --- Scry 1 (Wall of Runes: ETB scry 1) ---
@@ -170,13 +169,13 @@ class LibraryOrderInteractionTest :
 
         test("scry 1 — put on bottom") {
             startPuzzle(scryPuzzle)
-            val player = human
+
             val cardIds = harness.castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             harness.respondToScry(bottomInstanceIds = cardIds, allInstanceIds = cardIds)
 
             // Wall of Runes on battlefield
-            player.getZone(ForgeZoneType.Battlefield).cards
+            human.getZone(ForgeZoneType.Battlefield).cards
                 .filter { it.name == "Wall of Runes" } shouldHaveSize 1
 
             // Scry annotation emitted
@@ -186,17 +185,17 @@ class LibraryOrderInteractionTest :
             scryAnn.shouldNotBeNull()
 
             // Grizzly Bears moved to bottom — library top is now Forest
-            player.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Forest"
+            human.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Forest"
         }
 
         test("scry 1 — keep on top") {
             startPuzzle(scryPuzzle)
-            val player = human
+
             val cardIds = harness.castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
             harness.respondToScry(bottomInstanceIds = emptyList(), allInstanceIds = cardIds)
 
             // Grizzly Bears still on library top
-            player.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Grizzly Bears"
+            human.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Grizzly Bears"
         }
     })

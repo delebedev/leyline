@@ -24,10 +24,10 @@ import leyline.bridge.SeatId
  *             ...
  *         """.trimIndent())
  *
- *         val aiPlayer = ai  // capture before actions that might end the game
  *         activateAbility("Card Name")
  *         selectTargets(listOf(2))
- *         passUntil(maxPasses = 5) { aiPlayer.life < 5 }
+ *         passUntilResolved()
+ *         ai.life shouldBe 4
  *     }
  * })
  * ```
@@ -39,8 +39,13 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
     /** Current harness — available after [startPuzzle] or [startGame]. */
     val harness: MatchFlowHarness get() = _harness ?: error("Call startPuzzle() or startGame() first")
 
-    val human: Player get() = harness.bridge.getPlayer(SeatId(1))!!
-    val ai: Player get() = harness.bridge.getPlayer(SeatId(2))!!
+    /** Human player — cached at setup time, safe to use after game actions. */
+    lateinit var human: Player
+        private set
+
+    /** AI player — cached at setup time, safe to use after game actions. */
+    lateinit var ai: Player
+        private set
 
     init {
         tags(IntegrationTag)
@@ -49,6 +54,11 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
             _harness = null
         }
         body()
+    }
+
+    private fun cachePlayerRefs() {
+        human = harness.bridge.getPlayer(SeatId(1))!!
+        ai = harness.bridge.getPlayer(SeatId(2))!!
     }
 
     // --- Setup ---
@@ -62,6 +72,7 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
         val h = MatchFlowHarness(seed = seed, validating = validating)
         _harness = h
         h.connectAndKeepPuzzleText(puzzleText)
+        cachePlayerRefs()
         return h
     }
 
@@ -74,6 +85,7 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
         val h = MatchFlowHarness(seed = seed, deckList = deckList, validating = validating)
         _harness = h
         h.connectAndKeep()
+        cachePlayerRefs()
         return h
     }
 
@@ -92,6 +104,19 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
 
     fun passUntil(maxPasses: Int = 20, stopWhen: MatchFlowHarness.() -> Boolean) =
         harness.passUntil(maxPasses, stopWhen)
+
+    /**
+     * Pass priority until the stack is empty. Use after cast + target to resolve.
+     * Always passes at least once (the stack may already be empty before the
+     * action's effect lands — auto-pass can resolve during selectTargets/drainSink).
+     */
+    fun passUntilResolved(maxPasses: Int = 10) {
+        repeat(maxPasses) {
+            if (harness.isGameOver()) return
+            passPriority()
+            if (game().stackZone.size() == 0) return
+        }
+    }
 
     fun castSpellByName(cardName: String, zone: ZoneType = ZoneType.Hand) =
         harness.castSpellByName(cardName, zone)

@@ -86,26 +86,24 @@ class OptionalCostInteractionTest :
 
         test("kicked Burst Lightning deals 4 damage") {
             startPuzzle(burstPuzzle)
-            val aiPlayer = ai
 
             castSpellByName("Burst Lightning").shouldBeTrue()
             acceptKicker()
-            selectTargets(listOf(2)) // opponent seatId
-            passUntil(maxPasses = 5) { aiPlayer.life < 20 }.shouldBeTrue()
+            selectTargets(listOf(2))
+            passUntilResolved()
 
-            aiPlayer.life shouldBe 16
+            ai.life shouldBe 16
         }
 
         test("unkicked Burst Lightning deals 2 damage") {
             startPuzzle(burstPuzzle)
-            val aiPlayer = ai
 
             castSpellByName("Burst Lightning").shouldBeTrue()
             declineKicker()
             selectTargets(listOf(2))
-            passUntil(maxPasses = 5) { aiPlayer.life < 20 }.shouldBeTrue()
+            passUntilResolved()
 
-            aiPlayer.life shouldBe 18
+            ai.life shouldBe 18
         }
 
         test("optional cost prompt gates targeting — no SelectTargetsReq before response") {

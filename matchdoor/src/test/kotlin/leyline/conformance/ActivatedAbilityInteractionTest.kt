@@ -7,7 +7,6 @@ import io.kotest.matchers.shouldBe
  * Session-tier activated ability tests — full MatchSession round-trip.
  *
  * Board-level action field tests live in [ActivatedAbilityTest] (SubsystemTest).
- * Puzzle iteration scaffolding in [ActivatedAbilityPuzzleTest] (kept as-is).
  */
 class ActivatedAbilityInteractionTest :
     InteractionTest({
@@ -34,13 +33,12 @@ class ActivatedAbilityInteractionTest :
             )
 
             phase() shouldBe "MAIN1"
-            val aiPlayer = ai
 
             // Activate tap ability → target opponent (seatId 2) → resolve
             activateAbility("Goblin Fireslinger").shouldBeTrue()
             selectTargets(listOf(2))
-            passUntil(maxPasses = 5) { aiPlayer.life < 5 }.shouldBeTrue()
+            passUntil(maxPasses = 5) { ai.life < 5 }.shouldBeTrue()
 
-            aiPlayer.life shouldBe 4
+            ai.life shouldBe 4
         }
     })

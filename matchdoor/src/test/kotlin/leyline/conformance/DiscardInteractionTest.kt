@@ -61,21 +61,20 @@ class DiscardInteractionTest :
             harness.respondToSelectN(listOf(mountainId))
             passPriority()
 
-            val player = human
             assertSoftly {
                 // Outrider on battlefield
-                val outriders = player.getZone(ForgeZoneType.Battlefield).cards
+                val outriders = human.getZone(ForgeZoneType.Battlefield).cards
                     .filter { it.name == "Mardu Outrider" }
                 outriders shouldHaveSize 1
                 outriders.first().netPower shouldBe 5
                 outriders.first().netToughness shouldBe 5
 
                 // Discarded Mountain in graveyard
-                player.getZone(ForgeZoneType.Graveyard).cards
+                human.getZone(ForgeZoneType.Graveyard).cards
                     .any { it.name == "Mountain" } shouldBe true
 
                 // Original hand cards consumed
-                val hand = player.getZone(ForgeZoneType.Hand).cards
+                val hand = human.getZone(ForgeZoneType.Hand).cards
                 hand.none { it.name == "Mardu Outrider" } shouldBe true
                 hand.none { it.name == "Mountain" } shouldBe true
             }
@@ -112,23 +111,22 @@ class DiscardInteractionTest :
                 """.trimIndent(),
             )
 
-            val player = human
-            player.getZone(ForgeZoneType.Hand).size() shouldBe 7
+            human.getZone(ForgeZoneType.Hand).size() shouldBe 7
 
             // Cast Divination (draw 2): hand 7 → 6 (on stack) → resolve → 8
             castSpellByName("Divination") shouldBe true
             // One pass resolves Divination: hand 6 + 2 drawn = 8
             passPriority()
-            player.getZone(ForgeZoneType.Hand).size() shouldBe 8
+            human.getZone(ForgeZoneType.Hand).size() shouldBe 8
 
             // Pass through to cleanup where hand size is enforced (8 → 7)
             passUntil(maxPasses = 10) {
-                player.getZone(ForgeZoneType.Hand).size() <= 7
+                human.getZone(ForgeZoneType.Hand).size() <= 7
             }
 
-            player.getZone(ForgeZoneType.Hand).size() shouldBe 7
+            human.getZone(ForgeZoneType.Hand).size() shouldBe 7
             // Divination (resolved) + 1 discarded card
-            player.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
+            human.getZone(ForgeZoneType.Graveyard).size() shouldBe 2
 
             // Verify the discard prompt was answered via the bridge
             val discardPrompts = harness.bridge.promptBridge(1).history
