@@ -21,7 +21,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  *
  * Two core methods:
  * - [buildFromGame]: Full [GameStateMessage] from live engine state (zones, objects,
- *   players, annotations via [AnnotationPipeline])
+ *   players, annotations via [ZoneTransferDetector], [TransferAnnotations], [CombatAnnotations], [MechanicAnnotations])
  * - [buildDiffFromGame]: Diff GSM containing only changes since the current diff baseline
  *
  * Lifecycle GSM factories (deal-hand, mulligan, transitions) live in [GsmBuilder].
@@ -177,7 +177,7 @@ object StateMapper {
         )
 
         // ═══ COMPUTE: annotation pipeline (stages 1-5) ═══
-        val transferResult = AnnotationPipeline.detectZoneTransfers(gameObjects, zones, bridge, events)
+        val transferResult = ZoneTransferDetector.detectZoneTransfers(gameObjects, zones, bridge, events)
         val actingSeat = if (handler.priorityPlayer == human) 1 else 2
         val (annotations, transferPersistent, combatResult) =
             computeAnnotations(events, transferResult, actingSeat, bridge)
@@ -349,9 +349,9 @@ object StateMapper {
         gameStateId: Int,
         gameInfo: GameInfo,
         frame: GsmFrame,
-        transferResult: AnnotationPipeline.TransferResult,
+        transferResult: TransferResult,
         remaining: RemainingAnnotationsResult,
-        combatResult: AnnotationPipeline.CombatAnnotationResult,
+        combatResult: CombatAnnotationResult,
         team1: TeamInfo,
         team2: TeamInfo,
         player1: PlayerInfo,
@@ -430,7 +430,7 @@ object StateMapper {
             .map { it.cardId }
             .toSet()
         val manaPaidForgeCardIds = castSpellManaForgeIds + sacrificedManaForgeIds
-        val mechanicResult = AnnotationPipeline.mechanicAnnotations(
+        val mechanicResult = MechanicAnnotations.mechanicAnnotations(
             events,
             manaPaidForgeCardIds,
             idResolver = { fid -> bridge.getOrAllocInstanceId(fid) },
@@ -468,12 +468,12 @@ object StateMapper {
         }
 
         if (initEffectDiff.created.isNotEmpty()) {
-            val (initTransient, _) = AnnotationPipeline.effectAnnotations(initEffectDiff)
+            val (initTransient, _) = MechanicAnnotations.effectAnnotations(initEffectDiff)
             annotations.addAll(initTransient)
         }
 
         val sourceAbilityResolver = buildSourceAbilityResolver(bridge)
-        val (effectTransient, effectPersistent) = AnnotationPipeline.effectAnnotations(
+        val (effectTransient, effectPersistent) = MechanicAnnotations.effectAnnotations(
             diff = effectDiff,
             sourceAbilityResolver = sourceAbilityResolver,
             keywordDiff = keywordDiff,
@@ -554,7 +554,7 @@ object StateMapper {
     private data class AnnotationPipelineResult(
         val annotations: MutableList<AnnotationInfo>,
         val transferPersistent: MutableList<AnnotationInfo>,
-        val combatResult: AnnotationPipeline.CombatAnnotationResult,
+        val combatResult: CombatAnnotationResult,
     )
 
     /** Crew annotation scan: CrewedThisTurn pAnns, ModifiedType pAnns, and expired effect annotations. */
@@ -656,14 +656,14 @@ object StateMapper {
     }
     private fun computeAnnotations(
         events: List<GameEvent>,
-        transferResult: AnnotationPipeline.TransferResult,
+        transferResult: TransferResult,
         actingSeat: Int,
         bridge: GameBridge,
     ): AnnotationPipelineResult {
         val annotations = mutableListOf<AnnotationInfo>()
         val transferPersistent = mutableListOf<AnnotationInfo>()
         for (transfer in transferResult.transfers) {
-            val (transient, persistent) = AnnotationPipeline.annotationsForTransfer(transfer, actingSeat)
+            val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat)
             annotations.addAll(transient)
             transferPersistent.addAll(persistent)
         }
@@ -686,7 +686,7 @@ object StateMapper {
         for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
             annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId.value, ev.phase, ev.step))
         }
-        val combatResult = AnnotationPipeline.combatAnnotations(events, bridge)
+        val combatResult = CombatAnnotations.combatAnnotations(events, bridge)
         annotations.addAll(combatResult.annotations)
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }

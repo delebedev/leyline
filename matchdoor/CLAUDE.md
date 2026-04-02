@@ -95,3 +95,98 @@ Mana cost reaches the client through two paths depending on the action type. `Ma
 ### Debugging a proto conformance failure
 
 See `docs/conformance/debugging.md` — covers annotation ordering, category codes, instanceId lifecycle, gsId chain, detail key types, diff vs full, and triage flow.
+
+## WebPlayerController Override Reference
+
+37 overrides of `PlayerControllerHuman`. Methods not listed here (~130) inherit from PCHuman and route through `WebGuiGame` automatically.
+
+### Game Loop
+
+| Override | Bridge | Description |
+|---|---|---|
+| `chooseSpellAbilityToPlay` | GameAction | Main priority loop — notify state, await client action, return spell or null (pass) |
+| `playChosenSpellAbility` | — | Resolve chosen spell via `PlaySpellAbility` (costs, targets, mana) |
+| `playSpellAbilityNoStack` | — | Direct-resolve triggered/replacement abilities via `AbilityUtils.resolve` |
+| `declareAttackers` | GameAction | Await attacker declaration from client, wire into `Combat` |
+| `declareBlockers` | GameAction | Await blocker assignments from client, wire into `Combat` |
+| `assignCombatDamage` | Dedicated future | Manual damage distribution — blocks on `pendingDamageAssignment` future |
+
+### Decision / Choice
+
+| Override | Bridge | Description |
+|---|---|---|
+| `chooseSingleEntityForEffect` | Interactive | Pick one entity (tutor search, legend rule, generic) |
+| `chooseEntitiesForEffect` | Interactive | Pick multiple entities for an effect |
+| `chooseCardsForEffect` | Interactive | Generic card selection for spell/ability effects |
+| `chooseBinary` | Interactive | Two-option choice (heads/tails, tap/untap, play/draw, etc.) |
+| `chooseColor` | Interactive | Pick a mana color from available options |
+| `chooseModeForAbility` | Interactive | Modal spell/ability mode selection (charms, commands) |
+| `willPutCardOnTop` | Interactive | Top-or-bottom library placement |
+| `chooseStartingPlayer` | — | Auto-choose self (variant-only, no prompt) |
+
+### Confirm
+
+| Override | Bridge | Description |
+|---|---|---|
+| `confirmAction` | Interactive | Generic yes/no confirmation |
+| `confirmTrigger` | Dedicated future | Optional trigger — routes through `pendingOptionalAction` for GRE type 45 |
+| `confirmPayment` | Interactive | Cost payment confirmation |
+| `confirmReplacementEffect` | Interactive | Replacement effect yes/no |
+| `confirmStaticApplication` | — | Auto-decline `AlternativeDamageAssignment` (Arena never sends this) |
+
+### Discard
+
+| Override | Bridge | Description |
+|---|---|---|
+| `chooseCardsToDiscardFrom` | Interactive | Discard selection (also handles reveal-choose: Duress, Thoughtseize) |
+| `chooseCardsToDiscardToMaximumHandSize` | Interactive | End-of-turn hand size discard |
+| `chooseCardsToDiscardUnlessType` | Interactive | Discard-unless-type prompt (reveal matching type or discard) |
+| `chooseCardsToRevealFromHand` | Interactive | Select cards from hand to reveal |
+
+### Sacrifice / Destroy
+
+| Override | Bridge | Description |
+|---|---|---|
+| `choosePermanentsToSacrifice` | Interactive | Select permanents to sacrifice |
+| `choosePermanentsToDestroy` | Interactive | Select permanents to destroy |
+
+### Cost
+
+| Override | Bridge | Description |
+|---|---|---|
+| `getCostDecisionMaker` | Interactive | Returns `WebCostDecision` — visitor for interactive cost choices (sac, tap, etc.) |
+| `payManaCost` | — | Delegates to `PlaySpellAbility.payManaCost` |
+| `applyManaToCost` | — | AI mana payment via `ComputerUtilMana` |
+| `chooseCardsForCost` | Interactive | Card selection for cost payment (exile, discard as cost) |
+| `chooseNumberForKeywordCost` | Interactive | Numeric keyword cost (strive, multikicker count) |
+| `chooseOptionalCosts` | — | Kicker/buyback — reads stashed indices from `TargetingHandler` |
+| `chooseCardsForConvokeOrImprovise` | Interactive | Tap creatures/artifacts to reduce mana cost |
+| `payCostToPreventEffect` | Dedicated future | Shock land pay-life — routes through `pendingOptionalAction` |
+
+### Targeting
+
+| Override | Bridge | Description |
+|---|---|---|
+| `selectTargetsInteractively` | Interactive | Bridge-based target selection (players + cards), auto-resolve single mandatory |
+
+### Ordering / Library
+
+| Override | Bridge | Description |
+|---|---|---|
+| `arrangeForScry` | Interactive | Scry N — top/bottom split + ordering |
+| `arrangeForSurveil` | Interactive | Surveil N — top/graveyard split + ordering |
+| `orderMoveToZoneList` | Interactive | Order cards entering a zone |
+| `reveal` | — | Capture revealed card IDs for annotation pipeline + hand reveal tracking |
+
+### Mulligan
+
+| Override | Bridge | Description |
+|---|---|---|
+| `mulliganKeepHand` | Mulligan | Block until client submits keep/mulligan decision |
+| `tuckCardsViaMulligan` | Mulligan | Block until client chooses cards to put back (London mulligan) |
+
+### Other
+
+| Override | Bridge | Description |
+|---|---|---|
+| `isAI` | — | Returns `false` (human player) |

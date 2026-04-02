@@ -106,7 +106,7 @@ class PersistentAnnotationStore {
             effectPersistent: List<AnnotationInfo>,
             effectDiff: EffectTracker.DiffResult,
             transferPersistent: List<AnnotationInfo>,
-            mechanicResult: AnnotationPipeline.MechanicAnnotationResult,
+            mechanicResult: MechanicAnnotationResult,
             resolveInstanceId: (ForgeCardId) -> InstanceId,
             resolveForgeCardId: (InstanceId) -> ForgeCardId? = { null },
         ): BatchResult {
@@ -209,7 +209,7 @@ class PersistentAnnotationStore {
         private fun cleanupDetachedAndReverted(
             active: MutableMap<Int, AnnotationInfo>,
             deletions: MutableList<Int>,
-            mechanicResult: AnnotationPipeline.MechanicAnnotationResult,
+            mechanicResult: MechanicAnnotationResult,
             resolveInstanceId: (ForgeCardId) -> InstanceId,
             resolveForgeCardId: (InstanceId) -> ForgeCardId?,
         ): List<Int> {

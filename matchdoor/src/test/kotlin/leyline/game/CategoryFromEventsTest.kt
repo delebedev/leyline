@@ -10,7 +10,7 @@ import leyline.bridge.SeatId
 /**
  * Unit tests for [AnnotationBuilder.categoryFromEvents] — verifies that
  * captured [GameEvent] instances resolve to the correct annotation
- * categories, matching the behavior of [AnnotationPipeline.inferCategory]
+ * categories, matching the behavior of [ZoneTransferDetector.inferCategory]
  * but using rich event data instead of zone-pair heuristics.
  */
 class CategoryFromEventsTest :

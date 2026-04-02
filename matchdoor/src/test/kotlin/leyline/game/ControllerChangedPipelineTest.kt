@@ -31,7 +31,7 @@ class ControllerChangedPipelineTest :
                 GameEvent.SpellResolved(cardId = ForgeCardId(10), hasFizzled = false),
                 GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
             )
-            val result = AnnotationPipeline.mechanicAnnotations(
+            val result = MechanicAnnotations.mechanicAnnotations(
                 events,
                 idResolver = ::testResolver,
                 effectIdAllocator = ::testEffectAllocator,
@@ -67,7 +67,7 @@ class ControllerChangedPipelineTest :
             val events = listOf(
                 GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(1), newControllerSeatId = SeatId(2)),
             )
-            val result = AnnotationPipeline.mechanicAnnotations(
+            val result = MechanicAnnotations.mechanicAnnotations(
                 events,
                 idResolver = ::testResolver,
                 effectIdAllocator = ::testEffectAllocator,
@@ -90,7 +90,7 @@ class ControllerChangedPipelineTest :
             val events = listOf(
                 GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
             )
-            val result = AnnotationPipeline.mechanicAnnotations(
+            val result = MechanicAnnotations.mechanicAnnotations(
                 events,
                 idResolver = ::testResolver,
                 effectIdAllocator = ::testEffectAllocator,
@@ -112,7 +112,7 @@ class ControllerChangedPipelineTest :
                 GameEvent.SpellResolved(cardId = ForgeCardId(20), hasFizzled = false),
                 GameEvent.ControllerChanged(cardId = ForgeCardId(43), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
             )
-            val result = AnnotationPipeline.mechanicAnnotations(
+            val result = MechanicAnnotations.mechanicAnnotations(
                 events,
                 idResolver = ::testResolver,
                 effectIdAllocator = ::testEffectAllocator,
@@ -133,7 +133,7 @@ class ControllerChangedPipelineTest :
                 GameEvent.ControllerChanged(cardId = ForgeCardId(42), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
                 GameEvent.ControllerChanged(cardId = ForgeCardId(43), oldControllerSeatId = SeatId(2), newControllerSeatId = SeatId(1)),
             )
-            val result = AnnotationPipeline.mechanicAnnotations(
+            val result = MechanicAnnotations.mechanicAnnotations(
                 events,
                 idResolver = ::testResolver,
                 effectIdAllocator = ::testEffectAllocator,
@@ -157,7 +157,7 @@ class ControllerChangedPipelineTest :
                 .toBuilder().setId(5).build()
             val active = mapOf(5 to ccPersistent)
 
-            val mechanicResult = AnnotationPipeline.MechanicAnnotationResult(
+            val mechanicResult = MechanicAnnotationResult(
                 transient = emptyList(),
                 persistent = emptyList(),
                 controllerRevertedForgeCardIds = listOf(ForgeCardId(42)),

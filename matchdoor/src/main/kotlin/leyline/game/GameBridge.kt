@@ -26,6 +26,7 @@ import leyline.bridge.WebPlayerController
 import leyline.bridge.isCommander
 import leyline.bridge.isCommanderVariant
 import leyline.config.MatchConfig
+import leyline.game.mapper.ObjectMapper
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
 import java.lang.reflect.InvocationTargetException
@@ -220,6 +221,19 @@ class GameBridge(
         repo.registerData(data, name)
         log.debug("ensureCardData: lazy-registered grpId={} name={}", grpId, name)
     }
+
+    /**
+     * Resolve a Forge [Card] to its Arena grpId — single entry point for all callers.
+     *
+     * Encapsulates the full token resolution chain (registry cache → copy permanent →
+     * standard token → card DB lookup) so callers can't accidentally omit dependencies.
+     * Delegates to [ObjectMapper.resolveGrpId] with all required params.
+     *
+     * @param card the Forge card to resolve
+     * @param instanceId client instanceId for registry cache lookups (0 = skip cache)
+     */
+    fun resolveGrpId(card: Card, instanceId: Int = 0): Int =
+        ObjectMapper.resolveGrpId(card, cards, instanceId, tokenRegistry, this)
 
     // --- Composed components ---
 

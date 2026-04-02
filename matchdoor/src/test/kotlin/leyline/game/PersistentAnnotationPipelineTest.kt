@@ -28,7 +28,7 @@ class PersistentAnnotationPipelineTest :
             val events = listOf(
                 GameEvent.CardExiled(cardId = ForgeCardId(80), seatId = SeatId(1), sourceCardId = ForgeCardId(90), fromBattlefield = true),
             )
-            val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
+            val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
 
             result.transient.shouldBeEmpty()
             result.persistent.size shouldBe 1
@@ -44,7 +44,7 @@ class PersistentAnnotationPipelineTest :
             val events = listOf(
                 GameEvent.CardExiled(cardId = ForgeCardId(80), seatId = SeatId(1)),
             )
-            val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
+            val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
             result.transient.shouldBeEmpty()
             result.persistent.shouldBeEmpty()
         }
@@ -53,7 +53,7 @@ class PersistentAnnotationPipelineTest :
             val events = listOf(
                 GameEvent.CardDestroyed(cardId = ForgeCardId(90), seatId = SeatId(1)),
             )
-            val result = AnnotationPipeline.mechanicAnnotations(events, idResolver = ::testResolver)
+            val result = MechanicAnnotations.mechanicAnnotations(events, idResolver = ::testResolver)
             result.exileSourceLeftPlayForgeCardIds shouldBe listOf(ForgeCardId(90))
         }
 
@@ -61,7 +61,7 @@ class PersistentAnnotationPipelineTest :
             val ann = AnnotationBuilder.displayCardUnderCard(affectorId = 1090, instanceId = 1080)
                 .toBuilder().setId(5).build()
             val active = mapOf(5 to ann)
-            val mechanicResult = AnnotationPipeline.MechanicAnnotationResult(
+            val mechanicResult = MechanicAnnotationResult(
                 transient = emptyList(),
                 persistent = emptyList(),
                 exileSourceLeftPlayForgeCardIds = listOf(ForgeCardId(90)),
@@ -89,7 +89,7 @@ class PersistentAnnotationPipelineTest :
             val ann = AnnotationBuilder.displayCardUnderCard(affectorId = 111, instanceId = 116)
                 .toBuilder().setId(3).build()
             val active = mapOf(3 to ann)
-            val mechanicResult = AnnotationPipeline.MechanicAnnotationResult(
+            val mechanicResult = MechanicAnnotationResult(
                 transient = emptyList(),
                 persistent = emptyList(),
                 exileSourceLeftPlayForgeCardIds = listOf(ForgeCardId(1)), // forgeCardId of Banishing Light

@@ -13,7 +13,6 @@ import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.MessageCounter
 import leyline.game.StateMapper
-import leyline.game.mapper.ObjectMapper
 import leyline.game.mapper.StopTypeMapping
 import leyline.infra.MessageSink
 import leyline.protocol.HandshakeMessages
@@ -557,7 +556,7 @@ class MatchSession(
             val game = bridge.getGame()
             val card = if (forgeId != null && game != null) findCard(game, forgeId) else null
             if (card != null) {
-                ObjectMapper.resolveGrpId(card, bridge.cards, action.instanceId, bridge.tokenRegistry, bridge)
+                bridge.resolveGrpId(card, action.instanceId)
             } else {
                 return 0
             }

@@ -30,7 +30,7 @@ class EffectAnnotationPipelineTest :
             )
             val diff = EffectTracker.DiffResult(created, emptyList())
 
-            val (transient, persistent) = AnnotationPipeline.effectAnnotations(diff)
+            val (transient, persistent) = MechanicAnnotations.effectAnnotations(diff)
 
             // Transient: LayeredEffectCreated + PowerToughnessModCreated companion
             assertSoftly {
@@ -63,7 +63,7 @@ class EffectAnnotationPipelineTest :
             )
             val diff = EffectTracker.DiffResult(emptyList(), destroyed)
 
-            val (transient, persistent) = AnnotationPipeline.effectAnnotations(diff)
+            val (transient, persistent) = MechanicAnnotations.effectAnnotations(diff)
 
             transient.size shouldBe 1
             transient[0].typeList.first() shouldBe AnnotationType.LayeredEffectDestroyed
@@ -73,7 +73,7 @@ class EffectAnnotationPipelineTest :
 
         test("effectAnnotations empty diff produces no annotations") {
             val diff = EffectTracker.DiffResult(emptyList(), emptyList())
-            val (transient, persistent) = AnnotationPipeline.effectAnnotations(diff)
+            val (transient, persistent) = MechanicAnnotations.effectAnnotations(diff)
             transient.shouldBeEmpty()
             persistent.shouldBeEmpty()
         }
@@ -84,7 +84,7 @@ class EffectAnnotationPipelineTest :
                 listOf(EffectTracker.TrackedEffect(7005, EffectTracker.EffectFingerprint(100, 1L, 0L), 3, 3)),
                 emptyList(),
             )
-            val (transientBoth, persistentBoth) = AnnotationPipeline.effectAnnotations(both)
+            val (transientBoth, persistentBoth) = MechanicAnnotations.effectAnnotations(both)
             persistentBoth[0].typeList shouldContain AnnotationType.ModifiedPower
             persistentBoth[0].typeList shouldContain AnnotationType.ModifiedToughness
             persistentBoth[0].typeList shouldContain AnnotationType.LayeredEffect
@@ -97,7 +97,7 @@ class EffectAnnotationPipelineTest :
                 listOf(EffectTracker.TrackedEffect(7006, EffectTracker.EffectFingerprint(101, 2L, 0L), 2, 0)),
                 emptyList(),
             )
-            val (_, persistentPower) = AnnotationPipeline.effectAnnotations(powerOnly)
+            val (_, persistentPower) = MechanicAnnotations.effectAnnotations(powerOnly)
             persistentPower[0].typeList shouldContain AnnotationType.ModifiedPower
             persistentPower[0].typeList shouldContain AnnotationType.LayeredEffect
             persistentPower[0].typeList.none { it == AnnotationType.ModifiedToughness } shouldBe true
@@ -107,7 +107,7 @@ class EffectAnnotationPipelineTest :
                 listOf(EffectTracker.TrackedEffect(7007, EffectTracker.EffectFingerprint(102, 3L, 0L), 0, 1)),
                 emptyList(),
             )
-            val (_, persistentTough) = AnnotationPipeline.effectAnnotations(toughOnly)
+            val (_, persistentTough) = MechanicAnnotations.effectAnnotations(toughOnly)
             persistentTough[0].typeList shouldContain AnnotationType.ModifiedToughness
             persistentTough[0].typeList shouldContain AnnotationType.LayeredEffect
             persistentTough[0].typeList.none { it == AnnotationType.ModifiedPower } shouldBe true
@@ -129,7 +129,7 @@ class EffectAnnotationPipelineTest :
                 if (sid == staticId) 99999 else null
             }
 
-            val (_, persistent) = AnnotationPipeline.effectAnnotations(diff, resolver)
+            val (_, persistent) = MechanicAnnotations.effectAnnotations(diff, resolver)
 
             persistent.size shouldBe 1
             val sourceDetail = persistent[0].detailsList.first { it.key == "sourceAbilityGRPID" }
@@ -152,7 +152,7 @@ class EffectAnnotationPipelineTest :
                 if (sid == 0L) null else 99999
             }
 
-            val (_, persistent) = AnnotationPipeline.effectAnnotations(diff, resolver)
+            val (_, persistent) = MechanicAnnotations.effectAnnotations(diff, resolver)
 
             persistent.size shouldBe 1
             persistent[0].detailsList.none { it.key == "sourceAbilityGRPID" } shouldBe true
