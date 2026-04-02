@@ -50,6 +50,7 @@ class InvariantChecker {
             checkPrevGsIdValidity(gsm)
             checkNoSelfReferentialGsId(gsm)
             checkAnnotationIdSequentiality(gsm)
+            checkAnnotationOrdering(gsm)
             checkPendingMessageCountContract(gsm)
         }
 
@@ -221,6 +222,32 @@ class InvariantChecker {
                         gsm.gameStateId,
                         "annotation_seq",
                         "Annotation IDs not sequential: index $idx has id=${ann.id}, expected ${prev + 1} (gsId=${gsm.gameStateId})",
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Verify annotation ordering invariants (Rules 1 and 2) by delegating
+     * to [AnnotationOrderEnforcer]. If enforce() returns a different list,
+     * the input had ordering violations.
+     */
+    private fun checkAnnotationOrdering(gsm: GameStateMessage) {
+        val annotations = gsm.annotationsList
+        if (annotations.isEmpty()) return
+
+        val enforced = AnnotationOrderEnforcer.enforce(annotations)
+        if (enforced !== annotations) {
+            // Find which annotations moved
+            for (i in annotations.indices) {
+                if (i < enforced.size && annotations[i] !== enforced[i]) {
+                    record(
+                        gsm.gameStateId,
+                        "annotation_ordering",
+                        "annotation ordering violation at index $i: " +
+                            "had ${annotations[i].typeList} but enforcer moved ${enforced[i].typeList} here " +
+                            "(gsId=${gsm.gameStateId})",
                     )
                 }
             }

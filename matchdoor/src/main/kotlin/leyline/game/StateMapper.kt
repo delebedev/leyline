@@ -544,8 +544,9 @@ object StateMapper {
         bridge.annotations.addSteals(mechanicResult.controllerChangedEffects.map { it.forgeCardId })
         bridge.annotations.removeSteals(mechanicResult.controllerRevertedForgeCardIds)
 
+        val ordered = AnnotationOrderEnforcer.enforce(annotations)
         var annId = startAnnotationId
-        val numbered = annotations.map { it.toBuilder().setId(annId++).build() }
+        val numbered = ordered.map { it.toBuilder().setId(annId++).build() }
         return RemainingAnnotationsResult(numbered, batch.allAnnotations, batch, annId)
     }
 
@@ -665,6 +666,22 @@ object StateMapper {
             val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat)
             annotations.addAll(transient)
             transferPersistent.addAll(persistent)
+        }
+        // Stack ability lifecycle: triggered abilities appearing/disappearing.
+        for (a in transferResult.stackAbilityAppearances) {
+            annotations.add(
+                AnnotationBuilder.abilityInstanceCreated(a.abilityInstanceId, a.sourceCardInstanceId, a.sourceZoneId),
+            )
+        }
+        for (d in transferResult.stackAbilityDisappearances) {
+            // Note: ResolutionStart/Complete are NOT emitted here — they reference the
+            // ability's instanceId as affectorId, but that object no longer exists (it
+            // disappeared from the stack). The Resolve transfer path handles resolution
+            // annotations for spells that move zones. For triggered abilities that vanish,
+            // AbilityInstanceDeleted alone signals the lifecycle end.
+            annotations.add(
+                AnnotationBuilder.abilityInstanceDeleted(d.abilityInstanceId, d.sourceCardInstanceId),
+            )
         }
         for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
             annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId.value, ev.phase, ev.step))

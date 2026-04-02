@@ -36,15 +36,15 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 31 | ObjectsSelected | -- | -- | -- | (none) | MISSING |
 | 34 | ManaPaid | `GameEventSpellAbilityCast` | `SpellCast` | `manaPaid()` | `id`, `color`, `affectorId` | Implemented — emitted for CastSpell (per-land) and mana-sacrifice (Treasure). `affectorId`=land/token instanceId. |
 | 35 | TokenCreated | `GameEventTokenCreated` | `TokenCreated` | `tokenCreated()` | affected ids | Implemented |
-| 36 | AbilityInstanceCreated | `GameEventSpellAbilityCast` | `SpellCast` | `abilityInstanceCreated()` | affected ids | Implemented — also emitted for mana-sacrifice (Treasure: opens the ability bracket). |
-| 37 | AbilityInstanceDeleted | `GameEventSpellResolved` / `GameEventSpellRemovedFromStack` | `SpellResolved` | `abilityInstanceDeleted()` | affected ids | Implemented — also emitted for mana-sacrifice (Treasure: closes the ability bracket). |
+| 36 | AbilityInstanceCreated | `GameEventSpellAbilityCast` | `SpellCast` | `abilityInstanceCreated()` | `source_zone`, affector/affected ids | Implemented — emitted for mana-sacrifice (Treasure bracket), CastSpell (mana payment bracket), and triggered ability appearance on stack (snapshot-compare). |
+| 37 | AbilityInstanceDeleted | `GameEventSpellResolved` / `GameEventSpellRemovedFromStack` | `SpellResolved` | `abilityInstanceDeleted()` | affector/affected ids | Implemented — emitted for mana-sacrifice (Treasure bracket), CastSpell (mana payment bracket), and triggered ability disappearance from stack (snapshot-compare + ResolutionStart/Complete). |
 | 38 | DisplayCardUnderCard | `GameEventCardChangeZone` (to=Exile) | `CardExiled` (with `sourceForgeCardId`) | `displayCardUnderCard()` | `TemporaryZoneTransfer`, `Disable` | Implemented — persistent, emitted for exile-under-permanent. Cleaned up when source leaves battlefield. |
 | 39 | AbilityWordActive | -- | AbilityWordScanner | `abilityWordActive()` | `AbilityWordName`, `value`, `threshold`, `AbilityGrpId` | PARTIAL — Condition$-based (Threshold, Metalcraft, Delirium) |
 | 40 | LinkInfo | -- | -- | -- | `LinkType`, `Choice_Value` | MISSING |
 | 41 | TokenDeleted | `GameEventCardChangeZone` | `TokenDestroyed` | `tokenDeleted()` | affectorId=instanceId, affectedIds=[instanceId] | Implemented |
 | 42 | Qualification | -- | -- | -- | `QualificationType`, `QualificationSubtype`, `grpid`, `SourceParent`, `CantBeBlockedByObjects`; QualType 47=adventure exile, 21=aura continuous, CantBeBlockedByObjects=evasion grant | MISSING — wire shape confirmed (tamiyos-compleation, tatsunari, ratcatcher-trainee specs) |
-| 43 | ResolutionStart | `GameEventSpellResolved` | `SpellResolved` | `resolutionStart()` | `grpid` | Implemented |
-| 44 | ResolutionComplete | `GameEventSpellResolved` | `SpellResolved` | `resolutionComplete()` | `grpid` | Implemented |
+| 43 | ResolutionStart | `GameEventSpellResolved` | `SpellResolved` | `resolutionStart()` | `grpid` | Implemented — emitted for Resolve zone transfers (Stack→Battlefield). NOT emitted for disappeared triggered abilities (instanceId gone from state; affectorId unresolvable). Real server emits them — gap may affect stack animation. |
+| 44 | ResolutionComplete | `GameEventSpellResolved` | `SpellResolved` | `resolutionComplete()` | `grpid` | Implemented — same gap as ResolutionStart for disappeared triggered abilities. |
 | 45 | Designation | -- | -- | -- | `PromptMessage`, `CostIncrease`, `grpid` | MISSING |
 | 46 | GainDesignation | -- | -- | -- | designation type | MISSING |
 | 47 | CardRevealed | -- | -- | -- | `source_zone` | MISSING |
