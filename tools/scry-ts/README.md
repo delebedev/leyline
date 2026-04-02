@@ -65,7 +65,7 @@ scry gsm show 292 --json                # raw JSON (lossless)
 
 ### `scry sequences`
 
-Extract canonical GSM bracketing patterns from saved recordings. Classifies each GSM by role (CAST, ECHO, RESOLVE, etc.), detects multi-GSM interaction instances, and aggregates across games.
+Extract canonical GSM bracketing patterns from saved game logs. Classifies each GSM by role (CAST, ECHO, RESOLVE, etc.), detects multi-GSM interaction instances, and aggregates across games.
 
 ```bash
 scry sequences                            # all saved games (real+unknown)
