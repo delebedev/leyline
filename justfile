@@ -41,15 +41,21 @@ _key      := certs / "frontdoor.key"
 _account_cert := certs / "account-combined.pem"
 _account_key  := certs / "account.key"
 _cert_flags := 'cert_flags=""; if [ -f "' + _cert + '" ] && [ -f "' + _key + '" ]; then cert_flags="--cert ' + _cert + ' --key ' + _key + '"; fi; account_flags=""; if [ -f "' + _account_cert + '" ] && [ -f "' + _account_key + '" ]; then account_flags="--account-cert ' + _account_cert + ' --account-key ' + _account_key + '"; fi; cert_flags="$cert_flags $account_flags"'
+_forge_m2_setup := 'eval "$(' + project_dir + '/gradle/scripts/forge-m2.sh ' + project_dir + ')"'
 
 # --- Build ---
 
 # install forge engine jars from submodule (run after git submodule update)
 [group('build')]
 install-forge:
-    cd "{{project_dir}}/forge" && mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
-    cd "{{project_dir}}/forge" && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml > "{{project_dir}}/.upstream-installed"
-    @echo "Forge engine installed to forge/.m2-local/"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd "{{project_dir}}"
+    {{_forge_m2_setup}}
+    echo "Forge checkout $forge_cache_mode; using cache: $forge_m2"
+    cd "{{project_dir}}/forge" && mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install -Dmaven.repo.local="$forge_m2" -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
+    printf '%s\n' "$current_forge" > "{{project_dir}}/.upstream-installed"
+    echo "Forge engine installed to $forge_m2"
 
 # generate messages.proto from upstream submodule + rename map
 [group('build')]
@@ -87,7 +93,9 @@ build-profile:
 build:
     #!/usr/bin/env bash
     set -euo pipefail
-    cd "{{project_dir}}" && ./gradlew classes jar
+    cd "{{project_dir}}"
+    {{_forge_m2_setup}}
+    ./gradlew classes jar
     echo "Build complete. Classpath: {{classpath}}"
 
 # fast Kotlin-only compile
@@ -184,7 +192,36 @@ bootstrap:
     # Git submodules
     if [ ! -f forge/pom.xml ]; then
         echo "    Initializing git submodules..."
-        git submodule update --init --recursive
+        forge_reference="$(
+            git worktree list --porcelain |
+            awk '/^worktree /{print substr($0,10)}' |
+            while IFS= read -r wt; do
+                [ "$wt" = "$PWD" ] && continue
+                candidate="$wt/forge"
+                if [ -f "$candidate/pom.xml" ]; then
+                    if git -C "$candidate" rev-parse --is-shallow-repository | grep -qx true; then
+                        continue
+                    fi
+                    printf '%s\n' "$candidate"
+                    break
+                fi
+            done
+        )"
+        if [ -n "${forge_reference:-}" ]; then
+            echo "    Using local forge reference: $forge_reference"
+            git submodule update --init --recursive --reference "$forge_reference" forge
+            git submodule update --init --recursive proto/upstream
+        else
+            echo "    No non-shallow local forge reference found; trying shallow forge clone"
+            if git submodule update --init --depth 1 forge; then
+                :
+            else
+                echo "    Shallow forge clone failed; retrying full clone"
+                git submodule deinit -f forge || true
+                git submodule update --init forge
+            fi
+            git submodule update --init --recursive proto/upstream
+        fi
     else
         echo "    Submodules OK"
     fi
@@ -196,13 +233,16 @@ bootstrap:
     fi
 
     # Install forge (skip if already up to date)
-    current_forge=$(cd forge && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml)
+    {{_forge_m2_setup}}
     installed_forge=""
     if [ -f .upstream-installed ]; then
         installed_forge=$(cat .upstream-installed)
     fi
-    if [ "$current_forge" = "$installed_forge" ] && [ -d forge/.m2-local/forge ]; then
-        echo "==> Forge already installed ($(echo "$current_forge" | head -c 8))"
+    if [ "$forge_cache_mode" = "shared" ] && [ -d "$forge_m2/forge" ]; then
+        printf '%s\n' "$current_forge" > .upstream-installed
+        echo "==> Forge already installed ($(echo "$current_forge" | head -c 8)) [shared cache]"
+    elif [ "$current_forge" = "$installed_forge" ] && [ -d "$forge_m2/forge" ]; then
+        echo "==> Forge already installed ($(echo "$current_forge" | head -c 8)) [local cache]"
     else
         echo "==> Installing forge engine..."
         just install-forge

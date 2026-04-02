@@ -22,7 +22,12 @@ object Tap {
 
     fun inboundGRE(type: ClientMessageType, seatId: Int, gsId: Int) {
         if (!log.isDebugEnabled) return
-        log.debug("[Client←] GRE {} seat={} gsId={}", type.name.removeSuffix("_097b"), seatId, gsId)
+        val label = type.name.removeSuffix("_097b")
+        if (type == ClientMessageType.Uimessage_a39e) {
+            log.trace("[Client←] GRE {} seat={} gsId={}", label, seatId, gsId)
+            return
+        }
+        log.debug("[Client←] GRE {} seat={} gsId={}", label, seatId, gsId)
     }
 
     fun inboundAction(action: Action) {

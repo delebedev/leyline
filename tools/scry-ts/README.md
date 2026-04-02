@@ -39,10 +39,12 @@ Game-level summaries, card manifests, notes.
 scry game                     # last game detail + annotation histogram
 scry game list                # all games in current Player.log
 scry game list --saved        # all games in catalog (~/.scry/games/)
+scry game list --saved --source puzzle   # only saved puzzle runs
 scry game 3                   # specific game
 scry game cards               # card manifest (cached in .meta.json)
 scry game cards 2026-03-29    # specific saved game
 scry game search "Giada"      # search card names, notes, tags, raw logs
+scry game search "Giada" --source any    # include leyline + puzzle runs too
 scry game notes               # view anchored notes
 ```
 
@@ -94,6 +96,14 @@ scry save --all               # include Player-prev.log
 scry save --dry-run           # preview without saving
 ```
 
+Saved games also get provenance in `.meta.json`:
+- `real` for normal Arena games
+- `leyline` for local server games
+- `puzzle` for local puzzle runs
+- `unknown` for legacy/unclassified saves
+
+Saved-game analysis defaults to `real,unknown`. Use `--source leyline`, `--source puzzle`, or `--source any` only when you're intentionally investigating local-server behavior.
+
 ### `scry note`
 
 Add timestamped notes anchored to specific game moments.
@@ -127,12 +137,15 @@ scry usage
 ~/.scry/
   games/
     2026-03-29_16-10-08.log         # raw Player.log slice (verbatim, lossless)
-    2026-03-29_16-10-08.meta.json   # enrichment: cards, notes, tags
+    2026-03-29_16-10-08.meta.json   # enrichment: cards, notes, tags, provenance
   catalog.json                      # game index (result, turns, matchId)
+  leyline-sessions.jsonl            # optional local-server provenance journal
   usage.log                         # command invocation telemetry
 ```
 
-Raw log files are never modified after save. Enrichment (cards, notes) lives in `.meta.json` sidecars. The catalog is a lightweight index for listing without re-parsing.
+Raw log files are never modified after save. Enrichment (cards, notes, provenance) lives in `.meta.json` sidecars. The catalog is a lightweight index for listing without re-parsing.
+Leyline writes optional session records to `~/.scry/leyline-sessions.jsonl`; `scry save` joins those onto saved games by `matchId` and records explicit provenance. If no Leyline session matches, the save falls back to `real`/`inferred`.
+Saved-game queries default to `real,unknown` sources; pass `--source any` or `--all` to include local Leyline and puzzle runs.
 
 ## Architecture
 
