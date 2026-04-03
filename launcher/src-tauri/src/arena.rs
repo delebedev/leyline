@@ -5,10 +5,16 @@ use std::process::Command;
 use serde::Serialize;
 use tauri::AppHandle;
 
-/// Known MTGA install locations, tagged by storefront.
+/// Known MTGA install locations per platform, tagged by storefront.
+#[cfg(target_os = "macos")]
 const KNOWN_INSTALLS: &[(&str, &str)] = &[
     ("Epic", "/Users/Shared/Epic Games/MagicTheGathering/MTGA.app"),
-    // Steam path uses ~ — expanded at runtime below
+];
+
+#[cfg(target_os = "windows")]
+const KNOWN_INSTALLS: &[(&str, &str)] = &[
+    ("Epic", "C:/Program Files/Epic Games/MagicTheGathering"),
+    ("Epic", "C:/Program Files (x86)/Epic Games/MagicTheGathering"),
 ];
 
 const SERVICES_CONF: &str = include_str!("../../resources/services.conf");
@@ -32,8 +38,10 @@ fn find_arena() -> Option<(PathBuf, String)> {
 
     // Steam path with home expansion
     if let Some(home) = dirs::home_dir() {
-        let steam = home
-            .join("Library/Application Support/Steam/steamapps/common/MTGA/MTGA.app");
+        #[cfg(target_os = "macos")]
+        let steam = home.join("Library/Application Support/Steam/steamapps/common/MTGA/MTGA.app");
+        #[cfg(target_os = "windows")]
+        let steam = home.join("AppData/Local/Steam/steamapps/common/MTGA");
         if steam.exists() {
             return Some((steam, "Steam".into()));
         }
@@ -50,11 +58,17 @@ fn find_arena() -> Option<(PathBuf, String)> {
 }
 
 fn streaming_assets(mtga_path: &Path) -> PathBuf {
-    mtga_path.join("Contents/Resources/Data/StreamingAssets")
+    #[cfg(target_os = "macos")]
+    return mtga_path.join("Contents/Resources/Data/StreamingAssets");
+    #[cfg(target_os = "windows")]
+    return mtga_path.join("MTGA_Data/StreamingAssets");
 }
 
 fn audio_dir(streaming: &Path) -> PathBuf {
-    streaming.join("Audio/GeneratedSoundBanks/Mac")
+    #[cfg(target_os = "macos")]
+    return streaming.join("Audio/GeneratedSoundBanks/Mac");
+    #[cfg(target_os = "windows")]
+    return streaming.join("Audio/GeneratedSoundBanks/Windows");
 }
 
 fn config_dir() -> Option<PathBuf> {
@@ -125,13 +139,16 @@ pub fn deploy_config(_app: AppHandle) -> Result<(), String> {
             .map_err(|e| format!("Failed to write NPE_VO.bnk: {e}"))?;
     }
 
-    // 3. macOS defaults
-    let _ = Command::new("defaults")
-        .args(["write", "com.Wizards.MtGA", "CheckSC", "-integer", "0"])
-        .output();
-    let _ = Command::new("defaults")
-        .args(["write", "com.Wizards.MtGA", "HashFilesOnStartup", "-integer", "0"])
-        .output();
+    // 3. Platform-specific client preferences
+    #[cfg(target_os = "macos")]
+    {
+        let _ = Command::new("defaults")
+            .args(["write", "com.Wizards.MtGA", "CheckSC", "-integer", "0"])
+            .output();
+        let _ = Command::new("defaults")
+            .args(["write", "com.Wizards.MtGA", "HashFilesOnStartup", "-integer", "0"])
+            .output();
+    }
 
     Ok(())
 }
@@ -149,29 +166,41 @@ pub fn restore_arena(_app: AppHandle) -> Result<(), String> {
             .map_err(|e| format!("Failed to remove services.conf: {e}"))?;
     }
 
-    // 2. Restore macOS defaults
-    let _ = Command::new("defaults")
-        .args(["delete", "com.Wizards.MtGA", "CheckSC"])
-        .output();
-    // Keep HashFilesOnStartup=0 — deleting reverts to default (verify all),
-    // which triggers ~1.5GB re-download of Audio assets on next real-server boot.
-    let _ = Command::new("defaults")
-        .args(["write", "com.Wizards.MtGA", "HashFilesOnStartup", "-integer", "0"])
-        .output();
+    // 2. Restore platform-specific client preferences
+    #[cfg(target_os = "macos")]
+    {
+        let _ = Command::new("defaults")
+            .args(["delete", "com.Wizards.MtGA", "CheckSC"])
+            .output();
+        // Keep HashFilesOnStartup=0 — deleting reverts to default (verify all),
+        // which triggers ~1.5GB re-download of Audio assets on next real-server boot.
+        let _ = Command::new("defaults")
+            .args(["write", "com.Wizards.MtGA", "HashFilesOnStartup", "-integer", "0"])
+            .output();
+    }
 
     Ok(())
 }
 
-/// Launch MTGA.app
+/// Launch MTGA
 #[tauri::command]
 pub fn launch_mtga(_app: AppHandle) -> Result<(), String> {
     let (mtga, _) = find_arena().ok_or("MTGA not found")?;
 
-    Command::new("open")
-        .arg("-a")
-        .arg(&mtga)
-        .spawn()
-        .map_err(|e| format!("Failed to launch MTGA: {e}"))?;
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg("-a")
+            .arg(&mtga)
+            .spawn()
+            .map_err(|e| format!("Failed to launch MTGA: {e}"))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        Command::new(mtga.join("MTGA.exe"))
+            .spawn()
+            .map_err(|e| format!("Failed to launch MTGA: {e}"))?;
+    }
 
     Ok(())
 }

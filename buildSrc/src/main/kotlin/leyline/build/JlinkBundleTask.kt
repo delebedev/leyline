@@ -128,9 +128,11 @@ abstract class JlinkBundleTask : DefaultTask() {
     private fun writeLaunchScript(bundleDir: File) {
         val args = jvmArgs.get().joinToString(" ")
         val main = mainClass.get()
+        val binDir = File(bundleDir, "bin")
+        binDir.mkdirs()
 
-        val script = File(bundleDir, "bin/leyline")
-        script.parentFile.mkdirs()
+        // Unix shell script
+        val script = File(binDir, "leyline")
         script.writeText(
             buildString {
                 appendLine("#!/bin/sh")
@@ -143,6 +145,20 @@ abstract class JlinkBundleTask : DefaultTask() {
             },
         )
         script.setExecutable(true)
+
+        // Windows batch script
+        val bat = File(binDir, "leyline.bat")
+        bat.writeText(
+            buildString {
+                appendLine("@echo off")
+                appendLine("set DIR=%~dp0..")
+                appendLine("\"%DIR%\\jre\\bin\\java\" ^")
+                appendLine("  $args ^")
+                appendLine("  -Dleyline.res.dir=\"%DIR%\\res\" ^")
+                appendLine("  -cp \"%DIR%\\lib\\*\" ^")
+                appendLine("  $main %*")
+            },
+        )
     }
 
     private fun dirSize(dir: File): Long =

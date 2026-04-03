@@ -291,8 +291,8 @@ serve: build check-java
 [group('deploy')]
 bundle:
     ./gradlew bundleArchive --no-daemon
-    chmod -R u+rw build/bundle/
-    @echo "Archive: $(ls build/dist/leyline-*.tgz)"
+    chmod -R u+rw build/bundle/ 2>/dev/null || true
+    @ls build/dist/leyline-*.tgz build/dist/leyline-*.zip 2>/dev/null | head -1 | xargs -I{} echo "Archive: {}"
 
 # --- Docker ---
 

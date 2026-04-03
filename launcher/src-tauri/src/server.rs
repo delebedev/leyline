@@ -34,6 +34,14 @@ impl ServerProcess {
     }
 }
 
+/// Sidecar binary name — jlink produces a shell script on Unix, a .bat on Windows.
+fn sidecar_bin_name() -> &'static str {
+    #[cfg(target_os = "windows")]
+    return "leyline.bat";
+    #[cfg(not(target_os = "windows"))]
+    return "leyline";
+}
+
 /// Resolve the leyline bundle root (contains bin/, lib/, jre/, res/, data/).
 fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     let resource_dir = app
@@ -42,7 +50,7 @@ fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         .map_err(|e| format!("No resource dir: {e}"))?;
 
     let bundle = resource_dir.join(".bundle-stage").join("leyline");
-    if bundle.join("bin").join("leyline").exists() {
+    if bundle.join("bin").join(sidecar_bin_name()).exists() {
         return Ok(bundle);
     }
 
@@ -50,7 +58,7 @@ fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     let mut dir = std::env::current_dir().unwrap_or_default();
     loop {
         let candidate = dir.join("build/bundle");
-        if candidate.join("bin").join("leyline").exists() {
+        if candidate.join("bin").join(sidecar_bin_name()).exists() {
             return Ok(candidate.canonicalize().unwrap_or(candidate));
         }
         if !dir.pop() {
@@ -125,7 +133,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
     }
 
     let bundle_dir = resolve_bundle_dir(&app)?;
-    let bin_path = bundle_dir.join("bin").join("leyline");
+    let bin_path = bundle_dir.join("bin").join(sidecar_bin_name());
     server.set_state(ServerState::Starting, &app);
 
     // TLS: generate CA + server cert, trust CA in OS keychain
