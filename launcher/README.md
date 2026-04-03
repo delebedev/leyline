@@ -3,7 +3,7 @@
 Desktop app for playing Arena offline. Manages the leyline server and Arena configuration — no terminal needed.
 
 <p align="center">
-  <img src="docs/launcher.png" alt="Leyline launcher" width="592">
+  <img src="../assets/launcher.png" alt="Leyline launcher" width="592">
 </p>
 
 ## What it does

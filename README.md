@@ -10,7 +10,7 @@ Your client, open rules engine, no account required.
 
 <p align="center">
   <a href="https://pub-ee18c3c0efd64ad5967c2972fae3edd3.r2.dev/1775215112-leyline-demo.mp4">
-    <img src="launcher/docs/demo-thumb.jpg" alt="Gameplay demo — click to play" width="720">
+    <img src="assets/demo-thumb.jpg" alt="Gameplay demo — click to play" width="720">
   </a>
 </p>
 
@@ -19,7 +19,7 @@ Your client, open rules engine, no account required.
 Download the launcher, point it at your Arena install, hit Play.
 
 <p align="center">
-  <img src="launcher/docs/launcher.png" alt="Leyline launcher" width="592">
+  <img src="assets/launcher.png" alt="Leyline launcher" width="592">
 </p>
 
 1. **[Download the latest release](https://github.com/delebedev/leyline/releases)**
