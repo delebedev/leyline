@@ -77,6 +77,12 @@ The sidecar's working directory matters — it writes `logs/`, `data/`, `recordi
 
 Sidecar stdout/stderr → `~/Library/Logs/dev.leyline.launcher/leyline-server.log`. Always check this when Start fails.
 
+## Testing
+
+- `cargo test` — 6 TLS cert generation tests (CA, signing, chain, expiry)
+- `just launcher-smoke` — headless integration test: generates temp certs, spawns sidecar with `--cert`/`--key`, verifies health + TLS cert chain on FD and AccountServer. No OS trust needed, no UI. Runs in release CI after `launcher-build`. Requires `just bundle` first.
+- `just launcher-check` — static bundle check (files exist, DMG size)
+
 ## Debugging the launcher
 
 - **Always use tmux** for `bun run tauri dev` — background tasks get killed, taking the launcher with them.
