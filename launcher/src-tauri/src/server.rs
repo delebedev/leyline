@@ -41,7 +41,7 @@ fn resolve_leyline_bin(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         .resource_dir()
         .map_err(|e| format!("No resource dir: {e}"))?;
 
-    let bin = resource_dir.join("leyline").join("bin").join("leyline");
+    let bin = resource_dir.join(".bundle-stage").join("leyline").join("bin").join("leyline");
     if bin.exists() {
         return Ok(bin);
     }
@@ -75,9 +75,28 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
     let bin_path = resolve_leyline_bin(&app)?;
     server.set_state(ServerState::Starting, &app);
 
+    // Log sidecar output to a file for debugging
+    let log_dir = app
+        .path()
+        .app_log_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"));
+    let _ = std::fs::create_dir_all(&log_dir);
+    let log_path = log_dir.join("leyline-server.log");
+    let log_file = std::fs::File::create(&log_path).ok();
+    let stdout_file = log_file
+        .as_ref()
+        .and_then(|f| f.try_clone().ok())
+        .map(std::process::Stdio::from)
+        .unwrap_or_else(std::process::Stdio::null);
+    let stderr_file = log_file
+        .as_ref()
+        .and_then(|f| f.try_clone().ok())
+        .map(std::process::Stdio::from)
+        .unwrap_or_else(std::process::Stdio::null);
+
     let child = Command::new(&bin_path)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
+        .stdout(stdout_file)
+        .stderr(stderr_file)
         .spawn()
         .map_err(|e| {
             let msg = format!("Failed to spawn leyline: {e}");

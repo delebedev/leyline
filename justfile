@@ -304,8 +304,13 @@ launcher-dev:
 [group('launcher')]
 launcher-build: bundle
     test -f .changelog.md || bun scripts/curate-changelog.ts
-    cp .changelog.md "{{project_dir}}/launcher/.changelog.md"
-    cd "{{project_dir}}/launcher" && bun tauri build --config '{"bundle":{"resources":{"../../build/bundle/**/*":"leyline/","../.changelog.md":"changelog.md"}}}'
+    rm -rf "{{project_dir}}/launcher/src-tauri/.bundle-stage"
+    mkdir -p "{{project_dir}}/launcher/src-tauri/.bundle-stage"
+    # build/bundle/ has jre+lib+bin from jlink; extract res+data from the archive
+    cp -R "{{project_dir}}/build/bundle" "{{project_dir}}/launcher/src-tauri/.bundle-stage/leyline"
+    tar -xzf "{{project_dir}}"/build/dist/leyline-*.tgz -C "{{project_dir}}/launcher/src-tauri/.bundle-stage/leyline" --strip-components=1 leyline/res
+    cp .changelog.md "{{project_dir}}/launcher/src-tauri/.bundle-stage/changelog.md"
+    cd "{{project_dir}}/launcher" && bun tauri build --config '{"bundle":{"resources":[".bundle-stage/leyline/",".bundle-stage/changelog.md"]}}'
 
 # generate release notes from git log (LLM-curated if OPENROUTER_API_KEY set)
 [group('deploy')]
