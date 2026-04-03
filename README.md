@@ -9,10 +9,12 @@ Your client, open rules engine, no account required.
 > [See what works →](docs/catalog.yaml)
 
 <p align="center">
-  <video src="https://pub-ee18c3c0efd64ad5967c2972fae3edd3.r2.dev/1775215112-leyline-demo.mp4" width="100%" autoplay loop muted playsinline></video>
+  <a href="https://pub-ee18c3c0efd64ad5967c2972fae3edd3.r2.dev/1775215112-leyline-demo.mp4">
+    <img src="launcher/docs/demo-thumb.jpg" alt="Gameplay demo — click to play" width="720">
+  </a>
 </p>
 
-## Play
+## 🎮 Play
 
 Download the launcher, point it at your Arena install, hit Play.
 
@@ -26,7 +28,7 @@ Download the launcher, point it at your Arena install, hit Play.
 
 Requires a legally obtained copy of [MTG Arena](https://magic.wizards.com/mtgarena).
 
-## How it works
+## ⚙️ How it works
 
 Arena speaks protobuf over TLS. Leyline speaks it back —
 translating between the real client and [Forge](https://github.com/Card-Forge/forge)'s open-source rules engine.
@@ -50,7 +52,7 @@ matchdoor/   Game engine adapter — the big module
 
 [Architecture deep-dive →](docs/architecture.md)
 
-## Forge
+## 🔥 Forge
 
 The heavy lifting — 20+ years of card rules, 20,000+ card implementations,
 AI opponents — lives in [Forge](https://github.com/Card-Forge/forge),
@@ -60,7 +62,7 @@ Leyline uses a [minimal fork](https://github.com/delebedev/forge) that adds
 event hooks and controller seams for the Arena protocol bridge.
 The rules engine itself is untouched.
 
-## Build from source
+## 🛠 Build from source
 
 ```bash
 git clone --recursive https://github.com/delebedev/leyline.git
@@ -82,7 +84,7 @@ just puzzle file.pzl   # run a puzzle scenario
 
 [Puzzle-driven development →](docs/puzzle-driven-dev.md)
 
-## Design philosophy
+## 🧭 Design philosophy
 
 **Player.log is the spec.** Real Arena logs are the conformance baseline. Trace, diff, close gaps.
 
@@ -90,9 +92,9 @@ just puzzle file.pzl   # run a puzzle scenario
 
 **Puzzles as acceptance tests.** `.pzl` files define exact board states with one win path. An agent plays the game to verify the server.
 
-**Protocol reimplementation.** Hand-written protobuf responses implementing a compatible wire format. No client mods, no proxies, no distributed assets.
+**Protocol reimplementation.** Protobuf responses built from public protocol definitions. No client mods, no proxies, no distributed assets.
 
-## What this is
+## 📋 What this is
 
 A local game server for personal playtesting. It connects your Arena client to an open-source rules engine running on your own machine.
 
@@ -107,7 +109,7 @@ A local game server for personal playtesting. It connects your Arena client to a
 
 GPL-3.0 — inherited from [Forge](https://github.com/Card-Forge/forge). See [LICENSE](LICENSE), [LEGAL](LEGAL.md), and [NOTICE](NOTICE).
 
-[Architecture](docs/architecture.md) · [What works](docs/catalog.yaml) · [Issues](https://github.com/delebedev/leyline/issues) · [Project board](https://github.com/users/delebedev/projects/1)
+[Architecture](docs/architecture.md) · [What works](docs/catalog.yaml) · [Issues](https://github.com/delebedev/leyline/issues)
 
 ---
 
