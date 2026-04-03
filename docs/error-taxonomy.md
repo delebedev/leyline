@@ -148,7 +148,7 @@ Structured classification of failures for agent triage. Each category has a dete
 2. `arena scene` — check Player.log scene
 3. Is this a new screen not in the state machine? Add it.
 
-**Fix pattern:** Add screen + transitions to `screens_data.py` (see `tools/arena/README.md` § Adding a Screen).
+**Fix pattern:** Add screen + transitions to arena-ts screen definitions.
 
 ---
 
