@@ -63,12 +63,11 @@ object AnnotationOrderEnforcer {
     fun enforce(annotations: List<AnnotationInfo>): List<AnnotationInfo> {
         val rule1Edges = buildRule1Edges(annotations)
         val rule2Edges = buildRule2Edges(annotations)
-        val damageDeathEdges = buildDamageBeforeDeathEdges(annotations)
 
-        if (rule1Edges.isEmpty() && rule2Edges.isEmpty() && damageDeathEdges.isEmpty()) return annotations
+        if (rule1Edges.isEmpty() && rule2Edges.isEmpty()) return annotations
 
         // Check for violations before doing any work
-        val allEdges = rule1Edges + rule2Edges + damageDeathEdges
+        val allEdges = rule1Edges + rule2Edges
         val hasViolation = allEdges.any { (from, to) -> from > to }
 
         if (!hasViolation) return annotations
@@ -137,88 +136,6 @@ object AnnotationOrderEnforcer {
             }
         }
         return edges
-    }
-
-    /**
-     * Damage-before-death: DamageDealt must precede ObjectIdChanged and ZoneTransfer
-     * for the same creature (SBA death sequence).
-     *
-     * The pipeline builds zone transfers (Stage 1) before combat damage (Stage 3),
-     * inverting the real server order. This rule corrects via post-hoc reordering.
-     * Zero exceptions across 186 real-server instances (125 combat + 61 spell).
-     */
-    private fun buildDamageBeforeDeathEdges(annotations: List<AnnotationInfo>): List<Pair<Int, Int>> {
-        val damageByTarget = collectDamageTargets(annotations)
-        if (damageByTarget.isEmpty()) return emptyList()
-
-        val deathIndices = collectDeathIndices(annotations)
-        return buildDeathEdges(damageByTarget, deathIndices)
-    }
-
-    /** Collect DamageDealt indices grouped by target card ID (skip player seat IDs 1-2). */
-    private fun collectDamageTargets(annotations: List<AnnotationInfo>): Map<Int, List<Int>> {
-        val result = mutableMapOf<Int, MutableList<Int>>()
-        for ((i, ann) in annotations.withIndex()) {
-            if (AnnotationType.DamageDealt_af5a !in ann.typeList || ann.affectedIdsCount == 0) continue
-            val targetId = ann.getAffectedIds(0)
-            if (targetId > 2) result.getOrPut(targetId) { mutableListOf() }.add(i)
-        }
-        return result
-    }
-
-    /** OIC/ZT indices and the OIC orig→new ID remap. */
-    private data class DeathIndices(
-        val oicByOrigId: Map<Int, List<Int>>,
-        val ztByAffectedId: Map<Int, List<Int>>,
-        val newIdToOrigId: Map<Int, Int>,
-    )
-
-    /** Collect ObjectIdChanged and ZoneTransfer indices for death-edge matching. */
-    private fun collectDeathIndices(annotations: List<AnnotationInfo>): DeathIndices {
-        val oicByOrigId = mutableMapOf<Int, MutableList<Int>>()
-        val newIdToOrigId = mutableMapOf<Int, Int>()
-        val ztByAffectedId = mutableMapOf<Int, MutableList<Int>>()
-
-        for ((i, ann) in annotations.withIndex()) {
-            if (AnnotationType.ObjectIdChanged in ann.typeList) {
-                val origId = ann.detailInt(DetailKeys.ORIG_ID)
-                val newId = ann.detailInt(DetailKeys.NEW_ID)
-                if (origId != 0) oicByOrigId.getOrPut(origId) { mutableListOf() }.add(i)
-                if (newId != 0 && origId != 0) newIdToOrigId[newId] = origId
-            } else if (AnnotationType.ZoneTransfer_af5a in ann.typeList && ann.affectedIdsCount > 0) {
-                ztByAffectedId.getOrPut(ann.getAffectedIds(0)) { mutableListOf() }.add(i)
-            }
-        }
-        return DeathIndices(oicByOrigId, ztByAffectedId, newIdToOrigId)
-    }
-
-    /** Build edges: DD → OIC/ZT for same creature, including OIC-remapped IDs. */
-    private fun buildDeathEdges(
-        damageByTarget: Map<Int, List<Int>>,
-        d: DeathIndices,
-    ): List<Pair<Int, Int>> {
-        val edges = mutableListOf<Pair<Int, Int>>()
-        for ((targetId, damageIndices) in damageByTarget) {
-            addCrossEdges(edges, damageIndices, d.oicByOrigId[targetId])
-            addCrossEdges(edges, damageIndices, d.ztByAffectedId[targetId])
-            // Follow OIC remap: DD(target=origId) → ZT(affected=newId)
-            for ((newId, origId) in d.newIdToOrigId) {
-                if (origId == targetId) addCrossEdges(edges, damageIndices, d.ztByAffectedId[newId])
-            }
-        }
-        return edges
-    }
-
-    /** Add all (from, to) pairs between two index lists. */
-    private fun addCrossEdges(
-        edges: MutableList<Pair<Int, Int>>,
-        fromIndices: List<Int>,
-        toIndices: List<Int>?,
-    ) {
-        if (toIndices == null) return
-        for (f in fromIndices) {
-            for (t in toIndices) edges.add(f to t)
-        }
     }
 
     /** Get the incremental spec for an annotation, or null if not applicable. */
