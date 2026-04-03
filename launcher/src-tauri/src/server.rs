@@ -34,6 +34,14 @@ impl ServerProcess {
     }
 }
 
+/// Sidecar binary name — jlink produces a shell script on Unix, a .bat on Windows.
+fn sidecar_bin_name() -> &'static str {
+    #[cfg(target_os = "windows")]
+    return "leyline.bat";
+    #[cfg(not(target_os = "windows"))]
+    return "leyline";
+}
+
 /// Resolve the leyline bundle root (contains bin/, lib/, jre/, res/, data/).
 fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     let resource_dir = app
@@ -42,7 +50,7 @@ fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         .map_err(|e| format!("No resource dir: {e}"))?;
 
     let bundle = resource_dir.join(".bundle-stage").join("leyline");
-    if bundle.join("bin").join("leyline").exists() {
+    if bundle.join("bin").join(sidecar_bin_name()).exists() {
         return Ok(bundle);
     }
 
@@ -50,7 +58,7 @@ fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     let mut dir = std::env::current_dir().unwrap_or_default();
     loop {
         let candidate = dir.join("build/bundle");
-        if candidate.join("bin").join("leyline").exists() {
+        if candidate.join("bin").join(sidecar_bin_name()).exists() {
             return Ok(candidate.canonicalize().unwrap_or(candidate));
         }
         if !dir.pop() {
@@ -109,7 +117,7 @@ fn resolve_sidecar_cwd(app: &AppHandle, bundle_dir: &std::path::Path) -> std::pa
     // Fallback: app log dir (safe, outside watch path)
     app.path()
         .app_log_dir()
-        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
+        .unwrap_or_else(|_| std::env::temp_dir())
 }
 
 #[tauri::command]
@@ -125,7 +133,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
     }
 
     let bundle_dir = resolve_bundle_dir(&app)?;
-    let bin_path = bundle_dir.join("bin").join("leyline");
+    let bin_path = bundle_dir.join("bin").join(sidecar_bin_name());
     server.set_state(ServerState::Starting, &app);
 
     // TLS: generate CA + server cert, trust CA in OS keychain
@@ -142,7 +150,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
     let log_dir = app
         .path()
         .app_log_dir()
-        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"));
+        .unwrap_or_else(|_| std::env::temp_dir());
     let _ = std::fs::create_dir_all(&log_dir);
     let log_path = log_dir.join("leyline-server.log");
     let log_file = std::fs::File::create(&log_path).ok();
@@ -159,7 +167,16 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
 
     let sidecar_cwd = resolve_sidecar_cwd(&app, &bundle_dir);
 
-    let mut cmd = Command::new(&bin_path);
+    let mut cmd;
+    #[cfg(target_os = "windows")]
+    {
+        cmd = Command::new("cmd");
+        cmd.args(["/c", bin_path.to_str().unwrap_or_default()]);
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        cmd = Command::new(&bin_path);
+    }
     cmd.current_dir(&sidecar_cwd)
         .arg("--cert")
         .arg(&cert_path)
@@ -190,7 +207,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
             .build()
             .unwrap();
 
-        for _ in 0..60 {
+        for _ in 0..120 {
             tokio::time::sleep(Duration::from_millis(500)).await;
 
             // Check if process died
@@ -218,7 +235,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
 
         let server = app_handle.state::<ServerProcess>();
         server.set_state(
-            ServerState::Error("Health check timed out after 30s".into()),
+            ServerState::Error("Health check timed out after 60s".into()),
             &app_handle,
         );
     });

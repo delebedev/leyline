@@ -67,7 +67,7 @@ abstract class JlinkBundleTask : DefaultTask() {
 
     private fun buildJlinkRuntime(jreDir: File) {
         val javaHome = System.getProperty("java.home")
-        val jlink = listOf("$javaHome/bin/jlink", "$javaHome/../bin/jlink")
+        val jlink = listOf("$javaHome/bin/jlink", "$javaHome/bin/jlink.exe", "$javaHome/../bin/jlink", "$javaHome/../bin/jlink.exe")
             .map(::File).firstOrNull { it.exists() }
             ?: error("jlink not found — need a JDK (not JRE)")
 
@@ -128,9 +128,11 @@ abstract class JlinkBundleTask : DefaultTask() {
     private fun writeLaunchScript(bundleDir: File) {
         val args = jvmArgs.get().joinToString(" ")
         val main = mainClass.get()
+        val binDir = File(bundleDir, "bin")
+        binDir.mkdirs()
 
-        val script = File(bundleDir, "bin/leyline")
-        script.parentFile.mkdirs()
+        // Unix shell script
+        val script = File(binDir, "leyline")
         script.writeText(
             buildString {
                 appendLine("#!/bin/sh")
@@ -143,6 +145,21 @@ abstract class JlinkBundleTask : DefaultTask() {
             },
         )
         script.setExecutable(true)
+
+        // Windows batch script
+        val bat = File(binDir, "leyline.bat")
+        bat.writeText(
+            buildString {
+                appendLine("@echo off")
+                appendLine("set DIR=%~dp0..")
+                appendLine("\"%DIR%\\jre\\bin\\java\" ^")
+                appendLine("  $args ^")
+                appendLine("  -Dleyline.res.dir=\"%DIR%\\res\" ^")
+                appendLine("  -cp \"%DIR%\\lib\\*\" ^")
+                appendLine("  $main %*")
+                appendLine("exit /b %ERRORLEVEL%")
+            },
+        )
     }
 
     private fun dirSize(dir: File): Long =

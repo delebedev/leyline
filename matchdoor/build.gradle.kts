@@ -64,7 +64,11 @@ tasks.named("extractProto") {
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:3.25.5"
+        artifact = if (System.getProperty("os.name").lowercase().contains("win") &&
+            (System.getProperty("os.arch") == "aarch64" || System.getProperty("os.arch") == "arm64"))
+            "com.google.protobuf:protoc:3.25.5:windows-x86_64@exe"
+        else
+            "com.google.protobuf:protoc:3.25.5"
     }
 }
 

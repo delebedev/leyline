@@ -95,10 +95,9 @@ object SeedDb {
         val cardDbFile = if (cardDbPath != null) {
             File(cardDbPath).takeIf { it.exists() }
         } else {
-            // Auto-detect from macOS Arena install
-            val raw = File(System.getProperty("user.home"))
-                .resolve("Library/Application Support/com.wizards.mtga/Downloads/Raw")
-            raw.listFiles()?.firstOrNull { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
+            // Auto-detect from Arena install
+            val raw = leyline.detectArenaDownloadsDir()?.resolve("Raw")
+            raw?.listFiles()?.firstOrNull { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
         }
         // Seed decks from data/decks/*.txt
         val decksDir = File(projectDir, "data/decks")

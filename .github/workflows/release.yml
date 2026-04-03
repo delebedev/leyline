@@ -157,21 +157,144 @@ jobs:
       - name: Smoke test (sidecar + TLS)
         run: just launcher-smoke
 
-      - name: Stage release artifacts
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: launcher/src-tauri/target/release/bundle/dmg/*.dmg
+          include-hidden-files: true
+
+      - name: Upload changelog
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: .changelog.md
+
+  # --- Build .msi on Windows (x86_64) ---
+  build-windows:
+    name: Build Windows (x64)
+    needs: gate
+    runs-on: windows-latest
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: leyline,forge
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
+
+      - uses: actions/cache@v4
+        with:
+          path: forge/.m2-local/forge/
+          key: upstream-m2-${{ hashFiles('forge/forge-core/src/**', 'forge/forge-game/src/**', 'forge/forge-ai/src/**', 'forge/forge-gui/src/**', 'forge/pom.xml') }}
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            launcher/src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('launcher/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - uses: extractions/setup-just@v2
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install forge JARs
+        shell: bash
+        run: just install-forge
+
+      - name: Install launcher deps
+        run: cd launcher && bun install
+
+      - name: Version check
+        shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          DMG=$(ls launcher/src-tauri/target/release/bundle/dmg/*.dmg)
-          cp "$DMG" "Leyline_${VERSION}_aarch64.dmg"
-          echo "DMG=Leyline_${VERSION}_aarch64.dmg" >> "$GITHUB_ENV"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAURI_VERSION=$(jq -r .version launcher/src-tauri/tauri.conf.json)
+          PKG_VERSION=$(jq -r .version launcher/package.json)
+          echo "Tag: $TAG_VERSION  Tauri: $TAURI_VERSION  Package: $PKG_VERSION"
+          if [ "$TAG_VERSION" != "$TAURI_VERSION" ]; then
+            echo "::error::Tag $TAG_VERSION does not match tauri.conf.json $TAURI_VERSION"
+            exit 1
+          fi
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $TAG_VERSION does not match package.json $PKG_VERSION"
+            exit 1
+          fi
+
+      - name: Build launcher (.msi)
+        shell: bash
+        run: |
+          rm -rf launcher/src-tauri/target/release/bundle/msi
+          just launcher-build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi
+          path: launcher/src-tauri/target/release/bundle/msi/*.msi
+
+  # --- Create GitHub Release with all artifacts ---
+  release:
+    name: Release
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          CHANGELOG="$(cat .changelog.md)"
+          CHANGELOG="$(cat artifacts/changelog/.changelog.md)"
+
+          DMG=$(ls artifacts/macos-dmg/*.dmg)
+          MSI=$(ls artifacts/windows-msi/*.msi)
+
+          DMG_NAME="Leyline_${VERSION}_aarch64.dmg"
+          MSI_NAME="Leyline_${VERSION}_x64.msi"
+          cp "$DMG" "$DMG_NAME"
+          cp "$MSI" "$MSI_NAME"
 
           gh release create "$GITHUB_REF_NAME" \
             --title "Leyline $VERSION" \
             --notes "$CHANGELOG" \
-            "$DMG"
+            "$DMG_NAME" \
+            "$MSI_NAME"
