@@ -1,25 +1,81 @@
 # How We Conform
 
-> **Migration in progress.** Conformance is moving from proto-based analysis to Player.log-based comparison via `scry-ts`. The card-centric workflow and principles below remain valid. See `docs/conformance/strategy.md` for the current approach.
-
 ## Principles
 
-1. **Player.log is the spec.** Arena logs from real server games are the source of truth for building specs.
-2. **Player.log is the comparison format.** Both real server and leyline produce Player.logs — compare per-card annotation traces.
-3. **Observe variance, don't guess from one sample.** Profile annotation shapes across multiple games.
-4. **Structural invariants, not field-by-field equality.** The relationship catalog (`docs/conformance/relationship-catalog.yaml`) encodes protocol rules.
+1. **Player.log is the spec.** Arena logs from real server games are the source of truth.
+2. **Player.log is the comparison format.** Both real server and leyline produce Player.logs — compare directly.
+3. **Observe at scale, don't guess from one sample.** Profile across 24+ saved games.
+4. **Structural invariants, not field-by-field equality.** The relationship catalog encodes protocol rules.
 
 ## Quick Reference
+
+### Per-game tools
 
 | I want to... | Run |
 |---|---|
 | Trace a card through a game | `just scry-ts trace "Card Name" --game <id>` |
 | See annotation types in a game | `just scry-ts gsm list --view annotations --game <id>` |
+| See full GSM detail | `just scry-ts gsm show <gsId> --game <id>` |
 | See board state at a point in time | `just scry-ts board --game <id> --gsid <N>` |
 | Save a game for later analysis | `just scry-ts save` |
 | Search saved games for a card | `just scry-ts game search "Card Name"` |
-| List saved games | `just scry-ts game list` |
 | Resolve an abilityGrpId | `just scry-ts ability <id>` |
+
+### Cross-game conformance tools
+
+| I want to... | Run |
+|---|---|
+| See GSM bracketing patterns | `just scry-ts sequences` |
+| Compare leyline vs real server | `just scry-ts sequences --diff leyline real` |
+| Focus on one interaction type | `just scry-ts sequences --type COMBAT_DAMAGE` |
+| See annotation ordering per slot | ordering shown automatically for 3+ annotations |
+| See which GSM fields are populated | `just scry-ts sequences --field-presence` |
+| Track persistent annotation lifecycle | `just scry-ts sequences --persistent` |
+| See what's between interaction GSMs | `just scry-ts sequences --gsid-gaps` |
+| Find ordering neighbors for a type | `just scry-ts annotations order --type DamageDealt` |
+| Machine-readable output | add `--json` to any command |
+
+### How to reason about `scry sequences`
+
+The tool classifies each GSM by **role** (CAST, ECHO, RESOLVE, COMBAT_DAMAGE, etc.) based on annotation signature, then groups them into **interaction instances** (a spell's full lifecycle, a combat damage event, a land play). It aggregates across all saved games and reports the canonical GSM sequence per interaction type.
+
+**Reading the output:**
+
+```
+TARGETED_SPELL  61 instances  19 games
+  [1] CAST_TARGETED    Send       → SelectTargetsReq    [OIC ZT PST]
+      order: OIC → ZT → PST  (97% consistent)
+  [2] ECHO             Send       —                     []
+  [3] TARGETS_CONFIRMED SendHiFi  → AAR                 [PSuT mana UAT]
+  ...
+```
+
+- **Slot number** = position in the GSM sequence
+- **Role** = what this GSM does (classified from annotations)
+- **updateType** = Send / SendHiFi / SendAndRecord
+- **→ followed_by** = next GRE request message (or — if none)
+- **Annotation list** = always-present types; `?` = sometimes-present
+- **order** = canonical annotation ordering within the GSM; consistency % = how many instances match exactly
+
+**`--diff` for finding gaps:**
+
+```bash
+just scry-ts sequences --diff leyline real --type LAND_PLAY
+```
+
+Shows leyline and real side-by-side. Auto-detects: missing slots (bare echoes), wrong updateType, extra/missing always-present annotations, annotation order consistency delta.
+
+**`--persistent` for pAnn lifecycle:**
+
+Shows when each persistent annotation type first appears and when it's deleted across an interaction's GSM sequence. TargetSpec should appear at TARGETS_CONFIRMED and be deleted at RESOLVE. If it shows "removed: never" — that's a bug.
+
+**`annotations order` for discovering ordering rules:**
+
+```bash
+just scry-ts annotations order --type DamageDealt
+```
+
+Shows what always/usually comes before and after DamageDealt across ALL GSMs in all games. Not scoped to an interaction type — finds cross-cutting ordering constraints. This is how annotation ordering Rules 5-9 were discovered (see `conformance/annotation-ordering-within-gsm.md`).
 
 ## Workflow: Implementing a New Mechanic
 
@@ -141,18 +197,19 @@ Player.log (arena or leyline)
         ▼
 scry-ts parser                (JSON, lossless for S→C)
         │
-        ├─→ scry-ts trace          (per-card annotation journey)
+        ├─→ scry-ts trace               per-card annotation journey
+        ├─→ scry-ts gsm                 GSM queries, show, diff
+        ├─→ scry-ts board               accumulated board state
+        ├─→ scry-ts prompts             server request audit
+        ├─→ scry-ts game                catalog, search, card manifest
         │
-        ├─→ scry-ts gsm            (GSM queries, diffs, annotation views)
-        │
-        ├─→ scry-ts board          (accumulated board state at any point)
-        │
-        ├─→ scry-ts prompts        (server request audit)
-        │
-        └─→ scry-ts game           (catalog, search, card manifest)
+        └─→ scry-ts sequences           cross-game GSM bracketing
+              ├── --diff                 leyline vs real comparison
+              ├── --field-presence       GSM field population per slot
+              ├── --persistent           pAnn lifecycle across slots
+              ├── --gsid-gaps            inter-GSM gap analysis
+              └── annotations order      per-type neighbor analysis
 ```
-
-Legacy proto-based tooling (`conform-proto`, `segment-variance`, `segment-relationships`) has been retired from this repo.
 
 ## Key files
 
@@ -165,7 +222,8 @@ Legacy proto-based tooling (`conform-proto`, `segment-variance`, `segment-relati
 
 ## Related docs
 
-- `conformance/debugging.md` — annotation ordering, instanceId lifecycle, detail key types
+- `conformance/annotation-ordering-within-gsm.md` — 9 ordering rules with real server evidence
+- `conformance/debugging.md` — instanceId lifecycle, detail key types
 - `conformance/protocol-findings.md` — durable protocol facts (multi-type annotations, ID ranges, patterns)
 - `conformance/levers.md` — architectural analysis of conformance gaps
 - `rosetta.md` — annotation types, zone IDs, transfer categories, protocol reference

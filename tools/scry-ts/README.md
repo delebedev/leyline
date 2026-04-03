@@ -63,6 +63,33 @@ scry gsm show 292                       # drill into a specific GSM
 scry gsm show 292 --json                # raw JSON (lossless)
 ```
 
+### `scry sequences`
+
+Extract canonical GSM bracketing patterns from saved game logs. Classifies each GSM by role (CAST, ECHO, RESOLVE, etc.), detects multi-GSM interaction instances, and aggregates across games.
+
+```bash
+scry sequences                            # all saved games (real+unknown)
+scry sequences --game 2026-03-30          # single game
+scry sequences --type targeted_spell      # filter interaction type
+scry sequences --json                     # machine-readable output
+scry sequences --source any               # include leyline/puzzle runs
+scry sequences --debug                    # show per-game classification
+scry sequences --field-presence           # GSM field population per slot
+scry sequences --persistent               # persistent annotation lifecycle
+scry sequences --gsid-gaps                # gap analysis between slots
+scry sequences --diff real leyline        # side-by-side source comparison
+```
+
+### `scry annotations`
+
+Annotation analysis across all GSMs.
+
+```bash
+scry annotations order --type DamageDealt           # neighbor analysis
+scry annotations order --type ZoneTransfer --json    # machine-readable
+scry annotations order --type DamageDealt --source real  # filter by source
+```
+
 ### `scry trace`
 
 Follow a card's full lifecycle through a game — zone transfers, annotations, instance ID changes.

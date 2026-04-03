@@ -15,11 +15,14 @@ export interface Game {
   startTimestamp: string | null;
   endTimestamp: string | null;
   greMessages: GsmSummary[];
+  /** Ordered stream of all GRE messages — GSMs and non-GSM requests interleaved. */
+  greStream: GreStreamEntry[];
   result: "win" | "loss" | "draw" | null;
   active: boolean;
 }
 
 export interface GsmSummary {
+  kind: "gsm";
   gsId: number;
   type: string; // "Full" | "Diff"
   turn: number;
@@ -32,6 +35,38 @@ export interface GsmSummary {
   timestamp: string | null;
   raw: any; // original gameStateMessage for drill-down
 }
+
+export interface GreMessageSummary {
+  kind: "gre";
+  type: string; // stripped: "ActionsAvailableReq", "SelectTargetsReq", etc.
+  msgId: number;
+  gameStateId: number;
+  timestamp: string | null;
+}
+
+export type GreStreamEntry = GsmSummary | GreMessageSummary;
+
+const INTERESTING_GRE_TYPES = new Set([
+  "GREMessageType_ActionsAvailableReq",
+  "GREMessageType_SelectTargetsReq",
+  "GREMessageType_DeclareAttackersReq",
+  "GREMessageType_DeclareBlockersReq",
+  "GREMessageType_PromptReq",
+  "GREMessageType_MulliganReq",
+  "GREMessageType_GroupReq",
+  "GREMessageType_SelectNReq",
+  "GREMessageType_SearchReq",
+  "GREMessageType_IntermissionReq",
+  "GREMessageType_QueuedGameStateMessage",
+  "GREMessageType_SubmitTargetsResp",
+  "GREMessageType_SubmitAttackersResp",
+  "GREMessageType_SubmitBlockersResp",
+  "GREMessageType_OrderReq",
+  "GREMessageType_CastingTimeOptionsReq",
+  "GREMessageType_OptionalActionMessage",
+  "GREMessageType_ChooseStartingPlayerReq",
+  "GREMessageType_SelectReplacementReq",
+]);
 
 function extractGsm(msg: any, timestamp: string | null): GsmSummary | null {
   const gsm = msg.gameStateMessage;
@@ -48,6 +83,7 @@ function extractGsm(msg: any, timestamp: string | null): GsmSummary | null {
   }
 
   return {
+    kind: "gsm" as const,
     gsId: gsm.gameStateId ?? 0,
     type: (gsm.type ?? "").replace("GameStateType_", ""),
     turn: ti.turnNumber ?? 0,
@@ -113,6 +149,7 @@ export function detectGames(events: Iterable<LogEvent>): Game[] {
         startTimestamp: event.timestamp,
         endTimestamp: null,
         greMessages: [],
+        greStream: [],
         result: null,
         active: true,
       };
@@ -124,7 +161,18 @@ export function detectGames(events: Iterable<LogEvent>): Game[] {
 
     for (const msg of event.messages) {
       const gsm = extractGsm(msg, event.timestamp);
-      if (gsm) current.greMessages.push(gsm);
+      if (gsm) {
+        current.greMessages.push(gsm);
+        current.greStream.push(gsm);
+      } else if (INTERESTING_GRE_TYPES.has(msg.type ?? "")) {
+        current.greStream.push({
+          kind: "gre",
+          type: (msg.type ?? "").replace("GREMessageType_", ""),
+          msgId: msg.msgId ?? 0,
+          gameStateId: msg.gameStateId ?? 0,
+          timestamp: event.timestamp,
+        });
+      }
 
       // Prefer gameInfo.matchID (per-game) over header matchId (connection/session)
       const gameMatchId = msg.gameStateMessage?.gameInfo?.matchID;
