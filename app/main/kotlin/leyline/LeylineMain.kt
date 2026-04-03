@@ -85,7 +85,8 @@ private fun openCardRepo(a: Map<String, String>): ExposedCardRepository {
         ?: detectArenaCardDb()
     requireNotNull(cardDbPath) {
         "Card database not found. Set LEYLINE_CARD_DB or install Arena client.\n" +
-            "  Expected: ~/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga"
+            "  macOS: ~/Library/Application Support/com.wizards.mtga/Downloads/Raw/Raw_CardDatabase_*.mtga\n" +
+            "  Windows: C:/Program Files/Epic Games/MagicTheGathering/MTGA_Data/Downloads/Raw/Raw_CardDatabase_*.mtga"
     }
     require(File(cardDbPath).exists()) { "Card database not found at: $cardDbPath" }
     return ExposedCardRepository(
@@ -144,7 +145,7 @@ private fun buildAccountServer(
  * between leyline and real servers doesn't invalidate Arena's download cache.
  */
 private fun detectArenaManifests(): String? {
-    val downloadsDir = File(System.getProperty("user.home"), "Library/Application Support/com.wizards.mtga/Downloads")
+    val downloadsDir = detectArenaDownloadsDir() ?: return null
     if (!downloadsDir.isDirectory) return null
 
     // Manifest_<hex>.mtga → main (from pointer file on real server, but we include it too)
@@ -222,12 +223,40 @@ private fun printBanner(
 // -- Utilities ----------------------------------------------------------------
 
 private fun detectArenaCardDb(): String? {
-    val rawDir = File(System.getProperty("user.home"), "Library/Application Support/com.wizards.mtga/Downloads/Raw")
+    val rawDir = detectArenaDownloadsDir()?.resolve("Raw") ?: return null
     if (!rawDir.isDirectory) return null
     return rawDir.listFiles()
         ?.filter { it.name.startsWith("Raw_CardDatabase_") && it.name.endsWith(".mtga") }
         ?.maxByOrNull { it.lastModified() }
         ?.absolutePath
+}
+
+/**
+ * Locate the Arena Downloads directory across platforms.
+ *
+ * macOS: ~/Library/Application Support/com.wizards.mtga/Downloads
+ * Windows: <Epic install>/MTGA_Data/Downloads (card data lives inside the install)
+ */
+internal fun detectArenaDownloadsDir(): File? {
+    val home = File(System.getProperty("user.home"))
+    val os = System.getProperty("os.name").lowercase()
+
+    // macOS: user-local application support
+    if (os.contains("mac")) {
+        val dir = home.resolve("Library/Application Support/com.wizards.mtga/Downloads")
+        if (dir.isDirectory) return dir
+    }
+
+    // Windows: inside Epic Games install directory
+    if (os.contains("win")) {
+        val candidates = listOfNotNull(
+            File("C:/Program Files/Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
+            File("C:/Program Files (x86)/Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
+        )
+        candidates.firstOrNull { it.isDirectory }?.let { return it }
+    }
+
+    return null
 }
 
 private fun parseArgs(args: Array<String>): Map<String, String> {
