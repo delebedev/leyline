@@ -56,8 +56,19 @@ _launcher-stage-res:
     esac
 
 # internal: run Tauri build + post-build check
+# MSI requires version major < 256, so on Windows we derive a semver from CalVer.
 _launcher-tauri:
-    cd "{{project_dir}}/launcher" && bun tauri build --config '{"bundle":{"resources":[".bundle-stage/leyline/",".bundle-stage/changelog.md"]}}'
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ "{{_os}}" = "windows" ]; then
+        # CalVer 2026.4.3 → 0.4.3 (drop year, keep month.day)
+        CALVER=$(cd "{{project_dir}}" && cat launcher/src-tauri/tauri.conf.json | grep '"version"' | head -1 | sed 's/.*: "//;s/".*//')
+        MSI_VER="0.${CALVER#*.}"
+        echo "MSI version override: $CALVER → $MSI_VER"
+        cd "{{project_dir}}/launcher" && bun tauri build --config "{\"bundle\":{\"resources\":[\".bundle-stage/leyline/\",\".bundle-stage/changelog.md\"]},\"version\":\"$MSI_VER\"}"
+    else
+        cd "{{project_dir}}/launcher" && bun tauri build --config '{"bundle":{"resources":[".bundle-stage/leyline/",".bundle-stage/changelog.md"]}}'
+    fi
     just launcher-check
 
 # headless smoke test: generate certs, spawn sidecar, verify health + TLS chain
