@@ -5,6 +5,7 @@ import 'just/lookup.just'
 import 'just/client.just'
 import 'just/tools.just'
 import 'just/test.just'
+import 'just/launcher.just'
 
 project_dir  := justfile_directory()
 classpath    := project_dir / "target/classpath.txt"
@@ -291,49 +292,7 @@ serve: build check-java
 bundle:
     ./gradlew bundleArchive --no-daemon
     chmod -R u+rw build/bundle/
-    @echo "Archive: $(ls build/distributions/leyline-*.tgz)"
-
-# --- Launcher ---
-
-# dev mode — hot-reload frontend, server runs separately via `just serve`
-[group('launcher')]
-launcher-dev:
-    cd "{{project_dir}}/launcher" && bun tauri dev
-
-# build distributable .dmg (runs `bundle` first to produce sidecar, generates changelog)
-[group('launcher')]
-launcher-build: bundle
-    test -f .changelog.md || bun scripts/curate-changelog.ts
-    rm -rf "{{project_dir}}/launcher/src-tauri/.bundle-stage"
-    mkdir -p "{{project_dir}}/launcher/src-tauri/.bundle-stage"
-    # build/bundle/ has jre+lib+bin from jlink; extract res+data from the archive
-    cp -R "{{project_dir}}/build/bundle" "{{project_dir}}/launcher/src-tauri/.bundle-stage/leyline"
-    tar -xzf "{{project_dir}}"/build/dist/leyline-*.tgz -C "{{project_dir}}/launcher/src-tauri/.bundle-stage/leyline" --strip-components=1 leyline/res
-    mkdir -p "{{project_dir}}/launcher/src-tauri/.bundle-stage/leyline/data"
-    test -f "{{project_dir}}/data/player.db" && cp "{{project_dir}}/data/player.db" "{{project_dir}}/launcher/src-tauri/.bundle-stage/leyline/data/player.db" || echo "No seed player.db — server will use in-memory DB"
-    cp .changelog.md "{{project_dir}}/launcher/src-tauri/.bundle-stage/changelog.md"
-    cd "{{project_dir}}/launcher" && bun tauri build --config '{"bundle":{"resources":[".bundle-stage/leyline/",".bundle-stage/changelog.md"]}}'
-
-# generate release notes from git log (LLM-curated if OPENROUTER_API_KEY set)
-[group('deploy')]
-changelog:
-    bun scripts/curate-changelog.ts
-    @cat .changelog.md
-
-# verify tag matches launcher version files
-[group('deploy')]
-release-check:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
-    if [ -z "$TAG" ]; then echo "Not on a tag — nothing to check"; exit 0; fi
-    V="${TAG#v}"
-    TAURI=$(jq -r .version launcher/src-tauri/tauri.conf.json)
-    PKG=$(jq -r .version launcher/package.json)
-    OK=true
-    [ "$V" != "$TAURI" ] && echo "MISMATCH: tag=$V tauri.conf.json=$TAURI" && OK=false
-    [ "$V" != "$PKG" ] && echo "MISMATCH: tag=$V package.json=$PKG" && OK=false
-    $OK && echo "Versions match: $V"
+    @echo "Archive: $(ls build/dist/leyline-*.tgz)"
 
 # --- Docker ---
 

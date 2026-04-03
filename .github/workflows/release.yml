@@ -150,7 +150,9 @@ jobs:
         run: bun scripts/curate-changelog.ts
 
       - name: Build launcher (.dmg)
-        run: just launcher-build
+        run: |
+          rm -rf launcher/src-tauri/target/release/bundle/dmg
+          just launcher-build
 
       - name: Stage release artifacts
         run: |
