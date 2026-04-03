@@ -98,16 +98,19 @@ async function collectInstances(
 
   for (const { gsm, gameLabel, persistentTypes } of gsms) {
     const rawAnns: any[] = gsm.raw.annotations ?? [];
-    if (rawAnns.length === 0) continue;
+    const rawPAnns: any[] = gsm.raw.persistentAnnotations ?? [];
+    const allAnns = [...rawAnns, ...rawPAnns];
+    if (allAnns.length === 0) continue;
 
     // Collect all types in this GSM for co-type analysis
     const gsmTypes: string[] = [];
-    for (const ann of rawAnns) {
+    for (const ann of allAnns) {
       const t = primaryType(ann);
       if (t) gsmTypes.push(t);
     }
 
-    for (const ann of rawAnns) {
+    const pAnnSet = new Set(rawPAnns);
+    for (const ann of allAnns) {
       const type = primaryType(ann);
       if (!type) continue;
 
@@ -126,7 +129,7 @@ async function collectInstances(
         type,
         keys,
         values,
-        isPersistent: persistentTypes.has(type),
+        isPersistent: pAnnSet.has(ann),
         coTypes: gsmTypes.filter((t) => t !== type),
         gameLabel,
       });
