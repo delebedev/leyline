@@ -198,7 +198,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
             .build()
             .unwrap();
 
-        for _ in 0..60 {
+        for _ in 0..120 {
             tokio::time::sleep(Duration::from_millis(500)).await;
 
             // Check if process died
@@ -226,7 +226,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
 
         let server = app_handle.state::<ServerProcess>();
         server.set_state(
-            ServerState::Error("Health check timed out after 30s".into()),
+            ServerState::Error("Health check timed out after 60s".into()),
             &app_handle,
         );
     });
