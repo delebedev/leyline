@@ -309,6 +309,8 @@ launcher-build: bundle
     # build/bundle/ has jre+lib+bin from jlink; extract res+data from the archive
     cp -R "{{project_dir}}/build/bundle" "{{project_dir}}/launcher/src-tauri/.bundle-stage/leyline"
     tar -xzf "{{project_dir}}"/build/dist/leyline-*.tgz -C "{{project_dir}}/launcher/src-tauri/.bundle-stage/leyline" --strip-components=1 leyline/res
+    mkdir -p "{{project_dir}}/launcher/src-tauri/.bundle-stage/leyline/data"
+    test -f "{{project_dir}}/data/player.db" && cp "{{project_dir}}/data/player.db" "{{project_dir}}/launcher/src-tauri/.bundle-stage/leyline/data/player.db" || echo "No seed player.db — server will use in-memory DB"
     cp .changelog.md "{{project_dir}}/launcher/src-tauri/.bundle-stage/changelog.md"
     cd "{{project_dir}}/launcher" && bun tauri build --config '{"bundle":{"resources":[".bundle-stage/leyline/",".bundle-stage/changelog.md"]}}'
 
