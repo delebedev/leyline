@@ -3,8 +3,8 @@
 # which artifact to look for in launcher-check and stage correctly.
 
 _os := if os() == "macos" { "macos" } else if os() == "windows" { "windows" } else { "linux" }
-_bundle_ext := if _os == "macos" { "dmg" } else if _os == "windows" { "msi" } else { "deb" }
-_bundle_dir := if _os == "macos" { "dmg" } else if _os == "windows" { "msi" } else { "deb" }
+_bundle_ext := if _os == "macos" { "dmg" } else if _os == "windows" { "exe" } else { "deb" }
+_bundle_dir := if _os == "macos" { "dmg" } else if _os == "windows" { "nsis" } else { "deb" }
 _sidecar_bin := if _os == "windows" { "leyline.bat" } else { "leyline" }
 _archive_ext := if _os == "windows" { "zip" } else { "tgz" }
 

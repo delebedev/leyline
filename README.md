@@ -22,7 +22,7 @@ Download the launcher, point it at your Arena install, hit Play.
   <img src="assets/launcher.png" alt="Leyline launcher" width="592">
 </p>
 
-1. **[Download the latest release](https://github.com/delebedev/leyline/releases)** — `.dmg` for macOS, `.msi` for Windows
+1. **[Download the latest release](https://github.com/delebedev/leyline/releases)** — `.exe` installer for Windows, `.dmg` for macOS
 2. **Launch** — the app auto-detects your Arena install
 3. **Play** — click Play, Arena connects to your local server
 

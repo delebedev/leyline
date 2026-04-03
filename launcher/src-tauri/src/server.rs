@@ -94,15 +94,13 @@ fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std
 }
 
 /// Resolve sidecar CWD.
-/// Production: bundle dir (self-contained with toml, data/, res/).
+/// Must be a writable directory — Forge creates cache/, and the server writes logs/.
+///
+/// Production (Windows): app data dir — Program Files is read-only.
+/// Production (macOS): bundle dir (app bundle is writable by owner).
 /// Dev: repo root (has leyline.toml, data/player.db, logs/).
 /// Must NOT be src-tauri/ — Tauri's file watcher restarts the app on any file change.
 fn resolve_sidecar_cwd(app: &AppHandle, bundle_dir: &std::path::Path) -> std::path::PathBuf {
-    // Production: bundle dir has leyline.toml
-    if bundle_dir.join("leyline.toml").exists() {
-        return bundle_dir.to_path_buf();
-    }
-
     // Dev: walk up from bundle to find repo root (has leyline.toml)
     let mut dir = bundle_dir.to_path_buf();
     loop {
@@ -114,10 +112,32 @@ fn resolve_sidecar_cwd(app: &AppHandle, bundle_dir: &std::path::Path) -> std::pa
         }
     }
 
-    // Fallback: app log dir (safe, outside watch path)
-    app.path()
-        .app_log_dir()
-        .unwrap_or_else(|_| std::env::temp_dir())
+    // Production (Windows): use writable app data dir
+    #[cfg(target_os = "windows")]
+    {
+        let data_dir = app.path().app_data_dir()
+            .unwrap_or_else(|_| std::env::temp_dir());
+        let _ = std::fs::create_dir_all(&data_dir);
+        let toml_dest = data_dir.join("leyline.toml");
+        if !toml_dest.exists() {
+            let toml_src = bundle_dir.join("leyline.toml");
+            if toml_src.exists() {
+                let _ = std::fs::copy(&toml_src, &toml_dest);
+            }
+        }
+        return data_dir;
+    }
+
+    // Production (macOS): bundle dir is writable
+    #[cfg(not(target_os = "windows"))]
+    {
+        if bundle_dir.join("leyline.toml").exists() {
+            return bundle_dir.to_path_buf();
+        }
+        app.path()
+            .app_log_dir()
+            .unwrap_or_else(|_| std::env::temp_dir())
+    }
 }
 
 #[tauri::command]

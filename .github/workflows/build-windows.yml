@@ -93,18 +93,14 @@ jobs:
             || cp launcher/resources/player.db launcher/src-tauri/.bundle-stage/leyline/data/player.db
           echo "ci changelog" > launcher/src-tauri/.bundle-stage/changelog.md
 
-      - name: Build launcher (.msi)
+      - name: Build launcher (NSIS installer)
         shell: bash
         run: |
-          rm -rf launcher/src-tauri/target/release/bundle/msi
-          # CalVer → MSI-compatible version (major must be < 256)
-          CALVER=$(grep '"version"' launcher/src-tauri/tauri.conf.json | head -1 | sed 's/.*: "//;s/".*//')
-          MSI_VER="0.${CALVER#*.}"
-          echo "Version: $CALVER → MSI $MSI_VER"
-          cd launcher && bun tauri build --config "{\"bundle\":{\"resources\":[\".bundle-stage/leyline/\",\".bundle-stage/changelog.md\"]},\"version\":\"$MSI_VER\"}"
+          rm -rf launcher/src-tauri/target/release/bundle/nsis
+          cd launcher && bun tauri build --config '{"bundle":{"resources":[".bundle-stage/leyline/",".bundle-stage/changelog.md"]}}'
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-msi
-          path: launcher/src-tauri/target/release/bundle/msi/*.msi
+          name: windows-setup
+          path: launcher/src-tauri/target/release/bundle/nsis/*.exe

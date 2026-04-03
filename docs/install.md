@@ -6,14 +6,14 @@ Grab the latest release for your platform:
 
 | Platform | File | Notes |
 |----------|------|-------|
-| Windows (x64) | `Leyline_vX.Y.Z_x64.msi` | Standard MSI installer |
+| Windows (x64) | `Leyline_vX.Y.Z_x64-setup.exe` | Standard installer |
 | macOS (Apple Silicon) | `Leyline_vX.Y.Z_aarch64.dmg` | Right-click → Open on first launch ([#338](https://github.com/delebedev/leyline/issues/338)) |
 
 **[Download latest release →](https://github.com/delebedev/leyline/releases)**
 
 ## Windows
 
-1. Run the `.msi` installer
+1. Run the installer (`Leyline_..._x64-setup.exe`)
 2. Launch Leyline from the Start menu or `C:\Program Files\Leyline\`
 3. Click **Play**
 
