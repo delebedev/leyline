@@ -72,7 +72,7 @@ async function gsmList(args: string[]) {
   if (view === "turns") {
     renderTurns(gsms);
   } else if (view === "annotations") {
-    renderAnnotations(gsms);
+    renderAnnotations(gsms, hasFilters);
   } else if (view === "actions") {
     renderActions(gsms);
   } else {
@@ -134,7 +134,7 @@ function renderTurns(gsms: { game: Game; gsm: GsmSummary }[]) {
   console.log(`\n${withTurn.length} turns`);
 }
 
-function renderAnnotations(gsms: { game: Game; gsm: GsmSummary }[]) {
+function renderAnnotations(gsms: { game: Game; gsm: GsmSummary }[], hasFilters: string[]) {
   // Build a zone map from the first Full GSM
   const zoneMap = new Map<number, string>();
   for (const { gsm } of gsms) {
@@ -150,8 +150,10 @@ function renderAnnotations(gsms: { game: Game; gsm: GsmSummary }[]) {
   let lastTurn = -1;
 
   for (const { gsm } of gsms) {
-    const annotations = gsm.raw.annotations ?? [];
-    if (annotations.length === 0) continue;
+    const transient = gsm.raw.annotations ?? [];
+    const persistent = gsm.raw.persistentAnnotations ?? [];
+    const allAnns = [...transient, ...persistent];
+    if (allAnns.length === 0) continue;
 
     const phase = gsm.step ? `${gsm.phase}/${gsm.step}` : gsm.phase;
     if (gsm.turn !== lastTurn) {
@@ -159,7 +161,12 @@ function renderAnnotations(gsms: { game: Game; gsm: GsmSummary }[]) {
       lastTurn = gsm.turn;
     }
 
-    for (const ann of annotations) {
+    for (const ann of allAnns) {
+      // Filter to --has types when rendering (not just GSM-level filtering)
+      if (hasFilters.length > 0) {
+        const annTypes = (ann.type ?? []).map((t: string) => stripPrefix(t, "AnnotationType_"));
+        if (!hasFilters.some((f) => annTypes.some((t: string) => t.includes(f)))) continue;
+      }
       const types = (ann.type ?? []).map((t: string) => stripPrefix(t, "AnnotationType_"));
       const affector = ann.affectorId ?? "—";
       const affected: number[] = ann.affectedIds ?? [];
