@@ -61,6 +61,9 @@ class BiteDownTest :
             val targetIid = h.bridge.getOrAllocInstanceId(ForgeCardId(targetCard.id)).value
             h.selectTargets(listOf(targetIid))
 
+            // Ensure spell resolves (auto-pass may not complete on slower CI)
+            h.passPriority()
+
             // Find DamageDealt annotation across all messages
             val damageAnn = h.allMessages
                 .filter { it.hasGameStateMessage() }
