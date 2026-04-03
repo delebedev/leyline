@@ -71,18 +71,24 @@ abstract class JlinkBundleTask : DefaultTask() {
             .map(::File).firstOrNull { it.exists() }
             ?: error("jlink not found — need a JDK (not JRE)")
 
-        logger.lifecycle("jlink: modules=${jlinkModules.get()}")
+        // JDK 21+ uses "zip-6", JDK 17 uses "2" (max compression)
+        val javaVersion = Runtime.version().feature()
+        val compress = if (javaVersion >= 21) "zip-6" else "2"
+
+        logger.lifecycle("jlink: modules=${jlinkModules.get()} compress=$compress (JDK $javaVersion)")
         val proc = ProcessBuilder(
             jlink.absolutePath,
             "--add-modules", jlinkModules.get(),
             "--output", jreDir.absolutePath,
             "--strip-debug",
-            "--compress", "zip-6",
+            "--compress", compress,
             "--no-header-files",
             "--no-man-pages",
-        ).inheritIO().start()
+        ).redirectErrorStream(true).start()
+        val output = proc.inputStream.bufferedReader().readText()
         val exit = proc.waitFor()
-        require(exit == 0) { "jlink failed with exit code $exit" }
+        if (output.isNotBlank()) logger.lifecycle("jlink output: $output")
+        require(exit == 0) { "jlink failed with exit code $exit\n$output" }
     }
 
     private fun copyAndStripLibs(libDir: File) {
