@@ -22,11 +22,12 @@ Download the launcher, point it at your Arena install, hit Play.
   <img src="assets/launcher.png" alt="Leyline launcher" width="592">
 </p>
 
-1. **[Download the latest release](https://github.com/delebedev/leyline/releases)**
+1. **[Download the latest release](https://github.com/delebedev/leyline/releases)** — `.dmg` for macOS, `.msi` for Windows
 2. **Launch** — the app auto-detects your Arena install
 3. **Play** — click Play, Arena connects to your local server
 
 Requires a legally obtained copy of [MTG Arena](https://magic.wizards.com/mtgarena).
+[Installation guide →](docs/install.md)
 
 ## ⚙️ How it works
 
