@@ -11,6 +11,7 @@ import { noteCommand } from "./src/commands/note";
 import { promptsCommand } from "./src/commands/prompts";
 import { saveCommand } from "./src/commands/save";
 import { sequencesCommand } from "./src/commands/sequences";
+import { varianceCommand } from "./src/commands/variance";
 import { traceCommand } from "./src/commands/trace";
 import { usageCommand } from "./src/commands/usage";
 
@@ -26,8 +27,9 @@ const commands: Record<string, { description: string; run: (args: string[]) => P
   prompts: { description: "Player interaction prompts",       run: promptsCommand },
   save:      { description: "Save games to durable storage",    run: saveCommand },
   sequences: { description: "GSM bracketing patterns",         run: sequencesCommand },
-  trace:  { description: "Trace a card's journey",           run: traceCommand },
-  usage:  { description: "Command usage heatmap",             run: usageCommand },
+  trace:    { description: "Trace a card's journey",           run: traceCommand },
+  usage:    { description: "Command usage heatmap",             run: usageCommand },
+  variance: { description: "Annotation detail key profiling",  run: varianceCommand },
 };
 
 import { appendFileSync, mkdirSync } from "fs";

@@ -90,6 +90,18 @@ scry annotations order --type ZoneTransfer --json    # machine-readable
 scry annotations order --type DamageDealt --source real  # filter by source
 ```
 
+### `scry variance`
+
+Profile annotation detail key shapes across saved game logs. Per type: always/sometimes keys, value samples, persistence, co-type bundles.
+
+```bash
+scry variance                              # all types, saved games
+scry variance --type DamageDealt           # single type detail
+scry variance --summary                    # compact one-line-per-type table
+scry variance --diff real leyline          # compare key shapes between sources
+scry variance --json                       # machine-readable
+```
+
 ### `scry trace`
 
 Follow a card's full lifecycle through a game — zone transfers, annotations, instance ID changes.
