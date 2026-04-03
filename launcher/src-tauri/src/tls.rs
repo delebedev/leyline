@@ -201,3 +201,100 @@ fn trust_ca(ca_pem: &std::path::Path) -> Result<(), String> {
         Err("Failed to trust CA — did you cancel the UAC prompt?".to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generate_ca_produces_valid_pem() {
+        let (cert_pem, key_pem) = generate_ca().unwrap();
+        assert!(cert_pem.contains("BEGIN CERTIFICATE"));
+        assert!(key_pem.contains("BEGIN PRIVATE KEY"));
+
+        // Parse back with x509-parser
+        let (_, pem) = parse_x509_pem(cert_pem.as_bytes()).unwrap();
+        let cert = pem.parse_x509().unwrap();
+        assert_eq!(
+            cert.subject().to_string(),
+            "CN=Leyline Local CA"
+        );
+        assert!(cert.is_ca());
+    }
+
+    #[test]
+    fn generate_server_cert_signed_by_ca() {
+        let (ca_cert_pem, ca_key_pem) = generate_ca().unwrap();
+        let (server_cert_pem, server_key_pem) =
+            generate_server_cert(&ca_cert_pem, &ca_key_pem).unwrap();
+
+        assert!(server_cert_pem.contains("BEGIN CERTIFICATE"));
+        assert!(server_key_pem.contains("BEGIN PRIVATE KEY"));
+
+        let (_, pem) = parse_x509_pem(server_cert_pem.as_bytes()).unwrap();
+        let cert = pem.parse_x509().unwrap();
+        assert_eq!(cert.subject().to_string(), "CN=localhost");
+        assert_eq!(
+            cert.issuer().to_string(),
+            "CN=Leyline Local CA"
+        );
+        assert!(!cert.is_ca());
+    }
+
+    #[test]
+    fn chain_file_roundtrip() {
+        let (ca_cert_pem, ca_key_pem) = generate_ca().unwrap();
+        let (server_cert_pem, _) =
+            generate_server_cert(&ca_cert_pem, &ca_key_pem).unwrap();
+
+        let chain = format!("{}{}", server_cert_pem, ca_cert_pem);
+
+        // First cert in chain is server cert
+        let (_, pem) = parse_x509_pem(chain.as_bytes()).unwrap();
+        let cert = pem.parse_x509().unwrap();
+        assert_eq!(cert.subject().to_string(), "CN=localhost");
+    }
+
+    #[test]
+    fn expires_within_detects_valid_cert() {
+        let (ca_cert_pem, _) = generate_ca().unwrap();
+        // CA has 10yr validity — should NOT expire within 24h
+        assert!(!expires_within(ca_cert_pem.as_bytes(), 86400));
+    }
+
+    #[test]
+    fn expires_within_returns_true_for_garbage() {
+        assert!(expires_within(b"not a cert", 86400));
+    }
+
+    #[test]
+    fn full_flow_to_temp_dir() {
+        let tmp = std::env::temp_dir().join("leyline-tls-test");
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+
+        // Generate CA
+        let (ca_cert, ca_key) = generate_ca().unwrap();
+        std::fs::write(tmp.join("ca.pem"), &ca_cert).unwrap();
+        std::fs::write(tmp.join("ca.key"), &ca_key).unwrap();
+
+        // Generate server cert
+        let (server_cert, server_key) =
+            generate_server_cert(&ca_cert, &ca_key).unwrap();
+        let chain = format!("{}{}", server_cert, ca_cert);
+        std::fs::write(tmp.join("server-chain.pem"), &chain).unwrap();
+        std::fs::write(tmp.join("server.key"), &server_key).unwrap();
+
+        // All files exist
+        assert!(tmp.join("ca.pem").exists());
+        assert!(tmp.join("ca.key").exists());
+        assert!(tmp.join("server-chain.pem").exists());
+        assert!(tmp.join("server.key").exists());
+
+        // Chain is not expiring
+        let chain_bytes = std::fs::read(tmp.join("server-chain.pem")).unwrap();
+        assert!(!expires_within(&chain_bytes, 86400));
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+}
