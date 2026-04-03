@@ -301,10 +301,32 @@ bundle:
 launcher-dev:
     cd "{{project_dir}}/launcher" && bun tauri dev
 
-# build distributable .dmg (runs `bundle` first to produce sidecar)
+# build distributable .dmg (runs `bundle` first to produce sidecar, generates changelog)
 [group('launcher')]
 launcher-build: bundle
+    test -f .changelog.md || bun scripts/curate-changelog.ts
     cd "{{project_dir}}/launcher" && TAURI_CONFIG='{"bundle":{"resources":{"../../build/bundle/**":"leyline/"}}}' bun tauri build
+
+# generate release notes from git log (LLM-curated if OPENROUTER_API_KEY set)
+[group('deploy')]
+changelog:
+    bun scripts/curate-changelog.ts
+    @cat .changelog.md
+
+# verify tag matches launcher version files
+[group('deploy')]
+release-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    TAG=$(git describe --tags --exact-match 2>/dev/null || echo "")
+    if [ -z "$TAG" ]; then echo "Not on a tag — nothing to check"; exit 0; fi
+    V="${TAG#v}"
+    TAURI=$(jq -r .version launcher/src-tauri/tauri.conf.json)
+    PKG=$(jq -r .version launcher/package.json)
+    OK=true
+    [ "$V" != "$TAURI" ] && echo "MISMATCH: tag=$V tauri.conf.json=$TAURI" && OK=false
+    [ "$V" != "$PKG" ] && echo "MISMATCH: tag=$V package.json=$PKG" && OK=false
+    $OK && echo "Versions match: $V"
 
 # --- Docker ---
 

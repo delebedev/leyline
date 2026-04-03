@@ -14,6 +14,7 @@ const arenaValue = document.getElementById("arena-value") as HTMLElement;
 const infoBtn = document.getElementById("info-btn") as HTMLButtonElement;
 const infoOverlay = document.getElementById("info-overlay") as HTMLElement;
 const ghLink = document.getElementById("gh-link") as HTMLAnchorElement;
+const appVersion = document.getElementById("app-version") as HTMLElement;
 
 // --- Info panel ---
 
@@ -177,6 +178,14 @@ restoreBtn.addEventListener("click", async () => {
 // --- Init ---
 
 async function init() {
+  // Version from tauri.conf.json — single source of truth
+  try {
+    const { getVersion } = await import("@tauri-apps/api/app");
+    appVersion.textContent = `v${await getVersion()}`;
+  } catch {
+    appVersion.textContent = "";
+  }
+
   await checkArena();
   try {
     const state = (await invoke("server_status")) as ServerStateEvent;
