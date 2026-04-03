@@ -46,12 +46,16 @@ fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         return Ok(bundle);
     }
 
-    // Dev fallback: use build/bundle from project root
-    let dev = std::env::current_dir()
-        .unwrap_or_default()
-        .join("../build/bundle");
-    if dev.join("bin").join("leyline").exists() {
-        return Ok(dev.canonicalize().unwrap_or(dev));
+    // Dev fallback: walk up from CWD to find build/bundle at repo root
+    let mut dir = std::env::current_dir().unwrap_or_default();
+    loop {
+        let candidate = dir.join("build/bundle");
+        if candidate.join("bin").join("leyline").exists() {
+            return Ok(candidate.canonicalize().unwrap_or(candidate));
+        }
+        if !dir.pop() {
+            break;
+        }
     }
 
     Err(format!(
@@ -81,6 +85,33 @@ fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std
     }
 }
 
+/// Resolve sidecar CWD.
+/// Production: bundle dir (self-contained with toml, data/, res/).
+/// Dev: repo root (has leyline.toml, data/player.db, logs/).
+/// Must NOT be src-tauri/ — Tauri's file watcher restarts the app on any file change.
+fn resolve_sidecar_cwd(app: &AppHandle, bundle_dir: &std::path::Path) -> std::path::PathBuf {
+    // Production: bundle dir has leyline.toml
+    if bundle_dir.join("leyline.toml").exists() {
+        return bundle_dir.to_path_buf();
+    }
+
+    // Dev: walk up from bundle to find repo root (has leyline.toml)
+    let mut dir = bundle_dir.to_path_buf();
+    loop {
+        if dir.join("leyline.toml").exists() {
+            return dir;
+        }
+        if !dir.pop() {
+            break;
+        }
+    }
+
+    // Fallback: app log dir (safe, outside watch path)
+    app.path()
+        .app_log_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
+}
+
 #[tauri::command]
 pub async fn start_server(app: AppHandle) -> Result<(), String> {
     let server = app.state::<ServerProcess>();
@@ -96,6 +127,13 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
     let bundle_dir = resolve_bundle_dir(&app)?;
     let bin_path = bundle_dir.join("bin").join("leyline");
     server.set_state(ServerState::Starting, &app);
+
+    // TLS: generate CA + server cert, trust CA in OS keychain
+    let (cert_path, key_path) = crate::tls::ensure_certs().map_err(|e| {
+        let msg = format!("TLS setup failed: {e}");
+        server.set_state(ServerState::Error(msg.clone()), &app);
+        msg
+    })?;
 
     // Ensure player DB in app data dir (copies seed on first launch)
     let player_db = ensure_player_db(&app, &bundle_dir);
@@ -119,8 +157,16 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
         .map(std::process::Stdio::from)
         .unwrap_or_else(std::process::Stdio::null);
 
+    let sidecar_cwd = resolve_sidecar_cwd(&app, &bundle_dir);
+
     let mut cmd = Command::new(&bin_path);
-    cmd.stdout(stdout_file).stderr(stderr_file);
+    cmd.current_dir(&sidecar_cwd)
+        .arg("--cert")
+        .arg(&cert_path)
+        .arg("--key")
+        .arg(&key_path)
+        .stdout(stdout_file)
+        .stderr(stderr_file);
     if let Some(ref db) = player_db {
         cmd.env("LEYLINE_PLAYER_DB", db);
     }
