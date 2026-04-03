@@ -74,6 +74,20 @@ scry sequences --type targeted_spell      # filter interaction type
 scry sequences --json                     # machine-readable output
 scry sequences --source any               # include leyline/puzzle runs
 scry sequences --debug                    # show per-game classification
+scry sequences --field-presence           # GSM field population per slot
+scry sequences --persistent               # persistent annotation lifecycle
+scry sequences --gsid-gaps                # gap analysis between slots
+scry sequences --diff real leyline        # side-by-side source comparison
+```
+
+### `scry annotations`
+
+Annotation analysis across all GSMs.
+
+```bash
+scry annotations order --type DamageDealt           # neighbor analysis
+scry annotations order --type ZoneTransfer --json    # machine-readable
+scry annotations order --type DamageDealt --source real  # filter by source
 ```
 
 ### `scry trace`
