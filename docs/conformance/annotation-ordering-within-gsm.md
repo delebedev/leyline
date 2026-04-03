@@ -1,24 +1,24 @@
 # Annotation Ordering Within a GSM
 
-Observed annotation ordering from real server recordings. Supplements the enforcement rules in `AnnotationOrderEnforcer` and the analysis in `arena-notes/leyline/conformance/message-framing.md`.
+Annotation ordering rules derived from real server Player.log analysis. 24 games, 1141 interactions, verified with `scry sequences`.
 
-## Why ordering matters
+Annotations within a GSM are processed sequentially — animation playback follows annotation order. Wrong ordering = wrong visual sequence (e.g., creature goes to graveyard before damage animation plays).
 
-The client's `AnnotationEventProcessor` processes annotations sequentially. Each parser sees all events emitted by prior parsers via a shared mutable `List<GameRulesEvent>`. The resulting `UXEvent` queue is a strict FIFO with `IsBlocking` gates — animation playback follows annotation order exactly.
+---
 
-Wrong ordering causes both **state bugs** (incremental entity chain broken) and **visual bugs** (death animation before damage animation).
-
-## Existing rules (enforced)
+## Enforced rules
 
 Rules 1-2 are implemented in `AnnotationOrderEnforcer` and validated by `InvariantChecker`.
 
 ### Rule 1: ObjectIdChanged before references
 
-`ObjectIdChanged` populates the client's `newIdToOldIdMap`. Any annotation referencing the new instanceId must come after.
+ObjectIdChanged must precede any annotation referencing its new instanceId in affectedIds or affectorId. The identity mapping must exist before downstream annotations use it.
+
+Violation: wrong card animates, phantom objects.
 
 ### Rule 2: Same-card incremental entity chaining
 
-When two `INeedList_Changes` parsers modify the same card, precedence order applies:
+When two annotations both modify the same card incrementally, precedence order:
 
 | Prec | Type | Card ID field |
 |------|------|---------------|
@@ -30,104 +30,128 @@ When two `INeedList_Changes` parsers modify the same card, precedence order appl
 | 5 | LayeredEffectCreated | affectorId |
 | 6 | AttachmentCreated | affectorId |
 
-## New rules (not yet enforced)
+Violation: corrupted card state — wrong P/T, missing counters, incorrect controller.
 
-### Rule 5: DamageDealt before ZoneTransfer(death) for the same card
+---
 
-**Observed in:** Every combat damage GSM and spell-damage resolution GSM across 38 saved games. Zero exceptions.
+## Not yet enforced
 
-**Pattern — combat damage (gsId 309, game 2026-03-30_20-06):**
-```
-[662] PhaseOrStepModified
-[663] DamageDealt         affected=[296]  (Kellan takes 3)
-[664] DamageDealt         affected=[300]  (Hurloon takes 3)
-      ...LayeredEffectDestroyed (cleanup)...
-[673] ObjectIdChanged     affected=[296]  (296→343)
-[674] ZoneTransfer        affected=[343]  (Battlefield→Graveyard, SBA_Damage)
-[677] ObjectIdChanged     affected=[300]  (300→344)
-[678] ZoneTransfer        affected=[344]  (Battlefield→Graveyard, SBA_Damage)
-```
+### Rule 3: ModifiedLife deduplication
 
-**Pattern — spell damage kill (gsId 202, same game):**
-```
-[453] ResolutionStart
-[454] DamageDealt         affected=[313]  (creature takes lethal)
-[456] ResolutionComplete
-[457] ObjectIdChanged     affected=[321]  (spell 321→327)
-[458] ZoneTransfer        affected=[327]  (Stack→Graveyard, Resolve)
-[459] ObjectIdChanged     affected=[313]  (creature 313→328)
-[460] ZoneTransfer        affected=[328]  (Battlefield→Graveyard, SBA_Damage)
-```
+ModifiedLife must come after any prior life-delta annotation for the same player. It deduplicates by subtracting already-accounted deltas. Wrong order = double life update.
 
-**Pattern — combat damage kill, second game (gsId 154, game 2026-03-30_20-33):**
+Priority: low. Documented in message-framing.md.
+
+### Rule 4: Forward ID scan
+
+ObjectIdChanged before ZoneTransfer for correct create-vs-transfer animation decision. Largely covered by Rule 1. Visual only.
+
+Priority: low.
+
+### Rule 5: DamageDealt before death
+
+All DamageDealt annotations precede ObjectIdChanged/ZoneTransfer for creatures dying from that damage. **Zero exceptions across 125 combat + 61 targeted spell instances.**
+
+Observed (combat, gsId 309):
 ```
-[314] PhaseOrStepModified
-[315] DamageDealt         affected=[296]
-[316] DamageDealt         affected=[301]
-[319] DamageDealt         affected=[1]    (player damage)
-[320] SyntheticEvent      affected=[1]
-[321] ModifiedLife        affected=[1]
-[322] ModifiedLife        affected=[2]
-[323] ObjectIdChanged     affected=[296]
-[324] ZoneTransfer        affected=[319]  (Battlefield→Graveyard)
+DamageDealt         affected=[296]  (Kellan takes 3)
+DamageDealt         affected=[300]  (Hurloon takes 3)
+...
+ObjectIdChanged     affected=[296]  (296→343)
+ZoneTransfer        affected=[343]  (→ Graveyard, SBA_Damage)
+ObjectIdChanged     affected=[300]  (300→344)
+ZoneTransfer        affected=[344]  (→ Graveyard, SBA_Damage)
 ```
 
-**The rule:** All `DamageDealt` annotations precede all `ObjectIdChanged`/`ZoneTransfer` annotations for creatures dying from that damage.
+Observed (spell damage, gsId 202):
+```
+ResolutionStart
+DamageDealt         affected=[313]  (lethal)
+ResolutionComplete
+ObjectIdChanged     affected=[321]  (spell → graveyard)
+ZoneTransfer        affected=[327]  (Resolve)
+ObjectIdChanged     affected=[313]  (creature → graveyard)
+ZoneTransfer        affected=[328]  (SBA_Damage)
+```
 
-**Visual impact:** Without this rule, the client queues `ZoneTransferUXEvent` (card moves to graveyard) before `UXEventDamageDealt` (damage projectile/combat animation). The creature visually dies before the hit lands.
+Violation: creature visually dies before the hit animation plays.
 
-**State impact:** `DamageDealtAnnotationParser` implements `INeedList_Changes` and calls `GetPreviousIncrementalEntity` to find the card entity. If `ZoneTransfer` already processed the card, the entity may be in graveyard state.
+**Priority: high. This is causing visible animation bugs.**
 
-### Rule 6: Full combat damage ordering
+### Rule 6: Combat damage block order
 
-The complete observed order within a combat damage GSM:
+Full observed ordering, 125 instances:
 
 ```
 PhaseOrStepModified (CombatDamage step)
-DamageDealt (one per source→target pair, all of them)
-DamagedThisTurn (badge, if creature survived)
-SyntheticEvent (if player took damage)
-ModifiedLife (one per player whose life changed)
+DamageDealt         (one per source→target pair)
+DamagedThisTurn     (badge, if creature survived)
+SyntheticEvent      (if player took damage)
+ModifiedLife        (one per player whose life changed)
 LayeredEffectDestroyed (cleanup for dying creatures' effects)
-ObjectIdChanged (per dying creature)
-ZoneTransfer (per dying creature, SBA_Damage)
+ObjectIdChanged     (per dying creature)
+ZoneTransfer        (per dying creature, SBA_Damage)
 AbilityInstanceDeleted (cleanup for dying creatures' abilities)
 ```
 
-### Rule 7: Resolution ordering
+### Rule 7: Resolution block order
 
-The complete observed order within a spell resolution GSM:
+Full observed ordering, 250 untargeted + 61 targeted instances:
 
 ```
-ResolutionStart (spell affectorId)
-DamageDealt (if damage spell, per target)
-SyntheticEvent (if player took damage)
-ModifiedLife (if life changed)
-ResolutionComplete (spell affectorId)
-ObjectIdChanged (spell leaving stack)
-ZoneTransfer (spell Stack→Graveyard, category=Resolve)
-ObjectIdChanged (killed creature, if any)
-ZoneTransfer (creature Battlefield→Graveyard, category=SBA_Damage)
+ResolutionStart     (spell affectorId)
+DamageDealt         (if damage spell)
+SyntheticEvent      (if player took damage)
+ModifiedLife        (if life changed)
+ResolutionComplete  (spell affectorId)
+ObjectIdChanged     (spell leaving stack)
+ZoneTransfer        (Stack→Graveyard, Resolve)
+ObjectIdChanged     (killed creature, if any)
+ZoneTransfer        (Battlefield→Graveyard, SBA_Damage)
 ```
 
-Note: spell's OIC/ZT comes before killed creature's OIC/ZT. The spell resolves and leaves the stack, then SBA processes the lethal damage.
+Spell OIC/ZT before killed creature OIC/ZT — the spell leaves the stack, then SBA processes lethal damage.
+
+### Rule 8: Cast order
+
+97% consistent across 61 targeted casts, 86% across 286 land plays:
+
+```
+ObjectIdChanged     (hand id → stack/battlefield id)
+ZoneTransfer        (CastSpell or PlayLand)
+PlayerSelectingTargets (targeted spells only)
+UserActionTaken
+```
+
+### Rule 9: Draw order
+
+96% consistent, 357 instances:
+
+```
+PhaseOrStepModified
+ObjectIdChanged     (library id → hand id)
+ZoneTransfer        (Draw)
+```
+
+---
 
 ## Current leyline gap
 
-Our annotation pipeline in `StateMapper.computeAnnotations()` builds:
-1. Stage 1-2: `TransferAnnotations` — ZoneTransfer annotations first
-2. Stage 3: `CombatAnnotations` — DamageDealt annotations second
+`StateMapper.computeAnnotations()` builds transfers (stage 1-2) before combat (stage 3). This inverts Rules 5-7 — ZoneTransfer appears before DamageDealt.
 
-This inverts Rules 5-7. `AnnotationOrderEnforcer` doesn't fix it because it only handles Rules 1-2.
+`AnnotationOrderEnforcer` only handles Rules 1-2. It does not reorder across these stages.
 
-### Fix options
+### Fix
 
-**Option A — Add Rules 5-7 to the enforcer.** Surgical: add edges for DamageDealt→OIC/ZT when the ZT category is SBA_Damage or Destroy. The enforcer's topological sort handles the rest. Minimal code change, explicit about WHY.
+Add Rules 5-7 to the enforcer. Edges: DamageDealt → OIC/ZT when ZT category is SBA_Damage or Destroy. The topological sort handles the rest.
 
-**Option B — Reorder pipeline stages.** Move combat annotations before transfer annotations. Broader impact — need to verify no other interactions depend on transfers-first ordering.
+---
 
-Recommendation: Option A. The enforcer is the safety net; this is exactly the kind of ordering constraint it's designed for.
+## Verification
 
-## Data source
+`scry sequences` extracts annotation ordering across all saved games. Per-slot `annotationOrder` field shows canonical order; `orderConsistency` shows what fraction of instances match.
 
-All examples from real server games saved in `~/.scry/games/`. Verified with `just scry-ts gsm show <gsId> --json`. The `scry sequences` tool can aggregate annotation ordering across all games for systematic validation.
+```bash
+just scry-ts sequences --type COMBAT_DAMAGE   # POS → DD → SE → ML
+just scry-ts sequences --type TARGETED_SPELL   # slot 5: RS → DD → RC → OIC → ZT
+```
