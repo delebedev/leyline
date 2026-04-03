@@ -58,8 +58,8 @@ export async function varianceCommand(args: string[]) {
   // --diff mode
   if (diffSources) {
     const [leftSrc, rightSrc] = diffSources;
-    const leftInstances = await collectInstances(args, new Set([leftSrc]) as any);
-    const rightInstances = await collectInstances(args, new Set([rightSrc]) as any);
+    const leftInstances = await collectInstances(args, new Set(leftSrc.split(",")) as any);
+    const rightInstances = await collectInstances(args, new Set(rightSrc.split(",")) as any);
     const leftProfiles = buildProfiles(leftInstances, typeFilter);
     const rightProfiles = buildProfiles(rightInstances, typeFilter);
     if (jsonOutput) {
