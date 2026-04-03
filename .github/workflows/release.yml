@@ -98,6 +98,9 @@ jobs:
       - name: Install forge JARs
         run: just install-forge
 
+      - name: Install launcher deps
+        run: cd launcher && bun install
+
       - name: Version check
         run: |
           TAG_VERSION="${GITHUB_REF_NAME#v}"
