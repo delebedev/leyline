@@ -17,12 +17,13 @@ import { resolveGame, parseGameFlag } from "../resolve";
 interface TypeProfile {
   type: string;
   instanceCount: number;
+  gsmCount: number; // unique GSMs containing this type (for co-type percentages)
   gameLabels: Set<string>;
   alwaysKeys: string[];
   sometimesKeys: { key: string; pct: number }[];
   valueSamples: Record<string, Set<string>>;
   persistence: Record<string, number>; // "transient" | "persistent" → count
-  coTypes: Map<string, number>; // other annotation types in same GSM → count
+  coTypes: Map<string, number>; // other annotation types in same GSM → GSM count
 }
 
 interface AnnotationInstance {
@@ -30,8 +31,9 @@ interface AnnotationInstance {
   keys: string[];
   values: Record<string, string | number>;
   isPersistent: boolean;
-  coTypes: string[]; // other annotation types in the same GSM
+  coTypes: string[]; // other annotation types in the same GSM (deduplicated)
   gameLabel: string;
+  gsmId: number; // for co-type deduplication across repeated annotations
 }
 
 // --- Command ---
@@ -102,37 +104,46 @@ async function collectInstances(
     const allAnns = [...rawAnns, ...rawPAnns];
     if (allAnns.length === 0) continue;
 
-    // Collect all types in this GSM for co-type analysis
-    const gsmTypes: string[] = [];
+    // Collect all types in this GSM for co-type analysis (deduplicated, all type tags)
+    const gsmTypeSet = new Set<string>();
     for (const ann of allAnns) {
-      const t = primaryType(ann);
-      if (t) gsmTypes.push(t);
+      for (const t of ann.type ?? []) {
+        const stripped = t.replace("AnnotationType_", "");
+        if (stripped) gsmTypeSet.add(stripped);
+      }
     }
+    const gsmTypes = [...gsmTypeSet];
+    const gsmId = gsm.gsId;
 
     const pAnnSet = new Set(rawPAnns);
     for (const ann of allAnns) {
-      const type = primaryType(ann);
-      if (!type) continue;
-
+      // Extract detail keys/values once per annotation object
       const keys: string[] = [];
       const values: Record<string, string | number> = {};
       for (const d of ann.details ?? []) {
         const key = d.key;
         if (!key) continue;
         keys.push(key);
-        // Extract first value from whichever field is populated
         const val = d.valueInt32?.[0] ?? d.valueUint32?.[0] ?? d.valueString?.[0] ?? null;
         if (val != null) values[key] = val;
       }
 
-      instances.push({
-        type,
-        keys,
-        values,
-        isPersistent: pAnnSet.has(ann),
-        coTypes: gsmTypes.filter((t) => t !== type),
-        gameLabel,
-      });
+      const isPersistent = pAnnSet.has(ann);
+
+      // Emit one instance per type tag (handles multi-type annotations)
+      for (const t of ann.type ?? []) {
+        const type = t.replace("AnnotationType_", "");
+        if (!type) continue;
+        instances.push({
+          type,
+          keys,
+          values,
+          isPersistent,
+          coTypes: gsmTypes.filter((ct) => ct !== type),
+          gameLabel,
+          gsmId,
+        });
+      }
     }
   }
 
@@ -211,6 +222,8 @@ function buildProfiles(
   const profiles: TypeProfile[] = [];
   for (const [type, insts] of byType) {
     const total = insts.length;
+    const uniqueGsmIds = new Set(insts.map((i) => i.gsmId));
+    const gsmCount = uniqueGsmIds.size;
     const gameLabels = new Set(insts.map((i) => i.gameLabel));
 
     // Key frequency
@@ -247,18 +260,24 @@ function buildProfiles(
       persistence[label] = (persistence[label] ?? 0) + 1;
     }
 
-    // Co-types (deduplicated per instance — count GSMs, not occurrences)
+    // Co-types (count unique GSMs where both types co-occur, not per-instance)
     const coTypeCounts = new Map<string, number>();
+    const coTypeSeenGsms = new Map<string, Set<number>>();
     for (const inst of insts) {
-      const unique = new Set(inst.coTypes);
-      for (const ct of unique) {
-        coTypeCounts.set(ct, (coTypeCounts.get(ct) ?? 0) + 1);
+      for (const ct of new Set(inst.coTypes)) {
+        let seen = coTypeSeenGsms.get(ct);
+        if (!seen) { seen = new Set(); coTypeSeenGsms.set(ct, seen); }
+        if (!seen.has(inst.gsmId)) {
+          seen.add(inst.gsmId);
+          coTypeCounts.set(ct, (coTypeCounts.get(ct) ?? 0) + 1);
+        }
       }
     }
 
     profiles.push({
       type,
       instanceCount: total,
+      gsmCount,
       gameLabels,
       alwaysKeys,
       sometimesKeys,
@@ -313,10 +332,10 @@ function renderDetail(profiles: TypeProfile[]) {
     );
     console.log(`  Persistence:    ${persParts.join(", ")}`);
 
-    // Co-types (>50% frequency)
+    // Co-types (>50% of GSMs containing this type)
     const coTypeParts: string[] = [];
     for (const [ct, count] of [...p.coTypes.entries()].sort((a, b) => b[1] - a[1])) {
-      const pct = Math.round((count / total) * 100);
+      const pct = Math.round((count / p.gsmCount) * 100);
       if (pct >= 50) coTypeParts.push(`${ct} (${pct}%)`);
     }
     if (coTypeParts.length > 0) {
@@ -361,9 +380,9 @@ function renderJson(profiles: TypeProfile[]) {
       ),
       persistence: p.persistence,
       coTypes: [...p.coTypes.entries()]
-        .filter(([, n]) => n / p.instanceCount >= 0.5)
+        .filter(([, n]) => n / p.gsmCount >= 0.5)
         .sort((a, b) => b[1] - a[1])
-        .map(([type, count]) => ({ type, pct: Math.round((count / p.instanceCount) * 100) })),
+        .map(([type, count]) => ({ type, pct: Math.round((count / p.gsmCount) * 100) })),
     })),
     meta: {
       totalInstances: profiles.reduce((s, p) => s + p.instanceCount, 0),
@@ -412,6 +431,16 @@ function renderDiff(
     const extraKeys = [...rAlways].filter((k) => !lAlways.has(k));
     if (missingKeys.length > 0) gaps.push(`${rightSrc} missing always-keys: ${missingKeys.join(", ")}`);
     if (extraKeys.length > 0) gaps.push(`${rightSrc} extra always-keys: ${extraKeys.join(", ")}`);
+
+    // Sometimes-key differences (keys present in one side but absent from both always+sometimes of the other)
+    const lSometimes = new Set(l.sometimesKeys.map((k) => k.key));
+    const rSometimes = new Set(r.sometimesKeys.map((k) => k.key));
+    const lAll = new Set([...lAlways, ...lSometimes]);
+    const rAll = new Set([...rAlways, ...rSometimes]);
+    const missingSometimes = [...lAll].filter((k) => !rAll.has(k));
+    const extraSometimes = [...rAll].filter((k) => !lAll.has(k));
+    if (missingSometimes.length > 0) gaps.push(`${rightSrc} never sends: ${missingSometimes.join(", ")}`);
+    if (extraSometimes.length > 0) gaps.push(`${rightSrc} extra optional keys: ${extraSometimes.join(", ")}`);
 
     if (gaps.length > 0) {
       diffCount++;
@@ -463,10 +492,16 @@ function renderDiffJson(
 
 function hasDifferences(l: TypeProfile | undefined, r: TypeProfile | undefined): boolean {
   if (!l || !r) return true;
-  const lSet = new Set(l.alwaysKeys);
-  const rSet = new Set(r.alwaysKeys);
-  if (lSet.size !== rSet.size) return true;
-  for (const k of lSet) if (!rSet.has(k)) return true;
+  // Check always-keys
+  const lAlways = new Set(l.alwaysKeys);
+  const rAlways = new Set(r.alwaysKeys);
+  if (lAlways.size !== rAlways.size) return true;
+  for (const k of lAlways) if (!rAlways.has(k)) return true;
+  // Check sometimes-keys presence (not frequency — that's expected to vary)
+  const lSometimes = new Set(l.sometimesKeys.map((k) => k.key));
+  const rSometimes = new Set(r.sometimesKeys.map((k) => k.key));
+  for (const k of lSometimes) if (!rSometimes.has(k) && !rAlways.has(k)) return true;
+  for (const k of rSometimes) if (!lSometimes.has(k) && !lAlways.has(k)) return true;
   return false;
 }
 
