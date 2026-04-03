@@ -47,6 +47,15 @@ jobs:
           path: forge/.m2-local/forge/
           key: upstream-m2-${{ hashFiles('forge/forge-core/src/**', 'forge/forge-game/src/**', 'forge/forge-ai/src/**', 'forge/forge-gui/src/**', 'forge/pom.xml') }}
 
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
       - uses: extractions/setup-just@v2
 
       - run: just install-forge
@@ -88,6 +97,25 @@ jobs:
         with:
           path: forge/.m2-local/forge/
           key: upstream-m2-${{ hashFiles('forge/forge-core/src/**', 'forge/forge-game/src/**', 'forge/forge-ai/src/**', 'forge/forge-gui/src/**', 'forge/pom.xml') }}
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            launcher/src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('launcher/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
 
       - uses: extractions/setup-just@v2
 
@@ -144,6 +172,7 @@ jobs:
           name: changelog
           path: .changelog.md
           retention-days: 7
+          include-hidden-files: true
 
   # --- Create GitHub Release ---
   release:
