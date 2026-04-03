@@ -11,7 +11,6 @@ jbcrypt = "0.4"
 exposed = "1.1.1"
 sqlite = "3.45.1.0"
 kotest = "5.9.1"
-bouncycastle = "1.83"
 archunit = "1.4.1"
 forge = "2.0.10-SNAPSHOT"
 detekt = "1.23.7"
@@ -39,7 +38,6 @@ forge-gui = { module = "forge:forge-gui", version.ref = "forge" }
 kotest-runner = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 kotest-assertions = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
 kotest-datatest = { module = "io.kotest:kotest-framework-datatest", version.ref = "kotest" }
-bouncycastle-pkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
 ktor-server-netty = { module = "io.ktor:ktor-server-netty", version.ref = "ktor" }
 ktor-server-content-negotiation = { module = "io.ktor:ktor-server-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }

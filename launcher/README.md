@@ -49,7 +49,7 @@ The launcher embeds the leyline server (a stripped JVM + game engine, ~80MB) as 
 
 1. Copies `services.conf` into Arena's StreamingAssets (tells Arena to connect to localhost)
 2. Creates a stub audio file Arena expects
-3. Sets macOS preferences to skip TLS cert verification (localhost uses self-signed)
+3. Sets macOS preferences (`CheckSC=0` — skips Arena service check hash)
 4. Starts the leyline server and waits for it to be healthy
 
 Restore reverses all of this — removes the config file and resets preferences.

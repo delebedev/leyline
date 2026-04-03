@@ -33,9 +33,7 @@ _java := 'for p in ' + ports + '; do for pid in $(lsof -ti :$p 2>/dev/null); do 
 # Read-only CLI (no port kill)
 _cli  := 'classpath="$(< "' + classpath + '")"; "$JAVA_HOME/bin/java" ' + jvm_opts_cli + ' -cp ' + _cp
 
-# --- TLS certs (optional — self-signed if missing) ---
-# UnityTls validates ALL certs (FD, MD, WAS). Needs mitmproxy CA certs.
-# CheckSC=0 does NOT bypass Unity's Mono TLS stack.
+# --- TLS certs (self-signed by default, pass --cert/--key to override) ---
 _cert     := certs / "frontdoor-combined.pem"
 _key      := certs / "frontdoor.key"
 _account_cert := certs / "account-combined.pem"
@@ -139,7 +137,7 @@ _audio_dir := _streaming / "Audio/GeneratedSoundBanks/Mac"
 dev-setup:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "==> TLS certs auto-generated at server boot (mitmproxy CA required)"
+    echo "==> TLS: self-signed at server boot (pass --cert/--key for explicit certs)"
     # 1. Copy localhost services.conf into Arena
     streaming="{{_streaming}}"
     if [ ! -d "$streaming" ]; then

@@ -77,7 +77,7 @@ dependencies {
     implementation(libs.sqlite.jdbc)
     implementation(libs.netty.handler)
     implementation(libs.netty.codec)
-    implementation(libs.bouncycastle.pkix)
+
     implementation(libs.logback.classic)
     implementation(libs.sentry.logback)
 

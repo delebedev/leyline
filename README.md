@@ -73,6 +73,7 @@ just serve        # server on :30003 + :30010
 
 **Requires:** JDK 17+, [just](https://github.com/casey/just), macOS or Linux.
 Arena client installed locally (reads card database at runtime — not distributed).
+TLS certs needed for Arena connection — see `just dev-setup`.
 
 ### Testing
 

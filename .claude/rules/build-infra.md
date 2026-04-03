@@ -18,12 +18,7 @@ paths:
 
 ## TLS & Networking
 
-- TLS certs are auto-generated at server boot from the mitmproxy CA (`~/.mitmproxy/`). Hostnames discovered from `/etc/hosts`. Certs regenerate automatically when hostnames change (Arena patch).
-- `/etc/hosts` needs FD+MD → 127.0.0.1 for proxy mode (doorbell stays commented out).
-
-## Proxy mode
-
-- `deploy/services-proxy.conf` is gitignored — create locally from `deploy/services-proxy.example.conf` and fill private proxy creds. `just serve-proxy` fails fast if the file is missing or uses example values.
+- TLS: self-signed at boot. Pass `--cert`/`--key` (or `LEYLINE_CERT_PATH`/`LEYLINE_KEY_PATH` env vars) for explicit certs.
 
 ## Proto workflow
 
