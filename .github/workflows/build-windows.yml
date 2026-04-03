@@ -1,0 +1,86 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: '17'
+
+jobs:
+  build:
+    name: Windows (x64)
+    runs-on: windows-latest
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: leyline,forge
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
+
+      - uses: actions/cache@v4
+        with:
+          path: forge/.m2-local/forge/
+          key: upstream-m2-${{ hashFiles('forge/forge-core/src/**', 'forge/forge-game/src/**', 'forge/forge-ai/src/**', 'forge/forge-gui/src/**', 'forge/pom.xml') }}
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            launcher/src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('launcher/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - uses: extractions/setup-just@v2
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install forge JARs
+        shell: bash
+        run: just install-forge
+
+      - name: Install launcher deps
+        run: cd launcher && bun install
+
+      - name: Build launcher (.msi)
+        shell: bash
+        run: |
+          rm -rf launcher/src-tauri/target/release/bundle/msi
+          just launcher-build
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-msi
+          path: launcher/src-tauri/target/release/bundle/msi/*.msi
