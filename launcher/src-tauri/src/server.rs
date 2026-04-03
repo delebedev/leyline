@@ -117,7 +117,7 @@ fn resolve_sidecar_cwd(app: &AppHandle, bundle_dir: &std::path::Path) -> std::pa
     // Fallback: app log dir (safe, outside watch path)
     app.path()
         .app_log_dir()
-        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
+        .unwrap_or_else(|_| std::env::temp_dir())
 }
 
 #[tauri::command]
@@ -150,7 +150,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
     let log_dir = app
         .path()
         .app_log_dir()
-        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"));
+        .unwrap_or_else(|_| std::env::temp_dir());
     let _ = std::fs::create_dir_all(&log_dir);
     let log_path = log_dir.join("leyline-server.log");
     let log_file = std::fs::File::create(&log_path).ok();
@@ -167,7 +167,16 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
 
     let sidecar_cwd = resolve_sidecar_cwd(&app, &bundle_dir);
 
-    let mut cmd = Command::new(&bin_path);
+    let mut cmd;
+    #[cfg(target_os = "windows")]
+    {
+        cmd = Command::new("cmd");
+        cmd.args(["/c", bin_path.to_str().unwrap_or_default()]);
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        cmd = Command::new(&bin_path);
+    }
     cmd.current_dir(&sidecar_cwd)
         .arg("--cert")
         .arg(&cert_path)

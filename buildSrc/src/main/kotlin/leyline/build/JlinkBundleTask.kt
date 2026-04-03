@@ -157,6 +157,7 @@ abstract class JlinkBundleTask : DefaultTask() {
                 appendLine("  -Dleyline.res.dir=\"%DIR%\\res\" ^")
                 appendLine("  -cp \"%DIR%\\lib\\*\" ^")
                 appendLine("  $main %*")
+                appendLine("exit /b %ERRORLEVEL%")
             },
         )
     }

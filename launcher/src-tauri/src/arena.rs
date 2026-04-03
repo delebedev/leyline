@@ -15,6 +15,7 @@ const KNOWN_INSTALLS: &[(&str, &str)] = &[
 const KNOWN_INSTALLS: &[(&str, &str)] = &[
     ("Epic", "C:/Program Files/Epic Games/MagicTheGathering"),
     ("Epic", "C:/Program Files (x86)/Epic Games/MagicTheGathering"),
+    ("Steam", "C:/Program Files (x86)/Steam/steamapps/common/MTGA"),
 ];
 
 const SERVICES_CONF: &str = include_str!("../../resources/services.conf");
@@ -41,7 +42,7 @@ fn find_arena() -> Option<(PathBuf, String)> {
         #[cfg(target_os = "macos")]
         let steam = home.join("Library/Application Support/Steam/steamapps/common/MTGA/MTGA.app");
         #[cfg(target_os = "windows")]
-        let steam = home.join("AppData/Local/Steam/steamapps/common/MTGA");
+        let steam = home.join("AppData/Local/Steam/steamapps/common/MTGA");  // custom library location
         if steam.exists() {
             return Some((steam, "Steam".into()));
         }

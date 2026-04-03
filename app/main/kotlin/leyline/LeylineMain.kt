@@ -247,11 +247,14 @@ internal fun detectArenaDownloadsDir(): File? {
         if (dir.isDirectory) return dir
     }
 
-    // Windows: inside Epic Games install directory
+    // Windows: inside Epic Games or Steam install directory
     if (os.contains("win")) {
-        val candidates = listOfNotNull(
-            File("C:/Program Files/Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
-            File("C:/Program Files (x86)/Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
+        val programFiles = System.getenv("PROGRAMFILES") ?: "C:/Program Files"
+        val programFilesX86 = System.getenv("PROGRAMFILES(X86)") ?: "C:/Program Files (x86)"
+        val candidates = listOf(
+            File(programFiles, "Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
+            File(programFilesX86, "Epic Games/MagicTheGathering/MTGA_Data/Downloads"),
+            File(programFilesX86, "Steam/steamapps/common/MTGA/MTGA_Data/Downloads"),
         )
         candidates.firstOrNull { it.isDirectory }?.let { return it }
     }

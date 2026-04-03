@@ -158,13 +158,11 @@ fn is_ca_trusted() -> bool {
 
 #[cfg(target_os = "macos")]
 fn trust_ca(ca_pem: &std::path::Path) -> Result<(), String> {
+    let home = dirs::home_dir()
+        .ok_or_else(|| "Cannot determine home directory".to_string())?;
     let status = Command::new("security")
         .args(["add-trusted-cert", "-r", "trustRoot", "-k"])
-        .arg(
-            dirs::home_dir()
-                .unwrap()
-                .join("Library/Keychains/login.keychain-db"),
-        )
+        .arg(home.join("Library/Keychains/login.keychain-db"))
         .arg(ca_pem)
         .status()
         .map_err(|e| format!("Failed to run security command: {e}"))?;

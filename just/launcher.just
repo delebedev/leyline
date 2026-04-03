@@ -156,7 +156,7 @@ launcher-check:
     check() { if [ ! -e "$1" ]; then echo "MISSING: $1"; ERRORS=$((ERRORS+1)); else echo "  OK: $(basename "$1")"; fi; }
     echo "=== Launcher bundle check ({{_os}}) ==="
     check "$STAGE/bin/{{_sidecar_bin}}"
-    check "$STAGE/jre/bin/java" || check "$STAGE/jre/bin/java.exe"
+    if [ "{{_os}}" = "windows" ]; then check "$STAGE/jre/bin/java.exe"; else check "$STAGE/jre/bin/java"; fi
     check "$STAGE/lib"
     check "$STAGE/res/cardsfolder"
     check "$STAGE/res/editions"
