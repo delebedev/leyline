@@ -20,7 +20,7 @@ Leyline reimplements the Arena client protocol against Forge's engine. The core 
   - `bridge/` — Forge coupling. Extends Forge classes directly. Can't abstract away.
   - `game/` — pure translation. Forge state → Arena proto. Annotations, mappers, builders.
   - `match/` — orchestration. Combat, targeting, mulligan, session lifecycle.
-- `tooling/` — dev-only. Debug server, recording analysis, arena CLI.
+- `tools/` — dev-only TypeScript CLI tools (arena-ts, scry-ts).
 
 **ArchUnit enforces:** bridge → game → match (no reverse deps within matchdoor).
 

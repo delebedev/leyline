@@ -284,9 +284,8 @@ Entry points by issue type — don't grep broadly, go straight here:
 4. `docs/catalog.yaml`
 
 **Tooling:**
-1. `tooling/` module
-2. `just --list`
-3. `tools/` directory
+1. `just --list`
+2. `tools/` directory (arena-ts, scry-ts)
 
 ## Rules
 
@@ -297,6 +296,6 @@ Entry points by issue type — don't grep broadly, go straight here:
 5. **PROGRESS.md is sacred.** Cross-session memory. Always update.
 6. **GitHub issues are canonical.** Always comment on issues you touch.
 7. **Never force-push. Never rewrite history.**
-8. **Docs are a deliverable.** Changed tooling/tools/justfile → update docs. New mechanic → update catalog.yaml. New proto handling → update rosetta.md.
+8. **Docs are a deliverable.** Changed tools/justfile → update docs. New mechanic → update catalog.yaml. New proto handling → update rosetta.md.
 9. **One commit per issue.** Atomic, revertable, linked to issue number.
 10. **Downgrade, don't spiral.** If fix mode isn't converging, downgrade to research. Log what you learned. Move on.

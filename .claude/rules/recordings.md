@@ -1,11 +1,6 @@
 ---
 paths:
   - "recordings/**"
-  - "tooling/src/main/kotlin/leyline/recording/**"
-  - "tooling/src/main/kotlin/leyline/conformance/**"
-  - "tooling/src/main/kotlin/leyline/debug/SessionRecorder.kt"
-  - "tools/wire/**"
-  - "tools/tape/**"
 ---
 
 # Recordings

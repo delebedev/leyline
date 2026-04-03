@@ -3,7 +3,6 @@ paths:
   - "matchdoor/src/test/**"
   - "frontdoor/src/test/**"
   - "account/src/test/**"
-  - "tooling/src/test/**"
   - "just/test.just"
 ---
 
@@ -21,7 +20,6 @@ Scope to the modules you changed. Don't run all modules when you touched one.
 | `matchdoor/` (risky: StateMapper, bridges, combat, annotations) | `./gradlew :matchdoor:testGate :matchdoor:testIntegration` |
 | `frontdoor/` | `./gradlew :frontdoor:test` |
 | `account/` | `./gradlew :account:test` |
-| `tooling/` | `./gradlew :tooling:testGate` |
 | Single class | `just test-one ClassName` |
 | Single class + stdout | `just test-debug ClassName` |
 | Pre-commit (all modules + fmt) | `just test-gate` |
@@ -39,7 +37,6 @@ Scope to the modules you changed. Don't run all modules when you touched one.
 | `matchdoor` | `UnitTag` / `ConformanceTag` / `IntegrationTag` | Import from `leyline.{UnitTag,ConformanceTag,IntegrationTag}` |
 | `frontdoor` | `FdTag` | All tests are unit-level |
 | `account` | `UnitTag` | Import from `leyline.account.UnitTag` |
-| `tooling` | `UnitTag` | Import from `leyline.UnitTag` (shared with matchdoor) |
 
 `testGate` = Unit + Conformance. `testIntegration` = Integration only.
 

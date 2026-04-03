@@ -1,8 +1,6 @@
 ---
 paths:
   - "tools/**"
-  - "tooling/**"
-  - "just/fd.just"
   - "just/tools.just"
 ---
 
@@ -17,8 +15,7 @@ Pick by what the tool imports, not by habit:
 
 | Needs | Language | Location |
 |---|---|---|
-| Project classpath (proto types, Forge, domain model) | Kotlin | `tooling/src/` |
 | File/JSON/text parsing, HTTP, analysis | TypeScript | `tools/<name>/` |
 | Thin launcher/glue | Bash | `bin/` or justfile |
 
-**Default to TypeScript** for new CLI tools unless they need project types.
+**Default to TypeScript** for new CLI tools.
