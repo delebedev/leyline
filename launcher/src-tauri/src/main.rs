@@ -2,6 +2,7 @@
 
 mod arena;
 mod server;
+mod tls;
 
 use server::ServerProcess;
 use tauri::Manager;

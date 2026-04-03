@@ -51,9 +51,17 @@ The `just launcher-build` recipe:
 ## Sidecar Resolution
 
 1. **Built app:** resource dir → `.bundle-stage/leyline/bin/leyline`
-2. **Dev fallback:** `../build/bundle/bin/leyline` (from `just bundle`)
+2. **Dev fallback:** walks up from CWD to find `build/bundle/` at repo root
 
 If neither exists, Start shows an error. Run `just bundle` before `bun tauri dev` for full e2e.
+
+## Sidecar CWD
+
+The sidecar's working directory matters — it writes `logs/`, `data/`, `recordings/` relative to CWD.
+
+- **Production:** `resource_dir/.bundle-stage/leyline/` (self-contained bundle with toml, data/, res/)
+- **Dev:** repo root (has `leyline.toml`, `data/player.db`, `logs/`)
+- **NEVER `src-tauri/`** — Tauri's file watcher monitors `src-tauri/` and restarts the app on any file change. Sidecar writing logs there causes an infinite restart loop.
 
 ## Player Database Lifecycle
 
@@ -69,13 +77,27 @@ If neither exists, Start shows an error. Run `just bundle` before `bun tauri dev
 
 Sidecar stdout/stderr → `~/Library/Logs/dev.leyline.launcher/leyline-server.log`. Always check this when Start fails.
 
+## Testing
+
+- `cargo test` — 6 TLS cert generation tests (CA, signing, chain, expiry)
+- `just launcher-smoke` — headless integration test: generates temp certs, spawns sidecar with `--cert`/`--key`, verifies health + TLS cert chain on FD and AccountServer. No OS trust needed, no UI. Runs in release CI after `launcher-build`. Requires `just bundle` first.
+- `just launcher-check` — static bundle check (files exist, DMG size)
+
+## Debugging the launcher
+
+- **Always use tmux** for `bun run tauri dev` — background tasks get killed, taking the launcher with them.
+- **Check the sidecar's own log** at `~/Library/Logs/dev.leyline.launcher/leyline-server.log`, not just Tauri stderr. Tauri command errors go to the frontend, not stderr.
+- `tmux new-session -d -s launcher "bun run tauri dev 2>&1 | tee /tmp/launcher.log"`
+
 ## Key modules
 
-**server.rs** — `ServerState` enum (`Stopped | Starting | Running | Error`). `start_server` resolves bundle dir, copies seed DB, spawns sidecar with `LEYLINE_PLAYER_DB`, polls `http://127.0.0.1:8091/health` every 500ms. State changes emitted as Tauri events.
+**server.rs** — `ServerState` enum (`Stopped | Starting | Running | Error`). `start_server` resolves bundle dir, generates TLS certs, copies seed DB, spawns sidecar with `--cert`/`--key` + `LEYLINE_PLAYER_DB`, polls `http://127.0.0.1:8091/health` every 500ms. State changes emitted as Tauri events.
+
+**tls.rs** — Local CA + server cert generation via `rcgen`. `ensure_certs()` is called before sidecar spawn — generates CA, trusts it in OS keychain, signs server certs. Same file layout as `just tls-setup` (`~/Library/Application Support/dev.leyline/tls/`). Tests: `cargo test` in `src-tauri/` — 6 tests covering CA generation, signing, chain files, expiry detection.
 
 **arena.rs** — `detect_arena` scans known macOS paths (Epic/Steam), returns path + storefront source. `deploy_config` copies services.conf + NPE_VO.bnk, sets `CheckSC=0`. `restore_arena` reverses everything.
 
-**main.ts** — No framework. DOM manipulation, `invoke()` for Tauri commands, `listen()` for server state events. Play button runs: deploy_config → start_server → wait for healthy.
+**main.ts** — No framework. DOM manipulation, `invoke()` for Tauri commands, `listen()` for server state events. Play button toggles Start/Stop.
 
 ## Build Commands
 

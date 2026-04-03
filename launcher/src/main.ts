@@ -41,7 +41,7 @@ let serverState = "Stopped";
 let busy = false;
 
 function updateUI() {
-  playBtn.disabled = !arenaFound || busy || serverState === "Running";
+  playBtn.disabled = !arenaFound || busy;
   restoreBtn.disabled = !arenaFound || busy;
 
   // Server status
@@ -65,8 +65,18 @@ function updateUI() {
       break;
   }
 
+  // Button text + style
+  if (serverState === "Running") {
+    playBtn.textContent = "Stop";
+    playBtn.classList.add("stop-btn");
+  } else if (!busy) {
+    playBtn.textContent = "Start";
+    playBtn.classList.remove("stop-btn");
+  }
+
   // Hint text
   hint.textContent = serverState === "Running" ? "Launch Arena to play" : "";
+  hint.classList.toggle("hint-active", serverState === "Running");
 }
 
 // --- Arena detection ---
@@ -119,24 +129,36 @@ playBtn.addEventListener("click", async () => {
   busy = true;
   updateUI();
 
+  if (serverState === "Running") {
+    // Stop
+    try {
+      playBtn.textContent = "Stopping...";
+      await invoke("stop_server");
+      serverState = "Stopped";
+    } catch (e) {
+      console.error("Stop failed:", e);
+    } finally {
+      busy = false;
+      updateUI();
+    }
+    return;
+  }
+
+  // Start
   try {
     playBtn.textContent = "Configuring...";
     await invoke("deploy_config");
 
-    playBtn.textContent = "Starting server...";
+    playBtn.textContent = "Starting...";
     await invoke("start_server");
 
-    // Wait for server to become healthy
     await waitForRunning();
-
-    // Refresh arena status (now configured)
     await checkArena();
   } catch (e) {
     console.error("Start failed:", e);
     serverState = "Stopped";
   } finally {
     busy = false;
-    playBtn.textContent = "Start";
     updateUI();
   }
 });

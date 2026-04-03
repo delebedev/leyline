@@ -154,6 +154,9 @@ jobs:
           rm -rf launcher/src-tauri/target/release/bundle/dmg
           just launcher-build
 
+      - name: Smoke test (sidecar + TLS)
+        run: just launcher-smoke
+
       - name: Stage release artifacts
         run: |
           VERSION="${GITHUB_REF_NAME#v}"

@@ -1,0 +1,5 @@
+# Sidecar runtime output (prevents Tauri dev watcher from restarting)
+logs/
+recordings/
+data/
+target/
