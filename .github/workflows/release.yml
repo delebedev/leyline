@@ -159,41 +159,12 @@ jobs:
           cp "$DMG" "Leyline_${VERSION}_aarch64.dmg"
           echo "DMG=Leyline_${VERSION}_aarch64.dmg" >> "$GITHUB_ENV"
 
-      - name: Upload .dmg
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-dmg
-          path: ${{ env.DMG }}
-          retention-days: 7
-
-      - name: Upload changelog
-        uses: actions/upload-artifact@v4
-        with:
-          name: changelog
-          path: .changelog.md
-          retention-days: 7
-          include-hidden-files: true
-
-  # --- Create GitHub Release ---
-  release:
-    name: Publish Release
-    needs: build-macos
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          CHANGELOG=$(cat artifacts/changelog/.changelog.md)
-          DMG=$(ls artifacts/macos-dmg/*.dmg)
+          CHANGELOG="$(cat .changelog.md)"
 
           gh release create "$GITHUB_REF_NAME" \
             --title "Leyline $VERSION" \
