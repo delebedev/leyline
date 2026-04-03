@@ -6,13 +6,18 @@ import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.ConformanceTag
+import leyline.bridge.InteractivePromptBridge
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.detailInt
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
 /**
  * TargetSpec persistent annotation tests — verifies targeting arrows emitted
- * while spells/abilities with targets are on the stack.
+ * via the bridge-side pending target store.
+ *
+ * Targets are captured during selectTargetsInteractively and stored on
+ * InteractivePromptBridge. buildTargetSpecAnnotations reads from the store,
+ * not from the live stack (spell may have already resolved).
  */
 class TargetSpecAnnotationTest :
     FunSpec({
@@ -23,16 +28,26 @@ class TargetSpecAnnotationTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("targeted spell on stack emits TargetSpec persistent annotation") {
-            val (b, game) = base.startWithBoard { g, human, _ ->
-                val creature = base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                val spell = base.addCard("Murder", human, ZoneType.Hand)
-
-                val sa = spell.currentState.firstSpellAbility
-                sa.activatingPlayer = human
-                sa.targets.add(creature)
-                g.stack.add(sa)
+        test("pending target spec emits TargetSpec persistent annotation") {
+            val (b, game) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                base.addCard("Murder", human, ZoneType.Hand)
             }
+
+            val creature = b.getPlayer(leyline.bridge.SeatId(1))!!
+                .getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            val spell = b.getPlayer(leyline.bridge.SeatId(1))!!
+                .getZone(ZoneType.Hand).cards.first { it.name == "Murder" }
+
+            // Simulate what selectTargetsInteractively does: add pending target
+            b.seat(1).prompt.addPendingTargetSpec(
+                InteractivePromptBridge.PendingTarget(
+                    spellForgeCardId = spell.id,
+                    spellName = spell.name,
+                    targetForgeCardId = creature.id,
+                    index = 1,
+                ),
+            )
 
             val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
 
@@ -45,12 +60,9 @@ class TargetSpecAnnotationTest :
             targetAnn.detailInt("abilityGrpId") shouldBeGreaterThan 0
         }
 
-        test("untargeted spell on stack emits no TargetSpec") {
-            val (b, game) = base.startWithBoard { g, human, _ ->
-                val spell = base.addCard("Divination", human, ZoneType.Hand)
-                val sa = spell.currentState.firstSpellAbility
-                sa.activatingPlayer = human
-                g.stack.add(sa)
+        test("no pending targets emits no TargetSpec") {
+            val (b, game) = base.startWithBoard { _, human, _ ->
+                base.addCard("Divination", human, ZoneType.Hand)
             }
 
             val gs = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b).gsm
@@ -60,26 +72,33 @@ class TargetSpecAnnotationTest :
             } shouldBe true
         }
 
-        test("TargetSpec removed when spell leaves stack") {
-            val (b, game) = base.startWithBoard { g, human, _ ->
-                val creature = base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
-                val spell = base.addCard("Murder", human, ZoneType.Hand)
-                val sa = spell.currentState.firstSpellAbility
-                sa.activatingPlayer = human
-                sa.targets.add(creature)
-                g.stack.add(sa)
+        test("TargetSpec removed when pending list is empty on next build") {
+            val (b, game) = base.startWithBoard { _, human, _ ->
+                base.addCard("Grizzly Bears", human, ZoneType.Battlefield)
+                base.addCard("Murder", human, ZoneType.Hand)
             }
 
-            // First GSM: spell on stack → TargetSpec present
+            val creature = b.getPlayer(leyline.bridge.SeatId(1))!!
+                .getZone(ZoneType.Battlefield).cards.first { it.name == "Grizzly Bears" }
+            val spell = b.getPlayer(leyline.bridge.SeatId(1))!!
+                .getZone(ZoneType.Hand).cards.first { it.name == "Murder" }
+
+            b.seat(1).prompt.addPendingTargetSpec(
+                InteractivePromptBridge.PendingTarget(
+                    spellForgeCardId = spell.id,
+                    spellName = spell.name,
+                    targetForgeCardId = creature.id,
+                    index = 1,
+                ),
+            )
+
+            // First GSM: pending target → TargetSpec present
             val gs1 = StateMapper.buildFromGame(game, 1, ConformanceTestBase.TEST_MATCH_ID, b)
             gs1.gsm.persistentAnnotationsList.any { ann ->
                 AnnotationType.TargetSpec in ann.typeList
             } shouldBe true
 
-            // Simulate resolution: clear the stack
-            game.stack.clear()
-
-            // Second GSM: stack empty → TargetSpec removed
+            // Second GSM: pending drained, no new targets → TargetSpec removed
             val gs2 = StateMapper.buildFromGame(game, 2, ConformanceTestBase.TEST_MATCH_ID, b)
             gs2.gsm.persistentAnnotationsList.none { ann ->
                 AnnotationType.TargetSpec in ann.typeList

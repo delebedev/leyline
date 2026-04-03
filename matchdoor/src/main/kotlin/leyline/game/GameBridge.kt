@@ -286,6 +286,9 @@ class GameBridge(
         return expired.mapNotNull { activeCrewEffects.remove(it) }
     }
 
+    /** Drain pending target specs from all seat prompt bridges. */
+    fun drainPendingTargetSpecs(): List<InteractivePromptBridge.PendingTarget> = promptBridges.values.flatMap { it.drainPendingTargetSpecs() }
+
     override fun nextAnnotationId(): Int = annotations.nextAnnotationId()
 
     override fun nextPersistentAnnotationId(): Int = annotations.nextPersistentAnnotationId()

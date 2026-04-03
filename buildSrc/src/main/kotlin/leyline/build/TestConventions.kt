@@ -10,6 +10,10 @@ fun Test.configureTestDefaults() {
     }
     testLogging {
         events("failed")
+        if (project.hasProperty("verbose")) {
+            events("failed", "passed", "skipped", "standardOut", "standardError")
+            showStandardStreams = true
+        }
     }
     addTestListener(CompactTestSummary())
 }

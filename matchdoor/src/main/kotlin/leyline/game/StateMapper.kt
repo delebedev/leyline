@@ -570,39 +570,32 @@ object StateMapper {
      * Each card target gets a separate annotation with 1-based index per target group.
      * Removed automatically by upsertByType when the spell resolves (leaves stack).
      */
+    @Suppress("UnusedParameter")
     private fun buildTargetSpecAnnotations(game: Game, bridge: GameBridge): List<AnnotationInfo> {
-        val result = mutableListOf<AnnotationInfo>()
-        for (entry in game.getStack()) {
-            val sourceCard = entry.sourceCard ?: continue
-            val sa = entry.spellAbility
-            val targets = sa.targets
-            if (targets.isEmpty()) continue
+        // Consume targets captured during selectTargetsInteractively.
+        // The spell may have already resolved by now (auto-pass), so we can't
+        // rely on scanning game.getStack() — the stack is often empty.
+        val pending = bridge.drainPendingTargetSpecs()
+        if (pending.isEmpty()) return emptyList()
 
-            val abilityIid = bridge.getOrAllocInstanceId(
-                ForgeCardId(sourceCard.id + ObjectMapper.STACK_ABILITY_ID_OFFSET),
+        // TODO: abilityGrpId needs sub-ability registry lookup, promptId needs
+        //  prompt-type mapping. Both require Arena card DB. Falls back to card grpId
+        //  and 0 until wired.
+        return pending.map { spec ->
+            val spellIid = bridge.getOrAllocInstanceId(
+                ForgeCardId(spec.spellForgeCardId + ObjectMapper.STACK_ABILITY_ID_OFFSET),
             ).value
-            val grpId = bridge.cards.findGrpIdByName(sourceCard.name) ?: 0
-            val cardData = bridge.cards.findByGrpId(grpId)
-            val registry = bridge.abilityRegistryFor(sourceCard, cardData)
-            val abilityGrpId = registry?.forSpellAbility(sa.id) ?: grpId
-
-            var idx = 1
-            for (target in targets) {
-                if (target !is forge.game.card.Card) continue
-                val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(target.id)).value
-                result.add(
-                    AnnotationBuilder.targetSpec(
-                        instanceId = targetIid,
-                        abilityGrpId = abilityGrpId,
-                        index = idx,
-                        promptId = 0,
-                        promptParameters = abilityIid,
-                    ),
-                )
-                idx++
-            }
+            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(spec.targetForgeCardId)).value
+            val grpId = bridge.cards.findGrpIdByName(spec.spellName) ?: 0
+            AnnotationBuilder.targetSpec(
+                instanceId = targetIid,
+                affectorId = spellIid,
+                abilityGrpId = grpId,
+                index = spec.index,
+                promptId = 0,
+                promptParameters = spellIid,
+            )
         }
-        return result
     }
 
     /** Crew annotation scan: CrewedThisTurn pAnns, ModifiedType pAnns, and expired effect annotations. */

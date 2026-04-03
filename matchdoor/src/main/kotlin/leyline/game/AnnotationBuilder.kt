@@ -784,6 +784,7 @@ object AnnotationBuilder {
      *  Real card: grp:75479, promptId=1330 (session 11-50-40). */
     fun targetSpec(
         instanceId: Int,
+        affectorId: Int,
         abilityGrpId: Int,
         index: Int,
         promptId: Int,
@@ -791,6 +792,7 @@ object AnnotationBuilder {
     ): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.TargetSpec)
+            .setAffectorId(affectorId)
             .addAffectedIds(instanceId)
             .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId))
             .addDetails(int32Detail(DetailKeys.INDEX, index))

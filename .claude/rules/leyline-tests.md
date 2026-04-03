@@ -23,9 +23,12 @@ Scope to the modules you changed. Don't run all modules when you touched one.
 | `account/` | `./gradlew :account:test` |
 | `tooling/` | `./gradlew :tooling:testGate` |
 | Single class | `just test-one ClassName` |
+| Single class + stdout | `just test-debug ClassName` |
 | Pre-commit (all modules + fmt) | `just test-gate` |
 
 **Test-only changes** (amended assertion, new test case — no prod code touched): `just test-one Foo` is sufficient.
+
+**Debugging test output:** `just test-debug` enables `-Pverbose` which passes `showStandardStreams` to Gradle. `println` from test code becomes visible. Logback root stays WARN — no engine noise.
 
 ## Tags
 
