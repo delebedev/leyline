@@ -171,7 +171,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         cmd = Command::new("cmd");
-        cmd.args(["/c", bin_path.to_str().unwrap_or_default()]);
+        cmd.args(["/c", &format!("\"{}\"", bin_path.to_str().unwrap_or_default())]);
     }
     #[cfg(not(target_os = "windows"))]
     {
