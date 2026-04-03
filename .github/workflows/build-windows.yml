@@ -68,16 +68,40 @@ jobs:
 
       - name: Install forge JARs
         shell: bash
-        run: just install-forge
+        run: |
+          cd forge && mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install \
+            -Dmaven.repo.local="$GITHUB_WORKSPACE/forge/.m2-local" \
+            -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
+          cd "$GITHUB_WORKSPACE/forge" && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml > "$GITHUB_WORKSPACE/.upstream-installed"
+
+      - name: Build Kotlin + bundle
+        shell: bash
+        run: ./gradlew bundleArchive --no-daemon --no-configuration-cache
 
       - name: Install launcher deps
         run: cd launcher && bun install
+
+      - name: Stage bundle for Tauri
+        shell: bash
+        run: |
+          rm -rf launcher/src-tauri/.bundle-stage
+          mkdir -p launcher/src-tauri/.bundle-stage
+          cp -R build/bundle launcher/src-tauri/.bundle-stage/leyline
+          tar -xzf build/dist/leyline-*.tgz -C launcher/src-tauri/.bundle-stage/leyline --strip-components=1 leyline/res || true
+          mkdir -p launcher/src-tauri/.bundle-stage/leyline/data
+          cp data/player.db launcher/src-tauri/.bundle-stage/leyline/data/player.db 2>/dev/null \
+            || cp launcher/resources/player.db launcher/src-tauri/.bundle-stage/leyline/data/player.db
+          echo "ci changelog" > launcher/src-tauri/.bundle-stage/changelog.md
 
       - name: Build launcher (.msi)
         shell: bash
         run: |
           rm -rf launcher/src-tauri/target/release/bundle/msi
-          just launcher-build
+          # CalVer → MSI-compatible version (major must be < 256)
+          CALVER=$(grep '"version"' launcher/src-tauri/tauri.conf.json | head -1 | sed 's/.*: "//;s/".*//')
+          MSI_VER="0.${CALVER#*.}"
+          echo "Version: $CALVER → MSI $MSI_VER"
+          cd launcher && bun tauri build --config "{\"bundle\":{\"resources\":[\".bundle-stage/leyline/\",\".bundle-stage/changelog.md\"]},\"version\":\"$MSI_VER\"}"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
