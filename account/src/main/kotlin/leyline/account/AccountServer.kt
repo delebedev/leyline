@@ -164,7 +164,11 @@ class AccountServer(
                 .replace("\\s".toRegex(), "")
             val keyBytes = java.util.Base64.getDecoder().decode(keyPem)
             val keySpec = java.security.spec.PKCS8EncodedKeySpec(keyBytes)
-            val privateKey = java.security.KeyFactory.getInstance("RSA").generatePrivate(keySpec)
+            val privateKey = try {
+                java.security.KeyFactory.getInstance("RSA").generatePrivate(keySpec)
+            } catch (_: java.security.spec.InvalidKeySpecException) {
+                java.security.KeyFactory.getInstance("EC").generatePrivate(keySpec)
+            }
 
             val ks = KeyStore.getInstance("JKS")
             ks.load(null, null)
