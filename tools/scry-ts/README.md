@@ -59,6 +59,7 @@ scry gsm list --has DamageDealt --has ZoneTransfer  # multiple filters (AND)
 scry gsm list --view turns              # phase/step timeline
 scry gsm list --view actions            # action timeline (CastSpell, PlayLand, etc.)
 scry gsm list --view annotations        # full annotation bodies with details
+scry gsm list --has DamageDealt --view annotations  # only DamageDealt annotations
 scry gsm show 292                       # drill into a specific GSM
 scry gsm show 292 --json                # raw JSON (lossless)
 ```
