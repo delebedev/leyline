@@ -824,47 +824,42 @@ function analyzePersistentLifecycle(agg: AggregatedInteraction): PersistentLifec
   const typeData = new Map<string, { appears: Map<number, number>; removed: Map<number | null, number>; total: number }>();
 
   for (const inst of agg.instances) {
-    const seen = new Set<string>();
     const firstSeen = new Map<string, number>();
-    const deleted = new Map<string, number>();
+    const deletedAt = new Map<string, number>(); // type → slot where deleted
+    // Build id → type lookup as we encounter pAnns
+    const idToType = new Map<number, string>();
 
     for (let si = 0; si < inst.slots.length; si++) {
       const raw = inst.slots[si].gsm.raw;
 
-      // Collect pAnn types in this GSM
+      // Register pAnn id → type mappings
       for (const pAnn of raw.persistentAnnotations ?? []) {
-        for (const t of pAnn.type ?? []) {
-          const stripped = t.replace("AnnotationType_", "");
-          if (!seen.has(stripped)) {
-            seen.add(stripped);
-            firstSeen.set(stripped, si + 1);
-          }
+        const id = pAnn.id;
+        const types: string[] = pAnn.type ?? [];
+        const stripped = (types[0] ?? "").replace("AnnotationType_", "");
+        if (id != null && stripped) idToType.set(id, stripped);
+        if (stripped && !firstSeen.has(stripped)) {
+          firstSeen.set(stripped, si + 1);
         }
       }
 
-      // Check deletions
-      const deletedIds = new Set(raw.diffDeletedPersistentAnnotationIds ?? []);
-      if (deletedIds.size > 0) {
-        // We need to know which types were deleted — check if we can match by ID
-        // Since we don't track pAnn IDs to types, mark any type last seen before this slot as deleted here
-        // Simpler: record that deletions happened at this slot
-        for (const pAnnType of seen) {
-          if (!deleted.has(pAnnType)) {
-            // Check if this type's pAnn was among deleted — heuristic: if we saw it but it's gone
-            // This is imprecise; better to just track which types disappear
-          }
+      // Check deletions — map deleted IDs back to types
+      for (const delId of raw.diffDeletedPersistentAnnotationIds ?? []) {
+        const delType = idToType.get(delId);
+        if (delType && !deletedAt.has(delType)) {
+          deletedAt.set(delType, si + 1);
         }
       }
     }
 
-    // For each type seen, record first/last
+    // For each type seen, record first appearance and deletion slot
     for (const [type, slot] of firstSeen) {
       let data = typeData.get(type);
       if (!data) { data = { appears: new Map(), removed: new Map(), total: 0 }; typeData.set(type, data); }
       data.total++;
       data.appears.set(slot, (data.appears.get(slot) ?? 0) + 1);
-      // Check if any deletion happened — for now, null means persists
-      data.removed.set(null, (data.removed.get(null) ?? 0) + 1);
+      const removedSlot = deletedAt.get(type) ?? null;
+      data.removed.set(removedSlot, (data.removed.get(removedSlot) ?? 0) + 1);
     }
   }
 
