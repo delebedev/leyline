@@ -97,6 +97,7 @@ node_modules/
 
 # Generated changelog (build artifact from scripts/curate-changelog.ts)
 .changelog.md
+launcher/.changelog.md
 .gitlog
 
 # Launcher (Tauri/Rust build artifacts)

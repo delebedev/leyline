@@ -303,7 +303,7 @@ launcher-dev:
 [group('launcher')]
 launcher-build: bundle
     test -f .changelog.md || bun scripts/curate-changelog.ts
-    cp .changelog.md launcher/.changelog.md
+    cp .changelog.md "{{project_dir}}/launcher/.changelog.md"
     cd "{{project_dir}}/launcher" && TAURI_CONFIG='{"bundle":{"resources":{"../build/bundle/**/*":"leyline/",".changelog.md":"changelog.md"}}}' bun tauri build
 
 # generate release notes from git log (LLM-curated if OPENROUTER_API_KEY set)
