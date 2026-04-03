@@ -97,6 +97,9 @@ node_modules/
 
 # Generated changelog (build artifact from scripts/curate-changelog.ts)
 .changelog.md
+launcher/.changelog.md
+launcher/src-tauri/.bundle-stage/
+launcher/bun.lock
 .gitlog
 
 # Launcher (Tauri/Rust build artifacts)
@@ -110,4 +113,5 @@ launcher/bun.lockb
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
+!launcher/resources/player.db
 .beads-credential-key

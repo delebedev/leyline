@@ -47,6 +47,15 @@ jobs:
           path: forge/.m2-local/forge/
           key: upstream-m2-${{ hashFiles('forge/forge-core/src/**', 'forge/forge-game/src/**', 'forge/forge-ai/src/**', 'forge/forge-gui/src/**', 'forge/pom.xml') }}
 
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
       - uses: extractions/setup-just@v2
 
       - run: just install-forge
@@ -89,6 +98,25 @@ jobs:
           path: forge/.m2-local/forge/
           key: upstream-m2-${{ hashFiles('forge/forge-core/src/**', 'forge/forge-game/src/**', 'forge/forge-ai/src/**', 'forge/forge-gui/src/**', 'forge/pom.xml') }}
 
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            launcher/src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('launcher/src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
       - uses: extractions/setup-just@v2
 
       - uses: oven-sh/setup-bun@v2
@@ -97,6 +125,9 @@ jobs:
 
       - name: Install forge JARs
         run: just install-forge
+
+      - name: Install launcher deps
+        run: cd launcher && bun install
 
       - name: Version check
         run: |
@@ -119,7 +150,9 @@ jobs:
         run: bun scripts/curate-changelog.ts
 
       - name: Build launcher (.dmg)
-        run: just launcher-build
+        run: |
+          rm -rf launcher/src-tauri/target/release/bundle/dmg
+          just launcher-build
 
       - name: Stage release artifacts
         run: |
@@ -128,40 +161,12 @@ jobs:
           cp "$DMG" "Leyline_${VERSION}_aarch64.dmg"
           echo "DMG=Leyline_${VERSION}_aarch64.dmg" >> "$GITHUB_ENV"
 
-      - name: Upload .dmg
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos-dmg
-          path: ${{ env.DMG }}
-          retention-days: 7
-
-      - name: Upload changelog
-        uses: actions/upload-artifact@v4
-        with:
-          name: changelog
-          path: .changelog.md
-          retention-days: 7
-
-  # --- Create GitHub Release ---
-  release:
-    name: Publish Release
-    needs: build-macos
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          CHANGELOG=$(cat artifacts/changelog/.changelog.md)
-          DMG=$(ls artifacts/macos-dmg/*.dmg)
+          CHANGELOG="$(cat .changelog.md)"
 
           gh release create "$GITHUB_REF_NAME" \
             --title "Leyline $VERSION" \

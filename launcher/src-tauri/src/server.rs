@@ -34,30 +34,51 @@ impl ServerProcess {
     }
 }
 
-/// Resolve the path to `bin/leyline` inside the bundled resources.
-fn resolve_leyline_bin(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+/// Resolve the leyline bundle root (contains bin/, lib/, jre/, res/, data/).
+fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     let resource_dir = app
         .path()
         .resource_dir()
         .map_err(|e| format!("No resource dir: {e}"))?;
 
-    let bin = resource_dir.join("leyline").join("bin").join("leyline");
-    if bin.exists() {
-        return Ok(bin);
+    let bundle = resource_dir.join(".bundle-stage").join("leyline");
+    if bundle.join("bin").join("leyline").exists() {
+        return Ok(bundle);
     }
 
     // Dev fallback: use build/bundle from project root
-    let dev_bin = std::env::current_dir()
+    let dev = std::env::current_dir()
         .unwrap_or_default()
-        .join("../build/bundle/bin/leyline");
-    if dev_bin.exists() {
-        return Ok(dev_bin.canonicalize().unwrap_or(dev_bin));
+        .join("../build/bundle");
+    if dev.join("bin").join("leyline").exists() {
+        return Ok(dev.canonicalize().unwrap_or(dev));
     }
 
     Err(format!(
-        "leyline binary not found at {:?} or dev fallback",
-        bin
+        "leyline bundle not found at {:?} or dev fallback",
+        bundle
     ))
+}
+
+/// Ensure player.db exists in the app data directory.
+/// Copies the seed DB from the bundle on first launch.
+fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    let data_dir = app.path().app_data_dir().ok()?;
+    let _ = std::fs::create_dir_all(&data_dir);
+    let db_path = data_dir.join("player.db");
+
+    if !db_path.exists() {
+        let seed = bundle_dir.join("data").join("player.db");
+        if seed.exists() {
+            let _ = std::fs::copy(&seed, &db_path);
+        }
+    }
+
+    if db_path.exists() {
+        Some(db_path)
+    } else {
+        None
+    }
 }
 
 #[tauri::command]
@@ -72,13 +93,38 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
         }
     }
 
-    let bin_path = resolve_leyline_bin(&app)?;
+    let bundle_dir = resolve_bundle_dir(&app)?;
+    let bin_path = bundle_dir.join("bin").join("leyline");
     server.set_state(ServerState::Starting, &app);
 
-    let child = Command::new(&bin_path)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
+    // Ensure player DB in app data dir (copies seed on first launch)
+    let player_db = ensure_player_db(&app, &bundle_dir);
+
+    // Log sidecar output to a file for debugging
+    let log_dir = app
+        .path()
+        .app_log_dir()
+        .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"));
+    let _ = std::fs::create_dir_all(&log_dir);
+    let log_path = log_dir.join("leyline-server.log");
+    let log_file = std::fs::File::create(&log_path).ok();
+    let stdout_file = log_file
+        .as_ref()
+        .and_then(|f| f.try_clone().ok())
+        .map(std::process::Stdio::from)
+        .unwrap_or_else(std::process::Stdio::null);
+    let stderr_file = log_file
+        .as_ref()
+        .and_then(|f| f.try_clone().ok())
+        .map(std::process::Stdio::from)
+        .unwrap_or_else(std::process::Stdio::null);
+
+    let mut cmd = Command::new(&bin_path);
+    cmd.stdout(stdout_file).stderr(stderr_file);
+    if let Some(ref db) = player_db {
+        cmd.env("LEYLINE_PLAYER_DB", db);
+    }
+    let child = cmd.spawn()
         .map_err(|e| {
             let msg = format!("Failed to spawn leyline: {e}");
             server.set_state(ServerState::Error(msg.clone()), &app);

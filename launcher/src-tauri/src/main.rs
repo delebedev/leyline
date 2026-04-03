@@ -4,6 +4,7 @@ mod arena;
 mod server;
 
 use server::ServerProcess;
+use tauri::Manager;
 
 /// Read bundled changelog (release notes) from Tauri resources.
 #[tauri::command]
@@ -13,7 +14,7 @@ fn get_changelog(app: tauri::AppHandle) -> Result<String, String> {
         .resource_dir()
         .map_err(|e| format!("No resource dir: {e}"))?;
 
-    let changelog = resource_dir.join("changelog.md");
+    let changelog = resource_dir.join(".bundle-stage").join("changelog.md");
     if changelog.exists() {
         std::fs::read_to_string(&changelog)
             .map_err(|e| format!("Failed to read changelog: {e}"))
