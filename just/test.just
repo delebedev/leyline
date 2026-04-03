@@ -6,6 +6,11 @@
 test-one class:
     cd "{{project_dir}}" && ./gradlew :matchdoor:test :frontdoor:test :account:test test -Pkotest.filter.specs=".*{{class}}"
 
+# single test class with stdout/stderr visible (e.g. `just test-debug BiteDownTest`)
+[group('test')]
+test-debug class:
+    cd "{{project_dir}}" && ./gradlew :matchdoor:test :frontdoor:test :account:test test -Pkotest.filter.specs=".*{{class}}" -Pverbose
+
 # pre-commit gate: unit + conformance + fmt check + coverage (all modules)
 [group('test')]
 test-gate:

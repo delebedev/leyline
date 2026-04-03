@@ -163,7 +163,7 @@ class AnnotationShapeConformanceTest :
         }
 
         test("TargetSpec shape: {abilityGrpId, index, promptId, promptParameters}") {
-            detailKeys(AnnotationBuilder.targetSpec(1, 1, 1, 1, 1)) shouldBe
+            detailKeys(AnnotationBuilder.targetSpec(1, 1, 1, 1, 1, 1)) shouldBe
                 setOf("abilityGrpId", "index", "promptId", "promptParameters")
         }
 
@@ -309,7 +309,7 @@ class AnnotationShapeConformanceTest :
             "InstanceRevealedToOpponent" to detailKeys(AnnotationBuilder.instanceRevealedToOpponent(1)),
             "ColorProduction" to detailKeys(AnnotationBuilder.colorProduction(1, listOf(1))),
             "TriggeringObject" to detailKeys(AnnotationBuilder.triggeringObject(1, 27)),
-            "TargetSpec" to detailKeys(AnnotationBuilder.targetSpec(1, 1, 1, 1, 1)),
+            "TargetSpec" to detailKeys(AnnotationBuilder.targetSpec(1, 1, 1, 1, 1, 1)),
             "PowerToughnessModCreated" to detailKeys(AnnotationBuilder.powerToughnessModCreated(1, 1, 1)),
             "DisplayCardUnderCard" to detailKeys(AnnotationBuilder.displayCardUnderCard(affectorId = 0, instanceId = 1)),
             "PredictedDirectDamage" to detailKeys(AnnotationBuilder.predictedDirectDamage(1, 1)),

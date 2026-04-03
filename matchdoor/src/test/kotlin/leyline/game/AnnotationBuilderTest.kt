@@ -726,6 +726,7 @@ class AnnotationBuilderTest :
         test("targetSpecFields") {
             val ann = AnnotationBuilder.targetSpec(
                 instanceId = 293,
+                affectorId = 303,
                 abilityGrpId = 176387,
                 index = 1,
                 promptId = 1330,

@@ -3,9 +3,11 @@ package leyline.conformance
 import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
 import leyline.bridge.ForgeCardId
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
@@ -77,6 +79,56 @@ class BiteDownTest :
             }
 
             h.accumulator.assertConsistent("after Bite Down resolution")
+        }
+
+        test("Bite Down: two TargetSpec pAnns on stack, removed on resolution") {
+            val h = MatchFlowHarness(seed = 42L, validating = false)
+            harness = h
+            h.connectAndKeepPuzzle("puzzles/bite-down.pzl")
+
+            val human = h.game().registeredPlayers.first()
+            val dealerCard = human.getZone(ForgeZoneType.Battlefield).cards
+                .first { it.name == "Grizzly Bears" }
+            val dealerIid = h.bridge.getOrAllocInstanceId(ForgeCardId(dealerCard.id)).value
+
+            val ai = h.game().registeredPlayers.last()
+            val targetCard = ai.getZone(ForgeZoneType.Battlefield).cards
+                .first { it.name == "Grizzly Bears" }
+            val targetIid = h.bridge.getOrAllocInstanceId(ForgeCardId(targetCard.id)).value
+
+            h.castSpellByName("Bite Down").shouldBeTrue()
+            h.selectTargets(listOf(dealerIid))
+            h.selectTargets(listOf(targetIid))
+
+            // After targets submitted, TargetSpec pAnns should exist in some GSM
+            val preResolve = h.allMessages
+                .filter { it.hasGameStateMessage() }
+                .flatMap { it.gameStateMessage.persistentAnnotationsList }
+                .filter { AnnotationType.TargetSpec in it.typeList }
+            preResolve.shouldHaveSize(2)
+
+            // Group 1: dealer creature (index=1), Group 2: target creature (index=2)
+            val group1 = preResolve.first { it.detailInt("index") == 1 }
+            val group2 = preResolve.first { it.detailInt("index") == 2 }
+            assertSoftly {
+                // Two distinct targets
+                group1.getAffectedIds(0) shouldNotBe group2.getAffectedIds(0)
+                // abilityGrpId: same for both groups
+                group1.detailInt("abilityGrpId") shouldBe group2.detailInt("abilityGrpId")
+                group1.detailInt("abilityGrpId") shouldBeGreaterThan 0
+                // promptParameters: spell ability instanceId (same for both)
+                group1.detailInt("promptParameters") shouldBe group2.detailInt("promptParameters")
+            }
+
+            // After resolution, TargetSpec pAnns should be deleted on the next GSM.
+            // Force a GSM build to trigger the upsert cleanup.
+            h.passPriority()
+            val allDeletedPannIds = h.allMessages
+                .filter { it.hasGameStateMessage() }
+                .flatMap { it.gameStateMessage.diffDeletedPersistentAnnotationIdsList }
+                .toSet()
+            val targetSpecIds = preResolve.map { it.id }.toSet()
+            targetSpecIds.all { it in allDeletedPannIds }.shouldBeTrue()
         }
 
         test("Bite Down: target creature dies via Destroy zone transfer") {

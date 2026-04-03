@@ -626,6 +626,12 @@ class MatchSession(
 
         val bb = bundleBuilder!!
         val result = bb.postAction(game, counter, revealForSeat)
+
+        // Warn on empty diffs — usually means the caller emitted a GSM at the wrong moment
+        val gsm = result.messages.firstOrNull { it.hasGameStateMessage() }?.gameStateMessage
+        // TODO: empty diff detection — disabled for now, many legitimate empty diffs exist
+        //  (actions-only updates, phase transitions). Needs filtering by caller context.
+
         sendBundle(result)
 
         // Decision timer — client shows rope countdown while waiting for action

@@ -963,7 +963,11 @@ class WebPlayerController(
 
         // Auto-resolve: single valid target + mandatory → pick it without prompting.
         if (allCandidates.size == 1 && mandatory && minTargets >= 1) {
-            sa.targets.add(allCandidates[0])
+            val target = allCandidates[0]
+            sa.targets.add(target)
+            if (target is forge.game.card.Card) {
+                recordPendingTargetSpec(sa, target)
+            }
             return forge.player.TargetSelectionResult(true, true)
         }
 
@@ -1009,12 +1013,28 @@ class WebPlayerController(
                 sa.addDividedAllocation(entity, sa.stillToDivide / (stillNeeded - indices.indexOf(idx)).coerceAtLeast(1))
             }
             sa.targets.add(entity)
+            if (entity is forge.game.card.Card) {
+                recordPendingTargetSpec(sa, entity)
+            }
         }
 
         val totalTargeted = sa.targets.size
         val done = totalTargeted >= maxTargets || indices.isEmpty()
         val chosen = indices.isNotEmpty() || minTargets == 0
         return forge.player.TargetSelectionResult(chosen, done)
+    }
+
+    /** Store a pending TargetSpec for the next GSM build. */
+    private fun recordPendingTargetSpec(sa: forge.game.spellability.SpellAbility, target: forge.game.card.Card) {
+        val spellCard = sa.hostCard ?: return
+        bridge.addPendingTargetSpec(
+            InteractivePromptBridge.PendingTarget(
+                spellForgeCardId = spellCard.id,
+                spellName = spellCard.name,
+                targetForgeCardId = target.id,
+                index = bridge.nextTargetSpecIndex(),
+            ),
+        )
     }
 
     // -- Mana Payment ------------------------------------------------------

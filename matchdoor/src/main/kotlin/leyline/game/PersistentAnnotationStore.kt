@@ -193,6 +193,22 @@ class PersistentAnnotationStore {
                 { it.affectorId },
             )
 
+            // 3g. TargetSpec — full-replacement upsert (keyed by target instanceId + index)
+            nextId = upsertByType(
+                active,
+                deletions,
+                nextId,
+                AnnotationType.TargetSpec,
+                mechanicResult.targetSpecPersistent,
+                { ann ->
+                    val iid = ann.affectedIdsList.firstOrNull() ?: 0
+                    val idx = ann.detailsList
+                        .firstOrNull { it.key == DetailKeys.INDEX && it.valueInt32Count > 0 }
+                        ?.getValueInt32(0) ?: 0
+                    iid to idx
+                },
+            )
+
             // 4-6. Cleanup: detached auras, exile sources, controller reverts
             val cleanupReverts = cleanupDetachedAndReverted(
                 active,

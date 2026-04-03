@@ -56,6 +56,26 @@ class InteractivePromptBridge(
      */
     val searchedToHandCards: MutableSet<ForgeCardId> = CopyOnWriteArraySet()
 
+    // --- Pending TargetSpec data (captured during selectTargetsInteractively) ---
+
+    /** Captured target: spell card ID + name, target card ID, 1-based group index. */
+    data class PendingTarget(val spellForgeCardId: Int, val spellName: String, val targetForgeCardId: Int, val index: Int)
+
+    private val pendingTargetSpecs = java.util.concurrent.ConcurrentLinkedQueue<PendingTarget>()
+    private val targetSpecIndexCounter = java.util.concurrent.atomic.AtomicInteger(0)
+
+    fun addPendingTargetSpec(spec: PendingTarget) {
+        pendingTargetSpecs.add(spec)
+    }
+    fun nextTargetSpecIndex(): Int = targetSpecIndexCounter.incrementAndGet()
+    fun drainPendingTargetSpecs(): List<PendingTarget> {
+        val result = mutableListOf<PendingTarget>()
+        while (true) {
+            result.add(pendingTargetSpecs.poll() ?: break)
+        }
+        return result
+    }
+
     companion object {
         const val DEFAULT_TIMEOUT_MS = 30_000L
         private const val HISTORY_CAP = 100
