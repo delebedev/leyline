@@ -77,7 +77,7 @@ scry sequences --debug                    # show per-game classification
 scry sequences --field-presence           # GSM field population per slot
 scry sequences --persistent               # persistent annotation lifecycle
 scry sequences --gsid-gaps                # gap analysis between slots
-scry sequences --diff real leyline        # side-by-side source comparison
+scry sequences --diff real,unknown leyline # side-by-side source comparison
 ```
 
 ### `scry annotations`
@@ -98,7 +98,7 @@ Profile annotation detail key shapes across saved game logs. Per type: always/so
 scry variance                              # all types, saved games
 scry variance --type DamageDealt           # single type detail
 scry variance --summary                    # compact one-line-per-type table
-scry variance --diff real leyline          # compare key shapes between sources
+scry variance --diff real,unknown leyline   # compare key shapes between sources
 scry variance --json                       # machine-readable
 ```
 

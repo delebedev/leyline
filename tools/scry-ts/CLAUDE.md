@@ -71,6 +71,16 @@ User-facing commands should preserve that bias:
 
 Arena's SQLite DB is the only external dependency. It lives with the game client installation. Never copy or bundle it. Resolve at save time, cache in `.meta.json`, so queries work even if Arena is uninstalled later.
 
+## Common pitfalls
+
+**Annotations are split across two arrays.** `gsm.raw.annotations` has transient annotations (per-GSM, ephemeral). `gsm.raw.persistentAnnotations` has persistent ones (accumulate across GSMs, deleted via `diffDeletedPersistentAnnotationIds`). Types like `DamagedThisTurn`, `EnteredZoneThisTurn`, `TargetSpec`, `TemporaryPermanent` are persistent. Any code that profiles or scans "all annotations" must check both arrays — `GsmSummary.annotationTypes` already merges them, but `gsm.raw` does not.
+
+**Source filters for the real corpus are `real,unknown` — not just `real`.** Many older saved games have `source=unknown` (pre-provenance saves). Using `--source real` alone misses them. The default `parseSavedSourceFilter([])` returns `["real", "unknown"]`, which is correct. When building `--diff` or manual source sets, always include `unknown` alongside `real`.
+
+**`--diff` source args are comma-separated strings, not separate flags.** `--diff real,unknown leyline` — the first arg is the left source set, second is right. Each is split on `,` internally.
+
+**`gsm.raw.type` vs `gsm.raw.update`.** `type` is the GSM content type (`GameStateType_Full`/`GameStateType_Diff`). `update` is the delivery method (`GameStateUpdate_Send`/`SendHiFi`/`SendAndRecord`). Don't confuse them — they look similar but answer different questions.
+
 ## Performance notes
 
 File parsing is synchronous (Bun is fast enough). For a 200K-line Player.log with 6 games, full parse + game detection takes ~50ms. The accumulator adds ~100ms for replay. This is fine for CLI use.
