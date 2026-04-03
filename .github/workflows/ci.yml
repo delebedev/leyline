@@ -37,17 +37,12 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: '' # disable — self-hosted runners use persistent Docker volumes
 
       - name: Setup Maven
         uses: stCarolas/setup-maven@v5
         with:
           maven-version: 3.9.9
-
-      - name: Cache upstream JARs
-        uses: actions/cache@v4
-        with:
-          path: forge/.m2-local/forge/
-          key: upstream-m2-${{ hashFiles('forge/forge-core/src/**', 'forge/forge-game/src/**', 'forge/forge-ai/src/**', 'forge/forge-gui/src/**', 'forge/pom.xml') }}
 
       - name: Setup just
         uses: extractions/setup-just@v2
@@ -108,17 +103,12 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: '' # disable — self-hosted runners use persistent Docker volumes
 
       - name: Setup Maven
         uses: stCarolas/setup-maven@v5
         with:
           maven-version: 3.9.9
-
-      - name: Cache upstream JARs
-        uses: actions/cache@v4
-        with:
-          path: forge/.m2-local/forge/
-          key: upstream-m2-${{ hashFiles('forge/forge-core/src/**', 'forge/forge-game/src/**', 'forge/forge-ai/src/**', 'forge/forge-gui/src/**', 'forge/pom.xml') }}
 
       - name: Setup just
         uses: extractions/setup-just@v2
