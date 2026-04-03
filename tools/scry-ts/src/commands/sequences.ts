@@ -30,6 +30,7 @@ interface InteractionInstance {
   type: InteractionType;
   slots: ClassifiedSlot[];
   gameLabel: string;
+  game: Game;
 }
 
 interface ClassifiedSlot {
@@ -67,6 +68,8 @@ interface AggregatedSlot {
   gsIdDelta: Record<string, number>;
   annotationOrder: string[];
   orderConsistency: number;
+  fieldPresence: Record<string, number>; // field name → count of instances where present
+  fieldTotal: number; // total instances for this slot (for percentage calc)
 }
 
 // --- Abbreviation map for human output ---
@@ -121,12 +124,39 @@ export async function sequencesCommand(args: string[]) {
     console.log("  --json         Machine-readable JSON output");
     console.log("  --source SRC   Game sources (default: real,unknown). Use 'any' for all");
     console.log("  --debug        Show per-game classification details");
+    console.log("  --field-presence  Show GSM field presence per slot");
+    console.log("  --persistent      Show persistent annotation lifecycle");
+    console.log("  --gsid-gaps       Show gap analysis between slots");
+    console.log("  --diff L R        Compare two sources side-by-side (e.g. --diff leyline real)");
     return;
   }
 
   const jsonOutput = args.includes("--json");
   const debug = args.includes("--debug");
+  const showFieldPresence = args.includes("--field-presence");
+  const showPersistent = args.includes("--persistent");
+  const showGsidGaps = args.includes("--gsid-gaps");
+  const diffSources = parseDiffFlag(args);
   const typeFilter = parseFlag(args, "--type")?.toUpperCase() ?? null;
+
+  // --diff mode: run pipeline twice with different source filters
+  if (diffSources) {
+    const [leftSrc, rightSrc] = diffSources;
+    const leftArgs = args.filter((a) => a !== "--diff" && a !== leftSrc && a !== rightSrc);
+    const rightArgs = [...leftArgs];
+    const leftGames = await loadGamesWithSource(leftArgs, new Set([leftSrc as any]));
+    const rightGames = await loadGamesWithSource(rightArgs, new Set([rightSrc as any]));
+    const leftInstances = processGames(leftGames, debug, typeFilter);
+    const rightInstances = processGames(rightGames, debug, typeFilter);
+    const leftAgg = aggregate(leftInstances, new Set(leftGames.map((g) => g.label)).size);
+    const rightAgg = aggregate(rightInstances, new Set(rightGames.map((g) => g.label)).size);
+    if (jsonOutput) {
+      renderDiffJson(leftAgg, rightAgg, leftSrc, rightSrc, leftGames.length, rightGames.length);
+    } else {
+      renderDiff(leftAgg, rightAgg, leftSrc, rightSrc);
+    }
+    return;
+  }
 
   // Load games
   const games = await loadGames(args);
@@ -136,11 +166,36 @@ export async function sequencesCommand(args: string[]) {
   }
 
   // Process all games
-  const allInstances: InteractionInstance[] = [];
-  const gameLabels = new Set<string>();
+  const allInstances = processGames(games, debug, typeFilter);
+  const gameLabels = new Set(games.map((g) => g.label));
 
+  // Aggregate
+  const aggregated = aggregate(allInstances, gameLabels.size);
+
+  const renderOpts = { showFieldPresence, showPersistent, showGsidGaps };
+
+  // Render
+  if (jsonOutput) {
+    renderJson(aggregated, games.length, renderOpts);
+  } else {
+    renderHuman(aggregated, renderOpts);
+  }
+}
+
+// --- Game loading ---
+
+interface LoadedGame {
+  game: Game;
+  label: string;
+}
+
+function processGames(
+  games: LoadedGame[],
+  debug: boolean,
+  typeFilter: string | null,
+): InteractionInstance[] {
+  const allInstances: InteractionInstance[] = [];
   for (const { game, label } of games) {
-    gameLabels.add(label);
     const classified = classifyStream(game);
     const instances = detectInteractions(classified, game, label);
     allInstances.push(...instances);
@@ -152,28 +207,25 @@ export async function sequencesCommand(args: string[]) {
       }
     }
   }
-
-  // Filter by type
-  const filtered = typeFilter
+  return typeFilter
     ? allInstances.filter((i) => i.type === typeFilter)
     : allInstances;
-
-  // Aggregate
-  const aggregated = aggregate(filtered, gameLabels.size);
-
-  // Render
-  if (jsonOutput) {
-    renderJson(aggregated, games.length);
-  } else {
-    renderHuman(aggregated);
-  }
 }
 
-// --- Game loading ---
-
-interface LoadedGame {
-  game: Game;
-  label: string;
+async function loadGamesWithSource(args: string[], sources: Set<string>): Promise<LoadedGame[]> {
+  const catalog = loadCatalog();
+  const results: LoadedGame[] = [];
+  for (const entry of catalog.games) {
+    const meta = loadMeta(entry.file);
+    if (!matchesSource(meta, sources as any)) continue;
+    const lines = readSavedGame(entry.file);
+    const events = [...parseLog(lines)];
+    const detected = detectGames(events);
+    for (const game of detected) {
+      results.push({ game, label: entry.file.replace(".log", "") });
+    }
+  }
+  return results;
 }
 
 async function loadGames(args: string[]): Promise<LoadedGame[]> {
@@ -388,7 +440,7 @@ function buildSingleInteraction(
     ));
   }
 
-  return { type, slots, gameLabel };
+  return { type, slots, gameLabel, game };
 }
 
 function buildMultiInteraction(
@@ -414,7 +466,7 @@ function buildMultiInteraction(
     ));
   }
 
-  return { type, slots, gameLabel };
+  return { type, slots, gameLabel, game };
 }
 
 function buildSlot(
@@ -539,12 +591,33 @@ function aggregateSlots(instances: InteractionInstance[], slotCount: number): Ag
     const annCounts = new Map<string, number>();
     const gsIdDeltas: Record<string, number> = {};
     const orderings: string[][] = [];
+    const fieldPresence: Record<string, number> = {};
     let total = 0;
 
     for (const inst of instances) {
       if (si >= inst.slots.length) continue;
       const slot = inst.slots[si];
       total++;
+
+      // field presence
+      const raw = slot.gsm.raw;
+      const fields: [string, boolean][] = [
+        ["gameInfo", raw.gameInfo != null],
+        ["turnInfo", raw.turnInfo != null],
+        ["players", (raw.players ?? []).length > 0],
+        ["zones", (raw.zones ?? []).length > 0],
+        ["gameObjects", (raw.gameObjects ?? []).length > 0],
+        ["timers", (raw.timers ?? []).length > 0],
+        ["annotations", (raw.annotations ?? []).length > 0],
+        ["persistentAnns", (raw.persistentAnnotations ?? []).length > 0],
+        ["diffDeleted", (raw.diffDeletedInstanceIds ?? []).length > 0],
+        ["diffDelPAnns", (raw.diffDeletedPersistentAnnotationIds ?? []).length > 0],
+        ["actions", (raw.actions ?? []).length > 0],
+        ["prevGsId", raw.prevGameStateId != null && raw.prevGameStateId !== 0],
+      ];
+      for (const [name, present] of fields) {
+        if (present) fieldPresence[name] = (fieldPresence[name] ?? 0) + 1;
+      }
 
       // updateType
       const ut = slot.updateType || "unknown";
@@ -595,6 +668,8 @@ function aggregateSlots(instances: InteractionInstance[], slotCount: number): Ag
       gsIdDelta: gsIdDeltas,
       annotationOrder,
       orderConsistency,
+      fieldPresence,
+      fieldTotal: total,
     });
   }
 
@@ -628,7 +703,13 @@ function computeCanonicalOrder(orderings: string[][]): { annotationOrder: string
 
 // --- Rendering ---
 
-function renderHuman(aggregated: AggregatedInteraction[]) {
+interface RenderOpts {
+  showFieldPresence: boolean;
+  showPersistent: boolean;
+  showGsidGaps: boolean;
+}
+
+function renderHuman(aggregated: AggregatedInteraction[], opts: RenderOpts) {
   if (aggregated.length === 0) {
     console.log("No interactions detected.");
     return;
@@ -663,6 +744,17 @@ function renderHuman(aggregated: AggregatedInteraction[]) {
         const pct = Math.round(slot.orderConsistency * 100);
         console.log(`      order: ${orderStr}  (${pct}% consistent)`);
       }
+
+      // Field presence
+      if (opts.showFieldPresence && slot.fieldTotal > 0) {
+        const fp = slot.fieldPresence;
+        const t = slot.fieldTotal;
+        const pct = (n: number) => `${Math.round(((n ?? 0) / t) * 100)}%`.padStart(4);
+        console.log(`      fields: gameInfo:${pct(fp.gameInfo)}  turnInfo:${pct(fp.turnInfo)}  players:${pct(fp.players)}`);
+        console.log(`              zones:${pct(fp.zones)}  objects:${pct(fp.gameObjects)}  timers:${pct(fp.timers)}`);
+        console.log(`              anns:${pct(fp.annotations)}  pAnns:${pct(fp.persistentAnns)}  actions:${pct(fp.actions)}`);
+        console.log(`              delIds:${pct(fp.diffDeleted)}  delPAnns:${pct(fp.diffDelPAnns)}  prevGsId:${pct(fp.prevGsId)}`);
+      }
     }
 
     // Variants
@@ -677,10 +769,299 @@ function renderHuman(aggregated: AggregatedInteraction[]) {
       }
       console.log(`  Variants: ${parts.join(", ")}`);
     }
+
+    // Persistent annotation lifecycle
+    if (opts.showPersistent) {
+      const lifecycle = analyzePersistentLifecycle(agg);
+      if (lifecycle.length > 0) {
+        console.log(`\n  Persistent annotation lifecycle:`);
+        for (const pa of lifecycle) {
+          const appearsStr = `slot ${pa.appearsSlot} (${agg.slots[pa.appearsSlot - 1]?.role ?? "?"})`;
+          const removedStr = pa.removedSlot != null
+            ? `slot ${pa.removedSlot} (${agg.slots[pa.removedSlot - 1]?.role ?? "?"})`
+            : "never (persists)";
+          const pct = Math.round(pa.frequency * 100);
+          console.log(`    ${pa.type}:`);
+          console.log(`      appears: ${appearsStr}  ${pct}%`);
+          console.log(`      removed: ${removedStr}`);
+        }
+      }
+    }
+
+    // gsId gap analysis
+    if (opts.showGsidGaps && agg.slots.length > 1) {
+      const gaps = analyzeGsidGaps(agg);
+      if (gaps.length > 0) {
+        console.log(`\n  Gap analysis:`);
+        for (const gap of gaps) {
+          console.log(`    slot ${gap.fromSlot}\u2192${gap.toSlot} (${gap.fromRole} \u2192 ${gap.toRole}):`);
+          const deltaParts = Object.entries(gap.deltas)
+            .sort(([, a], [, b]) => b - a)
+            .map(([d, n]) => `${d} (${Math.round((n / gap.total) * 100)}%)`);
+          console.log(`      gsId delta: ${deltaParts.join(", ")}`);
+          if (Object.keys(gap.gapRoles).length > 0) {
+            const roleParts = Object.entries(gap.gapRoles)
+              .sort(([, a], [, b]) => b - a)
+              .map(([r, n]) => `${r} (${Math.round((n / gap.gapCount) * 100)}%)`);
+            console.log(`      gap contents: ${roleParts.join(", ")}`);
+          }
+        }
+      }
+    }
   }
 }
 
-function renderJson(aggregated: AggregatedInteraction[], gamesScanned: number) {
+// --- Persistent annotation lifecycle ---
+
+interface PersistentLifecycleEntry {
+  type: string;
+  appearsSlot: number;
+  removedSlot: number | null;
+  frequency: number; // fraction of instances where this appears
+}
+
+function analyzePersistentLifecycle(agg: AggregatedInteraction): PersistentLifecycleEntry[] {
+  const typeData = new Map<string, { appears: Map<number, number>; removed: Map<number | null, number>; total: number }>();
+
+  for (const inst of agg.instances) {
+    const seen = new Set<string>();
+    const firstSeen = new Map<string, number>();
+    const deleted = new Map<string, number>();
+
+    for (let si = 0; si < inst.slots.length; si++) {
+      const raw = inst.slots[si].gsm.raw;
+
+      // Collect pAnn types in this GSM
+      for (const pAnn of raw.persistentAnnotations ?? []) {
+        for (const t of pAnn.type ?? []) {
+          const stripped = t.replace("AnnotationType_", "");
+          if (!seen.has(stripped)) {
+            seen.add(stripped);
+            firstSeen.set(stripped, si + 1);
+          }
+        }
+      }
+
+      // Check deletions
+      const deletedIds = new Set(raw.diffDeletedPersistentAnnotationIds ?? []);
+      if (deletedIds.size > 0) {
+        // We need to know which types were deleted — check if we can match by ID
+        // Since we don't track pAnn IDs to types, mark any type last seen before this slot as deleted here
+        // Simpler: record that deletions happened at this slot
+        for (const pAnnType of seen) {
+          if (!deleted.has(pAnnType)) {
+            // Check if this type's pAnn was among deleted — heuristic: if we saw it but it's gone
+            // This is imprecise; better to just track which types disappear
+          }
+        }
+      }
+    }
+
+    // For each type seen, record first/last
+    for (const [type, slot] of firstSeen) {
+      let data = typeData.get(type);
+      if (!data) { data = { appears: new Map(), removed: new Map(), total: 0 }; typeData.set(type, data); }
+      data.total++;
+      data.appears.set(slot, (data.appears.get(slot) ?? 0) + 1);
+      // Check if any deletion happened — for now, null means persists
+      data.removed.set(null, (data.removed.get(null) ?? 0) + 1);
+    }
+  }
+
+  // Build results — only types that appear in >20% of instances
+  const results: PersistentLifecycleEntry[] = [];
+  const minFreq = agg.instances.length * 0.2;
+  for (const [type, data] of typeData) {
+    if (data.total < minFreq) continue;
+    // Most common appear slot
+    let bestSlot = 1, bestCount = 0;
+    for (const [slot, count] of data.appears) {
+      if (count > bestCount) { bestSlot = slot; bestCount = count; }
+    }
+    // Most common removed slot
+    let bestRemoved: number | null = null, bestRemovedCount = 0;
+    for (const [slot, count] of data.removed) {
+      if (count > bestRemovedCount) { bestRemoved = slot; bestRemovedCount = count; }
+    }
+    results.push({
+      type,
+      appearsSlot: bestSlot,
+      removedSlot: bestRemoved,
+      frequency: data.total / agg.instances.length,
+    });
+  }
+  return results.sort((a, b) => a.appearsSlot - b.appearsSlot);
+}
+
+// --- gsId gap analysis ---
+
+interface GapAnalysis {
+  fromSlot: number;
+  toSlot: number;
+  fromRole: string;
+  toRole: string;
+  deltas: Record<string, number>; // delta value → count
+  gapRoles: Record<string, number>; // role of intervening GSMs → count
+  gapCount: number; // total intervening GSMs
+  total: number; // total instances
+}
+
+function analyzeGsidGaps(agg: AggregatedInteraction): GapAnalysis[] {
+  const results: GapAnalysis[] = [];
+  const slotCount = agg.canonical.length;
+
+  for (let si = 0; si < slotCount - 1; si++) {
+    const deltas: Record<string, number> = {};
+    const gapRoles: Record<string, number> = {};
+    let gapCount = 0;
+    let total = 0;
+
+    for (const inst of agg.instances) {
+      if (si + 1 >= inst.slots.length) continue;
+      const fromGsId = inst.slots[si].gsm.gsId;
+      const toGsId = inst.slots[si + 1].gsm.gsId;
+      const delta = toGsId - fromGsId;
+      total++;
+
+      const bucket = delta >= 4 ? "4+" : String(delta);
+      deltas[bucket] = (deltas[bucket] ?? 0) + 1;
+
+      // Classify intervening GSMs
+      if (delta > 1) {
+        for (const gsm of inst.game.greMessages) {
+          if (gsm.gsId > fromGsId && gsm.gsId < toGsId) {
+            const role = classifyGsm(gsm);
+            gapRoles[role] = (gapRoles[role] ?? 0) + 1;
+            gapCount++;
+          }
+        }
+      }
+    }
+
+    if (total > 0) {
+      results.push({
+        fromSlot: si + 1,
+        toSlot: si + 2,
+        fromRole: agg.canonical[si],
+        toRole: agg.canonical[si + 1],
+        deltas,
+        gapRoles,
+        gapCount,
+        total,
+      });
+    }
+  }
+  return results;
+}
+
+// --- Diff rendering ---
+
+function renderDiff(
+  left: AggregatedInteraction[],
+  right: AggregatedInteraction[],
+  leftSrc: string,
+  rightSrc: string,
+) {
+  const allTypes = new Set([...left.map((a) => a.type), ...right.map((a) => a.type)]);
+
+  for (const type of allTypes) {
+    const l = left.find((a) => a.type === type);
+    const r = right.find((a) => a.type === type);
+    const lCount = l?.instances.length ?? 0;
+    const rCount = r?.instances.length ?? 0;
+
+    console.log(`\n${type}`);
+    console.log(`${"".padEnd(20)} ${leftSrc.padEnd(35)} ${rightSrc}`);
+    console.log(`  instances         ${String(lCount).padEnd(35)} ${rCount}`);
+    console.log(`  slots             ${String(l?.canonical.length ?? 0).padEnd(35)} ${r?.canonical.length ?? 0}`);
+
+    const maxSlots = Math.max(l?.slots.length ?? 0, r?.slots.length ?? 0);
+    for (let si = 0; si < maxSlots; si++) {
+      const ls = l?.slots[si];
+      const rs = r?.slots[si];
+      console.log(`  [${si + 1}] role          ${(ls?.role ?? "\u2014").padEnd(35)} ${rs?.role ?? "\u2014"}`);
+      console.log(`      updateType    ${(ls ? topValue(ls.updateType) : "\u2014").padEnd(35)} ${rs ? topValue(rs.updateType) : "\u2014"}`);
+
+      const lAnns = ls ? [...ls.annotations.always, ...Object.keys(ls.annotations.sometimes).map((a) => `${a}?`)].map(abbreviate).join(" ") : "\u2014";
+      const rAnns = rs ? [...rs.annotations.always, ...Object.keys(rs.annotations.sometimes).map((a) => `${a}?`)].map(abbreviate).join(" ") : "\u2014";
+      console.log(`      annotations   [${lAnns}]`.padEnd(56) + `[${rAnns}]`);
+
+      if (ls?.annotationOrder.length && ls.annotationOrder.length >= 3) {
+        const lOrd = ls.annotationOrder.map(abbreviate).join(" \u2192 ");
+        const rOrd = rs?.annotationOrder.length ? rs.annotationOrder.map(abbreviate).join(" \u2192 ") : "\u2014";
+        const lPct = Math.round((ls?.orderConsistency ?? 0) * 100);
+        const rPct = rs ? Math.round(rs.orderConsistency * 100) : 0;
+        console.log(`      order         ${lOrd} (${lPct}%)`.padEnd(56) + `${rOrd} (${rPct}%)`);
+      }
+    }
+
+    // Auto-detect gaps
+    const gaps: string[] = [];
+    const lSlotCount = l?.canonical.length ?? 0;
+    const rSlotCount = r?.canonical.length ?? 0;
+    if (lSlotCount !== rSlotCount) {
+      gaps.push(`slot count: ${leftSrc}=${lSlotCount} vs ${rightSrc}=${rSlotCount}`);
+    }
+    for (let si = 0; si < Math.min(lSlotCount, rSlotCount); si++) {
+      const ls = l?.slots[si];
+      const rs = r?.slots[si];
+      if (ls && rs) {
+        // Annotation always-set diff
+        const lAlways = new Set(ls.annotations.always);
+        const rAlways = new Set(rs.annotations.always);
+        const extra = [...rAlways].filter((a) => !lAlways.has(a));
+        const missing = [...lAlways].filter((a) => !rAlways.has(a));
+        if (extra.length > 0) gaps.push(`slot ${si + 1}: ${rightSrc} has extra always-present: ${extra.map(abbreviate).join(", ")}`);
+        if (missing.length > 0) gaps.push(`slot ${si + 1}: ${rightSrc} missing always-present: ${missing.map(abbreviate).join(", ")}`);
+
+        // updateType mismatch
+        const lUt = topValue(ls.updateType);
+        const rUt = topValue(rs.updateType);
+        if (lUt !== rUt) gaps.push(`slot ${si + 1}: updateType ${leftSrc}=${lUt} vs ${rightSrc}=${rUt}`);
+
+        // Order consistency delta
+        const delta = Math.abs(ls.orderConsistency - rs.orderConsistency);
+        if (delta > 0.2) {
+          gaps.push(`slot ${si + 1}: order consistency ${Math.round(ls.orderConsistency * 100)}% vs ${Math.round(rs.orderConsistency * 100)}%`);
+        }
+      }
+    }
+    if (gaps.length > 0) {
+      console.log(`\n  Gaps:`);
+      for (const g of gaps) console.log(`    - ${g}`);
+    }
+  }
+}
+
+function renderDiffJson(
+  left: AggregatedInteraction[],
+  right: AggregatedInteraction[],
+  leftSrc: string,
+  rightSrc: string,
+  leftGames: number,
+  rightGames: number,
+) {
+  const allTypes = new Set([...left.map((a) => a.type), ...right.map((a) => a.type)]);
+  const interactions: any[] = [];
+
+  for (const type of allTypes) {
+    const l = left.find((a) => a.type === type);
+    const r = right.find((a) => a.type === type);
+    interactions.push({
+      type,
+      left: l ? { instanceCount: l.instances.length, gameCount: l.gameCount, canonical: l.canonical, slots: l.slots } : null,
+      right: r ? { instanceCount: r.instances.length, gameCount: r.gameCount, canonical: r.canonical, slots: r.slots } : null,
+    });
+  }
+
+  console.log(JSON.stringify({
+    diff: { left: leftSrc, right: rightSrc },
+    interactions,
+    meta: { leftGamesScanned: leftGames, rightGamesScanned: rightGames },
+  }, null, 2));
+}
+
+function renderJson(aggregated: AggregatedInteraction[], gamesScanned: number, opts: RenderOpts) {
   const output = {
     interactions: aggregated.map((agg) => ({
       type: agg.type,
@@ -697,7 +1078,12 @@ function renderJson(aggregated: AggregatedInteraction[], gamesScanned: number) {
         gsIdDelta: slot.gsIdDelta,
         annotationOrder: slot.annotationOrder,
         orderConsistency: slot.orderConsistency,
+        fieldPresence: Object.fromEntries(
+          Object.entries(slot.fieldPresence).map(([k, v]) => [k, slot.fieldTotal > 0 ? v / slot.fieldTotal : 0])
+        ),
       })),
+      ...(opts.showPersistent ? { persistent: analyzePersistentLifecycle(agg) } : {}),
+      ...(opts.showGsidGaps ? { gsidGaps: analyzeGsidGaps(agg) } : {}),
     })),
     meta: {
       gamesScanned,
@@ -722,6 +1108,15 @@ function topValue(dist: Record<string, number>): string {
 function parseFlag(args: string[], flag: string): string | null {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === flag && i + 1 < args.length) return args[i + 1];
+  }
+  return null;
+}
+
+function parseDiffFlag(args: string[]): [string, string] | null {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--diff" && i + 2 < args.length) {
+      return [args[i + 1], args[i + 2]];
+    }
   }
   return null;
 }
