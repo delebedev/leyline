@@ -61,23 +61,19 @@ class InteractivePromptBridge(
     /** Captured target: spell card ID + name, target card ID, 1-based group index. */
     data class PendingTarget(val spellForgeCardId: Int, val spellName: String, val targetForgeCardId: Int, val index: Int)
 
-    private val pendingTargetSpecs = mutableListOf<PendingTarget>()
-    private var targetSpecIndexCounter = 0
+    private val pendingTargetSpecs = java.util.concurrent.ConcurrentLinkedQueue<PendingTarget>()
+    private val targetSpecIndexCounter = java.util.concurrent.atomic.AtomicInteger(0)
 
     fun addPendingTargetSpec(spec: PendingTarget) {
         pendingTargetSpecs.add(spec)
     }
-    fun nextTargetSpecIndex(): Int = ++targetSpecIndexCounter
+    fun nextTargetSpecIndex(): Int = targetSpecIndexCounter.incrementAndGet()
     fun drainPendingTargetSpecs(): List<PendingTarget> {
-        if (pendingTargetSpecs.isEmpty()) return emptyList()
-        val copy = pendingTargetSpecs.toList()
-        pendingTargetSpecs.clear()
-        return copy
-    }
-
-    /** Reset target spec index counter — call when spell resolves or targeting is cancelled. */
-    fun resetTargetSpecIndex() {
-        targetSpecIndexCounter = 0
+        val result = mutableListOf<PendingTarget>()
+        while (true) {
+            result.add(pendingTargetSpecs.poll() ?: break)
+        }
+        return result
     }
 
     companion object {

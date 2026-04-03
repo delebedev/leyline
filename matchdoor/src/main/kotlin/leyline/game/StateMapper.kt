@@ -514,11 +514,7 @@ object StateMapper {
         }
 
         // TargetSpec pAnn for each targeted spell/ability on the stack
-        val targetSpecPersistent = if (game != null) {
-            buildTargetSpecAnnotations(game, bridge)
-        } else {
-            emptyList()
-        }
+        val targetSpecPersistent = buildTargetSpecAnnotations(bridge)
 
         val (crewedThisTurnPersistent, crewTypeChangePersistent, crewExpiredAnnotations) =
             computeCrewAnnotations(bridge)
@@ -570,8 +566,7 @@ object StateMapper {
      * Each card target gets a separate annotation with 1-based index per target group.
      * Removed automatically by upsertByType when the spell resolves (leaves stack).
      */
-    @Suppress("UnusedParameter")
-    private fun buildTargetSpecAnnotations(game: Game, bridge: GameBridge): List<AnnotationInfo> {
+    private fun buildTargetSpecAnnotations(bridge: GameBridge): List<AnnotationInfo> {
         // Consume targets captured during selectTargetsInteractively.
         // The spell may have already resolved by now (auto-pass), so we can't
         // rely on scanning game.getStack() — the stack is often empty.

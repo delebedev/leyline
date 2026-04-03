@@ -29,7 +29,7 @@ Arena type numbers, Forge events, and leyline handling. `--` = no mapping. `MISS
 | 22 | CopiedObject | -- | -- | -- | `abilityGrpId`, `LayeredEffectType`, `CopyObject` | MISSING |
 | 23 | RemoveAbility | -- | -- | -- | `effect_id`; multi-type pAnn `[RemoveAbility, LayeredEffect]`, key=targetIid(str), value="all" | MISSING — wire shape confirmed (tamiyos-compleation spec) |
 | 25 | ModifiedType | -- | -- | -- | `effect_id`, `sourceAbilityGRPID` | WIRED — crew type-change (Vehicle→Creature). Multi-typed with LayeredEffect. |
-| 26 | TargetSpec | -- | -- | -- | `index`, `abilityGrpId`, `distributions`, `promptId` | PARTIAL — emitted via bridge store, lifecycle correct (emitted on target confirm, deleted on resolve). Gaps: `abilityGrpId` uses card grpId not sub-ability grpId (needs registry), `promptId` hardcoded 0 (needs prompt-type mapping). `promptParameters` = ability iid. |
+| 26 | TargetSpec | -- | -- | -- | `index`, `abilityGrpId`, `distributions`, `promptId` | PARTIAL — emitted via bridge store, lifecycle correct (emitted on target confirm, deleted on resolve). Gaps: `abilityGrpId` uses card grpId not sub-ability grpId (needs registry), `promptId` hardcoded 0 (needs prompt-type mapping), player targets skipped (only Card targets emit). `promptParameters` = ability iid. |
 | 28 | FaceDown | -- | -- | -- | `abilityGrpId`, `REASON` | MISSING |
 | 29 | TurnPermanent | -- | -- | -- | (none) | MISSING |
 | 30 | DynamicAbility | -- | -- | -- | `cost`, `grpid`, `base_grpid`, `action_cost_string` | MISSING |
