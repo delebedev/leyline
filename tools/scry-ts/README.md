@@ -59,6 +59,7 @@ scry gsm list --has DamageDealt --has ZoneTransfer  # multiple filters (AND)
 scry gsm list --view turns              # phase/step timeline
 scry gsm list --view actions            # action timeline (CastSpell, PlayLand, etc.)
 scry gsm list --view annotations        # full annotation bodies with details
+scry gsm list --has DamageDealt --view annotations  # only DamageDealt annotations
 scry gsm show 292                       # drill into a specific GSM
 scry gsm show 292 --json                # raw JSON (lossless)
 ```
@@ -77,7 +78,7 @@ scry sequences --debug                    # show per-game classification
 scry sequences --field-presence           # GSM field population per slot
 scry sequences --persistent               # persistent annotation lifecycle
 scry sequences --gsid-gaps                # gap analysis between slots
-scry sequences --diff real leyline        # side-by-side source comparison
+scry sequences --diff real,unknown leyline # side-by-side source comparison
 ```
 
 ### `scry annotations`
@@ -88,6 +89,18 @@ Annotation analysis across all GSMs.
 scry annotations order --type DamageDealt           # neighbor analysis
 scry annotations order --type ZoneTransfer --json    # machine-readable
 scry annotations order --type DamageDealt --source real  # filter by source
+```
+
+### `scry variance`
+
+Profile annotation detail key shapes across saved game logs. Per type: always/sometimes keys, value samples, persistence, co-type bundles.
+
+```bash
+scry variance                              # all types, saved games
+scry variance --type DamageDealt           # single type detail
+scry variance --summary                    # compact one-line-per-type table
+scry variance --diff real,unknown leyline   # compare key shapes between sources
+scry variance --json                       # machine-readable
 ```
 
 ### `scry trace`

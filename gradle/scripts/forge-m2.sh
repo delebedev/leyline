@@ -32,7 +32,7 @@ local_repo="$project_dir/forge/.m2-local"
 backup_repo="$project_dir/forge/.m2-local.worktree"
 current_forge="$(cd forge && git log -1 --format=%H -- forge-core/src forge-game/src forge-ai/src forge-gui/src pom.xml)"
 
-if [ -n "$(cd forge && git status --porcelain)" ]; then
+if [ -n "$(cd forge && git status --porcelain | grep -v '\.m2-local')" ]; then
   forge_cache_mode="local"
   forge_m2="$local_repo"
   if [ -L "$local_repo" ]; then

@@ -71,7 +71,7 @@ just build        # gradle: proto-sync + compile + jar
 just serve        # start server (restart after code changes — JVM holds old bytecode)
 ```
 
-**Worktrees need `just bootstrap` before anything else** — they don't share submodule checkouts or build artifacts.
+**Worktrees need `just bootstrap` before anything else** — they don't share submodule checkouts, but forge jars are cached globally (`~/.cache/leyline/forge-m2/`) so `mvn install` is skipped if another worktree already built the same forge commit.
 
 ## Arena Automation
 
