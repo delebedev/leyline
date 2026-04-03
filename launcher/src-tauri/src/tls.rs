@@ -203,6 +203,54 @@ fn trust_ca(ca_pem: &std::path::Path) -> Result<(), String> {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn nss_db_dir() -> PathBuf {
+    dirs::home_dir()
+        .map(|h| h.join(".pki/nssdb"))
+        .unwrap_or_else(|| PathBuf::from("/tmp/.pki/nssdb"))
+}
+
+#[cfg(target_os = "linux")]
+fn is_ca_trusted() -> bool {
+    let db = format!("sql:{}", nss_db_dir().display());
+    Command::new("certutil")
+        .args(["-d", &db, "-L", "-n", "Leyline Local CA"])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+#[cfg(target_os = "linux")]
+fn trust_ca(ca_pem: &std::path::Path) -> Result<(), String> {
+    let nss_dir = nss_db_dir();
+    let db = format!("sql:{}", nss_dir.display());
+
+    // Ensure NSS db directory exists
+    let _ = fs::create_dir_all(&nss_dir);
+
+    // Initialize NSS db if it doesn't exist yet
+    if !nss_dir.join("cert9.db").exists() {
+        let _ = Command::new("certutil")
+            .args(["-d", &db, "-N", "--empty-password"])
+            .status();
+    }
+
+    // Add CA as trusted (C = trusted CA for SSL)
+    let status = Command::new("certutil")
+        .args(["-d", &db, "-A", "-n", "Leyline Local CA", "-t", "C,,", "-i"])
+        .arg(ca_pem)
+        .status()
+        .map_err(|e| format!("Failed to run certutil: {e}. Install libnss3-tools."))?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err("Failed to trust CA — is libnss3-tools installed?".to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

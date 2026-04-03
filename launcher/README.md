@@ -14,7 +14,15 @@ Desktop app for playing Arena offline. Manages the leyline server and Arena conf
 
 ## Install
 
-Download the latest `Leyline_*_aarch64.dmg` from [GitHub Releases](https://github.com/delebedev/leyline/releases).
+Download the latest release for your platform from [GitHub Releases](https://github.com/delebedev/leyline/releases):
+
+| Platform | File | Notes |
+|----------|------|-------|
+| **macOS** (Apple Silicon) | `Leyline_*_aarch64.dmg` | Unsigned — see below |
+| **Windows** (x64) | `Leyline_*_x64-setup.exe` | NSIS installer |
+| **Linux** (x64) | `Leyline_*_amd64.AppImage` | Steam Deck compatible |
+
+### macOS
 
 The app is unsigned. macOS will block it with a "damaged" error. Remove the quarantine flag first:
 
@@ -22,13 +30,20 @@ The app is unsigned. macOS will block it with a "damaged" error. Remove the quar
 xattr -cr ~/Downloads/Leyline_*.dmg
 ```
 
-Then open the `.dmg` and drag Leyline to Applications. If macOS complains on first launch, also run:
+Then open the `.dmg` and drag Leyline to Applications. See [#338](https://github.com/delebedev/leyline/issues/338) for details.
+
+### Linux / Steam Deck
+
+Make the AppImage executable and run it:
 
 ```bash
-xattr -cr /Applications/Leyline.app
+chmod +x Leyline_*.AppImage
+./Leyline_*.AppImage
 ```
 
-Requires a local [MTGA](https://magic.wizards.com/en/mtgarena) installation (Epic Games or Steam).
+On Steam Deck Gaming Mode, you may need `--appimage-extract-and-run` if FUSE isn't available. MTGA must be installed via Steam (runs under Proton).
+
+Requires a local [MTGA](https://magic.wizards.com/en/mtgarena) installation (Epic Games, Steam, or Steam/Proton on Linux).
 
 ## Build from source
 
@@ -39,9 +54,9 @@ Requires [Bun](https://bun.sh) (1.3+), [Rust](https://rustup.rs) (1.75+), and JD
 just launcher-build
 ```
 
-This runs `just bundle` (jlink JRE + JARs + card resources), generates a changelog, stages everything into `src-tauri/.bundle-stage/`, and builds the `.dmg`.
+This runs `just bundle` (jlink JRE + JARs + card resources), generates a changelog, stages everything into `src-tauri/.bundle-stage/`, and builds the platform installer (`.dmg`, `.exe`, or `.AppImage`).
 
-The `.dmg` lands in `src-tauri/target/release/bundle/dmg/`.
+Output lands in `src-tauri/target/release/bundle/<format>/`.
 
 For development (hot-reload):
 
@@ -72,19 +87,21 @@ open /Applications/Leyline.app
 
 The launcher embeds the leyline server (a stripped JVM + game engine, ~90MB) as a sidecar process. When you click Start:
 
-1. Copies `services.conf` into Arena's StreamingAssets (tells Arena to connect to localhost)
-2. Creates a stub audio file Arena expects
-3. Sets macOS preferences (`CheckSC=0` — skips Arena service check hash)
-4. Starts the leyline server and waits for it to be healthy
+1. Generates a local TLS CA + server cert and trusts it in the OS cert store
+2. Copies `services.conf` into Arena's StreamingAssets (tells Arena to connect to localhost)
+3. Creates a stub audio file Arena expects
+4. Sets platform-specific preferences (macOS: `CheckSC=0` via `defaults`)
+5. Starts the leyline server and waits for it to be healthy
 
 Restore reverses all of this — removes the config file and resets preferences.
 
 ### Data locations
 
-| Path | Contents |
-|------|----------|
-| `~/Library/Application Support/dev.leyline.launcher/` | Player database (copied from bundle on first launch) |
-| `~/Library/Logs/dev.leyline.launcher/leyline-server.log` | Server output (for debugging startup failures) |
+| Location | macOS | Windows | Linux |
+|----------|-------|---------|-------|
+| Player DB | `~/Library/Application Support/dev.leyline.launcher/` | `%APPDATA%/dev.leyline.launcher/` | `~/.local/share/dev.leyline.launcher/` |
+| Server log | `~/Library/Logs/dev.leyline.launcher/leyline-server.log` | `%APPDATA%/dev.leyline.launcher/logs/` | `~/.local/share/dev.leyline.launcher/logs/` |
+| TLS certs | `~/Library/Application Support/dev.leyline/tls/` | `%APPDATA%/dev.leyline/tls/` | `~/.local/share/dev.leyline/tls/` |
 
 ## Troubleshooting
 
@@ -98,4 +115,10 @@ Restore reverses all of this — removes the config file and resets preferences.
 
 ## Platform support
 
-macOS arm64 only for now. Windows and Linux builds are planned.
+| Platform | Format | Status |
+|----------|--------|--------|
+| macOS arm64 | `.dmg` | Tested |
+| Windows x64 | `.exe` (NSIS) | Tested |
+| Linux x64 | `.AppImage` | Builds, needs hardware testing |
+
+Linux: MTGA runs under Steam/Proton. The launcher runs natively. TLS cert trust uses NSS `certutil` (`libnss3-tools` package). Steam Deck requires first-time setup in Desktop Mode (cert trust), then works from Gaming Mode.
