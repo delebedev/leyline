@@ -11,6 +11,9 @@ serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 tokio = { version = "1", features = ["time"] }
 dirs = "6"
+rcgen = { version = "0.13", features = ["pem", "aws_lc_rs", "x509-parser"] }
+x509-parser = "0.16"
+time = "0.3"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
