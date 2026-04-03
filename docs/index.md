@@ -4,14 +4,12 @@ Quick links for debugging, protocol analysis, and conformance workflows.
 
 ## Developer Tools
 
-| Tool | Entry point | Purpose | Docs |
-|------|-------------|---------|------|
-| `tape` | `just tape` | Recording analysis, proto inspection, conformance | `tools/tape/docs/` |
-| `wire` | `just wire` | Front Door frame inspection | `tools/wire/docs/` |
-| `arena` | `just arena` | MTGA UI automation | `tools/arena/docs/` |
-| `scry` | `just scry` | Game state from Player.log | `.claude/skills/player-log/` |
+| Tool | Entry point | Purpose |
+|------|-------------|---------|
+| `arena-ts` | `just arena-ts` | MTGA UI automation |
+| `scry-ts` | `just scry-ts` | Game state from Player.log |
 
-Each tool has `--help` with examples. Docs co-located in `tools/<name>/docs/`.
+Each tool has `--help` with examples.
 
 ## Core Reference
 
