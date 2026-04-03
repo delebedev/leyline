@@ -290,6 +290,7 @@ serve: build check-java
 [group('deploy')]
 bundle:
     ./gradlew bundleArchive --no-daemon
+    chmod -R u+rw build/bundle/
     @echo "Archive: $(ls build/distributions/leyline-*.tgz)"
 
 # --- Launcher ---
