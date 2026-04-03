@@ -4,6 +4,7 @@ mod arena;
 mod server;
 
 use server::ServerProcess;
+use tauri::Manager;
 
 /// Read bundled changelog (release notes) from Tauri resources.
 #[tauri::command]

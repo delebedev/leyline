@@ -29,9 +29,6 @@
     "icon": [
       "icons/icon.png",
       "icons/icon.icns"
-    ],
-    "resources": {
-      "../../.changelog.md": "changelog.md"
-    }
+    ]
   }
 }

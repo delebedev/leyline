@@ -290,7 +290,7 @@ serve: build check-java
 [group('deploy')]
 bundle:
     ./gradlew bundleArchive --no-daemon
-    @echo "Archive: $(ls build/dist/leyline-*.tar.gz)"
+    @echo "Archive: $(ls build/distributions/leyline-*.tgz)"
 
 # --- Launcher ---
 
@@ -303,7 +303,7 @@ launcher-dev:
 [group('launcher')]
 launcher-build: bundle
     test -f .changelog.md || bun scripts/curate-changelog.ts
-    cd "{{project_dir}}/launcher" && TAURI_CONFIG='{"bundle":{"resources":{"../../build/bundle/**":"leyline/"}}}' bun tauri build
+    cd "{{project_dir}}/launcher" && TAURI_CONFIG='{"bundle":{"resources":{"../build/bundle/**/*":"leyline/","../.changelog.md":"changelog.md"}}}' bun tauri build
 
 # generate release notes from git log (LLM-curated if OPENROUTER_API_KEY set)
 [group('deploy')]
