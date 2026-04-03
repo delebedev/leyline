@@ -23,8 +23,9 @@ Download the launcher, point it at your Arena install, hit Play.
 </p>
 
 1. **[Download the latest release](https://github.com/delebedev/leyline/releases)** — `.exe` installer for Windows, `.dmg` for macOS
-2. **Launch** — the app auto-detects your Arena install
-3. **Play** — click Play, Arena connects to your local server
+2. **Launch** — the app auto-detects your Arena install, hit Start
+3. **Log in** — username `forge@local`, password `forge`
+4. **Play** — click Play, Arena connects to your local server
 
 Requires a legally obtained copy of [MTG Arena](https://magic.wizards.com/mtgarena).
 [Installation guide →](docs/install.md)
