@@ -1,0 +1,169 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '17'
+
+jobs:
+  # --- Gate: reuse CI checks on existing Linux runner ---
+  gate:
+    name: Gate
+    runs-on: [self-hosted, Linux, ARM64]
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: leyline,forge
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
+
+      - uses: actions/cache@v4
+        with:
+          path: forge/.m2-local/forge/
+          key: upstream-m2-${{ hashFiles('forge/forge-core/src/**', 'forge/forge-game/src/**', 'forge/forge-ai/src/**', 'forge/forge-gui/src/**', 'forge/pom.xml') }}
+
+      - uses: extractions/setup-just@v2
+
+      - run: just install-forge
+      - run: just fmt-check
+      - run: just build
+      - run: ./gradlew detekt
+      - run: just test-gate
+
+  # --- Build .dmg on macOS (Apple Silicon) ---
+  build-macos:
+    name: Build macOS (arm64)
+    needs: gate
+    runs-on: macos-14
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: leyline,forge
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0  # full history for changelog
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
+
+      - uses: actions/cache@v4
+        with:
+          path: forge/.m2-local/forge/
+          key: upstream-m2-${{ hashFiles('forge/forge-core/src/**', 'forge/forge-game/src/**', 'forge/forge-ai/src/**', 'forge/forge-gui/src/**', 'forge/pom.xml') }}
+
+      - uses: extractions/setup-just@v2
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install forge JARs
+        run: just install-forge
+
+      - name: Version check
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          TAURI_VERSION=$(jq -r .version launcher/src-tauri/tauri.conf.json)
+          PKG_VERSION=$(jq -r .version launcher/package.json)
+          echo "Tag: $TAG_VERSION  Tauri: $TAURI_VERSION  Package: $PKG_VERSION"
+          if [ "$TAG_VERSION" != "$TAURI_VERSION" ]; then
+            echo "::error::Tag $TAG_VERSION does not match tauri.conf.json $TAURI_VERSION"
+            exit 1
+          fi
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $TAG_VERSION does not match package.json $PKG_VERSION"
+            exit 1
+          fi
+
+      - name: Generate changelog
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: bun scripts/curate-changelog.ts
+
+      - name: Build launcher (.dmg)
+        run: just launcher-build
+
+      - name: Stage release artifacts
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          DMG=$(ls launcher/src-tauri/target/release/bundle/dmg/*.dmg)
+          cp "$DMG" "Leyline_${VERSION}_aarch64.dmg"
+          echo "DMG=Leyline_${VERSION}_aarch64.dmg" >> "$GITHUB_ENV"
+
+      - name: Upload .dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-dmg
+          path: ${{ env.DMG }}
+          retention-days: 7
+
+      - name: Upload changelog
+        uses: actions/upload-artifact@v4
+        with:
+          name: changelog
+          path: .changelog.md
+          retention-days: 7
+
+  # --- Create GitHub Release ---
+  release:
+    name: Publish Release
+    needs: build-macos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          CHANGELOG=$(cat artifacts/changelog/.changelog.md)
+          DMG=$(ls artifacts/macos-dmg/*.dmg)
+
+          gh release create "$GITHUB_REF_NAME" \
+            --title "Leyline $VERSION" \
+            --notes "$CHANGELOG" \
+            "$DMG"

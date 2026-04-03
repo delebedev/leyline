@@ -10,7 +10,7 @@ Desktop app for playing Arena offline. Manages the leyline server and Arena conf
 
 ## Install
 
-Download `Leyline_0.1.0_aarch64.dmg` from [GitHub Releases](https://github.com/delebedev/leyline/releases). Drag to Applications. Open.
+Download the latest `Leyline_*_aarch64.dmg` from [GitHub Releases](https://github.com/delebedev/leyline/releases). Drag to Applications. Right-click → Open (unsigned build).
 
 Requires a local [MTGA](https://magic.wizards.com/en/mtgarena) installation (Epic Games or Steam).
 

@@ -95,6 +95,10 @@ RALPH.md
 .issues/
 node_modules/
 
+# Generated changelog (build artifact from scripts/curate-changelog.ts)
+.changelog.md
+.gitlog
+
 # Launcher (Tauri/Rust build artifacts)
 launcher/src-tauri/target/
 launcher/dist/
