@@ -1,0 +1,14 @@
+{
+  "name": "leyline-overlay",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "postinstall": "swiftc -O native/window-bounds.swift -o native/window-bounds",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^35.0.0"
+  }
+}
