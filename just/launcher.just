@@ -36,6 +36,90 @@ _launcher-tauri:
     cd "{{project_dir}}/launcher" && bun tauri build --config '{"bundle":{"resources":[".bundle-stage/leyline/",".bundle-stage/changelog.md"]}}'
     just launcher-check
 
+# headless smoke test: generate certs, spawn sidecar, verify health + TLS chain
+[group('launcher')]
+launcher-smoke:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== Launcher smoke test ==="
+
+    # 1. Find sidecar binary
+    BIN="{{project_dir}}/build/bundle/bin/leyline"
+    if [ ! -f "$BIN" ]; then
+        echo "FAIL: sidecar not found at $BIN — run 'just bundle' first"
+        exit 1
+    fi
+    echo "  sidecar: $BIN"
+
+    # 2. Generate certs to temp dir (no OS trust needed)
+    TLS_DIR=$(mktemp -d)
+    trap 'kill $SIDECAR_PID 2>/dev/null; rm -rf "$TLS_DIR"' EXIT
+    echo "  tls dir: $TLS_DIR"
+
+    openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+        -keyout "$TLS_DIR/ca.key" -out "$TLS_DIR/ca.pem" \
+        -subj "/CN=Leyline Smoke CA" 2>/dev/null
+    openssl req -newkey rsa:2048 -nodes \
+        -keyout "$TLS_DIR/server.key" -out "$TLS_DIR/server.csr" \
+        -subj "/CN=localhost" 2>/dev/null
+    openssl x509 -req -in "$TLS_DIR/server.csr" \
+        -CA "$TLS_DIR/ca.pem" -CAkey "$TLS_DIR/ca.key" \
+        -CAcreateserial -days 1 -out "$TLS_DIR/server.pem" \
+        -extfile <(echo "subjectAltName=DNS:localhost,IP:127.0.0.1") 2>/dev/null
+    cat "$TLS_DIR/server.pem" "$TLS_DIR/ca.pem" > "$TLS_DIR/server-chain.pem"
+    echo "  certs: generated"
+
+    # 3. Kill anything on our ports
+    for p in 30010 30003 8090 8091 9443; do
+        for pid in $(lsof -ti :$p 2>/dev/null); do kill -9 $pid 2>/dev/null || true; done
+    done
+
+    # 4. Spawn sidecar
+    "$BIN" --cert "$TLS_DIR/server-chain.pem" --key "$TLS_DIR/server.key" \
+        > "$TLS_DIR/sidecar.log" 2>&1 &
+    SIDECAR_PID=$!
+    echo "  sidecar pid: $SIDECAR_PID"
+
+    # 5. Wait for health
+    echo -n "  health: "
+    for i in $(seq 1 30); do
+        if curl -sf http://127.0.0.1:8091/health >/dev/null 2>&1; then
+            echo "ok (${i}s)"
+            break
+        fi
+        if ! kill -0 $SIDECAR_PID 2>/dev/null; then
+            echo "FAIL: sidecar died"
+            cat "$TLS_DIR/sidecar.log" | tail -20
+            exit 1
+        fi
+        sleep 1
+    done
+    if ! curl -sf http://127.0.0.1:8091/health >/dev/null 2>&1; then
+        echo "FAIL: health timeout after 30s"
+        cat "$TLS_DIR/sidecar.log" | tail -20
+        exit 1
+    fi
+
+    # 6. Verify TLS cert chain on FrontDoor
+    ISSUER=$(openssl s_client -connect localhost:30010 -servername localhost </dev/null 2>&1 | grep "issuer=" | head -1)
+    if echo "$ISSUER" | grep -q "Leyline Smoke CA"; then
+        echo "  tls chain: ok (issuer=$ISSUER)"
+    else
+        echo "FAIL: unexpected cert issuer: $ISSUER"
+        exit 1
+    fi
+
+    # 7. Verify AccountServer TLS too
+    ACCT_ISSUER=$(openssl s_client -connect localhost:9443 -servername localhost </dev/null 2>&1 | grep "issuer=" | head -1)
+    if echo "$ACCT_ISSUER" | grep -q "Leyline Smoke CA"; then
+        echo "  account tls: ok"
+    else
+        echo "FAIL: account cert issuer: $ACCT_ISSUER"
+        exit 1
+    fi
+
+    echo "=== Smoke test passed ==="
+
 # verify launcher bundle has all required components
 [group('launcher')]
 launcher-check:
