@@ -17,6 +17,7 @@ permissions:
 jobs:
   gate:
     name: Gate (fmt + detekt + unit + conformance + coverage)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, ARM64]
     steps:
       - name: Generate app token
@@ -82,6 +83,7 @@ jobs:
 
   integration:
     name: Integration
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, Linux, ARM64]
     continue-on-error: true
     steps:
