@@ -67,7 +67,7 @@ abstract class JlinkBundleTask : DefaultTask() {
 
     private fun buildJlinkRuntime(jreDir: File) {
         val javaHome = System.getProperty("java.home")
-        val jlink = listOf("$javaHome/bin/jlink", "$javaHome/../bin/jlink")
+        val jlink = listOf("$javaHome/bin/jlink", "$javaHome/bin/jlink.exe", "$javaHome/../bin/jlink", "$javaHome/../bin/jlink.exe")
             .map(::File).firstOrNull { it.exists() }
             ?: error("jlink not found — need a JDK (not JRE)")
 
