@@ -176,8 +176,9 @@ fn trust_ca(ca_pem: &std::path::Path) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 fn is_ca_trusted() -> bool {
+    // Check user store first (no elevation needed), then machine store
     Command::new("certutil")
-        .args(["-verifystore", "Root", "Leyline Local CA"])
+        .args(["-user", "-verifystore", "Root", "Leyline Local CA"])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
@@ -187,8 +188,10 @@ fn is_ca_trusted() -> bool {
 
 #[cfg(target_os = "windows")]
 fn trust_ca(ca_pem: &std::path::Path) -> Result<(), String> {
+    // Use -user store — no admin elevation needed.
+    // Windows SslStream (.NET/Unity) checks both CurrentUser\Root and LocalMachine\Root.
     let status = Command::new("certutil")
-        .args(["-addstore", "Root"])
+        .args(["-user", "-addstore", "Root"])
         .arg(ca_pem)
         .status()
         .map_err(|e| format!("Failed to run certutil: {e}"))?;
@@ -196,7 +199,7 @@ fn trust_ca(ca_pem: &std::path::Path) -> Result<(), String> {
     if status.success() {
         Ok(())
     } else {
-        Err("Failed to trust CA — did you cancel the UAC prompt?".to_string())
+        Err("Failed to trust CA certificate".to_string())
     }
 }
 

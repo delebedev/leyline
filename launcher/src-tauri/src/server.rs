@@ -170,8 +170,29 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
     let mut cmd;
     #[cfg(target_os = "windows")]
     {
-        cmd = Command::new("cmd");
-        cmd.args(["/c", &format!("\"{}\"", bin_path.to_str().unwrap_or_default())]);
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        // Invoke java.exe directly — running .bat spawns java as a detached process
+        // and the .bat itself exits immediately, making child.try_wait() think it died.
+        // Strip \\?\ extended path prefix — Java and cmd.exe can't handle it
+        fn strip_unc(p: &std::path::Path) -> String {
+            p.to_str().unwrap_or_default()
+                .strip_prefix(r"\\?\").unwrap_or(p.to_str().unwrap_or_default())
+                .to_string()
+        }
+        let java_path = strip_unc(&bundle_dir.join("jre").join("bin").join("java.exe"));
+        let lib_dir = strip_unc(&bundle_dir.join("lib"));
+        let res_dir = strip_unc(&bundle_dir.join("res"));
+        cmd = Command::new(&java_path);
+        cmd.args([
+            "-Dio.netty.tryReflectionSetAccessible=true",
+            "--add-opens", "java.base/jdk.internal.misc=ALL-UNNAMED",
+            "--add-opens", "java.base/java.nio=ALL-UNNAMED",
+        ]);
+        cmd.arg(format!("-Dleyline.res.dir={}", res_dir));
+        cmd.arg("-cp").arg(format!("{}/*", lib_dir));
+        cmd.arg("leyline.LeylineMainKt");
+        cmd.creation_flags(CREATE_NO_WINDOW);
     }
     #[cfg(not(target_os = "windows"))]
     {
