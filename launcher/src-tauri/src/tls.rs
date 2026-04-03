@@ -7,7 +7,7 @@ use std::time::Duration;
 use rcgen::{
     BasicConstraints, CertificateParams, DistinguishedName, DnType,
     ExtendedKeyUsagePurpose, Ia5String, IsCa, KeyPair, KeyUsagePurpose,
-    SanType, PKCS_RSA_SHA256,
+    SanType, PKCS_ECDSA_P256_SHA256,
 };
 use time::OffsetDateTime;
 use x509_parser::pem::parse_x509_pem;
@@ -71,7 +71,7 @@ fn resolve_tls_dir() -> Result<PathBuf, String> {
 }
 
 fn generate_ca() -> Result<(String, String), String> {
-    let key = KeyPair::generate_for(&PKCS_RSA_SHA256)
+    let key = KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256)
         .map_err(|e| format!("CA key generation failed: {e}"))?;
 
     let mut params = CertificateParams::default();
@@ -104,7 +104,7 @@ fn generate_server_cert(
         .self_signed(&ca_key)
         .map_err(|e| format!("Failed to reconstruct CA cert: {e}"))?;
 
-    let server_key = KeyPair::generate_for(&PKCS_RSA_SHA256)
+    let server_key = KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256)
         .map_err(|e| format!("Server key generation failed: {e}"))?;
 
     let mut params = CertificateParams::default();
