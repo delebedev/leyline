@@ -93,9 +93,9 @@ Sidecar stdout/stderr → `~/Library/Logs/dev.leyline.launcher/leyline-server.lo
 
 **server.rs** — `ServerState` enum (`Stopped | Starting | Running | Error`). `start_server` resolves bundle dir, generates TLS certs, copies seed DB, spawns sidecar with `--cert`/`--key` + `LEYLINE_PLAYER_DB`, polls `http://127.0.0.1:8091/health` every 500ms. State changes emitted as Tauri events.
 
-**tls.rs** — Local CA + server cert generation via `rcgen`. `ensure_certs()` is called before sidecar spawn — generates CA, trusts it in OS keychain, signs server certs. Same file layout as `just tls-setup` (`~/Library/Application Support/dev.leyline/tls/`). Tests: `cargo test` in `src-tauri/` — 6 tests covering CA generation, signing, chain files, expiry detection.
+**tls.rs** — Local CA + server cert generation via `rcgen`. `ensure_certs()` is called before sidecar spawn — generates CA, trusts it in OS keychain/store, signs server certs. Platform trust: macOS `security`, Windows `certutil`, Linux NSS `certutil` (`~/.pki/nssdb`). Tests: `cargo test` in `src-tauri/` — 6 tests covering CA generation, signing, chain files, expiry detection.
 
-**arena.rs** — `detect_arena` scans known macOS paths (Epic/Steam), returns path + storefront source. `deploy_config` copies services.conf + NPE_VO.bnk, sets `CheckSC=0`. `restore_arena` reverses everything.
+**arena.rs** — `detect_arena` scans known paths per platform (macOS Epic/Steam, Windows Epic/Steam, Linux Steam/Proton). `deploy_config` copies services.conf + NPE_VO.bnk, sets platform-specific prefs. `restore_arena` reverses everything. Linux uses same Windows file layout (Proton) and launches MTGA via `steam://rungameid/2141910`.
 
 **main.ts** — No framework. DOM manipulation, `invoke()` for Tauri commands, `listen()` for server state events. Play button toggles Start/Stop.
 
@@ -171,4 +171,8 @@ Settings that affect the server (format, opponent, auto-pass) will need a config
 
 ## Platform support
 
-macOS arm64 only (dev preview). Cross-platform via CI matrix (Windows/Linux) is planned — jlink cross-builds with target-platform JDKs, Tauri builds on each runner.
+- **macOS** arm64 — .dmg, tested
+- **Windows** x64 — NSIS installer, tested
+- **Linux** x64 — AppImage, builds but needs real hardware testing (Steam Deck / Proton)
+
+Linux: MTGA runs under Proton (Wine), so Arena paths use Windows layout. TLS cert trust uses NSS `certutil` (`~/.pki/nssdb`). MTGA launched via `steam://rungameid/2141910`. Sidecar CWD uses app data dir (AppImage filesystem is read-only).

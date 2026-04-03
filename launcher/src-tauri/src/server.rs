@@ -96,7 +96,7 @@ fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std
 /// Resolve sidecar CWD.
 /// Must be a writable directory — Forge creates cache/, and the server writes logs/.
 ///
-/// Production (Windows): app data dir — Program Files is read-only.
+/// Production (Windows/Linux): app data dir — Program Files and AppImage are read-only.
 /// Production (macOS): bundle dir (app bundle is writable by owner).
 /// Dev: repo root (has leyline.toml, data/player.db, logs/).
 /// Must NOT be src-tauri/ — Tauri's file watcher restarts the app on any file change.
@@ -112,8 +112,9 @@ fn resolve_sidecar_cwd(app: &AppHandle, bundle_dir: &std::path::Path) -> std::pa
         }
     }
 
-    // Production (Windows): use writable app data dir
-    #[cfg(target_os = "windows")]
+    // Production (Windows/Linux): use writable app data dir.
+    // Windows: Program Files is read-only. Linux: AppImage is read-only.
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     {
         let data_dir = app.path().app_data_dir()
             .unwrap_or_else(|_| std::env::temp_dir());
@@ -129,7 +130,7 @@ fn resolve_sidecar_cwd(app: &AppHandle, bundle_dir: &std::path::Path) -> std::pa
     }
 
     // Production (macOS): bundle dir is writable
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
     {
         if bundle_dir.join("leyline.toml").exists() {
             return bundle_dir.to_path_buf();

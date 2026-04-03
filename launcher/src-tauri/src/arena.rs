@@ -18,6 +18,12 @@ const KNOWN_INSTALLS: &[(&str, &str)] = &[
     ("Steam", "C:/Program Files (x86)/Steam/steamapps/common/MTGA"),
 ];
 
+#[cfg(target_os = "linux")]
+const KNOWN_INSTALLS: &[(&str, &str)] = &[
+    // MTGA doesn't run natively on Linux — it runs under Steam/Proton.
+    // The install dir is inside the Steam library.
+];
+
 const SERVICES_CONF: &str = include_str!("../../resources/services.conf");
 const NPE_VO_BNK: &[u8] = include_bytes!("../../resources/NPE_VO.bnk");
 
@@ -40,11 +46,22 @@ fn find_arena() -> Option<(PathBuf, String)> {
     // Steam path with home expansion
     if let Some(home) = dirs::home_dir() {
         #[cfg(target_os = "macos")]
-        let steam = home.join("Library/Application Support/Steam/steamapps/common/MTGA/MTGA.app");
+        let candidates = vec![
+            home.join("Library/Application Support/Steam/steamapps/common/MTGA/MTGA.app"),
+        ];
         #[cfg(target_os = "windows")]
-        let steam = home.join("AppData/Local/Steam/steamapps/common/MTGA");  // custom library location
-        if steam.exists() {
-            return Some((steam, "Steam".into()));
+        let candidates = vec![
+            home.join("AppData/Local/Steam/steamapps/common/MTGA"),
+        ];
+        #[cfg(target_os = "linux")]
+        let candidates = vec![
+            home.join(".steam/steam/steamapps/common/MTGA"),
+            home.join(".local/share/Steam/steamapps/common/MTGA"),
+        ];
+        for steam in candidates {
+            if steam.exists() {
+                return Some((steam, "Steam".into()));
+            }
         }
     }
 
@@ -61,14 +78,16 @@ fn find_arena() -> Option<(PathBuf, String)> {
 fn streaming_assets(mtga_path: &Path) -> PathBuf {
     #[cfg(target_os = "macos")]
     return mtga_path.join("Contents/Resources/Data/StreamingAssets");
-    #[cfg(target_os = "windows")]
+    // Linux: MTGA runs under Proton — same Windows layout
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     return mtga_path.join("MTGA_Data/StreamingAssets");
 }
 
 fn audio_dir(streaming: &Path) -> PathBuf {
     #[cfg(target_os = "macos")]
     return streaming.join("Audio/GeneratedSoundBanks/Mac");
-    #[cfg(target_os = "windows")]
+    // Linux: Proton uses the Windows audio path
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     return streaming.join("Audio/GeneratedSoundBanks/Windows");
 }
 
@@ -116,7 +135,7 @@ pub fn detect_arena(_app: AppHandle) -> Result<ArenaInfo, String> {
     })
 }
 
-/// Deploy services.conf + NPE_VO.bnk, set macOS defaults.
+/// Deploy services.conf + NPE_VO.bnk to Arena install, set platform client preferences.
 #[tauri::command]
 pub fn deploy_config(_app: AppHandle) -> Result<(), String> {
     let (mtga, _) = find_arena().ok_or("MTGA not found")?;
@@ -186,6 +205,7 @@ pub fn restore_arena(_app: AppHandle) -> Result<(), String> {
 /// Launch MTGA
 #[tauri::command]
 pub fn launch_mtga(_app: AppHandle) -> Result<(), String> {
+    #[cfg(not(target_os = "linux"))]
     let (mtga, _) = find_arena().ok_or("MTGA not found")?;
 
     #[cfg(target_os = "macos")]
@@ -201,6 +221,15 @@ pub fn launch_mtga(_app: AppHandle) -> Result<(), String> {
         Command::new(mtga.join("MTGA.exe"))
             .spawn()
             .map_err(|e| format!("Failed to launch MTGA: {e}"))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        // Launch MTGA via Steam — Proton handles the Wine prefix.
+        // steam://rungameid/2141910 is the MTGA Steam app ID.
+        Command::new("xdg-open")
+            .arg("steam://rungameid/2141910")
+            .spawn()
+            .map_err(|e| format!("Failed to launch MTGA via Steam: {e}"))?;
     }
 
     Ok(())
