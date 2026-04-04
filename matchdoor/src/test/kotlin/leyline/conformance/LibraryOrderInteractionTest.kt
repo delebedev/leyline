@@ -68,6 +68,7 @@ class LibraryOrderInteractionTest :
             human.getZone(ForgeZoneType.Library).cards.first().name shouldBe "Grizzly Bears"
         }
 
+        // Suspected flaky in CI — passes locally, null annotation intermittently on GH runners
         test("surveil 1 — put in graveyard moves card and produces Surveil annotation") {
             startPuzzle(surveil1Puzzle)
 
