@@ -131,6 +131,6 @@ The doc describes the expected behavior, not the disassembly.
 ## 10. Changelog is a first-class artifact
 
 CHANGELOG.md is maintained per-PR (add entry to `[Unreleased]`) and
-finalized per-release. Domain-grouped sections (Protocol, Engine,
-Launcher, Puzzles) over generic Added/Fixed. Contributor attribution
-inline per-bullet.
+finalized per-release. Sections serve two audiences: **Gameplay** and
+**Launcher** for players, **Fixed** for everyone, **Developer** for
+contributors. Contributor attribution inline per-bullet.
