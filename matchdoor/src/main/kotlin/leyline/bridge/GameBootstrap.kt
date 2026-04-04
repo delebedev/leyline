@@ -42,6 +42,7 @@ object GameBootstrap {
     private var initialized = false
     private val cardDbLatch = CountDownLatch(1)
     @Volatile private var cardDatabaseInitialized = false
+    @Volatile private var cardDbInitError: Throwable? = null
 
     fun createGame(): Game {
         ensureLocalization()
@@ -359,28 +360,35 @@ object GameBootstrap {
 
     private fun ensureCardDatabaseLoaded(lazyCards: Boolean = false) {
         if (cardDatabaseInitialized) {
-            // Already done (or in progress on another thread) — wait for completion.
             cardDbLatch.await()
+            cardDbInitError?.let { throw RuntimeException("Card DB init failed on background thread", it) }
             return
         }
 
         synchronized(this) {
             if (cardDatabaseInitialized) {
                 cardDbLatch.await()
+                cardDbInitError?.let { throw RuntimeException("Card DB init failed on background thread", it) }
                 return
             }
 
-            ensureGuiBase()
+            try {
+                ensureGuiBase()
 
-            FModel.initialize(null) { preferences ->
-                preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true)
-                preferences.setPref(FPref.UI_LANGUAGE, "en-US")
-                preferences.setPref(FPref.DECKGEN_CARDBASED, false)
-                if (lazyCards) preferences.setPref(FPref.LOAD_CARDS_LAZILY, true)
-                null
+                FModel.initialize(null) { preferences ->
+                    preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true)
+                    preferences.setPref(FPref.UI_LANGUAGE, "en-US")
+                    preferences.setPref(FPref.DECKGEN_CARDBASED, false)
+                    if (lazyCards) preferences.setPref(FPref.LOAD_CARDS_LAZILY, true)
+                    null
+                }
+            } catch (e: Throwable) {
+                cardDbInitError = e
+                throw e
+            } finally {
+                cardDatabaseInitialized = true
+                cardDbLatch.countDown()
             }
-            cardDatabaseInitialized = true
-            cardDbLatch.countDown()
         }
     }
 

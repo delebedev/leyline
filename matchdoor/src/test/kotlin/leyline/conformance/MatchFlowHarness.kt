@@ -1,6 +1,5 @@
 package leyline.conformance
 
-import forge.StaticData
 import forge.game.Game
 import forge.game.zone.ZoneType
 import leyline.bridge.ForgeCardId
@@ -99,9 +98,6 @@ class MatchFlowHarness(
     /** Start puzzle game from classpath resource, advance to first action phase. */
     fun connectAndKeepPuzzle(resourcePath: String, aiScript: List<ScriptedAction>? = null) {
         GameBootstrap.initializeCardDatabase(quiet = true)
-        val stream = javaClass.classLoader.getResourceAsStream(resourcePath)
-            ?: error("Puzzle resource not found: $resourcePath")
-        prewarmCardsFromPuzzle(stream.bufferedReader().readText())
         startPuzzleBridge(PuzzleSource.loadFromResource(resourcePath), aiScript)
     }
 
@@ -118,28 +114,7 @@ class MatchFlowHarness(
         // Card DB must init before PuzzleSource.loadFromText — the Puzzle
         // constructor triggers GameState.<clinit> which requires localization.
         GameBootstrap.initializeCardDatabase(quiet = true)
-        prewarmCardsFromPuzzle(puzzleText)
         startPuzzleBridge(PuzzleSource.loadFromText(puzzleText), aiScript)
-    }
-
-    /**
-     * Extract card names from `.pzl` zone lines and load them into Forge's CardDb
-     * on-demand. Enables lazy card loading — only puzzle cards are parsed from disk.
-     */
-    private fun prewarmCardsFromPuzzle(puzzleText: String) {
-        val zonePattern = Regex("""^(?:human|ai|p\d)\w+=(.+)$""", RegexOption.IGNORE_CASE)
-        val cardNames = puzzleText.lines()
-            .mapNotNull { zonePattern.matchEntire(it.trim())?.groupValues?.get(1) }
-            .flatMap { it.split(";") }
-            .map { it.split("|").first().trim() }
-            .filter { it.isNotBlank() }
-            .distinct()
-        val sd = StaticData.instance() ?: return
-        for (name in cardNames) {
-            if (sd.commonCards.getCard(name) == null) {
-                sd.attemptToLoadCard(name)
-            }
-        }
     }
 
     private fun startPuzzleBridge(puzzle: forge.gamemodes.puzzle.Puzzle, aiScript: List<ScriptedAction>?) {
