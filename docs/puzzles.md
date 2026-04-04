@@ -1,3 +1,10 @@
+---
+summary: "Puzzle mode runtime: `just puzzle` hot-swap API, protocol differences from constructed (skip mulligan), .pzl file format, and test integration."
+read_when:
+  - "running or hot-swapping puzzles via the debug API"
+  - "understanding how puzzle mode differs from constructed at the protocol level"
+  - "writing puzzle-based tests"
+---
 # Puzzle Mode
 
 Forge `.pzl` puzzles played through the client. Pre-built board states — no mulligan, no deck building, no ramp-up turns.

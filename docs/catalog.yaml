@@ -1,3 +1,10 @@
+---
+summary: "YAML catalog of mechanic-level status (works/wired/partial/missing/broken) for Arena client connected to Forge via leyline."
+read_when:
+  - "checking whether a specific MTG mechanic works in leyline"
+  - "updating mechanic status after implementation work"
+  - "planning which mechanics to implement next"
+---
 # Nexus Mechanic Catalog
 #
 # What works when the Arena client connects to Forge via nexus.

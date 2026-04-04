@@ -1,3 +1,10 @@
+---
+summary: "Five rules for documenting leyline: rationale at the seam, single source of truth, YAML frontmatter on every doc, and no orphaned docs."
+read_when:
+  - "writing or updating documentation"
+  - "deciding where to put a new piece of knowledge"
+  - "adding frontmatter to docs"
+---
 # Documentation Principles
 
 Five rules for documenting a codebase that bridges a complex engine to a
@@ -78,3 +85,52 @@ Corollary: investigation journals (deep-dive notes from tracing a
 specific annotation type or recording session) are valuable research
 but are not reference. Label them as dated investigation notes so
 nobody mistakes observations from February for current spec.
+
+## 6. Agent-first, human-readable
+
+CLAUDE.md is the primary entry point for contributors — agent and human
+alike. Standalone docs serve agents first; humans benefit from the same
+clarity. Write for a reader who has 200K tokens of context and needs to
+decide in one line whether a doc is relevant right now.
+
+## 7. `read_when` frontmatter on every standalone doc
+
+Every file in `docs/` gets YAML frontmatter:
+
+```yaml
+---
+summary: "One-line purpose of this document."
+read_when:
+  - "condition when an agent should read this"
+  - "another condition"
+---
+```
+
+`summary` is for scanning. `read_when` declares relevance conditions.
+An agent should never need to read all 150 docs — it scans summaries,
+matches conditions to its current task, and reads selectively.
+
+## 8. One canonical location per fact
+
+Every fact has one authoritative home. Build instructions live in
+CLAUDE.md. Module boundaries live in the module's own CLAUDE.md.
+Everything else links — never restates. Redundancy is staleness
+waiting to happen.
+
+## 9. Clean room discipline
+
+Public repo docs describe *what the interface does* — message formats,
+protocol sequences, behavioral contracts. Never *how the binary
+implements it*. No RVAs, no offsets, no decompiled snippets in docs/.
+Raw RE artifacts belong in arena-notes, not here.
+
+References to "client decompilation" in KDoc are acceptable as
+provenance markers ("per client decompilation, the client expects X").
+The doc describes the expected behavior, not the disassembly.
+
+## 10. Changelog is a first-class artifact
+
+CHANGELOG.md is maintained per-PR (add entry to `[Unreleased]`) and
+finalized per-release. Sections serve two audiences: **Gameplay** and
+**Launcher** for players, **Fixed** for everyone, **Developer** for
+contributors. Contributor attribution inline per-bullet.

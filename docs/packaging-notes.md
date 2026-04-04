@@ -1,3 +1,10 @@
+---
+summary: "Standalone bundle packaging: jlink JRE stripping, `just bundle` output, contents breakdown, and platform-specific notes."
+read_when:
+  - "building or debugging the standalone distribution bundle"
+  - "modifying jlink module list or bundle contents"
+  - "troubleshooting bundle size or missing runtime modules"
+---
 # Standalone Bundle
 
 Self-contained leyline distribution — no system Java needed.

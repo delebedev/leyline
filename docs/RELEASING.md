@@ -1,3 +1,10 @@
+---
+summary: "Release checklist: CalVer tag format, version bump locations, CI pipeline, and platform artifact signing."
+read_when:
+  - "cutting a new release"
+  - "debugging CI release pipeline failures"
+  - "changing version bump or tagging process"
+---
 # Releasing
 
 Leyline uses CalVer: `vYYYY.M.D` (e.g., `v2026.4.3`). Same-day hotfix: `v2026.4.3-2`.

@@ -1,3 +1,10 @@
+---
+summary: "Development loop for fixing gameplay mechanics: write puzzle, run in MatchHarness, fix code in <5s cycles, Arena playtest for proof."
+read_when:
+  - "fixing a gameplay mechanic bug"
+  - "starting a new mechanic implementation task"
+  - "understanding the puzzle → harness → playtest workflow"
+---
 # Puzzle-Driven Development
 
 How we fix gameplay mechanics in leyline. Puzzle is the acceptance criteria, MatchHarness is the fast loop, Arena playtest is the proof.

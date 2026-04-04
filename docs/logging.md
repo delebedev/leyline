@@ -1,3 +1,10 @@
+---
+summary: "SLF4J + Logback configuration per context (server/test/CLI), log level guidelines, and structured logging rules."
+read_when:
+  - "adjusting log levels or logback configuration"
+  - "adding logging to new code"
+  - "debugging noisy or missing log output in tests"
+---
 # Logging
 
 SLF4J + Logback across leyline. No Kotlin wrappers — raw SLF4J is fine.

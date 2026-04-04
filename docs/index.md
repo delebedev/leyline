@@ -24,7 +24,7 @@ Each tool has `--help` with examples.
 - `.claude/skills/player-log/` — read client/player logs for transport/protocol context
 - `wire-format.md` — client frame + protobuf wire format details
 - `debug-api.md` — debug panel REST/SSE endpoint reference
-- `../tools/tape/docs/cli.md` — recording CLI reference
+- `wire-spec-archive.md` — compressed per-mechanic wire protocol patterns
 
 ## Playbooks
 

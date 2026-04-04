@@ -1,3 +1,10 @@
+---
+summary: "End-to-end playbook for adding a new Front Door feature: record real flow, extract protocol, build sequence table, staged implementation."
+read_when:
+  - "adding a new Front Door feature (event, queue, store flow)"
+  - "recording and reverse-engineering a new FD protocol sequence"
+  - "planning staged FD implementation work"
+---
 # New FD Feature Playbook
 
 How to add a new Front Door feature end-to-end. Covers protocol capture, domain modelling, staged implementation, and verification.

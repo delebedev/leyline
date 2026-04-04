@@ -1,3 +1,10 @@
+---
+summary: "Quality telemetry from puzzle writer-judge loop: per-puzzle scores, recurring issues, and rubric calibration results."
+read_when:
+  - "reviewing puzzle quality patterns before writing new puzzles"
+  - "calibrating the puzzle scoring rubric"
+  - "checking if a puzzle pattern has known failure modes"
+---
 # Puzzle Findings Log
 
 Quality telemetry from the puzzle writer-judge loop. Each entry records the judge's scoring, issues found, and resolutions applied.

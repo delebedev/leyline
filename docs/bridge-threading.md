@@ -1,3 +1,10 @@
+---
+summary: "Two-thread model (engine vs session), diff snapshot rules, counter monotonicity, and concurrency traps in the Forge bridge."
+read_when:
+  - "debugging thread-safety or state snapshot issues"
+  - "modifying GameBridge, StateMapper, or BundleBuilder"
+  - "understanding which thread owns which state"
+---
 # Engine Heuristics
 
 Patterns and traps for working with the two-thread Forge engine model.

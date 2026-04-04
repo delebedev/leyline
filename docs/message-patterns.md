@@ -1,3 +1,10 @@
+---
+summary: "GRE message sequences from proxy recordings: updateType semantics, seat perspective routing, and per-interaction message flows."
+read_when:
+  - "understanding what messages the client expects for a game event"
+  - "debugging message ordering or missing messages"
+  - "implementing a new interaction flow (combat, targeting, mulligan)"
+---
 # Message Patterns
 
 GRE message sequences observed from proxy recordings — what the Arena client expects for each game event.

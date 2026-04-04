@@ -1,3 +1,10 @@
+---
+summary: "How to resolve numeric IDs (grpId, instanceId, abilityId) to card names using the client SQLite DB and debug API."
+read_when:
+  - "translating grpId or instanceId to a card name"
+  - "reading recordings or variance reports with numeric IDs"
+  - "querying the Arena client card database"
+---
 # Card Lookup Playbook
 
 How to quickly answer "what cards were involved and what happened" when

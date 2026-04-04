@@ -1,3 +1,10 @@
+---
+summary: "TLS-over-TCP transport, 6-byte frame header, and message framing spec for the Arena wire protocol."
+read_when:
+  - "debugging raw TCP frame parsing or codec issues"
+  - "understanding the transport layer between client and server"
+  - "implementing or modifying FrameCodec"
+---
 # Wire Format
 
 ## Transport Layer

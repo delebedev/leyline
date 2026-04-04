@@ -1,3 +1,10 @@
+---
+summary: "How to write .pzl files: minimum cards, forced determinism, life totals as kill switch, AI behavior traps, and safe forced-attack creatures."
+read_when:
+  - "writing a new .pzl puzzle file"
+  - "debugging a flaky or non-deterministic puzzle"
+  - "understanding AI behavior quirks in puzzle mode"
+---
 # Puzzle Design Guide
 
 How to write `.pzl` files that produce reliable, unambiguous signals.

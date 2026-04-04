@@ -1,3 +1,10 @@
+---
+summary: "Decision-making framework for leyline work: correctness over speed, recordings as spec, leverage-first prioritization, plan-before-code."
+read_when:
+  - "planning non-trivial implementation work"
+  - "making judgment calls about scope, priority, or approach"
+  - "onboarding to the project's engineering culture"
+---
 # Engineering Stance — Leyline
 
 This document captures how we think about work on this project. It's not a rulebook — it's a decision-making framework. Read it before planning non-trivial work. Reference it when making judgment calls.

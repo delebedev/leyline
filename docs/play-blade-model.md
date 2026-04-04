@@ -1,3 +1,10 @@
+---
+summary: "How the client Play blade is populated: EventDef, PlayerCourse, QueueConfig entities, hydration flow, and required fields for Find Match."
+read_when:
+  - "implementing or debugging Play blade / Find Match UI population"
+  - "adding a new event type to the FD stub"
+  - "understanding EventDef, PlayerCourse, or QueueConfig relationships"
+---
 # Play Blade Data Model
 
 How the client's Play blade (Find Match / Events / Last Played tabs) is populated.

@@ -1,3 +1,10 @@
+---
+summary: "Workflow rules for running and debugging leyline: discoverable tools, Player.log as spec, puzzle-driven development, recording-first debugging."
+read_when:
+  - "setting up operational workflows or tooling"
+  - "debugging a production or playtest issue"
+  - "deciding how to verify a fix"
+---
 # Operations Principles
 
 Rules for running, iterating, and debugging a system built against an

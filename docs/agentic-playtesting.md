@@ -1,3 +1,10 @@
+---
+summary: "Guide for AI agents automating MTGA gameplay: server setup, OCR + synthetic clicks, screen detection, game interaction, debugging, and recovery."
+read_when:
+  - "setting up or running automated MTGA playtesting"
+  - "debugging arena automation failures (OCR, clicks, navigation)"
+  - "writing automation scripts that interact with the MTGA client"
+---
 # Agentic Playtesting
 
 Self-contained guide for AI agents automating MTGA gameplay through leyline. Covers server setup, UI automation, game interaction, debugging, and recovery.

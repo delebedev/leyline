@@ -106,6 +106,13 @@ Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
 - **Rosetta table:** `docs/rosetta.md` — Arena ↔ Forge ↔ leyline type mappings.
 - **Architecture:** `docs/architecture.md`, `matchdoor/CLAUDE.md` (engine adapter internals).
 
+## Documentation
+
+- **Read selectively.** `docs/` has 150+ files. Don't read them all. Run `just docs` to see summaries, or `just docs <filter>` to search. Only read files whose `read_when` frontmatter matches your current task. `docs/index.md` has curated navigation.
+- **Update docs in the same PR.** If your PR changes protocol behavior, mechanic support, or architecture — update the relevant doc. Don't leave it for a follow-up.
+- **Changelog per PR.** Add a bullet to the `[Unreleased]` section of `CHANGELOG.md` for every user-visible change. Sections: **Gameplay** (new mechanics, card support), **Launcher** (install, UX), **Fixed** (bugs), **Developer** (protocol, engine, infra, docs).
+- **Principles:** `docs/principles-documentation.md` — the full documentation strategy.
+
 ## Puzzles
 
 Primary acceptance tool. `.pzl` files define exact board states — minimal cards, one win path, forced mechanics. See `docs/puzzle-driven-dev.md` for the full workflow.

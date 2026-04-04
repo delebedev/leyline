@@ -1,3 +1,10 @@
+---
+summary: "Proto field layout, ActionType enum (24 values), per-type field requirements, and golden-derived invariants for GRE actions."
+read_when:
+  - "implementing or debugging action generation (Cast, Activate, Play, etc.)"
+  - "understanding how actions appear in GameStateMessage vs ActionsAvailableReq"
+  - "adding support for a new ActionType"
+---
 # Action Reference
 
 Proto field layout, ActionType enum, per-type field requirements, and golden-derived invariants.

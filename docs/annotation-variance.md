@@ -1,3 +1,10 @@
+---
+summary: "Annotation variance profiler: scans all proxy recordings for annotation detail key mismatches, missing types, and optional fields across sessions."
+read_when:
+  - "running annotation variance analysis across recordings"
+  - "finding annotation detail keys that differ from golden tests"
+  - "identifying optional vs required annotation fields"
+---
 # Annotation Variance Tool
 
 Profile annotation detail keys across **all** proxy recordings to find

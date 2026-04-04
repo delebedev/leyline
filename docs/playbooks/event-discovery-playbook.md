@@ -1,3 +1,10 @@
+---
+summary: "How to use Sonnet subagents to discover screen flows for a new MTGA event format: discovery run template, coord documentation, state machine output."
+read_when:
+  - "adding a new event format (Sealed, Draft, Brawl) to the arena state machine"
+  - "automating discovery of MTGA UI screen flows"
+  - "documenting event format navigation coords"
+---
 # Event Format Discovery Playbook
 
 How to use Sonnet subagents to discover screen flows for a new MTGA event format.

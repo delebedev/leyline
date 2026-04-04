@@ -1,3 +1,10 @@
+---
+summary: "Structured classification of failures (PROTOCOL, ENGINE, BRIDGE, CLIENT, INFRA) with detection sources, diagnostic paths, and fix patterns."
+read_when:
+  - "triaging a bug or test failure"
+  - "deciding where a failure originates (wire vs engine vs bridge)"
+  - "following a diagnostic path for a specific error category"
+---
 # Error Taxonomy
 
 Structured classification of failures for agent triage. Each category has a detection source, diagnostic path, and typical fix pattern.

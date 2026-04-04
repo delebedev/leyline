@@ -1,3 +1,10 @@
+---
+summary: "End-user installation guide for leyline: Windows installer, macOS DMG, certificate trust, and first-launch steps."
+read_when:
+  - "helping a user install leyline"
+  - "debugging installation or certificate trust issues"
+  - "updating installer packaging or first-run UX"
+---
 # Installation Guide
 
 ## Download
