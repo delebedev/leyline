@@ -35,7 +35,7 @@ export function findArenaDb(): string | null {
 }
 
 export class CardResolver {
-  private db: Database;
+  readonly db: Database;
   private cache = new Map<number, string>();
 
   constructor(dbPath: string) {

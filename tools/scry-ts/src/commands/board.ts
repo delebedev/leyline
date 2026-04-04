@@ -1,7 +1,8 @@
 import { resolveGame, parseGameFlag } from "../resolve";
 import { Accumulator, type GameObject } from "../accumulator";
-import { getResolver, type CardResolver } from "../cards";
+import { getResolver, resolveAbility, type CardResolver } from "../cards";
 import { stripPrefix, zoneName, formatPhase } from "../format";
+import type { GreMessageSummary } from "../games";
 
 export async function boardCommand(args: string[]) {
   if (args[0] === "--help" || args[0] === "-h") {
@@ -67,7 +68,24 @@ export async function boardCommand(args: string[]) {
   const life = `Life: ${p1?.lifeTotal ?? "?"}/${p2?.lifeTotal ?? "?"}`;
 
   console.log(`T${turn} ${phase}  ${active}  ${life}`);
-  if (game.result) console.log(`Result: ${game.result}`);
+
+  // Find last pending prompt from greStream at current gsId
+  const currentGsId = state.gameStateId;
+  let lastPrompt: GreMessageSummary | null = null;
+  for (const entry of game.greStream) {
+    if ("kind" in entry && entry.kind === "gre") {
+      if (entry.gameStateId <= currentGsId) lastPrompt = entry;
+    } else if ("gsId" in entry && entry.gsId > currentGsId) {
+      break;
+    }
+  }
+  if (lastPrompt && lastPrompt.type !== "ActionsAvailableReq") {
+    console.log(`Pending: ${lastPrompt.type}`);
+  }
+
+  if (game.result && !game.active && targetGsId == null) {
+    console.log(`\n=== Game over: ${game.result} ===`);
+  }
   console.log("");
 
   // Build zone lookup
@@ -157,7 +175,7 @@ export async function boardCommand(args: string[]) {
   const actions = state.actions.filter((a: any) => {
     const action = a.action ?? a;
     const atype = action.actionType ?? "";
-    return !atype.includes("Activate_Mana") && (a.seatId === game.ourSeat || !a.seatId);
+    return !atype.includes("Activate_Mana") && !atype.includes("FloatMana") && (a.seatId === game.ourSeat || !a.seatId);
   });
   if (actions.length > 0) {
     console.log("");
@@ -173,14 +191,42 @@ export async function boardCommand(args: string[]) {
         if (obj) name = resolver?.resolve(obj.grpId) ?? null;
       }
       const cardLabel = name ?? (grpId ? `grp=${grpId}` : `iid=${iid}`);
-      console.log(`  ${atype}: ${cardLabel} (iid=${iid})`);
+      const cost = formatManaCost(action.manaCost);
+      const costStr = cost ? ` (${cost})` : "";
+      console.log(`  ${atype}: ${cardLabel}${costStr} (iid=${iid})`);
     }
   }
 }
 
 function cardName(obj: GameObject, resolver: CardResolver | null): string {
+  if (obj.type === "GameObjectType_Ability" && resolver?.db) {
+    // Resolve source card name, fall back to ability grpId
+    const srcName = obj.objectSourceGrpId ? resolver.resolve(obj.objectSourceGrpId) : null;
+    return srcName ? `${srcName} ability` : `grp=${obj.grpId}`;
+  }
   const name = resolver?.resolve(obj.grpId);
   return name ?? `grp=${obj.grpId}`;
+}
+
+const MANA_LETTER: Record<string, string> = {
+  ManaColor_White: "W", ManaColor_Blue: "U", ManaColor_Black: "B",
+  ManaColor_Red: "R", ManaColor_Green: "G", ManaColor_Colorless: "C",
+};
+
+function formatManaCost(manaCost: any[] | undefined): string | null {
+  if (!manaCost || manaCost.length === 0) return null;
+  const parts: string[] = [];
+  for (const c of manaCost) {
+    const colors: string[] = c.color ?? [];
+    const count: number = c.count ?? 0;
+    if (colors.length === 0 || colors[0] === "ManaColor_Generic") {
+      if (count > 0) parts.push(String(count));
+    } else {
+      const letter = MANA_LETTER[colors[0]] ?? "?";
+      parts.push(count > 1 ? `${count}${letter}` : letter);
+    }
+  }
+  return parts.join("") || null;
 }
 
 function formatCard(obj: GameObject, resolver: CardResolver | null): string {
