@@ -52,7 +52,7 @@ install-forge:
     {{_forge_m2_setup}}
     echo "Forge checkout $forge_cache_mode; using cache: $forge_m2"
     cd "{{project_dir}}/forge" && mvn org.codehaus.mojo:flatten-maven-plugin:1.6.0:flatten install -Dmaven.repo.local="$forge_m2" -pl forge-core,forge-game,forge-ai,forge-gui -am -DskipTests -q
-    printf '%s\n' "$current_forge" > "{{project_dir}}/.upstream-installed"
+    printf '%s\n' "$current_forge" > "{{project_dir}}/.forge-commit-installed"
     echo "Forge engine installed to $forge_m2"
 
 # generate messages.proto from upstream submodule + rename map
@@ -238,11 +238,11 @@ bootstrap:
     # Install forge (skip if already up to date)
     {{_forge_m2_setup}}
     installed_forge=""
-    if [ -f .upstream-installed ]; then
-        installed_forge=$(cat .upstream-installed)
+    if [ -f .forge-commit-installed ]; then
+        installed_forge=$(cat .forge-commit-installed)
     fi
     if [ "$forge_cache_mode" = "shared" ] && [ -d "$forge_m2/forge" ]; then
-        printf '%s\n' "$current_forge" > .upstream-installed
+        printf '%s\n' "$current_forge" > .forge-commit-installed
         echo "==> Forge already installed ($(echo "$current_forge" | head -c 8)) [shared cache]"
     elif [ "$current_forge" = "$installed_forge" ] && [ -d "$forge_m2/forge" ]; then
         echo "==> Forge already installed ($(echo "$current_forge" | head -c 8)) [local cache]"

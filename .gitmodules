@@ -1,6 +1,7 @@
 [submodule "forge"]
 	path = forge
 	url = https://github.com/delebedev/forge.git
+	ignore = untracked
 [submodule "proto/upstream"]
 	path = proto/upstream
 	url = https://github.com/riQQ/MtgaProto.git

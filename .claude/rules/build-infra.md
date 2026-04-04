@@ -37,7 +37,9 @@ When `just bootstrap` isn't enough or you need to debug:
 
 ```bash
 git submodule update --init --recursive   # forge + proto/upstream
-just install-forge                        # mvn install forge jars to forge/.m2-local/
+just install-forge                        # mvn install forge jars → forge/.m2-local/ (writes .forge-commit-installed stamp)
 just build                                # gradle: proto-sync + compileKotlin + jar
 just seed-db                              # create data/player.db with starter decks
 ```
+
+See `.claude/rules/build-bootstrap.md` for forge cache internals (shared vs local mode, stamp file, worktree reference-clone).

@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Forge Maven cache resolver — two modes:
+#   shared: forge submodule is clean → symlink forge/.m2-local to
+#           ~/.cache/leyline/forge-m2/<commit>/ (safe for worktrees to share)
+#   local:  forge has uncommitted changes → real dir, so other worktrees
+#           don't pick up in-progress work
+#
+# Outputs (eval'd by justfile): current_forge, forge_cache_mode, forge_m2
 set -euo pipefail
 
 project_dir="${1:?usage: forge-m2.sh <project-dir>}"

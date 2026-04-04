@@ -89,7 +89,7 @@ dependencies {
 
 val checkUpstream by tasks.registering(CheckUpstreamTask::class) {
     description = "Verify forge submodule JARs are installed and current"
-    stampFile.set(layout.projectDirectory.file(".upstream-installed"))
+    stampFile.set(layout.projectDirectory.file(".forge-commit-installed"))
     forgeDir.set(rootProject.file("forge").absolutePath)
 }
 
