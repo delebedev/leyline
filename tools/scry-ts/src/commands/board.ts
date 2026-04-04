@@ -1,7 +1,7 @@
 import { resolveGame, parseGameFlag } from "../resolve";
 import { Accumulator, type GameObject } from "../accumulator";
 import { getResolver, resolveAbility, type CardResolver } from "../cards";
-import { stripPrefix, zoneName, formatPhase } from "../format";
+import { stripPrefix, zoneName, formatPhase, formatManaCost } from "../format";
 import type { GreMessageSummary } from "../games";
 
 export async function boardCommand(args: string[]) {
@@ -215,27 +215,6 @@ function cardName(obj: GameObject, resolver: CardResolver | null): string {
   }
   const name = resolver?.resolve(obj.grpId);
   return name ?? `grp=${obj.grpId}`;
-}
-
-const MANA_LETTER: Record<string, string> = {
-  ManaColor_White: "W", ManaColor_Blue: "U", ManaColor_Black: "B",
-  ManaColor_Red: "R", ManaColor_Green: "G", ManaColor_Colorless: "C",
-};
-
-function formatManaCost(manaCost: any[] | undefined): string | null {
-  if (!manaCost || manaCost.length === 0) return null;
-  const parts: string[] = [];
-  for (const c of manaCost) {
-    const colors: string[] = c.color ?? [];
-    const count: number = c.count ?? 0;
-    if (colors.length === 0 || colors[0] === "ManaColor_Generic") {
-      if (count > 0) parts.push(String(count));
-    } else {
-      const letter = MANA_LETTER[colors[0]] ?? "?";
-      parts.push(count > 1 ? `${count}${letter}` : letter);
-    }
-  }
-  return parts.join("") || null;
 }
 
 function formatCard(obj: GameObject, resolver: CardResolver | null): string {

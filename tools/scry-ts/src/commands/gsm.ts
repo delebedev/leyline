@@ -2,7 +2,7 @@ import { type Game, type GsmSummary } from "../games";
 import { resolveGame } from "../resolve";
 import { Accumulator, type GameState, type GameObject } from "../accumulator";
 import { getResolver, resolveAbility, type CardResolver } from "../cards";
-import { stripPrefix, fmtGrp, zoneName, formatPhase } from "../format";
+import { stripPrefix, fmtGrp, zoneName, formatPhase, formatAnnotations, formatManaCost } from "../format";
 
 export async function gsmCommand(args: string[]) {
   const verb = args[0];
@@ -561,28 +561,7 @@ async function gsmShow(args: string[]) {
   const annotations = raw.annotations ?? [];
   if (annotations.length > 0) {
     console.log("Annotations:");
-    for (const ann of annotations) {
-      const types = (ann.type ?? []).map((t: string) => stripPrefix(t, "AnnotationType_"));
-      const affector = ann.affectorId ?? "—";
-      const affected = ann.affectedIds ?? [];
-      console.log(`  [${ann.id ?? "?"}] ${types.join(", ")}  affector=${affector}  affected=[${affected.join(", ")}]`);
-
-      const details = ann.details ?? [];
-      for (const d of details) {
-        const rawVals: (string | number)[] =
-          d.valueString?.length ? d.valueString :
-          d.valueInt32?.length ? d.valueInt32 :
-          d.valueUint32?.length ? d.valueUint32 :
-          [];
-        // Enrich known detail keys
-        const key = d.key as string;
-        const isZoneKey = key === "zone_src" || key === "zone_dest";
-        const vals = rawVals.map((v: string | number) =>
-          isZoneKey && typeof v === "number" ? fmtZone(v) : String(v)
-        ).join(", ") || "?";
-        console.log(`       ${key} = ${vals}`);
-      }
-    }
+    for (const line of formatAnnotations(annotations, { fmtZone })) console.log(line);
     console.log("");
   }
 
@@ -590,27 +569,7 @@ async function gsmShow(args: string[]) {
   const persistentAnns = raw.persistentAnnotations ?? [];
   if (persistentAnns.length > 0) {
     console.log("Persistent Annotations:");
-    for (const ann of persistentAnns) {
-      const types = (ann.type ?? []).map((t: string) => stripPrefix(t, "AnnotationType_"));
-      const affector = ann.affectorId ?? "—";
-      const affected = ann.affectedIds ?? [];
-      console.log(`  [${ann.id ?? "?"}] ${types.join(", ")}  affector=${affector}  affected=[${affected.join(", ")}]`);
-
-      const details = ann.details ?? [];
-      for (const d of details) {
-        const rawVals: (string | number)[] =
-          d.valueString?.length ? d.valueString :
-          d.valueInt32?.length ? d.valueInt32 :
-          d.valueUint32?.length ? d.valueUint32 :
-          [];
-        const key = d.key as string;
-        const isZoneKey = key === "zone_src" || key === "zone_dest";
-        const vals = rawVals.map((v: string | number) =>
-          isZoneKey && typeof v === "number" ? fmtZone(v) : String(v)
-        ).join(", ") || "?";
-        console.log(`       ${key} = ${vals}`);
-      }
-    }
+    for (const line of formatAnnotations(persistentAnns, { fmtZone })) console.log(line);
     console.log("");
   }
 
