@@ -294,13 +294,6 @@ bundle:
     chmod -R u+rw build/bundle/ 2>/dev/null || true
     @ls build/dist/leyline-*.tgz build/dist/leyline-*.zip 2>/dev/null | head -1 | xargs -I{} echo "Archive: {}"
 
-# --- Docker ---
-
-# build Docker image for local use
-[group('deploy')]
-docker-build tag="leyline:latest":
-    docker buildx build -f deploy/Dockerfile -t "{{tag}}" .
-
 # --- Private helpers ---
 
 [private]

@@ -47,7 +47,6 @@ The bundle is platform-specific (JRE native code + sqlite native lib). Currently
 ## Next steps
 
 - CI matrix for macOS x64, Linux x64
-- Update Dockerfile to use jlink runtime (distroless base)
 - Tauri sidecar integration
 
 ## Future size reductions

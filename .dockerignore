@@ -1,9 +1,0 @@
-# Forge media (large, not needed at runtime — COPY forge/forge-gui/res/ pulls the rest)
-forge/forge-gui/res/adventure/
-forge/forge-gui/res/skins/
-forge/forge-gui/res/music/
-forge/forge-gui/res/imgs/
-forge/forge-gui/res/pic/
-forge/forge-gui/res/sound/
-forge/forge-gui/res/token_images/
-forge/forge-gui/res/achievement/
