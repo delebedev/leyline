@@ -9,10 +9,21 @@
  * appear with new mechanics — those stay as strings, not typed enums.
  */
 
+// --- String unions for fields we branch on ---
+
+export type GsmType = "GameStateType_Full" | "GameStateType_Diff";
+export type GsmUpdateType = "GameStateUpdate_Send" | "GameStateUpdate_SendHiFi" | "GameStateUpdate_SendAndRecord";
+export type GameObjectType = "GameObjectType_Card" | "GameObjectType_Ability" | "GameObjectType_RevealedCard" | "GameObjectType_TriggerHolder" | (string & {});
+export type ZoneType =
+  | "ZoneType_Hand" | "ZoneType_Library" | "ZoneType_Battlefield" | "ZoneType_Graveyard"
+  | "ZoneType_Stack" | "ZoneType_Exile" | "ZoneType_Command" | "ZoneType_Limbo"
+  | "ZoneType_Revealed" | "ZoneType_Sideboard" | "ZoneType_Suppressed" | "ZoneType_Pending"
+  | (string & {}); // extensible — new zone types possible
+
 // --- Top-level Game State Message ---
 
 export interface RawGameStateMessage {
-  type?: string; // "GameStateType_Full" | "GameStateType_Diff"
+  type?: GsmType;
   gameStateId?: number;
   prevGameStateId?: number;
   gameInfo?: RawGameInfo;
@@ -26,7 +37,7 @@ export interface RawGameStateMessage {
   diffDeletedPersistentAnnotationIds?: number[];
   actions?: RawAction[];
   timers?: any[];
-  update?: string; // "GameStateUpdate_Send" | "SendHiFi" | "SendAndRecord"
+  update?: GsmUpdateType;
   pendingMessageCount?: number;
 }
 
@@ -62,7 +73,7 @@ export interface RawPlayer {
 
 export interface RawZone {
   zoneId: number;
-  type?: string; // "ZoneType_Hand", "ZoneType_Battlefield", etc.
+  type?: ZoneType;
   visibility?: string;
   ownerSeatId?: number;
   objectInstanceIds?: number[];
@@ -73,7 +84,7 @@ export interface RawZone {
 export interface RawGameObject {
   instanceId: number;
   grpId: number;
-  type?: string; // "GameObjectType_Card" | "GameObjectType_Ability" | "GameObjectType_RevealedCard" | "GameObjectType_TriggerHolder"
+  type?: GameObjectType;
   zoneId?: number;
   visibility?: string;
   ownerSeatId?: number;
