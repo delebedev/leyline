@@ -252,8 +252,6 @@ src/
 cd tools/scry-ts && bun test
 ```
 
-77 tests across parser, game detection, accumulator, and classifier.
-
 ## Tips
 
 - **`--json` is always lossless.** Human-readable output strips prefixes and enriches enums. `--json` gives raw data exactly as Player.log recorded it.
