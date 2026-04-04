@@ -375,6 +375,7 @@ object GameBootstrap {
             FModel.initialize(null) { preferences ->
                 preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true)
                 preferences.setPref(FPref.UI_LANGUAGE, "en-US")
+                preferences.setPref(FPref.DECKGEN_CARDBASED, false)
                 if (lazyCards) preferences.setPref(FPref.LOAD_CARDS_LAZILY, true)
                 null
             }
