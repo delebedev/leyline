@@ -37,7 +37,11 @@ export async function inspectCommand(args: string[]) {
     if (args[i] === "--json") continue;
     queryParts.push(args[i]);
   }
-  const query = queryParts.join(" ");
+  const query = queryParts.join(" ").trim();
+  if (!query) {
+    console.error("Usage: scry inspect <card-name-or-iid>");
+    process.exit(1);
+  }
   const queryAsNum = parseInt(query, 10);
   const isNumeric = !isNaN(queryAsNum) && String(queryAsNum) === query;
 
