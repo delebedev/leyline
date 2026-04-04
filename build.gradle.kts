@@ -146,6 +146,7 @@ tasks.jacocoTestReport {
 application {
     mainClass.set("leyline.LeylineMainKt")
     applicationDefaultJvmArgs = listOf(
+        "-Xms384m", "-Xmx1g",
         "-Dio.netty.tryReflectionSetAccessible=true",
         "--add-opens", "java.base/jdk.internal.misc=ALL-UNNAMED",
         "--add-opens", "java.base/java.nio=ALL-UNNAMED",

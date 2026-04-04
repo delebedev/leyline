@@ -18,7 +18,7 @@ ports        := "30010 30003 8090 8091"
 
 # --- JVM flags (shared base + per-mode overrides) ---
 
-_jvm_base    := "-Dio.netty.tryReflectionSetAccessible=true --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED"
+_jvm_base    := "-Xms384m -Xmx1g -Dio.netty.tryReflectionSetAccessible=true --add-opens java.base/jdk.internal.misc=ALL-UNNAMED --add-opens java.base/java.nio=ALL-UNNAMED"
 jvm_opts     := _jvm_base + " -Dlogback.configurationFile=" + logback
 jvm_opts_cli := _jvm_base + " -Dlogback.configurationFile=" + logback_cli + " -Dlogback.statusListenerClass=ch.qos.logback.core.status.NopStatusListener"
 
