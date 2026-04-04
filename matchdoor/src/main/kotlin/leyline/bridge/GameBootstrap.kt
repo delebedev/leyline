@@ -41,7 +41,9 @@ fun isCommanderVariant(gameType: String): Boolean = gameType.lowercase() in COMM
 object GameBootstrap {
     private var initialized = false
     private val cardDbLatch = CountDownLatch(1)
+
     @Volatile private var cardDatabaseInitialized = false
+
     @Volatile private var cardDbInitError: Throwable? = null
 
     fun createGame(): Game {
@@ -360,15 +362,13 @@ object GameBootstrap {
 
     private fun ensureCardDatabaseLoaded() {
         if (cardDatabaseInitialized) {
-            cardDbLatch.await()
-            cardDbInitError?.let { throw RuntimeException("Card DB init failed on background thread", it) }
+            awaitAndRethrow()
             return
         }
 
         synchronized(this) {
             if (cardDatabaseInitialized) {
-                cardDbLatch.await()
-                cardDbInitError?.let { throw RuntimeException("Card DB init failed on background thread", it) }
+                awaitAndRethrow()
                 return
             }
 
@@ -389,6 +389,12 @@ object GameBootstrap {
                 cardDbLatch.countDown()
             }
         }
+    }
+
+    /** Wait for background init and rethrow if it failed. */
+    private fun awaitAndRethrow() {
+        cardDbLatch.await()
+        cardDbInitError?.let { throw IllegalStateException("Card DB init failed on background thread", it) }
     }
 
     private fun resolveAssetsDir(): Path =
