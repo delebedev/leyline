@@ -343,3 +343,85 @@ pub fn server_status(app: AppHandle) -> ServerState {
     let state = server.state.lock().unwrap().clone();
     state
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_bundle_finds_staged_binary() {
+        let tmp = tempfile::tempdir().unwrap();
+        let stage = tmp.path().join(".bundle-stage").join("leyline").join("bin");
+        std::fs::create_dir_all(&stage).unwrap();
+        std::fs::write(stage.join(sidecar_bin_name()), b"stub").unwrap();
+
+        let result = resolve_bundle_dir_from(tmp.path());
+        assert!(result.is_ok());
+        assert!(result.unwrap().ends_with(".bundle-stage/leyline"));
+    }
+
+    #[test]
+    fn resolve_bundle_missing_returns_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = resolve_bundle_dir_from(tmp.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn ensure_player_db_copies_seed() {
+        let target = tempfile::tempdir().unwrap();
+        let seed = tempfile::tempdir().unwrap();
+        std::fs::write(seed.path().join("player.db"), b"test-db-content").unwrap();
+
+        let result = ensure_player_db_at(target.path(), seed.path());
+        assert!(result.is_some());
+        assert_eq!(
+            std::fs::read(result.unwrap()).unwrap(),
+            b"test-db-content"
+        );
+    }
+
+    #[test]
+    fn ensure_player_db_skips_existing() {
+        let target = tempfile::tempdir().unwrap();
+        let seed = tempfile::tempdir().unwrap();
+        std::fs::write(target.path().join("player.db"), b"existing").unwrap();
+        std::fs::write(seed.path().join("player.db"), b"seed").unwrap();
+
+        let result = ensure_player_db_at(target.path(), seed.path());
+        assert!(result.is_some());
+        assert_eq!(
+            std::fs::read(result.unwrap()).unwrap(),
+            b"existing"
+        );
+    }
+
+    #[test]
+    fn ensure_player_db_no_seed_returns_none() {
+        let target = tempfile::tempdir().unwrap();
+        let seed = tempfile::tempdir().unwrap();
+
+        let result = ensure_player_db_at(target.path(), seed.path());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn find_repo_root_walks_up() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("leyline.toml"), b"").unwrap();
+        let nested = tmp.path().join("build").join("bundle");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        let result = find_repo_root(&nested);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), tmp.path());
+    }
+
+    #[test]
+    fn find_repo_root_returns_none_when_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = find_repo_root(tmp.path());
+        assert!(result.is_none());
+    }
+}
