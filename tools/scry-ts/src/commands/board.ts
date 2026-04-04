@@ -70,16 +70,25 @@ export async function boardCommand(args: string[]) {
   console.log(`T${turn} ${phase}  ${active}  ${life}`);
 
   // Find last pending prompt from greStream at current gsId
+  const PROMPT_REQ_TYPES = new Set([
+    "SelectTargetsReq", "SelectNReq", "DeclareAttackersReq",
+    "DeclareBlockersReq", "PromptReq", "MulliganReq", "GroupReq",
+    "SearchReq", "OrderReq", "OptionalActionMessage",
+    "ChooseStartingPlayerReq", "SelectReplacementReq", "IntermissionReq",
+    "CastingTimeOptionsReq", "OrderDamageConfirmation",
+  ]);
   const currentGsId = state.gameStateId;
   let lastPrompt: GreMessageSummary | null = null;
   for (const entry of game.greStream) {
     if ("kind" in entry && entry.kind === "gre") {
-      if (entry.gameStateId <= currentGsId) lastPrompt = entry;
+      if (entry.gameStateId <= currentGsId && PROMPT_REQ_TYPES.has(entry.type)) {
+        lastPrompt = entry;
+      }
     } else if ("gsId" in entry && entry.gsId > currentGsId) {
       break;
     }
   }
-  if (lastPrompt && lastPrompt.type !== "ActionsAvailableReq") {
+  if (lastPrompt) {
     console.log(`Pending: ${lastPrompt.type}`);
   }
 
