@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use log::{info, warn};
 use serde::Serialize;
 use tauri::AppHandle;
 
@@ -33,6 +34,7 @@ fn find_arena() -> Option<(PathBuf, String)> {
     for &(source, p) in KNOWN_INSTALLS {
         let path = PathBuf::from(p);
         if path.exists() {
+            info!("Arena found at {:?} ({})", path, source);
             return Some((path, source.into()));
         }
     }
@@ -44,6 +46,7 @@ fn find_arena() -> Option<(PathBuf, String)> {
         #[cfg(target_os = "windows")]
         let steam = home.join("AppData/Local/Steam/steamapps/common/MTGA");  // custom library location
         if steam.exists() {
+            info!("Arena found at {:?} (Steam home dir)", steam);
             return Some((steam, "Steam".into()));
         }
     }
@@ -51,10 +54,12 @@ fn find_arena() -> Option<(PathBuf, String)> {
     // Saved path from previous session
     if let Some((saved, source)) = load_saved_path() {
         if saved.exists() {
+            info!("Arena found at {:?} (saved path, {})", saved, source);
             return Some((saved, source));
         }
     }
 
+    warn!("Arena not found at any known location");
     None
 }
 
@@ -78,9 +83,14 @@ fn config_dir() -> Option<PathBuf> {
 
 fn save_arena_path(path: &Path, source: &str) {
     if let Some(dir) = config_dir() {
-        let _ = fs::create_dir_all(&dir);
+        if let Err(e) = fs::create_dir_all(&dir) {
+            warn!("Failed to create config dir {:?}: {e}", dir);
+        }
         let data = format!("{}\n{}", source, path.to_string_lossy());
-        let _ = fs::write(dir.join("arena_path"), data.as_bytes());
+        match fs::write(dir.join("arena_path"), data.as_bytes()) {
+            Ok(_) => info!("Saved arena path {:?} ({})", path, source),
+            Err(e) => warn!("Failed to save arena path: {e}"),
+        }
     }
 }
 
@@ -143,12 +153,22 @@ pub fn deploy_config(_app: AppHandle) -> Result<(), String> {
     // 3. Platform-specific client preferences
     #[cfg(target_os = "macos")]
     {
-        let _ = Command::new("defaults")
+        match Command::new("defaults")
             .args(["write", "com.Wizards.MtGA", "CheckSC", "-integer", "0"])
-            .output();
-        let _ = Command::new("defaults")
+            .output()
+        {
+            Ok(out) if out.status.success() => info!("Set CheckSC=0"),
+            Ok(out) => warn!("defaults write CheckSC failed: {:?}", out.status),
+            Err(e) => warn!("Failed to run defaults write CheckSC: {e}"),
+        }
+        match Command::new("defaults")
             .args(["write", "com.Wizards.MtGA", "HashFilesOnStartup", "-integer", "0"])
-            .output();
+            .output()
+        {
+            Ok(out) if out.status.success() => info!("Set HashFilesOnStartup=0"),
+            Ok(out) => warn!("defaults write HashFilesOnStartup failed: {:?}", out.status),
+            Err(e) => warn!("Failed to run defaults write HashFilesOnStartup: {e}"),
+        }
     }
 
     Ok(())
@@ -170,14 +190,24 @@ pub fn restore_arena(_app: AppHandle) -> Result<(), String> {
     // 2. Restore platform-specific client preferences
     #[cfg(target_os = "macos")]
     {
-        let _ = Command::new("defaults")
+        match Command::new("defaults")
             .args(["delete", "com.Wizards.MtGA", "CheckSC"])
-            .output();
+            .output()
+        {
+            Ok(out) if out.status.success() => info!("Deleted CheckSC preference"),
+            Ok(out) => warn!("defaults delete CheckSC failed: {:?}", out.status),
+            Err(e) => warn!("Failed to run defaults delete CheckSC: {e}"),
+        }
         // Keep HashFilesOnStartup=0 — deleting reverts to default (verify all),
         // which triggers ~1.5GB re-download of Audio assets on next real-server boot.
-        let _ = Command::new("defaults")
+        match Command::new("defaults")
             .args(["write", "com.Wizards.MtGA", "HashFilesOnStartup", "-integer", "0"])
-            .output();
+            .output()
+        {
+            Ok(out) if out.status.success() => info!("Set HashFilesOnStartup=0 (restore)"),
+            Ok(out) => warn!("defaults write HashFilesOnStartup (restore) failed: {:?}", out.status),
+            Err(e) => warn!("Failed to run defaults write HashFilesOnStartup (restore): {e}"),
+        }
     }
 
     Ok(())
