@@ -52,7 +52,7 @@ kls_database.db
 .m2-local/
 
 # Forge submodule install stamp (written by `just install-forge`)
-.upstream-installed
+.forge-commit-installed
 
 # Claude Code local settings & agent memory
 **/settings.local.json
