@@ -18,6 +18,7 @@ import forge.util.Lang
 import forge.util.Localizer
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.CountDownLatch
 
 /** True when game rules indicate a puzzle (either primary type or applied variant). */
 val Game.isPuzzle: Boolean
@@ -39,7 +40,11 @@ fun isCommanderVariant(gameType: String): Boolean = gameType.lowercase() in COMM
 
 object GameBootstrap {
     private var initialized = false
-    private var cardDatabaseInitialized = false
+    private val cardDbLatch = CountDownLatch(1)
+
+    @Volatile private var cardDatabaseInitialized = false
+
+    @Volatile private var cardDbInitError: Throwable? = null
 
     fun createGame(): Game {
         ensureLocalization()
@@ -357,17 +362,39 @@ object GameBootstrap {
 
     private fun ensureCardDatabaseLoaded() {
         if (cardDatabaseInitialized) {
+            awaitAndRethrow()
             return
         }
 
-        ensureGuiBase()
+        synchronized(this) {
+            if (cardDatabaseInitialized) {
+                awaitAndRethrow()
+                return
+            }
 
-        FModel.initialize(null) { preferences ->
-            preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true)
-            preferences.setPref(FPref.UI_LANGUAGE, "en-US")
-            null
+            try {
+                ensureGuiBase()
+
+                FModel.initialize(null) { preferences ->
+                    preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true)
+                    preferences.setPref(FPref.UI_LANGUAGE, "en-US")
+                    preferences.setPref(FPref.DECKGEN_CARDBASED, false)
+                    null
+                }
+            } catch (e: Throwable) {
+                cardDbInitError = e
+                throw e
+            } finally {
+                cardDatabaseInitialized = true
+                cardDbLatch.countDown()
+            }
         }
-        cardDatabaseInitialized = true
+    }
+
+    /** Wait for background init and rethrow if it failed. */
+    private fun awaitAndRethrow() {
+        cardDbLatch.await()
+        cardDbInitError?.let { throw IllegalStateException("Card DB init failed on background thread", it) }
     }
 
     private fun resolveAssetsDir(): Path =

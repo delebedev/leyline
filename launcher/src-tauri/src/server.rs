@@ -253,6 +253,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
         let res_dir = strip_unc(&bundle_dir.join("res"));
         cmd = Command::new(&java_path);
         cmd.args([
+            "-Xms384m", "-Xmx1g",
             "-Dio.netty.tryReflectionSetAccessible=true",
             "--add-opens", "java.base/jdk.internal.misc=ALL-UNNAMED",
             "--add-opens", "java.base/java.nio=ALL-UNNAMED",
