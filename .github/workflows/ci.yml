@@ -142,9 +142,50 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  launcher-rust:
+    name: Launcher Rust (${{ matrix.label }})
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    strategy:
+      matrix:
+        include:
+          - label: Linux
+            runner: [self-hosted, Linux, ARM64]
+          - label: macOS
+            runner: macos-14
+          - label: Windows
+            runner: windows-latest
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        working-directory: launcher/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        if: matrix.label != 'Linux'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            launcher/src-tauri/target
+          key: launcher-${{ runner.os }}-${{ hashFiles('launcher/src-tauri/Cargo.lock') }}
+          restore-keys: launcher-${{ runner.os }}-
+
+      - name: Clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Test
+        run: cargo test
+
   report:
     name: Report
-    needs: [gate, integration]
+    needs: [gate, integration, launcher-rust]
     if: always()
     runs-on: ubuntu-latest
     steps:
