@@ -229,6 +229,7 @@ src/
   classifier.ts         # GSM role classification (CAST, RESOLVE, ECHO, etc.)
   catalog.ts            # durable game storage + catalog index
   meta.ts               # per-game metadata (cards, notes, tags)
+  provenance.ts         # game source detection (real, leyline, puzzle) + filtering
   slicer.ts             # line-range extraction for raw log slicing
   resolve.ts            # unified game resolution (live log + catalog)
   format.ts             # shared formatting (zone names, card names, enums)
