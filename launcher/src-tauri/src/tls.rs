@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 
+use log::info;
+
 use rcgen::{
     BasicConstraints, CertificateParams, DistinguishedName, DnType,
     ExtendedKeyUsagePurpose, Ia5String, IsCa, KeyPair, KeyUsagePurpose,
@@ -26,6 +28,7 @@ pub fn ensure_certs() -> Result<(PathBuf, PathBuf), String> {
 
     // --- CA ---
     if !ca_pem.exists() || !ca_key_path.exists() {
+        info!("Generating new CA certificate");
         let (cert_pem, key_pem) = generate_ca()?;
         fs::write(&ca_pem, &cert_pem)
             .map_err(|e| format!("Failed to write CA cert: {e}"))?;
@@ -35,7 +38,10 @@ pub fn ensure_certs() -> Result<(PathBuf, PathBuf), String> {
 
     // --- OS trust ---
     if !is_ca_trusted() {
+        info!("CA not trusted in OS keychain — adding");
         trust_ca(&ca_pem)?;
+    } else {
+        info!("CA already trusted");
     }
 
     // --- Server cert ---
@@ -48,6 +54,7 @@ pub fn ensure_certs() -> Result<(PathBuf, PathBuf), String> {
     };
 
     if needs_server_cert {
+        info!("Generating new server certificate");
         let ca_cert_pem = fs::read_to_string(&ca_pem)
             .map_err(|e| format!("Failed to read CA cert: {e}"))?;
         let ca_key_pem = fs::read_to_string(&ca_key_path)
@@ -59,6 +66,8 @@ pub fn ensure_certs() -> Result<(PathBuf, PathBuf), String> {
             .map_err(|e| format!("Failed to write server chain: {e}"))?;
         fs::write(&server_key_path, key_pem)
             .map_err(|e| format!("Failed to write server key: {e}"))?;
+    } else {
+        info!("Server certificate valid, reusing");
     }
 
     Ok((server_chain, server_key_path))
@@ -270,32 +279,28 @@ mod tests {
 
     #[test]
     fn full_flow_to_temp_dir() {
-        let tmp = std::env::temp_dir().join("leyline-tls-test");
-        let _ = std::fs::remove_dir_all(&tmp);
-        std::fs::create_dir_all(&tmp).unwrap();
+        let tmp = tempfile::tempdir().unwrap();
 
         // Generate CA
         let (ca_cert, ca_key) = generate_ca().unwrap();
-        std::fs::write(tmp.join("ca.pem"), &ca_cert).unwrap();
-        std::fs::write(tmp.join("ca.key"), &ca_key).unwrap();
+        std::fs::write(tmp.path().join("ca.pem"), &ca_cert).unwrap();
+        std::fs::write(tmp.path().join("ca.key"), &ca_key).unwrap();
 
         // Generate server cert
         let (server_cert, server_key) =
             generate_server_cert(&ca_cert, &ca_key).unwrap();
         let chain = format!("{}{}", server_cert, ca_cert);
-        std::fs::write(tmp.join("server-chain.pem"), &chain).unwrap();
-        std::fs::write(tmp.join("server.key"), &server_key).unwrap();
+        std::fs::write(tmp.path().join("server-chain.pem"), &chain).unwrap();
+        std::fs::write(tmp.path().join("server.key"), &server_key).unwrap();
 
         // All files exist
-        assert!(tmp.join("ca.pem").exists());
-        assert!(tmp.join("ca.key").exists());
-        assert!(tmp.join("server-chain.pem").exists());
-        assert!(tmp.join("server.key").exists());
+        assert!(tmp.path().join("ca.pem").exists());
+        assert!(tmp.path().join("ca.key").exists());
+        assert!(tmp.path().join("server-chain.pem").exists());
+        assert!(tmp.path().join("server.key").exists());
 
         // Chain is not expiring
-        let chain_bytes = std::fs::read(tmp.join("server-chain.pem")).unwrap();
+        let chain_bytes = std::fs::read(tmp.path().join("server-chain.pem")).unwrap();
         assert!(!expires_within(&chain_bytes, 86400));
-
-        let _ = std::fs::remove_dir_all(&tmp);
     }
 }

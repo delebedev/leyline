@@ -1,7 +1,9 @@
 use std::process::{Child, Command};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
+use log::{error, info, warn};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -17,6 +19,7 @@ pub enum ServerState {
 pub struct ServerProcess {
     pub child: Mutex<Option<Child>>,
     pub state: Mutex<ServerState>,
+    stopping: AtomicBool,
 }
 
 impl ServerProcess {
@@ -24,13 +27,16 @@ impl ServerProcess {
         Self {
             child: Mutex::new(None),
             state: Mutex::new(ServerState::Stopped),
+            stopping: AtomicBool::new(false),
         }
     }
 
     fn set_state(&self, new_state: ServerState, app: &AppHandle) {
         let mut state = self.state.lock().unwrap();
         *state = new_state.clone();
-        let _ = app.emit("server-state", new_state);
+        if let Err(e) = app.emit("server-state", new_state) {
+            warn!("Failed to emit server-state event: {e}");
+        }
     }
 }
 
@@ -42,15 +48,12 @@ fn sidecar_bin_name() -> &'static str {
     return "leyline";
 }
 
-/// Resolve the leyline bundle root (contains bin/, lib/, jre/, res/, data/).
-fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|e| format!("No resource dir: {e}"))?;
-
+/// Resolve bundle dir given the Tauri resource dir.
+/// Pure function — no AppHandle dependency.
+fn resolve_bundle_dir_from(resource_dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
     let bundle = resource_dir.join(".bundle-stage").join("leyline");
     if bundle.join("bin").join(sidecar_bin_name()).exists() {
+        info!("Bundle found at {}", bundle.display());
         return Ok(bundle);
     }
 
@@ -59,6 +62,7 @@ fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     loop {
         let candidate = dir.join("build/bundle");
         if candidate.join("bin").join(sidecar_bin_name()).exists() {
+            info!("Bundle found via dev fallback at {}", candidate.display());
             return Ok(candidate.canonicalize().unwrap_or(candidate));
         }
         if !dir.pop() {
@@ -72,17 +76,35 @@ fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     ))
 }
 
-/// Ensure player.db exists in the app data directory.
-/// Copies the seed DB from the bundle on first launch.
-fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std::path::PathBuf> {
-    let data_dir = app.path().app_data_dir().ok()?;
-    let _ = std::fs::create_dir_all(&data_dir);
-    let db_path = data_dir.join("player.db");
+/// Resolve the leyline bundle root (contains bin/, lib/, jre/, res/, data/).
+fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("No resource dir: {e}"))?;
+    resolve_bundle_dir_from(&resource_dir)
+}
+
+/// Copy seed DB to target path if it doesn't exist yet.
+/// Returns Some(target) if DB is available after the call.
+fn ensure_player_db_at(
+    target_dir: &std::path::Path,
+    seed_dir: &std::path::Path,
+) -> Option<std::path::PathBuf> {
+    if let Err(e) = std::fs::create_dir_all(target_dir) {
+        warn!("Failed to create dir {}: {e}", target_dir.display());
+    }
+    let db_path = target_dir.join("player.db");
 
     if !db_path.exists() {
-        let seed = bundle_dir.join("data").join("player.db");
+        let seed = seed_dir.join("player.db");
         if seed.exists() {
-            let _ = std::fs::copy(&seed, &db_path);
+            match std::fs::copy(&seed, &db_path) {
+                Ok(_) => info!("Copied seed DB to {}", db_path.display()),
+                Err(e) => warn!("Failed to copy seed DB to {}: {e}", db_path.display()),
+            }
+        } else {
+            warn!("No seed DB at {}", seed.display());
         }
     }
 
@@ -90,6 +112,27 @@ fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std
         Some(db_path)
     } else {
         None
+    }
+}
+
+/// Ensure player.db exists in the app data directory.
+/// Copies the seed DB from the bundle on first launch.
+fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    let data_dir = app.path().app_data_dir().ok()?;
+    ensure_player_db_at(&data_dir, &bundle_dir.join("data"))
+}
+
+/// Walk up from a directory looking for leyline.toml.
+/// Returns the directory containing it, or None.
+fn find_repo_root(start: &std::path::Path) -> Option<std::path::PathBuf> {
+    let mut dir = start.to_path_buf();
+    loop {
+        if dir.join("leyline.toml").exists() {
+            return Some(dir);
+        }
+        if !dir.pop() {
+            return None;
+        }
     }
 }
 
@@ -102,14 +145,9 @@ fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std
 /// Must NOT be src-tauri/ — Tauri's file watcher restarts the app on any file change.
 fn resolve_sidecar_cwd(app: &AppHandle, bundle_dir: &std::path::Path) -> std::path::PathBuf {
     // Dev: walk up from bundle to find repo root (has leyline.toml)
-    let mut dir = bundle_dir.to_path_buf();
-    loop {
-        if dir.join("leyline.toml").exists() {
-            return dir;
-        }
-        if !dir.pop() {
-            break;
-        }
+    if let Some(root) = find_repo_root(bundle_dir) {
+        info!("Sidecar CWD: repo root at {}", root.display());
+        return root;
     }
 
     // Production (Windows): use writable app data dir
@@ -117,18 +155,22 @@ fn resolve_sidecar_cwd(app: &AppHandle, bundle_dir: &std::path::Path) -> std::pa
     {
         let data_dir = app.path().app_data_dir()
             .unwrap_or_else(|_| std::env::temp_dir());
-        let _ = std::fs::create_dir_all(&data_dir);
+        if let Err(e) = std::fs::create_dir_all(&data_dir) {
+            warn!("Failed to create app data dir: {e}");
+        }
         let toml_dest = data_dir.join("leyline.toml");
         if !toml_dest.exists() {
             let toml_src = bundle_dir.join("leyline.toml");
             if toml_src.exists() {
-                let _ = std::fs::copy(&toml_src, &toml_dest);
+                if let Err(e) = std::fs::copy(&toml_src, &toml_dest) {
+                    warn!("Failed to copy leyline.toml: {e}");
+                }
             }
         }
-        return data_dir;
+        data_dir
     }
 
-    // Production (macOS): bundle dir is writable
+    // Production (macOS/Linux): bundle dir is writable
     #[cfg(not(target_os = "windows"))]
     {
         if bundle_dir.join("leyline.toml").exists() {
@@ -152,7 +194,11 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
         }
     }
 
+    server.stopping.store(false, Ordering::SeqCst);
+
     let bundle_dir = resolve_bundle_dir(&app)?;
+    info!("Bundle dir: {:?}", bundle_dir);
+    #[cfg(not(target_os = "windows"))]
     let bin_path = bundle_dir.join("bin").join(sidecar_bin_name());
     server.set_state(ServerState::Starting, &app);
 
@@ -186,6 +232,8 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
         .unwrap_or_else(std::process::Stdio::null);
 
     let sidecar_cwd = resolve_sidecar_cwd(&app, &bundle_dir);
+    info!("Sidecar CWD: {:?}", sidecar_cwd);
+    info!("Server log: {:?}", log_path);
 
     let mut cmd;
     #[cfg(target_os = "windows")]
@@ -257,8 +305,15 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
                 let mut guard = server.child.lock().unwrap();
                 if let Some(ref mut child) = *guard {
                     if let Ok(Some(status)) = child.try_wait() {
+                        if server.stopping.load(Ordering::SeqCst) {
+                            return; // stop_server is handling this
+                        }
                         let msg = format!("Server exited with {status}");
+                        error!("{}", msg);
                         drop(guard);
+                        if server.stopping.load(Ordering::SeqCst) {
+                            return;
+                        }
                         server.set_state(ServerState::Error(msg), &app_handle);
                         return;
                     }
@@ -267,6 +322,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
 
             if let Ok(resp) = client.get("http://127.0.0.1:8091/health").send().await {
                 if resp.status().is_success() {
+                    info!("Server health check passed — server is running");
                     let server = app_handle.state::<ServerProcess>();
                     server.set_state(ServerState::Running, &app_handle);
                     return;
@@ -274,6 +330,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
             }
         }
 
+        error!("Server health check timed out after 60s");
         let server = app_handle.state::<ServerProcess>();
         server.set_state(
             ServerState::Error("Health check timed out after 60s".into()),
@@ -287,6 +344,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn stop_server(app: AppHandle) -> Result<(), String> {
     let server = app.state::<ServerProcess>();
+    server.stopping.store(true, Ordering::SeqCst);
     let mut guard = server.child.lock().unwrap();
     if let Some(ref mut child) = *guard {
         let _ = child.kill();
@@ -303,4 +361,86 @@ pub fn server_status(app: AppHandle) -> ServerState {
     let server = app.state::<ServerProcess>();
     let state = server.state.lock().unwrap().clone();
     state
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_bundle_finds_staged_binary() {
+        let tmp = tempfile::tempdir().unwrap();
+        let stage = tmp.path().join(".bundle-stage").join("leyline").join("bin");
+        std::fs::create_dir_all(&stage).unwrap();
+        std::fs::write(stage.join(sidecar_bin_name()), b"stub").unwrap();
+
+        let result = resolve_bundle_dir_from(tmp.path());
+        assert!(result.is_ok());
+        assert!(result.unwrap().ends_with(".bundle-stage/leyline"));
+    }
+
+    #[test]
+    fn resolve_bundle_missing_returns_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = resolve_bundle_dir_from(tmp.path());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+
+    #[test]
+    fn ensure_player_db_copies_seed() {
+        let target = tempfile::tempdir().unwrap();
+        let seed = tempfile::tempdir().unwrap();
+        std::fs::write(seed.path().join("player.db"), b"test-db-content").unwrap();
+
+        let result = ensure_player_db_at(target.path(), seed.path());
+        assert!(result.is_some());
+        assert_eq!(
+            std::fs::read(result.unwrap()).unwrap(),
+            b"test-db-content"
+        );
+    }
+
+    #[test]
+    fn ensure_player_db_skips_existing() {
+        let target = tempfile::tempdir().unwrap();
+        let seed = tempfile::tempdir().unwrap();
+        std::fs::write(target.path().join("player.db"), b"existing").unwrap();
+        std::fs::write(seed.path().join("player.db"), b"seed").unwrap();
+
+        let result = ensure_player_db_at(target.path(), seed.path());
+        assert!(result.is_some());
+        assert_eq!(
+            std::fs::read(result.unwrap()).unwrap(),
+            b"existing"
+        );
+    }
+
+    #[test]
+    fn ensure_player_db_no_seed_returns_none() {
+        let target = tempfile::tempdir().unwrap();
+        let seed = tempfile::tempdir().unwrap();
+
+        let result = ensure_player_db_at(target.path(), seed.path());
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn find_repo_root_walks_up() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("leyline.toml"), b"").unwrap();
+        let nested = tmp.path().join("build").join("bundle");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        let result = find_repo_root(&nested);
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), tmp.path());
+    }
+
+    #[test]
+    fn find_repo_root_returns_none_when_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = find_repo_root(tmp.path());
+        assert!(result.is_none());
+    }
 }

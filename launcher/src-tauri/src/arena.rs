@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use log::{info, warn};
 use serde::Serialize;
 use tauri::AppHandle;
 
@@ -18,6 +19,9 @@ const KNOWN_INSTALLS: &[(&str, &str)] = &[
     ("Steam", "C:/Program Files (x86)/Steam/steamapps/common/MTGA"),
 ];
 
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const KNOWN_INSTALLS: &[(&str, &str)] = &[];
+
 const SERVICES_CONF: &str = include_str!("../../resources/services.conf");
 const NPE_VO_BNK: &[u8] = include_bytes!("../../resources/NPE_VO.bnk");
 
@@ -28,40 +32,61 @@ pub struct ArenaInfo {
     pub configured: bool,
 }
 
-/// Find MTGA.app at known locations, returning (path, source).
-fn find_arena() -> Option<(PathBuf, String)> {
-    for &(source, p) in KNOWN_INSTALLS {
+/// Pure arena detection — takes paths to probe instead of reading globals.
+fn find_arena_at(
+    known: &[(&str, &str)],
+    steam_path: Option<&Path>,
+    saved: Option<(PathBuf, String)>,
+) -> Option<(PathBuf, String)> {
+    for &(source, p) in known {
         let path = PathBuf::from(p);
         if path.exists() {
+            info!("Found Arena at {} ({})", path.display(), source);
             return Some((path, source.into()));
         }
     }
 
-    // Steam path with home expansion
-    if let Some(home) = dirs::home_dir() {
-        #[cfg(target_os = "macos")]
-        let steam = home.join("Library/Application Support/Steam/steamapps/common/MTGA/MTGA.app");
-        #[cfg(target_os = "windows")]
-        let steam = home.join("AppData/Local/Steam/steamapps/common/MTGA");  // custom library location
+    if let Some(steam) = steam_path {
         if steam.exists() {
-            return Some((steam, "Steam".into()));
+            info!("Found Arena at {} (Steam)", steam.display());
+            return Some((steam.to_path_buf(), "Steam".into()));
         }
     }
 
-    // Saved path from previous session
-    if let Some((saved, source)) = load_saved_path() {
-        if saved.exists() {
-            return Some((saved, source));
+    if let Some((saved_path, source)) = saved {
+        if saved_path.exists() {
+            info!("Found Arena at saved path {} ({})", saved_path.display(), source);
+            return Some((saved_path, source));
         }
     }
 
+    warn!("Arena not found at any known location");
     None
+}
+
+/// Find MTGA.app at known locations, returning (path, source).
+fn find_arena() -> Option<(PathBuf, String)> {
+    let steam_path = dirs::home_dir().map(|home| {
+        #[cfg(target_os = "macos")]
+        return home.join("Library/Application Support/Steam/steamapps/common/MTGA/MTGA.app");
+        #[cfg(target_os = "windows")]
+        return home.join("AppData/Local/Steam/steamapps/common/MTGA");
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        return home.join(".steam/steam/steamapps/common/MTGA");
+    });
+    find_arena_at(
+        KNOWN_INSTALLS,
+        steam_path.as_deref(),
+        load_saved_path(),
+    )
 }
 
 fn streaming_assets(mtga_path: &Path) -> PathBuf {
     #[cfg(target_os = "macos")]
     return mtga_path.join("Contents/Resources/Data/StreamingAssets");
     #[cfg(target_os = "windows")]
+    return mtga_path.join("MTGA_Data/StreamingAssets");
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     return mtga_path.join("MTGA_Data/StreamingAssets");
 }
 
@@ -70,6 +95,8 @@ fn audio_dir(streaming: &Path) -> PathBuf {
     return streaming.join("Audio/GeneratedSoundBanks/Mac");
     #[cfg(target_os = "windows")]
     return streaming.join("Audio/GeneratedSoundBanks/Windows");
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    return streaming.join("Audio/GeneratedSoundBanks/Linux");
 }
 
 fn config_dir() -> Option<PathBuf> {
@@ -78,9 +105,14 @@ fn config_dir() -> Option<PathBuf> {
 
 fn save_arena_path(path: &Path, source: &str) {
     if let Some(dir) = config_dir() {
-        let _ = fs::create_dir_all(&dir);
+        if let Err(e) = fs::create_dir_all(&dir) {
+            warn!("Failed to create config dir {:?}: {e}", dir);
+        }
         let data = format!("{}\n{}", source, path.to_string_lossy());
-        let _ = fs::write(dir.join("arena_path"), data.as_bytes());
+        match fs::write(dir.join("arena_path"), data.as_bytes()) {
+            Ok(_) => info!("Saved arena path {:?} ({})", path, source),
+            Err(e) => warn!("Failed to save arena path: {e}"),
+        }
     }
 }
 
@@ -143,12 +175,22 @@ pub fn deploy_config(_app: AppHandle) -> Result<(), String> {
     // 3. Platform-specific client preferences
     #[cfg(target_os = "macos")]
     {
-        let _ = Command::new("defaults")
+        match Command::new("defaults")
             .args(["write", "com.Wizards.MtGA", "CheckSC", "-integer", "0"])
-            .output();
-        let _ = Command::new("defaults")
+            .output()
+        {
+            Ok(out) if out.status.success() => info!("Set CheckSC=0"),
+            Ok(out) => warn!("defaults write CheckSC failed: {:?}", out.status),
+            Err(e) => warn!("Failed to run defaults write CheckSC: {e}"),
+        }
+        match Command::new("defaults")
             .args(["write", "com.Wizards.MtGA", "HashFilesOnStartup", "-integer", "0"])
-            .output();
+            .output()
+        {
+            Ok(out) if out.status.success() => info!("Set HashFilesOnStartup=0"),
+            Ok(out) => warn!("defaults write HashFilesOnStartup failed: {:?}", out.status),
+            Err(e) => warn!("Failed to run defaults write HashFilesOnStartup: {e}"),
+        }
     }
 
     Ok(())
@@ -170,17 +212,94 @@ pub fn restore_arena(_app: AppHandle) -> Result<(), String> {
     // 2. Restore platform-specific client preferences
     #[cfg(target_os = "macos")]
     {
-        let _ = Command::new("defaults")
+        match Command::new("defaults")
             .args(["delete", "com.Wizards.MtGA", "CheckSC"])
-            .output();
+            .output()
+        {
+            Ok(out) if out.status.success() => info!("Deleted CheckSC preference"),
+            Ok(out) => warn!("defaults delete CheckSC failed: {:?}", out.status),
+            Err(e) => warn!("Failed to run defaults delete CheckSC: {e}"),
+        }
         // Keep HashFilesOnStartup=0 — deleting reverts to default (verify all),
         // which triggers ~1.5GB re-download of Audio assets on next real-server boot.
-        let _ = Command::new("defaults")
+        match Command::new("defaults")
             .args(["write", "com.Wizards.MtGA", "HashFilesOnStartup", "-integer", "0"])
-            .output();
+            .output()
+        {
+            Ok(out) if out.status.success() => info!("Set HashFilesOnStartup=0 (restore)"),
+            Ok(out) => warn!("defaults write HashFilesOnStartup (restore) failed: {:?}", out.status),
+            Err(e) => warn!("Failed to run defaults write HashFilesOnStartup (restore): {e}"),
+        }
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn find_arena_at_known_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mtga = tmp.path().join("MTGA.app");
+        std::fs::create_dir_all(&mtga).unwrap();
+        let mtga_str = mtga.to_str().unwrap().to_string();
+
+        let result = find_arena_at(&[("Epic", &mtga_str)], None, None);
+        assert!(result.is_some());
+        let (path, source) = result.unwrap();
+        assert_eq!(path, mtga);
+        assert_eq!(source, "Epic");
+    }
+
+    #[test]
+    fn find_arena_saved_fallback() {
+        let tmp = tempfile::tempdir().unwrap();
+        let saved_path = tmp.path().join("saved-mtga");
+        std::fs::create_dir_all(&saved_path).unwrap();
+
+        let result = find_arena_at(
+            &[],
+            None,
+            Some((saved_path.clone(), "Custom".into())),
+        );
+        assert!(result.is_some());
+        let (path, source) = result.unwrap();
+        assert_eq!(path, saved_path);
+        assert_eq!(source, "Custom");
+    }
+
+    #[test]
+    fn find_arena_not_found() {
+        let result = find_arena_at(&[], None, None);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn streaming_assets_path() {
+        let mtga = PathBuf::from("/fake/MTGA.app");
+        let sa = streaming_assets(&mtga);
+        let sa_str = sa.to_str().unwrap();
+        assert!(
+            sa_str.contains("StreamingAssets"),
+            "Expected StreamingAssets in path, got: {}",
+            sa_str
+        );
+    }
+
+    #[test]
+    fn is_configured_true_when_conf_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("services.conf"), b"{}").unwrap();
+        assert!(is_configured(tmp.path()));
+    }
+
+    #[test]
+    fn is_configured_false_when_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(!is_configured(tmp.path()));
+    }
 }
 
 /// Launch MTGA
@@ -201,6 +320,11 @@ pub fn launch_mtga(_app: AppHandle) -> Result<(), String> {
         Command::new(mtga.join("MTGA.exe"))
             .spawn()
             .map_err(|e| format!("Failed to launch MTGA: {e}"))?;
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        return Err("MTGA launch not supported on this platform yet".into());
     }
 
     Ok(())

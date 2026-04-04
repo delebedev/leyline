@@ -13,6 +13,14 @@ _archive_ext := if _os == "windows" { "zip" } else { "tgz" }
 launcher-dev:
     cd "{{project_dir}}/launcher" && bun tauri dev
 
+# run clippy + unit tests (Rust only, no JDK needed)
+[group('launcher')]
+launcher-test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export PATH="$HOME/.cargo/bin:$PATH"
+    cd "{{project_dir}}/launcher/src-tauri" && cargo clippy -- -D warnings && cargo test
+
 # build distributable package (runs `bundle` first to produce sidecar, generates changelog)
 [group('launcher')]
 launcher-build: bundle

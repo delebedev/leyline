@@ -1,9 +1,11 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![deny(unused_must_use)]
 
 mod arena;
 mod server;
 mod tls;
 
+use log::info;
 use server::ServerProcess;
 use tauri::Manager;
 
@@ -36,6 +38,12 @@ fn get_changelog(app: tauri::AppHandle) -> Result<String, String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .max_file_size(5_000_000)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+                .build(),
+        )
         .manage(ServerProcess::new())
         .invoke_handler(tauri::generate_handler![
             server::start_server,
@@ -51,6 +59,7 @@ fn main() {
         .expect("error while building leyline launcher")
         .run(|app, event| {
             if let tauri::RunEvent::ExitRequested { .. } = event {
+                info!("Shutting down — stopping server");
                 let _ = server::stop_server(app.clone());
             }
         });
