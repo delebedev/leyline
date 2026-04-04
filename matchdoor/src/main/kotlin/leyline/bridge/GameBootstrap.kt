@@ -333,9 +333,9 @@ object GameBootstrap {
         ensureLocalization()
     }
 
-    fun initializeCardDatabase(quiet: Boolean = false, lazyCards: Boolean = false) {
+    fun initializeCardDatabase(quiet: Boolean = false) {
         if (quiet) forge.card.CardDb.quietInit = true
-        ensureCardDatabaseLoaded(lazyCards)
+        ensureCardDatabaseLoaded()
     }
 
     private fun ensureLocalization() {
@@ -358,7 +358,7 @@ object GameBootstrap {
         }
     }
 
-    private fun ensureCardDatabaseLoaded(lazyCards: Boolean = false) {
+    private fun ensureCardDatabaseLoaded() {
         if (cardDatabaseInitialized) {
             cardDbLatch.await()
             cardDbInitError?.let { throw RuntimeException("Card DB init failed on background thread", it) }
@@ -379,7 +379,6 @@ object GameBootstrap {
                     preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true)
                     preferences.setPref(FPref.UI_LANGUAGE, "en-US")
                     preferences.setPref(FPref.DECKGEN_CARDBASED, false)
-                    if (lazyCards) preferences.setPref(FPref.LOAD_CARDS_LAZILY, true)
                     null
                 }
             } catch (e: Throwable) {
