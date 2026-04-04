@@ -548,7 +548,7 @@ async function gsmShow(args: string[]) {
         parts.push(`grp=${fmtGrp(obj.grpId, resolver)}`);
       }
 
-      parts.push(fmtZone(obj.zoneId));
+      if (obj.zoneId != null) parts.push(fmtZone(obj.zoneId));
       if (obj.ownerSeatId) parts.push(`owner=${obj.ownerSeatId}`);
       if (obj.power) parts.push(`${obj.power.value}/${obj.toughness?.value ?? "?"}`);
       if (obj.isTapped) parts.push("tapped");
