@@ -237,23 +237,10 @@ src/
   commands/             # one file per command noun
 ```
 
-### Key design decisions
-
-**Accumulator uses whole-object replacement.** Proto3 semantics: absent fields in a Diff object mean default (false/0/""), not "unchanged". Field-by-field merge would incorrectly preserve stale values.
-
-**ObjectIdChanged chain tracking.** When a card changes zones, Arena assigns a new instanceId. The accumulator maintains forward (old→new) and backward (new→old) maps so `scry trace` can follow a card across its entire lifecycle.
-
-**Raw log slices are lossless.** Saved games are verbatim Player.log lines — re-parseable with future parser improvements. Enrichment is separate.
-
-**Card resolution is cached.** The Arena SQLite DB may be updated or unavailable. Card names are resolved once at save time and cached in `.meta.json`.
-
 ## Tests
 
 ```bash
 cd tools/scry-ts && bun test
 ```
 
-## Tips
-
-- **`--json` is always lossless.** Human-readable output strips prefixes and enriches enums. `--json` gives raw data exactly as Player.log recorded it.
-- See `CLAUDE.md` for developer pitfalls (log rotation, bare echoes, ability grpIds, annotation arrays).
+See `CLAUDE.md` for design decisions, coding patterns, and pitfalls.
