@@ -43,16 +43,12 @@ fn sidecar_bin_name() -> &'static str {
     return "leyline";
 }
 
-/// Resolve the leyline bundle root (contains bin/, lib/, jre/, res/, data/).
-fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .map_err(|e| format!("No resource dir: {e}"))?;
-
+/// Resolve bundle dir given the Tauri resource dir.
+/// Pure function — no AppHandle dependency.
+fn resolve_bundle_dir_from(resource_dir: &std::path::Path) -> Result<std::path::PathBuf, String> {
     let bundle = resource_dir.join(".bundle-stage").join("leyline");
     if bundle.join("bin").join(sidecar_bin_name()).exists() {
-        info!("Bundle found at staged path: {:?}", bundle);
+        info!("Bundle found at {}", bundle.display());
         return Ok(bundle);
     }
 
@@ -61,9 +57,8 @@ fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     loop {
         let candidate = dir.join("build/bundle");
         if candidate.join("bin").join(sidecar_bin_name()).exists() {
-            let canonical = candidate.canonicalize().unwrap_or(candidate);
-            info!("Bundle found via dev fallback: {:?}", canonical);
-            return Ok(canonical);
+            info!("Bundle found via dev fallback at {}", candidate.display());
+            return Ok(candidate.canonicalize().unwrap_or(candidate));
         }
         if !dir.pop() {
             break;
@@ -76,24 +71,35 @@ fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     ))
 }
 
-/// Ensure player.db exists in the app data directory.
-/// Copies the seed DB from the bundle on first launch.
-fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std::path::PathBuf> {
-    let data_dir = app.path().app_data_dir().ok()?;
-    if let Err(e) = std::fs::create_dir_all(&data_dir) {
-        error!("Failed to create app data dir {:?}: {e}", data_dir);
+/// Resolve the leyline bundle root (contains bin/, lib/, jre/, res/, data/).
+fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("No resource dir: {e}"))?;
+    resolve_bundle_dir_from(&resource_dir)
+}
+
+/// Copy seed DB to target path if it doesn't exist yet.
+/// Returns Some(target) if DB is available after the call.
+fn ensure_player_db_at(
+    target_dir: &std::path::Path,
+    seed_dir: &std::path::Path,
+) -> Option<std::path::PathBuf> {
+    if let Err(e) = std::fs::create_dir_all(target_dir) {
+        warn!("Failed to create dir {}: {e}", target_dir.display());
     }
-    let db_path = data_dir.join("player.db");
+    let db_path = target_dir.join("player.db");
 
     if !db_path.exists() {
-        let seed = bundle_dir.join("data").join("player.db");
+        let seed = seed_dir.join("player.db");
         if seed.exists() {
             match std::fs::copy(&seed, &db_path) {
-                Ok(_) => info!("Copied seed player.db to {:?}", db_path),
-                Err(e) => error!("Failed to copy seed player.db to {:?}: {e}", db_path),
+                Ok(_) => info!("Copied seed DB to {}", db_path.display()),
+                Err(e) => warn!("Failed to copy seed DB to {}: {e}", db_path.display()),
             }
         } else {
-            warn!("No seed player.db found at {:?}", seed);
+            warn!("No seed DB at {}", seed.display());
         }
     }
 
@@ -101,6 +107,27 @@ fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std
         Some(db_path)
     } else {
         None
+    }
+}
+
+/// Ensure player.db exists in the app data directory.
+/// Copies the seed DB from the bundle on first launch.
+fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    let data_dir = app.path().app_data_dir().ok()?;
+    ensure_player_db_at(&data_dir, &bundle_dir.join("data"))
+}
+
+/// Walk up from a directory looking for leyline.toml.
+/// Returns the directory containing it, or None.
+fn find_repo_root(start: &std::path::Path) -> Option<std::path::PathBuf> {
+    let mut dir = start.to_path_buf();
+    loop {
+        if dir.join("leyline.toml").exists() {
+            return Some(dir);
+        }
+        if !dir.pop() {
+            return None;
+        }
     }
 }
 
@@ -113,15 +140,9 @@ fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std
 /// Must NOT be src-tauri/ — Tauri's file watcher restarts the app on any file change.
 fn resolve_sidecar_cwd(app: &AppHandle, bundle_dir: &std::path::Path) -> std::path::PathBuf {
     // Dev: walk up from bundle to find repo root (has leyline.toml)
-    let mut dir = bundle_dir.to_path_buf();
-    loop {
-        if dir.join("leyline.toml").exists() {
-            info!("Sidecar CWD resolved via leyline.toml walk: {:?}", dir);
-            return dir;
-        }
-        if !dir.pop() {
-            break;
-        }
+    if let Some(root) = find_repo_root(bundle_dir) {
+        info!("Sidecar CWD: repo root at {}", root.display());
+        return root;
     }
 
     // Production (Windows): use writable app data dir
