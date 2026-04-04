@@ -36,7 +36,9 @@ The parser must never import from commands or the accumulator — it's the found
 
 ## Testing
 
-`bun test` — fast, no build step. Tests live next to source (`*.test.ts`).
+`bun run check` — typecheck + tests in one command. Run after any change.
+
+Tests live next to source (`*.test.ts`). Golden tests in `src/golden.test.ts` replay a reference Brawl game against committed snapshots — catches accumulator/parser regressions. Update golden files after intentional changes: `bun run testdata/update-golden.ts`.
 
 Test the accumulator thoroughly — it's the subtlest code (proto3 merge semantics, id chain tracking). Parser tests use synthetic log lines, not real Player.log data.
 
@@ -44,34 +46,27 @@ Test the accumulator thoroughly — it's the subtlest code (proto3 merge semanti
 
 - **Raw GSMs** (`gsm.raw`): when you need exactly what the client saw in one state update. Annotations, zone deltas, objects that changed.
 - **Accumulated state** (`acc.current`): when you need "what's on the board right now." Full object map, merged zones, life totals.
-- **Most commands need raw.** `gsm show`, `gsm list --view annotations`, `trace` all work with raw GSM data. Only `board` and `game cards` need the accumulator.
+- **Most commands need raw.** `gsm show`, `gsm list --view annotations`, `trace` all work with raw GSM data. Only `board`, `inspect`, and `game cards` need the accumulator.
 
 ## Storage contract
 
-`~/.scry/games/*.log` are **immutable after write**. Raw log slices, never modified. Enrichment goes in `.meta.json` sidecars. The catalog is a derived index — if it gets corrupted, it can be rebuilt from the log files.
-
-`.meta.json` may include `provenance`:
-- `real` for normal Arena games
-- `leyline` for local server games
-- `puzzle` for local puzzle runs
-- `unknown` for legacy/unclassified saves
-
-Leyline can emit `~/.scry/leyline-sessions.jsonl`; `scry save` joins by `matchId` and records explicit provenance. No journal match falls back to `real` / `inferred`.
+`~/.scry/games/*.log` are **immutable after write**. Enrichment goes in `.meta.json` sidecars. Catalog is a derived index — rebuildable from log files. See README for full layout.
 
 ## Analysis defaults
 
-For speccing, bug analysis, and card-behavior investigation, prefer saved games with `source=real` first. Include `unknown` when provenance is missing or when working through older saves. Do **not** default to `leyline` / `puzzle` runs unless the task is explicitly about local-server behavior, puzzles, or protocol debugging.
-
-User-facing commands should preserve that bias:
+Prefer saved games with `source=real` first. Include `unknown` (pre-provenance saves). Do **not** default to `leyline` / `puzzle` unless the task is explicitly about local-server behavior.
 - saved-game queries default to `real,unknown`
 - `--source leyline|puzzle|any` is explicit opt-in
-- live commands stay unfiltered
-
-## Card resolution
-
-Arena's SQLite DB is the only external dependency. It lives with the game client installation. Never copy or bundle it. Resolve at save time, cache in `.meta.json`, so queries work even if Arena is uninstalled later.
 
 ## Common pitfalls
+
+**Player.log rotates on Arena launch.** Current → Player-prev.log, new empty file. Use `scry save --all` to capture both before restarting Arena.
+
+**Bare-echo GSMs.** Arena sends content-less GSMs for animation pacing. They show as 0 annotations / 0 objects in `gsm list`. Filter with `--has` to skip them.
+
+**Turn numbers are per-player.** Turn 1 = player 1's first turn, turn 2 = player 2's first turn. `scry game` shows rounds (turns ÷ 2).
+
+**Ability grpIds ≠ card grpIds.** Triggered/activated abilities have their own grpIds not in the Cards table. `board` and `gsm show` resolve them via `objectSourceGrpId` → source card name. `resolveAbility()` in `cards.ts` queries the Abilities table directly.
 
 **Annotations are split across two arrays.** `gsm.raw.annotations` has transient annotations (per-GSM, ephemeral). `gsm.raw.persistentAnnotations` has persistent ones (accumulate across GSMs, deleted via `diffDeletedPersistentAnnotationIds`). Types like `DamagedThisTurn`, `EnteredZoneThisTurn`, `TargetSpec`, `TemporaryPermanent` are persistent. Any code that profiles or scans "all annotations" must check both arrays — `GsmSummary.annotationTypes` already merges them, but `gsm.raw` does not.
 

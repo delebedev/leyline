@@ -1,0 +1,24 @@
+{
+  "gameStateId": 87,
+  "turnNumber": 5,
+  "life": {
+    "seat1": 25,
+    "seat2": 25
+  },
+  "objectCount": 20,
+  "zoneSnapshot": {
+    "ZoneType_Revealed": 0,
+    "ZoneType_Suppressed": 0,
+    "ZoneType_Pending": 0,
+    "ZoneType_Command": 2,
+    "ZoneType_Stack": 1,
+    "ZoneType_Battlefield": 6,
+    "ZoneType_Exile": 0,
+    "ZoneType_Limbo": 8,
+    "ZoneType_Hand": 6,
+    "ZoneType_Library": 50,
+    "ZoneType_Graveyard": 1,
+    "ZoneType_Sideboard": 0
+  },
+  "persistentAnnotationCount": 17
+}

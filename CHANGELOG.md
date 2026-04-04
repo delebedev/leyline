@@ -11,4 +11,5 @@ Domain-grouped. Maintained per-PR — add to `[Unreleased]`, finalized at releas
 ### Fixed
 
 ### Developer
+- scry-ts overhaul: `inspect` command, colored output, protocol types, golden tests, strict typecheck — 7 beads closed (#358)
 - Documentation strategy overhaul: `read_when` frontmatter on 45+ docs, `just docs [filter]` recipe, expanded principles, CONTRIBUTING beefed up, stale plans purged and compressed into `wire-spec-archive.md`

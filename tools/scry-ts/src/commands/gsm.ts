@@ -1,8 +1,8 @@
 import { type Game, type GsmSummary } from "../games";
 import { resolveGame } from "../resolve";
 import { Accumulator, type GameState, type GameObject } from "../accumulator";
-import { getResolver, type CardResolver } from "../cards";
-import { stripPrefix, fmtGrp, zoneName, formatPhase } from "../format";
+import { getResolver, resolveAbility, type CardResolver } from "../cards";
+import { stripPrefix, fmtGrp, zoneName, formatPhase, formatAnnotations, formatManaCost } from "../format";
 
 export async function gsmCommand(args: string[]) {
   const verb = args[0];
@@ -534,8 +534,21 @@ async function gsmShow(args: string[]) {
     console.log("Objects:");
     for (const obj of objects) {
       const otype = stripPrefix(obj.type ?? "", "GameObjectType_");
-      const parts = [`iid=${obj.instanceId}`, `grp=${fmtGrp(obj.grpId, resolver)}`];
-      parts.push(fmtZone(obj.zoneId));
+      const parts = [`iid=${obj.instanceId}`];
+
+      // Ability objects: resolve source card + ability text
+      if (otype === "Ability" && resolver?.db) {
+        const srcName = obj.objectSourceGrpId ? resolver.resolve(obj.objectSourceGrpId) : null;
+        const abilityInfo = resolveAbility(resolver.db, obj.grpId);
+        const label = srcName
+          ? `${srcName} → ${abilityInfo?.text?.slice(0, 60) ?? `ability=${obj.grpId}`}`
+          : `grp=${obj.grpId}`;
+        parts.push(label);
+      } else {
+        parts.push(`grp=${fmtGrp(obj.grpId, resolver)}`);
+      }
+
+      if (obj.zoneId != null) parts.push(fmtZone(obj.zoneId));
       if (obj.ownerSeatId) parts.push(`owner=${obj.ownerSeatId}`);
       if (obj.power) parts.push(`${obj.power.value}/${obj.toughness?.value ?? "?"}`);
       if (obj.isTapped) parts.push("tapped");
@@ -548,28 +561,15 @@ async function gsmShow(args: string[]) {
   const annotations = raw.annotations ?? [];
   if (annotations.length > 0) {
     console.log("Annotations:");
-    for (const ann of annotations) {
-      const types = (ann.type ?? []).map((t: string) => stripPrefix(t, "AnnotationType_"));
-      const affector = ann.affectorId ?? "—";
-      const affected = ann.affectedIds ?? [];
-      console.log(`  [${ann.id ?? "?"}] ${types.join(", ")}  affector=${affector}  affected=[${affected.join(", ")}]`);
+    for (const line of formatAnnotations(annotations, { fmtZone })) console.log(line);
+    console.log("");
+  }
 
-      const details = ann.details ?? [];
-      for (const d of details) {
-        const rawVals: (string | number)[] =
-          d.valueString?.length ? d.valueString :
-          d.valueInt32?.length ? d.valueInt32 :
-          d.valueUint32?.length ? d.valueUint32 :
-          [];
-        // Enrich known detail keys
-        const key = d.key as string;
-        const isZoneKey = key === "zone_src" || key === "zone_dest";
-        const vals = rawVals.map((v: string | number) =>
-          isZoneKey && typeof v === "number" ? fmtZone(v) : String(v)
-        ).join(", ") || "?";
-        console.log(`       ${key} = ${vals}`);
-      }
-    }
+  // Persistent Annotations
+  const persistentAnns = raw.persistentAnnotations ?? [];
+  if (persistentAnns.length > 0) {
+    console.log("Persistent Annotations:");
+    for (const line of formatAnnotations(persistentAnns, { fmtZone })) console.log(line);
     console.log("");
   }
 

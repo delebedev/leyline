@@ -22,13 +22,25 @@ Card name resolution requires a local MTGA installation (reads the Arena SQLite 
 
 ### `scry board`
 
-Accumulated board state at end of game (or any point via `--gsid`).
+Accumulated board state at end of game (or any point via `--gsid`). Shows pending prompt type and mana costs on actions.
 
 ```bash
 scry board                    # last game, final state
 scry board --gsid 50          # time travel to gsId 50
 scry board --game 3           # different game
 scry board --json             # raw accumulated state
+```
+
+### `scry inspect`
+
+Show accumulated state of a specific permanent — zone, P/T, abilities, attachments, persistent annotations, viewers.
+
+```bash
+scry inspect "Cryptic Serpent"          # by name (fuzzy, prefers battlefield)
+scry inspect 432                        # by instanceId
+scry inspect "Elenda" --game 2026-04   # specific saved game
+scry inspect "Stoat" --gsid 50          # state at specific gsId
+scry inspect 385 --json                 # raw JSON
 ```
 
 ### `scry game`
@@ -60,7 +72,7 @@ scry gsm list --view turns              # phase/step timeline
 scry gsm list --view actions            # action timeline (CastSpell, PlayLand, etc.)
 scry gsm list --view annotations        # full annotation bodies with details
 scry gsm list --has DamageDealt --view annotations  # only DamageDealt annotations
-scry gsm show 292                       # drill into a specific GSM
+scry gsm show 292                       # drill into a specific GSM (incl. persistent annotations)
 scry gsm show 292 --json                # raw JSON (lossless)
 ```
 
@@ -124,6 +136,24 @@ scry lobby show 52                      # by index
 scry lobby show abc-123                 # by transaction id prefix
 scry lobby search "Deck"               # search payloads
 scry lobby show 6 --json               # raw request + response
+```
+
+### `scry prompts`
+
+Player interaction prompts — the dialogs, choices, and requests the server sends.
+
+```bash
+scry prompts                            # all prompts in last game
+scry prompts --type SelectNReq          # filter by prompt type
+scry prompts --json                     # raw JSON
+```
+
+### `scry ability`
+
+Resolve an abilityGrpId to its text and owning card.
+
+```bash
+scry ability 173914                     # ability text + source card
 ```
 
 ### `scry save`
@@ -195,9 +225,11 @@ src/
   parser.ts             # Player.log → LogEvent stream (GRE, FD, scene, error)
   accumulator.ts        # full/diff GSM merge, ObjectIdChanged chain tracking
   games.ts              # game boundary detection (ConnectResp → game over)
-  cards.ts              # grpId → card name via Arena SQLite (bun:sqlite)
+  cards.ts              # grpId → card name + ability resolution via Arena SQLite
+  classifier.ts         # GSM role classification (CAST, RESOLVE, ECHO, etc.)
   catalog.ts            # durable game storage + catalog index
   meta.ts               # per-game metadata (cards, notes, tags)
+  provenance.ts         # game source detection (real, leyline, puzzle) + filtering
   slicer.ts             # line-range extraction for raw log slicing
   resolve.ts            # unified game resolution (live log + catalog)
   format.ts             # shared formatting (zone names, card names, enums)
@@ -205,28 +237,10 @@ src/
   commands/             # one file per command noun
 ```
 
-### Key design decisions
-
-**Accumulator uses whole-object replacement.** Proto3 semantics: absent fields in a Diff object mean default (false/0/""), not "unchanged". Field-by-field merge would incorrectly preserve stale values.
-
-**ObjectIdChanged chain tracking.** When a card changes zones, Arena assigns a new instanceId. The accumulator maintains forward (old→new) and backward (new→old) maps so `scry trace` can follow a card across its entire lifecycle.
-
-**Raw log slices are lossless.** Saved games are verbatim Player.log lines — re-parseable with future parser improvements. Enrichment is separate.
-
-**Card resolution is cached.** The Arena SQLite DB may be updated or unavailable. Card names are resolved once at save time and cached in `.meta.json`.
-
 ## Tests
 
 ```bash
 cd tools/scry-ts && bun test
 ```
 
-27 tests across parser, game detection, and accumulator.
-
-## Gotchas
-
-- **Player.log rotates on Arena launch.** Current → Player-prev.log, new empty file. Use `scry save --all` to capture both before restarting Arena.
-- **Bare-echo GSMs.** Arena sends content-less GSMs for animation pacing. They show as 0 annotations / 0 objects in `gsm list`. Filter with `--has` to skip them.
-- **Turn numbers are per-player.** Turn 1 = player 1's first turn, turn 2 = player 2's first turn. `scry game` shows rounds (turns ÷ 2) for clarity.
-- **Ability grpIds ≠ card grpIds.** Triggered/activated abilities have their own grpIds that aren't in the Arena card DB. The card manifest filters these out.
-- **`--json` is always lossless.** The human-readable format strips prefixes and enriches enums. `--json` gives the raw data exactly as Player.log recorded it.
+See `CLAUDE.md` for design decisions, coding patterns, and pitfalls.

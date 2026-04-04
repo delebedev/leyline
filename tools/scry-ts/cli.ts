@@ -6,6 +6,7 @@ import { boardCommand } from "./src/commands/board";
 import { eventsCommand } from "./src/commands/events";
 import { gameCommand } from "./src/commands/game";
 import { gsmCommand } from "./src/commands/gsm";
+import { inspectCommand } from "./src/commands/inspect";
 import { lobbyCommand } from "./src/commands/lobby";
 import { noteCommand } from "./src/commands/note";
 import { promptsCommand } from "./src/commands/prompts";
@@ -22,6 +23,7 @@ const commands: Record<string, { description: string; run: (args: string[]) => P
   events: { description: "Summarize Player.log event types", run: eventsCommand },
   game:   { description: "Game summaries and details",       run: gameCommand },
   gsm:    { description: "Query game state messages",        run: gsmCommand },
+  inspect: { description: "Accumulated permanent state",     run: inspectCommand },
   lobby:  { description: "Lobby request/response pairs",     run: lobbyCommand },
   note:    { description: "Add a note to a saved game",       run: noteCommand },
   prompts: { description: "Player interaction prompts",       run: promptsCommand },

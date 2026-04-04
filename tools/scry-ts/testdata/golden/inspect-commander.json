@@ -1,0 +1,36 @@
+{
+  "object": {
+    "instanceId": 158,
+    "grpId": 96082,
+    "type": "GameObjectType_Card",
+    "zoneId": 26,
+    "ownerSeatId": 2,
+    "controllerSeatId": 2,
+    "cardTypes": [
+      "CardType_Creature"
+    ],
+    "subtypes": [
+      "SubType_Wizard"
+    ],
+    "colors": [
+      "CardColor_Black",
+      "CardColor_Red"
+    ],
+    "power": 2,
+    "toughness": 2,
+    "isTapped": false,
+    "hasSummoningSickness": false,
+    "damage": 0,
+    "loyalty": null,
+    "attackState": "",
+    "blockState": "",
+    "visibility": "Visibility_Public",
+    "overlayGrpId": 96082,
+    "objectSourceGrpId": 0,
+    "parentId": 0,
+    "isFacedown": false,
+    "name": 928479
+  },
+  "persistentAnnotationCount": 1,
+  "designationPresent": true
+}
