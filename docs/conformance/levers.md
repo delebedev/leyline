@@ -9,7 +9,7 @@ Current state: the pipeline compares annotation shapes in single GSM frames, man
 ## Status (2026-03-22)
 
 **Done:**
-- **#4 partially** — structural binder (type-based matching, not positional zip) + ObjectIdChanged anchoring. In `tools/tape/segments.py`.
+- **#4 partially** — structural binder (type-based matching, not positional zip) + ObjectIdChanged anchoring.
 - **#6 partially** — golden baselines with regression detection. `just conform` / `just conform-golden` pipeline works. Not yet wired into `test-gate` CI.
 - **QueuedGSM split** — CastSpell GSMs now emit the real server's QueuedGSM triplet (not a lever, but enables conformance of message types).
 
@@ -39,9 +39,9 @@ Current state: the pipeline compares annotation shapes in single GSM frames, man
 
 **How — engine side:** `MatchFlowHarness.messagesSince(snap)` already captures the full message sequence after an action. `ConformancePipelineTest` needs to serialize ALL messages, not just extract-by-category. Output: ordered `List<GREToClientMessage>` as JSON array.
 
-**How — recording side:** `md-segments.py extract` returns single frames. Needs `find_interaction_segment()` that returns the full message window from `ActionsAvailableReq` to next `ActionsAvailableReq` (stable-state boundaries). The recording already has these — `md-frames.jsonl` is the full ordered stream.
+**How — recording side:** `scry-ts sequences` extracts bracketing patterns. Needs `find_interaction_segment()` that returns the full message window from `ActionsAvailableReq` to next `ActionsAvailableReq` (stable-state boundaries). Saved games in `~/.scry/games/` contain the full ordered stream.
 
-**How — diff side:** Replace `bind_ids(template_anns, engine_anns)` (single-frame zip) with sequence alignment. Pair recording messages to engine messages by structure (GRE type + annotation fingerprint), then diff each pair. Proper sequence diff (LCS/edit-distance on message fingerprints), not positional zip. Extra/missing messages surface as insertions/deletions in the alignment.
+**How — diff side:** Replace positional zip with sequence alignment. Pair recording messages to engine messages by structure (GRE type + annotation fingerprint), then diff each pair. Proper sequence diff (LCS/edit-distance on message fingerprints), not positional zip. Extra/missing messages surface as insertions/deletions in the alignment. `scry-ts sequences --diff leyline real` already does side-by-side source comparison — extend to per-message structural diff.
 
 **Unlocks:** Catches the entire class of bugs where the right annotations are sent but in the wrong message, at the wrong time, or with wrong surrounding messages. This is where #92 and #93 live — and likely many undiscovered bugs.
 
@@ -49,13 +49,11 @@ Current state: the pipeline compares annotation shapes in single GSM frames, man
 
 ---
 
-## 2. Closed-loop tests (pipeline is split across JVM and Python)
+## 2. Closed-loop tests (no single entry point)
 
-**What:** The workflow is three manual steps across two languages: (1) run `ConformancePipelineTest` → engine JSON, (2) run `md-segments.py template` → recording template, (3) run `md-segments.py diff` → comparison. No single entry point. No CI. A code change can silently break PlayLand conformance and nothing detects it.
+**What:** The workflow requires manual steps: run `ConformancePipelineTest` → engine JSON, then compare against recording data. No single entry point. No CI gate. A code change can silently break PlayLand conformance and nothing detects it.
 
-**Why it's split:** Engine output lives in Kotlin/proto space. Recording templates live in Python/JSON. Binding+diff logic lives in Python. The structural barrier is language boundary, not complexity — the Python binding logic is ~100 lines of JSON pattern matching.
-
-**How — port binding+diff to Kotlin:** The binding logic (`bind_ids`, `hydrate_template`, `diff_annotations`) is mechanical: match by type, extract IDs from affectedIds/details, build a map, hydrate, compare field-by-field. Port to Kotlin, put next to `AnnotationSerializer.kt` in the conformance package.
+**Why it matters:** The binding/diff logic is mechanical: match by type, extract IDs, build a map, compare field-by-field. All in Kotlin now (Python tooling removed). Put next to `AnnotationSerializer.kt` in the conformance package.
 
 **How — load recordings in JVM tests:** `RecordingDecoder` (in `tooling/`) already decodes `md-frames.jsonl` into structured proto messages. The conformance test loads the recording segment, runs the engine with `MatchFlowHarness`, binds IDs, diffs, and asserts — all in one test method. No shell scripts, no file copying.
 
@@ -77,7 +75,7 @@ Current state: the pipeline compares annotation shapes in single GSM frames, man
 
 **How — harness extension:** `MatchFlowHarness` already captures all messages including AI-generated ones. `messagesSince(snap)` after `passPriority()` or `passUntilTurn()` returns AI diffs queued by `GamePlayback`. The messages are already there — just need tests that assert on them.
 
-**How — recording extraction:** `md-segments.py` needs seat filtering. Each GSM diff in the recording has `turnInfo.activePlayer`. Extract AI-turn segments by filtering for `activePlayer=2`. Compare against engine's AI-turn output.
+**How — recording extraction:** `scry-ts gsm list --has <type>` filters by annotation type; seat filtering via `turnInfo.activePlayer` on saved games. Extract AI-turn segments by filtering for `activePlayer=2`. Compare against engine's AI-turn output.
 
 **How — scripted AI:** Use `ScriptedPlayerController` (or the existing `PuzzleAI`) to make AI behavior deterministic. Set up a board where AI will attack/cast predictably, capture the resulting message sequence, compare against recording of same board state.
 
@@ -87,7 +85,7 @@ Current state: the pipeline compares annotation shapes in single GSM frames, man
 
 ## 4. Structural binding (binder assumes positional alignment)
 
-**What:** The binder (`bind_ids` in `md-segments.py`) works by `zip(template_anns, engine_anns)` — positional pairing. If annotation ordering differs, counts differ, or repeated types exist, it silently mis-binds or skips. Works for PlayLand (3 annotations, same order). Breaks for CastSpell (6 vs 8 annotations, mana ability lifecycle), combat (multiple creatures → multiple identical-type annotations), triggered ability chains (variable-length sequences).
+**What:** The binder works by positional pairing (`zip`). If annotation ordering differs, counts differ, or repeated types exist, it silently mis-binds or skips. Works for PlayLand (3 annotations, same order). Breaks for CastSpell (6 vs 8 annotations, mana ability lifecycle), combat (multiple creatures → multiple identical-type annotations), triggered ability chains (variable-length sequences).
 
 **What breaks:**
 - CastSpell: recording has 8 annotations (including mana ability lifecycle), engine has 6. Zip truncates at 6, losing 2 recording annotations entirely.
@@ -102,7 +100,7 @@ Current state: the pipeline compares annotation shapes in single GSM frames, man
 
 **Unlocks:** The pipeline works for complex mechanics (combat, ability chains, multi-spell turns) without false diffs from ordering differences. Required before sequence comparison (#1) works on anything beyond simple single-card interactions.
 
-**2026-03-21 note:** Partially done. Structural binder (type-based matching) + ObjectIdChanged anchoring implemented in `tools/tape/segments.py`. Anchoring didn't reduce current diff counts because the remaining diffs are cross-GSM (different GSM boundaries), not same-type confusion. Will pay off when sequence comparison (#1) brings same-type annotations from different GSMs into the same comparison window.
+**2026-03-21 note:** Partially done. Structural binder (type-based matching) + ObjectIdChanged anchoring implemented. Anchoring didn't reduce current diff counts because the remaining diffs are cross-GSM (different GSM boundaries), not same-type confusion. Will pay off when sequence comparison (#1) brings same-type annotations from different GSMs into the same comparison window.
 
 ---
 
@@ -112,7 +110,7 @@ Current state: the pipeline compares annotation shapes in single GSM frames, man
 
 **What breaks:** Any segment where the hand contains cards not visible in a nearby Full GSM. This is most segments past turn 2 — the further into the game, the staler the last Full GSM becomes. Currently limits pipeline to early-game segments in recordings where the initial Full GSM is close.
 
-**How — running object accumulator:** Build a Python `ObjectTracker` that maintains `{instanceId: {grpId, name, zone, cardTypes, ...}}` across ALL frames in a recording. On Full GSM: snapshot all objects. On Diff GSM: apply zone changes (objectIds lists), apply ObjectIdChanged (update key), track new objects. ~50 lines of Python. Same thing `ClientAccumulator` does engine-side.
+**How — running object accumulator:** `scry-ts board` already accumulates board state across GSMs. Extend to track `{instanceId: {grpId, name, zone, cardTypes, ...}}` across ALL frames in a saved game. On Full GSM: snapshot all objects. On Diff GSM: apply zone changes, apply ObjectIdChanged, track new objects. Same thing `ClientAccumulator` does engine-side.
 
 **How — integrate with puzzle generation:** `cmd_puzzle` calls `tracker.objects_at(frame_index)` instead of `_resolve_hand_cards()`. Returns complete board state at any point in the recording. Hand, battlefield, graveyard, exile — all zones, all cards, all resolved.
 
