@@ -1,22 +1,26 @@
 ---
 name: forge-upstream-sync
-description: Sync the forge engine submodule with upstream Card-Forge/forge. Merge upstream master, resolve conflicts preserving fork-local patches, validate with leyline test suite, create PRs for both repos.
+description: Sync the forge engine submodule with upstream Card-Forge/forge. Merge upstream into stable branch, resolve conflicts preserving fork-local patches, validate with leyline test suite, create PR.
 ---
 
 ## What I do
 
-Merge upstream `Card-Forge/forge` master into `delebedev/forge` fork, validate against leyline's test suite, and land via PRs to both repos.
+Merge upstream `Card-Forge/forge` master into `delebedev/forge` `stable` branch, validate against leyline's test suite, and land via PR.
 
-**Reference:** `fork-deltas.md` in this folder has the full fork-local delta inventory, preserve surface, and validation history. Read it before starting.
+**Reference:** `PATCHES.md` in the forge submodule root has the full fork-local patch catalog. Read it before starting.
+
+## Repo Structure
+
+`delebedev/forge` is a **true GitHub fork** of `Card-Forge/forge`.
+
+- `master` — tracks upstream automatically. Don't commit here.
+- `stable` — default branch. Our engine patches on top of a pinned upstream point. Leyline submodule points here.
+- `PATCHES.md` — catalog of fork-local changes. Update when adding/removing patches.
 
 ## Prerequisites
 
 - `mvn` in PATH (`brew install maven`)
 - Forge submodule initialized (`git submodule update --init`)
-
-## Critical: Worktree Base
-
-**Always branch from `origin/master` of `delebedev/forge`, NOT from the submodule's detached HEAD.** The submodule pin can lag behind the fork's master by many commits. Branching from the stale pin creates a divergent merge that conflicts with the fork's own master.
 
 ## Flow
 
@@ -28,38 +32,37 @@ git status --short --branch
 git submodule status
 ```
 
-### 2. Fetch upstream (use --depth for speed)
-
-Full fetch of Card-Forge/forge times out over HTTPS. Shallow fetch works:
+### 2. Fetch upstream via master
 
 ```bash
-git -C forge fetch https://github.com/Card-Forge/forge.git master --depth=100
+git -C forge fetch origin master --depth=100
 ```
 
 Divergence check:
 
 ```bash
-git -C forge rev-list --left-right --count HEAD...FETCH_HEAD
+git -C forge rev-list --left-right --count stable...origin/master
 ```
 
 Check preserve surface for upstream changes (see `fork-deltas.md` for full file list):
 
 ```bash
-git -C forge log --oneline FETCH_HEAD --not HEAD -- \
+git -C forge log --oneline origin/master --not stable -- \
   forge-gui/src/main/java/forge/player/PlayerControllerHuman.java \
+  forge-gui/src/main/java/forge/player/TargetSelection.java \
   forge-game/src/main/java/forge/game/player/PlaySpellAbility.java \
   forge-game/src/main/java/forge/game/event/ \
   forge-game/src/main/java/forge/game/GameAction.java \
   forge-game/src/main/java/forge/game/spellability/AbilityManaPart.java
 ```
 
-### 3. Create sync worktree from origin/master
+### 3. Create sync branch from stable
 
 ```bash
-git -C forge fetch origin master
-git -C forge worktree add ../forge--sync -b sync/upstream-$(date +%Y-%m-%d) origin/master
+git -C forge fetch origin stable
+git -C forge worktree add ../forge--sync -b sync/upstream-$(date +%Y-%m-%d) origin/stable
 cd ~/src/leyline/forge--sync
-git merge --no-commit --no-ff <upstream-sha>
+git merge --no-commit --no-ff origin/master
 ```
 
 ### 4. Resolve conflicts
@@ -68,10 +71,11 @@ Priority order:
 
 1. **CI workflows** — keep fork deletions (`git rm`)
 2. **IGameEventVisitor** — keep ours (fork adds visit methods for custom events)
-3. **Controller seam** (`PlayerControllerHuman`, `PlaySpellAbility`) — take upstream, preserve fork seam methods
+3. **Controller seam** (`PlayerControllerHuman`, `TargetSelection`) — take upstream, preserve fork seam methods
 4. **Event classes** — keep fork enrichments
 5. **Adventure/mobile/desktop content** — take upstream (`git checkout --theirs`)
-6. **Everything else** — take upstream
+6. **pom.xml** — take upstream but **restore `versionCode` to `2.0.10`** (or current stable version)
+7. **Everything else** — take upstream
 
 Bulk upstream-take for non-leyline files:
 
@@ -111,14 +115,16 @@ Common fixes:
 - **Constructor signature changes** — update fork seam calls
 - **Duplicate methods from auto-merge** — git silently duplicates identical methods added at different positions
 - **Missing fork-local event fire sites** — single-line `game.fireEvent(...)` calls auto-merge away. Always verify fire sites (see `fork-deltas.md`)
+- **Version mismatch** — upstream bumps `versionCode` in pom.xml. Restore to stable's version or update `libs.versions.toml` to match.
 
 ### 8. Land it
 
 1. Commit merge in `forge--sync`
-2. Push branch to `delebedev/forge`, create PR (list preserved fork deltas)
-3. Merge forge PR
-4. In leyline: `git -C forge fetch origin master && git -C forge checkout origin/master && git add forge`
-5. Create leyline branch + PR with submodule pointer update
+2. Push branch to `delebedev/forge`, create PR against `stable`
+3. Update `PATCHES.md` if patches changed
+4. Squash-merge forge PR (one logical sync)
+5. In leyline: `git -C forge fetch origin stable && git -C forge checkout origin/stable && git add forge`
+6. Create leyline branch + PR with submodule pointer update
 
 ## Troubleshooting
 
