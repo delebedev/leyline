@@ -137,6 +137,43 @@ export async function inspectCommand(args: string[]) {
     }
   }
 
+  // Build zone history from ZoneTransfer annotations across the id chain
+  const allIids = new Set<number>([iid]);
+  let walkId = iid;
+  for (const gsm of game.greMessages) {
+    for (const ann of gsm.raw.annotations ?? []) {
+      if (!(ann.type ?? []).some(t => t.includes("ObjectIdChanged"))) continue;
+      for (const d of ann.details ?? []) {
+        if (d.key === "new_id" && d.valueInt32?.[0] === walkId) {
+          const origId = (ann.details ?? []).find(dd => dd.key === "orig_id")?.valueInt32?.[0];
+          if (origId != null) { allIids.add(origId); walkId = origId; }
+        }
+      }
+    }
+  }
+  const zoneStops: string[] = [];
+  for (const gsm of game.greMessages) {
+    if (targetGsId != null && gsm.gsId > targetGsId) break;
+    for (const ann of gsm.raw.annotations ?? []) {
+      if (!(ann.type ?? []).some(t => t.includes("ZoneTransfer"))) continue;
+      if (!(ann.affectedIds ?? []).some(id => allIids.has(id))) continue;
+      for (const d of ann.details ?? []) {
+        if (d.key === "zone_dest") {
+          const zid = d.valueInt32?.[0] ?? 0;
+          const name = fmtZone(zid).split(" ")[0]; // strip "(seat N)"
+          if (zoneStops.length === 0) {
+            // also grab source for first move
+            const srcDetail = (ann.details ?? []).find(dd => dd.key === "zone_src");
+            const srcZid = srcDetail?.valueInt32?.[0] ?? 0;
+            const srcName = fmtZone(srcZid).split(" ")[0];
+            if (srcName) zoneStops.push(srcName);
+          }
+          zoneStops.push(name);
+        }
+      }
+    }
+  }
+
   // Find raw object from the last GSM that contained it (for extra fields)
   let rawObj: any = null;
   const gsms = [...game.greMessages];
@@ -165,6 +202,9 @@ export async function inspectCommand(args: string[]) {
   const otype = stripPrefix(target.type, "GameObjectType_");
   console.log(`${cardName}  (iid=${iid}  grp=${target.grpId})`);
   console.log(`  Type: ${otype}  Zone: ${fmtZone(target.zoneId)}`);
+  if (zoneStops.length > 1) {
+    console.log(`  History: ${zoneStops.join(" → ")} (${zoneStops.length - 1} moves)`);
+  }
   console.log(`  Owner: seat ${target.ownerSeatId}  Controller: seat ${target.controllerSeatId}`);
 
   if (target.cardTypes.length > 0) {
