@@ -73,6 +73,14 @@ Arena's SQLite DB is the only external dependency. It lives with the game client
 
 ## Common pitfalls
 
+**Player.log rotates on Arena launch.** Current → Player-prev.log, new empty file. Use `scry save --all` to capture both before restarting Arena.
+
+**Bare-echo GSMs.** Arena sends content-less GSMs for animation pacing. They show as 0 annotations / 0 objects in `gsm list`. Filter with `--has` to skip them.
+
+**Turn numbers are per-player.** Turn 1 = player 1's first turn, turn 2 = player 2's first turn. `scry game` shows rounds (turns ÷ 2).
+
+**Ability grpIds ≠ card grpIds.** Triggered/activated abilities have their own grpIds not in the Cards table. `board` and `gsm show` resolve them via `objectSourceGrpId` → source card name. `resolveAbility()` in `cards.ts` queries the Abilities table directly.
+
 **Annotations are split across two arrays.** `gsm.raw.annotations` has transient annotations (per-GSM, ephemeral). `gsm.raw.persistentAnnotations` has persistent ones (accumulate across GSMs, deleted via `diffDeletedPersistentAnnotationIds`). Types like `DamagedThisTurn`, `EnteredZoneThisTurn`, `TargetSpec`, `TemporaryPermanent` are persistent. Any code that profiles or scans "all annotations" must check both arrays — `GsmSummary.annotationTypes` already merges them, but `gsm.raw` does not.
 
 **Source filters for the real corpus are `real,unknown` — not just `real`.** Many older saved games have `source=unknown` (pre-provenance saves). Using `--source real` alone misses them. The default `parseSavedSourceFilter([])` returns `["real", "unknown"]`, which is correct. When building `--diff` or manual source sets, always include `unknown` alongside `real`.

@@ -254,10 +254,7 @@ cd tools/scry-ts && bun test
 
 77 tests across parser, game detection, accumulator, and classifier.
 
-## Gotchas
+## Tips
 
-- **Player.log rotates on Arena launch.** Current → Player-prev.log, new empty file. Use `scry save --all` to capture both before restarting Arena.
-- **Bare-echo GSMs.** Arena sends content-less GSMs for animation pacing. They show as 0 annotations / 0 objects in `gsm list`. Filter with `--has` to skip them.
-- **Turn numbers are per-player.** Turn 1 = player 1's first turn, turn 2 = player 2's first turn. `scry game` shows rounds (turns ÷ 2) for clarity.
-- **Ability grpIds ≠ card grpIds.** Triggered/activated abilities have their own grpIds that aren't in the Arena card DB. The card manifest filters these out.
-- **`--json` is always lossless.** The human-readable format strips prefixes and enriches enums. `--json` gives the raw data exactly as Player.log recorded it.
+- **`--json` is always lossless.** Human-readable output strips prefixes and enriches enums. `--json` gives raw data exactly as Player.log recorded it.
+- See `CLAUDE.md` for developer pitfalls (log rotation, bare echoes, ability grpIds, annotation arrays).
