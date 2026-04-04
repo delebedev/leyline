@@ -2,6 +2,7 @@ use std::process::{Child, Command};
 use std::sync::Mutex;
 use std::time::Duration;
 
+use log::{error, info, warn};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -51,6 +52,7 @@ fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 
     let bundle = resource_dir.join(".bundle-stage").join("leyline");
     if bundle.join("bin").join(sidecar_bin_name()).exists() {
+        info!("Bundle found at staged path: {:?}", bundle);
         return Ok(bundle);
     }
 
@@ -59,7 +61,9 @@ fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     loop {
         let candidate = dir.join("build/bundle");
         if candidate.join("bin").join(sidecar_bin_name()).exists() {
-            return Ok(candidate.canonicalize().unwrap_or(candidate));
+            let canonical = candidate.canonicalize().unwrap_or(candidate);
+            info!("Bundle found via dev fallback: {:?}", canonical);
+            return Ok(canonical);
         }
         if !dir.pop() {
             break;
@@ -76,13 +80,20 @@ fn resolve_bundle_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
 /// Copies the seed DB from the bundle on first launch.
 fn ensure_player_db(app: &AppHandle, bundle_dir: &std::path::Path) -> Option<std::path::PathBuf> {
     let data_dir = app.path().app_data_dir().ok()?;
-    let _ = std::fs::create_dir_all(&data_dir);
+    if let Err(e) = std::fs::create_dir_all(&data_dir) {
+        error!("Failed to create app data dir {:?}: {e}", data_dir);
+    }
     let db_path = data_dir.join("player.db");
 
     if !db_path.exists() {
         let seed = bundle_dir.join("data").join("player.db");
         if seed.exists() {
-            let _ = std::fs::copy(&seed, &db_path);
+            match std::fs::copy(&seed, &db_path) {
+                Ok(_) => info!("Copied seed player.db to {:?}", db_path),
+                Err(e) => error!("Failed to copy seed player.db to {:?}: {e}", db_path),
+            }
+        } else {
+            warn!("No seed player.db found at {:?}", seed);
         }
     }
 
@@ -105,6 +116,7 @@ fn resolve_sidecar_cwd(app: &AppHandle, bundle_dir: &std::path::Path) -> std::pa
     let mut dir = bundle_dir.to_path_buf();
     loop {
         if dir.join("leyline.toml").exists() {
+            info!("Sidecar CWD resolved via leyline.toml walk: {:?}", dir);
             return dir;
         }
         if !dir.pop() {
@@ -153,6 +165,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
     }
 
     let bundle_dir = resolve_bundle_dir(&app)?;
+    info!("Bundle dir: {:?}", bundle_dir);
     let bin_path = bundle_dir.join("bin").join(sidecar_bin_name());
     server.set_state(ServerState::Starting, &app);
 
@@ -186,6 +199,8 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
         .unwrap_or_else(std::process::Stdio::null);
 
     let sidecar_cwd = resolve_sidecar_cwd(&app, &bundle_dir);
+    info!("Sidecar CWD: {:?}", sidecar_cwd);
+    info!("Server log: {:?}", log_path);
 
     let mut cmd;
     #[cfg(target_os = "windows")]
@@ -258,6 +273,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
                 if let Some(ref mut child) = *guard {
                     if let Ok(Some(status)) = child.try_wait() {
                         let msg = format!("Server exited with {status}");
+                        error!("{}", msg);
                         drop(guard);
                         server.set_state(ServerState::Error(msg), &app_handle);
                         return;
@@ -267,6 +283,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
 
             if let Ok(resp) = client.get("http://127.0.0.1:8091/health").send().await {
                 if resp.status().is_success() {
+                    info!("Server health check passed — server is running");
                     let server = app_handle.state::<ServerProcess>();
                     server.set_state(ServerState::Running, &app_handle);
                     return;
@@ -274,6 +291,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
             }
         }
 
+        error!("Server health check timed out after 60s");
         let server = app_handle.state::<ServerProcess>();
         server.set_state(
             ServerState::Error("Health check timed out after 60s".into()),
