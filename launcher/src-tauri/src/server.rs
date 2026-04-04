@@ -1,4 +1,5 @@
 use std::process::{Child, Command};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -18,6 +19,7 @@ pub enum ServerState {
 pub struct ServerProcess {
     pub child: Mutex<Option<Child>>,
     pub state: Mutex<ServerState>,
+    stopping: AtomicBool,
 }
 
 impl ServerProcess {
@@ -25,6 +27,7 @@ impl ServerProcess {
         Self {
             child: Mutex::new(None),
             state: Mutex::new(ServerState::Stopped),
+            stopping: AtomicBool::new(false),
         }
     }
 
@@ -185,6 +188,8 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
         }
     }
 
+    server.stopping.store(false, Ordering::SeqCst);
+
     let bundle_dir = resolve_bundle_dir(&app)?;
     info!("Bundle dir: {:?}", bundle_dir);
     let bin_path = bundle_dir.join("bin").join(sidecar_bin_name());
@@ -293,6 +298,9 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
                 let mut guard = server.child.lock().unwrap();
                 if let Some(ref mut child) = *guard {
                     if let Ok(Some(status)) = child.try_wait() {
+                        if server.stopping.load(Ordering::SeqCst) {
+                            return; // stop_server is handling this
+                        }
                         let msg = format!("Server exited with {status}");
                         error!("{}", msg);
                         drop(guard);
@@ -326,6 +334,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn stop_server(app: AppHandle) -> Result<(), String> {
     let server = app.state::<ServerProcess>();
+    server.stopping.store(true, Ordering::SeqCst);
     let mut guard = server.child.lock().unwrap();
     if let Some(ref mut child) = *guard {
         let _ = child.kill();
