@@ -58,7 +58,7 @@ class MatchFlowHarness(
 
     /** Start game, keep hand, advance to first real-action phase via MatchSession. */
     fun connectAndKeep() {
-        GameBootstrap.initializeCardDatabase(quiet = true)
+        GameBootstrap.initializeCardDatabase(quiet = true, lazyCards = true)
         TestCardRegistry.ensureRegistered()
         if (deckList != null) TestCardRegistry.ensureDeckRegistered(deckList)
 
@@ -97,7 +97,7 @@ class MatchFlowHarness(
 
     /** Start puzzle game from classpath resource, advance to first action phase. */
     fun connectAndKeepPuzzle(resourcePath: String, aiScript: List<ScriptedAction>? = null) {
-        GameBootstrap.initializeCardDatabase(quiet = true)
+        GameBootstrap.initializeCardDatabase(quiet = true, lazyCards = true)
         startPuzzleBridge(PuzzleSource.loadFromResource(resourcePath), aiScript)
     }
 
@@ -113,12 +113,12 @@ class MatchFlowHarness(
     fun connectAndKeepPuzzleText(puzzleText: String, aiScript: List<ScriptedAction>? = null) {
         // Card DB must init before PuzzleSource.loadFromText — the Puzzle
         // constructor triggers GameState.<clinit> which requires localization.
-        GameBootstrap.initializeCardDatabase(quiet = true)
+        GameBootstrap.initializeCardDatabase(quiet = true, lazyCards = true)
         startPuzzleBridge(PuzzleSource.loadFromText(puzzleText), aiScript)
     }
 
     private fun startPuzzleBridge(puzzle: forge.gamemodes.puzzle.Puzzle, aiScript: List<ScriptedAction>?) {
-        GameBootstrap.initializeCardDatabase(quiet = true)
+        GameBootstrap.initializeCardDatabase(quiet = true, lazyCards = true)
         TestCardRegistry.ensureRegistered()
 
         session = MatchSession(

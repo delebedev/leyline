@@ -330,9 +330,9 @@ object GameBootstrap {
         ensureLocalization()
     }
 
-    fun initializeCardDatabase(quiet: Boolean = false) {
+    fun initializeCardDatabase(quiet: Boolean = false, lazyCards: Boolean = false) {
         if (quiet) forge.card.CardDb.quietInit = true
-        ensureCardDatabaseLoaded()
+        ensureCardDatabaseLoaded(lazyCards)
     }
 
     private fun ensureLocalization() {
@@ -355,7 +355,7 @@ object GameBootstrap {
         }
     }
 
-    private fun ensureCardDatabaseLoaded() {
+    private fun ensureCardDatabaseLoaded(lazyCards: Boolean = false) {
         if (cardDatabaseInitialized) {
             return
         }
@@ -365,6 +365,7 @@ object GameBootstrap {
         FModel.initialize(null) { preferences ->
             preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true)
             preferences.setPref(FPref.UI_LANGUAGE, "en-US")
+            if (lazyCards) preferences.setPref(FPref.LOAD_CARDS_LAZILY, true)
             null
         }
         cardDatabaseInitialized = true
