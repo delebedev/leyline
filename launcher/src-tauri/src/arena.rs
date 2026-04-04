@@ -29,38 +29,53 @@ pub struct ArenaInfo {
     pub configured: bool,
 }
 
-/// Find MTGA.app at known locations, returning (path, source).
-fn find_arena() -> Option<(PathBuf, String)> {
-    for &(source, p) in KNOWN_INSTALLS {
+/// Pure arena detection — takes paths to probe instead of reading globals.
+fn find_arena_at(
+    known: &[(&str, &str)],
+    steam_path: Option<&Path>,
+    saved: Option<(PathBuf, String)>,
+) -> Option<(PathBuf, String)> {
+    for &(source, p) in known {
         let path = PathBuf::from(p);
         if path.exists() {
-            info!("Arena found at {:?} ({})", path, source);
+            info!("Found Arena at {} ({})", path.display(), source);
             return Some((path, source.into()));
         }
     }
 
-    // Steam path with home expansion
-    if let Some(home) = dirs::home_dir() {
-        #[cfg(target_os = "macos")]
-        let steam = home.join("Library/Application Support/Steam/steamapps/common/MTGA/MTGA.app");
-        #[cfg(target_os = "windows")]
-        let steam = home.join("AppData/Local/Steam/steamapps/common/MTGA");  // custom library location
+    if let Some(steam) = steam_path {
         if steam.exists() {
-            info!("Arena found at {:?} (Steam home dir)", steam);
-            return Some((steam, "Steam".into()));
+            info!("Found Arena at {} (Steam)", steam.display());
+            return Some((steam.to_path_buf(), "Steam".into()));
         }
     }
 
-    // Saved path from previous session
-    if let Some((saved, source)) = load_saved_path() {
-        if saved.exists() {
-            info!("Arena found at {:?} (saved path, {})", saved, source);
-            return Some((saved, source));
+    if let Some((saved_path, source)) = saved {
+        if saved_path.exists() {
+            info!("Found Arena at saved path {} ({})", saved_path.display(), source);
+            return Some((saved_path, source));
         }
     }
 
     warn!("Arena not found at any known location");
     None
+}
+
+/// Find MTGA.app at known locations, returning (path, source).
+fn find_arena() -> Option<(PathBuf, String)> {
+    let steam_path = dirs::home_dir().map(|home| {
+        #[cfg(target_os = "macos")]
+        return home.join("Library/Application Support/Steam/steamapps/common/MTGA/MTGA.app");
+        #[cfg(target_os = "windows")]
+        return home.join("AppData/Local/Steam/steamapps/common/MTGA");
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+        return home.join(".steam/steam/steamapps/common/MTGA");
+    });
+    find_arena_at(
+        KNOWN_INSTALLS,
+        steam_path.as_deref(),
+        load_saved_path(),
+    )
 }
 
 fn streaming_assets(mtga_path: &Path) -> PathBuf {
@@ -211,6 +226,73 @@ pub fn restore_arena(_app: AppHandle) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn find_arena_at_known_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let mtga = tmp.path().join("MTGA.app");
+        std::fs::create_dir_all(&mtga).unwrap();
+        let mtga_str = mtga.to_str().unwrap().to_string();
+
+        let result = find_arena_at(&[("Epic", &mtga_str)], None, None);
+        assert!(result.is_some());
+        let (path, source) = result.unwrap();
+        assert_eq!(path, mtga);
+        assert_eq!(source, "Epic");
+    }
+
+    #[test]
+    fn find_arena_saved_fallback() {
+        let tmp = tempfile::tempdir().unwrap();
+        let saved_path = tmp.path().join("saved-mtga");
+        std::fs::create_dir_all(&saved_path).unwrap();
+
+        let result = find_arena_at(
+            &[],
+            None,
+            Some((saved_path.clone(), "Custom".into())),
+        );
+        assert!(result.is_some());
+        let (path, source) = result.unwrap();
+        assert_eq!(path, saved_path);
+        assert_eq!(source, "Custom");
+    }
+
+    #[test]
+    fn find_arena_not_found() {
+        let result = find_arena_at(&[], None, None);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn streaming_assets_path() {
+        let mtga = PathBuf::from("/fake/MTGA.app");
+        let sa = streaming_assets(&mtga);
+        let sa_str = sa.to_str().unwrap();
+        assert!(
+            sa_str.contains("StreamingAssets"),
+            "Expected StreamingAssets in path, got: {}",
+            sa_str
+        );
+    }
+
+    #[test]
+    fn is_configured_true_when_conf_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("services.conf"), b"{}").unwrap();
+        assert!(is_configured(tmp.path()));
+    }
+
+    #[test]
+    fn is_configured_false_when_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        assert!(!is_configured(tmp.path()));
+    }
 }
 
 /// Launch MTGA
