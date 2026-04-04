@@ -36,7 +36,9 @@ The parser must never import from commands or the accumulator — it's the found
 
 ## Testing
 
-`bun test` — fast, no build step. Tests live next to source (`*.test.ts`).
+`bun run check` — typecheck + tests in one command. Run after any change.
+
+Tests live next to source (`*.test.ts`). Golden tests in `src/golden.test.ts` replay a reference Brawl game against committed snapshots — catches accumulator/parser regressions. Update golden files after intentional changes: `bun run testdata/update-golden.ts`.
 
 Test the accumulator thoroughly — it's the subtlest code (proto3 merge semantics, id chain tracking). Parser tests use synthetic log lines, not real Player.log data.
 
