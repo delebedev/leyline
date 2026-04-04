@@ -144,6 +144,15 @@ jobs:
       - name: Smoke test (sidecar + TLS)
         run: just launcher-smoke
 
+      - name: Upload smoke logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-logs-macos
+          path: /tmp/*/sidecar.log
+          if-no-files-found: ignore
+          retention-days: 3
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
