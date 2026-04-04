@@ -1,3 +1,10 @@
+---
+summary: "Translation table mapping Arena annotation types to Forge game events and leyline handlers."
+read_when:
+  - "mapping an Arena annotation type to its Forge event or leyline handler"
+  - "implementing or debugging a specific annotation type"
+  - "checking whether an annotation type is already implemented"
+---
 # Rosetta: Arena Protocol / Forge Engine / Leyline
 
 Translation reference: Arena protocol ↔ Forge engine ↔ leyline code.

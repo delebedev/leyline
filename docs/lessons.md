@@ -1,3 +1,11 @@
+---
+summary: "Hard-won patterns from debugging sessions: threading traps, Forge API gotchas, test diagnostics, annotation ordering, worktree discipline."
+read_when:
+  - "starting complex implementation or debugging work"
+  - "hitting an unexpected Forge engine behavior"
+  - "writing integration tests or puzzle tests"
+  - "working with worktrees or git operations"
+---
 # Lessons
 
 Patterns learned from debugging sessions and user corrections. Review before starting complex work.

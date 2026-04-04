@@ -1,3 +1,10 @@
+---
+summary: "Bird's-eye view of leyline protocol coverage organized by player-facing systems (combat, mana, targeting, etc.) with gap analysis."
+read_when:
+  - "assessing which game systems are implemented vs missing"
+  - "prioritizing protocol work across subsystems"
+  - "checking GRE message coverage status"
+---
 # Systems Map — Protocol Coverage & Gaps
 
 Bird's-eye view of leyline's protocol coverage, organized by player-facing interaction systems. Complements `catalog.yaml` (mechanic-level) and `rosetta.md` (type-level).

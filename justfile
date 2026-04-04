@@ -266,6 +266,19 @@ bootstrap:
     echo "  just serve         # start server (needs MTGA + dev-setup)"
     echo "  just dev           # compile + serve + watch"
 
+# --- Docs ---
+
+# list docs with summary from YAML frontmatter (optional grep filter)
+[group('docs')]
+docs filter="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    find docs -name '*.md' -o -name '*.yaml' | sort | while read -r f; do
+      summary=$(awk '/^---$/{n++; next} n==1 && /^summary:/{sub(/^summary: *"?/,""); sub(/"$/,""); print; exit}' "$f")
+      [ -z "$summary" ] && continue
+      printf "%-50s %s\n" "$f" "$summary"
+    done | { [ -n "{{filter}}" ] && grep -i "{{filter}}" || cat; }
+
 # --- Data ---
 
 # one-time: seed player.db from golden captures + starter decks

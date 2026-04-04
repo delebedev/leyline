@@ -1,3 +1,10 @@
+---
+summary: "Operator journal for the self-improving automation harness: per-session test results, failure patterns, and iteration notes."
+read_when:
+  - "reviewing past automation harness sessions before a new play session"
+  - "checking known automation failure patterns"
+  - "understanding the evolution of the gameplay harness"
+---
 # Gameplay Harness Log
 
 Operator journal for the self-improving automation harness. Each entry captures: what was tested, what broke, what to fix next. Future agents read this before play sessions.

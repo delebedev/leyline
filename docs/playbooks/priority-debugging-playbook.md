@@ -1,3 +1,10 @@
+---
+summary: "Two-layer priority model (engine + session), diagnostic steps for stuck states, and what correct priority flow looks like."
+read_when:
+  - "debugging a stuck game or priority hang"
+  - "diagnosing auto-pass not firing or firing incorrectly"
+  - "modifying WebPlayerController or AutoPassEngine"
+---
 # Priority & Auto-Pass Debugging Playbook
 
 How the two-layer priority system works, how to diagnose stuck states, and what "correct" looks like.

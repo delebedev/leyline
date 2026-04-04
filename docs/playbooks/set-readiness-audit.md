@@ -1,3 +1,10 @@
+---
+summary: "Repeatable audit for set readiness: Forge card script coverage, mechanic gap analysis, Arena DB queries, and missing-card identification."
+read_when:
+  - "assessing whether a new set is ready for leyline"
+  - "checking Forge card script coverage for a set"
+  - "identifying missing card implementations before a set release"
+---
 # Set Readiness Audit
 
 How to assess whether a set is ready for leyline. Repeatable for any set.

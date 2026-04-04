@@ -1,3 +1,10 @@
+---
+summary: "Upstream Forge codebase reference: module map, rules engine, game modes, AI, player controllers, and reusable helpers."
+read_when:
+  - "onboarding to or diving back into Forge engine code"
+  - "finding the right Forge module for a feature"
+  - "understanding Forge's PlayerController or AI architecture"
+---
 # Forge Engine Internals
 
 Reference for the upstream Forge codebase — module structure, rules engine,

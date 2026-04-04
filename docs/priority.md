@@ -1,3 +1,10 @@
+---
+summary: "Forge engine priority state machine and Arena client priority protocol: phase loop, SBA checks, auto-pass, stops, yields."
+read_when:
+  - "debugging stuck priority or auto-pass issues"
+  - "modifying priority passing or stop logic"
+  - "understanding the Forge PhaseHandler game loop"
+---
 # Priority System
 
 Forge engine priority state machine + Arena client priority protocol reference.

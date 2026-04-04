@@ -1,3 +1,10 @@
+---
+summary: "How Forge identifies abilities internally (three ID counters) and how to map them to Arena's abilityGrpId."
+read_when:
+  - "mapping Forge ability IDs to Arena abilityGrpId"
+  - "implementing ability-related annotations (AbilityInstanceCreated, TargetSpec, UserActionTaken)"
+  - "debugging wrong ability slots or mana ability identification"
+---
 # Forge Ability ID Mapping
 
 How Forge identifies abilities internally, and how to map those IDs to Arena's `abilityGrpId`.

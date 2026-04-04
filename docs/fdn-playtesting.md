@@ -1,3 +1,10 @@
+---
+summary: "Running log of FDN set playtesting: wire protocol observations, mechanic interactions (morbid, landfall, incubate), and conformance notes."
+read_when:
+  - "checking known issues with FDN set mechanics"
+  - "looking for prior observations on a specific FDN card or mechanic"
+  - "updating conformance notes after FDN playtesting"
+---
 # FDN Playtesting Findings
 
 Running log of wire protocol observations, mechanic interactions, and conformance notes from FDN bot matches. Raw material for card specs, catalog updates, and implementation work.

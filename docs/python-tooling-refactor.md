@@ -1,3 +1,10 @@
+---
+summary: "Plan for restructuring Python tooling: uv project under tools/py/, scry/arena package split, dependency rules, and migration path."
+read_when:
+  - "modifying Python tooling structure (arena, scry packages)"
+  - "adding new Python tools or CLI commands"
+  - "understanding the scry → arena dependency direction"
+---
 # Python Tooling Refactor
 
 ## Why

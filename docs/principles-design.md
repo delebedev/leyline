@@ -1,3 +1,10 @@
+---
+summary: "Code structure rules: bounded contexts, dependency direction, value objects, naming conventions, and separation of concerns."
+read_when:
+  - "adding a new class or module and deciding where it belongs"
+  - "reviewing code for architectural violations"
+  - "deciding how to structure cross-context communication"
+---
 # Design Principles
 
 Rules for how code lives inside and across the bounded contexts

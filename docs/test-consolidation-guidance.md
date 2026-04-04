@@ -1,3 +1,10 @@
+---
+summary: "How to consolidate scattered tests into subsystem test files: SubsystemTest base class, harness tier selection, and migration patterns."
+read_when:
+  - "creating a new test file or reorganizing existing tests"
+  - "choosing between unit, board-level, and full-game test harnesses"
+  - "consolidating tests from multiple files into a subsystem test"
+---
 # Test Consolidation Guidance
 
 How to consolidate scattered test files into subsystem test files. Written from two successful consolidations (LandManaTest, StackCastResolveTest) and their agent reflections.

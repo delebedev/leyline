@@ -1,3 +1,10 @@
+---
+summary: "How to analyze Front Door protocol traffic from proxy recordings: `just wire` commands, finding specific CmdTypes, and diffing payloads."
+read_when:
+  - "investigating Front Door protocol traffic"
+  - "comparing real server FD responses to leyline's"
+  - "debugging FD stub handler issues"
+---
 # FD Payload Investigation Playbook
 
 How to analyze Front Door protocol traffic from proxy recordings.

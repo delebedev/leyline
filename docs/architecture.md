@@ -1,3 +1,10 @@
+---
+summary: "Mermaid diagrams of leyline package wiring, server layout, wire protocol, bridge threading, and match lifecycle."
+read_when:
+  - "understanding how leyline modules relate to each other"
+  - "tracing data flow from client through server to engine"
+  - "onboarding to the codebase structure"
+---
 # Leyline — Architecture
 
 Mermaid diagrams: package wiring, server layout, wire protocol, bridge threading, match lifecycle.

@@ -1,3 +1,10 @@
+---
+summary: "How Forge handles reveal-and-choose effects (Duress, Thoughtseize): two SpellAbility paths, bridge interception points, and choice flow."
+read_when:
+  - "implementing or debugging hand reveal / discard choice effects"
+  - "understanding Forge's DiscardEffect vs chained SubAbility paths"
+  - "wiring bridge interception for player choice prompts"
+---
 # Forge Reveal + Choose Internals
 
 How Forge handles "reveal opponent's hand, choose a card" effects (Duress, Revealing Eye, Thoughtseize, etc.) and how the bridge intercepts choices.

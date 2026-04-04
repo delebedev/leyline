@@ -1,3 +1,10 @@
+---
+summary: "Step-by-step workflow to trace an unknown annotation type from variance report to full understanding: grpId resolution, card scripts, md-frames context, proto-inspect."
+read_when:
+  - "investigating an unknown or missing annotation type"
+  - "tracing annotation behavior from variance report to implementation"
+  - "understanding what a specific annotation type does in Arena"
+---
 # Annotation Investigation Playbook
 
 How to trace an unknown annotation type from the variance report to a full

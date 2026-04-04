@@ -1,3 +1,10 @@
+---
+summary: "How Forge represents continuous/layered effects (CR 613): layer enum, Table<timestamp, staticAbilityId, Value> pattern, and differ strategy."
+read_when:
+  - "implementing LayeredEffect annotations or P/T tracking"
+  - "understanding how Forge computes continuous effects across layers"
+  - "debugging lord effects, keyword grants, or stat changes"
+---
 # Forge Layered Effects System
 
 How Forge represents and computes continuous/layered effects (CR 613).

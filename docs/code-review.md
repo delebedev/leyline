@@ -1,3 +1,10 @@
+---
+summary: "Code review checklist: real bugs first, test quality/abstraction level, separation of concerns, naming, and Kotlin patterns."
+read_when:
+  - "reviewing a pull request"
+  - "writing tests and unsure about abstraction level"
+  - "checking code against project conventions"
+---
 # Code Review Checklist
 
 What matters in this project, in order.

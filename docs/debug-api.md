@@ -1,3 +1,10 @@
+---
+summary: "Debug server on :8090 — REST API endpoints for protocol messages, game state timeline, priority events, and SSE real-time stream."
+read_when:
+  - "using the debug panel to inspect match state"
+  - "querying debug API endpoints programmatically"
+  - "adding new debug collectors or endpoints"
+---
 # Debug Panel & API
 
 Debug server on `:8090` (auto-starts with `just serve`). Opens the debug panel in the browser.

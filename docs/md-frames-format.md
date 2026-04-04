@@ -1,3 +1,10 @@
+---
+summary: "Schema for md-frames.jsonl: per-GRE-message JSON objects with common fields, S-C/C-S direction fields, annotations, zones, and turnInfo."
+read_when:
+  - "parsing or generating md-frames.jsonl files"
+  - "understanding the structure of recording capture data"
+  - "writing tools that consume GRE message captures"
+---
 # MD Frames JSONL Format
 
 Schema for `md-frames.jsonl` — one JSON object per GRE message, both directions.

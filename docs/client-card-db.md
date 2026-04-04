@@ -1,3 +1,10 @@
+---
+summary: "Arena client SQLite card database schema: Cards, Abilities, Localizations, Enums tables, key columns, and CardDb.kt integration."
+read_when:
+  - "querying the client card database for grpId, abilities, or localized text"
+  - "modifying CardDb.kt or card resolution logic"
+  - "understanding how Arena stores card definitions and ability slots"
+---
 # Client Card Database (SQLite)
 
 The client ships a SQLite database with card definitions, abilities, localized text, and linkage metadata. Leyline reads it via `CardDb.kt`.
