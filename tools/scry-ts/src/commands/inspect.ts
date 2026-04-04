@@ -11,7 +11,7 @@
 import { resolveGame } from "../resolve";
 import { Accumulator, type GameObject, type GameState } from "../accumulator";
 import { getResolver, resolveAbility, type CardResolver } from "../cards";
-import { stripPrefix, fmtGrp, zoneName } from "../format";
+import { stripPrefix, fmtGrp, zoneName, formatAnnotations } from "../format";
 
 export async function inspectCommand(args: string[]) {
   if (args[0] === "--help" || args[0] === "-h" || !args[0]) {
@@ -223,16 +223,6 @@ export async function inspectCommand(args: string[]) {
   if (relatedAnns.length > 0) {
     console.log("");
     console.log("Persistent Annotations:");
-    for (const ann of relatedAnns) {
-      const types = (ann.type ?? []).map((t: string) => stripPrefix(t, "AnnotationType_"));
-      console.log(`  [${ann.id ?? "?"}] ${types.join(", ")}  affector=${ann.affectorId ?? "—"}  affected=[${(ann.affectedIds ?? []).join(", ")}]`);
-      for (const d of ann.details ?? []) {
-        const rawVals: (string | number)[] =
-          d.valueString?.length ? d.valueString :
-          d.valueInt32?.length ? d.valueInt32 :
-          d.valueUint32?.length ? d.valueUint32 : [];
-        console.log(`       ${d.key} = ${rawVals.join(", ") || "?"}`);
-      }
-    }
+    for (const line of formatAnnotations(relatedAnns)) console.log(line);
   }
 }
