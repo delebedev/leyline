@@ -18,6 +18,7 @@ import forge.util.Lang
 import forge.util.Localizer
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.CountDownLatch
 
 /** True when game rules indicate a puzzle (either primary type or applied variant). */
 val Game.isPuzzle: Boolean
@@ -39,7 +40,8 @@ fun isCommanderVariant(gameType: String): Boolean = gameType.lowercase() in COMM
 
 object GameBootstrap {
     private var initialized = false
-    private var cardDatabaseInitialized = false
+    private val cardDbLatch = CountDownLatch(1)
+    @Volatile private var cardDatabaseInitialized = false
 
     fun createGame(): Game {
         ensureLocalization()
@@ -357,18 +359,28 @@ object GameBootstrap {
 
     private fun ensureCardDatabaseLoaded(lazyCards: Boolean = false) {
         if (cardDatabaseInitialized) {
+            // Already done (or in progress on another thread) — wait for completion.
+            cardDbLatch.await()
             return
         }
 
-        ensureGuiBase()
+        synchronized(this) {
+            if (cardDatabaseInitialized) {
+                cardDbLatch.await()
+                return
+            }
 
-        FModel.initialize(null) { preferences ->
-            preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true)
-            preferences.setPref(FPref.UI_LANGUAGE, "en-US")
-            if (lazyCards) preferences.setPref(FPref.LOAD_CARDS_LAZILY, true)
-            null
+            ensureGuiBase()
+
+            FModel.initialize(null) { preferences ->
+                preferences.setPref(FPref.LOAD_CARD_SCRIPTS_LAZILY, true)
+                preferences.setPref(FPref.UI_LANGUAGE, "en-US")
+                if (lazyCards) preferences.setPref(FPref.LOAD_CARDS_LAZILY, true)
+                null
+            }
+            cardDatabaseInitialized = true
+            cardDbLatch.countDown()
         }
-        cardDatabaseInitialized = true
     }
 
     private fun resolveAssetsDir(): Path =
