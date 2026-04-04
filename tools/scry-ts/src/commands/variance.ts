@@ -11,6 +11,7 @@ import { parseSavedSourceFilter, matchesSource } from "../provenance";
 import { parseLog } from "../parser";
 import { detectGames, type GsmSummary } from "../games";
 import { resolveGame, parseGameFlag } from "../resolve";
+import { c } from "../format";
 
 // --- Types ---
 
@@ -296,13 +297,13 @@ function renderDetail(profiles: TypeProfile[]) {
   if (profiles.length === 0) { console.log("No matching annotations."); return; }
 
   for (const p of profiles) {
-    console.log(`\n${p.type}  (${p.instanceCount} instances, ${p.gameLabels.size} games)`);
+    console.log(`\n${c.annType(p.type)}  (${p.instanceCount} instances, ${p.gameLabels.size} games)`);
 
     // Keys
-    console.log(`  Always keys:    ${p.alwaysKeys.join(", ") || "(none)"}`);
+    console.log(`  ${c.dim("Always keys:")}    ${p.alwaysKeys.map(k => c.key(k)).join(", ") || "(none)"}`);
     if (p.sometimesKeys.length > 0) {
-      const parts = p.sometimesKeys.map((k) => `${k.key} (${k.pct}%)`);
-      console.log(`  Sometimes keys: ${parts.join(", ")}`);
+      const parts = p.sometimesKeys.map((k) => `${c.key(k.key)} (${k.pct}%)`);
+      console.log(`  ${c.dim("Sometimes keys:")} ${parts.join(", ")}`);
     }
 
     // Values
@@ -355,12 +356,12 @@ function renderSummary(profiles: TypeProfile[]) {
   console.log("\u2014".repeat(120));
 
   for (const p of profiles) {
-    const always = p.alwaysKeys.join(",") || "\u2014";
+    const always = p.alwaysKeys.map(k => c.key(k)).join(",") || "\u2014";
     const sometimes = p.sometimesKeys.length > 0
-      ? p.sometimesKeys.map((k) => `${k.key}(${k.pct}%)`).join(",")
+      ? p.sometimesKeys.map((k) => `${c.key(k.key)}(${k.pct}%)`).join(",")
       : "\u2014";
     console.log(
-      `${p.type.padEnd(35)} ${String(p.instanceCount).padStart(5)} ${String(p.gameLabels.size).padStart(5)}  ${always.padEnd(40)} ${sometimes}`
+      `${c.annType(p.type.padEnd(35))} ${String(p.instanceCount).padStart(5)} ${String(p.gameLabels.size).padStart(5)}  ${always.padEnd(40)} ${sometimes}`
     );
   }
 }
