@@ -1,3 +1,11 @@
+---
+summary: "How Forge handles DFC transforms: Card.backside state, changeCardState resolution chain, triggered abilities, and leyline's detection layer."
+read_when:
+  - "implementing or debugging double-faced card transforms"
+  - "working on the bridge layer for DFC state detection"
+  - "understanding Forge's Card.currentStateName / Card.backside model"
+---
+
 # Forge DFC Transform Internals
 
 Reference documentation for how Forge handles double-faced card (DFC) activated transforms internally. Covers state management, the resolution chain, triggered ability flow, and leyline's detection layer.
