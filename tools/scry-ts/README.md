@@ -22,13 +22,25 @@ Card name resolution requires a local MTGA installation (reads the Arena SQLite 
 
 ### `scry board`
 
-Accumulated board state at end of game (or any point via `--gsid`).
+Accumulated board state at end of game (or any point via `--gsid`). Shows pending prompt type and mana costs on actions.
 
 ```bash
 scry board                    # last game, final state
 scry board --gsid 50          # time travel to gsId 50
 scry board --game 3           # different game
 scry board --json             # raw accumulated state
+```
+
+### `scry inspect`
+
+Show accumulated state of a specific permanent — zone, P/T, abilities, attachments, persistent annotations, viewers.
+
+```bash
+scry inspect "Cryptic Serpent"          # by name (fuzzy, prefers battlefield)
+scry inspect 432                        # by instanceId
+scry inspect "Elenda" --game 2026-04   # specific saved game
+scry inspect "Stoat" --gsid 50          # state at specific gsId
+scry inspect 385 --json                 # raw JSON
 ```
 
 ### `scry game`
@@ -60,7 +72,7 @@ scry gsm list --view turns              # phase/step timeline
 scry gsm list --view actions            # action timeline (CastSpell, PlayLand, etc.)
 scry gsm list --view annotations        # full annotation bodies with details
 scry gsm list --has DamageDealt --view annotations  # only DamageDealt annotations
-scry gsm show 292                       # drill into a specific GSM
+scry gsm show 292                       # drill into a specific GSM (incl. persistent annotations)
 scry gsm show 292 --json                # raw JSON (lossless)
 ```
 
@@ -124,6 +136,24 @@ scry lobby show 52                      # by index
 scry lobby show abc-123                 # by transaction id prefix
 scry lobby search "Deck"               # search payloads
 scry lobby show 6 --json               # raw request + response
+```
+
+### `scry prompts`
+
+Player interaction prompts — the dialogs, choices, and requests the server sends.
+
+```bash
+scry prompts                            # all prompts in last game
+scry prompts --type SelectNReq          # filter by prompt type
+scry prompts --json                     # raw JSON
+```
+
+### `scry ability`
+
+Resolve an abilityGrpId to its text and owning card.
+
+```bash
+scry ability 173914                     # ability text + source card
 ```
 
 ### `scry save`
@@ -195,7 +225,8 @@ src/
   parser.ts             # Player.log → LogEvent stream (GRE, FD, scene, error)
   accumulator.ts        # full/diff GSM merge, ObjectIdChanged chain tracking
   games.ts              # game boundary detection (ConnectResp → game over)
-  cards.ts              # grpId → card name via Arena SQLite (bun:sqlite)
+  cards.ts              # grpId → card name + ability resolution via Arena SQLite
+  classifier.ts         # GSM role classification (CAST, RESOLVE, ECHO, etc.)
   catalog.ts            # durable game storage + catalog index
   meta.ts               # per-game metadata (cards, notes, tags)
   slicer.ts             # line-range extraction for raw log slicing
@@ -221,7 +252,7 @@ src/
 cd tools/scry-ts && bun test
 ```
 
-27 tests across parser, game detection, and accumulator.
+77 tests across parser, game detection, accumulator, and classifier.
 
 ## Gotchas
 
