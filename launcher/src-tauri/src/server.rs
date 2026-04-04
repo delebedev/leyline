@@ -155,18 +155,22 @@ fn resolve_sidecar_cwd(app: &AppHandle, bundle_dir: &std::path::Path) -> std::pa
     {
         let data_dir = app.path().app_data_dir()
             .unwrap_or_else(|_| std::env::temp_dir());
-        let _ = std::fs::create_dir_all(&data_dir);
+        if let Err(e) = std::fs::create_dir_all(&data_dir) {
+            warn!("Failed to create app data dir: {e}");
+        }
         let toml_dest = data_dir.join("leyline.toml");
         if !toml_dest.exists() {
             let toml_src = bundle_dir.join("leyline.toml");
             if toml_src.exists() {
-                let _ = std::fs::copy(&toml_src, &toml_dest);
+                if let Err(e) = std::fs::copy(&toml_src, &toml_dest) {
+                    warn!("Failed to copy leyline.toml: {e}");
+                }
             }
         }
-        return data_dir;
+        data_dir
     }
 
-    // Production (macOS): bundle dir is writable
+    // Production (macOS/Linux): bundle dir is writable
     #[cfg(not(target_os = "windows"))]
     {
         if bundle_dir.join("leyline.toml").exists() {
@@ -194,6 +198,7 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
 
     let bundle_dir = resolve_bundle_dir(&app)?;
     info!("Bundle dir: {:?}", bundle_dir);
+    #[cfg(not(target_os = "windows"))]
     let bin_path = bundle_dir.join("bin").join(sidecar_bin_name());
     server.set_state(ServerState::Starting, &app);
 
