@@ -322,8 +322,8 @@ function collectAnnotationsFromGsm(
   gameLabel: string,
   out: Map<string, AnnotationInstance[]>,
 ): void {
-  const rawAnns: any[] = gsm.raw.annotations ?? [];
-  const rawPAnns: any[] = gsm.raw.persistentAnnotations ?? [];
+  const rawAnns = gsm.raw.annotations ?? [];
+  const rawPAnns = gsm.raw.persistentAnnotations ?? [];
   const allAnns = [...rawAnns, ...rawPAnns];
   if (allAnns.length === 0) return;
 
@@ -380,7 +380,7 @@ function collectActionsFromGsm(
   gameLabel: string,
   out: Map<string, ActionInstance[]>,
 ): void {
-  const rawActions: any[] = gsm.raw.actions ?? [];
+  const rawActions = gsm.raw.actions ?? [];
   for (const act of rawActions) {
     // Inner action object holds the real payload
     const inner = act.action ?? act;
@@ -414,40 +414,30 @@ function collectPromptsFromGame(
   events: any[],
   out: Map<string, PromptInstance[]>,
 ): void {
-  // Walk the GRE stream for prompt-type messages
-  for (const entry of game.greStream) {
-    if (entry.kind !== "gre") continue;
-    const fullType = `GREMessageType_${entry.type}`;
-    if (!PROMPT_GRE_TYPES.has(fullType)) continue;
-
-    const type = entry.type;
-
-    // We don't have the raw payload in greStream — record with empty fields
-    // The greStream only stores type/msgId/gameStateId. To get payload fields
-    // we'd need to re-parse raw events. For now, we track occurrence + type.
-    const inst: PromptInstance = {
-      type,
-      gameLabel,
-      fields: [], // populated below if we can find the raw message
-      raw: entry,
-    };
-
-    const list = out.get(type) ?? [];
-    list.push(inst);
-    out.set(type, list);
-  }
-
-  // Enrich prompt fields from raw events
-  // The parser yields GRE events with full message payloads — walk those
-  // and match by game timestamp window + message type
+  // Walk raw parser events scoped to this game's boundaries.
+  // greStream doesn't carry payloads, so we re-parse from events
+  // and use ConnectResp + timestamp matching to scope to this game.
+  let inGame = false;
   for (const event of events) {
     if (event.type !== "gre") continue;
+
+    const isConnect = event.messages.some(
+      (m: any) => m.type === "GREMessageType_ConnectResp",
+    );
+    if (isConnect) {
+      if (event.timestamp === game.startTimestamp) {
+        inGame = true;
+      } else if (inGame) {
+        break; // next game started
+      }
+    }
+    if (!inGame) continue;
+
     for (const msg of event.messages as any[]) {
       const msgType = msg.type;
       if (!msgType || !PROMPT_GRE_TYPES.has(msgType)) continue;
 
       const type = stripPrefix(msgType, "GREMessageType_");
-      // Extract top-level field names from the message payload (excluding 'type', 'msgId', 'systemSeatIds')
       const skipFields = new Set(["type", "msgId", "systemSeatIds"]);
       const fields = Object.keys(msg).filter((k) => !skipFields.has(k));
 
