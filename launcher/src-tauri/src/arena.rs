@@ -19,6 +19,9 @@ const KNOWN_INSTALLS: &[(&str, &str)] = &[
     ("Steam", "C:/Program Files (x86)/Steam/steamapps/common/MTGA"),
 ];
 
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const KNOWN_INSTALLS: &[(&str, &str)] = &[];
+
 const SERVICES_CONF: &str = include_str!("../../resources/services.conf");
 const NPE_VO_BNK: &[u8] = include_bytes!("../../resources/NPE_VO.bnk");
 
@@ -83,6 +86,8 @@ fn streaming_assets(mtga_path: &Path) -> PathBuf {
     return mtga_path.join("Contents/Resources/Data/StreamingAssets");
     #[cfg(target_os = "windows")]
     return mtga_path.join("MTGA_Data/StreamingAssets");
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    return mtga_path.join("MTGA_Data/StreamingAssets");
 }
 
 fn audio_dir(streaming: &Path) -> PathBuf {
@@ -90,6 +95,8 @@ fn audio_dir(streaming: &Path) -> PathBuf {
     return streaming.join("Audio/GeneratedSoundBanks/Mac");
     #[cfg(target_os = "windows")]
     return streaming.join("Audio/GeneratedSoundBanks/Windows");
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    return streaming.join("Audio/GeneratedSoundBanks/Linux");
 }
 
 fn config_dir() -> Option<PathBuf> {
@@ -313,6 +320,11 @@ pub fn launch_mtga(_app: AppHandle) -> Result<(), String> {
         Command::new(mtga.join("MTGA.exe"))
             .spawn()
             .map_err(|e| format!("Failed to launch MTGA: {e}"))?;
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        return Err("MTGA launch not supported on this platform yet".into());
     }
 
     Ok(())

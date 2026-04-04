@@ -149,7 +149,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: smoke-logs-macos
-          path: /tmp/*/sidecar.log
+          path: |
+            /tmp/**/sidecar.log
+            /private/tmp/**/sidecar.log
+            /var/folders/**/sidecar.log
           if-no-files-found: ignore
           retention-days: 3
 

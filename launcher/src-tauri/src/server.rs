@@ -34,7 +34,9 @@ impl ServerProcess {
     fn set_state(&self, new_state: ServerState, app: &AppHandle) {
         let mut state = self.state.lock().unwrap();
         *state = new_state.clone();
-        let _ = app.emit("server-state", new_state);
+        if let Err(e) = app.emit("server-state", new_state) {
+            warn!("Failed to emit server-state event: {e}");
+        }
     }
 }
 
@@ -304,6 +306,9 @@ pub async fn start_server(app: AppHandle) -> Result<(), String> {
                         let msg = format!("Server exited with {status}");
                         error!("{}", msg);
                         drop(guard);
+                        if server.stopping.load(Ordering::SeqCst) {
+                            return;
+                        }
                         server.set_state(ServerState::Error(msg), &app_handle);
                         return;
                     }

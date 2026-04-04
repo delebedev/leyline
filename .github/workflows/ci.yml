@@ -142,10 +142,26 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  detect-changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      launcher: ${{ steps.filter.outputs.launcher }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            launcher:
+              - 'launcher/**'
+
   launcher-rust:
     name: Launcher Rust (${{ matrix.label }})
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: detect-changes
+    if: needs.detect-changes.outputs.launcher == 'true'
     strategy:
+      fail-fast: false
       matrix:
         include:
           - label: Linux
@@ -162,7 +178,6 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust
-        if: matrix.label != 'Linux'
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -185,7 +200,7 @@ jobs:
 
   report:
     name: Report
-    needs: [gate, integration, launcher-rust]
+    needs: [gate, integration]
     if: always()
     runs-on: ubuntu-latest
     steps:
