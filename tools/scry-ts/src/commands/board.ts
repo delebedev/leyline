@@ -1,7 +1,7 @@
 import { resolveGame, parseGameFlag } from "../resolve";
 import { Accumulator, type GameObject } from "../accumulator";
 import { getResolver, resolveAbility, type CardResolver } from "../cards";
-import { stripPrefix, zoneName, formatPhase, formatManaCost } from "../format";
+import { stripPrefix, zoneName, formatPhase, formatManaCost, c } from "../format";
 import type { GreMessageSummary } from "../games";
 
 export async function boardCommand(args: string[]) {
@@ -65,7 +65,7 @@ export async function boardCommand(args: string[]) {
   const turn = ti?.turnNumber ?? 0;
   const p1 = state.players.get(1);
   const p2 = state.players.get(2);
-  const life = `Life: ${p1?.lifeTotal ?? "?"}/${p2?.lifeTotal ?? "?"}`;
+  const life = `Life: ${c.lifeTotal(String(p1?.lifeTotal ?? "?"))}/${c.lifeTotal(String(p2?.lifeTotal ?? "?"))}`;
 
   console.log(`T${turn} ${phase}  ${active}  ${life}`);
 
@@ -89,11 +89,12 @@ export async function boardCommand(args: string[]) {
     }
   }
   if (lastPrompt) {
-    console.log(`Pending: ${lastPrompt.type}`);
+    console.log(`${c.prompt("Pending:")} ${lastPrompt.type}`);
   }
 
   if (game.result && !game.active && targetGsId == null) {
-    console.log(`\n=== Game over: ${game.result} ===`);
+    const banner = c.gameOver(game.result);
+    console.log(`\n${banner(`=== Game over: ${game.result} ===`)}`);
   }
   console.log("");
 
@@ -135,14 +136,15 @@ export async function boardCommand(args: string[]) {
       if (zt === "Limbo") continue;
 
       const seatLabel = seat === game.ourSeat ? " (you)" : seat === oppSeat ? " (opponent)" : "";
+      const zoneHeader = c.zone(zt) + c.dim(seatLabel);
 
       if (zt === "Library") {
-        console.log(`${zt}${seatLabel}: ${objects.length} cards`);
+        console.log(`${zoneHeader}: ${objects.length} cards`);
         continue;
       }
 
       if (zt === "Battlefield") {
-        console.log(`${zt}${seatLabel}:`);
+        console.log(`${zoneHeader}:`);
         const creatures: string[] = [];
         const others: string[] = [];
         for (const obj of objects) {
@@ -160,22 +162,22 @@ export async function boardCommand(args: string[]) {
 
       if (zt === "Hand") {
         const names = objects.map((o) => cardName(o, resolver));
-        console.log(`${zt}${seatLabel} (${objects.length}): ${names.join(", ")}`);
+        console.log(`${zoneHeader} (${objects.length}): ${names.join(", ")}`);
         continue;
       }
 
       if (zt === "Stack") {
         const names = objects.map((o) => cardName(o, resolver));
-        console.log(`${zt}: ${names.join(", ")}`);
+        console.log(`${c.zone("Stack")}: ${names.join(", ")}`);
         continue;
       }
 
       // Graveyard, Exile, Command
       if (objects.length <= 5) {
         const names = objects.map((o) => cardName(o, resolver));
-        console.log(`${zt}${seatLabel} (${objects.length}): ${names.join(", ")}`);
+        console.log(`${zoneHeader} (${objects.length}): ${names.join(", ")}`);
       } else {
-        console.log(`${zt}${seatLabel}: ${objects.length} cards`);
+        console.log(`${zoneHeader}: ${objects.length} cards`);
       }
     }
   }
@@ -209,12 +211,11 @@ export async function boardCommand(args: string[]) {
 
 function cardName(obj: GameObject, resolver: CardResolver | null): string {
   if (obj.type === "GameObjectType_Ability" && resolver?.db) {
-    // Resolve source card name, fall back to ability grpId
     const srcName = obj.objectSourceGrpId ? resolver.resolve(obj.objectSourceGrpId) : null;
-    return srcName ? `${srcName} ability` : `grp=${obj.grpId}`;
+    return srcName ? `${c.card(srcName)} ability` : `grp=${obj.grpId}`;
   }
   const name = resolver?.resolve(obj.grpId);
-  return name ?? `grp=${obj.grpId}`;
+  return name ? c.card(name) : `grp=${obj.grpId}`;
 }
 
 function formatCard(obj: GameObject, resolver: CardResolver | null): string {
