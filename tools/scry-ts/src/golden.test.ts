@@ -104,10 +104,10 @@ describe("golden: reference-brawl", () => {
     const objs = gsm!.raw.gameObjects ?? [];
     const ability = objs.find((o: any) => o.type === "GameObjectType_Ability");
     expect(ability).toBeTruthy();
-    expect(ability.instanceId).toBe(golden.ability.instanceId);
-    expect(ability.grpId).toBe(golden.ability.grpId);
-    expect(ability.objectSourceGrpId).toBe(golden.ability.objectSourceGrpId);
-    expect(ability.parentId).toBe(golden.ability.parentId);
+    expect(ability!.instanceId).toBe(golden.ability.instanceId);
+    expect(ability!.grpId).toBe(golden.ability.grpId);
+    expect(ability!.objectSourceGrpId).toBe(golden.ability.objectSourceGrpId);
+    expect(ability!.parentId).toBe(golden.ability.parentId);
   });
 
   test("inspect-commander: Black Waltz persistent state", () => {

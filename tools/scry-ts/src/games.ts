@@ -6,6 +6,7 @@
  */
 
 import { type LogEvent, parseLog } from "./parser";
+import type { RawGameStateMessage } from "./protocol";
 
 export interface Game {
   index: number;
@@ -33,7 +34,7 @@ export interface GsmSummary {
   annotationTypes: string[];
   objectCount: number;
   timestamp: string | null;
-  raw: any; // original gameStateMessage for drill-down
+  raw: RawGameStateMessage;
 }
 
 export interface GreMessageSummary {
@@ -159,7 +160,7 @@ export function detectGames(events: Iterable<LogEvent>): Game[] {
 
     current.endTimestamp = event.timestamp;
 
-    for (const msg of event.messages) {
+    for (const msg of event.messages as any[]) {
       const gsm = extractGsm(msg, event.timestamp);
       if (gsm) {
         current.greMessages.push(gsm);
