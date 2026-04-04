@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
 
+use log::info;
+
 use rcgen::{
     BasicConstraints, CertificateParams, DistinguishedName, DnType,
     ExtendedKeyUsagePurpose, Ia5String, IsCa, KeyPair, KeyUsagePurpose,
@@ -26,6 +28,7 @@ pub fn ensure_certs() -> Result<(PathBuf, PathBuf), String> {
 
     // --- CA ---
     if !ca_pem.exists() || !ca_key_path.exists() {
+        info!("Generating new CA certificate");
         let (cert_pem, key_pem) = generate_ca()?;
         fs::write(&ca_pem, &cert_pem)
             .map_err(|e| format!("Failed to write CA cert: {e}"))?;
@@ -35,7 +38,10 @@ pub fn ensure_certs() -> Result<(PathBuf, PathBuf), String> {
 
     // --- OS trust ---
     if !is_ca_trusted() {
+        info!("CA not trusted in OS keychain — adding");
         trust_ca(&ca_pem)?;
+    } else {
+        info!("CA already trusted");
     }
 
     // --- Server cert ---
@@ -48,6 +54,7 @@ pub fn ensure_certs() -> Result<(PathBuf, PathBuf), String> {
     };
 
     if needs_server_cert {
+        info!("Generating new server certificate");
         let ca_cert_pem = fs::read_to_string(&ca_pem)
             .map_err(|e| format!("Failed to read CA cert: {e}"))?;
         let ca_key_pem = fs::read_to_string(&ca_key_path)
@@ -59,6 +66,8 @@ pub fn ensure_certs() -> Result<(PathBuf, PathBuf), String> {
             .map_err(|e| format!("Failed to write server chain: {e}"))?;
         fs::write(&server_key_path, key_pem)
             .map_err(|e| format!("Failed to write server key: {e}"))?;
+    } else {
+        info!("Server certificate valid, reusing");
     }
 
     Ok((server_chain, server_key_path))
