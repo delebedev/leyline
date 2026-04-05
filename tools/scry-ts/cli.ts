@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 
 import { abilityCommand } from "./src/commands/ability";
+import { catalogCommand } from "./src/commands/catalog-cmd";
 import { annotationsCommand } from "./src/commands/annotations";
 import { boardCommand } from "./src/commands/board";
 import { eventsCommand } from "./src/commands/events";
@@ -19,6 +20,7 @@ import { usageCommand } from "./src/commands/usage";
 const commands: Record<string, { description: string; run: (args: string[]) => Promise<void> }> = {
   ability:     { description: "Resolve abilityGrpId to text",    run: abilityCommand },
   annotations: { description: "Annotation analysis",              run: annotationsCommand },
+  catalog:     { description: "Generate protocol reference",      run: catalogCommand },
   board:  { description: "Accumulated board state",          run: boardCommand },
   events: { description: "Summarize Player.log event types", run: eventsCommand },
   game:   { description: "Game summaries and details",       run: gameCommand },
