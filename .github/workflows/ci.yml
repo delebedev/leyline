@@ -1,0 +1,188 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  gate:
+    name: Gate (fmt + detekt + unit + conformance + coverage)
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, ARM64]
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: leyline,forge
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: '' # disable on self-hosted runners
+
+      - name: Setup Maven
+        uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
+
+      - name: Setup just
+        uses: extractions/setup-just@v2
+
+      - name: Install forge JARs
+        run: just install-forge
+
+      - name: Check formatting
+        run: just fmt-check
+
+      - name: Build
+        run: just build
+
+      - name: Detekt
+        run: ./gradlew detekt
+
+      - name: Test (unit + conformance)
+        run: just test-gate
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-gate
+          path: '**/build/test-results/**/TEST-*.xml'
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-gate
+          path: '**/build/reports/jacoco/**/jacocoTestReport.xml'
+          if-no-files-found: ignore
+          retention-days: 7
+
+  integration:
+    name: Integration
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, ARM64]
+    continue-on-error: true
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          repositories: leyline,forge
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: '' # disable on self-hosted runners
+
+      - name: Setup Maven
+        uses: stCarolas/setup-maven@v5
+        with:
+          maven-version: 3.9.9
+
+      - name: Setup just
+        uses: extractions/setup-just@v2
+
+      - name: Install forge JARs
+        run: just install-forge
+
+      - name: Build
+        run: just build
+
+      - name: Test (integration)
+        run: just test-integration
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-integration
+          path: '**/build/test-results/**/TEST-*.xml'
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-integration
+          path: '**/build/reports/jacoco/**/jacocoTestReport.xml'
+          if-no-files-found: ignore
+          retention-days: 7
+
+  report:
+    name: Report
+    needs: [gate, integration]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: gradle/scripts
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ci-artifacts
+
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: 'ci-artifacts/**/TEST-*.xml'
+          check_name: 'Test Results'
+          comment_title: 'Test Results'
+          deduplicate_classes_by_file_name: true
+
+      - name: Generate CI report
+        if: github.event_name == 'pull_request'
+        run: |
+          jacoco_args=""
+          for f in $(find ci-artifacts -name 'jacocoTestReport.xml' 2>/dev/null); do
+            jacoco_args="$jacoco_args --jacoco-xml $f"
+          done
+          test_dir_args=""
+          for d in $(find ci-artifacts -type d -name 'test-results-*' 2>/dev/null); do
+            test_dir_args="$test_dir_args --test-xml-dir $d"
+          done
+          python3 gradle/scripts/ci-report.py $jacoco_args $test_dir_args > ci-comment.md
+          cat ci-comment.md
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: ci-comment.md
+          header: ci-report

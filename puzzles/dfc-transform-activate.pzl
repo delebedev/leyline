@@ -1,0 +1,49 @@
+# Design Narrative
+# Mechanic: Activated-ability DFC transform — Concealing Curtains pays {2}{B} to become
+#   Revealing Eye. Tests in-place grpId mutation (78895 → 78896) with no ZoneTransfer.
+#   Issue #191.
+# Forcing: Concealing Curtains is a 0/4 Defender — cannot attack. The ONLY win path is
+#   to transform it into Revealing Eye (3/4 menace), then attack for exact lethal.
+#   No burn spells, no other creatures. Transform is the bottleneck.
+# AI behavior: AI has no permanents, no hand, no decisions. Zero interaction.
+#   AI at 3 life = exact lethal from Revealing Eye's 3 power.
+# Failure modes:
+#   WIN     = transform worked, grpId updated, defender removed, attacked for lethal
+#   LOSE    = turn limit — transform failed (still 0/4 defender, can't attack) or
+#             creature kept defender keyword after transform
+#   TIMEOUT-A = transform activation prompt hung (ability never resolves)
+#   TIMEOUT-B = Revealing Eye's transform trigger (RevealHand/ChooseCard) hung on stack
+#   CRASH   = card missing from DB or unhandled transform action type
+# Card roles:
+#   Concealing Curtains — the DFC front face; 0/4 defender, cannot win without transforming
+#   Swamp x3 — mana for {2}{B} transform cost
+# Protocol path: PerformAction (activate ability) → SetState/Transform in Forge →
+#   in-place grpId change in Diff (no ZoneTransfer) → Qualification pAnn on transformed
+#   permanent. Catalog: missing (DFC transform not implemented). Acceptance test for #191.
+# Transform trigger path: Revealing Eye has "When this creature transforms into ~,
+#   target opponent reveals their hand..." (T:Mode$ Transformed). Forge fires this as a
+#   triggered ability → goes on stack → needs RevealHand + ChooseCard + Discard + Draw
+#   prompts. AI hand is empty, so reveal shows nothing and choose/discard/draw are skipped.
+#   However, the trigger still targets opponent and resolves through the stack. If the
+#   RevealHand prompt or targeting prompt is unimplemented → TIMEOUT here, not at
+#   transform activation. Both are #191-scoped findings. To disambiguate: if transform
+#   activation itself fails, creature stays 0/4 defender → LOSE (turn limit, no attack).
+#   If activation succeeds but trigger hangs → TIMEOUT (creature transformed but game
+#   stuck on stack resolution).
+
+[metadata]
+Name:DFC Transform — Concealing Curtains
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Activate Concealing Curtains transform ability, attack with Revealing Eye for lethal. Tests in-place grpId mutation (#191).
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+
+humanbattlefield=Concealing Curtains;Swamp;Swamp;Swamp
+humanlibrary=Swamp
+ailibrary=Swamp

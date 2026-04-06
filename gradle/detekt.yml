@@ -1,0 +1,63 @@
+build:
+  maxIssues: 0
+
+complexity:
+  LongMethod:
+    threshold: 100
+  LongParameterList:
+    functionThreshold: 10
+    constructorThreshold: 12
+  CyclomaticComplexMethod:
+    threshold: 25
+  CognitiveComplexMethod:
+    active: false
+  TooManyFunctions:
+    active: false
+  LargeClass:
+    threshold: 600
+  NestedBlockDepth:
+    threshold: 6
+  ComplexCondition:
+    threshold: 5
+
+style:
+  MagicNumber:
+    active: false
+  WildcardImport:
+    active: false
+  ReturnCount:
+    max: 8
+  MaxLineLength:
+    maxLineLength: 160
+  ForbiddenComment:
+    active: false
+  UnusedPrivateMember:
+    active: true
+  UnusedParameter:
+    active: true
+  LoopWithTooManyJumpStatements:
+    active: false
+
+empty-blocks:
+  EmptyFunctionBlock:
+    active: false
+
+potential-bugs:
+  DoubleMutabilityForCollection:
+    active: true
+  HasPlatformType:
+    active: true
+  UnconditionalJumpStatementInLoop:
+    active: true
+  CastToNullableType:
+    active: true
+
+performance:
+  SpreadOperator:
+    active: false
+
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
+  SwallowedException:
+    active: true

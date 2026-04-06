@@ -1,0 +1,19 @@
+[metadata]
+Name:FDN Counters & Tokens
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Play creatures that create tokens and add +1/+1 counters.\nGood-Fortune Unicorn on board: each creature entering gets a +1/+1 counter.\nResolute Reinforcements (1W): flash, ETB creates 1/1 Soldier token.\nDwynen's Elite (1G): ETB creates 1/1 Elf token (you control Llanowar Elves).\nSnakeskin Veil (G): +1/+1 counter + hexproof on target creature.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Good-Fortune Unicorn;Llanowar Elves;Plains;Plains;Forest;Forest;Forest
+humanhand=Resolute Reinforcements;Dwynen's Elite;Snakeskin Veil
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Courageous Goblin;Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

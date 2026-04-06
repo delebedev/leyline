@@ -1,0 +1,14 @@
+[metadata]
+Name:Web Test #02 - Declare Attackers
+Goal:Win
+Turns:1
+Difficulty:Tutorial
+Description:Select Goblin Guide and declare it as an attacker.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Goblin Guide

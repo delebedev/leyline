@@ -1,0 +1,17 @@
+[metadata]
+Name:Legend Rule Lethal
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Cast second Isamaru. Legend rule kills old tapped one. New one has haste from Fervor. Swing for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=2
+
+humanhand=Isamaru, Hound of Konda
+humanbattlefield=Isamaru, Hound of Konda|Tapped;Fervor;Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

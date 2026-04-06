@@ -1,0 +1,76 @@
+# IDE
+*.idea
+*.iml
+*.tmp
+.metadata
+.recommenders
+.settings
+.classpath
+.project
+.checkstyle
+.vscode/settings.json
+.vscode/launch.json
+.factorypath
+nbactions.xml
+
+# Gradle
+.gradle/
+**/build/
+target
+
+# Logs
+*.log
+/logs/
+
+# Player data (created by `just seed-db`)
+/data/
+!/data/decks/
+
+# macOS
+.DS_Store
+
+# Vim
+*.swp
+
+# Kotlin compiler daemon
+.kotlin/
+
+# Python
+__pycache__
+*.pyc
+
+# Per-worktree Maven local repo
+.m2-local/
+
+# Forge submodule install stamp (written by `just install-forge`)
+.forge-commit-installed
+
+# Claude Code local settings & agent memory
+**/settings.local.json
+.claude/agent-memory/
+
+# Generated proto (from submodule + rename-map.sed)
+matchdoor/src/main/proto/messages.proto
+/proto-gen/
+
+# Forge submodule build artifacts handled by its own .gitignore
+# Local-only dev notes
+.local/
+
+!.claude/
+.claude/worktrees/
+
+# Wrangler local statedeck
+.wrangler/
+
+node_modules/
+
+.gitlog
+
+# Proof-loop task artifacts (ephemeral, per-session)
+.agent/tasks/
+
+# Beads / Dolt files (added by bd init)
+.beads/
+*.db
+.beads-credential-key

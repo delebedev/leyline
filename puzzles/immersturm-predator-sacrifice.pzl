@@ -1,0 +1,19 @@
+[metadata]
+Name:Immersturm Predator Sacrifice
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Activate Immersturm Predator sacrifice ability, verify tap trigger fires with GY exile and +1/+1 counter. Then attack for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=4
+removesummoningsickness=true
+
+humanbattlefield=Immersturm Predator;Grizzly Bears;Swamp;Mountain
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp
+aigraveyard=Centaur Courser
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

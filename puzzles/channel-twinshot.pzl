@@ -1,0 +1,18 @@
+[metadata]
+Name:Channel vs Cast Twinshot Sniper
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Choose between casting Twinshot Sniper normally or channeling from hand.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=2
+
+humanhand=Twinshot Sniper
+humanbattlefield=Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+aibattlefield=Centaur Courser
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

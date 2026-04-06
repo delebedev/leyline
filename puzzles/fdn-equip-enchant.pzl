@@ -1,0 +1,19 @@
+[metadata]
+Name:FDN Gear Up - Equipment & Auras
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast equipment and auras, then equip creatures.\nQuick-Draw Katana (2): +2/+0 and first strike on your turn. Equip 2.\nBlanchwood Armor (2G): aura, +1/+1 per Forest.\nPacifism (1W): aura on opponent creature, can't attack or block.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanbattlefield=Savannah Lions;Llanowar Elves;Plains;Plains;Forest;Forest;Forest;Forest
+humanhand=Quick-Draw Katana;Blanchwood Armor;Pacifism
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Courageous Goblin;Crackling Cyclops;Mountain;Mountain;Forest
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

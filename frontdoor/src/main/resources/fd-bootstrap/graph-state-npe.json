@@ -1,0 +1,53 @@
+{
+  "NodeStates": {
+    "UnlockPlayModes": {
+      "Status": "Available"
+    },
+    "MigrateFromNPEv1": {
+      "Status": "Completed"
+    },
+    "CheckForForceCloseSDD": {
+      "Status": "Available"
+    },
+    "SparkyMatch": {
+      "Status": "Available",
+      "ProgressNodeState": {},
+      "ProgressionHistoryStateDataState": {}
+    },
+    "SparkyMatchNonRebalanced": {
+      "Status": "Available",
+      "ProgressNodeState": {}
+    },
+    "OpenSparkyDeckDuel": {
+      "Status": "Completed"
+    },
+    "SparkyMatch_Rewards": {
+      "Status": "Completed"
+    },
+    "CloseSparkyDeckDuel": {
+      "Status": "Completed"
+    },
+    "SkipNPEV2": {
+      "Status": "Completed"
+    },
+    "SparkyChallengeEventWonEnough_Rewards": {
+      "Status": "Completed"
+    }
+  },
+  "MilestoneStates": {
+    "OpenSparkyDeckDuel": false,
+    "CloseSparkyDeckDuel": false,
+    "CompletedDualColorPreconEvent": false,
+    "OpenSparkQueue": false,
+    "OpenAlchemyPlayQueue": false,
+    "SkippedSparkRank": false,
+    "NPE_Completed": false,
+    "SkippedNPEV2FromNPEV1Migration": false,
+    "OpenQuickDraftAndSealedEvents": false,
+    "OpenHistoricBrawlQueue": false,
+    "OpenAlchemyRankQueue": false,
+    "GrantHistoricBrawlStarterDeck1": false,
+    "GrantHistoricBrawlStarterDeck2": false,
+    "NPEv4_Landing": false
+  }
+}

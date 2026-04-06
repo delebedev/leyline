@@ -1,0 +1,18 @@
+[metadata]
+Name:Lands Only
+Goal:Win
+Turns:10
+Difficulty:Tutorial
+Description:Simple board with only lands. Used for minimal puzzle testing.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Forest;Forest;Mountain
+humanhand=Forest
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

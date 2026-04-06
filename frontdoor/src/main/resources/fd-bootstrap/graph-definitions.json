@@ -1,0 +1,418 @@
+{
+  "GraphDefinitions": [
+    {
+      "Id": "NewPlayerExperience",
+      "Type": "NPE",
+      "StartTime": "1970-01-01T00:00:00Z",
+      "EndRevealTime": "2099-12-31T23:59:59Z",
+      "EndTime": "2100-01-01T00:00:00Z",
+      "NodeGroups": [],
+      "Nodes": {
+        "UnlockPlayModes": {
+          "Id": "UnlockPlayModes",
+          "Children": [
+            "SkipNPEV2"
+          ],
+          "Configuration": {}
+        },
+        "MigrateFromNPEv1": {
+          "Id": "MigrateFromNPEv1",
+          "Type": "GraphStatus",
+          "Children": [
+            "SkipNPEV2FromNPEV1Migration"
+          ],
+          "Configuration": {}
+        },
+        "CheckForForceCloseSDD": {
+          "Id": "CheckForForceCloseSDD",
+          "Type": "GraphStatus",
+          "Children": [
+            "ForceCloseSparkyDeckDuel"
+          ],
+          "Configuration": {}
+        },
+        "SkipNPEV2": {
+          "Id": "SkipNPEV2",
+          "Type": "AutomaticPayout",
+          "Children": [
+            "SparkyMatch_Rewards",
+            "SparkyChallengeEventWonEnough_Rewards"
+          ],
+          "Configuration": {
+            "AutomaticPayoutNode": {
+              "ChestDescription": {
+                "image1": "ObjectiveEventIcon_NoReward",
+                "prefab": "RewardPopup2DIcon_NoReward",
+                "referenceId": "0",
+                "headerLocKey": "MainNav/EventRewards/NoReward",
+                "descriptionLocKey": "MainNav/General/Empty_String",
+                "quantity": "0",
+                "locParams": {}
+              }
+            }
+          }
+        },
+        "SparkyMatch": {
+          "Id": "SparkyMatch",
+          "Type": "MatchResult",
+          "Children": [
+            "OpenSparkyDeckDuel",
+            "SparkyMatch_Rewards"
+          ],
+          "Configuration": {
+            "MatchResultConfig": {
+              "Threshold": 1
+            }
+          },
+          "UXInfo": {
+            "ObjectiveBubbleUXInfo": {
+              "DisplayPriority": 100,
+              "ForceVisibilityWhenNew": true,
+              "DeepLinkType": "EventPlayBlade",
+              "DeepLinkReferenceId": "AIBotMatch",
+              "PrefabReferenceId": "Objective_NPEQuest",
+              "thumbnailImageName1": "ObjectiveIcon_NPE_Sparky",
+              "RadialThreshold": 1,
+              "RewardNodeId": "SparkyMatch_Rewards",
+              "PopupUXInfo": {
+                "DescriptionLocKey": "EPP/Quests/Beat_Sparky_Description",
+                "FooterLocKey": "EPP/Quests/Beat_Sparky_Footer",
+                "RefreshButtonLocKey": "EPP/Quests/Beat_Sparky_Refresh_Button"
+              }
+            }
+          }
+        },
+        "SparkyMatchNonRebalanced": {
+          "Id": "SparkyMatchNonRebalanced",
+          "Type": "MatchResult",
+          "Children": [
+            "OpenSparkyDeckDuel",
+            "SparkyMatch_Rewards"
+          ],
+          "Configuration": {
+            "MatchResultConfig": {
+              "Threshold": 1
+            }
+          }
+        },
+        "OpenSparkyDeckDuel": {
+          "Id": "OpenSparkyDeckDuel",
+          "Type": "AutomaticPayout",
+          "Children": [
+            "CloseSparkyDeckDuel"
+          ],
+          "Configuration": {
+            "AutomaticPayoutNode": {
+              "ChestDescription": {
+                "image1": "ObjectiveEventIcon_NoReward",
+                "prefab": "RewardPopup2DIcon_NoReward",
+                "referenceId": "0",
+                "headerLocKey": "MainNav/EventRewards/NoReward",
+                "descriptionLocKey": "MainNav/General/Empty_String",
+                "quantity": "0",
+                "locParams": {}
+              }
+            }
+          }
+        },
+        "CloseSparkyDeckDuel": {
+          "Id": "CloseSparkyDeckDuel",
+          "Type": "MatchResult",
+          "Children": [
+            "SparkyChallengeEventWonEnough_Rewards"
+          ],
+          "Configuration": {
+            "MatchResultConfig": {
+              "Threshold": 3
+            }
+          },
+          "UXInfo": {
+            "ObjectiveBubbleUXInfo": {
+              "DisplayPriority": 25,
+              "ForceVisibilityWhenNew": true,
+              "DeepLinkType": "EventLandingPage",
+              "DeepLinkReferenceId": "SparkyStarterDeckDuel",
+              "PrefabReferenceId": "Objective_NPEQuest",
+              "thumbnailImageName1": "ObjectiveIcon_NPE_DualPrecon",
+              "RadialThreshold": 3,
+              "RewardNodeId": "SparkyChallengeEventWonEnough_Rewards",
+              "PopupUXInfo": {
+                "DescriptionLocKey": "EPP/Quests/Complete_Sparky_Challenge_Description",
+                "FooterLocKey": "EPP/Quests/Complete_Sparky_Challenge_Footer",
+                "RefreshButtonLocKey": "EPP/Quests/Complete_Sparky_Challenge_Refresh_Button"
+              }
+            }
+          }
+        },
+        "SparkyChallengeEventWonEnough_Rewards": {
+          "Id": "SparkyChallengeEventWonEnough_Rewards",
+          "Type": "AutomaticPayout",
+          "Children": [],
+          "Configuration": {
+            "AutomaticPayoutNode": {
+              "ChestDescription": {
+                "prefab": "RewardPopup3DIcon_PopulatedCardBack",
+                "referenceId": "CardBack_DMU_StainedGlassBasics",
+                "headerLocKey": "EPP/RewardTrack/Complete_Sparky_Challenge",
+                "descriptionLocKey": "",
+                "locParams": {}
+              }
+            }
+          }
+        },
+        "SparkyMatch_Rewards": {
+          "Id": "SparkyMatch_Rewards",
+          "Type": "AutomaticPayout",
+          "Children": [],
+          "Configuration": {
+            "AutomaticPayoutNode": {
+              "ChestDescription": {
+                "prefab": "RewardPopup3DIcon_Sleeve_Sticker",
+                "referenceId": "CardBack_M21_413716",
+                "headerLocKey": "EPP/RewardTrack/Beat_Sparky",
+                "descriptionLocKey": "",
+                "locParams": {}
+              }
+            }
+          }
+        }
+      },
+      "Milestones": [
+        {
+          "Name": "OpenSparkyDeckDuel",
+          "Nodes": [
+            [
+              "OpenSparkyDeckDuel"
+            ]
+          ]
+        },
+        {
+          "Name": "CloseSparkyDeckDuel",
+          "Nodes": [
+            [
+              "CloseSparkyDeckDuel"
+            ]
+          ]
+        },
+        {
+          "Name": "CompletedDualColorPreconEvent",
+          "Nodes": []
+        },
+        {
+          "Name": "OpenSparkQueue",
+          "Nodes": [
+            [
+              "SkipNPEV2"
+            ]
+          ]
+        },
+        {
+          "Name": "OpenAlchemyPlayQueue",
+          "Nodes": [
+            [
+              "SkipNPEV2"
+            ]
+          ]
+        },
+        {
+          "Name": "SkippedSparkRank",
+          "Nodes": []
+        },
+        {
+          "Name": "NPE_Completed",
+          "Nodes": [
+            [
+              "SkipNPEV2"
+            ]
+          ]
+        },
+        {
+          "Name": "SkippedNPEV2FromNPEV1Migration",
+          "Nodes": [
+            [
+              "SkipNPEV2FromNPEV1Migration"
+            ]
+          ]
+        },
+        {
+          "Name": "OpenQuickDraftAndSealedEvents",
+          "Nodes": [
+            [
+              "SkipNPEV2"
+            ]
+          ]
+        },
+        {
+          "Name": "OpenHistoricBrawlQueue",
+          "Nodes": [
+            [
+              "SkipNPEV2"
+            ]
+          ]
+        },
+        {
+          "Name": "OpenAlchemyRankQueue",
+          "Nodes": [
+            [
+              "SkipNPEV2"
+            ]
+          ]
+        },
+        {
+          "Name": "GrantHistoricBrawlStarterDeck1",
+          "Nodes": []
+        },
+        {
+          "Name": "GrantHistoricBrawlStarterDeck2",
+          "Nodes": []
+        },
+        {
+          "Name": "NPEv4_Landing",
+          "Nodes": []
+        }
+      ]
+    },
+    {
+      "Id": "NPE_Tutorial",
+      "StartTime": "1970-01-01T00:00:00Z",
+      "EndRevealTime": "2099-12-31T23:59:59Z",
+      "EndTime": "2100-01-01T00:00:00Z",
+      "NodeGroups": [
+        {
+          "Name": "Match_Group",
+          "Nodes": [
+            "PlayFamiliar1",
+            "PlayFamiliar2",
+            "PlayFamiliar3",
+            "PlayFamiliar4"
+          ]
+        },
+        {
+          "Name": "Completed_Group",
+          "Nodes": [
+            "PlayFamiliar5",
+            "SkipTutorial"
+          ]
+        }
+      ],
+      "Nodes": {
+        "PlayFamiliar1": {
+          "Id": "PlayFamiliar1",
+          "Type": "PlayFamiliar",
+          "Children": [
+            "PlayFamiliar2"
+          ],
+          "Configuration": {
+            "FamiliarMatchConfig": {
+              "OpponentAvatar": "Kylea"
+            }
+          }
+        },
+        "PlayFamiliar2": {
+          "Id": "PlayFamiliar2",
+          "Type": "PlayFamiliar",
+          "Children": [
+            "PlayFamiliar3"
+          ],
+          "Configuration": {
+            "FamiliarMatchConfig": {
+              "OpponentAvatar": "Miirbo"
+            }
+          }
+        },
+        "PlayFamiliar3": {
+          "Id": "PlayFamiliar3",
+          "Type": "PlayFamiliar",
+          "Children": [
+            "PlayFamiliar4"
+          ],
+          "Configuration": {
+            "FamiliarMatchConfig": {
+              "OpponentAvatar": "Calubi"
+            }
+          }
+        },
+        "PlayFamiliar4": {
+          "Id": "PlayFamiliar4",
+          "Type": "PlayFamiliar",
+          "Children": [
+            "PlayFamiliar5"
+          ],
+          "Configuration": {
+            "FamiliarMatchConfig": {
+              "OpponentAvatar": "Dragonhand Shadow"
+            }
+          }
+        },
+        "PlayFamiliar5": {
+          "Id": "PlayFamiliar5",
+          "Type": "PlayFamiliar",
+          "Children": [
+            "Payout"
+          ],
+          "Configuration": {
+            "FamiliarMatchConfig": {
+              "OpponentAvatar": "Nicol Bolas"
+            }
+          }
+        },
+        "SkipTutorial": {
+          "Id": "SkipTutorial",
+          "Children": [
+            "Payout"
+          ],
+          "Configuration": {}
+        },
+        "Payout": {
+          "Id": "Payout",
+          "Type": "PayOut",
+          "Children": [],
+          "Configuration": {
+            "PayoutNodeConfig": {
+              "ChestDescription": {
+                "image1": "ObjectiveEventIcon_DeckBox",
+                "prefab": "RewardPopup3DIcon_DeckBox",
+                "referenceId": "67978",
+                "headerLocKey": "MainNav/QuestRewards/NPE_MonoDecks",
+                "descriptionLocKey": "MainNav/QuestRewards/NPE_MonoDeck_Desc",
+                "locParams": {}
+              }
+            }
+          }
+        },
+        "Reset": {
+          "Id": "Reset",
+          "Type": "Reset",
+          "Children": [
+            "PlayFamiliar1",
+            "PlayFamiliar2",
+            "PlayFamiliar3",
+            "PlayFamiliar4",
+            "PlayFamiliar5",
+            "SkipTutorial"
+          ],
+          "Configuration": {}
+        }
+      },
+      "Milestones": [
+        {
+          "Name": "TutorialComplete",
+          "Nodes": [
+            [
+              "Payout"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "Id": "ColorChallenge",
+      "Type": "ColorChallenge",
+      "EndRevealTime": "2099-12-31T23:59:59Z",
+      "EndTime": "2100-01-01T00:00:00Z",
+      "NodeGroups": [],
+      "Nodes": {},
+      "Milestones": []
+    }
+  ]
+}

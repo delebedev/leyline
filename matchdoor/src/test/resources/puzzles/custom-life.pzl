@@ -1,0 +1,19 @@
+[metadata]
+Name:Custom Life Totals
+Goal:Win
+Turns:3
+Difficulty:Medium
+Description:Puzzle with custom life totals to verify life mapping.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=7
+AILife=1
+removesummoningsickness=true
+
+humanbattlefield=Llanowar Elves;Forest;Forest
+humanhand=Giant Growth
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

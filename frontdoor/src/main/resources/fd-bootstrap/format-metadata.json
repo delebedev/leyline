@@ -1,0 +1,457 @@
+{
+  "setPools": {
+    "historic": [
+      "2XM",
+      "2X2",
+      "8ED",
+      "A25",
+      "AER",
+      "AFR",
+      "AKH",
+      "AKR",
+      "ALA",
+      "ANA",
+      "ANB",
+      "ARB",
+      "AVR",
+      "BFZ",
+      "BNG",
+      "C18",
+      "C20",
+      "C21",
+      "CC2",
+      "CHK",
+      "CM2",
+      "CMR",
+      "CONF",
+      "CSP",
+      "DAR",
+      "DGM",
+      "DKA",
+      "DMU",
+      "DST",
+      "DTK",
+      "ELD",
+      "EMN",
+      "FDN",
+      "FRF",
+      "G18",
+      "GRN",
+      "GTC",
+      "HBG",
+      "HOU",
+      "IKO",
+      "IMA",
+      "INV",
+      "ISD",
+      "J21",
+      "JMP",
+      "JOU",
+      "JUD",
+      "KHM",
+      "KLR",
+      "KTK",
+      "LGN",
+      "LRW",
+      "M10",
+      "M11",
+      "M12",
+      "M13",
+      "M14",
+      "M15",
+      "M19",
+      "M20",
+      "M21",
+      "MBS",
+      "MH1",
+      "MH2",
+      "MID",
+      "MMA",
+      "MMQ",
+      "MOR",
+      "MRD",
+      "NEC",
+      "NEO",
+      "NPH",
+      "ODY",
+      "OGW",
+      "ONS",
+      "ORI",
+      "PLC",
+      "RAV",
+      "RIX",
+      "RNA",
+      "ROE",
+      "RTR",
+      "SCG",
+      "SHM",
+      "SNC",
+      "SOI",
+      "SOK",
+      "SOM",
+      "STA",
+      "STX",
+      "THB",
+      "THS",
+      "TOR",
+      "TSP",
+      "USG",
+      "UMA",
+      "VOW",
+      "W17",
+      "WAR",
+      "WTH",
+      "WWK",
+      "XLN",
+      "Y22",
+      "Y23",
+      "ZEN",
+      "ZNR",
+      "BRO",
+      "BRR",
+      "ONE",
+      "SIR",
+      "SIS",
+      "MUL",
+      "MOM",
+      "MOC",
+      "MAT",
+      "LTR",
+      "WOE",
+      "WOT",
+      "LCI",
+      "AHA1",
+      "AHA2",
+      "AHA3",
+      "AHA4",
+      "AHA5",
+      "AHA6",
+      "AHA7",
+      "EA1",
+      "EA2",
+      "EA3",
+      "Y23_ONE",
+      "Y23_BRO",
+      "Y23_DMU",
+      "Y22_SNC",
+      "Y22_NEO",
+      "Y22_MID",
+      "Y24_WOE",
+      "Y24",
+      "LCC",
+      "Y24_LCI",
+      "MKM",
+      "OTJ",
+      "Y24_MKM",
+      "SPG",
+      "KLD",
+      "APC",
+      "CLB",
+      "C16",
+      "DIS",
+      "DDU",
+      "MH3",
+      "OTP",
+      "OTC",
+      "BIG",
+      "OTC",
+      "Y24_OTJ",
+      "MH3",
+      "M3C",
+      "BLB",
+      "BLC",
+      "DSK",
+      "Y25",
+      "Y25_BLB",
+      "Y25_DSK",
+      "J25",
+      "PIO",
+      "DFT",
+      "PIO-PW",
+      "PIO-DEVOTION",
+      "PIO-SPELLS",
+      "DRC",
+      "TDM",
+      "FIN",
+      "FIC",
+      "Y25_DFT",
+      "Y25_TDM",
+      "FCA",
+      "TDC",
+      "EOE",
+      "OM1",
+      "Y25_EOE",
+      "AA2",
+      "AA1",
+      "EOS",
+      "EOC",
+      "RVR",
+      "CMD",
+      "CMA",
+      "DDK",
+      "STH",
+      "DMR",
+      "5DN",
+      "NCC",
+      "UDS",
+      "ULG",
+      "AA3",
+      "AA4",
+      "SOM",
+      "C13",
+      "SDN",
+      "10E",
+      "MIR",
+      "ME2",
+      "EVE",
+      "7ED",
+      "VIS",
+      "9ED",
+      "ONC",
+      "PLS",
+      "ME4",
+      "BOK",
+      "OMB",
+      "UMA",
+      "VMA",
+      "WWK",
+      "UND",
+      "CLU",
+      "MRD",
+      "FUT",
+      "UNF",
+      "C18",
+      "IMA",
+      "NEM",
+      "MOC",
+      "ICE",
+      "USG",
+      "ONE",
+      "FEM",
+      "MBS",
+      "CMR",
+      "TMP",
+      "2XM",
+      "2X2",
+      "STH",
+      "TOR",
+      "M12",
+      "DDL",
+      "EXO",
+      "DDD",
+      "DMC",
+      "SHM",
+      "TLA",
+      "TLE",
+      "ECL",
+      "TMT",
+      "Y26_ECL",
+      "Y26",
+      "ECC"
+    ]
+  },
+  "formats": [
+    {
+      "name": "Brawl",
+      "pool": "historic",
+      "bannedCards": [],
+      "singleton": 1,
+      "formatType": 3,
+      "deckSize": {
+        "min": 59,
+        "max": 59
+      },
+      "sideboardMax": 1,
+      "commandZoneSize": {
+        "min": 1,
+        "max": 1
+      },
+      "rarityRestrictions": [
+        {
+          "maxCopies": 1
+        },
+        {
+          "rarity": 1,
+          "maxCopies": 1
+        },
+        {
+          "rarity": 2,
+          "maxCopies": 1
+        },
+        {
+          "rarity": 3,
+          "maxCopies": 1
+        }
+      ]
+    },
+    {
+      "name": "AllZeroes",
+      "singleton": 2,
+      "formatType": 3,
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
+      "rarityRestrictions": [
+        {
+          "maxCopies": 250
+        },
+        {
+          "rarity": 3,
+          "maxCopies": 250
+        },
+        {
+          "rarity": 2,
+          "maxCopies": 250
+        },
+        {
+          "rarity": 1,
+          "maxCopies": 250
+        }
+      ]
+    },
+    {
+      "name": "Draft",
+      "singleton": 2,
+      "formatType": 1,
+      "deckSize": {
+        "min": 40,
+        "max": 250
+      },
+      "sideboardMax": 250,
+      "rarityRestrictions": [
+        {
+          "maxCopies": 250
+        },
+        {
+          "rarity": 3,
+          "maxCopies": 250
+        },
+        {
+          "rarity": 2,
+          "maxCopies": 250
+        },
+        {
+          "rarity": 1,
+          "maxCopies": 250
+        }
+      ]
+    },
+    {
+      "name": "DirectGame",
+      "pool": "historic",
+      "formatType": 3,
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
+      "sideboardMax": 15
+    },
+    {
+      "name": "Standard",
+      "pool": "historic",
+      "bannedCards": [],
+      "formatType": 3,
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
+      "sideboardMax": 15
+    },
+    {
+      "name": "Sealed",
+      "singleton": 2,
+      "formatType": 2,
+      "deckSize": {
+        "min": 40,
+        "max": 250
+      },
+      "sideboardMax": 250,
+      "rarityRestrictions": [
+        {
+          "maxCopies": 250
+        },
+        {
+          "rarity": 3,
+          "maxCopies": 250
+        },
+        {
+          "rarity": 2,
+          "maxCopies": 250
+        },
+        {
+          "rarity": 1,
+          "maxCopies": 250
+        }
+      ]
+    },
+    {
+      "name": "TraditionalStandard",
+      "pool": "historic",
+      "bannedCards": [],
+      "formatType": 3,
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
+      "sideboardMax": 15
+    },
+    {
+      "name": "DirectGameAlchemy",
+      "pool": "historic",
+      "formatType": 3,
+      "deckSize": {
+        "min": 60,
+        "max": 250
+      },
+      "sideboardMax": 15,
+      "field16": 1
+    }
+  ],
+  "formatGroups": [
+    {
+      "groupName": "ConstructedSortOrder",
+      "formatNames": [
+        "Standard",
+        "Alchemy",
+        "Explorer",
+        "Historic",
+        "Timeless",
+        "Brawl",
+        "HistoricBrawl",
+        "TraditionalStandard",
+        "TraditionalAlchemy",
+        "TraditionalExplorer",
+        "TraditionalHistoric",
+        "TraditionalTimeless"
+      ]
+    },
+    {
+      "groupName": "EvergreenFormats",
+      "formatNames": [
+        "Standard",
+        "Alchemy",
+        "Explorer",
+        "Historic",
+        "Timeless",
+        "Brawl",
+        "HistoricBrawl",
+        "TraditionalStandard",
+        "TraditionalAlchemy",
+        "TraditionalExplorer",
+        "TraditionalHistoric",
+        "TraditionalTimeless"
+      ]
+    },
+    {
+      "groupName": "BannedFormats",
+      "formatNames": [
+        "Standard",
+        "Alchemy",
+        "Explorer",
+        "Historic",
+        "Timeless"
+      ]
+    }
+  ]
+}

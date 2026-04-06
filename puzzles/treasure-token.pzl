@@ -1,0 +1,18 @@
+[metadata]
+Name:Treasure Token ETB
+Goal:Win
+Turns:3
+Difficulty:Easy
+Description:Cast Prosperous Innkeeper to create a Treasure token. Use it to cast Lightning Bolt for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+
+humanhand=Prosperous Innkeeper;Lightning Bolt
+humanbattlefield=Forest;Forest
+humanlibrary=Forest;Forest;Forest
+aibattlefield=Centaur Courser
+ailibrary=Mountain;Mountain;Mountain

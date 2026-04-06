@@ -1,0 +1,20 @@
+{
+  "Type": "",
+  "MatchInfoV3": {
+    "Battlefield": "",
+    "EventId": "",
+    "MatchEndpointHost": "",
+    "MatchEndpointPort": "",
+    "MatchId": "",
+    "McFabricId": "",
+    "PlayerInfos": [
+      {
+        "CosmeticsSelection": "",
+        "ScreenName": "",
+        "SeatId": "",
+        "TeamId": ""
+      }
+    ],
+    "YourSeat": ""
+  }
+}

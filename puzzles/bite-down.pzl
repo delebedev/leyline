@@ -1,0 +1,19 @@
+[metadata]
+Name:Bite Down
+Goal:Win
+Turns:3
+Difficulty:Easy
+Description:Cast Bite Down — your creature deals damage equal to its power to opponent's creature.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanhand=Bite Down
+humanbattlefield=Grizzly Bears;Forest;Forest
+aibattlefield=Grizzly Bears
+humanlibrary=Forest
+ailibrary=Forest
