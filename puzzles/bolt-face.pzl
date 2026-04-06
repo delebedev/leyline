@@ -1,0 +1,17 @@
+[metadata]
+Name:Bolt Face
+Goal:Win
+Turns:1
+Difficulty:Easy
+Description:Cast Lightning Bolt targeting opponent for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+
+humanhand=Lightning Bolt
+humanbattlefield=Mountain
+humanlibrary=Mountain
+ailibrary=Mountain

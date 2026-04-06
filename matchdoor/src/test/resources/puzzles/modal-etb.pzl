@@ -1,0 +1,18 @@
+[metadata]
+Name:Modal ETB Test
+Goal:Win
+Turns:10
+Difficulty:Tutorial
+Description:Cast Trufflesnout to test modal ETB. Choose between +1/+1 counter or gain 4 life.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+
+humanbattlefield=Forest;Forest;Forest
+humanhand=Trufflesnout
+humanlibrary=Forest;Forest;Forest;Forest;Forest
+aibattlefield=Runeclaw Bear
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

@@ -1,0 +1,99 @@
+[
+  {
+    "internalName": "AIBotMatch",
+    "publicName": "Bot Match",
+    "deckSelectFormat": "Standard",
+    "displayPriority": 40,
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "IsAiBotMatch",
+      "SkipDeckValidation"
+    ]
+  },
+  {
+    "internalName": "SparkyStarterDeckDuel",
+    "publicName": "SparkyStarterDeckDuel",
+    "deckSelectFormat": "AllZeroes",
+    "displayPriority": 92,
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "SkipDeckValidation",
+      "AllowUncollectedCards",
+      "IsPreconEvent",
+      "IsAiBotMatch"
+    ],
+    "bladeBehavior": null,
+    "eventTags": [
+      "AiBotMatch"
+    ],
+    "titleLocKey": "Events/Event_Title_SparkyChallenge",
+    "descLocKey": "Events/Event_Desc_SparkyChallenge"
+  },
+{
+    "internalName": "Play_Brawl",
+    "publicName": "Standard Brawl",
+    "deckSelectFormat": "Brawl",
+    "displayPriority": -1,
+    "flags": [
+      "IsArenaPlayModeEvent"
+    ],
+    "titleLocKey": "Events/Event_Title_Play_Brawl_Bo1",
+    "descLocKey": "Events/Event_Desc_Play_Brawl"
+  },
+  {
+    "internalName": "Sealed_FDN_20260307",
+    "publicName": "Sealed FDN",
+    "deckSelectFormat": "Sealed",
+    "formatType": "Sealed",
+    "displayPriority": -1,
+    "flags": [
+      "IsArenaPlayModeEvent"
+    ],
+    "bladeBehavior": null,
+    "eventTags": [
+      "Sealed",
+      "Limited"
+    ],
+    "titleLocKey": "Events/Event_Title_Sealed_FDN",
+    "descLocKey": "Events/Event_Desc_Sealed_FDN",
+    "maxWins": 7,
+    "maxLosses": 3,
+    "editableDeck": true
+  },
+  {
+    "internalName": "QuickDraft_ECL_20260223",
+    "publicName": "ECL_Quick_Draft",
+    "deckSelectFormat": "Draft",
+    "formatType": "Draft",
+    "displayPriority": 61,
+    "flags": [
+      "IsArenaPlayModeEvent",
+      "Ranked"
+    ],
+    "bladeBehavior": null,
+    "eventTags": [
+      "QuickDraft",
+      "Limited"
+    ],
+    "titleLocKey": "Events/Event_Title_ECL_Quick_Draft",
+    "descLocKey": "Events/Event_Desc_ECL_Quick_Draft",
+    "maxWins": 7,
+    "maxLosses": 3,
+    "isBotDraft": true,
+    "entryFees": [
+      {
+        "currencyType": "Gold",
+        "quantity": 5000
+      },
+      {
+        "currencyType": "Gem",
+        "quantity": 750
+      }
+    ],
+    "dynamicFilterTagIds": [
+      "ECL Limited"
+    ],
+    "editableDeck": true,
+    "collationId": 100058
+  }
+]

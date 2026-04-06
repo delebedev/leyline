@@ -1,0 +1,19 @@
+[metadata]
+Name:Keyword Grant Overrun
+Goal:Win
+Turns:3
+Difficulty:Easy
+Description:Cast Overrun — creatures get +3/+3 and trample until end of turn.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+removesummoningsickness=true
+
+humanhand=Overrun
+humanbattlefield=Grizzly Bears;Grizzly Bears;Forest;Forest;Forest;Forest;Forest
+aibattlefield=Grizzly Bears
+humanlibrary=Forest
+ailibrary=Forest

@@ -1,0 +1,19 @@
+[metadata]
+Name:Liliana Loyalty Abilities
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast planeswalker from hand, then activate loyalty abilities to test abilityGrpId resolution.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+
+humanhand=Liliana of the Veil
+humanbattlefield=Grizzly Bears;Swamp;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp
+aibattlefield=Forest
+aihand=Forest
+ailibrary=Mountain;Mountain;Mountain

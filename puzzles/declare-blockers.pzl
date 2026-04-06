@@ -1,0 +1,17 @@
+[metadata]
+Name:Block or Die
+Goal:Survive
+Turns:2
+Difficulty:Easy
+Description:Juggernaut must attack. Double-block to kill it and survive.
+
+[state]
+ActivePlayer=AI
+ActivePhase=Main1
+HumanLife=3
+AILife=20
+
+humanbattlefield=Centaur Courser;Centaur Courser
+humanlibrary=Forest
+aibattlefield=Juggernaut
+ailibrary=Mountain

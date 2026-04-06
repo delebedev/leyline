@@ -1,0 +1,17 @@
+[metadata]
+Name:Electroduplicate Flashback
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Flashback Electroduplicate from GY targeting a creature. Copy + originals attack for lethal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=4
+
+humangraveyard=Electroduplicate
+humanbattlefield=Raging Goblin;Ornithopter;Mountain;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

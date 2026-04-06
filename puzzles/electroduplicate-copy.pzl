@@ -1,0 +1,18 @@
+[metadata]
+Name:Electroduplicate Copy Token
+Goal:Win
+Turns:5
+Difficulty:Easy
+Description:Cast Electroduplicate targeting Grizzly Bears. Copy token should render with source art/stats and have TemporaryPermanent pAnn.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Electroduplicate
+humanbattlefield=Grizzly Bears;Mountain;Mountain;Mountain
+humanlibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+aibattlefield=Runeclaw Bear
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

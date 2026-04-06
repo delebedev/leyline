@@ -1,0 +1,18 @@
+[metadata]
+Name:Duress Reveal Choose
+Goal:Win
+Turns:4
+Difficulty:Easy
+Description:Cast Duress to reveal opponent hand and choose a noncreature nonland card.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=3
+
+humanhand=Duress;Duress
+humanbattlefield=Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp
+aihand=Murder;Grizzly Bears;Forest
+ailibrary=Forest;Forest;Forest

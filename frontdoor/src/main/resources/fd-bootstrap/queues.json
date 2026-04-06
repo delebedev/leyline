@@ -1,0 +1,21 @@
+[
+  {
+    "id": "AIBotMatch",
+    "queueType": "Unranked",
+    "locTitle": "Events/Event_Title_AIBotMatch",
+    "eventNameBO1": "AIBotMatch",
+    "deckSizeBO3": "MainNav/General/Empty_String",
+    "sideboardBO1": "MainNav/General/Empty_String",
+    "sideboardBO3": "MainNav/General/Empty_String"
+  },
+  {
+    "id": "StandardBrawl",
+    "queueType": "Brawl",
+    "locTitle": "Events/Event_Title_Play_Brawl_Bo1",
+    "eventNameBO1": "Play_Brawl",
+    "deckSizeBO1": "Events/Deck_60commander",
+    "deckSizeBO3": "MainNav/General/Empty_String",
+    "sideboardBO1": "MainNav/General/Empty_String",
+    "sideboardBO3": "MainNav/General/Empty_String"
+  }
+]
