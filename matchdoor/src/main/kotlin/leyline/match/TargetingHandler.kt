@@ -494,11 +494,26 @@ class TargetingHandler(private val ops: SessionOps) {
             return
         }
 
-        // Resolve source instanceId from sourceEntityId (forge card ID)
-        val sourceInstanceId = if (req.sourceEntityId != null) {
-            bridge.getOrAllocInstanceId(ForgeCardId(req.sourceEntityId)).value
+        // For triggered abilities (ETB modals), the protocol references the
+        // ability object on the stack, not the source card.
+        val isTriggered = req.isTriggeredAbility
+        val sourceInstanceId: Int
+        val ctoGrpId: Int
+        val ctoId: Int
+        if (isTriggered && req.sourceEntityId != null) {
+            sourceInstanceId = bridge.getOrAllocInstanceId(
+                ForgeCardId(req.sourceEntityId + leyline.game.mapper.ObjectMapper.STACK_ABILITY_ID_OFFSET),
+            ).value
+            ctoGrpId = modalInfo.parentGrpId
+            ctoId = 2
         } else {
-            0
+            sourceInstanceId = if (req.sourceEntityId != null) {
+                bridge.getOrAllocInstanceId(ForgeCardId(req.sourceEntityId)).value
+            } else {
+                0
+            }
+            ctoGrpId = cardGrpId
+            ctoId = 2
         }
 
         val ctoReq = ops.bundleBuilder!!.buildModalCastingTimeOptionsReq(
@@ -507,13 +522,29 @@ class TargetingHandler(private val ops: SessionOps) {
             minSel = req.min,
             maxSel = req.max,
             sourceInstanceId = sourceInstanceId,
-            cardGrpId = cardGrpId,
+            grpId = ctoGrpId,
+            ctoId = ctoId,
+            playerIdToPrompt = if (isTriggered) ops.seatId.value else null,
         )
 
         // Save pending state for response mapping
         pendingInteraction = PendingClientInteraction.ModalChoice(pendingPrompt.promptId, modalInfo.childGrpIds)
 
-        val result = ops.bundleBuilder!!.castingTimeOptionsBundle(game, ops.counter, ctoReq)
+        // For triggered abilities, pass the source card's instanceId and grpId so the
+        // synthesized ability object has correct parentId and objectSourceGrpId.
+        val cardInstanceId = if (isTriggered && req.sourceEntityId != null) {
+            bridge.getOrAllocInstanceId(ForgeCardId(req.sourceEntityId)).value
+        } else {
+            null
+        }
+
+        val result = ops.bundleBuilder!!.castingTimeOptionsBundle(
+            game,
+            ops.counter,
+            ctoReq,
+            sourceCardInstanceId = cardInstanceId,
+            sourceCardGrpId = if (isTriggered) cardGrpId else null,
+        )
         Tap.outboundTemplate("CastingTimeOptionsReq seat=${ops.seatId} card=$cardName")
         ops.sendBundledGRE(result.messages)
     }

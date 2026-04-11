@@ -1203,6 +1203,7 @@ class WebPlayerController(
             semantic = PromptSemantic.ModalChoice,
             modalSourceCardName = sa.hostCard.name,
             sourceEntityId = sa.hostCard.id,
+            isTriggeredAbility = sa.isTrigger,
         )
         val result = bridge.requestChoice(request)
         return result.mapNotNull { idx -> possible.getOrNull(idx) }

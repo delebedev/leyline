@@ -667,14 +667,84 @@ class BundleBuilder(
      * followed by CastingTimeOptionsReq with the ModalReq payload. Sets
      * allowCancel=Abort and allowUndo=true (client shows Cancel button).
      */
+    /**
+     * @param sourceCardInstanceId instanceId of the source card (for ability parentId).
+     *   Null for spell-time modals where the card itself is on the stack.
+     * @param sourceCardGrpId grpId of the source card (for ability objectSourceGrpId).
+     *   Null for spell-time modals.
+     */
     fun castingTimeOptionsBundle(
         game: Game,
         counter: MessageCounter,
         req: CastingTimeOptionsReq,
+        sourceCardInstanceId: Int? = null,
+        sourceCardGrpId: Int? = null,
     ): BundleResult {
         val nextGs = counter.nextGsId()
 
-        val gs = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId).gsm
+        val gsResult = StateMapper.buildDiffFromGame(game, nextGs, matchId, bridge, updateType = GameStateUpdate.Send, viewingSeatId = seatId)
+        val gsBuilder = gsResult.gsm.toBuilder()
+            .setPendingMessageCount(1)
+
+        // Synthesize the ability game object on the stack for ETB modals.
+        // Forge adds the trigger to its stack AFTER mode choice (PlaySpellAbility line 733),
+        // but the client needs the ability visible in the GSM to render the modal dialog.
+        // Only inject when sourceCardInstanceId is set (triggered ability path).
+        // Spell-time modals (kicker, spell modals) don't need this.
+        if (sourceCardInstanceId != null && req.castingTimeOptionReqCount > 0) {
+            val cto = req.getCastingTimeOptionReq(0)
+            val abilityIid = cto.affectedId
+            val abilityGrpId = cto.grpId
+            if (abilityIid > 0 && abilityGrpId > 0) {
+                // Only inject if not already present (e.g. spell-time modals where card is on stack)
+                val alreadyPresent = gsBuilder.gameObjectsList.any { it.instanceId == abilityIid }
+                if (!alreadyPresent) {
+                    val abilityBuilder = GameObjectInfo.newBuilder()
+                        .setInstanceId(abilityIid)
+                        .setGrpId(abilityGrpId)
+                        .setType(GameObjectType.Ability)
+                        .setZoneId(ZoneIds.STACK)
+                        .setVisibility(Visibility.Public)
+                        .setOwnerSeatId(seatId)
+                        .setControllerSeatId(seatId)
+                    if (sourceCardGrpId != null) {
+                        abilityBuilder.setObjectSourceGrpId(sourceCardGrpId)
+                    } else {
+                        abilityBuilder.setObjectSourceGrpId(abilityGrpId)
+                    }
+                    if (sourceCardInstanceId != null) {
+                        abilityBuilder.setParentId(sourceCardInstanceId)
+                    }
+                    val abilityObj = abilityBuilder.build()
+                    gsBuilder.addGameObjects(abilityObj)
+
+                    // Add to stack zone (create if absent in the diff)
+                    val stackIdx = gsBuilder.zonesList.indexOfFirst { it.type == ZoneType.Stack }
+                    if (stackIdx >= 0) {
+                        val updated = gsBuilder.getZones(stackIdx).toBuilder()
+                            .addObjectInstanceIds(abilityIid)
+                            .build()
+                        gsBuilder.setZones(stackIdx, updated)
+                    } else {
+                        gsBuilder.addZones(
+                            ZoneInfo.newBuilder()
+                                .setZoneId(ZoneIds.STACK)
+                                .setType(ZoneType.Stack)
+                                .setVisibility(Visibility.Public)
+                                .addObjectInstanceIds(abilityIid)
+                                .build(),
+                        )
+                    }
+                }
+            }
+        }
+
+        val gs = gsBuilder.build()
+
+        // Re-snapshot baseline with the injected ability so the next diff
+        // can emit diffDeletedInstanceIds when the ability is no longer present.
+        bridge.snapshotDiffBaseline(gs)
+
         val msg1 = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
             it.gameStateMessage = gs
         }
@@ -930,8 +1000,10 @@ class BundleBuilder(
      * @param childGrpIds the grpIds for each modal option
      * @param minSel minimum number of modes to select
      * @param maxSel maximum number of modes to select
-     * @param sourceInstanceId the instanceId of the source card
-     * @param cardGrpId the grpId of the card
+     * @param sourceInstanceId the instanceId for affectedId/affectorId
+     * @param grpId the grpId for the CTO entry (card grpId for spells, ability grpId for triggers)
+     * @param ctoId CTO identifier (1-2 for spell-time, 3 for triggered abilities)
+     * @param playerIdToPrompt seat number to prompt (null omits the field)
      */
     fun buildModalCastingTimeOptionsReq(
         parentGrpId: Int,
@@ -939,7 +1011,9 @@ class BundleBuilder(
         minSel: Int,
         maxSel: Int,
         sourceInstanceId: Int,
-        cardGrpId: Int,
+        grpId: Int,
+        ctoId: Int = 2,
+        playerIdToPrompt: Int? = null,
     ): CastingTimeOptionsReq {
         val modalReq = ModalReq.newBuilder()
             .setAbilityGrpId(parentGrpId)
@@ -948,17 +1022,19 @@ class BundleBuilder(
         for (childGrpId in childGrpIds) {
             modalReq.addModalOptions(ModalOption.newBuilder().setGrpId(childGrpId))
         }
+        val ctoBuilder = CastingTimeOptionReq.newBuilder()
+            .setCtoId(ctoId)
+            .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4)
+            .setAffectedId(sourceInstanceId)
+            .setAffectorId(sourceInstanceId)
+            .setGrpId(grpId)
+            .setIsRequired(true)
+            .setModalReq(modalReq)
+        if (playerIdToPrompt != null) {
+            ctoBuilder.setPlayerIdToPrompt(playerIdToPrompt)
+        }
         return CastingTimeOptionsReq.newBuilder()
-            .addCastingTimeOptionReq(
-                CastingTimeOptionReq.newBuilder()
-                    .setCtoId(1)
-                    .setCastingTimeOptionType(CastingTimeOptionType.Modal_a7b4)
-                    .setAffectedId(sourceInstanceId)
-                    .setAffectorId(sourceInstanceId)
-                    .setGrpId(cardGrpId)
-                    .setIsRequired(true)
-                    .setModalReq(modalReq),
-            )
+            .addCastingTimeOptionReq(ctoBuilder)
             .build()
     }
 

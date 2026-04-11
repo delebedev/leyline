@@ -57,7 +57,7 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
 
     private object Abilities : Table("Abilities") {
         val id = integer("Id")
-        val modalChildIds = text("ModalChildIds").default("")
+        val modalChildIds = text("ModalChildIds").nullable()
         override val primaryKey = PrimaryKey(id)
     }
 
@@ -127,7 +127,7 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
         modalCache[cardGrpId]?.let { return it }
         val card = findByGrpId(cardGrpId) ?: return null
         if (card.abilityIds.isEmpty()) return null
-        val info = queryModalOptions(card.abilityIds.map { it.first })
+        val info = queryModalOptions(card.abilityIds.map { it.first }) ?: return null
         modalCache[cardGrpId] = info
         return info
     }
@@ -140,7 +140,7 @@ class ExposedCardRepository(private val database: Database) : CardRepository {
         transaction(database) {
             for (abilityId in abilityGrpIds) {
                 val row = Abilities.selectAll().where { Abilities.id eq abilityId }.firstOrNull() ?: continue
-                val modalChildren = row[Abilities.modalChildIds]
+                val modalChildren = row[Abilities.modalChildIds] ?: continue
                 if (modalChildren.isBlank()) continue
                 val childIds = modalChildren.split(",").mapNotNull { it.trim().toIntOrNull() }
                 if (childIds.isNotEmpty()) {
