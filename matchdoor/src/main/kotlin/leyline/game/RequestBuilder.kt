@@ -268,12 +268,14 @@ object RequestBuilder {
         val combat = game.phaseHandler.combat ?: return DeclareBlockersReq.getDefaultInstance()
         val builder = DeclareBlockersReq.newBuilder()
 
-        // Collect attacker instanceIds
-        val attackerInstanceIds = combat.attackers.map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
-
         for (card in player.getZone(ForgeZoneType.Battlefield).cards) {
             if (!card.isCreature) continue
             if (!CombatUtil.canBlock(card, combat)) continue
+
+            // Per-attacker legality: only list attackers this creature can legally block
+            // (handles flying/reach, menace, protection, etc.)
+            val legalAttackers = combat.attackers.filter { CombatUtil.canBlock(it, card) }
+            if (legalAttackers.isEmpty()) continue
 
             val instanceId = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
             val blocker = Blocker.newBuilder()
@@ -282,11 +284,10 @@ object RequestBuilder {
 
             val assignedAttacker = blockerAssignments[instanceId]
             if (assignedAttacker != null) {
-                // Committed: selectedAttackerInstanceIds set, attackerInstanceIds cleared
                 blocker.addSelectedAttackerInstanceIds(assignedAttacker)
             } else {
-                // Available: attackerInstanceIds lists what this blocker can block
-                blocker.addAllAttackerInstanceIds(attackerInstanceIds)
+                val legalAttackerIds = legalAttackers.map { bridge.getOrAllocInstanceId(ForgeCardId(it.id)).value }
+                blocker.addAllAttackerInstanceIds(legalAttackerIds)
             }
             builder.addBlockers(blocker)
         }
