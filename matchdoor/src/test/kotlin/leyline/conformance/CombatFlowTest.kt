@@ -323,6 +323,9 @@ class CombatFlowTest :
             if (lifeAnn != null) {
                 (lifeAnn.affectorId > 0).shouldBeTrue()
             }
+
+            // Human-turn combat animation checkpoint must not reopen priority.
+            h.allMessages.none { it.hasActionsAvailableReq() && it.gameStateId == damageGsm.gameStateId }.shouldBeTrue()
         }
 
         test("combat death produces zone transfer") {

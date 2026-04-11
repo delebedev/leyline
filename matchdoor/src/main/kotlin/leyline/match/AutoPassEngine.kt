@@ -107,14 +107,18 @@ class AutoPassEngine(
                         // Human turn: only send state if human has meaningful actions.
                         // SEND_STATE bypasses checkHumanActions, so without this guard
                         // the client can get stuck showing "My Turn" with only Pass.
+                        // Still emit a state-only diff when actions are pass-only so
+                        // combat/death animations don't collapse into the next later
+                        // priority-stop packet on the human turn.
                         val bb = ops.bundleBuilder!!
                         val actions = bb.buildActions()
                         if (!BundleBuilder.shouldAutoPass(actions)) {
                             ops.sendRealGameState(bridge)
                             return
                         }
-                        log.debug("SEND_STATE downgraded: only pass actions at {}", phase)
-                        // fall through to action check / auto-pass
+                        log.debug("SEND_STATE: emitting state-only diff at {}", phase)
+                        ops.sendBundle(bb.stateOnlyDiff(game, ops.counter))
+                        return
                     }
                 }
                 CombatHandler.Signal.CONTINUE -> {} // fall through to action check
@@ -136,6 +140,7 @@ class AutoPassEngine(
             // Action check — prompt human if meaningful actions exist
             val decision = checkHumanActions(game, isAiTurn)
             if (decision is PriorityDecision.Grant) {
+                if (drainPlayback(bridge)) return@repeat
                 ops.sendRealGameState(bridge)
                 return
             }

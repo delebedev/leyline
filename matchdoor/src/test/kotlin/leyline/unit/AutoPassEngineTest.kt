@@ -260,4 +260,30 @@ class AutoPassEngineTest :
             ops.sendRealGameStateCount shouldBe 1
             ops.sendGameOverCount shouldBe 0
         }
+
+        test("autoPassAndAdvance — SEND_STATE with pass-only actions emits state-only bundle") {
+            val (bridge, game, counter) = base.startWithBoard { _, _, _ -> }
+            val ops = SessionTraceOps(bridge = bridge, counter = counter)
+
+            val stubCombat = object : CombatHandler(ops) {
+                override fun checkCombatPhase(
+                    bridge: GameBridge,
+                    game: forge.game.Game,
+                    phase: forge.game.phase.PhaseType?,
+                    isHumanTurn: Boolean,
+                    isAiTurn: Boolean,
+                ): Signal = Signal.SEND_STATE
+            }
+
+            val engine = AutoPassEngine(ops, stubCombat, TargetingHandler(ops), OptionalActionHandler(ops))
+            engine.autoPassAndAdvance(bridge)
+
+            ops.sendRealGameStateCount shouldBe 0
+            ops.sendGameOverCount shouldBe 0
+            ops.sentGRE.size shouldBe 1
+            val bundle = ops.sentGRE.single()
+            bundle.size shouldBe 1
+            bundle.single().hasGameStateMessage() shouldBe true
+            bundle.single().hasActionsAvailableReq() shouldBe false
+        }
     })
