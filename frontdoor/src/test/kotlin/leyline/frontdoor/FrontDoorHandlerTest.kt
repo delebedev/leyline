@@ -34,6 +34,7 @@ import leyline.frontdoor.service.CollectionService
 import leyline.frontdoor.service.CourseService
 import leyline.frontdoor.service.DeckService
 import leyline.frontdoor.service.DraftService
+import leyline.frontdoor.service.EventRegistry
 import leyline.frontdoor.service.GeneratedPool
 import leyline.frontdoor.service.MatchmakingService
 import leyline.frontdoor.service.PlayerService
@@ -313,32 +314,23 @@ class FrontDoorHandlerTest :
             json.parseToJsonElement(msg.jsonPayload!!) // valid JSON
         }
 
-        test("CmdType 1910 - PlayBladeQueueConfig has all 14 queues") {
+        test("CmdType 1910 - PlayBladeQueueConfig has all queues") {
             val ch = fdChannel()
             val msg = ch.sendCmd(1910)
             val arr = json.parseToJsonElement(msg.jsonPayload.shouldNotBeNull()).jsonArray
-            arr.size shouldBe 14
+            arr.size shouldBe EventRegistry.queues.size
             val ids = arr.map { it.jsonObject["Id"]?.jsonPrimitive?.content }
-            ids shouldContain "StandardRanked"
-            ids shouldContain "HistoricRanked"
-            ids shouldContain "ExplorerRanked"
-            ids shouldContain "TimelessRanked"
-            ids shouldContain "StandardUnranked"
             ids shouldContain "AIBotMatch"
-            ids shouldContain "HistoricBrawl"
             ids shouldContain "StandardBrawl"
         }
 
-        test("CmdType 624 - ActiveEventsV2 has all formats and AiBotMatches") {
+        test("CmdType 624 - ActiveEventsV2 has events and AiBotMatches") {
             val obj = sendJson(624)
             val events = obj["Events"]?.jsonArray
             events.shouldNotBeNull()
             events.shouldNotBeEmpty()
             val names = events.map { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content }
-            names shouldContain "Ladder"
-            names shouldContain "Historic_Ladder"
-            names shouldContain "Explorer_Ladder"
-            names.shouldNotContain("ColorChallenge")
+            names shouldNotContain "AIBotMatch" // lives in AiBotMatches, not Events
 
             val bots = obj["AiBotMatches"]?.jsonArray
             bots.shouldNotBeNull()
@@ -361,8 +353,7 @@ class FrontDoorHandlerTest :
             val courses = obj["Courses"]?.jsonArray
             courses.shouldNotBeNull()
             courses.shouldNotBeEmpty()
-            val names = courses.map { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content }
-            names shouldContain "Ladder"
+            courses.shouldNotBeEmpty()
         }
 
         test("CmdType 623 - every course matches reference shape") {

@@ -1,5 +1,6 @@
 package leyline.cli
 
+import leyline.LeylinePaths
 import leyline.frontdoor.domain.Deck
 import leyline.frontdoor.domain.DeckCard
 import leyline.frontdoor.domain.DeckId
@@ -79,7 +80,7 @@ object SeedDb {
     @JvmStatic
     fun main(args: Array<String>) {
         val projectDir = findProjectDir()
-        val dbFile = File(projectDir, "data/player.db")
+        val dbFile = File(System.getenv("LEYLINE_PLAYER_DB") ?: LeylinePaths.PLAYER_DB.absolutePath)
         dbFile.parentFile.mkdirs()
         println("Seeding ${dbFile.absolutePath}")
 

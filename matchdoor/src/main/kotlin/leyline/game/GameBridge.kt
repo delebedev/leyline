@@ -321,6 +321,10 @@ class GameBridge(
          *  in-flight zone moves before we snapshot. */
         private const val SETTLE_MS = 10L
 
+        /** Max time to wait for gsId to advance after detecting a pending interaction.
+         *  Capped to avoid stalling on prompts that fire before any GSM is sent. */
+        private const val PROGRESS_WAIT_MS = 50L
+
         /** Poll interval for mulligan ready check (no signal available for mulligan). */
         private const val POLL_INTERVAL_MS = 50L
     }
@@ -523,11 +527,16 @@ class GameBridge(
      * the next action-bridge priority stop is reached. Without this, casting a
      * targeted spell would appear to time out.
      *
+     * After detecting a pending interaction, waits for [messageCounter] to
+     * advance (proving engine output) before returning. This prevents the
+     * caller from draining the sink before the engine has written messages.
+     *
      * @param timeoutMs max wait time (use longer values for AI turns)
      * @return true if priority was reached, false if timed out or game over
      */
     override fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
+        val entryGsId = messageCounter.currentGsId()
         while (true) {
             // Check conditions first (handles already-pending case)
             val g = game
@@ -535,20 +544,9 @@ class GameBridge(
                 log.info("GameBridge: game over detected while waiting for priority")
                 return false
             }
-            if (actionBridges.values.any { it.getPending() != null }) {
-                // Let engine thread finish in-flight zone moves before we snapshot state
-                Thread.sleep(SETTLE_MS)
-                return true
-            }
-            if (promptBridges.values.any { it.getPendingPrompt() != null }) {
-                Thread.sleep(SETTLE_MS)
-                return true
-            }
-            if (humanController?.pendingDamageAssignment != null) {
-                Thread.sleep(SETTLE_MS)
-                return true
-            }
-            if (humanController?.pendingOptionalAction != null) {
+            if (hasPendingInteraction()) {
+                // Wait for engine to produce output (gsId advances), then settle
+                awaitProgress(entryGsId, deadline)
                 Thread.sleep(SETTLE_MS)
                 return true
             }
@@ -561,6 +559,25 @@ class GameBridge(
 
             // Wait for signal from either bridge (or timeout)
             prioritySignal.awaitSignal(remaining)
+        }
+    }
+
+    private fun hasPendingInteraction(): Boolean =
+        actionBridges.values.any { it.getPending() != null } ||
+            promptBridges.values.any { it.getPendingPrompt() != null } ||
+            humanController?.pendingDamageAssignment != null ||
+            humanController?.pendingOptionalAction != null
+
+    /**
+     * Spin until the message counter advances past [entryGsId], proving engine output.
+     * Capped at [PROGRESS_WAIT_MS] to avoid stalling on prompts that fire before any GSM.
+     */
+    private fun awaitProgress(entryGsId: Int, deadline: Long) {
+        if (entryGsId == 0) return
+        val progressDeadline = minOf(deadline, System.currentTimeMillis() + PROGRESS_WAIT_MS)
+        while (messageCounter.currentGsId() <= entryGsId) {
+            if (System.currentTimeMillis() >= progressDeadline) return
+            Thread.sleep(1)
         }
     }
 

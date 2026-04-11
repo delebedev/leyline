@@ -32,7 +32,7 @@ fun main(args: Array<String>) {
         ?: System.getenv("LEYLINE_FD_HOST")
         ?: "localhost:$fdPort"
 
-    val playerDbPath = System.getenv("LEYLINE_PLAYER_DB") ?: sc.playerDb
+    val playerDbPath = System.getenv("LEYLINE_PLAYER_DB") ?: sc.playerDb.ifEmpty { LeylinePaths.PLAYER_DB.absolutePath }
     val playerDbFile = File(playerDbPath).let { if (it.isAbsolute) it else File(System.getProperty("user.dir"), playerDbPath) }
 
     val server = LeylineServer(

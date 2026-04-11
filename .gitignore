@@ -22,9 +22,6 @@ target
 *.log
 /logs/
 
-# Player data (created by `just seed-db`)
-/data/
-!/data/decks/
 
 # macOS
 .DS_Store
