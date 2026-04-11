@@ -523,6 +523,10 @@ class GameBridge(
      * the next action-bridge priority stop is reached. Without this, casting a
      * targeted spell would appear to time out.
      *
+     * After detecting a pending interaction, waits for [messageCounter] to
+     * advance (proving engine output) before returning. This prevents the
+     * caller from draining the sink before the engine has written messages.
+     *
      * @param timeoutMs max wait time (use longer values for AI turns)
      * @return true if priority was reached, false if timed out or game over
      */

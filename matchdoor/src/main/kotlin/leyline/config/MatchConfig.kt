@@ -121,9 +121,9 @@ data class ServerConfig(
     @SerialName("bridge_timeout_ms")
     val bridgeTimeoutMs: Long = 120_000L,
 
-    /** Player database path (relative to CWD or absolute). */
+    /** Player database path (absolute, or relative to CWD). */
     @SerialName("player_db")
-    val playerDb: String = "data/player.db",
+    val playerDb: String = "",
 )
 
 @Serializable

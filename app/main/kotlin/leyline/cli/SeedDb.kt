@@ -8,6 +8,7 @@ import leyline.frontdoor.domain.PlayerId
 import leyline.frontdoor.repo.SqlitePlayerStore
 import leyline.game.ExposedCardRepository
 import org.jetbrains.exposed.v1.jdbc.Database
+import leyline.LeylinePaths
 import java.io.File
 import java.util.UUID
 
@@ -79,7 +80,7 @@ object SeedDb {
     @JvmStatic
     fun main(args: Array<String>) {
         val projectDir = findProjectDir()
-        val dbFile = File(projectDir, "data/player.db")
+        val dbFile = File(System.getenv("LEYLINE_PLAYER_DB") ?: LeylinePaths.PLAYER_DB.absolutePath)
         dbFile.parentFile.mkdirs()
         println("Seeding ${dbFile.absolutePath}")
 
