@@ -528,6 +528,7 @@ class GameBridge(
      */
     override fun awaitPriorityWithTimeout(timeoutMs: Long): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
+        val entryGsId = messageCounter.currentGsId()
         while (true) {
             // Check conditions first (handles already-pending case)
             val g = game
@@ -535,20 +536,9 @@ class GameBridge(
                 log.info("GameBridge: game over detected while waiting for priority")
                 return false
             }
-            if (actionBridges.values.any { it.getPending() != null }) {
-                // Let engine thread finish in-flight zone moves before we snapshot state
-                Thread.sleep(SETTLE_MS)
-                return true
-            }
-            if (promptBridges.values.any { it.getPendingPrompt() != null }) {
-                Thread.sleep(SETTLE_MS)
-                return true
-            }
-            if (humanController?.pendingDamageAssignment != null) {
-                Thread.sleep(SETTLE_MS)
-                return true
-            }
-            if (humanController?.pendingOptionalAction != null) {
+            if (hasPendingInteraction()) {
+                // Wait for engine to produce output (gsId advances), then settle
+                awaitProgress(entryGsId, deadline)
                 Thread.sleep(SETTLE_MS)
                 return true
             }
@@ -561,6 +551,24 @@ class GameBridge(
 
             // Wait for signal from either bridge (or timeout)
             prioritySignal.awaitSignal(remaining)
+        }
+    }
+
+    private fun hasPendingInteraction(): Boolean =
+        actionBridges.values.any { it.getPending() != null } ||
+            promptBridges.values.any { it.getPendingPrompt() != null } ||
+            humanController?.pendingDamageAssignment != null ||
+            humanController?.pendingOptionalAction != null
+
+    /**
+     * Spin until the message counter advances past [entryGsId], proving engine output.
+     * Skipped when entryGsId is 0 (initial setup — no prior output to compare against).
+     */
+    private fun awaitProgress(entryGsId: Int, deadline: Long) {
+        if (entryGsId == 0) return
+        while (messageCounter.currentGsId() <= entryGsId) {
+            if (System.currentTimeMillis() >= deadline) return
+            Thread.sleep(1)
         }
     }
 
