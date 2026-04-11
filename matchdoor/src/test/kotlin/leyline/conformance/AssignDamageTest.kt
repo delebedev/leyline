@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import leyline.IntegrationTag
 
 /**
@@ -69,13 +70,27 @@ class AssignDamageTest :
             req.damageAssignersCount.shouldBeGreaterThan(0)
 
             val assigner = req.damageAssignersList.first()
-            assigner.totalDamage shouldBeGreaterThan 0
-            assigner.assignmentsCount.shouldBeGreaterThan(1)
+            assigner.totalDamage shouldBe 5 // Charging Monstrosaur 5/5
 
-            // Assign exactly minDamage (lethal) to each blocker.
-            // Trample overflow (totalDamage - sum) goes to defender implicitly.
+            // Blocker slots: minDamage=lethal(2), assignedDamage=lethal(2)
+            // Defender slot: no minDamage, maxDamage=overflow(1), assignedDamage=overflow(1)
+            val blockerSlots = assigner.assignmentsList.filter { it.minDamage > 0 }
+            val defenderSlot = assigner.assignmentsList.find { it.minDamage == 0 && it.maxDamage > 0 }
+
+            blockerSlots.size shouldBe 2
+            blockerSlots.forEach {
+                it.minDamage shouldBe 2
+                it.assignedDamage shouldBe 2
+            }
+
+            defenderSlot.shouldNotBeNull()
+            defenderSlot.instanceId shouldBe 2 // defending seatId
+            defenderSlot.maxDamage shouldBe 1 // 5 - 2 - 2 = 1 overflow
+            defenderSlot.assignedDamage shouldBe 1
+
+            // Send back the pre-filled assignments (lethal to blockers + overflow to defender)
             val responseAssignments = assigner.assignmentsList.map {
-                it.instanceId to it.minDamage
+                it.instanceId to it.assignedDamage
             }
 
             val snap = h.messageSnapshot()
@@ -85,10 +100,7 @@ class AssignDamageTest :
             val confirmation = postAssign.firstOrNull { it.hasAssignDamageConfirmation() }
             confirmation.shouldNotBeNull()
 
-            // Trample overflow is computed server-side (onAssignDamage adds null-key
-            // for totalDamage minus blocker sum). But without a defender slot in the
-            // proto, the client assigns all damage to blockers. Needs trample reference
-            // to determine correct defender instanceId (#235).
+            // 1 trample overflow to AI at 1 life → game should end
             if (!h.isGameOver()) h.passThroughCombat()
         }
 
