@@ -162,12 +162,12 @@ class BundleBuilder(
     }
 
     /**
-     * Remote action diff: single GS Diff with SendHiFi.
+     * Remote action diff: content GS Diff with SendHiFi, then a bare SendHiFi echo.
      *
-     * Client expects exactly one GSM per AI action — no echo, no
-     * pendingMessageCount. Uses SendHiFi (transient update the client
-     * doesn't need to persist as a save point). Actions are embedded
-     * without the pending flag so the client dispatches immediately.
+     * Client expects a commit-frame echo after remote-seat content GSMs.
+     * Both messages are standalone (no pendingMessageCount). The first carries
+     * the state delta + naive actions; the second is a bare diff used for
+     * animation pacing.
      */
     fun remoteActionDiff(
         game: Game,
@@ -212,13 +212,12 @@ class BundleBuilder(
             )
         }
 
-        val messages = listOf(
-            makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
-                it.gameStateMessage = gs.build()
-            },
-        )
+        val content = makeGRE(GREMessageType.GameStateMessage_695e, nextGs, counter.nextMsgId()) {
+            it.gameStateMessage = gs.build()
+        }
+        val echo = buildEchoDiffGsm(counter, GameStateUpdate.SendHiFi)
 
-        return BundleResult(messages)
+        return BundleResult(listOf(content, echo))
     }
 
     /**
@@ -1073,11 +1072,13 @@ class BundleBuilder(
     }
 
     /**
-     * Build an actions-only echo diff GSM (empty Diff with just gsId chain).
-     * Used for select-targets echo-back where the client needs a GSM before the re-prompt.
+     * Build a bare echo diff GSM (empty Diff with just gsId chain + update type).
+     * Used for select-targets echo-back before re-prompt and for remote-action
+     * animation commit frames.
      */
     fun buildEchoDiffGsm(
         counter: MessageCounter,
+        updateType: GameStateUpdate = GameStateUpdate.Send,
     ): GREToClientMessage {
         val gsId = counter.nextGsId()
         return makeGRE(GREMessageType.GameStateMessage_695e, gsId, counter.nextMsgId()) {
@@ -1085,6 +1086,7 @@ class BundleBuilder(
                 .setType(GameStateType.Diff)
                 .setGameStateId(gsId)
                 .setPrevGameStateId(gsId - 1)
+                .setUpdate(updateType)
                 .build()
         }
     }

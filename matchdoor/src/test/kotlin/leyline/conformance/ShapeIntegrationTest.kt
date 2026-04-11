@@ -28,7 +28,7 @@ class ShapeIntegrationTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("remoteActionDiff produces single SendHiFi GSM (no echo)") {
+        test("remoteActionDiff produces content SendHiFi GSM plus bare SendHiFi echo") {
             val (b, game, counter) = base.startWithBoard { _, human, _ ->
                 base.addCard("Plains", human, ZoneType.Hand)
                 base.addCard("Forest", human, ZoneType.Battlefield)
@@ -36,9 +36,12 @@ class ShapeIntegrationTest :
 
             val messages = base.bundleBuilder(b).remoteActionDiff(game, counter).messages
 
-            messages.size shouldBe 1
+            messages.size shouldBe 2
             messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+            messages[1].type shouldBe GREMessageType.GameStateMessage_695e
             messages[0].gameStateMessage.update shouldBe GameStateUpdate.SendHiFi
+            messages[1].gameStateMessage.update shouldBe GameStateUpdate.SendHiFi
+            messages[1].gameStateMessage.annotationsCount shouldBe 0
         }
 
         test("declareAttackersBundle produces GS + DeclareAttackersReq with promptId=6") {

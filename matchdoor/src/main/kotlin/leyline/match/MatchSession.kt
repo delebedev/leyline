@@ -202,8 +202,8 @@ class MatchSession(
         }
 
         val pending = seatBridge.action.getPending() ?: run {
-            log.warn("MatchSession: PerformActionResp but no pending action — recovering")
-            autoPassEngine.autoPassAndAdvance(bridge)
+            log.warn("MatchSession: PerformActionResp but no pending action — resyncing current state")
+            sendRealGameState(bridge)
             return
         }
 

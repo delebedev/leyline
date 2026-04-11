@@ -568,6 +568,60 @@ object StateMapper {
     )
 
     /**
+     * Assemble stages 2-3 around the key invariant for lethal damage:
+     * DamageDealt must land before the victim's destroy transfer.
+     */
+    internal fun assembleTransferAndCombatAnnotations(
+        events: List<GameEvent>,
+        transferResult: TransferResult,
+        actingSeat: Int,
+        combatResult: CombatAnnotationResult,
+    ): Pair<MutableList<AnnotationInfo>, MutableList<AnnotationInfo>> {
+        val annotations = mutableListOf<AnnotationInfo>()
+        val transferPersistent = mutableListOf<AnnotationInfo>()
+        val lethalDamageVictims = events
+            .filterIsInstance<GameEvent.DamageDealtToCard>()
+            .map { it.targetCardId }
+            .toSet()
+        val (deferredTransfers, immediateTransfers) = transferResult.transfers.partition { transfer ->
+            transfer.category == TransferCategory.Destroy &&
+                transfer.forgeCardId != null &&
+                transfer.forgeCardId in lethalDamageVictims
+        }
+
+        fun emitTransfer(transfer: AppliedTransfer) {
+            val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, SeatId(actingSeat))
+            annotations.addAll(transient)
+            transferPersistent.addAll(persistent)
+        }
+
+        for (transfer in immediateTransfers) emitTransfer(transfer)
+        for (a in transferResult.stackAbilityAppearances) {
+            annotations.add(
+                AnnotationBuilder.abilityInstanceCreated(
+                    InstanceId(a.abilityInstanceId),
+                    InstanceId(a.sourceCardInstanceId),
+                    a.sourceZoneId,
+                ),
+            )
+        }
+        for (d in transferResult.stackAbilityDisappearances) {
+            annotations.add(
+                AnnotationBuilder.abilityInstanceDeleted(
+                    InstanceId(d.abilityInstanceId),
+                    InstanceId(d.sourceCardInstanceId),
+                ),
+            )
+        }
+        for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
+            annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId, ev.phase, ev.step))
+        }
+        annotations.addAll(combatResult.annotations)
+        for (transfer in deferredTransfers) emitTransfer(transfer)
+        return annotations to transferPersistent
+    }
+
+    /**
      * Scan the stack for spells/abilities with targets and emit TargetSpec pAnns.
      * Each card target gets a separate annotation with 1-based index per target group.
      * Removed automatically by upsertByType when the spell resolves (leaves stack).
@@ -708,41 +762,13 @@ object StateMapper {
         actingSeat: Int,
         bridge: GameBridge,
     ): AnnotationPipelineResult {
-        val annotations = mutableListOf<AnnotationInfo>()
-        val transferPersistent = mutableListOf<AnnotationInfo>()
-        for (transfer in transferResult.transfers) {
-            val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, SeatId(actingSeat))
-            annotations.addAll(transient)
-            transferPersistent.addAll(persistent)
-        }
-        // Stack ability lifecycle: triggered abilities appearing/disappearing.
-        for (a in transferResult.stackAbilityAppearances) {
-            annotations.add(
-                AnnotationBuilder.abilityInstanceCreated(
-                    InstanceId(a.abilityInstanceId),
-                    InstanceId(a.sourceCardInstanceId),
-                    a.sourceZoneId,
-                ),
-            )
-        }
-        for (d in transferResult.stackAbilityDisappearances) {
-            // Note: ResolutionStart/Complete are NOT emitted here — they reference the
-            // ability's instanceId as affectorId, but that object no longer exists (it
-            // disappeared from the stack). The Resolve transfer path handles resolution
-            // annotations for spells that move zones. For triggered abilities that vanish,
-            // AbilityInstanceDeleted alone signals the lifecycle end.
-            annotations.add(
-                AnnotationBuilder.abilityInstanceDeleted(
-                    InstanceId(d.abilityInstanceId),
-                    InstanceId(d.sourceCardInstanceId),
-                ),
-            )
-        }
-        for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
-            annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId, ev.phase, ev.step))
-        }
         val combatResult = CombatAnnotations.combatAnnotations(events, bridge)
-        annotations.addAll(combatResult.annotations)
+        val (annotations, transferPersistent) = assembleTransferAndCombatAnnotations(
+            events = events,
+            transferResult = transferResult,
+            actingSeat = actingSeat,
+            combatResult = combatResult,
+        )
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
     }
 

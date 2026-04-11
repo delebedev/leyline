@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import leyline.bridge.ForgeCardId
 import leyline.bridge.GameBootstrap
+import leyline.bridge.SeatId
 import leyline.game.GameBridge
 import leyline.game.PuzzleSource
 import leyline.game.StateMapper
@@ -211,11 +212,17 @@ class DebugServer(
         }
 
         try {
+            val phaseHandler = game.phaseHandler
+            val phase = phaseHandler.phase?.toString()
+            val turn = phaseHandler.turn
+            if (phase == null) {
+                respondJson(ex, """{"bestPlay":null,"phase":null,"turn":$turn,"reason":"phase unavailable"}""")
+                return
+            }
+
             val picker = SpellAbilityPicker(game, player)
             val bestSa = picker.chooseSpellAbilityToPlay(null)
             val score = picker.getScoreForChosenAbility()
-            val phase = game.phaseHandler.phase?.toString()
-            val turn = game.phaseHandler.turn
 
             if (bestSa == null) {
                 respondJson(ex, """{"bestPlay":null,"phase":"$phase","turn":$turn,"reason":"no beneficial play"}""")
@@ -232,13 +239,14 @@ class DebugServer(
             }
 
             val actionType = when {
-                bestSa.isSpell && card?.isLand == true -> "PlayLand"
+                card?.isLand == true -> "PlayLand"
                 bestSa.isSpell -> "CastSpell"
                 bestSa.isActivatedAbility -> "ActivateAbility"
                 else -> "Unknown"
             }
 
             val saDesc = SpellAbilityPicker.abilityToString(bestSa, true)
+            val targets = buildBestPlayTargets(bestSa, bridge)
 
             respondJson(
                 ex,
@@ -251,6 +259,7 @@ class DebugServer(
                             actionType = actionType,
                             score = score.value,
                             description = saDesc,
+                            targets = targets,
                         ),
                         phase = phase,
                         turn = turn,
@@ -264,6 +273,49 @@ class DebugServer(
         }
     }
 
+    private fun buildBestPlayTargets(
+        bestSa: forge.game.spellability.SpellAbility,
+        bridge: GameBridge,
+    ): List<BestPlayTargetEntry> {
+        val result = mutableListOf<BestPlayTargetEntry>()
+        var sa: forge.game.spellability.SpellAbility? = bestSa
+        while (sa != null) {
+            if (sa.usesTargeting()) {
+                for (target in sa.targets) {
+                    when (target) {
+                        is forge.game.card.Card -> result.add(
+                            BestPlayTargetEntry(
+                                kind = "card",
+                                name = target.name,
+                                forgeCardId = target.id,
+                                arenaInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(target.id)).value,
+                                seatId = null,
+                            ),
+                        )
+                        is forge.game.player.Player -> {
+                            val seatId = when (target) {
+                                bridge.getPlayer(SeatId(1)) -> 1
+                                bridge.getPlayer(SeatId(2)) -> 2
+                                else -> null
+                            }
+                            result.add(
+                                BestPlayTargetEntry(
+                                    kind = "player",
+                                    name = target.name,
+                                    forgeCardId = null,
+                                    arenaInstanceId = seatId ?: -1,
+                                    seatId = seatId,
+                                ),
+                            )
+                        }
+                    }
+                }
+            }
+            sa = sa.subAbility
+        }
+        return result
+    }
+
     @Serializable
     private data class BestPlayEntry(
         val cardName: String,
@@ -272,6 +324,16 @@ class DebugServer(
         val actionType: String,
         val score: Int,
         val description: String,
+        val targets: List<BestPlayTargetEntry> = emptyList(),
+    )
+
+    @Serializable
+    private data class BestPlayTargetEntry(
+        val kind: String,
+        val name: String,
+        val forgeCardId: Int? = null,
+        val arenaInstanceId: Int,
+        val seatId: Int? = null,
     )
 
     @Serializable
