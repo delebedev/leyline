@@ -1,0 +1,18 @@
+[metadata]
+Name:Destroy Evil Modal Spell
+Goal:Win
+Turns:10
+Difficulty:Easy
+Description:Cast Destroy Evil to test spell-time modal.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Destroy Evil
+humanbattlefield=Plains;Plains
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Trufflesnout;Pacifism
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

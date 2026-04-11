@@ -348,6 +348,8 @@ data class PromptRequest(
     val sourceEntityId: Int? = null,
     /** Card name for modal ETB prompts — session layer resolves grpId from this. */
     val modalSourceCardName: String? = null,
+    /** True when modal originates from a triggered ability (ETB), not spell-time. */
+    val isTriggeredAbility: Boolean = false,
     /**
      * All revealed cards (unfiltered) for reveal-choose prompts.
      * Maps to `unfilteredIds` in SelectNReq — shows the full hand even when

@@ -1,0 +1,18 @@
+[metadata]
+Name:Prince ETB Modal
+Goal:Win
+Turns:10
+Difficulty:Easy
+Description:Cast Charming Prince and choose an ETB mode.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Plains;Plains
+humanhand=Charming Prince
+humanlibrary=Plains;Plains;Plains;Plains;Plains
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain

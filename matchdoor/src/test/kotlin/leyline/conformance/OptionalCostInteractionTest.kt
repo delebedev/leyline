@@ -4,6 +4,7 @@ import io.kotest.assertions.assertSoftly
 import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import wotc.mtgo.gre.external.messaging.Messages.*
 
@@ -104,6 +105,25 @@ class OptionalCostInteractionTest :
             passUntilResolved()
 
             ai.life shouldBe 18
+        }
+
+        test("kicker GSM has no synthesized ability on stack") {
+            startPuzzle(burstPuzzle)
+
+            val snap = harness.messageSnapshot()
+            castSpellByName("Burst Lightning").shouldBeTrue()
+            val msgs = harness.messagesSince(snap)
+
+            val ctoIdx = msgs.indexOfFirst { it.hasCastingTimeOptionsReq() }
+            ctoIdx shouldBeGreaterThan 0
+
+            // GSM before CTO should NOT have a synthesized ability —
+            // kicker is a spell-time cost, not an ETB trigger
+            val gsm = msgs[ctoIdx - 1].gameStateMessage
+            val abilities = gsm.gameObjectsList.filter {
+                it.type == GameObjectType.Ability
+            }
+            abilities shouldHaveSize 0
         }
 
         test("optional cost prompt gates targeting — no SelectTargetsReq before response") {
