@@ -454,8 +454,7 @@ open class CombatHandler(private val ops: SessionOps) {
                 }
             }
 
-            // Trample overflow: totalDamage minus assigned-to-blockers → defender (null key).
-            // The client doesn't send a defender slot — overflow is implicit.
+            // Fallback: if client omits defender slot, compute overflow implicitly.
             val assignedToBlockers = damageMap.values.sum()
             val overflow = assigner.totalDamage - assignedToBlockers
             if (overflow > 0 && !damageMap.containsKey(null)) {
@@ -516,22 +515,33 @@ open class CombatHandler(private val ops: SessionOps) {
         val attackerIid = bridge.getOrAllocInstanceId(ForgeCardId(prompt.attacker.id))
         val assignments = mutableListOf<DamageAssignment>()
 
-        // Reference conformance: client sets totalDamage = attacker power,
-        // no maxDamage, no defender slot. assignedDamage pre-filled so
-        // sum(assignedDamage) == totalDamage — last blocker gets overflow.
-        // Client requires sum == totalDamage to enable Done button.
+        // Reference conformance: blocker slots have minDamage=lethal, assignedDamage
+        // pre-filled. Trample adds a defender (player) slot with instanceId=defendingSeatId,
+        // maxDamage=overflow, assignedDamage=overflow, no minDamage.
+        // Client requires sum(assignedDamage) == totalDamage to enable Done button.
         var assigned = 0
-        for ((idx, blocker) in prompt.blockers.withIndex()) {
+        for (blocker in prompt.blockers) {
             val blockerIid = bridge.getOrAllocInstanceId(ForgeCardId(blocker.id))
             val lethal = if (prompt.hasDeathtouch) 1 else maxOf(0, blocker.netToughness - blocker.damage)
-            val isLast = idx == prompt.blockers.size - 1
-            val preFill = if (isLast) prompt.damageDealt - assigned else lethal
-            assigned += preFill
+            assigned += lethal
             assignments.add(
                 DamageAssignment.newBuilder()
                     .setInstanceId(blockerIid.value)
                     .setMinDamage(lethal)
-                    .setAssignedDamage(preFill)
+                    .setAssignedDamage(lethal)
+                    .build(),
+            )
+        }
+
+        // Trample overflow → defender (player) slot
+        if (prompt.hasTrample && prompt.defender != null) {
+            val overflow = prompt.damageDealt - assigned
+            val defendingSeatId = if (ops.seatId.value == 1) 2 else 1
+            assignments.add(
+                DamageAssignment.newBuilder()
+                    .setInstanceId(defendingSeatId)
+                    .setMaxDamage(overflow)
+                    .setAssignedDamage(overflow)
                     .build(),
             )
         }
