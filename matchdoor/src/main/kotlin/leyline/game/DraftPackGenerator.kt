@@ -23,11 +23,11 @@ class DraftPackGenerator(private val cards: CardRepository) {
         val boosterTemplate = FModel.getMagicDb().getBoosters().get(effectiveSet)
             ?: error("No booster template for set: $effectiveSet")
 
+        val supplier = UnOpenedProduct(boosterTemplate)
         val packs = mutableListOf<List<Int>>()
         var totalUnmapped = 0
 
         repeat(PACKS) {
-            val supplier = UnOpenedProduct(boosterTemplate)
             val pack = supplier.get()
             val grpIds = mutableListOf<Int>()
             for (card in pack) {
