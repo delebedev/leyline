@@ -147,8 +147,8 @@ object EventRegistry {
      * module=CreateMatch means active (shows "Resume"), module=Complete means finished.
      */
     val defaultCourses = listOf(
-        "Ladder" to "Complete",
-        "Play" to "CreateMatch",
+        "AIBotMatch" to "Complete",
+        "Play_Brawl" to "CreateMatch",
     )
 
     private inline fun <reified T> loadResource(path: String): T {

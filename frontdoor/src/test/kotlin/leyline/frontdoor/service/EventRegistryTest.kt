@@ -21,12 +21,10 @@ class EventRegistryTest :
         test("queue config JSON is a valid array with all queue entries") {
             val result = EventWireBuilder.toQueueConfigJson(EventRegistry.queues)
             val arr = json.parseToJsonElement(result).jsonArray
-            arr shouldHaveAtLeastSize 14
+            arr shouldHaveAtLeastSize EventRegistry.queues.size
 
-            val std = arr.first { it.jsonObject["Id"]?.jsonPrimitive?.content == "StandardRanked" }.jsonObject
-            std["EventNameBO1"]?.jsonPrimitive?.content shouldBe "Ladder"
-            std["EventNameBO3"]?.jsonPrimitive?.content shouldBe "Traditional_Ladder"
-            std["DeckSizeBO1"]?.jsonPrimitive?.content shouldBe "Events/Deck_60plus"
+            val bot = arr.first { it.jsonObject["Id"]?.jsonPrimitive?.content == "AIBotMatch" }.jsonObject
+            bot["EventNameBO1"]?.jsonPrimitive?.content shouldBe "AIBotMatch"
         }
 
         test("queue config includes AIBotMatch") {
@@ -38,15 +36,11 @@ class EventRegistryTest :
             val result = EventWireBuilder.toActiveEventsJson(EventRegistry.activeEvents, EventRegistry.aiBotMatches)
             val obj = json.parseToJsonElement(result).jsonObject
             val events = obj["Events"]?.jsonArray ?: error("no Events")
-            events shouldHaveAtLeastSize 7
-
-            // Queue-backing events present
-            events.first { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content == "Ladder" }
+            events shouldHaveAtLeastSize EventRegistry.activeEvents.size
 
             // AIBotMatch NOT in Events (lives in AiBotMatches)
             val names = events.map { it.jsonObject["InternalEventName"]?.jsonPrimitive?.content }
             check("AIBotMatch" !in names) { "AIBotMatch should not be in Events array" }
-            check("ColorChallenge" !in names) { "ColorChallenge should not be in Events array" }
 
             val bots = obj["AiBotMatches"]?.jsonArray ?: error("no AiBotMatches")
             bots shouldHaveAtLeastSize 2
@@ -88,18 +82,16 @@ class EventRegistryTest :
         }
 
         test("findEvent returns known event") {
-            val event = EventRegistry.findEvent("Ladder")
-            event shouldBe EventRegistry.events.first { it.internalName == "Ladder" }
+            val event = EventRegistry.findEvent("AIBotMatch")
+            event shouldBe EventRegistry.events.first { it.internalName == "AIBotMatch" }
         }
 
         test("findEvent returns null for unknown") {
             EventRegistry.findEvent("NonExistent") shouldBe null
         }
 
-        test("forgeFormatFor returns mapped format for ranked event") {
-            EventRegistry.forgeFormatFor("Ladder") shouldBe "Standard"
-            EventRegistry.forgeFormatFor("Explorer_Ladder") shouldBe "Pioneer"
-            EventRegistry.forgeFormatFor("Historic_Play") shouldBe "Historic"
+        test("forgeFormatFor returns mapped format for known event") {
+            EventRegistry.forgeFormatFor("Play_Brawl") shouldBe "Brawl"
         }
 
         test("forgeFormatFor returns null for AIBotMatch (SkipDeckValidation)") {
@@ -110,7 +102,7 @@ class EventRegistryTest :
             EventRegistry.forgeFormatFor("NonexistentEvent").shouldBeNull()
         }
 
-        test("forgeFormatFor strips Traditional prefix") {
-            EventRegistry.forgeFormatFor("Traditional_Ladder") shouldBe "Standard"
+        test("mapArenaFormat strips Traditional prefix") {
+            EventRegistry.mapArenaFormat("TraditionalStandard") shouldBe "Standard"
         }
     })

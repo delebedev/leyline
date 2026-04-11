@@ -89,7 +89,7 @@ class EventWireBuilderTest :
         }
 
         test("buildCourseJson omits SelectedDeckWidget when not sealed") {
-            val ladderDef = EventRegistry.findEvent("Ladder")!!
+            val ladderDef = EventRegistry.findEvent("Play_Brawl")!!
             val eventsJson = EventWireBuilder.toActiveEventsJson(listOf(ladderDef))
             val obj = json.parseToJsonElement(eventsJson).jsonObject
             val event = obj["Events"]!!.jsonArray[0].jsonObject

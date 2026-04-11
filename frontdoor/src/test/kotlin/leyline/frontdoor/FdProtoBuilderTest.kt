@@ -24,7 +24,7 @@ class FdProtoBuilderTest :
             val formatCount = inner.getField(1).lengthDelimitedList.size
             val groupCount = inner.getField(2).lengthDelimitedList.size
 
-            formatCount shouldBeGreaterThan 10 // 21 formats in metadata
+            formatCount shouldBeGreaterThan 5 // 8 formats in metadata
             groupCount shouldBe 3 // EvergreenFormats, ConstructedSortOrder, BannedFormats
         }
 
