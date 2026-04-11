@@ -321,6 +321,10 @@ class GameBridge(
          *  in-flight zone moves before we snapshot. */
         private const val SETTLE_MS = 10L
 
+        /** Max time to wait for gsId to advance after detecting a pending interaction.
+         *  Capped to avoid stalling on prompts that fire before any GSM is sent. */
+        private const val PROGRESS_WAIT_MS = 50L
+
         /** Poll interval for mulligan ready check (no signal available for mulligan). */
         private const val POLL_INTERVAL_MS = 50L
     }
@@ -566,12 +570,13 @@ class GameBridge(
 
     /**
      * Spin until the message counter advances past [entryGsId], proving engine output.
-     * Skipped when entryGsId is 0 (initial setup — no prior output to compare against).
+     * Capped at [PROGRESS_WAIT_MS] to avoid stalling on prompts that fire before any GSM.
      */
     private fun awaitProgress(entryGsId: Int, deadline: Long) {
         if (entryGsId == 0) return
+        val progressDeadline = minOf(deadline, System.currentTimeMillis() + PROGRESS_WAIT_MS)
         while (messageCounter.currentGsId() <= entryGsId) {
-            if (System.currentTimeMillis() >= deadline) return
+            if (System.currentTimeMillis() >= progressDeadline) return
             Thread.sleep(1)
         }
     }
