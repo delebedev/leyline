@@ -150,24 +150,6 @@ class GameBridge(
         }
 
     /**
-     * Ensure action/prompt/mulligan bridges exist for seats 1..n.
-     * Seat 1 is created in init; this adds any missing seats.
-     */
-    private fun ensureSeatBridges(numSeats: Int) {
-        for (seat in 1..numSeats) {
-            actionBridges.getOrPut(seat) {
-                GameActionBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
-            }
-            promptBridges.getOrPut(seat) {
-                InteractivePromptBridge(timeoutMs = bridgeTimeoutMs, prioritySignal = prioritySignal)
-            }
-            mulliganBridges.getOrPut(seat) {
-                MulliganBridge(autoKeep = true, timeoutMs = bridgeTimeoutMs)
-            }
-        }
-    }
-
-    /**
      * Pre-populate auto-pass bridges for a synthetic seat.
      * Used by tests that need an extra passive seat without AI wiring.
      *
