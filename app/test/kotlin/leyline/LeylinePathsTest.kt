@@ -1,8 +1,8 @@
 package leyline
 
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.string.shouldStartWith
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldStartWith
 
 class LeylinePathsTest :
     FunSpec({

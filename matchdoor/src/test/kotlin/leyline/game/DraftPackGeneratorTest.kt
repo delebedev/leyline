@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Auto-assigns a synthetic grpId for every card name it sees.
- * Lets us test pack generation without a real Arena card DB.
+ * Lets us test pack generation without the client card DB.
  */
 private class AutoMappingCardRepository : CardRepository {
     private val counter = AtomicInteger(500_000)
