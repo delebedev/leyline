@@ -53,4 +53,25 @@ class SagaChapterAbilityIdTest :
 
                 cardData.chapterAbilityGrpIds shouldBe emptyList()
             }
+
+        // ------------------------------------------------------------------
+        // Full-integration trigger-to-stack coverage is intentionally DEFERRED.
+        //
+        // Ideally a third test would: addCard(saga) → addCounter(LORE) → assert
+        // the resulting GSM contains a stack Ability gameObject with grpId ==
+        // chapterAbilityGrpIds[0]. But `addCard` + zone.add bypasses Forge's
+        // card-ETB flow that registers the card's triggers into TriggerHandler,
+        // so the CounterAdded trigger is defined on the saga but never active
+        // in the game. `addCounterInternal(..., fireEvents=true)` followed by
+        // `triggerHandler.runWaitingTriggers()` still leaves stack.size==0.
+        //
+        // Real engine flow (`game.action.moveToPlay(card)` or a full puzzle
+        // bootstrap) wires triggers, but that's heavier than this test needs
+        // and re-creates the puzzle-tier dependency we're trying to avoid.
+        //
+        // This gap is covered end-to-end by the Phase 3 transform puzzle
+        // (saga-transform-tribute.pzl + SagaTransformPuzzleTest) in the full
+        // session-tier MatchFlowHarness where Forge's normal cast → ETB →
+        // chapter-trigger flow runs naturally.
+        // ------------------------------------------------------------------
     })
