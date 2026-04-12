@@ -1,7 +1,9 @@
 package leyline.game.mapper
 
 import forge.game.Game
+import forge.game.card.Card
 import forge.game.player.Player
+import forge.game.spellability.SpellAbilityStackInstance
 import leyline.DevCheck
 import leyline.bridge.ForgeCardId
 import leyline.game.EffectTracker
@@ -211,14 +213,58 @@ object ZoneMapper {
             // Use a separate instance ID for the ability on the stack
             val abilityInstanceId = bridge.getOrAllocInstanceId(ForgeCardId(sourceCard.id + STACK_ABILITY_ID_OFFSET)).value
             val ownerSeatId = if (sourceCard.owner == human) 1 else 2
-            val grpId = DevCheck.requireOrNull(bridge.cardRepository.findGrpIdByName(sourceCard.name)) {
-                "stack ability grpId miss: '${sourceCard.name}'"
-            } ?: GameBridge.FALLBACK_GRPID
+            val grpId = resolveStackAbilityGrpId(entry, sourceCard, bridge)
+                ?: GameBridge.FALLBACK_GRPID
 
             zoneBuilder.addObjectInstanceIds(abilityInstanceId)
             gameObjects.add(ObjectMapper.buildAbilityObject(grpId, abilityInstanceId, ownerSeatId, bridge.cardProto))
         }
         zones.add(zoneBuilder.build())
+    }
+
+    /**
+     * Resolve the grpId for a stack ability object.
+     *
+     * Multi-ability cards (Sagas, planeswalkers, modal triggers) have per-ability
+     * grpIds in the Arena client DB. When a chapter trigger or similar
+     * sub-ability is on the stack, we need the specific ability's grpId, not the
+     * host card's. Saga example: Tribute to Horobi (79552) — Ch I→147926,
+     * Ch II→147927, Ch III→147760.
+     *
+     * Falls back to the source card's grpId when sub-ability resolution doesn't
+     * apply (plain spell cast, activated ability without a distinct grpId, DB
+     * entry missing).
+     */
+    internal fun resolveStackAbilityGrpId(
+        entry: SpellAbilityStackInstance,
+        sourceCard: Card,
+        bridge: GameBridge,
+    ): Int? {
+        resolveChapterAbilityGrpId(entry, sourceCard, bridge)?.let { return it }
+        return DevCheck.requireOrNull(bridge.cardRepository.findGrpIdByName(sourceCard.name)) {
+            "stack ability grpId miss: '${sourceCard.name}'"
+        }
+    }
+
+    /**
+     * If [entry] is a Saga chapter trigger, return the chapter-specific ability
+     * grpId from the source card's Arena DB ability list. Chapter index is
+     * 1-based; chapters occupy the leading positions of [CardData.abilityIds].
+     * Returns null for non-chapter triggers or when the DB lookup fails.
+     */
+    private fun resolveChapterAbilityGrpId(
+        entry: SpellAbilityStackInstance,
+        sourceCard: Card,
+        bridge: GameBridge,
+    ): Int? {
+        if (!entry.isTrigger) return null
+        val sa = entry.spellAbility ?: return null
+        val trigger = sa.trigger ?: return null
+        val chapterParam = trigger.getParam("Chapter") ?: return null
+        val chapterIdx = chapterParam.toIntOrNull()?.takeIf { it >= 1 } ?: return null
+        val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
+        val cardData = bridge.cardRepository.findByGrpId(sourceGrpId) ?: return null
+        return cardData.abilityIds.getOrNull(chapterIdx - 1)?.first
     }
 
     // --- Initial game zones ---
