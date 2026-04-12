@@ -429,14 +429,6 @@ object ZoneTransferDetector {
     }
 
     /**
-     * Detect token sacrifices invisible to the main transfer loop.
-     *
-     * Tokens sacrificed for mana (Treasure) are cleaned up by SBAs before the state
-     * snapshot, making them invisible to zone-change detection. We find them by comparing
-     * previousZones (battlefield) against current gameObjects. Also handles the case where
-     * the token is still present (SBAs haven't run yet) but a CardSacrificed event fired.
-     */
-    /**
      * Detect exile-return round-trips: Forge fired paired ChangeZone events
      * (BF→Exile, Exile→BF) for the same card within one resolve — typical of
      * saga final-chapter transforms (`DB$ ChangeZone | Origin$ Battlefield |
@@ -462,7 +454,12 @@ object ZoneTransferDetector {
         idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
         idLookup: (ForgeCardId) -> InstanceId,
     ) {
-        val exiled = events.filterIsInstance<GameEvent.CardExiled>().filter { it.fromBattlefield }
+        // Dedupe by ForgeCardId: if a card bounces exile→return multiple times in
+        // one resolve (delayed-trigger + chapter interactions), we only synthesize
+        // once — the later pairs would try to retire already-retired iids.
+        val exiled = events.filterIsInstance<GameEvent.CardExiled>()
+            .filter { it.fromBattlefield }
+            .distinctBy { it.cardId }
         if (exiled.isEmpty()) return
 
         for (ev in exiled) {
@@ -517,6 +514,12 @@ object ZoneTransferDetector {
             retiredIds.add(exileIid)
             appendToZone(patchedZones, ZoneIds.LIMBO, currentIid)
             appendToZone(patchedZones, ZoneIds.LIMBO, exileIid)
+            // Synthesize intermediate GameObjectInfos for the retired iids so
+            // ZoneTransfer annotations referencing them resolve against a real
+            // object (matches tribute-to-horobi.md gsId 145: both 288 and 318
+            // persist in Limbo alongside 319 on BF for animation continuity).
+            patchedObjects.add(currentObj.toBuilder().setInstanceId(currentIid).setZoneId(ZoneIds.LIMBO).build())
+            patchedObjects.add(currentObj.toBuilder().setInstanceId(exileIid).setZoneId(ZoneIds.LIMBO).build())
             patchedObjects[objIdx] = currentObj.toBuilder().setInstanceId(returnIid).build()
             patchZoneInstanceId(patchedZones, ZoneIds.BATTLEFIELD, currentIid, returnIid)
 

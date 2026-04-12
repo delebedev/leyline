@@ -2,6 +2,7 @@ package leyline.game.mapper
 
 import forge.game.Game
 import forge.game.card.Card
+import leyline.game.CardData
 import forge.game.player.Player
 import forge.game.spellability.SpellAbilityStackInstance
 import leyline.DevCheck
@@ -272,6 +273,16 @@ object ZoneMapper {
         val chapterIdx = chapterParam.toIntOrNull()?.takeIf { it >= 1 } ?: return null
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
         val cardData = bridge.cardRepository.findByGrpId(sourceGrpId) ?: return null
+        return chapterGrpIdFromCardData(cardData, chapterIdx)
+    }
+
+    /**
+     * Pick the chapter-specific ability grpId from a [CardData], independent of
+     * the Forge stack entry. Extracted for unit-testability of both resolver
+     * paths (populated [CardData.chapterAbilityGrpIds] vs positional fallback
+     * via [CardData.abilityIds]).
+     */
+    internal fun chapterGrpIdFromCardData(cardData: CardData, chapterIdx: Int): Int? {
         cardData.chapterAbilityGrpIds.getOrNull(chapterIdx - 1)?.let { return it }
         return cardData.abilityIds.getOrNull(chapterIdx - 1)?.first
     }

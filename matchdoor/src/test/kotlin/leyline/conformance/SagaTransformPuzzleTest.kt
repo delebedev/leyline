@@ -58,6 +58,13 @@ class SagaTransformPuzzleTest :
                 ailibrary=Mountain;Mountain;Mountain;Mountain
             """.trimIndent()
 
+            // validating=false: enabling the validator surfaces a pre-existing
+            // annotation_ref violation at gsId=7 (drawn card iid not yet in
+            // accumulator state when the ZoneTransfer annotation is checked).
+            // Reproduces on saga-impl base with L3 detector reverted, so this
+            // is not saga-specific — likely validator/accumulator timing on
+            // Draw-category transfers. Covered by accumulator assertions below
+            // + tribute trace match. Revisit as its own bug when triaged.
             val harness = MatchFlowHarness(validating = false)
             try {
                 harness.connectAndKeepPuzzleText(puzzleText)
