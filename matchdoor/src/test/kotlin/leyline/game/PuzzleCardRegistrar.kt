@@ -172,6 +172,7 @@ class PuzzleCardRegistrar(
             abilityIds = abilityIds,
             manaCost = manaCost,
             keywordAbilityGrpIds = keywordAbilityGrpIds,
+            chapterAbilityGrpIds = derived.chapterAbilityGrpIds,
             linkedFaceGrpIds = linkedFaces,
         )
     }

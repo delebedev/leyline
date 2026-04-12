@@ -248,9 +248,17 @@ object ZoneMapper {
 
     /**
      * If [entry] is a Saga chapter trigger, return the chapter-specific ability
-     * grpId from the source card's Arena DB ability list. Chapter index is
-     * 1-based; chapters occupy the leading positions of [CardData.abilityIds].
-     * Returns null for non-chapter triggers or when the DB lookup fails.
+     * grpId from the source card's [CardData].
+     *
+     * Resolution order:
+     *   1. [CardData.chapterAbilityGrpIds] — populated by [AbilityIdDeriver] from
+     *      live Forge triggers. Always correct when present (tests, puzzles, prod
+     *      once `ExposedCardRepository` is taught to populate it).
+     *   2. Fall back to positional lookup in [CardData.abilityIds] — covers the
+     *      current production shape where Arena's SQLite `Cards.AbilityIds`
+     *      column lists chapter grpIds at the leading positions.
+     *
+     * Returns null for non-chapter triggers or when both lookups miss.
      */
     private fun resolveChapterAbilityGrpId(
         entry: SpellAbilityStackInstance,
@@ -264,6 +272,7 @@ object ZoneMapper {
         val chapterIdx = chapterParam.toIntOrNull()?.takeIf { it >= 1 } ?: return null
         val sourceGrpId = bridge.cardRepository.findGrpIdByName(sourceCard.name) ?: return null
         val cardData = bridge.cardRepository.findByGrpId(sourceGrpId) ?: return null
+        cardData.chapterAbilityGrpIds.getOrNull(chapterIdx - 1)?.let { return it }
         return cardData.abilityIds.getOrNull(chapterIdx - 1)?.first
     }
 

@@ -79,6 +79,7 @@ object CardDataDeriver {
             abilityIds = abilityIds,
             manaCost = manaCost,
             keywordAbilityGrpIds = keywordAbilityGrpIds,
+            chapterAbilityGrpIds = derived.chapterAbilityGrpIds,
             linkedFaceGrpIds = linkedFaces,
         )
     }
