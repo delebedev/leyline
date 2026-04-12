@@ -71,6 +71,19 @@ class SagaCreatureTypeTest :
                 saga.isCreature.shouldBeTrue()
                 (saga.currentPower >= 2).shouldBeTrue()
                 (saga.currentToughness >= 1).shouldBeTrue()
+
+                // Client-accumulator assertion: the BF gameObject for the
+                // saga carries both Enchantment and Creature card types live.
+                harness.accumulator.assertConsistent("after creature-saga cast")
+                val sagaAccObj = harness.accumulator.objects.values
+                    .firstOrNull {
+                        it.type == wotc.mtgo.gre.external.messaging.Messages.GameObjectType.Card &&
+                            it.grpId == TestCardRegistry.repo.findGrpIdByName("Summon: Brynhildr")
+                    }
+                (sagaAccObj != null).shouldBeTrue()
+                val accTypes = sagaAccObj!!.cardTypesList.map { it.name }
+                (accTypes.any { it.startsWith("Enchantment") }).shouldBeTrue()
+                (accTypes.any { it == "Creature" }).shouldBeTrue()
             } finally {
                 harness.shutdown()
             }

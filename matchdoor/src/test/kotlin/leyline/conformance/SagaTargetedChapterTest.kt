@@ -86,6 +86,7 @@ class SagaTargetedChapterTest :
                 }
 
                 bearHasCounter.shouldBeTrue()
+                harness.accumulator.assertConsistent("after targeted Ch II")
             } finally {
                 harness.shutdown()
             }
