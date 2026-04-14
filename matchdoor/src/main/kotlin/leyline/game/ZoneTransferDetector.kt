@@ -251,8 +251,13 @@ object ZoneTransferDetector {
         // the card still on BF so the main diff loop skips it, but the client
         // protocol requires the two zone-hop annotations.
         detectExileReturnRoundTrips(
-            events, transfers, patchedObjects, patchedZones, retiredIds,
-            idAllocator, idLookup,
+            events,
+            transfers,
+            patchedObjects,
+            patchedZones,
+            retiredIds,
+            idAllocator,
+            idLookup,
         )
 
         // Post-pass: detect triggered ability lifecycle on the stack.
@@ -525,7 +530,10 @@ object ZoneTransferDetector {
 
             log.debug(
                 "exile-return transform: forgeCardId={} currentIid={} exileIid={} returnIid={}",
-                ev.cardId.value, currentIid, exileIid, returnIid,
+                ev.cardId.value,
+                currentIid,
+                exileIid,
+                returnIid,
             )
         }
     }
