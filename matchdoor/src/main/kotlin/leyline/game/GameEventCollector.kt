@@ -201,6 +201,12 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
                 // CardDestroyed is emitted from GameEventCardDestroyed (with activator).
                 from == ZoneType.Battlefield && (to == ZoneType.Hand || to == ZoneType.Library) ->
                     GameEvent.CardBounced(ForgeCardId(card.id), seat)
+                // Hand→Exile via the discard pipeline (Madness, Mayhem — keyword
+                // replacement effects exile-on-discard). The card has the keyword
+                // and the move originates from Hand, so it's still a discard from
+                // Arena's perspective (corpus tags category=Discard, not Exile).
+                from == ZoneType.Hand && to == ZoneType.Exile && hasDiscardReplacementKeyword(card) ->
+                    GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
                 to == ZoneType.Exile -> {
                     val sourceId = card.exiledWith?.id
                     GameEvent.CardExiled(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }, fromBattlefield = from == ZoneType.Battlefield)
@@ -525,4 +531,17 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
                     ManaColorMapping.fromProduced(token)?.number
                 }
             }
+
+    /** True if the card has a discard-replacement keyword (Madness, Mayhem) — these
+     *  redirect Hand→GY discards to Hand→Exile but Arena still tags them as Discard.
+     *  Resolves the live Forge Card from the CardView's id since CardView doesn't
+     *  expose `rules.mainPart.keywords` directly. */
+    private fun hasDiscardReplacementKeyword(cardView: forge.game.card.CardView): Boolean {
+        val live = bridge.getGame()?.findById(cardView.id) ?: return false
+        val keywords = live.rules?.mainPart?.keywords ?: return false
+        return keywords.any { kw ->
+            val kwName = kw.toString().uppercase()
+            kwName.startsWith("MADNESS") || kwName.startsWith("MAYHEM")
+        }
+    }
 }
