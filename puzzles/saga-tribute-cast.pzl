@@ -1,0 +1,35 @@
+# Saga full-lifecycle puzzle — Tribute to Horobi, cast from hand.
+#
+# Mirrors the shape used by SagaTransformPuzzleTest (cast-from-hand). With
+# human→AI→human turn rotation, Forge's precombat-Main1 "add lore counter"
+# fires for our saga on turns 1 (ETB), 3, and 5 → Ch I / Ch II / Ch III.
+# Ch III exile-return transforms the saga to Echo of Death's Wail (Flying,
+# Haste, 3/3).
+#
+# Exercises: L2 chapter-grpId resolution + L3 exile-return detector
+# post-pass (ObjectIdChanged × 2 + ZoneTransfer Exile + ZoneTransfer Return
+# in the client stream).
+#
+# Usage against real Arena client:
+#   just serve                                       # start leyline in dev
+#   just puzzle saga-tribute-cast                    # set active puzzle
+#   (launch Arena, enter local AI challenge)
+
+[metadata]
+Name:Saga Lifecycle — Tribute to Horobi
+Goal:Survive
+Turns:6
+Difficulty:Easy
+Description:Cast Tribute to Horobi, tick through 3 chapters, observe exile-return transform to Echo of Death's Wail.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanhand=Tribute to Horobi
+humanbattlefield=Swamp;Swamp;Swamp
+humanlibrary=Swamp;Swamp;Swamp;Swamp;Swamp;Swamp;Swamp
+aibattlefield=Mountain
+ailibrary=Mountain;Mountain;Mountain;Mountain

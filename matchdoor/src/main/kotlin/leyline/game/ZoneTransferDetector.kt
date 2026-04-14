@@ -245,6 +245,21 @@ object ZoneTransferDetector {
             forgeIdLookup, idAllocator, idLookup, manaAbilityGrpIdResolver,
         )
 
+        // Post-pass: detect exile-return transforms (saga final chapter,
+        // Fable of the Mirror-Breaker). Forge fires paired ChangeZone events
+        // (BF→Exile, Exile→BF) during an atomic resolve. Net snapshot shows
+        // the card still on BF so the main diff loop skips it, but the client
+        // protocol requires the two zone-hop annotations.
+        detectExileReturnRoundTrips(
+            events,
+            transfers,
+            patchedObjects,
+            patchedZones,
+            retiredIds,
+            idAllocator,
+            idLookup,
+        )
+
         // Post-pass: detect triggered ability lifecycle on the stack.
         val mainLoopIds = transfers.map { it.origId }.toSet()
         val gameObjectIds = patchedObjects.map { it.instanceId }.toSet()
@@ -419,13 +434,110 @@ object ZoneTransferDetector {
     }
 
     /**
-     * Detect token sacrifices invisible to the main transfer loop.
+     * Detect exile-return round-trips: Forge fired paired ChangeZone events
+     * (BF→Exile, Exile→BF) for the same card within one resolve — typical of
+     * saga final-chapter transforms (`DB$ ChangeZone | Origin$ Battlefield |
+     * Destination$ Exile | SubAbility$ ChangeZone | ... | Origin$ Exile |
+     * Destination$ Battlefield | Transformed$ True`).
      *
-     * Tokens sacrificed for mana (Treasure) are cleaned up by SBAs before the state
-     * snapshot, making them invisible to zone-change detection. We find them by comparing
-     * previousZones (battlefield) against current gameObjects. Also handles the case where
-     * the token is still present (SBAs haven't run yet) but a CardSacrificed event fired.
+     * The main snapshot-diff loop misses these because the net state shows
+     * the card still on Battlefield. Emit synthetic [TransferCategory.Exile]
+     * and [TransferCategory.Return] transfers with two fresh allocations so
+     * the client sees the expected ObjectIdChanged + ZoneTransfer pairs.
+     *
+     * Expected wire shape (from `arena-lab/docs/card-specs/tribute-to-horobi.md`
+     * gsId 145): `ObjectIdChanged(A→B)` + `ZT(B, BF→Exile, "Exile")` +
+     * `ObjectIdChanged(B→C)` + `ZT(C, Exile→BF, "Return")`.
      */
+    @Suppress("LongParameterList")
+    private fun detectExileReturnRoundTrips(
+        events: List<GameEvent>,
+        transfers: MutableList<AppliedTransfer>,
+        patchedObjects: MutableList<GameObjectInfo>,
+        patchedZones: MutableList<ZoneInfo>,
+        retiredIds: MutableList<Int>,
+        idAllocator: (ForgeCardId) -> InstanceIdRegistry.IdReallocation,
+        idLookup: (ForgeCardId) -> InstanceId,
+    ) {
+        // Dedupe by ForgeCardId: if a card bounces exile→return multiple times in
+        // one resolve (delayed-trigger + chapter interactions), we only synthesize
+        // once — the later pairs would try to retire already-retired iids.
+        val exiled = events.filterIsInstance<GameEvent.CardExiled>()
+            .filter { it.fromBattlefield }
+            .distinctBy { it.cardId }
+        if (exiled.isEmpty()) return
+
+        for (ev in exiled) {
+            // Match a subsequent Exile→BF ZoneChanged for the same Forge card.
+            val returned = events.filterIsInstance<GameEvent.ZoneChanged>()
+                .any {
+                    it.cardId == ev.cardId && it.from == Zone.Exile && it.to == Zone.Battlefield
+                }
+            if (!returned) continue
+
+            val currentIid = idLookup(ev.cardId).value
+            val objIdx = patchedObjects.indexOfFirst { it.instanceId == currentIid }
+            if (objIdx < 0) continue
+            val currentObj = patchedObjects[objIdx]
+            if (currentObj.zoneId != ZoneIds.BATTLEFIELD) continue
+
+            // Skip if the main loop or another post-pass already accounted for this.
+            if (transfers.any { it.origId == currentIid || it.newId == currentIid }) continue
+
+            // Allocate two fresh instanceIds: one for the Exile step, one for Return.
+            val exileAlloc = idAllocator(ev.cardId)
+            val exileIid = exileAlloc.new.value
+            val returnAlloc = idAllocator(ev.cardId)
+            val returnIid = returnAlloc.new.value
+
+            transfers.add(
+                AppliedTransfer(
+                    origId = currentIid,
+                    newId = exileIid,
+                    category = TransferCategory.Exile,
+                    srcZoneId = ZoneIds.BATTLEFIELD,
+                    destZoneId = ZoneIds.EXILE,
+                    grpId = currentObj.grpId,
+                    ownerSeatId = currentObj.ownerSeatId,
+                    affectorId = 0,
+                ),
+            )
+            transfers.add(
+                AppliedTransfer(
+                    origId = exileIid,
+                    newId = returnIid,
+                    category = TransferCategory.Return,
+                    srcZoneId = ZoneIds.EXILE,
+                    destZoneId = ZoneIds.BATTLEFIELD,
+                    grpId = currentObj.grpId,
+                    ownerSeatId = currentObj.ownerSeatId,
+                    affectorId = 0,
+                ),
+            )
+
+            retiredIds.add(currentIid)
+            retiredIds.add(exileIid)
+            appendToZone(patchedZones, ZoneIds.LIMBO, currentIid)
+            appendToZone(patchedZones, ZoneIds.LIMBO, exileIid)
+            // Synthesize intermediate GameObjectInfos for the retired iids so
+            // ZoneTransfer annotations referencing them resolve against a real
+            // object (matches tribute-to-horobi.md gsId 145: both 288 and 318
+            // persist in Limbo alongside 319 on BF for animation continuity).
+            patchedObjects.add(currentObj.toBuilder().setInstanceId(currentIid).setZoneId(ZoneIds.LIMBO).build())
+            patchedObjects.add(currentObj.toBuilder().setInstanceId(exileIid).setZoneId(ZoneIds.LIMBO).build())
+            patchedObjects[objIdx] = currentObj.toBuilder().setInstanceId(returnIid).build()
+            patchZoneInstanceId(patchedZones, ZoneIds.BATTLEFIELD, currentIid, returnIid)
+
+            log.debug(
+                "exile-return transform: forgeCardId={} currentIid={} exileIid={} returnIid={}",
+                ev.cardId.value,
+                currentIid,
+                exileIid,
+                returnIid,
+            )
+        }
+    }
+
     @Suppress("LongParameterList")
     private fun detectDisappearedSacrifices(
         events: List<GameEvent>,

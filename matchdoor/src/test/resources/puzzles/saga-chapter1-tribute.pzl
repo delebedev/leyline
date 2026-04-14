@@ -1,0 +1,40 @@
+# Design Narrative
+# Mechanic: Saga Ch I trigger — first lore counter added via draw-step auto-
+#   increment, Ch I ability appears on the stack with chapter-specific grpId
+#   (L2 fix verification). Scope-doc §2a + §3 L2.
+# Forcing: saga pre-seeded on BF with 0 lore counters (no Counters modifier).
+#   Turn 2 draw step fires CounterAdded → trigger Ch I. Nothing else happens.
+# AI behavior: empty board, empty hand. Passes turn 1 instantly.
+# Failure modes:
+#   WIN + assertions pass        = L1 (lore→108) + L2 (chapter grpId) + L4
+#                                   (draw-step increment) all working
+#   WIN but AIC.grpId == 79552   = L2 fix regressed — still using saga grpId
+#   WIN but no CounterAdded      = L4 broken — draw-step didn't increment
+#   TIMEOUT                      = Ch I trigger chain stalled on stack (L5 ordering?)
+# Card roles:
+#   Tribute to Horobi — chapter grpIds known from card-spec (Ch I=147926).
+#   Swamp x2 — draw-step fuel.
+# Protocol path: GameEventCardCounters → MechanicAnnotations.counterAdded (L1,
+#   LORE→108) → ZoneTransferDetector.detectStackAbilityAppearances (Ch I trigger
+#   appears) → StateMapper emits AbilityInstanceCreated → ZoneMapper.
+#   addStackAbilities resolves grpId via resolveChapterAbilityGrpId (L2 fix).
+# Asserted by: matchdoor/src/test/kotlin/leyline/game/SagaChapter1PuzzleTest.kt —
+#   turn 2 GSM contains CounterAdded(counter_type=108, amount=1) and stack
+#   gameObject of type=Ability with grpId=147926 (Ch I chapter ability).
+
+[metadata]
+Name:Saga Ch I — Tribute to Horobi
+Goal:Survive
+Turns:2
+Difficulty:Easy
+Description:Pre-seeded saga with 0 lore counters. Draw step turn 2 adds lore counter → Ch I triggers. Asserts chapter-specific ability grpId resolution.
+
+[state]
+ActivePlayer=Human
+ActivePhase=Main1
+HumanLife=20
+AILife=20
+
+humanbattlefield=Tribute to Horobi
+humanlibrary=Swamp
+ailibrary=Swamp

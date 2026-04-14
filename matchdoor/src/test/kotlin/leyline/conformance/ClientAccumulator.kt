@@ -85,6 +85,31 @@ class ClientAccumulator {
      * the client does the same. The client uses zone counts for UI
      * (e.g. "52 cards in library") but never renders hidden card details.
      */
+    /**
+     * Throw with a clear message if either invariant is violated. Use in
+     * tests at checkpoints to catch accumulator drift early: an orphan
+     * action reference or a zone pointing at a missing object usually
+     * means an emission path leaked or retired the wrong iid. Context
+     * string goes into the failure message.
+     */
+    fun assertConsistent(context: String = "") {
+        val orphanActions = actionInstanceIdsMissingFromObjects()
+        val orphanZones = zoneObjectsMissingFromObjects()
+        if (orphanActions.isEmpty() && orphanZones.isEmpty()) return
+        val ctx = if (context.isBlank()) "" else " ($context)"
+        error(
+            buildString {
+                append("ClientAccumulator inconsistent$ctx:")
+                if (orphanActions.isNotEmpty()) {
+                    append(" action references missing from objects: $orphanActions;")
+                }
+                if (orphanZones.isNotEmpty()) {
+                    append(" zone→object references missing: $orphanZones;")
+                }
+            },
+        )
+    }
+
     fun zoneObjectsMissingFromObjects(): List<Pair<Int, Int>> {
         val missing = mutableListOf<Pair<Int, Int>>()
         for ((zoneId, zone) in zones) {

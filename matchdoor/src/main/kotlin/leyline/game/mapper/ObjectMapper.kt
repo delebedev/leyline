@@ -351,11 +351,16 @@ object ObjectMapper {
             DevCheck.fail { "token grpId=0 for '${card.name}' (forgeId=${card.id})" }
             return GameBridge.FALLBACK_GRPID
         }
-        return cards.findGrpIdByName(card.name) ?: run {
-            log.error("grpId=0 for card '{}' (forgeId={}): not in client card DB", card.name, card.id)
-            DevCheck.fail { "grpId=0 for '${card.name}' (forgeId=${card.id}): not in client card DB" }
-            GameBridge.FALLBACK_GRPID
-        }
+        // Primary-face lookup, falling back to any-face for DFC back faces
+        // (e.g. saga transforms to Echo of Death's Wail — the back face lives in
+        // the Arena DB under a non-primary flag; findGrpIdByName misses it).
+        return cards.findGrpIdByName(card.name)
+            ?: cards.findGrpIdByNameAnyFace(card.name)
+            ?: run {
+                log.error("grpId=0 for card '{}' (forgeId={}): not in client card DB", card.name, card.id)
+                DevCheck.fail { "grpId=0 for '${card.name}' (forgeId=${card.id}): not in client card DB" }
+                GameBridge.FALLBACK_GRPID
+            }
     }
 
     /** Resolve token grpId via source card's AbilityIdToLinkedTokenGrpId mapping. */

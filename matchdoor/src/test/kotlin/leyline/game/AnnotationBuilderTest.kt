@@ -480,6 +480,7 @@ class AnnotationBuilderTest :
             AnnotationBuilder.counterTypeId("BLOOD") shouldBe 15
             AnnotationBuilder.counterTypeId("STUN") shouldBe 172
             AnnotationBuilder.counterTypeId("POISON") shouldBe 3
+            AnnotationBuilder.counterTypeId("LORE") shouldBe 108
             // Unknown falls back to 0
             AnnotationBuilder.counterTypeId("NONEXISTENT") shouldBe 0
         }

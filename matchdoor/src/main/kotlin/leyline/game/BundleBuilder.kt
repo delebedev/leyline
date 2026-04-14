@@ -712,9 +712,8 @@ class BundleBuilder(
                     } else {
                         abilityBuilder.setObjectSourceGrpId(abilityGrpId)
                     }
-                    if (sourceCardInstanceId != null) {
-                        abilityBuilder.setParentId(sourceCardInstanceId)
-                    }
+                    // sourceCardInstanceId is non-null here — outer `if` on line 694 guarded it.
+                    abilityBuilder.setParentId(sourceCardInstanceId)
                     val abilityObj = abilityBuilder.build()
                     gsBuilder.addGameObjects(abilityObj)
 
