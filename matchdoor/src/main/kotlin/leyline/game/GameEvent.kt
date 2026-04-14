@@ -71,12 +71,20 @@ sealed interface GameEvent {
         val color: Int,
     )
 
-    /** A spell or ability was cast (hand/battlefield → stack). */
+    /** A spell or ability was cast (hand/battlefield → stack).
+     *
+     * [altCostAbilityGrpId] — when non-zero, the spell was cast for an alternate
+     * cost (Madness, Flashback, Warp, Cycling, Impending). Carries the Arena
+     * ability grpId for that alt-cost. Used to emit the persistent
+     * `CastingTimeOption type=13` annotation and the `alternativeGrpId` detail
+     * key on UserActionTaken. Zero means a regular hardcast.
+     */
     data class SpellCast(
         val cardId: ForgeCardId,
         val seatId: SeatId,
         val manaPayments: List<ManaPayment> = emptyList(),
         val isAdventure: Boolean = false,
+        val altCostAbilityGrpId: Int = 0,
     ) : GameEvent
 
     /** A spell was placed on the stack before costs were paid.

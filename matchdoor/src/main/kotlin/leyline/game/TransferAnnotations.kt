@@ -87,7 +87,19 @@ object TransferAnnotations {
                     )
                 }
                 val castActionType = if (transfer.isAdventureCast) 16 else 1
-                annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = castActionType))
+                annotations.add(
+                    AnnotationBuilder.userActionTaken(
+                        instanceId = newId,
+                        seatId = actingSeat,
+                        actionType = castActionType,
+                        // Alt-cost casts (Madness, Flashback, Warp, Cycling, Impending)
+                        // carry the alt-cost ability grpId on both abilityGrpId and
+                        // alternativeGrpId, matching the Arena wire shape (corpus
+                        // 2026-04-11_22-42-56 gs=147, 225, 217, 298).
+                        abilityGrpId = transfer.altCostAbilityGrpId,
+                        alternativeGrpId = transfer.altCostAbilityGrpId,
+                    ),
+                )
             }
             TransferCategory.Resolve -> {
                 annotations.add(AnnotationBuilder.resolutionStart(newId, grpId))
@@ -119,6 +131,19 @@ object TransferAnnotations {
         // Persistent: EnteredZoneThisTurn for cards landing on battlefield or stack
         if (destZone == ZoneIds.BATTLEFIELD || destZone == ZoneIds.STACK) {
             persistent.add(AnnotationBuilder.enteredZoneThisTurn(destZone, newId))
+        }
+
+        // Persistent: CastingTimeOption (type=13) for alt-cost casts (Madness, Flashback,
+        // Warp, Cycling, Impending). Attached to the staged stack object; deleted via
+        // diffDeletedPersistentAnnotationIds when the spell resolves or leaves the stack.
+        if (category == TransferCategory.CastSpell && transfer.altCostAbilityGrpId != 0) {
+            persistent.add(
+                AnnotationBuilder.castingTimeOption(
+                    stackInstanceId = newId,
+                    type = 13, // CastThroughAbility
+                    alternateCostGrpId = transfer.altCostAbilityGrpId,
+                ),
+            )
         }
 
         // Persistent: ColorProduction for lands entering the battlefield

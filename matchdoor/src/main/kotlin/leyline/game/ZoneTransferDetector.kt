@@ -34,6 +34,9 @@ data class AppliedTransfer(
     val manaPayments: List<ManaPaymentRecord> = emptyList(),
     /** True if this transfer is an adventure spell cast (UserActionTaken actionType=16). */
     val isAdventureCast: Boolean = false,
+    /** Non-zero when this CastSpell transfer used an alternate cost (Madness, Flashback,
+     *  Warp, Cycling, Impending). Carries the Arena ability grpId for the alt-cost. */
+    val altCostAbilityGrpId: Int = 0,
 )
 
 /** A triggered ability that just appeared on the stack (no previousZone entry). */
@@ -225,11 +228,13 @@ object ZoneTransferDetector {
                     )
                 } ?: emptyList()
                 val isAdventureCast = spellCastEvent?.isAdventure == true
+                val altCostAbilityGrpId = spellCastEvent?.altCostAbilityGrpId ?: 0
 
                 transfers.add(
                     AppliedTransfer(
                         origId, newId, category, prevZone, obj.zoneId, obj.grpId,
                         obj.ownerSeatId, affectorId, colorOrdinals, manaPayments, isAdventureCast,
+                        altCostAbilityGrpId,
                     ),
                 )
                 zoneRecordings.add(newId to obj.zoneId)

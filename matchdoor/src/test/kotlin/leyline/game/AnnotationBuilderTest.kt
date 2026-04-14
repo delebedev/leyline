@@ -146,6 +146,64 @@ class AnnotationBuilderTest :
             ann.affectorId shouldBe 2
         }
 
+        test("userActionTakenOmitsAlternativeGrpIdWhenZero") {
+            val ann = AnnotationBuilder.userActionTaken(
+                instanceId = 400,
+                seatId = 1,
+                actionType = 1,
+                abilityGrpId = 0,
+            )
+            // Hardcast / land-play / regular cast: no alternativeGrpId detail emitted
+            ann.detailsList.none { it.key == "alternativeGrpId" }.shouldBe(true)
+        }
+
+        test("userActionTakenIncludesAlternativeGrpIdWhenSet") {
+            // Madness cast — alternativeGrpId carries the madness ability grpId
+            val ann = AnnotationBuilder.userActionTaken(
+                instanceId = 375,
+                seatId = 1,
+                actionType = 1,
+                abilityGrpId = 5658,
+                alternativeGrpId = 5658,
+            )
+            assertSoftly {
+                ann.detailInt("actionType") shouldBe 1
+                ann.detailInt("abilityGrpId") shouldBe 5658
+                ann.detailInt("alternativeGrpId") shouldBe 5658
+            }
+        }
+
+        // --- CastingTimeOption ---
+
+        test("castingTimeOptionType13MadnessShape") {
+            // Wire shape from corpus 2026-04-11_22-42-56 gs=94 (Kitchen Imp madness staging)
+            val ann = AnnotationBuilder.castingTimeOption(
+                stackInstanceId = 361,
+                type = 13,
+                alternateCostGrpId = 5658,
+            )
+            ann.typeList shouldContain AnnotationType.CastingTimeOption
+            ann.affectorId shouldBe 361
+            ann.affectedIdsList shouldContain 361
+            assertSoftly {
+                ann.detailInt("type") shouldBe 13
+                ann.detailInt("alternateCostGrpId") shouldBe 5658
+                // castAbilityGrpId defaults to alternateCostGrpId for type=13
+                ann.detailInt("castAbilityGrpId") shouldBe 5658
+            }
+        }
+
+        test("castingTimeOptionAllowsDistinctCastAbilityGrpId") {
+            val ann = AnnotationBuilder.castingTimeOption(
+                stackInstanceId = 100,
+                type = 13,
+                alternateCostGrpId = 5658,
+                castAbilityGrpId = 9999,
+            )
+            ann.detailInt("alternateCostGrpId") shouldBe 5658
+            ann.detailInt("castAbilityGrpId") shouldBe 9999
+        }
+
         // --- ResolutionStart ---
 
         test("resolutionStartFields") {
