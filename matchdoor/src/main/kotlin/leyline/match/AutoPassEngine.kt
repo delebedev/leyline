@@ -91,6 +91,12 @@ class AutoPassEngine(
             val isHumanTurn = human != null && game.phaseHandler.playerTurn == human
             val isAiTurn = human != null && !isHumanTurn
 
+            // Damage assignment prompt (dedicated future, not action bridge).
+            // Must run before combat phase SEND_STATE handling: COMBAT_DAMAGE on the
+            // human turn emits a visual checkpoint, but manual assignment takes
+            // precedence and should surface AssignDamageReq immediately.
+            if (combatHandler.checkPendingDamageAssignment(bridge)) return
+
             // Combat phase handling
             when (combatHandler.checkCombatPhase(bridge, game, phase, isHumanTurn, isAiTurn)) {
                 CombatHandler.Signal.STOP -> return
@@ -123,9 +129,6 @@ class AutoPassEngine(
                 }
                 CombatHandler.Signal.CONTINUE -> {} // fall through to action check
             }
-
-            // Damage assignment prompt (dedicated future, not action bridge)
-            if (combatHandler.checkPendingDamageAssignment(bridge)) return
 
             // Optional action prompt — "you may" trigger (dedicated future)
             if (optionalActionHandler.checkPendingOptionalAction(bridge)) return
