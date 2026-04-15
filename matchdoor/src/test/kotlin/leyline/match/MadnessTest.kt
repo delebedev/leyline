@@ -16,6 +16,7 @@ import leyline.conformance.detail
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
+import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
@@ -107,11 +108,13 @@ class MadnessTest :
                 h.respondToSelectN(listOf(discardChoiceId!!))
 
                 // Tormenting Voice on stack with discard cost paid; Fiery Temper
-                // exiled via madness replacement; the madness trigger queues a
-                // PlayEffect that auto-casts Fiery Temper from Exile (the WPC
-                // default elects the optional cast). After the trigger resolves,
-                // Fiery Temper sits on top of the stack ahead of Tormenting Voice.
-                h.passPriority() // resolves the chain
+                // exiled via madness replacement; the madness trigger resolves
+                // and calls playSaFromPlayEffect → WPC emits OptionalActionMessage
+                // (shortcut for Arena's ActionsAvailableReq Cast:1+Pass:1 flow; see
+                // WebPlayerController.playSaFromPlayEffect comment). The harness's
+                // autoRespondToOptionalAction auto-accepts on each drainSink, which
+                // drives the cast through super.playSaFromPlayEffect.
+                h.passPriority() // resolves trigger, triggers prompt, auto-accepts
                 h.passPriority() // continues if needed
 
                 // If Fiery Temper landed on stack via madness, it needs a target.
@@ -157,15 +160,23 @@ class MadnessTest :
                     .firstOrNull { it.detailString("category") == "Resolve" }
                 resolveZt shouldNotBe null
 
-                // KNOWN L1 GAP: Forge resolves Hand→Exile→Stack atomically when
-                // madness's PlayEffect auto-elects the cast. The Phase 1 Discard
-                // transition (Hand→Exile category=Discard) is invisible to our
-                // GSM diff because the card never lingers in Exile across snapshots.
-                // Real-Arena corpus shows the staging explicitly. Closing this
-                // requires synthesizing the round-trip in ZoneTransferDetector
-                // (same pattern as detectExileReturnRoundTrips for sagas).
-                // Tracked as L1.5 follow-up — alt-cost detection + persistent
-                // CastingTimeOption is enough for the client to render correctly.
+                // (4) OptionalActionMessage was emitted for the madness choice.
+                //     SHORTCUT — real Arena emits `ActionsAvailableReq Cast:1+Pass:1`
+                //     here (the client renders that specific shape as "Select Card
+                //     to Cast / Decline"). Leyline currently shortcuts via
+                //     OptionalActionMessage ("Take Action / Decline") because the
+                //     existing plumbing is ready. See WebPlayerController.playSaFromPlayEffect
+                //     for the rationale + migration path.
+                val optionalPrompt = h.allMessages
+                    .firstOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
+                optionalPrompt shouldNotBe null
+
+                // Known gap: Hand→Exile ZoneTransfer category is currently mis-tagged
+                // (CastSpell instead of Discard) because Forge fires a SpellCast for
+                // Fiery Temper during super.playSaFromPlayEffect, and the
+                // categoryFromEvents dispatcher short-circuits on SpellCast before
+                // considering the CardDiscarded event (from hasDiscardReplacementKeyword).
+                // L1.5 follow-up: scope SpellCast matching by zone-pair, not just forgeCardId.
             } finally {
                 h.shutdown()
             }
@@ -210,6 +221,17 @@ class MadnessTest :
                 h.shutdown()
             }
         }
+
+        // Decline-path test is deferred: the harness's autoRespondToOptionalAction
+        // (in drainSink) unconditionally auto-accepts, so we can't observe the
+        // decline branch without either harness changes or race-y signaling.
+        // Decline routing itself (Exile→Graveyard via category=Put) is covered
+        // by the categoryFromEvents heuristic added in AnnotationBuilder.kt,
+        // tested via CategoryFromEventsTest + live MTGA playtest.
+        //
+        // TODO: add `MatchFlowHarness.respondOptionalActionInstead(accept)` that
+        // overrides the next auto-accept with an explicit decline, then reinstate
+        // the decline-path test. Currently mis-risks flakiness.
     })
 
 private fun msgGsm(msg: GREToClientMessage) =

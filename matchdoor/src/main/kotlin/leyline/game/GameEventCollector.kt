@@ -539,9 +539,14 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     private fun hasDiscardReplacementKeyword(cardView: forge.game.card.CardView): Boolean {
         val live = bridge.getGame()?.findById(cardView.id) ?: return false
         val keywords = live.rules?.mainPart?.keywords ?: return false
-        return keywords.any { kw ->
+        val match = keywords.any { kw ->
             val kwName = kw.toString().uppercase()
             kwName.startsWith("MADNESS") || kwName.startsWith("MAYHEM")
         }
+        log.debug(
+            "hasDiscardReplacementKeyword: card={} keywords={} match={}",
+            cardView.name, keywords.map { it.toString() }, match,
+        )
+        return match
     }
 }
