@@ -21,8 +21,6 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
 
 /**
- * Madness end-to-end. Spec: arena-lab/docs/protocol/mechanics/Madness.md.
- *
  * Three sub-cases from the spec:
  *  - **cast path**: discard via Tormenting Voice → Hand→Exile (Discard) →
  *    madness trigger → Exile→Stack (CastSpell) with persistent
@@ -164,12 +162,12 @@ class MadnessTest :
                 resolveZt shouldNotBe null
 
                 // (4) OptionalActionMessage was emitted for the madness choice.
-                //     SHORTCUT — real Arena emits `ActionsAvailableReq Cast:1+Pass:1`
-                //     here (the client renders that specific shape as "Select Card
-                //     to Cast / Decline"). Leyline currently shortcuts via
-                //     OptionalActionMessage ("Take Action / Decline") because the
-                //     existing plumbing is ready. See WebPlayerController.playSaFromPlayEffect
-                //     for the rationale + migration path.
+                //     SHORTCUT — the production client can render this moment from
+                //     a one-Cast/one-Pass action prompt. Leyline currently
+                //     shortcuts via OptionalActionMessage ("Take Action / Decline")
+                //     because the existing plumbing is ready. See
+                //     WebPlayerController.playSaFromPlayEffect for rationale +
+                //     migration path.
                 val optionalPrompt = h.allMessages
                     .firstOrNull { it.type == GREMessageType.OptionalActionMessage_695e }
                 optionalPrompt shouldNotBe null
@@ -263,8 +261,8 @@ class MadnessTest :
                 val allGsms = h.allMessages.mapNotNull { msgGsm(it) }
 
                 // Wire: card transitions from Exile to Graveyard on the decline
-                // branch. Correct category is `Put` per corpus (Madness.md § Phase
-                // 3b), but our dispatcher currently mis-tags it as `Resolve` — the
+                // branch. Correct category is `Put`, but our dispatcher currently
+                // mis-tags it as `Resolve` — the
                 // madness ability's SpellResolved event fires with hostCard=
                 // FieryTemper and categoryFromEvents short-circuits on it before
                 // considering the zone-pair. Known gap (same root as the Hand→Exile

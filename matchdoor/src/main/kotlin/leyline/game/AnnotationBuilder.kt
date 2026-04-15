@@ -188,9 +188,8 @@ object AnnotationBuilder {
             Zone.Hand, Zone.Battlefield -> TransferCategory.Return
             // Exile → Graveyard. Primary case: declined Madness — the madness
             // ability resolves without the player electing to cast, so the card
-            // exits exile to its owner's graveyard. Arena tags this as `Put`
-            // (corpus 2026-04-11_22-42-56 gs=96, gs=324). Generic enough to
-            // also cover any cleanup of an exiled card moving to graveyard.
+            // exits exile to its owner's graveyard. Tag as `Put`. Generic
+            // enough to also cover cleanup of an exiled card moving to graveyard.
             Zone.Graveyard -> TransferCategory.Put
             else -> TransferCategory.ZoneTransfer
         }
@@ -292,14 +291,13 @@ object AnnotationBuilder {
      * Most common shape (and the one used by the alt-cost mechanic family):
      * **type=13 CastThroughAbility** — spell cast via an alternate cost ability
      * (Madness, Flashback, Warp, Cycling, Impending). [alternateCostGrpId] and
-     * [castAbilityGrpId] both carry the alt-cost ability's grpId (always co-present
-     * for type=13 in the corpus).
+     * [castAbilityGrpId] both carry the alt-cost ability's grpId for type=13.
      *
      * Persistent while the spell is on the stack; deleted via
      * `diffDeletedPersistentAnnotationIds` when the spell resolves or leaves the stack.
      *
      * Other type values exist (3=Kicker, 5=AdditionalCost, 2=ChooseX) but are
-     * not exercised by alt-cost mechanics — see docs/protocol/annotations/CastingTimeOption.md.
+     * not exercised by alt-cost mechanics.
      *
      * [stackInstanceId] = the spell instance currently on the stack (affector AND affected,
      *   since the annotation is self-attached).

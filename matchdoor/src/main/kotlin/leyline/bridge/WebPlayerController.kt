@@ -612,20 +612,16 @@ class WebPlayerController(
      * Decline, return false so Forge's PlayEffect SubAbility fires the
      * "otherwise put in graveyard" branch (Exile→GY category=Put via our heuristic).
      *
-     * SHORTCUT vs real Arena: Arena's actual wire for this moment (corpus
-     * 2026-04-11_22-42-56 gs=93/95/145/213/221) is an `ActionsAvailableReq`
-     * with exactly `Cast:1 + Pass:1` — Cast targeting the Exile-resident card
-     * with its CastingTimeOption type=13 persistent annotation. The client
-     * detects this specific shape and renders "Select Card to Cast / Decline".
-     * Leyline shortcuts via OptionalActionMessage (Take Action / Decline UI)
-     * because the existing plumbing handles Accept/Decline uniformly. To match
-     * real Arena: skip this override entirely, let the trigger resolve as a
-     * decline (returns false), and have ActionMapper offer Cast for the
-     * Exile-resident madness-eligible card during the next priority window
-     * — the client will then render exactly as real Arena does. Deferred
-     * because it requires broader ActionMapper + priority-flow changes.
-     *
-     * Spec: `arena-lab/docs/protocol/mechanics/Madness.md` (sibling repo).
+     * SHORTCUT vs production-client behavior: the client already knows how to
+     * render this moment from an `ActionsAvailableReq` with exactly one Cast and
+     * one Pass action for the exiled card. Leyline shortcuts via
+     * OptionalActionMessage (Take Action / Decline UI) because the existing
+     * plumbing handles Accept/Decline uniformly. To align with the client's
+     * native rendering path: skip this override entirely, let the trigger
+     * resolve as a decline (returns false), and have ActionMapper offer Cast
+     * for the exile-resident madness-eligible card during the next priority
+     * window. Deferred because it requires broader ActionMapper +
+     * priority-flow changes.
      */
     override fun playSaFromPlayEffect(tgtSA: SpellAbility): Boolean {
         val hostCard = tgtSA.hostCard

@@ -177,7 +177,7 @@ class AnnotationBuilderTest :
         // --- CastingTimeOption ---
 
         test("castingTimeOptionType13MadnessShape") {
-            // Wire shape from corpus 2026-04-11_22-42-56 gs=94 (Kitchen Imp madness staging)
+            // Client-visible type=13 alt-cost shape for a madness cast.
             val ann = AnnotationBuilder.castingTimeOption(
                 stackInstanceId = 361,
                 type = 13,

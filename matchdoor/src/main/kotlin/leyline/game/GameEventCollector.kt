@@ -203,8 +203,8 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
                     GameEvent.CardBounced(ForgeCardId(card.id), seat)
                 // Hand→Exile via the discard pipeline (Madness, Mayhem — keyword
                 // replacement effects exile-on-discard). The card has the keyword
-                // and the move originates from Hand, so it's still a discard from
-                // Arena's perspective (corpus tags category=Discard, not Exile).
+                // and the move originates from Hand, so still treat it as Discard
+                // rather than a generic exile.
                 from == ZoneType.Hand && to == ZoneType.Exile && hasDiscardReplacementKeyword(card) ->
                     GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
                 to == ZoneType.Exile -> {

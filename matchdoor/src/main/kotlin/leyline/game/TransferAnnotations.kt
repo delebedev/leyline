@@ -94,8 +94,7 @@ object TransferAnnotations {
                         actionType = castActionType,
                         // Alt-cost casts (Madness, Flashback, Warp, Cycling, Impending)
                         // carry the alt-cost ability grpId on both abilityGrpId and
-                        // alternativeGrpId, matching the Arena wire shape (corpus
-                        // 2026-04-11_22-42-56 gs=147, 225, 217, 298).
+                        // alternativeGrpId, matching the client-visible wire shape.
                         abilityGrpId = transfer.altCostAbilityGrpId,
                         alternativeGrpId = transfer.altCostAbilityGrpId,
                     ),

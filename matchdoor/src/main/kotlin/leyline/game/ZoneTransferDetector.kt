@@ -451,8 +451,8 @@ object ZoneTransferDetector {
      * and [TransferCategory.Return] transfers with two fresh allocations so
      * the client sees the expected ObjectIdChanged + ZoneTransfer pairs.
      *
-     * Expected wire shape (from `arena-lab/docs/card-specs/tribute-to-horobi.md`
-     * gsId 145): `ObjectIdChanged(A→B)` + `ZT(B, BF→Exile, "Exile")` +
+     * Expected wire shape:
+     * `ObjectIdChanged(A→B)` + `ZT(B, BF→Exile, "Exile")` +
      * `ObjectIdChanged(B→C)` + `ZT(C, Exile→BF, "Return")`.
      */
     @Suppress("LongParameterList")
