@@ -9,6 +9,7 @@ import leyline.conformance.detail
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
 import leyline.conformance.detailUint
+import leyline.conformance.hasDetail
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -154,7 +155,7 @@ class AnnotationBuilderTest :
                 abilityGrpId = 0,
             )
             // Hardcast / land-play / regular cast: no alternativeGrpId detail emitted
-            ann.detailsList.none { it.key == "alternativeGrpId" }.shouldBe(true)
+            ann.hasDetail("alternativeGrpId") shouldBe false
         }
 
         test("userActionTakenIncludesAlternativeGrpIdWhenSet") {

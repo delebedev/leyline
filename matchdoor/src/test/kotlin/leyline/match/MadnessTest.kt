@@ -15,6 +15,7 @@ import leyline.conformance.MatchFlowHarness
 import leyline.conformance.detail
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
+import leyline.conformance.hasDetail
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
 import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
@@ -81,7 +82,7 @@ class MadnessTest :
         afterEach { base.tearDown() }
 
         test("madness cast path: discard outlet → exile → cast for {R} → resolve").config(tags = setOf(IntegrationTag)) {
-            val h = MatchFlowHarness(validating = false)
+            val h = MatchFlowHarness(validating = true)
             try {
                 h.connectAndKeepPuzzleText(MADNESS_PUZZLE)
                 val player = h.bridge.getPlayer(SeatId(1))!!
@@ -117,16 +118,18 @@ class MadnessTest :
                 h.passPriority() // resolves trigger, triggers prompt, auto-accepts
                 h.passPriority() // continues if needed
 
-                // If Fiery Temper landed on stack via madness, it needs a target.
+                // Fiery Temper landed on stack via madness — it MUST prompt for a
+                // target (ValidTgts$ Any). A missing prompt is a regression worth
+                // catching, so hard-assert rather than conditionally skipping.
                 val hasPendingTarget = h.allMessages.asReversed()
                     .any { it.hasSelectTargetsReq() }
-                if (hasPendingTarget) {
-                    // AI player's seatId = 2; that's a valid "Any" target for Fiery Temper.
-                    h.selectTargets(listOf(2))
-                }
+                hasPendingTarget.shouldBeTrue()
+                // AI player's seatId = 2; that's a valid "Any" target for Fiery Temper.
+                h.selectTargets(listOf(2))
 
-                // Drain remaining priority passes until the stack empties.
-                repeat(4) { if (!h.bridge.getGame()!!.stack.isEmpty) h.passPriority() }
+                // Drain until the stack empties or we run out of the passes budget.
+                h.passUntil(maxPasses = 6) { h.bridge.getGame()!!.stack.isEmpty }
+                    .shouldBeTrue()
 
                 // Fiery Temper resolves into Graveyard with damage to opponent.
                 player.getZone(ZoneType.Graveyard).cards.any { it.name == "Fiery Temper" }
@@ -183,6 +186,11 @@ class MadnessTest :
         }
 
         test("madness hardcast: regular cast from hand omits CastingTimeOption + alternativeGrpId").config(tags = setOf(IntegrationTag)) {
+            // validating=false: the hardcast resolve path surfaces a pre-existing
+            // annotation-affectedId unresolvable violation (iid=119 in ZT at gsId=8)
+            // unrelated to Madness wiring. Not introduced by this test. See
+            // FlashbackTest for the same pattern precedent. Re-enable once that
+            // gap is closed (separate L1.5 task).
             val h = MatchFlowHarness(validating = false)
             try {
                 h.connectAndKeepPuzzleText(HARDCAST_PUZZLE)
@@ -222,16 +230,67 @@ class MadnessTest :
             }
         }
 
-        // Decline-path test is deferred: the harness's autoRespondToOptionalAction
-        // (in drainSink) unconditionally auto-accepts, so we can't observe the
-        // decline branch without either harness changes or race-y signaling.
-        // Decline routing itself (Exile→Graveyard via category=Put) is covered
-        // by the categoryFromEvents heuristic added in AnnotationBuilder.kt,
-        // tested via CategoryFromEventsTest + live MTGA playtest.
-        //
-        // TODO: add `MatchFlowHarness.respondOptionalActionInstead(accept)` that
-        // overrides the next auto-accept with an explicit decline, then reinstate
-        // the decline-path test. Currently mis-risks flakiness.
+        test("madness decline: reject the optional cast → Exile→Graveyard Put").config(tags = setOf(IntegrationTag)) {
+            val h = MatchFlowHarness(validating = true)
+            try {
+                h.connectAndKeepPuzzleText(MADNESS_PUZZLE)
+                val player = h.bridge.getPlayer(SeatId(1))!!
+
+                // Pre-seed the decline — the next OptionalActionMessage (the madness
+                // "cast or decline?" prompt) will be responded to with CancelNo
+                // instead of the default auto-accept.
+                h.declineNextOptionalAction()
+
+                // Cast Tormenting Voice, pay discard cost on Fiery Temper.
+                h.castSpellByName("Tormenting Voice").shouldBeTrue()
+                val selectNReq = h.allMessages.asReversed()
+                    .firstOrNull { it.hasSelectNReq() }?.selectNReq
+                val discardChoiceId = selectNReq?.idsList?.firstOrNull()
+                    ?: error("No SelectNReq for discard cost")
+                h.respondToSelectN(listOf(discardChoiceId))
+
+                // Drain through the trigger resolution + decline + Tormenting Voice resolve.
+                h.passUntil(maxPasses = 6) { h.bridge.getGame()!!.stack.isEmpty }
+                    .shouldBeTrue()
+
+                // Fiery Temper went to graveyard via the declined madness branch,
+                // NOT via cast — should not be in exile either.
+                player.getZone(ZoneType.Graveyard).cards.any { it.name == "Fiery Temper" }
+                    .shouldBeTrue()
+                player.getZone(ZoneType.Exile).cards.none { it.name == "Fiery Temper" }
+                    .shouldBeTrue()
+
+                val allGsms = h.allMessages.mapNotNull { msgGsm(it) }
+
+                // Wire: card transitions from Exile to Graveyard on the decline
+                // branch. Correct category is `Put` per corpus (Madness.md § Phase
+                // 3b), but our dispatcher currently mis-tags it as `Resolve` — the
+                // madness ability's SpellResolved event fires with hostCard=
+                // FieryTemper and categoryFromEvents short-circuits on it before
+                // considering the zone-pair. Known gap (same root as the Hand→Exile
+                // mis-tag); tracked under the dispatcher-scope TODO in
+                // AnnotationBuilder.categoryFromEvents. For now we assert only the
+                // zone transition fires at all — the category assertion is the
+                // headline regression this gap blocks.
+                val exileToGyZt = allGsms.flatMap { it.annotationsList }
+                    .filter { it.typeList.contains(AnnotationType.ZoneTransfer_af5a) }
+                    .firstOrNull {
+                        it.detailInt("zone_src") == leyline.game.mapper.ZoneIds.EXILE &&
+                            it.detailInt("zone_dest") == leyline.game.mapper.ZoneIds.P1_GRAVEYARD
+                    }
+                exileToGyZt shouldNotBe null
+                // TODO: exileToGyZt.detailString("category") shouldBe "Put" — blocked
+                //   on SpellResolved dispatcher scoping (see AnnotationBuilder.kt TODO).
+
+                // Decline branch means no cast fired — no UAT alternativeGrpId present.
+                val anyAltUat = allGsms.flatMap { it.annotationsList }
+                    .filter { it.typeList.contains(AnnotationType.UserActionTaken) }
+                    .any { it.hasDetail("alternativeGrpId") }
+                anyAltUat shouldBe false
+            } finally {
+                h.shutdown()
+            }
+        }
     })
 
 private fun msgGsm(msg: GREToClientMessage) =

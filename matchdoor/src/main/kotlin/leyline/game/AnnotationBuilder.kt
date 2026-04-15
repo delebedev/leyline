@@ -70,7 +70,13 @@ object AnnotationBuilder {
 
         for (ev in events) {
             when (ev) {
-                // Highest priority — mechanic-specific events (immediate return)
+                // Highest priority — mechanic-specific events (immediate return).
+                // TODO: scope SpellCast by dstZone==Stack to avoid tagging Madness's
+                // Hand→Exile discard-replacement transfer as CastSpell. Blocked on
+                // a fallback for Exile→Stack alt-cost correlation when the
+                // SpellCast event lands in a separate GSM cycle from the zone
+                // transfer (Forge PlayEffect-driven casts). See
+                // docs/protocol/mechanics/Madness.md § Wiring assessment.
                 is GameEvent.LandPlayed -> if (ev.cardId == forgeCardId) return TransferCategory.PlayLand
                 is GameEvent.SpellCast -> if (ev.cardId == forgeCardId) return TransferCategory.CastSpell
                 is GameEvent.SpellResolved -> if (ev.cardId == forgeCardId) {

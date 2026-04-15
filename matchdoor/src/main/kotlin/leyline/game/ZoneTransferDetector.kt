@@ -208,7 +208,8 @@ object ZoneTransferDetector {
                     emptyList()
                 }
 
-                // Extract mana payment info + adventure flag from SpellCast events.
+                // Extract mana payment info + adventure flag + alt-cost info from
+                // SpellCast events.
                 val spellCastEvent = if (category == TransferCategory.CastSpell && forgeCardId != null) {
                     events.filterIsInstance<GameEvent.SpellCast>()
                         .firstOrNull { it.cardId == forgeCardId }

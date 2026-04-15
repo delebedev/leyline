@@ -625,7 +625,7 @@ class WebPlayerController(
      * — the client will then render exactly as real Arena does. Deferred
      * because it requires broader ActionMapper + priority-flow changes.
      *
-     * Spec: ../../../../../../../arena-lab/docs/protocol/mechanics/Madness.md.
+     * Spec: `arena-lab/docs/protocol/mechanics/Madness.md` (sibling repo).
      */
     override fun playSaFromPlayEffect(tgtSA: SpellAbility): Boolean {
         val hostCard = tgtSA.hostCard

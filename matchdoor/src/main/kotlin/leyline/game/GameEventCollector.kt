@@ -534,19 +534,16 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
 
     /** True if the card has a discard-replacement keyword (Madness, Mayhem) — these
      *  redirect Hand→GY discards to Hand→Exile but Arena still tags them as Discard.
-     *  Resolves the live Forge Card from the CardView's id since CardView doesn't
-     *  expose `rules.mainPart.keywords` directly. */
+     *  Consults CardRepository's normalized keyword map rather than Forge's raw
+     *  Keyword.toString() — the upstream normalization in AbilityIdDeriver uppercases
+     *  keyword names, so a stable string prefix check works regardless of Forge's
+     *  internal Keyword representation. */
     private fun hasDiscardReplacementKeyword(cardView: forge.game.card.CardView): Boolean {
-        val live = bridge.getGame()?.findById(cardView.id) ?: return false
-        val keywords = live.rules?.mainPart?.keywords ?: return false
-        val match = keywords.any { kw ->
-            val kwName = kw.toString().uppercase()
-            kwName.startsWith("MADNESS") || kwName.startsWith("MAYHEM")
+        val grpId = bridge.cardRepository.findGrpIdByName(cardView.name) ?: return false
+        val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return false
+        return cardData.keywordAbilityGrpIds.keys.any { kw ->
+            val u = kw.uppercase()
+            u.startsWith("MADNESS") || u.startsWith("MAYHEM")
         }
-        log.debug(
-            "hasDiscardReplacementKeyword: card={} keywords={} match={}",
-            cardView.name, keywords.map { it.toString() }, match,
-        )
-        return match
     }
 }
