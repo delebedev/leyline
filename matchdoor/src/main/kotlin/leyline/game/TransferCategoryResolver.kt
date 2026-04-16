@@ -39,8 +39,7 @@ object TransferCategoryResolver {
                 // Hand→Exile discard-replacement transfer as CastSpell. Blocked on
                 // a fallback for Exile→Stack alt-cost correlation when the
                 // SpellCast event lands in a separate GSM cycle from the zone
-                // transfer (Forge PlayEffect-driven casts). See
-                // docs/protocol/mechanics/Madness.md § Wiring assessment.
+                // transfer (Forge PlayEffect-driven casts).
                 is GameEvent.LandPlayed -> if (ev.cardId == forgeCardId) return TransferCategory.PlayLand
                 is GameEvent.SpellCast -> if (ev.cardId == forgeCardId) return TransferCategory.CastSpell
                 is GameEvent.SpellResolved -> if (ev.cardId == forgeCardId) {
