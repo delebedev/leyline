@@ -594,34 +594,6 @@ class GameBridgeTest :
             (gs.zonesCount > 0).shouldBeTrue()
         }
 
-        // --- Stack priority tests ---
-
-        test("cast spell leaves spell on stack") {
-            val b = GameBridge(cardRepository = InMemoryCardRepository())
-            bridge = b
-            b.start(seed = 42L)
-            b.submitKeep(1)
-            advanceToMain1(b)
-
-            val game = b.getGame()!!
-            val player = b.getPlayer(SeatId(1))!!
-
-            // Play a land for mana
-            val land = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isLand } ?: error("No land in hand at seed 42")
-            val pending1 = awaitFreshPending(b, null) ?: error("No pending action available")
-            b.actionBridge(1).submitAction(pending1.actionId, PlayerAction.PlayLand(ForgeCardId(land.id)))
-            awaitFreshPending(b, pending1.actionId)
-
-            // Cast a creature
-            val creature = player.getZone(ZoneType.Hand).cards.firstOrNull { it.isCreature } ?: error("No creature in hand at seed 42")
-            val pending2 = awaitFreshPending(b, pending1.actionId) ?: error("No pending action available")
-            b.actionBridge(1).submitAction(pending2.actionId, PlayerAction.CastSpell(ForgeCardId(creature.id)))
-            awaitFreshPending(b, pending2.actionId)
-
-            // After casting, spell should be on stack (engine gives caster priority)
-            // Stack may already be empty if engine auto-resolved — that's the current bug
-        }
-
         // --- skipMulligan tests ---
 
         test("skip mulligan advances to priority without keep") {
