@@ -57,7 +57,6 @@
     <ID>BooleanAssertion:GameEndTest.kt$GameEndTest$(req.optionsCount &gt;= 2).shouldBeTrue()</ID>
     <ID>BooleanAssertion:GameEndTest.kt$GameEndTest$(req.result.winningTeamId &gt; 0).shouldBeTrue()</ID>
     <ID>BooleanAssertion:GamePlaybackTest.kt$GamePlaybackTest$(allMsgIds.last() &gt; allMsgIds.first()).shouldBeTrue()</ID>
-    <ID>BooleanAssertion:HandshakeMessagesTest.kt$HandshakeMessagesTest$(rolls[2]!! &gt; rolls[1]!!) shouldBe true</ID>
     <ID>BooleanAssertion:LandManaTest.kt$LandManaTest$gsm.diffDeletedInstanceIdsList.contains(origId).shouldBeFalse()</ID>
     <ID>BooleanAssertion:LandManaTest.kt$LandManaTest$handZone.objectInstanceIdsList.contains(origId.value).shouldBeFalse()</ID>
     <ID>BooleanAssertion:LibraryOrderInteractionTest.kt$LibraryOrderInteractionTest$(surveilZt.affectorId != 0).shouldBeTrue()</ID>
@@ -90,13 +89,10 @@
     <ID>BooleanAssertion:TargetingFlowTest.kt$TargetingFlowTest$(creature.netToughness &gt;= 4).shouldBeTrue()</ID>
     <ID>BooleanAssertion:TargetingFlowTest.kt$TargetingFlowTest$(req.targetsCount &gt; 0).shouldBeTrue()</ID>
     <ID>BooleanAssertion:TargetingFlowTest.kt$TargetingFlowTest$(targetSelection.targetsCount &gt; 0).shouldBeTrue()</ID>
-    <ID>CanBeNonNullable:SessionTraceOps.kt$SessionTraceOps$override val bundleBuilder: BundleBuilder? = bridge?.let { BundleBuilder(it, matchId, seatId.value) }</ID>
     <ID>ElseCaseInsteadOfExhaustiveWhen:ClientAccumulator.kt$ClientAccumulator$when (gs.type) { GameStateType.Full -&gt; { objects.clear() zones.clear() gs.gameObjectsList.forEach { objects[it.instanceId] = it } gs.zonesList.forEach { zones[it.zoneId] = it } } GameStateType.Diff -&gt; { // Remove deleted instances first (client sends these for retired IDs) gs.diffDeletedInstanceIdsList.forEach { objects.remove(it) } gs.gameObjectsList.forEach { objects[it.instanceId] = it } gs.zonesList.forEach { zones[it.zoneId] = it } } else -&gt; {} // ignore }</ID>
     <ID>ElseCaseInsteadOfExhaustiveWhen:ScriptedPlayerController.kt$ScriptedPlayerController$when (action) { is ScriptedAction.Attack -&gt; { nextAction() val bf = attacker.getZone(ZoneType.Battlefield) val defender = attacker.opponents.firstOrNull() ?: return for (name in action.cardNames) { val card = bf.cards.firstOrNull { it.name.equals(name, ignoreCase = true) &amp;&amp; it.isCreature } if (card != null) { combat.addAttacker(card, defender) } else { log.warn("Script: Attack({}) — creature not found on battlefield", name) } } } is ScriptedAction.DeclareNoAttackers -&gt; { nextAction() // Do nothing — no attackers declared } else -&gt; { // No script instruction for this combat → delegate to AI super.declareAttackers(attacker, combat) } }</ID>
     <ID>ElseCaseInsteadOfExhaustiveWhen:ScriptedPlayerController.kt$ScriptedPlayerController$when (action) { is ScriptedAction.DeclareNoBlockers -&gt; { nextAction() } is ScriptedAction.Block -&gt; { nextAction() val bf = defender.getZone(ZoneType.Battlefield) for ((blockerName, attackerName) in action.assignments) { val blocker = bf.cards.firstOrNull { it.name.equals(blockerName, ignoreCase = true) &amp;&amp; it.isCreature } val attacker = combat.attackers.firstOrNull { it.name.equals(attackerName, ignoreCase = true) } if (blocker != null &amp;&amp; attacker != null) { combat.addBlocker(attacker, blocker) } else { log.warn( "Script: Block({} → {}) — not found (blocker={}, attacker={})", blockerName, attackerName, blocker?.name, attacker?.name, ) } } } else -&gt; { super.declareBlockers(defender, combat) } }</ID>
     <ID>ElseCaseInsteadOfExhaustiveWhen:ScriptedPlayerController.kt$ScriptedPlayerController$when (action) { is ScriptedAction.PlayLand -&gt; { val sa = findLandAbility(action.cardName) if (sa != null) { nextAction() // consume listOf(sa) } else { // Don't consume — card may become playable on a later turn. // Returning null passes priority; engine advances. null } } is ScriptedAction.CastSpell -&gt; { val sa = findCastAbility(action.cardName) if (sa != null) { nextAction() // consume listOf(sa) } else { null // don't consume — try again when castable } } is ScriptedAction.PassPriority -&gt; { nextAction() null } null -&gt; null // script exhausted → pass else -&gt; null // combat actions handled in declare* methods }</ID>
-    <ID>MapGetWithNotNullAssertionOperator:HandshakeMessagesTest.kt$HandshakeMessagesTest$rolls[1]!!</ID>
-    <ID>MapGetWithNotNullAssertionOperator:HandshakeMessagesTest.kt$HandshakeMessagesTest$rolls[2]!!</ID>
     <ID>MaxLineLength:CardInjectionTest.kt$CardInjectionTest$val handZone = checkNotNull(gsm.zonesList.firstOrNull { it.type == wotc.mtgo.gre.external.messaging.Messages.ZoneType.Hand &amp;&amp; it.ownerSeatId == 1 }) { "Hand zone should exist for seat 1" }</ID>
     <ID>MaxLineLength:CardInjectionTest.kt$CardInjectionTest$val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected card should appear in gameObjectsList" }</ID>
     <ID>MaxLineLength:CardInjectionTest.kt$CardInjectionTest$val obj = checkNotNull(gsm.gameObjectsList.firstOrNull { it.instanceId == injected.instanceId }) { "Injected land should appear in gameObjectsList" }</ID>
@@ -265,7 +261,7 @@
     <ID>MissingAssertSoftly:GamePlaybackCounterTest.kt$GamePlaybackCounterTest$playback.drainQueue().shouldBeEmpty()</ID>
     <ID>MissingAssertSoftly:GsmFrameTest.kt$GsmFrameTest$ann.id shouldBe 100</ID>
     <ID>MissingAssertSoftly:GsmFrameTest.kt$GsmFrameTest$ti.activePlayer shouldBe 1</ID>
-    <ID>MissingAssertSoftly:HandshakeMessagesTest.kt$HandshakeMessagesTest$rolls[1]!! shouldBeInRange 1..20</ID>
+    <ID>MissingAssertSoftly:HandshakeMessagesTest.kt$HandshakeMessagesTest$rolls.getValue(1) shouldBeInRange 1..20</ID>
     <ID>MissingAssertSoftly:InstanceIdRegistryTest.kt$InstanceIdRegistryTest$deleted.shouldContainExactlyInAnyOrder(id1, id2, id3)</ID>
     <ID>MissingAssertSoftly:KeywordGrantAnnotationTest.kt$KeywordGrantAnnotationTest$pAnn.affectedIdsList shouldHaveSize 2</ID>
     <ID>MissingAssertSoftly:KeywordGrantAnnotationTest.kt$KeywordGrantAnnotationTest$pAnn.affectedIdsList shouldHaveSize 3</ID>
@@ -360,7 +356,5 @@
     <ID>MissingAssertSoftly:ZoneMapperChapterGrpIdTest.kt$ZoneMapperChapterGrpIdTest$ZoneMapper.chapterGrpIdFromCardData(data, 1) shouldBe 147926</ID>
     <ID>SleepInsteadOfDelay:GameActionBridgeTest.kt$GameActionBridgeTest$sleep(10)</ID>
     <ID>SleepInsteadOfDelay:SearchReqConformanceTest.kt$SearchReqConformanceTest$sleep(500)</ID>
-    <ID>UnnecessaryAbstractClass:InteractionTest.kt$InteractionTest$InteractionTest</ID>
-    <ID>UnnecessaryAbstractClass:SubsystemTest.kt$SubsystemTest$SubsystemTest</ID>
   </CurrentIssues>
 </SmellBaseline>

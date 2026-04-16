@@ -96,8 +96,12 @@ object GsmBuilder {
         // Both seats' hand + library only (client expects no graveyard at deal-hand).
         // Only include GameObjectInfo for the viewing seat's hand — opponent's hand
         // cards appear in objectInstanceIds (for count) but render face-down.
-        ZoneMapper.addHandAndLibrary(human, 1, bridge, zones, gameObjects, ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, viewingSeatId = seatId)
-        ZoneMapper.addHandAndLibrary(ai, 2, bridge, zones, gameObjects, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, viewingSeatId = seatId)
+        if (human != null) {
+            ZoneMapper.addHandAndLibrary(human, 1, bridge, zones, gameObjects, ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, viewingSeatId = seatId)
+        }
+        if (ai != null) {
+            ZoneMapper.addHandAndLibrary(ai, 2, bridge, zones, gameObjects, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, viewingSeatId = seatId)
+        }
 
         // Players — both have pendingMessageType: MulliganResp during mulligan
         val player1 = PlayerMapper.buildPlayerInfo(human, 1).toBuilder()
@@ -352,8 +356,12 @@ object GsmBuilder {
         zones.add(ZoneMapper.makeZone(ZoneIds.EXILE, ZoneType.Exile, 0, Visibility.Public))
         zones.add(ZoneMapper.makeZone(ZoneIds.LIMBO, ZoneType.Limbo, 0, Visibility.Public))
         // Per-player zones (4 each = 8)
-        ZoneMapper.addInitialPlayerZones(human, 1, bridge, zones, ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, ZoneIds.P1_SIDEBOARD)
-        ZoneMapper.addInitialPlayerZones(ai, 2, bridge, zones, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, ZoneIds.P2_SIDEBOARD)
+        if (human != null) {
+            ZoneMapper.addInitialPlayerZones(human, 1, bridge, zones, ZoneIds.P1_HAND, ZoneIds.P1_LIBRARY, ZoneIds.P1_GRAVEYARD, ZoneIds.P1_SIDEBOARD)
+        }
+        if (ai != null) {
+            ZoneMapper.addInitialPlayerZones(ai, 2, bridge, zones, ZoneIds.P2_HAND, ZoneIds.P2_LIBRARY, ZoneIds.P2_GRAVEYARD, ZoneIds.P2_SIDEBOARD)
+        }
 
         // Brawl: populate zone 26 with commander cards as full game objects.
         // Commanders start in the command zone, not the library — the client

@@ -1581,6 +1581,8 @@ class WebPlayerController(
      * Reveal-choose bridge path: builds a prompt with filtered [candidateRefs] (selectable)
      * and unfiltered [unfilteredRefs] (all revealed cards) for the SelectNReq wire shape.
      */
+    // `sa` matches the nullable type from the Forge controller override chain.
+    @Suppress("CanBeNonNullable")
     private fun chooseCardsViaBridgeForReveal(
         filteredCards: CardCollectionView,
         min: Int,

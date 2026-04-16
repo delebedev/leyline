@@ -22,6 +22,7 @@ class SessionTraceOps(
     private val bridge: GameBridge? = null,
 ) : SessionOps {
 
+    @Suppress("CanBeNonNullable") // Overrides the nullable `SessionOps.bundleBuilder` contract.
     override val bundleBuilder: BundleBuilder? =
         bridge?.let { BundleBuilder(it, matchId, seatId.value) }
 

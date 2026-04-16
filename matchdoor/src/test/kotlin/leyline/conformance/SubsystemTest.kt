@@ -30,7 +30,7 @@ import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
  * })
  * ```
  */
-abstract class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
+open class SubsystemTest(body: SubsystemTest.() -> Unit) : FunSpec() {
 
     private val base = ConformanceTestBase()
 

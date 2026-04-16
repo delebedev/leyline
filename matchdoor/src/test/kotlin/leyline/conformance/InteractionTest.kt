@@ -32,7 +32,7 @@ import leyline.bridge.SeatId
  * })
  * ```
  */
-abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
+open class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
 
     private var _harness: MatchFlowHarness? = null
 

@@ -185,6 +185,7 @@ class FrontDoorHandler(
         CmdType.CHALLENGE_RECONNECT_ALL.value to { FdResponse.TypedProto("Wizards.Arena.Models.Network.ChallengeReconnectAllResp") },
     )
 
+    @Suppress("CanBeNonNullable") // `json` comes from the decoder which may emit null for empty bodies.
     private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?) {
         // Fast path: table-driven stubs (no logic, just data)
         stubs[cmdType]?.let { supplier ->

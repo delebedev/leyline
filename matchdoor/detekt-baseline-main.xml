@@ -2,9 +2,6 @@
 <SmellBaseline>
   <ManuallySuppressedIssues></ManuallySuppressedIssues>
   <CurrentIssues>
-    <ID>CanBeNonNullable:StateMapper.kt$StateMapper$activeReveal: InteractivePromptBridge.ActiveReveal?</ID>
-    <ID>CanBeNonNullable:WebPlayerController.kt$WebPlayerController$sa: SpellAbility?</ID>
-    <ID>CanBeNonNullable:ZoneMapper.kt$ZoneMapper$player: Player?</ID>
     <ID>ComplexCondition:WebPlayerController.kt$WebPlayerController$!fullControl &amp;&amp; smartPhaseSkip &amp;&amp; !bridge.consumePromptResolved() &amp;&amp; handler.playerTurn?.id == player.id &amp;&amp; game.stack.isEmpty &amp;&amp; !PlayableActionQuery.hasPlayableNonManaAction(game, player)</ID>
     <ID>CyclomaticComplexMethod:MatchSession.kt$MatchSession$override fun onPerformAction(greMsg: ClientToGREMessage)</ID>
     <ID>CyclomaticComplexMethod:WebCostDecision.kt$WebCostDecision$override fun visit(cost: CostExile): PaymentDecision?</ID>
