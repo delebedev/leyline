@@ -4,7 +4,6 @@
   <CurrentIssues>
     <ID>BooleanAssertion:AccountStoreTest.kt$AccountStoreTest$store.isEmpty().shouldBeFalse()</ID>
     <ID>BooleanAssertion:AccountStoreTest.kt$AccountStoreTest$store.isEmpty().shouldBeTrue()</ID>
-    <ID>MatchingDeclarationName:ErrorResponse.kt$AccountError</ID>
     <ID>MissingAssertSoftly:AccountRoutesTest.kt$AccountRoutesTest$body shouldContain """"FdURI":"localhost:30010""""</ID>
     <ID>MissingAssertSoftly:AccountRoutesTest.kt$AccountRoutesTest$body shouldContain "access_token"</ID>
     <ID>MissingAssertSoftly:AccountRoutesTest.kt$AccountRoutesTest$body shouldContain "accountID"</ID>

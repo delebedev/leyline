@@ -69,10 +69,10 @@ fmt:
 fmt-check:
     cd "{{project_dir}}" && ./gradlew spotlessCheck -q
 
-# static analysis (detekt)
+# static analysis (detekt with type resolution — main + test source sets)
 [group('build')]
 lint:
-    cd "{{project_dir}}" && ./gradlew detekt
+    cd "{{project_dir}}" && ./gradlew detektMain detektTest
 
 # report outdated dependencies
 [group('build')]

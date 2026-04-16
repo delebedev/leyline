@@ -37,6 +37,8 @@ style:
     active: true
   LoopWithTooManyJumpStatements:
     active: false
+  CanBeNonNullable:
+    active: true
 
 empty-blocks:
   EmptyFunctionBlock:
@@ -51,15 +53,33 @@ potential-bugs:
     active: true
   CastToNullableType:
     active: true
+  # Known false-positive-prone in TR mode (continue / ?: / takeIf control flow).
+  # Real unreachable code is caught by kotlinc warnings and IDE inspections.
+  UnreachableCode:
+    active: false
+  UnnecessaryNotNullOperator:
+    active: true
+  UnnecessarySafeCall:
+    active: true
+  ElseCaseInsteadOfExhaustiveWhen:
+    active: true
+  ImplicitDefaultLocale:
+    active: true
 
 performance:
   SpreadOperator:
     active: false
+  ArrayPrimitive:
+    active: true
 
 exceptions:
   TooGenericExceptionCaught:
     active: false
   SwallowedException:
+    active: true
+  NotImplementedDeclaration:
+    active: true
+  RethrowCaughtException:
     active: true
 
 leyline:
