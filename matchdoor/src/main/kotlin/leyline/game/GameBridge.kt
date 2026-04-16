@@ -903,12 +903,18 @@ class GameBridge(
         for (player in game.players) {
             for (card in player.getZone(ZoneType.Battlefield).cards) {
                 val target = card.attachedTo ?: continue
-                val auraIid = ids.getOrAlloc(ForgeCardId(card.id)).value
-                val targetIid = ids.getOrAlloc(ForgeCardId(target.id)).value
+                val auraIid = ids.getOrAlloc(ForgeCardId(card.id))
+                val targetIid = ids.getOrAlloc(ForgeCardId(target.id))
                 val ann = AnnotationBuilder.attachment(auraIid, targetIid)
                     .toBuilder().setId(annotations.nextPersistentAnnotationId()).build()
                 annotations.add(ann)
-                log.debug("seedAttachment: {} (iid={}) → {} (iid={})", card.name, auraIid, target.name, targetIid)
+                log.debug(
+                    "seedAttachment: {} (iid={}) → {} (iid={})",
+                    card.name,
+                    auraIid.value,
+                    target.name,
+                    targetIid.value,
+                )
             }
         }
     }

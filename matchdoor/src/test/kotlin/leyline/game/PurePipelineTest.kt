@@ -382,8 +382,8 @@ class PurePipelineTest :
 
         test("annotation shape for stack ability appearance") {
             val ann = AnnotationBuilder.abilityInstanceCreated(
-                abilityInstanceId = abilityIid,
-                affectorId = sourceCardIid,
+                abilityInstanceId = abilityIid.iid,
+                affectorId = sourceCardIid.iid,
                 sourceZoneId = ZoneIds.BATTLEFIELD,
             )
 
@@ -396,7 +396,7 @@ class PurePipelineTest :
         test("disappearance emits only AbilityInstanceDeleted") {
             // ResolutionStart/Complete are NOT emitted for disappeared abilities —
             // the ability's instanceId is no longer a valid game object.
-            val ann = AnnotationBuilder.abilityInstanceDeleted(abilityIid, sourceCardIid)
+            val ann = AnnotationBuilder.abilityInstanceDeleted(abilityIid.iid, sourceCardIid.iid)
 
             ann.typeList shouldBe listOf(AnnotationType.AbilityInstanceDeleted)
             ann.affectorId shouldBe sourceCardIid

@@ -3,6 +3,7 @@ package leyline.game
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
+import leyline.bridge.toWireId
 import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -12,14 +13,14 @@ class AnnotationOrderEnforcerTest :
         tags(UnitTag)
 
         test("no-op when already ordered: ObjectIdChanged before ZoneTransfer") {
-            val oic = AnnotationBuilder.objectIdChanged(origId = 100, newId = 200)
+            val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
             val zt = AnnotationBuilder.zoneTransfer(
-                instanceId = 200,
+                instanceId = 200.iid,
                 srcZoneId = 31,
                 destZoneId = 28,
                 category = "PlayLand",
             )
-            val uat = AnnotationBuilder.userActionTaken(instanceId = 200, seatId = 1, actionType = ActionType.Play_add3)
+            val uat = AnnotationBuilder.userActionTaken(instanceId = 200.iid, seatId = 1.sid, actionType = ActionType.Play_add3)
 
             val result = AnnotationOrderEnforcer.enforce(listOf(oic, zt, uat))
 
@@ -31,9 +32,9 @@ class AnnotationOrderEnforcerTest :
         }
 
         test("reorders when ZoneTransfer precedes ObjectIdChanged") {
-            val oic = AnnotationBuilder.objectIdChanged(origId = 100, newId = 200)
+            val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
             val zt = AnnotationBuilder.zoneTransfer(
-                instanceId = 200,
+                instanceId = 200.iid,
                 srcZoneId = 31,
                 destZoneId = 28,
                 category = "CastSpell",
@@ -49,13 +50,13 @@ class AnnotationOrderEnforcerTest :
 
         test("no-op when no ObjectIdChanged present") {
             val zt = AnnotationBuilder.zoneTransfer(
-                instanceId = 200,
+                instanceId = 200.iid,
                 srcZoneId = 27,
                 destZoneId = 28,
                 category = "Resolve",
             )
-            val rs = AnnotationBuilder.resolutionStart(instanceId = 200, grpId = 12345)
-            val rc = AnnotationBuilder.resolutionComplete(instanceId = 200, grpId = 12345)
+            val rs = AnnotationBuilder.resolutionStart(instanceId = 200.iid, grpId = 12345.grp)
+            val rc = AnnotationBuilder.resolutionComplete(instanceId = 200.iid, grpId = 12345.grp)
 
             val input = listOf(rs, rc, zt)
             val result = AnnotationOrderEnforcer.enforce(input)
@@ -65,16 +66,16 @@ class AnnotationOrderEnforcerTest :
         }
 
         test("handles multiple ObjectIdChanged for different cards") {
-            val oic1 = AnnotationBuilder.objectIdChanged(origId = 100, newId = 200)
-            val oic2 = AnnotationBuilder.objectIdChanged(origId = 300, newId = 400)
+            val oic1 = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
+            val oic2 = AnnotationBuilder.objectIdChanged(origId = 300.iid, newId = 400.iid)
             val zt1 = AnnotationBuilder.zoneTransfer(
-                instanceId = 200,
+                instanceId = 200.iid,
                 srcZoneId = 31,
                 destZoneId = 28,
                 category = "PlayLand",
             )
             val zt2 = AnnotationBuilder.zoneTransfer(
-                instanceId = 400,
+                instanceId = 400.iid,
                 srcZoneId = 31,
                 destZoneId = 27,
                 category = "CastSpell",
@@ -91,16 +92,16 @@ class AnnotationOrderEnforcerTest :
         }
 
         test("fixes interleaved wrong order with multiple cards") {
-            val oic1 = AnnotationBuilder.objectIdChanged(origId = 100, newId = 200)
-            val oic2 = AnnotationBuilder.objectIdChanged(origId = 300, newId = 400)
+            val oic1 = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
+            val oic2 = AnnotationBuilder.objectIdChanged(origId = 300.iid, newId = 400.iid)
             val zt1 = AnnotationBuilder.zoneTransfer(
-                instanceId = 200,
+                instanceId = 200.iid,
                 srcZoneId = 31,
                 destZoneId = 28,
                 category = "PlayLand",
             )
             val zt2 = AnnotationBuilder.zoneTransfer(
-                instanceId = 400,
+                instanceId = 400.iid,
                 srcZoneId = 31,
                 destZoneId = 27,
                 category = "CastSpell",
@@ -132,10 +133,10 @@ class AnnotationOrderEnforcerTest :
         }
 
         test("affectorId reference also triggers reorder") {
-            val oic = AnnotationBuilder.objectIdChanged(origId = 100, newId = 200)
+            val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
             val ann = AnnotationBuilder.userActionTaken(
-                instanceId = 200,
-                seatId = 1,
+                instanceId = 200.iid,
+                seatId = 1.sid,
                 actionType = ActionType.Cast,
             )
 
@@ -151,9 +152,9 @@ class AnnotationOrderEnforcerTest :
         // ===== Rule 2: Same-card incremental chaining =====
 
         test("Rule 2: DamageDealt before LayeredEffectCreated on same card") {
-            val cardId = 500
-            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 100, targetId = cardId, amount = 3)
-            val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001, affectorId = cardId)
+            val cardId = 500.iid
+            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 100.iid, targetId = cardId.toWireId(), amount = 3)
+            val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001.eid, affectorId = cardId)
 
             // Correct order
             val result = AnnotationOrderEnforcer.enforce(listOf(damage, effect))
@@ -164,9 +165,9 @@ class AnnotationOrderEnforcerTest :
         }
 
         test("Rule 2: reorders LayeredEffectCreated before DamageDealt on same card") {
-            val cardId = 500
-            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 100, targetId = cardId, amount = 3)
-            val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001, affectorId = cardId)
+            val cardId = 500.iid
+            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 100.iid, targetId = cardId.toWireId(), amount = 3)
+            val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001.eid, affectorId = cardId)
 
             // Wrong order: effect before damage
             val result = AnnotationOrderEnforcer.enforce(listOf(effect, damage))
@@ -177,9 +178,9 @@ class AnnotationOrderEnforcerTest :
         }
 
         test("Rule 2: CounterAdded before LayeredEffectCreated on same card") {
-            val cardId = 500
+            val cardId = 500.iid
             val counter = AnnotationBuilder.counterAdded(instanceId = cardId, counterType = "+1/+1", amount = 1)
-            val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7002, affectorId = cardId)
+            val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7002.eid, affectorId = cardId)
 
             // Wrong order
             val result = AnnotationOrderEnforcer.enforce(listOf(effect, counter))
@@ -190,8 +191,8 @@ class AnnotationOrderEnforcerTest :
         }
 
         test("Rule 2: no-op when annotations affect different cards") {
-            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 100, targetId = 500, amount = 3)
-            val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001, affectorId = 600)
+            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 100.iid, targetId = 500.wid, amount = 3)
+            val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001.eid, affectorId = 600.iid)
 
             // Different cards — no constraint, original order preserved
             val input = listOf(effect, damage)
@@ -200,9 +201,9 @@ class AnnotationOrderEnforcerTest :
         }
 
         test("Rule 2: ControllerChanged before TappedUntapped on same card") {
-            val cardId = 500
-            val tap = AnnotationBuilder.tappedUntappedPermanent(permanentId = cardId, abilityId = 501, tapped = true)
-            val steal = AnnotationBuilder.controllerChanged(affectorId = 502, instanceId = cardId)
+            val cardId = 500.iid
+            val tap = AnnotationBuilder.tappedUntappedPermanent(permanentId = cardId, abilityId = 501.iid, tapped = true)
+            val steal = AnnotationBuilder.controllerChanged(affectorId = 502.iid, instanceId = cardId)
 
             // Wrong order: tap before steal
             val result = AnnotationOrderEnforcer.enforce(listOf(tap, steal))
@@ -215,9 +216,9 @@ class AnnotationOrderEnforcerTest :
         // ===== Rules 1 + 2 combined =====
 
         test("Rules 1+2: ObjectIdChanged + DamageDealt + LayeredEffectCreated") {
-            val oic = AnnotationBuilder.objectIdChanged(origId = 100, newId = 500)
-            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 200, targetId = 500, amount = 2)
-            val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001, affectorId = 500)
+            val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 500.iid)
+            val damage = AnnotationBuilder.damageDealt(sourceInstanceId = 200.iid, targetId = 500.wid, amount = 2)
+            val effect = AnnotationBuilder.layeredEffectCreated(effectId = 7001.eid, affectorId = 500.iid)
 
             // Correct order
             val result = AnnotationOrderEnforcer.enforce(listOf(oic, damage, effect))
@@ -231,15 +232,15 @@ class AnnotationOrderEnforcerTest :
         // ===== Stability =====
 
         test("unrelated annotations are not disturbed") {
-            val oic = AnnotationBuilder.objectIdChanged(origId = 100, newId = 200)
+            val oic = AnnotationBuilder.objectIdChanged(origId = 100.iid, newId = 200.iid)
             val zt = AnnotationBuilder.zoneTransfer(
-                instanceId = 200,
+                instanceId = 200.iid,
                 srcZoneId = 31,
                 destZoneId = 28,
                 category = "PlayLand",
             )
             // Unrelated annotation referencing a completely different ID
-            val unrelated = AnnotationBuilder.tappedUntappedPermanent(permanentId = 500, abilityId = 501, tapped = true)
+            val unrelated = AnnotationBuilder.tappedUntappedPermanent(permanentId = 500.iid, abilityId = 501.iid, tapped = true)
 
             val result = AnnotationOrderEnforcer.enforce(listOf(oic, unrelated, zt))
 

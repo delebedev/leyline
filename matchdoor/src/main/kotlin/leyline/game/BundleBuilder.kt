@@ -194,7 +194,7 @@ class BundleBuilder(
         val gsWithAnnotations = if (turnStarted) {
             gsBase.toBuilder().apply {
                 addAnnotations(
-                    AnnotationBuilder.newTurnStarted(frame.activeSeat)
+                    AnnotationBuilder.newTurnStarted(SeatId(frame.activeSeat))
                         .toBuilder().setId(bridge.nextAnnotationId()).build(),
                 )
             }.build()
@@ -892,7 +892,7 @@ class BundleBuilder(
         gs1.addAllTimers(PlayerMapper.buildTimers())
         // LossOfGame annotation
         if (losingPlayerSeatId != 0) {
-            gs1.addAnnotations(AnnotationBuilder.lossOfGame(losingPlayerSeatId, lossReason))
+            gs1.addAnnotations(AnnotationBuilder.lossOfGame(SeatId(losingPlayerSeatId), lossReason))
         }
 
         // gs2: MatchComplete with both Game + Match results

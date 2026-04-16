@@ -35,11 +35,11 @@ class AbilityWordPipelineTest :
 
         test("AbilityWordActive created in first batch") {
             val ann = AnnotationBuilder.abilityWordActive(
-                instanceId = 295,
+                instanceId = 295.iid,
                 abilityWordName = "Threshold",
                 value = 5,
                 threshold = 7,
-                abilityGrpId = 175886,
+                abilityGrpId = 175886.grp,
             )
 
             val result = PersistentAnnotationStore.computeBatch(
@@ -63,19 +63,19 @@ class AbilityWordPipelineTest :
 
         test("AbilityWordActive upsert replaces on value change") {
             val old = AnnotationBuilder.abilityWordActive(
-                instanceId = 295,
+                instanceId = 295.iid,
                 abilityWordName = "Threshold",
                 value = 5,
                 threshold = 7,
-                abilityGrpId = 175886,
+                abilityGrpId = 175886.grp,
             ).toBuilder().setId(3).build()
 
             val updated = AnnotationBuilder.abilityWordActive(
-                instanceId = 295,
+                instanceId = 295.iid,
                 abilityWordName = "Threshold",
                 value = 7,
                 threshold = 7,
-                abilityGrpId = 175886,
+                abilityGrpId = 175886.grp,
             )
 
             val result = PersistentAnnotationStore.computeBatch(
@@ -99,11 +99,11 @@ class AbilityWordPipelineTest :
 
         test("AbilityWordActive removed when absent from new scan") {
             val old = AnnotationBuilder.abilityWordActive(
-                instanceId = 295,
+                instanceId = 295.iid,
                 abilityWordName = "Threshold",
                 value = 5,
                 threshold = 7,
-                abilityGrpId = 175886,
+                abilityGrpId = 175886.grp,
             ).toBuilder().setId(3).build()
 
             val result = PersistentAnnotationStore.computeBatch(
@@ -124,19 +124,19 @@ class AbilityWordPipelineTest :
 
         test("AbilityWordActive unchanged value is not churned") {
             val existing = AnnotationBuilder.abilityWordActive(
-                instanceId = 295,
+                instanceId = 295.iid,
                 abilityWordName = "Threshold",
                 value = 5,
                 threshold = 7,
-                abilityGrpId = 175886,
+                abilityGrpId = 175886.grp,
             ).toBuilder().setId(3).build()
 
             val same = AnnotationBuilder.abilityWordActive(
-                instanceId = 295,
+                instanceId = 295.iid,
                 abilityWordName = "Threshold",
                 value = 5,
                 threshold = 7,
-                abilityGrpId = 175886,
+                abilityGrpId = 175886.grp,
             )
 
             val result = PersistentAnnotationStore.computeBatch(
@@ -159,10 +159,10 @@ class AbilityWordPipelineTest :
 
         test("Morbid boolean-only pAnn with seatId affector and multiple affectedIds") {
             val ann = AnnotationBuilder.abilityWordActive(
-                instanceId = 1, // seatId as stable key
+                instanceId = 1.iid, // seatId as stable key
                 abilityWordName = "Morbid",
-                affectorId = 1,
-                affectedIds = listOf(323, 328),
+                affectorId = 1.iid,
+                affectedIds = listOf(323.iid, 328.iid),
             )
 
             val result = PersistentAnnotationStore.computeBatch(
@@ -192,7 +192,7 @@ class AbilityWordPipelineTest :
         // --- Qualification (adventure exile) ---
 
         test("Qualification created in first batch") {
-            val ann = AnnotationBuilder.qualification(instanceId = 348)
+            val ann = AnnotationBuilder.qualification(instanceId = 348.iid)
 
             val result = PersistentAnnotationStore.computeBatch(
                 currentActive = emptyMap(),
@@ -214,7 +214,7 @@ class AbilityWordPipelineTest :
         }
 
         test("Qualification removed when card leaves exile") {
-            val old = AnnotationBuilder.qualification(instanceId = 348)
+            val old = AnnotationBuilder.qualification(instanceId = 348.iid)
                 .toBuilder().setId(5).build()
 
             val result = PersistentAnnotationStore.computeBatch(
@@ -234,10 +234,10 @@ class AbilityWordPipelineTest :
         }
 
         test("Qualification not churned when unchanged") {
-            val existing = AnnotationBuilder.qualification(instanceId = 348)
+            val existing = AnnotationBuilder.qualification(instanceId = 348.iid)
                 .toBuilder().setId(5).build()
 
-            val same = AnnotationBuilder.qualification(instanceId = 348)
+            val same = AnnotationBuilder.qualification(instanceId = 348.iid)
 
             val result = PersistentAnnotationStore.computeBatch(
                 currentActive = mapOf(5 to existing),

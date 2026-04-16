@@ -58,7 +58,7 @@ class PersistentAnnotationPipelineTest :
         }
 
         test("computeBatchRemovesDisplayCardUnderCardWhenSourceLeavesPlay") {
-            val ann = AnnotationBuilder.displayCardUnderCard(affectorId = 1090, instanceId = 1080)
+            val ann = AnnotationBuilder.displayCardUnderCard(affectorId = 1090.iid, instanceId = 1080.iid)
                 .toBuilder().setId(5).build()
             val active = mapOf(5 to ann)
             val mechanicResult = MechanicAnnotationResult(
@@ -86,7 +86,7 @@ class PersistentAnnotationPipelineTest :
             // DisplayCardUnderCard was created. After destruction (BF→GY), its iid
             // was reallocated to 125. The reverse lookup resolves the OLD iid (111)
             // back to forgeCardId 1, matching the exileSourceLeftPlayForgeCardIds.
-            val ann = AnnotationBuilder.displayCardUnderCard(affectorId = 111, instanceId = 116)
+            val ann = AnnotationBuilder.displayCardUnderCard(affectorId = 111.iid, instanceId = 116.iid)
                 .toBuilder().setId(3).build()
             val active = mapOf(3 to ann)
             val mechanicResult = MechanicAnnotationResult(

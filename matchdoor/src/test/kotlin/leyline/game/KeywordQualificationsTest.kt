@@ -16,7 +16,7 @@ class KeywordQualificationsTest :
             val info = KeywordQualifications.forKeyword("Menace")
             info.shouldNotBeNull()
             info.grpId shouldBe 142
-            info.qualificationType shouldBe 40
+            info.qualificationType shouldBe QualificationType.CombatKeyword
             info.qualificationSubtype shouldBe 0
         }
 

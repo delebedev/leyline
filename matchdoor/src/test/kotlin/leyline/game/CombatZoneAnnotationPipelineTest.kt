@@ -213,7 +213,7 @@ class CombatZoneAnnotationPipelineTest :
         }
 
         test("surveilProducesAnnotationsWithAffectorId") {
-            val abilityInstanceId = 500
+            val abilityInstanceId = 500.iid
             val transfer = AppliedTransfer(
                 origId = 100,
                 newId = 200,
@@ -222,7 +222,7 @@ class CombatZoneAnnotationPipelineTest :
                 destZoneId = ZoneIds.P1_GRAVEYARD,
                 grpId = 0,
                 ownerSeatId = 1,
-                affectorId = abilityInstanceId,
+                affectorId = abilityInstanceId.value,
             )
             val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
             annotations.size shouldBe 2
@@ -231,7 +231,7 @@ class CombatZoneAnnotationPipelineTest :
             val oidChanged = annotations[0]
             assertSoftly {
                 oidChanged.typeList.first() shouldBe AnnotationType.ObjectIdChanged
-                oidChanged.affectorId shouldBe abilityInstanceId
+                oidChanged.affectorId shouldBe abilityInstanceId.value
                 oidChanged.affectedIdsList shouldContain 100
             }
 
@@ -239,7 +239,7 @@ class CombatZoneAnnotationPipelineTest :
             val zt = annotations[1]
             assertSoftly {
                 zt.typeList.first() shouldBe AnnotationType.ZoneTransfer_af5a
-                zt.affectorId shouldBe abilityInstanceId
+                zt.affectorId shouldBe abilityInstanceId.value
                 zt.affectedIdsList shouldContain 200
                 zt.detailString("category") shouldBe "Surveil"
             }
