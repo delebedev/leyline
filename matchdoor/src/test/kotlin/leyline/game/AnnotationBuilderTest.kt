@@ -757,7 +757,7 @@ class AnnotationBuilderTest :
 
         // --- Color ordinal conversion (used by GameEventCollector.computeColorOrdinals) ---
 
-        test("manaColorMappingProducesArenaOrdinals") {
+        test("manaColorMappingProducesClientOrdinals") {
             assertSoftly {
                 ManaColorMapping.fromProduced("W")?.number shouldBe 1
                 ManaColorMapping.fromProduced("U")?.number shouldBe 2

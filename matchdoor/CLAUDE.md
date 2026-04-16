@@ -1,6 +1,6 @@
 # matchdoor
 
-Game engine adapter — translates between Forge engine and Arena client protocol. Most new code lands here.
+Game engine adapter — translates between Forge engine and the client protocol. Most new code lands here.
 
 - **Proto:** `src/main/proto/messages.proto` — client protobuf schema
 - **Forge coupling is structural:** `WebPlayerController` extends `PlayerControllerHuman` (30+ overrides). `GameBootstrap` constructs Forge `Match`, `Game`, `Deck`. Can't abstract away — it's the adapter layer's job.
@@ -13,7 +13,7 @@ bridge/     Forge adapter — WebPlayerController, cost decisions, bootstrap,
             mulligan, deck loading. Extends Forge classes directly.
 
 game/       State mapping, annotations, proto builders, card data.
-            Pure translation: Forge state → Arena protobuf.
+            Pure translation: Forge state → client protobuf.
   mapper/   Per-domain mappers (actions, objects, players, zones, stops).
 
 match/      Match orchestration — MatchHandler, MatchSession, FamiliarSession,
@@ -46,7 +46,7 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 
 ## Cost Data Flow
 
-Mana cost reaches the client through two paths depending on the action type. `ManaColorMapping` is the single source of truth for Forge→Arena color translation in both paths.
+Mana cost reaches the client through two paths depending on the action type. `ManaColorMapping` is the single source of truth for Forge→client color translation in both paths.
 
 | Action type | Cost source | Why |
 |---|---|---|
@@ -71,7 +71,7 @@ Mana cost reaches the client through two paths depending on the action type. `Ma
 
 ### Adding a new zone transition category
 
-1. `game/TransferCategory.kt` — add variant if needed (with `.label` matching Arena's reason string)
+1. `game/TransferCategory.kt` — add variant if needed (with `.label` matching client's reason string)
 2. `game/GameEventCollector` — ensure the right Forge event is emitted (e.g. `GameEventCardDestroyed` → `CardDestroyed`)
 3. `game/TransferCategoryResolver.categoryFromEvents()` — add match arm; specific events take priority over generic `ZoneChanged`
 4. `game/StateMapper.annotationsForTransfer()` — add `when` branch for the new category (ObjectIdChanged, ZoneTransfer, etc.)
@@ -80,7 +80,7 @@ Mana cost reaches the client through two paths depending on the action type. `Ma
 ### Adding a new client action handler
 
 1. `match/MatchSession` — add handler method (e.g. `onDeclareAttackers`)
-2. Translate Arena proto fields to Forge `PlayerAction` or prompt response (instanceId → forgeCardId via `bridge.getForgeCardId()`)
+2. Translate client proto fields to Forge `PlayerAction` or prompt response (instanceId → forgeCardId via `bridge.getForgeCardId()`)
 3. Submit through appropriate bridge: `GameActionBridge` for priority actions, `InteractivePromptBridge` for engine-initiated choices
 4. Wire handler in `match/MatchHandler` message dispatch (match on `ClientMessageType`)
 5. Test: `MatchFlowHarness` test exercising the full production path (zero reimplemented logic)
@@ -132,7 +132,7 @@ Check nearby tests and mapper/annotation code for annotation ordering, category 
 | `confirmTrigger` | Dedicated future | Optional trigger — routes through `pendingOptionalAction` for GRE type 45 |
 | `confirmPayment` | Interactive | Cost payment confirmation |
 | `confirmReplacementEffect` | Interactive | Replacement effect yes/no |
-| `confirmStaticApplication` | — | Auto-decline `AlternativeDamageAssignment` (Arena never sends this) |
+| `confirmStaticApplication` | — | Auto-decline `AlternativeDamageAssignment` (client never sends this) |
 
 ### Discard
 

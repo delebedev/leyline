@@ -5,7 +5,7 @@ import leyline.bridge.ForgeCardId
 /**
  * Resolves [TransferCategory] and transfer affectors from captured [GameEvent]s.
  *
- * Bridges Forge's event model to Arena's annotation categories — picks the
+ * Bridges Forge's event model to client's annotation categories — picks the
  * most specific category for a zone transfer (LandPlayed > ZoneChanged) and
  * extracts the source card that caused it when applicable.
  *

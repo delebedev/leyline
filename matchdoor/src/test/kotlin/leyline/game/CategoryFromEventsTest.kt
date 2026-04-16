@@ -166,7 +166,7 @@ class CategoryFromEventsTest :
         }
 
         test("battlefieldToLibraryReturnsBounce") {
-            // Tuck effects (BF→Library) also use Bounce category per Arena client
+            // Tuck effects (BF→Library) also use Bounce category per the client
             val events = listOf(
                 GameEvent.ZoneChanged(cardId = ForgeCardId(55), from = Zone.Battlefield, to = Zone.Library),
             )

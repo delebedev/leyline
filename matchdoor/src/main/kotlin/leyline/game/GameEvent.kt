@@ -57,7 +57,7 @@ enum class Zone {
 sealed interface GameEvent {
 
     /** A land was played from hand to battlefield.
-     *  [colorOrdinals] = Arena ManaColor proto ordinals (W=1, U=2, B=3, R=4, G=5).
+     *  [colorOrdinals] = client ManaColor proto ordinals (W=1, U=2, B=3, R=4, G=5).
      *  Single-ability lands produce one entry; dual/multi-lands produce multiple. */
     data class LandPlayed(
         val cardId: ForgeCardId,
@@ -74,7 +74,7 @@ sealed interface GameEvent {
     /** A spell or ability was cast (hand/battlefield → stack).
      *
      * [altCostAbilityGrpId] — when non-zero, the spell was cast for an alternate
-     * cost (Madness, Flashback, Warp, Cycling, Impending). Carries the Arena
+     * cost (Madness, Flashback, Warp, Cycling, Impending). Carries the client
      * ability grpId for that alt-cost. Used to emit the persistent
      * `CastingTimeOption type=13` annotation and the `alternativeGrpId` detail
      * key on UserActionTaken. Zero means a regular hardcast.

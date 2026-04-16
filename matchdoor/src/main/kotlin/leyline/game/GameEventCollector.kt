@@ -141,7 +141,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         // Alt-cost detection (Madness, Flashback, Warp, Cycling, Impending).
         // ev.sa() is a SpellAbilityView snapshot which doesn't expose alt-cost.
         // Peek the live stack instead — the just-cast spell sits on top — then
-        // resolve to the Arena ability grpId via the keyword→grpId lookup
+        // resolve to the client ability grpId via the keyword→grpId lookup
         // (same path ActionMapper uses when offering the alt-cost cast action).
         val topSa = bridge.getGame()?.stack?.peek()?.spellAbility
         val saAltCost = if (topSa != null && topSa.hostCard?.id == card.id) {
@@ -522,8 +522,8 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
     }
 
     /**
-     * Compute Arena color ordinals from a land's mana abilities.
-     * Each mana ability contributes one Arena ordinal per color it produces.
+     * Compute client color ordinals from a land's mana abilities.
+     * Each mana ability contributes one client ordinal per color it produces.
      * Basic lands → single entry (e.g. [2] for Island).
      * Dual/multi-lands → multiple entries (e.g. [3, 5] for Jungle Hollow).
      * Uses [AbilityManaPart.mana] which resolves Combo/Chosen/ColorID keywords,
@@ -541,7 +541,7 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
             }
 
     /** True if the card has a discard-replacement keyword (Madness, Mayhem) — these
-     *  redirect Hand→GY discards to Hand→Exile but Arena still tags them as Discard.
+     *  redirect Hand→GY discards to Hand→Exile but client still tags them as Discard.
      *  Consults CardRepository's normalized keyword map rather than Forge's raw
      *  Keyword.toString() — the upstream normalization in AbilityIdDeriver uppercases
      *  keyword names, so a stable string prefix check works regardless of Forge's

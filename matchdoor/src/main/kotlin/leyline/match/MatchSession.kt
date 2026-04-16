@@ -544,7 +544,7 @@ class MatchSession(
     }
 
     /**
-     * Map Arena abilityGrpId → Forge ability index via [SlotLayout].
+     * Map client abilityGrpId → Forge ability index via [SlotLayout].
      *
      * Uses the AbilityRegistry's SlotLayout as the single source of truth
      * for keyword/activated slot positions. Falls back to 0 if lookup fails.

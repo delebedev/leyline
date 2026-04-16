@@ -107,7 +107,7 @@ class MadnessTest :
                 // Tormenting Voice on stack with discard cost paid; Fiery Temper
                 // exiled via madness replacement; the madness trigger resolves
                 // and calls playSaFromPlayEffect → WPC emits OptionalActionMessage
-                // (shortcut for Arena's ActionsAvailableReq Cast:1+Pass:1 flow; see
+                // (shortcut for client's ActionsAvailableReq Cast:1+Pass:1 flow; see
                 // WebPlayerController.playSaFromPlayEffect comment). The harness's
                 // autoRespondToOptionalAction auto-accepts on each drainSink, which
                 // drives the cast through super.playSaFromPlayEffect.

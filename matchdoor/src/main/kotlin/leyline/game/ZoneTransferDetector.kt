@@ -28,14 +28,14 @@ data class AppliedTransfer(
     val ownerSeatId: Int,
     /** InstanceId of the ability/spell that caused this transfer (for affectorId). */
     val affectorId: Int = 0,
-    /** Arena ManaColor ordinals for land color production (W=1, U=2, B=3, R=4, G=5). */
+    /** client ManaColor ordinals for land color production (W=1, U=2, B=3, R=4, G=5). */
     val colorOrdinals: List<Int> = emptyList(),
     /** Resolved mana payments for CastSpell (one per land tapped). */
     val manaPayments: List<ManaPaymentRecord> = emptyList(),
     /** True if this transfer is an adventure spell cast (UserActionTaken actionType=16). */
     val isAdventureCast: Boolean = false,
     /** Non-zero when this CastSpell transfer used an alternate cost (Madness, Flashback,
-     *  Warp, Cycling, Impending). Carries the Arena ability grpId for the alt-cost. */
+     *  Warp, Cycling, Impending). Carries the client ability grpId for the alt-cost. */
     val altCostAbilityGrpId: Int = 0,
 )
 
