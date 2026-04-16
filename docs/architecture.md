@@ -48,7 +48,7 @@ graph LR
 
 ## 2. Runtime Services
 
-`LeylineServer` starts the client-facing TCP doors and wires shared state (card repository, match coordinator, debug collector) between them.
+`LeylineMain` is the composition root: it constructs each service, wires the shared state they need (card repository, match coordinator, debug collector), and starts them together. `LeylineServer` owns the two client-facing Netty TCP doors; the debug, account, and management servers are each their own object started alongside.
 
 | Service | Default port | Protocol | Implementation |
 |---|---|---|---|
