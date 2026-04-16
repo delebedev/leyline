@@ -19,13 +19,7 @@ import wotc.mtgo.gre.external.messaging.Messages.*
 class OptionalCostInteractionTest :
     InteractionTest({
 
-        val burstPuzzle = """
-            [metadata]
-            Name:Burst Lightning
-            Goal:Win
-            Turns:1
-
-            [state]
+        val burstState = """
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
@@ -37,6 +31,8 @@ class OptionalCostInteractionTest :
             aibattlefield=Centaur Courser
             ailibrary=Mountain
         """.trimIndent()
+
+        fun startBurst() = startPuzzle(burstState, name = "Burst Lightning")
 
         /** Accept kicker — send the Kicker option's ctoId. */
         fun acceptKicker() {
@@ -55,7 +51,7 @@ class OptionalCostInteractionTest :
         }
 
         test("CastingTimeOptionsReq — kicker prompt shape") {
-            startPuzzle(burstPuzzle)
+            startBurst()
 
             val snap = messageSnapshot()
             castSpellByName("Burst Lightning").shouldBeTrue()
@@ -82,7 +78,7 @@ class OptionalCostInteractionTest :
         }
 
         test("kicked Burst Lightning deals 4 damage") {
-            startPuzzle(burstPuzzle)
+            startBurst()
 
             castSpellByName("Burst Lightning").shouldBeTrue()
             acceptKicker()
@@ -93,7 +89,7 @@ class OptionalCostInteractionTest :
         }
 
         test("unkicked Burst Lightning deals 2 damage") {
-            startPuzzle(burstPuzzle)
+            startBurst()
 
             castSpellByName("Burst Lightning").shouldBeTrue()
             declineKicker()
@@ -104,7 +100,7 @@ class OptionalCostInteractionTest :
         }
 
         test("kicker GSM has no synthesized ability on stack") {
-            startPuzzle(burstPuzzle)
+            startBurst()
 
             val snap = messageSnapshot()
             castSpellByName("Burst Lightning").shouldBeTrue()
@@ -123,7 +119,7 @@ class OptionalCostInteractionTest :
         }
 
         test("optional cost prompt gates targeting — no SelectTargetsReq before response") {
-            startPuzzle(burstPuzzle)
+            startBurst()
 
             val castSnap = messageSnapshot()
             castSpellByName("Burst Lightning").shouldBeTrue()

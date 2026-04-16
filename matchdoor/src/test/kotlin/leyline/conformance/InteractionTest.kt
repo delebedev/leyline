@@ -72,8 +72,23 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
 
     // --- Setup ---
 
-    /** Start a puzzle game from inline `.pzl` text. */
+    /**
+     * Start a puzzle game. [state] is the `[state]` block body only; metadata is
+     * synthesized from [name]/[goal]/[turns]. For puzzles needing non-default
+     * metadata keys, use [startPuzzleRaw].
+     */
     fun startPuzzle(
+        state: String,
+        name: String = "test",
+        goal: String = "Win",
+        turns: Int = 1,
+        seed: Long = 42L,
+        validating: Boolean = false,
+    ): MatchFlowHarness =
+        startPuzzleRaw(buildPuzzleText(state, name, goal, turns), seed, validating)
+
+    /** Start a puzzle from full `.pzl` text (metadata + state). Escape hatch. */
+    fun startPuzzleRaw(
         puzzleText: String,
         seed: Long = 42L,
         validating: Boolean = false,
@@ -84,6 +99,17 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
         cachePlayerRefs()
         return h
     }
+
+    private fun buildPuzzleText(state: String, name: String, goal: String, turns: Int): String =
+        buildString {
+            appendLine("[metadata]")
+            appendLine("Name:$name")
+            appendLine("Goal:$goal")
+            appendLine("Turns:$turns")
+            appendLine()
+            appendLine("[state]")
+            append(state.trimIndent())
+        }
 
     /** Start a normal game (mulligan + keep). */
     fun startGame(

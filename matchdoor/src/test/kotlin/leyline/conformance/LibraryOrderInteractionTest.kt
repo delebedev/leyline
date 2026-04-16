@@ -22,13 +22,7 @@ class LibraryOrderInteractionTest :
 
         // --- Surveil 1 (Wary Thespian: ETB surveil 1) ---
 
-        val surveil1Puzzle = """
-            [metadata]
-            Name:Surveil 1
-            Goal:Win
-            Turns:1
-
-            [state]
+        val surveil1State = """
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
@@ -41,8 +35,10 @@ class LibraryOrderInteractionTest :
             ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
         """.trimIndent()
 
+        fun startSurveil1() = startPuzzle(surveil1State, name = "Surveil 1")
+
         test("surveil 1 — GroupReq shape and revealed card") {
-            startPuzzle(surveil1Puzzle)
+            startSurveil1()
 
             val req = castSpellUntilGroupReq("Wary Thespian")
             assertSoftly {
@@ -59,7 +55,7 @@ class LibraryOrderInteractionTest :
         }
 
         test("surveil 1 — keep on top leaves card on library top") {
-            startPuzzle(surveil1Puzzle)
+            startSurveil1()
 
             val cardIds = castSpellUntilGroupReq("Wary Thespian").instanceIdsList
 
@@ -70,7 +66,7 @@ class LibraryOrderInteractionTest :
 
         // Suspected flaky in CI — passes locally, null annotation intermittently on GH runners
         test("surveil 1 — put in graveyard moves card and produces Surveil annotation") {
-            startPuzzle(surveil1Puzzle)
+            startSurveil1()
 
             val snap = messageSnapshot()
             val cardIds = castSpellUntilGroupReq("Wary Thespian").instanceIdsList
@@ -103,22 +99,17 @@ class LibraryOrderInteractionTest :
         test("surveil 2 — multi-card to graveyard") {
             startPuzzle(
                 """
-            [metadata]
-            Name:Surveil 2
-            Goal:Win
-            Turns:1
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
 
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-
-            humanhand=Sterling Hound
-            humanbattlefield=Plains;Plains;Plains
-            humanlibrary=Mountain;Forest;Island;Swamp;Plains
-            ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
-                """.trimIndent(),
+                humanhand=Sterling Hound
+                humanbattlefield=Plains;Plains;Plains
+                humanlibrary=Mountain;Forest;Island;Swamp;Plains
+                ailibrary=Mountain;Mountain;Mountain;Mountain;Mountain
+                """,
+                name = "Surveil 2",
             )
 
             val groupReq = castSpellUntilGroupReq("Sterling Hound")
@@ -134,13 +125,7 @@ class LibraryOrderInteractionTest :
 
         // --- Scry 1 (Wall of Runes: ETB scry 1) ---
 
-        val scryPuzzle = """
-            [metadata]
-            Name:Scry 1
-            Goal:Win
-            Turns:1
-
-            [state]
+        val scryState = """
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
@@ -153,8 +138,10 @@ class LibraryOrderInteractionTest :
             ailibrary=Plains;Plains;Plains;Plains;Plains
         """.trimIndent()
 
+        fun startScry1() = startPuzzle(scryState, name = "Scry 1")
+
         test("scry 1 — GroupReq shape") {
-            startPuzzle(scryPuzzle)
+            startScry1()
 
             val req = castSpellUntilGroupReq("Wall of Runes")
             assertSoftly {
@@ -169,7 +156,7 @@ class LibraryOrderInteractionTest :
         }
 
         test("scry 1 — put on bottom") {
-            startPuzzle(scryPuzzle)
+            startScry1()
 
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 
@@ -190,7 +177,7 @@ class LibraryOrderInteractionTest :
         }
 
         test("scry 1 — keep on top") {
-            startPuzzle(scryPuzzle)
+            startScry1()
 
             val cardIds = castSpellUntilGroupReq("Wall of Runes").instanceIdsList
 

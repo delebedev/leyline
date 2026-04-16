@@ -18,13 +18,7 @@ class DiscardInteractionTest :
 
         // --- Discard-as-cost (Mardu Outrider: {1}{B}{B} + discard a card) ---
 
-        val marduPuzzle = """
-            [metadata]
-            Name:Mandatory Cost - Mardu Outrider
-            Goal:Win
-            Turns:2
-
-            [state]
+        val marduState = """
             ActivePlayer=Human
             ActivePhase=Main1
             HumanLife=20
@@ -37,7 +31,7 @@ class DiscardInteractionTest :
         """.trimIndent()
 
         test("discard-as-cost — SelectNReq proto shape") {
-            startPuzzle(marduPuzzle)
+            startPuzzle(marduState, name = "Mardu Outrider", turns = 2)
 
             castSpellByName("Mardu Outrider") shouldBe true
 
@@ -53,7 +47,7 @@ class DiscardInteractionTest :
         }
 
         test("discard-as-cost — spell resolves after responding") {
-            startPuzzle(marduPuzzle)
+            startPuzzle(marduState, name = "Mardu Outrider", turns = 2)
 
             castSpellByName("Mardu Outrider") shouldBe true
             val req = lastSelectNReq()
@@ -92,23 +86,19 @@ class DiscardInteractionTest :
         test("cleanup discard — hand size enforced at end of turn") {
             startPuzzle(
                 """
-            [metadata]
-            Name:Cleanup Discard
-            Goal:Win
-            Turns:2
+                ActivePlayer=Human
+                ActivePhase=Main1
+                HumanLife=20
+                AILife=20
 
-            [state]
-            ActivePlayer=Human
-            ActivePhase=Main1
-            HumanLife=20
-            AILife=20
-
-            humanhand=Divination;Island;Island;Island;Island;Island;Island
-            humanbattlefield=Island;Island;Island
-            humanlibrary=Island;Island;Island;Island;Island
-            aibattlefield=Centaur Courser
-            ailibrary=Island;Island;Island;Island;Island
-                """.trimIndent(),
+                humanhand=Divination;Island;Island;Island;Island;Island;Island
+                humanbattlefield=Island;Island;Island
+                humanlibrary=Island;Island;Island;Island;Island
+                aibattlefield=Centaur Courser
+                ailibrary=Island;Island;Island;Island;Island
+                """,
+                name = "Cleanup Discard",
+                turns = 2,
             )
 
             human.getZone(ForgeZoneType.Hand).size() shouldBe 7
