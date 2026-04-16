@@ -41,7 +41,7 @@ class DiscardInteractionTest :
 
             castSpellByName("Mardu Outrider") shouldBe true
 
-            val req = harness.allMessages.last { it.hasSelectNReq() }.selectNReq
+            val req = lastSelectNReq()
             assertSoftly {
                 req.context shouldBe SelectionContext.Discard_a163
                 req.listType shouldBe SelectionListType.Static
@@ -56,9 +56,9 @@ class DiscardInteractionTest :
             startPuzzle(marduPuzzle)
 
             castSpellByName("Mardu Outrider") shouldBe true
-            val req = harness.allMessages.last { it.hasSelectNReq() }.selectNReq
+            val req = lastSelectNReq()
             val mountainId = findInstanceId(req.idsList, "Mountain")
-            harness.respondToSelectN(listOf(mountainId))
+            respondToSelectN(listOf(mountainId))
             passPriority()
 
             assertSoftly {
@@ -79,8 +79,8 @@ class DiscardInteractionTest :
                 hand.none { it.name == "Mountain" } shouldBe true
             }
 
-            harness.accumulator.assertConsistent("after mandatory discard cost")
-            assertGsIdChain(harness.allMessages, context = "mandatory discard cost flow")
+            assertAccumulatorConsistent("after mandatory discard cost")
+            assertGsIdChain(allMessages, context = "mandatory discard cost flow")
         }
 
         // --- Cleanup discard (hand exceeds max hand size) ---

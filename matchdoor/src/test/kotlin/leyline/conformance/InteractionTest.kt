@@ -7,6 +7,12 @@ import io.kotest.core.spec.style.FunSpec
 import leyline.IntegrationTag
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
+import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionsReq
+import wotc.mtgo.gre.external.messaging.Messages.GREToClientMessage
+import wotc.mtgo.gre.external.messaging.Messages.GameStateMessage
+import wotc.mtgo.gre.external.messaging.Messages.GroupReq
+import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 
 /**
  * Base class for session-tier interaction tests (MatchFlowHarness).
@@ -125,6 +131,61 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
         harness.castSpellByName(cardName, zone)
 
     fun resolveSpell(cardName: String) = harness.resolveSpell(cardName)
+
+    // --- Cast-until-prompt flows ---
+
+    fun castSpellUntilGroupReq(cardName: String): GroupReq =
+        harness.castSpellUntilGroupReq(cardName)
+
+    fun castSpellUntilSelectNReq(cardName: String): SelectNReq =
+        harness.castSpellUntilSelectNReq(cardName)
+
+    fun castSpellUntilCastingTimeOptionsReq(cardName: String): CastingTimeOptionsReq =
+        harness.castSpellUntilCastingTimeOptionsReq(cardName)
+
+    // --- Prompt responses ---
+
+    fun respondToGroupReq(awayInstanceIds: List<Int>, allInstanceIds: List<Int>) =
+        harness.respondToGroupReq(awayInstanceIds, allInstanceIds)
+
+    fun respondToScry(bottomInstanceIds: List<Int>, allInstanceIds: List<Int>) =
+        harness.respondToScry(bottomInstanceIds, allInstanceIds)
+
+    fun respondToSelectN(selectedInstanceIds: List<Int>) =
+        harness.respondToSelectN(selectedInstanceIds)
+
+    fun respondToOptionalCost(ctoId: Int) = harness.respondToOptionalCost(ctoId)
+
+    // --- Message inspection ---
+
+    val allMessages: List<GREToClientMessage> get() = harness.allMessages
+
+    fun messageSnapshot(): Int = harness.messageSnapshot()
+
+    fun messagesSince(snapshot: Int): List<GREToClientMessage> =
+        harness.messagesSince(snapshot)
+
+    fun gameStateMessagesSince(snapshot: Int): List<GameStateMessage> =
+        harness.gameStateMessagesSince(snapshot)
+
+    fun annotationsSince(snapshot: Int): List<AnnotationInfo> =
+        harness.annotationsSince(snapshot)
+
+    // --- Convenience: last-of-kind prompt ---
+
+    fun lastSelectNReq(): SelectNReq =
+        harness.allMessages.last { it.hasSelectNReq() }.selectNReq
+
+    fun lastCastingTimeOptionsReq(): CastingTimeOptionsReq =
+        harness.allMessages.last { it.hasCastingTimeOptionsReq() }.castingTimeOptionsReq
+
+    fun lastGroupReq(): GroupReq =
+        harness.allMessages.last { it.hasGroupReq() }.groupReq
+
+    // --- Accumulator ---
+
+    fun assertAccumulatorConsistent(context: String) =
+        harness.accumulator.assertConsistent(context)
 
     // --- Card lookup ---
 

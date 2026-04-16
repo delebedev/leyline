@@ -38,32 +38,28 @@ class OptionalCostInteractionTest :
             ailibrary=Mountain
         """.trimIndent()
 
-        /** Find the CastingTimeOptionsReq from the latest messages. */
-        fun lastCtoReq(): CastingTimeOptionsReq =
-            harness.allMessages.last { it.hasCastingTimeOptionsReq() }.castingTimeOptionsReq
-
         /** Accept kicker — send the Kicker option's ctoId. */
         fun acceptKicker() {
-            val kickerOption = lastCtoReq().castingTimeOptionReqList.first {
+            val kickerOption = lastCastingTimeOptionsReq().castingTimeOptionReqList.first {
                 it.castingTimeOptionType == CastingTimeOptionType.Kicker
             }
-            harness.respondToOptionalCost(kickerOption.ctoId)
+            respondToOptionalCost(kickerOption.ctoId)
         }
 
         /** Decline kicker — send the Done option's ctoId (0). */
         fun declineKicker() {
-            val doneOption = lastCtoReq().castingTimeOptionReqList.first {
+            val doneOption = lastCastingTimeOptionsReq().castingTimeOptionReqList.first {
                 it.castingTimeOptionType == CastingTimeOptionType.Done
             }
-            harness.respondToOptionalCost(doneOption.ctoId)
+            respondToOptionalCost(doneOption.ctoId)
         }
 
         test("CastingTimeOptionsReq — kicker prompt shape") {
             startPuzzle(burstPuzzle)
 
-            val snap = harness.messageSnapshot()
+            val snap = messageSnapshot()
             castSpellByName("Burst Lightning").shouldBeTrue()
-            val castMessages = harness.messagesSince(snap)
+            val castMessages = messagesSince(snap)
 
             val ctoReq = castMessages.first { it.hasCastingTimeOptionsReq() }
                 .castingTimeOptionsReq
@@ -110,9 +106,9 @@ class OptionalCostInteractionTest :
         test("kicker GSM has no synthesized ability on stack") {
             startPuzzle(burstPuzzle)
 
-            val snap = harness.messageSnapshot()
+            val snap = messageSnapshot()
             castSpellByName("Burst Lightning").shouldBeTrue()
-            val msgs = harness.messagesSince(snap)
+            val msgs = messagesSince(snap)
 
             val ctoIdx = msgs.indexOfFirst { it.hasCastingTimeOptionsReq() }
             ctoIdx shouldBeGreaterThan 0
@@ -129,18 +125,18 @@ class OptionalCostInteractionTest :
         test("optional cost prompt gates targeting — no SelectTargetsReq before response") {
             startPuzzle(burstPuzzle)
 
-            val castSnap = harness.messageSnapshot()
+            val castSnap = messageSnapshot()
             castSpellByName("Burst Lightning").shouldBeTrue()
 
             // After cast: CastingTimeOptionsReq present, SelectTargetsReq absent
-            val castMessages = harness.messagesSince(castSnap)
+            val castMessages = messagesSince(castSnap)
             castMessages.any { it.hasCastingTimeOptionsReq() }.shouldBeTrue()
             castMessages.any { it.hasSelectTargetsReq() }.shouldBeFalse()
 
             // After responding to optional cost: SelectTargetsReq appears
-            val targetSnap = harness.messageSnapshot()
+            val targetSnap = messageSnapshot()
             declineKicker()
-            val targetMessages = harness.messagesSince(targetSnap)
+            val targetMessages = messagesSince(targetSnap)
             targetMessages.any { it.hasSelectTargetsReq() }.shouldBeTrue()
         }
     })
