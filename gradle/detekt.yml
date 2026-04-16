@@ -67,3 +67,12 @@ leyline:
     active: true
   BooleanAssertion:
     active: true
+  VacuousTestSkip:
+    active: true
+  EmptyAssertion:
+    active: true
+  MissingAssertSoftly:
+    active: true
+    threshold: 3
+  FunSpecMissingTags:
+    active: true

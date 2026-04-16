@@ -10,16 +10,18 @@ import io.gitlab.arturbosch.detekt.api.Severity
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.psi.KtCallExpression
+import org.jetbrains.kotlin.psi.KtConstantExpression
 import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtParenthesizedExpression
 
 /**
- * Flags `.shouldBeTrue()` / `.shouldBeFalse()` applied to a comparison, a null
- * check, or an `isEmpty`/`isNotEmpty`/`contains` call. These wrappers collapse
- * the expression to a bare boolean before Kotest sees it, so the failure message
- * is just "expected true, got false" with no actual values — rewrite using a
- * direct matcher so failures print what the values actually were.
+ * Flags `.shouldBeTrue()` / `.shouldBeFalse()` and the infix `shouldBe true` /
+ * `shouldBe false` applied to a comparison, a null check, or an
+ * `isEmpty`/`isNotEmpty`/`contains` call. These wrappers collapse the expression
+ * to a bare boolean before Kotest sees it, so the failure message is just
+ * "expected true, got false" with no actual values — rewrite using a direct
+ * matcher so failures print what the values actually were.
  */
 class BooleanAssertion(config: Config) : Rule(config) {
     override val issue = Issue(
@@ -44,6 +46,26 @@ class BooleanAssertion(config: Config) : Rule(config) {
                 issue,
                 Entity.from(expression),
                 "$calleeName() on a comparison hides failure detail. Use: $suggestion",
+            ),
+        )
+    }
+
+    override fun visitBinaryExpression(expression: KtBinaryExpression) {
+        super.visitBinaryExpression(expression)
+        if (expression.operationReference.text != "shouldBe") return
+        val rightLiteral = (expression.right?.unwrapParens() as? KtConstantExpression)?.text ?: return
+        val assertTrue = when (rightLiteral) {
+            "true" -> true
+            "false" -> false
+            else -> return
+        }
+        val left = expression.left?.unwrapParens() ?: return
+        val suggestion = suggestionFor(left, assertTrue) ?: return
+        report(
+            CodeSmell(
+                issue,
+                Entity.from(expression),
+                "`shouldBe $rightLiteral` on a comparison hides failure detail. Use: $suggestion",
             ),
         )
     }

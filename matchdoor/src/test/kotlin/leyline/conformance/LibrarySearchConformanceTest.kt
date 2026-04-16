@@ -3,6 +3,7 @@ package leyline.conformance
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import leyline.ConformanceTag
 import leyline.game.StateMapper
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.CardType
@@ -27,6 +28,9 @@ import wotc.mtgo.gre.external.messaging.Messages.Visibility
  */
 class LibrarySearchConformanceTest :
     FunSpec({
+
+        tags(ConformanceTag)
+
         val base = ConformanceTestBase()
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }

@@ -32,6 +32,9 @@
     <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val MainDeck: List&lt;CardEntry&gt; = emptyList()</ID>
     <ID>ConstructorParameterNaming:SqlitePlayerStore.kt$SqlitePlayerStore.CardsBlob$val Sideboard: List&lt;CardEntry&gt; = emptyList()</ID>
     <ID>CyclomaticComplexMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
+    <ID>EmptyAssertion:DraftServiceTest.kt$DraftServiceTest$test("drop on non-existent session is a no-op") { val service = createService() service.drop(playerId, eventName) // should not throw }</ID>
+    <ID>EmptyAssertion:EventRegistryTest.kt$EventRegistryTest$test("every event has non-null Group in EventUXInfo") { val result = EventWireBuilder.toActiveEventsJson(EventRegistry.events) val events = json.parseToJsonElement(result).jsonObject["Events"]!!.jsonArray for (event in events) { val name = event.jsonObject["InternalEventName"]?.jsonPrimitive?.content val group = event.jsonObject["EventUXInfo"]?.jsonObject?.get("Group") check(group != null) { "Event $name has null Group — client will NRE" } } }</ID>
+    <ID>EmptyAssertion:EventRegistryTest.kt$EventRegistryTest$test("every queue EventNameBO1/BO3 has a matching active event") { val eventNames = EventRegistry.events.map { it.internalName }.toSet() for (q in EventRegistry.queues) { check(q.eventNameBO1 in eventNames) { "Queue ${q.id} references EventNameBO1='${q.eventNameBO1}' but no matching event exists — client will lock the tab" } if (q.eventNameBO3 != null) { check(q.eventNameBO3 in eventNames) { "Queue ${q.id} references EventNameBO3='${q.eventNameBO3}' but no matching event exists — client will lock the tab" } } } }</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun activeMatches()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun boosters()</ID>
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun cosmetics()</ID>
@@ -53,6 +56,38 @@
     <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"Fav","DeckTileId":0,"Attributes":[{"name":"IsFavorite","value":"true"},{"name":"Format","value":"Standard"}]},"Deck":{"MainDeck":[],"Sideboard":[],"CommandZone":[],"Companions":[]},"ActionType":"Updated"}"""</ID>
     <ID>MaxLineLength:DeckWireBuilderTest.kt$DeckWireBuilderTest$"""{"Summary":{"DeckId":"d1","Name":"My Deck","DeckTileId":99,"Attributes":[{"name":"Format","value":"Historic"},{"name":"IsFavorite","value":"false"}]},"Deck":{"MainDeck":[{"cardId":100,"quantity":4}],"Sideboard":[],"CommandZone":[],"Companions":[],"CardSkins":[]},"ActionType":"CreatedNew"}"""</ID>
     <ID>MaxLineLength:LobbyStubs.kt$LobbyStubs$fun rankInfo()</ID>
+    <ID>MissingAssertSoftly:CourseServiceTest.kt$CourseServiceTest$course.module shouldBe CourseModule.DeckSelect</ID>
+    <ID>MissingAssertSoftly:CourseServiceTest.kt$CourseServiceTest$course.wins shouldBe 1</ID>
+    <ID>MissingAssertSoftly:DeckTest.kt$DeckTest$Format.fromString("standard") shouldBe Format.Standard</ID>
+    <ID>MissingAssertSoftly:DeckWireBuilderTest.kt$DeckWireBuilderTest$attrs shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:DeckWireBuilderTest.kt$DeckWireBuilderTest$entry["MainDeck"]?.jsonArray shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:DeckWireBuilderTest.kt$DeckWireBuilderTest$legalities["Standard"]?.jsonPrimitive?.boolean shouldBe true</ID>
+    <ID>MissingAssertSoftly:DeckWireBuilderTest.kt$DeckWireBuilderTest$parsed shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$after.pickNumber shouldBe 1</ID>
+    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$session.packNumber shouldBe 1</ID>
+    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$session.status shouldBe DraftStatus.Completed</ID>
+    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$session.status shouldBe DraftStatus.PickNext</ID>
+    <ID>MissingAssertSoftly:DraftServiceTest.kt$DraftServiceTest$status shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:DraftWireBuilderTest.kt$DraftWireBuilderTest$inner["Result"]?.jsonPrimitive?.content shouldBe "Success"</ID>
+    <ID>MissingAssertSoftly:FormatServiceTest.kt$FormatServiceTest$EventRegistry.mapArenaFormat("Timeless").shouldBeNull()</ID>
+    <ID>MissingAssertSoftly:FormatServiceTest.kt$FormatServiceTest$EventRegistry.mapArenaFormat("TraditionalStandard") shouldBe "Standard"</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$course.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$courses.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$deck["DeckId"].shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$deck["MainDeck"].shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$draftCourse.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$matchInfo.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$obj["DeckSummariesV2"].shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$outer["CurrentModule"]?.jsonPrimitive?.content shouldBe "DeckSelect"</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$payload["PickNumber"]?.jsonPrimitive?.int shouldBe 1</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$payload["Result"]?.jsonPrimitive?.content shouldBe "Success"</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$prefs.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$saved.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:FrontDoorHandlerTest.kt$FrontDoorHandlerTest$summary.shouldNotBeNull()</ID>
+    <ID>MissingAssertSoftly:SqliteCourseRepositoryTest.kt$SqliteCourseRepositoryTest$found shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:SqliteCourseRepositoryTest.kt$SqliteCourseRepositoryTest$found.wins shouldBe 2</ID>
+    <ID>MissingAssertSoftly:SqlitePlayerStoreTest.kt$SqlitePlayerStoreTest$found shouldNotBe null</ID>
+    <ID>MissingAssertSoftly:SqlitePlayerStoreTest.kt$SqlitePlayerStoreTest$found.name shouldBe "Updated Weenie"</ID>
     <ID>UnusedParameter:MatchmakingService.kt$MatchmakingService$playerId: PlayerId</ID>
   </CurrentIssues>
 </SmellBaseline>

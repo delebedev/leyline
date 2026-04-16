@@ -3,6 +3,7 @@ package leyline.match
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
+import leyline.UnitTag
 import leyline.game.BundleBuilder
 import leyline.game.GameBridge
 import leyline.game.InMemoryCardRepository
@@ -15,6 +16,8 @@ import wotc.mtgo.gre.external.messaging.Messages.GREMessageType
  */
 class SearchReqTest :
     FunSpec({
+
+        tags(UnitTag)
 
         test("buildSearchReq populates inner SearchReq fields") {
             val msg = BundleBuilder(GameBridge(cardRepository = InMemoryCardRepository()), "test-match", 1).buildSearchReq(

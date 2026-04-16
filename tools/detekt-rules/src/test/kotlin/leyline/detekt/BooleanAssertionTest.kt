@@ -137,4 +137,85 @@ class BooleanAssertionTest : FunSpec({
         findings shouldHaveSize 1
         findings[0].message shouldContain "surveilZt.affectorId shouldNotBe 0"
     }
+
+    test("flags infix `(a == b) shouldBe true` and suggests shouldBe") {
+        val code = """
+            infix fun Boolean.shouldBe(other: Boolean) {}
+            fun t() { (1 == 2) shouldBe true }
+        """.trimIndent()
+        val findings = rule.lint(code)
+        findings shouldHaveSize 1
+        findings[0].message shouldContain "1 shouldBe 2"
+    }
+
+    test("flags infix `(a != b) shouldBe true` and suggests shouldNotBe") {
+        val code = """
+            infix fun Boolean.shouldBe(other: Boolean) {}
+            fun t() { (x != 0) shouldBe true }
+            val x = 1
+        """.trimIndent()
+        val findings = rule.lint(code)
+        findings shouldHaveSize 1
+        findings[0].message shouldContain "x shouldNotBe 0"
+    }
+
+    test("flags infix `(a > b) shouldBe true` suggests shouldBeGreaterThan") {
+        val code = """
+            infix fun Boolean.shouldBe(other: Boolean) {}
+            fun t() { (1 > 0) shouldBe true }
+        """.trimIndent()
+        val findings = rule.lint(code)
+        findings shouldHaveSize 1
+        findings[0].message shouldContain "1 shouldBeGreaterThan 0"
+    }
+
+    test("flags infix shouldBe false on ==") {
+        val code = """
+            infix fun Boolean.shouldBe(other: Boolean) {}
+            fun t() { (a == b) shouldBe false }
+            val a = 1; val b = 2
+        """.trimIndent()
+        val findings = rule.lint(code)
+        findings shouldHaveSize 1
+        findings[0].message shouldContain "a shouldNotBe b"
+    }
+
+    test("flags infix `list.isEmpty() shouldBe true` suggests shouldBeEmpty") {
+        val code = """
+            infix fun Boolean.shouldBe(other: Boolean) {}
+            fun t() { xs.isEmpty() shouldBe true }
+            val xs = listOf<Int>()
+        """.trimIndent()
+        val findings = rule.lint(code)
+        findings shouldHaveSize 1
+        findings[0].message shouldContain "xs.shouldBeEmpty()"
+    }
+
+    test("flags infix `list.contains(x) shouldBe true` suggests shouldContain") {
+        val code = """
+            infix fun Boolean.shouldBe(other: Boolean) {}
+            fun t() { xs.contains(42) shouldBe true }
+            val xs = listOf<Int>()
+        """.trimIndent()
+        val findings = rule.lint(code)
+        findings shouldHaveSize 1
+        findings[0].message shouldContain "xs shouldContain 42"
+    }
+
+    test("passes on `flag shouldBe true` for plain boolean var") {
+        val code = """
+            infix fun Boolean.shouldBe(other: Boolean) {}
+            fun t() { flag shouldBe true }
+            val flag = true
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
+
+    test("passes on `x shouldBe y` where y is not a boolean literal") {
+        val code = """
+            infix fun Int.shouldBe(other: Int) {}
+            fun t() { val x = 1; x shouldBe 1 }
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
 })

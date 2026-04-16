@@ -13,6 +13,10 @@ class LeylineRuleSetProvider : RuleSetProvider {
             listOf(
                 TrivialKDoc(config),
                 BooleanAssertion(config),
+                VacuousTestSkip(config),
+                EmptyAssertion(config),
+                MissingAssertSoftly(config),
+                FunSpecMissingTags(config),
             ),
         )
 }
