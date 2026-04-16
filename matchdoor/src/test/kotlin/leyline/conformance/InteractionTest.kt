@@ -31,7 +31,7 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
  *         """.trimIndent())
  *
  *         activateAbility("Card Name")
- *         selectTargets(listOf(2))
+ *         selectTargets(listOf(OPPONENT_SEAT))
  *         passUntilResolved()
  *         ai.life shouldBe 4
  *     }
@@ -42,6 +42,14 @@ import wotc.mtgo.gre.external.messaging.Messages.SelectNReq
 // class directly (no zero-arg constructor — only the `body` lambda variant).
 @Suppress("UnnecessaryAbstractClass")
 abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
+
+    companion object {
+        /** Seat ID for the human player (tests always use seat 1). */
+        const val HUMAN_SEAT = 1
+
+        /** Seat ID for the AI / opponent. */
+        const val OPPONENT_SEAT = 2
+    }
 
     private var _harness: MatchFlowHarness? = null
 
@@ -137,8 +145,8 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
 
     fun passPriority() = harness.passPriority()
 
-    fun passUntil(maxPasses: Int = 20, stopWhen: MatchFlowHarness.() -> Boolean) =
-        harness.passUntil(maxPasses, stopWhen)
+    fun passUntil(maxPasses: Int = 20, stopWhen: () -> Boolean) =
+        harness.passUntil(maxPasses) { stopWhen() }
 
     /**
      * Pass priority until the stack is empty. Use after cast + target to resolve.

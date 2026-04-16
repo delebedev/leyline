@@ -31,7 +31,7 @@ class ActivatedAbilityInteractionTest :
 
             // Activate tap ability → target opponent (seatId 2) → resolve
             activateAbility("Goblin Fireslinger").shouldBeTrue()
-            selectTargets(listOf(2))
+            selectTargets(listOf(OPPONENT_SEAT))
             passUntil(maxPasses = 5) { ai.life < 5 }.shouldBeTrue()
 
             ai.life shouldBe 4

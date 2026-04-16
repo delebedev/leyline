@@ -1,10 +1,10 @@
 package leyline.conformance
 
 import io.kotest.assertions.assertSoftly
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import wotc.mtgo.gre.external.messaging.Messages.*
 import forge.game.zone.ZoneType as ForgeZoneType
 
@@ -89,7 +89,7 @@ class LibraryOrderInteractionTest :
             }
             surveilZt.shouldNotBeNull()
             surveilZt.affectedIdsList shouldHaveSize 1
-            (surveilZt.affectorId != 0).shouldBeTrue()
+            surveilZt.affectorId shouldNotBe 0
 
             assertAccumulatorConsistent("after surveil to graveyard")
         }

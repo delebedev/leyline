@@ -82,7 +82,7 @@ class OptionalCostInteractionTest :
 
             castSpellByName("Burst Lightning").shouldBeTrue()
             acceptKicker()
-            selectTargets(listOf(2))
+            selectTargets(listOf(OPPONENT_SEAT))
             passUntilResolved()
 
             ai.life shouldBe 16
@@ -93,7 +93,7 @@ class OptionalCostInteractionTest :
 
             castSpellByName("Burst Lightning").shouldBeTrue()
             declineKicker()
-            selectTargets(listOf(2))
+            selectTargets(listOf(OPPONENT_SEAT))
             passUntilResolved()
 
             ai.life shouldBe 18

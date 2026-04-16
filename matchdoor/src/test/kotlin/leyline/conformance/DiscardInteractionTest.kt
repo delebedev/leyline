@@ -63,14 +63,12 @@ class DiscardInteractionTest :
                 outriders.first().netPower shouldBe 5
                 outriders.first().netToughness shouldBe 5
 
-                // Discarded Mountain in graveyard
+                // Discarded Mountain in graveyard — exactly one
                 human.getZone(ForgeZoneType.Graveyard).cards
-                    .any { it.name == "Mountain" } shouldBe true
+                    .filter { it.name == "Mountain" } shouldHaveSize 1
 
-                // Original hand cards consumed
-                val hand = human.getZone(ForgeZoneType.Hand).cards
-                hand.none { it.name == "Mardu Outrider" } shouldBe true
-                hand.none { it.name == "Mountain" } shouldBe true
+                // Original hand cards consumed — hand empty (started with 2, both gone)
+                human.getZone(ForgeZoneType.Hand).cards shouldHaveSize 0
             }
 
             assertAccumulatorConsistent("after mandatory discard cost")
