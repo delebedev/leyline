@@ -5,6 +5,7 @@ import forge.game.player.Player
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import leyline.IntegrationTag
+import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -132,6 +133,19 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
         return h
     }
 
+    /** Start a puzzle game from a classpath resource (e.g. `puzzles/bolt-face.pzl`). */
+    fun startPuzzleFile(
+        resourcePath: String,
+        seed: Long = 42L,
+        validating: Boolean = false,
+    ): MatchFlowHarness {
+        val h = MatchFlowHarness(seed = seed, validating = validating)
+        _harness = h
+        h.connectAndKeepPuzzle(resourcePath)
+        cachePlayerRefs()
+        return h
+    }
+
     // --- Game actions ---
 
     fun activateAbility(cardName: String, abilityIndex: Int = 0) =
@@ -142,6 +156,18 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
 
     fun selectTargets(targetInstanceIds: List<Int>) =
         harness.selectTargets(targetInstanceIds)
+
+    fun selectTargetsIterative(targetInstanceIds: List<Int>) =
+        harness.selectTargetsIterative(targetInstanceIds)
+
+    fun submitTargets() = harness.submitTargets()
+
+    fun cancelAction() = harness.cancelAction()
+
+    fun castCreature() = harness.castCreature()
+
+    fun humanBattlefieldCreatures(): List<Pair<Int, String>> =
+        harness.humanBattlefieldCreatures()
 
     fun passPriority() = harness.passPriority()
 
@@ -235,6 +261,29 @@ abstract class InteractionTest(body: InteractionTest.() -> Unit) : FunSpec() {
     /** Find instanceId for a card by name in a list of candidate instanceIds. */
     fun findInstanceId(candidateIds: List<Int>, name: String): Int = candidateIds.firstOrNull { cardName(it) == name }
         ?: error("Card '$name' not found in candidates: $candidateIds")
+
+    /**
+     * Find instanceId of a card by name in the given [player]'s [zone].
+     * Defaults to the human's battlefield.
+     */
+    fun instanceIdOf(
+        cardName: String,
+        player: Player = human,
+        zone: ZoneType = ZoneType.Battlefield,
+    ): Int {
+        val card = player.getZone(zone).cards.firstOrNull { it.name == cardName }
+            ?: error("Card '$cardName' not found in ${player.name} $zone")
+        return harness.bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+    }
+
+    /**
+     * Resolve an instanceId back to its [forge.game.card.Card] via the bridge.
+     * Returns null if the mapping is stale (card zoned out or iid reallocated).
+     */
+    fun cardByIid(iid: Int): forge.game.card.Card? {
+        val cardId = harness.bridge.getForgeCardId(InstanceId(iid)) ?: return null
+        return harness.game().findById(cardId.value)
+    }
 
     // --- State queries ---
 
