@@ -63,6 +63,7 @@ just bootstrap    # fresh clone/worktree → submodules → forge install → bu
 just hooks-install # enable repo-tracked git hooks for this clone
 just build        # gradle: proto-sync + compile + jar
 just serve        # start server (restart after code changes — JVM holds old bytecode)
+just fmt          # apply Kotlin formatting (spotless/ktlint). Pre-push runs fmt-check only, doesn't auto-apply.
 ```
 
 **End-to-end local client runs require a small amount of local setup.** See `docs/local-client-setup.md`.
