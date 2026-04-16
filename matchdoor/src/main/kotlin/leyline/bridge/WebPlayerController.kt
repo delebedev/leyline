@@ -627,7 +627,8 @@ class WebPlayerController(
         val hostCard = tgtSA.hostCard
         log.info(
             "playSaFromPlayEffect: prompting for optional cast of {} (alt-cost={})",
-            hostCard?.name, tgtSA.getAlternativeCost(),
+            hostCard?.name,
+            tgtSA.getAlternativeCost(),
         )
 
         val future = java.util.concurrent.CompletableFuture<Boolean>()
@@ -645,7 +646,8 @@ class WebPlayerController(
         } catch (e: Exception) {
             log.warn(
                 "playSaFromPlayEffect: timeout/error for {} — declining (card goes to graveyard)",
-                hostCard?.name, e,
+                hostCard?.name,
+                e,
             )
             false // Default to declining on timeout — safer than surprise-casting.
         } finally {

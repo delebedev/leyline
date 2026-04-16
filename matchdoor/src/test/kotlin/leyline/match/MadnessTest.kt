@@ -3,12 +3,10 @@ package leyline.match
 import forge.game.zone.ZoneType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import leyline.IntegrationTag
-import leyline.bridge.ForgeCardId
 import leyline.bridge.SeatId
 import leyline.conformance.ConformanceTestBase
 import leyline.conformance.MatchFlowHarness

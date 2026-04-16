@@ -146,7 +146,9 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val topSa = bridge.getGame()?.stack?.peek()?.spellAbility
         val saAltCost = if (topSa != null && topSa.hostCard?.id == card.id) {
             topSa.getAlternativeCost()
-        } else null
+        } else {
+            null
+        }
         val altCostAbilityGrpId = if (saAltCost != null) {
             val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
             val cardData = if (grpId != 0) bridge.cardRepository.findByGrpId(grpId) else null
@@ -154,7 +156,9 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
             cardData?.keywordAbilityGrpIds?.entries
                 ?.firstOrNull { it.key.uppercase().startsWith(altCostName) }
                 ?.value ?: 0
-        } else 0
+        } else {
+            0
+        }
         queue.add(
             GameEvent.SpellCast(
                 cardId = ForgeCardId(card.id),
@@ -166,7 +170,11 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         )
         log.debug(
             "event: SpellCast card={} seat={} manaPayments={} adventure={} altCost={}",
-            card.name, seat, payments.size, isAdventure, altCostAbilityGrpId,
+            card.name,
+            seat,
+            payments.size,
+            isAdventure,
+            altCostAbilityGrpId,
         )
     }
 
