@@ -124,8 +124,7 @@
     <ID>MissingAssertSoftly:AdventureCastActionTest.kt$ProducedToManaColorTest$ActionMapper.producedToManaColor("R") shouldBe ManaColor.Red_afc9</ID>
     <ID>MissingAssertSoftly:AiFirstTurnShapeTest.kt$AiFirstTurnShapeTest$gsm0.type shouldBe GameStateType.Diff</ID>
     <ID>MissingAssertSoftly:AiFirstTurnShapeTest.kt$AiFirstTurnShapeTest$gsm1.type shouldBe GameStateType.Diff</ID>
-    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$AnnotationBuilder.counterTypeId("P1P1") shouldBe 1</ID>
-    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.affectorId shouldBe 1000</ID>
+    <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$CounterTypes.counterTypeId("P1P1") shouldBe 1</ID>
     <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldBe listOf(AnnotationType.PowerToughnessModCreated)</ID>
     <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.AbilityExhausted</ID>
     <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.AbilityInstanceCreated</ID>
@@ -174,7 +173,7 @@
     <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$ann.typeList shouldContain AnnotationType.ZoneTransfer_af5a</ID>
     <ID>MissingAssertSoftly:AnnotationBuilderTest.kt$AnnotationBuilderTest$colors.valueInt32Count shouldBe 2</ID>
     <ID>MissingAssertSoftly:AnnotationOrderingTest.kt$AnnotationOrderingTest$ids.shouldNotBeEmpty()</ID>
-    <ID>MissingAssertSoftly:AnnotationShapeConformanceTest.kt$AnnotationShapeConformanceTest$detailKeys(AnnotationBuilder.newTurnStarted(1)) shouldBe emptySet()</ID>
+    <ID>MissingAssertSoftly:AnnotationShapeConformanceTest.kt$AnnotationShapeConformanceTest$detailKeys(AnnotationBuilder.newTurnStarted(1.sid)) shouldBe emptySet()</ID>
     <ID>MissingAssertSoftly:AssignDamageTest.kt$AssignDamageTest$defenderSlot.shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:AttachmentAnnotationTest.kt$AttachmentAnnotationTest$attachCreated.shouldNotBeNull()</ID>
     <ID>MissingAssertSoftly:AttachmentAnnotationTest.kt$AttachmentAnnotationTest$attachPersistent.shouldNotBeNull()</ID>
@@ -198,7 +197,7 @@
     <ID>MissingAssertSoftly:CardInjectionTest.kt$CardInjectionTest$first.grpId shouldBe second.grpId</ID>
     <ID>MissingAssertSoftly:CardInjectionTest.kt$CardInjectionTest$obj.grpId shouldBe injected.grpId</ID>
     <ID>MissingAssertSoftly:CardRepositoryTest.kt$CardRepositoryTest$parseTokenGrpIds(null) shouldBe emptyMap&lt;Int, Int&gt;()</ID>
-    <ID>MissingAssertSoftly:CategoryFromEventsTest.kt$CategoryFromEventsTest$AnnotationBuilder.categoryFromEvents(ForgeCardId(42), events) shouldBe TransferCategory.PlayLand</ID>
+    <ID>MissingAssertSoftly:CategoryFromEventsTest.kt$CategoryFromEventsTest$TransferCategoryResolver.categoryFromEvents(ForgeCardId(42), events) shouldBe TransferCategory.PlayLand</ID>
     <ID>MissingAssertSoftly:ChannelPuzzleTest.kt$ChannelPuzzleTest$h.passUntil(maxPasses = 20) { isGameOver() || ai.life &lt;= 0 }.shouldBeTrue()</ID>
     <ID>MissingAssertSoftly:ClientAccumulatorTest.kt$ClientAccumulatorTest$acc.objects.size shouldBe 1</ID>
     <ID>MissingAssertSoftly:ClientAccumulatorTest.kt$ClientAccumulatorTest$acc.objects.size shouldBe 2</ID>
