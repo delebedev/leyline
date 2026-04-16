@@ -71,9 +71,7 @@ graph LR
 
 The session thread needs to know when the engine has reached a priority stop, posted an interactive prompt, or ended the game. The mechanism is a semaphore — `PrioritySignal` — not polling.
 
-- Bridges call `signal()` when they post a pending item. `GameLoopController.shutdown` signals on game-over so waiters wake instead of timing out.
-- `GameBridge.awaitPriorityWithTimeout` calls `awaitSignal(timeoutMs)` and `drainPermits` on wake.
-- Permits accumulate: a signal that arrives before the observer starts waiting is not lost.
+Semaphore over other primitives because permits accumulate: a signal that arrives before the observer starts waiting is not lost, so there is no race between posting a pending item and observing it.
 
 ```mermaid
 sequenceDiagram
@@ -110,21 +108,17 @@ Two independent timelines exist. Treating one as a substitute for the other sile
 | Diff baseline | `DiffSnapshotter.diffBaselineState` (volatile) | Every `snapshotDiffBaseline(gsm)` call, on whichever thread issued it | Input to `StateMapper.buildDiffFromGame` so the next GSM carries only changed fields |
 | Last-sent state | Implicit in the sink — defined by the actual `send` call | Every `sink.send(messages)` | Any decision whose correctness depends on what the client has seen |
 
-**R1. Do not snapshot what has not been sent.** Calling `snapshotDiffBaseline(buildFromGame(...))` before the built state is sent advances the baseline. The next diff then omits objects the client has never received.
+**R1. Do not snapshot what has not been sent.** Calling `snapshotDiffBaseline(buildFromGame(...))` before the built state is sent advances the baseline. The next diff then omits objects the client has never received. The operational form is: build → diff → send → snapshot, in that order, exactly once per outbound GSM.
 
 **R2. Do not reuse the diff baseline as client-awareness state.** The baseline can be advanced by any engine-thread capture (`GamePlayback` pacing, EventBus handlers) that never reaches the wire. If a decision depends on "did we send X to the client?", store that answer explicitly.
-
-**R3. One baseline advance per sent message.** A builder that emits a `GameStateMessage` calls `snapshotDiffBaseline` exactly once, after diffing and before returning.
 
 ---
 
 ## 4. One shared counter, not two
 
-`gsId` and `msgId` are protocol-critical: the client rejects out-of-order or duplicated IDs and forces a resync. Both live on a single `MessageCounter` instance — shared by `MatchSession`, `GameBridge`, `GamePlayback`, and `BundleBuilder` at construction time.
+`gsId` and `msgId` are protocol-critical: the client rejects out-of-order or duplicated IDs and forces a resync. Both live on a single `MessageCounter` instance — shared by `MatchSession`, `GameBridge`, `GamePlayback`, and `BundleBuilder` at construction time. The session thread and the engine thread both call `nextGsId()` / `nextMsgId()` directly on the same `AtomicInteger`.
 
-The session thread and the engine thread both call `nextGsId()` / `nextMsgId()` directly on the same `AtomicInteger`. `incrementAndGet` makes the sequence monotone by construction; no reconciliation is needed.
-
-The client requires `gsId` to increase monotonically across the interleaved message stream, which forbids partitioning a range of IDs to each thread: partitioning cannot guarantee ordering without coordination on every send, which is the problem the shared atomic already solves. A design with two counters and a `max()`-merge at every bridge callback was the previous shape; the current shape removes the problem rather than patching it.
+A partitioned design (a range of IDs per thread) cannot guarantee client-visible ordering without coordination on every send, which is the problem the shared atomic already solves. A predecessor design with two counters and a `max()`-merge at every bridge callback existed; the current shape removes the problem rather than patching it.
 
 ---
 
@@ -153,14 +147,9 @@ CharmEffect.makeChoices(ability)        ← blocks in chooseModeForAbility
 game.getStack().addAndUnfreeze(ability) ← runs only after mode choice returns
 ```
 
-When `WebPlayerController.chooseModeForAbility` fires and the session sends `CastingTimeOptionsReq`, `game.getStack()` is empty — the trigger has not been added. `ZoneMapper.addStackAbilities` will not find it, and `buildDiffFromGame` will not include it. Real Arena adds the trigger to the stack first, then prompts. Forge's ordering cannot be changed, so `BundleBuilder.castingTimeOptionsBundle` synthesizes the ability game object into the outbound GSM when `sourceCardInstanceId` is set (the triggered-ability path):
+When `WebPlayerController.chooseModeForAbility` fires and the session sends `CastingTimeOptionsReq`, `game.getStack()` is empty — the trigger has not been added. The real client expects to see the triggered ability on the stack before the modal prompt. Forge's ordering cannot be changed, so `BundleBuilder.castingTimeOptionsBundle` synthesizes the ability game object into the outbound GSM: build the base GSM, inject a `GameObjectInfo` for the ability into the `Stack` zone, then call `snapshotDiffBaseline` on the synthesized state. The snapshot step is load-bearing — without it, when the ability eventually resolves, the next diff has no record of the object to delete.
 
-1. Build the base GSM via `StateMapper.buildDiffFromGame`.
-2. Construct a `GameObjectInfo` for the ability (instanceId / grpId / parentId from the `CastingTimeOptionReq`, type `Ability`, zone `Stack`, visibility `Public`).
-3. Insert it into the `Stack` zone of the GSM, creating the zone entry if the diff omitted it.
-4. Call `snapshotDiffBaseline` on the synthesized GSM. When the ability eventually resolves, the next diff emits `diffDeletedInstanceIds` for it.
-
-Spell-time modals (kicker, spell modals where the card itself is already on the stack) skip the synthesis; `sourceCardInstanceId` is null.
+Spell-time modals (kicker, spell modals where the card itself is already on the stack) skip the synthesis; `sourceCardInstanceId` is null on that path.
 
 **Generalization.** Any Forge callback where the engine blocks for input *before* the mutation the client expects to see has happened fits this pattern. When a prompt handler observes `game.getStack().isEmpty` or `battlefield.size == expected - 1` where a different state is expected, the cause is an engine blocked in a bridge callback upstream of the mutation. The `castingTimeOptionsBundle` approach — synthesize the missing object in the outbound GSM, then `snapshotDiffBaseline` the synthesized state — is the template to copy.
 
@@ -178,8 +167,6 @@ Spell-time modals (kicker, spell modals where the card itself is already on the 
 
 ---
 
-## References
+## See also
 
-- [`architecture.md`](architecture.md) — system shape (modules, ports, wire frame, match lifecycle).
-- `matchdoor/src/main/kotlin/leyline/bridge/` — `GameLoopController`, `GameActionBridge`, `InteractivePromptBridge`, `MulliganBridge`, `PrioritySignal`, `WebPlayerController`.
-- `matchdoor/src/main/kotlin/leyline/game/` — `GameBridge`, `MessageCounter`, `DiffSnapshotter`, `StateMapper`, `BundleBuilder`, `GamePlayback`.
+[`architecture.md`](architecture.md) — system shape (modules, ports, wire frame, match lifecycle).

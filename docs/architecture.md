@@ -18,12 +18,11 @@ Gradle multi-project layout. All Kotlin.
 - **`leyline`** — root project, sources in `app/`. Application entrypoint (`LeylineMain`), server wiring (`LeylineServer`), debug HTTP server, management.
 - **`account`** — HTTPS authentication backend (`AccountServer`, `TokenService`, `AccountStore`).
 - **`frontdoor`** — pre-game surface: lobby, deck, draft, matchmaking. `FrontDoorHandler` dispatches to services in `frontdoor/service/`; replies encoded by `frontdoor/wire/`.
-- **`matchdoor`** — gameplay. Structured as:
-  - `bridge/` — engine integration (`GameActionBridge`, `InteractivePromptBridge`, `MulliganBridge`, `PrioritySignal`, `GameLoopController`, `WebPlayerController`, `WebCostDecision`, `WebGuiGame`, `PhaseStopProfile`).
-  - `game/` — state mapping, annotations, diffing, counters (`StateMapper`, `BundleBuilder`, `AnnotationBuilder`, `GameBridge`, `GamePlayback`, `MessageCounter`, `DiffSnapshotter`, `PersistentAnnotationStore`, `GameEventCollector`). `game/mapper/` holds per-slice mappers (`ObjectMapper`, `ZoneMapper`, `PlayerMapper`, `ActionMapper`).
-  - `match/` — session state machine (`MatchSession`, `MatchHandler`, `MatchRegistry`, `AutoPassEngine`, `CombatHandler`, `TargetingHandler`, `OptionalActionHandler`, `MulliganHandler`, `SessionOps`).
-  - `protocol/` — wire framing (`FrameCodec`, `HandshakeMessages`).
-  - `config/`, `infra/`, `conformance/` — configuration, message-sink interfaces, and the conformance test harness.
+- **`matchdoor`** — gameplay. Four core sub-packages:
+  - `bridge/` — engine integration. Blocking-bridge classes and the `WebPlayerController` override surface.
+  - `game/` — state mapping, annotations, diffing, counters. `game/mapper/` holds per-slice mappers (objects, zones, players, actions).
+  - `match/` — session state machine: `MatchSession` + per-concern handlers (combat, targeting, optional-actions, mulligan, auto-pass).
+  - `protocol/` — 6-byte wire framing and handshake.
 - **`forge/`** — Card-Forge upstream as a git submodule (the Java rules engine).
 
 ```mermaid
@@ -88,11 +87,7 @@ Ports are configured via `leyline.toml` or CLI flags (`--fd-port`, `--md-port`, 
 
 The gameplay path bridges an asynchronous, protobuf-driven client to a synchronous, single-threaded Java engine. When the engine reaches a priority stop or interactive prompt, a bridge class blocks the engine thread on a `CompletableFuture` until the client's response arrives; the session thread builds and sends the outbound message in the meantime, then completes the future to unblock the engine.
 
-Three bridges cover the engine callback surface:
-
-- `GameActionBridge` — priority stops (play / pass / attack).
-- `InteractivePromptBridge` — engine-initiated choices (targeting, sacrifice, scry, modal).
-- `MulliganBridge` — keep / mulligan / tuck.
+Three bridges cover the engine callback surface: `GameActionBridge` for priority stops, `InteractivePromptBridge` for engine-initiated choices (targeting, sacrifice, scry, modal), and `MulliganBridge` for the mulligan loop.
 
 The bridges are transport-agnostic by design: the same classes are driven by `MatchHandler` in production and by `MatchFlowHarness` in tests. See [`bridge-threading.md`](bridge-threading.md) for the threading invariants that keep engine and wire coherent.
 
