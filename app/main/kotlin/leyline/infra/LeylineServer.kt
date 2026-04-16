@@ -103,9 +103,17 @@ class LeylineServer(
         // Configure proto dump output directory
         leyline.protocol.ProtoDump.engineDumpDir = leyline.LeylinePaths.ENGINE_DUMP
 
-        // Eagerly initialize the engine card DB on main thread — avoids race when
-        // multiple Netty threads hit GameBridge.start() concurrently.
-        GameBootstrap.initializeCardDatabase()
+        // Initialize engine card DB on a background thread — server accepts connections
+        // immediately while the ~2s card parse runs. GameBridge.start() calls
+        // initializeCardDatabase() again (idempotent) and blocks until ready; failures
+        // propagate via awaitAndRethrow on any subsequent caller.
+        Thread({ GameBootstrap.initializeCardDatabase() }, "forge-init").apply {
+            isDaemon = true
+            setUncaughtExceptionHandler { _, e ->
+                log.error("Card DB init failed — server is listening but match creation will fail", e)
+            }
+            start()
+        }
 
         val ssl = buildSslContext()
         startLocal(ssl, ssl)
