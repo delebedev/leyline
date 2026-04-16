@@ -51,6 +51,11 @@ val BundleBuilder.BundleResult.aarOrNull: ActionsAvailableReq?
 fun AnnotationInfo.detail(key: String): KeyValuePairInfo? =
     detailsList.firstOrNull { it.key == key }
 
+/** True if this annotation has a detail with the given key. Prefer over
+ *  `detailsList.any { it.key == key }` for negative assertions. */
+fun AnnotationInfo.hasDetail(key: String): Boolean =
+    detailsList.any { it.key == key }
+
 /** Shorthand: get an int32 detail value. Fails if the key is missing. */
 fun AnnotationInfo.detailInt(key: String): Int =
     detail(key)?.getValueInt32(0) ?: error("No detail '$key' on annotation $typeList")

@@ -160,6 +160,12 @@ class WebPlayerController(
         val wrapper: WrappedAbility?,
         val hostCard: Card?,
         val future: java.util.concurrent.CompletableFuture<Boolean>,
+        /** When true, force a full state snapshot before emitting the prompt.
+         *  Needed for mid-resolution prompts (e.g. Madness's playSaFromPlayEffect)
+         *  where the engine hasn't sent the post-replacement state (card in exile)
+         *  before blocking on the choice. Without this, the client sees the prompt
+         *  before it sees the discard-to-exile transition. */
+        val forceSnapshotBeforePrompt: Boolean = false,
     )
 
     /** Set client auto-pass state (called by MatchSession after bridge connection). */
@@ -591,6 +597,70 @@ class WebPlayerController(
         } finally {
             pendingOptionalAction = null
         }
+    }
+
+    /**
+     * "Do you want to cast this spell that was given to you?" — fires from
+     * Forge's PlayEffect for Madness, Discover, Cascade-into-cast, and similar
+     * optional-cast paths. The default inherited behavior (PlayerControllerHuman)
+     * routes through PlaySpellAbility which bypasses the Arena client entirely;
+     * we need to surface the choice as an OptionalActionMessage so the player can
+     * Accept or Decline through the normal client UI. On Accept, delegate to
+     * `super.playSaFromPlayEffect(tgtSA)` which drives the real cast flow via
+     * PlaySpellAbility (targeting, mana payment, stack placement — our alt-cost
+     * rail emits CastingTimeOption + UAT alternativeGrpId along the way). On
+     * Decline, return false so Forge's PlayEffect SubAbility fires the
+     * "otherwise put in graveyard" branch (Exile→GY category=Put via our heuristic).
+     *
+     * SHORTCUT vs production-client behavior: the client already knows how to
+     * render this moment from an `ActionsAvailableReq` with exactly one Cast and
+     * one Pass action for the exiled card. Leyline shortcuts via
+     * OptionalActionMessage (Take Action / Decline UI) because the existing
+     * plumbing handles Accept/Decline uniformly. To align with the client's
+     * native rendering path: skip this override entirely, let the trigger
+     * resolve as a decline (returns false), and have ActionMapper offer Cast
+     * for the exile-resident madness-eligible card during the next priority
+     * window. Deferred because it requires broader ActionMapper +
+     * priority-flow changes.
+     */
+    override fun playSaFromPlayEffect(tgtSA: SpellAbility): Boolean {
+        val hostCard = tgtSA.hostCard
+        log.info(
+            "playSaFromPlayEffect: prompting for optional cast of {} (alt-cost={})",
+            hostCard?.name,
+            tgtSA.getAlternativeCost(),
+        )
+
+        val future = java.util.concurrent.CompletableFuture<Boolean>()
+        pendingOptionalAction = OptionalActionPrompt(
+            wrapper = null,
+            hostCard = hostCard,
+            future = future,
+            forceSnapshotBeforePrompt = true,
+        )
+        actionBridge?.prioritySignal?.signal()
+
+        val accepted = try {
+            val timeoutMs = actionBridge?.getTimeoutMs() ?: 120_000L
+            future.get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)
+        } catch (e: Exception) {
+            log.warn(
+                "playSaFromPlayEffect: timeout/error for {} — declining (card goes to graveyard)",
+                hostCard?.name,
+                e,
+            )
+            false // Default to declining on timeout — safer than surprise-casting.
+        } finally {
+            pendingOptionalAction = null
+        }
+
+        // On accept, drive the real cast flow via the parent controller's
+        // PlaySpellAbility.playSpellAbility pathway — this handles targeting,
+        // mana payment, and places the spell on the stack. Returning true
+        // without calling super() short-circuits the cast (spell never lands).
+        // On decline, return false so Forge's PlayEffect SubAbility fires the
+        // "otherwise put in graveyard" branch (Exile→GY via our Put heuristic).
+        return if (accepted) super.playSaFromPlayEffect(tgtSA) else false
     }
 
     override fun confirmPayment(costPart: CostPart?, question: String, sa: SpellAbility): Boolean {

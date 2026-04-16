@@ -51,6 +51,10 @@ class MatchFlowHarness(
     /** All raw messages (SettingsResp, MatchCompleted, etc.) sent via [MessageSink.sendRaw]. */
     val allRawMessages = mutableListOf<MatchServiceToClientMessage>()
 
+    /** When set, the next auto-accepted optional-action prompt declines instead.
+     *  Use [declineNextOptionalAction] to set this. Cleared after one use. */
+    private var nextOptionalResponse: OptionResponse? = null
+
     lateinit var session: MatchSession
         private set
     lateinit var bridge: GameBridge
@@ -720,13 +724,19 @@ class MatchFlowHarness(
         wpc.pendingOptionalAction ?: return
         val msg = allMessages.lastOrNull { it.type == GREMessageType.OptionalActionMessage_695e } ?: return
 
+        // If a test pre-seeded a one-shot response via [declineNextOptionalAction],
+        // use it and clear the slot. Otherwise default to AllowYes to keep existing
+        // tests unblocked.
+        val response = nextOptionalResponse ?: OptionResponse.AllowYes
+        nextOptionalResponse = null
+
         val greMsg = ClientToGREMessage.newBuilder()
             .setType(ClientMessageType.OptionalActionResp)
             .setGameStateId(msg.gameStateId)
             .setRespId(msg.msgId)
             .setOptionalResp(
                 OptionalResp.newBuilder()
-                    .setResponse(OptionResponse.AllowYes),
+                    .setResponse(response),
             )
             .build()
         session.onOptionalActionResp(greMsg)
@@ -736,6 +746,15 @@ class MatchFlowHarness(
         allRawMessages.addAll(sink.rawMessages)
         accumulator.processAll(sink.messages)
         sink.clear()
+    }
+
+    /**
+     * Pre-seed the next auto-accepted optional-action prompt to be declined instead.
+     * One-shot; cleared after the next OptionalActionMessage is auto-responded to.
+     * Use when exercising decline branches (e.g. Madness "put in graveyard" path).
+     */
+    fun declineNextOptionalAction() {
+        nextOptionalResponse = OptionResponse.CancelNo
     }
 
     /**

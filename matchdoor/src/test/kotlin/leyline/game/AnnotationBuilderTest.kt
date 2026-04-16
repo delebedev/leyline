@@ -9,6 +9,7 @@ import leyline.conformance.detail
 import leyline.conformance.detailInt
 import leyline.conformance.detailString
 import leyline.conformance.detailUint
+import leyline.conformance.hasDetail
 import leyline.game.mapper.ZoneIds
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationType
 
@@ -144,6 +145,64 @@ class AnnotationBuilderTest :
             val ann = AnnotationBuilder.userActionTaken(instanceId = 400, seatId = 2, actionType = 1)
             ann.detailInt("actionType") shouldBe 1
             ann.affectorId shouldBe 2
+        }
+
+        test("userActionTakenOmitsAlternativeGrpIdWhenZero") {
+            val ann = AnnotationBuilder.userActionTaken(
+                instanceId = 400,
+                seatId = 1,
+                actionType = 1,
+                abilityGrpId = 0,
+            )
+            // Hardcast / land-play / regular cast: no alternativeGrpId detail emitted
+            ann.hasDetail("alternativeGrpId") shouldBe false
+        }
+
+        test("userActionTakenIncludesAlternativeGrpIdWhenSet") {
+            // Madness cast — alternativeGrpId carries the madness ability grpId
+            val ann = AnnotationBuilder.userActionTaken(
+                instanceId = 375,
+                seatId = 1,
+                actionType = 1,
+                abilityGrpId = 5658,
+                alternativeGrpId = 5658,
+            )
+            assertSoftly {
+                ann.detailInt("actionType") shouldBe 1
+                ann.detailInt("abilityGrpId") shouldBe 5658
+                ann.detailInt("alternativeGrpId") shouldBe 5658
+            }
+        }
+
+        // --- CastingTimeOption ---
+
+        test("castingTimeOptionType13MadnessShape") {
+            // Client-visible type=13 alt-cost shape for a madness cast.
+            val ann = AnnotationBuilder.castingTimeOption(
+                stackInstanceId = 361,
+                type = 13,
+                alternateCostGrpId = 5658,
+            )
+            ann.typeList shouldContain AnnotationType.CastingTimeOption
+            ann.affectorId shouldBe 361
+            ann.affectedIdsList shouldContain 361
+            assertSoftly {
+                ann.detailInt("type") shouldBe 13
+                ann.detailInt("alternateCostGrpId") shouldBe 5658
+                // castAbilityGrpId defaults to alternateCostGrpId for type=13
+                ann.detailInt("castAbilityGrpId") shouldBe 5658
+            }
+        }
+
+        test("castingTimeOptionAllowsDistinctCastAbilityGrpId") {
+            val ann = AnnotationBuilder.castingTimeOption(
+                stackInstanceId = 100,
+                type = 13,
+                alternateCostGrpId = 5658,
+                castAbilityGrpId = 9999,
+            )
+            ann.detailInt("alternateCostGrpId") shouldBe 5658
+            ann.detailInt("castAbilityGrpId") shouldBe 9999
         }
 
         // --- ResolutionStart ---

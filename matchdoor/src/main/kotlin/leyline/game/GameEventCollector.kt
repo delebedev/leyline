@@ -138,8 +138,44 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
         val isAdventure = realCard != null &&
             realCard.isAdventureCard &&
             realCard.currentStateName == forge.card.CardStateName.Secondary
-        queue.add(GameEvent.SpellCast(ForgeCardId(card.id), seat, payments, isAdventure = isAdventure))
-        log.debug("event: SpellCast card={} seat={} manaPayments={} adventure={}", card.name, seat, payments.size, isAdventure)
+        // Alt-cost detection (Madness, Flashback, Warp, Cycling, Impending).
+        // ev.sa() is a SpellAbilityView snapshot which doesn't expose alt-cost.
+        // Peek the live stack instead — the just-cast spell sits on top — then
+        // resolve to the Arena ability grpId via the keyword→grpId lookup
+        // (same path ActionMapper uses when offering the alt-cost cast action).
+        val topSa = bridge.getGame()?.stack?.peek()?.spellAbility
+        val saAltCost = if (topSa != null && topSa.hostCard?.id == card.id) {
+            topSa.getAlternativeCost()
+        } else {
+            null
+        }
+        val altCostAbilityGrpId = if (saAltCost != null) {
+            val grpId = bridge.cardRepository.findGrpIdByName(card.name) ?: 0
+            val cardData = if (grpId != 0) bridge.cardRepository.findByGrpId(grpId) else null
+            val altCostName = saAltCost.name.uppercase()
+            cardData?.keywordAbilityGrpIds?.entries
+                ?.firstOrNull { it.key.uppercase().startsWith(altCostName) }
+                ?.value ?: 0
+        } else {
+            0
+        }
+        queue.add(
+            GameEvent.SpellCast(
+                cardId = ForgeCardId(card.id),
+                seatId = seat,
+                manaPayments = payments,
+                isAdventure = isAdventure,
+                altCostAbilityGrpId = altCostAbilityGrpId,
+            ),
+        )
+        log.debug(
+            "event: SpellCast card={} seat={} manaPayments={} adventure={} altCost={}",
+            card.name,
+            seat,
+            payments.size,
+            isAdventure,
+            altCostAbilityGrpId,
+        )
     }
 
     override fun visit(ev: GameEventSpellMovedToStack) {
@@ -173,6 +209,12 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
                 // CardDestroyed is emitted from GameEventCardDestroyed (with activator).
                 from == ZoneType.Battlefield && (to == ZoneType.Hand || to == ZoneType.Library) ->
                     GameEvent.CardBounced(ForgeCardId(card.id), seat)
+                // Hand→Exile via the discard pipeline (Madness, Mayhem — keyword
+                // replacement effects exile-on-discard). The card has the keyword
+                // and the move originates from Hand, so still treat it as Discard
+                // rather than a generic exile.
+                from == ZoneType.Hand && to == ZoneType.Exile && hasDiscardReplacementKeyword(card) ->
+                    GameEvent.CardDiscarded(ForgeCardId(card.id), seat)
                 to == ZoneType.Exile -> {
                     val sourceId = card.exiledWith?.id
                     GameEvent.CardExiled(ForgeCardId(card.id), seat, sourceId?.let { ForgeCardId(it) }, fromBattlefield = from == ZoneType.Battlefield)
@@ -497,4 +539,19 @@ class GameEventCollector(private val bridge: GameBridge) : IGameEventVisitor.Bas
                     ManaColorMapping.fromProduced(token)?.number
                 }
             }
+
+    /** True if the card has a discard-replacement keyword (Madness, Mayhem) — these
+     *  redirect Hand→GY discards to Hand→Exile but Arena still tags them as Discard.
+     *  Consults CardRepository's normalized keyword map rather than Forge's raw
+     *  Keyword.toString() — the upstream normalization in AbilityIdDeriver uppercases
+     *  keyword names, so a stable string prefix check works regardless of Forge's
+     *  internal Keyword representation. */
+    private fun hasDiscardReplacementKeyword(cardView: forge.game.card.CardView): Boolean {
+        val grpId = bridge.cardRepository.findGrpIdByName(cardView.name) ?: return false
+        val cardData = bridge.cardRepository.findByGrpId(grpId) ?: return false
+        return cardData.keywordAbilityGrpIds.keys.any { kw ->
+            val u = kw.uppercase()
+            u.startsWith("MADNESS") || u.startsWith("MAYHEM")
+        }
+    }
 }

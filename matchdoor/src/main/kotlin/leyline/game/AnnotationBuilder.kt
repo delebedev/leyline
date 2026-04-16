@@ -70,7 +70,13 @@ object AnnotationBuilder {
 
         for (ev in events) {
             when (ev) {
-                // Highest priority — mechanic-specific events (immediate return)
+                // Highest priority — mechanic-specific events (immediate return).
+                // TODO: scope SpellCast by dstZone==Stack to avoid tagging Madness's
+                // Hand→Exile discard-replacement transfer as CastSpell. Blocked on
+                // a fallback for Exile→Stack alt-cost correlation when the
+                // SpellCast event lands in a separate GSM cycle from the zone
+                // transfer (Forge PlayEffect-driven casts). See
+                // docs/protocol/mechanics/Madness.md § Wiring assessment.
                 is GameEvent.LandPlayed -> if (ev.cardId == forgeCardId) return TransferCategory.PlayLand
                 is GameEvent.SpellCast -> if (ev.cardId == forgeCardId) return TransferCategory.CastSpell
                 is GameEvent.SpellResolved -> if (ev.cardId == forgeCardId) {
@@ -180,6 +186,11 @@ object AnnotationBuilder {
         }
         ev.from == Zone.Exile -> when (ev.to) {
             Zone.Hand, Zone.Battlefield -> TransferCategory.Return
+            // Exile → Graveyard. Primary case: declined Madness — the madness
+            // ability resolves without the player electing to cast, so the card
+            // exits exile to its owner's graveyard. Tag as `Put`. Generic
+            // enough to also cover cleanup of an exiled card moving to graveyard.
+            Zone.Graveyard -> TransferCategory.Put
             else -> TransferCategory.ZoneTransfer
         }
         ev.to == Zone.Exile -> TransferCategory.Exile
@@ -250,12 +261,16 @@ object AnnotationBuilder {
      * [seatId] = acting player's seat (affectorId).
      * [actionType] = client ActionType ordinal (1=Cast, 3=Play, 4=ActivateMana).
      * [abilityGrpId] = ability group ID (0 for land play).
+     * [alternativeGrpId] = alt-cost ability grpId (Madness, Flashback, Warp, Cycling, etc.).
+     *   Pass 0 (default) when the spell was cast for its regular cost. When non-zero, the
+     *   client renders the cast as having gone through an alternate cost path.
      */
     fun userActionTaken(
         instanceId: Int,
         seatId: Int,
         actionType: Int = 0,
         abilityGrpId: Int = 0,
+        alternativeGrpId: Int = 0,
     ): AnnotationInfo =
         AnnotationInfo.newBuilder()
             .addType(AnnotationType.UserActionTaken)
@@ -263,6 +278,46 @@ object AnnotationBuilder {
             .addAffectedIds(instanceId)
             .addDetails(int32Detail(DetailKeys.ACTION_TYPE, actionType))
             .addDetails(int32Detail(DetailKeys.ABILITY_GRP_ID, abilityGrpId))
+            .apply {
+                if (alternativeGrpId != 0) {
+                    addDetails(int32Detail(DetailKeys.ALTERNATIVE_GRP_ID, alternativeGrpId))
+                }
+            }
+            .build()
+
+    /**
+     * CastingTimeOption — persistent annotation marking how a spell on the stack was cast.
+     *
+     * Most common shape (and the one used by the alt-cost mechanic family):
+     * **type=13 CastThroughAbility** — spell cast via an alternate cost ability
+     * (Madness, Flashback, Warp, Cycling, Impending). [alternateCostGrpId] and
+     * [castAbilityGrpId] both carry the alt-cost ability's grpId for type=13.
+     *
+     * Persistent while the spell is on the stack; deleted via
+     * `diffDeletedPersistentAnnotationIds` when the spell resolves or leaves the stack.
+     *
+     * Other type values exist (3=Kicker, 5=AdditionalCost, 2=ChooseX) but are
+     * not exercised by alt-cost mechanics.
+     *
+     * [stackInstanceId] = the spell instance currently on the stack (affector AND affected,
+     *   since the annotation is self-attached).
+     * [type] = CastingTimeOptionType ordinal — pass 13 for alt-cost.
+     * [alternateCostGrpId] = the alt-cost ability grpId.
+     * [castAbilityGrpId] = same as [alternateCostGrpId] for type=13.
+     */
+    fun castingTimeOption(
+        stackInstanceId: Int,
+        type: Int,
+        alternateCostGrpId: Int,
+        castAbilityGrpId: Int = alternateCostGrpId,
+    ): AnnotationInfo =
+        AnnotationInfo.newBuilder()
+            .addType(AnnotationType.CastingTimeOption)
+            .setAffectorId(stackInstanceId)
+            .addAffectedIds(stackInstanceId)
+            .addDetails(int32Detail(DetailKeys.TYPE, type))
+            .addDetails(int32Detail(DetailKeys.ALTERNATE_COST_GRP_ID, alternateCostGrpId))
+            .addDetails(int32Detail(DetailKeys.CAST_ABILITY_GRP_ID, castAbilityGrpId))
             .build()
 
     /**

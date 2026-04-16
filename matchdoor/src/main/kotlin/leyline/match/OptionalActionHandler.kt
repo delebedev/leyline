@@ -87,6 +87,15 @@ class OptionalActionHandler(private val ops: SessionOps) {
 
         val sourceId = bridge.getOrAllocInstanceId(ForgeCardId(hostCard.id)).value
 
+        // For mid-resolution prompts (e.g. Madness: the card moves Hand→Exile via
+        // replacement BEFORE the engine asks "cast for madness?"), force a full
+        // state snapshot so the client sees the post-replacement zones before the
+        // prompt arrives. Without this the client renders the prompt while the
+        // card is still in hand.
+        if (prompt.forceSnapshotBeforePrompt) {
+            ops.sendRealGameState(bridge)
+        }
+
         val optionalMsg = OptionalActionMessage.newBuilder()
             .setSourceId(sourceId)
             .build()
