@@ -1,7 +1,9 @@
 package leyline.game
 
 import forge.game.Game
+import leyline.bridge.EffectId
 import leyline.bridge.ForgeCardId
+import leyline.bridge.GrpId
 import leyline.bridge.InstanceId
 import leyline.bridge.InteractivePromptBridge
 import leyline.bridge.SeatId
@@ -457,13 +459,13 @@ object StateMapper {
             },
         ).map { entry ->
             AnnotationBuilder.abilityWordActive(
-                instanceId = entry.instanceId,
+                instanceId = InstanceId(entry.instanceId),
                 abilityWordName = entry.abilityWordName,
                 value = entry.value,
                 threshold = entry.threshold,
-                abilityGrpId = entry.abilityGrpId,
-                affectorId = entry.affectorId ?: entry.instanceId,
-                affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) },
+                abilityGrpId = entry.abilityGrpId?.let { GrpId(it) },
+                affectorId = InstanceId(entry.affectorId ?: entry.instanceId),
+                affectedIds = entry.affectedIds.ifEmpty { listOf(entry.instanceId) }.map { InstanceId(it) },
             )
         }
 
@@ -495,7 +497,7 @@ object StateMapper {
                 .flatMap { it.getZone(forge.game.zone.ZoneType.Exile).cards.toList() }
                 .filter { it.isOnAdventure }
                 .map { card ->
-                    val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+                    val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id))
                     AnnotationBuilder.qualification(instanceId = iid)
                 }
         } else {
@@ -506,7 +508,7 @@ object StateMapper {
         val temporaryPermanentPersistent = if (game != null) {
             bfCards.filter { it.isToken && it.hasSVar("EndOfTurnLeavePlay") }
                 .map { card ->
-                    val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id)).value
+                    val iid = bridge.getOrAllocInstanceId(ForgeCardId(card.id))
                     AnnotationBuilder.temporaryPermanent(iid)
                 }
         } else {
@@ -541,7 +543,7 @@ object StateMapper {
 
         // Emit LayeredEffectDestroyed for reverted steals
         for (effectId in batch.revertedEffectIds) {
-            annotations.add(AnnotationBuilder.layeredEffectDestroyed(effectId))
+            annotations.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effectId)))
         }
 
         // Track steal lifecycle
@@ -579,16 +581,16 @@ object StateMapper {
         return pending.map { spec ->
             val spellIid = bridge.getOrAllocInstanceId(
                 ForgeCardId(spec.spellForgeCardId + ObjectMapper.STACK_ABILITY_ID_OFFSET),
-            ).value
-            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(spec.targetForgeCardId)).value
-            val grpId = bridge.cardRepository.findGrpIdByName(spec.spellName) ?: 0
+            )
+            val targetIid = bridge.getOrAllocInstanceId(ForgeCardId(spec.targetForgeCardId))
+            val grpId = GrpId(bridge.cardRepository.findGrpIdByName(spec.spellName) ?: 0)
             AnnotationBuilder.targetSpec(
                 instanceId = targetIid,
                 affectorId = spellIid,
                 abilityGrpId = grpId,
                 index = spec.index,
                 promptId = 0,
-                promptParameters = spellIid,
+                promptParameters = spellIid.value,
             )
         }
     }
@@ -599,23 +601,26 @@ object StateMapper {
     ): Triple<List<AnnotationInfo>, List<AnnotationInfo>, List<AnnotationInfo>> {
         val crewSnapshots = bridge.snapshotCrewState()
         val crewedThisTurn = crewSnapshots.map { snap ->
-            AnnotationBuilder.crewedThisTurn(snap.vehicleInstanceId, snap.crewSourceInstanceIds)
+            AnnotationBuilder.crewedThisTurn(
+                InstanceId(snap.vehicleInstanceId),
+                snap.crewSourceInstanceIds.map { InstanceId(it) },
+            )
         }
         val typeChange = mutableListOf<AnnotationInfo>()
         val expired = mutableListOf<AnnotationInfo>()
 
         val currentCrewedFids = crewSnapshots.filter { it.isCreature }.map { it.vehicleForgeCardId }.toSet()
         for (effectId in bridge.releaseCrewEffects(currentCrewedFids)) {
-            expired.add(AnnotationBuilder.layeredEffectDestroyed(effectId))
+            expired.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effectId)))
         }
         for (snap in crewSnapshots) {
             if (!snap.isCreature) continue
-            val effectId = bridge.getOrAllocCrewEffectId(snap.vehicleForgeCardId)
+            val effectId = EffectId(bridge.getOrAllocCrewEffectId(snap.vehicleForgeCardId))
             typeChange.add(
                 AnnotationBuilder.modifiedTypeLayeredEffect(
-                    instanceId = snap.vehicleInstanceId,
+                    instanceId = InstanceId(snap.vehicleInstanceId),
                     effectId = effectId,
-                    sourceAbilityGrpId = snap.crewAbilityGrpId,
+                    sourceAbilityGrpId = snap.crewAbilityGrpId?.let { GrpId(it) },
                 ),
             )
         }
@@ -699,14 +704,18 @@ object StateMapper {
         val annotations = mutableListOf<AnnotationInfo>()
         val transferPersistent = mutableListOf<AnnotationInfo>()
         for (transfer in transferResult.transfers) {
-            val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat)
+            val (transient, persistent) = TransferAnnotations.annotationsForTransfer(transfer, SeatId(actingSeat))
             annotations.addAll(transient)
             transferPersistent.addAll(persistent)
         }
         // Stack ability lifecycle: triggered abilities appearing/disappearing.
         for (a in transferResult.stackAbilityAppearances) {
             annotations.add(
-                AnnotationBuilder.abilityInstanceCreated(a.abilityInstanceId, a.sourceCardInstanceId, a.sourceZoneId),
+                AnnotationBuilder.abilityInstanceCreated(
+                    InstanceId(a.abilityInstanceId),
+                    InstanceId(a.sourceCardInstanceId),
+                    a.sourceZoneId,
+                ),
             )
         }
         for (d in transferResult.stackAbilityDisappearances) {
@@ -716,11 +725,14 @@ object StateMapper {
             // annotations for spells that move zones. For triggered abilities that vanish,
             // AbilityInstanceDeleted alone signals the lifecycle end.
             annotations.add(
-                AnnotationBuilder.abilityInstanceDeleted(d.abilityInstanceId, d.sourceCardInstanceId),
+                AnnotationBuilder.abilityInstanceDeleted(
+                    InstanceId(d.abilityInstanceId),
+                    InstanceId(d.sourceCardInstanceId),
+                ),
             )
         }
         for (ev in events.filterIsInstance<GameEvent.PhaseChanged>()) {
-            annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId.value, ev.phase, ev.step))
+            annotations.add(AnnotationBuilder.phaseOrStepModified(ev.seatId, ev.phase, ev.step))
         }
         val combatResult = CombatAnnotations.combatAnnotations(events, bridge)
         annotations.addAll(combatResult.annotations)

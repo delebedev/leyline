@@ -37,7 +37,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 12345,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {
                 annotations.size shouldBe 3
@@ -60,7 +60,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 12345,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             // ObjectIdChanged should reference origId in affectedIds
             annotations[0].affectedIdsList shouldContain 100
@@ -78,7 +78,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 12345,
                 ownerSeatId = 1,
             )
-            val (_, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (_, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             persistent.size shouldBe 1
             persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
@@ -104,7 +104,7 @@ class TransferAnnotationPipelineTest :
                     ),
                 ),
             )
-            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {
                 annotations.size shouldBe 8
@@ -167,7 +167,7 @@ class TransferAnnotationPipelineTest :
                 ownerSeatId = 1,
                 manaPayments = emptyList(),
             )
-            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {
                 annotations.size shouldBe 3
@@ -190,7 +190,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             annotations.last().detailInt("actionType") shouldBe 1
         }
@@ -207,7 +207,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             assertSoftly {
                 annotations.size shouldBe 3
@@ -230,7 +230,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 2)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 2.sid)
 
             // Resolve ZoneTransfer should carry actingSeat as affectorId
             annotations[2].affectorId shouldBe 2
@@ -246,7 +246,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
             )
-            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, _) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             annotations[0].detailUint("grpid") shouldBe 67890
         }
@@ -263,7 +263,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 0,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             // ZoneTransfer category produces ObjectIdChanged (when origId != newId) + ZoneTransfer
             annotations.size shouldBe 2
@@ -282,7 +282,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
             )
-            val (_, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (_, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
             persistent.size shouldBe 1
             persistent[0].typeList.first() shouldBe AnnotationType.EnteredZoneThisTurn
             persistent[0].affectorId shouldBe ZoneIds.STACK
@@ -299,7 +299,7 @@ class TransferAnnotationPipelineTest :
                 grpId = 67890,
                 ownerSeatId = 1,
             )
-            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1)
+            val (annotations, persistent) = TransferAnnotations.annotationsForTransfer(transfer, actingSeat = 1.sid)
 
             annotations.size shouldBe 3
             persistent.shouldBeEmpty()

@@ -1,6 +1,8 @@
 package leyline.game
 
+import leyline.bridge.EffectId
 import leyline.bridge.ForgeCardId
+import leyline.bridge.GrpId
 import leyline.bridge.InstanceId
 import org.slf4j.LoggerFactory
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
@@ -87,15 +89,15 @@ object MechanicAnnotations {
                 is GameEvent.CountersChanged -> {
                     val delta = ev.newCount - ev.oldCount
                     if (delta == 0) continue
-                    val instanceId = idResolver(ev.cardId).value
+                    val instanceId = idResolver(ev.cardId)
                     if (delta > 0) {
                         annotations.add(AnnotationBuilder.counterAdded(instanceId, ev.counterType, delta))
                     } else {
                         annotations.add(AnnotationBuilder.counterRemoved(instanceId, ev.counterType, -delta))
                     }
                     // Persistent: Counter state annotation with current count
-                    persistent.add(AnnotationBuilder.counter(instanceId, AnnotationBuilder.counterTypeId(ev.counterType), ev.newCount))
-                    log.debug("mechanic: counter {} {} on iid={}", if (delta > 0) "added" else "removed", ev.counterType, instanceId)
+                    persistent.add(AnnotationBuilder.counter(instanceId, CounterTypes.counterTypeId(ev.counterType), ev.newCount))
+                    log.debug("mechanic: counter {} {} on iid={}", if (delta > 0) "added" else "removed", ev.counterType, instanceId.value)
                 }
                 is GameEvent.LibraryShuffled -> {
                     // TODO: re-enable once LibraryShuffled carries pre/post instanceId lists
@@ -105,36 +107,36 @@ object MechanicAnnotations {
                     log.debug("mechanic: shuffle seat={} (suppressed — no detail keys)", ev.seatId.value)
                 }
                 is GameEvent.Scry -> {
-                    annotations.add(AnnotationBuilder.scry(ev.seatId.value, ev.topCount, ev.bottomCount))
+                    annotations.add(AnnotationBuilder.scry(ev.seatId, ev.topCount, ev.bottomCount))
                     log.debug("mechanic: scry seat={} top={} bottom={}", ev.seatId.value, ev.topCount, ev.bottomCount)
                 }
                 is GameEvent.Surveil -> {
                     // Surveil is mechanically similar to scry — use scry annotation
                     // with surveil semantics (toLibrary = top, toGraveyard = bottom)
-                    annotations.add(AnnotationBuilder.scry(ev.seatId.value, ev.toLibrary, ev.toGraveyard))
+                    annotations.add(AnnotationBuilder.scry(ev.seatId, ev.toLibrary, ev.toGraveyard))
                     log.debug("mechanic: surveil seat={} lib={} gy={}", ev.seatId.value, ev.toLibrary, ev.toGraveyard)
                 }
                 is GameEvent.TokenCreated -> {
-                    val instanceId = idResolver(ev.cardId).value
+                    val instanceId = idResolver(ev.cardId)
                     annotations.add(AnnotationBuilder.tokenCreated(instanceId))
-                    log.debug("mechanic: tokenCreated iid={}", instanceId)
+                    log.debug("mechanic: tokenCreated iid={}", instanceId.value)
                 }
                 is GameEvent.TokenDestroyed -> {
-                    val instanceId = idResolver(ev.cardId).value
+                    val instanceId = idResolver(ev.cardId)
                     annotations.add(AnnotationBuilder.tokenDeleted(instanceId))
-                    log.debug("mechanic: tokenDeleted iid={}", instanceId)
+                    log.debug("mechanic: tokenDeleted iid={}", instanceId.value)
                 }
                 is GameEvent.CardTapped -> {
                     if (ev.cardId in manaPaidForgeCardIds) {
                         log.debug("mechanic: skipping tapped for mana-paid land forgeId={}", ev.cardId)
                     } else {
-                        val instanceId = idResolver(ev.cardId).value
+                        val instanceId = idResolver(ev.cardId)
                         annotations.add(AnnotationBuilder.tappedUntappedPermanent(instanceId, instanceId, ev.tapped))
-                        log.debug("mechanic: tapped={} iid={}", ev.tapped, instanceId)
+                        log.debug("mechanic: tapped={} iid={}", ev.tapped, instanceId.value)
                     }
                 }
                 is GameEvent.PowerToughnessChanged -> {
-                    val instanceId = idResolver(ev.cardId).value
+                    val instanceId = idResolver(ev.cardId)
                     if (ev.oldPower != ev.newPower) {
                         annotations.add(AnnotationBuilder.modifiedPower(instanceId))
                     }
@@ -147,31 +149,31 @@ object MechanicAnnotations {
                     if (powerDelta != 0 || toughnessDelta != 0) {
                         annotations.add(AnnotationBuilder.powerToughnessModCreated(instanceId, powerDelta, toughnessDelta))
                     }
-                    log.debug("mechanic: P/T changed iid={} {}/{}→{}/{}", instanceId, ev.oldPower, ev.oldToughness, ev.newPower, ev.newToughness)
+                    log.debug("mechanic: P/T changed iid={} {}/{}→{}/{}", instanceId.value, ev.oldPower, ev.oldToughness, ev.newPower, ev.newToughness)
                 }
                 is GameEvent.CardAttached -> {
-                    val auraIid = idResolver(ev.cardId).value
-                    val targetIid = idResolver(ev.targetCardId).value
+                    val auraIid = idResolver(ev.cardId)
+                    val targetIid = idResolver(ev.targetCardId)
                     annotations.add(AnnotationBuilder.attachmentCreated(auraIid, targetIid))
                     persistent.add(AnnotationBuilder.attachment(auraIid, targetIid))
-                    log.debug("mechanic: attachment aura={} target={}", auraIid, targetIid)
+                    log.debug("mechanic: attachment aura={} target={}", auraIid.value, targetIid.value)
                 }
                 is GameEvent.CardDetached -> {
-                    val auraIid = idResolver(ev.cardId).value
+                    val auraIid = idResolver(ev.cardId)
                     annotations.add(AnnotationBuilder.removeAttachment(auraIid))
                     detachedForgeCardIds.add(ev.cardId)
-                    log.debug("mechanic: removeAttachment aura={}", auraIid)
+                    log.debug("mechanic: removeAttachment aura={}", auraIid.value)
                 }
                 is GameEvent.CardsRevealed -> {
                     for (cardId in ev.cardIds) {
-                        val instanceId = idResolver(cardId).value
+                        val instanceId = idResolver(cardId)
                         annotations.add(AnnotationBuilder.revealedCardCreated(instanceId))
-                        log.debug("mechanic: revealedCardCreated iid={} seat={}", instanceId, ev.ownerSeatId)
+                        log.debug("mechanic: revealedCardCreated iid={} seat={}", instanceId.value, ev.ownerSeatId)
                     }
                 }
                 is GameEvent.RevealProxiesDeleted -> {
                     for (proxyId in ev.proxyInstanceIds) {
-                        annotations.add(AnnotationBuilder.revealedCardDeleted(proxyId.value))
+                        annotations.add(AnnotationBuilder.revealedCardDeleted(proxyId))
                         log.debug("mechanic: revealedCardDeleted proxyIid={}", proxyId)
                     }
                 }
@@ -181,7 +183,7 @@ object MechanicAnnotations {
                     if (ev.isBackSide) {
                         val menace = KeywordQualifications.forKeyword("Menace")
                         if (menace != null) {
-                            val instanceId = idResolver(ev.cardId).value
+                            val instanceId = idResolver(ev.cardId)
                             qualificationPersistent.add(
                                 AnnotationBuilder.qualification(
                                     affectorId = instanceId,
@@ -192,7 +194,7 @@ object MechanicAnnotations {
                                     sourceParent = instanceId,
                                 ),
                             )
-                            log.debug("mechanic: Qualification (Menace) on transform iid={}", instanceId)
+                            log.debug("mechanic: Qualification (Menace) on transform iid={}", instanceId.value)
                         }
                     }
                 }
@@ -207,15 +209,15 @@ object MechanicAnnotations {
                     // Only render "exiled under this card" for BF→Exile (e.g. Fiend Hunter).
                     // GY→Exile (e.g. Predator trigger) should go to the exile zone normally.
                     if (sourceId != null && ev.fromBattlefield) {
-                        val sourceIid = idResolver(sourceId).value
-                        val exiledIid = idResolver(ev.cardId).value
+                        val sourceIid = idResolver(sourceId)
+                        val exiledIid = idResolver(ev.cardId)
                         persistent.add(AnnotationBuilder.displayCardUnderCard(affectorId = sourceIid, instanceId = exiledIid))
-                        log.debug("mechanic: displayCardUnderCard source={} exiled={}", sourceIid, exiledIid)
+                        log.debug("mechanic: displayCardUnderCard source={} exiled={}", sourceIid.value, exiledIid.value)
                     }
                     exileSourceLeftPlayForgeCardIds.add(ev.cardId)
                 }
                 is GameEvent.ControllerChanged -> {
-                    val cardIid = idResolver(ev.cardId).value
+                    val cardIid = idResolver(ev.cardId)
                     val isRevert = ev.cardId in activeStealForgeCardIds
 
                     if (isRevert) {
@@ -223,7 +225,7 @@ object MechanicAnnotations {
                         controllerRevertedForgeCardIds.add(ev.cardId)
                         log.debug(
                             "mechanic: controllerChanged revert iid={} {}->{}",
-                            cardIid,
+                            cardIid.value,
                             ev.oldControllerSeatId,
                             ev.newControllerSeatId,
                         )
@@ -236,20 +238,27 @@ object MechanicAnnotations {
                             .filterIsInstance<GameEvent.SpellResolved>()
                             .lastOrNull()
                         val affectorIid = if (spellResolved != null) {
-                            idResolver(spellResolved.cardId).value
+                            idResolver(spellResolved.cardId)
                         } else {
-                            0
+                            InstanceId(0)
                         }
-                        val effectId = effectIdAllocator()
+                        val effectId = EffectId(effectIdAllocator())
                         annotations.add(AnnotationBuilder.layeredEffectCreated(effectId, affectorIid))
                         annotations.add(AnnotationBuilder.controllerChanged(affectorIid, cardIid))
                         persistent.add(AnnotationBuilder.controllerChangedEffect(affectorIid, cardIid, effectId))
-                        controllerChangedEffects.add(MechanicAnnotationResult.ControllerChangedEffect(ev.cardId, effectId, affectorIid, cardIid))
+                        controllerChangedEffects.add(
+                            MechanicAnnotationResult.ControllerChangedEffect(
+                                ev.cardId,
+                                effectId.value,
+                                affectorIid.value,
+                                cardIid.value,
+                            ),
+                        )
                         log.debug(
                             "mechanic: controllerChanged steal iid={} affector={} effectId={} {}->{}",
-                            cardIid,
-                            affectorIid,
-                            effectId,
+                            cardIid.value,
+                            affectorIid.value,
+                            effectId.value,
                             ev.oldControllerSeatId,
                             ev.newControllerSeatId,
                         )
@@ -307,11 +316,14 @@ object MechanicAnnotations {
                 effect.fingerprint.staticId,
             )
 
+            val cardIid = InstanceId(effect.cardInstanceId)
+            val effectId = EffectId(effect.syntheticId)
+
             // Transient: LayeredEffectCreated with affectorId = card instance
             transient.add(
                 AnnotationBuilder.layeredEffectCreated(
-                    effectId = effect.syntheticId,
-                    affectorId = effect.cardInstanceId,
+                    effectId = effectId,
+                    affectorId = cardIid,
                 ),
             )
 
@@ -319,10 +331,10 @@ object MechanicAnnotations {
             if (effect.powerDelta != 0 || effect.toughnessDelta != 0) {
                 transient.add(
                     AnnotationBuilder.powerToughnessModCreated(
-                        instanceId = effect.cardInstanceId,
+                        instanceId = cardIid,
                         power = effect.powerDelta,
                         toughness = effect.toughnessDelta,
-                        affectorId = effect.cardInstanceId,
+                        affectorId = cardIid,
                     ),
                 )
             }
@@ -331,18 +343,18 @@ object MechanicAnnotations {
             // No LayeredEffectType for P/T buffs — client only expects that for CopyObject
             persistent.add(
                 AnnotationBuilder.layeredEffect(
-                    instanceId = effect.cardInstanceId,
-                    effectId = effect.syntheticId,
+                    instanceId = cardIid,
+                    effectId = effectId,
                     powerDelta = effect.powerDelta,
                     toughnessDelta = effect.toughnessDelta,
-                    affectorId = effect.cardInstanceId,
-                    sourceAbilityGrpId = sourceAbilityGrpId,
+                    affectorId = cardIid,
+                    sourceAbilityGrpId = sourceAbilityGrpId?.let { GrpId(it) },
                 ),
             )
         }
 
         for (effect in diff.destroyed) {
-            transient.add(AnnotationBuilder.layeredEffectDestroyed(effect.syntheticId))
+            transient.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effect.syntheticId)))
         }
 
         // ── Keyword grants ──────────────────────────────────────────────────
@@ -354,15 +366,18 @@ object MechanicAnnotations {
 
             for ((key, effects) in groups) {
                 val (keyword, timestamp, staticId) = key
-                val grpId = KeywordGrpIds.forKeyword(keyword) ?: continue
-                val effectId = effects.first().syntheticId
-                val affectorId = keywordAffectorResolver?.invoke(keyword, timestamp, staticId) ?: 0
+                val grpId = GrpId(KeywordGrpIds.forKeyword(keyword) ?: continue)
+                val effectId = EffectId(effects.first().syntheticId)
+                val affectorId = InstanceId(keywordAffectorResolver?.invoke(keyword, timestamp, staticId) ?: 0)
 
                 transient.add(
-                    AnnotationBuilder.layeredEffectCreated(effectId, if (affectorId != 0) affectorId else null),
+                    AnnotationBuilder.layeredEffectCreated(
+                        effectId,
+                        if (affectorId.value != 0) affectorId else null,
+                    ),
                 )
 
-                val creatureIids = effects.map { it.cardInstanceId }
+                val creatureIids = effects.map { InstanceId(it.cardInstanceId) }
                 val uniqueAbilityIds = creatureIids.map { uniqueAbilityIdAllocator() }
 
                 persistent.add(
@@ -371,7 +386,7 @@ object MechanicAnnotations {
                         grpId = grpId,
                         effectId = effectId,
                         uniqueAbilityIds = uniqueAbilityIds,
-                        originalAbilityObjectZcid = affectorId,
+                        originalAbilityObjectZcid = affectorId.value,
                         affectorId = affectorId,
                     ),
                 )
@@ -379,8 +394,8 @@ object MechanicAnnotations {
                 log.debug(
                     "effectAnnotations: keyword grant {} grpId={} effectId={} creatures={}",
                     keyword,
-                    grpId,
-                    effectId,
+                    grpId.value,
+                    effectId.value,
                     creatureIids.size,
                 )
             }
@@ -388,7 +403,7 @@ object MechanicAnnotations {
 
         for (effect in keywordDiff.destroyed) {
             if (KeywordGrpIds.forKeyword(effect.keyword) == null) continue
-            transient.add(AnnotationBuilder.layeredEffectDestroyed(effect.syntheticId))
+            transient.add(AnnotationBuilder.layeredEffectDestroyed(EffectId(effect.syntheticId)))
         }
 
         return transient to persistent

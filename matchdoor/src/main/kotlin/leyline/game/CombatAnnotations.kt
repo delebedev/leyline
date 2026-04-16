@@ -3,6 +3,7 @@ package leyline.game
 import leyline.bridge.ForgeCardId
 import leyline.bridge.InstanceId
 import leyline.bridge.SeatId
+import leyline.bridge.toWireId
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
 
 /**
@@ -79,30 +80,30 @@ object CombatAnnotations {
 
         // --- DamageDealt: creature → creature ---
         for (ev in cardDamage) {
-            val sourceIid = idResolver(ev.sourceCardId).value
-            val targetIid = idResolver(ev.targetCardId).value
-            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid, ev.amount))
+            val sourceIid = idResolver(ev.sourceCardId)
+            val targetIid = idResolver(ev.targetCardId)
+            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = targetIid.toWireId(), ev.amount))
         }
 
         // --- DamageDealt: creature → player ---
-        var firstPlayerDamageAttackerIid: Int? = null
-        var playerDamageSeat: Int? = null
+        var firstPlayerDamageAttacker: InstanceId? = null
+        var playerDamageSeat: SeatId? = null
         for (ev in playerDamage) {
-            val sourceIid = idResolver(ev.sourceCardId).value
-            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId.value, ev.amount))
-            if (firstPlayerDamageAttackerIid == null) firstPlayerDamageAttackerIid = sourceIid
-            playerDamageSeat = ev.targetSeatId.value
+            val sourceIid = idResolver(ev.sourceCardId)
+            annotations.add(AnnotationBuilder.damageDealt(sourceIid, targetId = ev.targetSeatId.toWireId(), ev.amount))
+            if (firstPlayerDamageAttacker == null) firstPlayerDamageAttacker = sourceIid
+            playerDamageSeat = ev.targetSeatId
         }
 
         // --- DamagedThisTurn badges ---
         for (ev in cardDamage) {
-            val targetIid = idResolver(ev.targetCardId).value
+            val targetIid = idResolver(ev.targetCardId)
             annotations.add(AnnotationBuilder.damagedThisTurn(targetIid))
         }
 
         // --- SyntheticEvent when player takes combat damage ---
-        if (playerDamageSeat != null && firstPlayerDamageAttackerIid != null) {
-            annotations.add(AnnotationBuilder.syntheticEvent(firstPlayerDamageAttackerIid, playerDamageSeat))
+        if (playerDamageSeat != null && firstPlayerDamageAttacker != null) {
+            annotations.add(AnnotationBuilder.syntheticEvent(firstPlayerDamageAttacker, playerDamageSeat))
         }
 
         // --- ModifiedLife from baseline comparison ---
@@ -110,7 +111,13 @@ object CombatAnnotations {
             val currentLife = currentLifeTotals[seat] ?: continue
             val delta = currentLife - prevLife
             if (delta != 0) {
-                annotations.add(AnnotationBuilder.modifiedLife(seat, delta, affectorId = firstPlayerDamageAttackerIid ?: 0))
+                annotations.add(
+                    AnnotationBuilder.modifiedLife(
+                        SeatId(seat),
+                        delta,
+                        affectorId = firstPlayerDamageAttacker,
+                    ),
+                )
             }
         }
 

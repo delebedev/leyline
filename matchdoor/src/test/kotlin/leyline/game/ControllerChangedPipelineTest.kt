@@ -148,9 +148,9 @@ class ControllerChangedPipelineTest :
         }
 
         test("computeBatch revert removes persistent CC pAnn and returns effect_id") {
-            val stolenIid = 1042
-            val effectId = 7005
-            val affectorIid = 1010
+            val stolenIid = 1042.iid
+            val effectId = 7005.eid
+            val affectorIid = 1010.iid
 
             // Simulate existing persistent annotation from a steal
             val ccPersistent = AnnotationBuilder.controllerChangedEffect(affectorIid, stolenIid, effectId)
@@ -176,7 +176,7 @@ class ControllerChangedPipelineTest :
             assertSoftly {
                 batch.allAnnotations.shouldBeEmpty()
                 batch.deletedIds shouldContain 5
-                batch.revertedEffectIds shouldContain effectId
+                batch.revertedEffectIds shouldContain effectId.value
             }
         }
     })

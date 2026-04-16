@@ -28,14 +28,14 @@ data class AppliedTransfer(
     val ownerSeatId: Int,
     /** InstanceId of the ability/spell that caused this transfer (for affectorId). */
     val affectorId: Int = 0,
-    /** Arena ManaColor ordinals for land color production (W=1, U=2, B=3, R=4, G=5). */
+    /** client ManaColor ordinals for land color production (W=1, U=2, B=3, R=4, G=5). */
     val colorOrdinals: List<Int> = emptyList(),
     /** Resolved mana payments for CastSpell (one per land tapped). */
     val manaPayments: List<ManaPaymentRecord> = emptyList(),
     /** True if this transfer is an adventure spell cast (UserActionTaken actionType=16). */
     val isAdventureCast: Boolean = false,
     /** Non-zero when this CastSpell transfer used an alternate cost (Madness, Flashback,
-     *  Warp, Cycling, Impending). Carries the Arena ability grpId for the alt-cost. */
+     *  Warp, Cycling, Impending). Carries the client ability grpId for the alt-cost. */
     val altCostAbilityGrpId: Int = 0,
 )
 
@@ -163,7 +163,7 @@ object ZoneTransferDetector {
             if (prevZone != null && prevZone != obj.zoneId) {
                 val forgeCardId = forgeIdLookup(InstanceId(obj.instanceId))
                 val category = if (forgeCardId != null && events.isNotEmpty()) {
-                    AnnotationBuilder.categoryFromEvents(forgeCardId, events)
+                    TransferCategoryResolver.categoryFromEvents(forgeCardId, events)
                         ?: inferCategory(obj, prevZone, obj.zoneId)
                 } else {
                     inferCategory(obj, prevZone, obj.zoneId)
@@ -189,7 +189,7 @@ object ZoneTransferDetector {
                 // For surveil (and future mechanics), the source card's ability on the
                 // stack has instanceId = getOrAlloc(sourceCardId + STACK_ABILITY_ID_OFFSET).
                 val affectorId = if (forgeCardId != null && events.isNotEmpty()) {
-                    val sourceCardId = AnnotationBuilder.affectorSourceFromEvents(forgeCardId, events)
+                    val sourceCardId = TransferCategoryResolver.affectorSourceFromEvents(forgeCardId, events)
                     if (sourceCardId != null) {
                         idLookup(ForgeCardId(sourceCardId.value + ObjectMapper.STACK_ABILITY_ID_OFFSET)).value
                     } else {

@@ -73,7 +73,7 @@ class BundleBuilderTest :
                 winningTeam = 1,
                 counter = counter,
                 losingPlayerSeatId = 2,
-                lossReason = 0,
+                lossReason = AnnotationLossReason.LifeTotal,
             )
 
             result.messages.size shouldBe 4
@@ -144,7 +144,7 @@ class BundleBuilderTest :
                 counter = counter,
                 reason = Messages.ResultReason.Concede,
                 losingPlayerSeatId = 2,
-                lossReason = 3,
+                lossReason = AnnotationLossReason.Concede,
             )
 
             val gs1 = result.messages[0].gameStateMessage

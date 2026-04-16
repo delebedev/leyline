@@ -194,7 +194,7 @@ class BundleBuilder(
         val gsWithAnnotations = if (turnStarted) {
             gsBase.toBuilder().apply {
                 addAnnotations(
-                    AnnotationBuilder.newTurnStarted(frame.activeSeat)
+                    AnnotationBuilder.newTurnStarted(SeatId(frame.activeSeat))
                         .toBuilder().setId(bridge.nextAnnotationId()).build(),
                 )
             }.build()
@@ -760,7 +760,7 @@ class BundleBuilder(
 
     /**
      * PayCosts bundle: GameState + PayCostsReq.
-     * Tells the Arena client to show its native mana payment UI.
+     * Tells the client to show its native mana payment UI.
      *
      * Currently unused — mana payment auto-resolves via the engine's AI
      * mana solver + checkPendingPrompt(). Wire this in when implementing
@@ -833,14 +833,14 @@ class BundleBuilder(
      *
      * @param reason Game_ae0a for natural game end, Concede for concession
      * @param losingPlayerSeatId seat of the losing player (for LossOfGame annotation)
-     * @param lossReason 0=LifeTotal, 3=Concede (maps to Arena's LossOfGame detail)
+     * @param lossReason wire-level loss reason for the LossOfGame annotation
      */
     fun gameOverBundle(
         winningTeam: Int,
         counter: MessageCounter,
         reason: ResultReason = ResultReason.Game_ae0a,
         losingPlayerSeatId: Int = 0,
-        lossReason: Int = 0,
+        lossReason: AnnotationLossReason = AnnotationLossReason.LifeTotal,
     ): BundleResult {
         val prevGsId = counter.currentGsId()
         val losingTeam = if (winningTeam == 1) 2 else 1
@@ -892,7 +892,7 @@ class BundleBuilder(
         gs1.addAllTimers(PlayerMapper.buildTimers())
         // LossOfGame annotation
         if (losingPlayerSeatId != 0) {
-            gs1.addAnnotations(AnnotationBuilder.lossOfGame(losingPlayerSeatId, lossReason))
+            gs1.addAnnotations(AnnotationBuilder.lossOfGame(SeatId(losingPlayerSeatId), lossReason))
         }
 
         // gs2: MatchComplete with both Game + Match results
@@ -959,7 +959,7 @@ class BundleBuilder(
 
     /**
      * Timer start: sends [TimerStateMessage] (GRE type 56) with Decision timer running.
-     * Real Arena sends this on priority grant — client shows rope countdown.
+     * The real server sends this on priority grant — client shows rope countdown.
      */
     fun timerStart(counter: MessageCounter, durationSec: Int = 30): BundleResult =
         buildTimerBundle(counter, running = true, durationSec = durationSec)

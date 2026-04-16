@@ -1,6 +1,6 @@
 # matchdoor
 
-Game engine adapter — translates between Forge engine and Arena client protocol. Most new code lands here.
+Game engine adapter — translates between Forge engine and the client protocol. Most new code lands here.
 
 - **Proto:** `src/main/proto/messages.proto` — client protobuf schema
 - **Forge coupling is structural:** `WebPlayerController` extends `PlayerControllerHuman` (30+ overrides). `GameBootstrap` constructs Forge `Match`, `Game`, `Deck`. Can't abstract away — it's the adapter layer's job.
@@ -13,7 +13,7 @@ bridge/     Forge adapter — WebPlayerController, cost decisions, bootstrap,
             mulligan, deck loading. Extends Forge classes directly.
 
 game/       State mapping, annotations, proto builders, card data.
-            Pure translation: Forge state → Arena protobuf.
+            Pure translation: Forge state → client protobuf.
   mapper/   Per-domain mappers (actions, objects, players, zones, stops).
 
 match/      Match orchestration — MatchHandler, MatchSession, FamiliarSession,
@@ -26,7 +26,7 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 
 ## Mental Model
 
-**Outbound (engine → client):** Forge `Game` → `StateMapper.buildFromGame()` snapshots zones/objects/players → `GameEventCollector.drainEvents()` feeds `AnnotationBuilder.categoryFromEvents()` for transfer categories → `annotationsForTransfer()` builds per-event proto annotations → `BundleBuilder` assembles GRE messages (Diff/Full GSM + ActionsAvailableReq) → `MessageSink` → client.
+**Outbound (engine → client):** Forge `Game` → `StateMapper.buildFromGame()` snapshots zones/objects/players → `GameEventCollector.drainEvents()` feeds `TransferCategoryResolver.categoryFromEvents()` for transfer categories → `annotationsForTransfer()` builds per-event proto annotations → `BundleBuilder` assembles GRE messages (Diff/Full GSM + ActionsAvailableReq) → `MessageSink` → client.
 
 **Inbound (client → engine):** client proto (`PerformActionResp`, `DeclareAttackersResp`, etc.) → `MatchHandler` dispatches unconditionally to session (`SessionOps`) → `MatchSession` translates to `PlayerAction` or prompt response → submits through `GameActionBridge.submitAction()` or `InteractivePromptBridge.submitResponse()` (both `CompletableFuture.complete()`) → engine thread unblocks. `FamiliarSession` no-ops all action methods.
 
@@ -36,7 +36,7 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 
 **Threading:** Engine runs on a dedicated daemon thread, blocks on `CompletableFuture.get()` at every priority stop / prompt. `MatchSession` receives client messages on Netty I/O thread, completes the future. All session entry points synchronized on `sessionLock`. Timeout = engine blocked waiting for a response MatchSession never submitted.
 
-**Event-driven annotations:** Forge fires `GameEvent` on its Guava EventBus → `GameEventCollector` (subscribes synchronously on engine thread) translates to `GameEvent` sealed variants → queued in `ConcurrentLinkedQueue` → `StateMapper` drains at diff-build time → `AnnotationBuilder.categoryFromEvents()` picks most-specific category (LandPlayed > ZoneChanged) → builder methods construct proto `AnnotationInfo` with the expected type numbers and detail keys.
+**Event-driven annotations:** Forge fires `GameEvent` on its Guava EventBus → `GameEventCollector` (subscribes synchronously on engine thread) translates to `GameEvent` sealed variants → queued in `ConcurrentLinkedQueue` → `StateMapper` drains at diff-build time → `TransferCategoryResolver.categoryFromEvents()` picks most-specific category (LandPlayed > ZoneChanged) → builder methods construct proto `AnnotationInfo` with the expected type numbers and detail keys.
 
 **Five-stage annotation pipeline** (4 files, each an `object` in `game/`): (1) `ZoneTransferDetector.detectZoneTransfers` → `TransferResult` — realloc instanceIds, patched objects/zones, stack ability lifecycle. (2) `TransferAnnotations.annotationsForTransfer` — pure function, proto annotations per transfer. (3) `CombatAnnotations.combatAnnotations` — damage/life/phase annotations. (4) `MechanicAnnotations.mechanicAnnotations` — counters, tokens, attachments, controller change. (5) `MechanicAnnotations.effectAnnotations` — P/T boosts, keyword grants from EffectTracker. All numbered after assembly.
 
@@ -46,7 +46,7 @@ ArchUnit enforces: bridge → game → match (no reverse deps within the module)
 
 ## Cost Data Flow
 
-Mana cost reaches the client through two paths depending on the action type. `ManaColorMapping` is the single source of truth for Forge→Arena color translation in both paths.
+Mana cost reaches the client through two paths depending on the action type. `ManaColorMapping` is the single source of truth for Forge→client color translation in both paths.
 
 | Action type | Cost source | Why |
 |---|---|---|
@@ -71,16 +71,16 @@ Mana cost reaches the client through two paths depending on the action type. `Ma
 
 ### Adding a new zone transition category
 
-1. `game/TransferCategory.kt` — add variant if needed (with `.label` matching Arena's reason string)
+1. `game/TransferCategory.kt` — add variant if needed (with `.label` matching client's reason string)
 2. `game/GameEventCollector` — ensure the right Forge event is emitted (e.g. `GameEventCardDestroyed` → `CardDestroyed`)
-3. `game/AnnotationBuilder.categoryFromEvents()` — add match arm; specific events take priority over generic `ZoneChanged`
+3. `game/TransferCategoryResolver.categoryFromEvents()` — add match arm; specific events take priority over generic `ZoneChanged`
 4. `game/StateMapper.annotationsForTransfer()` — add `when` branch for the new category (ObjectIdChanged, ZoneTransfer, etc.)
 5. Test: `CategoryFromEventsTest` for event→category mapping, conformance test for full proto output
 
 ### Adding a new client action handler
 
 1. `match/MatchSession` — add handler method (e.g. `onDeclareAttackers`)
-2. Translate Arena proto fields to Forge `PlayerAction` or prompt response (instanceId → forgeCardId via `bridge.getForgeCardId()`)
+2. Translate client proto fields to Forge `PlayerAction` or prompt response (instanceId → forgeCardId via `bridge.getForgeCardId()`)
 3. Submit through appropriate bridge: `GameActionBridge` for priority actions, `InteractivePromptBridge` for engine-initiated choices
 4. Wire handler in `match/MatchHandler` message dispatch (match on `ClientMessageType`)
 5. Test: `MatchFlowHarness` test exercising the full production path (zero reimplemented logic)
@@ -132,7 +132,7 @@ Check nearby tests and mapper/annotation code for annotation ordering, category 
 | `confirmTrigger` | Dedicated future | Optional trigger — routes through `pendingOptionalAction` for GRE type 45 |
 | `confirmPayment` | Interactive | Cost payment confirmation |
 | `confirmReplacementEffect` | Interactive | Replacement effect yes/no |
-| `confirmStaticApplication` | — | Auto-decline `AlternativeDamageAssignment` (Arena never sends this) |
+| `confirmStaticApplication` | — | Auto-decline `AlternativeDamageAssignment` (client never sends this) |
 
 ### Discard
 

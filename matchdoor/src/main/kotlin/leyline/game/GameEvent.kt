@@ -57,7 +57,7 @@ enum class Zone {
 sealed interface GameEvent {
 
     /** A land was played from hand to battlefield.
-     *  [colorOrdinals] = Arena ManaColor proto ordinals (W=1, U=2, B=3, R=4, G=5).
+     *  [colorOrdinals] = client ManaColor proto ordinals (W=1, U=2, B=3, R=4, G=5).
      *  Single-ability lands produce one entry; dual/multi-lands produce multiple. */
     data class LandPlayed(
         val cardId: ForgeCardId,
@@ -74,9 +74,9 @@ sealed interface GameEvent {
     /** A spell or ability was cast (hand/battlefield → stack).
      *
      * [altCostAbilityGrpId] — when non-zero, the spell was cast for an alternate
-     * cost (Madness, Flashback, Warp, Cycling, Impending). Carries the Arena
+     * cost (Madness, Flashback, Warp, Cycling, Impending). Carries the client
      * ability grpId for that alt-cost. Used to emit the persistent
-     * `CastingTimeOption type=13` annotation and the `alternativeGrpId` detail
+     * `CastingTimeOption CastThroughAbility` annotation and the `alternativeGrpId` detail
      * key on UserActionTaken. Zero means a regular hardcast.
      */
     data class SpellCast(
@@ -150,7 +150,7 @@ sealed interface GameEvent {
 
     // -- Group A: zone-transition disambiguation --
     // These replace generic ZoneChanged for specific zone pairs, enabling
-    // direct category mapping without the zoneChangedCategory() fallback.
+    // direct category mapping without the TransferCategoryResolver zone-pair fallback.
 
     /** A legendary permanent was put into graveyard by the legend rule SBA.
      *  More specific than [CardDestroyed] — produces `SBA_LegendRule` category. */
@@ -332,7 +332,7 @@ sealed interface GameEvent {
 
     /** A permanent's controller changed (steal effect or revert).
      *  Fires both on steal (Claim the Firstborn) and on revert (end of turn).
-     *  [sourceCardId] resolved later from events list (affectorSourceFromEvents pattern). */
+     *  [sourceCardId] resolved later from events list (TransferCategoryResolver.affectorSourceFromEvents pattern). */
     data class ControllerChanged(
         val cardId: ForgeCardId,
         val oldControllerSeatId: SeatId,

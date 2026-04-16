@@ -36,7 +36,7 @@ data class GsmFrame(
 
     /** Build a PhaseOrStepModified annotation, assigning an ID from [idSource]. */
     fun phaseAnnotation(idSource: () -> Int): AnnotationInfo =
-        AnnotationBuilder.phaseOrStepModified(activeSeat, phase.number, step.number)
+        AnnotationBuilder.phaseOrStepModified(SeatId(activeSeat), phase.number, step.number)
             .toBuilder().setId(idSource()).build()
 
     companion object {

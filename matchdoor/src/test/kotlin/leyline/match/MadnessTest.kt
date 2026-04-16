@@ -107,7 +107,7 @@ class MadnessTest :
                 // Tormenting Voice on stack with discard cost paid; Fiery Temper
                 // exiled via madness replacement; the madness trigger resolves
                 // and calls playSaFromPlayEffect → WPC emits OptionalActionMessage
-                // (shortcut for Arena's ActionsAvailableReq Cast:1+Pass:1 flow; see
+                // (shortcut for client's ActionsAvailableReq Cast:1+Pass:1 flow; see
                 // WebPlayerController.playSaFromPlayEffect comment). The harness's
                 // autoRespondToOptionalAction auto-accepts on each drainSink, which
                 // drives the cast through super.playSaFromPlayEffect.
@@ -173,7 +173,7 @@ class MadnessTest :
                 // Known gap: Hand→Exile ZoneTransfer category is currently mis-tagged
                 // (CastSpell instead of Discard) because Forge fires a SpellCast for
                 // Fiery Temper during super.playSaFromPlayEffect, and the
-                // categoryFromEvents dispatcher short-circuits on SpellCast before
+                // TransferCategoryResolver.categoryFromEvents short-circuits on SpellCast before
                 // considering the CardDiscarded event (from hasDiscardReplacementKeyword).
                 // L1.5 follow-up: scope SpellCast matching by zone-pair, not just forgeCardId.
             } finally {
@@ -262,10 +262,10 @@ class MadnessTest :
                 // branch. Correct category is `Put`, but our dispatcher currently
                 // mis-tags it as `Resolve` — the
                 // madness ability's SpellResolved event fires with hostCard=
-                // FieryTemper and categoryFromEvents short-circuits on it before
-                // considering the zone-pair. Known gap (same root as the Hand→Exile
-                // mis-tag); tracked under the dispatcher-scope TODO in
-                // AnnotationBuilder.categoryFromEvents. For now we assert only the
+                // FieryTemper and TransferCategoryResolver.categoryFromEvents short-circuits
+                // on it before considering the zone-pair. Known gap (same root as the
+                // Hand→Exile mis-tag); tracked under the dispatcher-scope TODO in
+                // TransferCategoryResolver.categoryFromEvents. For now we assert only the
                 // zone transition fires at all — the category assertion is the
                 // headline regression this gap blocks.
                 val exileToGyZt = allGsms.flatMap { it.annotationsList }

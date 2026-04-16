@@ -1,7 +1,12 @@
 package leyline.game
 
+import leyline.bridge.GrpId
+import leyline.bridge.InstanceId
+import leyline.bridge.SeatId
 import leyline.game.mapper.ZoneIds
+import wotc.mtgo.gre.external.messaging.Messages.ActionType
 import wotc.mtgo.gre.external.messaging.Messages.AnnotationInfo
+import wotc.mtgo.gre.external.messaging.Messages.CastingTimeOptionType
 
 /**
  * Stage 2 of the annotation pipeline: generate annotations for zone transfers.
@@ -27,15 +32,16 @@ object TransferAnnotations {
      */
     fun annotationsForTransfer(
         transfer: AppliedTransfer,
-        actingSeat: Int,
+        actingSeat: SeatId,
     ): Pair<List<AnnotationInfo>, List<AnnotationInfo>> {
-        val origId = transfer.origId
-        val newId = transfer.newId
+        val origId = InstanceId(transfer.origId)
+        val newId = InstanceId(transfer.newId)
         val category = transfer.category
         val srcZone = transfer.srcZoneId
         val destZone = transfer.destZoneId
-        val grpId = transfer.grpId
-        val affectorId = transfer.affectorId
+        val grpId = GrpId(transfer.grpId)
+        val affectorId = if (transfer.affectorId != 0) InstanceId(transfer.affectorId) else null
+        val altCostGrpId = GrpId(transfer.altCostAbilityGrpId)
         val annotations = mutableListOf<AnnotationInfo>()
         val persistent = mutableListOf<AnnotationInfo>()
 
@@ -43,50 +49,19 @@ object TransferAnnotations {
             TransferCategory.PlayLand -> {
                 annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
-                annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = 3))
+                annotations.add(AnnotationBuilder.userActionTaken(newId, actingSeat, actionType = ActionType.Play_add3))
             }
             TransferCategory.CastSpell -> {
                 annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
                 annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label))
                 // Per-land mana payment block (repeats for each land tapped)
                 for ((i, mp) in transfer.manaPayments.withIndex()) {
-                    annotations.add(
-                        AnnotationBuilder.abilityInstanceCreated(
-                            abilityInstanceId = mp.manaAbilityInstanceId,
-                            affectorId = mp.landInstanceId,
-                            sourceZoneId = ZoneIds.BATTLEFIELD,
-                        ),
-                    )
-                    annotations.add(
-                        AnnotationBuilder.tappedUntappedPermanent(
-                            permanentId = mp.landInstanceId,
-                            abilityId = mp.manaAbilityInstanceId,
-                        ),
-                    )
-                    annotations.add(
-                        AnnotationBuilder.userActionTaken(
-                            instanceId = mp.manaAbilityInstanceId,
-                            seatId = actingSeat,
-                            actionType = 4,
-                            abilityGrpId = mp.abilityGrpId,
-                        ),
-                    )
-                    annotations.add(
-                        AnnotationBuilder.manaPaid(
-                            spellInstanceId = newId,
-                            landInstanceId = mp.landInstanceId,
-                            manaId = i + MANA_ID_BASE,
-                            color = mp.color,
-                        ),
-                    )
-                    annotations.add(
-                        AnnotationBuilder.abilityInstanceDeleted(
-                            abilityInstanceId = mp.manaAbilityInstanceId,
-                            affectorId = mp.landInstanceId,
-                        ),
-                    )
+                    val manaAbilityIid = InstanceId(mp.manaAbilityInstanceId)
+                    val landIid = InstanceId(mp.landInstanceId)
+                    emitManaTap(annotations, manaAbilityIid, landIid, ZoneIds.BATTLEFIELD)
+                    emitManaConsume(annotations, i, mp, spellIid = newId, landIid = landIid, actingSeat = actingSeat)
                 }
-                val castActionType = if (transfer.isAdventureCast) 16 else 1
+                val castActionType = if (transfer.isAdventureCast) ActionType.CastAdventure else ActionType.Cast
                 annotations.add(
                     AnnotationBuilder.userActionTaken(
                         instanceId = newId,
@@ -95,8 +70,8 @@ object TransferAnnotations {
                         // Alt-cost casts (Madness, Flashback, Warp, Cycling, Impending)
                         // carry the alt-cost ability grpId on both abilityGrpId and
                         // alternativeGrpId, matching the client-visible wire shape.
-                        abilityGrpId = transfer.altCostAbilityGrpId,
-                        alternativeGrpId = transfer.altCostAbilityGrpId,
+                        abilityGrpId = altCostGrpId,
+                        alternativeGrpId = altCostGrpId,
                     ),
                 )
             }
@@ -110,7 +85,9 @@ object TransferAnnotations {
                     emitManaSacrificeBracket(annotations, transfer, actingSeat)
                 } else {
                     if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
-                    annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId))
+                    annotations.add(
+                        AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId),
+                    )
                 }
             }
             TransferCategory.Destroy, TransferCategory.Countered,
@@ -123,7 +100,9 @@ object TransferAnnotations {
                 if (origId != newId) {
                     annotations.add(AnnotationBuilder.objectIdChanged(origId, newId, affectorId))
                 }
-                annotations.add(AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId))
+                annotations.add(
+                    AnnotationBuilder.zoneTransfer(newId, srcZone, destZone, category.label, affectorId = affectorId),
+                )
             }
         }
 
@@ -132,15 +111,15 @@ object TransferAnnotations {
             persistent.add(AnnotationBuilder.enteredZoneThisTurn(destZone, newId))
         }
 
-        // Persistent: CastingTimeOption (type=13) for alt-cost casts (Madness, Flashback,
+        // Persistent: CastingTimeOption for alt-cost casts (Madness, Flashback,
         // Warp, Cycling, Impending). Attached to the staged stack object; deleted via
         // diffDeletedPersistentAnnotationIds when the spell resolves or leaves the stack.
-        if (category == TransferCategory.CastSpell && transfer.altCostAbilityGrpId != 0) {
+        if (category == TransferCategory.CastSpell && altCostGrpId.value != 0) {
             persistent.add(
                 AnnotationBuilder.castingTimeOption(
                     stackInstanceId = newId,
-                    type = 13, // CastThroughAbility
-                    alternateCostGrpId = transfer.altCostAbilityGrpId,
+                    type = CastingTimeOptionType.CastThroughAbility,
+                    alternateCostGrpId = altCostGrpId,
                 ),
             )
         }
@@ -156,26 +135,91 @@ object TransferAnnotations {
     /**
      * Emit the full mana-ability annotation bracket for a sacrifice-for-mana transfer.
      * Matches expected client-facing sequence: AbilityInstanceCreated → TappedUntapped →
-     * ObjectIdChanged → ZoneTransfer(Sacrifice) → UserActionTaken(4) → ManaPaid →
+     * ObjectIdChanged → ZoneTransfer(Sacrifice) → UserActionTaken(ActivateMana) → ManaPaid →
      * AbilityInstanceDeleted.
+     *
+     * Note: the tap-for-mana prelude runs first for every payment, then the ZT pair,
+     * then the mana-consumed postlude per payment — the OIC+ZT is sandwiched between
+     * the two halves (vs the CastSpell path, where OIC+ZT comes before the whole block).
+     *
+     * **Assumption:** the sacrificed object IS the mana source — we pass `origId` as
+     * both the tap target and ManaPaid's `landInstanceId`, ignoring `mp.landInstanceId`.
+     * Holds for Treasure / Clue / Blood tokens (self-sacrificing mana sources). Breaks
+     * for effects where a non-source permanent is sacrificed as a cost and a *different*
+     * permanent produces mana (e.g. Phyrexian Tower). No such call site exists today; if
+     * one appears, use `InstanceId(mp.landInstanceId)` here.
      */
     private fun emitManaSacrificeBracket(
         annotations: MutableList<AnnotationInfo>,
         transfer: AppliedTransfer,
-        actingSeat: Int,
+        actingSeat: SeatId,
     ) {
-        val origId = transfer.origId
-        val newId = transfer.newId
+        val origId = InstanceId(transfer.origId)
+        val newId = InstanceId(transfer.newId)
         for (mp in transfer.manaPayments) {
-            annotations.add(AnnotationBuilder.abilityInstanceCreated(mp.manaAbilityInstanceId, origId, transfer.srcZoneId))
-            annotations.add(AnnotationBuilder.tappedUntappedPermanent(origId, mp.manaAbilityInstanceId))
+            emitManaTap(annotations, InstanceId(mp.manaAbilityInstanceId), origId, transfer.srcZoneId)
         }
         if (origId != newId) annotations.add(AnnotationBuilder.objectIdChanged(origId, newId))
-        annotations.add(AnnotationBuilder.zoneTransfer(newId, transfer.srcZoneId, transfer.destZoneId, transfer.category.label))
+        annotations.add(
+            AnnotationBuilder.zoneTransfer(newId, transfer.srcZoneId, transfer.destZoneId, transfer.category.label),
+        )
         for ((i, mp) in transfer.manaPayments.withIndex()) {
-            annotations.add(AnnotationBuilder.userActionTaken(mp.manaAbilityInstanceId, actingSeat, actionType = 4, abilityGrpId = mp.abilityGrpId))
-            annotations.add(AnnotationBuilder.manaPaid(mp.spellInstanceId, origId, i + MANA_ID_BASE, mp.color))
-            annotations.add(AnnotationBuilder.abilityInstanceDeleted(mp.manaAbilityInstanceId, origId))
+            emitManaConsume(annotations, i, mp, spellIid = InstanceId(mp.spellInstanceId), landIid = origId, actingSeat = actingSeat)
         }
+    }
+
+    /**
+     * Tap-for-mana prelude: (AbilityInstanceCreated, TappedUntapped) for one land.
+     * Used by both the CastSpell path and the Sacrifice path.
+     */
+    private fun emitManaTap(
+        annotations: MutableList<AnnotationInfo>,
+        manaAbilityIid: InstanceId,
+        landIid: InstanceId,
+        sourceZoneId: Int,
+    ) {
+        annotations.add(
+            AnnotationBuilder.abilityInstanceCreated(
+                abilityInstanceId = manaAbilityIid,
+                affectorId = landIid,
+                sourceZoneId = sourceZoneId,
+            ),
+        )
+        annotations.add(
+            AnnotationBuilder.tappedUntappedPermanent(permanentId = landIid, abilityId = manaAbilityIid),
+        )
+    }
+
+    /**
+     * Mana-consumed postlude: (UserActionTaken, ManaPaid, AbilityInstanceDeleted) for
+     * one land's contribution to a spell or ability. [spellIid] is the consumer of
+     * the mana, [landIid] is the producer.
+     */
+    private fun emitManaConsume(
+        annotations: MutableList<AnnotationInfo>,
+        index: Int,
+        mp: ManaPaymentRecord,
+        spellIid: InstanceId,
+        landIid: InstanceId,
+        actingSeat: SeatId,
+    ) {
+        val manaAbilityIid = InstanceId(mp.manaAbilityInstanceId)
+        annotations.add(
+            AnnotationBuilder.userActionTaken(
+                instanceId = manaAbilityIid,
+                seatId = actingSeat,
+                actionType = ActionType.ActivateMana,
+                abilityGrpId = GrpId(mp.abilityGrpId),
+            ),
+        )
+        annotations.add(
+            AnnotationBuilder.manaPaid(
+                spellInstanceId = spellIid,
+                landInstanceId = landIid,
+                manaId = index + MANA_ID_BASE,
+                color = mp.color,
+            ),
+        )
+        annotations.add(AnnotationBuilder.abilityInstanceDeleted(manaAbilityIid, landIid))
     }
 }

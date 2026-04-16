@@ -85,8 +85,8 @@ class VehicleCrewAnnotationTest :
 
         test("crewedThisTurn builder produces correct annotation shape") {
             val ann = AnnotationBuilder.crewedThisTurn(
-                vehicleInstanceId = 304,
-                crewSourceInstanceIds = listOf(293, 348),
+                vehicleInstanceId = 304.iid,
+                crewSourceInstanceIds = listOf(293.iid, 348.iid),
             )
 
             ann.typeList shouldHaveSize 1
@@ -100,9 +100,9 @@ class VehicleCrewAnnotationTest :
 
         test("modifiedTypeLayeredEffect builder produces correct annotation shape") {
             val ann = AnnotationBuilder.modifiedTypeLayeredEffect(
-                instanceId = 304,
-                effectId = 7004,
-                sourceAbilityGrpId = 76611,
+                instanceId = 304.iid,
+                effectId = 7004.eid,
+                sourceAbilityGrpId = 76611.grp,
             )
 
             ann.typeList shouldHaveSize 2
@@ -115,8 +115,8 @@ class VehicleCrewAnnotationTest :
 
         test("modifiedTypeLayeredEffect without sourceAbilityGrpId omits that detail") {
             val ann = AnnotationBuilder.modifiedTypeLayeredEffect(
-                instanceId = 200,
-                effectId = 7010,
+                instanceId = 200.iid,
+                effectId = 7010.eid,
             )
 
             ann.typeList shouldContain AnnotationType.ModifiedType
