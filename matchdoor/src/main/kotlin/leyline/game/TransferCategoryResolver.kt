@@ -121,32 +121,32 @@ object TransferCategoryResolver {
             Zone.Stack -> TransferCategory.CastSpell
             Zone.Graveyard -> TransferCategory.Discard
             Zone.Exile -> TransferCategory.Exile
-            else -> TransferCategory.ZoneTransfer
+            Zone.Hand, Zone.Library, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
         }
         ev.from == Zone.Stack -> when (ev.to) {
             Zone.Battlefield -> TransferCategory.Resolve
             Zone.Graveyard -> TransferCategory.Countered
             Zone.Exile -> TransferCategory.Exile
-            else -> TransferCategory.ZoneTransfer
+            Zone.Hand, Zone.Library, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
         }
         ev.from == Zone.Battlefield -> when (ev.to) {
             Zone.Graveyard -> TransferCategory.Destroy
             Zone.Exile -> TransferCategory.Exile
             Zone.Hand -> TransferCategory.Bounce
             Zone.Library -> TransferCategory.Bounce
-            else -> TransferCategory.ZoneTransfer
+            Zone.Battlefield, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
         }
         ev.from == Zone.Library -> when (ev.to) {
             Zone.Hand -> TransferCategory.Draw
             Zone.Battlefield -> TransferCategory.Search
             Zone.Graveyard -> TransferCategory.Mill
             Zone.Exile -> TransferCategory.Exile
-            else -> TransferCategory.ZoneTransfer
+            Zone.Library, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
         }
         ev.from == Zone.Graveyard -> when (ev.to) {
             Zone.Hand, Zone.Battlefield -> TransferCategory.Return
             Zone.Exile -> TransferCategory.Exile
-            else -> TransferCategory.ZoneTransfer
+            Zone.Library, Zone.Graveyard, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
         }
         ev.from == Zone.Exile -> when (ev.to) {
             Zone.Hand, Zone.Battlefield -> TransferCategory.Return
@@ -155,7 +155,7 @@ object TransferCategoryResolver {
             // exits exile to its owner's graveyard. Tag as `Put`. Generic
             // enough to also cover cleanup of an exiled card moving to graveyard.
             Zone.Graveyard -> TransferCategory.Put
-            else -> TransferCategory.ZoneTransfer
+            Zone.Library, Zone.Exile, Zone.Stack, Zone.Command, Zone.Other -> TransferCategory.ZoneTransfer
         }
         ev.to == Zone.Exile -> TransferCategory.Exile
         else -> TransferCategory.ZoneTransfer
