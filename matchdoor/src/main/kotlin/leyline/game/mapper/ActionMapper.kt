@@ -189,6 +189,12 @@ object ActionMapper {
             var canPay = true
             if (checkLegality) {
                 sa = chooseCastAbility(card, player) ?: continue
+                // Skip spells whose sub-abilities require targets with none available
+                // (e.g. Counterspell with empty stack)
+                if (hasUnmetTargeting(sa)) {
+                    log.debug("ActionMapper: skipping {} — no legal targets", card.name)
+                    continue
+                }
                 canPay = try {
                     ComputerUtilMana.canPayManaCost(sa, player, 0, false)
                 } catch (_: Exception) {
@@ -712,5 +718,29 @@ object ActionMapper {
             else -> b.setInstanceId(action.instanceId)
         }
         return b.build()
+    }
+
+    /**
+     * True if any ability in the SA chain requires targets and has no legal candidates.
+     *
+     * Special case: Forge's [TargetRestrictions.hasCandidates] short-circuits to true
+     * for stack-zone targets without checking stack contents. We override that for
+     * spells targeting the stack (counterspells) — check stack emptiness directly.
+     */
+    private fun hasUnmetTargeting(sa: SpellAbility): Boolean {
+        val game = sa.hostCard?.game ?: return false
+        var node: SpellAbility? = sa
+        while (node != null) {
+            val tr = node.targetRestrictions
+            if (tr != null) {
+                if (tr.zone.contains(forge.game.zone.ZoneType.Stack)) {
+                    if (game.stack.isEmpty) return true
+                } else if (!tr.hasCandidates(node)) {
+                    return true
+                }
+            }
+            node = node.subAbility
+        }
+        return false
     }
 }
