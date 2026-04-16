@@ -443,12 +443,12 @@ class WebGuiGame(
             )
             val result = bridge.requestChoice(request)
             val idx = result.firstOrNull() ?: 0
-            return inputOptions.getOrElse(idx) { initialInput ?: "" }
+            return inputOptions.getOrElse(idx) { initialInput.orEmpty() }
         }
         // Free text input — return initial or empty for now
         // TODO: text_input prompt type
-        log.info("Free text input requested: $title: $message (returning '${initialInput ?: ""}')")
-        return initialInput ?: ""
+        log.info("Free text input requested: $title: $message (returning '${initialInput.orEmpty()}')")
+        return initialInput.orEmpty()
     }
 
     override fun manipulateCardList(

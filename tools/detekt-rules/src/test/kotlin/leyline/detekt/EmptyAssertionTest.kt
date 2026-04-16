@@ -91,6 +91,31 @@ class EmptyAssertionTest : FunSpec({
         rule.lint(code).shouldBeEmpty()
     }
 
+    test("passes when body uses error() to fail") {
+        val code = """
+            fun test(name: String, body: () -> Unit) {}
+            fun main() {
+                test("error") {
+                    if (true) error("boom")
+                }
+            }
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
+
+    test("passes when body uses check() for assertion") {
+        val code = """
+            fun test(name: String, body: () -> Unit) {}
+            fun main() {
+                test("check") {
+                    val x = 1
+                    check(x > 0) { "x must be positive" }
+                }
+            }
+        """.trimIndent()
+        rule.lint(code).shouldBeEmpty()
+    }
+
     test("passes when assertion is inside a nested block") {
         val code = """
             infix fun Int.shouldBe(other: Int) {}

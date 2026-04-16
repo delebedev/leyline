@@ -78,12 +78,5 @@
     <ID>UnusedParameter:WebCostDecision.kt$WebCostDecision$cost: CostPart</ID>
     <ID>UnusedParameter:ZoneMapper.kt$ZoneMapper$ai: Player?</ID>
     <ID>UnusedParameter:ZoneMapper.kt$ZoneMapper$game: Game</ID>
-    <ID>UseOrEmpty:ActionMapper.kt$ActionMapper$mana?.origProduced ?: ""</ID>
-    <ID>UseOrEmpty:CardLookup.kt$sa.payCosts?.toSimpleString() ?: ""</ID>
-    <ID>UseOrEmpty:PersistentAnnotationStore.kt$PersistentAnnotationStore.Companion$ann.detailsList.firstOrNull { it.key == DetailKeys.ABILITY_WORD_NAME } ?.let { if (it.valueStringCount &gt; 0) it.getValueString(0) else null } ?: ""</ID>
-    <ID>UseOrEmpty:WebGuiGame.kt$WebGuiGame$initialInput ?: ""</ID>
-    <ID>UseOrEmpty:WebPlayerController.kt$WebPlayerController$entity.controller?.name ?: ""</ID>
-    <ID>UseOrEmpty:WebPlayerController.kt$WebPlayerController$entity.zone?.zoneType?.name ?: ""</ID>
-    <ID>UseOrEmpty:WebPlayerController.kt$WebPlayerController$logic ?: ""</ID>
   </CurrentIssues>
 </SmellBaseline>

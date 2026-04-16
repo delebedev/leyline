@@ -359,7 +359,7 @@ object ActionMapper {
         val registry = abilityRegistryLookup(card, cardData)
         val abilityGrpId = registry?.forSpellAbility(sa.id) ?: 0
         val mana = sa.manaPart
-        val produced = if (mana != null && mana.isComboMana) mana.getComboColors(sa) else mana?.origProduced ?: ""
+        val produced = if (mana != null && mana.isComboMana) mana.getComboColors(sa) else mana?.origProduced.orEmpty()
         val manaColor = produced.split(" ").firstNotNullOfOrNull { producedToManaColor(it) } ?: ManaColor.Generic
 
         val actionBuilder = Action.newBuilder()

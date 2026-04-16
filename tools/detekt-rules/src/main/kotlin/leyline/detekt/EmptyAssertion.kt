@@ -62,5 +62,16 @@ class EmptyAssertion(config: Config) : Rule(config) {
     }
 
     private fun isAssertionName(name: String): Boolean =
-        name.startsWith("should") || name.startsWith("assert") || name == "fail"
+        name.startsWith("should") ||
+            name.startsWith("assert") ||
+            name in IMPLICIT_ASSERTIONS
+
+    private companion object {
+        // Stdlib throw-on-failure calls count as assertions in test code.
+        // `error(...)` throws ISE; `check`/`require` throw when the condition is
+        // false; `checkNotNull`/`requireNotNull` throw when the value is null.
+        private val IMPLICIT_ASSERTIONS = setOf(
+            "fail", "error", "check", "checkNotNull", "require", "requireNotNull",
+        )
+    }
 }

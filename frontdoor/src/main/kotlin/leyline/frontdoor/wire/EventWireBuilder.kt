@@ -97,7 +97,7 @@ object EventWireBuilder {
         putJsonObject("CourseDeckSummary") {
             val s = course.deckSummary
             put("DeckId", s?.deckId?.value ?: "00000000-0000-0000-0000-000000000000")
-            put("Name", s?.name ?: "")
+            put("Name", s?.name.orEmpty())
             putJsonArray("Attributes") {}
             put("DeckTileId", s?.tileId ?: 0)
             put("DeckArtId", 0)

@@ -26,8 +26,5 @@
     <ID>LongMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
     <ID>MaxLineLength:LobbyStubs.kt$LobbyStubs$fun rankInfo()</ID>
     <ID>UnusedParameter:MatchmakingService.kt$MatchmakingService$playerId: PlayerId</ID>
-    <ID>UseOrEmpty:EventWireBuilder.kt$EventWireBuilder$s?.name ?: ""</ID>
-    <ID>UseOrEmpty:FrontDoorHandler.kt$FrontDoorHandler$deckId ?: ""</ID>
-    <ID>UseOrEmpty:FrontDoorHandler.kt$FrontDoorHandler$eventName ?: ""</ID>
   </CurrentIssues>
 </SmellBaseline>

@@ -1,6 +1,7 @@
 package leyline.match
 
 import forge.game.Game
+import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import leyline.UnitTag
@@ -39,47 +40,47 @@ class SessionOpsDefaultsTest :
         val dummyMsg = ClientToGREMessage.getDefaultInstance()
 
         test("onPerformAction default is no-op") {
-            ops.onPerformAction(dummyMsg)
+            shouldNotThrowAny { ops.onPerformAction(dummyMsg) }
         }
 
         test("onDeclareAttackers default is no-op") {
-            ops.onDeclareAttackers(dummyMsg)
+            shouldNotThrowAny { ops.onDeclareAttackers(dummyMsg) }
         }
 
         test("onDeclareBlockers default is no-op") {
-            ops.onDeclareBlockers(dummyMsg)
+            shouldNotThrowAny { ops.onDeclareBlockers(dummyMsg) }
         }
 
         test("onSelectTargets default is no-op") {
-            ops.onSelectTargets(dummyMsg)
+            shouldNotThrowAny { ops.onSelectTargets(dummyMsg) }
         }
 
         test("onSelectN default is no-op") {
-            ops.onSelectN(dummyMsg)
+            shouldNotThrowAny { ops.onSelectN(dummyMsg) }
         }
 
         test("onGroupResp default is no-op") {
-            ops.onGroupResp(dummyMsg)
+            shouldNotThrowAny { ops.onGroupResp(dummyMsg) }
         }
 
         test("onCancelAction default is no-op") {
-            ops.onCancelAction(dummyMsg)
+            shouldNotThrowAny { ops.onCancelAction(dummyMsg) }
         }
 
         test("onConcede default is no-op") {
-            ops.onConcede()
+            shouldNotThrowAny { ops.onConcede() }
         }
 
         test("onSettings default is no-op") {
-            ops.onSettings(dummyMsg)
+            shouldNotThrowAny { ops.onSettings(dummyMsg) }
         }
 
         test("onMulliganKeep default is no-op") {
-            ops.onMulliganKeep()
+            shouldNotThrowAny { ops.onMulliganKeep() }
         }
 
         test("onPuzzleStart default is no-op") {
-            ops.onPuzzleStart()
+            shouldNotThrowAny { ops.onPuzzleStart() }
         }
 
         test("gameBridge default is null") {
@@ -91,6 +92,6 @@ class SessionOpsDefaultsTest :
         }
 
         test("connectBridge default is no-op") {
-            ops.connectBridge(GameBridge(cardRepository = InMemoryCardRepository()))
+            shouldNotThrowAny { ops.connectBridge(GameBridge(cardRepository = InMemoryCardRepository())) }
         }
     })

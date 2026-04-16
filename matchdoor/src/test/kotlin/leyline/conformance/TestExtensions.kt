@@ -222,7 +222,7 @@ data class ZoneTransferInfo(
 fun GameStateMessage.findZoneTransfer(instanceId: Int): ZoneTransferInfo? {
     val ann = annotationAffecting(AnnotationType.ZoneTransfer_af5a, instanceId) ?: return null
     return ZoneTransferInfo(
-        category = ann.detail("category")?.getValueString(0) ?: "",
+        category = ann.detail("category")?.getValueString(0).orEmpty(),
         zoneSrc = ann.detail("zone_src")?.getValueInt32(0) ?: -1,
         zoneDest = ann.detail("zone_dest")?.getValueInt32(0) ?: -1,
         affectorId = ann.affectorId,

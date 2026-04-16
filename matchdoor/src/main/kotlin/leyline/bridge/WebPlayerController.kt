@@ -1044,8 +1044,8 @@ class WebPlayerController(
         val labels = allCandidates.map { entity ->
             when (entity) {
                 is forge.game.card.Card -> {
-                    val zone = entity.zone?.zoneType?.name ?: ""
-                    val ctrl = entity.controller?.name ?: ""
+                    val zone = entity.zone?.zoneType?.name.orEmpty()
+                    val ctrl = entity.controller?.name.orEmpty()
                     "${entity.name} ($zone, $ctrl)"
                 }
                 is forge.game.player.Player -> entity.name
@@ -1485,7 +1485,7 @@ class WebPlayerController(
             log.info("confirmStaticApplication: auto-declining AlternativeDamageAssignment for {}", hostCard.name)
             return false
         }
-        return super.confirmStaticApplication(hostCard, mode, message, logic ?: "")
+        return super.confirmStaticApplication(hostCard, mode, message, logic.orEmpty())
     }
 
     // ═══════════════════════════════════════════════════════════════════
