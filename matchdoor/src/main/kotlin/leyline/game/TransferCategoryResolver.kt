@@ -115,6 +115,7 @@ object TransferCategoryResolver {
      * Destroy (BF→GY), Bounce (BF→Hand), Draw (Lib→Hand), Discard (Hand→GY),
      * Mill (Lib→GY), Countered (Stack→GY), and Exile (any→Exile).
      */
+    @Suppress("CyclomaticComplexMethod") // flat zone-pair dispatch, not actual complexity
     private fun zoneChangedCategory(ev: GameEvent.ZoneChanged): TransferCategory = when {
         ev.from == Zone.Hand -> when (ev.to) {
             Zone.Battlefield -> TransferCategory.PlayLand
