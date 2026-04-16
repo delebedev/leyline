@@ -303,7 +303,7 @@ class DebugServer(
                                     kind = "player",
                                     name = target.name,
                                     forgeCardId = null,
-                                    arenaInstanceId = seatId ?: -1,
+                                    arenaInstanceId = null,
                                     seatId = seatId,
                                 ),
                             )
@@ -332,7 +332,7 @@ class DebugServer(
         val kind: String,
         val name: String,
         val forgeCardId: Int? = null,
-        val arenaInstanceId: Int,
+        val arenaInstanceId: Int? = null,
         val seatId: Int? = null,
     )
 

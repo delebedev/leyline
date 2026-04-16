@@ -166,8 +166,9 @@ class BundleBuilder(
      *
      * Client expects a commit-frame echo after remote-seat content GSMs.
      * Both messages are standalone (no pendingMessageCount). The first carries
-     * the state delta + naive actions; the second is a bare diff used for
-     * animation pacing.
+     * the state delta + naive actions; the second is a bare diff (empty
+     * anns/pAnns/objects/zones with prevGsId chained to the content frame)
+     * used for animation pacing.
      */
     fun remoteActionDiff(
         game: Game,

@@ -1,8 +1,10 @@
 package leyline.game
 
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
+import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import leyline.UnitTag
 import leyline.bridge.ForgeCardId
@@ -315,9 +317,11 @@ class PurePipelineTest :
             val damageIdx = types.indexOf(AnnotationType.DamageDealt_af5a)
             val oicIdx = types.indexOf(AnnotationType.ObjectIdChanged)
             val ztIdx = types.indexOf(AnnotationType.ZoneTransfer_af5a)
-            damageIdx shouldBe 0
-            oicIdx shouldBe 2
-            ztIdx shouldBe 3
+            assertSoftly {
+                damageIdx shouldBe 0
+                oicIdx shouldBe 2
+                ztIdx shouldBe 3
+            }
         }
 
         test("assembleTransferAndCombatAnnotations keeps non-damage destroy transfer before combat block") {
@@ -354,12 +358,14 @@ class PurePipelineTest :
             )
 
             val types = annotations.map { it.getType(0) }
-            types.indexOf(AnnotationType.ObjectIdChanged) shouldBe 0
-            types.indexOf(AnnotationType.ZoneTransfer_af5a) shouldBe 1
-            types.indexOf(AnnotationType.DamageDealt_af5a) shouldBe 2
+            assertSoftly {
+                types.indexOf(AnnotationType.ObjectIdChanged) shouldBe 0
+                types.indexOf(AnnotationType.ZoneTransfer_af5a) shouldBe 1
+                types.indexOf(AnnotationType.DamageDealt_af5a) shouldBe 2
+            }
         }
 
-        test("computeAnnotations recovers forge ids for lethal combat transfers and keeps damage on old ids") {
+        test("computeAnnotations keeps damage on pre-transfer ids for lethal combat") {
             val bridge = GameBridge(cardRepository = InMemoryCardRepository())
             val attackerFid = ForgeCardId(10)
             val blockerFid = ForgeCardId(20)
@@ -376,7 +382,7 @@ class PurePipelineTest :
                         category = TransferCategory.Destroy,
                         srcZoneId = ZoneIds.BATTLEFIELD,
                         destZoneId = ZoneIds.P1_GRAVEYARD,
-                        forgeCardId = null,
+                        forgeCardId = attackerFid,
                         grpId = 111,
                         ownerSeatId = 1,
                     ),
@@ -386,7 +392,7 @@ class PurePipelineTest :
                         category = TransferCategory.Destroy,
                         srcZoneId = ZoneIds.BATTLEFIELD,
                         destZoneId = ZoneIds.P2_GRAVEYARD,
-                        forgeCardId = null,
+                        forgeCardId = blockerFid,
                         grpId = 222,
                         ownerSeatId = 2,
                     ),
@@ -414,9 +420,11 @@ class PurePipelineTest :
                 if (ann.getType(0) == AnnotationType.DamageDealt_af5a) index else null
             }
             val firstOicIdx = ordered.indexOfFirst { it.getType(0) == AnnotationType.ObjectIdChanged }
-            damageIndices.first() shouldBe 0
-            damageIndices.last() shouldBe 1
-            (firstOicIdx > damageIndices.last()) shouldBe true
+            assertSoftly {
+                damageIndices.first() shouldBe 0
+                damageIndices.last() shouldBe 1
+                firstOicIdx shouldBeGreaterThan damageIndices.last()
+            }
 
             ordered.filter { it.getType(0) == AnnotationType.ObjectIdChanged }
                 .map { it.detailInt("orig_id") to it.detailInt("new_id") } shouldBe listOf(

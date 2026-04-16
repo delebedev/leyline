@@ -1,6 +1,7 @@
 package leyline.conformance
 
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
@@ -37,11 +38,17 @@ class ShapeIntegrationTest :
             val messages = base.bundleBuilder(b).remoteActionDiff(game, counter).messages
 
             messages.size shouldBe 2
-            messages[0].type shouldBe GREMessageType.GameStateMessage_695e
-            messages[1].type shouldBe GREMessageType.GameStateMessage_695e
-            messages[0].gameStateMessage.update shouldBe GameStateUpdate.SendHiFi
-            messages[1].gameStateMessage.update shouldBe GameStateUpdate.SendHiFi
-            messages[1].gameStateMessage.annotationsCount shouldBe 0
+            val echo = messages[1].gameStateMessage
+            assertSoftly {
+                messages[0].type shouldBe GREMessageType.GameStateMessage_695e
+                messages[1].type shouldBe GREMessageType.GameStateMessage_695e
+                messages[0].gameStateMessage.update shouldBe GameStateUpdate.SendHiFi
+                messages[1].gameStateMessage.update shouldBe GameStateUpdate.SendHiFi
+                echo.annotationsCount shouldBe 0
+                echo.persistentAnnotationsCount shouldBe 0
+                echo.gameObjectsCount shouldBe 0
+                echo.zonesCount shouldBe 0
+            }
         }
 
         test("declareAttackersBundle produces GS + DeclareAttackersReq with promptId=6") {

@@ -1,18 +1,17 @@
 package leyline.conformance
 
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.booleans.shouldBeTrue
-import io.kotest.matchers.ints.shouldBeLessThan
+import io.kotest.matchers.shouldBe
 import leyline.ConformanceTag
 import leyline.infra.ListMessageSink
 import leyline.match.MatchRegistry
 import leyline.match.MatchSession
-import kotlin.system.measureTimeMillis
 
 /**
  * Regression: stale duplicate PerformActionResp packets can arrive after the
  * original action already consumed the pending bridge action. Recovery must
- * resync the client, not re-enter auto-pass.
+ * resync the client with a single postAction bundle, not re-enter the
+ * auto-pass loop (which would spin through phases and emit many messages).
  */
 class PerformActionRecoveryTest :
     FunSpec({
@@ -23,9 +22,8 @@ class PerformActionRecoveryTest :
         beforeSpec { base.initCardDatabase() }
         afterEach { base.tearDown() }
 
-        test("missing pending action resyncs immediately instead of entering auto-pass loop") {
+        test("missing pending action emits exactly one postAction resync bundle") {
             val (bridge, _, _) = base.startWithBoard { _, _, _ -> }
-            bridge.priorityWaitMs = 20L
 
             val sink = ListMessageSink()
             val session = MatchSession(
@@ -37,12 +35,13 @@ class PerformActionRecoveryTest :
             )
             session.connectBridge(bridge)
 
-            val durationMs = measureTimeMillis {
-                session.onPerformAction(performAction { actionType = wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass })
-            }
+            session.onPerformAction(performAction { actionType = wotc.mtgo.gre.external.messaging.Messages.ActionType.Pass })
 
-            (durationMs < 200).shouldBeTrue()
-            sink.messages.any { it.hasGameStateMessage() }.shouldBeTrue()
-            sink.messages.size shouldBeLessThan 4
+            // postAction emits exactly one GSM + one AAR (plus optional timer start).
+            // autoPassAndAdvance would iterate phases, emitting multiple GSM/AAR pairs.
+            val gsmCount = sink.messages.count { it.hasGameStateMessage() }
+            val aarCount = sink.messages.count { it.hasActionsAvailableReq() }
+            gsmCount shouldBe 1
+            aarCount shouldBe 1
         }
     })

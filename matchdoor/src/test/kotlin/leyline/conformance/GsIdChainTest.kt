@@ -37,9 +37,12 @@ class GsIdChainTest :
             result.messages.size shouldBe 2
             val content = result.messages[0].gameStateMessage
             val echo = result.messages[1].gameStateMessage
-            content.pendingMessageCount shouldBe 0
-            echo.pendingMessageCount shouldBe 0
-            echo.prevGameStateId shouldBe content.gameStateId
+            assertSoftly {
+                content.pendingMessageCount shouldBe 0
+                echo.pendingMessageCount shouldBe 0
+                echo.prevGameStateId shouldBe content.gameStateId
+                echo.gameStateId shouldBe content.gameStateId + 1
+            }
         }
 
         test("postAction GSM has pendingMessageCount=1 (AAR follows)") {

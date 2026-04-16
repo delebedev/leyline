@@ -30,6 +30,7 @@ import forge.game.zone.ZoneType as ForgeZoneType
  * Interactive request builders (targeting, combat) live in [RequestBuilder].
  * Pure Forge→proto projection lives in the `mapper/` subpackage.
  */
+@Suppress("LargeClass") // pipeline orchestrator; stages already delegated to mapper/* and helper objects
 object StateMapper {
     private val log = LoggerFactory.getLogger(StateMapper::class.java)
 
@@ -762,8 +763,7 @@ object StateMapper {
         actingSeat: Int,
         bridge: GameBridge,
     ): AnnotationPipelineResult {
-        val normalizedTransferResult = normalizeTransfersForCombat(transferResult, bridge)
-        val combatTransferredIds = normalizedTransferResult.transfers
+        val combatTransferredIds = transferResult.transfers
             .mapNotNull { transfer -> transfer.forgeCardId?.let { it to transfer.origId } }
             .toMap()
         val combatResult = CombatAnnotations.combatAnnotations(
@@ -773,35 +773,11 @@ object StateMapper {
         )
         val (annotations, transferPersistent) = assembleTransferAndCombatAnnotations(
             events = events,
-            transferResult = normalizedTransferResult,
+            transferResult = transferResult,
             actingSeat = actingSeat,
             combatResult = combatResult,
         )
         return AnnotationPipelineResult(annotations, transferPersistent, combatResult)
-    }
-
-    /**
-     * Some live combat transfers arrive without forgeCardId even though the bridge's
-     * reverse map still knows both orig/new instanceIds. Backfill here so combat
-     * damage can defer destroy transfers and keep pre-transfer battlefield ids.
-     */
-    internal fun normalizeTransfersForCombat(
-        transferResult: TransferResult,
-        bridge: GameBridge,
-    ): TransferResult {
-        var changed = false
-        val normalized = transferResult.transfers.map { transfer ->
-            if (transfer.forgeCardId != null) return@map transfer
-            val recovered = bridge.getForgeCardId(InstanceId(transfer.origId))
-                ?: bridge.getForgeCardId(InstanceId(transfer.newId))
-            if (recovered == null) {
-                transfer
-            } else {
-                changed = true
-                transfer.copy(forgeCardId = recovered)
-            }
-        }
-        return if (changed) transferResult.copy(transfers = normalized) else transferResult
     }
 
     /** Keywords whose triggered/resolved effects produce P/T boosts with staticId=0. */

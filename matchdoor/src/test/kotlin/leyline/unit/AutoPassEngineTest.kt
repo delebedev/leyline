@@ -2,6 +2,7 @@ package leyline.unit
 
 import forge.game.GameEndReason
 import forge.game.zone.ZoneType
+import io.kotest.assertions.assertSoftly
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -278,12 +279,14 @@ class AutoPassEngineTest :
             val engine = AutoPassEngine(ops, stubCombat, TargetingHandler(ops), OptionalActionHandler(ops))
             engine.autoPassAndAdvance(bridge)
 
-            ops.sendRealGameStateCount shouldBe 0
-            ops.sendGameOverCount shouldBe 0
-            ops.sentGRE.size shouldBe 1
             val bundle = ops.sentGRE.single()
-            bundle.size shouldBe 1
-            bundle.single().hasGameStateMessage() shouldBe true
-            bundle.single().hasActionsAvailableReq() shouldBe false
+            assertSoftly {
+                ops.sendRealGameStateCount shouldBe 0
+                ops.sendGameOverCount shouldBe 0
+                ops.sentGRE.size shouldBe 1
+                bundle.size shouldBe 1
+                bundle.single().hasGameStateMessage() shouldBe true
+                bundle.single().hasActionsAvailableReq() shouldBe false
+            }
         }
     })

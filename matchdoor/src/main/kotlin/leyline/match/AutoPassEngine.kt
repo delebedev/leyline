@@ -74,6 +74,7 @@ class AutoPassEngine(
      * Auto-pass through phases where the player has no meaningful actions.
      * Detects combat phases and sends appropriate combat prompts.
      */
+    @Suppress("CyclomaticComplexMethod", "ReturnCount") // linear check-and-return pipeline; splitting obscures flow
     fun autoPassAndAdvance(bridge: GameBridge) {
         repeat(MAX_ITERATIONS) {
             val game = bridge.getGame() ?: return
@@ -108,7 +109,6 @@ class AutoPassEngine(
                     // provides the visual state update.
                     if (isAiTurn) {
                         log.debug("SEND_STATE downgraded: AI turn at {}, skipping action offer", phase)
-                        // fall through to action check / auto-pass
                     } else {
                         // Human turn: only send state if human has meaningful actions.
                         // SEND_STATE bypasses checkHumanActions, so without this guard
