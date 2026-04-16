@@ -60,6 +60,7 @@ Other dirs: `bin/`, `docs/`, `forge/` (engine submodule), `gradle/`, `just/`, `p
 
 ```bash
 just bootstrap    # fresh clone/worktree → submodules → forge install → build → seed DB
+just hooks-install # enable repo-tracked git hooks for this clone
 just build        # gradle: proto-sync + compile + jar
 just serve        # start server (restart after code changes — JVM holds old bytecode)
 ```
@@ -67,6 +68,8 @@ just serve        # start server (restart after code changes — JVM holds old b
 **End-to-end local client runs require a small amount of local setup.** See `docs/local-client-setup.md`.
 
 **Worktrees need `just bootstrap` before anything else** — they don't share submodule checkouts, but forge jars are cached globally (`~/.cache/leyline/forge-m2/`) so `mvn install` is skipped if another worktree already built the same forge commit.
+
+**Git hooks are repo-tracked.** `just bootstrap` installs them automatically; run `just hooks-install` manually if you cloned before the hook setup landed.
 
 ## Testing
 
