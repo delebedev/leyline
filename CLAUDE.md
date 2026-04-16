@@ -93,8 +93,10 @@ Kotest FunSpec (JUnit Platform). Details: `.claude/rules/leyline-tests.md`.
 
 ## Documentation
 
-- **Read selectively.** `docs/index.md` is the public entry point.
-- **Update docs in the same PR.** If your PR changes public behavior or setup, update the relevant public doc.
+- **Read selectively.** Run `just docs` to list all docs with summaries, or `just docs <filter>` to search. Read files whose `read_when` frontmatter matches your current task; `docs/index.md` has curated navigation.
+- **Update docs in the same PR.** If your PR changes public behavior, architecture, or setup, update the relevant doc in the same commit — never a follow-up.
+- **Principles:** `docs/principles-design.md` (code structure), `docs/principles-documentation.md` (how to document).
+- **Integrity before merge on doc-heavy PRs:** `just docs-lint` (verify cross-references) and `just docs-orphans` (find unlinked files).
 
 ## Puzzles
 
