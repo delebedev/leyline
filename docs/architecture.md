@@ -170,6 +170,8 @@ sequenceDiagram
 
 **Bridge classes live in `matchdoor/bridge/`.** `GameActionBridge` blocks the engine thread until a player responds. `InteractivePromptBridge` handles engine-initiated choices (targeting, sacrifice, scry). `MulliganBridge` handles keep/mulligan. All three use `CompletableFuture` with timeouts that return safe defaults.
 
+For the load-bearing invariants — ownership rules, snapshot timing, counter monotonicity, and the traps that have bitten us — see [`bridge-threading.md`](bridge-threading.md).
+
 ---
 
 ## 5. Match Lifecycle
