@@ -188,7 +188,7 @@ class GameBridgeTest :
             val game = b.getGame()!!
             game.phaseHandler.phase shouldBe PhaseType.MAIN1
 
-            val actions = ActionMapper.buildActions(game, 1, b)
+            val actions = ActionMapper.buildActions(1, b)
 
             val hasPass = actions.actionsList.any {
                 it.actionType == Messages.ActionType.Pass
@@ -418,7 +418,7 @@ class GameBridgeTest :
                 awaitFreshPending(b, pending.actionId)
             }
 
-            val actions = ActionMapper.buildActions(game, 1, b)
+            val actions = ActionMapper.buildActions(1, b)
             val castActions = actions.actionsList.filter {
                 it.actionType == Messages.ActionType.Cast
             }
@@ -441,7 +441,7 @@ class GameBridgeTest :
             advanceToMain1(b)
 
             val game = b.getGame()!!
-            val actions = ActionMapper.buildActions(game, 1, b)
+            val actions = ActionMapper.buildActions(1, b)
             val gs = StateMapper.buildFromGame(game, 1, "test-match", b, actions).gsm
 
             (gs.actionsCount > 0).shouldBeTrue()

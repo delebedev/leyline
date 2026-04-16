@@ -327,7 +327,7 @@ class DebugServer(
             .setGameStateMessage(fullGsm)
             .build()
 
-        val actions = ActionMapper.buildActions(game, session.seatId.value, bridge)
+        val actions = ActionMapper.buildActions(session.seatId.value, bridge)
         val greActions = GREToClientMessage.newBuilder()
             .setType(GREMessageType.ActionsAvailableReq_695e)
             .setMsgId(counter.nextMsgId())
@@ -443,7 +443,7 @@ class DebugServer(
             .setGameStateMessage(gsmWithDeletes)
             .build()
 
-        val actions = ActionMapper.buildActions(game, session.seatId.value, bridge)
+        val actions = ActionMapper.buildActions(session.seatId.value, bridge)
         val greActions = GREToClientMessage.newBuilder()
             .setType(GREMessageType.ActionsAvailableReq_695e)
             .setMsgId(counter.nextMsgId())

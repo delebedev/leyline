@@ -38,7 +38,7 @@ class AbilityGrpIdConformanceTest :
                 // AbilityRegistry is lazily built by GameBridge.abilityRegistryFor on first access
 
                 // Build actions for seat 1
-                val actions = ActionMapper.buildActions(game, 1, b)
+                val actions = ActionMapper.buildActions(1, b)
 
                 // Find all Activate_add3 actions for the planeswalker
                 val activateActions = actions.actionsList

@@ -134,7 +134,7 @@ class TreasureTokenTest :
             treasureObj.shouldNotBeNull()
 
             // --- Regression: buildActions must not crash, Treasure has ActivateMana ---
-            val actions = ActionMapper.buildActions(h.game(), 1, h.bridge)
+            val actions = ActionMapper.buildActions(1, h.bridge)
             val manaActions = actions.actionsList.filter { it.actionType == ActionType.ActivateMana }
             manaActions.size shouldBeGreaterThan 0
 

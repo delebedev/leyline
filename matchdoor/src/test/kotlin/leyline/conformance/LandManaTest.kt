@@ -158,7 +158,7 @@ class LandManaTest :
                 addCard("Grizzly Bears", human, ZoneType.Hand)
             }
 
-            val actions = ActionMapper.buildActions(game, 1, b)
+            val actions = ActionMapper.buildActions(1, b)
             val playActions = actions.ofType(ActionType.Play_add3)
             playActions.shouldHaveSize(2)
 
@@ -191,7 +191,7 @@ class LandManaTest :
             val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
             capture(b, game, counter) { moveToBattlefield(land, game) }
 
-            val manaActions = ActionMapper.buildActions(game, 1, b).ofType(ActionType.ActivateMana)
+            val manaActions = ActionMapper.buildActions(1, b).ofType(ActionType.ActivateMana)
             manaActions.shouldHaveSize(2)
 
             assertSoftly {
@@ -218,7 +218,7 @@ class LandManaTest :
             val land = player.getZone(ZoneType.Hand).cards.first { it.isLand }
             capture(b, game, counter) { moveToBattlefield(land, game) }
 
-            val cast = ActionMapper.buildActions(game, 1, b).ofType(ActionType.Cast)
+            val cast = ActionMapper.buildActions(1, b).ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
             val a = cast[0]
@@ -249,7 +249,7 @@ class LandManaTest :
                 addCard("Grizzly Bears", human, ZoneType.Hand)
             }
 
-            val cast = ActionMapper.buildActions(game, 1, b).ofType(ActionType.Cast)
+            val cast = ActionMapper.buildActions(1, b).ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
             val a = cast[0]
@@ -336,7 +336,7 @@ class LandManaTest :
                 addCard("Pacifism", human, ZoneType.Hand)
             }
 
-            val cast = ActionMapper.buildActions(game, 1, b).ofType(ActionType.Cast)
+            val cast = ActionMapper.buildActions(1, b).ofType(ActionType.Cast)
             cast.shouldHaveSize(1)
 
             val autoTap = cast[0].autoTapSolution

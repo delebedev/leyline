@@ -3,7 +3,5 @@
   <ManuallySuppressedIssues></ManuallySuppressedIssues>
   <CurrentIssues>
     <ID>UnsafeCallOnNullableType:DebugServer.kt$DebugServer$bridge.getGame()!!</ID>
-    <ID>UnusedParameter:LeylineMain.kt$a: Map&lt;String, String&gt;</ID>
-    <ID>UnusedParameter:LeylineServer.kt$LeylineServer$name: String</ID>
   </CurrentIssues>
 </SmellBaseline>

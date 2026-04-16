@@ -15,7 +15,7 @@ object Tap {
 
     // --- Inbound (client → server) ---
 
-    fun inbound(type: ClientToMatchServiceMessageType, requestId: Int) {
+    fun inbound(type: ClientToMatchServiceMessageType) {
         if (!log.isDebugEnabled) return
         // UI messages are high-frequency noise — logged at TRACE in inboundGRE() instead
         if (type == ClientToMatchServiceMessageType.ClientToGreuimessage) return

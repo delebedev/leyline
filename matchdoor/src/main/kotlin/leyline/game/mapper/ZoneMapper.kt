@@ -34,7 +34,6 @@ object ZoneMapper {
      */
     @Suppress("detekt:LongParameterList")
     internal fun addPlayerZones(
-        game: Game,
         player: Player?,
         seatId: Int,
         bridge: GameBridge,
@@ -106,7 +105,6 @@ object ZoneMapper {
 
     /** Hand + library only (no graveyard) — used for deal-hand at mulligan time. */
     internal fun addHandAndLibrary(
-        game: Game,
         player: Player?,
         seatId: Int,
         bridge: GameBridge,
@@ -161,7 +159,6 @@ object ZoneMapper {
         zones: MutableList<ZoneInfo>,
         gameObjects: MutableList<GameObjectInfo>,
         human: Player?,
-        ai: Player?,
         keywordSnapshot: Map<Int, List<EffectTracker.KeywordEntry>> = emptyMap(),
     ) {
         // Find the zone builder we already added

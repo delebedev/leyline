@@ -198,7 +198,7 @@ class TargetingHandler(private val ops: SessionOps) {
             // When auto-resolve is active and the player has no meaningful responses
             // (only Pass), skip the prompt — let autoPassAndAdvance() handle stack
             // resolution transparently, matching client behavior (#92).
-            if (clientAutoResolve && BundleBuilder.shouldAutoPass(ops.bundleBuilder!!.buildActions(g))) {
+            if (clientAutoResolve && BundleBuilder.shouldAutoPass(ops.bundleBuilder!!.buildActions())) {
                 return false
             }
             ops.sendRealGameState(bridge)

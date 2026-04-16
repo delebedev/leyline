@@ -25,7 +25,7 @@ fun main(args: Array<String>) {
     val config = loadConfig(a)
     val sc = config.server
     val tls = resolveTls(a)
-    val cardRepo = openCardRepo(a)
+    val cardRepo = openCardRepo()
     val fdPort = a["--fd-port"]?.toIntOrNull() ?: sc.fdPort
     val mdPort = a["--md-port"]?.toIntOrNull() ?: sc.mdPort
     val fdHost = a["--fd-host"]
@@ -80,7 +80,7 @@ private fun resolveTls(a: Map<String, String>): Pair<File?, File?> {
     return if (cert != null && key != null) cert to key else null to null
 }
 
-private fun openCardRepo(a: Map<String, String>): ExposedCardRepository {
+private fun openCardRepo(): ExposedCardRepository {
     val cardDbPath = System.getenv("LEYLINE_CARD_DB")
         ?: detectArenaCardDb()
     requireNotNull(cardDbPath) {

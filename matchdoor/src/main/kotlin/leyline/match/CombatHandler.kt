@@ -329,7 +329,7 @@ open class CombatHandler(private val ops: SessionOps) {
                     if (combat != null && combat.attackers.isNotEmpty()) {
                         return Signal.CONTINUE
                     }
-                    val req = ops.bundleBuilder!!.buildDeclareAttackersReq(game)
+                    val req = ops.bundleBuilder!!.buildDeclareAttackersReq()
                     if (req.attackersCount > 0) {
                         ops.traceEvent(MatchEventType.COMBAT_PROMPT, game, "DeclareAttackers attackers=${req.attackersCount}")
                         sendDeclareAttackersReq(bridge, req)

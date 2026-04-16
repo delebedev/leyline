@@ -108,7 +108,7 @@ class AutoPassEngine(
                         // SEND_STATE bypasses checkHumanActions, so without this guard
                         // the client can get stuck showing "My Turn" with only Pass.
                         val bb = ops.bundleBuilder!!
-                        val actions = bb.buildActions(game)
+                        val actions = bb.buildActions()
                         if (!BundleBuilder.shouldAutoPass(actions)) {
                             ops.sendRealGameState(bridge)
                             return
@@ -197,7 +197,7 @@ class AutoPassEngine(
         if (isAiTurn) {
             return PriorityDecision.Skip(AutoPassReason.OnlyPassActions)
         }
-        val actions = ops.bundleBuilder!!.buildActions(game)
+        val actions = ops.bundleBuilder!!.buildActions()
 
         // Full control: always grant priority (never auto-pass on session side)
         if (autoPassState.isFullControl) {

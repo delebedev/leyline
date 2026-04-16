@@ -128,9 +128,23 @@ powerAssert {
 detekt {
     buildUponDefaultConfig = true
     config.setFrom(files("gradle/detekt.yml"))
+    // The `baseline` property is the stem used by TR task baselines:
+    // `detektMain` reads `gradle/detekt-baseline-main.xml` and `detektTest`
+    // reads `-test.xml`. The non-TR `detekt` task would read the stem itself,
+    // but that task is disabled below (redirected to the TR variants).
     baseline = file("gradle/detekt-baseline.xml")
     parallel = true
     source.setFrom(files("app/main/kotlin", "app/test/kotlin"))
+}
+
+// `./gradlew detekt` alone runs the non-TR task, which doesn't use the
+// per-source-set baselines and produces misleading output. Redirect it to the
+// TR variants so `just lint` and `./gradlew detekt` do the same thing.
+allprojects {
+    tasks.matching { it.name == "detekt" }.configureEach {
+        dependsOn("detektMain", "detektTest")
+        enabled = false
+    }
 }
 
 // --- JaCoCo ---

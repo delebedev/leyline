@@ -93,7 +93,7 @@ class MatchHandler(
     }
 
     override fun channelRead0(ctx: ChannelHandlerContext, msg: ClientToMatchServiceMessage) {
-        Tap.inbound(msg.clientToMatchServiceMessageType, msg.requestId)
+        Tap.inbound(msg.clientToMatchServiceMessageType)
 
         when (msg.clientToMatchServiceMessageType) {
             ClientToMatchServiceMessageType.AuthenticateRequest_f487 -> handleMatchAuth(ctx, msg)

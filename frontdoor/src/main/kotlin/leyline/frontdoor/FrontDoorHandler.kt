@@ -355,7 +355,7 @@ class FrontDoorHandler(
                             eventName,
                         )
                     } else {
-                        matchmaking.startMatch(playerId, DeckId(deckId.orEmpty()), "")
+                        matchmaking.startMatch(DeckId(deckId.orEmpty()), "")
                     }
                     sendMatchCreated(ctx, match)
                 } catch (e: IllegalArgumentException) {

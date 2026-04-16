@@ -25,6 +25,5 @@
     <ID>FunctionOnlyReturningConstant:LobbyStubs.kt$LobbyStubs$fun telemetryAck()</ID>
     <ID>LongMethod:FrontDoorHandler.kt$FrontDoorHandler$private fun dispatch(ctx: ChannelHandlerContext, cmdType: Int?, txId: String?, json: String?)</ID>
     <ID>MaxLineLength:LobbyStubs.kt$LobbyStubs$fun rankInfo()</ID>
-    <ID>UnusedParameter:MatchmakingService.kt$MatchmakingService$playerId: PlayerId</ID>
   </CurrentIssues>
 </SmellBaseline>
