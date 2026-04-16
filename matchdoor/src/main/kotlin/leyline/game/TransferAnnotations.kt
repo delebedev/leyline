@@ -141,6 +141,13 @@ object TransferAnnotations {
      * Note: the tap-for-mana prelude runs first for every payment, then the ZT pair,
      * then the mana-consumed postlude per payment — the OIC+ZT is sandwiched between
      * the two halves (vs the CastSpell path, where OIC+ZT comes before the whole block).
+     *
+     * **Assumption:** the sacrificed object IS the mana source — we pass `origId` as
+     * both the tap target and ManaPaid's `landInstanceId`, ignoring `mp.landInstanceId`.
+     * Holds for Treasure / Clue / Blood tokens (self-sacrificing mana sources). Breaks
+     * for effects where a non-source permanent is sacrificed as a cost and a *different*
+     * permanent produces mana (e.g. Phyrexian Tower). No such call site exists today; if
+     * one appears, use `InstanceId(mp.landInstanceId)` here.
      */
     private fun emitManaSacrificeBracket(
         annotations: MutableList<AnnotationInfo>,
