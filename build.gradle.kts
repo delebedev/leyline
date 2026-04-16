@@ -16,12 +16,21 @@ group = "leyline"
 version = "0.1.0-SNAPSHOT"
 
 subprojects {
+    // Skip the implicit `:tools` container project — it holds no code.
+    if (path == ":tools") return@subprojects
     apply(plugin = "io.gitlab.arturbosch.detekt")
+    repositories { mavenCentral() }
     configure<io.gitlab.arturbosch.detekt.extensions.DetektExtension> {
         buildUponDefaultConfig = true
         config.setFrom(rootProject.files("gradle/detekt.yml"))
         baseline = file("detekt-baseline.xml")
         parallel = true
+    }
+    // Wire custom rules into every subproject except the rule module itself.
+    if (path != ":tools:detekt-rules") {
+        dependencies {
+            "detektPlugins"(project(":tools:detekt-rules"))
+        }
     }
 }
 

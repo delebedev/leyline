@@ -2,6 +2,8 @@
 <SmellBaseline>
   <ManuallySuppressedIssues></ManuallySuppressedIssues>
   <CurrentIssues>
+    <ID>BooleanAssertion:AccountStoreTest.kt$AccountStoreTest$store.isEmpty().shouldBeFalse()</ID>
+    <ID>BooleanAssertion:AccountStoreTest.kt$AccountStoreTest$store.isEmpty().shouldBeTrue()</ID>
     <ID>MatchingDeclarationName:ErrorResponse.kt$AccountError</ID>
   </CurrentIssues>
 </SmellBaseline>
