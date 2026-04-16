@@ -4,12 +4,12 @@
 # single test class (e.g. `just test-one ShouldStopEvaluatorTest`)
 [group('test')]
 test-one class:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:test :frontdoor:test :account:test test -Pkotest.filter.specs=".*{{class}}"
+    cd "{{project_dir}}" && ./gradlew :matchdoor:test :frontdoor:test :account:test -Pkotest.filter.specs=".*{{class}}"
 
 # single test class with stdout/stderr visible (e.g. `just test-debug BiteDownTest`)
 [group('test')]
 test-debug class:
-    cd "{{project_dir}}" && ./gradlew :matchdoor:test :frontdoor:test :account:test test -Pkotest.filter.specs=".*{{class}}" -Pverbose
+    cd "{{project_dir}}" && ./gradlew :matchdoor:test :frontdoor:test :account:test -Pkotest.filter.specs=".*{{class}}" -Pverbose
 
 # pre-commit gate: unit + conformance + fmt check + coverage (all modules)
 [group('test')]
